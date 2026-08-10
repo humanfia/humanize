@@ -211,15 +211,26 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "dateparser" },
-    { name = "deepseek-harness-sdk" },
     { name = "psutil" },
     { name = "pydantic" },
     { name = "pyfiglet" },
-    { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "sentry-sdk" },
     { name = "textual" },
+]
+
+[package.optional-dependencies]
+all = [
+    { name = "deepseek-harness-sdk" },
+    { name = "python-dotenv" },
+    { name = "websockets" },
+]
+dsh = [
+    { name = "deepseek-harness-sdk" },
+    { name = "python-dotenv" },
+]
+kimi = [
     { name = "websockets" },
 ]
 
@@ -234,22 +245,25 @@ dev = [
     { name = "pytest-xdist" },
     { name = "python-dotenv" },
     { name = "ruff" },
+    { name = "websockets" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "dateparser", specifier = ">=1.4.2" },
-    { name = "deepseek-harness-sdk", specifier = ">=0.1.1rc1,<0.2" },
+    { name = "deepseek-harness-sdk", marker = "extra == 'dsh'", specifier = ">=0.1.1rc1,<0.2" },
+    { name = "hmz", extras = ["dsh", "kimi"], marker = "extra == 'all'" },
     { name = "psutil", specifier = ">=7.2.2" },
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "pyfiglet", specifier = ">=1.0" },
-    { name = "python-dotenv", specifier = ">=1.2.3" },
+    { name = "python-dotenv", marker = "extra == 'dsh'", specifier = ">=1.2.3" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "rich", specifier = ">=15" },
     { name = "sentry-sdk", specifier = ">=2.68.1" },
     { name = "textual", specifier = ">=8.2.8" },
-    { name = "websockets", specifier = ">=15,<18" },
+    { name = "websockets", marker = "extra == 'kimi'", specifier = ">=15,<18" },
 ]
+provides-extras = ["dsh", "kimi", "all"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -262,6 +276,7 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3.8.0" },
     { name = "python-dotenv", specifier = ">=1.2.3" },
     { name = "ruff", specifier = ">=0.16.5" },
+    { name = "websockets", specifier = ">=15,<18" },
 ]
 
 [[package]]

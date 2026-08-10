@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import collections
 import contextlib
+import importlib
 import json
 import os
 import re
@@ -30,9 +31,6 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
-from websockets.exceptions import WebSocketException
-from websockets.sync.client import ClientConnection, connect
-
 from .base import AgentBase, SessionBase
 from .config import AgentConfig
 from .event import Event, Failed, Question, Usage, say
@@ -40,9 +38,21 @@ from .preload import preloaded
 from .watchdog import Watchdog
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping
+    from collections.abc import Callable, Iterator, Mapping
+    from types import ModuleType
 
     from pydantic import BaseModel
+    from websockets.sync.client import ClientConnection
+
+#: What to say when the websocket client a session is told about its own turn over is not
+#: in this Python environment. Kimi Code is an extra rather than part of every install, so
+#: this is a choice somebody made rather than an install gone wrong, and the way back is
+#: named where it is missed.
+_EXTRA = (
+    "Kimi Code needs the websocket client its app server's notifications ride on, which is "
+    "the [kimi] extra and is not installed in this Python environment: uv sync --extra kimi "
+    "from a checkout, or pip install 'websockets>=15,<18'"
+)
 
 #: The one line `kimi web` prints once it is listening, and the only place the port it took --
 #: asked for as 0, so that two flows on one machine cannot collide -- and its token are said.
@@ -105,6 +115,22 @@ _MEANS = {
 }
 
 
+def _websockets(name: str) -> ModuleType:
+    """Loads part of the websocket client only when a kimi session needs one."""
+    try:
+        return importlib.import_module(name)
+    except ModuleNotFoundError as why:
+        if why.name != "websockets":
+            raise
+        raise ModuleNotFoundError(_EXTRA) from why
+
+
+def _failure() -> type[Exception]:
+    """What the websocket client raises, which every read of one here is caught by."""
+    module = _websockets("websockets.exceptions")
+    return cast("type[Exception]", vars(module)["WebSocketException"])
+
+
 def _update(socket: ClientConnection, deadline: float) -> dict[str, Any]:
     """Read one bounded event frame, refusing malformed or stalled event streams."""
     remaining = deadline - time.monotonic()
@@ -128,6 +154,14 @@ class _Updates:
     """
 
     def __init__(self, base: str, token: str, session: str) -> None:
+        # Loaded here rather than where this module is read, so that an install without
+        # the `kimi` extra still holds every other backend. Before the try below, because
+        # what the client raises is half of what that try catches.
+        connect = cast(
+            "Callable[..., ClientConnection]",
+            vars(_websockets("websockets.sync.client"))["connect"],
+        )
+        self._failed = _failure()
         self._session = session
         self._socket: ClientConnection | None = None
         self._contexts = contextlib.ExitStack()
@@ -168,7 +202,7 @@ class _Updates:
                     if message.get("code") != 0:
                         self.close()
                     break
-        except (OSError, WebSocketException, ValueError, TypeError):
+        except (OSError, self._failed, ValueError, TypeError):
             self.close()
 
     def wait(self, *, settled: bool) -> None:
@@ -250,7 +284,7 @@ class _Updates:
             if not told:
                 self.questioned = True
             return  # Event delivery is never the only way to finish.
-        except (OSError, WebSocketException, ValueError, TypeError):
+        except (OSError, self._failed, ValueError, TypeError):
             self.close()
 
     def close(self) -> None:
@@ -260,7 +294,7 @@ class _Updates:
         self.questioned = True
         if self._socket is not None:
             self._socket = None
-            with contextlib.suppress(OSError, WebSocketException):
+            with contextlib.suppress(OSError, self._failed):
                 self._contexts.close()
 
 

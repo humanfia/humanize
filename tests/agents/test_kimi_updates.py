@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import importlib
 import json
+import subprocess
+import sys
+import textwrap
 import threading
 from contextlib import contextmanager, suppress
 from typing import TYPE_CHECKING
@@ -15,6 +19,7 @@ from hmz.coganchor.agents import kimi
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
+    from types import ModuleType
 
     from websockets.sync.server import ServerConnection
 
@@ -432,3 +437,57 @@ def test_a_listener_that_stops_carrying_events_asks_for_everything(
             assert updates.questioned
         finally:
             updates.close()
+
+
+def test_a_missing_websocket_client_says_which_extra_carries_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Kimi Code is an extra, so the line that adds it is what a session without it says."""
+    real_import = importlib.import_module
+
+    def missing(name: str) -> ModuleType:
+        if name.partition(".")[0] == "websockets":
+            raise ModuleNotFoundError(name="websockets")
+        return real_import(name)
+
+    monkeypatch.setattr(importlib, "import_module", missing)
+
+    with pytest.raises(ModuleNotFoundError, match=r"\[kimi\] extra"):
+        kimi._Updates("http://127.0.0.1:1/api/v1", "test-token", "ours")
+
+
+def test_the_backends_load_without_the_websocket_client() -> None:
+    """An install without the `kimi` extra still holds every backend, kimi's class included.
+
+    Read in a Python of its own, because the only way to have none of a package is to have
+    started without it: this suite drives a real server at the reader above, so websockets
+    is here, and an import that moved back to module scope would pass unnoticed otherwise.
+    """
+    without = textwrap.dedent(
+        """
+        import sys
+
+        class Absent:
+            def find_spec(self, name, path=None, target=None):
+                if name.partition(".")[0] == "websockets":
+                    raise ModuleNotFoundError(name="websockets")
+                return None
+
+        sys.meta_path.insert(0, Absent())
+        from hmz.coganchor.agents import KimiCodeCLIAgent
+
+        assert "websockets" not in sys.modules
+        print(KimiCodeCLIAgent.__name__)
+        """
+    )
+
+    ran = subprocess.run(
+        [sys.executable, "-c", without],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+
+    assert ran.returncode == 0, ran.stderr
+    assert ran.stdout.strip() == "KimiCodeCLIAgent"

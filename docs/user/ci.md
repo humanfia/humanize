@@ -152,6 +152,9 @@ jobs:
       - name: Install the coding agent CLI
         run: npm install -g @anthropic-ai/claude-code
 
+      # A backend behind an extra wants it named here -- `uv pip install --system
+      # 'hmz[all] @ git+https://github.com/humanfia/humanize.git'` for DeepSeek Harness or
+      # Kimi Code. `claude` is a CLI and wants neither.
       - name: Install humanize
         run: uv pip install --system git+https://github.com/humanfia/humanize.git
 

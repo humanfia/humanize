@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import importlib
 import subprocess
+import sys
 from collections import deque
 from dataclasses import dataclass, replace
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
 
 import pytest
@@ -394,7 +396,19 @@ def test_two_sessions_get_two_ids() -> None:
     assert agent.opened == [first.id, second.id]
 
 
-def test_a_failed_turn_is_common_failure_and_does_not_open_the_session() -> None:
+def test_a_failed_turn_is_common_failure_and_does_not_open_the_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Which failures took the runtime with them is read off the SDK's own error module, and
+    # the SDK is the `[dsh]` extra: faked here, as the harness above it already is, so that
+    # what this asserts is asserted whether or not the extra is installed.
+    monkeypatch.setitem(
+        sys.modules,
+        "deepseek_harness.errors",
+        SimpleNamespace(
+            TransportClosedError=type("TransportClosedError", (Exception,), {})
+        ),
+    )
     Harness.next_scripts.append(
         [
             assistant("partial"),
@@ -864,13 +878,10 @@ def test_the_runtime_composition_uses_only_plugins_bundled_with_the_sdk() -> Non
     assert "@deepseek-ai/dsh-credentials-local" not in configured_plugins
 
 
-def test_a_missing_sdk_says_the_install_is_broken(
+def test_a_missing_sdk_says_which_extra_carries_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A broken install rather than a choice made when humanize was installed.
-
-    It is an ordinary dependency now, so there is no extra to have been left out of.
-    """
+    """A choice made at install time, so the line that reverses it is what is said."""
     real_import = importlib.import_module
 
     def missing(name: str) -> object:
@@ -881,5 +892,5 @@ def test_a_missing_sdk_says_the_install_is_broken(
     monkeypatch.setattr(dsh, "_harness_type", _REAL_HARNESS_TYPE)
     monkeypatch.setattr(importlib, "import_module", missing)
 
-    with pytest.raises(ModuleNotFoundError, match=r"humanize depends"):
+    with pytest.raises(ModuleNotFoundError, match=r"\[dsh\] extra"):
         DshAgent(configured())("work")

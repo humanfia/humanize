@@ -23,7 +23,7 @@ def test_dsh_is_installed_when_its_python_sdk_is_importable(
     def found_module(name: str) -> importlib.machinery.ModuleSpec | None:
         return (
             importlib.machinery.ModuleSpec(name, loader=None)
-            if name == "deepseek_harness"
+            if name in ("deepseek_harness", "dotenv")
             else None
         )
 
@@ -65,6 +65,28 @@ def test_a_missing_dsh_sdk_is_installable_but_not_installed(
         "deepseek-v4-flash",
         "deepseek-v4-pro",
     ]
+    # And nothing else: kimi is behind an extra too, but its CLI is not here either, so what
+    # it is missing is not a package and a line naming one would be half an answer.
+    assert list(discover.installable()) == ["dsh"]
+
+
+def test_kimi_without_its_websocket_client_is_installable_rather_than_hidden(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The CLI is here and the package it is driven over is not, which is a line to run."""
+
+    def only_kimi(name: str) -> str | None:
+        return "/usr/bin/kimi" if name == "kimi" else None
+
+    def missing_module(_name: str) -> None:
+        return None
+
+    monkeypatch.setattr(shutil, "which", only_kimi)
+    monkeypatch.setattr(backends, "_INSTALLED_AT", ())
+    monkeypatch.setattr(importlib.util, "find_spec", missing_module)
+
+    assert discover.installed() == {}
+    assert "kimi" in discover.installable()
 
 
 def test_a_backend_somebody_added_is_installed_if_the_command_they_gave_is_there(

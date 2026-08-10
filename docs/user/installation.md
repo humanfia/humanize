@@ -5,7 +5,7 @@
 | | |
 | --- | --- |
 | **Python 3.12 or newer** | 3.12, 3.13 and 3.14 are the ones CI runs the tests on, on Linux and macOS. |
-| **At least one supported backend** | `agy`, `claude`, `codex`, `cursor-agent`, `grok`, `kimi`, `mimo`, `opencode`, `pi`, `qwen` or `zcode` on your `PATH` — or nothing at all, since DeepSeek Harness arrives with humanize and needs only a DeepSeek API key. |
+| **At least one supported backend** | `agy`, `claude`, `codex`, `cursor-agent`, `grok`, `kimi`, `mimo`, `opencode`, `pi`, `qwen` or `zcode` on your `PATH` — or nothing on it at all, if you take the [`[dsh]` extra](#the-two-backends-that-are-extras) instead: DeepSeek Harness is a Python package, and wants only a DeepSeek API key. |
 | **A project you are willing to have rewritten** | Read [Security](/user/security) first. |
 
 Nothing else, and no tutorial needs more. Two features do: [a container of the agent's
@@ -56,11 +56,41 @@ opens](/demo/cli.gif)
 From a checkout with `uv sync`, the command lives in that checkout's environment. Run `uv run
 hmz`, or activate `.venv` first.
 
-### DeepSeek Harness
+### The two backends that are extras
 
-Nothing to add: its SDK and the runtime its turns are taken on are ordinary dependencies, so
-any install that has humanize has them. It still needs an API key — see [Signing each backend
-in](#signing-each-backend-in).
+Every backend but two is a CLI you install yourself, and humanize carries nothing for it. These
+two also want a package in humanize's own environment, so each is an extra and an install that
+drives neither carries neither:
+
+| | |
+| --- | --- |
+| `[dsh]` | DeepSeek Harness' Python SDK and the runtime its turns are taken on. There is no CLI to install; it still needs an API key — see [Signing each backend in](#signing-each-backend-in). |
+| `[kimi]` | The websocket client Kimi Code's app server is read over. The `kimi` CLI is still yours to install. |
+| `[all]` | Both of them. |
+
+::: code-group
+
+```sh [pip]
+pip install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'
+```
+
+```sh [pipx]
+pipx install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'
+```
+
+```sh [uv tool]
+uv tool install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'
+```
+
+```sh [from a checkout]
+uv sync --all-extras
+```
+
+:::
+
+Neither has to be decided now. A backend whose extra is missing stays in the agent picker with
+the line that adds it written on its row, and that line installs the package into whichever
+environment humanize is running in — so adding one later is not reinstalling humanize.
 
 ## Check what you have
 
@@ -76,15 +106,17 @@ installer would have put one — `~/.local/bin`, `/usr/local/bin`, `/opt/homebre
 started `hmz` handed it a `PATH` of its own, as a notebook kernel, a service or a runtime
 platform's launcher does.
 
-DeepSeek Harness stays in the list of CLIs an agent may be set to when its SDK is missing, so
-that it can show the installation command. It becomes selectable when this import succeeds:
+The two backends behind extras stay in the list of CLIs an agent may be set to when their extra
+is missing, so that each can show the line that adds it — DeepSeek Harness always, Kimi Code
+once its CLI is here. Each becomes selectable when its import succeeds:
 
 ```sh
-python -c 'import deepseek_harness; print("dsh installed")'
+python -c 'import deepseek_harness; print("[dsh] installed")'
+python -c 'import websockets; print("[kimi] installed")'
 ```
 
-If none of the CLI backends or the SDK is installed, `hmz` says `no coding agent is installed
-here` and does nothing else — see
+If none of the CLI backends and neither extra is installed, `hmz` says `no coding agent is
+installed here` and does nothing else — see
 [Troubleshooting](/user/troubleshooting#no-coding-agent-is-installed-here).
 
 ## Signing each backend in
@@ -102,11 +134,11 @@ Each CLI logs in its own way. humanize never sees the credential:
 | ZCode | `zcode login` |
 | DeepSeek Harness | a DeepSeek API key saved by dsh, stored from an agent's `provider` row, or supplied as `DEEPSEEK_API_KEY` |
 
-DeepSeek Harness is a developer preview and **arrives with humanize**:
-`deepseek-harness-sdk>=0.1.0rc6,<0.2` and its bundled runtime are ordinary dependencies rather
-than an extra, because a backend humanize drives is not a thing an install should be able to
-have half of. The runtime wheels are published for Linux on x86-64 or arm64 and macOS on arm64.
-The `dsh` CLI is not required.
+DeepSeek Harness is a developer preview and comes as the **`[dsh]` extra**:
+`deepseek-harness-sdk>=0.1.1rc1,<0.2` and its bundled runtime, whose wheels are published for
+Linux on x86-64 or arm64 and macOS on arm64 and nowhere else — an ordinary dependency would be
+a machine humanize could not be installed on at all, for the sake of a backend nobody there
+runs. The `dsh` CLI is not required.
 
 It supports API-key login only, and there are two places to keep that key. For dsh's own
 credential store, run `dsh web`, open **Settings -> Models**, enter the DeepSeek key and save
