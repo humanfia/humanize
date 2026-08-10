@@ -430,6 +430,7 @@ class Agents(NamedTuple):
 | `fork` | one conversation carried into a second going its own way |
 | `counts:<kind>` | the backend says what a turn spent on that kind of token — `input`, `output`, `cache_read`, `cache_write`, `reasoning` — so a loop bounded by one is not bounded by a nought |
 | `search` / `swarm` / `resume` | facts about the CLI itself, out of its own profile |
+| `title` / `native-search` / `delivery` | what a backend is told that it did not ask for, and the place can ask whether it is tellable at all — [ZCode's three](/reference/agents#what-zcode-is-told-that-zcode-did-not-ask-for), each with a field on its config |
 | `moment:<name>` | a moment only some backends reach, written out rather than as the enum |
 
 Read off the driver class and off what is written down about the CLI, so nothing has to have

@@ -308,9 +308,30 @@ whether [goals](/weaver/goals) are available to it,
 [skills it carries](#the-skills-an-agent-carries) are not among them, being its CLI's own and
 its flow's. Codex also takes `overrides`, the app-server `-c` keys that are not already one
 of those fields. Claude takes `allowed_tools`, exact native `--allowedTools` rules for a
-bounded unattended flow. It is frozen,
+bounded unattended flow. ZCode takes `titles`, `native_search` and `delivery` —
+[the three answers its app server gets](#what-zcode-is-told-that-zcode-did-not-ask-for) that
+are humanize's rather than its own. It is frozen,
 because a session resumes under the settings it opened with — a config that changed mid-flow
 would silently split one conversation across two models.
+
+### What ZCode is told that ZCode did not ask for
+
+Every turn of this backend is a session on `zcode app-server --stdio`, and three things that
+session runs under are decisions humanize made for you. Each is a field, so the other answer
+is sayable, and each has a name a place can declare so a flow asks before its first turn:
+
+| Field | Default | Capability | What it decides |
+| --- | --- | --- | --- |
+| `titles` | `False` | `title` | whether `session/create` asks ZCode to name the session. A title is a model turn of its own on the lite model and nothing here reads one — a session is named by the flow that opened it. Turn it on for a run whose conversations are picked back up in ZCode's own interface. |
+| `native_search` | `True` | `native-search` | what the runtime is told about ZCode's own file search, which the server asks its client before it will open a session at all. Off takes `find` and `grep` away from an agent inside its workspace. It is the agent's rather than the session's: the server asks once. |
+| `delivery` | `desktop-continuous` | `delivery` | which delivery kind a session's stream is subscribed under. This one arrives as it happens and misses nothing; the other replays for a web client that may have missed some. |
+
+**None of these three defaults is ZCode's own default.** ZCode has no officially installable
+CLI, so there is nothing here to ask what its server does for a client that leaves the field
+out — and a default written down out of a guess would be a fact that lies. What each is, is
+what a turn here has always been run with. If you have a real ZCode to put the question to,
+these three are what to check. For the same reason the other delivery kind's own spelling is
+not written down anywhere: `delivery` takes whatever word the server being driven answers to.
 
 ### An agent that is not quite the one you were handed
 
