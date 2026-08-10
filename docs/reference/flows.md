@@ -429,6 +429,9 @@ class Agents(NamedTuple):
 | `tools` | the flow's own callbacks put in front of the agent, `session.offers([...])` |
 | `fork` | one conversation carried into a second going its own way |
 | `counts:<kind>` | the backend says what a turn spent on that kind of token — `input`, `output`, `cache_read`, `cache_write`, `reasoning` — so a loop bounded by one is not bounded by a nought |
+| `tier:fast` | the provider can be asked to serve this agent's turns faster at the same model and effort, `AgentConfig(service_tier="fast")` |
+| `features` | one of the backend's own feature flags switched on or off by name, for this agent's process alone |
+| `strict-settings` | the backend can be asked to refuse a setting it does not recognise rather than pass over it |
 | `search` / `swarm` / `resume` | facts about the CLI itself, out of its own profile |
 | `moment:<name>` | a moment only some backends reach, written out rather than as the enum |
 

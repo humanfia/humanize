@@ -575,6 +575,41 @@ def _named(argv: list[str]) -> list[str]:
     return [Path(argv[0]).name, *argv[1:]]
 
 
+def _recording(started: list[list[str]]) -> type:
+    """A stand-in app server that writes down the command it was started with.
+
+    Args:
+      started: Where each command is appended, oldest first.
+
+    Returns:
+      A class the agent's `_AppServer` can be replaced with, which starts nothing: what is
+      being read is the arguments, and a real one would want an account to run as.
+    """
+
+    class _Recording:
+        def __init__(
+            self, argv: list[str], env: Mapping[str, str] | None = None
+        ) -> None:
+            del env
+            started.append(argv)
+            self._held: list[Any] = []
+
+        def take(self) -> bool:
+            """Nothing runs on it, so it is always free for the turn that asked."""
+            return True
+
+        def share(self) -> None:
+            """Nothing runs on it, so there is nothing to run beside."""
+
+        def give(self) -> None:
+            """Nothing took it, so there is nothing to hand back."""
+
+        def stop(self) -> None:
+            """Nothing was started, so there is nothing to take down."""
+
+    return _Recording
+
+
 def _bodies(server: _FakeServer, path: str) -> list[dict[str, Any]]:
     """What was sent to each call on one of the daemon's paths, oldest first.
 
@@ -1274,28 +1309,7 @@ def test_codex_can_disable_goals_before_its_server_starts(
     """The per-agent policy also removes Codex's goal feature from its app server."""
     started: list[list[str]] = []
 
-    class _Recording:
-        def __init__(
-            self, argv: list[str], env: Mapping[str, str] | None = None
-        ) -> None:
-            del env
-            started.append(argv)
-            self._held: list[Any] = []
-
-        def take(self) -> bool:
-            """Nothing runs on it, so it is always free for the turn that asked."""
-            return True
-
-        def share(self) -> None:
-            """Nothing runs on it, so there is nothing to run beside."""
-
-        def give(self) -> None:
-            """Nothing took it, so there is nothing to hand back."""
-
-        def stop(self) -> None:
-            """Nothing was started, so there is nothing to take down."""
-
-    monkeypatch.setattr(appservers, "_AppServer", _Recording)
+    monkeypatch.setattr(appservers, "_AppServer", _recording(started))
     agent = CodexAgent(CodexAgentConfig(model="gpt-5.6-sol", effort="high"))
     agent.disable_goals()
 
@@ -1324,28 +1338,7 @@ def test_codex_passes_allowlisted_overrides_to_its_app_server(
     """A window asked for on this agent is this server's `-c`, not the user's config.toml."""
     started: list[list[str]] = []
 
-    class _Recording:
-        def __init__(
-            self, argv: list[str], env: Mapping[str, str] | None = None
-        ) -> None:
-            del env
-            started.append(argv)
-            self._held: list[Any] = []
-
-        def take(self) -> bool:
-            """Nothing runs on it, so it is always free for the turn that asked."""
-            return True
-
-        def share(self) -> None:
-            """Nothing runs on it, so there is nothing to run beside."""
-
-        def give(self) -> None:
-            """Nothing took it, so there is nothing to hand back."""
-
-        def stop(self) -> None:
-            """Nothing was started, so there is nothing to take down."""
-
-    monkeypatch.setattr(appservers, "_AppServer", _Recording)
+    monkeypatch.setattr(appservers, "_AppServer", _recording(started))
     agent = CodexAgent(
         CodexAgentConfig(
             model="gpt-5.6-sol",
@@ -1398,32 +1391,109 @@ def test_codex_refuses_an_override_that_is_already_a_setting_of_the_agent() -> N
         )
 
 
+def test_codex_starts_the_command_line_codex_would_have_started_for_itself(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Nothing this driver writes is a setting the flow did not ask for.
+
+    `-c tools.web_search=` is the exception on purpose: Codex searches nothing until it is
+    asked to, so `web_search` -- which is on for every backend -- has to be said here for it
+    to mean the same thing everywhere. Everything else is absent unless a field says otherwise.
+    """
+    started: list[list[str]] = []
+
+    monkeypatch.setattr(appservers, "_AppServer", _recording(started))
+    agent = CodexAgent(CodexAgentConfig(model="gpt-5.6-sol", effort="high"))
+
+    assert agent.server is not None
+    assert [_named(argv) for argv in started] == [
+        ["codex", "app-server", "-c", "tools.web_search=true", "--stdio"]
+    ]
+
+
+def test_codex_takes_its_own_features_by_name_for_this_agent_alone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`--enable` and `--disable` are what `codex features list` names, per server."""
+    started: list[list[str]] = []
+
+    monkeypatch.setattr(appservers, "_AppServer", _recording(started))
+    agent = CodexAgent(
+        CodexAgentConfig(
+            model="gpt-5.6-sol",
+            effort="high",
+            features=(("multi_agent_v2", True), ("memories", False)),
+            strict_config=True,
+        )
+    )
+
+    assert agent.server is not None
+    assert [_named(argv) for argv in started] == [
+        [
+            "codex",
+            "app-server",
+            "--strict-config",
+            "--enable",
+            "multi_agent_v2",
+            "--disable",
+            "memories",
+            "-c",
+            "tools.web_search=true",
+            "--stdio",
+        ]
+    ]
+
+
+def test_codex_refuses_a_feature_that_is_already_a_setting_of_the_agent() -> None:
+    """Goals has one place, and a name that is not a name is caught before the server."""
+    with pytest.raises(ValueError, match="goals is the flow's to say"):
+        CodexAgentConfig(
+            model="gpt-5.6-sol", effort="high", features=(("goals", False),)
+        )
+    with pytest.raises(ValueError, match="not a Codex feature name"):
+        CodexAgentConfig(
+            model="gpt-5.6-sol", effort="high", features=(("Multi Agent", True),)
+        )
+    with pytest.raises(ValueError, match="not a Codex feature name"):
+        CodexAgentConfig(model="gpt-5.6-sol", effort="high", features=((" ", True),))
+    with pytest.raises(ValueError, match="was given twice"):
+        CodexAgentConfig(
+            model="gpt-5.6-sol",
+            effort="high",
+            features=(("memories", True), ("memories", False)),
+        )
+
+
+@pytest.mark.parametrize(
+    "feature",
+    [
+        "browser_use",
+        "browser_use_full_cdp_access",
+        "computer_use",
+        "standalone_web_search",
+        "web_search_request",
+    ],
+)
+def test_codex_refuses_a_feature_that_says_what_the_agent_may_reach_for(
+    feature: str,
+) -> None:
+    """A subflow that tightened its agent must not be tightened around.
+
+    `AgentDefaults` replaces `web_search` and `permission` on the agent handed down and
+    carries a backend's own settings through untouched, so a feature that switched the
+    browser back on would be a declared place quietly given more than it declared.
+    """
+    with pytest.raises(ValueError, match="what the agent may reach for"):
+        CodexAgentConfig(
+            model="gpt-5.6-sol", effort="high", features=((feature, True),)
+        )
+
+
 def test_codex_refuses_to_disable_goals_after_its_server_starts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A server's feature set cannot be changed underneath threads it already holds."""
-
-    class _Recording:
-        def __init__(
-            self, argv: list[str], env: Mapping[str, str] | None = None
-        ) -> None:
-            del argv, env
-            self._held: list[Any] = []
-
-        def take(self) -> bool:
-            """Nothing runs on it, so it is always free for the turn that asked."""
-            return True
-
-        def share(self) -> None:
-            """Nothing runs on it, so there is nothing to run beside."""
-
-        def give(self) -> None:
-            """Nothing took it, so there is nothing to hand back."""
-
-        def stop(self) -> None:
-            """Nothing was started, so there is nothing to take down."""
-
-    monkeypatch.setattr(appservers, "_AppServer", _Recording)
+    monkeypatch.setattr(appservers, "_AppServer", _recording([]))
     agent = CodexAgent(CodexAgentConfig(model="gpt-5.6-sol", effort="high"))
     assert agent.server is not None
 
@@ -1490,14 +1560,23 @@ def test_a_widening_a_hook_refuses_is_granted_nothing(codex: _FakeServer) -> Non
 def test_a_codex_turn_carries_the_rung_it_runs_at(
     working: _FakeServer, permission: str, sandbox: str
 ) -> None:
-    """A thread picked back up does not carry the settings it was started with."""
+    """A thread picked back up does not carry the settings it was started with.
+
+    The sandbox goes with the thread and the approval policy goes with both: codex-cli
+    0.153.4 has no `sandbox` on `turn/start` at all -- its field there is `sandboxPolicy`,
+    a tagged object rather than a mode -- so a `sandbox` sent with a turn would be read by
+    nothing, and the rung a turn runs at is the rung its thread was opened at.
+    """
     agent = CodexAgent(
         CodexAgentConfig(model="gpt-5.6-sol", effort="high", permission=permission)
     )
     agent("hi")
 
+    opened = [call for call in working.calls() if call.get("method") == "thread/start"]
     started = [call for call in working.calls() if call.get("method") == "turn/start"]
-    assert [call["params"]["sandbox"] for call in started] == [sandbox]
+    assert [call["params"]["sandbox"] for call in opened] == [sandbox]
+    assert [call["params"]["approvalPolicy"] for call in opened] == ["never"]
+    assert not any("sandbox" in call["params"] for call in started)
     assert [call["params"]["approvalPolicy"] for call in started] == ["never"]
 
 

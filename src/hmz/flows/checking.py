@@ -2257,8 +2257,9 @@ def catalogue() -> tuple[Capability, ...]:
       One capability apiece: the primitives every backend serves, then what only some do
       -- each moment outside `EVERYWHERE`, the shape a turn can be held to, the tools a
       flow may offer, a turn that can be steered while it runs, the goal feature, the
-      fork and each kind of token a backend says what it spent on -- and then where an
-      agent's turns may land and how a turn's own commands are reached there.
+      fork, each kind of token a backend says what it spent on, the faster tier some can
+      be asked to serve at and the settings of their own the rest take -- and then where
+      an agent's turns may land and how a turn's own commands are reached there.
     """
     import inspect
     import sys as running
@@ -2457,6 +2458,45 @@ def catalogue() -> tuple[Capability, ...]:
             "a run that mixes one in reads its figure for this kind as a floor",
         )
         for kind in KINDS
+    )
+    held.append(
+        Capability(
+            "tier:fast",
+            frozenset(
+                name
+                for name, cls in agents.items()
+                if "fast" in getattr(cls, "service_tiers", ())
+            ),
+            "the provider asked to serve this agent's turns faster at the same model and "
+            "the same effort -- AgentConfig(service_tier='fast') -- which each of these "
+            "sends in its own backend's word for it; a backend not among them refuses the "
+            "tier before the first turn rather than quietly running at another one",
+        )
+    )
+    held.append(
+        Capability(
+            "features",
+            frozenset(
+                name for name, cls in agents.items() if getattr(cls, "switches", False)
+            ),
+            "one of the backend's own feature flags switched on or off by name, for this "
+            "agent's process and nobody else's -- "
+            "CodexAgentConfig(features=(('multi_agent_v2', True),)) -- named as the CLI "
+            "itself names them, and written nowhere the person at this machine would find "
+            "it afterwards",
+        )
+    )
+    held.append(
+        Capability(
+            "strict-settings",
+            frozenset(
+                name for name, cls in agents.items() if getattr(cls, "vets", False)
+            ),
+            "the backend asked to refuse a setting it does not recognise rather than pass "
+            "over it -- CodexAgentConfig(strict_config=True) -- so a key a newer CLI has "
+            "renamed fails where it was set instead of leaving an agent quietly not doing "
+            "the thing; off unless asked for, as each of these CLIs has it off",
+        )
     )
     held.extend(_places())
     held.extend(_anchors(agents))
