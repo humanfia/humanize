@@ -201,11 +201,10 @@ means to steer by:
 
 | Backend | Counts |
 | --- | --- |
-| Claude Code, Kimi Code, pi, DeepSeek Harness, Grok Build, Qwen Code | `input`, `output`, `cache_read`, `cache_write` |
+| Claude Code, Kimi Code, pi, DeepSeek Harness, Grok Build, Qwen Code, Cursor Agent | `input`, `output`, `cache_read`, `cache_write` |
 | opencode, mimocode | those four and `reasoning` |
 | Antigravity | `input`, `output`, `cache_read`, `reasoning` |
 | Codex, ZCode | `input`, `output` — each counts its cached reads inside the input |
-| Cursor | nothing: it reports a duration and no tokens |
 
 `reasoning` is only there for the backends that count it **beside** the output. Grok Build
 reports a `reasoning_tokens` and it is deliberately not among its kinds: one measured turn,

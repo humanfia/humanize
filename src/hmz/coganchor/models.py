@@ -968,7 +968,7 @@ _READING: dict[str, Callable[[Profile, Callable[..., str]], list[Model]]] = {
     "agy": _agy,
     "claude": _claude,
     "codex": _codex,
-    "cursor": _cursor,
+    "cursor-agent": _cursor,
     "dsh": _dsh,
     "grok": _grok,
     "kimi": _kimi,

@@ -57,7 +57,7 @@ const BACKENDS: Backend[] = [
     note: 'Its models differ from each other: one takes “ultra” and the one beside it does not, so the ladder is narrowed per model by what the backend itself says when it is asked what it runs.',
   },
   {
-    name: 'cursor',
+    name: 'cursor-agent',
     called: 'Cursor Agent',
     driven: 'command',
     efforts: ['high', 'medium', 'low'],

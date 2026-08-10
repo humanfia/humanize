@@ -3134,6 +3134,14 @@ class AgentBase(ABC):
     #: the first provider turn.
     service_tiers: ClassVar[tuple[str, ...]] = ("default",)
 
+    #: Whether this backend's own command line asks to be trusted with the directory it has
+    #: been pointed at, and a turn here answers that for it. False for all but one of them:
+    #: the rest have no such question, so there is nothing to answer and nothing to take
+    #: back. Said on the class because it is the one place a driver overrules what the bare
+    #: CLI would have done, and a flow which would rather be asked has to be able to find out
+    #: that there is something here to ask about before it takes a turn.
+    trusts: ClassVar[bool] = False
+
     #: Which kinds of token this backend reports, out of :data:`hmz.coganchor.agents.KINDS`.
     #: Declared here rather than worked out from what a turn happened to say: a kind nothing
     #: was spent on this turn is missing from that turn's `Usage` exactly as a kind the CLI
@@ -3141,11 +3149,11 @@ class AgentBase(ABC):
     #: out of its backend's own counters is what it says here, which is why each of them says
     #: it off the same table it parses with.
     #:
-    #: Empty for a CLI that reports nothing at all -- Cursor says a duration and no tokens, an
-    #: ACP peer says whatever its own protocol says, which is nothing agreed. A run that mixes
-    #: one of those with a CLI that counts everything MUST say that the figures it draws are a
-    #: floor rather than pass them off for the whole of what was spent: a column quietly short
-    #: of one agent's tokens is worse than a column marked as short of them.
+    #: Empty for a CLI that reports nothing at all -- an ACP peer says whatever its own
+    #: protocol says, which is nothing agreed. A run that mixes one of those with a CLI that
+    #: counts everything MUST say that the figures it draws are a floor rather than pass them
+    #: off for the whole of what was spent: a column quietly short of one agent's tokens is
+    #: worse than a column marked as short of them.
     counts: ClassVar[frozenset[str]] = frozenset()
 
     #: Whether this agent spends anything a run's allowance is reckoned in. False for the
@@ -3522,14 +3530,22 @@ class AgentBase(ABC):
     def backend(self) -> str:
         """The coding agent this drives, named as a command line names it.
 
-        Read off the class rather than written down twice: `ClaudeCodeAgent` drives `claude`,
-        and an agent whose class says otherwise would be the one thing nobody could check.
-        Read back through the backend that answers to it, so that the name is one the rest of
-        humanize can look up -- `GrokBuildAgent` drives `grok`, which is what its accounts,
-        its skills and its cost are all kept under.
+        Asked of the one table that already says which class drives which backend, so that
+        the answer is a name the rest of humanize can look up -- it is what this agent's
+        accounts, its skills and its cost are all kept under. A class is never spelled like
+        the command it drives by luck: `CursorAgent` drives `cursor-agent`, and the class
+        keeps the product's own name while the backend is called what it is installed as.
+
+        Falling back on the class's own name for a driver that is in no table -- one
+        somebody is writing, a stand-in a test drives -- since that is the only thing there
+        is to go on and a made-up name would be worse than a guessable one.
         """
+        from hmz.coganchor.agents import DRIVEN
         from hmz.coganchor.backends import named
 
+        held = {cls: name for name, (cls, _) in DRIVEN.items()}
+        if (driven := held.get(type(self))) is not None:
+            return driven
         said = (
             type(self)
             .__name__.removesuffix("Agent")

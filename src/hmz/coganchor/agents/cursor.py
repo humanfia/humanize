@@ -13,26 +13,25 @@ them.
 
 What `--output-format stream-json` writes on stdout is a protocol rather than the agent
 talking: one JSON object a line, tagged by `type`, opening on the `system` line that names the
-chat and ending on the `result` that carries the answer. Nothing in it says what the turn
-cost -- Cursor reports a duration and no tokens -- so a run of this spends what its account
-says it spent and this says nothing about it.
+chat and ending on the `result` that carries the answer. That last line says what the turn
+cost as well, under `usage`, with the cache counted beside the input rather than inside it --
+the same reckoning as everywhere else here. A turn whose model said nothing about tokens
+writes no `usage` at all, and is counted for nothing rather than guessed at.
 """
 
 from __future__ import annotations
 
 import json
-import os
-import shutil
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from .base import AgentBase, CommandSessionBase
 from .config import AgentConfig
-from .event import Event, Failed
+from .event import Event, Failed, Usage
 from .hooks import EVERYWHERE, SUBAGENTS, Moment
 
 if TYPE_CHECKING:
+    import os
     from collections.abc import Iterator
 
 #: What the CLI is installed as. Its installer writes two names and this is the one that can
@@ -58,6 +57,17 @@ _SUBAGENTS = ("task", "subagent", "explore", "agent")
 
 #: How much of a tool call fits on a row of a transcript.
 _ROOM = 120
+
+#: What each kind of token is called on the `usage` Cursor states at the end of a turn. The
+#: input it states is already the whole of what went in less what was read from and written to
+#: the cache, so these are four separate figures which together are the traffic -- and the
+#: traffic is what a rate here measures, a cache read crossing the wire like anything else.
+_KINDS = {
+    "input": "inputTokens",
+    "output": "outputTokens",
+    "cache_read": "cacheReadTokens",
+    "cache_write": "cacheWriteTokens",
+}
 
 
 def _about(given: dict[str, Any]) -> str:
@@ -106,64 +116,32 @@ def parameterized(model: str, effort: str, *, fast: bool) -> str:
     left exactly as it is: a flow that spelled out `claude-opus-4-8[context=1m,effort=high]`
     said what it meant, and a second bracket would be a model Cursor refuses.
 
+    Only what this turn actually asks for goes in it. A default service tier writes no `fast=`
+    at all rather than `fast=false`: the parameters an account has saved against a model are
+    that account's own answer to a question nobody here asked, and writing the opposite of
+    them on every turn would be humanize overruling somebody who had already decided. It is
+    also what lets a model that is nothing but a name -- an id belonging to an endpoint of
+    somebody else's, where Cursor's brackets would be literal text rather than parameters --
+    arrive spelled exactly as it was given.
+
+    Which makes the default tier Cursor's own default rather than a promise of the slower
+    service: an account with `fast` saved against a model keeps it, and a flow that means the
+    service it is served on to be its own decision says `service_tier="fast"` and has it said.
+
     Args:
       model: The model, as the agent was configured with it.
       effort: How hard it is to think, or "" to leave the model at its own default.
       fast: Whether to ask for the faster service.
 
     Returns:
-      What to put after `--model`.
+      What to put after `--model`, which is the model itself where there is nothing to add.
     """
     if "[" in model:
         return model
-    said = [f"effort={effort}" for _ in range(1) if effort]
-    said += [f"fast={'true' if fast else 'false'}"]
-    return f"{model}[{','.join(said)}]"
-
-
-def _local_runtime(agent: AgentBase, cwd: str) -> bool:
-    """Recognize the installed local runtime at the path this turn actually executes.
-
-    A local package's model IDs belong to its OpenAI-compatible endpoint, where Cursor's
-    parameter brackets are literal text. The standard CLI can inherit saved fast parameters,
-    so it still needs an explicit `fast=false`. Neither an environment flag nor a package
-    name alone establishes which runtime is installed; check its entry point and layout.
-    A machine's executable cannot be identified by inspecting this host's installation.
-    """
-    from hmz.coganchor.backends import elsewhere
-
-    if agent.config.machine is not None:
-        return False
-    hushed = agent.hushed()
-    environment = {
-        key: value for key, value in os.environ.items() if key not in hushed
-    } | dict(agent.environment())
-    path = os.pathsep.join(
-        str(Path(cwd) / part) for part in os.get_exec_path(environment)
-    )
-    found = shutil.which(elsewhere(_COMMAND) or _COMMAND, path=path)
-    if found is None:
-        return False
-    try:
-        executable = Path(found).resolve(strict=True)
-        if executable.name != "cursor-agent-local":
-            return False
-        package: object = json.loads(
-            executable.with_name("package.json").read_text(encoding="utf-8")
-        )
-        launcher = executable.read_text(encoding="utf-8")
-        return (
-            isinstance(package, dict)
-            and cast("dict[str, object]", package).get("name")
-            == "@anysphere/agent-cli-local-runtime"
-            and '"$SCRIPT_DIR/node"' in launcher
-            and '"$SCRIPT_DIR/index.js"' in launcher
-            and executable.with_name("index.js").is_file()
-            and executable.with_name("node").is_file()
-            and os.access(executable.with_name("node"), os.X_OK)
-        )
-    except (OSError, ValueError, RuntimeError):
-        return False
+    said = [f"effort={effort}"] if effort else []
+    if fast:
+        said.append("fast=true")
+    return f"{model}[{','.join(said)}]" if said else model
 
 
 class CursorSession(CommandSessionBase):
@@ -194,6 +172,18 @@ class CursorSession(CommandSessionBase):
         #: Which tool calls have been shown, a call being stated twice -- once as it starts
         #: and once as it comes back -- and a row per status being a transcript of statuses.
         self._shown: set[str] = set()
+        #: What the turn now running has cost, as the whole of it and as the kinds it went
+        #: on. Stated once, on the line the turn ends on: Cursor says nothing about tokens
+        #: while a turn is still running, so the two are set there and nowhere else.
+        self._spent = 0
+        self._costing = Usage()
+        #: Whether this turn asked for its words as they were written, and what has arrived
+        #: that way since the last whole message. Cursor writes both when it was asked for
+        #: pieces -- a line apiece and, at each tool call and at the end, the message those
+        #: pieces came to -- so the whole message is the pieces again rather than more of the
+        #: turn, and is dropped where it is exactly them.
+        self._partial = False
+        self._arriving = ""
 
     def _turn(self, prompt: str) -> tuple[list[str], str | None]:
         """Builds the `cursor-agent --print` one turn is.
@@ -206,17 +196,12 @@ class CursorSession(CommandSessionBase):
           argument and reads nothing off a piped stdin.
         """
         self._said, self._failed, self._shown = [], None, set()
+        self._spent, self._costing, self._arriving = 0, Usage(), ""
         configured = self._agent.config
+        self._partial = bool(getattr(configured, "partial_output", False))
         model = parameterized(
             configured.model, self.effort, fast=configured.service_tier == "fast"
         )
-        if (
-            not self.effort
-            and configured.service_tier == "default"
-            and "[" not in configured.model
-            and _local_runtime(self._agent, self.cwd)
-        ):
-            model = configured.model
         argv = [
             _COMMAND,
             "--print",
@@ -228,11 +213,18 @@ class CursorSession(CommandSessionBase):
             # it as a flag rather than reading the directory it was started in.
             "--workspace",
             self.cwd,
+            *_PERMITTED[configured.permission],
+        ]
+        if getattr(configured, "trust", True):
             # It asks before it trusts a workspace it has not seen, and there is nobody at a
             # headless turn to answer: a turn that waited on that would be a flow that stopped.
-            "--trust",
-            *_PERMITTED[self._agent.config.permission],
-        ]
+            argv.append("--trust")
+        if self._partial:
+            argv.append("--stream-partial-output")
+        if getattr(configured, "approve_mcps", False):
+            argv.append("--approve-mcps")
+        for directory in getattr(configured, "add_dirs", ()):
+            argv += ["--add-dir", str(directory)]
         if self._id is not None:
             # Written onto the flag: its own argument is optional -- `--resume` with nothing
             # after it means the latest chat -- so a value given separately would be read as
@@ -267,9 +259,25 @@ class CursorSession(CommandSessionBase):
             message = cast("dict[str, Any]", said.get("message") or {})
             for raw in cast("list[Any]", message.get("content") or []):
                 part = cast("dict[str, Any]", raw)
-                if part.get("type") == "text" and str(part.get("text") or "").strip():
-                    self._said.append(str(part["text"]))
-                    yield Event(kind="text", text=str(part["text"]))
+                if part.get("type") != "text":
+                    continue
+                words = str(part.get("text") or "")
+                if self._partial and words == self._arriving:
+                    # The pieces gathered up rather than more of the turn. Cursor states
+                    # what it has streamed as a whole message at each tool call and at
+                    # the end, so a turn asked for both would say everything twice.
+                    self._arriving = ""
+                    continue
+                if self._partial:
+                    # Every piece, the blank ones included: the paragraph breaks between
+                    # two pieces are in the message they are gathered into, so a tally that
+                    # left them out would never match it again and every message after the
+                    # first blank would arrive twice.
+                    self._arriving += words
+                if not words.strip():
+                    continue
+                self._said.append(words)
+                yield Event(kind="text", text=words)
         elif kind == "tool_call" and said.get("subtype") == "started":
             marked = str(said.get("call_id") or "")
             if marked in self._shown:
@@ -295,6 +303,7 @@ class CursorSession(CommandSessionBase):
                     whose=str(said.get("call_id") or ""),
                 )
         elif kind == "result":
+            self._counts(cast("dict[str, Any]", said.get("usage") or {}))
             if said.get("is_error") or said.get("subtype") not in (None, "success"):
                 self._failed = str(said.get("result") or "") or json.dumps(said)
             elif said.get("result"):
@@ -302,6 +311,32 @@ class CursorSession(CommandSessionBase):
                 # is what the messages already came to, so it stands in for them rather than
                 # being added to them.
                 self._said = [str(said["result"])]
+
+    def _counts(self, usage: dict[str, Any]) -> None:
+        """Takes what Cursor says the turn cost, off the line it ends on.
+
+        Once, at the end, rather than as the turn goes: Cursor states the whole turn's
+        spending on the `result` line and says nothing about tokens before it. So a rate read
+        while this turn is still running is the rate of the turns before it, which is the
+        backend's doing rather than this driver's to make up -- a figure invented between the
+        lines that carry one would be worse than the one that is honestly late.
+
+        Args:
+          usage: The `usage` object, as read, which is empty for a turn whose model said
+            nothing about what it spent.
+        """
+        counted = Usage(
+            {
+                kind: float(usage.get(named) or 0)
+                for kind, named in _KINDS.items()
+                if usage.get(named)
+            }
+        )
+        if not counted.total:
+            return
+        self._spent += int(counted.total)
+        self._costing = self._costing + counted
+        self._spends(counted)
 
     def _result(self, transcript: str) -> Event:
         """The turn's answer, out of the lines it wrote.
@@ -322,7 +357,12 @@ class CursorSession(CommandSessionBase):
             raise Failed(1, [_COMMAND], said, self._failed)
         if not transcript.strip():
             raise Failed(1, [_COMMAND], "", f"{_COMMAND} said nothing at all")
-        return Event(kind="result", text=said.strip())
+        return Event(
+            kind="result",
+            text=said.strip(),
+            tokens={self._agent.config.model: self._spent} if self._spent > 0 else {},
+            spent=self._costing,
+        )
 
     def _read_session_id(self, transcript: str) -> str:
         """Reads back the chat Cursor opened, which the line it opens on names.
@@ -351,21 +391,65 @@ class CursorSession(CommandSessionBase):
 
 @dataclass(frozen=True, kw_only=True)
 class CursorAgentConfig(AgentConfig):
-    """What Cursor Agent is configured with: the common model and effort, and nothing else.
+    """What Cursor Agent is configured with: the common settings, and four of its own.
 
     The model is written as Cursor writes it -- a name out of its own catalogue, which
     `cursor-agent --list-models` prints -- with or without the bracket its parameterized
     models take. Written with one, the bracket is what the turn asks for and the effort
     beside it is left alone.
+
+    Three of the four below sit where `cursor-agent` itself leaves them, so an agent nobody
+    has said anything about runs the turn its own command line would have run. `trust` is the
+    one that does not, and it is the one an unattended turn cannot afford to leave alone:
+    pointed at a directory it has not worked in before, Cursor stops and asks whether it may,
+    and there is nobody at a headless turn to answer. So it is answered here by default and
+    left sayable all the same -- somebody *is* watching some flows.
+
+    Attributes:
+      trust: Whether to tell Cursor this workspace is trusted rather than let it ask. True,
+        which is what keeps an unattended turn from stopping at a question nobody will
+        answer; False hands the question back, and a turn nobody answers it for is a turn
+        that waits.
+      partial_output: Whether the agent's words arrive as it writes them rather than a
+        message at a time. Off, as Cursor has it. On, it writes both -- a line per piece
+        and, at each tool call and at the end, the message those pieces came to -- and the
+        gathered message is dropped as it arrives, a turn said twice being no transcript of
+        anything.
+      approve_mcps: Whether every MCP server this workspace names is approved without being
+        asked about. Off, as Cursor has it: which servers a turn may reach is the person at
+        this machine's to decide, and a flow that means to decide it instead says so.
+      add_dirs: Workspace roots beside the one the session was opened at, for a turn whose
+        work is in more than one place. Empty, as Cursor has it.
     """
+
+    trust: bool = True
+    partial_output: bool = False
+    approve_mcps: bool = False
+    add_dirs: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if any(not str(one).strip() for one in self.add_dirs):
+            raise ValueError("add_dirs must each name a directory")
 
 
 class CursorAgent(AgentBase):
     """Cursor Agent, driven through its own command line, one run per turn."""
 
     #: Its models take `fast=true` in the bracket their parameters go in, which is the same
-    #: thing every other backend here calls a service tier.
+    #: thing every other backend here calls a service tier. `fast` is the one this can state
+    #: exactly; the other writes nothing at all, and is Cursor's own answer rather than a
+    #: promise that the faster service was not used.
     service_tiers = ("default", "fast")
+
+    #: What the `usage` on its last line counts: the input, the output, and the cache read
+    #: and written to -- four figures, the input already net of the other two.
+    counts: ClassVar[frozenset[str]] = frozenset(_KINDS)
+
+    #: It asks to be trusted with a directory before it will work in one, and a turn here
+    #: answers that for it rather than stopping at it. The one thing this driver imposes on
+    #: top of what the bare command line does, and `CursorAgentConfig.trust` takes it back.
+    trusts: ClassVar[bool] = True
 
     #: Every moment a turn passes through, and the two about a fleet: its stream says when a
     #: turn starts an agent of its own and when that one has come back.

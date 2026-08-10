@@ -61,7 +61,7 @@ const BANDS: Band[] = [
     chips: [
       'claude',
       'codex',
-      'cursor',
+      'cursor-agent',
       'kimi',
       'pi',
       'grok',

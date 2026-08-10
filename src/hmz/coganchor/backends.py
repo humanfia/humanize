@@ -330,9 +330,10 @@ class Profile:
     Attributes:
       name: What this backend is called here, which is the command it is installed as unless
         `command` says otherwise.
-      command: What it is actually installed as, where that is not what it is called. Cursor's
-        agent is `cursor-agent`; everything else here is installed under its own name, so this
-        is empty for them.
+      command: What it is actually installed as, where that is not what it is called. Empty
+        for every backend written down here, each of them being called the command it is
+        installed as; it is kept for a CLI whose two names ever part company again, and for
+        one added from outside under a name of somebody else's choosing.
       aliases: What a command line may call it, this name included. A backend is named twice
         where both spellings are what people call it, and neither is ambiguous.
       home_var: The environment variable that moves its home directory.
@@ -1585,7 +1586,12 @@ PROFILES = (
         ),
     ),
     Profile(
-        name="cursor",
+        # Installed under two names, `agent` being the one its installer calls primary and
+        # `cursor-agent` the one it has always also written. The second, because `agent` is a
+        # name anything on a machine could have taken and this one has to be that CLI -- and
+        # this name, because a backend here is called what it is installed as, so that `-a`
+        # takes the word somebody would type at a shell to run the thing itself.
+        name="cursor-agent",
         installs="curl https://cursor.com/install -fsS | bash",
         # Its own command line has no way of taking a tool away: what an agent may reach for
         # is `~/.cursor/cli-config.json`, which is the person at this machine's file and not
@@ -1594,11 +1600,7 @@ PROFILES = (
         # `--resume` picks a chat back up under its own id and it has no second spelling:
         # a conversation of Cursor's is one conversation.
         forks=False,
-        # Installed under two names, `agent` being the one its installer calls primary and
-        # `cursor-agent` the one it has always also written. The second, because `agent` is a
-        # name anything on a machine could have taken and this one has to be that CLI.
-        command="cursor-agent",
-        aliases=("cursor", "cursor-agent", "cursor-cli"),
+        aliases=("cursor-agent", "cursor-cli"),
         # Its own variable, else the directory every program keeps its configuration in, else
         # `~/.cursor` -- which is what `config` below covers the middle of.
         home_var="CURSOR_CONFIG_DIR",
@@ -1618,10 +1620,8 @@ PROFILES = (
         # `CURSOR_LOCAL_AGENT_API_KEY` because the key its own local runtime is served under
         # is still a key, read whoever exported it: one left in a shell profile is the account
         # a turn under a provider would be answered as. Its endpoint and its authless switch
-        # are deliberately not here. They say which runtime a turn is, not whose it is, and
-        # `hmz.coganchor.agents.cursor` decides how a model is spelled from the runtime it finds
-        # installed -- taking the endpoint away under a provider would leave that answer
-        # describing a turn that no longer happens.
+        # are deliberately not here. They say which runtime a turn is, not whose it is, and a
+        # turn taken away from the endpoint it was pointed at is a turn somewhere else.
         ambient=(
             "CURSOR_API_BASE_URL",
             "CURSOR_API_ENDPOINT",

@@ -150,11 +150,12 @@ One `-a` is one agent or a list of them separated by commas, and every `-a` on t
 the same list in the order they were written — so a flow of four agents is one option or four,
 whichever reads better.
 
-- `<cli>` is `agy`, `claude`, `codex`, `dsh`, `grok`, `kimi`, `mimo`, `opencode`, `pi`, `qwen`
+- `<cli>` is `agy`, `claude`, `codex`, `cursor-agent`, `dsh`, `grok`, `kimi`, `mimo`,
+  `opencode`, `pi`, `qwen`
   or `zcode` — or any CLI of your own [added at `/providers`](/reference/agents#a-cli-of-your-own).
-  Several also answer to the longer name they are installed under: `antigravity`,
-  `claude-code`, `deepseek-harness`, `grok-build`, `kimi-code`, `qwen-code`, `mimocode`,
-  `mimo-code` and `zcode-cli`.
+  Each is the command that CLI is installed as. Several also answer to the longer name they
+  are installed under: `antigravity`, `claude-code`, `cursor-cli`, `deepseek-harness`,
+  `grok-build`, `kimi-code`, `qwen-code`, `mimocode`, `mimo-code` and `zcode-cli`.
 - `<model>` and `<effort>` are whatever that CLI is asked for — humanize does not check them
   against a list, so a model your account has and this documentation does not still works.
 - A model may hold slashes of its own — Kimi Code's are `kimi-code/k3`, and pi, opencode,
