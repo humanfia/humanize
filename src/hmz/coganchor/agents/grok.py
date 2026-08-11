@@ -7,14 +7,29 @@ opens it, `session/prompt` takes a turn on it, and what the agent is doing arriv
 is already up, so a turn no longer pays for a CLI starting.
 
 Not every turn can go that way. The protocol's process is configured by its command line, and
-`grok agent` has no `--tools`, no `--disallowed-tools` and no `--json-schema`: a rung that
-takes tools away and a turn held to a shape are both settings only `grok -p` carries. Those
-run the command they always did, resuming the same conversation with `--resume` -- the id is
-Grok Build's own either way, and each transport picks up what the other opened.
+what `grok agent` carries of an agent is a short list: a model, an effort, an approval, a
+profile, a plugin directory and the leader, beside the debugging and the endpoints. It has no
+`--tools`, no `--disable-web-search`, no `--json-schema`, no `--sandbox`, no `--max-turns`, no
+`--no-subagents` and no `--rules` -- each of those seven refused outright, `error: unexpected
+argument` -- so a rung that takes tools away, an agent told not to search the web, a turn held
+to a shape and four of the five settings on `GrokBuildAgentConfig` are settings only `grok -p`
+carries. Those run the command they always did, resuming the same conversation with
+`--resume` -- the id is Grok Build's own either way, and each transport picks up what the
+other opened. Nothing is served looser for the transport's sake: what moves is which of the
+two a turn is taken on.
 
 The prompt goes on the command line for that run because that is the only way in: Grok Build
 does not read a piped stdin as the prompt, and the two other ways it offers are a JSON literal
-and a file.
+and a file. `--prompt-file` is the one that would put a long prompt out of argv's way, and it
+is worth knowing exactly how long: Linux takes 2MB of argv in total but caps any *single*
+element at 32 pages, which measures here as 131062 bytes once `--single=` and the terminator
+are off it. A prompt past that is an `OSError` raised where the process would have started,
+before Grok Build has seen anything. That is about 32 thousand tokens of prompt -- far more
+than a turn of a flow writes, and far less than a context window holds -- so it is a ceiling
+rather than a comfort. It stays on the command line because the alternative is a file to
+write, to keep for the length of the turn and to clear up after a turn that may have been cut
+off, and this transport has nowhere to hang that clearing up: a turn is `_turn` returning an
+argv and nothing runs after the process ends.
 """
 
 # pyright: reportPrivateUsage=false
@@ -52,18 +67,74 @@ if TYPE_CHECKING:
 #: What the CLI is installed as.
 _COMMAND = "grok"
 
-#: What a turn at each rung of the ladder is given, by the tool ids Grok Build calls its own.
-#: An allowlist for the rung that may change nothing, since that is the only way to be sure a
-#: tool cannot run at all; a denylist above it, where what is taken away is the reaching
-#: outside the workspace. `--yolo` carries the rest: a flow watches its agent rather than
-#: gating it, and a turn waiting on an approval nobody is there to give is a flow that stopped.
-_ONLY = {"read-only": ("read_file", "grep", "list_dir")}
-_WITHHELD = {"workspace-write": ("web_search", "web_fetch")}
+#: Everything is approved without being asked, at every rung: nobody is at a prompt here, and
+#: a turn waiting on an approval is a flow that stopped. `--always-approve` rather than
+#: `--yolo`, which is a hidden alias for it that `grok agent` still takes and neither command
+#: documents: a spelling the help does not list is one release away from disappearing, and
+#: this one is the same flag under the name Grok Build actually publishes.
+_APPROVAL = "--always-approve"
 
-#: And the same two where the reaching outside the workspace is refused on its own
-#: rather than as a rung: an agent told not to search the web is refused them at every
-#: rung, and one whose rung already refuses them is not refused them twice.
-_WEB_TOOLS = ("web_search", "web_fetch")
+#: The one flag on that list a turn told not to search the web is given, which Grok Build
+#: documents as exactly that -- `Disable web search and web fetch tools`. It says what
+#: `--disallowed-tools web_search,web_fetch` said before it and says it in one word: run
+#: against 1.0.24 the two leave the same 25 tools in the process, the whole list less those
+#: two, so the general flag was spelling out what the CLI has a name for.
+_NO_WEB = "--disable-web-search"
+
+#: What a turn at each rung of the ladder is run as, said as the command line says it.
+#:
+#: Grok Build's own `--permission-mode` is deliberately not among them, and that is the
+#: finding this table is written around. It has six modes -- `default`, `acceptEdits`,
+#: `auto`, `dontAsk`, `bypassPermissions`, `plan` -- and on 1.0.24 a headless `grok -p` run
+#: at every one of them, `plan` included, ran the same `echo`, wrote the same file into the
+#: workspace and wrote the same file outside it. A mode governs how the permission *rules*
+#: this machine has are applied, and a machine with no rules -- which is what `grok inspect`
+#: reports of a fresh one -- has nothing for a mode to apply; headless has nobody to ask, so
+#: what is left is approved. Naming a mode would be a rung that looks enforced and enforces
+#: nothing, which is the one way a rung must not fail.
+#:
+#: So a rung here is made of what actually bites: the tools the process is started with. An
+#: allowlist for the rung that may change nothing, since a tool the process was not started
+#: with cannot run at all -- `--tools read_file,grep,list_dir` leaves five tools in the
+#: process, those three and the two by which an MCP server is looked up, and a turn asked to
+#: write a file under it reaches four times and writes nothing. `--disable-web-search` above
+#: it, where what is taken away is the reaching outside the workspace, Grok Build having no
+#: sandbox of its own until somebody writes a profile for it.
+_PERMITTED = {
+    "read-only": (_APPROVAL, "--tools", "read_file,grep,list_dir"),
+    "workspace-write": (_APPROVAL, _NO_WEB),
+    "auto": (_APPROVAL,),
+    "bypass": (_APPROVAL,),
+}
+
+#: The rungs the held-open transport can serve, which is every rung whose whole saying is a
+#: flag `grok agent` takes -- and of the three above only `--always-approve` is: `--tools` and
+#: `--disable-web-search` are both refused there outright, `error: unexpected argument`.
+#:
+#: A rung outside this set is not refused, though, the way a backend with no way of saying it
+#: at all refuses one. It falls to the command line, which says it exactly and resumes the
+#: same conversation, so what moves is which transport the turn is taken on rather than what
+#: the agent is allowed. Nothing here is a rung quietly served a rung looser.
+_HELD_OPEN = frozenset(
+    rung for rung, said in _PERMITTED.items() if set(said) <= {_APPROVAL}
+)
+
+#: What each answer to the leader question is said with, and why there are three of them.
+#: A leader is one backend process shared by every client that asks for it, and which a
+#: `grok agent` joins is not its own choice: it follows `[cli] use_leader` in the
+#: `~/.grok/config.toml` of whoever is at this machine. So `--no-leader` is the answer
+#: humanize has always given, and goes on giving unless it is told otherwise -- a flow whose
+#: sessions all landed on one backend because of a line in somebody's config file would be
+#: running something other than what it was measured as. `--leader` is the opposite answer
+#: said out loud, and None is the question left to that config file, which is the bare CLI's
+#: own behaviour. The two flags refuse each other -- `the argument '--leader' cannot be used
+#: with '--no-leader'` -- which is why this is one setting with three answers rather than two
+#: settings that could contradict.
+_LEADING: dict[bool | None, tuple[str, ...]] = {
+    False: ("--no-leader",),
+    True: ("--leader",),
+    None: (),
+}
 
 #: What each kind of line reads as. A tool call that is only being updated is not shown
 #: again: it was shown when it started, and a row per status is a transcript of statuses.
@@ -160,11 +231,11 @@ class GrokBuildSession(StreamSessionBase):
     ) -> Iterator[Event]:
         """Keeps ordinary turns warm, and runs the rest as the command that carries them.
 
-        A shape and a rung that takes tools away are settings of `grok -p` and of nothing
-        else: `grok agent` has no flag for either, so a turn that needs one is a run of the
-        command line rather than a line written to the process. The conversation is not ended
-        by that -- the run resumes it, and the process the next ordinary turn starts loads it
-        back.
+        A shape, a rung that takes tools away and everything :func:`_extras` writes are
+        settings of `grok -p` and of nothing else: `grok agent` has a flag for none of them,
+        so a turn that needs one is a run of the command line rather than a line written to
+        the process. The conversation is not ended by that -- the run resumes it, and the
+        process the next ordinary turn starts loads it back.
 
         So is the first turn of a conversation cut from another. The protocol opens a session
         or loads one by id and has no third call; `--fork-session` is the command line's, and
@@ -178,7 +249,7 @@ class GrokBuildSession(StreamSessionBase):
         Yields:
           What the agent said, and the answer it ended on.
         """
-        if schema is not None or self._withholding() or self._forking():
+        if schema is not None or self._commanded() or self._forking():
             with self._lock:
                 self._shut()
                 # The finite command transport checks the process's exit status after its
@@ -210,20 +281,27 @@ class GrokBuildSession(StreamSessionBase):
         """
         return self._id is None and self._forked_from is not None
 
-    def _withholding(self) -> bool:
-        """Whether this agent's rung is one only the command line can say.
+    def _commanded(self) -> bool:
+        """Whether this turn carries something only the top-level command line can say.
+
+        The one place that question is asked, so that a setting added to
+        :class:`GrokBuildAgentConfig` is a line here and a line in :meth:`_turn` rather than
+        an option that quietly applied to some turns of a conversation and not others. A turn
+        that needs one of these is a run of `grok -p` resuming the same session; the rest stay
+        on the process already up.
 
         Returns:
-          Whether a tool is kept from the agent, by the rung or by an agent told not to
-          search the web. Both are `--tools`/`--disallowed-tools`, which `grok agent` has
-          no answer to -- and a turn given every tool because the transport could not take
-          one away would be a rung that did nothing.
+          Whether the rung takes a tool away, the agent is told not to search the web, or any
+          of the settings only the top-level command has been asked for -- a sandbox profile,
+          a cap on the turns under this one, subagents switched off, rules to append. Every
+          one of them is refused by `grok agent` with `error: unexpected argument`, and an
+          agent given one that the transport could not carry would be a setting that lies.
         """
         config = self._agent.config
         return bool(
-            _ONLY.get(config.permission)
-            or _WITHHELD.get(config.permission)
+            config.permission not in _HELD_OPEN
             or not config.web_search
+            or _extras(config)
         )
 
     def _settings(self) -> tuple[object, ...]:
@@ -253,10 +331,15 @@ class GrokBuildSession(StreamSessionBase):
     def _command(self) -> list[str]:
         """The `grok agent stdio` this conversation is held open on.
 
+        The rung goes on whole rather than as the approval alone: `_HELD_OPEN` is derived
+        from which rungs say nothing `grok agent` would refuse, and a turn at any other one
+        never reaches this transport at all -- :meth:`_stream` has already sent it to the
+        command line. So whatever the rung says here is a flag this process takes.
+
         Returns:
           The command, carrying what the protocol's process is configured by: the model, how
-          hard to think, and the approval a flow watching its agent gives once rather than
-          per tool call.
+          hard to think, the approval a flow watching its agent gives once rather than per
+          tool call, and what it was told about the leader.
         """
         return [
             _COMMAND,
@@ -265,14 +348,8 @@ class GrokBuildSession(StreamSessionBase):
             self._agent.config.model,
             "--effort",
             self.effort,
-            # Everything is approved without being asked: nobody is at a prompt here, and a
-            # turn waiting on an approval is a flow that stopped.
-            "--yolo",
-            # And one process per conversation, said rather than left to the config file: a
-            # leader is one backend shared by every client that asks for it, and a flow whose
-            # sessions all landed on one because of a line in `~/.grok/config.toml` would be
-            # running something other than what it was measured as.
-            "--no-leader",
+            *_PERMITTED[self._agent.config.permission],
+            *_LEADING.get(getattr(self._agent.config, "leader", False), ()),
             "stdio",
         ]
 
@@ -401,10 +478,10 @@ class GrokBuildSession(StreamSessionBase):
     def _answers(self, at: object, method: str, params: dict[str, Any]) -> None:
         """Answers something the agent asked us, rather than leaving it waiting on us.
 
-        A tool call it asks permission for is granted: `--yolo` approves what a rung leaves,
-        but a hook of Grok Build's own can put a call in front of the client anyway, and a
-        flow watches its agent rather than gating it. Granted by the *kind* of the option
-        rather than by its id, which is the agent's own word for it.
+        A tool call it asks permission for is granted: `--always-approve` approves what a rung
+        leaves, but a hook of Grok Build's own can put a call in front of the client anyway,
+        and a flow watches its agent rather than gating it. Granted by the *kind* of the
+        option rather than by its id, which is the agent's own word for it.
 
         Args:
           at: The id it asked under.
@@ -578,7 +655,15 @@ class GrokBuildSession(StreamSessionBase):
         )
 
     def _turn(self, prompt: str) -> tuple[list[str], str | None]:
-        """Builds the `grok -p` a shaped or withheld turn is.
+        """Builds the `grok -p` a shaped turn, a fork or a turn the process cannot carry is.
+
+        `streaming-json` rather than the `plain` the CLI defaults to, and rather than the
+        `streaming-messages-json` beside it: `plain` is the answer with nothing said about
+        how it was arrived at, and the Anthropic-shaped one is somebody else's wire format
+        wrapped round the same turn. `streaming-json` is what the help calls `the agent's
+        native format` -- the protocol's own `session/update` with `sessionUpdate` flattened
+        onto `type` and the words moved onto `data` -- so the two transports here are one
+        stream said twice, which is why :meth:`_reads` and :meth:`_told` read the same turn.
 
         Args:
           prompt: The input prompt for this turn.
@@ -589,25 +674,22 @@ class GrokBuildSession(StreamSessionBase):
         """
         self._said, self._failed, self._shown = [], None, set()
         self._costing, self._saying = Usage(), Saying()
+        config = self._agent.config
         argv = [
             _COMMAND,
             "--output-format",
             "streaming-json",
             "--model",
-            self._agent.config.model,
+            config.model,
             "--effort",
             self.effort,
-            # Everything the rung leaves is approved without being asked.
-            "--yolo",
+            *_PERMITTED[config.permission],
         ]
-        permission = self._agent.config.permission
-        if only := _ONLY.get(permission):
-            argv += ["--tools", ",".join(only)]
-        withheld = list(_WITHHELD.get(permission, ()))
-        if not self._agent.config.web_search:
-            withheld += [one for one in _WEB_TOOLS if one not in withheld]
-        if withheld:
-            argv += ["--disallowed-tools", ",".join(withheld)]
+        # Said once however it was asked for: a rung that already takes the reaching outside
+        # the workspace away has said it, and the flag is a switch rather than a list.
+        if not config.web_search and _NO_WEB not in argv:
+            argv.append(_NO_WEB)
+        argv += _extras(config)
         if (schema := self._shaping) is not None:
             argv += ["--json-schema", json.dumps(schema.model_json_schema())]
         if self._id is not None:
@@ -846,13 +928,100 @@ def _called(said: dict[str, Any]) -> str:
     return f"{named} {about}".strip()[:120]
 
 
+def _extras(config: AgentConfig) -> list[str]:
+    """What this agent was set up with that only the top-level command line carries.
+
+    The one place those four are turned into flags, so that :meth:`GrokBuildSession._turn`
+    writes them and :meth:`GrokBuildSession._commanded` can ask whether there are any without
+    the two answers ever drifting apart.
+
+    Read with `getattr` rather than off the class, since an agent may be built from the common
+    config rather than from Grok Build's own -- and every one of these is absent by default,
+    which is the bare CLI's own behaviour: an install that sets nothing adds no flag.
+
+    Args:
+      config: What the agent's turns run at.
+
+    Returns:
+      The flags to add, in the order the help lists them, and nothing at all for an agent
+      that was asked for none of them.
+    """
+    argv: list[str] = []
+    if profile := str(getattr(config, "sandbox", "") or ""):
+        argv += ["--sandbox", profile]
+    if turns := int(getattr(config, "max_turns", 0) or 0):
+        argv += ["--max-turns", str(turns)]
+    if not getattr(config, "subagents", True):
+        argv.append("--no-subagents")
+    if rules := str(getattr(config, "rules", "") or ""):
+        argv += ["--rules", rules]
+    return argv
+
+
 @dataclass(frozen=True, kw_only=True)
 class GrokBuildAgentConfig(AgentConfig):
-    """What Grok Build is configured with: the common model and effort, and nothing else.
+    """What Grok Build is configured with: the common model and effort, and five of its own.
 
     The model is written as Grok Build writes it, which is a name out of its own catalogue --
     `grok models` is what lists them.
+
+    Every one of the five is off by default, and off means the flag is not written at all: an
+    install that says nothing here runs exactly the command line the bare CLI runs. Four of
+    them are the top-level command's, which is the transport a shaped turn, a fork and a rung
+    that takes tools away already go to -- so naming one of them sends *every* turn of the
+    conversation that way rather than applying to some turns and not others. That is the
+    whole reason they are gathered in :func:`_extras` and asked about in `_commanded`.
+
+    Three more of Grok Build's own are deliberately not here. `--include-partial-messages` says
+    of itself that it `Only affects --output-format streaming-messages-json`, and these turns
+    are read as `streaming-json`, so it is a switch that would do nothing whichever way it was
+    set. `--agent-profile` and `--plugin-dir` are the mirror of the four below: they exist on
+    `grok agent` and not on the top-level command, so an agent given one would keep it for its
+    ordinary turns and silently lose it for every shaped, forked or tool-withheld one -- and a
+    setting that holds for some turns of a conversation and not others is worse than one that
+    was never offered.
+
+    Attributes:
+      leader: Whether this conversation's held-open process joins the leader -- one backend
+        shared by every client that asks for it -- or starts one of its own. False starts its
+        own, which is what humanize has always done and what keeps a run reproducible: a
+        `use_leader = true` in the `~/.grok/config.toml` of whoever is at this machine would
+        otherwise put every session of a flow on one backend. True joins it, and None leaves
+        the question to that config file, which is the bare CLI's own answer. It is a setting
+        of the process the protocol is held open on, so a conversation every turn of which
+        falls to the command line never reaches it.
+      sandbox: The sandbox profile a turn's filesystem and network access is confined by, by
+        the name `--sandbox` takes, or "" for the CLI's own -- which is none. Grok Build has
+        no built-in ladder of profiles to pick from: `workspace` is a base to extend, and a
+        profile is otherwise a `[profiles.<name>]` in the `sandbox.toml` of whoever is at this
+        machine. So it is named here rather than being what a rung is made of: writing a
+        profile to enforce a rung would be humanize writing the CLI's own settings.
+      max_turns: How many turns of its own one run may take under this turn, or 0 for as many
+        as it takes, which is the CLI's own answer. Its own setting rather than anything
+        :class:`~hmz.coganchor.agents.config.Budget` reaches: a budget is per turn of *this*
+        conversation and is held to here, off the meter every backend feeds, rather than
+        handed to a CLI at all -- and rerouting it onto a flag only some backends have would
+        make a cap that read the same and counted something else.
+      subagents: Whether the agent may start agents of its own. True is the CLI's own answer;
+        False is `--no-subagents`, for a flow that wants the work done by the one agent it is
+        watching rather than by a fleet under it.
+      rules: Extra rules appended to the system prompt, as `--rules` takes them, or "" for the
+        prompt Grok Build builds itself. Appended rather than replacing: `--system-prompt-
+        override` is the other flag and is not this one.
     """
+
+    leader: bool | None = False
+    sandbox: str = ""
+    max_turns: int = 0
+    subagents: bool = True
+    rules: str = ""
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        # Said where it is written rather than by a CLI refusing the argv minutes later, which
+        # is a turn that never started for a number nobody looked at.
+        if self.max_turns < 0:
+            raise ValueError("max_turns cannot be less than nothing")
 
 
 class GrokBuildAgent(AgentBase):

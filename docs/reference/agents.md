@@ -308,7 +308,9 @@ whether [goals](/weaver/goals) are available to it,
 [skills it carries](#the-skills-an-agent-carries) are not among them, being its CLI's own and
 its flow's. Codex also takes `overrides`, the app-server `-c` keys that are not already one
 of those fields. Claude takes `allowed_tools`, exact native `--allowedTools` rules for a
-bounded unattended flow. It is frozen,
+bounded unattended flow. Grok Build takes five of its own — `leader`, `sandbox`, `max_turns`,
+`subagents` and `rules`, each described [below](#what-grok-build-takes-of-its-own). It is
+frozen,
 because a session resumes under the settings it opened with — a config that changed mid-flow
 would silently split one conversation across two models.
 
@@ -370,7 +372,7 @@ different things.
 | --- | --- |
 | `claude` | `--disallowedTools WebSearch,WebFetch` when off |
 | `codex` | `-c tools.web_search=true\|false`, both ways |
-| `grok` | `--disallowed-tools web_search,web_fetch` when off |
+| `grok` | `--disable-web-search` when off |
 | `qwen` | `--exclude-tools web_search,web_fetch` when off |
 | `opencode`, `mimo` | `webfetch: deny` in its permission table when off |
 | `zcode` | `WebSearch` and `WebFetch` in the session's `toolDenylist` when off |
@@ -1180,7 +1182,7 @@ before the runtime starts unless its effort is `max`, `high` or `off`.
 | `codex` | `low`, `medium`, `high`, `xhigh`, and `max`/`ultra` on the models that take them |
 | `cursor` | `low`, `medium`, `high` — written into the model rather than sent beside it |
 | `dsh` | `off`, `high`, `max` |
-| `grok` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` — the levels the model itself advertises |
+| `grok` | `low`, `medium`, `high`, `xhigh` |
 | `kimi` | `low`, `medium`, `high`, `max`, each also as `swarm…` |
 | `pi` | `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
 | `qwen` | `none`, `low`, `medium`, `high`, `xhigh`, `max` |
@@ -1206,9 +1208,13 @@ Both modes pass the session directory through the CLI's `--add-dir` flag, as the
 This keeps native project selection from replacing the session workspace with a scratch
 directory.
 
-**Grok Build refuses a level the model does not advertise** rather than ignoring it, so a turn
-asked for one fails with the list of the ones that model takes. The shipped models take
-`low`, `medium`, `high` and `xhigh`.
+**Grok Build's command line refuses a level it has not got** rather than ignoring it, and
+refuses it before it does anything else: `grok --effort bogus` comes back as
+`--effort/--reasoning-effort: unknown effort level 'bogus'; use one of: xhigh, high, medium,
+low` and the turn never starts. Those four are the ladder, on 1.0.24 and on both of the models
+it ships with. Its `grok agent` does not check: it takes any word, opens the session and runs
+— so an agent asked for a level off that ladder takes its ordinary turns and fails on the
+first one that falls to the command line. Ask for one of the four.
 
 **Qwen Code has no flag for the effort.** It is a setting of its own `settings.json`, so a turn
 is pointed at a file of humanize's own through `QWEN_CODE_SYSTEM_SETTINGS_PATH` — two agents of
@@ -1608,13 +1614,67 @@ by the time there is anything to say to it.
 
 Grok Build serves the same protocol its own IDE clients speak — `grok agent stdio` — so an
 ordinary turn is a `session/prompt` written to a process that is already up rather than a CLI
-started again. What that process cannot be told is what sends a turn back to `grok -p`: it has
-no `--tools`, no `--disallowed-tools` and no `--json-schema`, so a rung that takes tools away,
-an agent told not to search the web, and a turn held to a shape are each one run of the command
-line, resuming the same conversation. So is [a fork](#a-conversation-that-goes-two-ways): the
-protocol opens a session or loads one by id and has no third call, so the one turn that cuts
-the conversation is `--resume … --fork-session` and every turn after it is ordinary. The
-session id is Grok Build's own either way, and each transport picks up what the other opened.
+started again. What that process cannot be told is what sends a turn back to `grok -p`.
+`grok agent` takes a model, an effort, an approval, an agent profile, a plugin directory and
+the leader, and refuses everything else outright with `error: unexpected argument` — no
+`--tools`, no `--disable-web-search`, no `--json-schema`, no `--sandbox`, no `--max-turns`, no
+`--no-subagents`, no `--rules`. So a rung that takes tools away, an agent told not to search
+the web, a turn held to a shape and each of [Grok Build's own five
+settings](#what-grok-build-takes-of-its-own) are one run of the command line, resuming the
+same conversation. So is [a fork](#a-conversation-that-goes-two-ways): the protocol opens a
+session or loads one by id and has no third call, so the one turn that cuts the conversation
+is `--resume … --fork-session` and every turn after it is ordinary. The session id is Grok
+Build's own either way, and each transport picks up what the other opened. Nothing is served
+looser for the transport's sake — what moves is which of the two a turn is taken on.
+
+That run is `--output-format streaming-json`, which the CLI's own help calls *the agent's
+native format*: the protocol's `session/update` with `sessionUpdate` flattened onto `type` and
+the words moved onto `data`, so the two transports are one stream said twice. The `plain` it
+defaults to is the answer with nothing said about how it was reached, and the
+`streaming-messages-json` beside it is somebody else's wire format around the same turn.
+
+The prompt goes on that command line as `--single=…`, one argument. Linux takes 2MB of argv in
+total but caps any single element at 32 pages — 131062 bytes once the flag and the terminator
+are off it, about 32 thousand tokens — and a prompt past that raises where the process would
+have started. `--prompt-file` would lift the ceiling at the price of a file to write, to keep
+for the length of the turn and to clear up after one that was cut off, and this transport has
+nowhere to hang that clearing up.
+
+#### What Grok Build takes of its own
+
+Five settings on `GrokBuildAgentConfig` beyond the common ones. Every one of them is off by
+default, and off means the flag is not written at all: an install that says nothing here runs
+the command line the bare CLI runs. Each is a capability the catalogue derives from the field
+itself, so a flow that builds on one can ask for it before the run starts rather than set it
+on an agent whose backend has no such field.
+
+| Field | What it says | Default |
+| --- | --- | --- |
+| `leader` | `False` starts a process of this conversation's own; `True` joins the backend shared by every client that asks for it; `None` leaves the question to `[cli] use_leader` in the machine's own `config.toml`, which is the bare CLI's answer | `False` |
+| `sandbox` | The `--sandbox` profile a turn's files and network are confined by, by name | `""` — none |
+| `max_turns` | `--max-turns`, how many turns of its own one run may take | `0` — uncapped |
+| `subagents` | `False` is `--no-subagents`, for work done by the one agent a flow is watching rather than by a fleet under it | `True` |
+| `rules` | `--rules`, appended to the system prompt Grok Build builds itself | `""` |
+
+`leader` is the one that is not the bare CLI's own answer, and deliberately: a
+`use_leader = true` in somebody's config file would otherwise put every session of a flow on
+one backend, and a run that shared a process it was not measured on is not the run that was
+measured. It is a setting of the held-open process, so a conversation whose every turn falls
+to the command line never reaches it. The other four are the top-level command's, so naming
+one sends *every* turn of the conversation to that command rather than applying to some turns
+and not others.
+
+`max_turns` is Grok Build's own cap and not [`Budget`](#cutting-a-turn-off-and-what-one-turn-may-spend): a budget is
+per turn of this conversation and is counted here, on the meter every backend feeds, and
+rerouting it onto a flag only some backends have would make a cap that read the same and
+counted something else.
+
+Three more of Grok Build's flags are deliberately not fields. `--include-partial-messages`
+says of itself that it *only affects `--output-format streaming-messages-json`*, and these
+turns are read as `streaming-json`. `--agent-profile` and `--plugin-dir` are the mirror of the
+four above — they exist on `grok agent` and not on the top-level command, so an agent given
+one would keep it for its ordinary turns and silently lose it for every shaped, forked or
+tool-withheld one.
 
 ## Answering in a shape
 
@@ -1694,15 +1754,31 @@ reaches for whichever of its own settings says the same thing:
 | Rung | `agy` | `claude` | `codex` | `cursor` | `dsh` | `grok` | `kimi` | `pi` | `qwen` | `opencode`, `mimo` | `zcode` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `read-only` | refused | `plan` mode | `read-only` sandbox | `--mode plan` | refused | only `read_file`, `grep`, `list_dir` | plan mode | without `bash`, `edit`, `write` | without `edit`, `write_file`, `run_shell_command` | `edit` and `bash` denied | `plan` mode |
-| `workspace-write` | refused | `acceptEdits` mode | `workspace-write` sandbox | `--sandbox enabled` | refused | `web_search` and `web_fetch` denied | plan mode off | — | `web_fetch` denied | `webfetch` denied | `edit` mode |
-| `auto` | `--dangerously-skip-permissions` | Claude's own `auto` mode | `workspace-write`, approvals on request | `--auto-review`, its own classifier | refused | — | — | — | — | nothing denied | `build` mode, which asks before a tool with side effects |
-| `bypass` | `--dangerously-skip-permissions` | `manual` mode, every request answered here | `danger-full-access` | `--force --sandbox disabled` | supported | `--yolo` | `yolo` mode | — | `--approval-mode yolo` | — | `yolo` mode |
+| `workspace-write` | refused | `acceptEdits` mode | `workspace-write` sandbox | `--sandbox enabled` | refused | `--disable-web-search` | plan mode off | — | `web_fetch` denied | `webfetch` denied | `edit` mode |
+| `auto` | `--dangerously-skip-permissions` | Claude's own `auto` mode | `workspace-write`, approvals on request | `--auto-review`, its own classifier | refused | `--always-approve` | — | — | — | nothing denied | `build` mode, which asks before a tool with side effects |
+| `bypass` | `--dangerously-skip-permissions` | `manual` mode, every request answered here | `danger-full-access` | `--force --sandbox disabled` | supported | — | `yolo` mode | — | `--approval-mode yolo` | — | `yolo` mode |
 
 **Codex is the one backend here with a sandbox of its own**, so its rungs are the real thing
 rather than an approximation of one. Where a backend cannot tell two rungs apart it says so
 here rather than pretending: a dash is the rung above it, run again. **Refused** is neither: a
 backend with no way of being run at that rung says no where the config arrives, so a flow that
 declares one is refused that backend before its first turn rather than quietly run looser.
+
+**Grok Build's rung is the tools it is started with, not its `--permission-mode`.** It has one
+— six modes, `default`, `acceptEdits`, `auto`, `dontAsk`, `bypassPermissions` and `plan` — and
+on 1.0.24 a headless `grok -p` at every one of them, `plan` included, ran the same shell
+command, wrote the same file into the workspace and wrote the same file outside it. A mode
+says how the permission *rules* on a machine are applied, and a machine with no rules has
+nothing for it to apply; headless has nobody to ask, so what is left is approved. So humanize
+does not send one: a flag that reads as a rung and enforces nothing is the one way a rung must
+not fail. What it sends instead is what bites — `--tools read_file,grep,list_dir` leaves five
+tools in the process and a turn asked to write a file under it reaches four times and writes
+nothing, and `--disable-web-search` takes away the two that reach outside the workspace. It
+has no workspace sandbox to map `workspace-write` onto: `--sandbox` names a profile somebody
+wrote in their own `sandbox.toml`, and writing one to enforce a rung would be humanize writing
+the CLI's own settings. `auto` and `bypass` are one thing here for the same reason there is no
+mode to send — with nothing to ask, granting what is asked and asking nothing come to the same
+`--always-approve` — so `auto` is spelled out and `bypass` is the dash.
 
 **A Codex whose rules are somebody else's runs a rung down rather than not at all.** An
 installation can be given requirements — an enterprise policy that arrives with the account, a
