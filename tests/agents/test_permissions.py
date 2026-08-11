@@ -325,13 +325,23 @@ def test_a_rung_nobody_wrote_down_is_the_one_an_agent_comes_at() -> None:
         ("read-only", "auto", True),
         ("workspace-write", "auto", False),
         ("auto", "auto", False),
-        ("bypass", "yolo", False),
+        ("bypass", "auto", False),
     ],
 )
 def test_kimi_is_told_the_rung_as_a_mode_and_a_plan(
     permission: str, mode: str, planning: bool
 ) -> None:
-    """`manual` is never used: it asks, and an unattended flow has nobody to answer."""
+    """`auto` is the only mode that never stops, so plan mode is the whole of the ladder.
+
+    Kimi's own three are Always Ask (`manual`), Ask When Needed (`yolo`) and Never Ask
+    (`auto`), loosest last -- `yolo` is the middle rung, not the top one the word suggests.
+    Its policy that approves everything is consulted behind the ones that ask, so a `yolo`
+    turn still stops before a dangerous or unparseable Bash command, a sensitive file, a
+    path under `.git`, and `ExitPlanMode`. Each of those is an approval rather than a
+    question, and this driver reads only `/questions`, so a turn stopped on one never moves
+    again. `manual` is unreachable for the same reason, and is the one rung genuinely left
+    on the table: it would be a truer `read-only` than plan mode is.
+    """
     from hmz.coganchor.agents.kimi import _PERMITTED
 
     said = _PERMITTED[permission]

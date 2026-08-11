@@ -633,7 +633,10 @@ def test_kimi_opens_then_resumes(kimi: _FakeServer) -> None:
     session("again")
 
     started, *calls = kimi.calls()
-    # A port of its own, so that two flows on one machine cannot collide over the default one.
+    # What an agent configured with none of it gets: a port of its own, so that two flows on
+    # one machine cannot collide over Kimi's 58627; no browser, there being none to open where
+    # a flow runs; and a log level at all, because `kimi web` at its own default of `silent`
+    # draws its ready output as a banner instead of printing the line the address is read from.
     assert started["body"] == [
         "web",
         "--no-open",
@@ -1503,7 +1506,16 @@ def test_a_codex_turn_carries_the_rung_it_runs_at(
 
 @pytest.mark.parametrize(
     ("permission", "mode", "planning"),
-    [("read-only", "auto", True), ("bypass", "yolo", False)],
+    # `auto` at every rung, plan mode being the whole of what tells them apart: Kimi's `yolo`
+    # is the middle rung rather than the top one, and still stops for an approval -- which
+    # lives on a route of its own that this driver does not read -- before a dangerous or
+    # unparseable command, a sensitive file, a `.git` path or `ExitPlanMode`.
+    [
+        ("read-only", "auto", True),
+        ("workspace-write", "auto", False),
+        ("auto", "auto", False),
+        ("bypass", "auto", False),
+    ],
 )
 def test_a_kimi_turn_carries_the_rung_it_runs_at(
     kimi: _FakeServer, permission: str, mode: str, planning: bool
@@ -1518,6 +1530,50 @@ def test_a_kimi_turn_carries_the_rung_it_runs_at(
     (profile,) = _bodies(kimi, "/profile")
     assert profile["agent_config"]["permission_mode"] == mode
     assert profile["agent_config"]["plan_mode"] is planning
+
+
+def test_a_kimi_daemon_is_started_the_way_the_flow_asked_for(kimi: _FakeServer) -> None:
+    """Every departure from `kimi web`'s own defaults is one a flow can take back off."""
+    agent = KimiCodeCLIAgent(
+        KimiCodeCLIAgentConfig(
+            model="kimi-code/k3",
+            effort="high",
+            port=58627,
+            open_browser=True,
+            log_level="debug",
+            web_title="Trailblazer",
+        )
+    )
+    agent("hi")
+
+    started, *_ = kimi.calls()
+    # No `--no-open` at all, rather than one saying to open: that is the flag's own shape.
+    assert started["body"] == [
+        "web",
+        "--port",
+        "58627",
+        "--log-level",
+        "debug",
+        "--web-title",
+        "Trailblazer",
+    ]
+
+
+def test_a_kimi_daemon_is_never_asked_for_the_one_level_it_cannot_be_read_at() -> None:
+    """`silent` is `kimi web`'s own default, and the one shape this driver cannot parse.
+
+    At `silent` the daemon draws a banner where every other level prints
+    `Kimi server: <url>/#token=<token>`, so a daemon started there would never be reached at
+    all. Refused where the config arrives, which is where a flow can still be told why.
+    """
+    with pytest.raises(ValueError, match="ready banner"):
+        KimiCodeCLIAgentConfig(model="kimi-code/k3", effort="high", log_level="silent")
+    with pytest.raises(ValueError, match="log_level must be one of"):
+        KimiCodeCLIAgentConfig(model="kimi-code/k3", effort="high", log_level="quiet")
+    with pytest.raises(ValueError, match="port must be between"):
+        KimiCodeCLIAgentConfig(model="kimi-code/k3", effort="high", port=65536)
+    with pytest.raises(ValueError, match="web_title must say something"):
+        KimiCodeCLIAgentConfig(model="kimi-code/k3", effort="high", web_title="  ")
 
 
 def test_a_codex_turn_runs_at_the_effort_the_flow_moved_it_to(
