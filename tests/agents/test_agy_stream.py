@@ -420,6 +420,43 @@ def test_a_prompt_that_opens_with_a_path_is_work_and_keeps_the_process(
     assert "--print" not in two["argv"]
 
 
+def test_what_this_cli_is_told_beyond_the_common_settings_is_the_agents_to_say(
+    agy: _Agy,
+) -> None:
+    """Each of the four defaults to what a turn already ran as, and each can be said."""
+    session = agy.agent.new()
+    session("first")
+    agy.agent.reconfigure(
+        replace(agy.agent.config, add_workspace=False, sandbox=True, print_timeout=60.0)
+    )
+    session("second")
+    one, two = agy.calls()
+    assert "--add-dir" in one["argv"]
+    assert "--sandbox" not in one["argv"]
+    assert one["argv"][one["argv"].index("--print-timeout") + 1] == "86400.000s"
+    # The bare CLI resolves a project for itself, which is what the pinned root overrides.
+    assert "--add-dir" not in two["argv"]
+    assert "--sandbox" in two["argv"]
+    assert two["argv"][two["argv"].index("--print-timeout") + 1] == "60.000s"
+
+
+def test_a_command_is_left_to_the_warm_process_once_expansion_is_off(
+    agy: _Agy,
+) -> None:
+    """There is nothing to go to the finite transport for: it is where expansion happens."""
+    agy.agent.reconfigure(replace(agy.agent.config, disable_slash_commands=True))
+    session = agy.agent.new()
+    session("first")
+    # The stand-in fails a commanded prompt on the streaming transport, which is how a turn
+    # that went there rather than to a `--print` of its own shows up at all.
+    with pytest.raises(Failed):
+        session("/model")
+    one, two = agy.calls()
+    assert one["pid"] == two["pid"]
+    assert "--disable-slash-commands" in one["argv"]
+    assert "--print" not in two["argv"]
+
+
 def test_a_backwards_native_counter_charges_the_whole_turn(agy: _Agy) -> None:
     """A conversation whose count started again spent that count, rather than nothing."""
     session = agy.agent.new()
@@ -501,6 +538,22 @@ def test_an_anchored_session_adds_the_mirror_it_actually_works_in(
 
     assert session("read-workspace") == "mirror contents"
     assert anchor.into == [str(workspace / "one")]
+    agent.stop()
+
+
+def test_an_anchored_session_pins_the_mirror_whatever_the_agent_says(
+    agy: _Agy, tmp_path: Path
+) -> None:
+    """It is the one directory whose files reach the target: left off, the edits land here."""
+    workspace, mirror = tmp_path / "workspace", tmp_path / "mirror"
+    (workspace / "one").mkdir(parents=True)
+    (mirror / "one").mkdir(parents=True)
+    (mirror / "one/workspace.txt").write_text("mirror contents")
+    anchor = HereAnchor(target="local", workspace=str(workspace), shadow=str(mirror))
+    agent = _AnchoredAntigravity(replace(agy.agent.config, add_workspace=False), anchor)
+    session = agent.new(workspace / "one")
+
+    assert session("read-workspace") == "mirror contents"
     agent.stop()
 
 

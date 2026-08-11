@@ -681,8 +681,10 @@ def _agy(profile: Profile, run: Callable[..., str]) -> list[Model]:
     Returns:
       One per model it offers, each at the one effort its own name carries -- it lists
       `gemini-3.7-flash-high`, `-medium` and `-low` as three models rather than as one model
-      at three efforts. A model whose name carries none is offered at the whole ladder, being
-      one that runs at its own level however hard it is asked to think.
+      at three efforts. A model whose name carries none is offered at the whole ladder, that
+      being the name the CLI takes `--effort` beside: its driver sends the flag exactly where
+      the name has not already answered, and the CLI refuses it by name for a model that
+      turns out to take none.
     """
     found: list[Model] = []
     for line in run(["models"]).splitlines():

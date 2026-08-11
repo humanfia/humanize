@@ -851,7 +851,11 @@ PROFILES = (
         name="agy",
         aliases=("agy", "antigravity"),
         # `--conversation` picks one back up and that is the whole of what it offers: there
-        # is no flag that says carry this one into another.
+        # is no flag that says carry this one into another. Still true of agy 1.2.2, checked
+        # on 2026-09-15 against its own `--help` and its subcommands. It does know how to
+        # fork -- `/fork` is one of the commands it answers at a prompt -- but print mode
+        # answers only the read-only ones of those, so there is nothing a turn taken here
+        # could say to reach it and nothing that would hand back the second id a clone is.
         forks=False,
         # Nothing moves it: no variable of its own, and neither `XDG_CONFIG_HOME` nor the
         # names its siblings use are read. Only the home directory it is under, and a hidden
@@ -866,6 +870,13 @@ PROFILES = (
         # which is how six rate-limited turns of the 2026-09-09 evaluation read as six turns
         # that simply failed. `cli.log` is the symlink to the newest; the dated ones are what
         # a run that has since restarted left behind, and the newest of those is this turn's.
+        #
+        # All of it re-checked against agy 1.2.2 on 2026-09-15: the generic line is still what
+        # it exits with, and its home still holds `cli.log` pointing at `log/cli-<stamp>.log`.
+        # It does take `--log-file`, which would name this turn's log rather than leaving it
+        # to be found -- and is not used, because `journalled` is what reads it and looks under
+        # this backend's home for the newest rather than being handed a path per turn. Naming
+        # one would move the log away from the only thing that looks at it.
         journal=("cli.log", "log/cli-*.log"),
         efforts=_AGY,
         # Two places: the `skills/` of its own home, which is the global customization root it

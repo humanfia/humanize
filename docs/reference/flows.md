@@ -430,6 +430,7 @@ class Agents(NamedTuple):
 | `fork` | one conversation carried into a second going its own way |
 | `counts:<kind>` | the backend says what a turn spent on that kind of token — `input`, `output`, `cache_read`, `cache_write`, `reasoning` — so a loop bounded by one is not bounded by a nought |
 | `search` / `swarm` / `resume` | facts about the CLI itself, out of its own profile |
+| `settings:<field>` | a setting only some of these CLIs have, on that backend's own config class — `allowed_tools`, `overrides`, `print_timeout` and the rest — each defaulting to what a turn of that CLI already ran as |
 | `moment:<name>` | a moment only some backends reach, written out rather than as the enum |
 
 Read off the driver class and off what is written down about the CLI, so nothing has to have
