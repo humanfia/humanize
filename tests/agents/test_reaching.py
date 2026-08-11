@@ -21,6 +21,7 @@ from hmz.coganchor.agents import (
     ClaudeCodeAgent,
     ClaudeCodeAgentConfig,
     PiAgent,
+    pi,
 )
 from hmz.coganchor.agents.hooks import _ROOM, about, arriving
 
@@ -287,55 +288,31 @@ def _pi_part(**event: Any) -> dict[str, Any]:
     return {"type": "message_update", "assistantMessageEvent": event}
 
 
-def _pi_writing(arrived: str) -> dict[str, Any]:
-    """The block pi is writing a `write` call into, with that much of its input in it.
-
-    pi hands over the message so far on every fragment, with the fragments themselves under
-    `partialJson` and its own repaired reading of them under `arguments` -- so the two say
-    different things about a value that is still arriving, which is the point.
-    """
-    return {
-        "content": [
-            {
-                "type": "toolCall",
-                "id": "call_1|1",
-                "name": "write",
-                "arguments": {"path": arrived.split('"')[3]}
-                if '": "' in arrived
-                else {},
-                "partialJson": arrived,
-            }
-        ]
-    }
-
-
 def test_pi_says_a_write_while_the_file_is_still_arriving() -> None:
-    """The fragments say it as soon as one of them closes a value, and not before."""
+    """The fragments say it as soon as one of them closes a value, and not before.
+
+    Three pieces and no one of them is the call: 0.85.1 puts the id and the name on the
+    start, each fragment of the JSON the arguments are written as on a `delta` of its own
+    carrying nothing else -- not even the id -- and the call whole on the end. So the row is
+    assembled here, which is what the numbered part of the message holds together.
+    """
     session = _pi()
 
     opening = _said(
         session,
-        _pi_part(type="toolcall_start", contentIndex=0, partial=_pi_writing("")),
         _pi_part(
-            type="toolcall_delta",
-            contentIndex=0,
-            delta='{"path": "hel',
-            partial=_pi_writing('{"path": "hel'),
+            type="toolcall_start", contentIndex=0, id="call_1|1", toolName="write"
         ),
+        _pi_part(type="toolcall_delta", contentIndex=0, delta='{"path": "hel'),
     )
 
-    # Half a path, which pi's own reading of the fragments would have said whole: a row
-    # saying `write hel` would be worse than no row at all.
+    # Half a path, which pi's own repaired reading of the fragments would have said whole: a
+    # row saying `write hel` would be worse than no row at all.
     assert opening == []
 
     said = _said(
         session,
-        _pi_part(
-            type="toolcall_delta",
-            contentIndex=0,
-            delta='lo.py", "content": "a',
-            partial=_pi_writing('{"path": "hello.py", "content": "a'),
-        ),
+        _pi_part(type="toolcall_delta", contentIndex=0, delta='lo.py", "content": "a'),
     )
 
     assert [(one.kind, one.text) for one in said] == [("tool", "write hello.py")]
@@ -357,6 +334,85 @@ def test_pi_says_a_write_while_the_file_is_still_arriving() -> None:
     )
 
     assert ended == []
+
+
+def test_pi_tells_two_calls_of_one_message_apart_by_where_they_are_in_it() -> None:
+    """Which is all there is to tell them apart by: a fragment carries no id of its own."""
+    session = _pi()
+
+    said = _said(
+        session,
+        _pi_part(type="toolcall_start", contentIndex=1, id="call_a", toolName="read"),
+        _pi_part(type="toolcall_start", contentIndex=2, id="call_b", toolName="bash"),
+        _pi_part(type="toolcall_delta", contentIndex=2, delta='{"command": "ls"}'),
+        _pi_part(type="toolcall_delta", contentIndex=1, delta='{"path": "x.py"}'),
+    )
+
+    assert [(one.kind, one.text) for one in said] == [
+        ("tool", "bash ls"),
+        ("tool", "read x.py"),
+    ]
+
+
+def test_pi_holds_no_more_of_the_arguments_than_a_row_could_ever_be_drawn_from() -> (
+    None
+):
+    """The rest of a `write` is the file, and joining it to itself per fragment is quadratic.
+
+    Which is what pi took its own cumulative message out of `message_update` to be rid of,
+    and what this would put back on the near side of the pipe.
+    """
+    session = _pi()
+
+    said = _said(
+        session,
+        _pi_part(type="toolcall_start", contentIndex=0, id="call_1", toolName="write"),
+        _pi_part(type="toolcall_delta", contentIndex=0, delta='{"content": "'),
+        *(
+            _pi_part(type="toolcall_delta", contentIndex=0, delta="x" * 1000)
+            for _ in range(20)
+        ),
+    )
+
+    assert said == []  # the file is not a path, however much of it arrives
+    (_, _, sofar) = session._calling[0]
+    assert len(sofar) <= _ROOM
+    # And what it holds is exactly what `arriving` would have read, no less: a shorter buffer
+    # would lose a value that closes late and a row with it.
+    assert pi._SCANNED == _ROOM
+
+
+def test_pi_says_nothing_more_about_a_call_it_has_already_said() -> None:
+    """The row went out at the fragment that closed the path; the file after it is noise."""
+    session = _pi()
+
+    said = _said(
+        session,
+        _pi_part(type="toolcall_start", contentIndex=0, id="call_1", toolName="write"),
+        _pi_part(type="toolcall_delta", contentIndex=0, delta='{"path": "x.py", "c'),
+        _pi_part(type="toolcall_delta", contentIndex=0, delta='ontent": "a\\nb"}'),
+    )
+
+    assert [(one.kind, one.text) for one in said] == [("tool", "write x.py")]
+    # And not held on to either: nothing after the row is ever read again.
+    assert session._calling[0][2] == '{"path": "x.py", "c'
+
+
+def test_pi_says_no_row_at_all_for_an_end_that_carries_no_call() -> None:
+    """A bare `tool` row would tell a hook the agent reached for something unnamed."""
+    session = _pi()
+
+    assert _said(session, _pi_part(type="toolcall_end", contentIndex=0)) == []
+
+
+def test_pi_says_nothing_for_fragments_of_a_call_it_never_saw_the_start_of() -> None:
+    """A row naming `tool` and a command would say less than the row that never came."""
+    session = _pi()
+
+    assert (
+        _said(session, _pi_part(type="toolcall_delta", contentIndex=0, delta="{}"))
+        == []
+    )
 
 
 def test_pi_says_a_call_whose_arguments_said_nothing_at_its_end() -> None:

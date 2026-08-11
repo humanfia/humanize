@@ -55,9 +55,13 @@ class _Shape(BaseModel):
     value: str
 
 
-#: A `pi --mode rpc`: it names the session it was given, then answers each command written to
-#: it with the events one agent run is made of. A prompt of `boom` is refused outright and one
-#: of `wrong` comes back as a request that errored, which are the two ways a turn fails here.
+#: A `pi --mode rpc`: it answers each command written to it with the events one agent run is
+#: made of, and announces nothing at all when it comes up -- 0.85.1 has no event saying which
+#: session it opened, only a `get_state` for anybody who asks, because `--session-id` is the
+#: exact id and pi creates it where there is none. A tool call arrives in three pieces, as it
+#: does there: the id and the name at the start, the arguments as bare fragments of JSON after
+#: it, and the call whole at the end. A prompt of `boom` is refused outright and one of `wrong`
+#: comes back as a request that errored, which are the two ways a turn fails here.
 _PI = """
 import json, os, pathlib, queue, sys, threading
 
@@ -101,9 +105,7 @@ def steered(said):
 
 
 note(sys.argv[1:], "")
-flags = dict(zip(sys.argv, sys.argv[1:]))
 threading.Thread(target=reading, daemon=True).start()
-out({"type": "session", "id": flags["--session-id"]})
 while True:
     told = take()
     if told is None:
@@ -127,13 +129,20 @@ while True:
     out({"type": "message_start", "message": {"role": "user",
          "content": [{"type": "text", "text": said}]}})
     out({"type": "message_update", "assistantMessageEvent":
-         {"type": "text_delta", "delta": "half"}})
+         {"type": "text_delta", "contentIndex": 1, "delta": "half"}})
     out({"type": "message_update", "assistantMessageEvent":
-         {"type": "thinking_end", "content": "thinking about " + said}})
+         {"type": "thinking_end", "contentIndex": 0,
+          "content": "thinking about " + said}})
+    out({"type": "message_update", "assistantMessageEvent": {"type": "toolcall_start",
+         "contentIndex": 2, "id": "call_1", "toolName": "bash"}})
+    for piece in ('{"comm', 'and": "echo ', said + '"}'):
+        out({"type": "message_update", "assistantMessageEvent":
+             {"type": "toolcall_delta", "contentIndex": 2, "delta": piece}})
     out({"type": "message_update", "assistantMessageEvent": {"type": "toolcall_end",
-         "toolCall": {"name": "bash", "arguments": {"command": "echo " + said}}}})
+         "contentIndex": 2, "toolCall": {"type": "toolCall", "id": "call_1",
+         "name": "bash", "arguments": {"command": "echo " + said}}}})
     out({"type": "message_update", "assistantMessageEvent":
-         {"type": "text_end", "content": said}})
+         {"type": "text_end", "contentIndex": 1, "content": said}})
     out({"type": "message_end", "message": {"role": "assistant",
          "content": ([] if said == "wrong" else [{"type": "text", "text": said}]),
          "usage": {"input": 10, "output": 5, "cacheRead": 2, "cacheWrite": 1},
@@ -482,6 +491,10 @@ def test_pi_says_what_the_turn_did_and_what_it_cost(stubs: _Stubs) -> None:
     said = list(session.stream("hi"))
 
     assert [event.kind for event in said] == ["reasoning", "tool", "text", "result"]
+    # Said from the fragments rather than from the call pi hands over whole at the end: the
+    # name came at the start, the command finished arriving three fragments later, and the
+    # row went out there -- which for a `write` is the difference between a row now and a row
+    # once the file has been written.
     assert said[1].text == "bash echo hi"
     assert said[-1].text == "hi"
     # Every kind of token: what a rate measures is the traffic, and a cache read is traffic.
@@ -534,6 +547,86 @@ def test_pi_leaves_a_compile_cache_somebody_else_chose(
 
     launch = stubs.calls()[0]
     assert launch.compiled == str(tmp_path / "mine")
+
+
+def test_a_pi_told_not_to_keep_a_compile_cache_is_started_without_one(
+    stubs: _Stubs, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The one thing here humanize decided rather than read off pi has a way out."""
+    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "humanize"))
+    monkeypatch.delenv("NODE_COMPILE_CACHE", raising=False)
+    config = PiAgentConfig(model="openai-codex/gpt-5.5", effort="high", compiled=False)
+    assert PiAgent(config).new()("hi") == "hi"
+
+    # Not set at all rather than set to something else: a turn of an agent that declined it
+    # starts exactly as a bare `pi` would, which is the whole of what declining it means.
+    assert stubs.calls()[0].compiled is None
+
+
+def test_a_pi_nobody_configured_is_started_as_the_bare_cli_would_be(
+    stubs: _Stubs,
+) -> None:
+    """Every flag past the transport, the model, the effort and the id is somebody's ask."""
+    PiAgent(PI).new()("hi")
+
+    argv = stubs.calls()[0].argv
+    assert argv[:3] == ["--mode", "rpc", "--model"]
+    assert len(argv) == 8  # and nothing else at all
+    for flag in (
+        "--append-system-prompt",
+        "--skill",
+        "--no-context-files",
+        "--no-extensions",
+        "--offline",
+        "--exclude-tools",
+        "--provider",
+    ):
+        assert flag not in argv
+
+
+def test_pi_takes_what_a_flow_asks_of_it_and_nothing_it_did_not(stubs: _Stubs) -> None:
+    """Each of pi's own options, as the field on its config that is the ask for it."""
+    session = PiAgent(
+        PiAgentConfig(
+            model="openai-codex/gpt-5.5",
+            effort="high",
+            permission="read-only",
+            context_files=False,
+            extensions=False,
+            offline=True,
+            append_system_prompt=("answer in French", "/etc/hostname"),
+            skill_paths=("/flow/skills/review",),
+        )
+    ).new()
+    session("hi")
+
+    argv = stubs.calls()[0].argv
+    assert argv[argv.index("--exclude-tools") + 1] == "bash,edit,write,powershell"
+    assert [one for one in argv if one == "--append-system-prompt"] == [
+        "--append-system-prompt"
+    ] * 2
+    assert argv[argv.index("--skill") + 1] == "/flow/skills/review"
+    assert {"--no-context-files", "--no-extensions", "--offline"} <= set(argv)
+
+
+def test_a_pi_option_with_nothing_in_it_is_refused_where_it_is_written() -> None:
+    """Pi would take the flag and the blank after it and load nothing at all."""
+    with pytest.raises(ValueError, match="append_system_prompt"):
+        PiAgentConfig(
+            model="openai-codex/gpt-5.5", effort="high", append_system_prompt=("  ",)
+        )
+    with pytest.raises(ValueError, match="skill_paths"):
+        PiAgentConfig(model="openai-codex/gpt-5.5", effort="high", skill_paths=("",))
+
+
+def test_a_pi_option_written_as_one_entry_is_refused_rather_than_spelled_out() -> None:
+    """A string is a sequence of strings: `--skill` per character, and pi takes each one."""
+    with pytest.raises(TypeError, match="skill_paths"):
+        PiAgentConfig(
+            model="openai-codex/gpt-5.5",
+            effort="high",
+            skill_paths="/flow/skills/review",  # pyright: ignore[reportArgumentType]
+        )
 
 
 def test_pi_that_never_opened_cannot_be_talked_to() -> None:
@@ -681,7 +774,12 @@ def test_pi_is_given_no_tools_that_change_anything_when_it_may_change_nothing(
     ).new()
     assert reading("hi") == "hi"
     (launch, _) = stubs.calls()
-    assert launch.argv[launch.argv.index("--exclude-tools") + 1] == "bash,edit,write"
+    # `powershell` among them because it is `bash` on Windows, and pi ignores a name on the
+    # list it did not load -- so the rung means the same thing wherever the turn lands.
+    assert (
+        launch.argv[launch.argv.index("--exclude-tools") + 1]
+        == "bash,edit,write,powershell"
+    )
 
 
 @pytest.mark.parametrize("permission", ["workspace-write", "auto", "bypass"])

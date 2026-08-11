@@ -260,7 +260,9 @@ are left alone, so a runtime selected by the environment stays selected.
 
 `pi`, `opencode`, `mimo` and `zcode` name a model as `provider/id` — `openai-codex/gpt-5.5`,
 `opencode/big-pickle`, `xiaomi/mimo-v2.5`, `zai/glm-5.3` — because a model there belongs to the
-provider that serves it, and the CLI is asked for the pair. `qwen` names whatever id the
+provider that serves it, and the CLI is asked for the pair. On `pi` that is load-bearing rather
+than tidy: its own `--provider` defaults to `google`, so a model named without its provider
+would be looked for among whichever Gemini models that account has. `qwen` names whatever id the
 OpenAI-compatible endpoint behind it serves, and `grok` names one out of its own catalogue:
 `grok models` lists them.
 
@@ -308,7 +310,14 @@ whether [goals](/weaver/goals) are available to it,
 [skills it carries](#the-skills-an-agent-carries) are not among them, being its CLI's own and
 its flow's. Codex also takes `overrides`, the app-server `-c` keys that are not already one
 of those fields. Claude takes `allowed_tools`, exact native `--allowedTools` rules for a
-bounded unattended flow. It is frozen,
+bounded unattended flow. pi takes six, each defaulted to what a bare `pi` already does:
+`compiled` (`True`) is whether node may keep what it compiled of pi under humanize's home;
+`context_files` and `extensions` (both `True`) are whether it discovers `AGENTS.md`/`CLAUDE.md`
+and the extensions installed here; `offline` (`False`) is `--offline`, its startup network work
+switched off; `append_system_prompt` (`()`) adds text — or the contents of a file named by path
+— to pi's own system prompt, once per entry; and `skill_paths` (`()`) hands it a skill file or
+directory by path. A flow asks for any of these before it is handed an agent, each under the
+`settings:<field>` name its own config class gives it. It is frozen,
 because a session resumes under the settings it opened with — a config that changed mid-flow
 would silently split one conversation across two models.
 
@@ -1246,6 +1255,27 @@ humanize's home: the first session to run compiles it, and the rest read that ba
 `NODE_COMPILE_CACHE` already set is left alone, since theirs is the cache they meant, and a turn
 that lands on another machine is given none — the path would name a directory on this one.
 
+That cache is the one thing on a pi command line humanize decided rather than read off pi, so
+it has a way out: `PiAgentConfig(compiled=False)` leaves the variable exactly as it was found
+and the turn starts as a bare `pi` would. A flow can ask for it beforehand — it is the
+`settings:compiled` capability. Everything else pi is started with is either the transport or
+an answer to something the flow said: `--mode rpc`, because a turn is a line written to a process that is
+already up and steering and moving the effort are commands there rather than flags;
+`--session-id`, because `--continue` resumes whichever session in the directory is newest and a
+second agent working alongside would steal the resume; and `--exclude-tools` at the `read-only`
+rung. **pi has no permission gate and no sandbox** — its own security notes call project trust
+"only an input-loading guard", and `--approve`/`--no-approve` is that guard for one run rather
+than the beginning of a gate: a turn run under `--no-approve`, the stricter of the two, runs
+`bash` to completion and is never asked anything. So `read-only` is the tools it is not given,
+and `workspace-write`, `auto` and `bypass` are one and the same agent — said here rather than
+wired to a flag that would read as enforced and enforce nothing.
+
+**pi's thinking level is clamped rather than refused.** The ladder below is the seven words it
+has; which of them a model takes is the model's to say, and pi moves a rung it cannot serve to
+the nearest one it can — `off` alone for a model that does not reason at all, and `xhigh` and
+`max` only where the model declares them. A word off the ladder entirely is a warning on stderr
+and a turn at the default.
+
 **`ultracode`** is Claude Code's `xhigh` thinking with the turn opted into orchestrating a fleet
 of its own. It is more work than any single-agent effort, which is why it sits above `max`.
 
@@ -1693,7 +1723,7 @@ reaches for whichever of its own settings says the same thing:
 
 | Rung | `agy` | `claude` | `codex` | `cursor` | `dsh` | `grok` | `kimi` | `pi` | `qwen` | `opencode`, `mimo` | `zcode` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `read-only` | refused | `plan` mode | `read-only` sandbox | `--mode plan` | refused | only `read_file`, `grep`, `list_dir` | plan mode | without `bash`, `edit`, `write` | without `edit`, `write_file`, `run_shell_command` | `edit` and `bash` denied | `plan` mode |
+| `read-only` | refused | `plan` mode | `read-only` sandbox | `--mode plan` | refused | only `read_file`, `grep`, `list_dir` | plan mode | without `bash`, `edit`, `write`, `powershell` | without `edit`, `write_file`, `run_shell_command` | `edit` and `bash` denied | `plan` mode |
 | `workspace-write` | refused | `acceptEdits` mode | `workspace-write` sandbox | `--sandbox enabled` | refused | `web_search` and `web_fetch` denied | plan mode off | — | `web_fetch` denied | `webfetch` denied | `edit` mode |
 | `auto` | `--dangerously-skip-permissions` | Claude's own `auto` mode | `workspace-write`, approvals on request | `--auto-review`, its own classifier | refused | — | — | — | — | nothing denied | `build` mode, which asks before a tool with side effects |
 | `bypass` | `--dangerously-skip-permissions` | `manual` mode, every request answered here | `danger-full-access` | `--force --sandbox disabled` | supported | `--yolo` | `yolo` mode | — | `--approval-mode yolo` | — | `yolo` mode |
@@ -1798,6 +1828,13 @@ a project's own skills for as long as the session lives, and taken away again af
 | `agy`, `codex`, `grok`, `kimi`, `mimo`, `opencode`, `qwen`, `zcode` | `.agents/skills/`, the directory more than one of these agreed to read |
 | `cursor` | `.cursor/skills/` in the workspace |
 | `dsh`, `pi` | — none: neither reads such a directory the way humanize drives it |
+
+**pi reads the workspace's own skill directories only for a project somebody has trusted**, and
+a headless run has nobody to press that — so a mount would copy skills into a directory the
+session is not permitted to read, and humanize does not make one. Its road is
+`--skill <path>`, which is not gated and is additive even under `--no-skills`:
+`PiAgentConfig(skill_paths=("/where/the/skill/is",))` hands it one by path, and a flow can ask
+for it beforehand as the `settings:skill_paths` capability.
 
 A project's own skill of that name wins: a flow does not write over what the project keeps.
 They go into the workspace on this machine, so an agent [whose turns land
