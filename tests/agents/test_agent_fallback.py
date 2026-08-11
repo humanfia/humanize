@@ -24,9 +24,13 @@ import pytest
 
 from hmz.coganchor import backends, fallbacks, providers
 from hmz.coganchor.agents import (
+    AcpAgent,
+    AcpAgentConfig,
     AgentConfig,
     ClaudeCodeAgent,
     ClaudeCodeAgentConfig,
+    CodexAgent,
+    CodexAgentConfig,
     Tool,
 )
 from hmz.coganchor.agents.skills import Loaded
@@ -188,6 +192,90 @@ def test_the_stand_in_is_configured_as_the_agent_that_could_not_run_was() -> Non
     assert stood_in.config.effort == "high"  # a rung Claude has too
     assert stood_in.config.permission == "read-only"
     assert not stood_in.config.goals
+
+
+def test_a_step_to_the_same_backend_carries_what_that_backend_was_told() -> None:
+    """The CLI taking over is the CLI that was told it, so it is still told it."""
+    fallbacks.points("claude/claude-opus-5", "claude/claude-sonnet-5")
+    agent = ClaudeCodeAgent(
+        ClaudeCodeAgentConfig(
+            model="claude-opus-5",
+            effort="high",
+            allowed_tools=("Bash(uv run:*)", "Read"),
+        )
+    )
+
+    stood_in = agent.stands_in()
+
+    assert stood_in is not None
+    assert isinstance(stood_in.config, ClaudeCodeAgentConfig)
+    assert stood_in.config.model == "claude-sonnet-5"  # the one thing the step moved
+    assert stood_in.config.allowed_tools == ("Bash(uv run:*)", "Read")
+
+
+def test_a_step_to_the_same_backend_under_another_account_is_still_that_account() -> (
+    None
+):
+    """What the step names is the step's, however much of the config comes across it."""
+    fallbacks.points("codex@work/gpt-5.6-sol", "codex@key/gpt-5.6-sol-mini")
+    agent = CodexAgent(
+        CodexAgentConfig(
+            model="gpt-5.6-sol",
+            effort="high",
+            provider="work",
+            overrides=(("model_context_window", "200000"),),
+        )
+    )
+
+    stood_in = agent.stands_in()
+
+    assert stood_in is not None
+    assert isinstance(stood_in.config, CodexAgentConfig)
+    assert stood_in.config.provider == "key"
+    assert stood_in.config.model == "gpt-5.6-sol-mini"
+    assert stood_in.config.overrides == (("model_context_window", "200000"),)
+
+
+def test_a_step_to_the_same_cli_of_your_own_still_knows_which_cli_it_is() -> None:
+    """The sharpest of them: what a peer answers to is a setting, so losing it is a refusal.
+
+    An ACP peer is named by a setting rather than by its class, and the name is the word its
+    server answers to. Dropped across a step, the agent taking over is not less configured
+    than the one it replaced -- it is pointed at nothing, and every turn after the step fails
+    at the handshake rather than anywhere a reader would look.
+    """
+    fallbacks.points("shell/m", "shell/other")
+    agent = AcpAgent(
+        AcpAgentConfig(model="m", effort="high", cli="shell", command=("sh", "-c", ":"))
+    )
+
+    stood_in = agent.stands_in()
+
+    assert stood_in is not None
+    assert stood_in.backend == "shell"
+    assert isinstance(stood_in.config, AcpAgentConfig)
+    assert stood_in.config.command == ("sh", "-c", ":")
+
+
+def test_a_step_to_another_backend_leaves_the_first_one_s_vocabulary_behind() -> None:
+    """A rule Claude reads as an allowed tool says nothing to the CLI taking over."""
+    fallbacks.points("claude/claude-opus-5", "codex/gpt-5.6-sol")
+    agent = ClaudeCodeAgent(
+        ClaudeCodeAgentConfig(
+            model="claude-opus-5",
+            effort="high",
+            permission="read-only",
+            allowed_tools=("Bash(uv run:*)",),
+        )
+    )
+
+    stood_in = agent.stands_in()
+
+    assert stood_in is not None
+    assert isinstance(stood_in.config, CodexAgentConfig)
+    assert stood_in.config.overrides == ()  # nothing of Claude's was read as one
+    assert not hasattr(stood_in.config, "allowed_tools")
+    assert stood_in.config.permission == "read-only"  # and the common settings came
 
 
 def test_a_rung_the_cli_taking_over_has_not_got_is_the_same_rung_of_its_own_ladder() -> (

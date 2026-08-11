@@ -3033,6 +3033,13 @@ def _built(place: str, like: AgentBase) -> AgentBase | Literal[False]:
     agent *is*, settled where it was made. So it comes across the step rather than being
     written down again beside it.
 
+    What "everything else" comes to is read against the CLI taking over, since that is what
+    makes any of it mean anything. A step onto the same CLI -- another model of it, another
+    account of it, which is the ordinary step -- brings the whole of what that backend was
+    configured with, its own vocabulary included. A step onto another CLI brings the settings
+    every backend shares and leaves that vocabulary where it was, none of it being a word the
+    one arriving knows.
+
     Made here rather than by whatever wrote the step down, because it is made at the moment a
     turn has nowhere left to go: a chain of four places that were all started when the run was
     would be three CLIs held open for a failure that never came.
@@ -3065,19 +3072,38 @@ def _built(place: str, like: AgentBase) -> AgentBase | Literal[False]:
         kind, config = driver(profile.name)
     except KeyError:
         return False
-    # The common settings alone: an agent is what it was made as, and what one backend was
-    # told in its own vocabulary -- a codex override, a rule Claude reads as an allowed tool
-    # -- says nothing to the CLI taking the turn over.
-    common = replace(
-        Common(**{one.name: getattr(like.config, one.name) for one in fields(Common)}),
-        model=model,
-        effort=_rung(backends.named(like.backend), profile, like.effort),
-        provider=provider,
-    )
+    # The three things the step itself says, and the only three: the CLI, the account it runs
+    # as and the model it runs are what a turn can fail for having named, so they are the
+    # settings the step owns and the settings the agent is not allowed to bring with it. An
+    # account written into a step and then overwritten by the account that had just gone down
+    # would be a step that walks back onto the place it was written to leave.
+    moved: dict[str, Any] = {
+        "model": model,
+        "effort": _rung(backends.named(like.backend), profile, like.effort),
+        "provider": provider,
+    }
     try:
-        return kind(
-            config(**{one.name: getattr(common, one.name) for one in fields(common)})
-        )
+        if profile.name == like.backend and isinstance(like.config, config):
+            # The same CLI at another model or another account of it, which is the ordinary
+            # step. What that backend was told, it was told in a vocabulary it still speaks:
+            # dropping a rule Claude reads as an allowed tool on the way from one Claude to
+            # the next would un-configure the agent halfway through a run, silently and in
+            # the one direction nobody is watching -- and where such a setting carries a
+            # protocol literal, the word an installed ACP peer answers to, it is worse than
+            # less configured: every turn after the step is refused at the handshake.
+            #
+            # So the whole config comes across, off the class it was declared on rather than
+            # off a list kept here. A backend that gains a setting tomorrow carries it across
+            # its own steps without anybody remembering to come back and say so, which is the
+            # only version of this that stays true.
+            return kind(replace(like.config, **moved))
+        # Another CLI, and now the reverse holds: an agent is what it was made as, but what
+        # one backend was told in its own vocabulary -- a codex override, a rule Claude reads
+        # as an allowed tool -- says nothing to the CLI taking the turn over. Only the common
+        # settings cross, and what the backend arriving makes of the rest is its own default,
+        # which is what it would have been given had it been asked for first.
+        common = {one.name: getattr(like.config, one.name) for one in fields(Common)}
+        return kind(config(**(common | moved)))
     except (ValueError, TypeError):
         return False
 

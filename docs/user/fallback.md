@@ -119,6 +119,25 @@ In order, and it stops at the first thing that works:
    its effort, its permission rung, the skills the flow gave it and the
    [callbacks](/weaver/tools) the agent is offering.
 
+### What comes across the step
+
+The three things the step names — the CLI, the account, the model — are the step's own, and the
+agent does not bring its own over them. That is the point of writing one down. Everything else
+about the agent comes across unchanged.
+
+**Everything else** includes what that backend was told in its own words — Claude's allowed-tool
+rules, Codex's `-c` overrides, the name a CLI of your own answers to — but only where the step
+stays on the same CLI, which is the ordinary step: another model of that backend, or another
+account of it. The words still mean there what they meant here, so they move with the agent.
+Dropped, they would quietly un-configure the agent halfway through a run — and where the setting
+is the word your own CLI answers to, it is worse than less configured: every turn after the step
+is refused at the handshake.
+
+A step to **another** CLI leaves that vocabulary where it was. A rule Claude reads as an allowed
+tool says nothing to Codex, so what crosses is the settings every backend shares — the effort,
+the permission rung, whether it may search the web, where the turns land — and the CLI arriving
+takes its own default for the rest.
+
 ## What went wrong
 
 Two things go wrong is where this page started, and it is truer than that: seven do, and each
