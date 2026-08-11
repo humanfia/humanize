@@ -276,12 +276,28 @@ class Bundled:
     reaching into one safe -- a file that does not answer to this is one nobody here has seen,
     and is left alone rather than patched on the strength of its name.
 
+    What it answers to is a shape rather than one build, and that is what keeps it true. A
+    fingerprint written as the bytes of the release it was read off -- `VERSION:"2.1.269"` --
+    is one that stops matching the morning the next release lands, and stops matching in
+    silence: the patch reaches nothing, the run takes the shallower way in, and nobody is told
+    the deeper road closed. The question a fingerprint is actually asked is whether the file at
+    this path is the program this was written against rather than whatever the directory holds
+    today, and what answers that is the bundle's shape -- that its graph parses, that it
+    carries the constant a patch is written around, that the constant sits in one module a
+    patch can be put in -- not which digits that constant happens to hold this week. So the
+    shape is what is written down here, and which release is installed stops being a fact
+    anybody has to keep up to date in order for the deeper road to stay open.
+
     Attributes:
       path: Where the file is, relative to the directory the CLI is installed in, as a glob:
         a bundle is versioned by the directory over it far more often than by its own name.
-      says: A line the file contains that says it is the one meant -- the call being reached
-        for, spelled as the bundler left it. Said rather than defaulted, since a bundle named
-        by its path alone is the thing this exists to prevent.
+      says: A pattern -- a regular expression, matched against each module's source as bytes --
+        that the module a patch is written into contains: the call being reached for or the
+        constant beside it, spelled as the bundler leaves it and left open wherever a release
+        varies it. A pattern rather than a literal, so bytes meant literally are escaped before
+        they go in -- `re.escape` does it -- and a bracket that was left unescaped is refused
+        below rather than quietly read as a group. Said rather than defaulted, since a bundle
+        named by its path alone is the thing this exists to prevent.
       digest: The SHA-256 of that file whole, as it was last seen, and "" for a bundle
         recognized by what it contains rather than by being exactly one release -- which is
         most of them, a release a week being a digest a week.
@@ -290,6 +306,23 @@ class Bundled:
     path: str
     says: str
     digest: str = ""
+
+    def __post_init__(self) -> None:
+        """Refuses a fingerprint that is not a pattern, where it is written rather than read.
+
+        The layer that matches this promises never to raise -- every way a bundle can fail to
+        answer is a fall back and a line in the log -- so a pattern that will not compile would
+        arrive there as a run that quietly took the shallower road for no reason it could name.
+        Compiled here instead, and as the bytes it is actually matched against, so a typo is a
+        module that will not import rather than a road that closed without saying so.
+
+        Raises:
+          ValueError: `says` is not a regular expression.
+        """
+        try:
+            re.compile(self.says.encode())
+        except (re.error, UnicodeEncodeError) as why:
+            raise ValueError(f"a bundle fingerprint must be a pattern: {why}") from why
 
 
 @dataclass(frozen=True, slots=True)
@@ -718,12 +751,14 @@ PROFILES = (
         forks=True,
         # Claude Code ships as one Bun standalone executable -- the whole CLI, minified and
         # packed behind a `---- Bun! ----` trailer -- so the file the launcher resolves to is
-        # itself the bundle a patch reaches. Fingerprinted by the version it inlines, which is
-        # release-specific by design: the day a release changes it is the day `patching`
-        # reaches nothing here and the run falls back to the hook layer instead. `*`, because
-        # the file is named for its version -- `versions/2.1.269` -- and the one that is the
+        # itself the bundle a patch reaches. Fingerprinted by the shape of the version it
+        # inlines rather than by one release's digits, because this is the CLI that updates
+        # itself while it runs: a literal here would be right for about a day and wrong in
+        # silence after that. The constant is copied into dozens of modules, the entry among
+        # them, and the entry is the one a patch of the program itself goes into. `*`, because
+        # the file is named for its version -- `versions/<semver>` -- and the one that is the
         # resolved program is the one taken.
-        bundles=(Bundled(path="*", says='VERSION:"2.1.269"'),),
+        bundles=(Bundled(path="*", says=r'VERSION:"\d+\.\d+\.\d+"'),),
         # `--settings` takes the whole of a settings file as a JSON literal on the command
         # line, hooks and all, for the length of one run -- which is the table this flow's
         # own moments are put in without a line of anybody's `settings.json` being written.
@@ -1378,11 +1413,13 @@ PROFILES = (
         # `run --fork`, which forks the session it was given before carrying on in it.
         forks=True,
         # opencode is a Bun standalone executable too, and reached the same way -- the
-        # `opencode.exe` the launcher resolves to is the bundle. Fingerprinted by the version
-        # it inlines, which sits in one module of its own here rather than the entry, so the
-        # line picks that module out on its own. Its modules carry no precompiled bytecode, so
-        # a source edit is what runs without anything more.
-        bundles=(Bundled(path="opencode.exe", says='var n="1.18.30"'),),
+        # `opencode.exe` the launcher resolves to is the bundle. Fingerprinted by the shape of
+        # the version it inlines, which sits in one module of its own here rather than the
+        # entry, so the pattern picks that module out on its own. The digits are left open for
+        # the reason Claude Code's are; the bundler's other `var n=""` carry no version and so
+        # match nothing, which is what keeps the one module one. Its modules carry no
+        # precompiled bytecode, so a source edit is what runs without anything more.
+        bundles=(Bundled(path="opencode.exe", says=r'var n="\d+\.\d+\.\d+"'),),
         aliases=("opencode",),
         # No home variable of its own: it keeps its data where every other program does, in a
         # directory of its own under the one `XDG_DATA_HOME` names.

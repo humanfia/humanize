@@ -1919,12 +1919,18 @@ What the layer promises:
 - **Never the installed binary.** A patch is applied to a copy humanize makes in a directory of
   its own, run for one session and removed after — dropping the handle removes it too.
 - **Fingerprint before touching anything.** The copy is checked against what
-  [`backends`](#what-each-backend-can-do) wrote down under `Profile.bundles`: a line the bundle
-  must contain — its inlined version — and an optional digest. The fingerprint is release-specific
-  by design, so a new release of the CLI is one this reaches nothing in.
-- **Fall back on any mismatch or failure.** An unknown version, a digest that changed, a site
-  that has moved, a copy that will not start: every one returns `None` and is logged, and the run
-  reaches the CLI a shallower way. A patch that did not apply is never a run that did not happen.
+  [`backends`](#what-each-backend-can-do) wrote down under `Profile.bundles`: a pattern that must
+  pick out one module of the bundle — the one it matches in, or the entry where the bundler
+  inlined it into several — and an optional digest. A pattern rather than one release's bytes, because a literal stops matching the morning
+  the CLI updates itself, and stops matching in silence: the reach closes and the run goes on down
+  the shallower road saying nothing about it. Written to the shape a bundle keeps across releases,
+  the reach survives the release; and `tests/agents/test_patching.py`, under `--run-agents`, checks
+  every fingerprint against the binary actually installed, so a bundle that really did move is
+  something somebody sees rather than something that quietly stops being served.
+- **Fall back on any mismatch or failure.** A bundle this has not seen, a digest that changed, a
+  site that has moved, a copy that will not start: every one returns `None` and is logged, and the
+  run reaches the CLI a shallower way. A patch that did not apply is never a run that did not
+  happen.
 - **Same length in place.** The file records where everything in it is, so every rewrite is the
   same length as what it replaces and nothing moves; the one book-keeping left is clearing the
   patched module's precompiled bytecode, so the rewritten source is what runs.
