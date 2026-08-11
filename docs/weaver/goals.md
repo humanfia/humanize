@@ -76,8 +76,10 @@ Ordinary turns still work. Later calls to `pursue` raise `RuntimeError`, even wi
 | **Claude Code** | no such switch, so humanize refuses the goal before it invokes the CLI |
 
 Claude is also refused the tools that would carry work past the turn it is holding: `Agent`,
-`ScheduleWakeup`, `CronCreate`, `CronDelete` and `CronList`, as one `--disallowedTools`
-argument written in that order. Everything else the agent may reach for is what its
+`ScheduleWakeup`, `CronCreate`, `CronDelete`, `CronList` and `Workflow`, as one
+`--disallowedTools` argument written in that order. `Agent` covers the `Task` spelling of the
+same tool, which is an alias of it; `Workflow` is the script the model writes for Claude to
+run in the background, which forks agents of its own out of it. Everything else the agent may reach for is what its
 [permission](/user/permissions) rung says it may, exactly as before. Neither path changes your
 global backend configuration, and an agent whose goals are on keeps the command it always had.
 

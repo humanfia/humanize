@@ -139,6 +139,17 @@ def test_a_backend_that_steers_a_running_turn_says_so_and_one_that_cannot_says_s
         assert one.steers is (name in _STEERING), name
 
 
+def test_the_catalogue_says_which_backends_narrate_a_reach_as_it_happens() -> None:
+    """One, and it is the one whose driver asks its CLI for the fragments."""
+    sessions = _sessions()
+    told = {one.name: one.backends for one in catalogue()}
+
+    assert told["narrate"] == frozenset(
+        name for name, one in sessions.items() if one.narrates
+    )
+    assert told["narrate"] == {"claude"}
+
+
 def test_the_catalogue_says_which_backends_steer_and_which_fork() -> None:
     told = {one.name: one.backends for one in catalogue()}
     assert told["steer"] == frozenset(_STEERING)

@@ -2458,6 +2458,22 @@ def catalogue() -> tuple[Capability, ...]:
         )
         for kind in KINDS
     )
+    held.append(
+        Capability(
+            "narrate",
+            frozenset(
+                name
+                for name, one in sessions.items()
+                if getattr(one, "narrates", False)
+            ),
+            "a turn that can be told to say what it is reaching for while the arguments "
+            "are still being written -- a long write announced as it happens rather than "
+            "once the file is in the call -- so something watching a turn can tell one that "
+            "is working from one that has wedged; type(session).narrates says so "
+            "beforehand, and ClaudeCodeAgentConfig(partial_messages=False) turns it off for "
+            "one agent",
+        )
+    )
     held.extend(_places())
     held.extend(_anchors(agents))
     return tuple(held)

@@ -96,7 +96,7 @@ def test_claude_says_both_things_it_says_with_that_flag_in_the_one_list() -> Non
 
     assert argv.count("--disallowedTools") == 1
     assert argv[argv.index("--disallowedTools") + 1] == (
-        "Agent,ScheduleWakeup,CronCreate,CronDelete,CronList,WebSearch,WebFetch"
+        "Agent,ScheduleWakeup,CronCreate,CronDelete,CronList,Workflow,WebSearch,WebFetch"
     )
 
 

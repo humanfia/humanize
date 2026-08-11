@@ -25,12 +25,20 @@ _ASKS = "AskUserQuestion"
 #: Noninteractive orchestration tools that can move work beyond the ordinary turn HMZ owns.
 #: An agent whose goals are disabled remains able to use its ordinary permission-bound tools,
 #: but cannot escape into a hidden goal, subagent, wakeup, or cron lifecycle.
+#:
+#: `Agent` is the name the subagent tool is registered under and `Task` is an alias of it, so
+#: the name is the whole of what has to be said: a 2.1.272 given `--disallowedTools Agent`
+#: reports neither spelling in the tool list of its `system/init`, which is the tool having
+#: gone rather than one of its names. `Workflow` is the same escape arriving under a newer
+#: one -- a script the model writes that Claude compiles and runs, forking agents of its own
+#: in the background out of it -- so an agent refused the first is refused this too.
 _CONTINUATION_TOOLS = (
     "Agent",
     "ScheduleWakeup",
     "CronCreate",
     "CronDelete",
     "CronList",
+    "Workflow",
 )
 
 #: The tools that reach the web, by the names Claude calls them. Both, because searching and
@@ -145,9 +153,40 @@ def _result_failure(said: dict[str, Any]) -> str | None:
 
 @dataclass(frozen=True, kw_only=True)
 class ClaudeCodeAgentConfig(AgentConfig):
-    """The common settings plus exact Claude-native tool allow rules."""
+    """The common settings, plus what this CLI takes that humanize has no word for.
+
+    Everything else on Claude's command line is left at what `claude` itself does when it is
+    passed nothing, so an agent nobody has configured takes its turn as the bare CLI would
+    take it. A few of those omissions are chosen rather than merely unwritten, and are worth
+    saying so that nobody adds them back as an obvious improvement. `--fallback-model` would
+    have the CLI answer quietly on another model when the one asked for is overloaded, and
+    humanize already falls back by naming the whole place a turn moves to -- both at once is
+    a turn that ran somewhere `agent.spec` does not say. `--max-budget-usd` counts dollars
+    over the process, and this driver ends the process and resumes the conversation whenever
+    the effort, the hook table or the offered callbacks move, so a cap spelled that way would
+    start again in the middle of a session; what a turn may spend is :class:`Budget`, which is
+    measured over the turn. `--no-session-persistence` would take away the resume and the fork
+    this backend is written down as having, `--disable-slash-commands` would take away
+    `/goal`, which is what :meth:`ClaudeCodeSession._pursue` runs on, and
+    `--strict-mcp-config` would take the MCP servers of the person at this machine away for
+    the length of a flow, which is not a flow's to do.
+
+    Attributes:
+      allowed_tools: Exact `--allowedTools` rules, in Claude's own spelling, for a bounded
+        unattended flow. Empty for an agent held to nothing beyond what its permission rung
+        says, which is the turn the CLI takes when it is passed no such flag.
+      partial_messages: Whether a turn says what it is reaching for while the arguments are
+        still being written, which is `--include-partial-messages`. On, and the one thing
+        this driver asks of the CLI that the CLI does not do by itself: without it a tool call
+        is announced only once the whole of what it was called with has arrived, and for a
+        `Write` that is the file -- a minute of silence on a large edit, which reads from
+        outside as a turn that has hung. Off is the flow's to choose, and the turn then says
+        each reach once and whole, the way every backend with no such flag says it.
+        `narrate` is the name a flow asks for it under before it is handed an agent.
+    """
 
     allowed_tools: tuple[str, ...] = ()
+    partial_messages: bool = True
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -186,6 +225,15 @@ class ClaudeCodeSession(StreamSessionBase):
     #: `command_lifecycle` `started` that comes back under its own uuid is the agent having
     #: heard rather than the pipe having taken it.
     steers: ClassVar[bool] = True
+
+    #: `--include-partial-messages`, which this CLI takes and the rest here have no flag for:
+    #: a tool call is said the moment the model reaches for it rather than once the whole of
+    #: what it was called with has been written. What is said here is that it can be asked
+    #: for; whether a given agent asks is `ClaudeCodeAgentConfig.partial_messages`, on unless
+    #: a flow says otherwise. A fact about driving this CLI rather than one about the CLI
+    #: itself -- it is this driver that asks for the fragments and :meth:`_streaming` that
+    #: reads them -- which is why it is declared here rather than in `hmz.coganchor.backends`.
+    narrates: ClassVar[bool] = True
 
     def __init__(
         self, agent: AgentBase, cwd: str | os.PathLike[str] | None = None
@@ -228,6 +276,10 @@ class ClaudeCodeSession(StreamSessionBase):
         #: or taken down between two turns is a process started under the wrong answer.
         self._gated: bool | None = None
         self._gating = False
+        #: What of the config the process now up was built with, out of the settings only a
+        #: command line can carry, or None while nothing is up. `reconfigure` says that every
+        #: turn from then on runs at the new one, and these two are read when Claude starts.
+        self._built: tuple[tuple[str, ...], bool] | None = None
         #: The tool calls whose arguments are still arriving, by the block of the message each
         #: is being written into. The index is Claude's own numbering of the blocks of one
         #: message, under the call the message belongs to: an agent this one started writes
@@ -278,14 +330,20 @@ class ClaudeCodeSession(StreamSessionBase):
             "--output-format",
             "stream-json",
             "--verbose",
-            # A message arrives whole when the block it is a part of has finished, and a tool
-            # call's block is not finished until the whole of what it was called with has
-            # been written -- which for a `Write` is the file. Without this the turn says
-            # nothing from the moment the model reaches for something to the moment it has
-            # finished saying what it reached with, which is a minute of silence on a large
-            # edit and reads as a turn that has hung. With it the reach is announced as it
-            # happens, and :meth:`_streaming` is what reads it.
-            "--include-partial-messages",
+            *(
+                # A message arrives whole when the block it is a part of has finished, and a
+                # tool call's block is not finished until the whole of what it was called
+                # with has been written -- which for a `Write` is the file. Without this the
+                # turn says nothing from the moment the model reaches for something to the
+                # moment it has finished saying what it reached with, which is a minute of
+                # silence on a large edit and reads as a turn that has hung. With it the
+                # reach is announced as it happens, and :meth:`_streaming` is what reads it.
+                # The one thing this line asks for that the CLI would not do by itself, which
+                # is why it is the config's to take back.
+                ["--include-partial-messages"]
+                if getattr(self._agent.config, "partial_messages", True)
+                else []
+            ),
             *self._holding(),
             "--permission-mode",
             _PERMITTED[self._agent.config.permission],
@@ -296,6 +354,20 @@ class ClaudeCodeSession(StreamSessionBase):
                 # to whoever the CLI is talking to, and `stdio` is that being us: each one is
                 # read as a `control_request` and answered `allow`, yes to whatever the account
                 # leaves decidable, with its own hard `deny` list still the CLI's to enforce.
+                #
+                # Not in `claude --help` any more. What 2.1.272 documents is
+                # `--permission-prompts <host|none>`, "who answers permission prompts with
+                # --print", defaulting to `host` -- "the SDK host or --permission-prompt-tool"
+                # -- which reads as though the routing were already the default and this the
+                # legacy spelling of it. Tried, it is not: a 2.1.272 run at `--permission-mode
+                # manual` without this flag sends no `control_request` at all, with or without
+                # `--permission-prompts host` said outright. It denies the tool by itself and
+                # names it in the result's `permission_denials`, and the turn ends having
+                # asked for something and changed nothing. The host it means is one that
+                # announced itself over the control protocol, and a reader of the stream is
+                # not that. So the flag stays: without it `bypass` would be a rung that
+                # decides nothing and a flow's `PERMISSION_REQUEST` hooks would see none of
+                # what they are hung for.
                 ["--permission-prompt-tool", "stdio"]
                 if self._agent.config.permission == "bypass"
                 else []
@@ -349,7 +421,11 @@ class ClaudeCodeSession(StreamSessionBase):
         is told something for the length of one run, and what is said here is this flow's for
         the length of this one. Nothing of the user's own settings is read, written or
         replaced -- what they have configured goes on being theirs, and what is here is added
-        to it in the way Claude adds a command line to a file.
+        to it in the way Claude adds a command line to a file. Which is why nothing is said
+        that this turn is not asking for: a key written here is the same key in their own
+        settings answered over, so the hook table is here when something is hung on that
+        moment and `fastMode` when the tier asked for is `fast`, and neither is here to say no
+        on the turns that want neither.
 
         The hook table is the part that matters. Every other moment of a turn is read off the
         stream this session is already reading, and read there a `PreToolUse` arrives after
@@ -376,9 +452,16 @@ class ClaudeCodeSession(StreamSessionBase):
         Returns:
           The settings, as the mapping the flag takes.
         """
-        settings: dict[str, Any] = {
-            "fastMode": self._agent.config.service_tier == "fast"
-        }
+        settings: dict[str, Any] = {}
+        # Said where the tier asked for is `fast`, and left out otherwise. `--settings` is
+        # layered over the settings the person at this machine keeps, so a key written here is
+        # an answer of theirs overruled: `"fastMode": false` on every ordinary turn is their
+        # own `fastMode` decided for them by a flow that was never asking about it. What the
+        # CLI does with the key unsaid is its own business -- a 2.1.272 in print mode reports
+        # `fast_mode_disabled_reason: sdk_opt_in_required` and runs at the ordinary tier --
+        # and that is the answer to leave standing.
+        if self._agent.config.service_tier == "fast":
+            settings["fastMode"] = True
         # Read once and kept, so that what the process is recorded as having been told is what
         # this line actually tells it: a hook hung by a sibling session between two reads
         # would otherwise be written down as a table the process never got.
@@ -455,6 +538,23 @@ class ClaudeCodeSession(StreamSessionBase):
         self._at = self.effort
         self._offering = self._telling
         self._gated = self._gating
+        self._built = self._configured()
+
+    def _configured(self) -> tuple[tuple[str, ...], bool]:
+        """What of the config a Claude started now would be built with and cannot be told.
+
+        Claude's own tool rules and whether it says a reach as it happens are arguments of the
+        process, the way the effort is: read when it starts and held for its life. So they are
+        read here, once, and compared against what the process up was built with.
+
+        Returns:
+          The allow rules and whether the fragments were asked for, as one value to compare.
+        """
+        config = self._agent.config
+        return (
+            tuple(getattr(config, "allowed_tools", ())),
+            bool(getattr(config, "partial_messages", True)),
+        )
 
     def _offered(self) -> tuple[str, ...]:
         """What a Claude started now would be told the flow's own callbacks are.
@@ -485,10 +585,18 @@ class ClaudeCodeSession(StreamSessionBase):
         after it started is one the CLI would never stop to ask about, and one taken down is a
         relay still being spawned before every tool for nobody. The first turn after either
         runs in a process told which it is.
+
+        And so are the two settings of the config that only a command line carries -- the
+        native allow rules and whether the reach is said as it happens. `reconfigure` is the
+        one thing that changes a frozen config, and what it says is that every turn from then
+        on runs at the new one; a process built under the old one would go on running at it
+        until something else happened to end it.
         """
         if self._at is not None and self._at != self.effort:
             return True
         if self._gated is not None and self._gated != self._hooking():
+            return True
+        if self._built is not None and self._built != self._configured():
             return True
         return self._offering is not None and self._offering != self._offered()
 
