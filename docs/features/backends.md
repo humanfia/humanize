@@ -115,10 +115,11 @@ will not start.
 
 ## Adding a CLI of your own
 
-Anything speaking the Agent Client Protocol is a backend from the moment it is written down: a
-name and the command that starts it. The protocol says nothing about which models such an agent
-runs or how hard it may be asked to think — both are the agent's own — so one rung is offered
-and none is sent.
+Anything speaking the Agent Client Protocol is a backend from the moment it is written down,
+and what is written down is the command that starts it: it is called what it runs, as every
+backend here is. The protocol has words for which model such an agent runs and how hard it may
+be asked to think, and none of them is sent — each is a setting whoever installed that CLI has
+already made — so one rung is offered and the agent runs as it was set up to.
 
 ## Where the detail is
 

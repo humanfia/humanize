@@ -29,8 +29,9 @@ def accounts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Three accounts for one backend: two that are down, and one that answers."""
     monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "home"))
     # The stand-in agent's class names the backend `shell`, so that is the backend these are
-    # accounts of: added as a CLI of your own, which is a backend like any other.
-    backends.remember("shell", ["sh"])
+    # accounts of: added as a CLI of your own, which is a backend like any other -- and added
+    # as what it runs, since that is the only name an added CLI may answer to.
+    backends.remember("shell", ["shell"])
     providers.add("shell", "main", env={"DOWN": "1", "WHOSE": "main"})
     providers.add("shell", "second", env={"DOWN": "1", "WHOSE": "second"})
     providers.add("shell", "spare", env={"WHOSE": "spare"})

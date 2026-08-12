@@ -221,21 +221,65 @@ Any coding agent that speaks the [Agent Client Protocol](https://agentclientprot
 be driven from here without humanize knowing anything else about it. Add one in the interface:
 `/providers`, then **a**, then *a CLI of your own*, which is the last row of the backends a new
 account may be for — the row for somebody who has got that far and cannot find their agent in
-the list. Give the command that starts it — `my-agent --acp`, `grok agent stdio`, `qwen --acp`.
-It is written down under humanize's own home, so it is a backend from the next prompt on, in
-this workspace and every other, and `-a my-agent/...` names it.
+the list. Give the command that starts it — `my-agent --acp`, `gemini --experimental-acp`. It
+is written down under humanize's own home, so it is a backend from the next prompt on, in this
+workspace and every other, and `-a my-agent/...` names it.
+
+It is called what it runs. `my-agent --acp` is added as `my-agent` and
+`/opt/my-agent/bin/my-agent acp` as `my-agent` too, which is the rule every backend humanize
+drives already keeps: a name is the command that CLI registers, so a `-a` says what will
+actually start. Nothing else is asked for, and a name that is not the command's is refused with
+the name to use instead. A CLI humanize already drives cannot be added under any name — `qwen`
+speaks this protocol and is `qwen` either way. A list written before that rule is read as it
+stands, so CLIs already added go on working, and is corrected the next time one is written
+down.
 
 humanize spawns that command and speaks JSON-RPC to it over its own stdin and stdout:
 `session/new` opens the conversation, `session/prompt` takes each turn, and what the agent says
 while a turn runs arrives as `session/update` notifications. Each tool call it asks permission
 for is granted — by the **kind** of the option it offers rather than by the option's id, since
-the ids are each agent's own words.
+the ids are each agent's own words. A conversation of one is carried into a second with
+`session.fork()`, and is picked back up after the process holding it has gone — by
+`session/resume` where the agent offers it and `session/load` where it does not, both of which
+it says at the handshake. An agent offering neither says so where the conversation is picked
+up rather than quietly starting a second one.
 
-The protocol says nothing about which models an agent runs or how hard it can be asked to
-think, so neither is offered: both rows read `as configured`, and the agent runs as whoever
-installed it set it up. It cannot be steered mid-turn either — every agent spells that
-extension its own way — and it has no goal feature, no permission rungs and no logs for
-`Hmz().epics.trace()` to read.
+The protocol has words for which model an agent runs, how hard it is asked to think and which
+mode it is in — `session/set_model`, `session/set_config_option`, `session/set_mode` — and
+humanize sends none of them: each is a setting whoever installed the CLI has already made, so
+both rows read `as configured` and the agent runs as it was set up to. It cannot be steered
+mid-turn — every agent spells that extension its own way — and it has no goal feature and no
+logs for `Hmz().epics.trace()` to read. Its only word about permission is the question it asks
+per tool call, and nobody is at a prompt for a flow, so every one is granted: an agent of your
+own runs at `bypass`, and a rung below that is refused where the agent is made rather than
+promised and not kept.
+
+What a client offers *it* is the other half of the handshake, and humanize offers nothing it
+was not asked for — the agent has a machine of its own to read files and run commands on, and
+a client that says otherwise is a client the agent hands that work to. Each is a field of
+`AcpAgentConfig`, off by default, which is what the bare CLI does under any other client:
+
+```python
+from hmz.coganchor.agents import AcpAgent, AcpAgentConfig, McpServer
+
+agent = AcpAgent(
+    AcpAgentConfig(
+        cli="qwen",
+        model="as configured",
+        effort="as configured",
+        reads_files=True,   # `acp:read`, served from this machine
+        writes_files=True,  # `acp:write`
+        terminals=True,     # `acp:terminal`: a command started, read, waited for, killed
+        mcp_servers=(McpServer(name="tools", command="serve-me"),),  # `acp:mcp`
+    )
+)
+```
+
+The servers are added to whatever that CLI is already configured with rather than replacing
+them, and they are started by the agent, so one named for an agent whose turns land on
+[another machine](#where-the-turns-land) is named on that machine. The first three are
+refused outright for an agent reached through an anchor that drives the target's own CLI:
+what this client would read and run is *this* machine, which is not where the work lands.
 
 `cursor` names one out of its own catalogue — `cursor-agent --list-models` prints them — and
 its models take their parameters in brackets after the name, which is where humanize writes the
@@ -308,7 +352,9 @@ whether [goals](/weaver/goals) are available to it,
 [skills it carries](#the-skills-an-agent-carries) are not among them, being its CLI's own and
 its flow's. Codex also takes `overrides`, the app-server `-c` keys that are not already one
 of those fields. Claude takes `allowed_tools`, exact native `--allowedTools` rules for a
-bounded unattended flow. It is frozen,
+bounded unattended flow. A CLI of your own takes `cli`, `command`, and the four things a
+client may offer an agent over its protocol — `reads_files`, `writes_files`, `terminals` and
+`mcp_servers`. It is frozen,
 because a session resumes under the settings it opened with — a config that changed mid-flow
 would silently split one conversation across two models.
 

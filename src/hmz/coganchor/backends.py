@@ -23,7 +23,7 @@ import re
 import shutil
 import time
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import TYPE_CHECKING, Literal, cast
 
 if TYPE_CHECKING:
@@ -1688,6 +1688,12 @@ def speaking() -> dict[str, tuple[str, ...]]:
       One entry per CLI, by the name it was added under, holding the command to run. Nothing
       at all where none has been added or where what was written cannot be read back -- a
       file nobody can read is a list to fill rather than a reason to refuse to start.
+
+      Read as it was written, including an entry whose name is not what its command is
+      called. `remember` will not write one of those any more -- a backend answers to the
+      command it registers -- but a list written before it said so is a list of CLIs that
+      work, and a machine where every added backend stopped resolving would be a worse thing
+      than the name being wrong. They are corrected by being added again.
     """
     import json
 
@@ -1721,28 +1727,52 @@ def speaking() -> dict[str, tuple[str, ...]]:
     return found
 
 
-def remember(name: str, command: Sequence[str]) -> None:
+def remember(name: str, command: Sequence[str]) -> str:
     """Writes down a CLI that speaks the protocol, so that it is a backend from now on.
 
     Args:
       name: What to call it, which is what an `-a` will name and what the prompt will show.
-        The command it is installed as, by convention, since that is how every other backend
-        here is named.
+        The command it is installed as, and only that: every backend humanize drives answers
+        to the command that CLI registers -- `claude` is `claude`, `codex` is `codex` -- and
+        an added one that answered to something else would be a name that says nothing about
+        what is running. Blank to be called what the command is called, which is the answer
+        this would refuse anything else in favour of anyway.
       command: What to run to start it, as argv -- `["my-agent", "--acp"]`. There is no
         discovery in the protocol and no flag every agent agrees on, so this is asked for.
+        What it is called comes off the first word of it, so a CLI started through something
+        else -- `npx @someone/agent`, `python -m agent` -- is called after the launcher, and
+        a second one started the same way is the same name and replaces it. Which is the
+        cost of a name that says what will actually run, and is paid by anything installed
+        as a command of its own.
+
+    Returns:
+      What it was written down as, which is the command's own name.
 
     Raises:
-      ValueError: If it is not named, has no command, or would shadow a backend humanize
-        already drives -- two backends answering to one name is a name nobody can resolve.
+      ValueError: If it has no command, if it was called something the command is not, or if
+        it would shadow a backend humanize already drives -- two backends answering to one
+        name is a name nobody can resolve.
     """
     import json
 
     named_as = name.strip()
     argv = [str(one) for one in command if str(one).strip()]
-    if not named_as or not argv:
-        raise ValueError("an added CLI needs a name and a command to start it with")
-    if any(named_as in one.aliases for one in PROFILES):
-        raise ValueError(f"{named_as} is already a backend humanize drives")
+    if not argv:
+        raise ValueError("an added CLI needs a command to start it with")
+    # The command's own name, so that one written as a path is still called what it is: a CLI
+    # installed where PATH does not name it is the same CLI, and `/opt/mimo/bin/mimo` is mimo.
+    runs = PurePath(argv[0]).name
+    # Against what it runs rather than against what it was called, and before the name is: a
+    # CLI humanize already drives is one this cannot add under any name, and saying which name
+    # to use instead would be sending somebody round to the same refusal.
+    if any(runs in one.aliases for one in PROFILES):
+        raise ValueError(f"{runs} is already a backend humanize drives")
+    named_as = named_as or runs
+    if named_as != runs:
+        raise ValueError(
+            f"an added CLI is called what it runs, so {argv[0]} is added as {runs} "
+            f"rather than as {named_as}"
+        )
     held = speaking()
     held[named_as] = tuple(argv)
     at = _spoken()
@@ -1755,6 +1785,7 @@ def remember(name: str, command: Sequence[str]) -> None:
         encoding="utf-8",
     )
     beside.replace(at)
+    return named_as
 
 
 def forget(name: str) -> bool:
@@ -1780,12 +1811,15 @@ def forget(name: str) -> bool:
     return True
 
 
-#: What is assumed about a backend nobody has written a profile for: a CLI added through the
-#: agent client protocol, which is a command, a name and a promise to speak the protocol. It
-#: runs somewhere -- so it is a process that can be put down and started again -- and its
-#: conversations do not survive that: the protocol's only way to open a session opens a new
-#: one, so a turn taken again after the transport went is a turn taken from nothing. Nothing
-#: else here is true of it, which is why every other field is left at what it says by default.
+#: What is assumed about a backend nothing at all is written down about -- a stand-in written
+#: for a test, a name that answers to no profile -- when something has to assume anyway. A CLI
+#: somebody added is not one of these: it has a profile of its own, which `_speaks` makes.
+#:
+#: It runs somewhere, so it is a process that can be put down and started again; and its
+#: conversations are taken to not survive that, because nothing says they do and a watchdog
+#: that promised a conversation back would be promising on behalf of a backend it has never
+#: heard of. Nothing else here is true of it, which is why every other field is left at what
+#: it says by default.
 UNKNOWN = Profile(
     name="",
     aliases=(),
@@ -1820,8 +1854,8 @@ def _speaks(name: str) -> Profile:
       A profile saying the little there is to say: it has no home humanize can find, no logs
       it can read, and one rung of an effort ladder, because the protocol describes none of
       those. What it does have is a name to be chosen by, and two things that follow from the
-      protocol itself: a conversation of its does not survive its process, and `session/fork`
-      is a call in it.
+      protocol itself: a conversation of its can be picked back up, and `session/fork` is a
+      call in it.
     """
     return Profile(
         name=name,
@@ -1830,10 +1864,14 @@ def _speaks(name: str) -> Profile:
         home_dir="",
         logs=(),
         efforts=(_UNSAID,),
-        # The protocol's only way to open a session opens a new one. There is a `session/load`
-        # in it, but an agent need not implement it and nothing here can find out whether this
-        # one did -- so a turn taken again after the agent went is a turn taken from nothing.
-        resumes=False,
+        # The protocol has two ways of picking a conversation back up -- `session/resume`,
+        # which restores it, and `session/load`, which replays it -- and an agent says at the
+        # handshake which of them it serves. Every ACP server this was tried against serves
+        # both, and one of them was checked the only way that means anything: a session opened
+        # in one process, that process killed, and the conversation picked back up in the next
+        # one still knowing what it had been told. An agent that serves neither refuses where
+        # the conversation is picked up rather than here.
+        resumes=True,
         # The protocol has the call, which is the most that can be known about a CLI known
         # only by the protocol it speaks. An agent that has not implemented it refuses where
         # it is asked rather than here -- which is still a refusal, and still not two flows

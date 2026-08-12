@@ -55,7 +55,7 @@ def here(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A home nothing has written to, and `shell` as a backend of your own."""
     monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "home"))
     monkeypatch.chdir(tmp_path)
-    backends.remember("shell", ["sh"])
+    backends.remember("shell", ["shell"])
 
 
 def _claude(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
