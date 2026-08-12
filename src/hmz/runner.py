@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import inspect
 import os
+import subprocess
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -24,7 +26,7 @@ from typing import (
     get_type_hints,
 )
 
-from hmz import backends
+from hmz import backends, home
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Sequence
@@ -1081,3 +1083,998 @@ def set_up_from(said: str | os.PathLike[str]) -> dict[str, Any]:
             f"{said}: a flow is set up from a mapping, not a {type(held).__name__}"
         )
     return cast("dict[str, Any]", held)
+
+
+# What follows runs writer jobs apart from one another: each in a Git worktree of its own,
+# leased from one frozen base commit, driven as a subprocess with that worktree for a cwd,
+# and read back afterwards purely from what Git says it left behind. Nothing here touches
+# how a single flow runs -- `Runner.run` above is that, and stays as it is.
+
+#: The identity the coordinator commits and cherry-picks as, pinned onto each Git command
+#: so a run reads the same everywhere and nobody's own configuration is read or written.
+#: Signing is off for the same reason: a result commit asserts what a worktree held, not
+#: who was at the keyboard.
+_AS_HUMANIZE = (
+    "-c",
+    "user.name=humanize",
+    "-c",
+    "user.email=humanize@localhost",
+    "-c",
+    "commit.gpgsign=false",
+)
+
+_HUMANIZE_IDENTITY = {
+    "GIT_AUTHOR_NAME": "humanize",
+    "GIT_AUTHOR_EMAIL": "humanize@localhost",
+    "GIT_COMMITTER_NAME": "humanize",
+    "GIT_COMMITTER_EMAIL": "humanize@localhost",
+}
+
+#: What Git leaves in its own directory while an operation is half done. A writer that went
+#: to its end mid-merge or mid-rebase has not left a snapshot anybody can vouch for, so any
+#: of these in a worktree refuses it.
+_HALF_DONE = (
+    "MERGE_HEAD",
+    "CHERRY_PICK_HEAD",
+    "REVERT_HEAD",
+    "BISECT_LOG",
+    "rebase-apply",
+    "rebase-merge",
+)
+
+#: How long a terminated writer gets to go of its own accord before it is killed outright,
+#: in seconds. Terminating is the polite form; an interrupt cannot wait forever on a writer
+#: that ignores it.
+_PATIENCE = 10.0
+
+
+class _RunError(Exception):
+    """Why a stage of a worktree run could not go on, said plainly.
+
+    Raised only after the first worktree exists, and caught before it leaves the
+    coordinator: from outside, everything past that point is a result, not an exception,
+    so a caller holding several runs is not unwound by one of them.
+    """
+
+
+class _GitError(_RunError):
+    """A Git command that did not do what was asked: what, where, and what Git said."""
+
+    def __init__(
+        self, action: str, cwd: Path, returncode: int | None, stderr: str
+    ) -> None:
+        said = stderr.strip() or "(nothing on stderr)"
+        super().__init__(f"{action} (in {cwd}): exit {returncode}: {said}")
+
+
+def _ran(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """Runs one Git command where it is told to, and answers with whatever happened.
+
+    Args:
+      cwd: Where to run it -- always said, never inherited, which is what lets the
+        coordinator work several worktrees without moving itself.
+      *args: The command, after ``git``.
+
+    Returns:
+      The completed process, output captured, exit code unjudged.
+
+    Raises:
+      _GitError: If Git itself could not be started.
+    """
+    try:
+        environment = None
+        if args[: len(_AS_HUMANIZE)] == _AS_HUMANIZE:
+            environment = os.environ | _HUMANIZE_IDENTITY
+        return subprocess.run(
+            ["git", *args],
+            cwd=cwd,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except (OSError, ValueError) as unrunnable:
+        raise _GitError(
+            f"running git {args[0]}", cwd, None, str(unrunnable)
+        ) from unrunnable
+
+
+def _git(cwd: Path, *args: str, action: str) -> str:
+    """Runs one Git command that has to succeed, and answers with its stdout.
+
+    Args:
+      cwd: Where to run it.
+      *args: The command, after ``git``.
+      action: What the command is doing, for the reader of a refusal.
+
+    Returns:
+      The command's stdout, exactly as written -- a ``-z`` listing keeps its terminators.
+
+    Raises:
+      _GitError: If the command could not run or did not exit zero.
+    """
+    done = _ran(cwd, *args)
+    if done.returncode != 0:
+        raise _GitError(action, cwd, done.returncode, done.stderr)
+    return done.stdout
+
+
+def _git_holds(cwd: Path, *args: str, action: str) -> bool:
+    """Asks Git a yes-or-no question: exit zero is yes, exit one is no.
+
+    Args:
+      cwd: Where to ask.
+      *args: The question, after ``git`` -- ``merge-base --is-ancestor``,
+        ``diff --cached --quiet``, and their kind.
+      action: What is being asked, for the reader of a refusal.
+
+    Returns:
+      What Git answered.
+
+    Raises:
+      _GitError: If Git answered with anything but yes or no.
+    """
+    done = _ran(cwd, *args)
+    if done.returncode in (0, 1):
+        return done.returncode == 0
+    raise _GitError(action, cwd, done.returncode, done.stderr)
+
+
+def _on_branch(cwd: Path) -> str | None:
+    """The branch a worktree has checked out, or None for the detached HEAD it was leased at.
+
+    Args:
+      cwd: The worktree.
+
+    Returns:
+      The short branch name, or None.
+    """
+    said = _ran(cwd, "symbolic-ref", "--quiet", "--short", "HEAD")
+    return said.stdout.strip() if said.returncode == 0 else None
+
+
+def _standing(cwd: Path) -> str:
+    """What ``git status`` says stands uncommitted in a worktree, untracked files and all.
+
+    Args:
+      cwd: The worktree.
+
+    Returns:
+      The porcelain listing: empty is clean, and ignored files do not count.
+
+    Raises:
+      _GitError: If status itself failed.
+    """
+    return _git(
+        cwd,
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+        action="reading the working tree's status",
+    ).strip()
+
+
+@dataclass(frozen=True, slots=True)
+class WorktreeJob:
+    """One writer to run apart: a name to answer to, and the command that is the writer.
+
+    Attributes:
+      name: What the job's results answer to. Non-empty, and no two jobs of one run share
+        it; the worktree's path comes from the job's place in the run, not from this.
+      argv: The complete command, run without a shell -- an ``hmz exec`` line as a rule,
+        though anything that edits files where it is started will do. It is not reparsed
+        or rebuilt: whatever agents it drives are its own business.
+    """
+
+    name: str
+    argv: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class WorktreeJobResult:
+    """What one writer job came to, read off its process and its worktree's Git state.
+
+    Attributes:
+      name: The job's name, as given.
+      status: Where it ended. "committed" is a writer whose leavings became one result
+        commit; "no_change" one whose worktree matched the base when it was done; both are
+        successes. "finished" is a writer that exited zero in a run that failed elsewhere,
+        its worktree left exactly as the writer left it; "failed" is one that did not exit
+        zero, could not start, or left Git state nobody can vouch for; "not_started" is a
+        job the run never reached.
+      worktree_path: Where its worktree is, or None if none was ever made. The path stands
+        whether or not the worktree was cleaned away at the end.
+      returncode: How the writer exited -- negative for a signal, None if it never ran.
+      source_commit: The one result commit made in its worktree, or None.
+      integrated_commit: The commit that carries this job's change on the integration line,
+        recorded so cleaning the writer's worktree cannot orphan the result. None for a job
+        that changed nothing or was never integrated.
+      changed_paths: Every path the result commit touches, relative to the repository root.
+      error: Why it failed, or None.
+    """
+
+    name: str
+    status: str
+    worktree_path: str | None
+    returncode: int | None
+    source_commit: str | None
+    integrated_commit: str | None
+    changed_paths: tuple[str, ...]
+    error: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class WorktreeCheckResult:
+    """One check command's outcome, in the order the checks were given.
+
+    A check that was never reached -- one after the first failure -- has no result at all.
+
+    Attributes:
+      argv: The command, as given.
+      returncode: How it exited, or None if it could not start.
+      error: Why it counts as failed, or None for a check that passed.
+    """
+
+    argv: tuple[str, ...]
+    returncode: int | None
+    error: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class WorktreeRunResult:
+    """Everything observable about one worktree run, and nothing a writer merely said.
+
+    Attributes:
+      status: "published" when the target branch carries every job's result; "unchanged"
+        when no job changed anything and the checks still passed from the base; "failed"
+        for everything else, with the scene kept for whoever comes to look.
+      repo_root: The repository the run worked, as pinned before anything was made.
+      target_branch: The branch that was checked out at the start, and the only one a
+        success moves.
+      base_sha: The commit every worktree was leased from.
+      published_sha: Where the target branch ended, or None for a run that published
+        nothing.
+      jobs: One result per job, in the order the jobs were given.
+      checks: One result per check that ran, in the order the checks were given.
+      kept_paths: Every worktree left on disk -- the whole scene after a failure, or
+        whatever a cleaning error left behind after a success.
+      cleanup_errors: What went wrong cleaning up, none of which changes the status: a
+        published run with a stubborn directory is still published.
+      error: What ended a failed run, or None.
+    """
+
+    status: str
+    repo_root: str
+    target_branch: str
+    base_sha: str
+    published_sha: str | None
+    jobs: tuple[WorktreeJobResult, ...]
+    checks: tuple[WorktreeCheckResult, ...]
+    kept_paths: tuple[str, ...]
+    cleanup_errors: tuple[str, ...]
+    error: str | None
+
+
+@dataclass(slots=True)
+class _Writing:
+    """One job's unfolding state, frozen into a :class:`WorktreeJobResult` at the end."""
+
+    job: WorktreeJob
+    path: Path | None = None
+    returncode: int | None = None
+    source_commit: str | None = None
+    integrated_commit: str | None = None
+    changed_paths: tuple[str, ...] = ()
+    status: str = "not_started"
+    error: str | None = None
+
+    def result(self) -> WorktreeJobResult:
+        """This job's state, as the run's caller is handed it."""
+        return WorktreeJobResult(
+            name=self.job.name,
+            status=self.status,
+            worktree_path=None if self.path is None else str(self.path),
+            returncode=self.returncode,
+            source_commit=self.source_commit,
+            integrated_commit=self.integrated_commit,
+            changed_paths=self.changed_paths,
+            error=self.error,
+        )
+
+
+def _refused(
+    jobs: tuple[WorktreeJob, ...], checks: tuple[tuple[str, ...], ...], at_once: int
+) -> None:
+    """Refuses arguments nothing should be built from, before anything is.
+
+    Args:
+      jobs: The writer jobs, as given.
+      checks: The check commands, as given.
+      at_once: The concurrency bound, as given.
+
+    Raises:
+      ValueError: If there are no jobs, a job has no name or no command, two jobs share a
+        name, a check is empty, or the bound is negative.
+    """
+    if not jobs:
+        raise ValueError("a worktree run needs at least one job")
+    if any(not job.name for job in jobs):
+        raise ValueError("every job needs a name for its results to answer to")
+    names = [job.name for job in jobs]
+    if len(set(names)) != len(names):
+        taken = sorted({name for name in names if names.count(name) > 1})
+        raise ValueError(f"job names have to be unique: {', '.join(taken)} repeat")
+    if short := [job.name for job in jobs if not job.argv]:
+        raise ValueError(f"a job is a command, and {', '.join(short)} have none")
+    if any(not tuple(check) for check in checks):
+        raise ValueError("an empty check checks nothing, and would run nothing")
+    if at_once < 0:
+        raise ValueError(f"at_once is a bound or 0 for no bound, not {at_once}")
+
+
+def _pinned(managed_root: Path) -> tuple[Path, str, str]:
+    """Reads and pins where a run starts from: the repository, its branch, its commit.
+
+    Everything later holds itself to these three: the worktrees are leased from the
+    commit, the checks are judged against it, and publishing refuses to move anything
+    but the branch -- and only from exactly here.
+
+    Args:
+      managed_root: Where the run would keep its worktrees, refused if it sits inside
+        the repository it mirrors.
+
+    Returns:
+      The repository root, the checked-out branch, and the commit it stands at.
+
+    Raises:
+      ValueError: If this is not a clean Git worktree standing on a branch with a commit
+        under it, or Git cannot be run at all.
+    """
+    here = Path.cwd()
+    try:
+        root = Path(
+            _git(
+                here,
+                "rev-parse",
+                "--show-toplevel",
+                action="finding the repository this directory is in",
+            ).strip()
+        ).resolve()
+    except _GitError as lost:
+        raise ValueError(str(lost)) from lost
+    branch = _on_branch(root)
+    if branch is None:
+        raise ValueError(
+            f"{root}: HEAD is detached; a run needs the branch it will publish to"
+        )
+    try:
+        base = _git(
+            root, "rev-parse", "HEAD", action="resolving the commit to lease from"
+        ).strip()
+        clean = not _standing(root)
+    except _GitError as unread:
+        raise ValueError(str(unread)) from unread
+    if not clean:
+        raise ValueError(
+            f"{root}: the working tree is not clean; commit or put away what stands "
+            "before a run, so what was published can be told from what was already there"
+        )
+    if managed_root.resolve().is_relative_to(root.resolve()):
+        raise ValueError(
+            f"{managed_root}: worktrees cannot be kept inside the repository they "
+            "mirror -- point HUMANIZE_HOME somewhere outside it"
+        )
+    return root, branch, base
+
+
+def _driven(writings: list[_Writing], at_once: int) -> None:
+    """Runs every writer to its end, each in its own worktree, at most `at_once` at a time.
+
+    The subprocess is the whole of the isolation: each is started with its worktree for a
+    cwd and nothing else changed, so a writer's own environment, streams and signals are
+    exactly what they would be anywhere. The coordinator itself never moves.
+
+    An interrupt ends the writers rather than leaving them running into the next stage:
+    whatever is underway is terminated and waited for, nothing further is started, and the
+    interrupt goes on up with every worktree kept as it stood.
+
+    Args:
+      writings: One per job, each holding the worktree already leased for it. How each
+        writer ended is written back onto it.
+      at_once: The bound, or 0 to run them all at once.
+    """
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    guard = threading.Lock()
+    stop = threading.Event()
+    running: dict[int, subprocess.Popen[bytes]] = {}
+
+    def write(index: int) -> None:
+        writing = writings[index]
+        argv, path = writing.job.argv, writing.path
+        assert path is not None  # leased before anything is driven  # noqa: S101
+        with guard:
+            if stop.is_set():
+                writing.error = f"{writing.job.name}: not started; the run was ended"
+                writing.status = "failed"
+                return
+            try:
+                writer = subprocess.Popen(list(argv), cwd=path)
+            except (OSError, ValueError) as unrunnable:
+                writing.error = (
+                    f"{writing.job.name}: cannot start {argv[0]}: {unrunnable}"
+                )
+                writing.status = "failed"
+                return
+            running[index] = writer
+        returncode = writer.wait()
+        with guard:
+            running.pop(index, None)
+        writing.returncode = returncode
+        if returncode == 0:
+            writing.status = "finished"
+        elif returncode < 0:
+            writing.error = (
+                f"{writing.job.name}: the writer was ended by signal {-returncode}"
+            )
+            writing.status = "failed"
+        else:
+            writing.error = f"{writing.job.name}: the writer exited {returncode}"
+            writing.status = "failed"
+
+    pool = ThreadPoolExecutor(
+        max_workers=at_once or len(writings), thread_name_prefix="humanize-writer"
+    )
+    futures = [pool.submit(write, index) for index in range(len(writings))]
+    try:
+        for future in futures:
+            future.result()
+    except BaseException:
+        # An interrupt, almost always. The writers are this run's to end: terminated,
+        # then waited for -- killed if terminating went unheard -- so no direct child of
+        # ours is still writing when the caller hears.
+        with guard:
+            stop.set()
+            underway = list(running.values())
+        for writer in underway:
+            writer.terminate()
+        for writer in underway:
+            try:
+                writer.wait(timeout=_PATIENCE)
+            except subprocess.TimeoutExpired:
+                writer.kill()
+                writer.wait()
+        pool.shutdown(wait=True, cancel_futures=True)
+        raise
+    pool.shutdown(wait=True)
+
+
+def _reckoned(writing: _Writing, base: str) -> None:
+    """Reads one finished writer's worktree back into at most one commit on the base.
+
+    The writer said nothing about what it did, and is not asked: staged, unstaged,
+    untracked, deleted and renamed work alike are what the snapshot is, and any commits
+    the writer made of its own are flattened into the same one. A worktree that matches
+    the base is a result too -- no change -- and gets no empty commit.
+
+    Args:
+      writing: The job, exited zero, its worktree still as the writer left it. What the
+        reckoning finds is written back onto it.
+      base: The commit the worktree was leased from, the result's one parent.
+
+    Raises:
+      _RunError: If the writer moved onto a branch, left the base's line of descent, left
+        unmerged entries or a half-done Git operation, or any of the reading and
+        committing itself failed -- none of which a writer's own exit code overrides.
+    """
+    path, name = writing.path, writing.job.name
+    assert path is not None  # leased before anything is reckoned  # noqa: S101
+    if (branch := _on_branch(path)) is not None:
+        raise _RunError(
+            f"{name}: the writer moved onto branch {branch!r}; a worktree is leased "
+            "detached, and its snapshot is read from where it was left"
+        )
+    for trace in _HALF_DONE:
+        spot = _git(
+            path,
+            "rev-parse",
+            "--git-path",
+            trace,
+            action=f"locating {trace}",
+        ).strip()
+        if (path / spot).exists():
+            raise _RunError(
+                f"{name}: a half-done Git operation ({trace}) is in the worktree; "
+                "nothing it holds can be vouched for as the writer's result"
+            )
+    if _git(
+        path, "ls-files", "--unmerged", action="looking for unmerged entries"
+    ).strip():
+        raise _RunError(f"{name}: unmerged entries are in the worktree's index")
+    if not _git_holds(
+        path,
+        "merge-base",
+        "--is-ancestor",
+        base,
+        "HEAD",
+        action="checking the worktree still descends from the base",
+    ):
+        raise _RunError(
+            f"{name}: the worktree's HEAD no longer descends from {base}; whatever "
+            "stands there is not this run's work to publish"
+        )
+    _git(
+        path,
+        "reset",
+        "--soft",
+        base,
+        action=f"gathering {name}'s commits onto the base",
+    )
+    _git(path, "add", "-A", action=f"staging everything {name} left")
+    if _git_holds(
+        path, "diff", "--cached", "--quiet", action="asking whether anything changed"
+    ):
+        if left := _standing(path):
+            raise _RunError(
+                f"{name}: the no-change worktree is not clean after it was staged: {left}"
+            )
+        writing.status = "no_change"
+        return
+    _git(
+        path,
+        *_AS_HUMANIZE,
+        "commit",
+        "-m",
+        f"humanize worktree: {name}",
+        action=f"committing {name}'s snapshot",
+    )
+    sha = _git(path, "rev-parse", "HEAD", action="reading the result commit").strip()
+    lineage = _git(
+        path,
+        "rev-list",
+        "--parents",
+        "-n",
+        "1",
+        "HEAD",
+        action="reading the result commit's parents",
+    ).split()
+    if lineage != [sha, base]:
+        raise _RunError(
+            f"{name}: the result commit does not sit alone on the base: {lineage}"
+        )
+    writing.source_commit = sha
+    if left := _standing(path):
+        raise _RunError(
+            f"{name}: the worktree is not clean after its snapshot was committed: {left}"
+        )
+    listed = _git(
+        path,
+        "diff",
+        "--name-only",
+        "-z",
+        base,
+        sha,
+        action="listing the paths the result touches",
+    )
+    writing.changed_paths = tuple(one for one in listed.split("\0") if one)
+    writing.status = "committed"
+
+
+def _checked(
+    checks: tuple[tuple[str, ...], ...], where: Path
+) -> tuple[tuple[WorktreeCheckResult, ...], str | None]:
+    """Runs the caller's checks in order, stopping at the first that does not pass.
+
+    Args:
+      checks: The commands, each an argv run without a shell, with the caller's own
+        environment and streams.
+      where: The integration worktree, every check's cwd.
+
+    Returns:
+      One result per check that ran, and why the run cannot publish -- a failed check, or
+      a worktree the checks themselves dirtied -- or None if everything held.
+    """
+    outcomes: list[WorktreeCheckResult] = []
+    for check in checks:
+        argv = tuple(check)
+        try:
+            done = subprocess.run(list(argv), cwd=where, check=False)
+        except (OSError, ValueError) as unrunnable:
+            outcomes.append(
+                WorktreeCheckResult(
+                    argv=argv,
+                    returncode=None,
+                    error=f"cannot start {argv[0]}: {unrunnable}",
+                )
+            )
+            return tuple(outcomes), f"check {argv[0]} could not start: {unrunnable}"
+        if done.returncode != 0:
+            outcomes.append(
+                WorktreeCheckResult(
+                    argv=argv,
+                    returncode=done.returncode,
+                    error=f"exited {done.returncode}",
+                )
+            )
+            return tuple(outcomes), f"check {argv[0]} exited {done.returncode}"
+        outcomes.append(WorktreeCheckResult(argv=argv, returncode=0, error=None))
+    try:
+        left = _standing(where)
+    except _RunError as unread:
+        return tuple(outcomes), str(unread)
+    if left:
+        # What was checked has to be what is published, and a check that wrote into the
+        # worktree has made those two things different.
+        return tuple(
+            outcomes
+        ), f"the checks left the integration worktree dirty: {left}"
+    return tuple(outcomes), None
+
+
+def _integration_unchanged(where: Path, tip: str) -> str | None:
+    """Why the integration worktree no longer holds the checked result, if it moved."""
+    try:
+        if branch := _on_branch(where):
+            return (
+                f"the integration worktree moved onto branch {branch!r} during the checks; "
+                "it was leased detached"
+            )
+        settled = _git(
+            where, "rev-parse", "HEAD", action="re-reading the integration tip"
+        ).strip()
+    except _RunError as unread:
+        return str(unread)
+    if settled != tip:
+        return (
+            f"the integration worktree moved from the tip {tip} to {settled} during "
+            "the checks; what was checked is no longer the writers' result"
+        )
+    return None
+
+
+def _still_at_base(root: Path, branch: str, base: str) -> None:
+    """Refuses a main worktree that no longer stands exactly where the run began."""
+    if (standing_on := _on_branch(root)) != branch:
+        raise _RunError(
+            f"the main worktree is on {standing_on or 'a detached HEAD'!r}, no longer "
+            f"on {branch!r}; nothing is published over somebody else's move"
+        )
+    head = _git(root, "rev-parse", "HEAD", action="re-reading the main HEAD").strip()
+    ref = _git(
+        root,
+        "rev-parse",
+        f"refs/heads/{branch}",
+        action="re-reading the target branch",
+    ).strip()
+    if head != base or ref != base:
+        raise _RunError(
+            f"{branch} moved while the run was underway ({base} -> {ref}); its new "
+            "commits are somebody's work, and nothing is published over them"
+        )
+    if left := _standing(root):
+        raise _RunError(
+            f"the main working tree changed while the run was underway: {left}"
+        )
+
+
+def _published(root: Path, integration: Path, branch: str, base: str, tip: str) -> None:
+    """Fast-forwards the target branch to the integration tip, from the main worktree.
+
+    Only if the main worktree still stands exactly where the run began: same branch, same
+    commit, nothing uncommitted. Anything else is somebody else's work in progress, and
+    the one safe thing to do with it is nothing.
+
+    Args:
+      root: The repository's main worktree.
+      integration: The integration worktree, whose tree the published one has to match.
+      branch: The branch pinned at the start.
+      base: The commit pinned at the start.
+      tip: The integration tip to publish.
+
+    Raises:
+      _RunError: If the integration worktree or the main worktree moved, the fast-forward
+        failed, or what stands published is not what passed the checks. Nothing is reset,
+        rebased or forced either way.
+    """
+    _still_at_base(root, branch, base)
+    _git(
+        root,
+        "merge",
+        "--ff-only",
+        tip,
+        action=f"fast-forwarding {branch} to the integration tip",
+    )
+    landed = _git(
+        root, "rev-parse", "HEAD", action="verifying the published HEAD"
+    ).strip()
+    if landed != tip:
+        raise _RunError(f"publishing landed on {landed}, not the integration tip {tip}")
+    if (now_on := _on_branch(root)) != branch:
+        raise _RunError(
+            f"the fast-forward left the main worktree on {now_on or 'a detached HEAD'!r}"
+            f", not {branch!r}; a branch switched under it was moved in its place"
+        )
+    ref = _git(
+        root,
+        "rev-parse",
+        f"refs/heads/{branch}",
+        action="verifying the published branch",
+    ).strip()
+    if ref != tip:
+        raise _RunError(
+            f"{branch} stands at {ref}, not the integration tip {tip}, after publishing"
+        )
+    if left := _standing(root):
+        raise _RunError(f"the main working tree is not clean after publishing: {left}")
+    published = _git(
+        root, "rev-parse", "HEAD^{tree}", action="reading the published tree"
+    ).strip()
+    checked = _git(
+        integration, "rev-parse", "HEAD^{tree}", action="re-reading the checked tree"
+    ).strip()
+    if published != checked:
+        raise _RunError(
+            f"the published tree {published} is not the tree the checks passed on "
+            f"({checked})"
+        )
+
+
+def _kept_back(root: Path, run_dir: Path, path: Path, head: str) -> str | None:
+    """Why one worktree is not this run's to remove, or None when it verifiably is.
+
+    Every question is asked of the worktree itself, at the moment of removal: a path from
+    outside the run's own directory, one Git no longer lists, one standing on some other
+    commit, or one with uncommitted work is left where it is, whatever the records say.
+
+    Args:
+      root: The repository's main worktree, where the listing is read.
+      run_dir: The one directory this run's worktrees live under.
+      path: The worktree to be removed.
+      head: The commit its HEAD was recorded at.
+
+    Returns:
+      The refusal, or None.
+    """
+    if not path.resolve().is_relative_to(run_dir.resolve()):
+        return f"{path}: not under this run's directory, so not this run's to remove"
+    try:
+        listed = _git(
+            root, "worktree", "list", "--porcelain", action="listing the worktrees"
+        )
+        registered = {
+            Path(line.removeprefix("worktree ")).resolve()
+            for line in listed.splitlines()
+            if line.startswith("worktree ")
+        }
+        if path.resolve() not in registered:
+            return f"{path}: not a worktree Git knows of"
+        standing_at = _git(
+            path, "rev-parse", "HEAD", action="re-reading the worktree's HEAD"
+        ).strip()
+        if standing_at != head:
+            return f"{path}: HEAD is {standing_at}, not the recorded {head}"
+        if left := _standing(path):
+            return f"{path}: not clean, and what stands there may be somebody's: {left}"
+    except _RunError as unread:
+        return str(unread)
+    return None
+
+
+def _cleared(
+    root: Path, run_dir: Path, leases: list[tuple[Path, str]]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Removes a fully successful run's worktrees, each verified to be exactly as recorded.
+
+    ``--force`` is what lets Git delete the ignored leavings of a build or a test run; the
+    verification above it is what keeps it from ever deleting tracked work, because a
+    worktree that is not clean is not removed at all.
+
+    Args:
+      root: The repository's main worktree.
+      run_dir: The one directory this run's worktrees live under, removed too once empty.
+      leases: Each worktree and the commit its HEAD was recorded at.
+
+    Returns:
+      The paths left behind and why, both empty when everything went.
+    """
+    kept: list[str] = []
+    errors: list[str] = []
+    for path, head in leases:
+        refusal = _kept_back(root, run_dir, path, head)
+        if refusal is None:
+            try:
+                _git(
+                    root,
+                    "worktree",
+                    "remove",
+                    "--force",
+                    str(path),
+                    action=f"removing the worktree at {path}",
+                )
+            except _RunError as undone:
+                refusal = str(undone)
+        if refusal is not None:
+            kept.append(str(path))
+            errors.append(refusal)
+    try:
+        run_dir.rmdir()  # only ever an empty directory; anything left keeps it
+    except OSError:
+        if not kept:
+            kept.append(str(run_dir))
+            errors.append(f"{run_dir}: could not be removed")
+    return tuple(kept), tuple(errors)
+
+
+def run_worktrees(
+    jobs: Sequence[WorktreeJob],
+    *,
+    checks: Sequence[Sequence[str]] = (),
+    at_once: int = 0,
+) -> WorktreeRunResult:
+    """Runs writer jobs in parallel, each in a Git worktree of its own, and publishes the whole.
+
+    Every worktree is leased detached from the one commit the repository stands at, so the
+    jobs share a base and nothing else: files, index and HEAD are each writer's own. What a
+    writer leaves behind is read back from Git alone -- flattened to at most one commit per
+    job -- then cherry-picked in the order the jobs were given onto an integration worktree,
+    where the checks run. Only when every job succeeded, every check passed, and the main
+    worktree still stands exactly where it started does the target branch fast-forward; a
+    fully successful run then removes its worktrees, and any other outcome keeps them all
+    for whoever comes to look.
+
+    This is cooperative isolation for files, not a security boundary: the subprocesses
+    still share the host, the object database, the refs and the caller's credentials.
+
+    Args:
+      jobs: The writers, uniquely named, each a complete argv run with its worktree for a
+        cwd -- ``("hmz", "exec", ...)`` as a rule.
+      checks: Commands to run in the integration worktree once everything is picked, each
+        an argv, in order; all of them have to exit zero.
+      at_once: How many writers may run at the same time, or 0 for all of them.
+
+    Returns:
+      What observably happened, job by job and check by check. Nothing a writer printed
+      or claimed is in it.
+
+    Raises:
+      ValueError: If the arguments or the repository are unfit, found out before any
+        worktree exists. From the first lease on, failure is a returned result instead.
+      KeyboardInterrupt: On an interrupt, after the writers have been terminated and
+        waited for; the worktrees made so far are kept.
+    """
+    import uuid
+
+    held = tuple(jobs)
+    wanted_checks = tuple(tuple(check) for check in checks)
+    _refused(held, wanted_checks, at_once)
+    managed_root = (home() / "worktrees").resolve()
+    root, branch, base = _pinned(managed_root)
+    run_dir = managed_root / str(uuid.uuid4())
+    writings = [_Writing(job=job) for job in held]
+
+    def come_out(
+        status: str,
+        *,
+        published: str | None = None,
+        ran: tuple[WorktreeCheckResult, ...] = (),
+        kept: tuple[str, ...] = (),
+        cleanup: tuple[str, ...] = (),
+        error: str | None = None,
+    ) -> WorktreeRunResult:
+        return WorktreeRunResult(
+            status=status,
+            repo_root=str(root),
+            target_branch=branch,
+            base_sha=base,
+            published_sha=published,
+            jobs=tuple(writing.result() for writing in writings),
+            checks=ran,
+            kept_paths=kept,
+            cleanup_errors=cleanup,
+            error=error,
+        )
+
+    created: list[Path] = []
+
+    def scene() -> tuple[str, ...]:
+        return tuple(str(path) for path in created)
+
+    # The leases, one by one: worktree bookkeeping shares the repository's own metadata,
+    # so only the writers themselves ever run in parallel.
+    run_dir.mkdir(parents=True)
+    for index, writing in enumerate(writings):
+        path = run_dir / f"writer-{index}"
+        try:
+            _git(
+                root,
+                "worktree",
+                "add",
+                "--detach",
+                str(path),
+                base,
+                action=f"leasing a worktree for {writing.job.name}",
+            )
+        except _RunError as unleased:
+            writing.error = str(unleased)
+            return come_out("failed", kept=scene(), error=str(unleased))
+        writing.path = path
+        created.append(path)
+
+    _driven(writings, at_once)
+    if wrong := [writing.error for writing in writings if writing.status == "failed"]:
+        # The other writers were still waited to their ends; their worktrees stand
+        # exactly as left, unreckoned, because reading them would disturb the scene.
+        return come_out("failed", kept=scene(), error=wrong[0])
+
+    for writing in writings:
+        try:
+            _reckoned(writing, base)
+        except _RunError as unvouched:
+            writing.status = "failed"
+            writing.error = str(unvouched)
+            return come_out("failed", kept=scene(), error=str(unvouched))
+
+    integration = run_dir / "integration"
+    try:
+        _git(
+            root,
+            "worktree",
+            "add",
+            "--detach",
+            str(integration),
+            base,
+            action="leasing the integration worktree",
+        )
+    except _RunError as unleased:
+        return come_out("failed", kept=scene(), error=str(unleased))
+    created.append(integration)
+
+    tip = base
+    for writing in writings:
+        if writing.source_commit is None:
+            continue  # no change: nothing to pick, and no empty commit to make
+        try:
+            _git(
+                integration,
+                *_AS_HUMANIZE,
+                "cherry-pick",
+                writing.source_commit,
+                action=f"integrating {writing.job.name}",
+            )
+        except _RunError as conflicted:
+            # Left exactly as Git stopped, conflict markers and all: an abort would
+            # destroy the one thing that says what collided with what.
+            return come_out("failed", kept=scene(), error=str(conflicted))
+        tip = _git(
+            integration, "rev-parse", "HEAD", action="reading the integration tip"
+        ).strip()
+        writing.integrated_commit = tip
+
+    ran, unpassed = _checked(wanted_checks, integration)
+    if unpassed is not None:
+        return come_out("failed", ran=ran, kept=scene(), error=unpassed)
+    if moved := _integration_unchanged(integration, tip):
+        return come_out("failed", ran=ran, kept=scene(), error=moved)
+
+    if tip == base:
+        try:
+            _still_at_base(root, branch, base)
+        except _RunError as moved:
+            return come_out("failed", ran=ran, kept=scene(), error=str(moved))
+        outcome, published = "unchanged", None
+    else:
+        try:
+            _published(root, integration, branch, base, tip)
+        except _RunError as unmoved:
+            return come_out("failed", ran=ran, kept=scene(), error=str(unmoved))
+        outcome, published = "published", tip
+
+    leases = [
+        (path, writing.source_commit or base)
+        for writing in writings
+        if (path := writing.path) is not None
+    ]
+    leases.append((integration, tip))
+    kept, cleanup = _cleared(root, run_dir, leases)
+    return come_out(outcome, published=published, ran=ran, kept=kept, cleanup=cleanup)
