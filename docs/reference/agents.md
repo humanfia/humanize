@@ -308,7 +308,9 @@ whether [goals](/weaver/goals) are available to it,
 [skills it carries](#the-skills-an-agent-carries) are not among them, being its CLI's own and
 its flow's. Codex also takes `overrides`, the app-server `-c` keys that are not already one
 of those fields. Claude takes `allowed_tools`, exact native `--allowedTools` rules for a
-bounded unattended flow. It is frozen,
+bounded unattended flow. opencode and mimocode take
+[the rest of their own command line](#what-opencode-and-mimocode-add-to-a-bare-run). It is
+frozen,
 because a session resumes under the settings it opened with — a config that changed mid-flow
 would silently split one conversation across two models.
 
@@ -372,7 +374,8 @@ different things.
 | `codex` | `-c tools.web_search=true\|false`, both ways |
 | `grok` | `--disallowed-tools web_search,web_fetch` when off |
 | `qwen` | `--exclude-tools web_search,web_fetch` when off |
-| `opencode`, `mimo` | `webfetch: deny` in its permission table when off |
+| `opencode` | `webfetch: deny` and `websearch: deny` in its permission table when off |
+| `mimo` | the same two and `codesearch: deny`, which is the third way out it ships |
 | `zcode` | `WebSearch` and `WebFetch` in the session's `toolDenylist` when off |
 | `agy`, `cursor`, `dsh`, `kimi`, `pi` | no way of being told — off is refused |
 
@@ -429,6 +432,50 @@ hmz exec -f flow.py:run \
     -a 'cli=claude,model=claude-opus-5,effort=max,config.allowed_tools=Bash(git diff *)' \
     task
 ```
+
+### What opencode and mimocode add to a bare run
+
+A turn of either is one `opencode run` — or one `mimo run`, the same program under another
+name — and two things on its command line are not what that command does unasked. `--format
+json` is what makes the run a protocol rather than a formatted page, and `--dir` is what puts
+it in the directory the session was opened at rather than wherever the process is standing.
+Neither is anybody's to turn off: a driver without the first has nothing to read, and one
+without the second has nowhere to read it from.
+
+Everything else the driver imposes is a field on the config, each defaulting to what the CLI
+would have done if nobody had said anything:
+
+| field | what it adds | default |
+| --- | --- | --- |
+| `cli_agent` | `--agent NAME` — the turn run as one of the CLI's own agents, which carries a prompt, a model and a tool list of its own | `""`, the agent the CLI starts with |
+| `thinking` | `--thinking` — the reasoning streamed as `Event(kind="reasoning")` on the way to the answer | off, as the CLI is |
+| `pure` | `--pure` — the turn run without the plugins installed around the CLI rather than in it | off, as the CLI is |
+| `unattended` | `--auto` for opencode, `--dangerously-skip-permissions` for mimocode — yes to whatever the rung has not refused outright | on |
+| `permission_table` | `OPENCODE_PERMISSION` / `MIMOCODE_PERMISSION`, the table this turn's [rung](#what-an-agent-may-do) and [web switch](#whether-an-agent-may-search-the-web) are carried in | on |
+
+```python
+from hmz.coganchor.agents import OpencodeAgent, OpencodeAgentConfig
+
+agent = OpencodeAgent(
+    OpencodeAgentConfig(
+        model="opencode/big-pickle", effort="high", cli_agent="plan", thinking=True
+    )
+)
+```
+
+Each is a capability a flow may ask for before an agent is chosen, under the name the
+catalogue gives every backend-only setting: `settings:cli_agent`, `settings:thinking`,
+`settings:pure`, `settings:unattended`, `settings:permission_table`.
+
+`thinking` buys the words and not the figure: what a turn spent on reasoning tokens is in
+every step's own totals whether or not it was asked to say the thinking, so
+`agent.spent()["reasoning"]` reads the same either way.
+
+`permission_table` off leaves the turn under whatever the person at this machine has
+configured, which is the only honest reason to turn it off — and so it is refused beside a
+rung that withholds anything, or `web_search=False`, since the table was the only way of
+saying either. The table is written for the turn and never into that person's settings file:
+two agents of one flow may be allowed different things.
 
 An agent takes an optional `name=`:
 
@@ -681,7 +728,7 @@ mapping of model to tokens spent.
 | `kind` | |
 | --- | --- |
 | `text` | The agent talking. |
-| `reasoning` | The agent thinking aloud. |
+| `reasoning` | The agent thinking aloud, where its backend says the thinking at all — opencode and mimocode say it only when [asked to](#what-opencode-and-mimocode-add-to-a-bare-run). |
 | `tool` | The agent using one. |
 | `notice` | **humanize** rather than the agent: a rate limit being waited out, another account being carried on as, a turn being cut off, a wedged backend being taken away. |
 | `result` | The answer the turn ends on. **Exactly one closes a turn**, and it is what calling the session returns. |
@@ -1694,7 +1741,7 @@ reaches for whichever of its own settings says the same thing:
 | Rung | `agy` | `claude` | `codex` | `cursor` | `dsh` | `grok` | `kimi` | `pi` | `qwen` | `opencode`, `mimo` | `zcode` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `read-only` | refused | `plan` mode | `read-only` sandbox | `--mode plan` | refused | only `read_file`, `grep`, `list_dir` | plan mode | without `bash`, `edit`, `write` | without `edit`, `write_file`, `run_shell_command` | `edit` and `bash` denied | `plan` mode |
-| `workspace-write` | refused | `acceptEdits` mode | `workspace-write` sandbox | `--sandbox enabled` | refused | `web_search` and `web_fetch` denied | plan mode off | — | `web_fetch` denied | `webfetch` denied | `edit` mode |
+| `workspace-write` | refused | `acceptEdits` mode | `workspace-write` sandbox | `--sandbox enabled` | refused | `web_search` and `web_fetch` denied | plan mode off | — | `web_fetch` denied | every way out of the workspace denied | `edit` mode |
 | `auto` | `--dangerously-skip-permissions` | Claude's own `auto` mode | `workspace-write`, approvals on request | `--auto-review`, its own classifier | refused | — | — | — | — | nothing denied | `build` mode, which asks before a tool with side effects |
 | `bypass` | `--dangerously-skip-permissions` | `manual` mode, every request answered here | `danger-full-access` | `--force --sandbox disabled` | supported | `--yolo` | `yolo` mode | — | `--approval-mode yolo` | — | `yolo` mode |
 

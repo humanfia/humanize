@@ -559,3 +559,26 @@ def test_the_rung_below_each_rung_is_the_next_one_down(
     from hmz.coganchor.agents.codex import _tighter
 
     assert _tighter(refused) == instead
+
+
+def test_a_rung_a_backend_was_told_not_to_carry_is_refused_as_a_declaration() -> None:
+    """Which is where a refusal about a rung belongs, and what it has always come back as.
+
+    opencode is told what an agent may do in a table of its own, and an agent may be set up
+    not to have one written -- at which point the rung has nowhere to go. That is a config
+    refusing itself as it is built rather than a session refusing to open, and the place it
+    surfaces is the same one every other refusal about a declaration surfaces at.
+    """
+    from hmz.coganchor.agents import OpencodeAgent, OpencodeAgentConfig
+    from hmz.flows import NotAFlow
+    from hmz.flows.driving import Place, runs_at
+
+    agent = OpencodeAgent(
+        OpencodeAgentConfig(model="p/m", effort="high", permission_table=False)
+    )
+    place = Place(
+        name="reader", person=False, moments=frozenset(), permission="read-only"
+    )
+
+    with pytest.raises(NotAFlow, match="reader cannot be run as this flow declares"):
+        runs_at("flow.py", agent, place)

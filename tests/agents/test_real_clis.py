@@ -12,6 +12,7 @@ this project's.
 from __future__ import annotations
 
 import shutil
+import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
@@ -29,6 +30,8 @@ from hmz.coganchor.agents import (
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from hmz.coganchor.agents.opencode import OpencodeSession
+
 #: Small and quick: what is being tested is the plumbing, not the model.
 PI = PiAgentConfig(model="openai-codex/gpt-5.4-mini", effort="low")
 OPENCODE = OpencodeAgentConfig(model="opencode/nemotron-3-ultra-free", effort="low")
@@ -40,6 +43,31 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A directory of its own for the turn to work in, which is where it is run from."""
     monkeypatch.chdir(tmp_path)
     return tmp_path
+
+
+def _opens(session: OpencodeSession, prompt: str) -> list[Event]:
+    """The opening turn of one of these, or a skip saying why it would not take one.
+
+    Installed is not signed in, and `which` above each of these only answers the first. An
+    account that has lapsed, a free tier that has ended, a model that account does not serve
+    -- each of those is this machine rather than this driver, and each of them fails on the
+    first turn rather than before it. So it is skipped with what the CLI itself said: a suite
+    that reads red for somebody's expired subscription is a suite nobody reads, and one that
+    said only `skipped` would leave them guessing which of the three it was.
+
+    Args:
+      session: The conversation to open, which has run no turn yet.
+      prompt: What to open it with.
+
+    Returns:
+      Everything the turn said.
+    """
+    try:
+        return list(session.stream(prompt))
+    except subprocess.CalledProcessError as refused:
+        pytest.skip(
+            f"{type(session).command} would not take a turn on this machine: {refused}"
+        )
 
 
 @pytest.mark.agent
@@ -100,7 +128,7 @@ def test_opencode_carries_a_conversation_across_two_runs(workspace: Path) -> Non
     if shutil.which("opencode") is None:
         pytest.skip("opencode is not installed here")
     session = OpencodeAgent(OPENCODE).new()
-    said = list(session.stream("Remember the number 4711. Reply with exactly: OK"))
+    said = _opens(session, "Remember the number 4711. Reply with exactly: OK")
 
     assert said[-1].kind == "result"
     assert "OK" in said[-1].text
@@ -116,7 +144,7 @@ def test_mimo_is_the_same_program_under_its_own_name(workspace: Path) -> None:
     if shutil.which("mimo") is None:
         pytest.skip("mimocode is not installed here")
     session = MimoCodeAgent(MIMO).new()
-    said = list(session.stream("Reply with exactly: OK"))
+    said = _opens(session, "Reply with exactly: OK")
 
     assert said[-1].kind == "result"
     assert "OK" in said[-1].text

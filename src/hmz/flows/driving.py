@@ -1959,17 +1959,22 @@ def runs_at(flow: str | os.PathLike[str], agent: Agent, place: Place) -> AgentCo
     from hmz.coganchor.agents import PERMISSIONS
 
     was = agent.config
-    wanted = replace(
-        was,
-        permission=min(was.permission, place.permission, key=PERMISSIONS.index),
-        # A place run under a goal has one whatever the agent came with: an agent with goals
-        # switched off is refused where the place is filled rather than quietly run without.
-        goals=place.goals if place.goal else (was.goals and place.goals),
-        web_search=was.web_search and place.web_search,
-    )
-    if wanted == was:
-        return was
     try:
+        # Inside the try because writing the config is where a backend refuses as surely as
+        # settling it is: a config of its own may hold two of these settings against each
+        # other -- a rung it can only say in a table this agent was told not to write -- and
+        # that refusal is the same refusal, owed the same sentence about which place it was.
+        wanted = replace(
+            was,
+            permission=min(was.permission, place.permission, key=PERMISSIONS.index),
+            # A place run under a goal has one whatever the agent came with: an agent with
+            # goals switched off is refused where the place is filled rather than quietly run
+            # without.
+            goals=place.goals if place.goal else (was.goals and place.goals),
+            web_search=was.web_search and place.web_search,
+        )
+        if wanted == was:
+            return was
         _settles(agent).reconfigure(wanted)
     except ValueError as refused:
         raise NotAFlow(
