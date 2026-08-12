@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import contextlib
 import importlib
-import importlib.resources
 import io
 import json
 import os
@@ -15,6 +14,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import uuid
 import weakref
 from dataclasses import dataclass
@@ -35,9 +35,29 @@ if TYPE_CHECKING:
 
 __all__ = ["DshAgent", "DshAgentConfig", "DshSession", "native_ready"]
 
-_EFFORTS = ("max", "high", "off")
+_EFFORTS = ("max", "high", "low", "off")
 _EFFORT_ENV = "HMZ_DSH_EFFORT"
 _REQUEST_SECONDS = 180.0
+
+#: How the JSONL session log is written, as `dsh-session-persistence-jsonl` spells it, and
+#: which of the two that plugin writes when nothing says. `zstd` is the SDK's own default;
+#: humanize asks for `none` so its running tally can read complete rows as they land, which
+#: is what :attr:`DshAgentConfig.session_compression` is for.
+_COMPRESSIONS = ("none", "zstd")
+_SDK_COMPRESSION = "zstd"
+
+#: The two plugins that keep one conversation inside the model's context window, mounted as
+#: a pair because `dsh-compaction-basic` injects `tokenMeter` and will not load without it.
+#: Neither is in the SDK's own default composition.
+_COMPACTION = (
+    {"id": "token-meter", "name": "@deepseek-ai/dsh-token-meter"},
+    {"id": "compaction-basic", "name": "@deepseek-ai/dsh-compaction-basic"},
+)
+
+#: The YAML tag the runtime's composition uses for a value it evaluates as JavaScript. It is
+#: the runtime's to evaluate and has no meaning here, so it is carried through the read and
+#: the write untouched rather than resolved.
+_JS_TAG = "tag:yaml.org,2002:js"
 _API_KEY_ENV = "DEEPSEEK_API_KEY"
 _BASE_URL_ENV = "DEEPSEEK_BASE_URL"
 _REF = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
@@ -112,7 +132,47 @@ class _ObjectLoader(Protocol):
 
 @dataclass(frozen=True, kw_only=True)
 class DshAgentConfig(AgentConfig):
-    """The model and effort every DeepSeek Harness session runs at."""
+    """The model and effort every DeepSeek Harness session runs at, and what it composes.
+
+    The two settings here are the two places humanize's runtime composition departs from the
+    one the SDK applies to a launch that passes it no config of its own. Each defaults to
+    what this backend has always done rather than to the SDK's default, because each is
+    something humanize itself reads back afterwards: an install that changes neither gets the
+    behaviour it had, and one that sets both to the SDK's values gets the SDK's own
+    composition plus the effort, which is the only thing left that humanize must say.
+
+    Attributes:
+      compaction: Whether the runtime's own automatic compaction is mounted -- the
+        `dsh-token-meter` and `dsh-compaction-basic` pair, at that plugin's own default
+        threshold of 0.8 of the context window. Off is the SDK's default composition, which
+        has neither; a conversation driven for long enough under it reaches a turn the model
+        refuses for length, and a loop that keeps talking to the same conversation never gets
+        past that refusal. On, because a flow that drives one conversation is what this
+        backend is usually asked for.
+      session_compression: How the durable JSONL session log is written, as one of
+        :data:`_COMPRESSIONS`. `none`, though the plugin's own default is `zstd`, because
+        humanize reads that log itself -- what a turn spent comes off complete rows as they
+        land.
+
+        `zstd` is the smaller log and the one the SDK would have written, and what it costs
+        is worth saying plainly rather than softly: the plugin keeps the same file name under
+        compression, so humanize goes on finding the log and reading it, and every row it
+        reads is a zstd frame rather than a line of JSON. Nothing is counted from it -- not
+        late, not in whole frames, not at all -- and the interface is still told this
+        backend's own reckoning is one it can show. So this is for a run whose cost nobody
+        asks this path for, and it is a setting that is quietly wrong for any other.
+    """
+
+    compaction: bool = True
+    session_compression: str = "none"
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.session_compression not in _COMPRESSIONS:
+            raise ValueError(
+                f"session_compression must be one of {', '.join(_COMPRESSIONS)}, "
+                f"not {self.session_compression!r}"
+            )
 
 
 class DshAgent(AgentBase):
@@ -142,23 +202,52 @@ class DshAgent(AgentBase):
           config: What its turns are to run at.
 
         Raises:
-          ValueError: If it was allowed anything other than everything. Two reasons, and the
-            second is the one a reader keeps rediscovering: the preview SDK exposes no
-            per-session sandbox or approval control -- `initialize` carries the cwd, the
-            provider and the model, and the runtime answers no other method that could carry
-            one -- and the composition pinned in `dsh.cordis.yml` mounts `dsh-bash-local` and
-            `dsh-fs-local`, the unconfined executors, and none of `dsh-sandbox-*`,
-            `dsh-user-approval` or `dsh-permission-presets`. So bypass is not a tighter rung
-            being quietly ignored: it is what these turns already run at, and mounting the
-            presets to get another would introduce the fail-closed Bash it would seem to
-            prevent, since local confinement refuses the tool outright on a host with neither
-            bwrap nor Landlock.
+          ValueError: If it was allowed anything other than everything. Not humanize's
+            composition making a choice -- read against the runtime bundled with
+            `deepseek-harness-sdk` 0.1.1rc1, there is no composition of what ships that would
+            confine these turns honestly.
+
+            The SDK's own default composition, the `runtime/cordis.yml` it injects as
+            `$DSH_CORDIS_CONFIG` for a launch that passes none, mounts `dsh-bash-local` and
+            `dsh-fs-local` -- the unconfined executors -- and none of `dsh-sandbox-*`,
+            `dsh-user-approval` or `dsh-permission-presets`. So bypass is what a bare SDK
+            session already runs at, and humanize composing the same pair is agreeing with the
+            harness rather than loosening it.
+
+            What settles it is the bundle rather than the default: the runtime executable
+            carries `dsh-fs-sandbox`, `dsh-sandbox-local` and `dsh-sandbox-policy`, but no
+            confining *shell* executor at all. `dsh-bash-sandbox` is named in the workspace's
+            dependency lists and in `dsh-fs-sandbox`'s own documentation, and is not among the
+            packages built into `dsh-jsonrpc-agent-pkg-*`; the only bundled `ctx.shell` is
+            `dsh-bash-local`, whose `sandboxMode` is undefined. A rung composed from what does
+            ship would fence `write_file` and leave `bash` able to write anywhere -- a rung
+            that lies, which is worse than one refused.
+
+            Put to the runtime rather than reasoned about, because the whole refusal turns on
+            it: a composition naming `dsh-bash-sandbox` is refused at plugin load with
+            `Cannot find package '@deepseek-ai/dsh-bash-sandbox'`, while the same composition
+            with only the filesystem half swapped loads happily -- which is exactly the rung
+            that would lie, and exactly why it is not offered.
+
+            Two smaller confirmations of the same fact. `dsh-permission-presets` refuses to
+            load over an unconfined executor and says so in those words ("the mounted bash
+            executor does not confine (no sandboxMode)"), so mounting it is not unwise but
+            fatal. And `auto` has nobody to ask even if it were composable: `ctx.approval`
+            would have to be answered over the SDK's JSON-RPC request channel, which this
+            driver does not serve, and the runtime fails an unanswered approval closed as
+            `unavailable`.
+
+            Left uncertain deliberately: were `dsh-bash-sandbox` bundled, `read-only` and
+            `workspace-write` would both be reachable through `dsh-sandbox-policy`'s `mode`,
+            and this refusal should narrow to `auto` alone -- but only on a host where
+            `dsh-sandbox-local` finds a runner, since it fails closed with `SANDBOX_UNAVAILABLE`
+            where there is neither bwrap nor a Landlock-enforcing kernel.
         """
         super()._serves(config)
         if config.permission != "bypass":
             raise ValueError(
-                "dsh exposes no per-session sandbox or approval controls; "
-                "permission must be 'bypass'"
+                "the dsh runtime bundles no confining bash executor, so no rung below "
+                "bypass can be enforced; permission must be 'bypass'"
             )
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> DshSession:
@@ -177,6 +266,13 @@ class DshSession(SessionBase):
         self._runtime_effort: str | None = None
         self._attempt_id: str | None = None
         self._reaper: weakref.finalize[..., Any] | None = None
+        #: The composition the live runtime was started from, so that an agent reconfigured
+        #: mid-session is noticed as one whose runtime was built the old way.
+        self._runtime_composition: str | None = None
+        #: Where the composition the live runtime was started from is written, for as long
+        #: as that runtime is up. Its own finalizer removes it if this session is dropped
+        #: without ever being shut.
+        self._composition: tempfile.TemporaryDirectory[str] | None = None
 
     @property
     def named(self) -> str | None:
@@ -399,12 +495,19 @@ class DshSession(SessionBase):
             raise Failed(1, ["dsh", session_id], output="", stderr=_KEY_REQUIRED)
 
     def _running(self) -> _Harness:
-        """Returns a runtime initialized for this session's current effort."""
+        """Returns a runtime initialized for this session's current effort and composition."""
         effort = self.effort
-        # The account as well as the effort: a runtime is started with one account's
-        # environment and its credential paths, and neither changes under one already up.
+        composition = _composed(cast("DshAgentConfig", self._agent.config))
+        # The account and the composition as well as the effort. A runtime is started with
+        # one account's environment and its credential paths, and with one composition read
+        # once at boot, and none of the three changes under one already up -- so an agent
+        # reconfigured mid-session, or one told `disable_goals` after its first turn, has to
+        # be given a runtime that was built the new way rather than quietly left on the old
+        # one. The conversation survives it: the session is resumed by the id it already has.
         if self._harness is not None and (
-            self._runtime_effort != effort or self.elsewhere()
+            self._runtime_effort != effort
+            or self._runtime_composition != composition
+            or self.elsewhere()
         ):
             self._shut()
         if self._harness is not None:
@@ -427,19 +530,32 @@ class DshSession(SessionBase):
             else dict(self._agent.environment())
         )
         environment[_EFFORT_ENV] = effort
+        cordis = self._cordis(composition)
         harness = harness_type(
+            # The SDK's own default for this one; passed rather than left out so that the
+            # provider a turn runs under is named where a reader looks for it.
             provider="deepseek-official",
             model=self._agent.config.model,
             cwd=where,
             runtime_cwd=where,
+            # Not the SDK's default, which leaves `$DSH_SESSION_ROOT` unset and lets the
+            # composition fall back to `./.sessions` in the workspace -- a repository the
+            # agent is working in would collect the logs of every run against it. Under the
+            # dsh home instead, which `$DSH_HOME` moves and which is where `backends.py`
+            # reads the trajectory of a session back from.
             session_root=str(_dsh_home() / "sessions"),
-            cordis=str(
-                importlib.resources.files("hmz.coganchor.agents").joinpath(
-                    "dsh.cordis.yml"
-                )
-            ),
+            cordis=cordis,
             env=environment,
+            # Which is also why `cordis` above is never left out: the SDK injects its own
+            # default config only for a launch it resolved the arguments of itself, and this
+            # one is resolved here -- the bundled runtime wrapped in whatever `spawned` puts
+            # in front of it, and in `env -u` where credentials have to be dropped.
             launch_args_override=tuple(launch),
+            # humanize's, not the SDK's: `request_timeout_seconds` defaults to None there,
+            # which is every JSON-RPC request waiting for as long as it takes. It bounds the
+            # acknowledgement rather than the turn -- `session/prompt` answers with the
+            # message id as soon as the prompt is in the inbox -- so what it catches is a
+            # runtime that came up and never answered. The turn itself is the watchdog's.
             request_timeout_seconds=_REQUEST_SECONDS,
         )
         try:
@@ -447,23 +563,60 @@ class DshSession(SessionBase):
         except Exception:
             with contextlib.suppress(Exception):
                 harness.close()
+            # The composition belonged to a runtime that never came up, and the next try
+            # writes its own. Taken away here rather than left for the garbage collector,
+            # which would reclaim it at a moment nobody chose and warn about it on the way.
+            self._forget()
             raise
         self._harness = harness
         self._runtime_effort = effort
+        self._runtime_composition = composition
         self._as = self._agent.node().name
         self._reaper = weakref.finalize(self, harness.close)
         return harness
+
+    def _cordis(self, composition: str) -> str:
+        """Writes one composition out and says where it landed.
+
+        Written per runtime rather than shipped, because it is the SDK's own default
+        composition with this agent's settings applied to it: two agents of one flow may ask
+        for different ones, and neither is a file in this repository to drift from the
+        harness.
+
+        Args:
+          composition: The YAML to write, as `_composed` built it.
+
+        Returns:
+          The path to point `$DSH_CORDIS_CONFIG` at, which stands as long as the runtime
+          reading it does.
+        """
+        self._forget()
+        self._composition = tempfile.TemporaryDirectory(prefix="hmz-dsh-")
+        written = Path(self._composition.name) / "cordis.yml"
+        written.write_text(composition, encoding="utf-8")
+        return str(written)
+
+    def _forget(self) -> None:
+        """Takes away the composition of a runtime that is no longer reading it."""
+        composition, self._composition = self._composition, None
+        if composition is not None:
+            with contextlib.suppress(Exception):
+                composition.cleanup()
 
     def _shut(self) -> None:
         """Closes this session's SDK runtime without ending the conversation."""
         harness, self._harness = self._harness, None
         self._runtime_effort = None
+        self._runtime_composition = None
         if self._reaper is not None:
             self._reaper.detach()
             self._reaper = None
         if harness is not None:
             with contextlib.suppress(Exception):
                 harness.close()
+        # After the runtime rather than before it: the composition is the file that runtime
+        # was started from, and a reload while it is still up would read it again.
+        self._forget()
 
 
 def _harness_type() -> Callable[..., _Harness]:
@@ -535,6 +688,149 @@ def _unique_mapping(
 _UniqueSafeLoader.add_constructor(
     yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _unique_mapping
 )
+
+
+class _Js(str):
+    """One `!!js` value of the runtime's composition, carried through unevaluated.
+
+    The runtime evaluates these as JavaScript against its own process environment, which is
+    how the SDK's default composition says "`$DSH_SESSION_ROOT`, or `./.sessions`". Nothing
+    here can or should evaluate one, so it is read as the text it was written as and written
+    back under the same tag.
+    """
+
+    __slots__ = ()
+
+
+class _CordisLoader(yaml.SafeLoader):
+    """A safe loader that reads the runtime's composition without evaluating it."""
+
+
+class _CordisDumper(yaml.SafeDumper):
+    """A safe dumper that writes `!!js` values back as the runtime wrote them."""
+
+
+def _represent_js(dumper: yaml.SafeDumper, value: _Js) -> yaml.ScalarNode:
+    """Writes one `!!js` value back under the tag it was read from.
+
+    The node is built rather than asked for: `represent_scalar` would also register the
+    result for aliasing, which a string subclass is never eligible for anyway, and its stub
+    types the value it takes as unknown.
+
+    Args:
+      dumper: The dumper asking, which has nothing to add to a scalar of this kind.
+      value: The expression, as it was written.
+
+    Returns:
+      The tagged scalar to emit.
+    """
+    del dumper
+    return yaml.ScalarNode(_JS_TAG, str(value))
+
+
+_CordisLoader.add_constructor(
+    _JS_TAG,
+    lambda loader, node: _Js(loader.construct_scalar(cast("yaml.ScalarNode", node))),
+)
+_CordisDumper.add_representer(_Js, _represent_js)
+
+
+def _sdk_composition() -> list[dict[str, Any]]:
+    """The composition the SDK itself applies when it is passed none.
+
+    Read off the installed runtime rather than copied into this repository, so that what an
+    install with no options set hands the runtime is the harness's own default by
+    construction instead of by a pinned file somebody has to keep in step with it.
+
+    Returns:
+      The bundled `runtime/cordis.yml`, one mapping per mounted plugin.
+
+    Raises:
+      ModuleNotFoundError: If the bundled runtime is not installed.
+    """
+    try:
+        module = importlib.import_module("deepseek_harness_runtime")
+    except ModuleNotFoundError as why:
+        if why.name != "deepseek_harness_runtime":
+            raise
+        raise ModuleNotFoundError(_EXTRA) from why
+    default = cast("Callable[[], Path]", vars(module)["bundled_default_config_path"])()
+    loaded = yaml.load(default.read_text(encoding="utf-8"), Loader=_CordisLoader)  # noqa: S506
+    return cast("list[dict[str, Any]]", loaded)
+
+
+def _plugin(composed: list[dict[str, Any]], plugin_id: str) -> dict[str, Any]:
+    """The config mapping of one mounted plugin, added if the default left it empty.
+
+    Args:
+      composed: The composition being built.
+      plugin_id: The `id` the SDK's default composition gives that plugin.
+
+    Returns:
+      Its `config` mapping, to be written into in place.
+
+    Raises:
+      KeyError: If the SDK's default composition no longer mounts it, which is a version
+        this driver has not been read against rather than something to paper over.
+    """
+    for entry in composed:
+        if entry.get("id") == plugin_id:
+            return cast("dict[str, Any]", entry.setdefault("config", {}))
+    raise KeyError(
+        f"the bundled dsh composition no longer mounts {plugin_id!r}; "
+        "this driver has been read against 0.1.1rc1"
+    )
+
+
+def _composed(config: DshAgentConfig) -> str:
+    """The composition one agent's runtime is started with, as YAML.
+
+    The SDK's own default, plus only what humanize has to say over it. What it has to say
+    unconditionally is the effort: the runtime takes a reasoning level as plugin config and
+    nothing else on the SDK's surface carries one, so it is smuggled in as a `!!js` read of
+    an environment variable this driver sets per runtime. That is the one deviation with no
+    option in front of it, because an agent always has an effort and `backends.py` declares
+    the ladder it may be set to.
+
+    Args:
+      config: The agent's settings, whose `goals`, `compaction` and `session_compression` are
+        the three things that move.
+
+    Returns:
+      The composition to write out and point `$DSH_CORDIS_CONFIG` at.
+    """
+    composed = _sdk_composition()
+    # Read rather than evaluated here: the runtime resolves it, and an unset variable leaves
+    # `reasoningEffort` undefined, which is the adapter sending no reasoning level at all.
+    _plugin(composed, "llm-deepseek")["reasoningEffort"] = _Js(
+        f"process.env.{_EFFORT_ENV}"
+    )
+    # The goal service, the `create_goal` tool and the same-session round driver, which the
+    # spine mounts only for a `goals` that is present and not false -- so an agent told to
+    # have none is one whose composition does not carry them, rather than one that carries
+    # them and is asked not to reach. `pursues` is this backend having the feature at all;
+    # this is the agent in front of us being allowed it.
+    # Written and removed rather than only written, so that neither setting is expressed as
+    # an absence this driver assumes the meaning of. The pin admits any 0.1.x, and a release
+    # that started mounting `goals` or spelling `compression` in the bundled file would
+    # otherwise hand an agent that asked for neither exactly what it asked against.
+    core = _plugin(composed, "agent-core")
+    if config.goals:
+        core["goals"] = {}
+    else:
+        core.pop("goals", None)
+    sessions = _plugin(composed, "sessions")
+    if config.session_compression != _SDK_COMPRESSION:
+        sessions["compression"] = config.session_compression
+    else:
+        sessions.pop("compression", None)
+    if config.compaction:
+        # Appended rather than placed: cordis pends each plugin on the services it injects,
+        # so where in the file a plugin is written makes no difference to what it gets.
+        composed.extend(dict(plugin) for plugin in _COMPACTION)
+    return yaml.dump(
+        composed, Dumper=_CordisDumper, sort_keys=False, default_flow_style=False
+    )
 
 
 def native_ready(where: str | os.PathLike[str]) -> bool:

@@ -659,8 +659,13 @@ _KIMI = ("max", "high", "medium", "low")
 #: setting.
 _PI = ("max", "xhigh", "high", "medium", "low", "minimal", "off")
 
-#: What the official DeepSeek adapter in DeepSeek Harness calls its reasoning levels.
-_DSH = ("max", "high", "off")
+#: What the official DeepSeek adapter in DeepSeek Harness calls its reasoning levels, hardest
+#: first, as `@deepseek-ai/dsh-llm-deepseek` enumerates them in its own config schema:
+#: `reasoningEffort` is a union of `off`, `low`, `high` and `max`. `off` is the model asked
+#: not to reason, which is a rung like any other here rather than the absence of a setting --
+#: the absence is the adapter sending no reasoning level at all, which is what an agent whose
+#: effort never reaches the composition would get.
+_DSH = ("max", "high", "low", "off")
 
 #: What Grok Build calls its reasoning levels, hardest first, which is what it says when it
 #: is given one it has not got: `unknown effort level; use one of: xhigh, high, medium, low`.
@@ -1033,9 +1038,12 @@ PROFILES = (
     Profile(
         name="dsh",
         # Shorter than the rest, and for a reason of its own: this is the one backend driven
-        # through an SDK rather than a command line, and that SDK already gives every request
-        # of its own three minutes. A turn quiet for twice that is the runtime having stopped
-        # answering rather than the model still thinking, so there is nothing to wait for.
+        # through an SDK rather than a command line, and the three minutes the driver gives
+        # each of that SDK's requests is humanize's own -- `request_timeout_seconds` is None
+        # by default there, which is every request waiting for as long as it takes. What that
+        # bounds is the acknowledgement rather than the turn, so this is what bounds the turn:
+        # quiet for twice the acknowledgement is the runtime having stopped answering rather
+        # than the model still thinking, and there is nothing to wait for.
         silence=360.0,
         installs="pip install 'deepseek-harness-sdk'",
         # Its own sentence for the one credential it takes, which names neither a status nor
@@ -1048,8 +1056,10 @@ PROFILES = (
         home_var="DSH_HOME",
         home_dir=".dsh",
         # The Python SDK's bundled JSONL persistence groups sessions under one project
-        # directory. humanize's composition keeps these logs uncompressed so the running
-        # tally can read complete rows as they land.
+        # directory. `DshAgentConfig.session_compression` keeps these logs uncompressed so
+        # the running tally can read complete rows as they land -- the plugin's own default
+        # is `zstd`, which answers only in whole frames, so an agent set to that is one this
+        # path reads nothing from until its session is over.
         logs=("sessions/*/{ident}/session.jsonl",),
         efforts=_DSH,
         # None, and not for want of looking: the `dsh` command line reads `.dsh/skills` and
