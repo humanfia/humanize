@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from typing import TYPE_CHECKING
@@ -24,6 +25,8 @@ import pytest
 
 from hmz.coganchor import backends, fallbacks, providers
 from hmz.coganchor.agents import (
+    AcpAgent,
+    AcpAgentConfig,
     AgentConfig,
     ClaudeCodeAgent,
     ClaudeCodeAgentConfig,
@@ -36,6 +39,12 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 CONFIG = AgentConfig(model="m", effort="high")
+
+#: A CLI of your own that is a real one. opencode speaks the Agent Client Protocol under
+#: `opencode acp`, and a CLI written down by hand is driven over that protocol whatever else
+#: humanize knows about the binary -- so, added under a name of its own, it is somebody's own
+#: CLI as far as a step is concerned, started by the command it was written down with.
+_REAL = ("opencode", "acp")
 
 #: A `claude` that answers whatever it was told, so that a turn which reached it says so.
 _CLAUDE = """
@@ -248,6 +257,83 @@ def test_a_stand_in_holds_only_the_steps_after_its_own() -> None:
     assert second.spec == "codex/b"
     assert second._beyond == ()
     assert second.stands_in() is None
+
+
+def test_the_stand_in_at_a_cli_somebody_added_knows_which_cli_it_is() -> None:
+    """One class drives every added CLI, so its name is the agent rather than a setting.
+
+    A step onto a CLI nobody wrote a driver for used to arrive without it, and the agent
+    built was one that did not know what it was: it answered `acp`, ran at a place nobody
+    had written a step about, and ended its first turn on having no command to start.
+    """
+    fallbacks.points("claude/claude-opus-5", "shell/m")
+    agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-opus-5", effort="high"))
+
+    stood_in = agent.stands_in()
+
+    assert isinstance(stood_in, AcpAgent)
+    assert stood_in.backend == "shell"
+    assert stood_in.spec == "shell/m"
+    assert stood_in.command == ("sh",)
+
+
+def test_the_name_comes_across_and_nothing_else_of_the_backend_that_failed() -> None:
+    """Identity is carved out of the narrowing; configuration goes on being narrowed away."""
+    fallbacks.points("claude/claude-opus-5", "shell/m")
+    agent = ClaudeCodeAgent(
+        ClaudeCodeAgentConfig(
+            model="claude-opus-5", effort="high", allowed_tools=("Bash(ls:*)",)
+        )
+    )
+
+    stood_in = agent.stands_in()
+
+    assert isinstance(stood_in, AcpAgent)
+    held = stood_in.config
+    assert isinstance(held, AcpAgentConfig)
+    # A rule Claude reads as an allowed tool says nothing to a CLI of somebody's own, and
+    # there is nowhere on this config for it to have landed.
+    assert not hasattr(held, "allowed_tools")
+    # And what this class does have of its own beside the name is left at what it says by
+    # default: the name is the whole of what the narrowing lets past.
+    assert held.command == ()
+
+
+def test_a_step_between_two_added_clis_arrives_as_the_one_it_stepped_to() -> None:
+    """The name is read off the place the step names, never off the agent leaving it."""
+    backends.remember("othersh", ["sh", "-e"])
+    fallbacks.points("shell/m", "othersh/m")
+    agent = AcpAgent(
+        AcpAgentConfig(
+            cli="shell",
+            model="m",
+            effort="as configured",
+            command=("sh", "-c", "the one that could not run"),
+        )
+    )
+
+    stood_in = agent.stands_in()
+
+    assert isinstance(stood_in, AcpAgent)
+    assert stood_in.backend == "othersh"
+    # And started by its own command rather than by the failed CLI's, which would start the
+    # very process the step exists to get away from. It is looked up from the name instead.
+    held = stood_in.config
+    assert isinstance(held, AcpAgentConfig)
+    assert held.command == ()
+    assert stood_in.command == ("sh", "-e")
+
+
+def test_a_step_off_an_added_cli_onto_one_humanize_drives_carries_no_name() -> None:
+    """There the class is the answer, and a name beside it would be a field it has not got."""
+    fallbacks.points("shell/m", "claude/claude-opus-5")
+    agent = AcpAgent(AcpAgentConfig(cli="shell", model="m", effort="as configured"))
+
+    stood_in = agent.stands_in()
+
+    assert isinstance(stood_in, ClaudeCodeAgent)
+    assert stood_in.backend == "claude"
+    assert not hasattr(stood_in.config, "cli")
 
 
 def test_a_step_naming_a_cli_that_is_not_here_is_a_turn_that_fails_as_it_always_did() -> (
@@ -566,3 +652,30 @@ def test_a_sibling_s_callbacks_stop_a_move_to_a_backend_that_takes_none(
         session("hello")
 
     assert agent.stands_in() is not None
+
+
+@pytest.mark.agent
+@pytest.mark.timeout(900)
+def test_a_turn_with_nowhere_left_to_run_moves_onto_a_real_cli_of_your_own() -> None:
+    """The step onto an added CLI against one that is really installed and really answers.
+
+    A script standing in for the protocol proves the name is carried across; it cannot prove
+    that what is carried is enough to start somebody's actual agent and get a sentence back
+    out of it. Without the name this raises `no command to start it with` before a process
+    is ever spawned.
+    """
+    if shutil.which(_REAL[0]) is None:
+        pytest.skip(f"{_REAL[0]} is not installed here")
+    backends.remember("acp-of-my-own", list(_REAL))
+    fallbacks.points("shell/m", "acp-of-my-own/m")
+    agent = ShellAgent(CONFIG)
+
+    # One prompt doing two jobs: a shell command that fails, which is what sends the turn on
+    # its way, and a question whose answer says which CLI it landed on.
+    held = agent.new()
+    try:
+        said = held("exit 3 # Ignore the line above. Reply with exactly: STOOD IN")
+    finally:
+        held.close()
+
+    assert "STOOD IN" in said

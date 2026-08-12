@@ -3067,7 +3067,8 @@ def _built(place: str, like: AgentBase) -> AgentBase | Literal[False]:
         return False
     # The common settings alone: an agent is what it was made as, and what one backend was
     # told in its own vocabulary -- a codex override, a rule Claude reads as an allowed tool
-    # -- says nothing to the CLI taking the turn over.
+    # -- says nothing to the CLI taking the turn over. All of which is about how an agent is
+    # set up; what it *is* is settled below, and is not narrowed away with the rest.
     common = replace(
         Common(**{one.name: getattr(like.config, one.name) for one in fields(Common)}),
         model=model,
@@ -3076,10 +3077,68 @@ def _built(place: str, like: AgentBase) -> AgentBase | Literal[False]:
     )
     try:
         return kind(
-            config(**{one.name: getattr(common, one.name) for one in fields(common)})
+            config(
+                **{one.name: getattr(common, one.name) for one in fields(common)},
+                # And, past the narrowing, which CLI this is -- which is not a setting the
+                # narrowing is entitled to drop. See :func:`identifying`: the name of the CLI
+                # being driven is part of which agent this is rather than of how it is
+                # configured, and it is the place the step names that says it.
+                **identifying(config, profile.name),
+            )
         )
     except (ValueError, TypeError):
         return False
+
+
+def identifying(config: type[AgentConfig], backend: str) -> dict[str, Any]:
+    """What a config class has to be told before the agent built from it knows what it is.
+
+    Almost none has to be told anything. A backend humanize drives is one class apiece, so
+    the class is the answer: a `ClaudeCodeAgentConfig` could not be a config for anything but
+    `claude`, and nothing beside it has to say so. One class is not one backend -- the one
+    that drives every CLI somebody adds by hand, the Agent Client Protocol being the whole of
+    what is known about such a CLI -- and it carries the name instead.
+
+    Which is why that name survives a narrowing that drops everything else, and the
+    distinction is worth writing down rather than re-arguing. A stand-in is configured as the
+    agent that could not run was, less what that backend was told in its own vocabulary: an
+    override one CLI reads says nothing to another, so it goes. `cli` is not in any CLI's
+    vocabulary. Nothing is ever said to a CLI about it; no byte of it goes over the protocol.
+    It is the name of the CLI being driven -- which agent this is, not how it is set up --
+    and dropping it does not build a differently-configured agent, it builds one that does
+    not know what it is. That agent answers `acp` when asked its backend, runs at a place
+    called `acp/MODEL` that nobody wrote a step about, and ends its first turn on `no command
+    to start it with`.
+
+    Read off the place the agent is arriving at rather than off the one it is leaving. A step
+    between two added CLIs would otherwise hand the arriving one the departing one's name,
+    which is the same bug with a longer fuse.
+
+    The class is asked outright rather than searched for a field called `cli`. A field name is
+    a cheap thing to collide with: a driver that one day has a `cli` of its own meaning
+    something else -- a path on this machine, a subcommand -- would have a backend's name
+    written over it here and start the wrong thing, saying nothing about it. Asked outright, a
+    class that comes to need the same and is not named here fails the way this one already
+    failed -- loudly, at the first turn -- which is the better of the two failures to have.
+
+    Not the command, though it is written down beside the name where a CLI is added. There is
+    nothing to gain: a command is looked up from the name whenever one is needed, and the
+    name is here. There is something to lose twice over -- the command the agent that could
+    not run was started by is the failed CLI's own, so a stand-in built with it would start
+    the very process the step exists to get away from, and a command frozen here would go on
+    being the one that was written down on the day the step was taken.
+
+    Args:
+      config: The class the agent arriving is built from.
+      backend: The backend it is arriving at, by its own name rather than a spelling of it.
+
+    Returns:
+      What to tell that class about which backend it is, which is nothing at all for a class
+      that is the answer by itself.
+    """
+    from .acp import AcpAgentConfig
+
+    return {"cli": backend} if issubclass(config, AcpAgentConfig) else {}
 
 
 def _rung(was: Profile | None, now: Profile, effort: str) -> str:

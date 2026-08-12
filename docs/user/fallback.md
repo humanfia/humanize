@@ -117,7 +117,11 @@ In order, and it stops at the first thing that works:
 5. **Walks the chain of places**, once there is no account left. The turn is taken in a new
    session of an agent at the next place, configured exactly as the agent it left — carrying
    its effort, its permission rung, the skills the flow gave it and the
-   [callbacks](/weaver/tools) the agent is offering.
+   [callbacks](/weaver/tools) the agent is offering. What one backend was told in its own
+   vocabulary stays behind: an override one CLI reads says nothing to another. The name of a
+   [CLI you added yourself](/features/backends#adding-a-cli-of-your-own) is not one of those
+   — it says *which* CLI the place is rather than how it is set up — so a step onto one
+   arrives knowing what to start.
 
 ## What went wrong
 

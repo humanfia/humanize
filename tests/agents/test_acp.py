@@ -14,8 +14,10 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor import backends
-from hmz.coganchor.agents import AcpAgent, AcpAgentConfig, driver
+from hmz.coganchor import backends, fallbacks
+from hmz.coganchor.agents import AcpAgent, AcpAgentConfig, AgentConfig, driver
+from hmz.runtime.runner import flow_and_agents
+from tests.stubs import ShellAgent, written
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -89,6 +91,18 @@ for line in sys.stdin:
     elif at is not None:
         out({"jsonrpc": "2.0", "id": at,
              "error": {"code": -32601, "message": "no"}})
+"""
+
+
+#: A flow of one agent, for the line that names which CLI is to fill it.
+_FLOW = """
+from hmz.coganchor.agents import AgentBase
+from hmz.flows import flow
+
+
+@flow
+def run(agent: AgentBase, task: str) -> None:
+    pass
 """
 
 
@@ -240,3 +254,49 @@ def test_an_agent_with_no_command_says_so(
     monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "home"))
     with pytest.raises(ValueError, match="no command to start it with"):
         _ = AcpAgent(AcpAgentConfig(cli="nobody", model="m", effort="e")).command
+
+
+def test_a_turn_with_nowhere_left_to_run_moves_onto_an_added_cli(added: str) -> None:
+    """A step names a place, and for a CLI of your own the name is how it is started.
+
+    The whole of the gap this closes: the stand-in used to be built without the one field
+    that says which CLI it is, so a turn that had moved ended on `no command to start it
+    with` rather than on the answer the CLI it moved to gave.
+    """
+    backends.remember("shell", ["sh"])
+    fallbacks.points("shell/m", f"{added}/m")
+    agent = ShellAgent(AgentConfig(model="m", effort="high"))
+
+    # `exit 3` is a turn that failed, and this agent has no account to fall back to. The
+    # added CLI answers with what it was asked, so its answer says it is the one that ran.
+    held = agent.new()
+    try:
+        assert held("exit 3") == "exit 3"
+    finally:
+        held.close()
+
+
+def test_a_line_naming_an_added_cli_is_driven_as_that_cli(
+    added: str, tmp_path: Path
+) -> None:
+    """The other half of it: an `-a` builds a config from a place the same way a step does.
+
+    Two callers, one gap. A line that named a CLI of your own built an agent that did not
+    know which CLI it was either, and it was a `hmz exec` away rather than a failed turn and
+    a step away.
+    """
+    flow = written(tmp_path / "flows", "one", _FLOW)
+
+    _, agents, *_ = flow_and_agents(
+        ["-f", str(flow), "-a", f"{added}/m:as configured", "the task"]
+    )
+
+    made = agents[0]
+    assert isinstance(made, AcpAgent)
+    assert made.backend == added
+    assert made.command == ("my-agent", "--acp")
+    held = made.new()
+    try:
+        assert held("hi") == "hi"
+    finally:
+        held.close()

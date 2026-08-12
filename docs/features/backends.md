@@ -120,6 +120,11 @@ name and the command that starts it. The protocol says nothing about which model
 runs or how hard it may be asked to think — both are the agent's own — so one rung is offered
 and none is sent.
 
+A backend in every sense from then on: an `-a` names it, and a [`/fallback`](/user/fallback)
+step points at it or away from it like any other place. One class drives all of them, so the
+name it was added under is part of *which* agent it is rather than a setting — which is why it
+comes across a step while the settings one CLI reads do not.
+
 ## Where the detail is
 
 - [Efforts](/user/efforts) · [Permissions](/user/permissions) · [Skills](/user/skills)
