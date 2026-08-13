@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from threading import Barrier
@@ -31,7 +32,7 @@ import json, os, pathlib, sys, uuid
 flags = dict(zip(sys.argv, sys.argv[1:]))
 streaming = flags.get("--input-format") == "stream-json"
 assert not (streaming and "--json-schema" in flags)
-ident = flags.get("--resume") or str(uuid.uuid4())
+ident = flags.get("--resume") or flags.get("--session-id") or str(uuid.uuid4())
 system = pathlib.Path(os.environ["QWEN_CODE_SYSTEM_SETTINGS_PATH"])
 settings = json.loads(system.read_text())
 lowest = pathlib.Path(os.environ.get("QWEN_CODE_SYSTEM_DEFAULTS_PATH")
@@ -78,6 +79,10 @@ def turn(prompt):
     for index in range(count):
         message = {"type": "assistant", "message": {"id": str(index), "content": [
           {"type": "text", "text": text}], "usage": usage}}
+        if "--include-partial-messages" in sys.argv:
+            emit({"type": "stream_event", "parent_tool_use_id": None, "event": {
+              "type": "content_block_delta", "index": 0,
+              "delta": {"type": "text_delta", "text": text}}})
         emit(message)
         if prompt == "repeat":
             emit(message)
@@ -363,6 +368,45 @@ def test_headless_defaults_are_written_where_the_cli_reads_them_lowest(
     }
 
 
+def test_an_agent_that_asked_for_none_is_given_no_headless_defaults_at_all(
+    qwen: _Qwen,
+) -> None:
+    """Both of them are humanize's answer rather than the CLI's, so both can be declined."""
+    plain = QwenCodeAgent(
+        QwenCodeAgentConfig(model="test-model", effort="low", headless_defaults=False)
+    )
+    session = plain.new()
+    session("first")
+    session("second")
+
+    first, again = qwen.calls()
+    assert first["defaults"] is again["defaults"] is None
+    # And the layer nothing wrote is still watched, being nobody here's: a file that is not
+    # there is not a file that changed, so the process stays warm across the turn.
+    assert first["pid"] == again["pid"]
+    plain.stop()
+
+
+def test_the_two_answers_about_the_defaults_layer_do_not_share_a_settings_file(
+    qwen: _Qwen,
+) -> None:
+    """One directory cannot hold both answers.
+
+    The layer is found by sitting beside the settings file, so two agents that disagree
+    about it want a directory each: sharing one, the second would be reading the first's.
+    """
+    plain = QwenCodeAgent(
+        QwenCodeAgentConfig(model="test-model", effort="low", headless_defaults=False)
+    )
+    qwen.agent.new()("first")
+    plain.new()("second")
+
+    headless, without = qwen.calls()
+    assert headless["defaults"] is not None
+    assert without["defaults"] is None
+    plain.stop()
+
+
 @pytest.mark.parametrize("named", [None, ""])
 def test_cli_migration_of_generated_defaults_file_keeps_process_warm(
     qwen: _Qwen, monkeypatch: pytest.MonkeyPatch, named: str | None
@@ -409,6 +453,20 @@ def test_compiled_bundle_is_shared_unless_the_environment_names_its_own(
     qwen.agent.new()("second")
     _, theirs = qwen.calls()
     assert theirs["compiled"] == str(tmp_path / "theirs")
+
+
+def test_an_agent_that_declined_the_cache_compiles_the_bundle_itself(
+    qwen: _Qwen,
+) -> None:
+    """Node caches nothing unless it is told where, so the directory is ours to not name."""
+    plain = QwenCodeAgent(
+        QwenCodeAgentConfig(model="test-model", effort="low", compile_cache=False)
+    )
+    plain.new()("first")
+
+    (call,) = qwen.calls()
+    assert call["compiled"] is None
+    plain.stop()
 
 
 def test_an_anchored_turn_is_given_no_compile_cache(qwen: _Qwen) -> None:
@@ -509,3 +567,54 @@ def test_concurrent_first_turns_keep_one_effort_file_and_each_process_warm(
         first, second = [call for call in calls if call["prompt"].endswith(f"-{index}")]
         assert first["pid"] == second["pid"]
     assert len({call["pid"] for call in calls}) == 4
+
+
+def test_the_conversation_is_named_here_and_resumed_by_that_name(qwen: _Qwen) -> None:
+    """`--session-id` takes the name, so it is chosen rather than read back off the stream."""
+    session = qwen.agent.new()
+    assert session("first") == "first"
+    assert session("shape", schema=_Answer) == _Answer(value="shape")
+
+    opened, shaped = qwen.calls()
+    named = opened["argv"][opened["argv"].index("--session-id") + 1]
+    # A uuid, which is the only shape Qwen Code accepts, and the one the turn then reports.
+    assert uuid.UUID(named)
+    assert opened["session"] == named == session.id
+    # And never both: it refuses `--session-id` alongside `--resume`.
+    assert "--resume" not in opened["argv"]
+    assert "--session-id" not in shaped["argv"]
+    assert shaped["argv"][shaped["argv"].index("--resume") + 1] == named
+
+
+def test_a_failed_opening_turn_is_retried_under_a_name_of_its_own(qwen: _Qwen) -> None:
+    """Qwen Code refuses an id that is already a session, so a retry cannot reuse one."""
+    session = qwen.agent.new()
+    with pytest.raises(Failed):
+        session("fail")
+    assert session("second") == "second"
+
+    failed, retried = qwen.calls()
+    assert failed["argv"].index("--session-id") >= 0
+    assert (
+        failed["argv"][failed["argv"].index("--session-id") + 1]
+        != retried["argv"][retried["argv"].index("--session-id") + 1]
+    )
+
+
+def test_words_arrive_as_they_are_written_only_for_an_agent_that_asked(
+    qwen: _Qwen,
+) -> None:
+    """And each of them once: the finished message repeats every fragment of itself."""
+    said = list(qwen.agent.new().stream("quiet-one"))
+    assert [one.kind for one in said] == ["text", "result"]
+    assert "--include-partial-messages" not in qwen.calls()[0]["argv"]
+
+    streaming = QwenCodeAgent(
+        QwenCodeAgentConfig(model="test-model", effort="low", partial_messages=True)
+    )
+    told = list(streaming.new().stream("loud-one"))
+
+    assert "--include-partial-messages" in qwen.calls()[1]["argv"]
+    assert [one.kind for one in told] == ["text", "result"]
+    assert [one.text for one in told if one.kind == "text"] == ["loud-one"]
+    streaming.stop()
