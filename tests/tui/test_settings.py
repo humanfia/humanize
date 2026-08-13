@@ -232,7 +232,7 @@ def test_goal_choices_are_kept_as_on_or_off(tmp_path: Path) -> None:
     assert agents["reviewer"]["goals"] is True
 
 
-def test_an_old_entry_takes_the_current_workflow_default(tmp_path: Path) -> None:
+def test_an_old_entry_takes_the_current_agent_place_suggestion(tmp_path: Path) -> None:
     kept = Settings(tmp_path)
     kept.remember("rlar", ("actor",), [Runs("claude/m:high")])
     where = home() / "settings.yaml"

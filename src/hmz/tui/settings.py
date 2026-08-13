@@ -54,8 +54,8 @@ class Settings:
 
         Args:
           flow: The flow they were driving.
-          goal_defaults: What that flow currently declares for each place. Used only for an
-            entry written before goal selection was stored; with none, goals default on.
+          goal_defaults: What each agent place currently suggests. Used only for an entry
+            written before goal selection was stored; with none, goals default on.
 
         Returns:
           One `cli/model:effort` apiece with the machine it was anchored to, the skills it is

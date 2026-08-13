@@ -41,23 +41,29 @@ set**. Asking for a feature that is not there is a flow to correct, not a turn t
 
 ## Disabling goals
 
-A flow that owns every continuation can make goals unavailable by default:
+A flow that owns every continuation can suggest `off` for each agent it declares:
 
 ```python
-@flow(goals=False)
-def run(agents: tuple[AgentBase, AgentBase], task: str) -> None:
-    ...
+from typing import Annotated, NamedTuple
+
+from hmz.agents import AgentBase, GoalsDefault
+
+class Agents(NamedTuple):
+    actor: Annotated[AgentBase, GoalsDefault(False)]
+    reviewer: Annotated[AgentBase, GoalsDefault(False)]
 ```
 
-The model picker then starts each agent at `goals off`. `ctrl+g` switches the selected agent
-between `on` and `off`, and the saved choice overrides the workflow default. The picker has no
-third state.
+The marker only supplies the model picker's initial value. `ctrl+g` switches the selected
+agent between `on` and `off`; the resolved value is saved on that agent's `AgentConfig`. The
+picker and config have no third state, and the flow does not change an agent after it is made.
 
-Python callers can enforce the same policy for one agent before its first turn:
+Python callers set the same policy directly when they construct one agent:
 
 ```python
-agent.disable_goals()
+agent = CodexAgent(CodexAgentConfig(model="gpt-5.6-sol", effort="high", goals=False))
 ```
+
+`agent.disable_goals()` remains the imperative equivalent before the first turn.
 
 Ordinary turns continue to work, but later calls to `pursue` raise `RuntimeError`, even with
 `suppress=True`. Codex starts that agent's app server with its goal tools disabled; Claude Code

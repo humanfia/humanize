@@ -1622,9 +1622,6 @@ class AgentBase(ABC):
         #: the backend read out of a settings file before anything started.
         self._hooks = Hooks(type(self).moments, self._id)
         self._stopped = False
-        #: Whether this agent may be run under a goal. An explicit configuration is already
-        #: effective; None begins enabled until a Runner applies the workflow's default.
-        self._goals_enabled = config.goals is not False
         #: Asked as each turn starts for anything said to this agent while no turn was open,
         #: which goes into that turn. Left unset by a flow driven from the command line,
         #: where there is nobody to say anything mid-run.
@@ -1717,7 +1714,7 @@ class AgentBase(ABC):
         This is a per-agent runtime policy, distinct from :attr:`pursues`, which says whether
         the backend has a goal feature at all.
         """
-        return self._goals_enabled
+        return self._config.goals
 
     def disable_goals(self) -> None:
         """Prevents this agent and its sessions from starting backend goals.
@@ -1725,7 +1722,9 @@ class AgentBase(ABC):
         Ordinary turns are unaffected. Backends that expose goals outside ``pursue`` may
         override this to disable the corresponding runtime feature as well.
         """
-        self._goals_enabled = False
+        from dataclasses import replace
+
+        self._config = replace(self._config, goals=False)
 
     @property
     def backend(self) -> str:

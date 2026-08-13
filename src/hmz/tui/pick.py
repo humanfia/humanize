@@ -103,8 +103,8 @@ class Runs(NamedTuple):
         or "" for the one an agent nobody has been asked about runs at.
       provider: The account its turns run as, by the name a provider of its CLI was made
         under, or "" to run as this machine is already signed in.
-      goals: Whether backend goals are available. This is always an on/off answer; the
-        workflow's declared default is resolved before this value is constructed.
+      goals: Whether backend goals are available. This is always an on/off answer; any
+        suggestion attached to the flow's agent place is resolved before this is constructed.
     """
 
     spec: str
@@ -1054,9 +1054,9 @@ class Models(Sheet[Runs]):
         #: said otherwise, which is what an agent nobody has been asked about has always run
         #: at.
         self._permission = len(PERMISSIONS) - 1
-        #: Whether backend goals remain available to this agent. The workflow supplies the
-        #: initial choice; a remembered picker answer replaces it with an explicit boolean.
-        self._goals = place.goals_enabled
+        #: Whether backend goals remain available to this agent. Its place supplies the
+        #: initial suggestion; a remembered picker answer replaces it with a boolean.
+        self._goals = place.goals_default
         #: Which of the CLI's skills this one is to have, or None for one that has not been
         #: asked -- which is the CLI as it comes, and so every skill it finds.
         self._skills: tuple[str, ...] | None = None

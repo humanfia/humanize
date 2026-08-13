@@ -55,7 +55,19 @@ def run(agents: Agents, task: str) -> None:
     pass
 '''
 
-GOALS_OFF = HERE.replace("@flow\n", "@flow(goals=False)\n")
+GOALS_OFF = (
+    HERE.replace(
+        "from typing import NamedTuple", "from typing import Annotated, NamedTuple"
+    )
+    .replace(
+        "from hmz.agents import AgentBase",
+        "from hmz.agents import AgentBase, GoalsDefault",
+    )
+    .replace(
+        "builder: AgentBase",
+        "builder: Annotated[AgentBase, GoalsDefault(False)]",
+    )
+)
 
 
 @pytest.fixture
@@ -85,7 +97,7 @@ async def _flow_to_models(app: Humanize, driver: Pilot[None], flow: str) -> None
     await until(lambda: isinstance(app.screen, Models), driver)
 
 
-def test_a_line_uses_the_workflow_goal_default(flows: Path) -> None:
+def test_a_line_uses_the_agent_place_goal_suggestion(flows: Path) -> None:
     """Naming models on the command line does not silently switch goals back on."""
     opened: list[Humanize] = []
 
@@ -120,7 +132,7 @@ def _rows(app: Humanize) -> int:
 
 @pytest.mark.timeout(60)
 @unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
-async def test_goals_are_an_on_off_choice_from_the_workflow_default(
+async def test_goals_are_an_on_off_choice_from_the_agent_place_suggestion(
     _installed: unittest.mock.MagicMock,  # noqa: PT019
     flows: Path,
 ) -> None:
@@ -141,7 +153,7 @@ async def test_goals_are_an_on_off_choice_from_the_workflow_default(
 
 @pytest.mark.timeout(60)
 @unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
-async def test_a_user_can_override_the_workflow_default_to_on(
+async def test_a_user_can_override_the_agent_place_suggestion_to_on(
     _installed: unittest.mock.MagicMock,  # noqa: PT019
     flows: Path,
 ) -> None:
@@ -158,7 +170,7 @@ async def test_a_user_can_override_the_workflow_default_to_on(
 
 @pytest.mark.timeout(60)
 @unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
-async def test_opening_directly_uses_the_workflow_goal_default(
+async def test_opening_directly_uses_the_agent_place_goal_suggestion(
     _installed: unittest.mock.MagicMock,  # noqa: PT019
     flows: Path,
 ) -> None:
@@ -170,22 +182,22 @@ async def test_opening_directly_uses_the_workflow_goal_default(
     assert app._models == [Runs("claude/claude-nine:high", goals=False)]
 
 
-def test_a_goal_choice_that_differs_from_the_workflow_reconfigures_the_agent(
+def test_a_goal_choice_is_written_to_the_agent_config(
     flows: Path,
 ) -> None:
     from hmz.agents import ClaudeCodeAgent, ClaudeCodeAgentConfig
 
     app = Humanize(
         flow="goals_off",
-        agents=[Runs("claude/claude-nine:high", goals=True)],
+        agents=[Runs("claude/claude-nine:high", goals=False)],
     )
     made = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-nine", effort="high"))
 
     (configured,) = app._as_they_were_set_up([made])
 
     assert configured is not made
-    assert configured.config.goals is True
-    assert configured.goals_enabled
+    assert configured.config.goals is False
+    assert not configured.goals_enabled
 
 
 @pytest.mark.timeout(60)

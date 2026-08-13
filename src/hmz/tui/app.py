@@ -683,9 +683,9 @@ class Humanize(App[None]):
         if not self._models:
             self._models = self.settings.agents(
                 self._flow_named,
-                tuple(place.goals_enabled for place in self._wanted),
+                tuple(place.goals_default for place in self._wanted),
             ) or _opens_on(
-                goals=self._wanted[0].goals_enabled if self._wanted else True
+                goals=self._wanted[0].goals_default if self._wanted else True
             )
             # If the flow would not load, `_places_of` falls back to agents already in hand;
             # the remembered ones were not in hand on the first read.
@@ -885,7 +885,7 @@ class Humanize(App[None]):
             # with nothing installed to talk to.
             if not self._models:
                 self._models = _opens_on(
-                    goals=self._wanted[0].goals_enabled if self._wanted else True
+                    goals=self._wanted[0].goals_default if self._wanted else True
                 )
             self._draw()
 
@@ -2268,18 +2268,12 @@ class Humanize(App[None]):
         moved: list[AgentBase] = []
         for at, agent in enumerate(chosen):
             runs = self._models[at] if at < len(self._models) else Runs("")
-            flow_goals = (
-                self._wanted[at].goals_enabled if at < len(self._wanted) else True
-            )
-            configured_goals = (
-                flow_goals if agent.config.goals is None else agent.config.goals
-            )
             if (
                 not runs.anchor
                 and runs.skills is None
                 and not runs.permission
                 and not runs.provider
-                and configured_goals is runs.goals
+                and agent.config.goals is runs.goals
             ):
                 moved.append(agent)
                 continue

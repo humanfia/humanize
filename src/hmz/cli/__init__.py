@@ -241,7 +241,7 @@ def _tui(argv: list[str]) -> int:
     Humanize(
         flow=flow,
         agents=[
-            Runs(spec, goals=places[at].goals_enabled)
+            Runs(spec, goals=places[at].goals_default)
             for at, spec in enumerate(args.agents)
         ],
         config=setting,

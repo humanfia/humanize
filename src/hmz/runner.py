@@ -132,9 +132,9 @@ class Place(NamedTuple):
       goal: Whether the flow runs this one under the backend's own goal feature, which it
         said by writing `Annotated[AgentBase, Goal]` where it declared the place. Only three
         backends have one, so a flow built on it is not a flow any agent can drive.
-      goals_enabled: Whether backend goals initially remain available where whoever chooses
-        this agent has not explicitly chosen on or off. Declared once on the flow with
-        `@flow(goals=False)`; a place explicitly annotated with `Goal` always starts on.
+      goals_default: Whether the agent picker initially offers backend goals on or off for
+        this place, which a flow may suggest with `GoalsDefault(False)`. Once selected, the
+        effective value belongs to the agent's config. A required `Goal` always starts on.
       where: Where the agent filling it may work, which the flow said the same way -- `Remote`
         for one that may be pointed at another machine, an `Isolated` for one that works in a
         container the flow itself names the image of. None for a place the flow said nothing
@@ -148,7 +148,7 @@ class Place(NamedTuple):
     moments: frozenset[Moment]
     where: type[Remote] | Remote | Isolated | None = None
     goal: bool = False
-    goals_enabled: bool = True
+    goals_default: bool = True
 
 
 def drives(flow: str | os.PathLike[str]) -> tuple[str, ...]:
@@ -234,7 +234,6 @@ def _read(
       NotAFlow: If the file is not there, is not a flow -- nothing in it marked `@flow()`, or
         one whose `agents` cannot be read or says nothing about how many it takes.
     """
-    from hmz.flows import Flow as MarkedFlow
     from hmz.flows import find, inside, loaded
 
     # Which of the file's flows was asked for, before the name is resolved to a file: a file
@@ -268,8 +267,6 @@ def _read(
             f"{flow}: nothing in it is marked @flow() -- a flow is a function marked with "
             "it, which is how a file says which of the functions in it is one"
         )
-    marked = getattr(run, "__humanize_flow__", None)
-    goals_enabled = marked.goals if isinstance(marked, MarkedFlow) else True
     try:
         # A function, so that what is read below is what the entry point will be called
         # with: a class or a partial answers with annotations that are somebody else's.
@@ -296,9 +293,7 @@ def _read(
         kinds = _kinds(declared, run)
         return (
             run,
-            tuple(
-                _place(at, kinds.get(at), goals_enabled=goals_enabled) for at in fields
-            ),
+            tuple(_place(at, kinds.get(at)) for at in fields),
             declared._make,
             _setting(run, hinted),
         )
@@ -312,7 +307,7 @@ def _read(
         )
     return (
         run,
-        tuple(_place("", kind, goals_enabled=goals_enabled) for kind in declares),
+        tuple(_place("", kind) for kind in declares),
         tuple,
         _setting(run, hinted),
     )
@@ -682,14 +677,13 @@ def _kinds(declared: type, run: Flow) -> dict[str, object]:
         return dict(getattr(declared, "__annotations__", {}))
 
 
-def _place(name: str, kind: object, *, goals_enabled: bool = True) -> Place:
+def _place(name: str, kind: object) -> Place:
     """One place in a flow's agents, read off what the flow annotated it with.
 
     Args:
       name: What the flow calls it, or "" where it named none of them.
       kind: The annotation, which may be an `Annotated` carrying what the flow asks of
         whoever fills the place.
-      goals_enabled: The flow's default for agents it does not explicitly run under a goal.
 
     Returns:
       The place.
@@ -697,6 +691,7 @@ def _place(name: str, kind: object, *, goals_enabled: bool = True) -> Place:
     moments = frozenset(_moments(kind))
     where = _where(kind)
     goal = _goal(kind)
+    goals_default = _goals_default(kind)
     if get_origin(kind) is Annotated:
         kind = get_args(kind)[0]
     return Place(
@@ -705,7 +700,7 @@ def _place(name: str, kind: object, *, goals_enabled: bool = True) -> Place:
         moments=moments,
         where=where,
         goal=goal,
-        goals_enabled=True if goal else goals_enabled,
+        goals_default=True if goal else goals_default,
     )
 
 
@@ -744,6 +739,22 @@ def _goal(kind: object) -> bool:
     if get_origin(kind) is not Annotated:
         return False
     return any(said is Goal for said in get_args(kind)[1:])
+
+
+def _goals_default(kind: object) -> bool:
+    """The initial on/off choice a flow suggests for this agent's goals.
+
+    The suggestion is picker metadata, not runtime policy. The picker resolves it into the
+    boolean on `AgentConfig` before constructing the agent.
+    """
+    from .agents import GoalsDefault
+
+    if get_origin(kind) is not Annotated:
+        return True
+    for said in get_args(kind)[1:]:
+        if isinstance(said, GoalsDefault):
+            return said.enabled
+    return True
 
 
 def _moments(kind: object) -> tuple[Moment, ...]:
@@ -875,21 +886,11 @@ class Runner:
                     f"{flow}: {place.name or 'the agent'} is run under a goal, which "
                     f"{agent.backend} has no feature for"
                 )
-            goals_enabled = (
-                place.goals_enabled
-                if agent.config.goals is None
-                else agent.config.goals
-            )
-            if place.goal and (not goals_enabled or not agent.goals_enabled):
+            if place.goal and not agent.goals_enabled:
                 raise NotAFlow(
                     f"{flow}: {place.name or 'the agent'} is run under a goal, but goals "
                     "were switched off for it"
                 )
-            if not goals_enabled:
-                try:
-                    agent.disable_goals()
-                except RuntimeError as started:
-                    raise NotAFlow(f"{flow}: {started}") from started
             _lands(flow, agent, place)
         # The person at the prompt is made here rather than given: nobody chooses what they
         # run, so nothing upstream of this was ever asked about them.
@@ -1059,8 +1060,15 @@ def flow_and_agents(
     # should not have paid for three backends to say what it takes.
     from .agents import DRIVEN
 
+    # A command-line agent has no picker to resolve a place's initial suggestion, so resolve
+    # it here before constructing the config. Leave malformed or missing flows for Runner to
+    # report in its usual place; their agents use the ordinary on default in the meantime.
+    try:
+        places = wanted(args.flow)
+    except NotAFlow:
+        places = ()
     agents: list[AgentBase] = []
-    for spec in args.agents:
+    for at, spec in enumerate(args.agents):
         try:
             profile, model, effort, provider, permission = read_agent(spec)
         except ValueError as bad:
@@ -1068,14 +1076,16 @@ def flow_and_agents(
         agent, config = DRIVEN[profile.name]
         # Named rather than looked up: an account that is not there is caught by the agent
         # the first time it needs one, which says whose it was and what it was called.
+        goals = places[at].goals_default if at < len(places) else True
         configured = (
-            config(model=model, effort=effort, provider=provider)
+            config(model=model, effort=effort, provider=provider, goals=goals)
             if permission is None
             else config(
                 model=model,
                 effort=effort,
                 provider=provider,
                 permission=permission,
+                goals=goals,
             )
         )
         agents.append(agent(configured))
