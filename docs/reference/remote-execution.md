@@ -152,6 +152,16 @@ the agent once it exits, and when the session ends nothing it started is left ru
   the target's copy of the working directory.
 - **Network.** Whatever those commands reach.
 
+However the agent spells the path. Most of these CLIs write a file the atomic way — open the
+directory, create a temporary beneath it, rename it over the real name — and several of them,
+Claude Code among them, name "beneath it" as `/proc/self/fd/<n>/name`, through a descriptor
+they already hold, rather than as a path under the workspace. The kernel reaches the same file
+either way, and so does humanize: those names are followed back to the file before anything is
+matched, mirrored or replayed. The same goes for `/proc/<pid>/fd/<n>`, and for `/proc/self/cwd`,
+`/proc/self/root` and `/proc/self/exe` — the last of which is how a runtime re-execs itself. A
+link that cannot be read back fails the call rather than passing through it, because a path
+nobody can resolve is a path nobody can place.
+
 ## What stays on this machine
 
 - The agent's own runtime executables and re-execs. For any CLI installed by npm that includes
@@ -274,7 +284,13 @@ Each of these is deliberate, and each looks like a defect if you meet it cold.
   and the rarer signals, do not reach the command.
 - **The mirror is authoritative.** Anything in it the target does not have is deleted. humanize
   refuses a mirror directory holding unrelated files, or one last used against a different
-  target, unless `--force` says otherwise.
+  target, unless `--force` says otherwise. When what it is deleting was written here and never
+  carried across, it says so out loud, so a turn that failed to deliver does not look like one
+  that succeeded — but it is still deleted.
+- **A path is settled by its characters.** `.` and `..` are collapsed as text, so an ordinary
+  symlink in the middle of a name is not walked; only `/proc`'s own links, which are how the
+  CLIs name a file through a descriptor, are followed. A path is also read at the moment the
+  call is stopped, so a descriptor another thread replaces in between is resolved as it was.
 
 ## Limits
 

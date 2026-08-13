@@ -585,7 +585,16 @@ class SyscallDispatcher:
         return None if raw is None else self._sup.router.canonical(raw)
 
     def _raw(self, pid: int, dirfd: int, address: int) -> str | None:
-        """The same path as the tracee itself spelled it, which is what the syscall runs."""
+        """The same path as the tracee itself spelled it, which is what the syscall runs.
+
+        Spelled, but not necessarily *named*: a path may reach its file through one of
+        ``/proc``'s magic links rather than through the directories it is under, which is how
+        every atomic write Claude Code makes names the file it is about to create.  Those are
+        followed here, by :func:`hmz.coganchor.linux.procfs.resolve_magic`, because this is
+        the one place every path a handler acts on comes through -- and a path resolved
+        anywhere later would already have been matched against the workspace prefix as the
+        ``/proc`` path it is spelled as, which is to say matched against nothing.
+        """
         raw = procfs.read_cstring(pid, address)
         if raw is None:
             return None
@@ -593,13 +602,19 @@ class SyscallDispatcher:
             # AT_EMPTY_PATH: the descriptor itself names the target.
             return None if dirfd == AT_FDCWD else _fd_path(pid, dirfd)
         if raw.startswith("/"):
-            return os.path.normpath(raw)
-        base = (
-            procfs.working_directory(pid) if dirfd == AT_FDCWD else _fd_path(pid, dirfd)
-        )
-        if base is None:
-            return None
-        return os.path.normpath(os.path.join(base, raw))
+            named = raw
+        else:
+            base = (
+                procfs.working_directory(pid)
+                if dirfd == AT_FDCWD
+                else _fd_path(pid, dirfd)
+            )
+            if base is None:
+                return None
+            named = os.path.join(base, raw)
+        # Settled before it is tidied, and it has to be: `..` after a link means the
+        # directory above the file the descriptor holds, not the one above `/proc/self/fd`.
+        return os.path.normpath(procfs.resolve_magic(pid, named))
 
     def _absolute(self, pid: int, program: str) -> str:
         joined = (
@@ -607,7 +622,13 @@ class SyscallDispatcher:
             if program.startswith("/")
             else os.path.join(procfs.working_directory(pid), program)
         )
-        return self._sup.router.canonical(os.path.normpath(joined))
+        # Through the same links, for the same reason: Claude Code re-execs itself as
+        # `/proc/self/fd/<n>` to apply its own seccomp filter, and a program named that way
+        # is the agent's own binary rather than a path to hand the target, which has no such
+        # descriptor and would be asked to run a file it does not have.
+        return self._sup.router.canonical(
+            os.path.normpath(procfs.resolve_magic(pid, joined))
+        )
 
     @staticmethod
     def _read_times(

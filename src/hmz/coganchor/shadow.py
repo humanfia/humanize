@@ -352,9 +352,50 @@ class ShadowTree:
             # else ever removes them, and a fetch can never be in flight here
             # because both run on the supervisor's single thread.
             path = os.path.join(local_dir, name)
-            log.debug("dropping %s: gone on the target", path)
+            self._note_unforwarded(path)
             _remove_any(path)
             self.forget(path)
+
+    def _note_unforwarded(self, path: str) -> None:
+        """Say out loud when what is about to be dropped was never carried across.
+
+        The mirror is authoritative, so anything in it the target has not got is deleted --
+        which is right for a file the target removed, and is silent data loss for one this
+        layer never noticed being written.  The two are told apart by whether there is a
+        record: a file mirrored *from* the target has one, and a file that appeared in the
+        mirror without passing a handler has none.  That is exactly the shape of a write
+        made through a path the prefix rules did not recognise, and what made the first one
+        of those expensive was that it looked like nothing at all -- the agent read the file
+        back through its plain name, reported success, and the bytes were swept away here
+        without a word.
+
+        It is still swept, because the mirror being authoritative is what the session
+        promises; this only refuses to do it quietly.
+
+        Only a regular file of the target's own is worth saying it about.  A directory may
+        have been made here on the way to materialising something under it and hold nothing;
+        a path the session keeps local is not the target's to have; and the scratch of an
+        interrupted fetch is this layer's own litter.
+
+        Args:
+          path: The file in the mirror, about to be removed.
+        """
+        layout = self._router.layout_for(path)
+        if (
+            path in self._files
+            or layout is None
+            or path.endswith(_FETCH_SUFFIX)
+            or os.path.islink(path)
+            or not os.path.isfile(path)
+        ):
+            log.debug("dropping %s: gone on the target", path)
+            return
+        log.warning(
+            "%s was written here but never reached the target as %s, and is being dropped; "
+            "the agent may have been told it succeeded",
+            path,
+            layout.to_virtual(path),
+        )
 
     def _drop_local(self, local_dir: str) -> None:
         """The directory no longer exists remotely; remove the local mirror."""
