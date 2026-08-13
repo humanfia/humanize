@@ -380,6 +380,26 @@ def _kimi(profile: Profile, run: Callable[..., str]) -> list[Model]:
     ]
 
 
+def _dsh(profile: Profile, _run: Callable[..., str]) -> list[Model]:
+    """The advisory catalogue shipped by the official DeepSeek Harness adapter.
+
+    The rc6 Python SDK has no model-list request. These are the two defaults its bundled
+    `@deepseek-ai/dsh-llm-deepseek` composition publishes; that adapter also accepts an
+    uncatalogued DeepSeek model id when one is named explicitly.
+
+    Args:
+      profile: DeepSeek Harness's own.
+      _run: Unused because its SDK protocol exposes no catalogue method.
+
+    Returns:
+      The official adapter's advisory models, in its own order.
+    """
+    return [
+        Model(name, profile.efforts, profile.swarms)
+        for name in ("deepseek-v4-flash", "deepseek-v4-pro")
+    ]
+
+
 def _pi(profile: Profile, run: Callable[..., str]) -> list[Model]:
     """Pi's models, which it prints as a table of the providers it has credentials for.
 
@@ -516,6 +536,7 @@ def _write(at: Path, models: list[Model]) -> None:
 _READING: dict[str, Callable[[Profile, Callable[..., str]], list[Model]]] = {
     "claude": _claude,
     "codex": _codex,
+    "dsh": _dsh,
     "kimi": _kimi,
     "pi": _pi,
     "opencode": _listed,

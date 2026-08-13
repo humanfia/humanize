@@ -7,9 +7,9 @@ properly.
 ## What you need
 
 - **Python 3.12 or newer.**
-- **At least one coding agent CLI on your `PATH`**, already logged in: `claude`
-  ([Claude Code](https://claude.com/claude-code)), `codex`, or `kimi`. humanize drives the CLI
-  you already use; it does not talk to a model provider itself and holds no API key.
+- **At least one supported backend:** a coding agent CLI on your `PATH`, already logged in,
+  such as `claude` ([Claude Code](https://claude.com/claude-code)), `codex` or `kimi`; or the
+  optional DeepSeek Harness Python SDK with `DEEPSEEK_API_KEY` set.
 - **A project directory you are willing to have rewritten.** Read
   [Security](/guide/security.md) first — humanize runs every agent with permission prompts
   disabled, so an agent under it edits files without asking.
@@ -18,6 +18,13 @@ Check what you have:
 
 ```sh
 command -v claude codex kimi pi opencode mimo
+```
+
+For DeepSeek Harness instead, install the optional SDK and check that it imports:
+
+```sh
+pip install 'hmz[dsh] @ git+https://github.com/humanfia/humanize2.git'
+python -c 'import deepseek_harness; print("dsh installed")'
 ```
 
 Nothing else is required. [Isolation](/reference/machines.md#a-container-of-the-agent-s-own) wants
@@ -29,6 +36,8 @@ on the far machine — neither is needed for anything below.
 ```sh
 pip install git+https://github.com/humanfia/humanize2.git
 ```
+
+Use the `hmz[dsh]` installation above when DeepSeek Harness is the backend you want.
 
 Or, from a checkout with [uv](https://docs.astral.sh/uv/):
 
@@ -126,6 +135,17 @@ hmz exec -f ralph_loop -a claude/claude-opus-4-8:high "fix the failing tests"
 - `-a` is one agent, written `cli/model:effort`. Repeat it once for each agent the flow drives,
   in the order the flow takes them — `official/rlar` drives two, so it takes two `-a`.
 - The last argument is the task.
+
+DeepSeek Harness uses the same agent spelling and reads its API key from the environment:
+
+```sh
+DEEPSEEK_API_KEY=sk-… hmz exec -f ralph_loop \
+    -a dsh/deepseek-v4-flash:high "fix the failing tests"
+```
+
+It also offers `deepseek-v4-pro` and the efforts `max`, `high` and `off`. Its current preview
+SDK only supports the default `permission=bypass` and `skills=None`; see
+[Agents › What each backend can do](/reference/agents.md#what-each-backend-can-do).
 
 To narrow what one of those agents may do, use the written-out form and name one of the four
 [permission rungs](/reference/agents.md#what-an-agent-may-do):

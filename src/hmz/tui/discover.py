@@ -13,6 +13,7 @@ on the key that says to ask again -- and read here.
 
 from __future__ import annotations
 
+import importlib.util
 import shutil
 import subprocess
 from pathlib import Path
@@ -44,8 +45,15 @@ def installed() -> dict[str, tuple[Model, ...]]:
     return {
         profile.name: models.offered(profile.name)
         for profile in PROFILES
-        if shutil.which(profile.name) is not None
+        if _is_installed(profile.name)
     }
+
+
+def _is_installed(backend: str) -> bool:
+    """Whether a backend's executable or Python SDK is installed here."""
+    if backend == "dsh":
+        return importlib.util.find_spec("deepseek_harness") is not None
+    return shutil.which(backend) is not None
 
 
 def machines() -> list[tuple[str, str]]:

@@ -220,9 +220,6 @@ def test_a_turn_is_answered_at_every_path_the_backend_keeps_a_credential_at(
     swaps = provider.swaps()
 
     assert len(swaps) == len(profile.creds)
-    assert swaps, (
-        f"{profile.name} keeps its credentials somewhere, so it names somewhere"
-    )
     for said, (real, instead) in zip(profile.creds, swaps, strict=True):
         if said.startswith("~/"):
             assert real == str(house / said[2:])

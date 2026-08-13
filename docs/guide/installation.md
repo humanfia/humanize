@@ -5,7 +5,7 @@
 | | |
 | --- | --- |
 | **Python 3.12 or newer** | 3.12, 3.13 and 3.14 are the ones CI runs the tests on. |
-| **At least one coding agent CLI**, already logged in | `claude`, `codex`, `kimi`, `pi`, `opencode` or `mimo`, on your `PATH`. |
+| **At least one supported backend** | `claude`, `codex`, `kimi`, `pi`, `opencode` or `mimo` on your `PATH`, or the optional DeepSeek Harness Python SDK. |
 | **A project you are willing to have rewritten** | Read [Security](/guide/security) first. |
 
 Nothing else. Two features want more, and neither is needed for anything in the tutorials:
@@ -25,10 +25,24 @@ pip install git+https://github.com/humanfia/humanize2.git
 uv tool install git+https://github.com/humanfia/humanize2.git
 ```
 
+```sh [pip + DeepSeek Harness]
+pip install 'hmz[dsh] @ git+https://github.com/humanfia/humanize2.git'
+```
+
+```sh [uv tool + DeepSeek Harness]
+uv tool install 'hmz[dsh] @ git+https://github.com/humanfia/humanize2.git'
+```
+
 ```sh [from a checkout]
 git clone https://github.com/humanfia/humanize2.git
 cd humanize2
 uv sync
+```
+
+```sh [checkout + DeepSeek Harness]
+git clone https://github.com/humanfia/humanize2.git
+cd humanize2
+uv sync --extra dsh
 ```
 
 :::
@@ -56,7 +70,14 @@ humanize offers you exactly the backends that are installed, so this is the list
 command -v claude codex kimi pi opencode mimo
 ```
 
-A backend that is not on your `PATH` is simply not offered. If none of them is,
+A CLI backend that is not on your `PATH` is simply not offered. DeepSeek Harness is offered
+when its Python SDK is importable:
+
+```sh
+python -c 'import deepseek_harness; print("dsh installed")'
+```
+
+If none of the CLI backends or the SDK is installed,
 `hmz` says `no coding agent is installed here` and does nothing else — see
 [Troubleshooting](/guide/troubleshooting#no-coding-agent-is-installed-here).
 
@@ -70,6 +91,22 @@ Each CLI is logged into its own way. humanize never sees the credential:
 | pi | `/login`, inside `pi` |
 | opencode | `opencode auth login` |
 | mimocode | `mimo auth login` |
+| DeepSeek Harness | set `DEEPSEEK_API_KEY`; optionally set `DEEPSEEK_BASE_URL` for a compatible gateway |
+
+DeepSeek Harness is currently a developer preview. The `dsh` extra installs
+`deepseek-harness-sdk>=0.1.0rc6,<0.2` and its bundled runtime; the published runtime wheels
+support Linux on x86-64 or arm64 and macOS on arm64. It does not require the `dsh` CLI.
+
+Use either official model id at one of its three efforts:
+
+```sh
+DEEPSEEK_API_KEY=sk-… hmz exec -f ralph_loop \
+    -a dsh/deepseek-v4-flash:high "fix the failing tests"
+```
+
+The other official model is `deepseek-v4-pro`; the efforts are `max`, `high` and `off`.
+The current SDK exposes no per-session permission or skill controls, so dsh agents must use
+the default `permission="bypass"` and `skills=None`.
 
 To run one CLI as **more than one** account at a time, that is
 [providers](/features/providers) — and it is a separate store, made with `hmz providers add`

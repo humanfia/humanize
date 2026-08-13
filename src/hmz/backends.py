@@ -244,6 +244,9 @@ _KIMI = ("max", "high", "medium", "low")
 #: setting.
 _PI = ("max", "xhigh", "high", "medium", "low", "minimal", "off")
 
+#: What the official DeepSeek adapter in DeepSeek Harness calls its reasoning levels.
+_DSH = ("max", "high", "off")
+
 #: What opencode and mimocode call a reasoning effort: a variant of the model, given as
 #: `--variant`, and provider-specific. These are the ones the models they front take; a
 #: provider with no variants of its own takes the flag and ignores it.
@@ -445,6 +448,33 @@ PROFILES = (
                     "model_providers.humanize.env_key=CODEX_PROVIDER_KEY",
                     "-c",
                     "model_providers.humanize.wire_api={CODEX_PROVIDER_WIRE}",
+                ),
+            ),
+        ),
+    ),
+    Profile(
+        name="dsh",
+        aliases=("dsh", "deepseek-harness"),
+        home_var="DSH_HOME",
+        home_dir=".dsh",
+        # The Python SDK's bundled JSONL persistence groups sessions under one project
+        # directory. humanize's composition keeps these logs uncompressed so the running
+        # tally can read complete rows as they land.
+        logs=("sessions/*/{ident}/session.jsonl",),
+        efforts=_DSH,
+        ambient=("DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL"),
+        ways=(
+            Way(
+                name="key",
+                about="a DeepSeek API key, from the platform",
+                asks=(Asked(env="DEEPSEEK_API_KEY", about="the API key", secret=True),),
+            ),
+            Way(
+                name="gateway",
+                about=_GATEWAY,
+                asks=(
+                    Asked(env="DEEPSEEK_BASE_URL", about="where it is, as a URL"),
+                    Asked(env="DEEPSEEK_API_KEY", about="the key", secret=True),
                 ),
             ),
         ),
