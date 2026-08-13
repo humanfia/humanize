@@ -9,7 +9,7 @@ properly.
 - **Python 3.12 or newer.**
 - **At least one supported backend:** a coding agent CLI on your `PATH`, already logged in,
   such as `claude` ([Claude Code](https://claude.com/claude-code)), `codex` or `kimi`; or the
-  optional DeepSeek Harness Python SDK with `DEEPSEEK_API_KEY` set.
+  optional DeepSeek Harness Python SDK with a DeepSeek API key configured.
 - **A project directory you are willing to have rewritten.** Read
   [Security](/guide/security.md) first — humanize runs every agent with permission prompts
   disabled, so an agent under it edits files without asking.
@@ -35,6 +35,15 @@ uv tool install 'hmz[dsh] @ git+https://github.com/humanfia/humanize2.git'
 
 If the tool is already installed without DeepSeek, add `--force` to that command. The `dsh`
 tab in `/agents` also shows an environment-specific command until the SDK is present.
+
+DeepSeek Harness uses API-key login only. After reopening `hmz`, type `/agents`, switch to
+`dsh`, press **ctrl+n**, choose `key`, and enter an account name and the key. Or set it only
+for the process that starts humanize:
+
+```sh
+export DEEPSEEK_API_KEY=sk-…
+hmz
+```
 
 Nothing else is required. [Isolation](/reference/machines.md#a-container-of-the-agent-s-own) wants
 `docker`, and [remote execution](/reference/remote-execution.md) wants Linux on x86-64 here plus `python3`
@@ -145,7 +154,7 @@ hmz exec -f ralph_loop -a claude/claude-opus-4-8:high "fix the failing tests"
   in the order the flow takes them — `official/rlar` drives two, so it takes two `-a`.
 - The last argument is the task.
 
-DeepSeek Harness uses the same agent spelling and reads its API key from the environment:
+DeepSeek Harness uses the same agent spelling. With the environment setup above:
 
 ```sh
 DEEPSEEK_API_KEY=sk-… hmz exec -f ralph_loop \
@@ -155,6 +164,12 @@ DEEPSEEK_API_KEY=sk-… hmz exec -f ralph_loop \
 It also offers `deepseek-v4-pro` and the efforts `max`, `high` and `off`. Its current preview
 SDK only supports the default `permission=bypass` and `skills=None`; see
 [Agents › What each backend can do](/reference/agents.md#what-each-backend-can-do).
+
+With a key account called `deepseek` instead, name that account after `@`:
+
+```sh
+hmz exec -f chat -a dsh@deepseek/deepseek-v4-flash:high "hello"
+```
 
 To narrow what one of those agents may do, use the written-out form and name one of the four
 [permission rungs](/reference/agents.md#what-an-agent-may-do):

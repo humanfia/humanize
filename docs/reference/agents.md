@@ -32,8 +32,9 @@ pi, opencode and mimocode name a model as `provider/id` — `openai-codex/gpt-5.
 serves it, and the CLI is asked for the pair.
 
 DeepSeek Harness is an optional Python SDK backend. Install it with the `dsh` extra as shown
-in [Installation](/guide/installation#install-humanize), set `DEEPSEEK_API_KEY`, and construct
-it like any other agent:
+in [Installation](/guide/installation#install-humanize). It supports API-key login only:
+either set `DEEPSEEK_API_KEY` before starting Python, or make a `key` account from `/agents`
+with **ctrl+n** and give its name as `provider`. Then construct it like any other agent:
 
 ```python
 from hmz.agents import DshAgent, DshAgentConfig

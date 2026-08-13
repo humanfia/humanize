@@ -130,6 +130,7 @@ def completed(turn: int = 1) -> tuple[str, dict[str, Any]]:
 def sdk(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     Harness.made.clear()
     Harness.next_scripts.clear()
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
     monkeypatch.setattr(dsh, "_harness_type", lambda: Harness)
     monkeypatch.setattr(dsh, "_runtime_args", lambda: ("/opt/dsh-runtime",))
     yield
@@ -379,6 +380,47 @@ def test_an_explicit_skill_selection_the_sdk_cannot_enforce_is_refused() -> None
     assert Harness.made == []
 
 
+def test_a_missing_api_key_fails_before_runtime_start_and_reaches_watchers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY")
+    agent = DshAgent(configured())
+    heard: list[tuple[str, str]] = []
+    agent.watch(lambda _agent, _session, event: heard.append((event.kind, event.text)))
+
+    assert agent("hello", suppress=True) == ""
+
+    failed = [text for kind, text in heard if kind == "failed"]
+    assert len(failed) == 1
+    assert "needs a DeepSeek API key" in failed[0]
+    assert "ctrl+n" in failed[0]
+    assert Harness.made == []
+
+
+@pytest.mark.parametrize("way", ["env", "gateway", "login"])
+def test_only_a_key_provider_can_authenticate_dsh(
+    way: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz import providers
+
+    monkeypatch.delenv("DEEPSEEK_API_KEY")
+    providers.add(
+        "dsh",
+        "legacy",
+        way=way,
+        env={"DEEPSEEK_API_KEY": "provider-key"},
+    )
+    agent = DshAgent(configured(provider="legacy"))
+    heard: list[tuple[str, str]] = []
+    agent.watch(lambda _agent, _session, event: heard.append((event.kind, event.text)))
+
+    assert agent("hello", suppress=True) == ""
+
+    assert [kind for kind, _text in heard].count("failed") == 1
+    assert any("only supports API-key login" in text for _kind, text in heard)
+    assert Harness.made == []
+
+
 def test_shapes_are_asked_for_in_the_prompt() -> None:
     class Answer(BaseModel):
         done: bool
@@ -397,14 +439,12 @@ def test_provider_environment_reaches_the_sdk_runtime(
 ) -> None:
     from hmz import providers
 
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "ambient")
+    monkeypatch.delenv("DEEPSEEK_API_KEY")
     providers.add(
         "dsh",
         "mine",
-        env={
-            "DEEPSEEK_API_KEY": "provider-key",
-            "DEEPSEEK_BASE_URL": "https://example.invalid",
-        },
+        way="key",
+        env={"DEEPSEEK_API_KEY": "provider-key"},
     )
     Harness.next_scripts.append([assistant("done"), completed()])
 
@@ -413,11 +453,12 @@ def test_provider_environment_reaches_the_sdk_runtime(
     made = Harness.made[0].config
     assert made["env"] == {
         "DEEPSEEK_API_KEY": "provider-key",
-        "DEEPSEEK_BASE_URL": "https://example.invalid",
         "HMZ_DSH_EFFORT": "high",
     }
     assert made["cwd"] == str(tmp_path)
-    assert made["launch_args_override"] == ("/opt/dsh-runtime",)
+    launch = cast("tuple[str, ...]", made["launch_args_override"])
+    assert launch[0].endswith("/env")
+    assert launch[1:] == ("-u", "DEEPSEEK_BASE_URL", "/opt/dsh-runtime")
     assert made["request_timeout_seconds"] == 180.0
 
 

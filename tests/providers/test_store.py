@@ -271,6 +271,13 @@ def test_a_backend_offers_its_own_ways_in_and_then_variables_of_your_own() -> No
     assert providers.ways("nope") == ()
 
 
+def test_deepseek_harness_offers_only_its_api_key_way() -> None:
+    offered = providers.ways("deepseek-harness")
+
+    assert [way.name for way in offered] == ["key"]
+    assert [one.env for one in offered[0].asks] == ["DEEPSEEK_API_KEY"]
+
+
 def test_variables_of_your_own_are_read_off_the_lines_they_were_typed_as() -> None:
     said = providers.env_of(
         "ANTHROPIC_BASE_URL=https://example.invalid/?a=b\n"

@@ -111,11 +111,33 @@ Each CLI is logged into its own way. humanize never sees the credential:
 | pi | `/login`, inside `pi` |
 | opencode | `opencode auth login` |
 | mimocode | `mimo auth login` |
-| DeepSeek Harness | set `DEEPSEEK_API_KEY`; optionally set `DEEPSEEK_BASE_URL` for a compatible gateway |
+| DeepSeek Harness | a DeepSeek API key, stored from `/agents` or supplied as `DEEPSEEK_API_KEY` |
 
 DeepSeek Harness is currently a developer preview. The `dsh` extra installs
 `deepseek-harness-sdk>=0.1.0rc6,<0.2` and its bundled runtime; the published runtime wheels
 support Linux on x86-64 or arm64 and macOS on arm64. It does not require the `dsh` CLI.
+
+DeepSeek Harness supports API-key login only. To keep the key in humanize's provider store,
+open `hmz`, type `/agents`, switch to the `dsh` tab, press **ctrl+n**, choose `key`, and enter
+an account name and the key. The same account can be made from a terminal; this command asks
+for the key without putting it in the command itself:
+
+```sh
+hmz providers add dsh/deepseek -w key
+```
+
+An agent using that stored account is written with `@deepseek`:
+
+```sh
+hmz exec -f chat -a dsh@deepseek/deepseek-v4-flash:high "hello"
+```
+
+Alternatively, set the key in the environment before starting `hmz`:
+
+```sh
+export DEEPSEEK_API_KEY=sk-…
+hmz
+```
 
 Use either official model id at one of its three efforts:
 

@@ -149,6 +149,34 @@ async def test_an_account_made_on_the_sheet_lands_in_the_store(
 
 
 @pytest.mark.timeout(60)
+async def test_deepseek_offers_only_api_key_login_from_providers() -> None:
+    app = Humanize()
+    async with app.run_test() as driver:
+        await driver.press(*"/providers")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Providers), driver)
+        await driver.press("a")
+        await until(lambda: isinstance(app.screen, Backends), driver)
+        backends = app.screen.query_one("#choices", OptionList)
+        await until(lambda: bool(backends.options), driver)
+        ids = [str(option.id) for option in backends.options]
+        for _ in range(ids.index("=dsh")):
+            await driver.press("down")
+        await driver.press("enter")
+
+        await until(lambda: isinstance(app.screen, Ways), driver)
+        ways = app.screen.query_one("#choices", OptionList)
+        assert [str(option.id) for option in ways.options] == ["=key"]
+        assert "DeepSeek API key" in str(ways.get_option_at_index(0).prompt)
+
+        await driver.press("escape")
+        await until(lambda: isinstance(app.screen, Backends), driver)
+        await driver.press("escape")
+        await until(lambda: isinstance(app.screen, Providers), driver)
+        await driver.press("escape")
+
+
+@pytest.mark.timeout(60)
 @unittest.mock.patch("hmz.providers.login.sign_in", return_value=0)
 async def test_a_secret_is_never_drawn_back(signed_in: unittest.mock.MagicMock) -> None:
     """It is on its way into a credential store, and a screen is somewhere it is read off."""

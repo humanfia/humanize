@@ -37,6 +37,11 @@ _EXTRA = (
     "DeepSeek Harness is not installed in this Python environment; install humanize "
     "with its dsh extra: pip install 'hmz[dsh]'"
 )
+_KEY_REQUIRED = (
+    "DeepSeek Harness only supports API-key login and needs a DeepSeek API key. In hmz, "
+    "open /agents, switch to dsh, press ctrl+n, and create a key account; or set "
+    "DEEPSEEK_API_KEY before starting hmz."
+)
 _GOAL = "Use create_goal to pursue this objective until it is complete:\n\n{}"
 
 
@@ -125,6 +130,7 @@ class DshSession(SessionBase):
         anchored = self._agent.anchor is not None
 
         try:
+            self._require_key(session_id)
             harness = self._running()
             with harness.client.subscribe_session_notifications(
                 session_id
@@ -225,17 +231,20 @@ class DshSession(SessionBase):
             if not self._agent._watchers:
                 say(result.text, sys.stdout)
             yield result
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as refused:
             self._shut()
+            yield self._shows(Event(kind="failed", text=_diagnostic(refused)))
             raise
         except (ModuleNotFoundError, ValueError):
             self._shut()
             raise
         except Exception as why:
             self._shut()
-            raise subprocess.CalledProcessError(
+            refused = subprocess.CalledProcessError(
                 1, ["dsh", session_id], output=answer, stderr=str(why)
-            ) from why
+            )
+            yield self._shows(Event(kind="failed", text=_diagnostic(refused)))
+            raise refused from why
         finally:
             self._attempt_id = None
             if anchored:
@@ -266,6 +275,20 @@ class DshSession(SessionBase):
             )
         if self._agent.config.skills is not None:
             raise ValueError("dsh does not support selecting skills per agent")
+
+    def _require_key(self, session_id: str) -> None:
+        """Refuses a turn before startup when its selected account has no API key."""
+        provider = self._agent.provider
+        if provider is None:
+            key = os.environ.get("DEEPSEEK_API_KEY", "")
+        elif provider.way == "key":
+            key = provider.env.get("DEEPSEEK_API_KEY", "")
+        else:
+            key = ""
+        if not key.strip():
+            raise subprocess.CalledProcessError(
+                1, ["dsh", session_id], output="", stderr=_KEY_REQUIRED
+            )
 
     def _running(self) -> _Harness:
         """Returns a runtime initialized for this session's current effort."""
@@ -430,6 +453,14 @@ def _failed(
         output=answer,
         stderr=f"DeepSeek Harness turn did not complete: {why}",
     )
+
+
+def _diagnostic(refused: subprocess.CalledProcessError) -> str:
+    """Returns the useful words from a common turn failure without its traceback."""
+    for value in (refused.stderr, refused.output):
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return str(refused)
 
 
 def _require_completed(

@@ -24,6 +24,7 @@ a rule across, fields down the left and their values lined up beside them.
 from __future__ import annotations
 
 import contextlib
+import os
 import shlex
 import sys
 import time
@@ -2288,11 +2289,27 @@ class RunsAs(Sheet[Whose]):
             return []
         if backend in self._unavailable:
             return []
+        found = providers.providers(backend)
+        if backend == "dsh":
+            found = [
+                one
+                for one in found
+                if one.way == "key" and one.env.get("DEEPSEEK_API_KEY", "").strip()
+            ]
         return [
             # Two words for the account nobody chose: this is a row in a list of accounts, and
             # what it is is the one the CLI is already signed in as.
-            ("", "as installed", "signed in as you signed it in"),
-            *((one.name, one.name, _sets(one)) for one in providers.providers(backend)),
+            *(
+                [("", "as installed", "using DEEPSEEK_API_KEY from this environment")]
+                if backend == "dsh" and os.environ.get("DEEPSEEK_API_KEY", "").strip()
+                else []
+            ),
+            *(
+                [("", "as installed", "signed in as you signed it in")]
+                if backend != "dsh"
+                else []
+            ),
+            *((one.name, one.name, _sets(one)) for one in found),
         ]
 
     def _nothing(self) -> str:
@@ -2304,6 +2321,13 @@ class RunsAs(Sheet[Whose]):
             return "no coding agent installed here can take this one's turns"
         if backend in self._unavailable:
             return _installing(backend)
+        if backend == "dsh":
+            if self._found:
+                return ""
+            return (
+                "DeepSeek Harness needs an API key; ctrl+n stores one, or set "
+                "DEEPSEEK_API_KEY and reopen hmz"
+            )
         if len(self._found or []) > 1:
             return ""
         return f"{escape(backend)} has no accounts here yet; ctrl+n makes one"

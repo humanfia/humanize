@@ -469,14 +469,6 @@ PROFILES = (
                 about="a DeepSeek API key, from the platform",
                 asks=(Asked(env="DEEPSEEK_API_KEY", about="the API key", secret=True),),
             ),
-            Way(
-                name="gateway",
-                about=_GATEWAY,
-                asks=(
-                    Asked(env="DEEPSEEK_BASE_URL", about="where it is, as a URL"),
-                    Asked(env="DEEPSEEK_API_KEY", about="the key", secret=True),
-                ),
-            ),
         ),
     ),
     Profile(

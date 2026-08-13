@@ -55,6 +55,15 @@ To use the TUI:
 hmz
 ```
 
+After installing the `dsh` extra, DeepSeek Harness takes an API key and no subscription
+login. In the TUI, type `/agents`, switch to `dsh`, press **ctrl+n**, and make a `key`
+account. Or set the key before opening humanize:
+
+```sh
+export DEEPSEEK_API_KEY=sk-…
+hmz
+```
+
 To run a flow over the agents you name, one `-a` apiece:
 
 ```sh
@@ -62,7 +71,7 @@ hmz exec -f official/flame_chase \
     -a claude/claude-opus-4-8:high -a codex/gpt-5.6-sol:high "fix the build"
 ```
 
-To run DeepSeek Harness with a DeepSeek API key:
+To run DeepSeek Harness unattended with that environment variable:
 
 ```sh
 DEEPSEEK_API_KEY=sk-… hmz exec -f ralph_loop \

@@ -2447,6 +2447,13 @@ class Humanize(App[None]):
                 session,
                 f"[yellow]{_SAID}[/] {escape(event.text)}",
             )
+        elif event.kind == "failed":
+            self._on_screen(
+                self._part,
+                session,
+                f"[red]hmz: {escape(event.text)}[/]",
+                packs=False,
+            )
         elif event.kind == "text":
             # The bullet on the first line, two spaces under it for the rest, which is how
             # Claude Code sets a message it has just written.
