@@ -31,4 +31,10 @@ def test_dsh_is_installed_when_its_python_sdk_is_importable(
         found_module,
     )
 
-    assert discover.installed() == {"dsh": ()}
+    found = discover.installed()
+
+    assert list(found) == ["dsh"]
+    assert [model.name for model in found["dsh"]] == [
+        "deepseek-v4-flash",
+        "deepseek-v4-pro",
+    ]

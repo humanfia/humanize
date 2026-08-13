@@ -194,6 +194,16 @@ def test_dsh_uses_the_official_adapter_catalogue_without_starting_a_cli(
     assert models.offered("dsh") == found
 
 
+def test_dsh_offers_the_official_catalogue_before_it_has_been_asked() -> None:
+    found = models.offered("deepseek-harness")
+
+    assert [model.name for model in found] == [
+        "deepseek-v4-flash",
+        "deepseek-v4-pro",
+    ]
+    assert all(model.efforts == ("max", "high", "off") for model in found)
+
+
 def test_a_model_takes_the_efforts_its_backend_said_that_model_takes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

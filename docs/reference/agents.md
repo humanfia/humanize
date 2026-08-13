@@ -623,7 +623,7 @@ The `result` event a turn ends on carries the same reckoning as `spent`, beside 
 | --- | --- | --- | --- | --- | --- | --- |
 | Driven through | its command line, held open | its app server | its Python SDK | its app server | its command line, held open | its command line, one run per turn |
 | [`interject`](#talking-to-a-turn-already-running) | yes — answered within the same turn | yes — a steer on the running turn | no | yes — queued, then steered in | yes — a steer on the running turn | no — a run per turn has ended |
-| [`pursue`](#goals) | yes | yes | no | yes | no | no |
+| [`pursue`](#goals) | yes | yes | yes | yes | no | no |
 | [`PERMISSION_REQUEST`](#not-every-backend-runs-every-moment) | yes | yes | no | no | no | no |
 | Sub-agents in a trace | yes | yes | no | yes | no | no |
 

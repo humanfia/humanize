@@ -17,7 +17,7 @@ import uuid
 import weakref
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Protocol, Self, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Protocol, Self, cast
 
 from .base import AgentBase, SessionBase
 from .config import AgentConfig
@@ -34,6 +34,7 @@ _EFFORTS = ("max", "high", "off")
 _EFFORT_ENV = "HMZ_DSH_EFFORT"
 _REQUEST_SECONDS = 180.0
 _EXTRA = "DeepSeek Harness support requires the dsh extra: pip install 'hmz[dsh]'"
+_GOAL = "Use create_goal to pursue this objective until it is complete:\n\n{}"
 
 
 class _Subscription(Protocol):
@@ -77,6 +78,9 @@ class DshAgentConfig(AgentConfig):
 
 class DshAgent(AgentBase):
     """A DeepSeek Harness agent using the bundled SDK runtime."""
+
+    #: The official goal service keeps the session working until its objective is complete.
+    pursues: ClassVar[bool] = True
 
     def __init__(self, config: DshAgentConfig, *, name: str | None = None) -> None:
         super().__init__(config, name=name)
@@ -241,6 +245,10 @@ class DshSession(SessionBase):
             say(event.text, sys.stderr)
         return event
 
+    def _pursue(self, objective: str) -> str:
+        """Runs the objective through Harness's persisted same-session goal service."""
+        return self(_GOAL.format(objective))
+
     def _validate(self) -> None:
         """Refuses settings the SDK cannot faithfully apply."""
         if self.effort not in _EFFORTS:
@@ -325,7 +333,7 @@ def _harness_type() -> Callable[..., _Harness]:
 
 
 def _runtime_args() -> tuple[str, ...]:
-    """Resolves the executable bundled with the SDK extra."""
+    """Resolves the executable bundled with the SDK."""
     try:
         module = importlib.import_module("deepseek_harness_runtime")
     except ModuleNotFoundError as why:

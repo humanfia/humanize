@@ -130,7 +130,7 @@ class Place(NamedTuple):
         `Annotated[AgentBase, Moment.PERMISSION_REQUEST]` where it declared the place. Empty
         where it asked for nothing in particular, which is most places.
       goal: Whether the flow runs this one under the backend's own goal feature, which it
-        said by writing `Annotated[AgentBase, Goal]` where it declared the place. Only three
+        said by writing `Annotated[AgentBase, Goal]` where it declared the place. Only four
         backends have one, so a flow built on it is not a flow any agent can drive.
       where: Where the agent filling it may work, which the flow said the same way -- `Remote`
         for one that may be pointed at another machine, an `Isolated` for one that works in a

@@ -155,6 +155,7 @@ def configured(
 def test_dsh_is_a_public_driven_agent() -> None:
     assert DRIVEN["dsh"] == (DshAgent, DshAgentConfig)
     assert DshAgent(configured()).backend == "dsh"
+    assert DshAgent.pursues
     assert isinstance(DshAgent(configured()).new(), DshSession)
 
 
@@ -227,6 +228,23 @@ def test_follow_up_turns_resume_the_same_durable_session() -> None:
         (session_id, "second"),
     ]
     assert agent.opened == [session_id]
+
+
+def test_a_goal_uses_the_official_same_session_goal_tools() -> None:
+    Harness.next_scripts.append(
+        [
+            assistant("still working"),
+            completed(),
+            assistant("done", turn=2),
+            completed(2),
+        ]
+    )
+    session = DshAgent(configured()).new()
+
+    assert session.pursue("the suite passes") == "done"
+    prompt = Harness.made[0].client.prompts[0][1]
+    assert "create_goal" in prompt
+    assert prompt.endswith("the suite passes")
 
 
 def test_the_opening_session_id_is_visible_while_its_turn_is_running() -> None:

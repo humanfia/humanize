@@ -63,6 +63,11 @@ _LISTED = "list"
 #: What opencode and mimocode write after a model to say how much it holds.
 _ABOUT = " — "
 
+#: The advisory catalogue shipped by the official DeepSeek adapter. Its preview SDK has no
+#: model-list request, so this is both what asking it answers and what a first prompt offers
+#: before there is a cache to read.
+_DSH_MODELS = ("deepseek-v4-flash", "deepseek-v4-pro")
+
 
 def where(cli: str, provider: str = "") -> Path:
     """Where what this backend said it runs is kept, for one account.
@@ -102,10 +107,16 @@ def offered(cli: str, provider: str = "") -> tuple[Model, ...]:
       backend there is -- each of which is a catalogue to fill rather than a reason to raise
       at whoever only wanted to see a list.
     """
-    return tuple(
+    found = tuple(
         Model(name, tuple(efforts), swarms)
         for name, efforts, swarms in _read(_kept(cli, provider))
     )
+    profile = named(cli)
+    if not found and profile is not None and profile.name == "dsh":
+        return tuple(
+            Model(name, profile.efforts, profile.swarms) for name in _DSH_MODELS
+        )
+    return found
 
 
 def asked(cli: str, provider: str = "") -> str:
@@ -394,10 +405,7 @@ def _dsh(profile: Profile, _run: Callable[..., str]) -> list[Model]:
     Returns:
       The official adapter's advisory models, in its own order.
     """
-    return [
-        Model(name, profile.efforts, profile.swarms)
-        for name in ("deepseek-v4-flash", "deepseek-v4-pro")
-    ]
+    return [Model(name, profile.efforts, profile.swarms) for name in _DSH_MODELS]
 
 
 def _pi(profile: Profile, run: Callable[..., str]) -> list[Model]:

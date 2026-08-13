@@ -1246,6 +1246,64 @@ async def test_the_arrows_turn_to_the_next_cli_and_the_one_before(
 @unittest.mock.patch(
     "hmz.tui.app.installed",
     return_value={
+        "claude": (Model("claude-opus-5", ("max",)),),
+        "dsh": (
+            Model("deepseek-v4-flash", ("max", "high", "off")),
+            Model("deepseek-v4-pro", ("max", "high", "off")),
+        ),
+    },
+)
+async def test_deepseek_is_selectable_from_agents(
+    _installed: unittest.mock.MagicMock,  # noqa: PT019 -- `mock.patch` hands it over
+    tmp_path: Path,
+) -> None:
+    goal = tmp_path / "goal.py"
+    goal.write_text(
+        """
+from typing import Annotated, NamedTuple
+
+from hmz.agents import AgentBase, Goal
+from hmz.flows import flow
+
+
+class Agents(NamedTuple):
+    worker: Annotated[AgentBase, Goal]
+
+
+@flow
+def run(agents: Agents, task: str) -> None:
+    pass
+"""
+    )
+    app = Humanize(flow=str(goal), agents=[Runs("claude/claude-opus-5:max")])
+    async with app.run_test() as driver:
+        await driver.press(*"/agents")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, RunsAs), driver)
+
+        await driver.press("right")
+        await driver.pause()
+        assert "[b $primary]dsh" in str(app.screen.query_one("#tabs", Label).content)
+
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Models), driver)
+        listing = app.screen.query_one("#choices", OptionList)
+        await until(lambda: len(listing.options) == 2, driver)
+        assert [str(option.id) for option in listing.options] == [
+            "dsh/deepseek-v4-flash",
+            "dsh/deepseek-v4-pro",
+        ]
+
+        await driver.press("down", "enter")
+        await until(lambda: not isinstance(app.screen, Models), driver)
+
+    assert app._models == [Runs("dsh/deepseek-v4-pro:max")]
+
+
+@pytest.mark.timeout(60)
+@unittest.mock.patch(
+    "hmz.tui.app.installed",
+    return_value={
         "claude": (Model("claude-opus-5", ("max",)), Model("claude-sonnet-5", ("max",)))
     },
 )
