@@ -35,10 +35,12 @@ Three things to know before pointing one at a repository you care about. Each is
 pip install git+https://github.com/humanfia/humanize2.git
 ```
 
-DeepSeek Harness support includes its Python SDK and bundled runtime:
+DeepSeek Harness is an optional install that includes its Python SDK and bundled runtime:
 
 ```sh
 pip install 'hmz[dsh] @ git+https://github.com/humanfia/humanize2.git'
+# or, when hmz is an isolated uv tool:
+uv tool install 'hmz[dsh] @ git+https://github.com/humanfia/humanize2.git'
 ```
 
 Needs Python ≥ 3.12 and at least one supported backend: `claude`, `codex`, `kimi`, `pi`,

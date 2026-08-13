@@ -60,7 +60,7 @@ from hmz.backends import Model
 from hmz.runner import flow_and_agents
 
 from .complete import about, hinted, offered, takes
-from .discover import installed
+from .discover import installable, installed
 from .history import History
 from .monitor import Monitor, short, thousands
 from .pick import (
@@ -1749,6 +1749,8 @@ class Humanize(App[None]):
             # was, rather than holding a flow with nothing to run it on.
             switching = picked if isinstance(picked, str) else picked[0]
             agents = installed()
+            unavailable = installable()
+            agents.update(unavailable)
             if not agents:
                 self.show("hmz: no coding agent is installed here", "red")
                 return
@@ -1781,7 +1783,9 @@ class Humanize(App[None]):
                     if named:
                         return  # nothing to step back into: this walk began here
                     continue  # back to the flows, which is where this walk came from
-            chosen = await self._each_agent(switching, places, agents)
+            chosen = await self._each_agent(
+                switching, places, agents, frozenset(unavailable)
+            )
             if chosen is not None:
                 # A flow is chosen in order to be run, so whatever is running stops: the
                 # interface opens on one already, and a choice that quietly went to the back
@@ -1816,6 +1820,7 @@ class Humanize(App[None]):
         flow: str,
         places: tuple[Place, ...],
         agents: dict[str, tuple[Model, ...]],
+        unavailable: frozenset[str],
     ) -> list[Runs] | None:
         """Asks what each agent of a flow is, three steps apiece and one agent at a time.
 
@@ -1834,7 +1839,8 @@ class Humanize(App[None]):
         Args:
           flow: The flow whose agents these are.
           places: One place per agent it drives, in the order it takes them.
-          agents: The CLIs installed here, and what each of them says it runs.
+          agents: The backends offered here, and what each of them says it runs.
+          unavailable: The optional backends among them that still need installing.
 
         Returns:
           What each of them runs, in the order the flow takes them -- and nothing at all for
@@ -1850,7 +1856,14 @@ class Humanize(App[None]):
             named = called(places, at)
             if step == _WHO:
                 signed = await self.push_screen_wait(
-                    RunsAs(flow, named, places[at], agents, whose.get(at))
+                    RunsAs(
+                        flow,
+                        named,
+                        places[at],
+                        agents,
+                        whose.get(at),
+                        unavailable=unavailable,
+                    )
                 )
                 if signed is None:
                     at -= 1

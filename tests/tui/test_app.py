@@ -1303,6 +1303,57 @@ def run(agents: Agents, task: str) -> None:
 @pytest.mark.timeout(60)
 @unittest.mock.patch(
     "hmz.tui.app.installed",
+    return_value={"claude": (Model("claude-opus-5", ("max",)),)},
+)
+@unittest.mock.patch(
+    "hmz.tui.app.installable",
+    return_value={
+        "dsh": (
+            Model("deepseek-v4-flash", ("max", "high", "off")),
+            Model("deepseek-v4-pro", ("max", "high", "off")),
+        )
+    },
+)
+async def test_agents_says_how_to_install_deepseek_when_its_sdk_is_missing(
+    _installable: unittest.mock.MagicMock,  # noqa: PT019 -- patch hands it over
+    _installed: unittest.mock.MagicMock,  # noqa: PT019 -- patch hands it over
+) -> None:
+    app = Humanize(agents=[Runs("claude/claude-opus-5:max")])
+    async with app.run_test() as driver:
+        await driver.press(*"/agents")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, RunsAs), driver)
+
+        await driver.press("right")
+        await driver.pause()
+        sheet = app.screen
+        assert "[b $primary]dsh" in str(sheet.query_one("#tabs", Label).content)
+        assert not sheet.query_one("#choices", OptionList).options
+        installing = str(sheet.query_one("#tuning", Label).content)
+        assert "DeepSeek Harness is not installed" in installing
+        assert "uv pip install --python" in installing
+        assert "deepseek-harness-sdk" in installing
+
+        await driver.press("enter")
+        await driver.pause()
+        assert isinstance(app.screen, RunsAs)
+
+    assert app._models == [Runs("claude/claude-opus-5:max")]
+
+
+def test_deepseek_install_hint_targets_the_python_running_humanize(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from hmz.tui import pick
+
+    monkeypatch.setattr(pick.sys, "executable", "/opt/hmz/bin/python")
+
+    assert "uv pip install --python /opt/hmz/bin/python" in pick._installing("dsh")
+
+
+@pytest.mark.timeout(60)
+@unittest.mock.patch(
+    "hmz.tui.app.installed",
     return_value={
         "claude": (Model("claude-opus-5", ("max",)), Model("claude-sonnet-5", ("max",)))
     },

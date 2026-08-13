@@ -62,16 +62,36 @@ hmz 0.1.0
 From a checkout with `uv sync`, the command lives in that checkout's environment — `uv run hmz`,
 or activate `.venv` first.
 
+### Add DeepSeek Harness to an existing install
+
+An extra is chosen when a package is installed; upgrading an installation that did not include
+`dsh` does not add it. For an existing pip installation, run the **pip + DeepSeek Harness**
+command above. For an existing uv tool installation, replace it in place with:
+
+```sh
+uv tool install --force 'hmz[dsh] @ git+https://github.com/humanfia/humanize2.git'
+```
+
+For a checkout, sync the extra into that checkout's `.venv`:
+
+```sh
+uv sync --extra dsh
+```
+
+Then reopen `hmz`. Before the SDK is installed, the `dsh` tab in `/agents` also prints a
+command that targets the exact Python environment running `hmz`.
+
 ## Check what you have
 
-humanize offers you exactly the backends that are installed, so this is the list you will see:
+humanize can run the backends installed in its environment. Check the CLI backends with:
 
 ```sh
 command -v claude codex kimi pi opencode mimo
 ```
 
-A CLI backend that is not on your `PATH` is simply not offered. DeepSeek Harness is offered
-when its Python SDK is importable:
+A CLI backend that is not on your `PATH` is simply not offered. The `dsh` tab remains visible
+in `/agents` when its SDK is missing so it can show the installation command; it becomes
+selectable when this import succeeds:
 
 ```sh
 python -c 'import deepseek_harness; print("dsh installed")'

@@ -31,8 +31,9 @@ pi, opencode and mimocode name a model as `provider/id` — `openai-codex/gpt-5.
 `opencode/big-pickle`, `xiaomi/mimo-v2.5` — because a model there belongs to the provider that
 serves it, and the CLI is asked for the pair.
 
-DeepSeek Harness is an optional Python SDK backend. Install it with the `dsh` extra, set
-`DEEPSEEK_API_KEY`, and construct it like any other agent:
+DeepSeek Harness is an optional Python SDK backend. Install it with the `dsh` extra as shown
+in [Installation](/guide/installation#install-humanize), set `DEEPSEEK_API_KEY`, and construct
+it like any other agent:
 
 ```python
 from hmz.agents import DshAgent, DshAgentConfig

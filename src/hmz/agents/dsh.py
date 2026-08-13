@@ -33,7 +33,10 @@ __all__ = ["DshAgent", "DshAgentConfig", "DshSession"]
 _EFFORTS = ("max", "high", "off")
 _EFFORT_ENV = "HMZ_DSH_EFFORT"
 _REQUEST_SECONDS = 180.0
-_EXTRA = "DeepSeek Harness support requires the dsh extra: pip install 'hmz[dsh]'"
+_EXTRA = (
+    "DeepSeek Harness is not installed in this Python environment; install humanize "
+    "with its dsh extra: pip install 'hmz[dsh]'"
+)
 _GOAL = "Use create_goal to pursue this objective until it is complete:\n\n{}"
 
 
@@ -322,7 +325,7 @@ class DshSession(SessionBase):
 
 
 def _harness_type() -> Callable[..., _Harness]:
-    """Loads the optional SDK only when a dsh turn needs it."""
+    """Loads the SDK only when a dsh turn needs it."""
     try:
         module = importlib.import_module("deepseek_harness")
     except ModuleNotFoundError as why:

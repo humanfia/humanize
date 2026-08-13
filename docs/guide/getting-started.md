@@ -20,12 +20,21 @@ Check what you have:
 command -v claude codex kimi pi opencode mimo
 ```
 
-For DeepSeek Harness instead, install the optional SDK and check that it imports:
+For DeepSeek Harness instead, install the `dsh` extra and check that its SDK imports:
 
 ```sh
 pip install 'hmz[dsh] @ git+https://github.com/humanfia/humanize2.git'
 python -c 'import deepseek_harness; print("dsh installed")'
 ```
+
+With an isolated uv tool, install the extra into that tool instead:
+
+```sh
+uv tool install 'hmz[dsh] @ git+https://github.com/humanfia/humanize2.git'
+```
+
+If the tool is already installed without DeepSeek, add `--force` to that command. The `dsh`
+tab in `/agents` also shows an environment-specific command until the SDK is present.
 
 Nothing else is required. [Isolation](/reference/machines.md#a-container-of-the-agent-s-own) wants
 `docker`, and [remote execution](/reference/remote-execution.md) wants Linux on x86-64 here plus `python3`
