@@ -39,6 +39,31 @@ The awaited twin is `agent.apursue(objective)`, and a session has both as well:
 On a backend without one, `pursue` raises `NotImplementedError` — **whether or not `suppress` is
 set**. Asking for a feature that is not there is a flow to correct, not a turn to retry.
 
+## Disabling goals
+
+A flow that owns every continuation can make goals unavailable by default:
+
+```python
+@flow(goals=False)
+def run(agents: tuple[AgentBase, AgentBase], task: str) -> None:
+    ...
+```
+
+The model picker then starts each agent at `goals off`. `ctrl+g` switches the selected agent
+between `on` and `off`, and the saved choice overrides the workflow default. The picker has no
+third state.
+
+Python callers can enforce the same policy for one agent before its first turn:
+
+```python
+agent.disable_goals()
+```
+
+Ordinary turns continue to work, but later calls to `pursue` raise `RuntimeError`, even with
+`suppress=True`. Codex starts that agent's app server with its goal tools disabled; Claude Code
+has no separate runtime feature, so HMZ refuses its goal before invoking the CLI. Neither path
+changes the user's global backend configuration.
+
 ## Asking for an agent that has one
 
 A flow built on `pursue` says so where it declares its agents, and is refused before its first

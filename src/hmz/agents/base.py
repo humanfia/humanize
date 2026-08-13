@@ -1001,8 +1001,12 @@ class SessionBase(ABC):
         Raises:
           NotImplementedError: If this backend has no goal feature to reach for, whether or
             not `suppress` is set: a flow asking for one it has not got is a flow to correct.
+          RuntimeError: If goals were disabled for this agent, whether or not `suppress` is
+            set: a flow that disabled them retains control of every continuation.
           subprocess.CalledProcessError: If the turn fails and `suppress` is not set.
         """
+        if not self._agent.goals_enabled:
+            raise RuntimeError(f"{self._agent.id}: goals are disabled")
         try:
             return self._pursue(objective)
         except subprocess.CalledProcessError:
@@ -1618,6 +1622,9 @@ class AgentBase(ABC):
         #: the backend read out of a settings file before anything started.
         self._hooks = Hooks(type(self).moments, self._id)
         self._stopped = False
+        #: Whether this agent may be run under a goal. An explicit configuration is already
+        #: effective; None begins enabled until a Runner applies the workflow's default.
+        self._goals_enabled = config.goals is not False
         #: Asked as each turn starts for anything said to this agent while no turn was open,
         #: which goes into that turn. Left unset by a flow driven from the command line,
         #: where there is nobody to say anything mid-run.
@@ -1702,6 +1709,23 @@ class AgentBase(ABC):
         looks from inside one: a process killed under a turn is a turn that could not finish.
         """
         return self._stopped
+
+    @property
+    def goals_enabled(self) -> bool:
+        """Whether this agent may be run under a backend goal.
+
+        This is a per-agent runtime policy, distinct from :attr:`pursues`, which says whether
+        the backend has a goal feature at all.
+        """
+        return self._goals_enabled
+
+    def disable_goals(self) -> None:
+        """Prevents this agent and its sessions from starting backend goals.
+
+        Ordinary turns are unaffected. Backends that expose goals outside ``pursue`` may
+        override this to disable the corresponding runtime feature as well.
+        """
+        self._goals_enabled = False
 
     @property
     def backend(self) -> str:

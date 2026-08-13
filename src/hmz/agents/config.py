@@ -118,6 +118,9 @@ class AgentConfig:
         two agents of one CLI, one on a subscription and one on somebody's gateway, are two
         accounts running at once, each refreshing its own token and neither able to read the
         other's -- which is what a provider is for.
+      goals: Whether backend goals are available to this agent, or None to take the workflow's
+        declared default. The terminal picker always resolves this to an explicit on/off
+        choice; None exists for command-line and Python callers that left it to the workflow.
     """
 
     model: str
@@ -126,6 +129,7 @@ class AgentConfig:
     skills: tuple[str, ...] | None = None
     permission: str = "bypass"
     provider: str = ""
+    goals: bool | None = None
 
 
 def anchored(target: str) -> MachineConfig | None:

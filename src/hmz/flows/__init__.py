@@ -77,10 +77,14 @@ class Flow:
       about: One line saying what it does, for whoever is choosing between them. Read off the
         function's own docstring where the decorator was not told one, and off the file's
         where the file is one flow and its function says nothing.
+      goals: Whether agents should start with backend goals available when nobody choosing
+        them has said otherwise. This is a default rather than a requirement: the model
+        picker offers the final on/off choice for each agent.
     """
 
     name: str = ""
     about: str = ""
+    goals: bool = True
 
 
 #: Where a decorated function keeps what it said about itself. On the function rather than in
@@ -95,12 +99,17 @@ def flow[**P, T](call: Callable[P, T], /) -> Callable[P, T]: ...
 
 @overload
 def flow[**P, T](
-    *, name: str = "", about: str = ""
+    *, name: str = "", about: str = "", goals: bool = True
 ) -> Callable[[Callable[P, T]], Callable[P, T]]: ...
 
 
 def flow[**P, T](
-    call: Callable[P, T] | None = None, /, *, name: str = "", about: str = ""
+    call: Callable[P, T] | None = None,
+    /,
+    *,
+    name: str = "",
+    about: str = "",
+    goals: bool = True,
 ) -> Callable[P, T] | Callable[[Callable[P, T]], Callable[P, T]]:
     """Marks a function as a flow. Nothing else is one.
 
@@ -126,6 +135,8 @@ def flow[**P, T](
       name: What to call this one among the flows its file holds, or "" for the one the file
         holds under its own name.
       about: One line saying what it does, defaulting to the first line of its docstring.
+      goals: Whether agents start with backend goals available when whoever chooses them has
+        not made an explicit on/off choice.
 
     Returns:
       The function, unchanged but for what it now says about itself: a flow is called the way
@@ -134,7 +145,11 @@ def flow[**P, T](
     """
 
     def marks(said: Callable[P, T]) -> Callable[P, T]:
-        setattr(said, _SAID, Flow(name=name, about=about or _first(said.__doc__)))
+        setattr(
+            said,
+            _SAID,
+            Flow(name=name, about=about or _first(said.__doc__), goals=goals),
+        )
         return said
 
     return marks if call is None else marks(call)
@@ -209,7 +224,9 @@ def _flows_of(inside: dict[str, Any]) -> list[Flow]:
         # The file's own docstring where the flow it holds says nothing: a file that is one
         # flow is documented as that flow, and its first line is what it does.
         if not marked.name and not marked.about:
-            marked = Flow(name="", about=_first(inside.get("__doc__")))
+            marked = Flow(
+                name="", about=_first(inside.get("__doc__")), goals=marked.goals
+            )
         said.append(marked)
     return [one for one in said if not one.name] + [one for one in said if one.name]
 
