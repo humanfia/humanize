@@ -46,11 +46,11 @@ A flow that owns every continuation can suggest `off` for each agent it declares
 ```python
 from typing import Annotated, NamedTuple
 
-from hmz.agents import AgentBase, GoalsDefault
+from hmz.agents import AgentBase, AgentDefaults
 
 class Agents(NamedTuple):
-    actor: Annotated[AgentBase, GoalsDefault(False)]
-    reviewer: Annotated[AgentBase, GoalsDefault(False)]
+    actor: Annotated[AgentBase, AgentDefaults(goals=False)]
+    reviewer: Annotated[AgentBase, AgentDefaults(goals=False)]
 ```
 
 The marker only supplies the model picker's initial value. `ctrl+g` switches the selected

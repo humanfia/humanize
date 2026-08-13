@@ -38,9 +38,9 @@ with no behaviour on them.
 class Goal: ...
 
 
-@dataclass(frozen=True, slots=True)
-class GoalsDefault:
-    enabled: bool = True
+@dataclass(frozen=True, slots=True, kw_only=True)
+class AgentDefaults:
+    goals: bool = True
 
 
 class Remote: ...
@@ -63,7 +63,7 @@ class AgentConfig:
 ```
 
 - `goals` MUST be the explicit on/off availability of backend goals for this agent. It has
-  no inherited or automatic state. `GoalsDefault` MAY be written beside a flow's agent type
+  no inherited or automatic state. `AgentDefaults` MAY be written beside a flow's agent type
   to suggest its initial picker value, but MUST be resolved into `AgentConfig.goals` before
   the agent is constructed and MUST NOT let the flow change it afterwards.
 

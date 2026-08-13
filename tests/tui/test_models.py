@@ -61,11 +61,11 @@ GOALS_OFF = (
     )
     .replace(
         "from hmz.agents import AgentBase",
-        "from hmz.agents import AgentBase, GoalsDefault",
+        "from hmz.agents import AgentBase, AgentDefaults",
     )
     .replace(
         "builder: AgentBase",
-        "builder: Annotated[AgentBase, GoalsDefault(False)]",
+        "builder: Annotated[AgentBase, AgentDefaults(goals=False)]",
     )
 )
 

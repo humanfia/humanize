@@ -69,13 +69,13 @@ GOALS_OFF = '''"""A loop that owns its continuations unless its agent is set oth
 
 from typing import Annotated
 
-from hmz.agents import AgentBase, GoalsDefault
+from hmz.agents import AgentBase, AgentDefaults
 from hmz.flows import flow
 
 
 @flow
 def run(
-    agents: tuple[Annotated[AgentBase, GoalsDefault(False)]], task: str
+    agents: tuple[Annotated[AgentBase, AgentDefaults(goals=False)]], task: str
 ) -> None:
     (agent,) = agents
     agent(task)
@@ -84,9 +84,10 @@ def run(
 #: A required goal is more specific than an off suggestion and therefore starts on.
 REQUIRED_WHILE_OFF = PURSUING.replace(
     "from hmz.agents import AgentBase, Goal",
-    "from hmz.agents import AgentBase, Goal, GoalsDefault",
+    "from hmz.agents import AgentBase, AgentDefaults, Goal",
 ).replace(
-    "Annotated[AgentBase, Goal]", "Annotated[AgentBase, Goal, GoalsDefault(False)]"
+    "Annotated[AgentBase, Goal]",
+    "Annotated[AgentBase, Goal, AgentDefaults(goals=False)]",
 )
 
 

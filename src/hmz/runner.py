@@ -133,8 +133,8 @@ class Place(NamedTuple):
         said by writing `Annotated[AgentBase, Goal]` where it declared the place. Only three
         backends have one, so a flow built on it is not a flow any agent can drive.
       goals_default: Whether the agent picker initially offers backend goals on or off for
-        this place, which a flow may suggest with `GoalsDefault(False)`. Once selected, the
-        effective value belongs to the agent's config. A required `Goal` always starts on.
+        this place, which a flow may suggest with `AgentDefaults(goals=False)`. Once selected,
+        the effective value belongs to the agent's config. A required `Goal` always starts on.
       where: Where the agent filling it may work, which the flow said the same way -- `Remote`
         for one that may be pointed at another machine, an `Isolated` for one that works in a
         container the flow itself names the image of. None for a place the flow said nothing
@@ -747,13 +747,13 @@ def _goals_default(kind: object) -> bool:
     The suggestion is picker metadata, not runtime policy. The picker resolves it into the
     boolean on `AgentConfig` before constructing the agent.
     """
-    from .agents import GoalsDefault
+    from .agents import AgentDefaults
 
     if get_origin(kind) is not Annotated:
         return True
     for said in get_args(kind)[1:]:
-        if isinstance(said, GoalsDefault):
-            return said.enabled
+        if isinstance(said, AgentDefaults):
+            return said.goals
     return True
 
 

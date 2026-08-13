@@ -14,8 +14,8 @@ if TYPE_CHECKING:
 __all__ = [
     "PERMISSIONS",
     "AgentConfig",
+    "AgentDefaults",
     "Goal",
-    "GoalsDefault",
     "Isolated",
     "Remote",
     "anchored",
@@ -57,18 +57,18 @@ class Goal:
     """
 
 
-@dataclass(frozen=True, slots=True)
-class GoalsDefault:
+@dataclass(frozen=True, slots=True, kw_only=True)
+class AgentDefaults:
     """The initial goal availability offered for one place in a flow.
 
     This is only an input to agent selection. Once an agent is chosen, the effective value
     lives in :attr:`AgentConfig.goals` and can be changed independently in the picker.
 
     Attributes:
-      enabled: Whether a newly selected agent starts with backend goals available.
+      goals: Whether a newly selected agent starts with backend goals available.
     """
 
-    enabled: bool = True
+    goals: bool = True
 
 
 class Remote:
@@ -142,7 +142,7 @@ class AgentConfig:
         accounts running at once, each refreshing its own token and neither able to read the
         other's -- which is what a provider is for.
       goals: Whether backend goals are available to this agent. This is always an explicit
-        on/off setting; a flow may suggest the initial picker value with `GoalsDefault`, but
+        on/off setting; a flow may suggest the initial picker value with `AgentDefaults`, but
         that suggestion is resolved before the agent is constructed.
     """
 
