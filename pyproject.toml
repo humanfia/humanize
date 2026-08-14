@@ -24,7 +24,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dsh = ["deepseek-harness-sdk>=0.1.0rc6,<0.2"]
+dsh = [
+    "deepseek-harness-sdk>=0.1.0rc6,<0.2",
+    "python-dotenv>=1.1",
+]
 
 [project.urls]
 Homepage = "https://github.com/humanfia/humanize2"
@@ -46,6 +49,9 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=6",
     "pytest-timeout>=2.3",
+    # Exercises dsh's dotenv-compatible native configuration without making the SDK
+    # itself part of every development environment.
+    "python-dotenv>=1.1",
     "ruff>=0.16.2",
 ]
 

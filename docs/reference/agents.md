@@ -33,8 +33,9 @@ serves it, and the CLI is asked for the pair.
 
 DeepSeek Harness is an optional Python SDK backend. Install it with the `dsh` extra as shown
 in [Installation](/guide/installation#install-humanize). It supports API-key login only:
-either set `DEEPSEEK_API_KEY` before starting Python, or make a `key` account from `/agents`
-with **ctrl+n** and give its name as `provider`. Then construct it like any other agent:
+leave `provider` empty to use the credentials and base URL saved by dsh (or its environment),
+or make a `key` account from `/agents` with **ctrl+n** and give its name as `provider`. Then
+construct it like any other agent:
 
 ```python
 from hmz.agents import DshAgent, DshAgentConfig

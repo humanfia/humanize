@@ -8,8 +8,10 @@ from __future__ import annotations
 import contextlib
 import importlib
 import importlib.resources
+import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -18,6 +20,8 @@ import weakref
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol, Self, cast
+
+import yaml
 
 from .base import AgentBase, SessionBase
 from .config import AgentConfig
@@ -33,14 +37,17 @@ __all__ = ["DshAgent", "DshAgentConfig", "DshSession"]
 _EFFORTS = ("max", "high", "off")
 _EFFORT_ENV = "HMZ_DSH_EFFORT"
 _REQUEST_SECONDS = 180.0
+_API_KEY_ENV = "DEEPSEEK_API_KEY"
+_BASE_URL_ENV = "DEEPSEEK_BASE_URL"
+_REF = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _EXTRA = (
     "DeepSeek Harness is not installed in this Python environment; install humanize "
     "with its dsh extra: pip install 'hmz[dsh]'"
 )
 _KEY_REQUIRED = (
-    "DeepSeek Harness only supports API-key login and needs a DeepSeek API key. In hmz, "
-    "open /agents, switch to dsh, press ctrl+n, and create a key account; or set "
-    "DEEPSEEK_API_KEY before starting hmz."
+    "DeepSeek Harness only supports API-key login and needs a DeepSeek API key. Save one "
+    "in dsh under Settings -> Models; in hmz, open /agents, switch to dsh, press ctrl+n, "
+    "and create a key account; or set DEEPSEEK_API_KEY before starting hmz."
 )
 _GOAL = "Use create_goal to pursue this objective until it is complete:\n\n{}"
 
@@ -77,6 +84,16 @@ class _Harness(Protocol):
     def start(self) -> None: ...
 
     def close(self) -> None: ...
+
+
+class _ObjectLoader(Protocol):
+    """The typed part of PyYAML's loader used by duplicate-key validation."""
+
+    def construct_object(
+        self,
+        node: yaml.Node,
+        deep: bool = False,  # noqa: FBT001, FBT002 -- mirrors PyYAML's method
+    ) -> object: ...
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -277,15 +294,12 @@ class DshSession(SessionBase):
             raise ValueError("dsh does not support selecting skills per agent")
 
     def _require_key(self, session_id: str) -> None:
-        """Refuses a turn before startup when its selected account has no API key."""
+        """Refuses an explicitly selected account that cannot authenticate dsh."""
         provider = self._agent.provider
         if provider is None:
-            key = os.environ.get("DEEPSEEK_API_KEY", "")
-        elif provider.way == "key":
-            key = provider.env.get("DEEPSEEK_API_KEY", "")
-        else:
-            key = ""
-        if not key.strip():
+            return
+        key = provider.env.get(_API_KEY_ENV, "")
+        if provider.way != "key" or not key.strip():
             raise subprocess.CalledProcessError(
                 1, ["dsh", session_id], output="", stderr=_KEY_REQUIRED
             )
@@ -309,7 +323,11 @@ class DshSession(SessionBase):
                     "env is required to isolate dsh provider credentials"
                 )
             launch = [env, *(part for name in hushed for part in ("-u", name)), *launch]
-        environment = dict(self._agent.environment())
+        environment = (
+            _native_dsh_environment(Path(where))
+            if self._agent.provider is None
+            else dict(self._agent.environment())
+        )
         environment[_EFFORT_ENV] = effort
         harness = harness_type(
             provider="deepseek-official",
@@ -380,6 +398,176 @@ def _dsh_home() -> Path:
     )
 
 
+class _UniqueSafeLoader(yaml.SafeLoader):
+    """A safe YAML loader that refuses silently shadowed duplicate keys."""
+
+
+def _unique_mapping(
+    loader: yaml.SafeLoader, node: yaml.MappingNode, *, deep: bool = False
+) -> dict[object, object]:
+    """Constructs one mapping while rejecting duplicate or unhashable keys."""
+    loader.flatten_mapping(node)
+    construct = cast("_ObjectLoader", loader).construct_object
+    held: dict[object, object] = {}
+    for key_node, value_node in node.value:
+        key = construct(key_node, deep)
+        try:
+            duplicate = key in held
+        except TypeError as why:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                "found an unhashable key",
+                key_node.start_mark,
+            ) from why
+        if duplicate:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                "found a duplicate key",
+                key_node.start_mark,
+            )
+        held[key] = construct(value_node, deep)
+    return held
+
+
+_UniqueSafeLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _unique_mapping
+)
+
+
+def _native_dsh_environment(where: Path) -> dict[str, str]:
+    """Resolves the settings and credential layers used by an installed dsh."""
+    home = _dsh_home()
+    settings = _yaml_mapping(home / "settings.yaml", "settings")
+    raw_section = settings.get("llm-deepseek", {})
+    if not isinstance(raw_section, dict):
+        raise ValueError(  # noqa: TRY004 -- all configuration errors share one API
+            f"dsh settings at {home / 'settings.yaml'} must give "
+            '"llm-deepseek" a mapping'
+        )
+    section = cast("dict[object, object]", raw_section)
+    raw_ref = section.get("apiKeyEnv", _API_KEY_ENV)
+    if not isinstance(raw_ref, str) or _REF.fullmatch(raw_ref) is None:
+        raise ValueError(
+            f"dsh settings at {home / 'settings.yaml'} have an invalid "
+            '"llm-deepseek.apiKeyEnv"'
+        )
+
+    credentials = _credentials(home / ".credentials.yaml")
+    project_env = _dotenv(where / ".env")
+    user_env = {} if home == where else _dotenv(home / ".env")
+    key = _nonempty(os.environ, raw_ref)
+    if key is None:
+        key = credentials.get(raw_ref)
+    if key is None:
+        key = _nonempty(project_env, raw_ref)
+    if key is None:
+        key = _nonempty(user_env, raw_ref)
+
+    environment = {_API_KEY_ENV: key or ""}
+    if "baseURL" in section:
+        base_url = section["baseURL"]
+        if not isinstance(base_url, str):
+            raise ValueError(
+                f"dsh settings at {home / 'settings.yaml'} must give "
+                '"llm-deepseek.baseURL" a string'
+            )
+        environment[_BASE_URL_ENV] = base_url
+    else:
+        base_url = _layered(os.environ, project_env, user_env, name=_BASE_URL_ENV)
+        if base_url is not None:
+            environment[_BASE_URL_ENV] = base_url
+    return environment
+
+
+def _yaml_mapping(path: Path, kind: str) -> dict[object, object]:
+    """Reads one optional YAML mapping without echoing its possibly secret source."""
+    try:
+        source = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return {}
+    except (OSError, UnicodeError):
+        raise ValueError(f"dsh could not read {kind} at {path}") from None
+    try:
+        loaded = yaml.load(source, Loader=_UniqueSafeLoader)  # noqa: S506
+    except yaml.YAMLError as why:
+        mark = getattr(why, "problem_mark", None)
+        location = (
+            f" at line {mark.line + 1}, column {mark.column + 1}"
+            if mark is not None
+            else ""
+        )
+        raise ValueError(f"dsh {kind} at {path} is invalid YAML{location}") from None
+    if loaded is None:
+        return {}
+    if not isinstance(loaded, dict):
+        raise ValueError(  # noqa: TRY004 -- all configuration errors share one API
+            f"dsh {kind} at {path} must be a mapping"
+        )
+    return cast("dict[object, object]", loaded)
+
+
+def _credentials(path: Path) -> dict[str, str]:
+    """Reads dsh's owner-only credential mapping and validates every entry."""
+    try:
+        mode = path.stat().st_mode
+    except FileNotFoundError:
+        return {}
+    except OSError:
+        raise ValueError(f"dsh could not inspect credentials at {path}") from None
+    if os.name != "nt" and mode & 0o077:
+        raise ValueError(
+            f"dsh credentials at {path} are readable beyond their owner; "
+            f'run "chmod 600 {path}" before starting again'
+        )
+    raw = _yaml_mapping(path, "credentials")
+    credentials: dict[str, str] = {}
+    for ref, value in raw.items():
+        if not isinstance(ref, str) or _REF.fullmatch(ref) is None:
+            raise ValueError(
+                f"dsh credentials at {path} contain an invalid credential reference"
+            )
+        if not isinstance(value, str):
+            raise ValueError(  # noqa: TRY004 -- all configuration errors share one API
+                f'dsh credentials at {path} must give "{ref}" a string value'
+            )
+        if not value:
+            raise ValueError(
+                f'dsh credentials at {path} give "{ref}" an empty value; '
+                "remove the entry instead"
+            )
+        credentials[ref] = value
+    return credentials
+
+
+def _dotenv(path: Path) -> dict[str, str]:
+    """Reads one optional dotenv layer without interpolation or process mutation."""
+    try:
+        source = path.read_text(encoding="utf-8")
+    except (FileNotFoundError, OSError, UnicodeError):
+        return {}
+    try:
+        from dotenv import dotenv_values
+    except ModuleNotFoundError as why:
+        if why.name != "dotenv":
+            raise
+        raise ModuleNotFoundError(_EXTRA) from why
+    values = dotenv_values(stream=io.StringIO(source), interpolate=False)
+    return {name: value for name, value in values.items() if value is not None}
+
+
+def _nonempty(values: Mapping[str, str], name: str) -> str | None:
+    """Returns a present nonempty credential value from one layer."""
+    value = values.get(name)
+    return value or None
+
+
+def _layered(*layers: Mapping[str, str], name: str) -> str | None:
+    """Returns the first layer's value for a setting, including an empty one."""
+    return next((layer[name] for layer in layers if name in layer), None)
+
+
 def _notification(notification: object) -> tuple[str, Mapping[str, Any]]:
     """Reads one SDK notification without importing its optional model type."""
     method = getattr(notification, "method", "")
@@ -444,9 +632,12 @@ def _failed(
 ) -> subprocess.CalledProcessError:
     """Turns a non-completed dsh turn end into the common turn failure."""
     held = reason or {}
-    error = _mapping(held.get("error"))
-    detail = error.get("message")
-    why = str(detail) if isinstance(detail, str) and detail else json.dumps(held)
+    error = _mapping(held.get("error") or held.get("failure"))
+    if error.get("code") == "MISSING_CREDENTIAL":
+        why = _KEY_REQUIRED
+    else:
+        detail = error.get("message")
+        why = str(detail) if isinstance(detail, str) and detail else json.dumps(held)
     return subprocess.CalledProcessError(
         1,
         ["dsh", session_id],

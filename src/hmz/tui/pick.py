@@ -24,7 +24,6 @@ a rule across, fields down the left and their values lined up beside them.
 from __future__ import annotations
 
 import contextlib
-import os
 import shlex
 import sys
 import time
@@ -2299,15 +2298,14 @@ class RunsAs(Sheet[Whose]):
         return [
             # Two words for the account nobody chose: this is a row in a list of accounts, and
             # what it is is the one the CLI is already signed in as.
-            *(
-                [("", "as installed", "using DEEPSEEK_API_KEY from this environment")]
-                if backend == "dsh" and os.environ.get("DEEPSEEK_API_KEY", "").strip()
-                else []
-            ),
-            *(
-                [("", "as installed", "signed in as you signed it in")]
-                if backend != "dsh"
-                else []
+            (
+                "",
+                "as installed",
+                (
+                    "using credentials and the base URL saved by dsh, or this environment"
+                    if backend == "dsh"
+                    else "signed in as you signed it in"
+                ),
             ),
             *((one.name, one.name, _sets(one)) for one in found),
         ]
@@ -2737,6 +2735,22 @@ class Signing(Sheet[Signs]):
         else:
             return
         event.prevent_default()
+        event.stop()
+        self._wrong = ""
+        self._fill()
+
+    def on_paste(self, event: events.Paste) -> None:
+        """Pastes an answer into the question under the cursor."""
+        if not self._fields or not event.text:
+            event.stop()
+            return
+        held = self._fields[self._at][0]
+        pasted = event.text.replace("\r\n", "\n").replace("\r", "\n")
+        if held != _TYPED:
+            # A clipboard commonly ends in a newline. Single-value fields follow
+            # Textual Input and take one line; only the free-form env row is multiline.
+            pasted = pasted.split("\n", 1)[0]
+        self._typed_in[held] = self._typed_in.get(held, "") + pasted
         event.stop()
         self._wrong = ""
         self._fill()

@@ -36,9 +36,21 @@ uv tool install 'hmz[dsh] @ git+https://github.com/humanfia/humanize2.git'
 If the tool is already installed without DeepSeek, add `--force` to that command. The `dsh`
 tab in `/agents` also shows an environment-specific command until the SDK is present.
 
-DeepSeek Harness uses API-key login only. After reopening `hmz`, type `/agents`, switch to
-`dsh`, press **ctrl+n**, choose `key`, and enter an account name and the key. Or set it only
-for the process that starts humanize:
+DeepSeek Harness uses API-key login only. To configure it with DeepSeek's own UI, install its
+launcher (Node.js is required), start it, and open the URL it prints:
+
+```sh
+npm install --global @deepseek-ai/dsh
+dsh web
+```
+
+You can run `npx @deepseek-ai/dsh web` instead of installing the launcher globally. Open
+**Settings -> Models**, enter the DeepSeek API key, and save. After reopening `hmz`, type
+`/agents`, switch to `dsh`, and choose `as installed`; humanize then uses the credentials and
+base URL already saved by dsh.
+
+Alternatively, press **ctrl+n** on the `dsh` tab, choose `key`, and enter an account name and
+the key. Or set it only for the process that starts humanize:
 
 ```sh
 export DEEPSEEK_API_KEY=sk-…
@@ -154,7 +166,15 @@ hmz exec -f ralph_loop -a claude/claude-opus-4-8:high "fix the failing tests"
   in the order the flow takes them — `official/rlar` drives two, so it takes two `-a`.
 - The last argument is the task.
 
-DeepSeek Harness uses the same agent spelling. With the environment setup above:
+DeepSeek Harness uses the same agent spelling. With dsh's saved configuration, no environment
+prefix is needed:
+
+```sh
+hmz exec -f ralph_loop \
+    -a dsh/deepseek-v4-flash:high "fix the failing tests"
+```
+
+With the environment setup above instead:
 
 ```sh
 DEEPSEEK_API_KEY=sk-… hmz exec -f ralph_loop \

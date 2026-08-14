@@ -81,6 +81,16 @@ uv sync --extra dsh
 Then reopen `hmz`. Before the SDK is installed, the `dsh` tab in `/agents` also prints a
 command that targets the exact Python environment running `hmz`.
 
+The Python extra is all humanize needs to run DeepSeek Harness. DeepSeek's own `dsh` launcher
+is useful for its Web configuration UI and is installed separately with Node.js:
+
+```sh
+npm install --global @deepseek-ai/dsh
+dsh web
+```
+
+For a one-off run without a global install, use `npx @deepseek-ai/dsh web`.
+
 ## Check what you have
 
 humanize can run the backends installed in its environment. Check the CLI backends with:
@@ -111,16 +121,21 @@ Each CLI is logged into its own way. humanize never sees the credential:
 | pi | `/login`, inside `pi` |
 | opencode | `opencode auth login` |
 | mimocode | `mimo auth login` |
-| DeepSeek Harness | a DeepSeek API key, stored from `/agents` or supplied as `DEEPSEEK_API_KEY` |
+| DeepSeek Harness | a DeepSeek API key saved by dsh, stored from `/agents`, or supplied as `DEEPSEEK_API_KEY` |
 
 DeepSeek Harness is currently a developer preview. The `dsh` extra installs
 `deepseek-harness-sdk>=0.1.0rc6,<0.2` and its bundled runtime; the published runtime wheels
 support Linux on x86-64 or arm64 and macOS on arm64. It does not require the `dsh` CLI.
 
-DeepSeek Harness supports API-key login only. To keep the key in humanize's provider store,
-open `hmz`, type `/agents`, switch to the `dsh` tab, press **ctrl+n**, choose `key`, and enter
-an account name and the key. The same account can be made from a terminal; this command asks
-for the key without putting it in the command itself:
+DeepSeek Harness supports API-key login only. To use dsh's own credential store, run `dsh web`,
+open **Settings -> Models**, enter the DeepSeek key, and save it. In humanize, type `/agents`,
+switch to `dsh`, and choose `as installed`. That choice uses dsh's normal configuration sources:
+the saved key and any `llm-deepseek.baseURL` in `$DSH_HOME/settings.yaml`, then its environment
+layers. `$DSH_HOME` defaults to `~/.dsh`.
+
+To keep a separate key in humanize's provider store instead, press **ctrl+n** on the `dsh` tab,
+choose `key`, and enter an account name and the key. The same account can be made from a
+terminal; this command asks for the key without putting it in the command itself:
 
 ```sh
 hmz providers add dsh/deepseek -w key
@@ -132,10 +147,11 @@ An agent using that stored account is written with `@deepseek`:
 hmz exec -f chat -a dsh@deepseek/deepseek-v4-flash:high "hello"
 ```
 
-Alternatively, set the key in the environment before starting `hmz`:
+Alternatively, set the key and optional endpoint in the environment before starting `hmz`:
 
 ```sh
 export DEEPSEEK_API_KEY=sk-…
+export DEEPSEEK_BASE_URL=https://api.deepseek.com
 hmz
 ```
 

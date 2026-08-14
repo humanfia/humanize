@@ -13,6 +13,7 @@ import unittest.mock
 from typing import TYPE_CHECKING
 
 import pytest
+from textual import events
 from textual.widgets import Label, OptionList, Static
 
 from hmz import providers
@@ -222,6 +223,39 @@ async def test_a_secret_is_never_drawn_back(signed_in: unittest.mock.MagicMock) 
     assert made.env == {"ANTHROPIC_API_KEY": "sk-secret"}
     # A way that is only answers has already happened, having been written down.
     assert signed_in.call_count == 0
+
+
+@pytest.mark.timeout(60)
+async def test_a_pasted_secret_is_stored_without_its_trailing_newline() -> None:
+    app = Humanize()
+    async with app.run_test() as driver:
+        await driver.press(*"/providers")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Providers), driver)
+        await driver.press("a")
+        await until(lambda: isinstance(app.screen, Backends), driver)
+        backends = app.screen.query_one("#choices", OptionList)
+        ids = [str(option.id) for option in backends.options]
+        for _ in range(ids.index("=dsh")):
+            await driver.press("down")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Ways), driver)
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Signing), driver)
+        form = app.screen.query_one("#choices", OptionList)
+        await driver.press(*"mine")
+        await driver.press("down")
+        form.post_message(events.Paste("sk-pasted\r\nignored"))
+        await driver.pause()
+        rows = [str(option.prompt) for option in form.options]
+        assert all("sk-pasted" not in row for row in rows)
+        assert any("•" * len("sk-pasted") in row for row in rows)
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Providers), driver)
+
+    made = providers.find("dsh", "mine")
+    assert made is not None
+    assert made.env == {"DEEPSEEK_API_KEY": "sk-pasted"}
 
 
 @pytest.mark.timeout(60)

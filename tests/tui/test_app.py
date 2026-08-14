@@ -16,6 +16,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
 import pytest
+from textual import events
 from textual.widgets import Label, OptionList, Static
 
 from hmz.agents import PERMISSIONS, DshSession
@@ -1369,7 +1370,15 @@ async def test_deepseek_is_selectable_from_agents(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    dsh_home = tmp_path / "dsh-home"
+    dsh_home.mkdir()
+    (dsh_home / ".credentials.yaml").write_text("DEEPSEEK_API_KEY: saved-key\n")
+    (dsh_home / ".credentials.yaml").chmod(0o600)
+    (dsh_home / "settings.yaml").write_text(
+        "llm-deepseek:\n  baseURL: https://deepseek.example/v1\n"
+    )
+    monkeypatch.setenv("DSH_HOME", str(dsh_home))
     goal = tmp_path / "goal.py"
     goal.write_text(
         """
@@ -1400,6 +1409,7 @@ def run(agents: Agents, task: str) -> None:
         accounts = app.screen.query_one("#choices", OptionList)
         assert [str(option.id) for option in accounts.options] == ["="]
         assert "as installed" in str(accounts.get_option_at_index(0).prompt)
+        assert "saved by dsh" in str(accounts.get_option_at_index(0).prompt)
 
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Models), driver)
@@ -1451,13 +1461,8 @@ async def test_deepseek_has_only_api_key_login_after_switching_from_kimi(
         await driver.press("left")
         await driver.pause()
         assert "[b $primary]dsh" in str(app.screen.query_one("#tabs", Label).content)
-        assert not listing.options
-        hint = str(app.screen.query_one("#tuning", Label).content)
-        assert "needs an API key" in hint
-
-        await driver.press("enter")
-        await driver.pause()
-        assert isinstance(app.screen, RunsAs)
+        assert [str(option.id) for option in listing.options] == ["="]
+        assert "saved by dsh" in str(listing.get_option_at_index(0).prompt)
 
         await driver.press("ctrl+n")
         await until(lambda: isinstance(app.screen, Ways), driver)
@@ -1482,7 +1487,8 @@ async def test_deepseek_has_only_api_key_login_after_switching_from_kimi(
         ]
         await driver.press(*"mine")
         await driver.press("down")
-        await driver.press(*"test-key")
+        form.post_message(events.Paste("test-key\n"))
+        await driver.pause()
         await driver.press("enter")
 
         await until(lambda: isinstance(app.screen, Models), driver)

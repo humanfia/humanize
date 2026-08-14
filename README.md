@@ -43,6 +43,13 @@ pip install 'hmz[dsh] @ git+https://github.com/humanfia/humanize2.git'
 uv tool install 'hmz[dsh] @ git+https://github.com/humanfia/humanize2.git'
 ```
 
+To install DeepSeek's own `dsh` launcher and configuration UI (Node.js required):
+
+```sh
+npm install --global @deepseek-ai/dsh
+dsh web
+```
+
 Needs Python ≥ 3.12 and at least one supported backend: `claude`, `codex`, `kimi`, `pi`,
 `opencode` or `mimo` on your PATH, or the `dsh` extra above. See
 [Installation](https://humanfia.github.io/humanize2/guide/installation).
@@ -55,9 +62,10 @@ To use the TUI:
 hmz
 ```
 
-After installing the `dsh` extra, DeepSeek Harness takes an API key and no subscription
-login. In the TUI, type `/agents`, switch to `dsh`, press **ctrl+n**, and make a `key`
-account. Or set the key before opening humanize:
+DeepSeek Harness takes an API key and no subscription login. Run `dsh web`, save the key
+under **Settings -> Models**, then type `/agents` in humanize, switch to `dsh`, and choose
+`as installed`. This also uses the base URL saved in dsh. Alternatively, press **ctrl+n**
+there to make a humanize `key` account, or set the key before opening humanize:
 
 ```sh
 export DEEPSEEK_API_KEY=sk-…

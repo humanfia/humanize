@@ -127,9 +127,10 @@ def completed(turn: int = 1) -> tuple[str, dict[str, Any]]:
 
 
 @pytest.fixture(autouse=True)
-def sdk(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+def sdk(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     Harness.made.clear()
     Harness.next_scripts.clear()
+    monkeypatch.setenv("DSH_HOME", str(tmp_path / "dsh-home"))
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
     monkeypatch.setattr(dsh, "_harness_type", lambda: Harness)
     monkeypatch.setattr(dsh, "_runtime_args", lambda: ("/opt/dsh-runtime",))
@@ -151,6 +152,21 @@ def configured(
         skills=skills,
         provider=provider,
     )
+
+
+def native_dsh_files(
+    tmp_path: Path, *, credentials: str = "", settings: str = ""
+) -> Path:
+    """Writes the two files the dsh Models page owns."""
+    home = tmp_path / "dsh-home"
+    home.mkdir(exist_ok=True)
+    if credentials:
+        saved = home / ".credentials.yaml"
+        saved.write_text(credentials, encoding="utf-8")
+        saved.chmod(0o600)
+    if settings:
+        (home / "settings.yaml").write_text(settings, encoding="utf-8")
+    return home
 
 
 def test_dsh_is_a_public_driven_agent() -> None:
@@ -380,10 +396,27 @@ def test_an_explicit_skill_selection_the_sdk_cannot_enforce_is_refused() -> None
     assert Harness.made == []
 
 
-def test_a_missing_api_key_fails_before_runtime_start_and_reaches_watchers(
+def test_a_missing_native_api_key_failure_reaches_watchers_with_setup_guidance(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("DEEPSEEK_API_KEY")
+    Harness.next_scripts.append(
+        [
+            (
+                "turn/end",
+                {
+                    "turn": 1,
+                    "reason": {
+                        "kind": "error",
+                        "error": {
+                            "message": "no credential resolved for DEEPSEEK_API_KEY",
+                            "code": "MISSING_CREDENTIAL",
+                        },
+                    },
+                },
+            )
+        ]
+    )
     agent = DshAgent(configured())
     heard: list[tuple[str, str]] = []
     agent.watch(lambda _agent, _session, event: heard.append((event.kind, event.text)))
@@ -393,7 +426,126 @@ def test_a_missing_api_key_fails_before_runtime_start_and_reaches_watchers(
     failed = [text for kind, text in heard if kind == "failed"]
     assert len(failed) == 1
     assert "needs a DeepSeek API key" in failed[0]
+    assert "Settings -> Models" in failed[0]
     assert "ctrl+n" in failed[0]
+    assert len(Harness.made) == 1
+
+
+def test_native_dsh_credentials_do_not_require_an_ambient_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY")
+    monkeypatch.delenv("DEEPSEEK_BASE_URL", raising=False)
+    native_dsh_files(
+        tmp_path,
+        credentials="DEEPSEEK_API_KEY: saved-by-dsh\n",
+        settings=("llm-deepseek:\n  baseURL: https://deepseek.example/v1\n"),
+    )
+    Harness.next_scripts.append([assistant("done"), completed()])
+
+    assert DshAgent(configured()).new(tmp_path)("hello") == "done"
+
+    assert Harness.made[0].config["env"] == {
+        "DEEPSEEK_API_KEY": "saved-by-dsh",
+        "DEEPSEEK_BASE_URL": "https://deepseek.example/v1",
+        "HMZ_DSH_EFFORT": "high",
+    }
+
+
+def test_inherited_key_wins_while_dsh_settings_base_url_wins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "inherited-key")
+    monkeypatch.setenv("DEEPSEEK_BASE_URL", "https://ambient.example")
+    native_dsh_files(
+        tmp_path,
+        credentials="DEEPSEEK_API_KEY: stored-key\n",
+        settings="llm-deepseek:\n  baseURL: https://saved.example\n",
+    )
+    Harness.next_scripts.append([assistant("done"), completed()])
+
+    assert DshAgent(configured()).new(tmp_path)("hello") == "done"
+
+    environment = cast("dict[str, str]", Harness.made[0].config["env"])
+    assert environment["DEEPSEEK_API_KEY"] == "inherited-key"
+    assert environment["DEEPSEEK_BASE_URL"] == "https://saved.example"
+
+
+def test_custom_dsh_credential_reference_is_injected_for_the_bundled_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY")
+    native_dsh_files(
+        tmp_path,
+        credentials="MY_DEEPSEEK_KEY: custom-key\n",
+        settings="llm-deepseek:\n  apiKeyEnv: MY_DEEPSEEK_KEY\n",
+    )
+    Harness.next_scripts.append([assistant("done"), completed()])
+
+    assert DshAgent(configured()).new(tmp_path)("hello") == "done"
+
+    environment = cast("dict[str, str]", Harness.made[0].config["env"])
+    assert environment["DEEPSEEK_API_KEY"] == "custom-key"
+
+
+def test_dsh_dotenv_fallback_prefers_the_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY")
+    home = native_dsh_files(
+        tmp_path,
+        settings="llm-deepseek:\n  apiKeyEnv: MY_DEEPSEEK_KEY\n",
+    )
+    (home / ".env").write_text("MY_DEEPSEEK_KEY=user-key\n", encoding="utf-8")
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / ".env").write_text("MY_DEEPSEEK_KEY='project-key'\n", encoding="utf-8")
+    Harness.next_scripts.append([assistant("done"), completed()])
+
+    assert DshAgent(configured()).new(project)("hello") == "done"
+
+    environment = cast("dict[str, str]", Harness.made[0].config["env"])
+    assert environment["DEEPSEEK_API_KEY"] == "project-key"
+
+
+@pytest.mark.parametrize(
+    ("document", "secret"),
+    [
+        ("DEEPSEEK_API_KEY: [secret-in-a-list]\n", "secret-in-a-list"),
+        ("DEEPSEEK_API_KEY: [unterminated-secret\n", "unterminated-secret"),
+        (
+            "DEEPSEEK_API_KEY: first-secret\nDEEPSEEK_API_KEY: second-secret\n",
+            "second-secret",
+        ),
+    ],
+)
+def test_invalid_dsh_credentials_fail_without_leaking_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    document: str,
+    secret: str,
+) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY")
+    native_dsh_files(tmp_path, credentials=document)
+
+    with pytest.raises(ValueError, match="dsh credentials") as raised:
+        DshAgent(configured()).new(tmp_path)("hello")
+
+    assert secret not in str(raised.value)
+    assert Harness.made == []
+
+
+@pytest.mark.skipif(dsh.os.name == "nt", reason="POSIX permissions only")
+def test_dsh_rejects_credentials_readable_by_other_users(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("DEEPSEEK_API_KEY")
+    home = native_dsh_files(tmp_path, credentials="DEEPSEEK_API_KEY: exposed-key\n")
+    (home / ".credentials.yaml").chmod(0o644)
+
+    with pytest.raises(ValueError, match="chmod 600"):
+        DshAgent(configured()).new(tmp_path)("hello")
+
     assert Harness.made == []
 
 
@@ -460,6 +612,14 @@ def test_provider_environment_reaches_the_sdk_runtime(
     assert launch[0].endswith("/env")
     assert launch[1:] == ("-u", "DEEPSEEK_BASE_URL", "/opt/dsh-runtime")
     assert made["request_timeout_seconds"] == 180.0
+
+
+def test_the_runtime_composition_uses_only_plugins_bundled_with_the_sdk() -> None:
+    cordis = dsh.importlib.resources.files("hmz.agents").joinpath("dsh.cordis.yml")
+    configured_plugins = cordis.read_text()
+
+    assert "@deepseek-ai/dsh-settings-file" not in configured_plugins
+    assert "@deepseek-ai/dsh-credentials-local" not in configured_plugins
 
 
 def test_missing_sdk_names_the_extra(monkeypatch: pytest.MonkeyPatch) -> None:
