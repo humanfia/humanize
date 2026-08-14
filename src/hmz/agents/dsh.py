@@ -334,7 +334,9 @@ class DshSession(SessionBase):
             model=self._agent.config.model,
             cwd=where,
             runtime_cwd=where,
-            session_root=str(_dsh_home() / "sessions"),
+            # Official dsh owns `sessions` with zstd compression. Keep the SDK's
+            # uncompressed logs elsewhere so both runtimes can share one DSH_HOME.
+            session_root=str(_dsh_home() / "hmz-sessions"),
             cordis=str(
                 importlib.resources.files("hmz.agents").joinpath("dsh.cordis.yml")
             ),

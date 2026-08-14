@@ -458,9 +458,9 @@ PROFILES = (
         home_var="DSH_HOME",
         home_dir=".dsh",
         # The Python SDK's bundled JSONL persistence groups sessions under one project
-        # directory. humanize's composition keeps these logs uncompressed so the running
-        # tally can read complete rows as they land.
-        logs=("sessions/*/{ident}/session.jsonl",),
+        # directory. humanize keeps its uncompressed logs outside dsh's zstd `sessions`
+        # root so the two runtimes can share a home without mixing encodings.
+        logs=("hmz-sessions/*/{ident}/session.jsonl",),
         efforts=_DSH,
         ambient=("DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL"),
         ways=(

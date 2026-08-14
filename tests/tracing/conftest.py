@@ -374,7 +374,7 @@ def dsh_home(
 ) -> pathlib.Path:
     """Builds a DeepSeek Harness home with one tool-using session."""
     home = tmp_path / "dsh"
-    log = home / "sessions" / "--workspace--" / DSH_SESSION / "session.jsonl"
+    log = home / "hmz-sessions" / "--workspace--" / DSH_SESSION / "session.jsonl"
     _write(
         log,
         [

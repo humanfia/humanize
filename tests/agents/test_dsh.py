@@ -608,6 +608,7 @@ def test_provider_environment_reaches_the_sdk_runtime(
         "HMZ_DSH_EFFORT": "high",
     }
     assert made["cwd"] == str(tmp_path)
+    assert made["session_root"] == str(tmp_path / "dsh-home" / "hmz-sessions")
     launch = cast("tuple[str, ...]", made["launch_args_override"])
     assert launch[0].endswith("/env")
     assert launch[1:] == ("-u", "DEEPSEEK_BASE_URL", "/opt/dsh-runtime")

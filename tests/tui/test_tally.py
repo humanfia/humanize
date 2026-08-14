@@ -168,7 +168,12 @@ def test_a_codex_thread_is_counted_from_the_rollout_it_writes(home: Path) -> Non
 
 def test_a_dsh_session_is_counted_from_its_assistant_messages(home: Path) -> None:
     log = (
-        home / "dsh_home" / "sessions" / "--tmp-work--" / "session-d1" / "session.jsonl"
+        home
+        / "dsh_home"
+        / "hmz-sessions"
+        / "--tmp-work--"
+        / "session-d1"
+        / "session.jsonl"
     )
     _rows(
         log,

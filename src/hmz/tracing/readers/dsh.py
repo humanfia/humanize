@@ -39,7 +39,7 @@ def collect(
     """Collects the DeepSeek Harness sessions and descendants asked for.
 
     Args:
-        home: Humanize's DeepSeek Harness home containing the sessions folder.
+        home: Humanize's DeepSeek Harness home containing the hmz-sessions folder.
         workspace: Absolute workspace path to keep, or None for every workspace.
         sessions: Session ids to keep, or None to keep every session.
         window: Inclusive epoch second bounds used to cut off records.
@@ -48,7 +48,7 @@ def collect(
         One session per durable JSONL log, with descendants linked to their parent.
     """
     logs: dict[str, tuple[pathlib.Path, dict[str, Any]]] = {}
-    for path in sorted((home / "sessions").glob("*/*/session.jsonl")):
+    for path in sorted((home / "hmz-sessions").glob("*/*/session.jsonl")):
         header = _header(path)
         ident = header.get("id")
         cwd = header.get("cwd")
