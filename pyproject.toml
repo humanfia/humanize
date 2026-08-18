@@ -13,8 +13,15 @@ dependencies = [
     "dateparser>=1.4.2",
     # DeepSeek Harness is driven through its own Python SDK, which also brings the runtime
     # its turns are taken on. An ordinary dependency rather than an extra: a backend humanize
-    # drives is not a thing an install should be able to have half of.
-    "deepseek-harness-sdk>=0.1.1rc1,<0.2",
+    # drives is not a thing an install should be able to have half of. Held below 0.1.2
+    # because the next version published is a redesign of the exact surface this driver
+    # drives: `cordis`, `session_root` and `launch_args_override` are gone from
+    # `DeepSeekHarnessConfig` as of 0.1.2a3, replaced by `profile`, `patches`, `dsh_home` and
+    # `dsh_bin`, and effort stops being smuggled through the environment and becomes a field
+    # of its own. That class refuses a keyword it does not know, so the widening would not be
+    # a backend that behaves oddly, it would be one that cannot start a session at all.
+    # Widen this only together with the port in `coganchor/agents/dsh.py`.
+    "deepseek-harness-sdk>=0.1.1rc1,<0.1.2",
     # A flow says what it can be configured with by declaring a model, and the menu that
     # asks is read off that model: the types, the bounds and the combinations a flow
     # refuses are all written once, where the flow declares them.

@@ -103,7 +103,7 @@ Each CLI logs in its own way. humanize never sees the credential:
 | DeepSeek Harness | a DeepSeek API key saved by dsh, stored from an agent's `provider` row, or supplied as `DEEPSEEK_API_KEY` |
 
 DeepSeek Harness is a developer preview and **arrives with humanize**:
-`deepseek-harness-sdk>=0.1.0rc6,<0.2` and its bundled runtime are ordinary dependencies rather
+`deepseek-harness-sdk>=0.1.1rc1,<0.1.2` and its bundled runtime are ordinary dependencies rather
 than an extra, because a backend humanize drives is not a thing an install should be able to
 have half of. The runtime wheels are published for Linux on x86-64 or arm64 and macOS on arm64.
 The `dsh` CLI is not required.

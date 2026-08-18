@@ -289,7 +289,9 @@ agent = DshAgent(DshAgentConfig(model="deepseek-v4-flash", effort="high"))
 ```
 
 It also offers `deepseek-v4-pro`. The SDK and bundled runtime are currently a developer
-preview; humanize supports `deepseek-harness-sdk>=0.1.0rc6,<0.2`.
+preview; humanize supports `deepseek-harness-sdk>=0.1.1rc1,<0.1.2`. The ceiling is not
+caution about a preview but a wall: 0.1.2a3 redesigned the configuration this driver is
+written against, and the class it replaced it with refuses a keyword it does not know.
 
 Its runtime composition turns on the runtime's own automatic compaction, at the plugin's
 default threshold of 0.8 of the model's context window. One conversation driven for long
