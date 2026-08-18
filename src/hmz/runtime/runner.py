@@ -462,6 +462,7 @@ def flow_and_agents(
     # Only now that the line is known to name agents: `--help` has already exited, and it
     # should not have paid for three backends to say what it takes.
     from hmz.coganchor.agents import driver
+    from hmz.coganchor.agents.base import identifying
 
     agents: list[AgentBase] = []
     places: list[str] = []
@@ -478,7 +479,16 @@ def flow_and_agents(
             # What it may do, whether it has goals and whether it may search the web are
             # left as they come: `Runner` settles all three from what the flow declared,
             # which is the one place any of them is said.
-            configured = config(model=model, effort=effort, provider=provider)
+            configured = config(
+                model=model,
+                effort=effort,
+                provider=provider,
+                # And which CLI it is, where the class does not say so by itself: a line
+                # naming a CLI somebody added by hand is driven by the one class that drives
+                # all of them, and the name on the line is the only thing that tells it
+                # which. `identifying` is where the same argument is written out.
+                **identifying(config, profile.name),
+            )
             agents.append(agent(configured))
         except ValueError as bad:
             parser.error(f"bad agent {spec!r}: {bad}")
