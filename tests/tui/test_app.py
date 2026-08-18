@@ -7,6 +7,7 @@ drawn -- the interface's own job being to have one line mean both of those thing
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import json
 import os
 import sys
@@ -1661,6 +1662,13 @@ async def test_every_line_typed_between_turns_is_a_turn_of_one_conversation(
         await until(lambda: not app._agents, driver)
 
 
+# The only one here that starts the DeepSeek runtime for real -- the message it checks is
+# what that runtime answers a turn with no credential -- so it wants the extra that installs
+# one. The rest of dsh is covered against a fake harness in `tests/agents/test_dsh.py`.
+@pytest.mark.skipif(
+    importlib.util.find_spec("deepseek_harness") is None,
+    reason="starts the dsh runtime, which the [dsh] extra installs",
+)
 @pytest.mark.timeout(60)
 @unittest.mock.patch(
     "hmz.tui.app.installed",
@@ -2297,6 +2305,16 @@ def test_deepseek_install_hint_targets_the_python_running_humanize(
     monkeypatch.setattr(pick.sys, "executable", "/opt/hmz/bin/python")
 
     assert "uv pip install --python /opt/hmz/bin/python" in pick._installing("dsh")
+
+
+def test_kimi_install_hint_names_what_is_missing_rather_than_the_cli() -> None:
+    """The CLI is what got it into the list, so what it is short of is the package."""
+    from hmz.tui import pick
+
+    installing = pick._installing("kimi")
+
+    assert "Kimi Code is installed" in installing
+    assert "websockets>=15,<18" in installing
 
 
 @pytest.mark.timeout(60)

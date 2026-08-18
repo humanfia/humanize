@@ -44,6 +44,20 @@ jobs:
       - name: The package still builds
         run: uv build
 
+      # An extra nobody installs is an extra nobody finds out is broken. This is the other
+      # install: no extras and no development group, which is what somebody who ran the line
+      # in the README has. Every backend but the two behind extras must still be there, the
+      # interface must still start, and the two must still be importable -- they say what is
+      # missing where a turn needs it rather than where a module is read.
+      - name: humanize starts with none of its extras
+        run: |
+          uv sync --frozen --no-default-groups
+          uv run --frozen --no-sync python -c "
+          import hmz.cli, hmz.tui.app
+          from hmz.coganchor.agents import DshAgent, KimiCodeCLIAgent
+          print(DshAgent.__name__, KimiCodeCLIAgent.__name__)
+          "
+
   test:
     name: test (${{ matrix.os }}, python ${{ matrix.python }})
     runs-on: ${{ matrix.os }}
@@ -64,8 +78,9 @@ jobs:
         # the flows, the backends, the daemon, the serving half of an anchor -- is meant
         # to work on either, and this is what holds it to that.
         #
-        # `macos-latest` rather than a pinned Intel runner: the DeepSeek runtime, which
-        # is an ordinary dependency, publishes a macOS wheel for arm64 alone.
+        # `macos-latest` rather than a pinned Intel runner: this job installs every extra,
+        # and the DeepSeek runtime behind `[dsh]` publishes a macOS wheel for arm64 alone.
+        # An install that takes no extras is under no such constraint.
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v7
@@ -75,7 +90,8 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python }}
 
-      - run: uv sync --frozen
+      # Every extra, because the tests cover the backends behind them as they cover the rest.
+      - run: uv sync --frozen --all-extras
 
       # Everything except the `agent`-marked tests, which drive real coding agents and
       # need `--run-agents`. `-ra` in pyproject names whatever got skipped.

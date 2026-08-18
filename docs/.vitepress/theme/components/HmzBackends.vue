@@ -78,7 +78,7 @@ const BACKENDS: Backend[] = [
     goal: true,
     trace: true,
     skills: 'none',
-    note: 'The one backend that arrives with humanize rather than being found on your PATH — its SDK and the runtime its turns are taken on are ordinary dependencies.',
+    note: 'The one backend that is installed into humanize rather than found on your PATH — the “dsh” extra brings its SDK and the runtime its turns are taken on.',
   },
   {
     name: 'kimi',
@@ -91,7 +91,7 @@ const BACKENDS: Backend[] = [
     goal: true,
     trace: true,
     skills: 'its own, the shared one, the project’s',
-    note: 'Its effort says how wide as well as how hard: “max” is one agent and “swarmmax” is the same thinking at the width of a fleet, so width is chosen beside the effort rather than among the rungs.',
+    note: 'Its effort says how wide as well as how hard: “max” is one agent and “swarmmax” is the same thinking at the width of a fleet, so width is chosen beside the effort rather than among the rungs. The “kimi” extra brings the websocket client its app server is read over, on top of the CLI.',
   },
   {
     name: 'pi',

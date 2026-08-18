@@ -1037,7 +1037,12 @@ PROFILES = (
         # of its own three minutes. A turn quiet for twice that is the runtime having stopped
         # answering rather than the model still thinking, so there is nothing to wait for.
         silence=360.0,
-        installs="pip install 'deepseek-harness-sdk'",
+        # The whole of the `[dsh]` extra, named as its packages rather than as
+        # `hmz[dsh]`: the humanize saying this did not come from an index, so a line
+        # that asks one for humanize is a line that fails.
+        installs=(
+            "pip install 'deepseek-harness-sdk>=0.1.1rc1,<0.2' 'python-dotenv>=1.2.3'"
+        ),
         # Its own sentence for the one credential it takes, which names neither a status nor
         # a login: an SDK rather than a CLI, so nothing about it reads like HTTP.
         signs=(Sign("refused", r"needs a DeepSeek API key"),),

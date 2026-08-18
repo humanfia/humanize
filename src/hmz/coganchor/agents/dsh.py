@@ -42,8 +42,9 @@ _API_KEY_ENV = "DEEPSEEK_API_KEY"
 _BASE_URL_ENV = "DEEPSEEK_BASE_URL"
 _REF = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _EXTRA = (
-    "DeepSeek Harness is not installed in this Python environment, though humanize depends "
-    "on it: reinstall humanize, or pip install 'deepseek-harness-sdk'"
+    "DeepSeek Harness is not installed in this Python environment, where it is the [dsh] "
+    "extra rather than part of every install: uv sync --extra dsh from a checkout, or pip "
+    "install 'deepseek-harness-sdk>=0.1.1rc1,<0.2' 'python-dotenv>=1.2.3'"
 )
 _KEY_REQUIRED = (
     "DeepSeek Harness only supports API-key login and needs a DeepSeek API key. Save one "

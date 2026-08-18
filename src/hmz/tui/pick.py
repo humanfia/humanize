@@ -4062,16 +4062,30 @@ def _drives(backend: str) -> type[AgentBase] | None:
         return None
 
 
+#: What each backend behind an extra is missing when it is missing, and the requirement that
+#: ends that. The requirement rather than the extra: `hmz[dsh]` asks an index for humanize
+#: itself, which is not where the humanize running this came from, whereas one package into
+#: the environment already open is a line that works wherever it was installed from.
+_EXTRAS = {
+    "dsh": (
+        "DeepSeek Harness is not installed",
+        "'deepseek-harness-sdk>=0.1.1rc1,<0.2' 'python-dotenv>=1.2.3'",
+    ),
+    "kimi": (
+        "Kimi Code is installed, but the websocket client it is driven over is not",
+        "'websockets>=15,<18'",
+    ),
+}
+
+
 def _installing(backend: str) -> str:
     """The command that adds an optional backend to this Python environment."""
-    if backend != "dsh":
+    if (extra := _EXTRAS.get(backend)) is None:
         return f"install {backend}, then reopen humanize"
+    missing, requirement = extra
     executable = str(Path(sys.executable).absolute())
-    command = (
-        f"uv pip install --python {shlex.quote(executable)} "
-        "'deepseek-harness-sdk>=0.1.0rc6,<0.2'"
-    )
-    return f"DeepSeek Harness is not installed; run: {command}; then reopen hmz"
+    command = f"uv pip install --python {shlex.quote(executable)} {requirement}"
+    return f"{missing}; run: {command}; then reopen hmz"
 
 
 class Alike(Sheet[tuple[str, ...]]):

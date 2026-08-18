@@ -31,6 +31,13 @@ __all__ = ["installable", "installed", "machines", "ready_to_open"]
 #: without them. A docker daemon that is not answering is not a reason to sit at a sheet.
 _LOOKING_SECONDS = 2.0
 
+#: The backends that want something of this Python environment as well as of this machine,
+#: by the modules that say the extra carrying one is installed. Every module of it, because
+#: half an extra is a backend that starts and then stops somewhere further in. A backend
+#: named here without its extra is offered with the line that adds it rather than hidden,
+#: because somebody who has the CLI and not the package is owed the difference.
+_EXTRAS = {"dsh": ("deepseek_harness", "dotenv"), "kimi": ("websockets",)}
+
 
 def installed() -> dict[str, tuple[Model, ...]]:
     """The backends on this machine, and what each last said it runs.
@@ -59,16 +66,37 @@ def installable() -> dict[str, tuple[Model, ...]]:
     ready to run or be asked for models in the background.
 
     Returns:
-      One entry per supported optional backend missing from this Python environment, with
-      the models it will offer once installed.
+      One entry per supported optional backend whose extra is missing from this Python
+      environment, with the models it will offer once installed. A backend whose program is
+      not here either is not one of them: what it is missing is the program, and a line that
+      names a package alone would be an answer to the smaller half.
     """
-    return {"dsh": Hmz().accounts.models("dsh")} if not _is_installed("dsh") else {}
+    accounts = Hmz().accounts
+    return {
+        backend: accounts.models(backend)
+        for backend in _EXTRAS
+        if _is_here(backend) and not _has_extra(backend)
+    }
 
 
 def _is_installed(backend: str) -> bool:
-    """Whether a backend's executable or Python SDK is installed here."""
+    """Whether a backend's program and whatever else it needs are both installed here."""
+    return _is_here(backend) and _has_extra(backend)
+
+
+def _has_extra(backend: str) -> bool:
+    """Whether the whole of the extra a backend is driven through is installed here."""
+    return all(
+        importlib.util.find_spec(module) is not None
+        for module in _EXTRAS.get(backend, ())
+    )
+
+
+def _is_here(backend: str) -> bool:
+    """Whether the program a backend's turns are taken by is on this machine."""
+    # dsh is driven through its SDK rather than its CLI, so there is no program to look for.
     if backend == "dsh":
-        return importlib.util.find_spec("deepseek_harness") is not None
+        return True
     # A CLI somebody added is started by the command they gave rather than by its own name.
     if (added := speaking().get(backend)) is not None:
         return bool(added) and program(added[0]) is not None
@@ -81,10 +109,11 @@ def _is_installed(backend: str) -> bool:
 def ready_to_open(backend: str, where: Path) -> bool:
     """Whether an installed backend may be chosen without somebody choosing it.
 
-    A CLI on ``PATH`` is there because somebody installed it. DeepSeek Harness is different:
-    its SDK arrives with humanize, so its presence says nothing about whether its local
-    account has been configured. It remains installed and selectable without a key, but must
-    not make a new prompt look ready to run.
+    A CLI on ``PATH`` is there because somebody installed it, and installing it is a choice
+    about what to run agents on. DeepSeek Harness is different: what says it is here is a
+    package, which somebody may have added for one agent rather than for all of them, and
+    which says nothing about whether its local account has been configured. It remains
+    installed and selectable without a key, but must not make a new prompt look ready to run.
 
     Args:
       backend: The backend being considered as the implicit fallback.

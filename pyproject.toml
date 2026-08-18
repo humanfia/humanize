@@ -11,19 +11,12 @@ license = "Apache-2.0"
 license-files = ["LICENSE"]
 dependencies = [
     "dateparser>=1.4.2",
-    # DeepSeek Harness is driven through its own Python SDK, which also brings the runtime
-    # its turns are taken on. An ordinary dependency rather than an extra: a backend humanize
-    # drives is not a thing an install should be able to have half of.
-    "deepseek-harness-sdk>=0.1.1rc1,<0.2",
+    "psutil>=7.2.2",
     # A flow says what it can be configured with by declaring a model, and the menu that
     # asks is read off that model: the types, the bounds and the combinations a flow
     # refuses are all written once, where the flow declares them.
-    "psutil>=7.2.2",
     "pydantic>=2.13.5",
     "pyfiglet>=1.0",
-    # dsh reads a project's `.env` the way its own CLI does, and reading one is somebody
-    # else's solved problem.
-    "python-dotenv>=1.2.3",
     "pyyaml>=6.0.3",
     # Named because the interface imports it directly. It arrives with textual either
     # way, but a dependency you import is one you declare.
@@ -34,7 +27,34 @@ dependencies = [
     # that reports its own failures is an install whose failures are not reported.
     "sentry-sdk>=2.68.1",
     "textual>=8.2.8",
+]
+
+# What two of the backends want from this Python environment, and nobody else does. Every
+# other backend humanize drives is a CLI somebody installs for themselves, and humanize
+# carries nothing for it; these two also want a package here, and one of them is not small --
+# the DeepSeek runtime is a bundled executable, published as a wheel for three platforms and
+# no others, so an ordinary dependency would be a machine humanize cannot be installed on at
+# all, for the sake of a backend nobody there runs. Nothing below is imported where a module
+# is read: the two drivers load them where a turn needs one, so `hmz` starts, lists its
+# backends, and takes every other backend's turns with none of this installed. What is
+# missing is said rather than crashed on -- the backend stays in the picker with the line
+# that adds it.
+[project.optional-dependencies]
+# DeepSeek Harness is driven through its own Python SDK, which also brings the runtime its
+# turns are taken on; and dsh reads a project's `.env` the way its own CLI does, which is
+# somebody else's solved problem.
+dsh = [
+    "deepseek-harness-sdk>=0.1.1rc1,<0.2",
+    "python-dotenv>=1.2.3",
+]
+# Kimi Code's app server says what a session is doing over a websocket, which is how a turn
+# is read back as it happens rather than a second at a time.
+kimi = [
     "websockets>=15,<18",
+]
+# Both of them, for an install that would rather not choose.
+all = [
+    "hmz[dsh,kimi]",
 ]
 
 [project.urls]
@@ -57,11 +77,15 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=6",
     "pytest-timeout>=2.3",
+    "pytest-xdist>=3.8.0",
     # Exercises dsh's dotenv-compatible native configuration without making the SDK
     # itself part of every development environment.
-    "pytest-xdist>=3.8.0",
     "python-dotenv>=1.2.3",
     "ruff>=0.16.5",
+    # The suite drives a real websocket server at kimi's notification reader, and the type
+    # checker reads that test like any other file. Here rather than in the `kimi` extra for
+    # the same reason as the line above: what the tests need is not what an install needs.
+    "websockets>=15,<18",
 ]
 
 [tool.pytest.ini_options]

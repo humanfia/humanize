@@ -8,6 +8,12 @@
 uv tool install git+https://github.com/humanfia/humanize.git
 ```
 
+Two backends want a package of their own: `[dsh]` for DeepSeek Harness, `[kimi]` for Kimi Code, `[all]` for both.
+
+```sh
+uv tool install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'
+```
+
 ## Usage
 
 To launch the TUI:

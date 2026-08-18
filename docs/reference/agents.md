@@ -275,8 +275,9 @@ one, `GET {base}/v1/models` is what says what a turn could name. The four that s
 be of models those CLIs cannot name. `cursor` is not either — its endpoint speaks its own
 protocol, and `cursor-agent --list-models` is already the account's answer.
 
-DeepSeek Harness is driven through its own Python SDK, which arrives with humanize rather
-than as an extra — there is nothing to install for it. It supports API-key login only:
+DeepSeek Harness is driven through its own Python SDK, which is the `[dsh]`
+[extra](/user/installation#the-two-backends-that-are-extras) — there is no CLI to install,
+only that. It supports API-key login only:
 leave `provider` empty to use the credentials and base URL saved by dsh (or its environment),
 or make a `key` account from the `provider` row of an agent with **a** and give its name as
 `provider`. Then
@@ -289,7 +290,7 @@ agent = DshAgent(DshAgentConfig(model="deepseek-v4-flash", effort="high"))
 ```
 
 It also offers `deepseek-v4-pro`. The SDK and bundled runtime are currently a developer
-preview; humanize supports `deepseek-harness-sdk>=0.1.0rc6,<0.2`.
+preview; humanize supports `deepseek-harness-sdk>=0.1.1rc1,<0.2`.
 
 Its runtime composition turns on the runtime's own automatic compaction, at the plugin's
 default threshold of 0.8 of the model's context window. One conversation driven for long
@@ -1349,7 +1350,9 @@ exception: their adapters report usage at the end, so what they spent
 lands on the closing `result` and their rate moves a turn at a time rather than a request at a
 time.
 
-Kimi Code uses the official daemon's WebSocket notifications to wake its REST polling.
+Kimi Code uses the official daemon's WebSocket notifications to wake its REST polling, which
+is what the `[kimi]` [extra](/user/installation#the-two-backends-that-are-extras) carries the
+client for, on top of the CLI itself.
 It answers the daemon's heartbeat so long turns keep receiving notifications.
 Closing the notification socket uses a 100ms grace period, so unread notifications do not
 hold up a result that REST has already confirmed. The receive queue remains bounded.
