@@ -239,15 +239,13 @@ def test_an_anchor_nothing_serves_is_left_out_rather_than_read_as_everybodys() -
 
 #: What each backend's driver reports of what a turn cost, written out rather than read off
 #: the drivers -- what the drivers say is what is on trial. `reasoning` is there only for the
-#: three that count it beside the output rather than inside it; two say the input and the
-#: output alone, each of them counting its cached reads inside the input; and Cursor reports
-#: a duration and no tokens at all, which is a run whose every figure is a floor and which
-#: says so.
+#: three that count it beside the output rather than inside it; and two say the input and the
+#: output alone, each of them counting its cached reads inside the input.
 _COUNTING: dict[str, set[str]] = {
     "agy": {"input", "output", "cache_read", "reasoning"},
     "claude": {"input", "output", "cache_read", "cache_write"},
     "codex": {"input", "output"},
-    "cursor": set[str](),
+    "cursor-agent": {"input", "output", "cache_read", "cache_write"},
     "dsh": {"input", "output", "cache_read", "cache_write"},
     "grok": {"input", "output", "cache_read", "cache_write"},
     "kimi": {"input", "output", "cache_read", "cache_write"},
@@ -279,6 +277,6 @@ def test_each_kind_of_token_is_a_capability_and_whose_is_the_drivers_own() -> No
         assert told[f"counts:{kind}"].backends == frozenset(
             name for name, (cls, _) in DRIVEN.items() if kind in cls.counts
         )
-    # The one that reports nothing is in none of them rather than quietly in all of them.
-    for one in told.values():
-        assert "cursor" not in one.backends
+    # A kind only some of them count leaves the rest out rather than quietly reading as
+    # nought for everybody: `reasoning` is the three that count it beside the output.
+    assert told["counts:reasoning"].backends == frozenset({"agy", "mimo", "opencode"})

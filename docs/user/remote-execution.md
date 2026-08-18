@@ -93,7 +93,7 @@ keys, and it adds nothing. Then check that there is a Python 3.12 or newer there
   the interpreter its `#!/usr/bin/env` line names, wherever on `PATH` it is found; for Codex, the
   native CLI and its code-mode host besides.
 - Its state directory, and anything the agent runs from inside it. humanize knows the twelve
-  known CLIs by name — `agy`, `claude`, `codex`, `cursor`, `dsh`, `grok`, `kimi`, `mimo`,
+  known CLIs by name — `agy`, `claude`, `codex`, `cursor-agent`, `dsh`, `grok`, `kimi`, `mimo`,
   `opencode`, `pi`, `qwen`, `zcode` — and its own `~/.humanize`. Any other agent that keeps
   state inside the workspace has to be named with `--local-path`.
 - Anything named `--local-path` or `--local-exec`.

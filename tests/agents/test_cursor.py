@@ -26,9 +26,7 @@ from hmz.coganchor.agents import (
     Occasion,
     Verdict,
 )
-from hmz.coganchor.agents.cursor import _local_runtime, parameterized
-from hmz.coganchor.machines import AnchoredConfig, DockerConfig
-from tests.stubs import HereAnchor
+from hmz.coganchor.agents.cursor import _COMMAND, parameterized
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -73,15 +71,32 @@ if prompt == "fleet":
          "tool_call": {"taskToolCall": {"args": {"description": "read the tests"},
                                         "result": {"success": {"content": "done"}}}},
          "session_id": chat})
-say({"type": "assistant",
-     "message": {"role": "assistant", "content": [{"type": "text", "text": prompt}]},
-     "session_id": chat})
+
+def says(text):
+    say({"type": "assistant",
+         "message": {"role": "assistant", "content": [{"type": "text", "text": text}]},
+         "session_id": chat})
+
+
+if "--stream-partial-output" in argv:
+    # A line per piece as it is written -- a paragraph break among them, which is a piece
+    # like any other -- and then the pieces gathered up: asked for both, that is what it
+    # writes, and the gathered one is the pieces rather than more of the turn.
+    pieces = [prompt[:1], "\\n\\n", prompt[1:]]
+    for piece in pieces:
+        says(piece)
+    says("".join(pieces))
+else:
+    says(prompt)
 if prompt == "boom":
     say({"type": "result", "subtype": "error", "is_error": True,
          "result": "the model refused", "session_id": chat})
 else:
     say({"type": "result", "subtype": "success", "is_error": False, "duration_ms": 12,
-         "result": prompt, "session_id": chat})
+         "result": prompt,
+         "usage": {"inputTokens": 100, "outputTokens": 20, "cacheReadTokens": 5,
+                   "cacheWriteTokens": 3},
+         "session_id": chat})
 """
 
 #: What `cursor-agent --list-models` prints, colour and all.
@@ -137,23 +152,38 @@ def cursor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _Calls:
 
 def test_the_cli_is_named_by_what_it_is_installed_as() -> None:
     """`agent` is a name anything could have taken; `cursor-agent` can only be this one."""
-    profile = backends.named("cursor")
+    profile = backends.named("cursor-agent")
     assert profile is not None
-    assert profile.name == "cursor"
+    assert profile.name == "cursor-agent"
     assert profile.runs() == "cursor-agent"
-    # And both spellings of it name the same backend.
-    assert backends.named("cursor-agent") is profile
+    # And the product's own name is not a spelling of it: nothing on a PATH is `cursor`, so
+    # a line that says it is a line to correct rather than one to guess at.
+    assert backends.named("cursor") is None
+    # The word the driver spawns is that same word. It is written in two places, as every
+    # other driver's is, and this is what holds the two together.
+    assert profile.runs() == _COMMAND
 
 
 def test_how_hard_it_thinks_is_written_into_the_model() -> None:
     """Cursor has no flag for a rung: its models are parameterized and take it in brackets."""
-    assert parameterized("gpt-5", "high", fast=False) == "gpt-5[effort=high,fast=false]"
+    assert parameterized("gpt-5", "high", fast=False) == "gpt-5[effort=high]"
     assert parameterized("gpt-5", "low", fast=True) == "gpt-5[effort=low,fast=true]"
+    assert parameterized("gpt-5", "", fast=True) == "gpt-5[fast=true]"
     # A model spelled with its own bracket meant what it said, and a second would be refused.
     assert (
         parameterized("claude-opus-4-8[context=1m]", "high", fast=True)
         == "claude-opus-4-8[context=1m]"
     )
+
+
+def test_the_default_tier_leaves_cursors_own_answer_alone() -> None:
+    """`fast=false` would overrule a parameter the account had saved against the model.
+
+    And it is what kept a bare id -- one belonging to an endpoint of somebody else's, where
+    the bracket is literal text -- from arriving as the id it was written as.
+    """
+    assert parameterized("gpt-5", "", fast=False) == "gpt-5"
+    assert parameterized("external/model-id", "", fast=False) == "external/model-id"
 
 
 def test_a_turn_is_one_run_of_its_command_line(cursor: _Calls) -> None:
@@ -163,10 +193,15 @@ def test_a_turn_is_one_run_of_its_command_line(cursor: _Calls) -> None:
     assert session("hello") == "hello"
 
     (argv,) = cursor.argv()
-    assert argv[argv.index("--model") + 1] == "composer-2.5[effort=high,fast=false]"
+    assert argv[argv.index("--model") + 1] == "composer-2.5[effort=high]"
     assert argv[:4] == ["--print", "--output-format", "stream-json", "--model"]
     assert argv[-2:] == ["--", "hello"]
     assert "--trust" in argv
+    # And nothing else: every other flag of its own is where Cursor leaves it, so a turn
+    # nobody has configured is the turn its own command line would have taken.
+    assert "--stream-partial-output" not in argv
+    assert "--approve-mcps" not in argv
+    assert "--add-dir" not in argv
     assert session.id == "chat-0001"
 
 
@@ -286,7 +321,7 @@ def listing(asking: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_what_it_runs_is_read_off_its_own_listing(listing: None) -> None:
     """The heading above the list and the tip below it are sentences, not models."""
-    found = models.ask("cursor")
+    found = models.ask("cursor-agent")
 
     assert [one.name for one in found] == [
         "composer-2.5",
@@ -329,7 +364,7 @@ _OFFERED = {
 
 def test_a_model_is_offered_at_the_rung_its_own_name_carries(listing: None) -> None:
     """A rung is a word of the name wherever it falls in it: `gpt-5-low-fast` runs at `low`."""
-    found = models.ask("cursor")
+    found = models.ask("cursor-agent")
 
     assert {one.name: one.efforts for one in found} == _OFFERED
 
@@ -342,211 +377,84 @@ def test_web_search_cannot_be_switched_off_and_is_refused_rather_than_ignored() 
         CursorAgent(replace(CURSOR, web_search=False))
 
 
-def _install_local(directory: Path, log: Path) -> Path:
-    """Model the official local package layout while recording the ordinary CLI protocol."""
-    package = directory / "dist-package"
-    package.mkdir(parents=True)
-    (package / "package.json").write_text(
-        json.dumps({"name": "@anysphere/agent-cli-local-runtime", "private": True})
-    )
-    (package / "index.js").write_text(_CURSOR_STUB.replace("LOG", repr(str(log))))
-    (package / "node").symlink_to(sys.executable)
-    entry = package / "cursor-agent-local"
-    entry.write_text(
-        '#!/bin/sh\nSCRIPT_DIR="$(dirname "$(readlink -f "$0")")"\n'
-        'exec "$SCRIPT_DIR/node" "$SCRIPT_DIR/index.js" "$@"\n'
-    )
-    entry.chmod(0o755)
-    binaries = directory / "bin"
-    binaries.mkdir()
-    (binaries / "cursor-agent").symlink_to(entry)
-    return binaries
+def test_the_workspace_it_is_trusted_with_can_be_handed_back(cursor: _Calls) -> None:
+    """The one thing this driver overrules the bare command line about, and it is sayable.
 
+    Trusted by default because a headless turn has nobody to answer the question; a flow
+    somebody is watching says so and gets Cursor's own behaviour back.
+    """
+    from dataclasses import replace
 
-@pytest.fixture
-def local_cursor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _Calls:
-    log = tmp_path / "local-calls.jsonl"
-    binaries = _install_local(tmp_path / "local", log)
-    monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
-    monkeypatch.chdir(tmp_path)
-    return _Calls(log)
+    assert CursorAgent.trusts
 
+    CursorAgent(replace(CURSOR, trust=False)).new()("hello")
 
-def test_local_external_model_keeps_its_id_and_resumes(local_cursor: _Calls) -> None:
-    session = CursorAgent(CursorAgentConfig(model="external/model-id", effort="")).new()
-    assert session("first") == "first"
-    assert session("second") == "second"
-    first, second = local_cursor.argv()
-    for argv in (first, second):
-        assert argv[argv.index("--model") + 1] == "external/model-id"
-        assert "--trust" in argv
-        assert argv[argv.index("--sandbox") + 1] == "disabled"
-    assert "--resume=chat-0001" in second
-    assert session.id == "chat-0001"
-
-
-@pytest.mark.parametrize(
-    ("model", "effort", "tier", "expected"),
-    [
-        (
-            "external/model-id",
-            "high",
-            "default",
-            "external/model-id[effort=high,fast=false]",
-        ),
-        ("external/model-id", "", "fast", "external/model-id[fast=true]"),
-        (
-            "external/model-id[context=1m]",
-            "high",
-            "fast",
-            "external/model-id[context=1m]",
-        ),
-        (
-            "external/model-id[fast=false]",
-            "",
-            "default",
-            "external/model-id[fast=false]",
-        ),
-    ],
-)
-def test_local_runtime_does_not_discard_explicit_parameters(
-    local_cursor: _Calls, model: str, effort: str, tier: str, expected: str
-) -> None:
-    session = CursorAgent(
-        CursorAgentConfig(model=model, effort=effort, service_tier=tier)
-    ).new()
-    argv, _ = session._turn("hello")
-    assert argv[argv.index("--model") + 1] == expected
-
-
-def test_standard_default_still_overrides_saved_fast(
-    cursor: _Calls, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    native = tmp_path / "native"
-    native.mkdir()
-    (native / "cli-config.json").write_text(
-        json.dumps({"modelParameters": {"composer-2.5": {"fast": True}}})
-    )
-    monkeypatch.setenv("CURSOR_CONFIG_DIR", str(native))
-    # This flag changes the standard CLI's labels, not its runtime implementation.
-    monkeypatch.setenv("CURSOR_AGENT_CLI_LOCAL_MODE", "true")
-    CursorAgent(CursorAgentConfig(model="composer-2.5", effort="")).new()("hello")
     (argv,) = cursor.argv()
-    assert argv[argv.index("--model") + 1] == "composer-2.5[fast=false]"
+    assert "--trust" not in argv
 
 
-@pytest.mark.parametrize(
-    "broken",
-    [
-        "missing-package",
-        "invalid-json",
-        "non-object",
-        "standard-package",
-        "name-only",
-        "missing-index",
-        "missing-node",
-        "wrong-entry",
-    ],
-)
-def test_local_detection_requires_the_native_entry_and_package_layout(
-    local_cursor: _Calls, tmp_path: Path, broken: str
+def test_the_other_three_say_themselves_on_the_line_when_they_are_asked_for(
+    cursor: _Calls, tmp_path: Path
 ) -> None:
-    package = tmp_path / "local" / "dist-package"
-    metadata = package / "package.json"
-    if broken == "missing-package":
-        metadata.unlink()
-    elif broken == "invalid-json":
-        metadata.write_text("{")
-    elif broken == "non-object":
-        metadata.write_text("[]")
-    elif broken == "standard-package":
-        metadata.write_text(json.dumps({"name": "@anysphere/agent-cli-runtime"}))
-    elif broken == "name-only":
-        (package / "cursor-agent-local").write_text("#!/bin/sh\nexit 0\n")
-    elif broken == "missing-index":
-        (package / "index.js").unlink()
-    elif broken == "missing-node":
-        (package / "node").unlink()
-    else:
-        entry = package / "cursor-agent-local"
-        renamed = entry.rename(package / "cursor-agent")
-        link = tmp_path / "local" / "bin" / "cursor-agent"
-        link.unlink()
-        link.symlink_to(renamed)
-    session = CursorAgent(CursorAgentConfig(model="external/id", effort="")).new()
-    argv, _ = session._turn("hello")
-    assert argv[argv.index("--model") + 1] == "external/id[fast=false]"
+    """Each of them is Cursor's own flag under Cursor's own spelling, and each is off first."""
+    from dataclasses import replace
 
-
-@pytest.mark.parametrize("child_local", [True, False])
-def test_runtime_selection_follows_provider_path(
-    cursor: _Calls, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, child_local: bool
-) -> None:
-    standard = tmp_path / "bin"
-    local = _install_local(tmp_path / "local", tmp_path / "local-calls.jsonl")
-    inherited = os.environ["PATH"]
-    parent, child = (standard, local) if child_local else (local, standard)
-    monkeypatch.setenv("PATH", f"{parent}{os.pathsep}{inherited}")
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "humanize"))
-    providers.add("cursor", "child", env={"PATH": f"{child}{os.pathsep}{inherited}"})
-    session = CursorAgent(
-        CursorAgentConfig(model="external/id", effort="", provider="child")
-    ).new()
-    argv, _ = session._turn("hello")
-    expected = "external/id" if child_local else "external/id[fast=false]"
-    assert argv[argv.index("--model") + 1] == expected
-
-
-def test_child_relative_path_is_resolved_in_the_session_workspace(
-    cursor: _Calls, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    workspace = tmp_path / "workspace"
-    _install_local(workspace, tmp_path / "local-calls.jsonl")
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "humanize"))
-    providers.add("cursor", "child", env={"PATH": "bin"})
-    session = CursorAgent(
-        CursorAgentConfig(model="external/id", effort="", provider="child")
-    ).new(workspace)
-    argv, _ = session._turn("hello")
-    assert argv[argv.index("--model") + 1] == "external/id"
-
-
-def test_host_install_fallback_matches_the_command_spawned(
-    cursor: _Calls, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    local = _install_local(tmp_path / "local", tmp_path / "local-calls.jsonl")
-    standard = tmp_path / "bin" / "cursor-agent"
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "humanize"))
-    providers.add("cursor", "child", env={"PATH": str(local)})
-
-    def fallback(command: str) -> str:
-        assert command == "cursor-agent"
-        return str(standard)
-
-    monkeypatch.setattr(backends, "elsewhere", fallback)
-    session = CursorAgent(
-        CursorAgentConfig(model="external/id", effort="", provider="child")
-    ).new()
-    argv, _ = session._turn("hello")
-    assert argv[argv.index("--model") + 1] == "external/id[fast=false]"
-
-
-@pytest.mark.parametrize("isolated", [False, True])
-def test_machine_runtime_is_not_inferred_from_the_host(
-    local_cursor: _Calls, tmp_path: Path, isolated: bool
-) -> None:
-    machine = (
-        DockerConfig(image="python:3.12")
-        if isolated
-        else AnchoredConfig(
-            anchor=HereAnchor(target="ssh://build-box", workspace="/work")
-        )
+    beside = tmp_path / "beside"
+    beside.mkdir()
+    CursorAgent(replace(CURSOR, approve_mcps=True, add_dirs=(str(beside),))).new()(
+        "hello"
     )
-    agent = CursorAgent(
-        CursorAgentConfig(model="external/id", effort="", machine=machine)
+
+    (argv,) = cursor.argv()
+    assert "--approve-mcps" in argv
+    assert argv[argv.index("--add-dir") + 1] == str(beside)
+
+
+def test_a_root_that_is_not_one_is_refused_where_it_is_written() -> None:
+    """`--add-dir ''` is a turn Cursor refuses, and this is where that is found out."""
+    from dataclasses import replace
+
+    with pytest.raises(ValueError, match="add_dirs"):
+        replace(CURSOR, add_dirs=("  ",))
+
+
+def test_words_streamed_as_they_are_written_are_not_said_again_whole(
+    cursor: _Calls,
+) -> None:
+    """Cursor writes both: a line per piece, and the pieces gathered up at the end."""
+    from dataclasses import replace
+
+    session = CursorAgent(replace(CURSOR, partial_output=True)).new()
+
+    said = list(session.stream("hello"))
+
+    (argv,) = cursor.argv()
+    assert "--stream-partial-output" in argv
+    # The pieces that are words, and not the gathering of them behind: a turn said twice is
+    # no transcript. The paragraph break between them is counted and shown to nobody, which
+    # is what lets the gathering still be recognised as the pieces it is made of.
+    assert [one.text for one in said if one.kind == "text"] == ["h", "ello"]
+    assert said[-1].kind == "result"
+    assert said[-1].text == "hello"
+
+
+def test_what_the_turn_cost_is_read_off_the_line_it_ends_on(cursor: _Calls) -> None:
+    """Cursor counts now, and its input is already net of what the cache answered."""
+    agent = CursorAgent(CURSOR)
+
+    (answer,) = (one for one in agent.new().stream("hello") if one.kind == "result")
+
+    assert dict(answer.spent) == {
+        "input": 100,
+        "output": 20,
+        "cache_read": 5,
+        "cache_write": 3,
+    }
+    assert answer.tokens == {"composer-2.5": 128}
+    assert dict(agent.spent()) == dict(answer.spent)
+    assert CursorAgent.counts == frozenset(
+        {"input", "output", "cache_read", "cache_write"}
     )
-    assert not _local_runtime(agent, str(tmp_path))
-    assert agent._anchor is None  # Detection must not start either machine.
 
 
 def test_a_local_runtime_key_left_about_does_not_outrank_the_provider(
@@ -556,7 +464,7 @@ def test_a_local_runtime_key_left_about_does_not_outrank_the_provider(
     monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "humanize"))
     monkeypatch.setenv("CURSOR_LOCAL_AGENT_BASE_URL", "http://somebody-else/v1")
     monkeypatch.setenv("CURSOR_LOCAL_AGENT_API_KEY", "somebody-elses-key")
-    providers.add("cursor", "account", env={"CURSOR_API_KEY": "the-provider-key"})
+    providers.add("cursor-agent", "account", env={"CURSOR_API_KEY": "the-provider-key"})
     agent = CursorAgent(
         CursorAgentConfig(model="composer-2.5", effort="", provider="account")
     )
@@ -576,7 +484,7 @@ def test_a_provider_that_is_the_local_runtime_keeps_what_it_set(
     """Hushed is every name the provider did not set: its own key stands."""
     monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "humanize"))
     providers.add(
-        "cursor",
+        "cursor-agent",
         "local",
         env={
             "CURSOR_LOCAL_AGENT_BASE_URL": "http://127.0.0.1:1/v1",

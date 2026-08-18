@@ -2258,6 +2258,11 @@ class Humanize(App[None]):
         # mode. A side question has no reason to carry the flow's explicit tool grants.
         if hasattr(source.config, "allowed_tools"):
             settings["allowed_tools"] = ()
+        # Cursor's is the same thing said about MCP servers: read-only is about edits, so a
+        # side question would otherwise reach every server this workspace names on the flow's
+        # say-so rather than on anybody's answer.
+        if hasattr(source.config, "approve_mcps"):
+            settings["approve_mcps"] = False
         config = replace(source.config, **settings)
         try:
             clone = source.clone(

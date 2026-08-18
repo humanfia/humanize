@@ -14,7 +14,7 @@ run as a **provider**; and what the whole thing did is read back as a **trace**.
 
 **A coding agent CLI installed on this machine that humanize knows how to drive.** There are
 twelve: Antigravity CLI (`agy`), Claude Code (`claude`), Codex (`codex`), Cursor Agent
-(`cursor`), DeepSeek Harness (`dsh`), Grok Build (`grok`), Kimi Code (`kimi`), mimocode
+(`cursor-agent`), DeepSeek Harness (`dsh`), Grok Build (`grok`), Kimi Code (`kimi`), mimocode
 (`mimo`), opencode (`opencode`), pi (`pi`), Qwen Code (`qwen`) and ZCode (`zcode`) — the short
 name in brackets is what you write in an agent. Any CLI of your own that speaks the
 [Agent Client Protocol](/reference/agents#a-cli-of-your-own) can be added at `/providers`.

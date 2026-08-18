@@ -28,7 +28,7 @@ name the interface shows. The classes keep the product's own full name.
 | `agy` | `AntigravityCLIAgent` | `AntigravityCLIAgentConfig` | `AntigravityCLISession` |
 | `claude` | `ClaudeCodeAgent` | `ClaudeCodeAgentConfig` | `ClaudeCodeSession` |
 | `codex` | `CodexAgent` | `CodexAgentConfig` | `CodexSession` |
-| `cursor` | `CursorAgent` | `CursorAgentConfig` | `CursorSession` |
+| `cursor-agent` | `CursorAgent` | `CursorAgentConfig` | `CursorSession` |
 | `dsh` | `DshAgent` | `DshAgentConfig` | `DshSession` |
 | `grok` | `GrokBuildAgent` | `GrokBuildAgentConfig` | `GrokBuildSession` |
 | `kimi` | `KimiCodeCLIAgent` | `KimiCodeCLIAgentConfig` | `KimiCodeCLISession` |
@@ -237,22 +237,23 @@ installed it set it up. It cannot be steered mid-turn either — every agent spe
 extension its own way — and it has no goal feature, no permission rungs and no logs for
 `Hmz().epics.trace()` to read.
 
-`cursor` names one out of its own catalogue — `cursor-agent --list-models` prints them — and
-its models take their parameters in brackets after the name, which is where humanize writes the
-effort and the service tier: `composer-2.5[effort=high,fast=false]`. A model already written
-with a bracket of its own is passed exactly as it was written, so a flow that wanted
-`claude-opus-4-8[context=1m,effort=high]` gets it.
+`cursor-agent` names one out of its own catalogue — `cursor-agent --list-models` prints them —
+and its models take their parameters in brackets after the name, which is where humanize writes
+the effort and the service tier: `composer-2.5[effort=high]`, and `[effort=high,fast=true]`
+where the tier is `fast`. A model already written with a bracket of its own is passed exactly
+as it was written, so a flow that wanted `claude-opus-4-8[context=1m,effort=high]` gets it.
 
-The separately distributed official `cursor-agent-local` runtime can use an
-OpenAI-compatible endpoint through `CURSOR_LOCAL_AGENT_BASE_URL`,
-`CURSOR_LOCAL_AGENT_API_KEY` and `CURSOR_ENABLE_AUTHLESS=1`. When `cursor-agent` resolves to
-that runtime's native launcher and package on the turn's effective PATH, an empty effort
-with the default service tier passes the endpoint's model ID unchanged. Explicit brackets,
-effort and fast service requests retain their existing spelling. Standard Cursor continues
-to receive `fast=false` for the default tier because it can otherwise inherit saved fast
-parameters. A remote or isolated machine keeps the standard behavior; a host installation
-does not establish the runtime on that machine. This does not convert standard Cursor's
-Cursor API-key authentication and RPC transport into an OpenAI-compatible provider.
+**Only what the turn asks for goes in the bracket.** A default service tier writes no `fast=`
+at all, rather than `fast=false`: the parameters an account has saved against a model are that
+account's own answer, and overruling them on every turn would be humanize deciding something
+the person at this machine had already decided. It is also what lets a model that is nothing
+but a name — an id belonging to an endpoint of somebody else's, where Cursor's brackets are
+literal text rather than parameters — arrive spelled exactly as it was given, so the separately
+distributed `cursor-agent-local` runtime, pointed at an OpenAI-compatible endpoint through
+`CURSOR_LOCAL_AGENT_BASE_URL`, `CURSOR_LOCAL_AGENT_API_KEY` and `CURSOR_ENABLE_AUTHLESS=1`,
+takes the id it serves under. An effort or a fast tier still writes its bracket: a runtime
+that cannot read one is a runtime a flow should not be asking those of.
+
 A turn run under an hmz provider is run without `CURSOR_LOCAL_AGENT_API_KEY` unless that
 provider set it, the same as every other name Cursor would take an account from: put the
 key in the provider rather than in a shell profile. The endpoint and the authless switch
@@ -272,7 +273,7 @@ account](/features/backends#what-it-runs-is-discovered-for-the-account). `claude
 `GROK_XAI_API_BASE_URL`, `KIMI_MODEL_BASE_URL`, `OPENAI_BASE_URL`), and where an account sets
 one, `GET {base}/v1/models` is what says what a turn could name. The four that spell a model
 `provider/id` are not asked that way: one endpoint's ids carry no provider, so the list would
-be of models those CLIs cannot name. `cursor` is not either — its endpoint speaks its own
+be of models those CLIs cannot name. `cursor-agent` is not either — its endpoint speaks its own
 protocol, and `cursor-agent --list-models` is already the account's answer.
 
 DeepSeek Harness is driven through its own Python SDK, which is the `[dsh]`
@@ -309,7 +310,16 @@ whether [goals](/weaver/goals) are available to it,
 [skills it carries](#the-skills-an-agent-carries) are not among them, being its CLI's own and
 its flow's. Codex also takes `overrides`, the app-server `-c` keys that are not already one
 of those fields. Claude takes `allowed_tools`, exact native `--allowedTools` rules for a
-bounded unattended flow. It is frozen,
+bounded unattended flow. Cursor Agent takes four:
+
+| | |
+| --- | --- |
+| `trust` | Whether to tell `cursor-agent` this workspace is trusted rather than let it ask. `True`, which is the one place this backend's driver overrules what the bare command line would have done — pointed at a directory it has not worked in before, Cursor stops and asks, and a headless turn has nobody to answer. `False` hands the question back for a flow somebody is watching. The catalogue serves it as `trust`. |
+| `partial_output` | `--stream-partial-output`: the agent's words arrive as it writes them rather than a message at a time. Off, as Cursor has it. Cursor writes both when it is on — a line per piece and, at each tool call and at the end, the message those pieces came to — and the gathered message is dropped as it arrives, so a watched turn is not said twice. |
+| `approve_mcps` | `--approve-mcps`: every MCP server this workspace names, approved without being asked about. Off, as Cursor has it. |
+| `add_dirs` | `--add-dir`, once apiece: workspace roots beside the one the session was opened at. Empty, as Cursor has it. |
+
+It is frozen,
 because a session resumes under the settings it opened with — a config that changed mid-flow
 would silently split one conversation across two models.
 
@@ -375,7 +385,7 @@ different things.
 | `qwen` | `--exclude-tools web_search,web_fetch` when off |
 | `opencode`, `mimo` | `webfetch: deny` in its permission table when off |
 | `zcode` | `WebSearch` and `WebFetch` in the session's `toolDenylist` when off |
-| `agy`, `cursor`, `dsh`, `kimi`, `pi` | no way of being told — off is refused |
+| `agy`, `cursor-agent`, `dsh`, `kimi`, `pi` | no way of being told — off is refused |
 
 A backend with no way of being told **refuses it off**, wherever the config arrives — where the
 agent is made, where one already running is set up as something else, and where a flow that
@@ -1059,7 +1069,7 @@ sessions under:
 
 ```python
 agent.id       # the name you gave it, the name the flow calls it, or one nothing else answers to
-agent.backend  # "agy", "claude", "codex", "cursor", "dsh", "grok", "kimi", "mimo",
+agent.backend  # "agy", "claude", "codex", "cursor-agent", "dsh", "grok", "kimi", "mimo",
                # "opencode", "pi", "qwen", "zcode" — or whatever an ACP CLI of your own
                # was added under
 agent.opened   # the backend's id for every session this agent ever opened, oldest first
@@ -1179,7 +1189,7 @@ before the runtime starts unless its effort is `max`, `high` or `off`.
 | `agy` | `low`, `medium`, `high` |
 | `claude` | `low`, `medium`, `high`, `xhigh`, `max`, and `ultracode` |
 | `codex` | `low`, `medium`, `high`, `xhigh`, and `max`/`ultra` on the models that take them |
-| `cursor` | `low`, `medium`, `high` — written into the model rather than sent beside it |
+| `cursor-agent` | `low`, `medium`, `high` — written into the model rather than sent beside it |
 | `dsh` | `off`, `high`, `max` |
 | `grok` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` — the levels the model itself advertises |
 | `kimi` | `low`, `medium`, `high`, `max`, each also as `swarm…` |
@@ -1328,7 +1338,7 @@ CLI that never counts one is:
 ```python
 ClaudeCodeAgent.counts    # frozenset({"input", "output", "cache_read", "cache_write"})
 CodexAgent.counts         # frozenset({"input", "output"}) — cached reads are inside the input
-CursorAgent.counts        # frozenset() — a duration and no tokens
+CursorAgent.counts        # frozenset({"input", "output", "cache_read", "cache_write"})
 ```
 
 The catalogue serves each of them as `counts:<kind>`, so a place whose flow steers by one can
@@ -1345,10 +1355,11 @@ moved when one ended would stand still for all of them: most backends here are r
 say what each request to the model cost — Claude Code on the message it answered with,
 Codex on `thread/tokenUsage/updated`, DeepSeek Harness and pi on finalized assistant messages,
 opencode and mimocode on each step, Kimi Code from the session it is polling anyway, ZCode on
-the row its log gains per model request. Antigravity, Grok Build and Qwen Code are the
-exception: their adapters report usage at the end, so what they spent
-lands on the closing `result` and their rate moves a turn at a time rather than a request at a
-time.
+the row its log gains per model request. Antigravity, Grok Build, Qwen Code and Cursor Agent
+are the exception: they report usage at the end — Cursor states the whole turn's spending once,
+under `usage` on the `result` line, and says nothing about tokens before it — so what they
+spent lands on the closing `result` and their rate moves a turn at a time rather than a
+request at a time.
 
 Kimi Code uses the official daemon's WebSocket notifications to wake its REST polling, which
 is what the `[kimi]` [extra](/user/installation#the-two-backends-that-are-extras) carries the
@@ -1486,7 +1497,7 @@ started:
 
 | How the backend is driven | What a cut-off reaches |
 | --- | --- |
-| One command per turn — `cursor`, `grok`, `opencode`, `mimo`, and the shaped turns of `agy` and `qwen` | The command the turn is running in, and its children. |
+| One command per turn — `cursor-agent`, `grok`, `opencode`, `mimo`, and the shaped turns of `agy` and `qwen` | The command the turn is running in, and its children. |
 | One process held open across its turns — `claude`, `pi`, `agy`, `qwen` | The process the session is spoken to. The next turn starts another and resumes the conversation. |
 | An app server serving every session of an agent at once — `codex`, `kimi`, `zcode`, `dsh` | Nothing is taken down; the turn stops at the next answer. Ending the server would end every other conversation on it. |
 
@@ -1565,7 +1576,7 @@ whoever starts the run overrides it. See
 [Every run has an allowance](/features/allowances).
 ## What each backend can do
 
-| | `agy` | `claude` | `codex` | `cursor` | `dsh` | `grok` | `kimi` | `pi` | `qwen` | `opencode`, `mimo` | `zcode` |
+| | `agy` | `claude` | `codex` | `cursor-agent` | `dsh` | `grok` | `kimi` | `pi` | `qwen` | `opencode`, `mimo` | `zcode` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Driven through | its command line, held open for ordinary turns | its command line, held open | its app server | its command line, one run per turn | its Python SDK | its command line, held open for ordinary turns | its app server | its command line, held open | its command line, held open for ordinary turns | its command line, one run per turn | its app server |
 | [`interject`](#talking-to-a-turn-already-running) — `session.steers` | no | yes — answered within the same turn | yes — a steer on the running turn | no — a run per turn has ended | no — its prompt queues a turn behind | no — a second prompt is a second turn | yes — queued, then steered in | yes — a steer on the running turn | no | no — a run per turn has ended | no — a second prompt is refused while one is running |
@@ -1694,7 +1705,7 @@ agents at what they came with, and a called flow runs at its caller's rung or ti
 Every backend has a ladder of its own and none of them has the same four rungs, so each driver
 reaches for whichever of its own settings says the same thing:
 
-| Rung | `agy` | `claude` | `codex` | `cursor` | `dsh` | `grok` | `kimi` | `pi` | `qwen` | `opencode`, `mimo` | `zcode` |
+| Rung | `agy` | `claude` | `codex` | `cursor-agent` | `dsh` | `grok` | `kimi` | `pi` | `qwen` | `opencode`, `mimo` | `zcode` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `read-only` | refused | `plan` mode | `read-only` sandbox | `--mode plan` | refused | only `read_file`, `grep`, `list_dir` | plan mode | without `bash`, `edit`, `write` | without `edit`, `write_file`, `run_shell_command` | `edit` and `bash` denied | `plan` mode |
 | `workspace-write` | refused | `acceptEdits` mode | `workspace-write` sandbox | `--sandbox enabled` | refused | `web_search` and `web_fetch` denied | plan mode off | — | `web_fetch` denied | `webfetch` denied | `edit` mode |
@@ -1799,7 +1810,7 @@ a project's own skills for as long as the session lives, and taken away again af
 | --- | --- |
 | `claude` | `.claude/skills/` in the workspace |
 | `agy`, `codex`, `grok`, `kimi`, `mimo`, `opencode`, `qwen`, `zcode` | `.agents/skills/`, the directory more than one of these agreed to read |
-| `cursor` | `.cursor/skills/` in the workspace |
+| `cursor-agent` | `.cursor/skills/` in the workspace |
 | `dsh`, `pi` | — none: neither reads such a directory the way humanize drives it |
 
 A project's own skill of that name wins: a flow does not write over what the project keeps.

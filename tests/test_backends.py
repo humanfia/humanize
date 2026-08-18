@@ -18,6 +18,37 @@ def test_every_backend_answers_to_its_own_name() -> None:
         assert backends.named(profile.name) is profile
 
 
+def test_every_backend_is_called_the_command_it_is_installed_as() -> None:
+    """Which is the promise `-a` is read against and the one the reference page makes.
+
+    A backend whose name and command part company is a name nobody can run and a command
+    nobody can name: `-a cursor/...` for a CLI called `cursor-agent` reads as a backend
+    humanize has and a program this machine has not. Pinned over every driven backend rather
+    than over the one it went wrong on, so that it cannot go wrong on the next one.
+    """
+    from hmz.coganchor.agents import DRIVEN
+
+    for name in DRIVEN:
+        profile = backends.named(name)
+        assert profile is not None, name
+        assert profile.runs() == name
+
+
+def test_what_coganchor_keeps_on_this_machine_is_kept_under_the_same_names() -> None:
+    """The two tables of twelve are one list of backends, written down in two places.
+
+    `hmz.coganchor.statepaths` says which of an agent's directories stay on this machine when
+    its turn lands on another, and it is keyed by the command a turn was spawned as. A name
+    that is in one table and not the other is an agent whose own state is served from the
+    target -- which is a session lost, or another backend's home answered in its place.
+    """
+    from hmz.coganchor import statepaths
+
+    assert {one.name for one in statepaths.PROFILES} == {
+        one.runs() for one in backends.PROFILES
+    }
+
+
 def test_no_two_backends_answer_to_one_name() -> None:
     spellings = [alias for profile in backends.PROFILES for alias in profile.aliases]
     assert len(spellings) == len(set(spellings))

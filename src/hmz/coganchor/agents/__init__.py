@@ -85,7 +85,7 @@ DRIVEN: dict[str, tuple[type[AgentBase], type[AgentConfig]]] = {
     "agy": (AntigravityCLIAgent, AntigravityCLIAgentConfig),
     "claude": (ClaudeCodeAgent, ClaudeCodeAgentConfig),
     "codex": (CodexAgent, CodexAgentConfig),
-    "cursor": (CursorAgent, CursorAgentConfig),
+    "cursor-agent": (CursorAgent, CursorAgentConfig),
     "dsh": (DshAgent, DshAgentConfig),
     "grok": (GrokBuildAgent, GrokBuildAgentConfig),
     "kimi": (KimiCodeCLIAgent, KimiCodeCLIAgentConfig),

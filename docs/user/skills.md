@@ -38,7 +38,7 @@ down in `hmz.coganchor.backends`:
 | `agy` | `~/.gemini/antigravity-cli/skills/*/SKILL.md` | `.agents/skills/*/SKILL.md` |
 | `claude` | `~/.claude/skills/*/SKILL.md` | `.claude/skills/*/SKILL.md` |
 | `codex` | `~/.codex/skills/*/SKILL.md`, `~/.agents/skills/*/SKILL.md` | `.agents/skills/*/SKILL.md`, `.codex/skills/*/SKILL.md` |
-| `cursor` | `~/.cursor/skills/*/SKILL.md`, `~/.config/cursor/skills/*/SKILL.md` | `.cursor/skills/*/SKILL.md` |
+| `cursor-agent` | `~/.cursor/skills/*/SKILL.md`, `~/.config/cursor/skills/*/SKILL.md` | `.cursor/skills/*/SKILL.md` |
 | `grok` | `~/.grok/skills/*/SKILL.md`, `~/.agents/skills/*/SKILL.md`, `~/.claude/…`, `~/.cursor/…` | `.grok/skills/*/SKILL.md`, `.agents/…`, `.claude/…`, `.cursor/…` |
 | `kimi` | `~/.kimi-code/skills/*/SKILL.md`, `~/.agents/skills/*/SKILL.md` | `.kimi-code/skills/*/SKILL.md`, `.agents/skills/*/SKILL.md` |
 | `mimo` | `~/.config/mimocode/skill(s)/*/SKILL.md`, `~/.agents/…`, `~/.claude/…`, `~/.codex/…` | `.mimocode/skill(s)/*/SKILL.md`, `.agents/…`, `.claude/…`, `.codex/…` |
@@ -105,7 +105,7 @@ else maintains is one that keeps up.
 | Backend | Where |
 | --- | --- |
 | `claude` | `.claude/skills/` in the workspace |
-| `cursor` | `.cursor/skills/` in the workspace |
+| `cursor-agent` | `.cursor/skills/` in the workspace |
 | `agy`, `codex`, `grok`, `kimi`, `mimo`, `opencode`, `qwen`, `zcode` | `.agents/skills/`, the directory more than one of these agreed to read |
 | `dsh`, `pi` | — none: they carry what their CLI installs, and nothing else |
 

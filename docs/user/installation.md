@@ -97,7 +97,7 @@ environment humanize is running in — so adding one later is not reinstalling h
 humanize can run the backends installed in its environment. Check the CLI backends with:
 
 ```sh
-command -v agy claude codex grok kimi pi qwen opencode mimo zcode
+command -v agy claude codex cursor-agent grok kimi pi qwen opencode mimo zcode
 ```
 
 A CLI backend humanize cannot find is not offered. It looks on your `PATH` first, then where an

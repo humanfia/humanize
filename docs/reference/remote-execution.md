@@ -160,7 +160,7 @@ the agent once it exits, and when the session ends nothing it started is left ru
 - Its state directory, and anything the agent runs from inside it — Grok Build keeps its native
   binary
   under `~/.grok/bin` and re-execs it. All twelve known CLIs are known by name — `agy`, `claude`,
-  `codex`, `cursor`, `dsh`, `grok`, `kimi`, `mimo`, `opencode`, `pi`, `qwen`, `zcode` — as is
+  `codex`, `cursor-agent`, `dsh`, `grok`, `kimi`, `mimo`, `opencode`, `pi`, `qwen`, `zcode` — as is
   humanize's own `~/.humanize`; any other agent keeping state inside the workspace has to be
   named with `--local-path`.
 - Anything named as a local path (`--local-path`) or a local program (`--local-exec`).

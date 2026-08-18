@@ -2257,8 +2257,9 @@ def catalogue() -> tuple[Capability, ...]:
       One capability apiece: the primitives every backend serves, then what only some do
       -- each moment outside `EVERYWHERE`, the shape a turn can be held to, the tools a
       flow may offer, a turn that can be steered while it runs, the goal feature, the
-      fork and each kind of token a backend says what it spent on -- and then where an
-      agent's turns may land and how a turn's own commands are reached there.
+      fork, each kind of token a backend says what it spent on and the one that has to be
+      trusted with a directory before it works in it -- and then where an agent's turns
+      may land and how a turn's own commands are reached there.
     """
     import inspect
     import sys as running
@@ -2457,6 +2458,16 @@ def catalogue() -> tuple[Capability, ...]:
             "a run that mixes one in reads its figure for this kind as a floor",
         )
         for kind in KINDS
+    )
+    held.append(
+        Capability(
+            "trust",
+            frozenset(name for name, cls in agents.items() if cls.trusts),
+            "a backend that asks to be trusted with the directory it has been pointed at "
+            "before it will work in one -- answered here by default, an unattended turn "
+            "having nobody to answer it, and handed back with trust=False on that "
+            "backend's own config where somebody is watching",
+        )
     )
     held.extend(_places())
     held.extend(_anchors(agents))

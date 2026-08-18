@@ -429,6 +429,7 @@ class Agents(NamedTuple):
 | `tools` | the flow's own callbacks put in front of the agent, `session.offers([...])` |
 | `fork` | one conversation carried into a second going its own way |
 | `counts:<kind>` | the backend says what a turn spent on that kind of token — `input`, `output`, `cache_read`, `cache_write`, `reasoning` — so a loop bounded by one is not bounded by a nought |
+| `trust` | the backend asks to be trusted with the directory it has been pointed at, and the turn answers that for it — so it is the one whose config can hand the question back |
 | `search` / `swarm` / `resume` | facts about the CLI itself, out of its own profile |
 | `moment:<name>` | a moment only some backends reach, written out rather than as the enum |
 
