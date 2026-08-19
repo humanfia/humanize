@@ -23,6 +23,8 @@ from typing import TYPE_CHECKING, Any, ClassVar, Protocol, Self, cast
 
 import yaml
 
+from hmz.coganchor import backends
+
 from .base import AgentBase, SessionBase
 from .config import AgentConfig
 from .event import Event, Failed, Saying, Unrecoverable, Usage, say
@@ -43,7 +45,7 @@ _BASE_URL_ENV = "DEEPSEEK_BASE_URL"
 _REF = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _EXTRA = (
     "DeepSeek Harness is not installed in this Python environment, though humanize depends "
-    "on it: reinstall humanize, or pip install 'deepseek-harness-sdk'"
+    f"on it: reinstall humanize, or pip install '{backends.DSH_SDK}'"
 )
 _KEY_REQUIRED = (
     "DeepSeek Harness only supports API-key login and needs a DeepSeek API key. Save one "

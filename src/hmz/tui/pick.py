@@ -63,6 +63,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList
 from textual.widgets.option_list import Option
 
+from hmz.coganchor import backends
 from hmz.coganchor.agents import ANYONE, FLOW, SWARM, USER, anchored, driver
 from hmz.coganchor.agents.allowance import Allowance, allowed, unwatched
 from hmz.coganchor.prices import money
@@ -4067,10 +4068,7 @@ def _installing(backend: str) -> str:
     if backend != "dsh":
         return f"install {backend}, then reopen humanize"
     executable = str(Path(sys.executable).absolute())
-    command = (
-        f"uv pip install --python {shlex.quote(executable)} "
-        "'deepseek-harness-sdk>=0.1.0rc6,<0.2'"
-    )
+    command = f"uv pip install --python {shlex.quote(executable)} {shlex.quote(backends.DSH_SDK)}"
     return f"DeepSeek Harness is not installed; run: {command}; then reopen hmz"
 
 

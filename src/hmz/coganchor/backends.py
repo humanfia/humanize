@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ALIKE",
+    "DSH_SDK",
     "FAULTS",
     "PROFILES",
     "SIGNS",
@@ -662,6 +663,15 @@ _PI = ("max", "xhigh", "high", "medium", "low", "minimal", "off")
 #: What the official DeepSeek adapter in DeepSeek Harness calls its reasoning levels.
 _DSH = ("max", "high", "off")
 
+#: The SDK dsh is driven through, written the way somebody installing it by hand has to write
+#: it. The ceiling is the point of the line: 0.1.2a3 redesigned the configuration the driver
+#: is written against, so an install told to fetch the newest resolves one that cannot open a
+#: session at all. Said in one place because it is said in three -- the line offered when the
+#: backend is missing, the one the interface prints, and the one the driver raises -- and
+#: three hand-copies of a version range are three chances to leave one of them at the old
+#: bound. It MUST be kept in step with `pyproject.toml`, which is the copy that binds.
+DSH_SDK = "deepseek-harness-sdk>=0.1.1rc1,<0.1.2"
+
 #: What Grok Build calls its reasoning levels, hardest first, which is what it says when it
 #: is given one it has not got: `unknown effort level; use one of: xhigh, high, medium, low`.
 #: Written as it enumerates them rather than as the fuller ladders beside it: a rung it
@@ -1037,7 +1047,7 @@ PROFILES = (
         # of its own three minutes. A turn quiet for twice that is the runtime having stopped
         # answering rather than the model still thinking, so there is nothing to wait for.
         silence=360.0,
-        installs="pip install 'deepseek-harness-sdk'",
+        installs=f"pip install '{DSH_SDK}'",
         # Its own sentence for the one credential it takes, which names neither a status nor
         # a login: an SDK rather than a CLI, so nothing about it reads like HTTP.
         signs=(Sign("refused", r"needs a DeepSeek API key"),),

@@ -20,12 +20,18 @@ dependencies = [
     # `dsh_bin`, and effort stops being smuggled through the environment and becomes a field
     # of its own. That class refuses a keyword it does not know, so the widening would not be
     # a backend that behaves oddly, it would be one that cannot start a session at all.
-    # Widen this only together with the port in `coganchor/agents/dsh.py`.
+    # Widen this only together with the port in `coganchor/agents/dsh.py`, and with the copy
+    # of this range in `coganchor/backends.py`, which is what humanize tells somebody to
+    # install by hand. The ceiling costs something and it is the cheaper half of the trade:
+    # the bundled runtime ships no sdist, and 0.1.1rc1 built wheels for Linux on x86-64 or
+    # arm64 and macOS on arm64 alone, so this is the platform set humanize's docs already
+    # promise. Later SDKs add Windows and macOS x86-64, but reach them through a driver that
+    # cannot open a session -- an install that fails outright beats one that fails every turn.
     "deepseek-harness-sdk>=0.1.1rc1,<0.1.2",
+    "psutil>=7.2.2",
     # A flow says what it can be configured with by declaring a model, and the menu that
     # asks is read off that model: the types, the bounds and the combinations a flow
     # refuses are all written once, where the flow declares them.
-    "psutil>=7.2.2",
     "pydantic>=2.13.5",
     "pyfiglet>=1.0",
     # dsh reads a project's `.env` the way its own CLI does, and reading one is somebody
