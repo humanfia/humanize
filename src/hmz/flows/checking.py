@@ -2244,6 +2244,48 @@ def _anchors(agents: Mapping[str, type]) -> list[Capability]:
     return held
 
 
+def _adds() -> list[Capability]:
+    """The settings one backend's config takes that the common one does not, one name apiece.
+
+    Every backend is configured with the same handful of things -- a model, an effort, a rung,
+    an account -- and some of them take more than that: a CLI with a flag nobody else has is
+    driven by a subclass of :class:`hmz.coganchor.agents.config.AgentConfig` carrying a field
+    for it. That field is where humanize's own imposition on a CLI's defaults is written down
+    and where it is undone, so it is worth asking for before an agent is chosen: a run that
+    means to pin a turn's own clock, or to let a project be resolved the way the bare CLI
+    would, needs the backend whose config has somewhere to say so.
+
+    Read off the config classes rather than declared beside them, for the reason everything
+    else here is read off the live interface: a field added to one of them is a name this
+    answers with on the next call, and a field renamed cannot leave a capability behind
+    promising what nothing serves.
+
+    Returns:
+      One capability per such field, named `settings:<field>`, against the backends whose own
+      config carries it.
+    """
+    import dataclasses
+
+    from hmz.coganchor.agents import DRIVEN
+    from hmz.coganchor.agents.config import AgentConfig
+
+    common = {one.name for one in dataclasses.fields(AgentConfig)}
+    own = {
+        backend: {one.name for one in dataclasses.fields(config)} - common
+        for backend, (_, config) in DRIVEN.items()
+    }
+    return [
+        Capability(
+            f"settings:{field}",
+            frozenset(backend for backend, fields in own.items() if field in fields),
+            f"a setting only some of these CLIs have -- replace(agent.config, "
+            f"{field}=...) on a backend among these, whose own config class is what "
+            f"carries it and whose default is what a turn of it already ran as",
+        )
+        for field in sorted({field for fields in own.values() for field in fields})
+    ]
+
+
 def catalogue() -> tuple[Capability, ...]:
     """Everything a flow may build on here, read off the installed interface at call time.
 
@@ -2259,8 +2301,9 @@ def catalogue() -> tuple[Capability, ...]:
       flow may offer, a turn that can be steered while it runs, the goal feature, the
       fork, each kind of token a backend says what it spent on, the one that has to be
       trusted with a directory before it works in it, what a backend is told that it did
-      not ask for, the faster tier some can be asked to serve at and the settings of their
-      own the rest take -- and then where an agent's turns may land and how a turn's own
+      not ask for, the faster tier some can be asked to serve at, the settings of their
+      own the rest take, and each setting only some of their configs carry -- and then
+      where an agent's turns may land and how a turn's own
       commands are reached there.
     """
     import inspect
@@ -2545,6 +2588,7 @@ def catalogue() -> tuple[Capability, ...]:
             "the thing; off unless asked for, as each of these CLIs has it off",
         )
     )
+    held.extend(_adds())
     held.extend(_places())
     held.extend(_anchors(agents))
     return tuple(held)

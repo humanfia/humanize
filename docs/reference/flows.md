@@ -435,6 +435,7 @@ class Agents(NamedTuple):
 | `strict-settings` | the backend can be asked to refuse a setting it does not recognise rather than pass over it |
 | `search` / `swarm` / `resume` | facts about the CLI itself, out of its own profile |
 | `title` / `native-search` / `delivery` | what a backend is told that it did not ask for, and the place can ask whether it is tellable at all — [ZCode's three](/reference/agents#what-zcode-is-told-that-zcode-did-not-ask-for), each with a field on its config |
+| `settings:<field>` | a setting only some of these CLIs have, on that backend's own config class — `allowed_tools`, `overrides`, `print_timeout` and the rest — each defaulting to what a turn of that CLI already ran as |
 | `moment:<name>` | a moment only some backends reach, written out rather than as the enum |
 
 Read off the driver class and off what is written down about the CLI, so nothing has to have

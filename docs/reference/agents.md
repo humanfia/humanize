@@ -358,7 +358,14 @@ bounded unattended flow. A CLI of your own takes `cli`, `command`, and the four 
 client may offer an agent over its protocol — `reads_files`, `writes_files`, `terminals` and
 `mcp_servers`. ZCode takes `titles`, `native_search` and `delivery` —
 [the three answers its app server gets](#what-zcode-is-told-that-zcode-did-not-ask-for) that
-are humanize's rather than its own. Cursor Agent takes four:
+are humanize's rather than its own. Antigravity takes four: `add_workspace`, whether the
+session's directory is pinned with `--add-dir` rather than left to the project the CLI would
+resolve for itself; `print_timeout`, how long its own print-mode clock runs, which defaults to
+a day rather than to the CLI's five minutes because a turn that reaches that clock comes back
+short and successful; `disable_slash_commands`, whether a prompt opening with `/deploy`
+reaches the model as the words it is; and `sandbox`, whether the turn runs under the CLI's own
+terminal restrictions. Each defaults to what a turn of that CLI already ran as. Cursor Agent
+takes four:
 
 | | |
 | --- | --- |
@@ -1271,7 +1278,7 @@ before the runtime starts unless its effort is `max`, `high` or `off`.
 
 | Backend | Efforts |
 | --- | --- |
-| `agy` | `low`, `medium`, `high` |
+| `agy` | `low`, `medium`, `high` — written into the model where its name carries one, and sent beside it where it does not |
 | `claude` | `low`, `medium`, `high`, `xhigh`, `max`, and `ultracode` |
 | `codex` | `low`, `medium`, `high`, `xhigh`, and `max`/`ultra` on the models that take them |
 | `cursor-agent` | `low`, `medium`, `high` — written into the model rather than sent beside it |
@@ -1283,9 +1290,23 @@ before the runtime starts unless its effort is `max`, `high` or `off`.
 | `opencode`, `mimo` | the model variant: `minimal`, `low`, `medium`, `high`, `xhigh` |
 | `zcode` | `nothink`, `low`, `high`, `max` on the models that take a thinking budget — `disabled`, `enabled` on the ones that only think or not |
 
-**Antigravity CLI has one switch for what an agent may do** — approve every tool, or stop and
-ask — and nobody is at a prompt to be asked, so `read-only` and `workspace-write` are refused
-where the agent is made rather than quietly run as the rung above. Ordinary Antigravity
+**Antigravity says how hard to think one of two ways and the model chooses which.** It lists
+`gemini-3.7-flash-high`, `-medium` and `-low` as three models, and a name carrying a rung
+refuses the flag beside it — `--model <name> conflicts with --effort=<rung>`. A name carrying
+none refuses to run without it — `--model <name> requires --effort (available: …)`. So the
+configured effort is sent as `--effort` exactly when the model's own name has not already
+answered, which is what lets a base model name work at all.
+
+**Antigravity CLI serves every rung, two of them as modes of its own.** `--mode plan` is the
+agent that researches and changes nothing, and `--mode accept-edits` is the one whose file
+writes go through without asking. Nobody is at a prompt to answer for the rest, and that is
+what makes those two real rungs rather than turns that hang on them: a print-mode run
+soft-denies the tool it was not permitted to take and names it under `denied_actions` instead
+of waiting. So `workspace-write` lands tighter than the word — its edits go through and its
+commands are refused — which is said here rather than covered up by running the rung above it.
+`auto` and `bypass` are the same flag, `--dangerously-skip-permissions`: `auto` is the rung
+where what the agent asks for is granted, granting is the whole of what that flag does, and
+this CLI has no hook seam for anything else to have a say. Ordinary Antigravity
 turns reuse the official CLI process through stream-json input. Slash commands and shaped
 answers use separate print commands, then resume the same conversation. A slash command is a
 whole first word — `/help`, `/plugin:install` — so a task that merely opens with a path, as
@@ -1300,7 +1321,13 @@ watched separately. Anchored turns always end the process for filesystem synchro
 Both modes pass the session directory through the CLI's `--add-dir` flag, as the CLI finds it
 — the anchor's mirror for an anchored turn — preserving any additional provider directories.
 This keeps native project selection from replacing the session workspace with a scratch
-directory.
+directory; `add_workspace=False` leaves the project to the CLI. Both modes also set
+`--print-timeout`: since Antigravity 1.1.28 a turn that reaches that clock does not fail but
+hands back the part of the answer it has and exits successfully, so the CLI's own five
+minutes would be a half answer nothing downstream could tell from a whole one. The clocks
+that decide here are humanize's — [the watchdog's silence window](#when-a-cli-stops-answering)
+and whatever [budget](#cutting-a-turn-off-and-what-one-turn-may-spend) the turn was given —
+and both of those end the process rather than truncating it.
 
 **Grok Build refuses a level the model does not advertise** rather than ignoring it, so a turn
 asked for one fails with the list of the ones that model takes. The shipped models take
@@ -1792,8 +1819,8 @@ reaches for whichever of its own settings says the same thing:
 
 | Rung | `agy` | `claude` | `codex` | `cursor-agent` | `dsh` | `grok` | `kimi` | `pi` | `qwen` | `opencode`, `mimo` | `zcode` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `read-only` | refused | `plan` mode | `read-only` sandbox | `--mode plan` | refused | only `read_file`, `grep`, `list_dir` | plan mode | without `bash`, `edit`, `write` | without `edit`, `write_file`, `run_shell_command` | `edit` and `bash` denied | `plan` mode |
-| `workspace-write` | refused | `acceptEdits` mode | `workspace-write` sandbox | `--sandbox enabled` | refused | `web_search` and `web_fetch` denied | plan mode off | — | `web_fetch` denied | `webfetch` denied | `edit` mode |
+| `read-only` | `--mode plan` | `plan` mode | `read-only` sandbox | `--mode plan` | refused | only `read_file`, `grep`, `list_dir` | plan mode | without `bash`, `edit`, `write` | without `edit`, `write_file`, `run_shell_command` | `edit` and `bash` denied | `plan` mode |
+| `workspace-write` | `--mode accept-edits`, whose commands are denied | `acceptEdits` mode | `workspace-write` sandbox | `--sandbox enabled` | refused | `web_search` and `web_fetch` denied | plan mode off | — | `web_fetch` denied | `webfetch` denied | `edit` mode |
 | `auto` | `--dangerously-skip-permissions` | Claude's own `auto` mode | `workspace-write`, approvals on request | `--auto-review`, its own classifier | refused | — | — | — | — | nothing denied | `build` mode, which asks before a tool with side effects |
 | `bypass` | `--dangerously-skip-permissions` | `manual` mode, every request answered here | `danger-full-access` | `--force --sandbox disabled` | supported | `--yolo` | `yolo` mode | — | `--approval-mode yolo` | — | `yolo` mode |
 

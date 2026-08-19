@@ -12,7 +12,7 @@ import json
 import os
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 import pytest
@@ -358,6 +358,8 @@ out({"type": "end", "stopReason": "end_turn", "sessionId": session, "num_turns":
 #: An `agy --print`: the prompt is inside the command line, and it answers in the events of
 #: one turn -- one `init`, then a step apiece, then one `result`. A prompt of `boom` comes back
 #: as a result whose status is not success, which is how this backend says a turn did not land.
+#: It refuses a command line agy 1.2.2 would refuse: a flag that CLI has not got, and an effort
+#: said both ways at once or neither -- the three refusals a driver that drifted would hit.
 _AGY = """
 import json, os, pathlib, sys
 
@@ -365,6 +367,25 @@ log = pathlib.Path(LOG)
 argv = sys.argv[1:]
 flags = dict(zip(sys.argv, sys.argv[1:]))
 talk = flags.get("--conversation", "conv-agy-stub")
+
+known = {"--add-dir", "--agent", "--continue", "--conversation",
+         "--dangerously-skip-permissions", "--disable-slash-commands", "--effort",
+         "--input-format", "--json-schema", "--log-file", "--mode", "--model",
+         "--new-project", "--output-format", "--print", "--print-timeout", "--project",
+         "--prompt", "--prompt-interactive", "--sandbox"}
+for index, word in enumerate(argv):
+    # The word after --print is the prompt, which is free to open with a dash.
+    if index and argv[index - 1] == "--print":
+        continue
+    if word.startswith("--") and word not in known:
+        sys.exit("flags provided but not defined: " + word)
+
+model = flags.get("--model", "")
+carried = any(model.endswith("-" + rung) for rung in ("high", "medium", "low"))
+if carried and "--effort" in argv:
+    sys.exit("--model %s conflicts with --effort" % model)
+if not carried and "--effort" not in argv:
+    sys.exit("--model %s requires --effort" % model)
 
 
 def out(line):
@@ -974,13 +995,52 @@ def test_agy_keeps_one_process_for_the_conversation_it_opened(
     opened, again = stubs.calls()
     assert "--input-format" in opened.argv
     assert "--print" not in opened.argv
-    # And no `--effort`: how hard to think is part of the model here, and Antigravity
-    # refuses the flag beside every model it lists.
+    # And no `--effort` beside this model: its name already carries one, and Antigravity
+    # refuses the flag against a name that does with `conflicts with --effort`.
     assert "--effort" not in opened.argv
     assert "--dangerously-skip-permissions" in opened.argv
     assert "--conversation" not in opened.argv
+    # Its own print clock is five minutes and a turn that reaches it comes back short and
+    # successful, so the driver sets one no unattended turn runs into.
+    assert opened.argv[opened.argv.index("--print-timeout") + 1] == "86400.000s"
     assert opened.pid == again.pid
     assert opened.argv == again.argv
+
+
+def test_agy_sends_the_effort_beside_a_model_whose_name_does_not_carry_one(
+    stubs: _Stubs,
+) -> None:
+    """Antigravity refuses to run such a model without `--effort` at all."""
+    config = AntigravityCLIAgentConfig(model="gemini-3.5-flash", effort="medium")
+    assert AntigravityCLIAgent(config).new()("hi") == "hi"
+
+    (opened,) = stubs.calls()
+    assert opened.argv[opened.argv.index("--effort") + 1] == "medium"
+
+
+@pytest.mark.parametrize(
+    ("permission", "flags"),
+    [
+        ("read-only", ["--mode", "plan"]),
+        ("workspace-write", ["--mode", "accept-edits"]),
+        ("auto", ["--dangerously-skip-permissions"]),
+        ("bypass", ["--dangerously-skip-permissions"]),
+    ],
+)
+def test_agy_runs_every_rung_of_the_ladder_as_its_own_flags(
+    stubs: _Stubs, permission: str, flags: list[str]
+) -> None:
+    """Its two modes are the two tighter rungs, and the skip flag is the two loosest."""
+    config = AntigravityCLIAgentConfig(
+        model="gemini-3.5-flash-medium", effort="high", permission=permission
+    )
+    assert AntigravityCLIAgent(config).new()("hi") == "hi"
+
+    (opened,) = stubs.calls()
+    at = opened.argv.index(flags[0])
+    assert opened.argv[at : at + len(flags)] == flags
+    if "--mode" in flags:
+        assert "--dangerously-skip-permissions" not in opened.argv
 
 
 def test_agy_says_what_the_turn_did_and_what_it_cost(stubs: _Stubs) -> None:
@@ -1008,13 +1068,30 @@ def test_agy_that_said_nothing_at_all_is_a_failed_turn(stubs: _Stubs) -> None:
         AntigravityCLIAgent(AGY).new()("quiet")
 
 
-@pytest.mark.parametrize("permission", ["read-only", "workspace-write"])
-def test_agy_refuses_a_rung_it_has_no_way_of_running_at(permission: str) -> None:
-    """One switch, and nobody at a prompt to answer it: the rest is said rather than faked."""
-    with pytest.raises(ValueError, match="no way of being allowed less"):
-        AntigravityCLIAgent(
-            AntigravityCLIAgentConfig(model="m", effort="high", permission=permission)
-        )
+def test_agy_refuses_a_read_only_rung_its_own_flag_would_undo() -> None:
+    """Agy says plan mode has no effect while expansion is off, and goes on writing.
+
+    Said where the config arrives rather than where it is written: the rung is the flow's, and
+    a place declaring `read-only` settles it onto whatever agent it was handed.
+    """
+    told = AntigravityCLIAgentConfig(
+        model="m", effort="high", disable_slash_commands=True
+    )
+    agent = AntigravityCLIAgent(told)
+    with pytest.raises(ValueError, match="plan mode has no effect"):
+        agent.reconfigure(replace(told, permission="read-only"))
+    with pytest.raises(ValueError, match="plan mode has no effect"):
+        AntigravityCLIAgent(replace(told, permission="read-only"))
+    # And the rung is still what it was: a refusal is not half a reconfiguration.
+    assert agent.config.permission == "bypass"
+
+
+@pytest.mark.parametrize("waiting", [0.0, -1.0, float("nan"), float("inf"), 1e16])
+def test_agy_refuses_a_print_clock_that_cannot_be_written_as_a_duration(
+    waiting: float,
+) -> None:
+    with pytest.raises(ValueError, match="positive number of seconds"):
+        AntigravityCLIAgentConfig(model="m", effort="high", print_timeout=waiting)
 
 
 def test_agy_cannot_be_talked_to_mid_turn_and_has_no_goal_feature(

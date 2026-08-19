@@ -10,11 +10,14 @@ process restarts; each result here reports only its own turn's cost.
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
+
+from hmz.coganchor import backends
 
 from ._inputs import snapshot
 from .base import AgentBase, CommandSessionBase, SessionBase, StreamSessionBase
@@ -30,10 +33,52 @@ if TYPE_CHECKING:
 #: puts it down under this name, which is what a command line reaches for.
 _COMMAND = "agy"
 
-#: The rungs it can actually be run at. There is one switch -- approve everything, or ask --
-#: and nobody is there to be asked, so a rung it cannot express is refused where the agent is
-#: made rather than silently run as something else.
-_TAKES = ("auto", "bypass")
+#: What a turn is run as at each rung of the ladder, in the CLI's own flags. Read off `agy
+#: --help` and the CLI's own wording for its modes, last checked against agy 1.2.2 on
+#: 2026-09-15: `--mode plan` is "research and plan without making changes", `--mode
+#: accept-edits` is "auto-approve file edits, prompt for commands", and
+#: `--dangerously-skip-permissions` is the one where nothing is asked at all.
+#:
+#: The prompting is nobody's to answer here, and that is what makes the two tighter rungs real
+#: rungs rather than turns that hang on them: a print-mode run soft-denies the tool it was not
+#: permitted to take and names it under `denied_actions` instead of waiting for an answer. So
+#: `workspace-write` lands tighter than the word -- its edits go through and its commands are
+#: refused -- which is the safe direction for a rung to be wrong in, and it is said here out
+#: loud rather than covered up by running the rung above it.
+#:
+#: `auto` reaches for the same flag as `bypass`, which is the one place this ladder collapses
+#: two rungs into one. `auto` is the rung where what the agent asks for is granted, granting is
+#: the whole of what that flag does, and agy has no hook seam for anything else to have a say
+#: -- so there is nothing between the two to reach for. Given `--mode accept-edits` instead,
+#: `auto` would have its commands denied and so be stricter than the `workspace-write` under
+#: it, which is a ladder with a rung upside down.
+_PERMITTED = {
+    "read-only": ("--mode", "plan"),
+    "workspace-write": ("--mode", "accept-edits"),
+    "auto": ("--dangerously-skip-permissions",),
+    "bypass": ("--dangerously-skip-permissions",),
+}
+
+#: How long the CLI's own print-mode clock is given, in seconds, for a turn nobody has said
+#: anything about. Its own default is five minutes, and since 1.1.28 a turn that reaches that
+#: clock does not fail: agy says `print timeout after <duration> with turn in progress;
+#: returning partial output` on stderr, hands back the part of the answer it has and exits
+#: successfully. Half an answer arriving as a whole one is the failure nothing downstream can
+#: see, and five minutes is well inside what an unattended turn takes.
+#:
+#: So the clock is left to the two a turn already runs under here, both of which end the
+#: process rather than truncating what it was saying: the watchdog's silence window, which
+#: :mod:`hmz.coganchor.backends` writes down per backend and which every word the turn says
+#: pats, and whatever :class:`hmz.coganchor.agents.config.Budget` the turn was given. The
+#: CLI's flag insists on a duration, so this is a day -- one set past any turn either of those
+#: would still be waiting on, rather than a way of writing "no clock of its own at all".
+_WAITS = 86400.0
+
+#: The longest one that can be written down as a duration rather than spelled in exponents,
+#: which is what a float wide enough to need one would reach the command line as. A century is
+#: past anything anybody means, so the bound costs nobody a setting and buys a refusal said
+#: where the number was chosen instead of one said by a process that would not start.
+_LONGEST = 100 * 365 * 86400.0
 
 #: What a step says it is doing, as the one line a row of a transcript has room for.
 _THINKING = "THINKING"
@@ -72,6 +117,67 @@ def _commanded(prompt: str) -> bool:
     """
     first = prompt.split(maxsplit=1)[:1]
     return bool(first) and _COMMANDED.fullmatch(first[0]) is not None
+
+
+def _carried(model: str) -> bool:
+    """Whether this model's own name already says how hard it thinks.
+
+    Antigravity writes an effort into a model's id -- `gemini-3.7-flash-high` is that model at
+    that effort -- and `agy models` lists those ids, which is what an agent of this backend is
+    configured with. It also takes the effort beside the name, as `--effort`, and it is exact
+    about which of the two a model wants: a name carrying a rung refuses the flag with `--model
+    <name> conflicts with --effort=<rung>`, a name carrying none but having variants refuses to
+    run without it with `--model <name> requires --effort (available: ...)`, and a model with no
+    variants at all refuses it with `--effort is not supported for model <name>`. All three
+    checked against agy 1.2.2 on 2026-09-15.
+
+    So there are two ways of saying one thing rather than a choice between them, and which one
+    is right is the model's to say. This reads the name; :meth:`AntigravityCLISession._turn`
+    sends the flag when the name has not already answered. The ladder itself is read off the
+    one place it is written down rather than spelled again here, which is the same place
+    :mod:`hmz.coganchor.models` reads it to tell a listed id's rung from its model.
+
+    Which leaves the third case, the model with no variants at all, reading from the outside
+    exactly like a base name whose variants are chosen with the flag -- the CLI lists both
+    without a rung on the end, and nothing here can tell them apart before asking. It is asked
+    the same way, and one that takes none says so by name. That is the failure worth having:
+    the alternative is withholding a flag the common case requires, and an effort a flow chose
+    being silently no effort at all is what this codebase calls a setting that lies.
+
+    Args:
+      model: The model the agent is configured with, as `agy models` lists it.
+
+    Returns:
+      Whether its name ends in one of the rungs this backend has.
+    """
+    profile = backends.named(_COMMAND)
+    efforts = profile.efforts if profile is not None else ()
+    return any(model.endswith(f"-{rung}") for rung in efforts)
+
+
+def _settled(config: AgentConfig) -> AntigravityCLIAgentConfig:
+    """This backend's own settings, off a config that may not be one of its own.
+
+    An agent of this backend is ordinarily made with the class
+    :data:`hmz.coganchor.agents.DRIVEN` names beside its driver, which carries all four. One
+    made with the common :class:`AgentConfig` -- a caller that named no backend, a record
+    written before there was anything to name -- carries none of them, and what a turn of it
+    runs as is the defaults rather than an attribute that is not there.
+
+    Args:
+      config: What the agent was configured with.
+
+    Returns:
+      It, where it is already this backend's own, and otherwise one carrying every common
+      setting it was configured with and the defaults for the four. Every one of them rather
+      than the handful a turn is built out of today: a field copied by name is a field the
+      next reader of this finds at its default without anything saying so.
+    """
+    if isinstance(config, AntigravityCLIAgentConfig):
+        return config
+    return AntigravityCLIAgentConfig(
+        **{one.name: getattr(config, one.name) for one in fields(AgentConfig)}
+    )
 
 
 def _native(
@@ -199,7 +305,11 @@ class AntigravityCLISession(StreamSessionBase):
         """Keeps ordinary turns warm and preserves print-only command behavior."""
         with self._lock:
             try:
-                if schema is not None or _commanded(prompt):
+                # A commanded prompt goes down the finite transport because that is where the
+                # CLI expands its own commands -- so an agent told not to expand them has
+                # nothing to go there for, and the process it is already holding serves.
+                expands = not _settled(self._agent.config).disable_slash_commands
+                if schema is not None or (expands and _commanded(prompt)):
                     self._shut()
                     yield from CommandSessionBase._stream(  # noqa: SLF001 -- shared transport
                         cast("CommandSessionBase", self), prompt, schema=schema
@@ -285,26 +395,40 @@ class AntigravityCLISession(StreamSessionBase):
         self._said, self._failed = "", None
         self._costing, self._saying = Usage(), Saying()
         self._announced = None
+        config = _settled(self._agent.config)
         argv = [
             _COMMAND,
             "--output-format",
             "stream-json",
             "--model",
-            self._agent.config.model,
+            config.model,
+            # Its own clock is five minutes and a turn that reaches it comes back short and
+            # successful, so what it is set to is `_WAITS` rather than left where it was.
+            # Spelled out to the millisecond: a float written as it repr's itself reaches a
+            # wide enough value in exponents, which is not a duration anything can parse.
+            "--print-timeout",
+            f"{config.print_timeout:.3f}s",
+            *_PERMITTED[config.permission],
+        ]
+        # How hard to think is said one of two ways here and the model chooses which: a name
+        # that already carries the rung refuses the flag, and one that does not requires it.
+        # An agent with no effort at all is left to be told so by the CLI, which names the
+        # rungs that model takes -- a flag carrying nothing would be answered with less.
+        if not _carried(config.model) and self.effort:
+            argv += ["--effort", self.effort]
+        if config.add_workspace or self._agent.anchor is not None:
             # Project selection can replace the CLI's initial cwd with a scratch directory.
             # Keep this session's workspace explicit, beside any provider-supplied roots --
             # and as the CLI will find it, which for an anchored turn is the mirror rather
-            # than the path on the machine the work lands on.
-            "--add-dir",
-            self._workspace(),
-            # Nobody is there to answer it: a flow watches its agent rather than gating it.
-            "--dangerously-skip-permissions",
-        ]
-        # And no `--effort`: how hard to think is part of the model here. Antigravity lists
-        # `gemini-3.7-flash-high`, `-medium` and `-low` as three models, and refuses the flag
-        # beside every model it lists -- as `conflicts with --effort` where the name carries
-        # one that differs, and as `--effort is not supported for model` where the name
-        # carries none. The effort is chosen by choosing the model.
+            # than the path on the machine the work lands on. Which is why an anchored turn
+            # is pinned whatever the agent says: the mirror is the only directory whose files
+            # reach the target, and a turn left to find a project of its own would be one
+            # whose edits land nowhere anybody is watching.
+            argv += ["--add-dir", self._workspace()]
+        if config.sandbox:
+            argv.append("--sandbox")
+        if config.disable_slash_commands:
+            argv.append("--disable-slash-commands")
         if (schema := self._shaping) is not None:
             argv += ["--json-schema", json.dumps(schema.model_json_schema())]
         if self._id is not None:
@@ -491,13 +615,70 @@ class AntigravityCLISession(StreamSessionBase):
 
 @dataclass(frozen=True, kw_only=True)
 class AntigravityCLIAgentConfig(AgentConfig):
-    """What Antigravity CLI is configured with: the common model and effort, and nothing else.
+    """What Antigravity CLI is configured with: the common settings, and the four it adds.
 
-    The model is written as `agy models` lists it, which is a slug of its own -- and the
-    effort is part of that slug, `gemini-3.7-flash-low` being that model at that effort. So
-    the effort here is what a model was chosen at rather than something the CLI is told: it
-    refuses the flag beside every model it lists.
+    The model is written as `agy models` lists it, which is a slug of its own -- and for most
+    of them the effort is part of that slug, `gemini-3.7-flash-low` being that model at that
+    effort. The common `effort` is sent as `--effort` for a model whose name has not already
+    said it, and withheld for one whose name has: see :func:`_carried`.
+
+    The four here are the rest of what this CLI takes that nothing else does. Each defaults to
+    what a turn of it already ran as, so an agent nobody has configured behaves exactly as it
+    did before there was anything to configure.
+
+    Four of its flags are deliberately not here. `--project` and `--new-project` choose the
+    project whose directory `add_workspace` exists to stop replacing the session's, so a field
+    for them would be a field for undoing the one above it. `--agent` picks a custom agent
+    definition, which is a system prompt and a toolset chosen behind the flow's back, out of
+    definitions nothing here mounts. `--log-file` moves the log a failed turn's real reason is
+    read out of, and what reads it -- :func:`hmz.coganchor.backends.journalled` -- finds the
+    newest under this backend's home rather than being told a path per turn, so naming one
+    would move the log away from the only thing that looks at it.
+
+    Attributes:
+      add_workspace: Whether the session's own directory is pinned as a workspace root with
+        `--add-dir`. On, and imposed rather than the CLI's own doing: agy resolves a project
+        for the session and can put its initial working directory somewhere else entirely, so
+        a turn that was not told would be a turn reading a scratch directory. Off is the bare
+        CLI's behaviour, for whoever wants the project it would have chosen -- and is not
+        taken for an agent whose turns land on another machine, where that root is the mirror
+        the work is read and written through and letting the CLI pick another would be edits
+        that never reach the target.
+      print_timeout: How long the CLI's own print-mode clock runs, in seconds. Defaults to
+        :data:`_WAITS` rather than to the CLI's five minutes, because a turn that reaches that
+        clock comes back as a short answer that reads exactly like a whole one.
+      disable_slash_commands: Whether the CLI is told not to expand its own commands and
+        skills in print mode, so that a prompt opening with `/deploy` reaches the model as the
+        words it is. Off, which is the CLI's own default. Turning it on also turns off the
+        routing that sends a commanded prompt down the finite transport, there being no
+        expansion left there to want.
+      sandbox: Whether the turn runs under the CLI's own sandbox, which restricts what its
+        terminal may do. Off, which is the CLI's own default, and orthogonal to `permission`:
+        the rung says what the agent is allowed to ask for, and this says what the machine
+        will carry out.
+
+    Raises:
+      ValueError: If the print timeout is not a finite positive number of seconds. What that
+        turns into on the command line is a duration, and a value with no digits to write --
+        an infinity, a not-a-number, a count of seconds too large to spell without an exponent
+        -- would be a turn that failed at the process rather than at the config that named it.
     """
+
+    add_workspace: bool = True
+    print_timeout: float = _WAITS
+    disable_slash_commands: bool = False
+    sandbox: bool = False
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if (
+            not math.isfinite(self.print_timeout)
+            or not 0 < self.print_timeout < _LONGEST
+        ):
+            raise ValueError(
+                f"print_timeout must be a positive number of seconds under "
+                f"{_LONGEST:.0f}, not {self.print_timeout!r}"
+            )
 
 
 class AntigravityCLIAgent(AgentBase):
@@ -508,27 +689,30 @@ class AntigravityCLIAgent(AgentBase):
     counts: ClassVar[frozenset[str]] = frozenset(_KINDS)
 
     def _serves(self, config: AgentConfig) -> None:
-        """Refuses a rung this backend has no way of running at, wherever the config arrives.
+        """Refuses a rung one of this CLI's own settings would quietly undo.
 
-        Here rather than only where the agent is made, because what an agent may do is the
-        flow's: a flow declaring a reviewer that may not write settles that onto whatever
-        agent it was handed, and a rung refused at construction but taken quietly a moment
-        later would be a declaration that lies about the turn.
+        Here rather than in the config, because what an agent may do is the flow's: a flow
+        declaring a reviewer that may not write settles that rung onto whatever agent it was
+        handed, which is a `reconfigure` rather than a config anybody wrote out. A refusal
+        raised where the config is built would come out of that settling as something the
+        flow layer does not answer for; raised here, it is the refusal every other backend's
+        is, said before the first turn and in the flow's own words.
 
         Args:
           config: What its turns are to run at.
 
         Raises:
-          ValueError: If it was configured to be allowed less than everything. Antigravity CLI
-            has one switch -- approve every tool, or stop and ask -- and nobody is at a prompt
-            to be asked, so a rung it cannot express is said here rather than quietly run as
-            the rung above it.
+          ValueError: If slash command expansion is off at `read-only`. agy answers that
+            pairing with `--mode plan has no effect while slash command expansion is
+            disabled` and goes on running, which is an agent that may write under a rung
+            saying it may not -- and a rung that lies is worse than one that is refused. Only
+            `plan`: the CLI names that mode alone, and `--mode accept-edits` is unaffected.
         """
         super()._serves(config)
-        if config.permission not in _TAKES:
+        if _settled(config).disable_slash_commands and config.permission == "read-only":
             raise ValueError(
-                f"{_COMMAND} runs at {' or '.join(_TAKES)} only, "
-                f"not {config.permission}: it has no way of being allowed less"
+                f"{_COMMAND} cannot run at read-only with disable_slash_commands: "
+                f"its plan mode has no effect while expansion is off"
             )
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> AntigravityCLISession:
