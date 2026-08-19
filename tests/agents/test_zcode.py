@@ -20,6 +20,7 @@ from typing import Any
 import pytest
 
 from hmz.coganchor.agents import (
+    AgentConfig,
     Failed,
     Moment,
     Occasion,
@@ -166,6 +167,21 @@ class _FakeServer:
             if one.get("method") == method
         ]
 
+    def answered(self, key: str) -> list[Any]:
+        """What this client answered under one key, in order, out of every answer carrying it.
+
+        An answer is a frame with no method of its own, which is how the client's side of
+        `session/requestRuntimePreferences` is read back: what the runtime was told it may do
+        is said in an answer rather than in a call, so it is nowhere in `named`. By the key
+        rather than by position, since this client answers everything the server asks of it
+        and the empty answers to the rest are answers too.
+        """
+        return [
+            (one.get("result") or {})[key]
+            for one in self.calls()
+            if "method" not in one and key in (one.get("result") or {})
+        ]
+
 
 @pytest.fixture
 def server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _FakeServer:
@@ -194,12 +210,30 @@ def test_a_turn_opens_a_session_naming_what_it_is_to_run(
     assert session("hello") == "hello"
 
     (opened,) = server.named("session/create")
+    # Field by field, and no field beyond them: what this driver sends a server it cannot
+    # ask is the five things it has a reason for, and a sixth would be one guessed at.
+    assert set(opened) == {
+        "workspace",
+        "model",
+        "thoughtLevel",
+        "mode",
+        "titleGenerationEnabled",
+    }
     assert opened["model"] == {"providerId": "zai", "modelId": "glm-5.3"}
     assert opened["thoughtLevel"] == "high"
     assert opened["mode"] == "yolo"
-    assert opened["workspace"]["workspacePath"] == str(tmp_path)
+    assert opened["workspace"] == {
+        "workspacePath": str(tmp_path),
+        "workspaceKey": str(tmp_path),
+    }
     # A title is a turn of its own on the lite model, and nothing here reads one.
     assert opened["titleGenerationEnabled"] is False
+    # And the session is then read as it happens rather than replayed.
+    (subscribed,) = server.named("session/subscribe")
+    assert subscribed == {
+        "sessionId": "sess_fake",
+        "deliveryKind": "desktop-continuous",
+    }
     agent.stop()
 
 
@@ -338,6 +372,130 @@ def test_an_agent_that_may_not_search_the_web_is_denied_the_tools_that_reach_it(
 
     assert denied["toolDenylist"] == ["WebFetch", "WebSearch"]
     agent.stop()
+
+
+def test_a_session_is_named_by_zcode_only_where_the_flow_asked_for_one(
+    server: _FakeServer, tmp_path: Path
+) -> None:
+    """A title is a turn of its own on the lite model, so nothing pays for one unasked.
+
+    Off is what this driver has always sent rather than what ZCode does for a client that
+    leaves the field out -- there is no CLI here to ask -- so both answers are checked as
+    the setting they are.
+    """
+    agent = _agent()
+    agent.new(tmp_path)("hello")
+
+    assert server.named("session/create")[-1]["titleGenerationEnabled"] is False
+    agent.stop()
+
+    agent = _agent(titles=True)
+    agent.new(tmp_path)("hello")
+
+    assert server.named("session/create")[-1]["titleGenerationEnabled"] is True
+    agent.stop()
+
+
+def test_what_the_runtime_may_do_is_answered_in_both_directions(
+    server: _FakeServer, tmp_path: Path
+) -> None:
+    """ZCode's own file search, which the server asks about before it will open a session.
+
+    Answered either way rather than left out when it is off: a key that is not there is a
+    client that said neither yes nor no, and what the server makes of that is not knowable
+    from here.
+    """
+    agent = _agent()
+    agent.new(tmp_path)("hello")
+
+    assert server.answered("nativeSearchEnhancementsEnabled") == [True]
+    agent.stop()
+
+    agent = _agent(native_search=False)
+    agent.new(tmp_path)("hello")
+
+    assert server.answered("nativeSearchEnhancementsEnabled") == [True, False]
+    agent.stop()
+
+
+def test_a_session_is_read_under_the_delivery_kind_it_was_configured_with(
+    server: _FakeServer, tmp_path: Path
+) -> None:
+    """The other kind replays for a web client, and its own spelling is the server's to know.
+
+    So what is checked is that the word given is the word sent, whatever word a real ZCode
+    answers to -- a second literal written down here would be a fact nobody has heard said.
+    """
+    agent = _agent()
+    agent.new(tmp_path)("hello")
+
+    assert server.named("session/subscribe")[-1]["deliveryKind"] == "desktop-continuous"
+    agent.stop()
+
+    agent = _agent(delivery="whatever-this-server-calls-it")
+    agent.new(tmp_path)("hello")
+
+    assert (
+        server.named("session/subscribe")[-1]["deliveryKind"]
+        == "whatever-this-server-calls-it"
+    )
+    agent.stop()
+
+
+def test_a_session_picked_back_up_is_subscribed_the_way_the_first_one_was(
+    server: _FakeServer, tmp_path: Path
+) -> None:
+    """A server started since was told none of it, so the resume says the whole of it again."""
+    agent = _agent(delivery="whatever-this-server-calls-it")
+    session = agent.new(tmp_path)
+    session("first")
+    # The server it opened on is gone, which is what a fallback onto another account leaves
+    # behind: the conversation is ZCode's own and outlives the process that was holding it.
+    agent._down()
+    session("second")
+
+    (resumed,) = server.named("session/resume")
+
+    assert resumed["sessionId"] == "sess_fake"
+    assert resumed["thoughtLevel"] == "high"
+    assert [one["deliveryKind"] for one in server.named("session/subscribe")] == [
+        "whatever-this-server-calls-it",
+        "whatever-this-server-calls-it",
+    ]
+    agent.stop()
+
+
+def test_a_delivery_kind_that_names_nothing_is_refused_where_it_is_written() -> None:
+    """A session is subscribed with whatever is here, so an empty kind is caught up front."""
+    with pytest.raises(ValueError, match="delivery must be one of"):
+        ZcodeAgentConfig(model="zai/glm-5.3", effort="high", delivery="   ")
+
+
+def test_an_agent_handed_the_common_config_runs_at_what_was_always_sent(
+    server: _FakeServer, tmp_path: Path
+) -> None:
+    """The three answers are ZCode's config's, and the common one says none of them."""
+    agent = ZcodeAgent(AgentConfig(model="zai/glm-5.3", effort="high"))
+    agent.new(tmp_path)("hello")
+
+    assert server.answered("nativeSearchEnhancementsEnabled") == [True]
+    assert server.named("session/create")[-1]["titleGenerationEnabled"] is False
+    assert server.named("session/subscribe")[-1]["deliveryKind"] == "desktop-continuous"
+    agent.stop()
+
+
+def test_each_of_the_three_is_a_capability_a_flow_can_ask_for_beforehand() -> None:
+    """Humanize deciding something on ZCode's behalf is something a flow may ask about.
+
+    The field is where the other answer is given; the name is what a place declares to be
+    refused an agent that has no such answer to give before its first turn.
+    """
+    from hmz.flows.checking import catalogue
+
+    told = {one.name: one.backends for one in catalogue()}
+
+    for name in ("title", "native-search", "delivery"):
+        assert "zcode" in told[name], name
 
 
 def test_a_failed_turn_says_what_zcode_said_about_it(

@@ -2469,6 +2469,41 @@ def catalogue() -> tuple[Capability, ...]:
             "backend's own config where somebody is watching",
         )
     )
+    held.append(
+        Capability(
+            "title",
+            frozenset(
+                name for name, cls in agents.items() if getattr(cls, "titles", False)
+            ),
+            "the backend names a session itself, and can be told whether to -- "
+            "ZcodeAgentConfig(titles=True) -- which is off unless a flow asks for it, a "
+            "title being a model turn of its own that nothing here reads",
+        )
+    )
+    held.append(
+        Capability(
+            "native-search",
+            frozenset(
+                name
+                for name, cls in agents.items()
+                if getattr(cls, "native_search", False)
+            ),
+            "the CLI's own file search inside the workspace, which is this agent's to turn "
+            "off -- ZcodeAgentConfig(native_search=False) -- and which is not the web "
+            "search `search` asks about",
+        )
+    )
+    held.append(
+        Capability(
+            "delivery",
+            frozenset(
+                name for name, cls in agents.items() if getattr(cls, "delivery", False)
+            ),
+            "how a session's own stream comes back is this agent's to choose -- "
+            "ZcodeAgentConfig(delivery='desktop-continuous') -- which a turn read as it "
+            "happens wants, against the kind that replays for a client that missed some",
+        )
+    )
     held.extend(_places())
     held.extend(_anchors(agents))
     return tuple(held)

@@ -97,10 +97,27 @@ _WEB = ("WebFetch", "WebSearch")
 #: some of the same tokens twice.
 _KINDS = {"input": "inputTokens", "output": "outputTokens"}
 
-#: What the client is told the runtime may do. The one answer that is not a default is about
-#: ZCode's own file search: turning it off would take `find` and `grep` away from an agent
-#: inside its workspace, which is not what anybody means by running one unattended.
-_PREFERENCES = {"nativeSearchEnhancementsEnabled": True}
+#: The one thing the client is asked about the runtime that it has an answer for: ZCode's own
+#: file search, which is what puts a better `find` and `grep` in front of an agent inside its
+#: workspace. Said in both directions rather than only one, so that an agent told not to have
+#: it is a client that answered no rather than one that said nothing and was read as either.
+_NATIVE = "nativeSearchEnhancementsEnabled"
+
+#: What that answer is where nobody has said otherwise. On, because taking file search away
+#: from an agent working unattended inside a workspace is not what anybody means by running
+#: one. Whether it is also what the server does for a client that leaves the key out is not
+#: known here and is not guessable: there is no officially installable ZCode to put the
+#: question to, and the comment this was written from called it the one answer that is not a
+#: default. So what is written down is today's behaviour rather than ZCode's own, and
+#: `ZcodeAgentConfig.native_search` is where an install that has asked a real server says so.
+_SEARCHING = True
+
+#: Whether a session is opened asking ZCode to name itself. Off, because a title is a turn of
+#: its own on the lite model and nothing here reads one: a session is named by the flow that
+#: opened it. Unverified in the same way and for the same reason -- what the server titles for
+#: a client that leaves the field out is a question nobody here can put to it -- so this too is
+#: what a turn has always been run with, and `ZcodeAgentConfig.titles` is where it is said back.
+_TITLES = False
 
 #: What the server asks its client before it will open a session at all, and gives up on after
 #: fifteen seconds.
@@ -112,7 +129,10 @@ _APPROVAL = "interaction/requestPermission"
 _ASKS = "interaction/requestUserInput"
 
 #: What a session's own stream is delivered as. The other kind replays for a web client that
-#: may have missed some; a turn read here is read as it happens and misses nothing.
+#: may have missed some; a turn read here is read as it happens and misses nothing. Only this
+#: one is written down: the other kind's own spelling is the server's to know and nobody here
+#: has heard it say it, so `ZcodeAgentConfig.delivery` takes whatever word the ZCode being
+#: driven answers to rather than a second literal guessed at from the shape of the first.
 _DELIVERY = "desktop-continuous"
 
 #: Where the words are in each tool's arguments, so that a row of a transcript says what the
@@ -158,7 +178,13 @@ class _Held:
 class _AppServer:
     """A `zcode app-server` of our own, spoken to in the ZCode protocol over its stdio."""
 
-    def __init__(self, argv: list[str], env: Mapping[str, str] | None = None) -> None:
+    def __init__(
+        self,
+        argv: list[str],
+        env: Mapping[str, str] | None = None,
+        *,
+        searching: bool = _SEARCHING,
+    ) -> None:
         """Starts the server.
 
         Nothing is said to introduce this client: the protocol has no handshake, and the first
@@ -169,8 +195,16 @@ class _AppServer:
           env: The whole environment to start it in, which is this process's own less what the
             agent's provider hushes and plus what it sets, or None to inherit this one. The
             server is the agent's, so its account is the agent's too.
+          searching: Whether the runtime is to be told it may use ZCode's own file search. Of
+            the server rather than of a session, because the server asks it once, before the
+            first session of any of them is open -- which is why it is the agent's setting and
+            not a conversation's.
         """
         self._argv = argv
+        #: What the runtime is told it may do, answered to the one request of the several the
+        #: server makes that this client has an answer for. Built once here so that the thread
+        #: reading the stream has nothing to work out at the moment it is asked.
+        self._preferences = {_NATIVE: searching}
         #: Whose turns run here, so that a hook has an agent to fire on and a question somebody
         #: to be put to. Held weakly, as codex's is and for the same reason: the agent holds
         #: the server and the finalizer that takes it down is the agent's, so a server holding
@@ -262,7 +296,15 @@ class _AppServer:
                 self._answers.pop(ident, None)
                 self._starting.pop(ident, None)
 
-    def open(self, workspace: str, held: _Held, *, searches: bool) -> str:
+    def open(
+        self,
+        workspace: str,
+        held: _Held,
+        *,
+        searches: bool,
+        titles: bool,
+        delivery: str,
+    ) -> str:
         """Opens a session, at the settings the agent it is for is configured with.
 
         Args:
@@ -270,6 +312,8 @@ class _AppServer:
           held: What it is to run, which is remembered so a turn at the same settings says
             nothing again.
           searches: Whether the agent may reach the web.
+          titles: Whether ZCode is to name the session itself, which is a turn of its own.
+          delivery: Which of ZCode's delivery kinds this session's stream is read under.
 
         Returns:
           The session's id, which ZCode gives it before any turn has run.
@@ -287,16 +331,14 @@ class _AppServer:
                 },
                 "thoughtLevel": held.effort,
                 "mode": held.mode,
-                # A title is a turn of its own on the lite model, and nothing here reads
-                # one: a session is named by the flow that opened it.
-                "titleGenerationEnabled": False,
+                # A title is a turn of its own on the lite model, and nothing here reads one
+                # unless it was asked for: a session is named by the flow that opened it.
+                "titleGenerationEnabled": titles,
                 **({} if searches else {"toolDenylist": list(_WEB)}),
             },
         )
         session = str(opened["session"]["sessionId"])
-        self.call(
-            "session/subscribe", {"sessionId": session, "deliveryKind": _DELIVERY}
-        )
+        self.call("session/subscribe", {"sessionId": session, "deliveryKind": delivery})
         # Everything a settling would say was said in the call that opened it.
         held.told = (held.model, held.effort, held.mode)
         self.sessions[session] = held.mode
@@ -321,7 +363,13 @@ class _AppServer:
         self.sessions[session] = held.mode
 
     def resume(
-        self, session: str, workspace: str, held: _Held, *, searches: bool
+        self,
+        session: str,
+        workspace: str,
+        held: _Held,
+        *,
+        searches: bool,
+        delivery: str,
     ) -> None:
         """Picks a session back up on a server that did not open it.
 
@@ -337,6 +385,12 @@ class _AppServer:
           workspace: The directory it works in.
           held: What it is to run.
           searches: Whether the agent may reach the web.
+          delivery: Which of ZCode's delivery kinds this session's stream is read under.
+            Whether the session goes on being titled the way it was opened is not said again
+            here, and not because it does not matter: `session/resume` is not known to take
+            the field, and a field sent to a server that does not take it is a resume refused
+            outright. So what a picked-up session does about its title is ZCode's to decide
+            and nobody here's to promise, until somebody with a real one can ask.
 
         Raises:
           subprocess.CalledProcessError: If the server refused to pick it up.
@@ -350,9 +404,7 @@ class _AppServer:
                 **({} if searches else {"toolDenylist": list(_WEB)}),
             },
         )
-        self.call(
-            "session/subscribe", {"sessionId": session, "deliveryKind": _DELIVERY}
-        )
+        self.call("session/subscribe", {"sessionId": session, "deliveryKind": delivery})
         for method, params in _settling(session, held, again=True):
             self.call(method, params)
         self.sessions[session] = held.mode
@@ -604,7 +656,9 @@ class _AppServer:
                 self._write(
                     {
                         "id": message["id"],
-                        "result": _PREFERENCES if message["method"] == _RUNTIME else {},
+                        "result": (
+                            self._preferences if message["method"] == _RUNTIME else {}
+                        ),
                     }
                 )
                 continue
@@ -961,11 +1015,74 @@ def _spent(counted: dict[str, Any]) -> Usage:
 
 @dataclass(frozen=True, kw_only=True)
 class ZcodeAgentConfig(AgentConfig):
-    """What ZCode is configured with: the common model and effort, and nothing else.
+    """What ZCode is configured with: the common model and effort, and three answers of its own.
 
     The model is written as ZCode writes it, `provider/id`, since a model here belongs to the
     provider serving it and the app server is asked for the pair.
+
+    The other three are the whole of what this driver decides on ZCode's behalf: what a
+    session is opened with, what the runtime is told it may do, and how a turn's own stream
+    comes back. Each was a literal in the driver and is now a field, so that a flow wanting
+    the other answer has somewhere to give it and a person reading this can see what is being
+    chosen for them.
+
+    None of the three is ZCode's own default read off ZCode. There is no officially
+    installable CLI to put the question to, and a default written down out of a guess would
+    be a fact that lies -- so each of these is what a turn here has always been run with, and
+    whoever has a real ZCode to ask should check all three against what the server does for a
+    client that says nothing at all.
+
+    Attributes:
+      titles: Whether a session asks ZCode to name itself. Off, because a title is a turn of
+        its own on the lite model and nothing here reads one -- a session is named by the flow
+        that opened it, and a name nobody reads is a model turn nobody asked to pay for. On is
+        for a run whose conversations are picked back up in ZCode's own interface, where the
+        title is how a person finds the one they meant. Said on the call that opens a session
+        and nowhere else: a session picked back up on a server started since is resumed
+        without it, because no call anybody here has heard of takes it afterwards -- so what
+        a resumed session then does about titles is as unknown as the default is, and a run
+        that turned this off to save the turns should know that a fallback may cost it some.
+      native_search: Whether the runtime is told it may use ZCode's own file search, which is
+        the one thing this client has an answer for when the server asks what the runtime may
+        do. On, because turning it off takes `find` and `grep` away from an agent inside its
+        workspace, which is not what anybody means by running one unattended. Of the agent
+        rather than of a session: the server asks once, before any session of it is open. So
+        it is the answer the server was started with, which is the config this agent was
+        settled with before its first turn -- a server already up is not told it again.
+      delivery: How a session's stream is delivered, in ZCode's own word for it.
+        `desktop-continuous` is the one a turn read here wants -- it arrives as it happens and
+        misses nothing -- and the other kind replays for a web client that may have missed
+        some. That one's spelling is the server's to know rather than this file's to guess, so
+        what this takes is whatever word the ZCode being driven answers to. A word the server
+        does not know is a refusal on the call after the session was opened, which is the turn
+        failing with the server's own reason for it.
+
+    None of the three crosses a fallback step, which is what every backend-native setting here
+    does and does not: a step is written between two places, and the agent taking the turn over
+    is built from the settings every backend has -- `hmz.coganchor.agents.base._built` says so
+    where it says it about a Codex override and a Claude allow rule. On the other backends that
+    is an agent less configured than the one it replaced; on this one, an install whose server
+    answers to some other `delivery` has every turn after a step refused at `session/subscribe`,
+    and one that said `native_search=False` is searching again. Worth knowing before a step is
+    written down against a ZCode that was configured with any of them.
+
+    Raises:
+      ValueError: If `delivery` names nothing. A session is subscribed with whatever is here,
+        and an empty kind is a refusal from the server one call later, with a session already
+        open and nothing reading it.
     """
+
+    titles: bool = _TITLES
+    native_search: bool = _SEARCHING
+    delivery: str = _DELIVERY
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if not self.delivery.strip():
+            raise ValueError(
+                "delivery must be one of ZCode's own delivery kinds, as "
+                f"{_DELIVERY!r} is, rather than {self.delivery!r}"
+            )
 
 
 class ZcodeSession(SessionBase):
@@ -1084,13 +1201,27 @@ class ZcodeSession(SessionBase):
         self._held.effort = self.effort
         self._held.mode = _PERMITTED.get(config.permission, _PERMITTED["bypass"])
         searches = config.web_search
+        # Read off whatever config this agent was made with, since an agent of this backend
+        # may be handed the common one: what is not there is what the driver has always sent.
+        titles = bool(getattr(config, "titles", _TITLES))
+        delivery = str(getattr(config, "delivery", _DELIVERY))
         if (session := self.named) is None:
             self._opening = server.open(
-                self._workspace(), self._held, searches=searches
+                self._workspace(),
+                self._held,
+                searches=searches,
+                titles=titles,
+                delivery=delivery,
             )
             return self._opening
         if session not in server.sessions:
-            server.resume(session, self._workspace(), self._held, searches=searches)
+            server.resume(
+                session,
+                self._workspace(),
+                self._held,
+                searches=searches,
+                delivery=delivery,
+            )
             return session
         server.settle(session, self._held)
         return session
@@ -1124,6 +1255,24 @@ class ZcodeAgent(AgentBase):
     #: and no more: ZCode counts its reasoning and its cached reads inside these, so a
     #: third here would be reporting some of the same tokens twice.
     counts: ClassVar[frozenset[str]] = frozenset(_KINDS)
+
+    #: Whether a session can be told whether ZCode is to name it. True here because the turn
+    #: goes over the app server rather than the command line: `session/create` takes the
+    #: field, so the answer is the flow's to give at all. Declared on the driver rather than
+    #: read off `hmz.coganchor.backends` for that reason -- it is a fact about driving this CLI
+    #: this way, not about the CLI. `ZcodeAgentConfig.titles` is where it is said, and
+    #: `title` is what a flow asks for beforehand.
+    titles: ClassVar[bool] = True
+
+    #: The same, for ZCode's own file search: the server asks its client what the runtime may
+    #: do before it will open a session at all, so what it is told is this agent's to say.
+    #: `ZcodeAgentConfig.native_search`, and `native-search` to ask for it beforehand.
+    native_search: ClassVar[bool] = True
+
+    #: The same, for how a session's stream is delivered: `session/subscribe` takes the kind,
+    #: so which one a turn is read under is this agent's to choose.
+    #: `ZcodeAgentConfig.delivery`, and `delivery` to ask for it beforehand.
+    delivery: ClassVar[bool] = True
 
     def __init__(self, config: AgentConfig, *, name: str | None = None) -> None:
         """Initializes an agent whose app server is not running yet.
@@ -1161,7 +1310,13 @@ class ZcodeAgent(AgentBase):
                 # the two reads would name the account this server is *not* signed into.
                 account = self.node().name
                 argv = ["zcode", "app-server", "--stdio"]
-                self._server = _AppServer(self.spawned(argv), self._environ())
+                self._server = _AppServer(
+                    self.spawned(argv),
+                    self._environ(),
+                    # What the runtime is told it may do is asked once per server, so it is
+                    # settled here rather than on the session that happens to be first.
+                    searching=bool(getattr(self.config, "native_search", _SEARCHING)),
+                )
                 self._server_as = account
                 self._server._held.append(weakref.ref(self))
                 # Held by the finalizer alone, which is what takes the server down: when the
