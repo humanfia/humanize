@@ -1312,9 +1312,14 @@ PROFILES = (
         # Two places, and both are yours: the `skills/` of its own home, and the shared one
         # under yours. Nothing under the workspace, though pi reads `.pi/skills` and
         # `.agents/skills` there too -- those are gated on the project having been trusted,
-        # which is `--approve` and a person to press it, and a turn driven here is neither.
-        # So a flow's skills are not mounted for pi: they would be copied into a directory
-        # the session is not permitted to read, which is a mount that quietly does nothing.
+        # which a headless run has nobody to press: `--approve` overrides it for one run, and
+        # pi shows no trust prompt at all under `-p`, `--mode json` or `--mode rpc`. So a
+        # flow's skills are not mounted for pi: they would be copied into a directory the
+        # session is not permitted to read, which is a mount that quietly does nothing. What
+        # is not gated is `--skill <path>`, which loads a file or a directory outright and is
+        # additive even under `--no-skills` -- so that is the road, and it is taken as
+        # `PiAgentConfig(skill_paths=...)` where a flow asks for it rather than here, a mount
+        # being a directory this table names and that one a flag its driver builds.
         skills=("skills/*/SKILL.md",),
         shared=(".agents/skills/*/SKILL.md",),
         #
@@ -1326,28 +1331,67 @@ PROFILES = (
         # supervisor's most expensive path, a rewritten one, some eight hundred times.
         # Every provider pi knows reads its own key out of the environment, and an agent under
         # a provider must not be handed one of somebody else's. The vendors' own names, which
-        # is what pi looks for; a provider that wants one sets it itself.
+        # is what pi looks for; a provider that wants one sets it itself. All of them rather
+        # than the dozen best known: `pi --help` enumerates what it reads, and a name left off
+        # this list is a turn that was meant to run as one account and quietly ran as another
+        # -- which is not a thing anybody notices until the bill arrives. The cloud ones are
+        # in for the same reason: on Bedrock and on Azure the region, the profile, the
+        # resource and the deployment map are half the credential.
         creds=("auth.json", "auth.json.lock"),
         ambient=(
+            "AI_GATEWAY_API_KEY",
             "ANTHROPIC_API_KEY",
             "ANTHROPIC_AUTH_TOKEN",
             "ANTHROPIC_OAUTH_TOKEN",
+            "ANT_LING_API_KEY",
+            "AWS_ACCESS_KEY_ID",
+            "AWS_BEARER_TOKEN_BEDROCK",
+            "AWS_PROFILE",
+            "AWS_REGION",
+            "AWS_SECRET_ACCESS_KEY",
+            "AZURE_OPENAI_API_KEY",
+            "AZURE_OPENAI_API_VERSION",
+            "AZURE_OPENAI_BASE_URL",
+            "AZURE_OPENAI_DEPLOYMENT_NAME_MAP",
+            "AZURE_OPENAI_RESOURCE_NAME",
+            "BASETEN_API_KEY",
+            "CEREBRAS_API_KEY",
+            "CLOUDFLARE_ACCOUNT_ID",
+            "CLOUDFLARE_API_KEY",
+            "CLOUDFLARE_GATEWAY_ID",
             "DEEPSEEK_API_KEY",
+            "FIREWORKS_API_KEY",
             "GEMINI_API_KEY",
             "GROQ_API_KEY",
+            "KIMI_API_KEY",
+            "MINIMAX_API_KEY",
             "MISTRAL_API_KEY",
             "MOONSHOT_API_KEY",
+            "NVIDIA_API_KEY",
             "OPENAI_API_KEY",
+            "OPENCODE_API_KEY",
             "OPENROUTER_API_KEY",
+            "QWEN_TOKEN_PLAN_API_KEY",
+            "QWEN_TOKEN_PLAN_CN_API_KEY",
+            "TOGETHER_API_KEY",
             "XAI_API_KEY",
+            "XIAOMI_API_KEY",
+            "XIAOMI_TOKEN_PLAN_AMS_API_KEY",
+            "XIAOMI_TOKEN_PLAN_CN_API_KEY",
+            "XIAOMI_TOKEN_PLAN_SGP_API_KEY",
             "ZAI_API_KEY",
+            "ZAI_CODING_CN_API_KEY",
         ),
         ways=(
             Way(
                 name="login",
                 about="pi's own /login, in a session opened for it",
                 # pi signs in from inside itself, so the way in is pi, handed the terminal:
-                # `/login`, whichever provider, and `/exit` when it has landed.
+                # `/login`, whichever provider, and `/exit` when it has landed. The one thing
+                # that looks like a second way in is not one: `pi auth` prints a key or a
+                # bearer token and checks whether a provider is ready, and every one of its
+                # three subcommands reads what is already there rather than putting anything
+                # there -- so this stays the only road in.
                 argv=("pi",),
             ),
         ),
