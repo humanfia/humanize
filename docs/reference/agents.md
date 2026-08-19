@@ -483,21 +483,39 @@ agent = CodexAgent(
             ("model_context_window", "1000000"),
             ("model_auto_compact_token_limit", "900000"),
         ),
+        features=(("multi_agent_v2", True),),
+        strict_config=True,
     )
 )
 ```
 
-On a command line the common tier is a top-level agent field, while backend-native settings
-remain that agent's `config.KEY=VALUE`, not flags of `hmz exec`:
+A command line names an agent and nothing else about it — `-a '[NAME=]CLI[@PROVIDER]/MODEL:EFFORT'`
+— so the tier and the backend-native settings are not sayable there and are set where the agent
+is made, from the SDK or by the flow:
 
 ```sh
-hmz exec -f flow.py:run \
-    -a 'cli=codex,model=gpt-5.6-sol,effort=max,service_tier=fast,config.model_context_window=1000000' \
-    task
+hmz exec -f flow.py:run -a 'builder=codex/gpt-5.6-sol:max' task
 ```
 
-Codex takes only `model_context_window` and `model_auto_compact_token_limit` as native
-overrides. The user's `~/.codex/config.toml` is left as it was.
+Codex takes only `model_context_window` and `model_auto_compact_token_limit` as native `-c`
+overrides — those are the two settings that are a number a flow picks with no name to check it
+against. Its other two native settings are named rather than free, so each is a field of its
+own. `features` is `--enable`/`--disable` by the names `codex features list` prints, one
+`(name, on)` pair apiece. What the flow has already been asked is not sayable there: `goals` is
+`AgentConfig(goals=...)`, and the `browser_use`, `computer_use` and `web_search` families are
+`AgentConfig(web_search=...)` and `AgentConfig(permission=...)` — a second place for either
+would be a subflow that tightened its agent and was tightened around.
+`strict_config` is `--strict-config`, which makes the app server refuse a setting it does not
+recognise rather than pass over it — useful for finding out at the first turn that a newer
+Codex has renamed a key, at the cost of also refusing a stale key in the user's own file.
+
+Every one of these defaults to what a bare `codex app-server` does, so an agent nobody
+configured starts the command line Codex would have started for itself. The user's
+`~/.codex/config.toml` is left as it was either way.
+
+`-p/--profile` and `--add-dir` are not offered, because `codex app-server` does not have them:
+codex-cli 0.153.4 puts both on `codex` and `codex exec` only, and answers
+`error: unexpected argument` to either here.
 
 Claude's exact native allow rule is configured the same way and is handed to
 `--allowedTools`; it does not widen the agent's permission rung:

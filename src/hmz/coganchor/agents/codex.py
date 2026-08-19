@@ -5,6 +5,34 @@ there is something to say to a turn, the process saying it has gone. ``codex app
 holds the thread instead, so a turn is a message on a conversation that is still running --
 which is what ``turn/steer`` steers, and what ``thread/goal/set`` sets a goal on. Both are
 features of the thread rather than flags of a command line, and neither is a word in a prompt.
+
+Which is the answer to the question anyone reading this asks first: Codex's own headless mode
+is ``codex exec``, and this drives ``codex app-server`` instead. Three things live on the app
+server and on nothing else. A flow's own callbacks reach a turn as ``mcp_servers.humanize`` on
+a server started for this agent, so a tool is offered without a line being written into the
+person at this machine's ``config.toml``. A word typed at a turn already running is
+``turn/steer`` on a thread that is still there, which a process that has already exited has no
+answer to. And an approval is a request the server makes and waits on, which is the one gate
+``Moment.PERMISSION_REQUEST`` can actually refuse something at -- Codex's hook table cannot
+be reached headlessly at all, since a hook is untrusted until its hash is in that same
+``config.toml`` and the flag that lifts it, ``--dangerously-bypass-hook-trust``, is on
+``codex exec`` and not on ``codex app-server`` (checked against codex-cli 0.153.4). So the
+transport is chosen for what it can be asked to do, not for what it is called; everything
+this driver would have written on a ``codex exec`` command line is sent as a parameter of the
+thread or the turn instead, where it belongs to this agent alone.
+
+What this driver writes that a bare ``codex app-server`` would not, each reachable and each
+declared so a flow can ask beforehand: ``-c tools.web_search=`` in both directions, which
+:attr:`hmz.coganchor.agents.config.AgentConfig.web_search` says and `search` names;
+``--disable goals`` when :attr:`~hmz.coganchor.agents.config.AgentConfig.goals` is off, which
+`pursue` and `goal` name; a ``serviceTier`` of ``priority`` when
+:attr:`~hmz.coganchor.agents.config.AgentConfig.service_tier` is ``fast``, which `tier:fast`
+names; and the sandbox and approval policy of the rung
+:attr:`~hmz.coganchor.agents.config.AgentConfig.permission` asks for, which defaults to
+`bypass` for every backend here rather than for this one. Codex's own settings that none of
+those already answer are :class:`CodexAgentConfig`'s, and every one of them defaults to
+whatever the bare CLI does: an install that sets nothing runs the command line Codex would
+have run for itself.
 """
 
 # A session and the agent holding it are two halves of one object declared in one
@@ -41,7 +69,39 @@ if TYPE_CHECKING:
 #: `-c` keys this driver may take. They are process configuration of the app server, and
 #: none of them is already a field of AgentConfig -- model, effort and permission are asked
 #: elsewhere, and a second place for them would be two answers.
+#:
+#: Both are still keys codex-cli 0.153.4 knows: `codex app-server --strict-config -c KEY=...`
+#: answers `unknown configuration field` for one it does not, and answers nothing for these.
+#: They stay the whole of the list because they are the whole of what `-c` is the right shape
+#: for here -- a number a flow picks, with no name to check it against. Everything else 0.153.4
+#: lets an app server be started with is a named thing rather than a free key, and a named
+#: thing is a field of :class:`CodexAgentConfig`: a feature is `features`, and refusing a
+#: setting this Codex has never heard of is `strict_config`. `-c features.<name>=` would reach
+#: the first of those as a raw key, which is the same switch written where nothing can check
+#: the name, so it is not admitted here.
 _OVERRIDE_KEYS = frozenset({"model_context_window", "model_auto_compact_token_limit"})
+
+#: How long a feature's name may be and what may be in it. Not a list of the features there
+#: are: `codex features list` says a hundred and forty of them on 0.153.4 and says a different
+#: hundred and forty on the next release -- one written down here would be a list that goes
+#: stale into a flow refusing a switch the CLI in front of it has. So what is checked is that
+#: the name is a name, and Codex is left to say whether it is one of its own.
+_FEATURE_MAX_CHARS = 64
+
+#: What a feature may not be about, each of them a question the flow has already been asked
+#: somewhere else. Whether the agent may reach out of the machine is `web_search` and what it
+#: may do at all is `permission`, both said where the flow declares the place an agent fills
+#: -- and both of them tightened onto an agent handed down to a subflow, which a setting that
+#: travelled beside them untouched would tighten around. A flow that declared no web and was
+#: given an agent with a browser switched on is a setting that lies, which is the failure
+#: declaring these beforehand exists to prevent.
+#:
+#: Matched as the start of a name rather than as a name, because Codex renames these between
+#: releases: `web_search_cached` and `web_search_request` are deprecated on 0.153.4,
+#: `standalone_web_search` is the one under development, and `search_tool` and `tool_search`
+#: are already removed. A list of exact names would be one that lets the next spelling of the
+#: same thing straight through.
+_ANSWERED = ("browser_use", "computer_use", "standalone_web_search", "web_search")
 
 #: What the server calls a turn stopping to ask its user something. Every other request it
 #: makes of a client is an approval, which an unattended flow does not stop for.
@@ -87,18 +147,38 @@ _APPROVALS = (
     "item/permissions/requestApproval",
 )
 
-#: What Codex is run under at each rung of the ladder, sent with every turn: a thread picked
-#: back up does not carry the settings it was started with. Codex is the one backend here with
-#: a sandbox of its own, so its rungs are the real thing rather than an approximation of one --
-#: and the only rung that lets it ask for more is `auto`, which is the rung that means the
-#: asking is granted. Everywhere else it is never asked, because a turn waiting on an approval
-#: nobody is there to give is a flow that has stopped.
+#: What Codex is run under at each rung of the ladder, said where the thread is opened and
+#: again when it is picked back up: a thread resumed does not carry the settings it was
+#: started with. Codex is the one backend here with a sandbox of its own, so its rungs are the
+#: real thing rather than an approximation of one -- and the only rung that lets it ask for
+#: more is `auto`, which is the rung that means the asking is granted. Everywhere else it is
+#: never asked, because a turn waiting on an approval nobody is there to give is a flow that
+#: has stopped.
+#:
+#: `bypass` is the loudest thing this layer asks Codex for and the one it asks for by default,
+#: which is humanize's default across every backend rather than Codex's own: a bare
+#: `codex app-server` is told nothing and runs each thread at whatever its client asks. The way
+#: back to anything quieter is the same for every backend -- `AgentConfig(permission=...)`,
+#: declared beside the place a flow gives an agent -- so it is not a setting of Codex's own and
+#: has no field here.
 _PERMITTED = {
     "read-only": {"approvalPolicy": "never", "sandbox": "read-only"},
     "workspace-write": {"approvalPolicy": "never", "sandbox": "workspace-write"},
     "auto": {"approvalPolicy": "on-request", "sandbox": "workspace-write"},
     "bypass": {"approvalPolicy": "never", "sandbox": "danger-full-access"},
 }
+
+#: The one of those a turn does not take. `thread/start` and `thread/resume` take `sandbox` as
+#: one of Codex's three mode names; `turn/start` has no `sandbox` at all -- its field is
+#: `sandboxPolicy`, and that is a tagged object (`{"type": "dangerFullAccess"}`) rather than a
+#: mode. A `sandbox` sent with a turn is therefore read by nothing: checked against codex-cli
+#: 0.153.4, where `turn/start` given `sandboxPolicy: "no"` answers `invalid type: string ...
+#: expected internally tagged enum SandboxPolicyDeserialize` and the same turn given
+#: `sandbox: "no"` answers as though the key were not there. Which it is not, so it is not
+#: sent: the rung a turn runs at is the rung its thread was opened or picked up at, and this
+#: driver says that at every thread call. What a turn does still carry is the approval policy
+#: and the service tier, both of which `turn/start` names and reads.
+_THREAD_ONLY = ("sandbox",)
 
 #: What each kind of token is called in the totals the server states. Cached input is counted
 #: inside the input rather than beside it, so it is not a kind of its own here: adding it would
@@ -107,17 +187,33 @@ _KINDS = {"input": "inputTokens", "output": "outputTokens"}
 
 
 def unattended(permission: str, service_tier: str = "default") -> dict[str, Any]:
-    """What a turn is started with, at the rung the agent was configured for.
+    """What a thread is opened with, at the rung the agent was configured for.
+
+    ``priority`` is Codex's own word for the common ``fast`` tier and is the only thing said
+    here that a bare app server would not have said for itself; ``default`` is what it runs at
+    when nobody asks, and is what an agent nobody configured a tier for asks for.
 
     Args:
       permission: One of :data:`hmz.coganchor.agents.config.PERMISSIONS`.
       service_tier: The common provider service tier requested for this agent.
 
     Returns:
-      The settings to send with the turn, and with the thread it runs on.
+      The settings to send with the thread. :func:`turning` is what a turn of it takes.
     """
     service = "priority" if service_tier == "fast" else "default"
     return {"serviceTier": service} | _PERMITTED.get(permission, _PERMITTED["bypass"])
+
+
+def turning(rung: Mapping[str, Any]) -> dict[str, Any]:
+    """The same settings, less the ones only a thread call takes.
+
+    Args:
+      rung: What :func:`unattended` said, as the server may have stepped it down.
+
+    Returns:
+      What `turn/start` names and reads, which is everything of that but :data:`_THREAD_ONLY`.
+    """
+    return {key: value for key, value in rung.items() if key not in _THREAD_ONLY}
 
 
 #: What a Codex somebody else settled the rules for says when it will not run at the rung it
@@ -127,6 +223,11 @@ def unattended(permission: str, service_tier: str = "default") -> dict[str, Any]
 #: tighter: `approval_policy = "never"` cannot be used because requirements do not allow
 #: `sandbox_mode = "danger-full-access"`. Which is every turn of an agent nobody was asked
 #: about failing on such a machine, since `bypass` is what one runs at.
+#:
+#: Still word for word what codex-cli 0.153.4 says: that whole sentence is in the binary this
+#: machine has, and the fragment matched here is the part of it that names no rung -- so a
+#: refusal about `workspace-write` on an installation that forbids that instead is caught by
+#: the same line, and the rung to step down from is read off the call rather than off the text.
 _FORBIDDEN = "requirements do not allow"
 
 
@@ -1095,20 +1196,102 @@ def _overrides(given: Sequence[tuple[str, str]]) -> tuple[tuple[str, str], ...]:
     return tuple(held)
 
 
+def _features(given: Sequence[tuple[str, bool]]) -> tuple[tuple[str, bool], ...]:
+    """The app-server `--enable` and `--disable` names, or a reason they cannot be taken.
+
+    Args:
+      given: What was asked for, as ``(name, on)`` in the order it was written.
+
+    Returns:
+      The same pairs, stripped, in that order.
+
+    Raises:
+      ValueError: If a name is empty, too long, not a bare lower-case identifier, repeated,
+        or one the flow has already been asked -- `goals`, which is
+        :attr:`hmz.coganchor.agents.config.AgentConfig.goals`, or anything beginning with one
+        of :data:`_ANSWERED`, which is what `web_search` and `permission` say.
+    """
+    held: list[tuple[str, bool]] = []
+    seen: set[str] = set()
+    for key, on in given:
+        name = key.strip()
+        if (
+            not name
+            or len(name) > _FEATURE_MAX_CHARS
+            or not name.replace("_", "").isalnum()
+            or name != name.lower()
+        ):
+            raise ValueError(
+                f"{key!r} is not a Codex feature name; expected one of the names "
+                "`codex features list` says, as lower-case words joined by underscores"
+            )
+        if name == "goals":
+            raise ValueError(
+                "goals is the flow's to say, as AgentConfig(goals=...) -- a second place "
+                "for it would be two answers"
+            )
+        if name.startswith(_ANSWERED):
+            raise ValueError(
+                f"{name} is what the agent may reach for, which the flow says as "
+                "AgentConfig(web_search=...) and AgentConfig(permission=...) where it "
+                "declares the place -- a feature is not a second place for it"
+            )
+        if name in seen:
+            raise ValueError(f"{name} was given twice")
+        seen.add(name)
+        held.append((name, on))
+    return tuple(held)
+
+
 @dataclass(frozen=True, kw_only=True)
 class CodexAgentConfig(AgentConfig):
-    """What Codex is configured with: the common model and effort, and its app-server `-c`.
+    """What Codex is configured with: the common model and effort, and its app server's own.
 
-    `overrides` is only the keys Codex treats as process configuration and that
-    :class:`AgentConfig` does not already name. They are this agent's, so two Codex agents
-    of one flow may take different windows, and neither writes the user's `config.toml`.
+    Every field here defaults to whatever a bare `codex app-server` does, so an agent nobody
+    configured runs the command line Codex would have run for itself. Each is this agent's
+    rather than this machine's: two Codex agents of one flow may take different windows and
+    different features, and neither writes the user's `config.toml`.
+
+    Attributes:
+      overrides: The `-c` keys Codex treats as process configuration and that
+        :class:`AgentConfig` does not already name, as `(key, value)` -- which is
+        :data:`_OVERRIDE_KEYS` and no more. Empty for the window and compaction limit Codex
+        works out for the model itself.
+      features: Codex's own feature flags, on or off by name, as `(name, on)`. These are
+        `--enable` and `--disable`, which is what `codex features list` reports and what the
+        CLI itself says `-c features.<name>=` means. Empty for the defaults that command
+        prints, which is what a bare app server runs at. What is not sayable here is whatever
+        the flow has already been asked: `goals` is
+        :attr:`~hmz.coganchor.agents.config.AgentConfig.goals`, and the browser, the computer
+        and the web families are
+        :attr:`~hmz.coganchor.agents.config.AgentConfig.web_search` and
+        :attr:`~hmz.coganchor.agents.config.AgentConfig.permission` -- see :data:`_ANSWERED`.
+      strict_config: Whether the app server refuses a setting it does not recognise rather
+        than passing over it -- `--strict-config`. False, as Codex's own default is. A flow
+        that turns it on finds out at the first turn that a key it names has been renamed by
+        a newer Codex, rather than finding out from an agent quietly not doing the thing; the
+        cost is that it also refuses the person at this machine's `config.toml` over a key
+        *they* have left behind, which is why it is theirs to ask for rather than ours to
+        assume.
+
+    Two things a reader will look for and not find, because codex-cli 0.153.4 does not put
+    them on this subcommand at all: `-p/--profile`, which layers `$CODEX_HOME/<name>.config.toml`,
+    and `--add-dir`, which widens the workspace. Both are on `codex` and on `codex exec`, and
+    `codex app-server` answers `error: unexpected argument` to either. A profile has no
+    equivalent here -- `-c profile=` is the older table in `config.toml` rather than the file
+    `-p` layers -- and the extra writable directory Codex does have on the app server is a
+    field of a turn's `sandboxPolicy` rather than of a server, which is a larger thing than a
+    flag and not one anything here has asked for yet.
     """
 
     overrides: tuple[tuple[str, str], ...] = ()
+    features: tuple[tuple[str, bool], ...] = ()
+    strict_config: bool = False
 
     def __post_init__(self) -> None:
         super().__post_init__()
         object.__setattr__(self, "overrides", _overrides(self.overrides))
+        object.__setattr__(self, "features", _features(self.features))
 
 
 class CodexSession(SessionBase):
@@ -1207,9 +1390,11 @@ class CodexSession(SessionBase):
                                 if schema is not None
                                 else {}
                             ),
-                            **server.permitted(
-                                self._agent.config.permission,
-                                self._agent.config.service_tier,
+                            **turning(
+                                server.permitted(
+                                    self._agent.config.permission,
+                                    self._agent.config.service_tier,
+                                )
                             ),
                         },
                         self._running,
@@ -1297,10 +1482,10 @@ class CodexSession(SessionBase):
             server.holding(started, rung)
             return started
         if server.holds(thread, rung):
-            # Already open here, at the rung this turn asks for. Picking a thread up reads it
-            # off the disk again -- minutes of conversation read back to say what it already
-            # says -- and the rung is sent with the turn as well as with the thread, so saying
-            # it again here would change nothing but the wait.
+            # Already open here, at exactly the rung this turn asks for -- which is the whole
+            # of what `holds` says, so there is nothing left to tell it. Picking a thread up
+            # reads it off the disk again, minutes of conversation read back to say what it
+            # already says, and saying it again here would change nothing but the wait.
             return thread
         # Said again on the way back in: a thread picked up is picked up under the settings it
         # was left with, and this session's rung is what its agent is configured for now.
@@ -1347,7 +1532,9 @@ class CodexSession(SessionBase):
                         "input": [{"type": "text", "text": objective}],
                         "model": config.model,
                         "effort": self.effort,
-                        **server.permitted(config.permission, config.service_tier),
+                        **turning(
+                            server.permitted(config.permission, config.service_tier)
+                        ),
                     }
                 )
             finally:
@@ -1378,6 +1565,20 @@ class CodexAgent(AgentBase):
     #: and no more: Codex counts its cached reads inside the input rather than beside it,
     #: so there is no cache kind here to report.
     counts: ClassVar[frozenset[str]] = frozenset(_KINDS)
+
+    #: Whether one of this backend's own features can be switched on or off by name for this
+    #: agent alone -- `--enable` and `--disable`, which Codex says are the same thing as
+    #: `-c features.<name>=`, taken as :attr:`CodexAgentConfig.features`. Said on the class
+    #: so that a flow meaning to switch one asks beforehand rather than being handed an agent
+    #: whose config has nowhere to put it.
+    switches: ClassVar[bool] = True
+
+    #: Whether this backend can be asked to refuse a setting it does not recognise rather
+    #: than passing over it -- `--strict-config`, taken as
+    #: :attr:`CodexAgentConfig.strict_config`. Off unless a flow asks, which is the CLI's own
+    #: default; what asking buys is that a key renamed by a newer Codex is a turn that fails
+    #: where it was set rather than an agent quietly not doing the thing.
+    vets: ClassVar[bool] = True
 
     def __init__(self, config: AgentConfig, *, name: str | None = None) -> None:
         """Initializes an agent whose app server is not running yet.
@@ -1523,17 +1724,38 @@ class CodexAgent(AgentBase):
           The command, before whatever the agent's provider and anchor wrap it in.
         """
         argv = ["codex", "app-server"]
+        if getattr(self.config, "strict_config", False):
+            # First, because it decides how every `-c` after it is read. Off unless the
+            # flow asked, which is what a bare app server does: it is the person at this
+            # machine's `config.toml` this would also refuse, and theirs is not ours to fail.
+            argv += ["--strict-config"]
         if not self.goals_enabled:
             # Per server rather than in config, so this flow changes no other Codex
             # session belonging to the user.
             argv += ["--disable", "goals"]
+        for name, on in getattr(self.config, "features", ()):
+            # The rest of Codex's own switches, beside the one goals is. `codex features
+            # list` is where the names and the defaults come from, and nothing is said here
+            # for a feature nobody named -- so an agent configured with none of them starts
+            # a server at exactly the defaults that command prints.
+            argv += ["--enable" if on else "--disable", name]
         # Said in both directions rather than only when it is off: Codex searches
         # nothing until it is asked to, so an agent that may search the web has to
-        # say so here for `web_search` to mean on every backend what it says.
+        # say so here for `web_search` to mean on every backend what it says. Still the
+        # live spelling on codex-cli 0.153.4, which is checkable rather than assumed:
+        # `--strict-config -c tools.web_search=true` is taken, and the same run answers
+        # `unknown configuration field` for a key that has gone. The features named
+        # `web_search_cached` and `web_search_request` are deprecated and `search_tool` and
+        # `tool_search` are removed, and none of the four was ever this setting's name.
         argv += [
             "-c",
             f"tools.web_search={'true' if self.config.web_search else 'false'}",
         ]
+        # Which is what `--listen stdio://` already is on 0.153.4, so this changes nothing
+        # about how the server behaves -- it is said because this client can speak over one
+        # transport and no other, and a default is a thing a CLI is free to move. A day when
+        # it moves is a day this line is the difference between a clear refusal of a flag and
+        # an app server listening on a socket nothing here is reading.
         argv += ["--stdio"]
         for key, value in getattr(self.config, "overrides", ()):
             # The same `-c` Codex's own client takes, scoped to this server: a
@@ -1562,6 +1784,11 @@ class CodexAgent(AgentBase):
         # left is writing that hash into their config.toml, which is the thing this layer
         # exists not to do. Codex keeps the gate it already has: `PERMISSION_REQUEST` comes
         # over this same app server, and a hook hung there refuses a tool and is waited on.
+        #
+        # Last checked against codex-cli 0.153.4, where `hooks` is a stable feature that is on,
+        # `codex exec --help` lists `--dangerously-bypass-hook-trust` and `codex app-server
+        # --help` does not -- so it is still the whole of the reason, and a reader with a newer
+        # Codex in front of them has a version to compare against and two `--help` to run.
         return argv
 
     def stop(self) -> None:

@@ -962,7 +962,9 @@ PROFILES = (
         name="codex",
         installs="npm i -g @openai/codex",
         # `tools.web_search` is a setting of the app server, and is sent in both
-        # directions: Codex searches nothing until it is asked to.
+        # directions: Codex searches nothing until it is asked to. Still that key on
+        # codex-cli 0.153.4, which `--strict-config` is what says: a key it has stopped
+        # knowing is answered `unknown configuration field` rather than passed over.
         searches=True,
         # And that app server is one per agent, not one per conversation: every thread of it
         # goes down together, which is what a watchdog has to say before it puts one down.
