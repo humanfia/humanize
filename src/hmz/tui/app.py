@@ -133,6 +133,9 @@ _REFRESH = 0.5
 #: for a thing about the run.
 _COPIED = 2.0
 
+#: How long a second ctrl+c may follow the first before it is treated as a new press.
+_EXIT_CONFIRMATION = 1.0
+
 #: How many lines of what is waiting to be said are pinned above the prompt before the rest
 #: is counted instead. A pin that grew without limit would push the transcript off the screen
 #: to say that a lot is queued, which one line says. The stylesheet holds it to one row more
@@ -587,16 +590,17 @@ class Humanize(App[None]):
             # the process behind it, which is a second at the outside.
             session.close()
             return
-        self._confirm_exit("ctrl+c")
+        self._confirm_exit()
 
-    def _confirm_exit(self, key: str) -> None:
+    def _confirm_exit(self) -> None:
         """Exits on a consecutive second press, otherwise asks for confirmation."""
-        if self._exit_prompt == key:
+        now = time.monotonic()
+        if self._exit_prompt is not None and now < self._exit_prompt:
             self._exit_prompt = None
             self.action_quit()
             return
-        self._exit_prompt = key
-        self.show(f"Press {key} again to exit", "dim")
+        self._exit_prompt = now + _EXIT_CONFIRMATION
+        self._draw()
 
     def __init__(
         self,
@@ -652,7 +656,7 @@ class Humanize(App[None]):
         self._copied = 0.0
         #: The exit chord awaiting its second press. Any other key clears this confirmation,
         #: so an old press cannot unexpectedly close a later session.
-        self._exit_prompt: str | None = None
+        self._exit_prompt: float | None = None
         #: The flow to run and what each of its agents runs, which start out as the flow that
         #: is only talking to one agent and the first agent there is to talk to. So the first
         #: thing you say starts something rather than being told to pick a flow first: a flow
@@ -1387,6 +1391,8 @@ class Humanize(App[None]):
         pinned.update(Content("\n".join(waiting)))
         for ruled in self.query(".rule").results(Static):
             ruled.update(_RULE * self.size.width)
+        if self._exit_prompt is not None and time.monotonic() >= self._exit_prompt:
+            self._exit_prompt = None
         right = f"[$text-muted]{_DOT.join(self._keys())}[/]"
         # Measured as drawn rather than as written: markup is not what takes up columns.
         # Textual's own, since these are Textual's markup and name its colours.
@@ -1528,6 +1534,8 @@ class Humanize(App[None]):
             keys.append("ctrl+c clear")
         elif self._interrupting() is not None:
             keys.append("ctrl+c interrupt")
+        elif self._exit_prompt is not None:
+            keys.append("ctrl+c again exit")
         else:
             keys.append("ctrl+c exit")
         return keys

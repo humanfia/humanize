@@ -62,7 +62,7 @@ nowhere else to look them up.
 | **shift+enter** | Breaks the line, which is what enter would do anywhere else. |
 | **ctrl+j** | The same, for a terminal that cannot tell shift+enter from enter. |
 | **esc** | Stops the flow — the whole flow, not just the turn. Dismisses the offers list first, if one is open. Silent when nothing is running. |
-| **ctrl+c** | Takes back the nearest thing there is to take back: what is half-typed if anything is, the turn of the conversation being read if not. With an empty prompt and nothing running, press twice to leave. |
+| **ctrl+c** | Takes back the nearest thing there is to take back: what is half-typed if anything is, the turn of the conversation being read if not. With an empty prompt and nothing running, press twice within one second to leave. |
 | **↑ / ↓** | Walks what was typed here before — but only off the first and last line, so a prompt of several lines is still moved around in. Over an open offers list, moves within the list. |
 | **tab** | [Steps to the next agent that is working](#reading-one-conversation) and reads its conversation. Over an open offers list, takes the highlighted offer instead. |
 | **shift+tab** | Steps to the one before it. |
@@ -79,7 +79,8 @@ between handles the protocol properly, so iTerm2 under tmux breaks the line on s
 like everywhere else.
 
 ctrl+c is a two-stage key when there is no line or turn to take back: the first press asks for
-confirmation and the next consecutive press leaves. Any other key cancels the confirmation.
+confirmation and a second press within one second leaves. The confirmation expires after one
+second, and any other key cancels it.
 
 While work is going on, ctrl+c still takes back the nearest thing there is to take back: the
 conversation on the screen is closed under its turn, so the flow reads the turn as one that

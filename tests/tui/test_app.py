@@ -990,7 +990,15 @@ async def test_ctrl_c_clears_then_confirms_exit() -> None:
         await driver.pause()
 
         assert app.is_running
-        assert "Press ctrl+c again to exit" in _transcript(app)
+        assert "ctrl+c again exit" in str(app.query_one("#status", Static).content)
+
+        await driver.pause(1.1)
+        assert "ctrl+c again exit" not in str(app.query_one("#status", Static).content)
+
+        await driver.press("ctrl+c")
+        await driver.pause()
+
+        assert app.is_running
 
         await driver.press("ctrl+c")
         await driver.pause()
