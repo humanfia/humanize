@@ -103,7 +103,6 @@ def test_claude_says_both_things_it_says_with_that_flag_in_the_one_list() -> Non
 @pytest.mark.parametrize(
     ("kind", "config", "flag"),
     [
-        (GrokBuildAgent, GrokBuildAgentConfig, "--disallowed-tools"),
         (QwenCodeAgent, QwenCodeAgentConfig, "--exclude-tools"),
     ],
 )
@@ -117,8 +116,21 @@ def test_a_backend_that_withholds_tools_withholds_the_two_that_reach_the_web(
     assert set(argv[argv.index(flag) + 1].split(",")) >= {"web_search", "web_fetch"}
 
 
+def test_grok_says_it_with_the_flag_its_cli_has_for_exactly_that() -> None:
+    """`--disable-web-search` is the CLI's own word for the two tools, so it is the word."""
+    session = GrokBuildAgent(
+        GrokBuildAgentConfig(model="m", effort="high", web_search=False)
+    ).new()
+
+    argv = session._turn("hi")[0]
+
+    assert "--disable-web-search" in argv
+    # And nothing is spelled out under the general flag that the named one already says.
+    assert "--disallowed-tools" not in argv
+
+
 def test_a_rung_that_already_withholds_them_does_not_withhold_them_twice() -> None:
-    """The two say the same thing here, and either of them saying it is enough."""
+    """The two say the same thing here, and it is a switch rather than a list."""
     argv = (
         GrokBuildAgent(
             GrokBuildAgentConfig(
@@ -128,9 +140,8 @@ def test_a_rung_that_already_withholds_them_does_not_withhold_them_twice() -> No
         .new()
         ._turn("hi")[0]
     )
-    withheld = argv[argv.index("--disallowed-tools") + 1].split(",")
 
-    assert sorted(withheld) == sorted(set(withheld))
+    assert argv.count("--disable-web-search") == 1
 
 
 def test_opencode_denies_the_one_reaching_out_tool_it_names() -> None:

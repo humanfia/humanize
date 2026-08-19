@@ -1125,8 +1125,10 @@ PROFILES = (
     Profile(
         name="grok",
         installs="npm i -g @xai-official/grok",
-        # `web_search` and `web_fetch` are the two Grok Build already names where a
-        # rung takes the reaching outside the workspace away.
+        # `--disable-web-search`, which Grok Build documents as `Disable web search and web
+        # fetch tools` -- the one flag for the two tools a rung takes away where what is
+        # taken away is the reaching outside the workspace. On the top-level command only,
+        # so an agent told this is one whose every turn is a run of it.
         searches=True,
         # `--fork-session`, spelled and meant as Claude's is: resume, but under a new id.
         forks=True,

@@ -848,7 +848,10 @@ def test_grok_holds_one_process_for_the_conversation_it_opened(stubs: _Stubs) ->
     assert opened.argv[:2] == ["agent", "--model"]
     assert opened.argv[-1] == "stdio"
     assert opened.argv[opened.argv.index("--effort") + 1] == "xhigh"
-    assert "--yolo" in opened.argv
+    # The documented spelling of the approval, rather than the hidden `--yolo` alias that
+    # says the same thing and that neither command's help lists.
+    assert "--always-approve" in opened.argv
+    assert "--no-leader" in opened.argv
     assert session.id == "ses-grok-stub"
     assert [opened.stdin, again.stdin] == ["hi", "again"]
     assert opened.pid == again.pid
@@ -950,6 +953,72 @@ def test_grok_is_given_only_what_it_may_read_when_it_may_change_nothing(
 
     (call,) = stubs.calls()
     assert call.argv[call.argv.index("--tools") + 1] == "read_file,grep,list_dir"
+    # The rung is the tools, not a mode: every one of `--permission-mode`'s six let a
+    # headless run write a file inside the workspace and outside it, `plan` included.
+    assert "--permission-mode" not in call.argv
+
+
+def test_grok_writes_no_flag_at_all_for_an_agent_that_was_asked_for_nothing(
+    stubs: _Stubs,
+) -> None:
+    """An install that sets nothing runs the command line the bare CLI runs."""
+    argv = GrokBuildAgent(GROK).new()._command()
+
+    assert argv == [
+        "grok",
+        "agent",
+        "--model",
+        "grok-4.6",
+        "--effort",
+        "xhigh",
+        "--always-approve",
+        "--no-leader",
+        "stdio",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("leader", "wanted"),
+    [(False, ["--no-leader"]), (True, ["--leader"]), (None, [])],
+)
+def test_grok_says_which_way_the_leader_goes_or_leaves_it_to_the_machine(
+    stubs: _Stubs, leader: bool | None, wanted: list[str]
+) -> None:
+    """Three answers because the CLI has three, and its two flags refuse each other."""
+    session = GrokBuildAgent(replace(GROK, leader=leader)).new()
+
+    argv = session._command()
+
+    assert [one for one in argv if one in ("--leader", "--no-leader")] == wanted
+
+
+def test_grok_takes_every_turn_on_the_command_line_that_carries_its_own_settings(
+    stubs: _Stubs,
+) -> None:
+    """None of the four is on `grok agent`, so naming one moves the whole conversation.
+
+    An option that applied to the ordinary turns of a conversation and not to its shaped
+    ones would be a setting that lies about what the agent was run with.
+    """
+    session = GrokBuildAgent(
+        replace(
+            GROK, sandbox="workspace", max_turns=8, subagents=False, rules="be brief"
+        )
+    ).new()
+    assert session("hi") == "hi"
+
+    (call,) = stubs.calls()
+    assert "stdio" not in call.argv
+    assert call.argv[call.argv.index("--sandbox") + 1] == "workspace"
+    assert call.argv[call.argv.index("--max-turns") + 1] == "8"
+    assert "--no-subagents" in call.argv
+    assert call.argv[call.argv.index("--rules") + 1] == "be brief"
+
+
+def test_grok_refuses_a_cap_of_less_than_nothing_where_it_is_written() -> None:
+    """Rather than by a CLI refusing the argv, which is a turn that never started."""
+    with pytest.raises(ValueError, match="max_turns"):
+        replace(GROK, max_turns=-1)
 
 
 def test_grok_reports_a_refused_turn_as_a_failed_turn(stubs: _Stubs) -> None:
