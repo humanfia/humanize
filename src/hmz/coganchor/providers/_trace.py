@@ -58,6 +58,22 @@ _RESOLVE_CONFINED = 0x08 | 0x10
 #: costing a comparison each and costing the whole of that.
 _UNTIDY = re.compile(rb"//|/\.\.?(?:/|\Z)|/\Z")
 
+#: The one other way a tidy absolute path can name a file somewhere else: through `/proc`,
+#: where a link the kernel follows to a descriptor, a directory or an image stands in for the
+#: directories a name would otherwise be under. `/proc/self/fd/<n>/.credentials.json` starts
+#: with nothing this table is keyed by and would be let past unanswered -- and the file it
+#: reaches is the one at this machine, which is the whole of what a redirected run exists to
+#: keep a turn away from.
+#:
+#: Spelled out exactly rather than as "anything under `/proc`", because the fast path above is
+#: what nearly every stop is: a Node or Bun runtime reads `/proc/self/status`, `/proc/stat`
+#: and `/proc/meminfo` throughout a turn, and none of those is a link to follow. Only a tidy
+#: path is held against this -- an untidy one has already left the fast path -- so the
+#: separators here are the ones such a path will have.
+_MAGICAL = re.compile(
+    rb"\A/proc/(?:self|thread-self|[0-9]+)/(?:fd/[0-9]|cwd|exe|root|task/)"
+)
+
 #: Where each trapped syscall keeps the paths it names, as `(descriptor argument, path
 #: argument)` pairs -- the descriptor being None for a call that has none and resolves against
 #: the process's own directory. Read off the manual pages, one line per call.
@@ -270,6 +286,16 @@ class Tracing:
                 continue
             try:
                 named = self._named(pid, registers, descriptor, raw)
+            except procfs.UnresolvedPathError:
+                # A `/proc` link this cannot follow is a path this cannot hold against the
+                # table, and the call would then run against whatever the descriptor turns
+                # out to name -- which a process can arrange, by closing the descriptor it
+                # named or by spelling a chain of them longer than anyone follows. So it is
+                # cancelled, the way a path that cannot be planted is: a turn that read the
+                # credentials of whoever is at this machine is worse than one that did not
+                # run at all.
+                self._cancel(pid, registers)
+                return
             except (OSError, ValueError):
                 continue  # a process that went away mid-read is not one to fail a call for
             if named is None:
@@ -364,6 +390,7 @@ class Tracing:
         return (
             raw[:1] == b"/"
             and not raw.startswith(self._prefixes)
+            and _MAGICAL.match(raw) is None
             and _UNTIDY.search(raw) is None
         )
 
@@ -382,19 +409,30 @@ class Tracing:
         Returns:
           The path, or None where there is nothing to resolve -- a directory that cannot be
           read back.
+
+        Raises:
+          procfs.UnresolvedPathError: If a `/proc` link in the path could not be followed,
+            which the caller cancels the call for rather than letting it run unanswered.
         """
         said = raw.decode("utf-8", "surrogateescape")
         if said.startswith("/"):
-            return os.path.normpath(said)
-        at = _AT_FDCWD if descriptor is None else registers.signed_arg(descriptor)
-        under = (
-            procfs.working_directory(pid)
-            if at == _AT_FDCWD
-            else procfs.fd_target(pid, at)
-        )
-        if not under.startswith("/"):
-            return None  # a descriptor that is not a directory of this filesystem
-        return os.path.normpath(os.path.join(under, said))
+            named = said
+        else:
+            at = _AT_FDCWD if descriptor is None else registers.signed_arg(descriptor)
+            under = (
+                procfs.working_directory(pid)
+                if at == _AT_FDCWD
+                else procfs.fd_target(pid, at)
+            )
+            if not under.startswith("/"):
+                return None  # a descriptor that is not a directory of this filesystem
+            named = os.path.join(under, said)
+        # A path spelled through a descriptor the process already holds reaches the same file
+        # as one spelled out in full, and the table below is keyed by the second spelling. A
+        # CLI that opens the directory its credentials are in and then names them beneath it
+        # -- which Claude Code does, on its own store -- would otherwise be answered with
+        # nothing and read this machine's own account.
+        return os.path.normpath(procfs.resolve_magic(pid, named))
 
     def _plant(
         self, pid: int, registers: Registers, taken: int, argument: int, path: str
