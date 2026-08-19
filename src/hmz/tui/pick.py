@@ -2950,13 +2950,14 @@ class Fetches(Sheet[tuple[str, str]]):
         self.dismiss((url, name))
 
 
-class Speaks(Sheet[tuple[str, str]]):
+class Speaks(Sheet[str]):
     """A CLI of your own that speaks the Agent Client Protocol, and what starts it.
 
-    A form rather than a list, as adding a flowverse is: there is nothing to pick, both rows
-    being written where they stand. Two questions because the protocol answers neither -- it
-    has no discovery and no flag every agent agrees on -- so the command is asked for, and the
-    name it is to be known by here is asked for beside it.
+    A form rather than a list, as adding a flowverse is: there is nothing to pick, the one row
+    being written where it stands. One question because the protocol answers it -- it has no
+    discovery and no flag every agent agrees on, so the command is asked for -- and because
+    the other question has only one answer: a backend answers to the command it registers, so
+    what this is called here is what the command is called.
     """
 
     BINDINGS: ClassVar = [
@@ -2964,12 +2965,9 @@ class Speaks(Sheet[tuple[str, str]]):
         Binding("enter", "done", "done", priority=True),
     ]
 
-    #: What to ask for, and what the answer means. The command first, since the name has an
-    #: answer already: a CLI is called what it is installed as.
-    _ASKS = (
-        ("command", "what starts it, as you would type it: my-agent --acp"),
-        ("name", "what to call it here, blank for the command's own name"),
-    )
+    #: What to ask for, and what the answer means. The one thing nothing else can say: what
+    #: it is called here is the command's own name, which this already holds.
+    _ASKS = (("command", "what starts it, as you would type it: my-agent --acp"),)
 
     def __init__(self) -> None:
         """Initializes the asking."""
@@ -2991,7 +2989,7 @@ class Speaks(Sheet[tuple[str, str]]):
         self.query_one("#choices", OptionList).focus()
 
     def _fill(self) -> None:
-        """Puts the two rows up, with the caret in the one under the cursor."""
+        """Puts the row up, with the caret in it."""
         listing = self.query_one("#choices", OptionList)
         at = self._at
         listing.set_options(
@@ -3045,9 +3043,8 @@ class Speaks(Sheet[tuple[str, str]]):
         self._fill()
 
     def action_done(self) -> None:
-        """Answers with the command and the name, once there is something to start."""
+        """Answers with the command, once there is something to start."""
         said = self._typed_in.get("command", "").strip()
-        name = self._typed_in.get("name", "").strip()
         if not said:
             self._wrong = "nothing was given to start it with"
             self._fill()
@@ -3062,7 +3059,7 @@ class Speaks(Sheet[tuple[str, str]]):
             self._wrong = "nothing was given to start it with"
             self._fill()
             return
-        self.dismiss((said, name or Path(argv[0]).name))
+        self.dismiss(said)
 
 
 class Anchors(Sheet[str]):
@@ -6941,12 +6938,14 @@ class Providers(Drafts[list[str]]):
             "App[None]",
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
-        said = await showing.push_screen_wait(Speaks())
-        if said is None:
+        command = await showing.push_screen_wait(Speaks())
+        if command is None:
             return
-        command, name = said
         try:
-            backends.remember(name, shlex.split(command))
+            # What it is called here is what the command is called, which is the one thing
+            # this does not have to ask about: every backend answers to the command that CLI
+            # registers, and the writing down is where that is settled.
+            name = backends.remember("", shlex.split(command))
         except (OSError, ValueError) as why:
             self._said = bad(escape(str(why)))
             self._fill()

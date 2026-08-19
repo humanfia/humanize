@@ -36,7 +36,7 @@ CONFIG = AgentConfig(model="m", effort="high")
 def accounts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A home nothing has written to, `shell` as a backend, and two accounts of it."""
     monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "home"))
-    backends.remember("shell", ["sh"])
+    backends.remember("shell", ["shell"])
     providers.add("shell", "main", env={"WHOSE": "main"})
     providers.add("shell", "spare", env={"WHOSE": "spare"})
     providers.points("shell", "main", "spare")

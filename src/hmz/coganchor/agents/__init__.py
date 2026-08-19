@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .acp import AcpAgent, AcpAgentConfig, AcpSession
+from .acp import AcpAgent, AcpAgentConfig, AcpSession, McpServer
 from .agy import (
     AntigravityCLIAgent,
     AntigravityCLIAgentConfig,
@@ -181,6 +181,7 @@ __all__ = [
     "KimiCodeCLIAgentConfig",
     "KimiCodeCLISession",
     "Ledger",
+    "McpServer",
     "Meter",
     "MimoCodeAgent",
     "MimoCodeAgentConfig",
