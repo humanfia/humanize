@@ -168,7 +168,7 @@ def test_the_names_a_backend_serves_are_derived_from_its_own_facts() -> None:
         resumes=False,
         hooks=Hooked(seam="flag", name="--settings"),
         preloads="NODE_OPTIONS",
-        bundles=(Bundled(path="dist/*/cli.js", says="spawnSync("),),
+        bundles=(Bundled(path="dist/*/cli.js", says=r"spawnSync\("),),
     )
     # `bundles` is set on this profile and names nothing: what a fingerprint says is that a
     # patch could be found in what the CLI shipped, which the bytes on this machine decide

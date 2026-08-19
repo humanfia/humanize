@@ -12,10 +12,15 @@ it cannot.
 Never the installed binary. A patch is applied to a copy humanize makes in a directory of its
 own, run for the length of one session and removed after, so nothing this does outlives the run
 or touches what the person at this machine installed. And never on faith: the copy is
-fingerprinted against what :mod:`hmz.coganchor.backends` wrote down for it -- a line the bundle must
-contain, and an optional digest -- before a byte is changed, because a bundle is rebuilt release
-by release and what was patched this morning is a different file tonight under the same name. A
-copy that does not answer to its fingerprint is one nobody here has seen, and is left alone.
+fingerprinted against what :mod:`hmz.coganchor.backends` wrote down for it -- a pattern the bundle
+must match, and an optional digest -- before a byte is changed, because a bundle is rebuilt
+release by release and what was patched this morning is a different file tonight under the same
+name. A copy that does not answer to its fingerprint is one nobody here has seen, and is left
+alone. A pattern rather than a literal for that same reason: a fingerprint spelled as one
+release's bytes stops matching on the next one, and stops matching silently -- a run that fell
+back to the shallower layer because the digits moved is indistinguishable from one that never
+had the road. What is written down is the shape a bundle keeps across releases, so the reach
+survives the release and only a bundle that really changed closes it.
 
 What a patch may do is bounded by what a re-embed can do safely. The trailer carries a byte
 count and per-module offsets the loader itself reads back, so a rewrite that changed a length
@@ -118,11 +123,11 @@ class Located:
       bundle: The file that was located and fingerprinted -- the copy's source, and for the
         single-file executables here the CLI's own program.
       module: The index, in the bundle's own module graph, of the module a patch is written
-        into: the one the fingerprint line was found in, preferring the entry module where the
-        line is inlined into several.
+        into: the one the fingerprint matched in, preferring the entry module where what it
+        matches is inlined into several.
       digest: The SHA-256 of the located file, whole, where the fingerprint recorded one to
         compare against -- and "" where it did not, which is most of them, a 200 MB hash on
-        every start being a cost the fingerprint line already saves.
+        every start being a cost the pattern already saves.
     """
 
     bundle: Path
@@ -242,28 +247,35 @@ def _graph(data: mmap.mmap) -> _Graph | None:
     return _Graph(entry=entry, modules=tuple(modules))
 
 
-def _chosen(graph: _Graph, data: mmap.mmap, says: bytes) -> int | None:
-    """Which module a fingerprint line picks out, or None where it is not exactly one.
+def _chosen(graph: _Graph, data: mmap.mmap, bundled: Bundled) -> int | None:
+    """Which module a fingerprint picks out, or None where it is not exactly one.
 
-    A line inlined into several modules -- a version constant, say -- is taken to mean the entry
-    module, which is the one a patch of the program itself is written against; a line in exactly
-    one module means that module; a line in none means a bundle whose site has moved, and a fall
-    back.
+    A pattern that matches in several modules -- a version constant the bundler inlined
+    everywhere, say -- is taken to mean the entry module, which is the one a patch of the program
+    itself is written against; a match in exactly one module means that module; a match in none
+    means a bundle whose site has moved, and a fall back.
+
+    The search runs over the mapped file between each module's bounds rather than over a copy of
+    its source, which for the bundles here is forty to ninety megabytes of copying not done every
+    time one of them is fingerprinted.
 
     Args:
       graph: The module graph to look in.
-      data: The whole file, so a module's source can be read.
-      says: The line the fingerprint says the bundle must contain.
+      data: The whole file, so a module's source can be searched where it lies.
+      bundled: The fingerprint, whose `says` is the pattern the bundle must match.
 
     Returns:
-      The module's index, or None where the line names no one module -- it is in none, or in
-      several and the entry is not among them, either of which is a bundle to leave alone rather
-      than to patch a guess of.
+      The module's index, or None where the pattern names no one module -- it matches in none, or
+      in several and the entry is not among them, either of which is a bundle to leave alone
+      rather than to patch a guess of.
     """
+    import re
+
+    says = re.compile(bundled.says.encode())
     found = [
         i
         for i, module in enumerate(graph.modules)
-        if says in data[module.at : module.at + module.length]
+        if says.search(data, module.at, module.at + module.length)
     ]
     if graph.entry in found:
         return graph.entry
@@ -302,7 +314,7 @@ def located(profile: Profile, program: Path) -> Located | None:
     """Fingerprints a CLI's bundle, saying where a patch would land or why it will not.
 
     Everything up to the copy: the bundle is found, read, and checked against what was written
-    down for it -- a line it must contain, and a digest where one was recorded. A bundle that
+    down for it -- a pattern it must match, and a digest where one was recorded. A bundle that
     passes says which module a patch is written into; one that fails says nothing and is left
     alone.
 
@@ -353,10 +365,11 @@ def _located(profile: Profile, bundle: Path, bundled: Bundled) -> Located | None
                     "%s bundle at %s is not a Bun executable", profile.name, bundle
                 )
                 return None
-            module = _chosen(graph, raw, bundled.says.encode())
+            module = _chosen(graph, raw, bundled)
             if module is None:
-                # Absent, or present in several modules the entry is not among -- either way the
-                # bundle is a shape this has not seen, which a new release is, and a fall back.
+                # Matched nowhere, or in several modules the entry is not among -- either way the
+                # bundle is a shape this has not seen, which a rebundled release is, and a fall
+                # back.
                 log.info(
                     "%s bundle at %s does not name one module by %r -- falling back",
                     profile.name,
@@ -365,7 +378,7 @@ def _located(profile: Profile, bundle: Path, bundled: Bundled) -> Located | None
                 )
                 return None
             # The digest is the whole file, so it is read only where one was recorded to compare
-            # against -- a 200 MB hash on every start is a cost the fingerprint line already paid.
+            # against -- a 200 MB hash on every start is a cost the pattern has already paid.
             digest = hashlib.sha256(raw).hexdigest() if bundled.digest else ""
     except (OSError, ValueError) as why:
         # ValueError is what mmap answers an empty file with -- a half-written install, say --
@@ -497,8 +510,8 @@ def _rewrite(
     Args:
       profile: The backend, for the log.
       copy: The copy to edit in place.
-      bundled: The fingerprint the copy must answer to -- the line, and the digest where one was
-        recorded.
+      bundled: The fingerprint the copy must answer to -- the pattern, and the digest where one
+        was recorded.
       patches: The rewrites to make.
 
     Returns:
@@ -514,7 +527,7 @@ def _rewrite(
             graph = _graph(raw)
             if graph is None:
                 return False
-            module = _chosen(graph, raw, bundled.says.encode())
+            module = _chosen(graph, raw, bundled)
             if module is None:
                 log.info(
                     "%s copy no longer names one module -- falling back", profile.name
