@@ -571,21 +571,32 @@ class Humanize(App[None]):
         stops. The rest of the flow is left where it is: what is being read is one
         conversation of however many are open, and esc is what stops all of them.
 
-        Nothing at all where there is nothing to take back, as tab does with nothing to step
-        to: this is pressed at a turn that is running, and a complaint where none is would
-        be in the way.
+        With nothing to take back, the first press asks for confirmation and the next
+        consecutive press leaves the interface.
         """
         editor = self.query_one(Editor)
         if editor.text:
+            self._exit_prompt = None
             editor.text = ""
             return
         session = self._interrupting()
-        if session is None:
+        if session is not None:
+            self._exit_prompt = None
+            self.show("[dim]— interrupting the turn —[/dim]")
+            # On this thread, as stopping the whole flow is: closing a conversation is closing
+            # the process behind it, which is a second at the outside.
+            session.close()
             return
-        self.show("[dim]— interrupting the turn —[/dim]")
-        # On this thread, as stopping the whole flow is: closing a conversation is closing
-        # the process behind it, which is a second at the outside.
-        session.close()
+        self._confirm_exit("ctrl+c")
+
+    def _confirm_exit(self, key: str) -> None:
+        """Exits on a consecutive second press, otherwise asks for confirmation."""
+        if self._exit_prompt == key:
+            self._exit_prompt = None
+            self.action_quit()
+            return
+        self._exit_prompt = key
+        self.show(f"Press {key} again to exit", "dim")
 
     def __init__(
         self,
@@ -639,6 +650,9 @@ class Humanize(App[None]):
         #: for a moment: a clipboard is written to silently, and a gesture that says nothing
         #: is one nobody knows worked.
         self._copied = 0.0
+        #: The exit chord awaiting its second press. Any other key clears this confirmation,
+        #: so an old press cannot unexpectedly close a later session.
+        self._exit_prompt: str | None = None
         #: The flow to run and what each of its agents runs, which start out as the flow that
         #: is only talking to one agent and the first agent there is to talk to. So the first
         #: thing you say starts something rather than being told to pick a flow first: a flow
@@ -787,6 +801,11 @@ class Humanize(App[None]):
         for elsewhere in self.query("#transcript, #offers"):
             elsewhere.can_focus = False
         self.query_one(Editor).focus()
+
+    def on_key(self, event: events.Key) -> None:
+        """Forgets an unfinished double-press when another key is typed."""
+        if event.key != "ctrl+c":
+            self._exit_prompt = None
 
     @work
     async def _asks_what_runs(self) -> None:
@@ -1509,6 +1528,8 @@ class Humanize(App[None]):
             keys.append("ctrl+c clear")
         elif self._interrupting() is not None:
             keys.append("ctrl+c interrupt")
+        else:
+            keys.append("ctrl+c exit")
         return keys
 
     def _mid_run(self, what: str) -> bool:

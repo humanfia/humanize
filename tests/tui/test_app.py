@@ -971,8 +971,8 @@ async def test_away_means_the_agent_is_told_nobody_is_there_rather_than_waiting(
 
 
 @pytest.mark.timeout(60)
-async def test_ctrl_c_takes_back_the_line_and_never_the_interface() -> None:
-    """The nearest thing there is to take back, and leaving is not one of them."""
+async def test_ctrl_c_clears_then_confirms_exit() -> None:
+    """The first empty-prompt press asks for confirmation and the second exits."""
     app = Humanize()
     async with app.run_test() as driver:
         from hmz.tui.app import Editor
@@ -989,7 +989,13 @@ async def test_ctrl_c_takes_back_the_line_and_never_the_interface() -> None:
         await driver.press("ctrl+c")
         await driver.pause()
 
-        assert app.is_running  # with nothing left to take back it stays up
+        assert app.is_running
+        assert "Press ctrl+c again to exit" in _transcript(app)
+
+        await driver.press("ctrl+c")
+        await driver.pause()
+
+        assert not app.is_running
 
 
 @pytest.mark.timeout(90)
