@@ -428,6 +428,7 @@ class Agents(NamedTuple):
 | `shape` | a turn *held* to a schema rather than asked to keep to one |
 | `tools` | the flow's own callbacks put in front of the agent, `session.offers([...])` |
 | `fork` | one conversation carried into a second going its own way |
+| `narrate` | a turn that can be told to say what it is reaching for while the arguments are still arriving, so a long write is not silence |
 | `counts:<kind>` | the backend says what a turn spent on that kind of token — `input`, `output`, `cache_read`, `cache_write`, `reasoning` — so a loop bounded by one is not bounded by a nought |
 | `trust` | the backend asks to be trusted with the directory it has been pointed at, and the turn answers that for it — so it is the one whose config can hand the question back |
 | `tier:fast` | the provider can be asked to serve this agent's turns faster at the same model and effort, `AgentConfig(service_tier="fast")` |

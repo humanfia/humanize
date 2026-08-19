@@ -316,8 +316,9 @@ def test_claude_is_told_where_this_agent_s_moments_are_on_its_own_command_line()
     assert agent.hooks.gate().address() in table["hooks"][0]["command"]
     # Seconds here, which is what Claude Code counts this in.
     assert table["hooks"][0]["timeout"] == WAITING
-    # And what was already said through the same flag is still said.
-    assert "fastMode" in settings
+    # And nothing else at all: what goes through this flag overrules the settings of the
+    # person at this machine, so only what this turn is actually asking for is said.
+    assert set(settings) == {"hooks"}
 
 
 def test_qwen_is_told_through_the_settings_file_it_is_already_pointed_at() -> None:

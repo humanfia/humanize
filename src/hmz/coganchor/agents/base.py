@@ -471,6 +471,16 @@ class SessionBase(ABC):
     #: beforehand rather than catching a `NotImplementedError` from a turn already an hour in.
     steers: ClassVar[bool] = False
 
+    #: Whether a turn of this backend can be told to say what it is reaching for while the
+    #: arguments of the call are still being written, rather than only once the whole of them
+    #: has arrived. The tellability rather than the setting, the way web search is: whether a
+    #: given agent's turns actually do is that agent's config's to say, and what is said here
+    #: is that there is something to ask. The same rows either way -- every backend says every
+    #: reach exactly once -- so what this is about is the gap: a `Write` whose argument is a
+    #: file is minutes of a turn saying nothing, and something watching for signs of life
+    #: cannot otherwise tell that turn from one that has wedged.
+    narrates: ClassVar[bool] = False
+
     def __init__(
         self, agent: AgentBase, cwd: str | os.PathLike[str] | None = None
     ) -> None:

@@ -354,9 +354,11 @@ whether [goals](/weaver/goals) are available to it,
 [skills it carries](#the-skills-an-agent-carries) are not among them, being its CLI's own and
 its flow's. Codex also takes `overrides`, the app-server `-c` keys that are not already one
 of those fields. Claude takes `allowed_tools`, exact native `--allowedTools` rules for a
-bounded unattended flow. A CLI of your own takes `cli`, `command`, and the four things a
-client may offer an agent over its protocol — `reads_files`, `writes_files`, `terminals` and
-`mcp_servers`. ZCode takes `titles`, `native_search` and `delivery` —
+bounded unattended flow, and `partial_messages`, on, which is the one thing humanize asks of
+that CLI beyond what it does by itself — see
+[A turn narrated as it is written](#a-turn-narrated-as-it-is-written). A CLI of your own takes
+`cli`, `command`, and the four things a client may offer an agent over its protocol —
+`reads_files`, `writes_files`, `terminals` and `mcp_servers`. ZCode takes `titles`, `native_search` and `delivery` —
 [the three answers its app server gets](#what-zcode-is-told-that-zcode-did-not-ask-for) that
 are humanize's rather than its own. Antigravity takes four: `add_workspace`, whether the
 session's directory is pinned with `--add-dir` rather than left to the project the CLI would
@@ -471,7 +473,12 @@ withholds the reaching-out tools goes on withholding them whatever this says.
 
 `service_tier` is `default` unless asked for otherwise. Claude and Codex also take `fast`:
 Claude receives `fastMode: true`, and Codex receives its native `priority` service tier. It
-does not lower `effort` or choose a smaller model. A backend that cannot express `fast`
+does not lower `effort` or choose a smaller model. At `default` Claude is sent nothing at all
+rather than `fastMode: false` — the flag those settings ride in on is layered over the settings
+of the person at the machine, so a `false` written there would be their own `fastMode` decided
+for them by a flow that was never asking. Nothing is lost by leaving it out: Claude Code 2.1.272
+in print mode takes the opt-in only from that flag, reporting `sdk_opt_in_required` and running
+at the ordinary tier when it is not there. A backend that cannot express `fast`
 refuses it before the first turn rather than silently running at another tier.
 
 The field records and sends the requested tier; provider availability still decides the
@@ -525,13 +532,16 @@ configured starts the command line Codex would have started for itself. The user
 codex-cli 0.153.4 puts both on `codex` and `codex exec` only, and answers
 `error: unexpected argument` to either here.
 
-Claude's exact native allow rule is configured the same way and is handed to
-`--allowedTools`; it does not widen the agent's permission rung:
+Claude's exact native allow rules are handed to `--allowedTools`, and do not widen the agent's
+permission rung. They are set where the agent is made rather than on the line that names one —
+`-a` says which place an agent fills, which CLI takes it and at what, and nothing else:
 
-```sh
-hmz exec -f flow.py:run \
-    -a 'cli=claude,model=claude-opus-5,effort=max,config.allowed_tools=Bash(git diff *)' \
-    task
+```python
+ClaudeCodeAgentConfig(
+    model="claude-opus-5",
+    effort="max",
+    allowed_tools=("Bash(git diff *)",),
+)
 ```
 
 An agent takes an optional `name=`:
@@ -836,6 +846,29 @@ This is the only place a run is visible. A flow drives the sessions and answers 
 the turns going past are all there is — which is what the interface's status column is built
 from.
 
+### A turn narrated as it is written
+
+Only one backend does. Claude Code is asked for `--include-partial-messages`, which is the one
+thing humanize asks of that CLI beyond what it does by itself, and it is asked for because of
+the gap: without it a `Write` is announced when the file is already in the call, so the turn
+says nothing at all from the moment the model reaches for something to the moment it has
+finished reaching — minutes, on a large edit, and indistinguishable from outside from a turn
+that has wedged.
+
+```python
+session.narrates          # whether this backend can be told to say a reach as it happens
+```
+
+`narrate` is the name a flow asks for it under, and turning it off is the config's:
+
+```python
+ClaudeCodeAgentConfig(model="claude-opus-5", effort="high", partial_messages=False)
+```
+
+The rows are the same either way — every backend says every reach exactly once. What changes
+is when: with it off, Claude says each one whole, when the call is complete, the way every
+backend with no such flag says it.
+
 ## Talking to a turn already running
 
 ```python
@@ -881,7 +914,7 @@ is what a flow's `Goal` annotation is checked against before its first turn.
 An agent whose goals were switched off raises `RuntimeError` from `pursue` instead, and is
 refused the tools that would carry work past the turn humanize is holding: Codex starts its
 server with its goal tools disabled, and Claude Code is given `--disallowedTools` naming
-`Agent`, `ScheduleWakeup`, `CronCreate`, `CronDelete` and `CronList`.
+`Agent`, `ScheduleWakeup`, `CronCreate`, `CronDelete`, `CronList` and `Workflow`.
 
 ## Hooks
 
@@ -1930,7 +1963,11 @@ Codex rejects a forbidden sandbox, they quietly start the turn at a mode where e
 declined and the turn ends successfully with nothing changed. So humanize does not send that
 flag. It runs the agent at Claude's `manual` mode — where Claude asks before every tool that
 would change something — and routes those asks to itself with `--permission-prompt-tool stdio`,
-answering each one `allow`. `manual` is a mode every account permits, so `bypass` runs the same
+answering each one `allow`. That flag is no longer in `claude --help`; what is documented in its
+place is `--permission-prompts`, which already defaults to `host`. The default is not enough on
+its own — a 2.1.272 at `manual` without the flag sends no permission request at all and denies
+the tool by itself, so the flag is what makes `bypass` a rung that decides anything. `manual` is
+a mode every account permits, so `bypass` runs the same
 on an account somebody else set up as on your own; and a yes here is a yes to what the account
 leaves decidable, since the hard `deny` list an organisation ships is the CLI's to refuse
 before it ever asks. The rung means the same thing it always did — an agent nobody was asked

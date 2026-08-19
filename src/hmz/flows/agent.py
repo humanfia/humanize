@@ -74,6 +74,15 @@ class Session(Protocol):
     #: backend that took the whole prompt up front.
     steers: ClassVar[bool]
 
+    #: Whether a turn of this backend can be told to say what it is reaching for while the
+    #: arguments are still being written, rather than once the whole of the call has arrived.
+    #: A fact of the backend, said the same way, and the one that says what a long silence
+    #: means: where this is false a turn writing a large file says nothing until it has
+    #: finished writing it, so a flow watching for signs of life knows not to read that as a
+    #: turn that has wedged. Whether a given agent is told to is its config's -- Claude Code's
+    #: `partial_messages`, on unless a flow says otherwise.
+    narrates: ClassVar[bool]
+
     @property
     def forks(self) -> bool:
         """Whether this backend can carry this conversation into a second one.

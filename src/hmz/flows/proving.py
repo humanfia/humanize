@@ -573,6 +573,7 @@ def _crewed(
         shapes: ClassVar[bool] = True
         takes_tools: ClassVar[bool] = True
         steers: ClassVar[bool] = True
+        narrates: ClassVar[bool] = True
 
         def interject(self, text: str) -> None:
             # Taken rather than refused, as every capability here is claimed: a stub's turn

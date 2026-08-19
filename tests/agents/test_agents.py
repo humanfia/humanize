@@ -16,7 +16,7 @@ import subprocess
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 import pytest
@@ -26,6 +26,7 @@ from hmz.coganchor.agents import (
     AgentConfig,
     ClaudeCodeAgent,
     ClaudeCodeAgentConfig,
+    ClaudeCodeSession,
     CommandSessionBase,
     Event,
     Question,
@@ -379,6 +380,23 @@ def test_claude_holds_one_process_for_the_whole_session(clis: _FakeCLIs) -> None
     assert [first.stdin, second.stdin] == ["hi", "again"]
 
 
+def test_claude_narrates_a_reach_by_default_and_takes_that_back_when_told_to() -> None:
+    """`--include-partial-messages` is the one thing asked of that CLI beyond its own default.
+
+    So it is the one thing with a field of its own to turn back off: with it the reach is
+    said the moment the model makes it, and without it once the whole of what it was called
+    with has arrived -- which for a `Write` is the file, and minutes of a turn saying nothing.
+    """
+    config = ClaudeCodeAgentConfig(model="m", effort="high")
+
+    assert "--include-partial-messages" in ClaudeCodeAgent(config).new()._command()
+    assert ClaudeCodeSession.narrates is True
+
+    quiet = replace(config, partial_messages=False)
+
+    assert "--include-partial-messages" not in ClaudeCodeAgent(quiet).new()._command()
+
+
 def test_a_shape_is_asked_for_by_the_process_the_turn_runs_in(clis: _FakeCLIs) -> None:
     """`--json-schema` is an argument of the process, so asking for one restarts it.
 
@@ -477,7 +495,7 @@ def test_disabled_goals_never_reach_claude(clis: _FakeCLIs, tmp_path: Path) -> N
     launched = clis.calls()[0].argv
     assert launched.count("--disallowedTools") == 1
     assert launched[launched.index("--disallowedTools") + 1] == (
-        "Agent,ScheduleWakeup,CronCreate,CronDelete,CronList"
+        "Agent,ScheduleWakeup,CronCreate,CronDelete,CronList,Workflow"
     )
 
 

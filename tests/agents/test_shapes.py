@@ -154,5 +154,5 @@ def test_an_agent_whose_goals_are_off_is_refused_what_would_outlive_the_turn() -
 
     assert argv.count("--disallowedTools") == 1
     assert argv[argv.index("--disallowedTools") + 1] == (
-        "Agent,ScheduleWakeup,CronCreate,CronDelete,CronList"
+        "Agent,ScheduleWakeup,CronCreate,CronDelete,CronList,Workflow"
     )

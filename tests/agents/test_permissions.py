@@ -116,11 +116,17 @@ def test_claude_allowed_tool_rules_are_canonical() -> None:
 
 
 @pytest.mark.parametrize(
-    ("service_tier", "fast_mode"), [("default", False), ("fast", True)]
+    ("service_tier", "fast_mode"), [("default", None), ("fast", True)]
 )
 def test_claude_maps_the_common_service_tier_to_fast_mode(
-    service_tier: str, fast_mode: bool
+    service_tier: str, fast_mode: bool | None
 ) -> None:
+    """Said where it is being asked for, and not said at all where it is not.
+
+    `--settings` is layered over the settings of the person at this machine, so a key written
+    here is an answer of theirs overruled. `None` is therefore the whole of what the ordinary
+    tier says: what the CLI does with `fastMode` unsaid is its own to decide.
+    """
     session = ClaudeCodeAgent(
         ClaudeCodeAgentConfig(
             model="claude-opus-5",
@@ -132,7 +138,7 @@ def test_claude_maps_the_common_service_tier_to_fast_mode(
     settings = json.loads(argv[argv.index("--settings") + 1])
     # The one key this is about. The same flag carries the hook table a `PreToolUse` is
     # refused through, which is `tests/agents/test_hooks_gate.py`'s to say.
-    assert settings["fastMode"] is fast_mode
+    assert settings.get("fastMode") is fast_mode
 
 
 def test_service_tier_is_closed() -> None:
@@ -187,6 +193,20 @@ def test_a_tier_a_backend_can_send_is_taken_by_reconfigure() -> None:
     assert json.loads(argv[argv.index("--settings") + 1])["fastMode"] is True
 
 
+def test_the_ordinary_tier_leaves_the_users_own_fast_mode_alone() -> None:
+    """`--settings` is layered over their settings file, so a key here overrules theirs.
+
+    Written on every ordinary turn, `"fastMode": false` is a person's own `fastMode` decided
+    for them by a flow that was never asking about it. So the key is said where the tier
+    asked for is `fast` and is not there otherwise.
+    """
+    agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-opus-5", effort="max"))
+
+    argv = agent.new()._command()
+
+    assert "fastMode" not in json.loads(argv[argv.index("--settings") + 1])
+
+
 @pytest.mark.parametrize(
     ("permission", "mode"),
     [
@@ -221,6 +241,12 @@ def test_claude_takes_the_asking_for_bypass_rather_than_skipping_it(
     `bypassPermissions`: the mode humanize uses is one every account allows, and the deciding
     is humanize's rather than the flag's. `stdio` is the request reaching us, and it is only
     on for `bypass` -- the other rungs are enforced by the mode Claude runs them at.
+
+    Pinned because the flag has left `claude --help`, where `--permission-prompts` now stands
+    with `host` for its default. The default is not enough by itself: a 2.1.272 at `manual`
+    without this flag sends no `control_request` at all and denies the tool itself, so taking
+    it away as a legacy spelling of a default would make `bypass` a rung that decides nothing
+    and leave a flow's `PERMISSION_REQUEST` hooks with none of what they are hung for.
     """
     log = _claude(tmp_path, monkeypatch)
     assert ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high")).new()("hi")
