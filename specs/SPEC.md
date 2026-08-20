@@ -211,6 +211,17 @@ load.
 
 - It MUST be the only place any of those is written down, and MUST import nothing but the
   standard library, so that reading a fact costs nothing of the layer the fact is about.
+- What a backend is called here MUST be the command that backend registers on a machine. That
+  name is what an `-a` writes, what a provider of it is kept under, what a trace names the
+  backend a session ran on, and what is actually run to take a turn -- and those MUST be one
+  word rather than a word and a translation of it: a name needing translation is a fact written
+  twice, right in whichever of the two places was read last and quietly wrong in the other, and
+  what it costs is a turn that will not start on a machine where the CLI is installed. Cursor's
+  agent installs itself as `cursor-agent`, so `cursor-agent` is what it MUST be called here.
+- The longer names a CLI is also known by MUST be its aliases -- what a command line may call
+  it, that name among them -- and MUST be read on the way in rather than written on: nothing
+  about a backend is recorded under an alias, so a CLI that people know by more than one
+  spelling answers to every one of them without any fact of its own being said twice.
 - Code that acts on a fact MUST live where its purpose does: driving a backend in `agents`,
   reading its logs back in `tracing`.
 - A model id MUST NOT be written down here, nor anywhere else in this package. What a CLI
@@ -1326,11 +1337,19 @@ Args:
   a usage error saying the written-out form is gone and what to write instead. A latency tier
   and a backend-native override are still an agent's to carry: they are set where the agent is
   made -- from the SDK, or by the flow -- rather than on the line that names one.
-- `<cli>` MUST be one of `claude`, `codex` and `kimi`, each of which MUST also answer to the
-  longer name it is installed under, and `<model>` and `<effort>` MUST be what that CLI is
-  asked for. A model MAY hold slashes of its own -- Kimi Code's and opencode's are written
-  `provider/id` -- so the CLI MUST be read from the front and the effort from after the last
-  colon.
+- `<cli>` MUST be one of the backends `hmz.coganchor.backends` names, under that name or under
+  any of the longer ones it also answers to, and `<model>` and `<effort>` MUST be what that CLI
+  is asked for. Which backends there are MUST NOT be written out again here: they are written
+  down already in the one place every fact about a CLI is written down, and a second list of
+  them is a list that stops being true the week a backend is added -- an agent naming a CLI
+  this machine drives, refused because a sentence here was never widened, is the failure that
+  second list makes. A model MAY hold punctuation of its own -- Kimi Code's is `kimi-code/k3`,
+  pi's, opencode's, mimocode's and ZCode's are written `provider/id`, and Cursor's take their
+  parameters in a bracket after the name -- so the CLI MUST be read from the front and the
+  effort from after the last colon, which is what keeps a model's own punctuation from being
+  read as either. A bracket naming several parameters is the agent's to carry rather than this
+  line's, for the reason a latency tier is: the comma between them is how one `-a` says where
+  one agent ends and the next begins.
 - The CLI MAY be followed by `@<provider>`, which is the account that agent's turns run as: a
   CLI is never spelled with an `@` in it, so the two are told apart wherever an agent is
   written. An `@` naming nothing MUST be a line to correct rather than a line saying nothing.

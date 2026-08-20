@@ -5,6 +5,9 @@
 ```
 .
 ├── __init__.py
+├── _inputs.py
+├── acp.py
+├── agy.py
 ├── allowance.py
 ├── base.py
 ├── board.py
@@ -12,19 +15,26 @@
 ├── codenames.py
 ├── codex.py
 ├── config.py
+├── cursor.py
+├── dsh.cordis.yml
+├── dsh.py
 ├── event.py
+├── grok.py
 ├── hooks.py
 ├── human.py
 ├── kimi.py
 ├── mimo.py
 ├── opencode.py
+├── patching.py
 ├── pi.py
 ├── preload/
 │   ├── __init__.py
 │   └── runtime.cjs
+├── qwen.py
 ├── skills.py
 ├── tools.py
-└── watchdog.py
+├── watchdog.py
+└── zcode.py
 ```
 
 ## `__init__.py`
@@ -210,6 +220,7 @@ class Isolated:
 class AgentConfig:
     model: str
     effort: str
+    service_tier: str = "default"
     machine: MachineConfig | None = None
     permission: str = "bypass"
     provider: str = ""
@@ -315,6 +326,13 @@ class AgentConfig:
   `AgentBase.provider` MUST answer `None` for it, so that a turn under it is the turn an agent
   with no account has always taken. It is a setting of the agent because it is the agent that
   signs in: two agents of one CLI on two accounts are two accounts running at once.
+- `service_tier` MUST be how quickly the provider is asked to serve the same model at the same
+  effort, out of `SERVICE_TIERS`, and MUST be the ordinary one where nobody said otherwise:
+  `fast` buys latency rather than thought, so it is a second thing to say about a turn and not
+  another rung of the first. A backend with no tier to send MUST refuse any but the ordinary
+  one wherever the config arrives -- where the agent is made, and where one already running is
+  set up as something else -- the way a rung it has no word for is refused there: a tier sent
+  nowhere would be a setting that lies about what a turn was served at.
 - `web_search` MUST be whether this agent may search the web, and MUST be on where the flow
   said nothing: that is what a coding agent has always been able to do. It MUST mean the same thing
   on every backend that can express it, which means saying it in both directions rather than only
@@ -540,9 +558,10 @@ stops and waits to be told, and `Gate` is what stands in that place.
   takes `hooks.pre_tool_use` through the same `-c` its other settings go through, but a hook
   there is untrusted until a hash of it is written into their `config.toml`, and the one flag
   that lifts that is on `codex exec` and not on `codex app-server` -- the transport every turn
-  here is driven over. It keeps `PERMISSION_REQUEST`, which is a real gate over that same app
-  server. Kimi Code is the same shape for a simpler reason: its table is a file under its home
-  and there is no variable or flag that points one run at another.
+  here is driven over, which was still so at codex 0.153.4. It keeps `PERMISSION_REQUEST`,
+  which is a real gate over that same app server. Kimi Code is the same shape for a simpler
+  reason: its table is a file under its home and there is no variable or flag that points one
+  run at another.
 - An anchored turn MUST NOT be given a table. Its CLI runs on another machine, where the relay
   is not and the socket is not, so the moment MUST go on being read off the stream there --
   watching a tool rather than gating it, which is what it was everywhere before this.

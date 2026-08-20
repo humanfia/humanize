@@ -63,7 +63,8 @@ Raises `ValueError` if a time cannot be read or a named session is empty.
 Workflow:
 
 ```
-For backend in [claude, codex, kimi]:
+For each backend `hmz.coganchor.backends` names, in the order it names them:
+    Pass over the ones no reader here reads, and the ones with no home on this machine.
     Find the session logs asked for in the backend's home directory, including subagents' logs:
       - Of the workspace, if one is given or implied.
       - Of the named sessions, if any are given -- and of none, where the names are empty.

@@ -108,8 +108,9 @@ coganchor exits nothing it started is left running.
 Under a supervised session:
 
 - the agent's own executable and its re-execs
-- its state directory — claude, codex and kimi are known by name; any other
-  agent keeping state inside the workspace must be named explicitly
+- its state directory — every backend humanize drives is known by name, under
+  the command it is installed as; any other agent keeping state inside the
+  workspace must be named explicitly
 - anything a path is answered with, and the paths that answer it: an agent run
   as an account of somebody else's reads its credentials from here, and what it
   writes when a token is refreshed lands here
