@@ -385,42 +385,45 @@ runtime carries no confining bash executor at all — so a rung composed from wh
 fence the file tools and leave `bash` able to write anywhere, which is a rung that lies.
 
 A config takes `model`, `effort`, `service_tier`, an optional
-[`machine`](#where-the-turns-land),
-[what it may do](#what-an-agent-may-do), [which account it runs as](#which-account-it-runs-as),
-whether [goals](/weaver/goals) are available to it,
-[whether it may search the web](#whether-an-agent-may-search-the-web), and nothing else — the
-[skills it carries](#the-skills-an-agent-carries) are not among them, being its CLI's own and
-its flow's. Codex also takes `overrides`, the app-server `-c` keys that are not already one
-of those fields. Claude takes `allowed_tools`, exact native `--allowedTools` rules for a
-bounded unattended flow, and `partial_messages`, on, which is the one thing humanize asks of
-that CLI beyond what it does by itself — see
+[`machine`](#where-the-turns-land), [what it may do](#what-an-agent-may-do),
+[which account it runs as](#which-account-it-runs-as), whether [goals](/weaver/goals) are
+available to it, [whether it may search the web](#whether-an-agent-may-search-the-web), and
+nothing else — the [skills it carries](#the-skills-an-agent-carries) are not among them, being
+its CLI's own and its flow's. Codex also takes `overrides`, the app-server `-c` keys that are
+not already one of those fields. Claude takes `allowed_tools`, exact native `--allowedTools`
+rules for a bounded unattended flow, and `partial_messages`, on, which is the one thing
+humanize asks of that CLI beyond what it does by itself — see
 [A turn narrated as it is written](#a-turn-narrated-as-it-is-written). A CLI of your own takes
 `cli`, `command`, and the four things a client may offer an agent over its protocol —
-`reads_files`, `writes_files`, `terminals` and `mcp_servers`. ZCode takes `titles`, `native_search` and `delivery` —
+`reads_files`, `writes_files`, `terminals` and `mcp_servers`. ZCode takes `titles`,
+`native_search` and `delivery` —
 [the three answers its app server gets](#what-zcode-is-told-that-zcode-did-not-ask-for) that
 are humanize's rather than its own. Antigravity takes four: `add_workspace`, whether the
 session's directory is pinned with `--add-dir` rather than left to the project the CLI would
 resolve for itself; `print_timeout`, how long its own print-mode clock runs, which defaults to
 a day rather than to the CLI's five minutes because a turn that reaches that clock comes back
-short and successful; `disable_slash_commands`, whether a prompt opening with `/deploy`
-reaches the model as the words it is; and `sandbox`, whether the turn runs under the CLI's own
-terminal restrictions. Each defaults to what a turn of that CLI already ran as. Grok Build
-takes five of its own — `leader`, `sandbox`, `max_turns`, `subagents` and `rules`, each
-described [below](#what-grok-build-takes-of-its-own). pi takes six, each defaulted to what a bare `pi` already does:
-`compiled` (`True`) is whether node may keep what it compiled of pi under humanize's home;
-`context_files` and `extensions` (both `True`) are whether it discovers `AGENTS.md`/`CLAUDE.md`
-and the extensions installed here; `offline` (`False`) is `--offline`, its startup network work
-switched off; `append_system_prompt` (`()`) adds text — or the contents of a file named by path
-— to pi's own system prompt, once per entry; and `skill_paths` (`()`) hands it a skill file or
-directory by path. A flow asks for any of these before it is handed an agent, each under the
-`settings:<field>` name its own config class gives it. Kimi takes `port`, `open_browser`, `log_level` and `web_title`, the
-command line of the `kimi web` daemon its turns are submitted to — see
-[the daemon Kimi is driven through](#the-daemon-kimi-is-driven-through). DeepSeek Harness takes `compaction` and `session_compression`, the
-two places its runtime composition departs from the SDK's own. opencode and mimocode take
-[the rest of their own command line](#what-opencode-and-mimocode-add-to-a-bare-run). Qwen takes `headless_defaults`, `compile_cache` and
-`partial_messages` — every place its driver settles something `qwen` would otherwise settle
-for itself, so that an install which sets none of them can read what it is getting instead of
-finding out. See [Efforts](#efforts) for what each one turns off. Cursor Agent takes four:
+short and successful; `disable_slash_commands`, whether a prompt opening with `/deploy` reaches
+the model as the words it is; and `sandbox`, whether the turn runs under the CLI's own terminal
+restrictions. Each defaults to what a turn of that CLI already ran as. Grok Build takes five of
+its own — `leader`, `sandbox`, `max_turns`, `subagents` and `rules`, each described
+[below](#what-grok-build-takes-of-its-own). pi takes six, each defaulted to what a bare `pi`
+already does: `compiled` (`True`) is whether node may keep what it compiled of pi under
+humanize's home; `context_files` and `extensions` (both `True`) are whether it discovers
+`AGENTS.md`/`CLAUDE.md` and the extensions installed here; `offline` (`False`) is `--offline`,
+its startup network work switched off; `append_system_prompt` (`()`) adds text — or the
+contents of a file named by path — to pi's own system prompt, once per entry; and `skill_paths`
+(`()`) hands it a skill file or directory by path. A flow asks for any of these before it is
+handed an agent, each under the `settings:<field>` name its own config class gives it. Kimi
+takes `port`, `open_browser`, `log_level` and `web_title`, the command line of the `kimi web`
+daemon its turns are submitted to — see
+[the daemon Kimi is driven through](#the-daemon-kimi-is-driven-through). DeepSeek Harness takes
+`compaction` and `session_compression`, the two places its runtime composition departs from the
+SDK's own. opencode and mimocode take
+[the rest of their own command line](#what-opencode-and-mimocode-add-to-a-bare-run). Qwen takes
+`headless_defaults`, `compile_cache` and `partial_messages` — every place its driver settles
+something `qwen` would otherwise settle for itself, so that an install which sets none of them
+can read what it is getting instead of finding out. See [Efforts](#efforts) for what each one
+turns off. Cursor Agent takes four:
 
 | | |
 | --- | --- |
