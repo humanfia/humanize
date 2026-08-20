@@ -363,7 +363,7 @@ def test_dsh_uses_the_official_adapter_catalogue_without_starting_a_cli(
         "deepseek-v4-flash",
         "deepseek-v4-pro",
     ]
-    assert all(model.efforts == ("max", "high", "off") for model in found)
+    assert all(model.efforts == ("max", "high", "low", "off") for model in found)
     assert models.offered("dsh") == found
 
 
@@ -374,7 +374,7 @@ def test_dsh_offers_the_official_catalogue_before_it_has_been_asked() -> None:
         "deepseek-v4-flash",
         "deepseek-v4-pro",
     ]
-    assert all(model.efforts == ("max", "high", "off") for model in found)
+    assert all(model.efforts == ("max", "high", "low", "off") for model in found)
 
 
 def test_a_model_takes_the_efforts_its_backend_said_that_model_takes(

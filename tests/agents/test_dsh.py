@@ -5,6 +5,7 @@ import subprocess
 import sys
 from collections import deque
 from dataclasses import dataclass, replace
+from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
 
@@ -23,7 +24,6 @@ from hmz.coganchor.agents import (
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from pathlib import Path
 
 
 _REAL_HARNESS_TYPE = dsh._harness_type
@@ -153,12 +153,18 @@ def configured(
     *,
     permission: str = "bypass",
     provider: str = "",
+    goals: bool = True,
+    compaction: bool = True,
+    session_compression: str = "none",
 ) -> DshAgentConfig:
     return DshAgentConfig(
         model="deepseek-v4-flash",
         effort="high",
         permission=permission,
         provider=provider,
+        goals=goals,
+        compaction=compaction,
+        session_compression=session_compression,
     )
 
 
@@ -471,7 +477,7 @@ def test_effort_changes_restart_the_runtime_but_resume_the_session() -> None:
     assert Harness.made[1].client.prompts == [(session_id, "second")]
 
 
-@pytest.mark.parametrize("effort", ["low", "ultra"])
+@pytest.mark.parametrize("effort", ["medium", "ultra"])
 def test_an_unsupported_effort_is_refused_before_startup(effort: str) -> None:
     agent = DshAgent(configured())
     agent.effort = effort
@@ -804,43 +810,150 @@ def test_a_flow_that_catches_its_own_turns_does_not_catch_this_one() -> None:
         session("work", suppress=True)
 
 
+def composed(agent: DshAgent) -> list[dict[str, Any]]:
+    """The composition one agent's runtime was actually started from.
+
+    Off the file the driver wrote and pointed the SDK at, rather than off anything shipped
+    here: there is no pinned composition any more, so what is asserted has to be what the
+    runtime was handed. The `!!js` values are the runtime's to evaluate, so they come back
+    as the text they were written as rather than as anything resolved.
+    """
+    Harness.next_scripts.append([assistant("ok"), completed()])
+    # Held rather than a one-shot turn: the composition stands exactly as long as the
+    # runtime reading it, so a session dropped on the way out takes the file with it.
+    session = agent.new()
+    session("work")
+    harness = Harness.made[-1]
+    written = Path(str(harness.config["cordis"])).read_text()
+    loaded = yaml.load(written, Loader=dsh._CordisLoader)  # noqa: S506
+    return cast("list[dict[str, Any]]", loaded)
+
+
+def test_the_composition_is_the_sdks_own_default_plus_only_the_effort() -> None:
+    """An agent that asks for nothing gets the harness's composition, not humanize's.
+
+    The one thing humanize must add is the effort, because the runtime takes a reasoning
+    level as plugin config and nothing else on the SDK's surface carries one. Everything
+    else this backend used to pin is either the SDK's own default already or is now a
+    setting -- so with every setting at the harness's own value, what is left over against
+    the bundled file is exactly that one key.
+    """
+    default = dsh._sdk_composition()
+    agent = DshAgent(
+        configured(goals=False, compaction=False, session_compression="zstd")
+    )
+
+    written = composed(agent)
+
+    assert [one["id"] for one in written] == [one["id"] for one in default]
+    for mounted, expected in zip(written, default, strict=True):
+        if mounted["id"] == "llm-deepseek":
+            # The effort, and nothing else: the adapter is otherwise mounted exactly as the
+            # SDK mounts it, with no config of its own in the bundled file.
+            assert mounted["config"] == {
+                "reasoningEffort": "process.env.HMZ_DSH_EFFORT"
+            }
+            continue
+        assert mounted == expected, mounted["id"]
+
+
+def test_the_effort_reaches_the_adapter_as_the_variable_the_runtime_reads() -> None:
+    """The one deviation with no setting in front of it, so it is pinned on both halves."""
+    agent = DshAgent(configured())
+
+    written = composed(agent)
+
+    (adapter,) = (one for one in written if one["id"] == "llm-deepseek")
+    effort = adapter["config"]["reasoningEffort"]
+    assert isinstance(
+        effort, dsh._Js
+    )  # written back under `!!js`, not as a plain string
+    assert str(effort) == f"process.env.{dsh._EFFORT_ENV}"
+    # And the variable that expression reads is set on the runtime that reads it.
+    told = cast("dict[str, str]", Harness.made[-1].config["env"])
+    assert told["HMZ_DSH_EFFORT"] == "high"
+
+
 def test_the_runtime_composition_compacts_before_the_model_refuses_the_turn() -> None:
     """A session that runs long enough must compact rather than overflow.
 
     Without this the first turn past the context window is where a loop driving one
     conversation stops for good: the next turn is the same conversation and the same
-    refusal, and nothing in the composition ever makes it shorter.
+    refusal, and nothing in the composition ever makes it shorter. The SDK's own default
+    composition mounts neither plugin, so this is humanize's to add and is on by default.
     """
-    cordis = dsh.importlib.resources.files("hmz.coganchor.agents").joinpath(
-        "dsh.cordis.yml"
-    )
-    composed = cordis.read_text()
+    written = composed(DshAgent(configured()))
 
-    assert "@deepseek-ai/dsh-token-meter" in composed
-    assert "@deepseek-ai/dsh-compaction-basic" in composed
-    assert "auto: true" in composed
+    mounted = {str(one["name"]) for one in written}
+    assert "@deepseek-ai/dsh-token-meter" in mounted
+    assert "@deepseek-ai/dsh-compaction-basic" in mounted
+    # At the plugin's own defaults -- `thresholdRatio` 0.8 and `auto` true are what
+    # `dsh-compaction-basic` applies when nothing says, so nothing here says it.
+    (compaction,) = (one for one in written if one["id"] == "compaction-basic")
+    assert "config" not in compaction
+
+
+def test_compaction_off_leaves_the_harnesss_own_composition() -> None:
+    """Off is the SDK's default rather than a third thing humanize invented."""
+    written = composed(DshAgent(configured(compaction=False)))
+
+    mounted = {str(one["name"]) for one in written}
+    assert "@deepseek-ai/dsh-token-meter" not in mounted
+    assert "@deepseek-ai/dsh-compaction-basic" not in mounted
+
+
+@pytest.mark.parametrize(("asked", "written"), [("none", "none"), ("zstd", None)])
+def test_the_session_log_is_uncompressed_unless_the_sdks_default_is_asked_for(
+    asked: str, written: str | None
+) -> None:
+    """Uncompressed by default so the running tally can read rows as they land.
+
+    `zstd` is the plugin's own default, so asking for it is asking for the composition the
+    SDK would have written -- and the key comes out of the file entirely rather than being
+    restated, which is what keeps "set nothing, get the harness's default" true.
+    """
+    composition = composed(DshAgent(configured(session_compression=asked)))
+
+    (sessions,) = (one for one in composition if one["id"] == "sessions")
+    assert sessions["config"].get("compression") == written
+    # The root the SDK's own default gives it either way, which is what `session_root`
+    # fills in and what the running tally reads the trajectory back from.
+    assert sessions["config"]["root"] == "process.env.DSH_SESSION_ROOT ?? './.sessions'"
+
+
+def test_an_unknown_session_compression_is_refused_where_it_is_written() -> None:
+    with pytest.raises(ValueError, match="session_compression must be one of"):
+        configured(session_compression="gzip")
+
+
+def test_an_agent_told_to_have_no_goals_composes_none() -> None:
+    """`goals` is the config's, and on this backend it is what mounts the goal service.
+
+    The spine mounts the goal domain, the `create_goal` tool and the round driver only for a
+    `goals` that is present and not false, so an agent told to have none is one whose
+    composition never carries them -- rather than one that carries them and is asked not to
+    reach for them.
+    """
+    with_goals = composed(DshAgent(configured()))
+    (core,) = (one for one in with_goals if one["id"] == "agent-core")
+    assert core["config"]["goals"] == {}
+
+    without = composed(DshAgent(configured(goals=False)))
+    (core,) = (one for one in without if one["id"] == "agent-core")
+    assert "goals" not in core["config"]
 
 
 def test_the_runtime_composition_is_the_bypass_rung_the_agent_promises() -> None:
     """`_serves` refuses every rung but bypass, and this is why that is honest.
 
-    The promise is not only that the SDK has no sandbox or approval control to set: it is
-    that the composition humanize pins already runs unconfined, so bypass describes these
-    turns rather than being a tighter setting quietly dropped. Mounting the presets to get
-    another rung is what would introduce the fail-closed Bash, so the absences are the
-    contract and are asserted as one.
+    Not that humanize chose to run unconfined: the SDK's own default composition mounts the
+    same unconfined `dsh-bash-local` and `dsh-fs-local` and none of `dsh-sandbox-*`,
+    `dsh-user-approval` or `dsh-permission-presets`, so bypass is what a bare SDK session
+    already runs at. What settles it is that the runtime bundles no confining bash executor
+    at all, so no composition of what ships could enforce a tighter rung honestly.
     """
-    cordis = dsh.importlib.resources.files("hmz.coganchor.agents").joinpath(
-        "dsh.cordis.yml"
-    )
-    # The `!!js` tags are the runtime's to evaluate and have no constructor here; what is
-    # being asserted is which plugins are mounted, so the tags come off and what was written
-    # behind them stays the text it was written as.
-    composed = cordis.read_text().replace("!!js ", "")
-    mounted = {
-        str(plugin["name"])
-        for plugin in cast("list[dict[str, object]]", yaml.safe_load(composed))
-    }
+    written = composed(DshAgent(configured()))
+    mounted = {str(one["name"]) for one in written}
 
     assert "@deepseek-ai/dsh-bash-local" in mounted
     assert "@deepseek-ai/dsh-fs-local" in mounted
@@ -852,6 +965,118 @@ def test_the_runtime_composition_is_the_bypass_rung_the_agent_promises() -> None
         for name in mounted
         if any(word in name for word in ("sandbox", "approval", "permission"))
     ]
+    # And the same absences in the harness's own default, which is where they come from.
+    assert not [
+        str(one["name"])
+        for one in dsh._sdk_composition()
+        if any(
+            word in str(one["name"]) for word in ("sandbox", "approval", "permission")
+        )
+    ]
+
+
+def mounted(harness: Harness) -> set[str]:
+    """The plugin names one live runtime was composed with."""
+    written = cast(
+        "list[dict[str, Any]]",
+        yaml.load(
+            Path(str(harness.config["cordis"])).read_text(),
+            Loader=dsh._CordisLoader,  # noqa: S506
+        ),
+    )
+    return {str(one["name"]) for one in written}
+
+
+def test_a_setting_changed_mid_session_rebuilds_the_runtime_and_keeps_the_talk() -> (
+    None
+):
+    """The composition is read once at boot, so changing one has to restart the runtime.
+
+    A watcher turning compaction on partway through a conversation that is getting long is
+    the whole point of the setting, and a runtime left on the old composition would take the
+    new config and go on behaving the old way. The conversation is not the runtime, so it
+    survives: the second runtime is handed the id the first one adopted.
+    """
+    Harness.next_scripts.extend(
+        ([assistant("one"), completed()], [assistant("two", turn=2), completed(2)])
+    )
+    agent = DshAgent(configured(compaction=False))
+    session = agent.new()
+    session("first")
+    session_id = session.id
+
+    # Read before the restart: the first runtime's composition goes when that runtime does.
+    was = mounted(Harness.made[0])
+
+    agent.reconfigure(replace(agent.config, compaction=True))
+    session("second")
+
+    assert len(Harness.made) == 2
+    assert Harness.made[0].closed
+    assert Harness.made[1].client.prompts == [(session_id, "second")]
+    assert "@deepseek-ai/dsh-compaction-basic" not in was
+    assert "@deepseek-ai/dsh-compaction-basic" in mounted(Harness.made[1])
+
+
+def test_goals_switched_off_mid_session_stops_composing_them() -> None:
+    """`disable_goals` has to reach the composition, since that is what mounts them."""
+    Harness.next_scripts.extend(
+        ([assistant("one"), completed()], [assistant("two", turn=2), completed(2)])
+    )
+    agent = DshAgent(configured())
+    session = agent.new()
+    session("first")
+
+    agent.disable_goals()
+    session("second")
+
+    assert len(Harness.made) == 2
+    written = cast(
+        "list[dict[str, Any]]",
+        yaml.load(
+            Path(str(Harness.made[1].config["cordis"])).read_text(),
+            Loader=dsh._CordisLoader,  # noqa: S506
+        ),
+    )
+    (core,) = (one for one in written if one["id"] == "agent-core")
+    assert "goals" not in core.get("config", {})
+
+
+def test_a_runtime_that_never_came_up_takes_its_composition_with_it() -> None:
+    """Nothing is left for the garbage collector to reclaim at a moment nobody chose."""
+    written: list[Path] = []
+
+    class Refusing(Harness):
+        def start(self) -> None:
+            written.append(Path(str(self.config["cordis"])))
+            raise RuntimeError("runtime did not come up")
+
+    Harness.next_scripts.append([assistant("ok"), completed()])
+    session = DshAgent(configured()).new()
+    with pytest.MonkeyPatch.context() as patched:
+        patched.setattr(dsh, "_harness_type", lambda: Refusing)
+        with pytest.raises(Exception, match="runtime did not come up"):
+            session("work")
+
+    assert written
+    assert not written[0].exists()
+
+
+def test_the_composition_is_written_per_runtime_and_taken_away_with_it() -> None:
+    """It is this agent's settings applied to the SDK's default, so it cannot be shipped.
+
+    Two agents of one flow may ask for different compositions, so each runtime is started
+    from a file of its own -- and that file goes when the runtime reading it does.
+    """
+    Harness.next_scripts.append([assistant("ok"), completed()])
+    session = DshAgent(configured()).new()
+    session("work")
+    written = Path(str(Harness.made[-1].config["cordis"]))
+    assert written.is_file()
+
+    session._shut()
+
+    assert not written.exists()
 
 
 def test_a_turn_already_running_cannot_be_talked_to() -> None:
@@ -869,13 +1094,21 @@ def test_a_turn_already_running_cannot_be_talked_to() -> None:
 
 
 def test_the_runtime_composition_uses_only_plugins_bundled_with_the_sdk() -> None:
-    cordis = dsh.importlib.resources.files("hmz.coganchor.agents").joinpath(
-        "dsh.cordis.yml"
-    )
-    configured_plugins = cordis.read_text()
+    """Every plugin mounted is one the runtime executable actually carries.
 
-    assert "@deepseek-ai/dsh-settings-file" not in configured_plugins
-    assert "@deepseek-ai/dsh-credentials-local" not in configured_plugins
+    The composition is the SDK's own plus the compaction pair, and that pair is the only
+    part humanize names for itself -- so this is the check that those two names are real.
+    """
+    written = composed(DshAgent(configured()))
+    mounted = {str(one["name"]) for one in written}
+
+    assert "@deepseek-ai/dsh-settings-file" not in mounted
+    assert "@deepseek-ai/dsh-credentials-local" not in mounted
+    default = {str(one["name"]) for one in dsh._sdk_composition()}
+    assert mounted - default == {
+        "@deepseek-ai/dsh-token-meter",
+        "@deepseek-ai/dsh-compaction-basic",
+    }
 
 
 def test_a_missing_sdk_says_which_extra_carries_it(

@@ -336,17 +336,50 @@ from hmz.coganchor.agents import DshAgent, DshAgentConfig
 agent = DshAgent(DshAgentConfig(model="deepseek-v4-flash", effort="high"))
 ```
 
-It also offers `deepseek-v4-pro`. The SDK and bundled runtime are currently a developer
-preview; humanize supports `deepseek-harness-sdk>=0.1.1rc1,<0.2`.
+It also offers `deepseek-v4-pro`, and its efforts are `max`, `high`, `low` and `off` — the
+four levels the official `dsh-llm-deepseek` adapter takes. The SDK and bundled runtime are
+currently a developer preview; humanize supports `deepseek-harness-sdk>=0.1.1rc1,<0.2`.
 
-Its runtime composition turns on the runtime's own automatic compaction, at the plugin's
-default threshold of 0.8 of the model's context window. One conversation driven for long
-enough otherwise reaches a turn the model refuses for length, and a loop that keeps talking
-to the same conversation never gets past it: the next turn is the same conversation and the
-same refusal. That refusal, and a session id the runtime will not answer under, are the two
+Every session is started from the composition the SDK itself applies when it is passed none —
+the `runtime/cordis.yml` shipped inside the installed runtime, read at startup rather than
+copied here, so an agent that sets nothing composes what a bare SDK session composes. Onto it
+humanize writes one thing unconditionally: the effort, which the runtime takes as adapter
+config and which nothing else on the SDK's surface carries.
+
+Two further departures are settings of the agent, each defaulting to what this backend has
+always done because each is something humanize reads back afterwards:
+
+- `compaction` mounts the runtime's own automatic compaction — the `dsh-token-meter` and
+  `dsh-compaction-basic` pair, at that plugin's default threshold of 0.8 of the model's
+  context window. On by default, though the SDK's composition has neither: one conversation
+  driven for long enough otherwise reaches a turn the model refuses for length, and a loop
+  that keeps talking to the same conversation never gets past it, the next turn being the
+  same conversation and the same refusal. `compaction=False` is the SDK's own composition.
+- `session_compression` is how the durable JSONL session log is written, `none` or `zstd`.
+  `none` by default, though the plugin's own default is `zstd`, because humanize reads that
+  log itself — what a turn spent comes off complete rows as they land. `zstd` is the smaller
+  log, and what it costs is worth saying plainly: the plugin keeps the same file name under
+  compression, so humanize goes on finding the log and reading frames rather than lines, and
+  counts nothing from it at all while the interface is still told this backend's reckoning is
+  one it can show. It is for a run whose cost nobody asks this path for.
+
+Both are optional-interface fields, so a flow that has to have one asks for it where it
+declares the place under the name its field is surfaced by, `settings:compaction` and
+`settings:session_compression`. `goals` is read here too: on this backend it is what mounts
+the goal service, the `create_goal` tool and the round driver, so an agent told to have none
+composes none. Each of the three is read again on every turn, so an agent reconfigured
+mid-session gets a runtime built the new way and keeps its conversation.
+
+That length refusal, and a session id the runtime will not answer under, are the two
 `Unrecoverable` failures of this backend — [taken once](#when-an-account-goes-down) rather
 than retried. A turn that fails without taking its runtime with it leaves that runtime up, so
 the conversation carries on into the turn after it.
+
+Every turn runs at `bypass`, and no tighter rung can be asked for. Not a choice of humanize's:
+the SDK's own default composition mounts the unconfined `dsh-bash-local` and `dsh-fs-local`
+and none of `dsh-sandbox-*`, `dsh-user-approval` or `dsh-permission-presets`, and the bundled
+runtime carries no confining bash executor at all — so a rung composed from what ships would
+fence the file tools and leave `bash` able to write anywhere, which is a rung that lies.
 
 A config takes `model`, `effort`, `service_tier`, an optional
 [`machine`](#where-the-turns-land),
@@ -379,7 +412,8 @@ switched off; `append_system_prompt` (`()`) adds text — or the contents of a f
 directory by path. A flow asks for any of these before it is handed an agent, each under the
 `settings:<field>` name its own config class gives it. Kimi takes `port`, `open_browser`, `log_level` and `web_title`, the
 command line of the `kimi web` daemon its turns are submitted to — see
-[the daemon Kimi is driven through](#the-daemon-kimi-is-driven-through). Cursor Agent takes four:
+[the daemon Kimi is driven through](#the-daemon-kimi-is-driven-through). DeepSeek Harness takes `compaction` and `session_compression`, the
+two places its runtime composition departs from the SDK's own. Cursor Agent takes four:
 
 | | |
 | --- | --- |
