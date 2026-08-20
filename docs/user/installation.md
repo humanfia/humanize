@@ -135,10 +135,12 @@ Each CLI logs in its own way. humanize never sees the credential:
 | DeepSeek Harness | a DeepSeek API key saved by dsh, stored from an agent's `provider` row, or supplied as `DEEPSEEK_API_KEY` |
 
 DeepSeek Harness is a developer preview and comes as the **`[dsh]` extra**:
-`deepseek-harness-sdk>=0.1.1rc1,<0.2` and its bundled runtime, whose wheels are published for
-Linux on x86-64 or arm64 and macOS on arm64 and nowhere else — an ordinary dependency would be
-a machine humanize could not be installed on at all, for the sake of a backend nobody there
-runs. The `dsh` CLI is not required.
+`deepseek-harness-sdk>=0.1.1rc1,<0.1.2` and its bundled runtime, whose wheels are published
+for Linux on x86-64 or arm64 and macOS on arm64 and nowhere else — an ordinary dependency
+would be a machine humanize could not be installed on at all, for the sake of a backend
+nobody there runs. The ceiling is not caution about a preview but a wall: 0.1.2a3 redesigned
+the configuration this driver is written against, and the class it replaced it with refuses a
+keyword it does not know. The `dsh` CLI is not required.
 
 It supports API-key login only, and there are two places to keep that key. For dsh's own
 credential store, run `dsh web`, open **Settings -> Models**, enter the DeepSeek key and save

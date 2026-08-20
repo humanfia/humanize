@@ -251,7 +251,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "dateparser", specifier = ">=1.4.2" },
-    { name = "deepseek-harness-sdk", marker = "extra == 'dsh'", specifier = ">=0.1.1rc1,<0.2" },
+    { name = "deepseek-harness-sdk", marker = "extra == 'dsh'", specifier = ">=0.1.1rc1,<0.1.2" },
     { name = "hmz", extras = ["dsh", "kimi"], marker = "extra == 'all'" },
     { name = "psutil", specifier = ">=7.2.2" },
     { name = "pydantic", specifier = ">=2.13.5" },

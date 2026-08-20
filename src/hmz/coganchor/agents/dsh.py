@@ -23,6 +23,8 @@ from typing import TYPE_CHECKING, Any, ClassVar, Protocol, Self, cast
 
 import yaml
 
+from hmz.coganchor import backends
+
 from .base import AgentBase, SessionBase
 from .config import AgentConfig
 from .event import Event, Failed, Saying, Unrecoverable, Usage, say
@@ -64,7 +66,7 @@ _REF = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _EXTRA = (
     "DeepSeek Harness is not installed in this Python environment, where it is the [dsh] "
     "extra rather than part of every install: uv sync --extra dsh from a checkout, or pip "
-    "install 'deepseek-harness-sdk>=0.1.1rc1,<0.2' 'python-dotenv>=1.2.3'"
+    f"install '{backends.DSH_SDK}' 'python-dotenv>=1.2.3'"
 )
 _KEY_REQUIRED = (
     "DeepSeek Harness only supports API-key login and needs a DeepSeek API key. Save one "

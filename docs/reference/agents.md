@@ -338,7 +338,10 @@ agent = DshAgent(DshAgentConfig(model="deepseek-v4-flash", effort="high"))
 
 It also offers `deepseek-v4-pro`, and its efforts are `max`, `high`, `low` and `off` — the
 four levels the official `dsh-llm-deepseek` adapter takes. The SDK and bundled runtime are
-currently a developer preview; humanize supports `deepseek-harness-sdk>=0.1.1rc1,<0.2`.
+currently a developer preview; humanize supports `deepseek-harness-sdk>=0.1.1rc1,<0.1.2`. The
+ceiling is not caution about a preview but a wall: 0.1.2a3 redesigned the configuration this
+driver is written against, and the class it replaced it with refuses a keyword it does not
+know.
 
 Every session is started from the composition the SDK itself applies when it is passed none —
 the `runtime/cordis.yml` shipped inside the installed runtime, read at startup rather than

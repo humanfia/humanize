@@ -63,6 +63,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList
 from textual.widgets.option_list import Option
 
+from hmz.coganchor import backends
 from hmz.coganchor.agents import ANYONE, FLOW, SWARM, USER, anchored, driver
 from hmz.coganchor.agents.allowance import Allowance, allowed, unwatched
 from hmz.coganchor.prices import money
@@ -4066,7 +4067,7 @@ def _drives(backend: str) -> type[AgentBase] | None:
 _EXTRAS = {
     "dsh": (
         "DeepSeek Harness is not installed",
-        "'deepseek-harness-sdk>=0.1.1rc1,<0.2' 'python-dotenv>=1.2.3'",
+        f"'{backends.DSH_SDK}' 'python-dotenv>=1.2.3'",
     ),
     "kimi": (
         "Kimi Code is installed, but the websocket client it is driven over is not",

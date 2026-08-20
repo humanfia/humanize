@@ -180,7 +180,8 @@ CLI again as that account and keeps what it said. From a script,
 
 There was nothing to run. The CLI is not installed, or would not start. The line in brackets is
 the one that installs it; `curl https://cursor.com/install -fsS | bash` for Cursor, `pip
-install 'deepseek-harness-sdk'` for DeepSeek Harness. humanize looks on `PATH` first and then
+install 'deepseek-harness-sdk>=0.1.1rc1,<0.1.2' 'python-dotenv>=1.2.3'` for DeepSeek
+Harness. humanize looks on `PATH` first and then
 where an installer would have put one — see [what you have](/user/installation#check-what-you-have).
 
 ### `(contended: two turns of it are sharing one database)`

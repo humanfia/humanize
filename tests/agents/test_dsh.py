@@ -1127,3 +1127,29 @@ def test_a_missing_sdk_says_which_extra_carries_it(
 
     with pytest.raises(ModuleNotFoundError, match=r"\[dsh\] extra"):
         DshAgent(configured())("work")
+
+
+def test_every_install_humanize_offers_excludes_the_redesigned_sdk() -> None:
+    """The install lines humanize prints must not fetch an SDK the driver cannot drive.
+
+    0.1.2a3 replaced `cordis`, `session_root` and `launch_args_override` with a different
+    surface and refuses a keyword it does not know, so an unbounded `pip install` resolves a
+    session that cannot be opened. The ceiling in `pyproject.toml` cannot reach somebody
+    installing by hand; these three lines are what reaches them, and they are one constant so
+    that they cannot drift apart from it.
+    """
+    from packaging.requirements import Requirement
+    from packaging.version import Version
+
+    from hmz.coganchor import backends
+    from hmz.tui import pick
+
+    offered = Requirement(backends.DSH_SDK)
+    assert offered.specifier.contains(Version("0.1.1rc1"), prereleases=True)
+    for redesigned in ("0.1.2a3", "0.1.2rc1", "0.1.5rc1"):
+        assert not offered.specifier.contains(Version(redesigned), prereleases=True)
+
+    profile = backends.named("dsh")
+    assert profile is not None
+    for line in (profile.installs, dsh._EXTRA, pick._installing("dsh")):
+        assert backends.DSH_SDK in line

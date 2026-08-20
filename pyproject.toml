@@ -44,7 +44,20 @@ dependencies = [
 # turns are taken on; and dsh reads a project's `.env` the way its own CLI does, which is
 # somebody else's solved problem.
 dsh = [
-    "deepseek-harness-sdk>=0.1.1rc1,<0.2",
+    # Held below 0.1.2 because the next version published is a redesign of the exact surface
+    # this driver drives: `cordis`, `session_root` and `launch_args_override` are gone from
+    # `DeepSeekHarnessConfig` as of 0.1.2a3, replaced by `profile`, `patches`, `dsh_home` and
+    # `dsh_bin`, and effort stops being smuggled through the environment and becomes a field
+    # of its own. That class refuses a keyword it does not know, so the widening would not be
+    # a backend that behaves oddly, it would be one that cannot start a session at all. Widen
+    # this only together with the port in `coganchor/agents/dsh.py`, and with `DSH_SDK` in
+    # `coganchor/backends.py`, which is what humanize tells somebody to install by hand. The
+    # ceiling costs something and it is the cheaper half of the trade: the bundled runtime
+    # ships no sdist, and 0.1.1rc1 built wheels for Linux on x86-64 or arm64 and macOS on
+    # arm64 alone, so this is the platform set humanize's docs already promise. Later SDKs
+    # add Windows and macOS x86-64, but reach them through a driver that cannot open a
+    # session -- an install that fails outright beats one that fails every turn.
+    "deepseek-harness-sdk>=0.1.1rc1,<0.1.2",
     "python-dotenv>=1.2.3",
 ]
 # Kimi Code's app server says what a session is doing over a websocket, which is how a turn
