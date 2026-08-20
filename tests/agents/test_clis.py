@@ -210,7 +210,7 @@ log = pathlib.Path(LOG)
 flags = dict(zip(sys.argv, sys.argv[1:]))
 settings = os.environ.get("QWEN_CODE_SYSTEM_SETTINGS_PATH")
 thinking = pathlib.Path(settings).read_text() if settings else None
-session = flags.get("--resume", "ses-qwen-stub")
+session = flags.get("--resume") or flags.get("--session-id") or "ses-qwen-stub"
 total = {}
 
 
@@ -995,6 +995,43 @@ def test_qwen_is_given_no_tools_that_change_anything_when_it_may_change_nothing(
     withheld = call.argv[call.argv.index("--exclude-tools") + 1]
     assert "run_shell_command" in withheld
     assert "write_file" in withheld
+
+
+@pytest.mark.parametrize(
+    ("rung", "withheld"),
+    [
+        (
+            "read-only",
+            {"edit", "monitor", "notebook_edit", "run_shell_command", "write_file"},
+        ),
+        ("workspace-write", {"web_fetch"}),
+        ("auto", set[str]()),
+        ("bypass", set[str]()),
+    ],
+)
+def test_every_rung_of_qwens_ladder_is_refusals_and_one_approval_mode(
+    stubs: _Stubs, rung: str, withheld: set[str]
+) -> None:
+    """`yolo` at every rung, and the rung itself is the tools taken off the command line.
+
+    Qwen Code's own tighter modes work by asking, and the ask has nowhere to go: with
+    `stream-json` for input it believes somebody is listening, skips the refusal it would
+    give an unwatched run, and leaves the call awaiting an approval this protocol has no way
+    to send. An excluded tool is refused before anything stops to confirm it.
+    """
+    session = QwenCodeAgent(
+        QwenCodeAgentConfig(model="m", effort="high", permission=rung)
+    ).new()
+    assert session("hi") == "hi"
+
+    (call,) = stubs.calls()
+    assert call.argv[call.argv.index("--approval-mode") + 1] == "yolo"
+    excluded: set[str] = (
+        set(call.argv[call.argv.index("--exclude-tools") + 1].split(","))
+        if "--exclude-tools" in call.argv
+        else set()
+    )
+    assert excluded == withheld
 
 
 def test_qwen_reports_a_result_that_errored_as_a_failed_turn(stubs: _Stubs) -> None:

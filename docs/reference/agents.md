@@ -414,7 +414,10 @@ directory by path. A flow asks for any of these before it is handed an agent, ea
 command line of the `kimi web` daemon its turns are submitted to — see
 [the daemon Kimi is driven through](#the-daemon-kimi-is-driven-through). DeepSeek Harness takes `compaction` and `session_compression`, the
 two places its runtime composition departs from the SDK's own. opencode and mimocode take
-[the rest of their own command line](#what-opencode-and-mimocode-add-to-a-bare-run). Cursor Agent takes four:
+[the rest of their own command line](#what-opencode-and-mimocode-add-to-a-bare-run). Qwen takes `headless_defaults`, `compile_cache` and
+`partial_messages` — every place its driver settles something `qwen` would otherwise settle
+for itself, so that an install which sets none of them can read what it is getting instead of
+finding out. See [Efforts](#efforts) for what each one turns off. Cursor Agent takes four:
 
 | | |
 | --- | --- |
@@ -1471,12 +1474,34 @@ saying that a turn it drives defaults to `general.preventSystemSleep: false` and
 `general.enableAutoUpdate: false`. Neither is about the work: nobody is watching a terminal
 for the answer, so a `systemd-inhibit` and a `sleep infinity` per model response and per
 tool call is churn a session pays for nothing; and an update installed mid-flow would put a
-new CLI under a conversation the running one opened. Set either yourself, at any layer, and
-yours wins. Both generated files carry the settings format version, so Qwen has nothing to
+new CLI under a conversation the running one opened — one whose flags, protocol and settings
+schema nothing here was read against. Set either yourself, at any layer, and yours wins.
+
+Those two are the one place humanize's default is not the bare CLI's, since Qwen Code keeps
+the machine awake and checks for a new version unless it is told otherwise. Say
+`QwenCodeAgentConfig(headless_defaults=False)` and the layer is not written at all. Two
+agents of one flow that disagree about it get a settings directory each, the layer being
+found by sitting beside the settings file.
+
+Both generated files carry the settings format version, so Qwen has nothing to
 migrate and does not rewrite a file its own concurrent sessions are reading. Node's compiled
 bundle is kept in `~/.cache/humanize/qwen-code` through `NODE_COMPILE_CACHE`, so sessions
 starting at once read bytecode instead of each compiling the CLI again; a `NODE_COMPILE_CACHE`
-already set, by you or by the provider, is left alone.
+already set, by you or by the provider, is left alone, and an anchored turn is never given
+one. Node caches nothing unless it is told where, so this too is humanize's answer rather
+than the runtime's: `QwenCodeAgentConfig(compile_cache=False)` takes the compile back.
+
+**Qwen Code names its conversation up front.** The opening turn is given `--session-id` with a
+fresh UUID and every turn after it resumes that one; a fork resumes what it was cut from with
+`--fork-session` instead. Qwen Code refuses an id that is already a session of the project,
+active or archived, which is why an opening turn that failed is retried under another rather
+than under the one its first attempt may have left behind.
+
+**A turn says nothing until the model has finished saying it**, a message arriving whole
+rather than as it is written — so a long thought is silence. `QwenCodeAgentConfig(partial_messages=True)`
+adds `--include-partial-messages` and the words arrive as they are written; the finished
+message is then read for its tools and its count alone, so nothing is said twice. Off, as it
+is in the CLI.
 Ordinary turns in one
 Qwen session reuse the installed CLI process through its official stream-json input. Changing its settings, native skills or flow skills restarts it and resumes
 the same conversation. The two generated files are excluded from that check, since they are
@@ -2056,7 +2081,7 @@ reaches for whichever of its own settings says the same thing:
 
 | Rung | `agy` | `claude` | `codex` | `cursor-agent` | `dsh` | `grok` | `kimi` | `pi` | `qwen` | `opencode`, `mimo` | `zcode` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `read-only` | `--mode plan` | `plan` mode | `read-only` sandbox | `--mode plan` | refused | only `read_file`, `grep`, `list_dir` | plan mode, which stops edits and not commands | without `bash`, `edit`, `write`, `powershell` | without `edit`, `write_file`, `run_shell_command` | `edit` and `bash` denied | `plan` mode |
+| `read-only` | `--mode plan` | `plan` mode | `read-only` sandbox | `--mode plan` | refused | only `read_file`, `grep`, `list_dir` | plan mode, which stops edits and not commands | without `bash`, `edit`, `write`, `powershell` | without `edit`, `write_file`, `notebook_edit`, `run_shell_command`, `monitor` | `edit` and `bash` denied | `plan` mode |
 | `workspace-write` | `--mode accept-edits`, whose commands are denied | `acceptEdits` mode | `workspace-write` sandbox | `--sandbox enabled` | refused | `--disable-web-search` | plan mode off | — | `web_fetch` denied | every way out of the workspace denied | `edit` mode |
 | `auto` | `--dangerously-skip-permissions` | Claude's own `auto` mode | `workspace-write`, approvals on request | `--auto-review`, its own classifier | refused | `--always-approve` | — | — | — | nothing denied | `build` mode, which asks before a tool with side effects |
 | `bypass` | `--dangerously-skip-permissions` | `manual` mode, every request answered here | `danger-full-access` | `--force --sandbox disabled` | supported | — | `auto` mode | — | `--approval-mode yolo` | — | `yolo` mode |
@@ -2127,6 +2152,23 @@ for is granted
 
 It is found out once per agent rather than once per turn, and the rung you chose is what is
 tried first: an agent asked for at `permission=auto` asks for `auto` and never sees this.
+
+**Qwen Code runs at `yolo` on every rung, and the rung is the tools taken off its command
+line.** Its own ladder has three modes that name a rung of this one almost outright — `plan`,
+`auto-edit`, and its own `auto` — and each of them works by *asking*. Given a prompt for
+input, Qwen Code knows nobody is there and turns every such ask into a refusal the tool call
+ends on, which is exactly what a rung means. Given `stream-json` for input, which is how an
+ordinary Qwen session is held open across its turns, it decides somebody is on the other end
+of the protocol, skips that refusal, and leaves the call awaiting an approval — and the
+`can_use_tool` request that would let a client answer is emitted only by its interactive
+terminal UI, while the `confirmation_response` that would answer one is read only from the
+separate file `--input-file` names. Neither is on the protocol humanize speaks to it, so a
+turn that asks is a turn that never finishes and never says why. A flow stopped without
+saying so is worse than one run a rung looser, so the rung is said entirely as
+`--exclude-tools`, where a tool is refused before anything can stop to confirm it. The cost
+is the edges: nothing at any rung confines an edit to the workspace — Qwen Code's edit tools
+ask only that a path be absolute, and its one sandbox wants a container runtime that may not
+be there — so `workspace-write` buys the fetch, not a boundary.
 
 **Claude Code's `bypass` is humanize doing the asking, not Claude skipping it.** The flag that
 skips it — `--dangerously-skip-permissions` — is one an account can be told to refuse: managed

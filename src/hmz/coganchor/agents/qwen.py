@@ -14,6 +14,18 @@ efforts, and neither is a reason to change what the person who started the flow 
 Beside that file goes the other end of the same idea: the layer Qwen Code reads under
 everyone, saying what a turn nobody is watching defaults to. Anything they have configured,
 at any layer of their own, still wins.
+
+Everything else here is Qwen Code's own answer rather than one of ours. Where it is not --
+that defaults layer, the compile cache, the partial stream -- there is a field of
+:class:`QwenCodeAgentConfig` saying so, which is what a flow asks about beforehand, so that
+an install which configures nothing runs the CLI as the CLI runs itself.
+
+Its own caps are not among them. `--max-wall-time`, `--max-tool-calls` and
+`--max-session-turns` are counted over the *run*, and a run here is a process held open
+across every turn of a conversation -- so a cap set on the agent would be spent by the turns
+before the one it was meant for, and the tenth round would be cut off for what the first
+round did. Which is the very thing :class:`~hmz.coganchor.agents.config.Budget` is held off
+the meter to avoid, so nothing here is routed through them.
 """
 
 # pyright: reportPrivateUsage=false
@@ -25,6 +37,7 @@ import os
 import re
 import tempfile
 import threading
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
@@ -58,12 +71,21 @@ _SETTINGS = "QWEN_CODE_SYSTEM_SETTINGS_PATH"
 _DEFAULTS = "QWEN_CODE_SYSTEM_DEFAULTS_PATH"
 _DEFAULTS_FILE = "system-defaults.json"
 
-#: What a turn hmz drives defaults to. Neither is about the work, and both are about there
-#: being nobody at a terminal: one keeps the machine awake while a person watches an answer
-#: arrive -- a `systemd-inhibit` and a `sleep infinity` per model response and per tool call,
-#: per session -- and the other would install a new CLI under a conversation the running one
-#: opened. Said at the defaults layer rather than the system one, so a person who has
-#: configured either still gets what they configured.
+#: What a turn hmz drives defaults to, and the two places Qwen Code itself says otherwise:
+#: `general.preventSystemSleep` is on unless it is told, and `general.enableAutoUpdate` is
+#: read as on unless it is told `false`. So both of these are humanize's answer rather than
+#: the CLI's, and `QwenCodeAgentConfig.headless_defaults` is where an install takes them back.
+#:
+#: Neither is about the work, and both are about there being nobody at a terminal: one keeps
+#: the machine awake while a person watches an answer arrive -- a `systemd-inhibit` and a
+#: `sleep infinity` per model response and per tool call, per session -- and the other would
+#: fetch and install a new CLI under a conversation the running one opened, so that a flow
+#: three turns in is suddenly talking to a version whose protocol, flags and settings schema
+#: nothing here was read against. An unattended turn has nobody to notice either, which is
+#: why this is the one place the default is humanize's and not the CLI's.
+#:
+#: Said at the defaults layer rather than the system one, so a person who has configured
+#: either, at any layer of their own, still gets what they configured.
 _HEADLESS = {"general": {"preventSystemSleep": False, "enableAutoUpdate": False}}
 
 #: The format the files written here are already in, so that Qwen Code has nothing to migrate
@@ -72,6 +94,13 @@ _HEADLESS = {"general": {"preventSystemSleep": False, "enableAutoUpdate": False}
 #: of sessions can have one of them read a name that is briefly nothing and run at the CLI's
 #: own effort with none of this said. A version it does not know is one it leaves alone too,
 #: because what is written here needs none of the migrations it would look for.
+#:
+#: Four is the version Qwen Code is at -- `SETTINGS_VERSION = 4`, against which its own
+#: `needsMigration` answers no and leaves the file alone. It is worth pinning only for as
+#: long as that is true: the number it is at is the only number that means "nothing to do",
+#: and one it has moved past is a file it opens every start to migrate. Five it already
+#: knows and migrates *down* from, so the pin is checked against the installed CLI rather
+#: than assumed to keep.
 _VERSION = {"$version": 4}
 
 #: Where V8 keeps what it compiled the CLI's bundle into, so the next process to start reads
@@ -79,15 +108,64 @@ _VERSION = {"$version": 4}
 #: entry is keyed by the file, its bytes and the Node version, so two flows, two agents and
 #: two installed versions share it without reading each other's. Node makes it if it is not
 #: there, and a missing or unreadable entry is a compile rather than a failure.
+#:
+#: Node itself writes nothing unless this is set, so a cache is humanize's choice and not the
+#: runtime's: `QwenCodeAgentConfig.compile_cache` is where an install declines the directory
+#: and takes the compile back.
 _COMPILED = "NODE_COMPILE_CACHE"
 _CACHE = ("compiled", "qwen")
+
+#: What Qwen Code is run at for each rung of the ladder, as `--approval-mode`. One mode for
+#: all four, and the mode is `yolo`, which is not an oversight but the only one this CLI can
+#: be driven at from out here. Written as a table anyway, because it is the one place to
+#: change when that stops being true.
+#:
+#: Its own ladder does have three modes that say a rung of this one almost outright -- `plan`
+#: for `read-only`, `auto-edit` for `workspace-write`, `auto` for the rung where what is
+#: asked for is granted. Each of them works by *asking*, and the asking has to reach
+#: somebody. Run with a prompt for input, Qwen Code knows nobody is there and turns every
+#: such ask into a refusal the tool call ends on, which would be exactly what a rung means.
+#: Run with `stream-json` for input -- which is how a session here is held open across its
+#: turns -- it decides there is somebody on the other end of the protocol, skips that
+#: refusal, and leaves the call sitting in `awaiting_approval`.
+#:
+#: Sitting there for good. The `can_use_tool` request that would let a client answer is only
+#: ever emitted by its interactive terminal UI running in dual-output mode, and the
+#: `confirmation_response` that would answer one is only ever read from the separate file
+#: `--input-file` names. Neither is on the protocol this driver speaks, so a turn that asks
+#: is a turn that never finishes and never says why -- and a flow that has stopped without
+#: saying so is worse than one running a rung looser than it asked for.
+#:
+#: So the rung is said entirely as refusals, in `_WITHHELD` below, where a tool taken off the
+#: command line is refused before anything can stop to confirm it. Which costs the rungs
+#: their edges -- nothing here keeps an edit inside the workspace, Qwen Code's edit tools
+#: asking only that a path be absolute and its one sandbox wanting a container runtime that
+#: may not be there -- and that is said where the ladder is documented rather than papered
+#: over here.
+_PERMITTED = {
+    "read-only": "yolo",
+    "workspace-write": "yolo",
+    "auto": "yolo",
+    "bypass": "yolo",
+}
 
 #: The tools a turn is not given at each rung of the ladder, by the names Qwen Code calls
 #: them. A rung is said as refusals because the flag that carries the rest is the approval
 #: mode: what the agent may not do is taken away, and everything left is approved without
 #: being asked -- a run per turn has nobody to answer it.
+#:
+#: The five at `read-only` are the four that write and the one that runs something and
+#: watches it -- `monitor` being the tool Qwen Code itself denies alongside the shell whenever
+#: it is refusing what a mode would have asked about, which is the company it keeps here too.
+#: At `workspace-write` it is the one tool that reaches somewhere the workspace is not.
 _WITHHELD = {
-    "read-only": ("edit", "write_file", "notebook_edit", "run_shell_command"),
+    "read-only": (
+        "edit",
+        "monitor",
+        "notebook_edit",
+        "run_shell_command",
+        "write_file",
+    ),
     "workspace-write": ("web_fetch",),
     "auto": (),
     "bypass": (),
@@ -109,6 +187,15 @@ _REFUSED = re.compile(r"^\[API Error:(?P<said>.*)\]$", re.DOTALL)
 #: it reached for in the one message; `result` is the turn's own answer and is read for what
 #: it cost rather than shown twice.
 _SAYS = {"text": "text", "thinking": "reasoning"}
+
+#: And the same two as they are being written, for a turn run with `--include-partial-messages`:
+#: Qwen Code puts each fragment in a `stream_event` of its own, under the field its kind of
+#: delta is named for. A message arrives whole only once the model has finished it, so
+#: without these a turn is silent from the moment it starts thinking to the moment the whole
+#: of that thought and the answer after it land together. With them the words arrive as they
+#: are written, and the finished message is then read for its tools and its count alone --
+#: the same words twice being worse than late words.
+_DELTAS = {"text_delta": ("text", "text"), "thinking_delta": ("reasoning", "thinking")}
 
 #: What each kind of token is called in the counts Qwen Code states, and what each of them
 #: is here. Humanize's own names rather than the CLI's, as everywhere else a kind is
@@ -137,11 +224,20 @@ _A_SECOND = 1000
 #: one per session: a flow that opens a session a turn would otherwise leave a directory behind
 #: for every turn it ran, and what is in these files is the effort and nothing else -- so two
 #: sessions at one effort are one file.
-_EFFORTS: dict[str, Path] = {}
+#:
+#: Keyed by whether the headless defaults go beside it as well as by the effort, because the
+#: defaults file is found by sitting next to the settings one: two agents of a flow that
+#: differ on that cannot share a directory, or the second would be reading the first's answer.
+_EFFORTS: dict[tuple[str, bool], Path] = {}
 _EFFORT_LOCK = threading.Lock()
 
+#: What the directory is called when the headless defaults are *not* written into it, the
+#: plain effort being the name when they are: the default keeps the name it had, and the
+#: other is a name of its own rather than the same one holding different bytes.
+_AS_CONFIGURED = ".as-configured"
 
-def _thinking(effort: str, gate: Gate | None = None) -> Path:
+
+def _thinking(effort: str, gate: Gate | None = None, *, headless: bool = True) -> Path:
     """The settings file a turn at one effort is run against, written once.
 
     Qwen Code has no flag for how hard to think: it is a setting of its own `settings.json`,
@@ -158,6 +254,8 @@ def _thinking(effort: str, gate: Gate | None = None) -> Path:
       gate: Where this agent's moments are served, whose directory the file then goes in, or
         None for a turn with nowhere to serve them -- an anchored one, whose CLI runs where
         the socket is not.
+      headless: Whether to say beside it what a turn nobody is watching defaults to, or leave
+        the layer unwritten so that the CLI's own answer stands.
 
     Returns:
       The file's path.
@@ -167,6 +265,7 @@ def _thinking(effort: str, gate: Gate | None = None) -> Path:
     # beside a socket that is not there -- `Path("").parent` being this directory, which is
     # the project.
     at = gate.address() if gate is not None else ""
+    named = effort if headless else f"{effort}{_AS_CONFIGURED}"
     with _EFFORT_LOCK:
         if gate is not None and at:
             # Under the gate's own directory, so that the file goes when the agent does: what
@@ -174,21 +273,26 @@ def _thinking(effort: str, gate: Gate | None = None) -> Path:
             # is, and a table kept in a dictionary here would be an entry per agent for as
             # long as this process ran. The path is the gate and the effort, so it is the same
             # path every time -- a settings file that moved would restart an unchanged CLI.
-            held = _writing(Path(at).parent / effort, effort, gate)
+            held = _writing(Path(at).parent / named, effort, gate, headless=headless)
         else:
-            held = _EFFORTS.get(effort)
+            held = _EFFORTS.get((effort, headless))
             if held is None:
                 # Concurrent first turns must agree on the path as well as its contents: a
                 # changed path would make the next turn restart an otherwise unchanged CLI.
                 held = _writing(
-                    Path(tempfile.mkdtemp(prefix="hmz-qwen-")), effort, None
+                    Path(tempfile.mkdtemp(prefix="hmz-qwen-")),
+                    effort,
+                    None,
+                    headless=headless,
                 )
-                _EFFORTS[effort] = held
+                _EFFORTS[effort, headless] = held
         return held
 
 
-def _writing(where: Path, effort: str, gate: Gate | None) -> Path:
-    """Writes the two files a turn is run against, and says where the first of them is.
+def _writing(
+    where: Path, effort: str, gate: Gate | None, *, headless: bool = True
+) -> Path:
+    """Writes the files a turn is run against, and says where the first of them is.
 
     Written again whenever it is asked for rather than remembered, since a gate's directory is
     only ever asked about for the one agent whose it is and the answer is the same bytes every
@@ -199,6 +303,7 @@ def _writing(where: Path, effort: str, gate: Gate | None) -> Path:
       effort: How hard the turn is to think, as Qwen Code words it.
       gate: Where this agent's moments are served, or None for a turn with nowhere to serve
         them -- and one serving nothing writes no table either.
+      headless: Whether the defaults layer is written beside the settings one at all.
 
     Returns:
       The settings file's path.
@@ -209,14 +314,17 @@ def _writing(where: Path, effort: str, gate: Gate | None) -> Path:
     if table:
         # Milliseconds, which is the unit Qwen Code reads this number in -- the same spelling
         # Claude Code gave the field, and not the same unit behind it. And the switch that
-        # turns every hook off with them: it is one setting for the whole of the table, so a
-        # person who has it on has a flow whose gate quietly does nothing. Said at the system
-        # layer, which is this run's alone -- what they configured is untouched, and is theirs
-        # again the moment the run ends.
+        # turns every hook off with them, said only here, with a table to carry: it is one
+        # setting for the whole of them, so a person who has it on has a flow whose gate
+        # quietly does nothing -- and a run with no table to serve has nothing to insist on,
+        # so it says nothing and leaves their answer alone. Said at the system layer, which
+        # is this run's alone: what they configured is untouched, and is theirs again the
+        # moment the run ends.
         said |= {"hooks": table, "disableAllHooks": False}
     held = where / "settings.json"
     _wholly(held, json.dumps(said))
-    _wholly(where / _DEFAULTS_FILE, json.dumps({**_VERSION, **_HEADLESS}))
+    if headless:
+        _wholly(where / _DEFAULTS_FILE, json.dumps({**_VERSION, **_HEADLESS}))
     return held
 
 
@@ -237,14 +345,37 @@ def _wholly(where: Path, said: str) -> None:
     beside.replace(where)
 
 
-class QwenCodeSession(StreamSessionBase):
-    """A Qwen Code conversation, resumed by the id its first turn reported.
+def _asked(config: AgentConfig, named: str, *, default: bool) -> bool:
+    """Whether one of Qwen Code's own options is on for this agent.
 
-    The id is minted by `qwen` as the session opens, so it is read back out of the turn that
-    opened it and given to every turn after -- which is what keeps the conversation one
-    conversation rather than a new one per run. Asked for rather than chosen: `--session-id`
-    takes one, but refuses an id that has been used before, and a flow that reopens a session
-    it has already run is a flow that would fail on the second turn.
+    Read off the config by name rather than off :class:`QwenCodeAgentConfig`, because an agent
+    written as the common :class:`AgentConfig` is still driven here: what it gets is the
+    option's own default, which is what an install that has said nothing is entitled to.
+
+    Args:
+      config: The agent's configuration, whichever class it was written as.
+      named: The field to read.
+      default: What the answer is for a config that has no such field.
+
+    Returns:
+      Whether it is on.
+    """
+    return bool(getattr(config, named, default))
+
+
+class QwenCodeSession(StreamSessionBase):
+    """A Qwen Code conversation, named where it is opened and resumed by that name after.
+
+    `--session-id` is what names it, and a fresh one per attempt is what makes that safe:
+    Qwen Code refuses an id that is already a session of this project, active or archived,
+    and ends the run before the turn rather than joining it. So an opening turn is given an
+    id nothing has been called yet and every turn after resumes that one -- and an opening
+    turn that failed is retried under another, rather than colliding forever with the session
+    its own first attempt may have left behind.
+
+    Chosen rather than read back off the stream, which is what it was: an id the CLI minted
+    for itself is one nothing out here knows until a turn has landed, and what the stream says
+    is then a confirmation of the name rather than the only place it exists.
     """
 
     #: What it writes on stdout is the turn as events rather than the agent talking.
@@ -276,8 +407,19 @@ class QwenCodeSession(StreamSessionBase):
         self._total = Usage()
         self._shown: set[str] = set()
         self._announced: str | None = None
+        #: What this process was told to call the conversation it is opening, or None for one
+        #: resuming a conversation that has a name already. Kept rather than spent on the
+        #: command line, so that a turn which landed without a record naming its session is
+        #: still a turn whose session can be named: the id was ours before it was the CLI's.
+        self._minted: str | None = None
         self._launched: tuple[object, ...] | None = None
         self._requested: tuple[object, ...] = ()
+        #: Whether this turn has had any of its words off the partial stream. Read where the
+        #: finished message is: that message repeats every fragment of itself, so a turn that
+        #: has been reading them takes the tools and the count from it and leaves the words.
+        #: Watched rather than assumed from the option, because the option is what the next
+        #: process is started with and this is what the one now talking was.
+        self._fragmented = False
         #: Whether the settings file this turn is run against holds a hook table. Written
         #: where that file is built and read where a moment is about to be said off the
         #: stream: a gate outlives the hook that asked for it, so a turn that was not given a
@@ -348,8 +490,10 @@ class QwenCodeSession(StreamSessionBase):
         # Qwen migrates the files hmz generates on startup (format and schema version).
         # Effort and the headless defaults are already process inputs of their own; their
         # own cache files are not user edits. A defaults file the environment names is
-        # somebody else's, so it stays watched like every other settings file here.
-        ours = {system} if named else {system, defaults}
+        # somebody else's, so it stays watched like every other settings file here -- and so
+        # is the one beside ours for an agent that asked for none: a file nothing here wrote
+        # is a file whose changing is news.
+        ours = {system, defaults} if self._headless() and not named else {system}
         paths = settings - ours
         roots = (cwd, *cwd.parents, theirs)
         for root in roots:
@@ -449,7 +593,9 @@ class QwenCodeSession(StreamSessionBase):
         if said.get("type") == "result":
             result = self._result(line)
             if self._id is None:
-                self._adopt(self._announced or self._read_session_id(line))
+                self._adopt(
+                    self._announced or self._minted or self._read_session_id(line)
+                )
             yield result
 
     def _turn(self, prompt: str) -> tuple[list[str], str | None]:
@@ -457,7 +603,9 @@ class QwenCodeSession(StreamSessionBase):
 
         On stdin rather than as an argument: a prompt is a paragraph and may open with a dash,
         neither of which belongs on a command line. Qwen Code takes what is on stdin as the
-        prompt when it is given none of its own, which is what makes the turn headless.
+        prompt when it is given none of its own, which is what makes the turn headless -- and
+        which is now the only way to say it, `-p/--prompt` having been deprecated in favour of
+        the positional a paragraph cannot safely be.
 
         Args:
           prompt: The input prompt for this turn.
@@ -467,6 +615,7 @@ class QwenCodeSession(StreamSessionBase):
         """
         self._said, self._failed, self._shown = "", None, set()
         self._costing = Usage()
+        self._fragmented = False
         if self._id is None:
             # A failed opening turn did not adopt its conversation; retrying opens another.
             self._total = Usage()
@@ -479,10 +628,17 @@ class QwenCodeSession(StreamSessionBase):
             self._agent.config.model,
             # Everything the rung leaves is approved without being asked: a flow watches its
             # agent rather than gating it, and a turn waiting on an approval nobody is there
-            # to give is a flow that has stopped.
+            # to give -- and, on this transport, nobody can answer -- is a flow that has
+            # stopped. Off the table rather than written here, since the day this CLI can be
+            # asked a rung it will be one line above and none here.
             "--approval-mode",
-            "yolo",
+            _PERMITTED[self._agent.config.permission],
         ]
+        if _asked(self._agent.config, "partial_messages", default=False):
+            # Off in the CLI and off here, because it is a different stream to read rather
+            # than more of the same one, and an install that says nothing gets what `qwen`
+            # itself does. On, the words arrive as the model writes them.
+            argv += ["--include-partial-messages"]
         withheld = list(_WITHHELD.get(self._agent.config.permission, ()))
         if not self._agent.config.web_search:
             withheld += [one for one in _WEB_TOOLS if one not in withheld]
@@ -492,15 +648,31 @@ class QwenCodeSession(StreamSessionBase):
             # The shape as the CLI takes it: a JSON literal on the command line, which it
             # holds the last message to rather than asking the model to keep to.
             argv += ["--json-schema", json.dumps(schema.model_json_schema())]
-        # The first turn opens the conversation and every later one resumes it by the id that
-        # first turn reported. A fork's first turn resumes the one it was cut from instead,
-        # with `--fork-session` -- which is what makes Qwen carry those turns into a session
-        # of its own rather than go on writing into the one they are in.
-        if self._id is not None:
-            argv += ["--resume", self._id]
-        elif self._forked_from is not None:
-            argv += ["--resume", self._forked_from, "--fork-session"]
+        argv += self._holding()
         return argv, prompt
+
+    def _holding(self) -> list[str]:
+        """Which conversation this process is to be holding: this one, a fork, or a new one.
+
+        Three ways in, and the flag says which. A session with an id resumes it. A fork has no
+        id of its own yet and the id of the one it was cut from: `--fork-session` is `--resume`
+        told to mint a new id rather than write on into the one it was handed, which is what
+        makes Qwen carry those turns into a session of its own. Anything else is a conversation
+        that does not exist yet, and is named here.
+
+        Returns:
+          The flags, to go on the command line as they are.
+        """
+        self._minted = None
+        if self._id is not None:
+            return ["--resume", self._id]
+        if self._forked_from is not None:
+            return ["--resume", self._forked_from, "--fork-session"]
+        # A fresh id per attempt: Qwen Code refuses an id that is already a session of this
+        # project, and an opening turn that failed may still have left it holding the one it
+        # was given -- retrying under that id would collide with itself forever.
+        self._minted = str(uuid.uuid4())
+        return ["--session-id", self._minted]
 
     def _environment(self) -> dict[str, str]:
         """What the turn runs with, plus the settings file that says how hard to think.
@@ -537,19 +709,23 @@ class QwenCodeSession(StreamSessionBase):
         self._tabled = gate is not None and gate.serving
         held = {
             **super()._environment(),
-            _SETTINGS: str(_thinking(self.effort, gate)),
+            _SETTINGS: str(_thinking(self.effort, gate, headless=self._headless())),
         }
         # Whoever said where, said it: the provider's own variables are in `held` and the
         # flow's are in this process's environment, and either outranks a cache of ours.
         # And not for an anchored turn: it runs on another machine, where a path named from
         # this one is a directory that is either absent there or somebody else's.
-        if not (
+        if _asked(self._agent.config, "compile_cache", default=True) and not (
             held.get(_COMPILED)
             or os.environ.get(_COMPILED)
             or self._agent.anchor is not None
         ):
             held[_COMPILED] = str(home().joinpath(*_CACHE))
         return preloaded(self._agent, held)
+
+    def _headless(self) -> bool:
+        """Whether this turn is given the layer saying what an unwatched turn defaults to."""
+        return _asked(self._agent.config, "headless_defaults", default=True)
 
     def _reads(self, line: str, *, error: bool) -> Iterator[Event]:
         """Reads one record Qwen Code wrote, as the things it says the agent did.
@@ -575,6 +751,8 @@ class QwenCodeSession(StreamSessionBase):
         kind = str(said.get("type") or "")
         if kind == "assistant":
             yield from self._message(cast("dict[str, Any]", said.get("message") or {}))
+        elif kind == "stream_event":
+            yield from self._fragment(cast("dict[str, Any]", said.get("event") or {}))
         elif kind == "result":
             # The turn's own answer, which is what it ends on. Held rather than shown: the
             # agent already said these words as it said them.
@@ -623,10 +801,37 @@ class QwenCodeSession(StreamSessionBase):
             kind = str(part.get("type") or "")
             if kind == "tool_use":
                 yield Event(kind="tool", text=_called(part))
-            elif (says := _SAYS.get(kind)) is not None:
+            elif (says := _SAYS.get(kind)) is not None and not self._fragmented:
+                # Said already, a fragment at a time, for a turn reading the partial stream:
+                # the finished message repeats every word of it, and the whole point of
+                # reading them early was to read them once.
                 words = str(part.get("text") or part.get("thinking") or "")
                 if words.strip():
                     yield Event(kind=says, text=words)
+
+    def _fragment(self, event: dict[str, Any]) -> Iterator[Event]:
+        """Reads one fragment of a message still being written, for a turn that asked.
+
+        Only the words: what the model reaches for arrives whole in the message that follows,
+        with the arguments it reached with, and a tool announced twice is a transcript with
+        the same call in it twice.
+
+        Args:
+          event: The `event` of a `stream_event` record, as read.
+
+        Yields:
+          What was written, which is nothing for a fragment carrying no words.
+        """
+        if str(event.get("type") or "") != "content_block_delta":
+            return
+        delta = cast("dict[str, Any]", event.get("delta") or {})
+        said = _DELTAS.get(str(delta.get("type") or ""))
+        if said is None:
+            return
+        kind, field = said
+        if words := str(delta.get(field) or ""):
+            self._fragmented = True
+            yield Event(kind=kind, text=words)
 
     def _cost(self, counted: dict[str, Any]) -> Usage:
         """What one request cost, by the kind each token went on.
@@ -728,11 +933,44 @@ def _called(part: dict[str, Any]) -> str:
 
 @dataclass(frozen=True, kw_only=True)
 class QwenCodeAgentConfig(AgentConfig):
-    """What Qwen Code is configured with: the common model and effort, and nothing else.
+    """What Qwen Code is configured with: the common model and effort, and its own three.
 
     The model is written as Qwen Code writes it, which is the id its endpoint serves -- it is
     an OpenAI-compatible client, so what it runs is what the account behind it offers.
+
+    The three below are every place this driver settles something Qwen Code would otherwise
+    have settled for itself, so that an install which sets none of them can read what it is
+    getting instead of finding out. Two of them default to humanize's answer rather than the
+    CLI's, and say why; the third is the CLI's own.
+
+    Attributes:
+      headless_defaults: Whether to write the layer Qwen Code reads under everyone, saying
+        that a turn nobody is watching neither holds the machine awake nor updates the CLI
+        under itself. On, which is the one place this driver's default is not the bare CLI's:
+        Qwen Code keeps the machine awake and checks for a new version to install, both of
+        which are right for a person at a terminal and neither of which an unattended turn
+        has anybody to notice -- an update landing mid-flow puts a CLI whose flags, protocol
+        and settings schema nothing here was read against under a conversation already open.
+        Off leaves the layer unwritten and Qwen Code's own answer standing. Either way a
+        person who has configured either, at any layer of their own, still wins.
+      compile_cache: Whether to point Node at one directory for what it compiled the CLI's
+        bundle into. On, which is again humanize's answer and not Node's -- Node caches
+        nothing unless it is told where -- because a session here is a Node process a turn,
+        and eight starting at once compile the same megabytes eight times. Off takes the
+        compile back. A `NODE_COMPILE_CACHE` the flow or the provider already set wins over
+        this either way, and an anchored turn is never given one: it runs where a path named
+        from here is absent or somebody else's.
+      partial_messages: Whether the turn's words arrive as the model writes them, which is
+        `--include-partial-messages`. Off, as it is in the CLI: a message otherwise arrives
+        whole and only once it is finished, so a turn is silent from the moment it starts
+        thinking until that thought and the answer after it land together. On for a flow
+        showing a turn to somebody while it runs; the finished message is then read for its
+        tools and its count alone, so nothing is said twice.
     """
+
+    headless_defaults: bool = True
+    compile_cache: bool = True
+    partial_messages: bool = False
 
 
 class QwenCodeAgent(AgentBase):
