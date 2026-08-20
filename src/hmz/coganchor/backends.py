@@ -1223,6 +1223,10 @@ PROFILES = (
     Profile(
         name="kimi",
         # One daemon per agent serves every conversation with it, as Codex's app server does.
+        # That daemon is `kimi web`, and not `kimi -p --output-format stream-json`, which
+        # 0.42.0 does have: the prompt mode has no route into a turn already running, no
+        # per-turn body to put a rung, a thinking level or a swarm width in, and no question
+        # an unattended flow can answer. `kimi web` is where a session is a thing.
         shares=True,
         installs="npm i -g @moonshot-ai/kimi-code",
         # Installed as a Node script with a `node` shebang, so the runtime it starts on is one

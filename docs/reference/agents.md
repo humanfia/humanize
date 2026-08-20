@@ -377,7 +377,9 @@ and the extensions installed here; `offline` (`False`) is `--offline`, its start
 switched off; `append_system_prompt` (`()`) adds text — or the contents of a file named by path
 — to pi's own system prompt, once per entry; and `skill_paths` (`()`) hands it a skill file or
 directory by path. A flow asks for any of these before it is handed an agent, each under the
-`settings:<field>` name its own config class gives it. Cursor Agent takes four:
+`settings:<field>` name its own config class gives it. Kimi takes `port`, `open_browser`, `log_level` and `web_title`, the
+command line of the `kimi web` daemon its turns are submitted to — see
+[the daemon Kimi is driven through](#the-daemon-kimi-is-driven-through). Cursor Agent takes four:
 
 | | |
 | --- | --- |
@@ -1587,6 +1589,39 @@ The `result` event a turn ends on carries the same reckoning as `spent`, beside 
 `tokens` it already carried: the two are the same spending counted two ways, and
 `result.spent.total` is what `result.tokens` comes to.
 
+## The daemon Kimi is driven through
+
+Kimi Code's turns are submitted to a `kimi web` of its own, one per agent, and not to
+`kimi -p --output-format stream-json` — which 0.42.0 does have. The prompt mode has no route
+into a turn already running, so there would be nothing for `interject` to write to; no
+per-turn body, so the rung, the thinking level and the swarm width would be flags fixed for
+the length of a prompt that is one turn anyway; and no question with an id, so a turn that
+stopped to ask would be waiting on a terminal nobody is at. The server is the one surface in
+this CLI where a session is a thing rather than an invocation.
+
+Which means humanize starts a command line of its own, and three of its flags are not what
+`kimi web` does when you run it yourself. Each is a field on `KimiCodeCLIAgentConfig`, so an
+agent can be given the CLI's own behaviour back:
+
+| Field | Default here | `kimi web`'s own | Why it differs |
+| --- | --- | --- | --- |
+| `port` | `0` | `58627` | One daemon per agent: a flow with two Kimi agents starts two, and the second cannot bind a port the first has. `0` asks the system for a free one, and the ready line says which it got. |
+| `open_browser` | `False` | opens one | A flow running unattended has no browser to open, and on a headless machine the CLI would be asking `xdg-open` to do something about it. `True` is for watching a flow work: the UI is a real client of the same session the turns go to. |
+| `log_level` | `error` | logs nothing (`silent`) | Load-bearing rather than a preference. At `silent` the daemon draws its ready output as a banner; at every other level it prints one `Kimi server: <url>/#token=<token>` line, which is the only place the port it took and its token are said. `error` is the quietest level that still prints it. `silent` is refused where the config arrives. |
+| `web_title` | `None` | `<workspace dir> \| Kimi Code` | Not a departure — `None` is the CLI's own. Worth having because there is one daemon per agent: opened side by side, eight agents on one project are eight identical browser tabs. |
+
+`--add-dir`, `--skills-dir`, `--agent` and `--agent-file` are top-level `kimi` options, not
+`kimi web` ones. `kimi web` accepts them on its command line and then ignores them, so humanize
+does not offer them: a flag that is taken and does nothing is worse than one that is refused.
+The skills an agent carries reach a `kimi web` session anyway, through the directories Kimi
+discovers for itself.
+
+A flow that means to set any of this can ask beforehand. Each field is a capability of its own
+in what [`hmz.flows.checking.catalogue()`](/reference/flows#checking-a-flow) returns —
+`settings:port`, `settings:open_browser`, `settings:log_level`, `settings:web_title` — read off
+the config class rather than written down beside it, so a place declaring
+`Needs("settings:port")` is refused any backend whose config has nowhere to say it.
+
 ## Cutting a turn off, and what one turn may spend
 
 A turn can be given a **budget** — what it may write, how long it may run — and when the budget
@@ -1941,10 +1976,10 @@ reaches for whichever of its own settings says the same thing:
 
 | Rung | `agy` | `claude` | `codex` | `cursor-agent` | `dsh` | `grok` | `kimi` | `pi` | `qwen` | `opencode`, `mimo` | `zcode` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `read-only` | `--mode plan` | `plan` mode | `read-only` sandbox | `--mode plan` | refused | only `read_file`, `grep`, `list_dir` | plan mode | without `bash`, `edit`, `write`, `powershell` | without `edit`, `write_file`, `run_shell_command` | `edit` and `bash` denied | `plan` mode |
+| `read-only` | `--mode plan` | `plan` mode | `read-only` sandbox | `--mode plan` | refused | only `read_file`, `grep`, `list_dir` | plan mode, which stops edits and not commands | without `bash`, `edit`, `write`, `powershell` | without `edit`, `write_file`, `run_shell_command` | `edit` and `bash` denied | `plan` mode |
 | `workspace-write` | `--mode accept-edits`, whose commands are denied | `acceptEdits` mode | `workspace-write` sandbox | `--sandbox enabled` | refused | `--disable-web-search` | plan mode off | — | `web_fetch` denied | `webfetch` denied | `edit` mode |
 | `auto` | `--dangerously-skip-permissions` | Claude's own `auto` mode | `workspace-write`, approvals on request | `--auto-review`, its own classifier | refused | `--always-approve` | — | — | — | nothing denied | `build` mode, which asks before a tool with side effects |
-| `bypass` | `--dangerously-skip-permissions` | `manual` mode, every request answered here | `danger-full-access` | `--force --sandbox disabled` | supported | — | `yolo` mode | — | `--approval-mode yolo` | — | `yolo` mode |
+| `bypass` | `--dangerously-skip-permissions` | `manual` mode, every request answered here | `danger-full-access` | `--force --sandbox disabled` | supported | — | `auto` mode | — | `--approval-mode yolo` | — | `yolo` mode |
 
 **Codex is the one backend here with a sandbox of its own**, so its rungs are the real thing
 rather than an approximation of one. Where a backend cannot tell two rungs apart it says so
@@ -1967,6 +2002,33 @@ wrote in their own `sandbox.toml`, and writing one to enforce a rung would be hu
 the CLI's own settings. `auto` and `bypass` are one thing here for the same reason there is no
 mode to send — with nothing to ask, granting what is asked and asking nothing come to the same
 `--always-approve` — so `auto` is spelled out and `bypass` is the dash.
+
+**Kimi Code runs at `auto` on every rung, and plan mode is the whole of its ladder.** Its own
+three are Always Ask (`manual`), Ask When Needed (`yolo`) and Never Ask (`auto`), loosest last —
+`yolo` is the middle rung and not the top one the word suggests. Which is decided by the order
+its permission policies are consulted in: the one that approves everything on `auto` is
+consulted ahead of every policy that would ask, and the one that approves everything on `yolo` is
+consulted behind them. So a `yolo` turn still stops before a Bash command Kimi's parser rates
+dangerous *or cannot parse at all*, before a sensitive file, before a path under `.git`, and — in
+plan mode — before the `ExitPlanMode` a plan is meant to end with. Each of those is an approval
+rather than a question, and the two live on routes of their own; humanize reads only
+`/questions`, so a turn stopped on an approval never moves again. `auto` is the one mode that
+raises none, which is why every rung is set to it — and it is close enough to the three below:
+there is no sandbox here either way, and what `auto` the rung grants on request `auto` the mode
+grants without one. What it costs is the question, which Kimi denies outright in that mode,
+telling the model to decide and carry on. `manual` is the rung genuinely left on the table: it
+would be a truer `read-only` than plan mode is, auto-approving reads and withholding approval for
+everything else, and reading `/approvals` is what would buy it.
+
+**And Kimi's `read-only` stops edits, not commands** — worth knowing before a flow leans on it.
+Plan mode vetoes `Write`, `Edit`, `TaskStop` and the two cron tools, and nothing else; Kimi's own
+plan-mode reminder tells the model *"Use Bash only when needed; Bash follows the normal permission
+mode and rules"*, and at `auto` those rules approve it. So a turn at this rung will not edit a
+file and may still run a command that writes one. The model can also leave the rung unasked:
+`ExitPlanMode` is approval-gated at every mode but `auto`, and its own description says *"In auto
+permission mode, the tool reads the file and exits plan mode without asking the user."* The
+session body's `tools` key, an allow-list, is what would make the rung bite — the same way `pi`
+and `qwen` make theirs bite — and it is not set today.
 
 **A Codex whose rules are somebody else's runs a rung down rather than not at all.** An
 installation can be given requirements — an enterprise policy that arrives with the account, a

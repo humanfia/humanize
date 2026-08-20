@@ -5,6 +5,21 @@ reads rather than a goal its runtime keeps, there is no flag for swarm mode, the
 is configured with has nowhere to go, and a turn already running has nowhere to be talked to.
 ``kimi web`` is the same binary serving the sessions its own browser client drives, and there
 all four are things done to the session a turn is submitted to.
+
+Which is the whole answer to why this backend is not driven through its headless mode. 0.42.0
+has a real one -- ``kimi -p <prompt> --output-format stream-json`` prints a turn as it happens,
+and for a driver that only wanted the words that would be the shorter road. It is not taken
+because three of the things this driver is for are not in it. There is no route to a turn that
+is already running, so :meth:`KimiCodeCLISession.interject` -- the reason ``steers`` is True
+here at all -- would have nothing to write to. There is no per-turn body, so the rung an agent
+runs at, its thinking level and its swarm width would have to be the process's own flags,
+fixed for the life of a prompt that is one turn long anyway, and ``--plan``/``--yolo``/``--auto``
+are the only three of them there are. And a turn that stops -- to ask, or for a tool it wants
+approving -- stops against a terminal there, not against an object with an id that something
+else can resolve; the daemon's ``/questions`` route is what lets a flow answer or skip one with
+nobody at a keyboard. The server is the only surface in this CLI where a session is a thing
+rather than an invocation, so the daemon it is, and the cost of that choice -- one ``kimi web``
+per agent, and its argv -- is paid below.
 """
 
 # A session and the agent holding it are two halves of one object declared in one
@@ -56,7 +71,33 @@ _EXTRA = (
 
 #: The one line `kimi web` prints once it is listening, and the only place the port it took --
 #: asked for as 0, so that two flows on one machine cannot collide -- and its token are said.
+#:
+#: Printed only by a server whose log level is *not* `silent`, which is the whole reason
+#: :attr:`KimiCodeCLIAgentConfig.log_level` exists and does not default to the CLI's own
+#: default. `kimi web` writes one of two ready outputs: the compact line this reads at any
+#: level from `fatal` to `trace`, and a drawn banner -- logo, ANSI colour, the token on a
+#: line of its own -- at `silent`. Omitting `--log-level` is `silent`, so the bare command a
+#: person runs is the one shape a machine cannot read, and a daemon started without the flag
+#: would leave this loop reading banner lines that never match until the agent was collected.
+#: Verified against 0.42.0 by starting both.
 _LISTENING = re.compile(r"^Kimi server: (\S+)/#token=(\S+)$")
+
+#: What `kimi web --log-level` takes, and the one of them this driver cannot be run at. The
+#: level is the daemon's own logging, which nothing here reads -- what it decides for us is
+#: the shape of the ready line above, so `silent` is refused where the config arrives rather
+#: than hung on where the daemon starts.
+LOG_LEVELS = ("fatal", "error", "warn", "info", "debug", "trace", "silent")
+_BANNERED = "silent"
+
+#: The levels left once the unreadable one is out, which is what a flow that named something
+#: Kimi has never heard of is offered. Listing `silent` there would be offering the refusal
+#: below as the way out of the refusal above.
+READABLE = tuple(level for level in LOG_LEVELS if level != _BANNERED)
+
+#: The highest port there is, which is as much as this driver can say about one: whether the
+#: number is free is the system's answer and it gives it by refusing to bind, not by refusing
+#: the config. 0 is the useful end of the range and the default -- it means ask for any.
+_PORT_MAX = 65535
 
 #: What an effort is prefixed with to ask for swarm mode: `max` and `swarmmax` are the same
 #: thinking, run as one agent and as a fleet of them.
@@ -317,17 +358,53 @@ _BLOCKS = {"text": "text", "thinking": "reasoning", "tool_use": "tool"}
 #: there and grows no further, so a turn that reaches for one says so as it reaches.
 _GROWS = ("text", "thinking")
 
-#: How each rung of the ladder is set on a Kimi session. The daemon takes one of `yolo`,
-#: `manual` and `auto`, and plan mode beside it. `manual` is the one that is never used: it
-#: asks, and a flow running unattended has nobody to answer -- so an agent that is to change
-#: nothing is put in plan mode instead, which is Kimi's own way of saying work it out and do
-#: none of it. There is no sandbox here, so `workspace-write` and `auto` are the same setting: it
-#: is told to answer its own approvals, and nothing confines where it answers them.
+#: How each rung of the ladder is set on a Kimi session. The daemon takes one of `manual`,
+#: `yolo` and `auto`, and plan mode beside it -- and of the three, `auto` is the only one a
+#: flow with nobody watching can be run at, which is why every rung here is set to it and
+#: plan mode is the whole of what tells them apart.
+#:
+#: The names mislead, so here is 0.42.0's own ladder. Kimi calls them Always Ask (`manual`),
+#: Ask When Needed (`yolo`) and Never Ask (`auto`), loosest last -- `yolo` is the middle rung
+#: and not the top one the word suggests. What decides it is the order its permission policies
+#: are consulted in, the first to answer winning: the one that approves everything on `auto`
+#: is consulted fourth, ahead of every policy that would ask, while the one that approves
+#: everything on `yolo` is consulted tenth, behind them. So a `yolo` turn still stops to ask
+#: before a Bash command the parser rates dangerous *or cannot parse at all*, before a
+#: sensitive file, before a path under `.git`, and -- in plan mode -- before the `ExitPlanMode`
+#: the model is told to end a plan with.
+#:
+#: Each of those is an approval, and an approval is not a question. The daemon holds the two on
+#: routes of their own and this driver reads `/questions` only, so a turn stopped on an
+#: approval is a turn that never moves again: the session stays busy, the poll finds nothing to
+#: answer, and the watchdog eventually takes down a daemon every other session of that agent is
+#: also using. `manual`, which withholds approval for everything but reads, is unreachable for
+#: the same reason -- and it is the one rung genuinely left on the table, being a truer
+#: `read-only` than plan mode is. Reading `/approvals` is what would buy both of them.
+#:
+#: So `auto`, for every rung. It is exactly what `bypass` means -- nothing is asked and nothing
+#: is checked -- and it is as close to the three below as this backend can be run: there is no
+#: sandbox here, so `workspace-write` and `auto` are the same setting either way, and what is
+#: granted on request under humanize' `auto` rung is simply granted without the request. The
+#: one thing it costs is the question: `auto` denies `AskUserQuestion` outright, telling the
+#: model to decide and carry on, so a Kimi turn does not stop to ask a person.
+#:
+#: An agent that is to change nothing is put in plan mode, which is Kimi's own way of saying
+#: work it out and do none of it -- and which is weaker than the word `read-only` promises, so
+#: here is what it actually holds. Plan mode vetoes `Write`, `Edit`, `TaskStop` and the two cron
+#: tools, and nothing else. Bash is not among them: Kimi's own plan-mode reminder tells the
+#: model "Use Bash only when needed; Bash follows the normal permission mode and rules", and at
+#: `auto` those rules approve it. So a turn at this rung will not edit a file and may still run
+#: a command that writes one. The model can also leave the rung unasked, `ExitPlanMode` being
+#: approval-gated at every mode except this one -- its own description says as much: "In auto
+#: permission mode, the tool reads the file and exits plan mode without asking the user." What
+#: would make the rung bite is the `tools` key of this same body, which takes an allow-list.
+#: That is a change to make deliberately, against a Kimi that can run a turn, rather than one
+#: to infer from reading its bundle.
 _PERMITTED = {
     "read-only": {"permission_mode": "auto", "plan_mode": True},
     "workspace-write": {"permission_mode": "auto", "plan_mode": False},
     "auto": {"permission_mode": "auto", "plan_mode": False},
-    "bypass": {"permission_mode": "yolo", "plan_mode": False},
+    "bypass": {"permission_mode": "auto", "plan_mode": False},
 }
 
 
@@ -452,13 +529,77 @@ class _AppServer:
 
 @dataclass(frozen=True, kw_only=True)
 class KimiCodeCLIAgentConfig(AgentConfig):
-    """What Kimi Code is configured with: the common model, and an effort that says width too.
+    """What Kimi Code is configured with: a model, an effort saying width too, and a daemon.
+
+    The daemon fields are here because of a rule this repository holds every backend to: the
+    default of an option is the harness's own default, so that an install which sets nothing
+    behaves as the bare CLI does, and anything humanize puts on top is a field somebody can
+    take back off. Three of the four below break that rule on purpose, and say which way.
+    ``kimi web`` is written for a person who runs one of them at a terminal and wants a
+    browser; this driver runs one per agent, unattended, and reads its first line. Left at the
+    CLI's own defaults, two agents would collide on port 58627, eight would open eight browser
+    windows, and none of them would print an address a machine can read. So the defaults here
+    are the unattended ones, the departure is named in each attribute, and a flow that wants
+    the CLI's behaviour back can have it -- except at ``silent``, which is the one setting that
+    would leave the daemon unreachable rather than merely different.
 
     Attributes:
       effort: How hard to think, in Kimi's own wording, optionally prefixed `swarm` to run
         every turn as a fleet of subagents rather than as one agent -- `max` and `swarmmax` are
         the same thinking at either width.
+      port: What to bind the daemon to. 0, not the CLI's 58627, and this is the one departure
+        that is not a preference: one daemon per agent means a flow with two Kimi agents
+        starts two, and a fixed port makes the second one fail to bind. 0 asks the system for
+        a free one and the ready line says which it got. Setting it -- for a flow that means
+        to reach the same daemon from outside, say -- is taking on both of the ways that can
+        go wrong: that nothing else on the machine wants that port, and that this agent never
+        starts a second daemon. It starts one whenever its account changes, and lets go of the
+        old one rather than stopping it, so an agent that falls back on a fixed port tries to
+        bind a port its own predecessor is still holding and fails the turn that asked.
+      open_browser: Whether to open the web UI as the daemon comes up. False, where the CLI
+        opens one, because a flow running unattended has no browser to open and a run on a
+        headless machine would be asking `xdg-open` to do something about it. True is for
+        watching a flow work: the UI is a real client of the same session the turns go to.
+      log_level: How loudly the daemon logs, out of :data:`READABLE`. `error`, where the CLI
+        logs nothing, and this is the departure that is load-bearing rather than merely
+        sensible: at `silent` -- which is what omitting the flag means -- `kimi web` draws its
+        ready output as a banner instead of printing the one line :data:`_LISTENING` reads, and
+        a daemon whose address cannot be read is a daemon no turn can be submitted to. `error`
+        is the quietest level that still prints the line, so it buys the address at the least
+        noise. Raise it to watch the daemon; `silent` is refused.
+      web_title: What the web UI calls itself in a browser tab, or None for the CLI's own
+        `<workspace dir> | Kimi Code`. Worth having only because there is one daemon per agent:
+        opened side by side, eight agents on one project are eight identical tabs, and the
+        agent's name in the title is what tells them apart.
     """
+
+    port: int = 0
+    open_browser: bool = False
+    log_level: str = "error"
+    web_title: str | None = None
+
+    def __post_init__(self) -> None:
+        """Checks the daemon settings, where a flow can still be told which one it got wrong.
+
+        Raises:
+          ValueError: If the port is not one, if the log level is not one Kimi takes, or if it
+            is `silent` -- which the daemon accepts and this driver cannot read back.
+        """
+        super().__post_init__()
+        if not 0 <= self.port <= _PORT_MAX:
+            raise ValueError(f"port must be between 0 and {_PORT_MAX}, not {self.port}")
+        if self.log_level == _BANNERED:
+            raise ValueError(
+                f"log_level {_BANNERED!r} makes `kimi web` draw its ready banner instead of "
+                "printing the line this driver reads its address from"
+            )
+        if self.log_level not in READABLE:
+            raise ValueError(
+                f"log_level must be one of {', '.join(READABLE)}, "
+                f"not {self.log_level!r}"
+            )
+        if self.web_title is not None and not self.web_title.strip():
+            raise ValueError("web_title must say something, or be None for Kimi's own")
 
 
 class KimiCodeCLISession(SessionBase):
@@ -1140,15 +1281,22 @@ class KimiCodeCLIAgent(AgentBase):
                 # own finalizer stops it when the agent is collected either way.
                 self._server, self._server_as = None, ""
             if self._server is None:
-                argv = [
-                    "kimi",
-                    "web",
-                    "--no-open",
+                # Read off the config with defaults beside them, because an agent may be
+                # given the common `AgentConfig` rather than Kimi's own: a flow that never
+                # asked for any of this gets the daemon this driver has always started.
+                # `--no-open` and the level are written out rather than left off, since
+                # what the CLI does when they are missing is a browser and a banner.
+                argv = ["kimi", "web"]
+                if not getattr(self.config, "open_browser", False):
+                    argv.append("--no-open")
+                argv += [
                     "--port",
-                    "0",
+                    str(getattr(self.config, "port", 0)),
                     "--log-level",
-                    "error",
+                    getattr(self.config, "log_level", "error"),
                 ]
+                if title := getattr(self.config, "web_title", None):
+                    argv += ["--web-title", title]
                 # Read before the environment is built out of it: a fallback landing
                 # between the two reads would name the account this server is *not* signed
                 # into, and a server that believes it is already elsewhere is one nothing ever
