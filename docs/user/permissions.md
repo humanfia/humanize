@@ -92,7 +92,7 @@ reaches for whichever of its own settings says the same thing:
 | Rung | Claude Code | Codex | Kimi Code | pi | opencode, mimocode | ZCode |
 | --- | --- | --- | --- | --- | --- | --- |
 | `read-only` | `plan` mode | `read-only` sandbox | plan mode | without `bash`, `edit`, `write` | `edit` and `bash` denied | `plan` mode |
-| `workspace-write` | `acceptEdits` mode | `workspace-write` sandbox | plan mode off | — | `webfetch` denied | `edit` mode |
+| `workspace-write` | `acceptEdits` mode | `workspace-write` sandbox | plan mode off | — | every way out of the workspace denied | `edit` mode |
 | `auto` | Claude's own `auto` mode | `workspace-write`, approvals on request | — | — | nothing denied | `build` mode, which asks before a tool with side effects |
 | `bypass` | `manual` mode, humanize answers each request | `danger-full-access` | `yolo` mode | — | — | `yolo` mode |
 

@@ -815,7 +815,7 @@ def test_pi_above_that_rung_is_the_same_agent(stubs: _Stubs, permission: str) ->
 
 
 @pytest.mark.parametrize(
-    ("permission", "edit", "bash", "webfetch"),
+    ("permission", "edit", "bash", "reach"),
     [
         ("read-only", "deny", "deny", "allow"),
         ("workspace-write", "allow", "allow", "deny"),
@@ -824,7 +824,7 @@ def test_pi_above_that_rung_is_the_same_agent(stubs: _Stubs, permission: str) ->
     ],
 )
 def test_opencode_is_told_what_the_agent_may_do_in_its_own_variable(
-    stubs: _Stubs, permission: str, edit: str, bash: str, webfetch: str
+    stubs: _Stubs, permission: str, edit: str, bash: str, reach: str
 ) -> None:
     """Set for the turn and for nothing else: the user's own settings are left alone."""
     session = OpencodeAgent(
@@ -834,10 +834,13 @@ def test_opencode_is_told_what_the_agent_may_do_in_its_own_variable(
 
     (call,) = stubs.calls()
     assert call.allowed is not None
+    # Both of the tools it reaches the web with, not one: either left allowed is an agent
+    # still out there, so a rung that withholds the web withholds all of them.
     assert json.loads(call.allowed) == {
         "edit": edit,
         "bash": bash,
-        "webfetch": webfetch,
+        "webfetch": reach,
+        "websearch": reach,
     }
     # And the flag that answers everything not refused outright is still on: what the rung
     # narrows is said as refusals, and the flag is what carries the rest.
@@ -852,7 +855,77 @@ def test_mimo_is_told_the_same_thing_under_its_own_name(stubs: _Stubs) -> None:
 
     (call,) = stubs.calls()
     assert call.allowed is not None
+    # And one way out more than opencode has: it looks an API or a library up over the same
+    # wire, which is the same setting.
     assert json.loads(call.allowed)["bash"] == "deny"
+    assert json.loads(call.allowed)["codesearch"] == "allow"
+
+
+def test_a_turn_told_to_impose_nothing_writes_no_permission_table(
+    stubs: _Stubs,
+) -> None:
+    """Off, the turn runs under whatever the person at this machine has configured."""
+    session = OpencodeAgent(
+        OpencodeAgentConfig(model="m", effort="high", permission_table=False)
+    ).new()
+    assert session("hi") == "hi"
+
+    (call,) = stubs.calls()
+    assert call.allowed is None
+
+
+@pytest.mark.parametrize(
+    "narrowed", [{"permission": "read-only"}, {"web_search": False}]
+)
+def test_the_table_is_refused_off_beside_what_it_was_the_only_way_of_saying(
+    narrowed: dict[str, object],
+) -> None:
+    """A setting the CLI never hears is a setting that lies, so it is refused up front."""
+    with pytest.raises(ValueError, match="permission_table"):
+        OpencodeAgentConfig(
+            model="m",
+            effort="high",
+            permission_table=False,
+            **narrowed,  # pyright: ignore[reportArgumentType]
+        )
+
+
+def test_opencode_takes_the_rest_of_its_command_line_from_the_agent(
+    stubs: _Stubs,
+) -> None:
+    """Each one off by default, which is what a bare `opencode run` already does."""
+    session = OpencodeAgent(
+        OpencodeAgentConfig(
+            model="m",
+            effort="high",
+            cli_agent="plan",
+            thinking=True,
+            pure=True,
+            unattended=False,
+        )
+    ).new()
+    assert session("hi") == "hi"
+
+    (call,) = stubs.calls()
+    assert call.argv[call.argv.index("--agent") + 1] == "plan"
+    assert "--thinking" in call.argv
+    assert "--pure" in call.argv
+    assert "--auto" not in call.argv
+
+
+def test_an_opencode_agent_nobody_named_adds_none_of_it(stubs: _Stubs) -> None:
+    assert OpencodeAgent(OPENCODE).new()("hi") == "hi"
+
+    (call,) = stubs.calls()
+    assert "--agent" not in call.argv
+    assert "--thinking" not in call.argv
+    assert "--pure" not in call.argv
+
+
+def test_an_agent_name_the_cli_would_not_find_is_refused() -> None:
+    """It warns and runs the default for one, which is a setting that quietly did nothing."""
+    with pytest.raises(ValueError, match="cli_agent must be"):
+        OpencodeAgentConfig(model="m", effort="high", cli_agent="the planner")
 
 
 def test_a_turn_runs_in_the_flows_own_environment_and_what_it_is_told(

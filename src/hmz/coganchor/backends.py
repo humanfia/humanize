@@ -1486,8 +1486,8 @@ PROFILES = (
     Profile(
         name="opencode",
         installs="npm i -g opencode-ai",
-        # `webfetch` is the one reaching-out tool opencode names, and its permission
-        # table is where each tool is allowed or denied.
+        # Two reaching-out tools it names -- the one that fetches a page and the one that
+        # searches for pages -- and its permission table is where each is allowed or denied.
         searches=True,
         # `run --fork`, which forks the session it was given before carrying on in it.
         forks=True,
@@ -1575,7 +1575,8 @@ PROFILES = (
         # its runtime compiled in, which reads none of this. That script starts the same kind
         # of binary, though, so what a preload reaches of mimocode is its launcher.
         preloads="NODE_OPTIONS",
-        # mimocode is opencode's, permission table and all.
+        # mimocode is opencode's, permission table and all, and a third reaching-out tool
+        # besides the two: the one it looks an API or a library up with.
         searches=True,
         # And its `--fork` too: the same program under another name.
         forks=True,

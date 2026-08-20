@@ -144,17 +144,24 @@ def test_a_rung_that_already_withholds_them_does_not_withhold_them_twice() -> No
     assert argv.count("--disable-web-search") == 1
 
 
-def test_opencode_denies_the_one_reaching_out_tool_it_names() -> None:
-    """Its permission table is where each tool is allowed or denied, so it is said there."""
+def test_opencode_denies_every_reaching_out_tool_it_names() -> None:
+    """Its permission table is where each tool is allowed or denied, so it is said there.
+
+    Every one of them and not just the page fetcher: it searches the web as well as reads it,
+    and an agent left the second way out is an agent still searching.
+    """
     config = OpencodeAgentConfig(model="p/m", effort="high")
     session = OpencodeAgent(config).new()
-    permits = type(session).permits
+    permits, reaches = type(session).permits, type(session).reaches
 
-    assert json.loads(session._environment()[permits])["webfetch"] == "allow"
+    assert reaches == ("webfetch", "websearch")
+    allowed = json.loads(session._environment()[permits])
+    assert [allowed[tool] for tool in reaches] == ["allow", "allow"]
 
     session = OpencodeAgent(replace(config, web_search=False)).new()
+    allowed = json.loads(session._environment()[permits])
 
-    assert json.loads(session._environment()[permits])["webfetch"] == "deny"
+    assert [allowed[tool] for tool in reaches] == ["deny", "deny"]
 
 
 @pytest.mark.parametrize(

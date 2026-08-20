@@ -17,8 +17,7 @@ if TYPE_CHECKING:
 from dataclasses import dataclass
 from typing import ClassVar
 
-from .config import AgentConfig
-from .opencode import OpencodeAgent, OpencodeSession
+from .opencode import OpencodeAgent, OpencodeAgentConfig, OpencodeSession
 from .preload import preloaded
 
 
@@ -27,6 +26,11 @@ class MimoCodeSession(OpencodeSession):
 
     command: ClassVar[str] = "mimo"
     permits: ClassVar[str] = "MIMOCODE_PERMISSION"
+
+    #: Three ways out where opencode has two. It ships the same page-fetcher and web search,
+    #: and a third tool that looks up the APIs and libraries a turn is working against -- which
+    #: goes out over the same wire and is the same setting, so `web_search` off takes it too.
+    reaches: ClassVar[tuple[str, ...]] = ("webfetch", "websearch", "codesearch")
 
     def _environment(self) -> dict[str, str]:
         """What opencode's driver runs a turn with, plus the preload where one is wanted.
@@ -44,14 +48,16 @@ class MimoCodeSession(OpencodeSession):
         """What tells mimocode that nobody is there to answer it.
 
         Its own spelling of opencode's `--auto`: the same setting under the name this fork
-        gives it.
+        gives it, which is Claude Code's. Not to be confused with its top-level `--never-ask`,
+        which is the other thing a session can be asked to stop stopping for and leaves the
+        permissions exactly where they were.
         """
         return ["--dangerously-skip-permissions"]
 
 
 @dataclass(frozen=True, kw_only=True)
-class MimoCodeAgentConfig(AgentConfig):
-    """What mimocode is configured with: the common model and effort, and nothing else.
+class MimoCodeAgentConfig(OpencodeAgentConfig):
+    """What mimocode is configured with: everything opencode is, being the same program.
 
     The model is written as mimocode writes it, `provider/id`, since a model here belongs to
     the provider that serves it and mimocode is asked for the pair.

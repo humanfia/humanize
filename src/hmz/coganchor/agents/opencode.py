@@ -25,7 +25,10 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 #: What each kind of event reads as. A step beginning or ending is the turn's own plumbing,
-#: and is read for what it cost rather than shown.
+#: and is read for what it cost rather than shown. `reasoning` arrives only where the turn was
+#: asked for it: a bare ``opencode run`` streams the thinking nowhere, and `--thinking` is what
+#: turns those parts into events. Which changes what a turn *shows* and nothing about what it
+#: *counts* -- the reasoning tokens are in every step's own totals either way.
 _SAYS = {"text": "text", "reasoning": "reasoning"}
 
 #: What the tokens of one step are called, and what each of them is here. `reasoning` is
@@ -35,17 +38,31 @@ _COUNTED = ("input", "output", "reasoning")
 _CACHED = ("read", "write")
 
 #: What each rung of the ladder is, said the way opencode takes it: a permission apiece for
-#: editing a file, running a command and fetching a page, each `allow`, `ask` or `deny`. A
+#: editing a file, running a command and reaching the web, each `allow`, `ask` or `deny`. A
 #: `deny` here is the tool not being offered at all, which is what makes `read-only` real; there
 #: is no sandbox, so `workspace-write` is the same agent with nothing outside the workspace to reach
-#: for, and `auto` and `bypass` are that agent with the reaching allowed. `ask` is never
-#: used: a run per turn has nobody to answer it.
+#: for, and `auto` and `bypass` are that agent with the reaching allowed.
+#:
+#: `reach` is not a permission of the CLI's but the one answer every web-reaching tool of it
+#: gets, since more than one of them is a way out and a rung that let one through while holding
+#: the others would be a rung that means nothing. :attr:`OpencodeSession.reaches` names them,
+#: and mimocode names one more than opencode does.
+#:
+#: `ask` is never emitted. It is answerable now -- a headless run answers one itself, `once`
+#: where it was told nobody is there to and `reject` where it was not -- but those are the two
+#: answers the ends of this table already give, so a rung written as `ask` would say nothing a
+#: rung written outright does not.
 _PERMITTED = {
-    "read-only": {"edit": "deny", "bash": "deny", "webfetch": "allow"},
-    "workspace-write": {"edit": "allow", "bash": "allow", "webfetch": "deny"},
-    "auto": {"edit": "allow", "bash": "allow", "webfetch": "allow"},
-    "bypass": {"edit": "allow", "bash": "allow", "webfetch": "allow"},
+    "read-only": {"edit": "deny", "bash": "deny", "reach": "allow"},
+    "workspace-write": {"edit": "allow", "bash": "allow", "reach": "deny"},
+    "auto": {"edit": "allow", "bash": "allow", "reach": "allow"},
+    "bypass": {"edit": "allow", "bash": "allow", "reach": "allow"},
 }
+
+#: The rungs that withhold nothing, and so the only ones a turn run without a table of its own
+#: can honestly be at: what decides then is whatever the person at this machine has configured,
+#: which a narrower rung would have had to overrule and has no way left to.
+_UNNARROWED = ("auto", "bypass")
 
 
 class OpencodeSession(CommandSessionBase):
@@ -63,6 +80,13 @@ class OpencodeSession(CommandSessionBase):
     #: may do in -- the two things mimocode differs by on the way in.
     command: ClassVar[str] = "opencode"
     permits: ClassVar[str] = "OPENCODE_PERMISSION"
+
+    #: Which permissions of that table are the ways out of the workspace, and so the ones
+    #: `web_search` is said in. Two here -- the tool that fetches a page it is given, and the
+    #: one that goes looking for pages it is not -- because either left allowed is an agent
+    #: still reaching the web, and a switch that took only the first away would be one that
+    #: lies. mimocode ships a third and says so on its own class.
+    reaches: ClassVar[tuple[str, ...]] = ("webfetch", "websearch")
 
     def __init__(
         self, agent: AgentBase, cwd: str | os.PathLike[str] | None = None
@@ -91,12 +115,20 @@ class OpencodeSession(CommandSessionBase):
         On stdin rather than as an argument: a prompt is a paragraph and may open with a dash,
         neither of which belongs on a command line.
 
+        Two of these flags are not a bare ``opencode run``'s and are nobody's to turn off.
+        ``--format json`` is what makes the turn a protocol rather than a formatted page, and
+        ``--dir`` is what puts it in the directory the flow opened this session at rather than
+        wherever the process happens to be standing -- a driver without either is a driver with
+        nothing to read and nowhere to read it from. Everything after the model and the variant
+        is the agent's own to say, and says by default what the CLI would have done unasked.
+
         Args:
           prompt: The input prompt for this turn.
 
         Returns:
           The command and the prompt to write to it.
         """
+        config = self._agent.config
         self._said, self._failed, self._spent, self._shown = "", None, 0, set()
         self._costing = Usage()
         argv = [
@@ -107,17 +139,24 @@ class OpencodeSession(CommandSessionBase):
             "--dir",
             self._workspace(),
             "--model",
-            self._agent.config.model,
+            config.model,
             "--variant",
             self.effort,
         ]
+        if named := str(getattr(config, "cli_agent", "")):
+            argv += ["--agent", named]
+        if getattr(config, "thinking", False):
+            argv.append("--thinking")
+        if getattr(config, "pure", False):
+            argv.append("--pure")
         if self._id is not None:
             argv += ["--session", self._id]
         elif self._forked_from is not None:
             # `--fork` forks the session it is given and carries on in the fork, so this run
             # lands in a conversation of its own that starts out knowing what that one knew.
             argv += ["--session", self._forked_from, "--fork"]
-        argv += self._unattended()
+        if getattr(config, "unattended", True):
+            argv += self._unattended()
         return argv, prompt
 
     def _unattended(self) -> list[str]:
@@ -127,6 +166,10 @@ class OpencodeSession(CommandSessionBase):
         waiting on an approval nobody is there to give is a flow that has stopped. It answers
         yes to everything that is not refused outright, which is why the rung below is said as
         refusals: what the agent may not do is denied, and the flag is what carries the rest.
+
+        What the flag is called is all this says. Whether a turn carries it at all is the
+        agent's `unattended`, and a turn that does not gets the CLI's own answer instead --
+        a headless run refuses what it is asked rather than waiting to be told.
         """
         return ["--auto"]
 
@@ -136,15 +179,21 @@ class OpencodeSession(CommandSessionBase):
         Set for this turn and for nothing else, rather than written into the settings file:
         two agents of one flow may be allowed different things, and neither is a reason to
         change what the person who started the flow has configured.
+
+        A table the flow asked not to have written is not written at all, and the turn runs at
+        whatever that person's own configuration says. `permission_table` is where that is
+        said, and the config refuses it off beside a rung or a web switch this was the only way
+        of carrying.
         """
-        allowed = dict(
-            _PERMITTED.get(self._agent.config.permission, _PERMITTED["bypass"])
-        )
-        if not self._agent.config.web_search:
-            # `webfetch` is the one tool opencode reaches the web with, so it is the one to
-            # deny. A rung that already denies it is not asked twice: the two say the same
-            # thing here, and either of them saying it is enough.
-            allowed["webfetch"] = "deny"
+        config = self._agent.config
+        if not getattr(config, "permission_table", True):
+            return dict(super()._environment())
+        rung = _PERMITTED.get(config.permission, _PERMITTED["bypass"])
+        # A rung that already withholds the web is not asked twice: it and `web_search` say
+        # the same thing here, and either of them saying it is enough.
+        reaching = rung["reach"] if config.web_search else "deny"
+        allowed = {"edit": rung["edit"], "bash": rung["bash"]}
+        allowed |= dict.fromkeys(type(self).reaches, reaching)
         return {
             **super()._environment(),
             type(self).permits: json.dumps(allowed),
@@ -304,11 +353,75 @@ class OpencodeSession(CommandSessionBase):
 
 @dataclass(frozen=True, kw_only=True)
 class OpencodeAgentConfig(AgentConfig):
-    """What opencode is configured with: the common model and effort, and nothing else.
+    """What opencode is configured with: the common model and effort, and what it adds.
 
     The model is written as opencode writes it, `provider/id`, since a model here belongs to
     the provider that serves it and opencode is asked for the pair.
+
+    The rest is the way in to what a turn would otherwise decide for itself. Every one of them
+    defaults to what a bare ``opencode run`` does, so an agent that says none of them is that
+    command with a protocol to read and a directory to read it in and nothing else added.
+
+    Attributes:
+      cli_agent: Which of the CLI's own agents a turn runs as, by name, or "" for the one it
+        starts with. Its agents carry a prompt, a model and a tool list apiece, so this is the
+        CLI's own way of saying what kind of turn this is. `cli_agent` rather than `agent`
+        because an agent here is the thing being configured: what this names is one of the
+        several the CLI ships under that word, and the two would otherwise read as each other.
+        A name it does not know it warns about and runs the default for, which is a setting
+        that quietly did nothing, so a name with a space in it -- the way one gets misspelled
+        -- is refused here instead.
+      thinking: Whether the turn says the thinking on the way to its answer. Off, as the CLI
+        is: the reasoning parts become events only where `--thinking` asked for them. What the
+        turn spent on reasoning is counted either way, being part of every step's own totals,
+        so this buys the words and not the figure.
+      pure: Whether the turn runs without the plugins installed around the CLI rather than in
+        it. Off, as the CLI is, and on for a run that has to be answerable for what was in it:
+        somebody else's plugin is somebody else's code inside the turn.
+      unattended: Whether the turn carries the CLI's own auto-approve flag, which answers yes
+        to everything the permission table has not refused outright. On, because a flow
+        watches its agent rather than gating it and a turn waiting on an approval nobody is
+        there to give is a flow that has stopped. Off, the CLI answers its own asks by
+        refusing them, which is a turn held to what it was allowed up front.
+      permission_table: Whether `permission` and `web_search` reach the CLI at all, as a table
+        written for this turn in the variable it reads one from. On, and off for a turn that
+        is to run under whatever the person at this machine has configured -- their table,
+        with `unattended` still deciding what becomes of anything that table leaves to be
+        asked about. Off leaves this backend no way of saying either of the two, so a rung
+        that withholds anything and web search switched off are both refused beside it: a
+        setting the CLI never hears is a setting that lies.
     """
+
+    cli_agent: str = ""
+    thinking: bool = False
+    pure: bool = False
+    unattended: bool = True
+    permission_table: bool = True
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if any(letter.isspace() for letter in self.cli_agent):
+            raise ValueError(
+                f"cli_agent must be one of the CLI's own agent names, "
+                f"not {self.cli_agent!r}"
+            )
+        if not self.permission_table:
+            unsayable = [
+                said
+                for said, narrowed in (
+                    (
+                        f"permission={self.permission!r}",
+                        self.permission not in _UNNARROWED,
+                    ),
+                    ("web_search=False", not self.web_search),
+                )
+                if narrowed
+            ]
+            if unsayable:
+                raise ValueError(
+                    "permission_table=False withholds the only table this backend hears "
+                    f"{' and '.join(unsayable)} in"
+                )
 
 
 class OpencodeAgent(AgentBase):
@@ -316,7 +429,9 @@ class OpencodeAgent(AgentBase):
 
     #: What it counts, read off the same tables its driver reads a step's usage with. Every
     #: kind there is: opencode counts its reasoning beside the output rather than inside it,
-    #: and says what a cache read and a cache write came to on their own.
+    #: and says what a cache read and a cache write came to on their own. All five of them
+    #: whether or not the turn was asked to say its thinking -- a step reports what it spent
+    #: on reasoning either way, and `thinking` only decides whether the words come too.
     counts: ClassVar[frozenset[str]] = frozenset(_COUNTED) | {
         f"cache_{named}" for named in _CACHED
     }
