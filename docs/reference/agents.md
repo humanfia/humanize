@@ -427,7 +427,7 @@ turns off. Cursor Agent takes four:
 
 | | |
 | --- | --- |
-| `trust` | Whether to tell `cursor-agent` this workspace is trusted rather than let it ask. `True`, which is the one place this backend's driver overrules what the bare command line would have done — pointed at a directory it has not worked in before, Cursor stops and asks, and a headless turn has nobody to answer. `False` hands the question back for a flow somebody is watching. The catalogue serves it as `trust`. |
+| `trust` | Whether to tell `cursor-agent` this workspace is trusted rather than let it ask. `True`, which is the one place this backend's driver overrules what the bare command line would have done — pointed at a directory it has not worked in before, Cursor stops and asks, and a headless turn has nobody to answer. `False` hands the question back for a flow somebody is watching. The catalogue serves it as `settings:trust`. |
 | `partial_output` | `--stream-partial-output`: the agent's words arrive as it writes them rather than a message at a time. Off, as Cursor has it. Cursor writes both when it is on — a line per piece and, at each tool call and at the end, the message those pieces came to — and the gathered message is dropped as it arrives, so a watched turn is not said twice. |
 | `approve_mcps` | `--approve-mcps`: every MCP server this workspace names, approved without being asked about. Off, as Cursor has it. |
 | `add_dirs` | `--add-dir`, once apiece: workspace roots beside the one the session was opened at. Empty, as Cursor has it. |
@@ -440,13 +440,15 @@ would silently split one conversation across two models.
 
 Every turn of this backend is a session on `zcode app-server --stdio`, and three things that
 session runs under are decisions humanize made for you. Each is a field, so the other answer
-is sayable, and each has a name a place can declare so a flow asks before its first turn:
+is sayable, and each is a name a place can declare so a flow asks before its first turn — the
+field's own name under `settings:`, which the catalogue derives from the config class rather
+than minting a second word beside it:
 
 | Field | Default | Capability | What it decides |
 | --- | --- | --- | --- |
-| `titles` | `False` | `title` | whether `session/create` asks ZCode to name the session. A title is a model turn of its own on the lite model and nothing here reads one — a session is named by the flow that opened it. Turn it on for a run whose conversations are picked back up in ZCode's own interface. |
-| `native_search` | `True` | `native-search` | what the runtime is told about ZCode's own file search, which the server asks its client before it will open a session at all. Off takes `find` and `grep` away from an agent inside its workspace. It is the agent's rather than the session's: the server asks once. |
-| `delivery` | `desktop-continuous` | `delivery` | which delivery kind a session's stream is subscribed under. This one arrives as it happens and misses nothing; the other replays for a web client that may have missed some. |
+| `titles` | `False` | `settings:titles` | whether `session/create` asks ZCode to name the session. A title is a model turn of its own on the lite model and nothing here reads one — a session is named by the flow that opened it. Turn it on for a run whose conversations are picked back up in ZCode's own interface. |
+| `native_search` | `True` | `settings:native_search` | what the runtime is told about ZCode's own file search, which the server asks its client before it will open a session at all. Off takes `find` and `grep` away from an agent inside its workspace. It is the agent's rather than the session's: the server asks once. |
+| `delivery` | `desktop-continuous` | `settings:delivery` | which delivery kind a session's stream is subscribed under. This one arrives as it happens and misses nothing; the other replays for a web client that may have missed some. |
 
 **None of these three defaults is ZCode's own default.** ZCode has no officially installable
 CLI, so there is nothing here to ask what its server does for a client that leaves the field

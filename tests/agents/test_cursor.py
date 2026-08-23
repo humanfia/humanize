@@ -381,11 +381,16 @@ def test_the_workspace_it_is_trusted_with_can_be_handed_back(cursor: _Calls) -> 
     """The one thing this driver overrules the bare command line about, and it is sayable.
 
     Trusted by default because a headless turn has nobody to answer the question; a flow
-    somebody is watching says so and gets Cursor's own behaviour back.
+    somebody is watching says so and gets Cursor's own behaviour back -- and asks beforehand
+    for the backend whose config has somewhere to say it as `settings:trust`, the name the
+    catalogue derives from the field rather than a second word minted beside it.
     """
     from dataclasses import replace
 
-    assert CursorAgent.trusts
+    from hmz.flows.checking import catalogue
+
+    told = {one.name: one.backends for one in catalogue()}
+    assert told["settings:trust"] == frozenset({"cursor-agent"})
 
     CursorAgent(replace(CURSOR, trust=False)).new()("hello")
 

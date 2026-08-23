@@ -14,11 +14,14 @@ does once it has been asked for is covered where it is driven -- steering a real
 
 from __future__ import annotations
 
+import dataclasses
 import inspect
+import re
 import sys
 from typing import TYPE_CHECKING
 
 from hmz.coganchor.agents import DRIVEN, EVERYWHERE, KINDS, Moment
+from hmz.coganchor.agents.config import AgentConfig
 from hmz.coganchor.backends import PROFILES, Bundled, Hooked, Profile, named
 from hmz.flows import Agent, Person, Session
 from hmz.flows.checking import briefed, catalogue, offered, surface
@@ -148,6 +151,46 @@ def test_the_catalogue_says_which_backends_narrate_a_reach_as_it_happens() -> No
         name for name, one in sessions.items() if one.narrates
     )
     assert told["narrate"] == {"claude"}
+
+
+def test_one_setting_is_one_capability_name_and_no_second_one() -> None:
+    """A field only some of these configs carry is asked for as `settings:<field>` alone.
+
+    The catalogue used to mint a word of its own for some of them -- `trust`, `title`,
+    `features` -- beside the name the derived block gives every such field, so Cursor's trust
+    flag answered to `trust` and to `settings:trust` both. That is one fact written in two
+    places: the hand-written word goes on promising what a renamed field no longer serves,
+    and a generated flow asks under whichever of the two it happened to read.
+
+    What makes a hand-written name a duplicate rather than a capability of its own is that it
+    says nothing the field's own presence does not. `narrate` is the counter-case and is why
+    this is not simply a ban on naming a field: it asks whether a session can be told at all,
+    which is a question with a different answer -- two backends carry `partial_messages` and
+    one of them narrates. So a name is a duplicate here when it serves exactly the backends
+    whose config carries the field *and* names that field, and only the derived one may.
+    """
+    common = {one.name for one in dataclasses.fields(AgentConfig)}
+    carriers: dict[str, set[str]] = {}
+    for backend, (_, config) in DRIVEN.items():
+        for one in dataclasses.fields(config):
+            if one.name not in common:
+                carriers.setdefault(one.name, set()).add(backend)
+    held = catalogue()
+
+    assert carriers
+    for field, backends in carriers.items():
+        naming = [
+            one.name
+            for one in held
+            if one.backends == frozenset(backends)
+            and re.search(rf"\b{field}\b", one.said)
+        ]
+        assert naming == [f"settings:{field}"], field
+    # `tier:fast` is not one of these and must not be read as one: `service_tier` is a field
+    # of the common config, which every backend carries and the derived block therefore
+    # leaves out, so the hand-written name is the only word there has ever been for it.
+    assert "service_tier" in common
+    assert "tier:fast" in {one.name for one in held}
 
 
 def test_the_catalogue_says_which_backends_steer_and_which_fork() -> None:

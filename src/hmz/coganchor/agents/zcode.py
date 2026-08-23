@@ -1256,24 +1256,6 @@ class ZcodeAgent(AgentBase):
     #: third here would be reporting some of the same tokens twice.
     counts: ClassVar[frozenset[str]] = frozenset(_KINDS)
 
-    #: Whether a session can be told whether ZCode is to name it. True here because the turn
-    #: goes over the app server rather than the command line: `session/create` takes the
-    #: field, so the answer is the flow's to give at all. Declared on the driver rather than
-    #: read off `hmz.coganchor.backends` for that reason -- it is a fact about driving this CLI
-    #: this way, not about the CLI. `ZcodeAgentConfig.titles` is where it is said, and
-    #: `title` is what a flow asks for beforehand.
-    titles: ClassVar[bool] = True
-
-    #: The same, for ZCode's own file search: the server asks its client what the runtime may
-    #: do before it will open a session at all, so what it is told is this agent's to say.
-    #: `ZcodeAgentConfig.native_search`, and `native-search` to ask for it beforehand.
-    native_search: ClassVar[bool] = True
-
-    #: The same, for how a session's stream is delivered: `session/subscribe` takes the kind,
-    #: so which one a turn is read under is this agent's to choose.
-    #: `ZcodeAgentConfig.delivery`, and `delivery` to ask for it beforehand.
-    delivery: ClassVar[bool] = True
-
     def __init__(self, config: AgentConfig, *, name: str | None = None) -> None:
         """Initializes an agent whose app server is not running yet.
 

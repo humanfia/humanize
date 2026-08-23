@@ -488,13 +488,15 @@ def test_each_of_the_three_is_a_capability_a_flow_can_ask_for_beforehand() -> No
     """Humanize deciding something on ZCode's behalf is something a flow may ask about.
 
     The field is where the other answer is given; the name is what a place declares to be
-    refused an agent that has no such answer to give before its first turn.
+    refused an agent that has no such answer to give before its first turn. That name is
+    the field's own, under `settings:`, rather than a second word beside it: the catalogue
+    derives one per field, so a field renamed here is a name renamed there.
     """
     from hmz.flows.checking import catalogue
 
     told = {one.name: one.backends for one in catalogue()}
 
-    for name in ("title", "native-search", "delivery"):
+    for name in ("settings:titles", "settings:native_search", "settings:delivery"):
         assert "zcode" in told[name], name
 
 

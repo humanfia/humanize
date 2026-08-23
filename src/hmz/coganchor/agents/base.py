@@ -3228,14 +3228,6 @@ class AgentBase(ABC):
     #: the first provider turn.
     service_tiers: ClassVar[tuple[str, ...]] = ("default",)
 
-    #: Whether this backend's own command line asks to be trusted with the directory it has
-    #: been pointed at, and a turn here answers that for it. False for all but one of them:
-    #: the rest have no such question, so there is nothing to answer and nothing to take
-    #: back. Said on the class because it is the one place a driver overrules what the bare
-    #: CLI would have done, and a flow which would rather be asked has to be able to find out
-    #: that there is something here to ask about before it takes a turn.
-    trusts: ClassVar[bool] = False
-
     #: Which kinds of token this backend reports, out of :data:`hmz.coganchor.agents.KINDS`.
     #: Declared here rather than worked out from what a turn happened to say: a kind nothing
     #: was spent on this turn is missing from that turn's `Usage` exactly as a kind the CLI

@@ -446,11 +446,6 @@ class CursorAgent(AgentBase):
     #: and written to -- four figures, the input already net of the other two.
     counts: ClassVar[frozenset[str]] = frozenset(_KINDS)
 
-    #: It asks to be trusted with a directory before it will work in one, and a turn here
-    #: answers that for it rather than stopping at it. The one thing this driver imposes on
-    #: top of what the bare command line does, and `CursorAgentConfig.trust` takes it back.
-    trusts: ClassVar[bool] = True
-
     #: Every moment a turn passes through, and the two about a fleet: its stream says when a
     #: turn starts an agent of its own and when that one has come back.
     moments: ClassVar[frozenset[Moment]] = EVERYWHERE | SUBAGENTS

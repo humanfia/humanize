@@ -1566,20 +1566,6 @@ class CodexAgent(AgentBase):
     #: so there is no cache kind here to report.
     counts: ClassVar[frozenset[str]] = frozenset(_KINDS)
 
-    #: Whether one of this backend's own features can be switched on or off by name for this
-    #: agent alone -- `--enable` and `--disable`, which Codex says are the same thing as
-    #: `-c features.<name>=`, taken as :attr:`CodexAgentConfig.features`. Said on the class
-    #: so that a flow meaning to switch one asks beforehand rather than being handed an agent
-    #: whose config has nowhere to put it.
-    switches: ClassVar[bool] = True
-
-    #: Whether this backend can be asked to refuse a setting it does not recognise rather
-    #: than passing over it -- `--strict-config`, taken as
-    #: :attr:`CodexAgentConfig.strict_config`. Off unless a flow asks, which is the CLI's own
-    #: default; what asking buys is that a key renamed by a newer Codex is a turn that fails
-    #: where it was set rather than an agent quietly not doing the thing.
-    vets: ClassVar[bool] = True
-
     def __init__(self, config: AgentConfig, *, name: str | None = None) -> None:
         """Initializes an agent whose app server is not running yet.
 

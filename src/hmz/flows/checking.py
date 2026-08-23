@@ -2295,16 +2295,24 @@ def catalogue() -> tuple[Capability, ...]:
     -- so what the catalogue promises is what this installation serves, not what some
     edition of it once did.
 
+    One word per capability, and where the capability is a setting that word is the derived
+    one: what comes to exactly "this backend's own config carries this field" is served as
+    `settings:<field>` and under nothing else. A hand-written name beside it would be the
+    same fact in two places, going on being right in only one of them the day the field is
+    renamed, and a flow generated against either word asks under whichever it happened to
+    read. What earns a word of its own is a question the field's presence does not answer:
+    `narrate` is whether a session can be told to narrate at all, which two configs carry
+    `partial_messages` for and one session does; `tier:fast` is `service_tier`, a field of
+    the common config that every backend has somewhere to say and only three can serve.
+
     Returns:
       One capability apiece: the primitives every backend serves, then what only some do
       -- each moment outside `EVERYWHERE`, the shape a turn can be held to, the tools a
       flow may offer, a turn that can be steered while it runs, the goal feature, the
-      fork, each kind of token a backend says what it spent on, the one that has to be
-      trusted with a directory before it works in it, what a backend is told that it did
-      not ask for, the faster tier some can be asked to serve at, the settings of their
-      own the rest take, and each setting only some of their configs carry -- and then
-      where an agent's turns may land and how a turn's own
-      commands are reached there.
+      fork, each kind of token a backend says what it spent on, the turn that can be told
+      to say what it is reaching for as it writes it, the faster tier some can be asked to
+      serve at, and each setting only some of their configs carry -- and then where an
+      agent's turns may land and how a turn's own commands are reached there.
     """
     import inspect
     import sys as running
@@ -2506,51 +2514,6 @@ def catalogue() -> tuple[Capability, ...]:
     )
     held.append(
         Capability(
-            "trust",
-            frozenset(name for name, cls in agents.items() if cls.trusts),
-            "a backend that asks to be trusted with the directory it has been pointed at "
-            "before it will work in one -- answered here by default, an unattended turn "
-            "having nobody to answer it, and handed back with trust=False on that "
-            "backend's own config where somebody is watching",
-        )
-    )
-    held.append(
-        Capability(
-            "title",
-            frozenset(
-                name for name, cls in agents.items() if getattr(cls, "titles", False)
-            ),
-            "the backend names a session itself, and can be told whether to -- "
-            "ZcodeAgentConfig(titles=True) -- which is off unless a flow asks for it, a "
-            "title being a model turn of its own that nothing here reads",
-        )
-    )
-    held.append(
-        Capability(
-            "native-search",
-            frozenset(
-                name
-                for name, cls in agents.items()
-                if getattr(cls, "native_search", False)
-            ),
-            "the CLI's own file search inside the workspace, which is this agent's to turn "
-            "off -- ZcodeAgentConfig(native_search=False) -- and which is not the web "
-            "search `search` asks about",
-        )
-    )
-    held.append(
-        Capability(
-            "delivery",
-            frozenset(
-                name for name, cls in agents.items() if getattr(cls, "delivery", False)
-            ),
-            "how a session's own stream comes back is this agent's to choose -- "
-            "ZcodeAgentConfig(delivery='desktop-continuous') -- which a turn read as it "
-            "happens wants, against the kind that replays for a client that missed some",
-        )
-    )
-    held.append(
-        Capability(
             "tier:fast",
             frozenset(
                 name
@@ -2561,31 +2524,6 @@ def catalogue() -> tuple[Capability, ...]:
             "the same effort -- AgentConfig(service_tier='fast') -- which each of these "
             "sends in its own backend's word for it; a backend not among them refuses the "
             "tier before the first turn rather than quietly running at another one",
-        )
-    )
-    held.append(
-        Capability(
-            "features",
-            frozenset(
-                name for name, cls in agents.items() if getattr(cls, "switches", False)
-            ),
-            "one of the backend's own feature flags switched on or off by name, for this "
-            "agent's process and nobody else's -- "
-            "CodexAgentConfig(features=(('multi_agent_v2', True),)) -- named as the CLI "
-            "itself names them, and written nowhere the person at this machine would find "
-            "it afterwards",
-        )
-    )
-    held.append(
-        Capability(
-            "strict-settings",
-            frozenset(
-                name for name, cls in agents.items() if getattr(cls, "vets", False)
-            ),
-            "the backend asked to refuse a setting it does not recognise rather than pass "
-            "over it -- CodexAgentConfig(strict_config=True) -- so a key a newer CLI has "
-            "renamed fails where it was set instead of leaving an agent quietly not doing "
-            "the thing; off unless asked for, as each of these CLIs has it off",
         )
     )
     held.append(

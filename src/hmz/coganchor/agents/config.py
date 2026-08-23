@@ -299,13 +299,14 @@ class Needs:
     Attributes:
       of_agent: What the backend filling the place has to serve, out of the agent vocabulary
         -- `goal`, `steer`, `shape`, `tools`, `fork`, `search`, `swarm`, `resume`,
-        `narrate`, `tier:fast`, `features`, `strict-settings`, each kind of token as
-        `counts:<its own name>`, a moment only some backends reach as `moment:<its own
-        name>`, and what a backend is told that it did not ask for: `title`,
-        `native-search` and `delivery`, each of which is a setting on that backend's own
-        config and a place's to ask for beforehand. What every backend here serves counts
-        as served, so a place that names one of those is filled by anything rather than by
-        nothing. Read
+        `narrate`, `tier:fast`, each kind of token as `counts:<its own name>`, a moment only
+        some backends reach as `moment:<its own name>`, and a setting only some of their
+        configs carry as `settings:<its own field>` -- Cursor's `settings:trust`, Codex's
+        `settings:features`, ZCode's `settings:delivery`. One word apiece: a setting is asked
+        for under the name derived from its field and under no second one, so that a field
+        renamed leaves no name behind promising what nothing serves. What every backend here
+        serves counts as served, so a place that names one of those is filled by anything
+        rather than by nothing. Read
         off the driver class and off the facts written down about the CLI, neither of which
         needs an agent to have run, so a flow that cannot be driven by what it was given says
         so before it opens anything.

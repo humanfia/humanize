@@ -430,14 +430,19 @@ class Agents(NamedTuple):
 | `fork` | one conversation carried into a second going its own way |
 | `narrate` | a turn that can be told to say what it is reaching for while the arguments are still arriving, so a long write is not silence |
 | `counts:<kind>` | the backend says what a turn spent on that kind of token — `input`, `output`, `cache_read`, `cache_write`, `reasoning` — so a loop bounded by one is not bounded by a nought |
-| `trust` | the backend asks to be trusted with the directory it has been pointed at, and the turn answers that for it — so it is the one whose config can hand the question back |
 | `tier:fast` | the provider can be asked to serve this agent's turns faster at the same model and effort, `AgentConfig(service_tier="fast")` |
-| `features` | one of the backend's own feature flags switched on or off by name, for this agent's process alone |
-| `strict-settings` | the backend can be asked to refuse a setting it does not recognise rather than pass over it |
 | `search` / `swarm` / `resume` | facts about the CLI itself, out of its own profile |
-| `title` / `native-search` / `delivery` | what a backend is told that it did not ask for, and the place can ask whether it is tellable at all — [ZCode's three](/reference/agents#what-zcode-is-told-that-zcode-did-not-ask-for), each with a field on its config |
-| `settings:<field>` | a setting only some of these CLIs have, on that backend's own config class — `allowed_tools`, `overrides`, `print_timeout` and the rest — each defaulting to what a turn of that CLI already ran as |
+| `settings:<field>` | a setting only some of these CLIs have, on that backend's own config class — `trust`, `features`, `strict_config`, `allowed_tools`, `overrides`, `print_timeout`, [ZCode's three](/reference/agents#what-zcode-is-told-that-zcode-did-not-ask-for) and the rest — each defaulting to what a turn of that CLI already ran as |
 | `moment:<name>` | a moment only some backends reach, written out rather than as the enum |
+
+A setting is asked for under one name, and it is the `settings:<field>` one. That name is
+derived from the config classes themselves, so a field added to one is a name to ask under on
+the next call and a field renamed cannot leave a capability behind promising what nothing
+serves — and a second, hand-written word for the same field would be that promise. `narrate`
+and `tier:fast` are not settings in that sense and keep words of their own: the first asks
+whether a session can be told to narrate at all, which two configs carry `partial_messages` for
+and one session answers to, and the second is `service_tier`, a field of the common config every
+backend has somewhere to say and only three can serve.
 
 Read off the driver class and off what is written down about the CLI, so nothing has to have
 run for the answer to be there — which is also how the picker rules a CLI out before it can be
