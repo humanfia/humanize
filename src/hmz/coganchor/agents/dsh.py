@@ -37,7 +37,6 @@ if TYPE_CHECKING:
 
 __all__ = ["DshAgent", "DshAgentConfig", "DshSession", "native_ready"]
 
-_EFFORTS = ("max", "high", "low", "off")
 _EFFORT_ENV = "HMZ_DSH_EFFORT"
 _REQUEST_SECONDS = 180.0
 
@@ -287,7 +286,6 @@ class DshSession(SessionBase):
     ) -> Iterator[Event]:
         """Runs one SDK turn and maps its session notifications as they arrive."""
         del schema  # SessionBase has already put unsupported shapes in the prompt.
-        self._validate()
         session_id = self._id or f"session-{uuid.uuid4().hex}"
         self._attempt_id = session_id
         answer = ""
@@ -474,19 +472,6 @@ class DshSession(SessionBase):
             word put in would be watching the wrong turn for it.
         """
         SessionBase.interject(self, text)
-
-    def _validate(self) -> None:
-        """Refuses settings the SDK cannot faithfully apply.
-
-        The effort alone: a turn may be told to think harder while it is running, so this is
-        the moment that one is read. What the agent may do is settled where the config is,
-        which is `DshAgent._serves` -- and cannot have changed since.
-        """
-        if self.effort not in _EFFORTS:
-            expected = ", ".join(_EFFORTS)
-            raise ValueError(
-                f"unsupported dsh effort {self.effort!r}; expected {expected}"
-            )
 
     def _require_key(self, session_id: str) -> None:
         """Refuses an explicitly selected account that cannot authenticate dsh."""

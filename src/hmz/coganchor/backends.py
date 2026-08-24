@@ -35,6 +35,7 @@ __all__ = [
     "FAULTS",
     "PROFILES",
     "SIGNS",
+    "SWARM",
     "UNKNOWN",
     "Asked",
     "Bundled",
@@ -349,6 +350,25 @@ class Model:
     swarms: bool = False
 
 
+#: What an effort is prefixed with to ask for a turn run as a fleet of subagents rather than
+#: as one agent: `max` and `swarmmax` are the same thinking at two widths. Written here beside
+#: the ladders and beside `Profile.swarms`, because it is part of how a rung is spelled rather
+#: than anything one driver invented: whatever reads an effort -- the interface that offers
+#: one, the check that refuses one, the driver that sends one -- has to take the prefix off
+#: before it has a rung, and a second copy of the word is a second chance for one of them to
+#: read `swarmmax` as a rung no backend has.
+SWARM = "swarm"
+
+#: What is offered for a CLI that speaks only the Agent Client Protocol. The protocol says
+#: nothing about which models an agent runs or how hard it may be asked to think -- both are
+#: the agent's own -- so one of each is offered and neither is sent.
+#:
+#: Which makes it the word for there being no ladder rather than a rung on one, and the two
+#: read differently wherever a rung is checked: a CLI somebody added runs at whatever they
+#: configured it to run at, and refusing every word but this one would leave an added CLI
+#: unusable at any effort a person would actually type.
+_UNSAID = "as configured"
+
 #: How long a turn may say nothing before it is worth looking at, for a backend that has not
 #: said otherwise. A quarter of an hour: every CLI here reports its tool calls as it makes
 #: them, so a turn silent this long is either a model on one very long thought or a CLI that
@@ -540,6 +560,36 @@ class Profile:
           The command, as `PATH` would name it.
         """
         return self.command or self.name
+
+    def takes(self, effort: str) -> bool:
+        """Whether this backend has a word for a rung by that name.
+
+        Asked here because the ladder is written here: `efforts` is the whole of what a CLI
+        will answer to, `beyond` the rungs of it that CLI takes without ever listing, and a
+        turn asked for at anything else is a turn that CLI refuses -- or worse, one it runs
+        while quietly ignoring what it was asked. Which is why this is asked where an agent
+        is made rather than left for the first turn: `grok agent` starts perfectly well at a
+        rung it has never heard of, and says so only at the first turn that goes out on its
+        command line instead, which is the hardest place to read the answer.
+
+        A fleet is a width rather than a rung, so the prefix comes off before the ladder is
+        read: `swarmmax` is `max` run wide, and only on a backend that runs one wide at all.
+
+        Args:
+          effort: The rung, in this backend's own wording, `swarm`-prefixed or not.
+
+        Returns:
+          Whether it can be asked for. True for anything at all on a backend with no ladder
+          to read it against: one nothing at all is written down about, and one known only by
+          the protocol it speaks, whose single listed rung is :data:`_UNSAID` -- the word for
+          there being no ladder rather than a rung on one. Refusing every other word there
+          would leave a CLI somebody added unusable at any effort they would actually type,
+          which is a check that has stopped measuring anything.
+        """
+        rung = effort.removeprefix(SWARM) if self.swarms else effort
+        if not self.efforts or self.efforts == (_UNSAID,):
+            return True
+        return rung in self.efforts or rung in self.beyond
 
     def tags(self) -> frozenset[str]:
         """What this backend serves, by the names a flow and a compiler ask for it under.
@@ -1782,11 +1832,6 @@ PROFILES = (
 #: file rather than a setting of one workspace: a CLI is installed on a machine, and a flow
 #: run in the next directory along is run against the same one.
 _SPOKEN = "acp.json"
-
-#: What is offered for a CLI that speaks only the Agent Client Protocol. The protocol says
-#: nothing about which models an agent runs or how hard it may be asked to think -- both are
-#: the agent's own -- so one of each is offered and neither is sent.
-_UNSAID = "as configured"
 
 
 def _spoken() -> Path:

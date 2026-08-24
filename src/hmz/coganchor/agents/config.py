@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -406,6 +406,26 @@ class AgentConfig:
         turn that needed the room. A conversation may be given one of its own, which is where
         a loop watching what it is costing says so.
     """
+
+    #: Which of this class's own settings are properties of the model rather than of the CLI,
+    #: by name. Empty here, because everything :class:`AgentConfig` itself holds is either the
+    #: model or a thing about the work; a backend's own config says which of the settings it
+    #: added are true of one model and false of the next.
+    #:
+    #: It exists for one moment: a fallback step onto the same CLI at a different model. That
+    #: step carries the whole of what the backend was told, its own vocabulary included, since
+    #: the CLI taking over still speaks it -- and a setting that was a fact about the model
+    #: that just failed is the one part of that which stops being true when the model changes.
+    #: Codex's `model_context_window` handed to the next model is a number that was measured
+    #: on something else, and a window too large is a turn that overruns the model's own
+    #: rather than a setting anybody would see in a log.
+    #:
+    #: Declared by the class that holds the setting rather than listed wherever a step is
+    #: taken, so that a backend which gains one of these tomorrow says so beside the field
+    #: itself. Named fields rather than guessed at: a name is a cheap thing to collide with,
+    #: and a setting dropped because it happened to be spelled like a model's is a setting
+    #: that goes missing for no reason a reader could find.
+    of_model: ClassVar[tuple[str, ...]] = ()
 
     model: str
     effort: str

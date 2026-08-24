@@ -1284,6 +1284,15 @@ class CodexAgentConfig(AgentConfig):
     flag and not one anything here has asked for yet.
     """
 
+    #: `overrides` and nothing else. Both keys :data:`_OVERRIDE_KEYS` admits are measurements
+    #: of one model -- how much context it holds, and where compaction has to start to stay
+    #: inside that -- so a step onto another model of this same CLI is the one moment they
+    #: stop being true. A window that was right for `gpt-5.6-sol` handed to a smaller model
+    #: is not a setting a reader would ever see go wrong: the turns simply overrun what the
+    #: new model actually has. `features` and `strict_config` are the app server's own and
+    #: stay, being true of the CLI whichever model it is pointed at.
+    of_model: ClassVar[tuple[str, ...]] = ("overrides",)
+
     overrides: tuple[tuple[str, str], ...] = ()
     features: tuple[tuple[str, bool], ...] = ()
     strict_config: bool = False

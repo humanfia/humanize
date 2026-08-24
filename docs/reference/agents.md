@@ -128,7 +128,9 @@ It is the last thing a turn tries, after the retries and after the account chain
 reason is the conversation. No backend takes another backend's session id, so the turn that
 moves is taken in a **new session** at the place it moved to — by an agent configured exactly
 as the one it left, carrying that agent's effort, its permission rung and the flow's skills,
-and answering back through the session that asked, so the flow sees one turn either way.
+and answering back through the session that asked, so the flow sees one turn either way. Less
+the settings that were measurements of the model it is leaving, where the step changes the
+model: see [what comes across the step](/user/fallback#what-comes-across-the-step).
 
 That session is opened once and held for as long as the one that asked for it, and ends when
 it does. The conversation is lost at the move and not every turn after it: a stateful loop
@@ -1405,10 +1407,16 @@ since the flow states the shape of the whole answer once, in the model it is goi
 
 ## Efforts
 
-`effort` is passed to the backend in the backend's own wording. humanize does not check it
-against a list, so a value your account has and this page does not still works — with one
-exception: `dsh` is driven through an SDK that takes three, and an agent of it is refused
-before the runtime starts unless its effort is `max`, `high` or `off`.
+`effort` is passed to the backend in the backend's own wording, and is checked against that
+backend's own ladder — the table below — wherever it arrives: where the agent is made, and
+where a flow [moves it mid-run](#moving-the-effort-while-it-runs). A word that backend has no
+rung for is refused there rather than on the first turn, because not every CLI refuses one
+itself: `grok agent` opens a session at a level it has never heard of and takes ordinary turns
+at it perfectly well, failing only on the first turn that falls to its command line.
+
+A CLI [you added yourself](/features/backends#adding-a-cli-of-your-own) is checked against
+nothing: the Agent Client Protocol says nothing about how hard an agent may be asked to think,
+so such a CLI runs at whatever you configured it to run at, under whatever word you type.
 
 | Backend | Efforts |
 | --- | --- |
@@ -1416,7 +1424,7 @@ before the runtime starts unless its effort is `max`, `high` or `off`.
 | `claude` | `low`, `medium`, `high`, `xhigh`, `max`, and `ultracode` |
 | `codex` | `low`, `medium`, `high`, `xhigh`, and `max`/`ultra` on the models that take them |
 | `cursor-agent` | `low`, `medium`, `high` — written into the model rather than sent beside it |
-| `dsh` | `off`, `high`, `max` |
+| `dsh` | `off`, `low`, `high`, `max` |
 | `grok` | `low`, `medium`, `high`, `xhigh` |
 | `kimi` | `low`, `medium`, `high`, `max`, each also as `swarm…` |
 | `pi` | `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
@@ -1468,8 +1476,10 @@ refuses it before it does anything else: `grok --effort bogus` comes back as
 `--effort/--reasoning-effort: unknown effort level 'bogus'; use one of: xhigh, high, medium,
 low` and the turn never starts. Those four are the ladder, on 1.0.24 and on both of the models
 it ships with. Its `grok agent` does not check: it takes any word, opens the session and runs
-— so an agent asked for a level off that ladder takes its ordinary turns and fails on the
-first one that falls to the command line. Ask for one of the four.
+— so an agent asked for a level off that ladder would take its ordinary turns and fail on the
+first one that falls to the command line, which is the hardest place there is to read the
+answer. humanize therefore refuses one of those where the agent is configured, against the
+four.
 
 **Qwen Code has no flag for the effort.** It is a setting of its own `settings.json`, so a turn
 is pointed at a file of humanize's own through `QWEN_CODE_SYSTEM_SETTINGS_PATH` — two agents of

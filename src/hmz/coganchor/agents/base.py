@@ -1051,7 +1051,13 @@ class SessionBase(ABC):
 
         Args:
           effort: The backend's own word for it, or "" to go back to the agent's.
+
+        Raises:
+          ValueError: If the agent's backend has no word for that rung, refused by the agent
+            itself -- the ladder belongs to the CLI, and one conversation of it is in no
+            position to have a rung the others have not.
         """
+        self._agent._thinks(effort)
         self._effort = effort or None
 
     @overload
@@ -3107,6 +3113,17 @@ def _built(place: str, like: AgentBase) -> AgentBase | Literal[False]:
             # its own steps without anybody remembering to come back and say so, which is the
             # only version of this that stays true. Which CLI it is comes across with it --
             # it is the same one, by the name this branch was entered for.
+            #
+            # Less the settings that were true of the model rather than of the CLI, where the
+            # step is one that changes the model. Codex's `model_context_window` is the plain
+            # case: it is a measurement of the model that has just failed, and handing it to
+            # the next one describes something the new model does not have. Nothing refuses
+            # it and no line of any log says it is wrong -- the turns just overrun a window
+            # that was somebody else's. So they go back to what the CLI works out for itself,
+            # which is what the agent would have been given had this model been asked for
+            # first. A step that keeps the model keeps them: they are still true.
+            if model != like.config.model:
+                moved |= _unscoped(config)
             return kind(replace(like.config, **moved))
         # Another CLI, and now the reverse holds: an agent is what it was made as, but what
         # one backend was told in its own vocabulary -- a codex override, a rule Claude reads
@@ -3123,6 +3140,39 @@ def _built(place: str, like: AgentBase) -> AgentBase | Literal[False]:
         return kind(config(**(common | moved), **identifying(config, profile.name)))
     except (ValueError, TypeError):
         return False
+
+
+def _unscoped(config: type[AgentConfig]) -> dict[str, Any]:
+    """A config class's model-scoped settings, each back at the value that says nothing.
+
+    Which settings those are is the class's own to say, as
+    :attr:`hmz.coganchor.agents.config.AgentConfig.of_model`: a driver that adds a number
+    measured off one model declares it beside the field, rather than leaving whoever takes a
+    step to keep a list of other people's fields in step with them.
+
+    Back at the default rather than dropped, because a config is a frozen value with no
+    absent state: every one of these is a setting whose default is the backend working the
+    answer out for itself, which is exactly what the model arriving needs it to do.
+
+    Every field named here has one. A setting that is a measurement of the model is a setting
+    the CLI can arrive at by itself, which is what its default already is; a class that named
+    a field with no default would be saying that a number belonging to one model has to be
+    said about every model, which is a class to correct rather than a case to handle.
+
+    Args:
+      config: The class the agent arriving is built from.
+
+    Returns:
+      What to set, by field name, which is nothing at all for the classes that declare none.
+    """
+    from dataclasses import MISSING, fields
+
+    held: dict[str, Any] = {}
+    for one in fields(config):
+        if one.name in config.of_model:
+            make = one.default_factory
+            held[one.name] = one.default if make is MISSING else make()
+    return held
 
 
 def identifying(config: type[AgentConfig], backend: str) -> dict[str, Any]:
@@ -3194,7 +3244,7 @@ def _rung(was: Profile | None, now: Profile, effort: str) -> str:
       A word `now` has, or the one it was given for a backend that lists none -- one whose
       model carries its own effort is refused a word beside the name anyway.
     """
-    if not now.efforts or effort in now.efforts or effort in now.beyond:
+    if now.takes(effort):
         return effort
     ladder = was.efforts if was is not None else ()
     at = ladder.index(effort) if effort in ladder else 0
@@ -3272,8 +3322,14 @@ class AgentBase(ABC):
             left unnamed are two, which is how one configuration driven twice -- an actor and the
             reviewer reading its work -- stays two.
         """
-        self._serves(config)
+        # Written before it is checked, and not because the order is convenient: what a CLI
+        # can be told is read off which CLI it is, and for the one driver that is more than
+        # one backend -- an added CLI, named by a setting rather than by its class -- which
+        # CLI it is *is* this config. Checked first, the agent would be asked what it can be
+        # told before it knew what it was. An agent whose config is refused here is one
+        # nothing ever gets a reference to, so a half-built one is no state anybody can reach.
         self._config = config
+        self._serves(config)
         #: What this agent's turns are to think at, where a flow has said something other
         #: than what it was configured with, and None where it has not.
         self._effort: str | None = None
@@ -3427,18 +3483,21 @@ class AgentBase(ABC):
     def _serves(self, config: AgentConfig) -> None:
         """Refuses a config this backend has no way of expressing.
 
-        Two of them: a service tier it cannot send, and web search it cannot switch off.
-        Both are refused wherever the config arrives -- where the agent is made, and where one
-        already running is set up as something else -- since a setting a backend quietly
-        ignored would be a setting that lies about what the agent is doing.
+        Three of them: a rung it has no word for, a service tier it cannot send, and web
+        search it cannot switch off. Each is refused wherever the config arrives -- where the
+        agent is made, and where one already running is set up as something else -- since a
+        setting a backend quietly ignored would be a setting that lies about what the agent
+        is doing.
 
         Args:
           config: What the agent is to run at.
 
         Raises:
-          ValueError: If the tier is not one of :attr:`service_tiers`, or web search was
-            switched off for a backend with no way of being told.
+          ValueError: If the effort is not a rung this backend's ladder has, if the tier is
+            not one of :attr:`service_tiers`, or if web search was switched off for a backend
+            with no way of being told.
         """
+        self._thinks(config.effort)
         if config.service_tier not in self.service_tiers:
             raise ValueError(
                 f"{type(self).__name__} does not support service tier "
@@ -3449,6 +3508,49 @@ class AgentBase(ABC):
                 f"{type(self).__name__} has no way of being told not to search the web; "
                 "web_search must be on for it"
             )
+
+    def _thinks(self, effort: str) -> None:
+        """Refuses a rung this backend has no word for, wherever the rung arrives.
+
+        The ladder is read off :mod:`hmz.coganchor.backends` rather than written down on the
+        driver, the way web search is: the one place that says what a CLI is is the one place
+        this is said too, and a model narrows that ladder further where the backend has been
+        asked what it runs -- which is a question about an account rather than about a CLI,
+        so it is the interface offering a model that asks it and not this.
+
+        Said here rather than on the config, because a config does not know its backend: an
+        `AgentConfig` is the same object whichever CLI ends up running it, and `high` is a
+        rung on ten of these ladders and `ultracode` on exactly one. And said wherever the
+        rung arrives rather than only where an agent is built, because the rung is the one
+        setting a flow may move while the run is going -- an agent turned down mid-loop, a
+        session nursed up through a hard patch -- and a word refused at construction and
+        taken silently an hour later would be a check that only looks like one.
+
+        What it prevents is a turn that starts anyway. `grok agent` opens a session at a rung
+        it has never heard of and takes ordinary turns at it perfectly well; it refuses the
+        word only on the command line the shaped, forked and withheld turns go out on. So an
+        agent at a rung off the ladder runs for as long as nothing exotic is asked of it and
+        then fails somewhere that says nothing about why, which is the hardest place there is
+        to read the answer.
+
+        Args:
+          effort: The rung, in the backend's own wording, or "" for no rung at all -- which
+            is what Cursor's parameterized models are asked for, the rung being written into
+            the model's own name there, and what the setters mean by going back to what the
+            agent was configured with.
+
+        Raises:
+          ValueError: If the backend has a ladder written down and that word is not on it.
+        """
+        from hmz.coganchor.backends import named
+
+        profile = named(self.backend)
+        if not effort or profile is None or profile.takes(effort):
+            return
+        raise ValueError(
+            f"{profile.name} cannot be asked to think at {effort!r}; expected one of "
+            f"{', '.join(profile.efforts)}"
+        )
 
     def _tellable(self) -> bool:
         """Whether this backend can be told whether its agents may search the web.
@@ -3724,7 +3826,14 @@ class AgentBase(ABC):
 
         Args:
           effort: The backend's own word for it, or "" to go back to the configured one.
+
+        Raises:
+          ValueError: If the backend has no word for that rung. Refused here as surely as at
+            construction, because this is the setting a flow moves while the run is going: a
+            loop that turned its agent down to a word the CLI has never heard of would go on
+            taking turns until one of them needed the command line.
         """
+        self._thinks(effort)
         self._effort = effort or None
 
     @property

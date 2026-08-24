@@ -158,8 +158,12 @@ def test_an_effort_written_down_before_it_left_this_spelling_is_read_past() -> N
     """A step somebody still means, and how hard an agent thinks is not part of a place."""
     assert fallbacks.reads("claude/claude-opus-5:high") == "claude/claude-opus-5"
     # And a colon that is part of a model's own name is left exactly where it is: only a
-    # rung that backend actually has is read as one.
+    # rung that backend actually lists is read as one.
     assert fallbacks.reads("claude/qwen3:8b") == "claude/qwen3:8b"
+    # Which is the question here even for a CLI of your own, whose one listed rung is the
+    # word for there being no ladder and which therefore refuses no rung at all: read as
+    # "would this backend take the word", every such model would lose its own tail.
+    assert fallbacks.reads("shell/qwen3:8b") == "shell/qwen3:8b"
 
 
 def test_an_agent_says_which_place_it_runs_at() -> None:
@@ -228,8 +232,12 @@ def test_a_step_to_the_same_backend_carries_what_that_backend_was_told() -> None
 def test_a_step_to_the_same_backend_under_another_account_is_still_that_account() -> (
     None
 ):
-    """What the step names is the step's, however much of the config comes across it."""
-    fallbacks.points("codex@work/gpt-5.6-sol", "codex@key/gpt-5.6-sol-mini")
+    """What the step names is the step's, however much of the config comes across it.
+
+    The same model under another account, so the window measured on it is still the window:
+    what changed is whose key pays for the turn, which no model's numbers depend on.
+    """
+    fallbacks.points("codex@work/gpt-5.6-sol", "codex@key/gpt-5.6-sol")
     agent = CodexAgent(
         CodexAgentConfig(
             model="gpt-5.6-sol",
@@ -244,8 +252,43 @@ def test_a_step_to_the_same_backend_under_another_account_is_still_that_account(
     assert stood_in is not None
     assert isinstance(stood_in.config, CodexAgentConfig)
     assert stood_in.config.provider == "key"
-    assert stood_in.config.model == "gpt-5.6-sol-mini"
+    assert stood_in.config.model == "gpt-5.6-sol"
     assert stood_in.config.overrides == (("model_context_window", "200000"),)
+
+
+def test_a_step_that_changes_the_model_leaves_that_model_s_own_numbers_behind() -> None:
+    """A window is a measurement of one model, and the step is onto another.
+
+    The same-CLI carry is right about everything Codex was told in its own vocabulary -- it
+    is the same Codex, and it still speaks it -- except the settings that were facts about
+    the model that has just gone. `model_context_window` handed to the next model describes
+    something else: nothing refuses it, nothing logs it, and the turns simply overrun a
+    window the new model has not got.
+    """
+    fallbacks.points("codex/gpt-5.6-sol", "codex/gpt-5.6-sol-mini")
+    agent = CodexAgent(
+        CodexAgentConfig(
+            model="gpt-5.6-sol",
+            effort="high",
+            overrides=(
+                ("model_context_window", "400000"),
+                ("model_auto_compact_token_limit", "300000"),
+            ),
+            features=(("unified_exec", True),),
+            strict_config=True,
+        )
+    )
+
+    stood_in = agent.stands_in()
+
+    assert stood_in is not None
+    assert isinstance(stood_in.config, CodexAgentConfig)
+    assert stood_in.config.model == "gpt-5.6-sol-mini"
+    assert stood_in.config.overrides == ()
+    # And nothing else goes with them: a feature and a strictness are the app server's own,
+    # true of the CLI whichever model it is pointed at.
+    assert stood_in.config.features == (("unified_exec", True),)
+    assert stood_in.config.strict_config
 
 
 def test_a_step_to_the_same_cli_of_your_own_still_knows_which_cli_it_is() -> None:
