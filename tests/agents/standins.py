@@ -42,9 +42,10 @@ _REFUSALS = {
 #: written here is what has been read off a real `--help`, and a stand-in must not refuse on
 #: a guess.
 _FLAGS: dict[str, tuple[str, dict[str, str]]] = {
-    # agy 1.2.2, whose Go parser stops reading flags at the first word that is not one. The
-    # driver's reason for being here at all: 1.2.2 documents `--effort`, and a model whose
-    # name carries no rung fails every turn without it.
+    # agy 1.2.3, which is what is installed here; the driver was aligned to 1.2.2, and this
+    # is the list as 1.2.3 prints it. Its Go parser stops reading flags at the first word
+    # that is not one. The driver's reason for being here at all: `--effort` is documented,
+    # and a model whose name carries no rung fails every turn without it.
     "agy": (
         "goflag",
         {
