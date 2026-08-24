@@ -1647,7 +1647,7 @@ the run, so a rate read a minute in is what that minute came to rather than a fi
 moved when one ended would stand still for all of them: most backends here are read as they
 say what each request to the model cost — Claude Code on the message it answered with,
 Codex on `thread/tokenUsage/updated`, DeepSeek Harness and pi on finalized assistant messages,
-opencode and mimocode on each step, Kimi Code from the session it is polling anyway, ZCode on
+opencode and mimocode on each step, Kimi Code on each step of a turn its daemon completes, ZCode on
 the row its log gains per model request. Antigravity, Grok Build, Qwen Code and Cursor Agent
 are the exception: they report usage at the end — Cursor states the whole turn's spending once,
 under `usage` on the `result` line, and says nothing about tokens before it — so what they
@@ -1660,11 +1660,24 @@ client for, on top of the CLI itself.
 It answers the daemon's heartbeat so long turns keep receiving notifications.
 Closing the notification socket uses a 100ms grace period, so unread notifications do not
 hold up a result that REST has already confirmed. The receive queue remains bounded.
-Session history, spending, questions and goals still come from the REST responses, and a
+Session history, questions and goals still come from the REST responses, and a
 notification only says when one of them is worth making early. Only a pending question is:
 it is the one thing a turn stops on, so a question notification brings that read forward and
-everything else keeps the cadence it had before there were notifications — one second. What
-a turn has spent is read on that second and once more as the turn settles; the session's
+everything else keeps the cadence it had before there were notifications — one second.
+
+Spending is the exception, and the notifications carry it rather than merely announcing it.
+Kimi 0.42.0's session route answers `usage` as four literal zeros for the life of a session
+however much it has spent, so a driver reading that alone reports every turn as free — and a
+backend that always reports nothing is a backend no
+[run allowance](/features/allowances) can hold. What the daemon does
+say is on the `turn.step.completed` notification, one per request to the model, under names of
+its own: `inputOther`, `output`, `inputCacheRead` and `inputCacheCreation`. Those are the same
+four kinds humanize counts in — `inputOther` is the input no cache served, the CLI's own input
+total being `inputOther + inputCacheRead + inputCacheCreation` — so they map kind for kind with
+nothing added. The steps are added up as they arrive and the session's aggregate is read
+alongside them, the larger of the two winning kind by kind: a build that fills its aggregate is
+believed, and one that answers zero cannot erase counts that are real. What a turn has spent is
+read on the same second it always was, and once more as the turn settles; the session's
 status and its history are read every round, which is what paces the round. Pending user
 questions are requested with the native `status=pending` filter, and a daemon that refuses
 that filter is asked without it, whichever answered being the one asked from then on. One

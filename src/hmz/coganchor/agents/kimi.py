@@ -134,11 +134,13 @@ _RECOVERY_SECONDS = 10.0
 _REFUSED = 400
 
 #: The frames this daemon raises that a reader wakes for at once, and whether each may have
-#: left a question waiting to be answered. REST stays authoritative; this only says which of
-#: its reads is worth the shared daemon's time now rather than on its own cadence -- and only
-#: the question is, because only the question is something a turn stops on. What a turn has
-#: spent and whether it is still running are read a second apart whatever the daemon says,
-#: which is the cadence they were read at before there were notifications at all.
+#: left a question waiting to be answered. REST stays authoritative for what it will say; this
+#: only says which of its reads is worth the shared daemon's time now rather than on its own
+#: cadence -- and only the question is, because only the question is something a turn stops
+#: on. Whether a turn is still running is read a second apart whatever the daemon says, which
+#: is the cadence it was read at before there were notifications at all. What a turn has spent
+#: is read on that same second, but the figure it reads is the one carried here: the step
+#: frame below is the only place 0.42.0 says it at all, which is why this listener counts.
 #:
 #: A frame under no name here is coalesced instead of woken for: the daemon streams a running
 #: command's output and a tool call's arguments a chunk at a time, and a reader woken per
@@ -186,15 +188,35 @@ def _update(socket: ClientConnection, deadline: float) -> dict[str, Any]:
 class _Updates:
     """Wake a session reader when its official daemon has something new to read.
 
-    REST remains authoritative for history, spending, questions and goals. A refused
-    subscription or a lost connection returns to polling without resubmitting a prompt.
-    It also says when the one read a turn can be *stopped* on is due -- whether a question
-    is waiting to be answered. One daemon serves every session of its agent, so a reader
-    that asked it everything on every wake would be spending the time the other seven are
-    queueing for on answers nothing had changed; the rest keep their own second's cadence.
+    REST remains authoritative for history, questions and goals. A refused subscription or a
+    lost connection returns to polling without resubmitting a prompt. It also says when the
+    one read a turn can be *stopped* on is due -- whether a question is waiting to be
+    answered. One daemon serves every session of its agent, so a reader that asked it
+    everything on every wake would be spending the time the other seven are queueing for on
+    answers nothing had changed; the rest keep their own second's cadence.
+
+    Spending is the exception, and it is carried here rather than merely announced here: on
+    0.42.0 the step frames this listens to are the only place the daemon says what a request
+    cost at all, the session route having answered zero since the session opened. So this adds
+    each step up as it arrives and :meth:`KimiCodeCLISession._counting` reads the total on its
+    own second -- which is the cadence it always read on, with a figure in it now.
     """
 
-    def __init__(self, base: str, token: str, session: str) -> None:
+    def __init__(
+        self, base: str, token: str, session: str, stepped: Counter[str]
+    ) -> None:
+        """Subscribes to one session of the daemon, falling back to polling if it cannot.
+
+        Args:
+          base: Where the daemon is listening.
+          token: What it takes to be let in.
+          session: The one session of it this listener carries, and the only one it counts.
+          stepped: That session's own running total, added to as each step of a turn lands.
+            The session's rather than this listener's, because a turn spends what the turns
+            before it spent as well: the meter is told the rise across a total, and a total
+            that started again at nothing every turn would show a rise only where a turn cost
+            more than the one before it.
+        """
         # Loaded here rather than where this module is read, so that an install without
         # the `kimi` extra still holds every other backend. Before the try below, because
         # what the client raises is half of what that try catches.
@@ -204,6 +226,7 @@ class _Updates:
         )
         self._failed = _failure()
         self._session = session
+        self._stepped = stepped
         self._socket: ClientConnection | None = None
         self._contexts = contextlib.ExitStack()
         self.ended = False
@@ -286,6 +309,19 @@ class _Updates:
                     self.close()
                     return
                 main = cast("dict[str, Any]", payload).get("agentId", "main") == "main"
+                if kind == "turn.step.completed":
+                    # Counted here and nowhere else, because this frame is the only place the
+                    # daemon says what a request cost. Under this session's total and no
+                    # other: one `kimi web` serves every session of its agent and publishes
+                    # all of their frames down every socket, so a step is charged to the
+                    # session the daemon named on the frame -- which is the one this listener
+                    # subscribed to, everything else having been dropped above.
+                    #
+                    # Every agent of it, though, not only `main`: a swarm's members and a
+                    # delegated subagent run inside this session and their requests are this
+                    # session's bill. Each step is published once under the agent that took
+                    # it, so counting them all is counting them once.
+                    self._stepped.update(_spent(cast("dict[str, Any]", payload)))
                 if kind in ("assistant.delta", "thinking.delta"):
                     # Preserve the old display cadence during long streaming messages,
                     # coalescing token notifications into at most one history read/second.
@@ -342,12 +378,74 @@ class _Updates:
 #: What the daemon counts a session's spending in, and what each of those is here. Every kind
 #: of token counts: what a rate is measuring is the traffic, and a cache read crosses the wire
 #: like anything else.
+#:
+#: This is the session-level aggregate, and on 0.42.0 it is a promise the CLI does not keep.
+#: `GET /sessions/<id>` builds its body from one `toWireSession`, and that function writes
+#: `usage: emptySessionUsage()` -- four literal zeros -- whatever the session has spent. So the
+#: aggregate is read here still, because a build that ever starts keeping the promise should be
+#: believed, but it is read as a floor rather than as the truth: see :meth:`_counting`. A
+#: backend metered off this alone reports every turn as free, which is not a cosmetic wrong
+#: number -- a run allowance is a cap on what the meters say, so a backend that always says
+#: nothing is a backend no allowance can hold.
 _KINDS = {
     "input": "input_tokens",
     "output": "output_tokens",
     "cache_read": "cache_read_tokens",
     "cache_write": "cache_creation_tokens",
 }
+
+#: The same four kinds as one step of a turn reports them, which is where 0.42.0 actually says
+#: what it spent: `turn.step.completed` carries a `usage` object under these names, one frame
+#: per request to the model, and a turn is as many of them as the model took.
+#:
+#: The names differ from the aggregate's and so does one of the meanings, which is the whole
+#: trap here. `inputOther` is **not** the input: the CLI's own `inputTotal` is
+#: `inputOther + inputCacheRead + inputCacheCreation`, so `inputOther` is the part of the input
+#: that no cache served. That is exactly what :data:`hmz.coganchor.agents.event.KINDS` means by
+#: `input` -- the kinds there are counted so that adding them up is the whole of what crossed
+#: the wire, which they only are if the cached part is not also inside the input -- so the two
+#: line up kind for kind and nothing is added or taken away on the way across. The CLI agrees
+#: in its own code: its `toSnapshotUsage` fills `input_tokens` from `inputOther` and the two
+#: cache names from the two cache fields, which is this table and the one above being the same
+#: four numbers under two spellings. Getting it wrong the other way -- reading `inputOther` as
+#: the whole input, or adding the caches into it -- would report a turn at several times what
+#: it cost, and a wrong number is worse than no number because a wrong number looks right.
+_STEPPED = {
+    "input": "inputOther",
+    "output": "output",
+    "cache_read": "inputCacheRead",
+    "cache_write": "inputCacheCreation",
+}
+
+
+def _spent(payload: Mapping[str, Any]) -> Counter[str]:
+    """What one completed step of a turn says it cost, by the kind this package counts in.
+
+    Args:
+      payload: The body of a `turn.step.completed` frame.
+
+    Returns:
+      Its four counts, and nothing at all for a step that carried none -- `usage` is optional
+      in the daemon's own schema, and a step that does not say is a step that adds nothing
+      rather than one that cost nothing.
+    """
+    usage = payload.get("usage")
+    if not isinstance(usage, dict):
+        return Counter()
+    said = cast("dict[str, Any]", usage)
+    return Counter(
+        {
+            kind: tokens
+            for kind, named in _STEPPED.items()
+            # Nothing below zero. A running total these are added into is a total a turn's
+            # spending is the rise across, so one negative count would be this session buying
+            # back tokens it had already been charged for -- and the rise it hid would never
+            # be reported at all.
+            if isinstance(count := said.get(named), (int, float))
+            and (tokens := int(count)) > 0
+        }
+    )
+
 
 #: What each kind of block a message is written in reads as. A block of a kind that is not here
 #: is not shown: an image is not a line of a transcript.
@@ -631,6 +729,12 @@ class KimiCodeCLISession(SessionBase):
         #: What this session has cost so far, by kind, as the daemon counts it: a running
         #: total for the whole conversation, so what one turn cost is the rise across it.
         self._counted: Counter[str] = Counter()
+        #: The same total as the daemon's own step frames have added it up, kept beside the
+        #: aggregate rather than instead of it because the two are read together. For the
+        #: whole conversation and not for one turn of it, for the reason above: the meter is
+        #: told a rise, and a total that started again at nothing each turn would report a
+        #: rise only where a turn cost more than the turn before it did.
+        self._stepped: Counter[str] = Counter()
         #: What the daemon was last told this session runs at, so a turn at the same
         #: settings does not tell it again -- and which daemon was told it. Both, because a
         #: profile is state that daemon holds rather than a fact about the session: an agent
@@ -808,6 +912,16 @@ class KimiCodeCLISession(SessionBase):
         across it. Told to the meters as it is read, which is what a rate taken while the turn
         is still running is made of.
 
+        Two reckonings of the same conversation, and the larger of the two kind by kind. The
+        aggregate the session route answers with is one of them, and on 0.42.0 it is four
+        zeros forever (see :data:`_KINDS`); what its steps have said they cost is the other,
+        and on a build whose aggregate works the aggregate is the larger, being the whole
+        session's life rather than only the part of it this driver listened to. So the larger
+        is the most that can be accounted for either way -- and taking it that way round is
+        what stops an aggregate that is only ever zero from erasing counts that are real.
+        Larger is also what keeps the reading rising, which is what a rise across it can be
+        read from at all: a total that fell would be a turn's spending quietly dropped.
+
         Args:
           server: The daemon holding the session.
           session: The session to ask about.
@@ -828,9 +942,9 @@ class KimiCodeCLISession(SessionBase):
         )
         counted = Counter(
             {
-                kind: int(usage.get(named) or 0)
+                kind: tokens
                 for kind, named in _KINDS.items()
-                if usage.get(named)
+                if (tokens := max(int(usage.get(named) or 0), self._stepped[kind])) > 0
             }
         )
         risen = Usage(
@@ -980,7 +1094,7 @@ class KimiCodeCLISession(SessionBase):
                         {"agent_config": profile},
                     )
                     self._profile, self._profiled = profile, server
-                updates = _Updates(server._base, server._token, session)
+                updates = _Updates(server._base, server._token, session, self._stepped)
                 # Said before the prompt goes in, so that a word put in has a session to be
                 # steered into from the moment there is a turn to interrupt.
                 self._running = _Running(session=session, config=turn)
