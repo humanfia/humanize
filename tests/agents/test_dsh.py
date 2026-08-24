@@ -654,8 +654,8 @@ def test_dsh_rejects_credentials_readable_by_other_users(
     assert Harness.made == []
 
 
-@pytest.mark.parametrize("way", ["env", "gateway", "login"])
-def test_only_a_key_provider_can_authenticate_dsh(
+@pytest.mark.parametrize("way", ["env", "login"])
+def test_only_a_way_dsh_offers_can_authenticate_it(
     way: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from hmz.coganchor import providers
@@ -674,7 +674,7 @@ def test_only_a_key_provider_can_authenticate_dsh(
     assert agent("hello", suppress=True) == ""
 
     assert [kind for kind, _text in heard].count("failed") == 1
-    assert any("only supports API-key login" in text for _kind, text in heard)
+    assert any("needs a DeepSeek API key" in text for _kind, text in heard)
     assert Harness.made == []
 
 
@@ -717,6 +717,43 @@ def test_provider_environment_reaches_the_sdk_runtime(
     assert launch[0].endswith("/env")
     assert launch[1:] == ("-u", "DEEPSEEK_BASE_URL", "/opt/dsh-runtime")
     assert made["request_timeout_seconds"] == 180.0
+
+
+def test_a_gateway_account_points_the_runtime_at_its_own_endpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz.coganchor import providers
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "whoever-is-at-this-machine")
+    monkeypatch.setenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+    providers.add(
+        "dsh",
+        "gateway",
+        way="gateway",
+        env={
+            "DEEPSEEK_BASE_URL": "https://gateway.example/v1",
+            "DEEPSEEK_API_KEY": "gateway-key",
+        },
+    )
+    Harness.next_scripts.append([assistant("done"), completed()])
+
+    DshAgent(configured(provider="gateway")).new(tmp_path)("work")
+
+    made = Harness.made[0].config
+    # The endpoint as well as the key: an account whose key belongs to somebody's proxy is an
+    # account whose every request has to go there, and the SDK's own default is DeepSeek's --
+    # which refuses every key but DeepSeek's own.
+    assert made["env"] == {
+        "DEEPSEEK_BASE_URL": "https://gateway.example/v1",
+        "DEEPSEEK_API_KEY": "gateway-key",
+        "HMZ_DSH_EFFORT": "high",
+    }
+    # Nothing is unset on the way in: what a turn under an account runs without is what that
+    # account did not set itself, and this one sets both.
+    assert made["launch_args_override"] == ("/opt/dsh-runtime",)
+    # The adapter route the runtime registers, which is not a place and does not move for a
+    # gateway: the server refuses any other name at the handshake.
+    assert made["provider"] == "deepseek-official"
 
 
 def failing(said: str) -> tuple[str, dict[str, Any]]:

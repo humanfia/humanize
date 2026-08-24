@@ -142,10 +142,10 @@ nobody there runs. The ceiling is not caution about a preview but a wall: 0.1.2a
 the configuration this driver is written against, and the class it replaced it with refuses a
 keyword it does not know. The `dsh` CLI is not required.
 
-It supports API-key login only, and there are two places to keep that key. For dsh's own
-credential store, run `dsh web`, open **Settings -> Models**, enter the DeepSeek key and save
-it; then set an agent's `cli` row to `dsh` and leave its `provider` row on `as local`. That
-reads dsh's normal configuration sources — the saved key and any `llm-deepseek.baseURL` in
+It signs in with a key rather than a login, and there are two places to keep that key. For
+dsh's own credential store, run `dsh web`, open **Settings -> Models**, enter the DeepSeek key
+and save it; then set an agent's `cli` row to `dsh` and leave its `provider` row on `as local`.
+That reads dsh's normal configuration sources — the saved key and any `llm-deepseek.baseURL` in
 `$DSH_HOME/settings.yaml`, then its environment layers. `$DSH_HOME` defaults to `~/.dsh`.
 
 For a separate key in humanize's provider store, choose `dsh` on the `cli` row, press enter on
@@ -155,6 +155,13 @@ and the key. The same account is made from the prompt at
 before the same walk — `key`, then a name and the key. Either way the key is asked for rather
 than typed on a line: it is drawn as bullets as you enter it, goes straight into a credential
 store, and is never shown back.
+
+Choose `gateway` instead of `key` where the key belongs to a proxy, a router or another vendor
+rather than to DeepSeek: it asks for that endpoint as well as the key, and the account then
+carries both. A `key` account is sent to `https://api.deepseek.com`, which is the adapter's own
+default and refuses every key but DeepSeek's own, so a gateway key stored as a `key` account is
+a turn that fails to authenticate. The account's own endpoint is also what its model list comes
+from, so the names offered are the ones that endpoint actually serves.
 
 An agent that uses that stored account is written with `@deepseek`:
 

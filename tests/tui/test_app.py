@@ -1690,7 +1690,7 @@ async def test_deepseek_chat_explains_a_missing_api_key_instead_of_staying_blank
         await until(lambda: "needs a DeepSeek API key" in _transcript(app), driver)
         said = _transcript(app)
 
-        assert "only supports API-key login" in said
+        assert "signs in with a key rather than a login" in said
         assert "press a on its" in said
         assert "DEEPSEEK_API_KEY" in said
 
@@ -2172,7 +2172,7 @@ def run(agents: Agents, task: str) -> None:
         "kimi": (Model("kimi-code/k3", ("max", "high")),),
     },
 )
-async def test_deepseek_has_only_api_key_login_after_switching_from_kimi(
+async def test_deepseek_has_its_own_ways_after_switching_from_kimi(
     _installed: unittest.mock.MagicMock,  # noqa: PT019 -- patch hands it over
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2207,7 +2207,7 @@ async def test_deepseek_has_only_api_key_login_after_switching_from_kimi(
         await driver.press("a")
         await until(lambda: isinstance(app.screen, Ways), driver)
         ways = app.screen.query_one("#choices", OptionList)
-        assert [str(option.id) for option in ways.options] == ["=key"]
+        assert [str(option.id) for option in ways.options] == ["=key", "=gateway"]
         shown = " ".join(
             [
                 str(app.screen.query_one("#asked", Label).content),
@@ -2215,7 +2215,7 @@ async def test_deepseek_has_only_api_key_login_after_switching_from_kimi(
                 *(str(option.prompt) for option in ways.options),
             ]
         ).lower()
-        for stale in ("kimi", "subscription", "login", "gateway", "env"):
+        for stale in ("kimi", "subscription", "login", "env"):
             assert stale not in shown
 
         await driver.press("enter")

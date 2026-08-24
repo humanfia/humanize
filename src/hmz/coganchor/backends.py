@@ -1138,6 +1138,25 @@ PROFILES = (
                 about="a DeepSeek API key, from the platform",
                 asks=(Asked(env="DEEPSEEK_API_KEY", about="the API key", secret=True),),
             ),
+            Way(
+                name="gateway",
+                about=_GATEWAY,
+                # The same key the way above asks for, as Grok Build's gateway asks for the
+                # same `XAI_API_KEY` its key way does: the adapter resolves one credential
+                # under one name whether the endpoint at the other end is DeepSeek's own or
+                # somebody's proxy, so a second variable here would be a second name for the
+                # one thing the request carries. Both of these are what `endpoint` above
+                # already names and what `ambient` already lists; this is the way in that
+                # lets an account hold them. Without it a key made for a gateway was a key
+                # sent to `https://api.deepseek.com` -- the adapter's own default, which
+                # refuses every key that is not DeepSeek's own.
+                asks=(
+                    Asked(env="DEEPSEEK_BASE_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="DEEPSEEK_API_KEY", about="the key it takes", secret=True
+                    ),
+                ),
+            ),
         ),
     ),
     Profile(

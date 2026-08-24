@@ -157,6 +157,7 @@ second time as a variable.
 | Way | | Asks for |
 | --- | --- | --- |
 | `key` | A DeepSeek API key, from the platform. | `DEEPSEEK_API_KEY` |
+| `gateway` | An endpoint speaking DeepSeek's own protocol — a proxy, a router, another vendor. | `DEEPSEEK_BASE_URL`, `DEEPSEEK_API_KEY` |
 
 **Grok Build** (`grok`)
 
@@ -190,8 +191,8 @@ second time as a variable.
 | --- | --- | --- |
 | `env` | Variables of your own: whatever this CLI reads a key or an endpoint under. | the `NAME=VALUE` lines you give it |
 
-DeepSeek Harness is the exception: it is driven through an SDK that takes an API key and
-nothing else, so `dsh` offers its own `key` way and no `env` at all.
+DeepSeek Harness is the exception: it is driven through an SDK that reads one key and one base
+URL and nothing else, so `dsh` offers the two ways above and no `env` at all.
 
 The names are typed rather than chosen because there is no list worth keeping: pi has a variable
 for each provider it knows and opencode one for each of a hundred and eighty, across six vendors

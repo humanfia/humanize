@@ -62,6 +62,17 @@ _COMPACTION = (
 _JS_TAG = "tag:yaml.org,2002:js"
 _API_KEY_ENV = "DEEPSEEK_API_KEY"
 _BASE_URL_ENV = "DEEPSEEK_BASE_URL"
+
+#: Which ways in an account a turn runs under may have been made by: all of dsh's own, read
+#: off its profile rather than written down again here. Every way `backends.py` declares for
+#: this backend asks for `DEEPSEEK_API_KEY` -- the key on its own, or a gateway's URL and the
+#: key that endpoint takes -- so every one of them can authenticate a turn, and a way it does
+#: not declare is an account made for something else: variables of somebody's own, or a login
+#: belonging to a CLI this is not. Derived rather than listed so that a way added to the
+#: profile is one a turn accepts without this file being touched.
+_WAYS = frozenset(
+    way.name for one in backends.PROFILES if one.name == "dsh" for way in one.ways
+)
 _REF = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _EXTRA = (
     "DeepSeek Harness is not installed in this Python environment, where it is the [dsh] "
@@ -69,10 +80,11 @@ _EXTRA = (
     f"install '{backends.DSH_SDK}' 'python-dotenv>=1.2.3'"
 )
 _KEY_REQUIRED = (
-    "DeepSeek Harness only supports API-key login and needs a DeepSeek API key. Save one "
-    "in dsh under Settings -> Models; in hmz, set an agent to dsh and press a on its "
-    "provider row, "
-    "and create a key account; or set DEEPSEEK_API_KEY before starting hmz."
+    "DeepSeek Harness signs in with a key rather than a login and needs a DeepSeek API "
+    "key. Save one in dsh under Settings -> Models; in hmz, set an agent to dsh and press "
+    "a on its provider row, "
+    "and create a key account -- or a gateway account, which is that same key and the "
+    "endpoint to send it to; or set DEEPSEEK_API_KEY before starting hmz."
 )
 _GOAL = "Use create_goal to pursue this objective until it is complete:\n\n{}"
 
@@ -494,7 +506,7 @@ class DshSession(SessionBase):
         if provider is None:
             return
         key = provider.env.get(_API_KEY_ENV, "")
-        if provider.way != "key" or not key.strip():
+        if provider.way not in _WAYS or not key.strip():
             raise Failed(1, ["dsh", session_id], output="", stderr=_KEY_REQUIRED)
 
     def _running(self) -> _Harness:
@@ -527,6 +539,13 @@ class DshSession(SessionBase):
                     "env is required to isolate dsh provider credentials"
                 )
             launch = [env, *(part for name in hushed for part in ("-u", name)), *launch]
+        # An account is the whole of what a turn under it runs on: its key, and the endpoint
+        # to send that key to where the account was made by the gateway way. The layers an
+        # installed dsh reads -- its `settings.yaml`, its credential store, the project's
+        # `.env` -- are consulted only where there is no account, since under one they are
+        # this machine's opinion about somebody else's credentials: a `baseURL` saved by the
+        # dsh Models page would otherwise route an account's key to whichever endpoint this
+        # machine happens to be pointed at, and the account's own would never be read at all.
         environment = (
             _native_dsh_environment(Path(where))
             if self._agent.provider is None
@@ -536,7 +555,12 @@ class DshSession(SessionBase):
         cordis = self._cordis(composition)
         harness = harness_type(
             # The SDK's own default for this one; passed rather than left out so that the
-            # provider a turn runs under is named where a reader looks for it.
+            # provider a turn runs under is named where a reader looks for it. It stays this
+            # whatever endpoint the turn is pointed at: it names the adapter route the
+            # runtime registers rather than a place -- `@deepseek-ai/dsh-llm-deepseek` owns
+            # exactly this one and the server refuses the handshake with `no adapter
+            # registered for provider` for any other name. A gateway is a base URL under
+            # that same route, which is why it is carried in the environment below.
             provider="deepseek-official",
             model=self._agent.config.model,
             cwd=where,

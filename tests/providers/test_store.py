@@ -340,11 +340,17 @@ def test_a_backend_offers_its_own_ways_in_and_then_variables_of_your_own() -> No
     assert providers.ways("nope") == ()
 
 
-def test_deepseek_harness_offers_only_its_api_key_way() -> None:
+def test_deepseek_harness_offers_only_the_ways_it_names() -> None:
     offered = providers.ways("deepseek-harness")
 
-    assert [way.name for way in offered] == ["key"]
+    assert [way.name for way in offered] == ["key", "gateway"]
     assert [one.env for one in offered[0].asks] == ["DEEPSEEK_API_KEY"]
+    # The endpoint first, as every gateway way spells it, and the key it takes after: the
+    # SDK sends one credential under one name wherever the account points it.
+    assert [one.env for one in offered[1].asks] == [
+        "DEEPSEEK_BASE_URL",
+        "DEEPSEEK_API_KEY",
+    ]
 
 
 def test_variables_of_your_own_are_read_off_the_lines_they_were_typed_as() -> None:
