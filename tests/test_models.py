@@ -789,6 +789,35 @@ def test_an_endpoint_nothing_is_listening_at_leaves_the_cli_to_answer(
     assert [model.name for model in found] == ["claude-nine", "claude-quick"]
 
 
+@traced
+def test_a_gateway_that_is_down_keeps_the_catalogue_it_served_rather_than_the_clis(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """What a CLI ships with is a stand-in for an account that has nothing, and no more.
+
+    It is not an older version of what the endpoint serves, it is a list from somewhere else:
+    the ids that CLI was built with, none of which a gateway fronting several clouds has heard
+    of. Written over 244 real ones because the gateway was briefly down, every id humanize
+    then offers is refused -- and nothing asks again on its own, so it stays refused.
+    """
+    bin_ = tmp_path / "bin"
+    stands_in(monkeypatch, bin_, "claude", CLAUDE)
+    with endpoint(SERVED) as (base, _asked):
+        providers.add("claude", "gateway", "gateway", {"ANTHROPIC_BASE_URL": base})
+
+        served = models.ask("claude", "gateway")
+
+    # And now there is nothing listening where that account points, which is the same account
+    # asked again on the morning its gateway is down.
+    found = models.ask("claude", "gateway")
+
+    assert [model.name for model in found] == [one.name for one in served]
+    assert models.offered("claude", "gateway") == served
+    # Unasked as well as unwritten: the CLI has nothing to say about this account, so there
+    # is no reason to spend the better part of a minute starting it to hear it.
+    assert not (bin_ / "claude.seen").exists()
+
+
 def test_the_accounts_own_credential_is_sent_and_never_written_down(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

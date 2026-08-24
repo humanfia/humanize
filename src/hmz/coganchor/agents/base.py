@@ -1686,9 +1686,60 @@ class SessionBase(ABC):
         answer = fallbacks.answers(fault)
         if fault == "missing":
             answer = replace(answer, fix=backends.installing(backend))
+        if fault == "unlisted":
+            answer = replace(answer, fix=self._catalogue())
         if isinstance(failed, Failed):
             failed.fault, failed.fix = answer.fault, answer.fix
         return answer
+
+    def _catalogue(self) -> str:
+        """What a person does about a model the account was refused, which is a list to re-ask.
+
+        The list humanize offered that model out of is the list it kept the last time anybody
+        asked this account what it runs, and nothing asks again on its own: asking means
+        starting a coding agent or reaching somebody's gateway, and neither is a thing to do
+        while a sheet is being drawn or a turn is failing. So a catalogue a vendor has moved
+        under is wrong for as long as nobody presses `r`, and every id in it is refused the
+        same way -- which is a wall of `403`s with no hint that humanize's own list is the
+        stale part. Found driving codex on a gateway whose catalogue had been taken from the
+        CLI before the endpoint was ever asked: three ids it shipped with, none of them ones
+        that gateway serves.
+
+        So the failure says it. When the list was taken and whether the refused id is even in
+        it are the two facts that tell a stale catalogue from a model this account genuinely
+        may not have, and both are one file read away -- nothing here reaches the network to
+        find out, the turn having already failed and the person being the one who decides
+        whether to ask again.
+
+        Returns:
+          The clause that goes in brackets after what the CLI said.
+        """
+        from hmz.coganchor import fallbacks, models
+
+        try:
+            account = self._agent.node().name
+            held = [one.name for one in models.offered(self._agent.backend, account)]
+            when = models.asked(self._agent.backend, account).partition("T")[0]
+        except (OSError, ValueError):
+            # An account that has gone, a backend nothing here knows: the turn failed for
+            # what it named rather than for this, and a fix nobody can build is left as the
+            # one the kind itself carries.
+            return fallbacks.answers("unlisted").fix
+        model = self._agent._config.model
+        if not held:
+            return (
+                "nothing has asked this account what it runs; r on its models asks it"
+            )
+        asked = f" (asked {when})" if when else ""
+        if model in held:
+            return (
+                f"the {len(held)} models this account was last offered{asked} still name it, "
+                "so that list is the stale part; r on its models asks again"
+            )
+        return (
+            f"it is not among the {len(held)} models this account was last offered"
+            f"{asked}; r on its models asks again, and names what it may run"
+        )
 
     def _went(self, answer: Answer) -> str:
         """What went wrong, as the clause every line narrating a recovery is built on.

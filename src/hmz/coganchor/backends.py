@@ -117,9 +117,10 @@ class Way:
     stdin: str = ""
 
 
-#: Every kind of failure a turn of one of these CLIs comes to a stop at, in the order a
-#: message is read for them -- the most particular first, so that a line saying both `429` and
-#: `timeout` is read as the rate limit it is rather than as the wire going quiet.
+#: Every kind of failure a turn of one of these CLIs comes to a stop at. The names alone: what
+#: is looked for in a message, and in which order, is :data:`SIGNS` -- one list read from the
+#: top, so that a line saying both `429` and `timeout` is read as the rate limit it is rather
+#: than as the wire going quiet, and a `403` that names a model is not read as a credential.
 #:
 #: A kind rather than a message, because the answer to each of them is a different answer:
 #: waiting is what a rate limit wants and what a revoked key would only make longer; another
@@ -134,19 +135,29 @@ class Way:
 #:   and the loser of a race says `database is locked` before it has spoken to any provider.
 #: - `throttled`: too many requests, or a quota spent. The whole account rather than the one
 #:   call, which is why waiting comes first and another account after it.
-#: - `refused`: the credential, not the request -- 401, 403, a login that has expired. The
-#:   same key a second later is the same answer, so nothing here is tried again.
-#: - `retired`: a model that is gone, or one this account was never entitled to. No account of
+#: - `refused`: the credential, not the request -- 401, a login that has expired, a key that
+#:   was revoked. The same key a second later is the same answer, so nothing here is tried
+#:   again.
+#: - `unlisted`: the model, not the credential. The key was good enough to be told no about
+#:   one model: a gateway fronting several clouds serves the ids its own keys are entitled to,
+#:   and the one the turn named is not among them. It says `403` like a refused credential and
+#:   means something a person does something else about, so it is a kind of its own.
+#: - `retired`: a model that is gone, or one the service says never existed. No account of
 #:   this CLI has it either, so what answers it is another place.
 #: - `missing`: nothing to run. The CLI is not installed, or will not start.
+#: - `sandboxed`: the machine, not the account. A CLI that confines its own tool calls could
+#:   not set that confinement up -- an unprivileged container with no user namespace to give
+#:   bubblewrap -- and it says `Permission denied` while having been refused nothing at all.
 #: - `killed`: the process died rather than answered -- a signal, an out-of-memory kill.
 #: - `dropped`: the wire. A connection reset, a broken pipe, a gateway that went away.
 FAULTS = (
     "contended",
     "throttled",
     "refused",
+    "unlisted",
     "retired",
     "missing",
+    "sandboxed",
     "killed",
     "dropped",
 )
@@ -177,6 +188,14 @@ class Sign:
 #: the vendors' own words for them are shared: a `429` is a `429` whichever CLI was holding
 #: the socket. What one CLI says and no other does goes on that backend's own profile, in
 #: `signs`, and is read first.
+#:
+#: Read from the top, first one that matches. So the order is the whole of how one signature
+#: is told from another that is also in the line, and a sentence goes in front of a number:
+#: `403 key not allowed to access model` carries a status that means a credential and a
+#: sentence that means a model, and a gateway account told to sign in again over a model id
+#: is a person sent to fix something that was never broken. Which is why the two kinds a
+#: credential's own words would otherwise swallow are written where they are -- after the
+#: quota and the busy store, whose signatures are nobody else's, and before the 401.
 SIGNS: tuple[Sign, ...] = (
     # Two turns at one store rather than anything to do with an account: opencode keeps its
     # sessions in a SQLite database shared across workspaces, and the loser of that race is
@@ -197,6 +216,47 @@ SIGNS: tuple[Sign, ...] = (
     Sign("throttled", r"usage limit"),
     Sign("throttled", r"insufficient[ _-]balance"),
     Sign("throttled", r"credit balance is too low"),
+    # The machine rather than the account, and in front of the credentials because the word it
+    # fails with is one of theirs. A CLI that confines its own tool calls asks the kernel for
+    # a namespace to confine them in, and an unprivileged container has none to give: `bwrap:
+    # setting up uid map: Permission denied` is grok under `--sandbox` on a machine that will
+    # not let it, and nothing there was refused a key. Each of these says the sandbox itself
+    # could not be got rather than merely naming one -- `bwrap:` is bubblewrap's own prefix on
+    # its own errors, and a line that only mentions a sandbox is a line about a sandbox.
+    Sign("sandboxed", r"\bbwrap: "),
+    Sign(
+        "sandboxed",
+        r"(failed to|could not|cannot|unable to) "
+        r"(create|set ?up|start|enter|initiali[sz]e)[^.]{0,30}(sandbox|namespace)",
+    ),
+    Sign(
+        "sandboxed",
+        r"(sandbox|landlock|seccomp|seatbelt)[^.]{0,40}"
+        r"(denied|not (permitted|allowed|supported|available))",
+    ),
+    Sign(
+        "sandboxed",
+        r"user namespaces? [^.]{0,40}"
+        r"(disabled|denied|not (permitted|allowed|supported|available|enabled))",
+    ),
+    # The model rather than the credential, and in front of the credentials for that reason:
+    # a gateway fronting several clouds refuses an id its key is not entitled to with a `403`
+    # and a sentence naming the model, and the status alone would send somebody to sign an
+    # account in that was never refused. Seen against an OpenAI-compatible gateway as `403 key
+    # not allowed to access model. This key can only access models=[...]. Tried to access
+    # gpt-5.2`, and it is the shape every such gateway refuses an unentitled id in.
+    Sign("unlisted", r"not allowed to access (the )?model"),
+    Sign("unlisted", r"can only access models"),
+    Sign("unlisted", r"(do(es)? not|don't|doesn't) have access to (the )?model"),
+    Sign(
+        "unlisted",
+        r"not (entitled|authori[sz]ed|permitted) to (use|access) (the )?model",
+    ),
+    Sign("unlisted", r"model[^.]{0,40}(is )?not (allowed|enabled|entitled|permitted)"),
+    # Codex on a subscription, told to run a model that account does not include. The model is
+    # real and somebody else's account has it, which is what makes it this rather than a model
+    # that has gone.
+    Sign("unlisted", r"is not supported when using"),
     # The credential rather than the request. Another try with the same one is the same
     # answer, so the tries here are worth none at all and the account chain is the whole of
     # the answer -- with a word to say that the one it left needs signing in again.
@@ -211,9 +271,6 @@ SIGNS: tuple[Sign, ...] = (
     Sign("refused", r"no credential"),
     Sign("refused", r"(token|credentials?|session) (has |have )?expired"),
     Sign("refused", r"forbidden"),
-    # An entitlement rather than a model that has gone: the model is real and this account
-    # cannot have it, which is what the account chain is for.
-    Sign("refused", r"is not supported when using"),
     # A model that is gone, or one this account was never entitled to. No other account of
     # this CLI has it either, so this is the one failure an account chain cannot answer.
     Sign("retired", r"\b404\b"),
@@ -2157,14 +2214,24 @@ def trouble(
     # than both together: a CLI that has a sentence of its own for a failure knows better than
     # a word that happens to be in the same line -- dsh says `needs a DeepSeek API key`, and a
     # line that also mentions a quota is not a quota that was spent.
+    #
+    # And within each, the order they are written in rather than the order the kinds are
+    # named: a status says only that something was refused and a sentence says what, so the
+    # one that says what is written in front. A `403 key not allowed to access model` read by
+    # the number is a person told to sign an account in that refused nothing, and a `bwrap:
+    # Permission denied` read by the word is the same person told it twice.
     for signs in ((profile.signs if profile is not None else ()), SIGNS):
         for held in streams:
-            for fault in FAULTS:
-                if held and any(
-                    one.fault == fault and re.search(one.says, held, re.IGNORECASE)
+            found = next(
+                (
+                    one.fault
                     for one in signs
-                ):
-                    return fault
+                    if held and re.search(one.says, held, re.IGNORECASE)
+                ),
+                "",
+            )
+            if found:
+                return found
     return ""
 
 

@@ -164,10 +164,7 @@ def offered(cli: str, provider: str = "") -> tuple[Model, ...]:
       backend there is -- each of which is a catalogue to fill rather than a reason to raise
       at whoever only wanted to see a list.
     """
-    found = tuple(
-        Model(name, tuple(efforts), swarms)
-        for name, efforts, swarms in _read(_kept(cli, provider))
-    )
+    found = _written(cli, provider)
     profile = named(cli)
     if not found and profile is not None and profile.name in speaking():
         # The protocol says nothing about which models an agent runs: that is the agent's own
@@ -205,7 +202,8 @@ def ask(cli: str, provider: str = "", seconds: float = WAITING) -> tuple[Model, 
     provider's own paths, with the variables that account sets and without the ones its
     backend would take another account from. What comes back is what a turn could actually
     name -- which is why the endpoint goes first where there is one, a CLI having no way of
-    answering with anything but the models it shipped with.
+    answering with anything but the models it shipped with, and why what a CLI said about an
+    account that names an endpoint is never written over what that endpoint once served.
 
     Args:
       cli: The backend, by any name it answers to.
@@ -213,7 +211,11 @@ def ask(cli: str, provider: str = "", seconds: float = WAITING) -> tuple[Model, 
       seconds: How long the backend is given to answer, for the times it is the one asked.
 
     Returns:
-      What was said, in its own order and with each model named once.
+      What was said, in its own order and with each model named once. What was already kept,
+      untouched, where the account names an endpoint that would not answer this time: the
+      CLI's own list stands in for an account that has no catalogue yet and never goes over
+      one the endpoint itself answered, being a catalogue from somewhere else rather than an
+      older version of this one.
 
     Raises:
       ValueError: If the backend is not one there is, has no way of being asked, is not that
@@ -229,6 +231,19 @@ def ask(cli: str, provider: str = "", seconds: float = WAITING) -> tuple[Model, 
         raise ValueError(f"{profile.name} has no way of being asked what it runs")
     environ, run = _asking(profile, provider, seconds)
     served = _served(profile, environ)
+    if (
+        served is None
+        and _pointed(profile, environ)
+        and (kept := _written(profile.name, provider))
+    ):
+        # The endpoint this account names would not answer, and what the CLI would say
+        # instead is not this account's catalogue at all: it is the ids that CLI shipped
+        # with, which on somebody's gateway are three names the gateway has never heard of.
+        # Wrong in kind rather than out of date -- so it stands in for an account that has
+        # nothing yet, and it does not go over what an endpoint has already answered. A
+        # gateway that is briefly down would otherwise turn a catalogue of 244 real ids into
+        # three that 403, and nothing asks again on its own.
+        return kept
     found: list[Model] = []
     seen: set[str] = set()
     for model in served if served is not None else reading(profile, run):
@@ -321,7 +336,7 @@ def _served(profile: Profile, environ: Mapping[str, str]) -> list[Model] | None:
       not answer, and where what it answered is not a list of models: an endpoint that will
       not say is a reason to ask the CLI, never a reason to have no catalogue at all.
     """
-    base = environ.get(profile.endpoint, "").strip() if profile.endpoint else ""
+    base = _pointed(profile, environ)
     if not base:
         return None
     try:
@@ -331,6 +346,21 @@ def _served(profile: Profile, environ: Mapping[str, str]) -> list[Model] | None:
         # stopped half way through. Every one of them is the CLI's turn to be asked.
         return None
     return [Model(one, profile.efforts, profile.swarms) for one in ids] if ids else None
+
+
+def _pointed(profile: Profile, environ: Mapping[str, str]) -> str:
+    """Where this account points its backend, out of the environment a turn of it runs with.
+
+    Args:
+      profile: The backend, which says which of its variables routes a request.
+      environ: The environment a turn of this account runs under.
+
+    Returns:
+      The base URL, as the account spells it, and "" for an account that names nowhere -- a
+      subscription, a vendor's own key, or a backend whose endpoint serves ids a turn of it
+      could not name anyway.
+    """
+    return environ.get(profile.endpoint, "").strip() if profile.endpoint else ""
 
 
 class _Nearby(urllib.request.HTTPRedirectHandler):
@@ -926,6 +956,26 @@ def _read(held: dict[str, Any]) -> list[tuple[str, list[str], bool]]:
                 )
             )
     return found
+
+
+def _written(cli: str, provider: str) -> tuple[Model, ...]:
+    """What is actually written down for one account, with nothing stood in for it.
+
+    Args:
+      cli: The backend, by any name it answers to.
+      provider: The account, or "" for the CLI as it already runs.
+
+    Returns:
+      The models kept for it, in the order they were kept, and nothing at all where nothing
+      readable has been kept -- which is a different answer from :func:`offered`, whose job is
+      to have something to show and which stands a written-down list in for a backend that
+      cannot be asked. Told apart because what may be overwritten is what was kept: a list
+      this package holds an opinion about is not an answer anything asked for.
+    """
+    return tuple(
+        Model(name, tuple(efforts), swarms)
+        for name, efforts, swarms in _read(_kept(cli, provider))
+    )
 
 
 def _write(at: Path, models: list[Model]) -> None:

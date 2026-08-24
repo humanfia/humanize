@@ -194,7 +194,21 @@ The credential goes into that one request and nowhere else — not into `models.
 a log, not into the message you get when the endpoint refuses, and not to another host: a
 redirect off the address you gave is refused rather than followed, since the headers would go
 with it. An endpoint that is down, that refuses, or that answers something other than a model
-list leaves the CLI to answer as before.
+list leaves the CLI to answer as before — but only for an account that has no list yet. What a
+CLI ships with is not an older version of what a gateway serves, it is a catalogue from
+somewhere else, so it stands in and never goes over ids that endpoint itself gave: a gateway
+that is briefly down when you press **r** does not cost you the list it served last week.
+
+Nothing asks again on its own — asking means starting a coding agent or reaching somebody's
+gateway — so a vendor that moves its catalogue leaves yours naming ids the endpoint now
+refuses. The turn that names one says so, rather than reading as a credential to fix:
+
+```
+403 key not allowed to access model. This key can only access models=['default-models'].
+Tried to access gpt-5.2
+(unlisted: the 3 models this account was last offered (asked 2026-09-10) still name it, so
+that list is the stale part; r on its models asks again)
+```
 
 ## Every account there is
 

@@ -148,16 +148,17 @@ Command '['claude', …]' returned non-zero exit status 1. 429 rate limit exceed
 (throttled: this account has spent its quota; another one, or a wait, is what answers it)
 ```
 
-The kinds are `throttled`, `refused`, `retired`, `contended`, `dropped`, `killed` and
-`missing`, and each of them gets [a different answer](/user/fallback#what-went-wrong) before
+The kinds are `throttled`, `refused`, `unlisted`, `retired`, `contended`, `dropped`, `killed`,
+`sandboxed` and `missing`, and each of them gets
+[a different answer](/user/fallback#what-went-wrong) before
 the turn is given up on. A failure with no kind in brackets is one nothing recognised, which is
 tried again exactly as a failed turn always was.
 
 ### `(refused: that account needs signing in again)`
 
-The credential, not the request: a 401, a 403, or a login that has expired. Nothing is tried
-again under it — it would be refused a minute later too — and the turn carries on under the
-next account of that backend. Sign the one it left back in:
+The credential, not the request: a 401, or a login that has expired. Nothing is tried again
+under it — it would be refused a minute later too — and the turn carries on under the next
+account of that backend. Sign the one it left back in:
 
 ```sh
 claude auth login
@@ -166,6 +167,45 @@ claude auth login
 Or, for an account humanize keeps rather than the one this machine is signed into, open
 [`/providers`](/reference/tui#the-accounts-themselves), put the cursor on it and press enter:
 *sign in again* runs that backend's own way in under this account's paths.
+
+### `(unlisted: … this account was last offered …)`
+
+The model, not the credential. The account is signed in and was told no about one id — a
+gateway fronting several clouds serves the models its own keys are entitled to, and a
+subscription does not include everything the CLI can name:
+
+```
+403 key not allowed to access model. This key can only access models=['default-models'].
+Tried to access gpt-5.2
+(unlisted: the 3 models this account was last offered (asked 2026-09-10) still name it, so
+that list is the stale part; r on its models asks again)
+```
+
+The list humanize offered that id out of is the one it kept the last time anybody asked this
+account what it runs, and **nothing asks again on its own** — asking means starting a coding
+agent or reaching somebody's gateway, and neither is a thing to do while a sheet is drawn or a
+turn is failing. So a vendor that moves its catalogue leaves every id in yours refused, and the
+brackets say which of the two it is: a list that still names the refused id is the stale part,
+and a list that never named it is one to read before naming another.
+
+Either way, **r** asks again — in the agent's own setup sheet, on the `model` row — and
+`Hmz().accounts.ask(cli, provider)` is the same question from a script. An account on somebody's
+endpoint is answered by that endpoint rather than by the CLI, so what comes back is what that
+account may actually name.
+
+### `(sandboxed: this machine will not let it sandbox itself; run it without one, or somewhere it can)`
+
+The machine, not the account. A CLI that confines its own tool calls asks the kernel for a
+namespace to confine them in, and an unprivileged container has none to give:
+
+```
+bwrap: setting up uid map: Permission denied
+```
+
+Nothing was refused a credential, so no account of that backend is walked and no go is worth
+taking again. Run the container with the privileges its sandbox needs (`--privileged`, or a
+kernel that permits unprivileged user namespaces), or configure the agent without a sandbox —
+`grok`'s is `sandbox=""`, which is the bare CLI's own answer.
 
 ### `(retired: the model is gone or was never this account's; another place is what answers it)`
 
