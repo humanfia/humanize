@@ -19,6 +19,7 @@ from hmz.coganchor.agents import Failed, QwenCodeAgent, QwenCodeAgentConfig
 from hmz.coganchor.agents import qwen as backend
 from hmz.coganchor.agents.skills import Loaded
 from hmz.coganchor.machines import AnchoredConfig
+from tests.agents import standins
 from tests.stubs import HereAnchor
 
 if TYPE_CHECKING:
@@ -112,7 +113,10 @@ class _Qwen:
 def qwen(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[_Qwen]:
     log = tmp_path / "calls.jsonl"
     binary = tmp_path / "qwen"
-    binary.write_text(f"#!{sys.executable}\n{_FAKE.replace('LOG', repr(str(log)))}")
+    refuses = standins.refusing("qwen")
+    binary.write_text(
+        f"#!{sys.executable}\n{refuses}{_FAKE.replace('LOG', repr(str(log)))}"
+    )
     binary.chmod(0o755)
     monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.chdir(tmp_path)

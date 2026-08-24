@@ -25,6 +25,7 @@ from hmz.coganchor.agents import (
     PiAgent,
     PiAgentConfig,
 )
+from tests.agents import standins
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -70,8 +71,6 @@ def note(entry):
 
 
 note({"argv": sys.argv[1:], "said": None})
-flags = dict(zip(sys.argv, sys.argv[1:]))
-print(json.dumps({"type": "session", "id": flags["--session-id"]}), flush=True)
 for line in sys.stdin:
     told = json.loads(line)
     note({"argv": None, "said": json.dumps(told)})
@@ -122,12 +121,19 @@ class _Noted:
 def _install(
     named: str, script: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> _Noted:
-    """Puts one stand-in CLI on PATH and says where it writes down what it was asked."""
+    """Puts one stand-in CLI on PATH and says where it writes down what it was asked.
+
+    It opens with what that CLI refuses, so a driver that drifted onto a flag the real one
+    has not got fails here rather than on somebody's machine.
+    """
     log = tmp_path / f"{named}.jsonl"
     binaries = tmp_path / "bin"
     binaries.mkdir(exist_ok=True)
     fake = binaries / named
-    fake.write_text(f"#!{sys.executable}\n{script.replace('LOG', repr(str(log)))}")
+    refuses = standins.refusing(named)
+    fake.write_text(
+        f"#!{sys.executable}\n{refuses}{script.replace('LOG', repr(str(log)))}"
+    )
     fake.chmod(0o755)
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
     return _Noted(log)

@@ -27,6 +27,7 @@ from hmz.coganchor.agents import (
     Verdict,
 )
 from hmz.coganchor.agents.cursor import _COMMAND, parameterized
+from tests.agents import standins
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -132,9 +133,16 @@ class _Calls:
 
 
 def _install(binaries: Path, script: str, log: Path) -> None:
-    """Puts a stand-in `cursor-agent` on PATH."""
+    """Puts a stand-in `cursor-agent` on PATH.
+
+    It opens with what that CLI refuses, so a driver that drifted onto a flag the real one
+    has not got fails here rather than on somebody's machine.
+    """
     fake = binaries / "cursor-agent"
-    fake.write_text(f"#!{sys.executable}\n{script.replace('LOG', repr(str(log)))}")
+    refuses = standins.refusing("cursor-agent")
+    fake.write_text(
+        f"#!{sys.executable}\n{refuses}{script.replace('LOG', repr(str(log)))}"
+    )
     fake.chmod(0o755)
 
 

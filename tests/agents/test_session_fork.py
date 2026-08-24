@@ -42,6 +42,7 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.agents.skills import Loaded
 from hmz.runtime.epic import Epic, sessions
+from tests.agents import standins
 from tests.stubs import ShellAgent
 
 if TYPE_CHECKING:
@@ -118,9 +119,16 @@ print('Forked to session_cut ("Fork: hello") in 12ms')
 
 
 def _install(binaries: Path, named: str, script: str, log: Path) -> None:
-    """Puts one stand-in CLI on PATH under the name the backend calls it."""
+    """Puts one stand-in CLI on PATH under the name the backend calls it.
+
+    It opens with what that CLI refuses, so a driver that drifted onto a flag the real one
+    has not got fails here rather than on somebody's machine.
+    """
     fake = binaries / named
-    fake.write_text(f"#!{sys.executable}\n{script.replace('LOG', repr(str(log)))}")
+    refuses = standins.refusing(named)
+    fake.write_text(
+        f"#!{sys.executable}\n{refuses}{script.replace('LOG', repr(str(log)))}"
+    )
     fake.chmod(0o755)
 
 

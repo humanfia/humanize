@@ -20,6 +20,7 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.agents.event import Usage
 from hmz.coganchor.providers import Provider
+from tests.agents import standins
 from tests.stubs import HereAnchor
 
 if TYPE_CHECKING:
@@ -113,7 +114,10 @@ class _Agy:
 def agy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[_Agy]:
     log = tmp_path / "calls.jsonl"
     binary = tmp_path / "agy"
-    binary.write_text(f"#!{sys.executable}\n{_FAKE.replace('LOG', repr(str(log)))}")
+    refuses = standins.refusing("agy")
+    binary.write_text(
+        f"#!{sys.executable}\n{refuses}{_FAKE.replace('LOG', repr(str(log)))}"
+    )
     binary.chmod(0o755)
     monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.chdir(tmp_path)

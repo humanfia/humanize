@@ -34,6 +34,7 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.agents.codenames import SAID
 from hmz.coganchor.machines import AnchoredConfig
+from tests.agents import standins
 from tests.stubs import HereAnchor, ShellAgent
 
 if TYPE_CHECKING:
@@ -109,7 +110,11 @@ class _FakeCLIs:
 
 @pytest.fixture
 def clis(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _FakeCLIs:
-    """Installs a fake CLI per backend, printing the transcript that backend really prints."""
+    """Installs a fake CLI per backend, printing the transcript that backend really prints.
+
+    Each opens with what its CLI refuses, so a driver that drifted onto a flag the real one
+    has not got fails here rather than on somebody's machine.
+    """
     log = tmp_path / "calls.jsonl"
     binaries = tmp_path / "bin"
     binaries.mkdir()
@@ -125,7 +130,8 @@ def clis(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _FakeCLIs:
         "note(sys.argv[1:], '')\n"
         "flags = dict(zip(sys.argv, sys.argv[1:]))\n"
         "pinned = flags.get('--session-id') or flags['--resume']\n"
-        "print(json.dumps({'type': 'system', 'session_id': pinned}), flush=True)\n"
+        "print(json.dumps({'type': 'system', 'subtype': 'init', "
+        "'session_id': pinned}), flush=True)\n"
         "for line in sys.stdin:\n"
         "    said = json.loads(line)['message']['content'][0]['text']\n"
         "    note([], said)\n"
@@ -134,10 +140,11 @@ def clis(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _FakeCLIs:
         "    print(json.dumps({'type': 'assistant', 'message': {'content': "
         "[{'type': 'text', 'text': 'working'}]}}), flush=True)\n"
         # One answer per thing said, which is what the real one does.
-        "    print(json.dumps({'type': 'result', 'result': answer}), flush=True)\n"
+        "    print(json.dumps({'type': 'result', 'subtype': 'success', "
+        "'is_error': False, 'session_id': pinned, 'result': answer}), flush=True)\n"
     )
     fake = binaries / "claude"
-    fake.write_text(f"#!{sys.executable}\n{claude}")
+    fake.write_text(f"#!{sys.executable}\n{standins.refusing('claude')}{claude}")
     fake.chmod(0o755)
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
     return _FakeCLIs(log)
@@ -536,7 +543,8 @@ REFUSING = (
     "import json, sys\n"
     "flags = dict(zip(sys.argv, sys.argv[1:]))\n"
     "pinned = flags.get('--session-id') or flags['--resume']\n"
-    "print(json.dumps({'type': 'system', 'session_id': pinned}), flush=True)\n"
+    "print(json.dumps({'type': 'system', 'subtype': 'init', "
+    "'session_id': pinned}), flush=True)\n"
     "sys.stderr.write('the model is not available\\n')\n"
     "for line in sys.stdin:\n"
     "    print(json.dumps({'type': 'result', 'subtype': 'success', 'is_error': True,\n"
@@ -552,7 +560,7 @@ def refusing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     binaries = tmp_path / "bin"
     binaries.mkdir()
     fake = binaries / "claude"
-    fake.write_text(f"#!{sys.executable}\n{REFUSING}")
+    fake.write_text(f"#!{sys.executable}\n{standins.refusing('claude')}{REFUSING}")
     fake.chmod(0o755)
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
 

@@ -29,6 +29,7 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.agents import codex as appservers
 from hmz.coganchor.agents.tools import PROTOCOL, serve
+from tests.agents import standins
 from tests.stubs import ShellAgent
 
 if TYPE_CHECKING:
@@ -343,7 +344,10 @@ def claude(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     binaries = tmp_path / "bin"
     binaries.mkdir()
     fake = binaries / "claude"
-    fake.write_text(f"#!{sys.executable}\n{_CLAUDE.replace('LOG', repr(str(log)))}")
+    refuses = standins.refusing("claude")
+    fake.write_text(
+        f"#!{sys.executable}\n{refuses}{_CLAUDE.replace('LOG', repr(str(log)))}"
+    )
     fake.chmod(0o755)
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.chdir(tmp_path)
