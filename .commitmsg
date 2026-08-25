@@ -1,7 +1,0 @@
-docs(agents): name the agy the flag table was actually read off
-
-The comment said 1.2.2, which is the release the driver was aligned to; the `--help` the
-table came from is 1.2.3's, which is what is installed here. A table is only as good as the
-version it can be checked against, so it says which one that was.
-
-Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
