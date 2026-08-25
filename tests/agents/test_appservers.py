@@ -16,7 +16,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 from pydantic import BaseModel
@@ -727,6 +727,49 @@ def test_what_a_kimi_turn_spent_is_charged_to_the_turn_that_spent_it(
     assert spent == [{"kimi-code/k3": 1000}]  # every kind of token, in and out alike
 
 
+class _Saying:
+    """A daemon that answers one body, standing in for the session route alone."""
+
+    def __init__(self, usage: dict[str, int]) -> None:
+        self._usage = usage
+
+    def call(self, method: str, path: str, body: Any = None) -> Any:
+        return {"id": "session_fake", "usage": self._usage}
+
+
+def test_a_session_aggregate_of_zero_does_not_erase_what_the_steps_counted() -> None:
+    """0.42.0 answers four literal zeros here forever, so the steps are the whole meter.
+
+    The aggregate is read all the same, because a build that ever starts filling it should be
+    believed and is the fuller figure when it does: it covers the session's whole life, and
+    the steps only the part of it this driver was listening to. So the larger of the two, kind
+    by kind -- which is the aggregate where the aggregate works, the steps where it does not,
+    and never a zero on top of a count that is real.
+    """
+    session = _agent().new()
+    assert isinstance(session, kimicode.KimiCodeCLISession)
+    session._stepped.update({"input": 3, "output": 23, "cache_read": 21248})
+    nothing = cast(
+        "kimicode._AppServer",
+        _Saying(dict.fromkeys(kimicode._KINDS.values(), 0)),
+    )
+
+    first = session._counting(nothing, "session_fake")
+    session._stepped.update({"input": 1, "output": 7})
+    second = session._counting(nothing, "session_fake")
+    counting = cast(
+        "kimicode._AppServer", _Saying({"input_tokens": 90, "output_tokens": 90})
+    )
+    third = session._counting(counting, "session_fake")
+
+    # The whole of what the steps have said, then the rise across them and nothing twice.
+    assert dict(first) == {"input": 3, "output": 23, "cache_read": 21248}
+    assert dict(second) == {"input": 1, "output": 7}
+    # And a daemon that does count gets believed over the steps where it counts more, which
+    # is the aggregate covering turns taken before anything here was listening.
+    assert dict(third) == {"input": 86, "output": 60}
+
+
 @pytest.mark.parametrize(
     ("effort", "thinking", "swarm"), [("max", "max", False), ("swarmmax", "max", True)]
 )
@@ -1216,8 +1259,22 @@ def test_kimi_steers_a_word_into_the_turn_already_running(kimi: _FakeServer) -> 
     ).new()
 
     def put_in() -> None:
+        # Waited on the daemon having been told this turn's own prompt, rather than on
+        # `session._running.session`. That one is written *before* the prompt is posted, and
+        # deliberately -- a word put in has to have a session to be steered into from the
+        # moment there is a turn to interrupt -- so a thread woken by it can reach the daemon
+        # first. The daemon numbers prompts in the order they arrive, so losing that race puts
+        # the word in as `p_1` and the turn it was meant for as `p_2`, and the steer below
+        # names the wrong one. It lost it twice under a loaded `-n auto`. What is waited for
+        # instead is the thing an interjection is second to by definition.
+        #
+        # Read as text rather than parsed, because this is read while the daemon is writing
+        # it: a line caught half-written is a poll that finds nothing and comes round again,
+        # where a parse of one is this thread dying quietly. And the daemon serves one request
+        # at a time, so a prompt it has written down is a prompt it has finished taking before
+        # it so much as reads the connection this steer arrives on.
         for _ in range(300):
-            if session._running.session is not None:
+            if kimi.log.exists() and '"patient"' in kimi.log.read_text():
                 session.interject("actually, stop")
                 return
             time.sleep(0.02)

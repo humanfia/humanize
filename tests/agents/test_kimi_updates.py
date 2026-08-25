@@ -1,4 +1,10 @@
-"""Official Kimi event notifications accelerate polling without owning turn state."""
+"""Official Kimi event notifications accelerate polling, and carry the one figure REST will not.
+
+Turn state stays REST's: what has been said, what is being asked, whether the turn is still
+running. Spending does not, because on 0.42.0 REST has none -- the session route answers four
+literal zeros for the life of a session, and the step frames read here are the only place the
+daemon says what a request cost.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +14,7 @@ import subprocess
 import sys
 import textwrap
 import threading
+from collections import Counter
 from contextlib import contextmanager, suppress
 from typing import TYPE_CHECKING
 
@@ -55,7 +62,7 @@ def test_notifications_are_isolated_and_completion_removes_settle_sleep(
         socket.recv()  # keep the stream open until the reader closes it
 
     with server(handler) as base:
-        updates = kimi._Updates(base, "test-token", "ours")
+        updates = kimi._Updates(base, "test-token", "ours", Counter())
         try:
             updates.wait(settled=False)
             assert not updates.ended
@@ -83,7 +90,7 @@ def test_heartbeats_echo_the_nonce_and_keep_notifications_flowing() -> None:
         socket.recv()
 
     with server(handler) as base:
-        updates = kimi._Updates(base, "test-token", "ours")
+        updates = kimi._Updates(base, "test-token", "ours", Counter())
         try:
             updates.wait(settled=False)
             assert not updates.ended
@@ -114,7 +121,7 @@ def test_saturated_notification_queue_does_not_delay_cleanup() -> None:
             socket.recv(timeout=2)
 
     with server(handler) as base:
-        updates = kimi._Updates(base, "test-token", "ours")
+        updates = kimi._Updates(base, "test-token", "ours", Counter())
         try:
             socket = updates._socket
             assert socket is not None
@@ -148,7 +155,7 @@ def test_failed_heartbeat_reply_returns_to_polling(
         raise OSError("connection lost while replying")
 
     with server(handler) as base:
-        updates = kimi._Updates(base, "test-token", "ours")
+        updates = kimi._Updates(base, "test-token", "ours", Counter())
         assert updates._socket is not None
         monkeypatch.setattr(updates._socket, "send", fail_send)
         updates.wait(settled=False)
@@ -166,7 +173,7 @@ def test_refused_subscription_returns_to_polling(
         acknowledge(socket, code=40001)
 
     with server(handler) as base:
-        updates = kimi._Updates(base, "test-token", "ours")
+        updates = kimi._Updates(base, "test-token", "ours", Counter())
         slept: list[float] = []
         monkeypatch.setattr(kimi.time, "sleep", slept.append)
         updates.wait(settled=False)
@@ -179,7 +186,7 @@ def test_lost_event_stream_returns_to_polling(monkeypatch: pytest.MonkeyPatch) -
         acknowledge(socket)
 
     with server(handler) as base:
-        updates = kimi._Updates(base, "test-token", "ours")
+        updates = kimi._Updates(base, "test-token", "ours", Counter())
         updates.wait(settled=False)
         assert updates._socket is None
         slept: list[float] = []
@@ -197,7 +204,7 @@ def test_quiet_event_stream_still_allows_recovery_polls(
 
     monkeypatch.setattr(kimi, "_RECOVERY_SECONDS", 0.01)
     with server(handler) as base:
-        updates = kimi._Updates(base, "test-token", "ours")
+        updates = kimi._Updates(base, "test-token", "ours", Counter())
         try:
             updates.wait(settled=False)
             assert updates._socket is not None
@@ -221,7 +228,7 @@ def test_malformed_notification_returns_to_polling(message: str) -> None:
         socket.recv()
 
     with server(handler) as base:
-        updates = kimi._Updates(base, "test-token", "ours")
+        updates = kimi._Updates(base, "test-token", "ours", Counter())
         updates.wait(settled=False)
         assert updates._socket is None
 
@@ -237,7 +244,7 @@ def test_streaming_text_wakes_a_recovery_wait(
     # Without a text wakeup this would wait the ten-second recovery interval instead.
     monkeypatch.setattr(kimi, "_POLL_SECONDS", 0.01)
     with server(handler) as base:
-        updates = kimi._Updates(base, "test-token", "ours")
+        updates = kimi._Updates(base, "test-token", "ours", Counter())
         try:
             started = kimi.time.monotonic()
             updates.wait(settled=False)
@@ -266,7 +273,7 @@ def test_subagent_completion_does_not_settle_the_main_turn() -> None:
         socket.recv()
 
     with server(handler) as base:
-        updates = kimi._Updates(base, "test-token", "ours")
+        updates = kimi._Updates(base, "test-token", "ours", Counter())
         try:
             updates.wait(settled=False)
             assert not updates.ended
@@ -283,8 +290,10 @@ def test_subagent_completion_does_not_settle_the_main_turn() -> None:
 def test_notifications_say_when_a_question_may_be_waiting() -> None:
     """Only a question is something a turn stops on, so only it is worth bringing forward.
 
-    What a turn has spent and whether it is still running are read a second apart whatever
-    the daemon says: one is a meter and the other is a reading a turn cannot end without.
+    Whether a turn is still running, and what it has spent, are read a second apart whatever
+    the daemon says: one is a reading a turn cannot end without and the other is a meter. A
+    step that landed carries the spending and still raises no question, which is the one
+    frame here that does something and brings nothing forward.
     """
 
     def handler(socket: ServerConnection) -> None:
@@ -300,7 +309,7 @@ def test_notifications_say_when_a_question_may_be_waiting() -> None:
         socket.recv()
 
     with server(handler) as base:
-        updates = kimi._Updates(base, "test-token", "ours")
+        updates = kimi._Updates(base, "test-token", "ours", Counter())
         try:
             # A listener that has been told nothing yet asks the daemon anyway.
             assert updates.questioned
@@ -334,7 +343,7 @@ def test_a_frame_under_an_unknown_name_still_wakes_the_reader(
     monkeypatch.setattr(kimi, "_RECOVERY_SECONDS", 30)
     monkeypatch.setattr(kimi, "_POLL_SECONDS", 0.05)
     with server(handler) as base:
-        updates = kimi._Updates(base, "test-token", "ours")
+        updates = kimi._Updates(base, "test-token", "ours", Counter())
         try:
             updates.questioned = False
             started = kimi.time.monotonic()
@@ -365,7 +374,7 @@ def test_streamed_chunks_are_coalesced_rather_than_woken_for_one_by_one(
     monkeypatch.setattr(kimi, "_RECOVERY_SECONDS", 1.0)
     monkeypatch.setattr(kimi, "_POLL_SECONDS", 0.2)
     with server(handler) as base:
-        updates = kimi._Updates(base, "test-token", "ours")
+        updates = kimi._Updates(base, "test-token", "ours", Counter())
         try:
             assert sent.wait(timeout=2)
             wakes: list[
@@ -399,7 +408,7 @@ def test_streaming_text_alone_does_not_re_arm_the_authoritative_reads(
     monkeypatch.setattr(kimi, "_RECOVERY_SECONDS", 30)
     monkeypatch.setattr(kimi, "_POLL_SECONDS", 0.05)
     with server(handler) as base:
-        updates = kimi._Updates(base, "test-token", "ours")
+        updates = kimi._Updates(base, "test-token", "ours", Counter())
         try:
             updates.questioned = False
             updates.wait(settled=False)
@@ -418,7 +427,7 @@ def test_a_listener_that_stops_carrying_events_asks_for_everything(
 
     monkeypatch.setattr(kimi, "_RECOVERY_SECONDS", 0.01)
     with server(handler) as base:
-        updates = kimi._Updates(base, "test-token", "ours")
+        updates = kimi._Updates(base, "test-token", "ours", Counter())
         try:
             updates.wait(settled=False)
             updates.questioned = False
@@ -453,7 +462,7 @@ def test_a_missing_websocket_client_says_which_extra_carries_it(
     monkeypatch.setattr(importlib, "import_module", missing)
 
     with pytest.raises(ModuleNotFoundError, match=r"\[kimi\] extra"):
-        kimi._Updates("http://127.0.0.1:1/api/v1", "test-token", "ours")
+        kimi._Updates("http://127.0.0.1:1/api/v1", "test-token", "ours", Counter())
 
 
 def test_the_backends_load_without_the_websocket_client() -> None:
@@ -491,3 +500,59 @@ def test_the_backends_load_without_the_websocket_client() -> None:
 
     assert ran.returncode == 0, ran.stderr
     assert ran.stdout.strip() == "KimiCodeCLIAgent"
+
+
+def test_what_a_step_says_it_spent_is_added_to_the_session_that_spent_it() -> None:
+    """The step frame is where 0.42.0 says what a request cost, so this is the whole meter.
+
+    And it says it in its own names, one of which does not mean what it looks like. The CLI's
+    own `inputTotal` is `inputOther + inputCacheRead + inputCacheCreation`, so `inputOther` is
+    the input no cache served -- which is exactly what `input` means here, the kinds being
+    counted so that adding them up is the whole of what crossed the wire. Read as the whole
+    input it would charge the cached part of it twice.
+    """
+
+    def handler(socket: ServerConnection) -> None:
+        acknowledge(socket)
+        for session, agent, usage in (
+            ("ours", "main", {"inputOther": 3, "output": 23, "inputCacheRead": 21248}),
+            (
+                "theirs",
+                "main",
+                {"inputOther": 900, "output": 900, "inputCacheRead": 900},
+            ),
+            (
+                "ours",
+                "swarm_1",
+                {"inputOther": 7, "output": 11, "inputCacheCreation": 40},
+            ),
+            ("ours", "main", {}),
+        ):
+            socket.send(
+                json.dumps(
+                    {
+                        "type": "turn.step.completed",
+                        "session_id": session,
+                        "payload": {"agentId": agent, "usage": usage or None},
+                    }
+                )
+            )
+        socket.recv()
+
+    stepped: Counter[str] = Counter()
+    with server(handler) as base:
+        updates = kimi._Updates(base, "test-token", "ours", stepped)
+        try:
+            for _ in range(3):
+                updates.wait(settled=False)
+        finally:
+            updates.close()
+
+    # One daemon serves every session of its agent and publishes all of their frames down
+    # every socket, so the thousands the other session spent are not on this session's bill.
+    # A swarm member's are: it ran inside this session, and what it asked the model for is
+    # what this session is charged. A step that carried no usage at all adds nothing, which
+    # is not the same as its having cost nothing.
+    assert stepped == Counter(
+        {"input": 10, "output": 34, "cache_read": 21248, "cache_write": 40}
+    )
