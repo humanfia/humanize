@@ -211,6 +211,18 @@ ANSWERS: tuple[Answer, ...] = (
         held=True,
         fix="that account needs signing in again",
     ),
+    # The model rather than the credential, so the account chain is still worth walking --
+    # what an account may name is that account's, and the next one on the chain has a
+    # catalogue of its own. Not waited out: the list of what this account runs will not have
+    # changed by the next call, and it is the list rather than the moment that is wrong.
+    # What a person does about it is said by the turn that failed, which is the only place
+    # that knows which id was named and what humanize was last told this account runs.
+    Answer(
+        "unlisted",
+        "was refused that model",
+        held=True,
+        fix="that model is not this account's to name; ask it what it runs and name one of those",
+    ),
     # And neither waited out nor walked round: every account of this CLI is offered the same
     # catalogue, so the model that is gone is gone under all of them.
     Answer(
@@ -258,6 +270,18 @@ ANSWERS: tuple[Answer, ...] = (
         held=True,
         accounts=False,
         fix="",
+    ),
+    # The machine rather than anything a turn named. A CLI that confines its own tool calls
+    # asks the kernel for the confinement, and a kernel that has just said no says no to the
+    # next go and to every account of it: an unprivileged container is not somewhere
+    # bubblewrap works under a different key. What answers it is the machine, the CLI asked
+    # for no sandbox, or another place.
+    Answer(
+        "sandboxed",
+        "could not start its sandbox",
+        held=True,
+        accounts=False,
+        fix="this machine will not let it sandbox itself; run it without one, or somewhere it can",
     ),
 )
 

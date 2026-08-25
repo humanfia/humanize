@@ -151,7 +151,7 @@ takes its own default for the rest.
 
 ## What went wrong
 
-Two things go wrong is where this page started, and it is truer than that: seven do, and each
+Two things go wrong is where this page started, and it is truer than that: nine do, and each
 of them takes a different answer. A rate limit wants a long wait and then another account. A
 key that was refused wants no wait at all — it is refused a minute later too — and the account
 chain is the whole of the answer. A model that was retired wants neither, every account of that
@@ -162,12 +162,14 @@ that has just asked it to stop.
 | What happened | What a turn does about it |
 | --- | --- |
 | **Too many requests** — HTTP 429, a quota spent, `RESOURCE_EXHAUSTED`, `overloaded` | Waits at least 30 seconds, then walks the account chain. The account is spending too fast; the next one is not. |
-| **Refused the credentials** — 401, 403, a login that expired, a model this account is not entitled to | Nothing is tried again here. Walks the account chain, and says that the account it left needs signing in. |
+| **Refused the credentials** — 401, a login that expired, a key that was revoked | Nothing is tried again here. Walks the account chain, and says that the account it left needs signing in. |
+| **Refused that model** — `key not allowed to access model`, a model a subscription does not include | Nothing is tried again here: the list this account may name will not have changed by the next call. Walks the account chain, and says when humanize last asked this account what it runs. |
 | **No such model** — 404, a model retired, one the service says does not exist | Nothing here and no account either: they are all offered the same catalogue. Goes straight to the next **place**. |
 | **Its own store was busy** — opencode's `database is locked` | Three goes here, a second apart. Two turns of it are sharing one SQLite database, and that clears itself. |
 | **Lost the connection** — `ECONNRESET`, `EPIPE`, a gateway that went away | Reopens the transport, resumes the conversation by its id, and goes again. What was lost was the socket, not the session. |
 | **Was killed rather than answered** — a signal, an out-of-memory kill | Reopens, waits a second, and says what killed it. The machine may be out of memory. |
 | **Is not installed here** — nothing to run, or nothing that would start | A failed turn that says which line installs it, and goes to the next place. |
+| **Could not start its sandbox** — `bwrap: setting up uid map: Permission denied` | Nothing here and no account either: a kernel that has just refused a namespace refuses it under every key. Goes straight to the next **place**. |
 | **Anything else** | Exactly what a failed turn has always done: the goes the step asked for, the step's own wait, and then the account chain. |
 
 Every one of those narrates itself while it happens, so a run that is recovering does not read

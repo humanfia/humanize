@@ -3,7 +3,7 @@
 Before this there were two: a turn that failed and a turn no other try could come out
 differently on. So a 401 was retried five times on a schedule, a `database is locked` waited a
 minute for contention that clears in a second, and a rate limit was answered by asking the same
-service again at once. Seven kinds now, each with an answer of its own -- and the answers are
+service again at once. Nine kinds now, each with an answer of its own -- and the answers are
 the point, the names being only how one is looked up.
 
 What is checked here is that what a CLI says is read as the kind it is, that the kind decides
@@ -14,13 +14,14 @@ already knows is believed over any reading of a message.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import time
 from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor import backends, fallbacks, providers
+from hmz.coganchor import backends, fallbacks, models, providers
 from hmz.coganchor.agents import AgentBase, AgentConfig, Event, Failed, Unrecoverable
 from tests.stubs import ShellAgent, ShellSession
 from tests.stubs import ShellAgent as _Shell
@@ -96,6 +97,32 @@ def _driving() -> tuple[ShellAgent, list[str]]:
     return agent, _watched(agent)
 
 
+def _catalogued(*names: str) -> None:
+    """Writes down what `shell` last said it runs, as of a fortnight ago.
+
+    A catalogue rather than a call to ask for one: what is being read is what humanize kept
+    and when it kept it, which is exactly what a person cannot see when every id in it is
+    refused. Under both accounts because a model the account may not name is still worth
+    another account, so the failure that is finally raised is the last account's.
+
+    Args:
+      names: The models it holds, in the order it holds them.
+    """
+    for whose in ("main", "spare"):
+        models.where("shell", whose).write_text(
+            json.dumps(
+                {
+                    "asked": "2026-09-10T07:59:03Z",
+                    "models": [
+                        {"name": name, "efforts": ["high"], "swarms": False}
+                        for name in names
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+
 def _fails(agent: ShellAgent, tally: Path, said: str) -> str:
     """Runs the failing turn and answers with what it finally failed with."""
     with pytest.raises(subprocess.CalledProcessError) as raised:
@@ -112,7 +139,10 @@ def test_what_a_cli_says_when_it_stops_is_read_as_the_kind_it_is() -> None:
         "API Error: 401 unauthorized": "refused",
         "Authentication required": "refused",
         "You are not logged into Antigravity.": "refused",
-        "The model is not supported when using a ChatGPT account": "refused",
+        "The model is not supported when using a ChatGPT account": "unlisted",
+        "403 key not allowed to access model. This key can only access "
+        "models=['default-models']. Tried to access gpt-5.2": "unlisted",
+        "bwrap: setting up uid map: Permission denied": "sandboxed",
         "404 model not found: gpt-9": "retired",
         "SqliteError: database is locked": "contended",
         "Error: read ECONNRESET": "dropped",
@@ -160,6 +190,21 @@ def test_a_cli_s_own_sentence_beats_a_word_that_happens_to_be_beside_it() -> Non
     assert backends.trouble("dsh", said) == "refused"
     # The same line to a backend that has no sentence of its own reads as the word does.
     assert backends.trouble("claude", said) == "throttled"
+
+
+def test_a_line_that_mentions_a_sandbox_is_not_a_sandbox_that_would_not_start() -> None:
+    """The signatures are read from the top, so what they say has to be what happened.
+
+    A CLI that warns about its sandbox on the way up and is then rate-limited has both in the
+    stream it failed with, and the one that stopped the turn is the rate limit.
+    """
+    said = "WARN landlock is not supported on this kernel\nError: 429 Too Many Requests"
+
+    assert backends.trouble("codex", said) == "throttled"
+    # And the sandbox that actually did not start says so itself, in bubblewrap's own words.
+    assert backends.trouble(
+        "codex", "bwrap: setting up uid map: Permission denied"
+    ) == ("sandboxed")
 
 
 def test_a_backend_that_reports_an_http_status_is_not_read_as_a_signal() -> None:
@@ -254,6 +299,82 @@ def test_a_model_that_is_gone_walks_no_account_of_that_cli(
         narrated == []
     )  # nowhere to carry on to, so nothing to narrate carrying on with
     assert "(retired: the model is gone" in said
+
+
+def test_a_model_this_account_may_not_name_is_not_an_account_to_sign_in_again(
+    accounts: None, tmp_path: Path
+) -> None:
+    """The status says a credential was refused and the sentence says which model it was.
+
+    Read by the number it is a person sent to sign an account in that refused nothing -- which
+    is what a gateway fronting several clouds got from humanize for every id in a catalogue it
+    had moved under.
+    """
+    tally = tmp_path / "took.txt"
+    agent, _narrated = _driving()
+
+    said = _fails(
+        agent,
+        tally,
+        "403 key not allowed to access model. This key can only access "
+        "models=[default-models]. Tried to access m",
+    )
+
+    assert "(unlisted:" in said
+    assert "signing in" not in said
+    # The model rather than the credential, so the next account of that CLI is still worth
+    # asking: what an account may name is that account's.
+    assert _took(tally) == ["main", "spare"]
+
+
+def test_a_model_refused_says_what_humanize_last_kept_and_when_it_kept_it(
+    accounts: None, tmp_path: Path
+) -> None:
+    """The catalogue is what offered the id, so the catalogue is what the failure names."""
+    _catalogued("m")
+    tally = tmp_path / "took.txt"
+    agent, _narrated = _driving()
+
+    said = _fails(agent, tally, "403 key not allowed to access model m")
+
+    # The list still names the model the endpoint has just refused, so the list is the stale
+    # part -- and saying when it was taken is what tells somebody that.
+    assert (
+        "the 1 models this account was last offered (asked 2026-09-10) still name it"
+        in said
+    )
+    assert "r on its models asks again" in said
+
+
+def test_a_model_no_catalogue_here_has_says_it_is_not_in_the_one_kept(
+    accounts: None, tmp_path: Path
+) -> None:
+    """The other half: an id nothing here offered, and a list to read rather than a guess."""
+    _catalogued("elsewhere/m")
+    tally = tmp_path / "took.txt"
+    agent, _narrated = _driving()
+
+    said = _fails(agent, tally, "403 key not allowed to access model m")
+
+    assert (
+        "not among the 1 models this account was last offered (asked 2026-09-10)"
+        in said
+    )
+
+
+def test_a_machine_that_will_not_let_a_cli_sandbox_itself_says_so(
+    accounts: None, tmp_path: Path
+) -> None:
+    """`Permission denied` out of bubblewrap is no credential anybody can sign in again."""
+    tally = tmp_path / "took.txt"
+    agent, narrated = _driving()
+
+    said = _fails(agent, tally, "bwrap: setting up uid map: Permission denied")
+
+    assert "(sandboxed: this machine will not let it sandbox itself" in said
+    # No account of that CLI is asked: a kernel that has just said no says it to every key.
+    assert _took(tally) == ["main"]
+    assert narrated == []
 
 
 def test_a_store_another_turn_had_open_is_tried_again_here_briefly(

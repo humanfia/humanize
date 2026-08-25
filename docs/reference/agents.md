@@ -66,7 +66,9 @@ the same second) and `fibonacci`.
 first — from what the CLI said, how it exited, and, for the one backend that keeps it there,
 its own log — and the kind decides how many goes it is worth, how long the shortest wait is and
 whether another account answers it at all. A 429 waits half a minute and then moves account; a
-401 moves account at once and says the one it left needs signing in; a retired model skips the
+401 moves account at once and says the one it left needs signing in; a model the account may
+not name moves account too and says when humanize last asked that account what it runs, since
+the list it was offered out of is the thing most likely to be wrong; a retired model skips the
 accounts entirely, they are all offered the same catalogue. The whole table is in
 [falling back](/user/fallback#what-went-wrong). A failure nothing recognises is tried again
 exactly as a failed turn always was.
