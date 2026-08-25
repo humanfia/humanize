@@ -34,6 +34,7 @@ from hmz.coganchor.agents import (
     Unrecoverable,
 )
 from hmz.coganchor.machines import AnchoredConfig
+from tests.agents import standins
 from tests.stubs import HereAnchor
 
 if TYPE_CHECKING:
@@ -68,6 +69,7 @@ import json, os, pathlib, queue, sys, threading
 log = pathlib.Path(LOG)
 lines = queue.Queue()
 held = []
+SPENT = {"input": 10, "output": 5, "cacheRead": 2, "cacheWrite": 1}
 
 
 def reading():
@@ -96,6 +98,10 @@ def note(argv, said):
 
 def out(said):
     print(json.dumps(said), flush=True)
+
+
+def part(event):
+    out({"type": "message_update", "usage": SPENT, "assistantMessageEvent": event})
 
 
 def steered(said):
@@ -128,24 +134,20 @@ while True:
     # The turn's own prompt comes back as a user message too, and is not a word put in.
     out({"type": "message_start", "message": {"role": "user",
          "content": [{"type": "text", "text": said}]}})
-    out({"type": "message_update", "assistantMessageEvent":
-         {"type": "text_delta", "contentIndex": 1, "delta": "half"}})
-    out({"type": "message_update", "assistantMessageEvent":
-         {"type": "thinking_end", "contentIndex": 0,
-          "content": "thinking about " + said}})
-    out({"type": "message_update", "assistantMessageEvent": {"type": "toolcall_start",
-         "contentIndex": 2, "id": "call_1", "toolName": "bash"}})
+    part({"type": "text_delta", "contentIndex": 1, "delta": "half"})
+    part({"type": "thinking_end", "contentIndex": 0,
+          "content": "thinking about " + said})
+    part({"type": "toolcall_start", "contentIndex": 2, "id": "call_1",
+          "toolName": "bash"})
     for piece in ('{"comm', 'and": "echo ', said + '"}'):
-        out({"type": "message_update", "assistantMessageEvent":
-             {"type": "toolcall_delta", "contentIndex": 2, "delta": piece}})
-    out({"type": "message_update", "assistantMessageEvent": {"type": "toolcall_end",
-         "contentIndex": 2, "toolCall": {"type": "toolCall", "id": "call_1",
-         "name": "bash", "arguments": {"command": "echo " + said}}}})
-    out({"type": "message_update", "assistantMessageEvent":
-         {"type": "text_end", "contentIndex": 1, "content": said}})
+        part({"type": "toolcall_delta", "contentIndex": 2, "delta": piece})
+    part({"type": "toolcall_end", "contentIndex": 2,
+          "toolCall": {"type": "toolCall", "id": "call_1", "name": "bash",
+                       "arguments": {"command": "echo " + said}}})
+    part({"type": "text_end", "contentIndex": 1, "content": said})
     out({"type": "message_end", "message": {"role": "assistant",
          "content": ([] if said == "wrong" else [{"type": "text", "text": said}]),
-         "usage": {"input": 10, "output": 5, "cacheRead": 2, "cacheWrite": 1},
+         "usage": SPENT,
          **({"errorMessage": "the model refused"} if said == "wrong" else {})}})
     out({"type": "agent_end"})
     # A word steered in while the run was going is part of it: the run settles once, after
@@ -367,8 +369,10 @@ out({"type": "end", "stopReason": "end_turn", "sessionId": session, "num_turns":
 #: An `agy --print`: the prompt is inside the command line, and it answers in the events of
 #: one turn -- one `init`, then a step apiece, then one `result`. A prompt of `boom` comes back
 #: as a result whose status is not success, which is how this backend says a turn did not land.
-#: It refuses a command line agy 1.2.2 would refuse: a flag that CLI has not got, and an effort
-#: said both ways at once or neither -- the three refusals a driver that drifted would hit.
+#: The flag a driver would drift onto is refused above this, out of the one table every
+#: stand-in reads; what is left here is agy's own rule about the rung, which no other CLI has:
+#: an effort said both ways at once or neither is refused, and a model whose name carries no
+#: rung fails every turn without one.
 _AGY = """
 import json, os, pathlib, sys
 
@@ -376,18 +380,6 @@ log = pathlib.Path(LOG)
 argv = sys.argv[1:]
 flags = dict(zip(sys.argv, sys.argv[1:]))
 talk = flags.get("--conversation", "conv-agy-stub")
-
-known = {"--add-dir", "--agent", "--continue", "--conversation",
-         "--dangerously-skip-permissions", "--disable-slash-commands", "--effort",
-         "--input-format", "--json-schema", "--log-file", "--mode", "--model",
-         "--new-project", "--output-format", "--print", "--print-timeout", "--project",
-         "--prompt", "--prompt-interactive", "--sandbox"}
-for index, word in enumerate(argv):
-    # The word after --print is the prompt, which is free to open with a dash.
-    if index and argv[index - 1] == "--print":
-        continue
-    if word.startswith("--") and word not in known:
-        sys.exit("flags provided but not defined: " + word)
 
 model = flags.get("--model", "")
 carried = any(model.endswith("-" + rung) for rung in ("high", "medium", "low"))
@@ -470,9 +462,18 @@ class _Stubs:
 
 
 def _install(binaries: Path, named: str, script: str, log: Path) -> None:
-    """Puts one stand-in CLI on PATH under the name the backend calls it."""
+    """Puts one stand-in CLI on PATH under the name the backend calls it.
+
+    It opens with what that CLI refuses, so a driver that drifted onto a flag the real one
+    has not got fails here rather than on somebody's machine. Which of opencode and mimocode
+    one script is standing in for is read off the name it is installed under, because their
+    two command lines are not the same list.
+    """
     fake = binaries / named
-    fake.write_text(f"#!{sys.executable}\n{script.replace('LOG', repr(str(log)))}")
+    refuses = standins.refusing(named)
+    fake.write_text(
+        f"#!{sys.executable}\n{refuses}{script.replace('LOG', repr(str(log)))}"
+    )
     fake.chmod(0o755)
 
 

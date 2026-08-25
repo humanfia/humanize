@@ -35,6 +35,7 @@ from hmz.coganchor.agents import (
     Tool,
 )
 from hmz.coganchor.agents.skills import Loaded
+from tests.agents import standins
 from tests.stubs import ShellAgent
 
 if TYPE_CHECKING:
@@ -79,7 +80,7 @@ def _claude(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     binaries = tmp_path / "bin"
     binaries.mkdir(exist_ok=True)
     fake = binaries / "claude"
-    fake.write_text(f"#!{sys.executable}\n{_CLAUDE}")
+    fake.write_text(f"#!{sys.executable}\n{standins.refusing('claude')}{_CLAUDE}")
     fake.chmod(0o755)
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
 
@@ -678,8 +679,9 @@ def _gone(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     binaries = tmp_path / "bin"
     binaries.mkdir(exist_ok=True)
     fake = binaries / "claude"
+    refuses = standins.refusing("claude")
     fake.write_text(
-        f"#!{sys.executable}\n{_CLAUDE_GONE.replace('LOG', repr(str(log)))}"
+        f"#!{sys.executable}\n{refuses}{_CLAUDE_GONE.replace('LOG', repr(str(log)))}"
     )
     fake.chmod(0o755)
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")

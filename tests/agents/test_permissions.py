@@ -33,6 +33,7 @@ from hmz.coganchor.agents import (
     Verdict,
 )
 from hmz.coganchor.agents.codex import unattended
+from tests.agents import standins
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -72,7 +73,10 @@ def _claude(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     binaries = tmp_path / "bin"
     binaries.mkdir()
     fake = binaries / "claude"
-    fake.write_text(f"#!{sys.executable}\n{_CLAUDE.replace('LOG', repr(str(log)))}")
+    refuses = standins.refusing("claude")
+    fake.write_text(
+        f"#!{sys.executable}\n{refuses}{_CLAUDE.replace('LOG', repr(str(log)))}"
+    )
     fake.chmod(0o755)
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
     return log
@@ -517,7 +521,7 @@ def _codex(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     binaries = tmp_path / "bin"
     binaries.mkdir(exist_ok=True)
     fake = binaries / "codex"
-    fake.write_text(f"#!{sys.executable}\n{_REQUIRED}")
+    fake.write_text(f"#!{sys.executable}\n{standins.refusing('codex')}{_REQUIRED}")
     fake.chmod(0o755)
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
     return binaries / "codex.log"

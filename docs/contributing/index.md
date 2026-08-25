@@ -37,6 +37,17 @@ systems. `ruff` and `pyright` come from this project's own environment rather th
 pre-commit builds, so bump them with `uv lock --upgrade-package ruff` rather than by editing a
 second pin.
 
+The second gate drives each coding-agent backend against a stand-in CLI written onto `PATH`,
+which is what makes it runnable on a machine with nothing installed. A stand-in prints what the
+real CLI prints **and refuses what the real CLI refuses**: every one of them opens with the
+command line its CLI would turn down, out of the flag tables in `tests/agents/standins.py`,
+which are read off the `--help` of the version named beside each. Change a driver's command line
+and that table is what says whether the CLI still takes it — so when a real CLI drops a flag,
+move the table with it and let the suite go red where the driver still says the old word. The
+third gate is the half no stand-in can stand in for: an account that has lapsed, a model it may
+not name, a service withdrawn. Those are about the machine rather than the driver, and every
+backend there skips with what the CLI itself said rather than failing.
+
 ## What the code is held to
 
 - **`pyright` in strict mode**, over `src` and `tests`. `# type: ignore` comments are switched

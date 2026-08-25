@@ -27,6 +27,7 @@ from hmz.coganchor.agents import (
     PiAgentConfig,
     Usage,
 )
+from tests.agents import standins
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -39,8 +40,6 @@ OPENCODE = OpencodeAgentConfig(model="m", effort="high")
 _PI = """
 import json, sys
 
-flags = dict(zip(sys.argv, sys.argv[1:]))
-print(json.dumps({"type": "session", "id": flags["--session-id"]}), flush=True)
 for line in sys.stdin:
     told = json.loads(line)
     if told["type"] != "prompt":
@@ -100,11 +99,15 @@ for line in sys.stdin:
 def _install(
     named: str, script: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Puts one stand-in CLI on PATH."""
+    """Puts one stand-in CLI on PATH.
+
+    It opens with what that CLI refuses, so a driver that drifted onto a flag the real one
+    has not got fails here rather than on somebody's machine.
+    """
     binaries = tmp_path / "bin"
     binaries.mkdir(exist_ok=True)
     fake = binaries / named
-    fake.write_text(f"#!{sys.executable}\n{script}")
+    fake.write_text(f"#!{sys.executable}\n{standins.refusing(named)}{script}")
     fake.chmod(0o755)
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
 
