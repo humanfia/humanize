@@ -4075,6 +4075,14 @@ _EXTRAS = {
     ),
 }
 
+#: The ways an account of DeepSeek Harness can be made by, read off its profile rather than
+#: named here: every one of them asks for `DEEPSEEK_API_KEY` -- the key on its own, or a
+#: gateway's URL and the key that endpoint takes -- and its driver refuses an account made
+#: any other way, so these are the accounts of it worth offering at all.
+_DSH_WAYS = frozenset(
+    way.name for one in backends.PROFILES if one.name == "dsh" for way in one.ways
+)
+
 
 def _installing(backend: str) -> str:
     """The command that adds an optional backend to this Python environment."""
@@ -5731,10 +5739,16 @@ class Accounts(Picks):
         """The machine's own first, and then every account that CLI has here."""
         found = _hmz().accounts.all(self._backend)
         if self._backend == "dsh":
+            # Only the accounts a turn of it would actually run under. Its driver refuses one
+            # made some other way -- dsh is the one backend with no `env` way, so an account
+            # claiming one was not made here -- and a row offered here that every turn
+            # refuses is a row whose only effect is the failure it leads to. Which ways those
+            # are is read off the profile rather than listed, so that one added there is one
+            # this list offers without being touched.
             found = [
                 one
                 for one in found
-                if one.way == "key" and one.env.get("DEEPSEEK_API_KEY", "").strip()
+                if one.way in _DSH_WAYS and one.env.get("DEEPSEEK_API_KEY", "").strip()
             ]
         return [
             (

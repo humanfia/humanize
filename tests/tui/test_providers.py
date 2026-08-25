@@ -221,7 +221,7 @@ async def test_an_account_made_on_the_sheet_lands_in_the_store(
 
 
 @pytest.mark.timeout(60)
-async def test_deepseek_offers_only_api_key_login_from_providers() -> None:
+async def test_deepseek_offers_its_own_ways_and_no_env_from_providers() -> None:
     app = Humanize()
     async with app.run_test() as driver:
         await driver.press(*"/providers")
@@ -238,8 +238,11 @@ async def test_deepseek_offers_only_api_key_login_from_providers() -> None:
 
         await until(lambda: isinstance(app.screen, Ways), driver)
         ways = app.screen.query_one("#choices", OptionList)
-        assert [str(option.id) for option in ways.options] == ["=key"]
+        # Its own two, and no `=env`: dsh is the one backend that takes no variables of
+        # somebody's own, so the ways it names are the whole of what it offers.
+        assert [str(option.id) for option in ways.options] == ["=key", "=gateway"]
         assert "DeepSeek API key" in str(ways.get_option_at_index(0).prompt)
+        assert "endpoint speaking" in str(ways.get_option_at_index(1).prompt)
 
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Backends), driver)

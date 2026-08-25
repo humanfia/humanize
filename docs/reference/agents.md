@@ -328,10 +328,11 @@ protocol, and `cursor-agent --list-models` is already the account's answer.
 
 DeepSeek Harness is driven through its own Python SDK, which is the `[dsh]`
 [extra](/user/installation#the-two-backends-that-are-extras) — there is no CLI to install,
-only that. It supports API-key login only:
+only that. It signs in with a key rather than a login:
 leave `provider` empty to use the credentials and base URL saved by dsh (or its environment),
 or make a `key` account from the `provider` row of an agent with **a** and give its name as
-`provider`. Then
+`provider` — a `gateway` account where that key belongs to somebody's endpoint rather than to
+DeepSeek, which asks for the endpoint beside the key and is what routes the turn there. Then
 construct it like any other agent:
 
 ```python
