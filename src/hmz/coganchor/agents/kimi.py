@@ -46,6 +46,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
+from hmz.coganchor.backends import SWARM
+
 from .base import AgentBase, SessionBase
 from .config import AgentConfig
 from .event import Event, Failed, Question, Usage, say
@@ -98,10 +100,6 @@ READABLE = tuple(level for level in LOG_LEVELS if level != _BANNERED)
 #: number is free is the system's answer and it gives it by refusing to bind, not by refusing
 #: the config. 0 is the useful end of the range and the default -- it means ask for any.
 _PORT_MAX = 65535
-
-#: What an effort is prefixed with to ask for swarm mode: `max` and `swarmmax` are the same
-#: thinking, run as one agent and as a fleet of them.
-SWARM = "swarm"
 
 
 @dataclass

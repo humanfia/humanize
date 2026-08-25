@@ -478,13 +478,25 @@ def test_effort_changes_restart_the_runtime_but_resume_the_session() -> None:
 
 
 @pytest.mark.parametrize("effort", ["medium", "ultra"])
-def test_an_unsupported_effort_is_refused_before_startup(effort: str) -> None:
+def test_an_unsupported_effort_is_refused_where_the_rung_arrives(effort: str) -> None:
+    """Both are rungs of somebody else's ladder: `medium` is Codex's and so is `ultra`.
+
+    Refused as the word arrives rather than by the turn that would have sent it. The rung is
+    the one setting a flow moves while the run is going, so the two ways in are the config
+    and the setters, and each of them answers the same way.
+    """
+    with pytest.raises(ValueError, match="dsh cannot be asked to think at"):
+        DshAgent(replace(configured(), effort=effort))
+
     agent = DshAgent(configured())
-    agent.effort = effort
+    with pytest.raises(ValueError, match="dsh cannot be asked to think at"):
+        agent.effort = effort
 
-    with pytest.raises(ValueError, match="unsupported dsh effort"):
-        agent("work")
+    session = agent.new()
+    with pytest.raises(ValueError, match="dsh cannot be asked to think at"):
+        session.effort = effort
 
+    assert agent.effort == "high"  # and it is left as it was
     assert Harness.made == []
 
 

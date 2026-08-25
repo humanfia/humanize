@@ -137,6 +137,13 @@ Dropped, they would quietly un-configure the agent halfway through a run — and
 is the word your own CLI answers to, it is worse than less configured: every turn after the step
 is refused at the handshake.
 
+**Except what was true of the model rather than of the CLI**, where the step changes the model.
+Codex's two `-c` overrides are both measurements of one model — how much context it holds, and
+where compaction has to start to stay inside that — so handing them to the next model describes
+something else. They go back to what Codex works out for itself, which is what the agent would
+have been given had that model been asked for first. A step that keeps the model keeps them:
+they are still true. Everything else about the same-CLI step is unchanged.
+
 A step to **another** CLI leaves that vocabulary where it was. A rule Claude reads as an allowed
 tool says nothing to Codex, so what crosses is the settings every backend shares — the effort,
 the permission rung, whether it may search the web, where the turns land — and the CLI arriving

@@ -368,7 +368,12 @@ def _bare(profile: backends.Profile | None, model: str) -> str:
 
     Returns:
       The model alone. A colon that is part of the model's own name is left where it is: only
-      a rung this backend actually has is read as one.
+      a rung this backend actually lists is read as one.
+
+      Which is a narrower question than `Profile.takes`, and deliberately not that one: a CLI
+      known only by the protocol it speaks lists one rung and can be asked for any word, so a
+      check that this backend *would take* the word would read the tail of every model such a
+      CLI names as a rung and cut it off.
     """
     before, colon, rung = model.rpartition(":")
     if not colon or profile is None:

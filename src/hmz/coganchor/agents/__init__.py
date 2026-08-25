@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from hmz.coganchor.backends import SWARM
+
 from .acp import AcpAgent, AcpAgentConfig, AcpSession, McpServer
 from .agy import (
     AntigravityCLIAgent,
@@ -69,7 +71,7 @@ from .hooks import (
     Verdict,
 )
 from .human import HumanAgent, HumanSession
-from .kimi import SWARM, KimiCodeCLIAgent, KimiCodeCLIAgentConfig, KimiCodeCLISession
+from .kimi import KimiCodeCLIAgent, KimiCodeCLIAgentConfig, KimiCodeCLISession
 from .mimo import MimoCodeAgent, MimoCodeAgentConfig, MimoCodeSession
 from .opencode import OpencodeAgent, OpencodeAgentConfig, OpencodeSession
 from .pi import PiAgent, PiAgentConfig, PiSession

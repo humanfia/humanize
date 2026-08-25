@@ -17,9 +17,16 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+from hmz.coganchor import backends
 from hmz.coganchor.agents import (
+    AcpAgent,
+    AcpAgentConfig,
     ClaudeCodeAgent,
     ClaudeCodeAgentConfig,
+    GrokBuildAgent,
+    GrokBuildAgentConfig,
+    KimiCodeCLIAgent,
+    KimiCodeCLIAgentConfig,
     OpencodeAgent,
     OpencodeAgentConfig,
     PiAgent,
@@ -272,3 +279,75 @@ def test_what_a_flow_moves_is_read_back_off_the_agent_and_the_session() -> None:
 
     agent.effort = ""
     assert (agent.effort, session.effort) == ("high", "high")
+
+
+def test_a_rung_off_the_backends_ladder_is_refused_where_the_agent_is_made() -> None:
+    """The ladder is the backend's own, so the word is read against that backend's.
+
+    `grok agent` is the reason this is not left to the first turn. It opens a session at a
+    rung it has never heard of and takes ordinary turns at it perfectly well, refusing the
+    word only on the command line the shaped, forked and withheld turns go out on -- so an
+    agent configured at one runs for an hour and then fails somewhere that says nothing at
+    all about how it was configured.
+    """
+    with pytest.raises(ValueError, match="grok cannot be asked to think at 'bogus'"):
+        GrokBuildAgent(GrokBuildAgentConfig(model="grok-5", effort="bogus"))
+
+    # A rung of somebody else's ladder is the same answer: `ultra` is Codex's word.
+    with pytest.raises(ValueError, match="grok cannot be asked to think at 'ultra'"):
+        GrokBuildAgent(GrokBuildAgentConfig(model="grok-5", effort="ultra"))
+
+
+def test_the_rung_a_backend_takes_without_listing_is_taken_here_too() -> None:
+    """`ultracode` is real and undocumented, which is why it is written down as `beyond`."""
+    agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="ultracode"))
+
+    assert agent.config.effort == "ultracode"
+
+
+def test_a_rung_off_the_ladder_is_refused_where_a_flow_moves_one_mid_run() -> None:
+    """The rung is the one setting that arrives after construction as well as at it.
+
+    A loop that turns its agent down an hour in, a flow nursing one conversation up through
+    a hard patch: both say a word the CLI has to have, and a check that only ran where the
+    agent was made would be a check that watched the quieter of the two ways in.
+    """
+    agent = ClaudeCodeAgent(CLAUDE)
+    session = agent.new()
+
+    with pytest.raises(ValueError, match="claude cannot be asked to think at 'none'"):
+        agent.effort = "none"
+    with pytest.raises(ValueError, match="claude cannot be asked to think at 'none'"):
+        session.effort = "none"
+
+    assert (agent.effort, session.effort) == ("high", "high")  # left as they were
+
+
+def test_a_cli_known_only_by_the_protocol_refuses_no_rung(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """It lists one, and the one is the word for there being no ladder to read against.
+
+    The Agent Client Protocol says nothing about how hard an agent may be asked to think --
+    it runs as whoever installed it configured it -- so there is nothing here to refuse a
+    rung with, and refusing every word but `as configured` would leave a CLI somebody added
+    unusable at any effort they would actually type.
+    """
+    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "home"))
+    backends.remember("mine", ["mine", "acp"])
+
+    agent = AcpAgent(AcpAgentConfig(model="m", effort="high", cli="mine"))
+    agent.effort = "whatever that CLI calls it"
+
+    assert agent.effort == "whatever that CLI calls it"
+
+
+def test_a_fleet_is_a_width_rather_than_a_rung_off_the_ladder() -> None:
+    """`swarmmax` is `max` run wide, which is one word for two answers about one turn."""
+    agent = KimiCodeCLIAgent(KimiCodeCLIAgentConfig(model="k3", effort="swarmmax"))
+
+    assert agent.config.effort == "swarmmax"
+    with pytest.raises(
+        ValueError, match="kimi cannot be asked to think at 'swarmultra'"
+    ):
+        agent.effort = "swarmultra"

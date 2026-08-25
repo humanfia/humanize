@@ -604,23 +604,31 @@ not an account going down.
   started over every round.
 - The agent standing in MUST be configured exactly as the agent that could not run was, and
   what "exactly" comes to MUST be read against the CLI taking over, that being what makes any
-  of it mean anything. A step onto the same CLI -- another model of it, another account of
-  it, which is the ordinary step -- MUST carry the whole of what that backend was configured
-  with, its own vocabulary included: what it was told, it was told in a vocabulary the CLI
-  taking over still speaks, so dropping it would un-configure the agent halfway through a
-  run, silently and in the one direction nobody is watching. Where such a setting is one the
+  of it mean anything. A step onto the same CLI -- another model of it, another account of it,
+  which is the ordinary step -- MUST carry the whole of what that backend was configured with,
+  its own vocabulary included: what it was told, it was told in a vocabulary the CLI taking
+  over still speaks, so dropping it would un-configure the agent halfway through a run,
+  silently and in the one direction nobody is watching. Where such a setting is one the
   backend is addressed by, the stand-in is not merely less configured: every turn after the
-  step is refused. A step onto another CLI MUST leave that vocabulary where it was and carry
-  the settings every backend shares -- an override one CLI reads says nothing to another --
-  and what the one arriving makes of the rest MUST be its own default, which is what it would
-  have been given had it been asked for first. Which CLI the agent is MUST cross either way,
-  and MUST be the one the step names rather than the one that failed: that is which agent
-  this is and not anything it was told, nothing being said to any CLI about it and no byte of
-  it going over any protocol, so it is not a setting for either rule to drop. A rung the CLI
-  taking over has no word for MUST become the rung at the same depth of its own ladder, every
-  ladder here being written hardest first. A setting the CLI taking over cannot be told at
-  all MUST make it no stand-in: a setting quietly ignored would be a setting that lies, so
-  the turn MUST fail the way it failed before anybody wrote a step down.
+  step is refused. Less, on such a step, the settings of that vocabulary which are properties
+  of the model rather than of the CLI, where the step is one that changes the model: those
+  MUST be left behind and MUST go back to what that CLI works out for itself, which is what
+  the agent would have been given had the model arriving been asked for first. A context
+  window is the plain case -- it is a measurement of the model that has just failed, and
+  handing it to the next model describes something else. Nothing refuses such a number and
+  nothing records it, so the only sign of it is turns that overrun a window the new model has
+  not got. A step that keeps the model MUST keep them, they being true still. A step onto
+  another CLI MUST leave that vocabulary where it was and carry the settings every backend
+  shares -- an override one CLI reads says nothing to another -- and what the one arriving
+  makes of the rest MUST be its own default, which is what it would have been given had it
+  been asked for first. Which CLI the agent is MUST cross either way, and MUST be the one the
+  step names rather than the one that failed: that is which agent this is and not anything it
+  was told, nothing being said to any CLI about it and no byte of it going over any protocol,
+  so it is not a setting for either rule to drop. A rung the CLI taking over has no word for
+  MUST become the rung at the same depth of its own ladder, every ladder here being written
+  hardest first. A setting the CLI taking over cannot be told at all MUST make it no stand-in:
+  a setting quietly ignored would be a setting that lies, so the turn MUST fail the way it
+  failed before anybody wrote a step down.
 - The agent standing in MUST be made at most once and kept, for the reason an account that has
   moved stays moved: a place that went down is not one to try again each turn. It MUST be
   made only when a turn has nowhere left to go -- a chain of four places all started when the
