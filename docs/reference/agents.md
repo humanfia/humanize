@@ -285,22 +285,34 @@ them, and they are started by the agent, so one named for an agent whose turns l
 refused outright for an agent reached through an anchor that drives the target's own CLI:
 what this client would read and run is *this* machine, which is not where the work lands.
 
-`cursor-agent` names one out of its own catalogue — `cursor-agent --list-models` prints them —
-and its models take their parameters in brackets after the name, which is where humanize writes
-the effort and the service tier: `composer-2.5[effort=high]`, and `[effort=high,fast=true]`
-where the tier is `fast`. A model already written with a bracket of its own is passed exactly
-as it was written, so a flow that wanted `claude-opus-4-8[context=1m,effort=high]` gets it.
+`cursor-agent` names one out of its own catalogue — `cursor-agent models` prints them — and the
+rung is part of that id rather than anything sent beside it: the list has `gpt-5.2` and
+`gpt-5.2-low`, `gpt-5.2-high` and `gpt-5.2-xhigh` side by side, and `composer-2.5-fast` is that
+model on the faster service. So humanize writes the effort and the service tier onto the name —
+`composer-2.5` at `high` is `composer-2.5-high`, and `composer-2.5-high-fast` where the tier is
+`fast` — and a name that already carries a rung is used as it stands, `gpt-5.2-low` being the
+model's own answer to a question the effort would be asking again.
 
-**Only what the turn asks for goes in the bracket.** A default service tier writes no `fast=`
-at all, rather than `fast=false`: the parameters an account has saved against a model are that
-account's own answer, and overruling them on every turn would be humanize deciding something
-the person at this machine had already decided. It is also what lets a model that is nothing
-but a name — an id belonging to an endpoint of somebody else's, where Cursor's brackets are
-literal text rather than parameters — arrive spelled exactly as it was given, so the separately
-distributed `cursor-agent-local` runtime, pointed at an OpenAI-compatible endpoint through
-`CURSOR_LOCAL_AGENT_BASE_URL`, `CURSOR_LOCAL_AGENT_API_KEY` and `CURSOR_ENABLE_AUTHLESS=1`,
-takes the id it serves under. An effort or a fast tier still writes its bracket: a runtime
-that cannot read one is a runtime a flow should not be asking those of.
+**Which combinations exist is the account's answer, not a rule.** The id humanize builds is
+checked against [what that account last said it runs](#what-it-runs-is-discovered-for-the-account),
+and one it lists no such thing for is refused where the agent is made rather than sent:
+`gpt-5.2` at `medium` says so and names the three ids it does list, because `gpt-5.2-medium` is
+not a model and the turn it goes out on is one Cursor refuses outright. A model listed with no
+rung form at all — `composer-2.5`, `auto`, `gemini-3.1-pro` — runs at whatever Cursor gives it,
+so it is offered at no effort and named with none. An account nobody has asked yet refuses
+nothing: there is no list to check against, the id goes out as it was built, and Cursor answers
+with its own.
+
+**The bracket its `--help` documents is not what a signed-in account takes.** `cursor-agent
+--model 'gpt-5.2[effort=low]'` answers `Cannot use this model` and prints the catalogue back,
+on a bare name and on one already carrying a rung alike, so humanize builds no brackets. A
+model written with one by whoever configured it is still passed exactly as it stands — a flow
+that wanted `claude-opus-4-8[context=1m,effort=high]` gets it, and which accounts still take
+those is not humanize's to decide. That is also what lets a model that is nothing but a name —
+an id belonging to an endpoint of somebody else's — arrive spelled exactly as it was given, so
+the separately distributed `cursor-agent-local` runtime, pointed at an OpenAI-compatible
+endpoint through `CURSOR_LOCAL_AGENT_BASE_URL`, `CURSOR_LOCAL_AGENT_API_KEY` and
+`CURSOR_ENABLE_AUTHLESS=1`, takes the id it serves under.
 
 A turn run under an hmz provider is run without `CURSOR_LOCAL_AGENT_API_KEY` unless that
 provider set it, the same as every other name Cursor would take an account from: put the
@@ -324,7 +336,7 @@ account](/features/backends#what-it-runs-is-discovered-for-the-account). `claude
 one, `GET {base}/v1/models` is what says what a turn could name. The four that spell a model
 `provider/id` are not asked that way: one endpoint's ids carry no provider, so the list would
 be of models those CLIs cannot name. `cursor-agent` is not either — its endpoint speaks its own
-protocol, and `cursor-agent --list-models` is already the account's answer.
+protocol, and `cursor-agent models` is already the account's answer.
 
 DeepSeek Harness is driven through its own Python SDK, which is the `[dsh]`
 [extra](/user/installation#the-two-backends-that-are-extras) — there is no CLI to install,
@@ -534,9 +546,11 @@ be a setting that lies. It composes with
 [what an agent may do](#what-an-agent-may-do) rather than overriding it: a rung that already
 withholds the reaching-out tools goes on withholding them whatever this says.
 
-`service_tier` is `default` unless asked for otherwise. Claude and Codex also take `fast`:
-Claude receives `fastMode: true`, and Codex receives its native `priority` service tier. It
-does not lower `effort` or choose a smaller model. At `default` Claude is sent nothing at all
+`service_tier` is `default` unless asked for otherwise. Claude, Codex and Cursor also take
+`fast`: Claude receives `fastMode: true`, Codex receives its native `priority` service tier,
+and Cursor is asked for the id its catalogue lists that model under on the faster service —
+`composer-2.5-fast`, the tier being part of the name there as the effort is — which is refused
+where the account lists no such id. It does not lower `effort` or choose a smaller model. At `default` Claude is sent nothing at all
 rather than `fastMode: false` — the flag those settings ride in on is layered over the settings
 of the person at the machine, so a `false` written there would be their own `fastMode` decided
 for them by a flow that was never asking. Nothing is lost by leaving it out: Claude Code 2.1.272
@@ -1428,7 +1442,7 @@ so such a CLI runs at whatever you configured it to run at, under whatever word 
 | `agy` | `low`, `medium`, `high` — written into the model where its name carries one, and sent beside it where it does not |
 | `claude` | `low`, `medium`, `high`, `xhigh`, `max`, and `ultracode` |
 | `codex` | `low`, `medium`, `high`, `xhigh`, and `max`/`ultra` on the models that take them |
-| `cursor-agent` | `low`, `medium`, `high` — written into the model rather than sent beside it |
+| `cursor-agent` | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` (and `extra-high`, which one model spells `xhigh` as) — written into the model's own id rather than sent beside it, and only where that account lists the id |
 | `dsh` | `off`, `low`, `high`, `max` |
 | `grok` | `low`, `medium`, `high`, `xhigh` |
 | `kimi` | `low`, `medium`, `high`, `max`, each also as `swarm…` |
@@ -1443,6 +1457,14 @@ refuses the flag beside it — `--model <name> conflicts with --effort=<rung>`. 
 none refuses to run without it — `--model <name> requires --effort (available: …)`. So the
 configured effort is sent as `--effort` exactly when the model's own name has not already
 answered, which is what lets a base model name work at all.
+
+**Cursor says it one way only, and the account says which models have it.** There is no flag
+and — on a signed-in account — no bracket: the rung is written into the id, so the configured
+effort becomes `<model>-<rung>` where the account lists that id, is left off a name that
+already carries one, and is refused where the account lists neither. Which rungs a model has
+is read off [what that account last said it runs](/features/backends#what-it-runs-is-discovered-for-the-account),
+so `gpt-5.2` is offered at `low`, `high` and `xhigh` and not at `medium`, and `composer-2.5` is
+offered at none at all.
 
 **Antigravity CLI serves every rung, two of them as modes of its own.** `--mode plan` is the
 agent that researches and changes nothing, and `--mode accept-edits` is the one whose file

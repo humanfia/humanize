@@ -1,6 +1,6 @@
 """Cursor Agent, driven against a stand-in that prints what the real one prints.
 
-What is checked is the call each turn is made of -- the bracket its parameters go in, the rung
+What is checked is the call each turn is made of -- the id the rung is written into, the rung
 each permission comes to, the chat it resumes -- and the turn read back out of the NDJSON it
 answers in, subagents included: Cursor is one of the backends that says on the same stream
 when a turn starts an agent of its own and when that one comes back.
@@ -26,7 +26,7 @@ from hmz.coganchor.agents import (
     Occasion,
     Verdict,
 )
-from hmz.coganchor.agents.cursor import _COMMAND, parameterized
+from hmz.coganchor.agents.cursor import _COMMAND, spelled
 from tests.agents import standins
 
 if TYPE_CHECKING:
@@ -112,6 +112,10 @@ print("gpt-5-high - GPT-5 (high)")
 print("gpt-5-fast - GPT-5 (fast)")
 print("gpt-5-low-fast - GPT-5 (low, fast)")
 print("gpt-5-high-fast - GPT-5 (high, fast)")
+print("gpt-5.2 - GPT-5.2")
+print("gpt-5.2-low - GPT-5.2 Low")
+print("gpt-5.2-xhigh - GPT-5.2 Extra High")
+print("gpt-5.5-extra-high - GPT-5.5 Extra High")
 print("claude-opus-4-8 (current)")
 print("sonnet-4.5-thinking - Claude Sonnet 4.5 (thinking)")
 print("grok-code-fast-1")
@@ -172,26 +176,137 @@ def test_the_cli_is_named_by_what_it_is_installed_as() -> None:
     assert profile.runs() == _COMMAND
 
 
-def test_how_hard_it_thinks_is_written_into_the_model() -> None:
-    """Cursor has no flag for a rung: its models are parameterized and take it in brackets."""
-    assert parameterized("gpt-5", "high", fast=False) == "gpt-5[effort=high]"
-    assert parameterized("gpt-5", "low", fast=True) == "gpt-5[effort=low,fast=true]"
-    assert parameterized("gpt-5", "", fast=True) == "gpt-5[fast=true]"
-    # A model spelled with its own bracket meant what it said, and a second would be refused.
+#: What a signed-in account lists, as `cursor-agent models` prints it: a bare id beside the
+#: variants that carry a rung, one that is listed with no variant at all, and the same model
+#: again with the service it can be served on written behind it.
+_ACCOUNT = (
+    "gpt-5.2",
+    "gpt-5.2-low",
+    "gpt-5.2-high",
+    "gpt-5.2-xhigh",
+    "composer-2.5",
+    "composer-2.5-fast",
+    "auto",
+)
+
+
+def test_how_hard_it_thinks_is_written_into_the_models_own_id() -> None:
+    """Cursor has no flag for a rung and no bracket either: `gpt-5.2-low` is the whole of it."""
+    assert spelled("gpt-5.2", "low", fast=False, listed=_ACCOUNT) == "gpt-5.2-low"
+    # A name that has already answered is not answered over: `gpt-5.2-low-high` is nobody's
+    # id, and which of the two a flow meant is the model's own word rather than the effort's.
+    assert spelled("gpt-5.2-low", "high", fast=False, listed=_ACCOUNT) == "gpt-5.2-low"
+    # A model spelled with its own bracket meant what it said. The parameters are refused by
+    # this account and documented by the CLI, and which accounts still take them is not this
+    # driver's to decide -- so what was written goes out as it was written.
     assert (
-        parameterized("claude-opus-4-8[context=1m]", "high", fast=True)
+        spelled("claude-opus-4-8[context=1m]", "high", fast=True, listed=_ACCOUNT)
         == "claude-opus-4-8[context=1m]"
     )
 
 
-def test_the_default_tier_leaves_cursors_own_answer_alone() -> None:
-    """`fast=false` would overrule a parameter the account had saved against the model.
+def test_the_faster_service_is_the_same_suffix_and_the_default_writes_nothing() -> None:
+    """`composer-2.5-fast` is that model served quickly, which is the only spelling it has.
 
-    And it is what kept a bare id -- one belonging to an endpoint of somebody else's, where
-    the bracket is literal text -- from arriving as the id it was written as.
+    And the default tier writes nothing at all rather than the opposite of it, which is what
+    lets a model that is nothing but a name -- an id belonging to an endpoint of somebody
+    else's -- arrive spelled exactly as it was given.
     """
-    assert parameterized("gpt-5", "", fast=False) == "gpt-5"
-    assert parameterized("external/model-id", "", fast=False) == "external/model-id"
+    assert (
+        spelled("composer-2.5", "", fast=True, listed=_ACCOUNT) == "composer-2.5-fast"
+    )
+    assert spelled("composer-2.5", "", fast=False, listed=_ACCOUNT) == "composer-2.5"
+    assert (
+        spelled("external/model-id", "", fast=False, listed=()) == "external/model-id"
+    )
+
+
+def test_a_rung_this_account_has_no_id_for_is_refused_rather_than_sent() -> None:
+    """`gpt-5.2-medium` is not a model, and the turn it is sent on is a turn Cursor refuses.
+
+    Which is the whole of the bug this replaced: humanize built an id nobody lists and spent
+    a turn finding out. What it does list is named in the refusal, that being the one thing
+    whoever wrote the effort needs to know.
+    """
+    with pytest.raises(ValueError, match=r"lists no gpt-5.2-medium"):
+        spelled("gpt-5.2", "medium", fast=False, listed=_ACCOUNT)
+    with pytest.raises(ValueError, match=r"gpt-5.2-low, gpt-5.2-high, gpt-5.2-xhigh"):
+        spelled("gpt-5.2", "medium", fast=False, listed=_ACCOUNT)
+    # A model with no rung form at all runs at whatever Cursor gives it, and says so rather
+    # than guessing: it is named with no effort, and an effort against it is refused.
+    with pytest.raises(ValueError, match="itself alone"):
+        spelled("auto", "low", fast=False, listed=_ACCOUNT)
+    # The same for a service this account does not serve that model on.
+    with pytest.raises(ValueError, match=r"lists no gpt-5.2-fast"):
+        spelled("gpt-5.2", "", fast=True, listed=_ACCOUNT)
+
+
+def _kept(named: tuple[str, ...]) -> None:
+    """Writes a catalogue down as if this account had just been asked what it runs.
+
+    Args:
+      named: The ids, as the account lists them.
+    """
+    at = models.where("cursor-agent")
+    at.parent.mkdir(parents=True, exist_ok=True)
+    at.write_text(
+        json.dumps(
+            {
+                "asked": "2026-09-17T00:00:00Z",
+                "models": [
+                    {"name": one, "efforts": [], "swarms": False} for one in named
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_a_rung_the_account_has_no_id_for_is_refused_where_the_agent_is_made() -> None:
+    """Where every other setting this backend cannot express is refused, and for one reason.
+
+    A flow that names one is stopped before it spends a turn finding out, which is what the
+    bracket never was: that one was built, sent, and answered `Cannot use this model`.
+    """
+    _kept(_ACCOUNT)
+
+    with pytest.raises(ValueError, match=r"lists no gpt-5.2-medium"):
+        CursorAgent(CursorAgentConfig(model="gpt-5.2", effort="medium"))
+
+    # And the ones it does list are made without a word, at the rung and at no rung at all.
+    CursorAgent(CursorAgentConfig(model="gpt-5.2", effort="low"))
+    CursorAgent(CursorAgentConfig(model="composer-2.5", effort=""))
+
+
+def test_a_rung_moved_mid_run_is_refused_as_the_turn_is_built(cursor: _Calls) -> None:
+    """The rung is the one setting a flow moves after the agent was made.
+
+    So the turn checks it too: an agent turned up an hour into a loop, onto a rung this model
+    has no id for, must not go out as an id nobody lists.
+    """
+    _kept(_ACCOUNT)
+    session = CursorAgent(CursorAgentConfig(model="gpt-5.2", effort="low")).new()
+    session("hello")
+
+    session.effort = "medium"
+
+    with pytest.raises(ValueError, match=r"lists no gpt-5.2-medium"):
+        session("again")
+    (argv,) = cursor.argv()
+    assert argv[argv.index("--model") + 1] == "gpt-5.2-low"
+
+
+def test_a_catalogue_nobody_has_asked_for_refuses_nothing() -> None:
+    """An empty list is a question nobody put rather than an account that said no.
+
+    An account nobody has asked yet has no list at all and one asked before the vendor moved
+    has the wrong one, and neither is a reason to withhold a rung a flow asked for: the id
+    goes out as it was built and Cursor answers it with its own list.
+    """
+    assert spelled("gpt-5.2", "medium", fast=False, listed=()) == "gpt-5.2-medium"
+    # And the same for a model this account's list says nothing about, which is a list taken
+    # before the vendor moved rather than a model nobody may name.
+    assert spelled("gpt-5.9", "medium", fast=False, listed=_ACCOUNT) == "gpt-5.9-medium"
 
 
 def test_a_turn_is_one_run_of_its_command_line(cursor: _Calls) -> None:
@@ -201,7 +316,7 @@ def test_a_turn_is_one_run_of_its_command_line(cursor: _Calls) -> None:
     assert session("hello") == "hello"
 
     (argv,) = cursor.argv()
-    assert argv[argv.index("--model") + 1] == "composer-2.5[effort=high]"
+    assert argv[argv.index("--model") + 1] == "composer-2.5-high"
     assert argv[:4] == ["--print", "--output-format", "stream-json", "--model"]
     assert argv[-2:] == ["--", "hello"]
     assert "--trust" in argv
@@ -245,14 +360,14 @@ def test_a_rung_is_the_mode_or_the_sandbox_cursor_has_for_it(cursor: _Calls) -> 
             assert one in argv
 
 
-def test_asking_for_the_faster_service_is_the_same_bracket(cursor: _Calls) -> None:
-    """Which is why this backend can express a tier at all."""
+def test_asking_for_the_faster_service_is_the_same_suffix(cursor: _Calls) -> None:
+    """Which is why this backend can express a tier at all: the rung, then the service."""
     from dataclasses import replace
 
     CursorAgent(replace(CURSOR, service_tier="fast")).new()("hello")
 
     (argv,) = cursor.argv()
-    assert argv[argv.index("--model") + 1] == "composer-2.5[effort=high,fast=true]"
+    assert argv[argv.index("--model") + 1] == "composer-2.5-high-fast"
 
 
 def test_a_turn_says_what_it_did_as_it_does_it(cursor: _Calls) -> None:
@@ -338,6 +453,10 @@ def test_what_it_runs_is_read_off_its_own_listing(listing: None) -> None:
         "gpt-5-fast",
         "gpt-5-low-fast",
         "gpt-5-high-fast",
+        "gpt-5.2",
+        "gpt-5.2-low",
+        "gpt-5.2-xhigh",
+        "gpt-5.5-extra-high",
         "claude-opus-4-8",
         "sonnet-4.5-thinking",
         "grok-code-fast-1",
@@ -346,31 +465,43 @@ def test_what_it_runs_is_read_off_its_own_listing(listing: None) -> None:
     ]
 
 
-#: Cursor's whole ladder, which is what a model is offered at when its own name says nothing
-#: about how hard it thinks: the rung is a parameter of the model rather than a property of it.
-_LADDER = ("high", "medium", "low")
-
 #: What each model in that listing is offered at, and why it is that rather than the other.
+#: A rung is no parameter of a Cursor model: it is part of the id, so what a model is offered
+#: at is the ids this account listed for it and nothing wider. Wider is what put
+#: `gpt-5.2-medium` on a command line, which is a rung Cursor refuses the whole turn for.
 _OFFERED = {
-    "composer-2.5": _LADDER,
-    "gpt-5": _LADDER,
+    # Listed alone, so it runs at whatever Cursor gives it and is offered at no rung at all.
+    "composer-2.5": (),
+    # Listed with one variant beside it, so that rung and no other: there is no `gpt-5-low`
+    # here, whatever `gpt-5-low-fast` says about the same model on the faster service.
+    "gpt-5": ("high",),
     "gpt-5-high": ("high",),
-    # `fast` is the service a turn runs on and not a rung, so the first of these two is still
-    # the whole ladder and the second is `low` with that service written behind it.
-    "gpt-5-fast": _LADDER,
+    # `fast` is the service a turn runs on and not a rung, so the first of these three carries
+    # none and the other two carry the rung written in front of it.
+    "gpt-5-fast": (),
     "gpt-5-low-fast": ("low",),
     "gpt-5-high-fast": ("high",),
-    "claude-opus-4-8": _LADDER,
+    # The shape the live account actually lists: the bare id, and the rungs it has variants
+    # for -- hardest first, and not the ones it has no variant for.
+    "gpt-5.2": ("xhigh", "low"),
+    "gpt-5.2-low": ("low",),
+    "gpt-5.2-xhigh": ("xhigh",),
+    # One model spells `xhigh` as two words, and reading it as the `high` inside it would name
+    # a model one rung under what it runs.
+    "gpt-5.5-extra-high": ("extra-high",),
+    "claude-opus-4-8": (),
     # `thinking` is what the model is, `1` is which one it is, and `auto` is Cursor choosing:
-    # a name is only pinned by a word that is one of Cursor's own three rungs.
-    "sonnet-4.5-thinking": _LADDER,
-    "grok-code-fast-1": _LADDER,
-    "cheetah": _LADDER,
-    "auto": _LADDER,
+    # a name is only pinned by a word that is one of Cursor's own rungs.
+    "sonnet-4.5-thinking": (),
+    "grok-code-fast-1": (),
+    "cheetah": (),
+    "auto": (),
 }
 
 
-def test_a_model_is_offered_at_the_rung_its_own_name_carries(listing: None) -> None:
+def test_a_model_is_offered_at_the_rungs_this_account_lists_ids_for(
+    listing: None,
+) -> None:
     """A rung is a word of the name wherever it falls in it: `gpt-5-low-fast` runs at `low`."""
     found = models.ask("cursor-agent")
 

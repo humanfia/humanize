@@ -775,13 +775,19 @@ def _cursor(profile: Profile, run: Callable[..., str]) -> list[Model]:
       run: What puts the question.
 
     Returns:
-      One per model it offers, each at the whole ladder: how hard a Cursor model thinks is a
-      parameter of the model rather than a property of it, and the list does not say which of
-      them take one. A model whose own name carries a rung is offered at that one alone, its
-      name being what it runs at -- `gpt-5-high` is not a model to ask for `low`, and neither
-      is `gpt-5-low-fast`, which says the same thing with the service it runs on behind it.
+      One per model it offers, at the rungs this account's own list spells for it rather than
+      at the ladder the backend has. A model whose own name carries a rung is offered at that
+      one alone, its name being what it runs at -- `gpt-5-high` is not a model to ask for
+      `low`, and neither is `gpt-5-low-fast`, which says the same thing with the service it
+      runs on behind it. One whose name carries none is offered at the rungs its own variants
+      are listed under, `gpt-5.2` at the three `gpt-5.2-low`, `gpt-5.2-high` and
+      `gpt-5.2-xhigh` are listed for -- and at none at all where the list has no variant of
+      it, which is `composer-2.5` and `auto` and every id belonging to an endpoint of
+      somebody else's. Offering more than that is what put `gpt-5.2-medium` on a command
+      line: a rung Cursor refuses the whole turn for, named by a picker that had read the
+      list it was not in.
     """
-    found: list[Model] = []
+    listed: list[str] = []
     for line in run(["--list-models"]).splitlines():
         said = _plain(line).strip()
         # A model line is the id, and then either nothing, the name a person reads behind a
@@ -790,12 +796,33 @@ def _cursor(profile: Profile, run: Callable[..., str]) -> list[Model]:
         name, _, rest = said.partition(" ")
         if not name or (rest and not rest.startswith(("- ", "("))):
             continue
-        # A rung is a word of the name rather than the end of it: `gpt-5-low-fast` is the
-        # `low` model asked for over the faster service, and `-fast` is not a rung.
-        words = name.split("-")
-        carried = next((rung for rung in profile.efforts if rung in words), "")
-        found.append(Model(name, (carried,) if carried else profile.efforts))
-    return found
+        listed.append(name)
+    return [Model(name, _variants(profile, name, set(listed))) for name in listed]
+
+
+def _variants(profile: Profile, model: str, listed: set[str]) -> tuple[str, ...]:
+    """Which of Cursor's rungs one listed id runs at, hardest first.
+
+    Args:
+      profile: Cursor Agent's own, which is where the ladder is written down.
+      model: The id, as the account listed it.
+      listed: Every id the account listed, which is what says whether a variant exists.
+
+    Returns:
+      The one its own name carries, where it carries one, and otherwise the ones its variants
+      are listed under -- nothing at all for an id with neither, which is a model that runs at
+      whatever Cursor gives it.
+    """
+    # A rung is a stretch of the name rather than the end of it: `gpt-5-low-fast` is the `low`
+    # model asked for over the faster service, and `-fast` is not a rung. Written as the
+    # hyphens either side of it so that `extra-high` is read as the rung it is rather than as
+    # the `high` inside it, and read hardest first so that it is reached before that `high`.
+    carried = next(
+        (rung for rung in profile.efforts if f"-{rung}-" in f"-{model}-"), ""
+    )
+    if carried:
+        return (carried,)
+    return tuple(rung for rung in profile.efforts if f"{model}-{rung}" in listed)
 
 
 #: What a CLI wraps a word in to colour it, which is not part of what the word says.

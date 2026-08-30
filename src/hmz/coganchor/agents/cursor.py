@@ -4,12 +4,17 @@ Its command line says the whole of what an agent is configured with -- which mod
 it thinks, what it may reach for, which chat to carry on -- so a turn is one run of it rather
 than a conversation held open on a server.
 
-How hard it thinks is not a flag. Cursor's models are parameterized, and the rung is written
-into the model the turn is asked for: `claude-opus-4-8[effort=high]`, which is the spelling
-its own `--help` documents. Asking to be served quickly is the same bracket, as `fast=true`,
-which is why this backend can express a service tier at all. A model named with a bracket
-already is taken exactly as it was written: a flow that spelled out its own parameters meant
-them.
+How hard it thinks is not a flag, and on a signed-in account it is not a bracket either.
+Cursor writes the rung into the model's own id -- `gpt-5.2-low` is listed beside `gpt-5.2`,
+`claude-opus-5-low` beside `claude-opus-5-high` -- and an account asked for the parameter its
+`--help` still documents answers `Cannot use this model: gpt-5.2[effort=low]` and prints that
+list back, on a bare name and on one already carrying a rung alike. Asking to be served
+quickly is the same suffix, `composer-2.5-fast` being that model on the faster service, which
+is why this backend can express a service tier at all. So the id a turn asks for is built out
+of the name and checked against what this account said it runs, and a combination it does not
+list is refused here rather than spent finding out there. A model named with a bracket already
+is taken exactly as it was written: a flow that spelled out its own parameters meant them, and
+which accounts still take them is not this driver's to decide.
 
 What `--output-format stream-json` writes on stdout is a protocol rather than the agent
 talking: one JSON object a line, tagged by `type`, opening on the `system` line that names the
@@ -24,6 +29,8 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
+
+from hmz.coganchor import backends, models
 
 from .base import AgentBase, CommandSessionBase
 from .config import AgentConfig
@@ -57,6 +64,12 @@ _SUBAGENTS = ("task", "subagent", "explore", "agent")
 
 #: How much of a tool call fits on a row of a transcript.
 _ROOM = 120
+
+#: What Cursor writes on the end of an id to mean that same model served quickly, which is the
+#: only spelling its service tier has now that the bracket is refused: `composer-2.5-fast` is
+#: `composer-2.5` on the faster service and `gpt-5-low-fast` is that rung on it. Not a rung,
+#: which is why it is here and not on the ladder in :mod:`hmz.coganchor.backends`.
+_FAST = "fast"
 
 #: What each kind of token is called on the `usage` Cursor states at the end of a turn. The
 #: input it states is already the whole of what went in less what was read from and written to
@@ -108,40 +121,108 @@ def _called(said: dict[str, Any]) -> tuple[str, str]:
     return named.removesuffix("ToolCall") or "tool", _about(given)
 
 
-def parameterized(model: str, effort: str, *, fast: bool) -> str:
-    """One model as Cursor is asked for it, with the rung and the tier written into it.
+def _carried(model: str) -> str:
+    """Which of Cursor's rungs this model's own id already says it runs at.
 
-    Cursor's models take their parameters in brackets after the name, which is where how hard
-    it thinks and how quickly it is served both go. A model already written with a bracket is
-    left exactly as it is: a flow that spelled out `claude-opus-4-8[context=1m,effort=high]`
-    said what it meant, and a second bracket would be a model Cursor refuses.
+    Cursor lists both forms of a model side by side -- `gpt-5.2` and `gpt-5.2-low` -- so a
+    name that has already answered must not be answered over: `gpt-5.2-low-low` is not an id
+    anybody has, and `gpt-5.2-low` asked for `high` is a flow contradicting itself, which is
+    the model's own word to settle rather than the effort's.
 
-    Only what this turn actually asks for goes in it. A default service tier writes no `fast=`
-    at all rather than `fast=false`: the parameters an account has saved against a model are
-    that account's own answer to a question nobody here asked, and writing the opposite of
-    them on every turn would be humanize overruling somebody who had already decided. It is
-    also what lets a model that is nothing but a name -- an id belonging to an endpoint of
-    somebody else's, where Cursor's brackets would be literal text rather than parameters --
-    arrive spelled exactly as it was given.
+    The ladder is read off the one place it is written down rather than spelled again here,
+    which is the same place :mod:`hmz.coganchor.models` reads it to tell a listed id's rung
+    from its model.
 
-    Which makes the default tier Cursor's own default rather than a promise of the slower
-    service: an account with `fast` saved against a model keeps it, and a flow that means the
-    service it is served on to be its own decision says `service_tier="fast"` and has it said.
+    Args:
+      model: The model the agent is configured with, as `cursor-agent models` lists it.
+
+    Returns:
+      The rung its name carries, hardest first where a name could read as two, and "" for a
+      name that carries none.
+    """
+    profile = backends.named(_COMMAND)
+    efforts = profile.efforts if profile is not None else ()
+    # A rung is a stretch of the name rather than the end of it: `gpt-5-low-fast` is the `low`
+    # model asked for over the faster service, and `-fast` is not a rung.
+    return next((rung for rung in efforts if f"-{rung}-" in f"-{model}-"), "")
+
+
+def _listed(account: str) -> tuple[str, ...]:
+    """Every model id one account was last offered, which a built id is checked against.
+
+    Read where it is wanted rather than kept from the first time: a catalogue is a file
+    somebody asks for again with `r` while a run is going, and a check holding the list from
+    before that would go on refusing a model this account has had all along. One file read,
+    beside a process being started.
+
+    Args:
+      account: The account, by the name its provider was made under, or "" for the CLI as
+        whoever is at this machine already runs it.
+
+    Returns:
+      The ids, in the order the account gave them, and nothing at all where nobody has asked
+      this account yet or where what was kept cannot be read -- which is a list to fill
+      rather than a turn to stop, Cursor itself being about to answer either way.
+    """
+    try:
+        return tuple(one.name for one in models.offered(_COMMAND, account))
+    except (OSError, ValueError):
+        return ()
+
+
+def spelled(model: str, effort: str, *, fast: bool, listed: tuple[str, ...]) -> str:
+    """One model as this account is asked for it, the rung and the tier written into its id.
+
+    Cursor spells both in the name. `cursor-agent models` lists `gpt-5.2`, `gpt-5.2-low`,
+    `gpt-5.2-high` and `gpt-5.2-xhigh` side by side, and `composer-2.5-fast` is that model on
+    the faster service; the bracket its own `--help` documents is refused outright by a
+    signed-in account, on a bare name and on one already carrying a rung alike. So what goes
+    after `--model` is an id out of that list, made by writing on what the name has not
+    already said -- and a model written with a bracket by whoever configured it is left
+    exactly as it is, that being a flow which spelled out its own parameters and meant them.
+
+    Which combinations exist is the account's to say and not this driver's to guess.
+    `gpt-5.2-low` is listed and `gpt-5.2-medium` is not; `composer-2.5` and `auto` have no rung
+    form at all and run at whatever Cursor gives them. So the id this builds is checked against
+    the catalogue humanize last took from this account, and one that account lists no such
+    thing for is refused here -- naming what it does list for that model -- rather than spent
+    on a turn that comes back `Cannot use this model`. Refused rather than quietly dropped:
+    an effort a flow chose being silently no effort at all is the setting that lies.
+
+    What the catalogue says nothing about is not refused. An account nobody has asked yet has
+    an empty list and one asked before the vendor moved has a wrong one, and neither is a
+    reason to withhold a rung somebody asked for: that id goes out as it was built and Cursor
+    answers it with its own list, which is the `unlisted` failure humanize already tells a
+    person how to fix.
 
     Args:
       model: The model, as the agent was configured with it.
-      effort: How hard it is to think, or "" to leave the model at its own default.
+      effort: How hard it is to think, or "" to leave the model wherever its own id has it.
       fast: Whether to ask for the faster service.
+      listed: Every id this account was last offered, and nothing at all where nobody has
+        asked it yet.
 
     Returns:
-      What to put after `--model`, which is the model itself where there is nothing to add.
+      What to put after `--model`, which is the model itself where there was nothing to add.
+
+    Raises:
+      ValueError: If the account lists this model and not the id the rung or the tier makes of
+        it -- an effort it has no variant for, a service it is not served on.
     """
     if "[" in model:
         return model
-    said = [f"effort={effort}"] if effort else []
-    if fast:
-        said.append("fast=true")
-    return f"{model}[{','.join(said)}]" if said else model
+    wanted = model
+    if effort and not _carried(model):
+        wanted = f"{wanted}-{effort}"
+    if fast and not wanted.endswith(f"-{_FAST}"):
+        wanted = f"{wanted}-{_FAST}"
+    if wanted == model or wanted in listed or model not in listed:
+        return wanted
+    kin = [one for one in listed if one.startswith(f"{model}-")]
+    runs = ", ".join(kin) if kin else "itself alone, at whatever Cursor gives it"
+    raise ValueError(
+        f"{_COMMAND} lists no {wanted}: this account runs {model} as {runs}"
+    )
 
 
 class CursorSession(CommandSessionBase):
@@ -199,8 +280,11 @@ class CursorSession(CommandSessionBase):
         self._spent, self._costing, self._arriving = 0, Usage(), ""
         configured = self._agent.config
         self._partial = bool(getattr(configured, "partial_output", False))
-        model = parameterized(
-            configured.model, self.effort, fast=configured.service_tier == "fast"
+        model = spelled(
+            configured.model,
+            self.effort,
+            fast=configured.service_tier == _FAST,
+            listed=_listed(self._agent.node().name),
         )
         argv = [
             _COMMAND,
@@ -393,10 +477,11 @@ class CursorSession(CommandSessionBase):
 class CursorAgentConfig(AgentConfig):
     """What Cursor Agent is configured with: the common settings, and four of its own.
 
-    The model is written as Cursor writes it -- a name out of its own catalogue, which
-    `cursor-agent --list-models` prints -- with or without the bracket its parameterized
-    models take. Written with one, the bracket is what the turn asks for and the effort
-    beside it is left alone.
+    The model is written as Cursor writes it -- an id out of this account's own catalogue,
+    which `cursor-agent models` prints -- at the rung its name carries or at the bare name
+    whose rung the common `effort` then writes on. One spelled with a bracket of its own is
+    passed exactly as it stands and the effort beside it left alone, which is the only way
+    left to reach a parameter this account may still take.
 
     Three of the four below sit where `cursor-agent` itself leaves them, so an agent nobody
     has said anything about runs the turn its own command line would have run. `trust` is the
@@ -436,10 +521,11 @@ class CursorAgentConfig(AgentConfig):
 class CursorAgent(AgentBase):
     """Cursor Agent, driven through its own command line, one run per turn."""
 
-    #: Its models take `fast=true` in the bracket their parameters go in, which is the same
-    #: thing every other backend here calls a service tier. `fast` is the one this can state
-    #: exactly; the other writes nothing at all, and is Cursor's own answer rather than a
-    #: promise that the faster service was not used.
+    #: Some of its models are listed twice, once as themselves and once with `-fast` on the
+    #: end -- `composer-2.5-fast` -- which is the same thing every other backend here calls a
+    #: service tier. `fast` is the one this can state exactly, and only for a model the
+    #: account lists that way; the other writes nothing at all, and is Cursor's own answer
+    #: rather than a promise that the faster service was not used.
     service_tiers = ("default", "fast")
 
     #: What the `usage` on its last line counts: the input, the output, and the cache read
@@ -449,6 +535,36 @@ class CursorAgent(AgentBase):
     #: Every moment a turn passes through, and the two about a fleet: its stream says when a
     #: turn starts an agent of its own and when that one has come back.
     moments: ClassVar[frozenset[Moment]] = EVERYWHERE | SUBAGENTS
+
+    def _serves(self, config: AgentConfig) -> None:
+        """Refuses a config this backend has no way of expressing, this account's list too.
+
+        The three the base class refuses are about the CLI -- a rung nothing here has a word
+        for, a tier it cannot send, a search it cannot switch off. This one is about the
+        account, because on Cursor the rung is not something sent at all: it is part of the
+        id, and which ids exist is the account's answer rather than the CLI's. `gpt-5.2` runs
+        at `low`, `high` and `xhigh` and there is no `gpt-5.2-medium` to run; `composer-2.5`
+        and `auto` have no rung form at all.
+
+        Said here, where every other config this backend cannot express is said, so that a
+        flow naming one is stopped before it spends a turn finding out -- and said again as
+        the turn is built, since the rung is the one setting a flow may move after the agent
+        was made, and a check only at construction is one that stops looking.
+
+        Args:
+          config: What the agent is to run at.
+
+        Raises:
+          ValueError: For the three the base class refuses, and for a model this account is
+            offered that it is not offered at this rung or on this service.
+        """
+        super()._serves(config)
+        spelled(
+            config.model,
+            config.effort,
+            fast=config.service_tier == _FAST,
+            listed=_listed(config.provider),
+        )
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> CursorSession:
         """Opens a new Cursor chat, in the directory it is given or in this one."""

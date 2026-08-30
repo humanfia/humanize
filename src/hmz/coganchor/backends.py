@@ -846,12 +846,22 @@ _GATEWAY = (
 #: What Antigravity CLI calls its reasoning levels, hardest first.
 _AGY = ("high", "medium", "low")
 
-#: What Cursor calls a reasoning effort, hardest first. Not a flag of its own: its models are
-#: parameterized, and how hard one thinks is written into the model it is asked for, as
-#: `claude-opus-4-8[effort=high]` -- which is the spelling its own command line documents. The
-#: three rungs are the ones its model list names, where a variant of a model carries the rung
-#: in its name: `gpt-5-high`, `gpt-5-low-fast`, and the ones it says run at a fixed medium.
-_CURSOR = ("high", "medium", "low")
+#: What Cursor calls a reasoning effort, hardest first. Not a flag of its own, and -- on a
+#: signed-in account -- not the bracket its `--help` still documents either: `cursor-agent
+#: models` lists the rung as a suffix of the id, `gpt-5.2-low` beside `gpt-5.2`, and an
+#: account asked for `gpt-5.2[effort=low]` answers `Cannot use this model` with that same
+#: list. So these are the words its own ids are spelled with, read off the catalogue of a
+#: live account on 2026-09-17: seven of them rather than three, `gpt-5.6-sol-none` through
+#: `claude-opus-4-8-max`, with `muse-spark-1.3-minimal` under `low`.
+#:
+#: `extra-high` is the eighth and it is one model's spelling of `xhigh`: `gpt-5.5-extra-high`
+#: is the only id on that account written that way. It is here because what this list is for
+#: is telling a rung in an id from the rest of the id, and a rung nothing here knows the
+#: spelling of is one that reads as `high` -- a model named one rung under what it runs.
+#: Which rungs a given model actually has is the catalogue's to say and not this list's: the
+#: ladder is the vocabulary, and `hmz.coganchor.models` narrows it per model to the ids the
+#: account was offered.
+_CURSOR = ("max", "xhigh", "extra-high", "high", "medium", "low", "minimal", "none")
 
 #: What ZCode calls a thought level, hardest first. Two ladders rather than one, because its
 #: models have two: the ones that take a budget are asked for `max`, `high` or `low`, and the
