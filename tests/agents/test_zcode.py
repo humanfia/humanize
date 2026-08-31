@@ -51,15 +51,15 @@ def send(message):
     sys.stdout.flush()
 
 
-def event(kind, payload):
+def event(kind, payload, session=None):
     send({"method": "session/event", "params": {
-        "sessionId": SESSION, "type": kind, "payload": payload}})
+        "sessionId": session or SESSION, "type": kind, "payload": payload}})
 
 
-def turn(prompt):
-    event("turn.started", {"input": prompt, "turnNumber": 0})
+def turn(prompt, session=None):
+    event("turn.started", {"input": prompt, "turnNumber": 0}, session)
     if prompt == "boom":
-        event("turn.failed", {"error": {"message": "the model refused it"}})
+        event("turn.failed", {"error": {"message": "the model refused it"}}, session)
         return
     if prompt == "asking":
         send({"id": "server-9", "method": "interaction/requestUserInput", "params": {
@@ -75,23 +75,24 @@ def turn(prompt):
         return
     marked = "msg_1"
     event("model.streaming", {"assistantMessageId": marked, "kind": "reasoning_delta",
-                              "delta": "thinking it over"})
+                              "delta": "thinking it over"}, session)
     event("model.streaming", {"assistantMessageId": marked, "kind": "text_delta",
-                              "delta": "Looking now."})
+                              "delta": "Looking now."}, session)
     event("model.streaming", {"assistantMessageId": marked, "kind": "tool_call",
                               "toolCallId": "tu_1", "toolName": "Bash",
-                              "input": {"command": "ls", "description": "List the files"}})
+                              "input": {"command": "ls", "description": "List the files"}},
+          session)
     event("session.updated", {"content": "Looking now.", "stopReason": "tool-calls",
                               "usage": {"inputTokens": 7, "outputTokens": 3,
-                                        "totalTokens": 10}})
+                                        "totalTokens": 10}}, session)
     event("model.streaming", {"assistantMessageId": "msg_2", "kind": "text_delta",
-                              "delta": prompt})
+                              "delta": prompt}, session)
     event("session.updated", {"content": prompt, "stopReason": "stop",
                               "usage": {"inputTokens": 5, "outputTokens": 2,
-                                        "totalTokens": 7}})
+                                        "totalTokens": 7}}, session)
     event("turn.completed", {"response": prompt, "toolCallCount": 1,
                              "usage": {"inputTokens": 12, "outputTokens": 5,
-                                       "totalTokens": 17, "modelRequestCount": 2}})
+                                       "totalTokens": 17, "modelRequestCount": 2}}, session)
 
 
 def opened():
@@ -133,15 +134,30 @@ for line in sys.stdin:
     if call["method"] == "session/resume":
         send({"id": call["id"], "result": opened()})
         continue
+    if call["method"] == "session/messages":
+        # The last message of the conversation, which is the point a fork is cut at. `info`
+        # carries `id` rather than `messageId`, which is what the real one answers with.
+        send({"id": call["id"], "result": {"messages": [
+            {"info": {"id": "msg_last", "role": "assistant"}}]}})
+        continue
+    if call["method"] == "session/fork":
+        send({"id": call["id"], "result": {
+            "forkedSessionId": "sess_forked",
+            "parentSessionId": call["params"]["sessionId"],
+            "targetMessageId": "msg_last",
+            "response": "Forked session sess_forked: copied 3 messages.",
+            "snapshot": {"messages": []}}})
+        continue
     if call["method"] == "session/goal":
         send({"id": call["id"], "result": {"response": "Goal complete",
                                            "startedTurn": True, "snapshot": {}}})
         turn("under a goal: " + call["params"].get("objective", ""))
         continue
     if call["method"] == "session/send":
-        send({"id": call["id"], "result": {"sessionId": SESSION, "accepted": True,
+        named = call["params"]["sessionId"]
+        send({"id": call["id"], "result": {"sessionId": named, "accepted": True,
                                            "stateRevision": 1}})
-        turn(call["params"]["content"])
+        turn(call["params"]["content"], named)
         continue
     send({"id": call["id"], "result": {}})
 """
@@ -210,8 +226,9 @@ def test_a_turn_opens_a_session_naming_what_it_is_to_run(
     assert session("hello") == "hello"
 
     (opened,) = server.named("session/create")
-    # Field by field, and no field beyond them: what this driver sends a server it cannot
-    # ask is the five things it has a reason for, and a sixth would be one guessed at.
+    # Field by field, and no field beyond them. No `runtimeModel` among them: this agent is
+    # on no account of humanize's, so the provider it runs on is whatever ZCode is already
+    # configured with, exactly as a bare `zcode` would take the turn.
     assert set(opened) == {
         "workspace",
         "model",
@@ -226,8 +243,8 @@ def test_a_turn_opens_a_session_naming_what_it_is_to_run(
         "workspacePath": str(tmp_path),
         "workspaceKey": str(tmp_path),
     }
-    # A title is a turn of its own on the lite model, and nothing here reads one.
-    assert opened["titleGenerationEnabled"] is False
+    # On, which is what leaving the field out does: only `false` turns it off.
+    assert opened["titleGenerationEnabled"] is True
     # And the session is then read as it happens rather than replayed.
     (subscribed,) = server.named("session/subscribe")
     assert subscribed == {
@@ -374,25 +391,25 @@ def test_an_agent_that_may_not_search_the_web_is_denied_the_tools_that_reach_it(
     agent.stop()
 
 
-def test_a_session_is_named_by_zcode_only_where_the_flow_asked_for_one(
+def test_a_session_is_named_by_zcode_unless_the_flow_said_not_to(
     server: _FakeServer, tmp_path: Path
 ) -> None:
-    """A title is a turn of its own on the lite model, so nothing pays for one unasked.
+    """On is ZCode's own answer, and the field's other value is the only way to stop it.
 
-    Off is what this driver has always sent rather than what ZCode does for a client that
-    leaves the field out -- there is no CLI here to ask -- so both answers are checked as
-    the setting they are.
+    A server reads `false` as off and reads `true` and the field left out as the same
+    thing, so the default here is what saying nothing gets -- a request of its own on the
+    lite role before the turn runs, which a run that reads no title may not want to pay for.
     """
     agent = _agent()
     agent.new(tmp_path)("hello")
 
-    assert server.named("session/create")[-1]["titleGenerationEnabled"] is False
+    assert server.named("session/create")[-1]["titleGenerationEnabled"] is True
     agent.stop()
 
-    agent = _agent(titles=True)
+    agent = _agent(titles=False)
     agent.new(tmp_path)("hello")
 
-    assert server.named("session/create")[-1]["titleGenerationEnabled"] is True
+    assert server.named("session/create")[-1]["titleGenerationEnabled"] is False
     agent.stop()
 
 
@@ -471,20 +488,232 @@ def test_a_delivery_kind_that_names_nothing_is_refused_where_it_is_written() -> 
         ZcodeAgentConfig(model="zai/glm-5.3", effort="high", delivery="   ")
 
 
+def _gateway(**env: str) -> None:
+    """Makes an account of this backend that points ZCode at somebody's endpoint."""
+    from hmz.coganchor import providers
+
+    providers.add(
+        "zcode",
+        "gateway",
+        way="gateway",
+        env={
+            "ZCODE_BASE_URL": "https://gateway.example/v1",
+            "ZCODE_API_KEY": "the-account-key",
+            **env,
+        },
+    )
+
+
+def test_a_gateway_account_is_handed_to_the_session_rather_than_written_anywhere(
+    server: _FakeServer, tmp_path: Path
+) -> None:
+    """ZCode resolves a provider out of the file the person at this machine owns.
+
+    So an agent on an account humanize was given has to hand ZCode that account some other
+    way, or every session it opens is refused for a model config that is missing. The way
+    is the session itself: `runtimeModel` names the provider for as long as the server holds
+    it, and nothing under `~/.zcode` is read differently or written at all.
+    """
+    _gateway()
+    agent = ZcodeAgent(
+        ZcodeAgentConfig(model="gw/vendor/model-9", effort="high", provider="gateway")
+    )
+    agent.new(tmp_path)("hello")
+
+    (opened,) = server.named("session/create")
+    named = opened["runtimeModel"]
+
+    assert named["model"] == {"providerId": "gw", "modelId": "vendor/model-9"}
+    assert named["thoughtLevel"] == "high"
+    # The provider is named after the one the model names, so that the pair the session is
+    # opened with is a pair the server can resolve.
+    assert named["provider"]["providerId"] == "gw"
+    assert named["provider"]["baseURL"] == "https://gateway.example/v1"
+    assert named["provider"]["models"] == [{"modelId": "vendor/model-9"}]
+    # This run's, and written down nowhere: not the workspace's, not the person's.
+    assert named["provider"]["source"] == "ephemeral"
+    # The key goes on it rather than being left to the environment, which does have it:
+    # ZCode tries `GW_API_KEY` before `ZCODE_API_KEY`, spelled out of the provider's own
+    # name, and one of those left in a shell profile is an account this turn would run as.
+    assert named["provider"]["apiKey"] == {
+        "source": "inline",
+        "value": "the-account-key",
+    }
+    agent.stop()
+
+
+def test_the_protocol_a_gateway_speaks_is_the_one_zcode_would_have_worked_out(
+    server: _FakeServer, tmp_path: Path
+) -> None:
+    """A provider naming a base URL is `openai-compatible` by ZCode's own rule.
+
+    So that is what an install which says nothing gets, and the field is for the gateway
+    that speaks one of the other two -- which is a failure quieter than a refusal, the
+    endpoint answering and answering badly.
+    """
+    _gateway()
+    made = ZcodeAgentConfig(
+        model="gw/vendor/model-9", effort="high", provider="gateway"
+    )
+    agent = ZcodeAgent(made)
+    agent.new(tmp_path)("hello")
+
+    assert server.named("session/create")[-1]["runtimeModel"]["provider"]["kind"] == (
+        "openai-compatible"
+    )
+    agent.stop()
+
+    agent = ZcodeAgent(replace(made, protocol="anthropic"))
+    agent.new(tmp_path)("hello")
+
+    assert (
+        server.named("session/create")[-1]["runtimeModel"]["provider"]["kind"]
+        == "anthropic"
+    )
+    agent.stop()
+
+
+def test_an_account_that_names_no_endpoint_leaves_zcodes_own_configuration_alone(
+    server: _FakeServer, tmp_path: Path
+) -> None:
+    """A key account is a key, and which provider serves it is still ZCode's file's to say."""
+    from hmz.coganchor import providers
+
+    providers.add("zcode", "keyed", way="key", env={"ZCODE_API_KEY": "plan-key"})
+    agent = ZcodeAgent(
+        ZcodeAgentConfig(model="zai/glm-5.3", effort="high", provider="keyed")
+    )
+    agent.new(tmp_path)("hello")
+
+    assert "runtimeModel" not in server.named("session/create")[-1]
+    agent.stop()
+
+
+def test_a_session_picked_back_up_is_handed_its_provider_again(
+    server: _FakeServer, tmp_path: Path
+) -> None:
+    """The conversation outlives the server; the provider it ran on does not.
+
+    ZCode materialises the provider from the client and keeps it in memory, so a session
+    resumed on a server started since -- which is what a fallback leaves behind -- is a
+    conversation whose model nothing can reach unless it is named again.
+    """
+    _gateway()
+    agent = ZcodeAgent(
+        ZcodeAgentConfig(model="gw/vendor/model-9", effort="high", provider="gateway")
+    )
+    session = agent.new(tmp_path)
+    session("first")
+    agent._down()
+    session("second")
+
+    (resumed,) = server.named("session/resume")
+
+    assert (
+        resumed["runtimeModel"]["provider"]["baseURL"] == "https://gateway.example/v1"
+    )
+    # And on both of the settling calls, either of which may be the first thing a server
+    # started since hears about this session.
+    assert (
+        server.named("session/setModel")[-1]["runtimeModel"] == resumed["runtimeModel"]
+    )
+    assert (
+        server.named("session/setThoughtLevel")[-1]["runtimeModel"]
+        == (resumed["runtimeModel"])
+    )
+    agent.stop()
+
+
+def test_a_fork_is_cut_from_where_the_conversation_had_got_to(
+    server: _FakeServer, tmp_path: Path
+) -> None:
+    """ZCode forks from a point rather than from a session, and the point is its last message.
+
+    Its own default is the latest workspace checkpoint, which does not exist until the agent
+    has changed a file -- so a fork of a conversation that has only talked would be refused
+    for a reason about files.
+    """
+    agent = _agent()
+    session = agent.new(tmp_path)
+    session("first")
+    forked = session.fork()
+
+    assert forked("second") == "second"
+
+    (cut,) = server.named("session/fork")
+
+    assert cut["sessionId"] == "sess_fake"
+    assert cut["target"] == {"kind": "message", "messageId": "msg_last"}
+    # The child is ZCode's own session rather than a second handle on the parent's, and it
+    # is read as it happens like any other.
+    assert forked.id == "sess_forked"
+    assert session.id == "sess_fake"
+    assert server.named("session/subscribe")[-1]["sessionId"] == "sess_forked"
+    # And the fork is the child's first turn: nothing opened a session of its own for it.
+    assert len(server.named("session/create")) == 1
+    agent.stop()
+
+
+def test_a_fork_of_an_agent_that_may_not_search_is_let_go_of_and_picked_back_up(
+    server: _FakeServer, tmp_path: Path
+) -> None:
+    """ZCode materialises a fork from the mode, the model and the thought level and no more.
+
+    So the denylist that keeps an agent off the web is not among what a child inherits, and a
+    fork of a conversation that may not search would be one that may -- a setting lifted by
+    branching, which nothing downstream would report. `session/resume` is where a denylist is
+    sayable and it says nothing to a session the server is already holding, so the child is
+    closed and picked back up with it.
+    """
+    agent = ZcodeAgent(
+        ZcodeAgentConfig(model="zai/glm-5.3", effort="high", web_search=False)
+    )
+    session = agent.new(tmp_path)
+    session("first")
+    forked = session.fork()
+
+    assert forked("second") == "second"
+
+    (closed,) = server.named("session/close")
+    (resumed,) = server.named("session/resume")
+
+    assert closed == {"sessionId": "sess_forked"}
+    assert resumed["sessionId"] == "sess_forked"
+    assert resumed["toolDenylist"] == ["WebFetch", "WebSearch"]
+    agent.stop()
+
+    # And an agent that may search is one the fork already gets right, so nothing is closed.
+    agent = _agent()
+    session = agent.new(tmp_path)
+    session("first")
+    session.fork()("second")
+
+    assert server.named("session/close") == [closed]
+    agent.stop()
+
+
+def test_a_protocol_that_is_not_one_of_zcodes_three_is_refused_where_it_is_written() -> (
+    None
+):
+    """A gateway spoken to in the wrong protocol answers, and answers badly."""
+    with pytest.raises(ValueError, match="protocol must be one of"):
+        ZcodeAgentConfig(model="zai/glm-5.3", effort="high", protocol="grpc")
+
+
 def test_an_agent_handed_the_common_config_runs_at_what_was_always_sent(
     server: _FakeServer, tmp_path: Path
 ) -> None:
-    """The three answers are ZCode's config's, and the common one says none of them."""
+    """The four answers are ZCode's config's, and the common one says none of them."""
     agent = ZcodeAgent(AgentConfig(model="zai/glm-5.3", effort="high"))
     agent.new(tmp_path)("hello")
 
     assert server.answered("nativeSearchEnhancementsEnabled") == [True]
-    assert server.named("session/create")[-1]["titleGenerationEnabled"] is False
+    assert server.named("session/create")[-1]["titleGenerationEnabled"] is True
     assert server.named("session/subscribe")[-1]["deliveryKind"] == "desktop-continuous"
     agent.stop()
 
 
-def test_each_of_the_three_is_a_capability_a_flow_can_ask_for_beforehand() -> None:
+def test_each_of_the_four_is_a_capability_a_flow_can_ask_for_beforehand() -> None:
     """Humanize deciding something on ZCode's behalf is something a flow may ask about.
 
     The field is where the other answer is given; the name is what a place declares to be
@@ -496,7 +725,12 @@ def test_each_of_the_three_is_a_capability_a_flow_can_ask_for_beforehand() -> No
 
     told = {one.name: one.backends for one in catalogue()}
 
-    for name in ("settings:titles", "settings:native_search", "settings:delivery"):
+    for name in (
+        "settings:titles",
+        "settings:native_search",
+        "settings:delivery",
+        "settings:protocol",
+    ):
         assert "zcode" in told[name], name
 
 
@@ -832,3 +1066,70 @@ def test_what_a_session_said_before_the_turn_started_is_not_the_turns_own_answer
     agent = _agent()
     assert agent.new(tmp_path)("what this turn asked") == "what this turn asked"
     agent.stop()
+
+
+#: Somewhere a request would never reach, for the half of the real-server test that only
+#: opens a session: nothing is sent to the endpoint until a turn is, so this is a base URL
+#: that names a provider without naming anybody's account.
+_NOWHERE = "https://zcode.invalid/v1"
+
+
+@pytest.mark.agent
+@pytest.mark.timeout(300)
+def test_a_real_app_server_opens_a_session_only_when_it_is_handed_a_provider(
+    tmp_path: Path,
+) -> None:
+    """The stand-in above says yes to a session whatever it is asked; the real one does not.
+
+    ZCode resolves its model provider from the configuration file the person at this machine
+    owns, and a server started without one refuses every session outright. That is the whole
+    of the bug this pins: a driver that names a model and no provider is a driver whose every
+    turn comes back `Model config is missing`, and a stand-in cannot tell anybody so.
+
+    It costs nothing and reaches nobody -- a session is opened and the server put down, no
+    turn is sent, so the endpoint named here is never called on.
+    """
+    import shutil
+
+    from hmz.coganchor.agents.zcode import _AppServer, _Held, _runtime
+
+    if shutil.which("zcode") is None:
+        pytest.skip("zcode is not installed here")
+    held = _Held(model="hmz-test/no-such-model", effort="high", mode="plan")
+    theirs = Path.home() / ".zcode" / "cli" / "config.json"
+    if not theirs.exists():
+        # Only where this machine has no provider of its own to fall back on: an install
+        # that has one is an install where a session opens either way, and the refusal this
+        # is about is not one it can be shown.
+        server = _AppServer(["zcode", "app-server", "--stdio"])
+        try:
+            with pytest.raises(subprocess.CalledProcessError) as refused:
+                server.open(
+                    str(tmp_path),
+                    held,
+                    searches=True,
+                    titles=False,
+                    delivery="desktop-continuous",
+                )
+            assert "model config is missing" in str(refused.value).lower()
+        finally:
+            server.stop()
+
+    held.runtime = _runtime(
+        held.model,
+        held.effort,
+        {"ZCODE_BASE_URL": _NOWHERE, "ZCODE_API_KEY": "not-a-key"},
+        "openai-compatible",
+    )
+    server = _AppServer(["zcode", "app-server", "--stdio"])
+    try:
+        session = server.open(
+            str(tmp_path),
+            held,
+            searches=True,
+            titles=False,
+            delivery="desktop-continuous",
+        )
+        assert session.startswith("sess_")
+    finally:
+        server.stop()

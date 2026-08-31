@@ -68,8 +68,9 @@ above is unaffected.
 | opencode, mimocode | `run --fork` |
 | pi | `--fork` |
 | Qwen Code | `--fork-session` |
+| ZCode | `session/fork`, cut at the last message of the conversation |
 | A CLI you added | ACP's `session/fork` |
-| Antigravity, Cursor, DeepSeek Harness, ZCode | no |
+| Antigravity, Cursor, DeepSeek Harness | no |
 
 On a backend without one, `fork` raises `NotImplementedError`. It is not answered with a second
 handle on the same conversation: two loops each continuing what they take to be their own is a

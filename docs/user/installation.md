@@ -106,6 +106,31 @@ installer would have put one — `~/.local/bin`, `/usr/local/bin`, `/opt/homebre
 started `hmz` handed it a `PATH` of its own, as a notebook kernel, a service or a runtime
 platform's launcher does.
 
+### ZCode wants a launcher of its own
+
+ZCode's Linux package is the desktop app, and the command line is bundled inside it with no
+launcher. Installing the package puts the **Electron app** on your `PATH` as `zcode`, which on
+a machine with no display exits before it draws anything — so a third step is needed before
+`zcode` is the CLI humanize drives:
+
+```sh
+curl -fsSLO https://cdn-zcode.z.ai/zcode/electron/releases/3.11.2/linux-x64/ZCode-3.11.2-linux-x64.deb
+sudo apt install -y ./ZCode-3.11.2-linux-x64.deb
+printf '#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec /opt/ZCode/zcode /opt/ZCode/resources/glm/zcode.cjs "$@"\n' \
+  | sudo tee /usr/local/bin/zcode >/dev/null
+sudo chmod +x /usr/local/bin/zcode
+```
+
+The launcher runs the bundled command line through the app's own Electron binary in Node mode,
+so it wants no system `node` and moves with the package it came from. `/usr/local/bin` comes
+before `/usr/bin`, so that is the `zcode` a shell finds, for any user; the desktop app is still
+`/opt/ZCode/zcode` for anyone with a screen to run it on. Check it with `zcode --version`.
+
+The vendor publishes no `latest` URL: a newer release is the same path with the number changed,
+and the `.rpm`, the `.AppImage` and the arm64 builds sit in that same directory under their own
+names. On a distribution without `apt`, install the `.rpm` or unpack the `.AppImage` and point
+the launcher at wherever `resources/glm/zcode.cjs` landed.
+
 The two backends behind extras stay in the list of CLIs an agent may be set to when their extra
 is missing, so that each can show the line that adds it — DeepSeek Harness always, Kimi Code
 once its CLI is here. Each becomes selectable when its import succeeds:
