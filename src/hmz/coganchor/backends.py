@@ -853,12 +853,15 @@ _AGY = ("high", "medium", "low")
 #: in its name: `gpt-5-high`, `gpt-5-low-fast`, and the ones it says run at a fixed medium.
 _CURSOR = ("high", "medium", "low")
 
-#: What ZCode calls a thought level, hardest first. Two ladders rather than one, because its
-#: models have two: the ones that take a budget are asked for `max`, `high` or `low`, and the
-#: ones that only take thinking or no thinking are asked for `enabled` or `disabled`. `nothink`
-#: is what the first kind calls the bottom of its own. They are one list here because a
-#: backend's efforts are one list, and a model narrows it to the rungs it answered with.
-_ZCODE = ("max", "high", "low", "enabled", "nothink", "disabled")
+#: What ZCode calls a thought level, hardest first. Several ladders rather than one, because
+#: its models have several, and 0.16.5's own capability table is where these were read off:
+#: GLM 5.3, Kimi K3 and its preview model take `low`, `high` or `max`; Claude and GPT through
+#: it take `low`, `medium`, `high` or `xhigh`, and Opus 4.7 that ladder with `max` on top;
+#: DeepSeek V4 takes `high` or `max`; GLM 5.2 takes `max`, `high` or `nothink`; and the models
+#: that only take thinking or no thinking take `enabled` or `disabled`. They are one list here
+#: because a backend's efforts are one list, and a model narrows it to the rungs it answered
+#: with -- which the server states per session, as `thoughtLevel.available`.
+_ZCODE = ("max", "xhigh", "high", "medium", "low", "enabled", "nothink", "disabled")
 
 #: Every backend humanize drives, as each of them reported itself. Codex says which efforts
 #: each of its models takes and they differ, so they are written down as it gave them.
@@ -1762,21 +1765,43 @@ PROFILES = (
     ),
     Profile(
         name="zcode",
+        # The vendor ships one Linux package and it is the desktop app, with the command line
+        # bundled inside it at `resources/glm/zcode.cjs` and no launcher of its own. What the
+        # package puts on `PATH` as `zcode` is the Electron app, which on a machine with no
+        # display exits before it draws anything -- so a `zcode` that is the CLI is the third
+        # part of this line, and without it the first two install a name that will not take a
+        # turn. It runs the bundled file through the app's own Electron binary in Node mode,
+        # which wants no system node and moves with the package it came from; `/usr/local/bin`
+        # precedes `/usr/bin`, so that is the `zcode` a shell then finds, for any user.
+        #
+        # The version is in the URL because the vendor publishes no `latest`: a newer release
+        # is the same path with the number changed, and the `.rpm`, the `.AppImage` and the
+        # arm64 builds sit in that same directory under their own names.
+        installs=(
+            "curl -fsSLO https://cdn-zcode.z.ai/zcode/electron/releases/3.11.2/linux-x64"
+            "/ZCode-3.11.2-linux-x64.deb"
+            " && sudo apt install -y ./ZCode-3.11.2-linux-x64.deb"
+            " && printf '#!/bin/sh\\nELECTRON_RUN_AS_NODE=1"
+            ' exec /opt/ZCode/zcode /opt/ZCode/resources/glm/zcode.cjs "$@"\\n\''
+            " | sudo tee /usr/local/bin/zcode >/dev/null"
+            " && sudo chmod +x /usr/local/bin/zcode"
+        ),
         # `WebFetch` and `WebSearch` are the two tools it reaches outside the workspace with,
         # and a session may be opened with a denylist naming them.
         searches=True,
         # One app server per agent holds every session of it, as Codex's and Kimi's do.
         shares=True,
-        # Its app server creates a session and resumes one, and a resumed id is the same
-        # conversation. Whether it has a third call nobody here can say: ZCode has no
-        # officially installable CLI to ask, and a fork written down out of a guess would be
-        # a fact that lies -- so this is the answer that refuses rather than the one that
-        # pretends, until somebody can put the question to the thing itself.
-        forks=False,
+        # `session/fork`, which is the call: it answers with a session id of its own holding
+        # the messages the named one had got to, and a turn sent there knows what that
+        # conversation knew and nothing this one is told afterwards. Written down off 0.16.5
+        # rather than guessed at -- the guess this replaces was that there was no such call.
+        forks=True,
         aliases=("zcode", "zcode-cli"),
-        # None: its configuration, its sessions and its skills are all under `~/.zcode`, and
-        # the one variable it does read moves the part the desktop app shares rather than the
-        # part a turn runs out of. What moves the whole of it is `HOME`.
+        # None: its configuration, its sessions and its skills are all under `~/.zcode`, found
+        # from the home directory itself and from no variable at all. `ZCODE_DATA_BASE_DIR`
+        # moves only the credential the desktop app shares -- `<it>/.zcode/v2` -- and leaves
+        # `cli/`, which is the part a turn runs out of, where it was. What moves the whole of
+        # it is `HOME`.
         home_var="",
         home_dir=".zcode",
         # One file per session, a line per request the turn made: what was sent, what came
@@ -1784,9 +1809,10 @@ PROFILES = (
         # its own rather than the desktop app's.
         logs=("cli/rollout/model-io-{ident}.jsonl",),
         efforts=_ZCODE,
-        # Four places, which is what `zcode skills list` answers with: its own directory and
-        # the shared one under your home, and the same pair under the project. Both tiers, and
-        # no flag to turn either off.
+        # Four places: its own directory and the shared one under your home, and the same pair
+        # under the project. Both tiers, and no flag to turn either off. `zcode skills list`
+        # says these four and a fifth -- the roots of whatever plugins are enabled, which are
+        # the CLI's own and are read last, so nothing here mounts one.
         skills=("skills/*/SKILL.md",),
         shared=(".agents/skills/*/SKILL.md",),
         works=(".zcode/skills/*/SKILL.md", ".agents/skills/*/SKILL.md"),
@@ -1794,20 +1820,27 @@ PROFILES = (
         # agreed to read: a skill mounted there is a skill Codex and Kimi read too.
         mounts=".agents/skills",
         # One file, and the desktop app's rather than the command line's: a login is shared
-        # between them, encrypted with a key derived from this machine and this user.
+        # between them, encrypted with a key derived from this machine and this user. It is
+        # the one path `ZCODE_DATA_BASE_DIR` moves.
         creds=("v2/credentials.json",),
         ambient=(
-            # Its own, which outrank the file whichever way it was signed in.
+            # Its own, which outrank the file whichever way it was signed in. `ZCODE_API_KEY`
+            # is the last candidate it tries for any provider's key, and the ones before it
+            # are spelled out of the provider's own name -- `NVIDIA_API_KEY` for a provider
+            # called `nvidia` -- so they are names no list here could hold. What closes that
+            # is the driver, which puts the account's own key on the session rather than
+            # leaving ZCode to go looking for one.
             "ZCODE_API_KEY",
             "ZCODE_BASE_URL",
             "ZCODE_CREDENTIAL_SECRET",
             "ZCODE_DATA_BASE_DIR",
             "ZCODE_ENDPOINT_ORIGIN",
             # And the vendors' own names, which it reads a key under for a provider speaking
-            # that vendor's protocol -- which the Z.AI plan it ships with is one of.
+            # that vendor's protocol -- which the Z.AI plan it ships with is one of. `kind`
+            # is what decides which of the two it asks for, and no other vendor name is read:
+            # `ZAI_API_KEY` was here and 0.16.5 has no such variable in it anywhere.
             "ANTHROPIC_API_KEY",
             "OPENAI_API_KEY",
-            "ZAI_API_KEY",
         ),
         ways=(
             Way(

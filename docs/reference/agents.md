@@ -401,8 +401,8 @@ humanize asks of that CLI beyond what it does by itself — see
 [A turn narrated as it is written](#a-turn-narrated-as-it-is-written). A CLI of your own takes
 `cli`, `command`, and the four things a client may offer an agent over its protocol —
 `reads_files`, `writes_files`, `terminals` and `mcp_servers`. ZCode takes `titles`,
-`native_search` and `delivery` —
-[the three answers its app server gets](#what-zcode-is-told-that-zcode-did-not-ask-for) that
+`native_search`, `delivery` and `protocol` —
+[the four answers its app server gets](#what-zcode-is-told-that-zcode-did-not-ask-for) that
 are humanize's rather than its own. Antigravity takes four: `add_workspace`, whether the
 session's directory is pinned with `--add-dir` rather than left to the project the CLI would
 resolve for itself; `print_timeout`, how long its own print-mode clock runs, which defaults to
@@ -443,7 +443,7 @@ would silently split one conversation across two models.
 
 ### What ZCode is told that ZCode did not ask for
 
-Every turn of this backend is a session on `zcode app-server --stdio`, and three things that
+Every turn of this backend is a session on `zcode app-server --stdio`, and four things that
 session runs under are decisions humanize made for you. Each is a field, so the other answer
 is sayable, and each is a name a place can declare so a flow asks before its first turn — the
 field's own name under `settings:`, which the catalogue derives from the config class rather
@@ -451,16 +451,38 @@ than minting a second word beside it:
 
 | Field | Default | Capability | What it decides |
 | --- | --- | --- | --- |
-| `titles` | `False` | `settings:titles` | whether `session/create` asks ZCode to name the session. A title is a model turn of its own on the lite model and nothing here reads one — a session is named by the flow that opened it. Turn it on for a run whose conversations are picked back up in ZCode's own interface. |
+| `titles` | `True` | `settings:titles` | whether `session/create` asks ZCode to name the session. On is what leaving the field out does, and on means a model request of its own on the lite role before the turn runs. Turn it off for a run that reads no title and would rather not pay for one — a session here is named by the flow that opened it. |
 | `native_search` | `True` | `settings:native_search` | what the runtime is told about ZCode's own file search, which the server asks its client before it will open a session at all. Off takes `find` and `grep` away from an agent inside its workspace. It is the agent's rather than the session's: the server asks once. |
-| `delivery` | `desktop-continuous` | `settings:delivery` | which delivery kind a session's stream is subscribed under. This one arrives as it happens and misses nothing; the other replays for a web client that may have missed some. |
+| `delivery` | `desktop-continuous` | `settings:delivery` | which delivery kind a session's stream is subscribed under. This one arrives as it happens and misses nothing; `web-remote-replayable`, the other ZCode knows, replays for a web client that may have missed some. |
+| `protocol` | `openai-compatible` | `settings:protocol` | which protocol the endpoint a gateway account names speaks — ZCode's own `kind`, one of `anthropic`, `openai` and `openai-compatible`. Read only for an account that names an endpoint. |
 
-**None of these three defaults is ZCode's own default.** ZCode has no officially installable
-CLI, so there is nothing here to ask what its server does for a client that leaves the field
-out — and a default written down out of a guess would be a fact that lies. What each is, is
-what a turn here has always been run with. If you have a real ZCode to put the question to,
-these three are what to check. For the same reason the other delivery kind's own spelling is
-not written down anywhere: `delivery` takes whatever word the server being driven answers to.
+**Each default is what ZCode 0.16.5 itself does for a client that says nothing**, read off the
+installed CLI rather than guessed at. `titles` was `False` here while there was no officially
+installable ZCode to ask; a server reads only `false` as off, so on is what saying nothing
+gets, and that is what it is now. `native_search` on is what a server falls back on for a
+client with no such method at all. `delivery` has no default to match — `session/subscribe`
+refuses a call that leaves the field out — and takes whatever word the server being driven
+answers to, so a release with a third kind is sayable without a driver that has to learn it
+first. `protocol` is what ZCode's own rule works out for any provider that names a base URL.
+
+### Which provider a ZCode turn runs on
+
+ZCode resolves its model providers from `~/.zcode/cli/config.json`, the file the person at
+this machine owns — their MCP servers, their plugins, their own account — and a server
+started without one refuses every session outright with `Model config is missing`. humanize
+writes nothing into that file and points nothing away from it. An agent on
+[an account humanize was given](#which-account-it-runs-as) whose way is `gateway` hands ZCode
+that account on the session instead: `session/create`, `session/resume` and the two settling
+calls each carry a provider naming the endpoint, its protocol and its key, which lives for as
+long as the app server does and is written down nowhere. An agent on no such account is a turn
+on whatever that file already says, exactly as a bare `zcode` would take it.
+
+On a gateway account the provider half of the model is a name for the run rather than one
+ZCode knows: write the model as `<any-word>/<what the gateway calls it>`, and the endpoint is
+declared under that word. `zcode@work/gw/vendor/some-model:high` runs `vendor/some-model` at
+the `work` account's endpoint. humanize does not keep a catalogue of what a ZCode gateway
+serves — the ids an endpoint lists are the second half only — so the model is one to write
+out rather than one to pick from a list.
 
 ### An agent that is not quite the one you were handed
 
@@ -1435,7 +1457,7 @@ so such a CLI runs at whatever you configured it to run at, under whatever word 
 | `pi` | `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` |
 | `qwen` | `none`, `low`, `medium`, `high`, `xhigh`, `max` |
 | `opencode`, `mimo` | the model variant: `minimal`, `low`, `medium`, `high`, `xhigh` |
-| `zcode` | `nothink`, `low`, `high`, `max` on the models that take a thinking budget — `disabled`, `enabled` on the ones that only think or not |
+| `zcode` | `low`, `high`, `max`; `low`, `medium`, `high`, `xhigh` on Claude and GPT models, with `max` on top for Opus 4.7; `high`, `max` on DeepSeek V4; `max`, `high`, `nothink` on GLM 5.2 — `enabled`, `disabled` on the models that only think or not |
 
 **Antigravity says how hard to think one of two ways and the model chooses which.** It lists
 `gemini-3.7-flash-high`, `-medium` and `-low` as three models, and a name carrying a rung
@@ -1572,11 +1594,13 @@ of its own. It is more work than any single-agent effort, which is why it sits a
 `swarmmax` is the same thinking at the width of a fleet of subagents. The prefix is exported as
 `hmz.coganchor.agents.SWARM` for anything that has to take it apart.
 
-**ZCode's ladder is two vocabularies in one**, because its models have two. The ones that take
-a thinking budget answer `max`, `high` and `low` — and `nothink` for the bottom of that one —
-while the ones that only take thinking-or-not answer `enabled` and `disabled`. humanize asks
-the backend which of them a model said it takes and narrows the ladder to those, so a model is
-offered one vocabulary rather than both.
+**ZCode's ladder is several vocabularies in one**, because its models have several: GLM 5.3
+and Kimi K3 answer `low`, `high` and `max`; Claude and GPT through it answer `low`, `medium`,
+`high` and `xhigh`, and Opus 4.7 that ladder with `max` on top; DeepSeek V4 answers `high` and
+`max`; GLM 5.2 answers `max`, `high` and `nothink`; and the models that only take
+thinking-or-not answer `enabled` and `disabled`. ZCode states which of them a model takes on
+the session it is named on, and humanize narrows the ladder to those, so a model is offered
+one vocabulary rather than all of them.
 
 Codex's models differ from each other — `gpt-5.6-sol` takes `ultra`, `gpt-5.5` does not — so
 the interface offers each model only the efforts it takes.
@@ -1935,7 +1959,7 @@ whoever starts the run overrides it. See
 | Driven through | its command line, held open for ordinary turns | its command line, held open | its app server | its command line, one run per turn | its Python SDK | its command line, held open for ordinary turns | its app server | its command line, held open | its command line, held open for ordinary turns | its command line, one run per turn | its app server |
 | [`interject`](#talking-to-a-turn-already-running) — `session.steers` | no | yes — answered within the same turn | yes — a steer on the running turn | no — a run per turn has ended | no — its prompt queues a turn behind | no — a second prompt is a second turn | yes — queued, then steered in | yes — a steer on the running turn | no | no — a run per turn has ended | no — a second prompt is refused while one is running |
 | [`pursue`](#goals) | no | yes | yes | no | yes | no | yes | no | no | no | yes |
-| [`session.fork`](#a-conversation-that-goes-two-ways) | no | `--fork-session` | `thread/fork` | no | no | `--fork-session` | `kimi fork` | `--fork` | `--fork-session` | `run --fork` | no |
+| [`session.fork`](#a-conversation-that-goes-two-ways) | no | `--fork-session` | `thread/fork` | no | no | `--fork-session` | `kimi fork` | `--fork` | `--fork-session` | `run --fork` | `session/fork` |
 | [`PERMISSION_REQUEST`](#not-every-backend-runs-every-moment) | no | yes | yes | no | no | no | no | no | no | no | yes |
 | [`SubagentStart`/`SubagentStop`](#not-every-backend-runs-every-moment) | no | yes | yes | yes | no | no | no | no | no | no | no |
 | [Callbacks as tools](#callbacks-of-the-flow-s-own) | no | `--mcp-config` | `-c mcp_servers…` | no | no | no | no | no | no | no | no |

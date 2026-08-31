@@ -8,6 +8,18 @@ would be a setting that lies. The app server takes both per session, which is wh
 there instead: `session/create` names the model, the thought level and the rung, and what comes
 back is the turn as it happens rather than a summary once it is over.
 
+What a model *is* is the other half of that. ZCode resolves its providers from the
+configuration file the person at this machine has -- `~/.zcode/cli/config.json` -- and a
+server started without one refuses every session outright: `Model config is missing`. That
+file is theirs, holding their MCP servers, their plugins and their own account, so this
+writes nothing into it and points nothing away from it either. The protocol takes a provider
+instead: `session/create`, `session/resume` and the two settling calls each take a
+`runtimeModel`, which names the provider a session runs on -- its protocol, its base URL, its
+key -- for as long as the server holds it and nowhere else. So an agent on a gateway account
+hands ZCode that account, a turn under no account at all is a turn on whatever their own file
+says, and neither is a file this ever touched. The flag the CLI documents for it,
+`--settings <path>`, is not one the CLI actually parses: 0.16.5 refuses it before it starts.
+
 The protocol is ZCode's own rather than JSON-RPC. The four frames are the familiar ones -- a
 call, a notification, an answer, a refusal -- and a `jsonrpc` on any of them is refused
 outright, so this speaks it as it is. The server also asks things of its client: what the
@@ -38,6 +50,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 import weakref
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
@@ -103,21 +116,20 @@ _KINDS = {"input": "inputTokens", "output": "outputTokens"}
 #: it is a client that answered no rather than one that said nothing and was read as either.
 _NATIVE = "nativeSearchEnhancementsEnabled"
 
-#: What that answer is where nobody has said otherwise. On, because taking file search away
-#: from an agent working unattended inside a workspace is not what anybody means by running
-#: one. Whether it is also what the server does for a client that leaves the key out is not
-#: known here and is not guessable: there is no officially installable ZCode to put the
-#: question to, and the comment this was written from called it the one answer that is not a
-#: default. So what is written down is today's behaviour rather than ZCode's own, and
-#: `ZcodeAgentConfig.native_search` is where an install that has asked a real server says so.
+#: What that answer is where nobody has said otherwise, and ZCode's own: the field is required
+#: of an answer, and the answer a server falls back on when its client has no such method at
+#: all is `true`. So a client that says this is a client saying what saying nothing would have
+#: got it, and `ZcodeAgentConfig.native_search` is where the other answer is given. Off takes
+#: a better `find` and `grep` away from an agent inside its workspace.
 _SEARCHING = True
 
-#: Whether a session is opened asking ZCode to name itself. Off, because a title is a turn of
-#: its own on the lite model and nothing here reads one: a session is named by the flow that
-#: opened it. Unverified in the same way and for the same reason -- what the server titles for
-#: a client that leaves the field out is a question nobody here can put to it -- so this too is
-#: what a turn has always been run with, and `ZcodeAgentConfig.titles` is where it is said back.
-_TITLES = False
+#: Whether a session is opened asking ZCode to name itself, which is ZCode's own answer: the
+#: server reads `false` and reads anything else -- `true`, or the field left out -- as on, and
+#: on means a request of its own, on the lite role, before the turn runs. So the default here
+#: is on, because an install that has said nothing is an install that gets what bare ZCode
+#: does, and `ZcodeAgentConfig.titles` is where a run that would rather not pay for a name
+#: nothing reads says so. This was `False` while nobody could ask a server which it was.
+_TITLES = True
 
 #: What the server asks its client before it will open a session at all, and gives up on after
 #: fifteen seconds.
@@ -128,12 +140,37 @@ _RUNTIME = "session/requestRuntimePreferences"
 _APPROVAL = "interaction/requestPermission"
 _ASKS = "interaction/requestUserInput"
 
-#: What a session's own stream is delivered as. The other kind replays for a web client that
-#: may have missed some; a turn read here is read as it happens and misses nothing. Only this
-#: one is written down: the other kind's own spelling is the server's to know and nobody here
-#: has heard it say it, so `ZcodeAgentConfig.delivery` takes whatever word the ZCode being
-#: driven answers to rather than a second literal guessed at from the shape of the first.
+#: What a session's own stream is delivered as. ZCode has two words for it and no default --
+#: `session/subscribe` refuses a call that leaves the field out -- so this is a choice that
+#: has to be made rather than one imposed on a server that had its own. `web-remote-replayable`
+#: is the other, which replays for a web client that may have missed some; a turn read here is
+#: read as it happens and misses nothing, which is this one. `ZcodeAgentConfig.delivery` takes
+#: whatever word the ZCode being driven answers to, so that a release with a third is sayable
+#: without a driver that has to learn it first.
 _DELIVERY = "desktop-continuous"
+
+#: Which of its several protocols a provider named on a session speaks, in ZCode's own word
+#: for it -- `kind`, which it will not open a session without. `openai-compatible` is what
+#: ZCode's own rule works out for any provider that names a base URL, so it is the answer an
+#: install that says nothing gets; `anthropic` and `openai` are the other two it knows, and
+#: `ZcodeAgentConfig.protocol` is where a gateway speaking one of those is said to.
+_PROTOCOL = "openai-compatible"
+_PROTOCOLS = ("anthropic", "openai", "openai-compatible")
+
+#: The account variables a session's model provider is built out of: where a turn's requests
+#: go, and the key they go under. The gateway way of `hmz.coganchor.backends` is what writes
+#: both, which is why these two names and no others are read here.
+_BASE_URL = "ZCODE_BASE_URL"
+_API_KEY = "ZCODE_API_KEY"
+
+#: What ZCode calls a provider that came in on a session rather than out of a file: this run's,
+#: held in memory for as long as the server is and written down nowhere.
+_EPHEMERAL = "ephemeral"
+
+#: What the provider this driver names is stamped with, which ZCode compares against the one it
+#: last saw to tell a refresh from something stale. One name for all of them, since every
+#: session of every agent here is handed the account it is actually running as.
+_REVISION = "humanize"
 
 #: Where the words are in each tool's arguments, so that a row of a transcript says what the
 #: agent reached for rather than the first field that happens to serialise. A tool that is not
@@ -163,6 +200,11 @@ class _Held:
       model: What this session is to run now, which its agent's config says.
       effort: The same, for the thought level.
       mode: The same, for the rung.
+      runtime: The provider this session's model is served by, as ZCode's own `runtimeModel`,
+        or None for an agent on no account of humanize's -- which is a turn on whatever the
+        person at this machine has configured, exactly as a bare `zcode` would take it. Sent
+        on every call that takes one rather than once, since a call that arrives without it
+        on a server that never heard it is a call about a provider that is not there.
       told: The three of them as the server was last told them, so that a turn at the settings
         of the one before it says none of them again -- each is a call, and a call is a
         round trip.
@@ -172,6 +214,7 @@ class _Held:
     model: str = ""
     effort: str = ""
     mode: str = ""
+    runtime: dict[str, Any] | None = None
     told: tuple[str, str, str] | None = None
 
 
@@ -331,9 +374,11 @@ class _AppServer:
                 },
                 "thoughtLevel": held.effort,
                 "mode": held.mode,
-                # A title is a turn of its own on the lite model, and nothing here reads one
-                # unless it was asked for: a session is named by the flow that opened it.
+                # A title is a request of its own before the turn runs, which ZCode makes
+                # unless it is told `false`. Said either way rather than left out, since
+                # leaving it out is one of the two answers and saying nothing about which.
                 "titleGenerationEnabled": titles,
+                **({} if held.runtime is None else {"runtimeModel": held.runtime}),
                 **({} if searches else {"toolDenylist": list(_WEB)}),
             },
         )
@@ -374,11 +419,10 @@ class _AppServer:
         """Picks a session back up on a server that did not open it.
 
         Which is a server started since, because the agent fell back onto another account: the
-        conversation is ZCode's own and outlives the process that was holding it. What does not
-        outlive it is the model the turns ran on -- the server materialises that from the
-        client and keeps it in memory -- so ZCode says on the way back in that the session's
-        model is gone, and refuses the first turn sent to it. That refusal is left to happen
-        where it can be read, rather than guessed at here.
+        conversation is ZCode's own and outlives the process that was holding it. What does
+        not outlive it is the provider the turns ran on, which the server materialised from
+        the client and kept in memory -- so the provider is handed to it again here, and the
+        conversation carries on under whichever account this agent is now.
 
         Args:
           session: The session to pick up.
@@ -387,10 +431,9 @@ class _AppServer:
           searches: Whether the agent may reach the web.
           delivery: Which of ZCode's delivery kinds this session's stream is read under.
             Whether the session goes on being titled the way it was opened is not said again
-            here, and not because it does not matter: `session/resume` is not known to take
-            the field, and a field sent to a server that does not take it is a resume refused
-            outright. So what a picked-up session does about its title is ZCode's to decide
-            and nobody here's to promise, until somebody with a real one can ask.
+            here, and not because it does not matter: `session/resume` takes no such field
+            and refuses a call carrying one outright. So what a picked-up session does about
+            its title is ZCode's to decide rather than this call's.
 
         Raises:
           subprocess.CalledProcessError: If the server refused to pick it up.
@@ -401,6 +444,7 @@ class _AppServer:
                 "sessionId": session,
                 "workspace": _workspace(workspace),
                 "thoughtLevel": held.effort,
+                **({} if held.runtime is None else {"runtimeModel": held.runtime}),
                 **({} if searches else {"toolDenylist": list(_WEB)}),
             },
         )
@@ -408,6 +452,76 @@ class _AppServer:
         for method, params in _settling(session, held, again=True):
             self.call(method, params)
         self.sessions[session] = held.mode
+
+    def fork(
+        self,
+        parent: str,
+        workspace: str,
+        held: _Held,
+        *,
+        searches: bool,
+        delivery: str,
+    ) -> str:
+        """Cuts a second conversation from one this server is already holding.
+
+        ZCode forks from a point rather than from a session, and the point this wants is where
+        that conversation has got to: its last message, which `session/messages` says without
+        reading the rest of it back. Its own default is the latest workspace checkpoint, which
+        is a point that does not exist until the agent has changed a file -- so a fork of a
+        conversation that has only talked would be refused for a reason about files.
+
+        The child inherits the parent's mode, model and thought level from the server's side,
+        and is then told this agent's own: they are the same in the ordinary case and a call
+        that says so costs a round trip, which is what a fork costs once.
+
+        What it does not inherit is the denylist that keeps an agent off the web. ZCode
+        materialises a forked session from the mode, the model and the thought level and
+        nothing else, so a child of a conversation that may not search would be a child that
+        may -- a setting lifted by branching, which nothing downstream would report. The
+        denylist is said where one is sayable, on `session/resume`, and that call says nothing
+        to a session the server is already holding: so such a child is let go of first and
+        picked back up with it. Only such a child, since an agent that may search the web is
+        one the fork already gets right.
+
+        Args:
+          parent: The session to cut from, which this server must be holding.
+          workspace: The directory the child works in.
+          held: What the child is to run.
+          searches: Whether the agent may reach the web.
+          delivery: Which of ZCode's delivery kinds the child's stream is read under.
+
+        Returns:
+          The child's id, which is ZCode's own and not the parent's.
+
+        Raises:
+          subprocess.CalledProcessError: If the server refused the fork.
+        """
+        answered: dict[str, Any] = self.call(
+            "session/messages", {"sessionId": parent, "limit": 1}
+        )
+        said = cast("list[dict[str, Any]]", answered.get("messages") or [])
+        about = cast("dict[str, Any]", said[-1].get("info") or {}) if said else {}
+        last = str(about.get("id") or "")
+        forked = self.call(
+            "session/fork",
+            {
+                "sessionId": parent,
+                # A conversation with nothing in it has no message to name, which leaves
+                # ZCode's own default to refuse it -- and a fork of nothing is a session to
+                # open rather than one to cut.
+                **({"target": {"kind": "message", "messageId": last}} if last else {}),
+            },
+        )
+        session = str(forked["forkedSessionId"])
+        if not searches:
+            self.call("session/close", {"sessionId": session})
+            self.resume(session, workspace, held, searches=False, delivery=delivery)
+            return session
+        self.call("session/subscribe", {"sessionId": session, "deliveryKind": delivery})
+        for method, params in _settling(session, held, again=True):
+            self.call(method, params)
+        self.sessions[session] = held.mode
+        return session
 
     def turn(self, session: str, prompt: str, held: _Held) -> Iterator[Event]:
         """Sends one turn and says what the agent says as it says it.
@@ -910,6 +1024,59 @@ def _model(model: str) -> str:
     return named or model
 
 
+def _runtime(
+    model: str, effort: str, account: Mapping[str, str], protocol: str
+) -> dict[str, Any] | None:
+    """The provider a session is to run on, as ZCode's own `runtimeModel`.
+
+    ZCode will not open a session without a provider, and the only one a server of its own
+    knows about is whatever `~/.zcode/cli/config.json` names -- the file belonging to the
+    person at this machine. So an agent running as an account humanize was given hands ZCode
+    that account here, on the session, where it lives for as long as the server does and is
+    written into nothing.
+
+    The provider is named after the one the model names, since ZCode reads a model as
+    `provider/id` and answers a session about the pair: a model written `gw/openai/gpt-5`
+    is `openai/gpt-5` at a provider this calls `gw`, and `gw` is the name the account's
+    endpoint is declared under so that the two agree.
+
+    The key goes on it rather than being left to the environment, which does have it: ZCode
+    tries `<PROVIDER>_API_KEY` before `ZCODE_API_KEY`, spelled out of the provider's own name,
+    so a `GW_API_KEY` somebody exported years ago is an account this turn would silently run
+    -- and bill -- as. Nothing here reaches a file or a log; it goes down the pipe to a server
+    that was started with the same value in its environment.
+
+    Args:
+      model: What the session runs, as `provider/id`.
+      effort: How hard it is to think, in ZCode's own word for the rung.
+      account: What this agent's account sets, which is empty for an agent on none.
+      protocol: Which of ZCode's protocols the endpoint speaks.
+
+    Returns:
+      The overlay, or None for an account that names no endpoint -- which is every agent
+      humanize was given no account for, and is a turn on the configuration ZCode already
+      has, exactly as a bare `zcode` would take it.
+    """
+    base = account.get(_BASE_URL, "").strip()
+    if not base:
+        return None
+    secret = account.get(_API_KEY, "").strip()
+    return {
+        "revision": _REVISION,
+        "generatedAt": int(time.time() * 1000),
+        "model": {"providerId": _provider(model), "modelId": _model(model)},
+        "provider": {
+            "providerId": _provider(model),
+            "kind": protocol,
+            "source": _EPHEMERAL,
+            "baseURL": base,
+            "models": [{"modelId": _model(model)}],
+            **({} if not secret else {"apiKey": {"source": "inline", "value": secret}}),
+        },
+        "thoughtLevel": effort,
+    }
+
+
 def _settling(
     session: str, held: _Held, *, again: bool = False
 ) -> list[tuple[str, dict[str, Any]]]:
@@ -927,6 +1094,10 @@ def _settling(
     told: tuple[str | None, str | None, str | None] = (
         (None, None, None) if again or held.told is None else held.told
     )
+    # Said on both of the calls that take it, because either may be the first thing a server
+    # started since hears about this session: a model named to a server that was never handed
+    # the provider serving it is a model it has no way of reaching.
+    provider = {} if held.runtime is None else {"runtimeModel": held.runtime}
     calls: list[tuple[str, dict[str, Any]]] = []
     if held.model != told[0]:
         calls.append(
@@ -938,6 +1109,7 @@ def _settling(
                         "providerId": _provider(held.model),
                         "modelId": _model(held.model),
                     },
+                    **provider,
                     # This agent's model is this agent's. Persisting it would make one flow's
                     # choice the default of whatever the person at this machine opens next.
                     "persistAsWorkspaceLastUsed": False,
@@ -951,6 +1123,7 @@ def _settling(
                 {
                     "sessionId": session,
                     "thoughtLevel": held.effort,
+                    **provider,
                     "persistAsWorkspaceLastUsed": False,
                 },
             )
@@ -1015,66 +1188,84 @@ def _spent(counted: dict[str, Any]) -> Usage:
 
 @dataclass(frozen=True, kw_only=True)
 class ZcodeAgentConfig(AgentConfig):
-    """What ZCode is configured with: the common model and effort, and three answers of its own.
+    """What ZCode is configured with: the common model and effort, and four answers of its own.
 
     The model is written as ZCode writes it, `provider/id`, since a model here belongs to the
-    provider serving it and the app server is asked for the pair.
+    provider serving it and the app server is asked for the pair. On a gateway account the
+    provider half is the name that account's endpoint is declared under for the run -- any
+    word, as long as the model is written under it -- and the id half is whatever the gateway
+    calls the model, slashes of its own and all.
 
-    The other three are the whole of what this driver decides on ZCode's behalf: what a
-    session is opened with, what the runtime is told it may do, and how a turn's own stream
-    comes back. Each was a literal in the driver and is now a field, so that a flow wanting
-    the other answer has somewhere to give it and a person reading this can see what is being
-    chosen for them.
+    The other four are the whole of what this driver decides on ZCode's behalf: whether a
+    session is named, what the runtime is told it may do, how a turn's own stream comes back,
+    and which protocol the endpoint an account names speaks. Each was a literal in the driver
+    and is now a field, so that a flow wanting the other answer has somewhere to give it and a
+    person reading this can see what is being chosen for them.
 
-    None of the three is ZCode's own default read off ZCode. There is no officially
-    installable CLI to put the question to, and a default written down out of a guess would
-    be a fact that lies -- so each of these is what a turn here has always been run with, and
-    whoever has a real ZCode to ask should check all three against what the server does for a
-    client that says nothing at all.
+    Each default is now what ZCode 0.16.5 itself does for a client that says nothing, read off
+    the installed thing rather than guessed at. `titles` was `False` here while nobody could
+    ask; a server reads only `false` as off, so `True` is what saying nothing gets, and this
+    is now that. The other three were right.
 
     Attributes:
-      titles: Whether a session asks ZCode to name itself. Off, because a title is a turn of
-        its own on the lite model and nothing here reads one -- a session is named by the flow
-        that opened it, and a name nobody reads is a model turn nobody asked to pay for. On is
-        for a run whose conversations are picked back up in ZCode's own interface, where the
-        title is how a person finds the one they meant. Said on the call that opens a session
-        and nowhere else: a session picked back up on a server started since is resumed
-        without it, because no call anybody here has heard of takes it afterwards -- so what
-        a resumed session then does about titles is as unknown as the default is, and a run
-        that turned this off to save the turns should know that a fallback may cost it some.
+      titles: Whether a session asks ZCode to name itself. On, which is what leaving the field
+        out does: ZCode makes a request of its own on the lite role before the turn runs, and
+        names the conversation from what came back. Off is for a run that would rather not pay
+        for a name nothing downstream reads -- a session here is named by the flow that opened
+        it -- and it is the field's only other answer, since `true` and saying nothing are one
+        thing to the server. Said on the call that opens a session and nowhere else:
+        `session/resume` takes no such field and refuses a call carrying one, so what a
+        picked-up session does about titles is ZCode's to decide, and a run that turned this
+        off should know that a fallback may cost it a name it did not ask for.
       native_search: Whether the runtime is told it may use ZCode's own file search, which is
         the one thing this client has an answer for when the server asks what the runtime may
-        do. On, because turning it off takes `find` and `grep` away from an agent inside its
-        workspace, which is not what anybody means by running one unattended. Of the agent
-        rather than of a session: the server asks once, before any session of it is open. So
-        it is the answer the server was started with, which is the config this agent was
-        settled with before its first turn -- a server already up is not told it again.
+        do. On, which is both ZCode's own answer -- it is what a server falls back on for a
+        client with no such method at all -- and the only one that leaves `find` and `grep` in
+        front of an agent working unattended inside a workspace. Of the agent rather than of a
+        session: the server asks once, before any session of it is open. So it is the answer
+        the server was started with, which is the config this agent was settled with before
+        its first turn -- a server already up is not told it again.
       delivery: How a session's stream is delivered, in ZCode's own word for it.
-        `desktop-continuous` is the one a turn read here wants -- it arrives as it happens and
-        misses nothing -- and the other kind replays for a web client that may have missed
-        some. That one's spelling is the server's to know rather than this file's to guess, so
-        what this takes is whatever word the ZCode being driven answers to. A word the server
-        does not know is a refusal on the call after the session was opened, which is the turn
-        failing with the server's own reason for it.
+        `desktop-continuous` is the one a turn read here wants: it arrives as it happens and
+        misses nothing. `web-remote-replayable` is the other ZCode 0.16.5 knows, which replays
+        for a web client that may have missed some. There is no third and no default --
+        `session/subscribe` refuses a call that leaves the field out -- and what this takes is
+        whatever word the ZCode being driven answers to, so that a release with a third is
+        sayable without a driver that has to learn it first. A word the server does not know
+        is a refusal on the call after the session was opened, which is the turn failing with
+        the server's own reason for it.
+      protocol: Which protocol the endpoint a gateway account names speaks, in ZCode's own
+        word for it -- `kind`, one of `anthropic`, `openai` and `openai-compatible`.
+        `openai-compatible` is what ZCode's own rule works out for a provider that names a
+        base URL at all, so it is what an install that says nothing gets. It is read only for
+        an account that names an endpoint: an agent on no account of humanize's runs on
+        whatever ZCode is already configured with, and this says nothing about that.
 
-    None of the three crosses a fallback step, which is what every backend-native setting here
+    None of the four crosses a fallback step, which is what every backend-native setting here
     does and does not: a step is written between two places, and the agent taking the turn over
     is built from the settings every backend has -- `hmz.coganchor.agents.base._built` says so
     where it says it about a Codex override and a Claude allow rule. On the other backends that
     is an agent less configured than the one it replaced; on this one, an install whose server
     answers to some other `delivery` has every turn after a step refused at `session/subscribe`,
-    and one that said `native_search=False` is searching again. Worth knowing before a step is
-    written down against a ZCode that was configured with any of them.
+    one that said `native_search=False` is searching again, and one whose gateway speaks
+    `anthropic` steps onto an agent that will talk to it in the other protocol. Worth knowing
+    before a step is written down against a ZCode that was configured with any of them.
 
     Raises:
       ValueError: If `delivery` names nothing. A session is subscribed with whatever is here,
         and an empty kind is a refusal from the server one call later, with a session already
         open and nothing reading it.
+      ValueError: If `protocol` is not one of ZCode's three. This one is checked against the
+        list rather than left to the server, as `delivery` is, because the three are what a
+        provider's `kind` may be and a fourth is a session refused before it exists -- and
+        because the failure it prevents is quieter than a refusal: a gateway spoken to in the
+        wrong protocol answers, and answers badly.
     """
 
     titles: bool = _TITLES
     native_search: bool = _SEARCHING
     delivery: str = _DELIVERY
+    protocol: str = _PROTOCOL
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -1083,16 +1274,21 @@ class ZcodeAgentConfig(AgentConfig):
                 "delivery must be one of ZCode's own delivery kinds, as "
                 f"{_DELIVERY!r} is, rather than {self.delivery!r}"
             )
+        if self.protocol not in _PROTOCOLS:
+            raise ValueError(
+                f"protocol must be one of {', '.join(_PROTOCOLS)}, "
+                f"rather than {self.protocol!r}"
+            )
 
 
 class ZcodeSession(SessionBase):
     """A ZCode conversation, held as a session by the app server its agent runs.
 
-    The session is ZCode's own and outlives this process, but the model it runs on does not:
-    the server materialises that when the session is opened and keeps it in memory. So a
-    conversation carries on for as long as the server holding it does, and one picked back up
-    on a server started since -- which is what a fallback onto another account leaves behind --
-    is refused by ZCode with its own reason for it.
+    The session is ZCode's own and outlives this process; the provider its turns run on does
+    not, the server materialising that from the client and keeping it in memory. So one picked
+    back up on a server started since -- which is what a fallback onto another account leaves
+    behind -- is handed its provider again as it is resumed, and carries on under whichever
+    account the agent is now.
     """
 
     _agent: ZcodeAgent  # every turn is run on the app server this agent holds
@@ -1185,7 +1381,7 @@ class ZcodeSession(SessionBase):
             return said
 
     def _session(self, server: _AppServer) -> str:
-        """The ZCode session this is, opened or settled as needed.
+        """The ZCode session this is, opened, cut from another or settled as needed.
 
         Args:
           server: The app server this agent's turns run on now.
@@ -1194,7 +1390,7 @@ class ZcodeSession(SessionBase):
           The session's id.
 
         Raises:
-          subprocess.CalledProcessError: If the server refused to open or pick one up.
+          subprocess.CalledProcessError: If the server refused to open, cut or pick one up.
         """
         config = self._agent.config
         self._held.model = config.model
@@ -1205,7 +1401,37 @@ class ZcodeSession(SessionBase):
         # may be handed the common one: what is not there is what the driver has always sent.
         titles = bool(getattr(config, "titles", _TITLES))
         delivery = str(getattr(config, "delivery", _DELIVERY))
+        # Built per turn rather than once, because the account is the agent's and the agent
+        # may have moved onto another since the last one -- which is a different endpoint
+        # under a different key, and the session has to be told so before it runs again.
+        self._held.runtime = _runtime(
+            self._held.model,
+            self._held.effort,
+            self._agent.environment(),
+            str(getattr(config, "protocol", _PROTOCOL)),
+        )
         if (session := self.named) is None:
+            if self._forked_from is not None:
+                # The fork happens where the child's first turn does, so the conversation it
+                # is cut from may be one this server never opened -- an account that moved
+                # takes the server with it. Picked back up first, since a fork is a call
+                # about a session the server is holding.
+                if self._forked_from not in server.sessions:
+                    server.resume(
+                        self._forked_from,
+                        self._workspace(),
+                        self._held,
+                        searches=searches,
+                        delivery=delivery,
+                    )
+                self._opening = server.fork(
+                    self._forked_from,
+                    self._workspace(),
+                    self._held,
+                    searches=searches,
+                    delivery=delivery,
+                )
+                return self._opening
             self._opening = server.open(
                 self._workspace(),
                 self._held,
