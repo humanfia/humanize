@@ -1048,7 +1048,11 @@ class KimiCodeCLISession(SessionBase):
         effort = self.effort
         turn: dict[str, Any] = {
             "model": self._agent.config.model,
-            "thinking": effort.removeprefix(SWARM),
+            # The rung where there is one, and the width beside it. An agent at no rung sends
+            # neither: Kimi then runs the model at its own thinking level, where a `thinking`
+            # of "" is a level it has no word for. A fleet is a width rather than a rung, so
+            # it is asked for only where a rung said so.
+            **({"thinking": effort.removeprefix(SWARM)} if effort else {}),
             "swarm_mode": effort.startswith(SWARM),
             # What it may do without being asked, which for an unattended flow is everything:
             # a flow watches its agent rather than answering it, as humanize' own flows do.

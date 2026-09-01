@@ -536,7 +536,12 @@ class DshSession(SessionBase):
             if self._agent.provider is None
             else dict(self._agent.environment())
         )
-        environment[_EFFORT_ENV] = effort
+        # The rung, where there is one. The composition reads this variable straight into
+        # the adapter's `reasoningEffort`, so an agent at no rung leaves it unset and the
+        # adapter keeps its own default -- an empty string there is a level it has no word
+        # for, and the SDK would carry it all the way to the request.
+        if effort:
+            environment[_EFFORT_ENV] = effort
         cordis = self._cordis(composition)
         harness = harness_type(
             # The SDK's own default for this one; passed rather than left out so that the
@@ -801,8 +806,9 @@ def _composed(config: DshAgentConfig) -> str:
     unconditionally is the effort: the runtime takes a reasoning level as plugin config and
     nothing else on the SDK's surface carries one, so it is smuggled in as a `!!js` read of
     an environment variable this driver sets per runtime. That is the one deviation with no
-    option in front of it, because an agent always has an effort and `backends.py` declares
-    the ladder it may be set to.
+    option in front of it: `backends.py` declares the ladder an agent may be set to, and the
+    read is harmless for an agent set to none of it -- the variable is then never set, and an
+    unset variable is the adapter left at its own reasoning level.
 
     Args:
       config: The agent's settings, whose `goals`, `compaction` and `session_compression` are

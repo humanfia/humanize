@@ -140,8 +140,10 @@ class OpencodeSession(CommandSessionBase):
             self._workspace(),
             "--model",
             config.model,
-            "--variant",
-            self.effort,
+            # The variant is this backend's rung, and an agent at none leaves it unsaid: a
+            # provider with no variants takes the flag and ignores it, but one that has them
+            # would read "" as a variant it does not serve.
+            *(["--variant", self.effort] if self.effort else []),
         ]
         if named := str(getattr(config, "cli_agent", "")):
             argv += ["--agent", named]

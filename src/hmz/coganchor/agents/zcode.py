@@ -372,7 +372,7 @@ class _AppServer:
                     "providerId": _provider(held.model),
                     "modelId": _model(held.model),
                 },
-                "thoughtLevel": held.effort,
+                **_thought(held.effort),
                 "mode": held.mode,
                 # A title is a request of its own before the turn runs, which ZCode makes
                 # unless it is told `false`. Said either way rather than left out, since
@@ -443,7 +443,7 @@ class _AppServer:
             {
                 "sessionId": session,
                 "workspace": _workspace(workspace),
-                "thoughtLevel": held.effort,
+                **_thought(held.effort),
                 **({} if held.runtime is None else {"runtimeModel": held.runtime}),
                 **({} if searches else {"toolDenylist": list(_WEB)}),
             },
@@ -997,6 +997,23 @@ def _workspace(where: str) -> dict[str, str]:
     return {"workspacePath": where, "workspaceKey": where}
 
 
+def _thought(effort: str) -> dict[str, str]:
+    """How hard to think, as a session carries it -- or nothing, where there is no rung.
+
+    ZCode's two ladders are both words it knows, and `""` is neither: a session created with
+    one would be a session asking for a thought level this server has no answer for. An agent
+    at no rung leaves the key out instead, which is the model run at whatever the provider
+    gives it -- what an agent asked for at `auto` means.
+
+    Args:
+      effort: The thought level, in ZCode's own wording, or "" for no rung at all.
+
+    Returns:
+      The one key to merge into the session, or an empty mapping.
+    """
+    return {"thoughtLevel": effort} if effort else {}
+
+
 def _provider(model: str) -> str:
     """Which of ZCode's providers serves a model, out of the pair a model here is written as.
 
@@ -1073,7 +1090,7 @@ def _runtime(
             "models": [{"modelId": _model(model)}],
             **({} if not secret else {"apiKey": {"source": "inline", "value": secret}}),
         },
-        "thoughtLevel": effort,
+        **_thought(effort),
     }
 
 
@@ -1122,7 +1139,7 @@ def _settling(
                 "session/setThoughtLevel",
                 {
                     "sessionId": session,
-                    "thoughtLevel": held.effort,
+                    **_thought(held.effort),
                     **provider,
                     "persistAsWorkspaceLastUsed": False,
                 },

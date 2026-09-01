@@ -357,3 +357,75 @@ def test_a_fleet_is_a_width_rather_than_a_rung_off_the_ladder() -> None:
         ValueError, match="kimi cannot be asked to think at 'swarmultra'"
     ):
         agent.effort = "swarmultra"
+
+
+def test_auto_is_the_word_for_no_rung_and_every_backend_takes_it() -> None:
+    """A model does not always have rungs, and before `auto` there was no way to say so.
+
+    Cursor runs `composer-2.5`, `gemini-3.1-pro` and `auto` at one setting and no other;
+    Antigravity has models with no variants; a gateway serves plenty that reason one way.
+    An agent is written `CLI/MODEL:EFFORT` wherever a person or a settings file names one,
+    so a model with no rung had nothing to write after the colon and could not be named at
+    all. `auto` is that nothing, spelled.
+
+    It is not a rung on anybody's ladder, so it is not read against one: it is humanize
+    saying nothing to the CLI about how hard to think, which any CLI can be told by not
+    being told.
+    """
+    for profile in backends.PROFILES:
+        assert profile.takes(backends.AUTO), profile.name
+        assert profile.takes(""), profile.name
+
+
+def test_auto_and_the_absence_of_a_rung_are_one_value() -> None:
+    """Normalised on the way in and written back on the way out, so nothing carries two.
+
+    A driver asks one question -- is there a rung? -- and `effort == ""` is the whole of the
+    answer. Were `auto` to reach that far it would be a second thing every one of twelve
+    drivers had to know, which is how a value ends up meaning one thing in eleven of them.
+    """
+    assert ClaudeCodeAgentConfig(model="m", effort=backends.AUTO).effort == ""
+    assert backends.written("") == backends.AUTO
+    assert backends.written("high") == "high"
+
+    # And a line names it either way: `auto` is what a person writes, and the bare colon is
+    # what a spec kept in a settings file comes back as -- the layers that keep a run written
+    # down may import nothing, so they cannot be asked to know the word.
+    for spec in ("claude/m:auto", "claude/m:"):
+        _, _, model, effort, _ = backends.read(spec)
+        assert (model, effort) == ("m", "")
+
+
+def test_an_agent_at_no_rung_says_nothing_about_how_hard_to_think(
+    claude: _Noted, opencode: _Noted
+) -> None:
+    """Which is the point of it: the model is left at whatever its account gives it.
+
+    A flag carrying "" is not the same as no flag. Claude Code warns about an effort it does
+    not know and then runs at its default anyway, and opencode reads an empty `--variant` as
+    a variant its provider does not serve -- so an agent at no rung that still said something
+    would be a turn with a line of noise in front of it at best, and a refused one at worst.
+    """
+    session = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="auto")).new()
+    assert session("one") == "one"
+    (launched,) = claude.launches()
+    assert "--effort" not in launched
+
+    ran = OpencodeAgent(OpencodeAgentConfig(model="p/m", effort="auto")).new()
+    assert ran("two") == "two"
+    (called,) = opencode.launches()
+    assert "--variant" not in called
+
+
+def test_moving_an_agent_to_auto_takes_the_rung_back_off_it(claude: _Noted) -> None:
+    """A flow that turns an agent down to nothing is asking for the model's own default."""
+    agent = ClaudeCodeAgent(CLAUDE)
+    session = agent.new()
+    assert session("one") == "one"
+
+    agent.effort = backends.AUTO
+    assert session("two") == "two"
+
+    opened, again = claude.launches()
+    assert opened[opened.index("--effort") + 1] == "high"
+    assert "--effort" not in again

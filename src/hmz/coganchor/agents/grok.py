@@ -346,8 +346,10 @@ class GrokBuildSession(StreamSessionBase):
             "agent",
             "--model",
             self._agent.config.model,
-            "--effort",
-            self.effort,
+            # Where there is a rung. `grok agent` takes any word at all here and says nothing
+            # until the first shaped turn goes out on the command line, so an agent at no rung
+            # is better off saying nothing than saying "".
+            *(["--effort", self.effort] if self.effort else []),
             *_PERMITTED[self._agent.config.permission],
             *_LEADING.get(getattr(self._agent.config, "leader", False), ()),
             "stdio",

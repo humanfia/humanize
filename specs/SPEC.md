@@ -241,6 +241,14 @@ load.
 - The efforts MUST be written down, being that backend's own vocabulary rather than a
   catalogue of things that come and go. A rung the backend takes without documenting MUST be
   written down as one, since no listing of the backend's own will ever name it.
+- There MUST be one word every backend takes for no rung at all, and it MUST NOT be written
+  down on any backend's ladder, being the absence of a rung rather than one on it. An agent at
+  it MUST have nothing said to its CLI about how hard to think, which leaves the model wherever
+  its account leaves it. It exists because a rung is not a thing every model has -- Cursor runs
+  some of its models at one setting and no other, and so does a gateway serving somebody else's
+  -- and an agent is named `CLI/MODEL:EFFORT` wherever a person or a settings file names one,
+  so a model with no rung would otherwise have nothing that could be written after the colon
+  and could not be named at all.
 - How long a turn of a backend may say nothing before it is worth looking at MUST be written
   down here, and so MUST whether its transport can be put down and started again, whether a
   conversation of its survives that under the id it was opened with, and whether one transport
@@ -323,7 +331,8 @@ What each backend runs, asked of that backend and kept until it is asked again.
   whose models are not known yet is one to ask again, not one that failed.
 - A model's efforts MUST be its backend's ladder narrowed to the rungs that backend said that
   model takes, in the ladder's own order, and MUST be the whole ladder where it said nothing
-  of that model -- a model it says nothing about is one it will take any of them for.
+  of that model -- a model it says nothing about is one it will take any of them for. A model
+  the backend said takes none MUST be offered at none, and is reached by the word for no rung.
 - A catalogue that has never been asked for MUST be empty rather than guessed at.
 
 ## `coganchor/prices.py`
@@ -1360,7 +1369,8 @@ Args:
   made -- from the SDK, or by the flow -- rather than on the line that names one.
 - `<cli>` MUST be one of the backends `hmz.coganchor.backends` names, under that name or under
   any of the longer ones it also answers to, and `<model>` and `<effort>` MUST be what that CLI
-  is asked for. Which backends there are MUST NOT be written out again here: they are written
+  is asked for -- or, for `<effort>`, the one word every backend takes for no rung at all, which
+  is how a model that has no rungs is named here. Which backends there are MUST NOT be written out again here: they are written
   down already in the one place every fact about a CLI is written down, and a second list of
   them is a list that stops being true the week a backend is added -- an agent naming a CLI
   this machine drives, refused because a sentence here was never widened, is the failure that

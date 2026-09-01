@@ -23,6 +23,8 @@ from collections import Counter, deque
 from concurrent.futures import ThreadPoolExecutor
 from typing import IO, TYPE_CHECKING, Any, ClassVar, Literal, Protocol, Self, overload
 
+from hmz.coganchor.backends import AUTO
+
 from .codenames import codename
 from .event import Event, Failed, Question, Stopped, Unrecoverable, Usage, say
 from .hooks import EVERYWHERE, Hooks, Moment, Occasion, Verdict
@@ -1043,7 +1045,12 @@ class SessionBase(ABC):
         through an answer, and a flow that changed it mid-turn would be describing a turn that
         never happened.
         """
-        return self._effort or self._agent.effort
+        rung = self._effort or self._agent.effort
+        # `auto` is the word for no rung, and this is where it becomes one: "" is what every
+        # driver asks about. It cannot be settled in the setter, because "" already means
+        # something there -- going back to what the agent runs at -- and the two are opposite
+        # answers: `auto` is a rung of this session's own, and it is none.
+        return "" if rung == AUTO else rung
 
     @effort.setter
     def effort(self, effort: str) -> None:
@@ -3861,7 +3868,10 @@ class AgentBase(ABC):
         what a loop is costing turns the whole agent down, and one nursing a single
         conversation through a hard patch turns that session up.
         """
-        return self._effort or self._config.effort
+        rung = self._effort or self._config.effort
+        # As on a session: the word becomes the absence it names, here rather than in the
+        # setter, where "" is already spoken for by going back to the configured rung.
+        return "" if rung == AUTO else rung
 
     @effort.setter
     def effort(self, effort: str) -> None:

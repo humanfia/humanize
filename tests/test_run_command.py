@@ -687,7 +687,7 @@ def test_a_flow_that_is_not_there_is_a_usage_error(
         "claude",
         "gemini/g:high",
         "/m:high",
-        "claude/m:",
+        "claude/:high",
         "builder=claude",
         "builder=",
     ],
@@ -700,6 +700,25 @@ def test_an_agent_that_is_not_cli_model_and_effort_is_a_usage_error(
         main(["exec", "-f", flow, "-a", spec, "task"])
     assert stopped.value.code == 2
     assert f"bad agent {spec!r}" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("rung", ["auto", ""])
+def test_an_agent_at_no_rung_is_named_with_auto_and_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, rung: str
+) -> None:
+    """`auto` is the word for no rung, and a spec round-tripped without one says the same.
+
+    A model does not always have rungs -- Cursor runs `composer-2.5` and `gemini-3.1-pro` at
+    one setting and no other -- and before there was a word for it such a model could not be
+    named on this flag at all: the grammar is `MODEL:EFFORT` and there is nothing to write.
+    """
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    flow = _flow(tmp_path, RECORD.replace("AGENTS", "AgentBase"))
+    monkeypatch.chdir(workspace)
+    main(["exec", "-f", flow, "-a", f"claude/m:{rung}", "task"])
+    [[_, model, effort, _]] = _seen(tmp_path)["agents"]
+    assert (model, effort) == ("m", "")
 
 
 @pytest.mark.parametrize(

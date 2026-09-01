@@ -5,6 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
+# The one word a line uses for no rung at all, from the module that says what every backend's
+# rungs are. Imported rather than repeated: `backends` reaches for nothing but the standard
+# library, so naming it here costs a config nothing, and a second spelling of `auto` would be
+# a second place for the two halves of one value to disagree.
+from hmz.coganchor.backends import AUTO
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -439,6 +445,13 @@ class AgentConfig:
     budget: Budget | None = None
 
     def __post_init__(self) -> None:
+        # `auto` is the word a line uses for no rung at all, and this is where it stops being
+        # a word: inside, the absence of a rung is "", which every driver already knows to say
+        # nothing to its CLI about. Settled here rather than in each driver so that a config
+        # built from a spec, from a settings file and from Python are the one same object --
+        # and so that `effort == ""` stays the single question a driver has to ask.
+        if self.effort == AUTO:
+            object.__setattr__(self, "effort", "")
         if self.service_tier not in SERVICE_TIERS:
             raise ValueError(
                 "service_tier must be one of "

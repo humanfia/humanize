@@ -204,6 +204,23 @@ def unattended(permission: str, service_tier: str = "default") -> dict[str, Any]
     return {"serviceTier": service} | _PERMITTED.get(permission, _PERMITTED["bypass"])
 
 
+def _thinking(effort: str) -> dict[str, str]:
+    """How hard to think, as a turn carries it -- or nothing at all, where there is no rung.
+
+    An agent at no rung is one humanize says nothing to Codex about, so the key is left out
+    rather than sent empty: `effort: ""` is a value the app server reads as a rung it does not
+    have, where an absent key is the model run at whatever its own default is. Which is what
+    an agent asked for at `auto` means.
+
+    Args:
+      effort: The rung, in Codex's own wording, or "" for no rung at all.
+
+    Returns:
+      The one key to merge into the turn, or an empty mapping.
+    """
+    return {"effort": effort} if effort else {}
+
+
 def turning(rung: Mapping[str, Any]) -> dict[str, Any]:
     """The same settings, less the ones only a thread call takes.
 
@@ -1393,7 +1410,7 @@ class CodexSession(SessionBase):
                             "threadId": thread,
                             "input": [{"type": "text", "text": prompt}],
                             "model": self._agent.config.model,
-                            "effort": self.effort,
+                            **_thinking(self.effort),
                             **(
                                 {"outputSchema": schema.model_json_schema()}
                                 if schema is not None
@@ -1540,7 +1557,7 @@ class CodexSession(SessionBase):
                         "threadId": thread,
                         "input": [{"type": "text", "text": objective}],
                         "model": config.model,
-                        "effort": self.effort,
+                        **_thinking(self.effort),
                         **turning(
                             server.permitted(config.permission, config.service_tier)
                         ),

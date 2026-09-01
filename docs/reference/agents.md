@@ -1459,6 +1459,14 @@ A CLI [you added yourself](/features/backends#adding-a-cli-of-your-own) is check
 nothing: the Agent Client Protocol says nothing about how hard an agent may be asked to think,
 so such a CLI runs at whatever you configured it to run at, under whatever word you type.
 
+**`auto` is on no ladder and every backend takes it.** It is the absence of a rung rather than
+one: an agent at `auto` has nothing said to its CLI about how hard to think, so the model runs
+wherever its account leaves it. It exists because a rung is not something every model has —
+Cursor's `composer-2.5` and `gemini-3.1-pro` take none, and a gateway serves plenty that
+reason one way only — and an agent is written `CLI/MODEL:EFFORT` everywhere, so without a word
+for *no* rung such a model could not be named at all. In Python it is the same as `effort=""`,
+which is what it becomes.
+
 | Backend | Efforts |
 | --- | --- |
 | `agy` | `low`, `medium`, `high` — written into the model where its name carries one, and sent beside it where it does not |

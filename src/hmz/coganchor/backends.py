@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ALIKE",
+    "AUTO",
     "DSH_SDK",
     "FAULTS",
     "PROFILES",
@@ -57,6 +58,7 @@ __all__ = [
     "serves",
     "speaking",
     "trouble",
+    "written",
 ]
 
 
@@ -426,6 +428,42 @@ SWARM = "swarm"
 #: unusable at any effort a person would actually type.
 _UNSAID = "as configured"
 
+#: The written form of no rung at all: an agent asked for `auto` is an agent humanize says
+#: nothing to its CLI about how hard to think, which leaves the model at whatever that CLI
+#: gives it.
+#:
+#: It exists because a rung is not always a thing a model has. Cursor's `composer-2.5`,
+#: `gemini-3.1-pro` and `auto` take no rung, Antigravity has models with no variants, and a
+#: gateway serves plenty of models that reason at one setting and no other. Inside, such an
+#: agent runs at `""` -- the absence of a rung, which every driver already knows to say
+#: nothing about. But `""` cannot be written down: an agent is spelled `CLI/MODEL:EFFORT`
+#: everywhere a person or a settings file names one, and `cursor-agent/composer-2.5:` is not
+#: a line anybody could type or a string `read` could take back. So the absence gets a word.
+#:
+#: The two are one value and not two. Every way in normalises `auto` to `""` and every way
+#: out writes `""` back as `auto`, so nothing downstream has to know there were ever two
+#: spellings, and a backend whose ladder happens to be empty is asked for the same nothing
+#: as a model that simply has no rungs.
+AUTO = "auto"
+
+
+def written(effort: str) -> str:
+    """One effort as a line names it, which is where the absence of a rung gets its word.
+
+    The inverse of what :func:`read` does to an `auto` it is given. Used wherever an agent is
+    written back out -- a settings file, a run remembered for `hmz` to offer again, the line
+    the interface shows -- so that an agent at no rung round-trips instead of becoming
+    `MODEL:`, which is not a spec anything can read.
+
+    Args:
+      effort: The rung, in the backend's own wording, or "" for no rung at all.
+
+    Returns:
+      That rung, or :data:`AUTO` where there is none.
+    """
+    return effort or AUTO
+
+
 #: How long a turn may say nothing before it is worth looking at, for a backend that has not
 #: said otherwise. A quarter of an hour: every CLI here reports its tool calls as it makes
 #: them, so a turn silent this long is either a model on one very long thought or a CLI that
@@ -644,6 +682,11 @@ class Profile:
           which is a check that has stopped measuring anything.
         """
         rung = effort.removeprefix(SWARM) if self.swarms else effort
+        # No rung at all, however it was written. Every backend takes it, because it is not
+        # something asked of the backend: it is humanize saying nothing about how hard to
+        # think, which any CLI can be told by not being told.
+        if not rung or rung == AUTO:
+            return True
         if not self.efforts or self.efforts == (_UNSAID,):
             return True
         return rung in self.efforts or rung in self.beyond
@@ -2556,6 +2599,17 @@ def read(spec: str) -> tuple[str, Profile, str, str, str]:
             "expected an account after @, as in claude@deepseek/MODEL:EFFORT"
         )
     profile = named(backend.strip())
-    if profile is None or not model.strip() or not effort.strip():
+    if profile is None or not model.strip():
         raise ValueError("expected [NAME=]CLI[@PROVIDER]/MODEL:EFFORT")
-    return name, profile, model.strip(), effort.strip(), provider.strip()
+    # `auto` is the written form of no rung at all, and this is where it stops being written:
+    # everything downstream reads the absence as "", which is what every driver already knows
+    # to say nothing about.
+    #
+    # An effort that is empty rather than absent says the same thing, and is taken. Not a
+    # second spelling to write by hand -- `auto` is the one a person types, and what `written`
+    # hands back -- but what a spec that has been round-tripped through a settings file comes
+    # back as: the layers that keep a run written down may import nothing at all, so they
+    # carry the agent as the string they were given and cannot be asked to know this word.
+    # The colon is still required, so a spec with no effort *field* is still the typo it was.
+    rung = effort.strip()
+    return name, profile, model.strip(), "" if rung == AUTO else rung, provider.strip()

@@ -1213,7 +1213,9 @@ def opens_on(
             effort = "high" if "high" in one.efforts else ""
             if not effort and one.efforts:
                 effort = one.efforts[-1]
-            return [Runs(f"{backend}/{one.name}:{effort}", goals=goals)]
+            return [
+                Runs(f"{backend}/{one.name}:{backends.written(effort)}", goals=goals)
+            ]
     return []
 
 
@@ -5449,7 +5451,7 @@ class Agent(Drafts[Runs]):
         # run wide. A model that does not take it is asked for at the effort alone.
         wide = SWARM if self._swarm and self._swarms() else ""
         return self._given._replace(
-            spec=f"{self._cli}/{self._model}:{wide}{self._effort}",
+            spec=f"{self._cli}/{self._model}:{wide}{backends.written(self._effort)}",
             anchor=self._anchor,
             provider=self._provider,
             # On for a CLI that cannot be told, whatever the flow asked for: an agent whose

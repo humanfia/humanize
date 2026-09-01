@@ -3023,11 +3023,16 @@ class Humanize(App[None]):
         # The person at the prompt is not one of the agents anybody chooses, so a flow that
         # talks to one wrote down an agent nothing on a command line names -- and the run
         # itself is what says which of them that was.
+        # Named here rather than at the top of the file: `backends` is a local elsewhere in
+        # this class, and an agent at no rung has to be written back out as `auto` or the
+        # spec it goes into is `MODEL:`, which nothing can read again.
+        from hmz.coganchor import backends
+
         drove = [one for one in ran.agents if not one.person]
         self._flow_named = ran.flow
         self._models = [
             Runs(
-                f"{one.backend}/{one.model}:{one.effort}",
+                f"{one.backend}/{one.model}:{backends.written(one.effort)}",
                 permission=one.permission,
                 provider=one.provider,
                 goals=one.goals,

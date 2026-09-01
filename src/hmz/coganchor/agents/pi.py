@@ -301,9 +301,10 @@ class PiSession(StreamSessionBase):
             config.model,
             # Out of pi's own ladder, so it is a rung pi has a word for. One it has not is a
             # warning on stderr and a turn that runs at the default anyway, which is why the
-            # ladder is written down rather than passed through: pi never refuses this.
-            "--thinking",
-            self.effort,
+            # ladder is written down rather than passed through: pi never refuses this. An
+            # agent at no rung says nothing, and pi leaves the model at its own thinking
+            # level -- the flag carrying "" would be that same warning for no reason.
+            *(["--thinking", self.effort] if self.effort else []),
             "--session-id",
             pinned,
         ]
@@ -370,7 +371,7 @@ class PiSession(StreamSessionBase):
         if ticket:
             said["id"] = ticket
         line = json.dumps(said) + "\n"
-        if self._at is not None and self._at != self.effort:
+        if self._at is not None and self._at != self.effort and self.effort:
             # How hard to think is a command here rather than a flag to restart under: pi
             # takes it on the session it is already holding, so a flow that moves the effort
             # is answered by telling it, ahead of the prompt the new effort is for.

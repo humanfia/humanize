@@ -309,7 +309,12 @@ def _writing(
       The settings file's path.
     """
     where.mkdir(parents=True, exist_ok=True)
-    said: dict[str, Any] = {**_VERSION, "model": {"reasoningEffort": effort}}
+    # The rung, where there is one. An agent at none writes no `model` section at all, so
+    # Qwen Code reads its own settings for it and the model thinks at whatever that account
+    # gives it -- `reasoningEffort: ""` is a value it would read as a rung spelled wrong.
+    said: dict[str, Any] = {**_VERSION}
+    if effort:
+        said["model"] = {"reasoningEffort": effort}
     table = gate.table(WAITING * _A_SECOND) if gate is not None else {}
     if table:
         # Milliseconds, which is the unit Qwen Code reads this number in -- the same spelling

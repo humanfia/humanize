@@ -376,8 +376,12 @@ class ClaudeCodeSession(StreamSessionBase):
             json.dumps(self._settings(), separators=(",", ":")),
             "--model",
             self._agent.config.model,
-            "--effort",
-            self.effort,
+            # The rung, where there is one. An agent at no rung is one humanize says nothing
+            # to Claude about, which leaves the model at whatever effort the account gives it
+            # -- a flag carrying nothing would be read as a rung named badly, and 2.1.x warns
+            # about an effort it does not know and then runs at its default anyway, which is
+            # the same turn with a line of noise in front of it.
+            *(["--effort", self.effort] if self.effort else []),
         ]
         if self._shaping is not None:
             # Claude validates the answer against this itself, so a turn that lands has

@@ -40,6 +40,24 @@ ClaudeCodeAgentConfig(model="claude-opus-4-8", effort="high")
 
 :::
 
+## `auto` — no effort at all
+
+Not every model has rungs. Cursor runs `composer-2.5`, `gemini-3.1-pro` and `auto` at one
+setting and no other, Antigravity has models with no variants, and a gateway will serve plenty
+that reason one way only. An agent is written `backend/model:effort` wherever anything names
+one, so a model with no rung had nothing to write after the colon — and could not be named on
+a command line at all.
+
+`auto` is that nothing, spelled:
+
+```sh
+hmz exec -f ralph_loop -a cursor-agent/composer-2.5:auto "fix the build"
+```
+
+It is not a rung on anybody's ladder. It says humanize tells the CLI nothing about how hard to
+think, which leaves the model wherever your account leaves it — so it is also the way to ask
+for a backend's own default rather than one of the words below.
+
 ## Efforts by backend
 
 humanize does not check an effort against a list: a value your account has but this page does
@@ -54,6 +72,7 @@ not still works. These are the backends whose ladders need explaining; the whole
 | pi | `max`, `xhigh`, `high`, `medium`, `low`, `minimal`, `off` |
 | opencode, mimocode | the model variant: `xhigh`, `high`, `medium`, `low`, `minimal` |
 | ZCode | `max`, `high`, `low`, `enabled`, `nothink`, `disabled` — two vocabularies, and a model takes one of them |
+| *every backend* | `auto` — no effort at all, the model left at its own default |
 
 - **`ultracode`** is Claude Code's `xhigh` thinking with the turn opted into orchestrating a
   fleet of its own, so it sits above `max`. It is real and undocumented, and no listing the CLI
