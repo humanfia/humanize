@@ -20,6 +20,13 @@ hands ZCode that account, a turn under no account at all is a turn on whatever t
 says, and neither is a file this ever touched. The flag the CLI documents for it,
 `--settings <path>`, is not one the CLI actually parses: 0.16.5 refuses it before it starts.
 
+An account that is a coding-plan key and nothing else is the third case, and it is the one
+somebody who has simply bought ZCode has. The endpoint behind a plan is not a thing they were
+ever asked to type -- `zcode login` writes it into their own file for them -- so such an
+account named no endpoint, had no provider to put a session on, and was refused. `_PLANS`
+carries the two ZCode itself ships knowing about, so a key alone is now an account like any
+other, and the login this layer must not perform is not the only way in.
+
 The protocol is ZCode's own rather than JSON-RPC. The four frames are the familiar ones -- a
 call, a notification, an answer, a refusal -- and a `jsonrpc` on any of them is refused
 outright, so this speaks it as it is. The server also asks things of its client: what the
@@ -156,6 +163,34 @@ _DELIVERY = "desktop-continuous"
 #: `ZcodeAgentConfig.protocol` is where a gateway speaking one of those is said to.
 _PROTOCOL = "openai-compatible"
 _PROTOCOLS = ("anthropic", "openai", "openai-compatible")
+
+#: The two coding plans ZCode ships knowing about, and where each of them is. A plan is the
+#: ordinary way somebody buys ZCode, and it is the one account whose endpoint nobody has to
+#: type: `zcode login` writes the same two values into their own configuration file and the
+#: CLI reads them back from there.
+#:
+#: Which is exactly the trouble. A plan key on its own -- a provider made with `ZCODE_API_KEY`
+#: and no `ZCODE_BASE_URL`, the way a person who has bought a plan would make one -- named an
+#: account whose endpoint nothing knew, so the session had no provider to run on and the
+#: server refused it as `Model config is missing`. The only cure on offer was `zcode login`,
+#: which is a browser and a person, and which writes into the file this layer exists not to
+#: touch.
+#:
+#: So the endpoint is written down here instead, read off the same table the CLI's own login
+#: writes from (`Tot` in its bundle), and handed to the session as an ephemeral provider like
+#: any other. Nothing is written to disk, and a person who has run `zcode login` is unaffected
+#: -- an agent given no account at all still hands ZCode nothing and still runs on their file.
+#:
+#: Both plans speak Anthropic's protocol, whatever the model is called. Their models are
+#: written the way every ZCode model is, `provider/id`: `zai/glm-5.1`, `bigmodel/glm-4.7`.
+_PLANS = {
+    "zai": ("https://api.z.ai/api/anthropic", "Z.AI Coding Plan"),
+    "bigmodel": ("https://open.bigmodel.cn/api/anthropic", "BigModel Coding Plan"),
+}
+
+#: What a plan's endpoint speaks. Not `_PROTOCOL`: these two are Anthropic-shaped whichever
+#: GLM is behind them, and an agent on one is not configuring that -- it is buying a plan.
+_PLAN_PROTOCOL = "anthropic"
 
 #: The account variables a session's model provider is built out of: where a turn's requests
 #: go, and the key they go under. The gateway way of `hmz.coganchor.backends` is what writes
@@ -1070,21 +1105,33 @@ def _runtime(
       protocol: Which of ZCode's protocols the endpoint speaks.
 
     Returns:
-      The overlay, or None for an account that names no endpoint -- which is every agent
-      humanize was given no account for, and is a turn on the configuration ZCode already
-      has, exactly as a bare `zcode` would take it.
+      The overlay, or None for an account that names neither an endpoint nor a key -- which
+      is every agent humanize was given no account for, and is a turn on the configuration
+      ZCode already has, exactly as a bare `zcode` would take it.
     """
     base = account.get(_BASE_URL, "").strip()
-    if not base:
-        return None
     secret = account.get(_API_KEY, "").strip()
+    kind = protocol
+    if not base:
+        # A key and no endpoint is what somebody who has bought a coding plan has: the plan's
+        # endpoint is not a thing they were ever asked to type, because `zcode login` writes
+        # it into their own configuration file for them. An account made that way used to name
+        # no endpoint at all, so there was no provider to put the session on and the server
+        # refused it -- the one cure being the login this layer must not perform. The plan's
+        # own endpoint is written down in `_PLANS` instead, chosen by the provider the model
+        # names, which for a plan model (`zai/glm-5.1`) is the plan.
+        plan = _PLANS.get(_provider(model))
+        if plan is None or not secret:
+            return None
+        base, _ = plan
+        kind = _PLAN_PROTOCOL
     return {
         "revision": _REVISION,
         "generatedAt": int(time.time() * 1000),
         "model": {"providerId": _provider(model), "modelId": _model(model)},
         "provider": {
             "providerId": _provider(model),
-            "kind": protocol,
+            "kind": kind,
             "source": _EPHEMERAL,
             "baseURL": base,
             "models": [{"modelId": _model(model)}],

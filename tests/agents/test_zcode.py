@@ -576,16 +576,45 @@ def test_the_protocol_a_gateway_speaks_is_the_one_zcode_would_have_worked_out(
 def test_an_account_that_names_no_endpoint_leaves_zcodes_own_configuration_alone(
     server: _FakeServer, tmp_path: Path
 ) -> None:
-    """A key account is a key, and which provider serves it is still ZCode's file's to say."""
+    """A key for a provider ZCode does not ship knowing about is still its file's to serve.
+
+    The two coding plans are the exception, and they are written down: their endpoint is one
+    nobody is asked to type, so a key alone is a whole account there. A key for anything else
+    names no endpoint humanize could know, so the session is opened with no provider at all
+    and runs on whatever the person's own configuration says.
+    """
     from hmz.coganchor import providers
 
     providers.add("zcode", "keyed", way="key", env={"ZCODE_API_KEY": "plan-key"})
     agent = ZcodeAgent(
-        ZcodeAgentConfig(model="zai/glm-5.3", effort="high", provider="keyed")
+        ZcodeAgentConfig(model="gw/openai/gpt-5", effort="high", provider="keyed")
     )
     agent.new(tmp_path)("hello")
 
     assert "runtimeModel" not in server.named("session/create")[-1]
+    agent.stop()
+
+
+def test_a_plan_key_opens_the_session_on_the_plans_own_endpoint(
+    server: _FakeServer, tmp_path: Path
+) -> None:
+    """Which is the account somebody who has bought ZCode actually has.
+
+    Before this, such an agent named no endpoint, so no provider reached the session and the
+    server refused it outright. `zcode login` would have fixed it by writing into their own
+    configuration file, which is the one thing this layer must not do.
+    """
+    from hmz.coganchor import providers
+
+    providers.add("zcode", "plan", way="key", env={"ZCODE_API_KEY": "plan-key"})
+    agent = ZcodeAgent(
+        ZcodeAgentConfig(model="zai/glm-5.1", effort="high", provider="plan")
+    )
+    agent.new(tmp_path)("hello")
+
+    held = server.named("session/create")[-1]["runtimeModel"]
+    assert held["provider"]["baseURL"] == "https://api.z.ai/api/anthropic"
+    assert held["provider"]["kind"] == "anthropic"
     agent.stop()
 
 
@@ -1133,3 +1162,53 @@ def test_a_real_app_server_opens_a_session_only_when_it_is_handed_a_provider(
         assert session.startswith("sess_")
     finally:
         server.stop()
+
+
+def test_a_coding_plan_key_alone_is_an_account_like_any_other() -> None:
+    """Which is what somebody who has simply bought ZCode has, and it used to be refused.
+
+    A plan's endpoint is not a thing anybody is asked to type: `zcode login` writes it into
+    their own `~/.zcode/cli/config.json` for them. So a provider made the way a plan holder
+    would make one -- a key and no base URL -- named no endpoint, the session had no provider
+    to run on, and the server answered `Model config is missing`. The only cure on offer was
+    the browser login this layer exists not to perform.
+
+    The two plans ZCode ships knowing about are written down instead, read off the same table
+    its own login writes from, and handed over as an ephemeral provider like any other. The
+    plan is chosen by the provider the model names, ZCode's models being `provider/id`.
+    """
+    from hmz.coganchor.agents.zcode import _runtime
+
+    for model, base in (
+        ("zai/glm-5.1", "https://api.z.ai/api/anthropic"),
+        ("bigmodel/glm-4.7", "https://open.bigmodel.cn/api/anthropic"),
+    ):
+        held = _runtime(
+            model, "high", {"ZCODE_API_KEY": "a-plan-key"}, "openai-compatible"
+        )
+        assert held is not None, model
+        assert held["provider"]["baseURL"] == base
+        # Both plans are Anthropic-shaped whatever GLM is behind them, so the protocol the
+        # agent was configured with is not the one that goes out: an agent on a plan is not
+        # configuring a protocol, it is buying a plan.
+        assert held["provider"]["kind"] == "anthropic"
+        assert held["provider"]["apiKey"] == {"source": "inline", "value": "a-plan-key"}
+        assert held["model"] == {
+            "providerId": model.split("/")[0],
+            "modelId": model.split("/")[1],
+        }
+
+
+def test_an_agent_on_no_account_still_runs_on_the_file_the_person_has() -> None:
+    """The plan endpoints are a way in for a key, not a default for everybody.
+
+    An agent humanize was given no account for hands ZCode nothing, so the session runs on
+    whatever their own configuration says -- exactly as a bare `zcode` would take it. A key
+    for a provider that is not one of the two plans is nobody's plan either, and a plan model
+    named with no key behind it has nothing to sign the request with.
+    """
+    from hmz.coganchor.agents.zcode import _runtime
+
+    assert _runtime("zai/glm-5.1", "high", {}, "openai-compatible") is None
+    assert _runtime("gw/openai/gpt-5", "high", {"ZCODE_API_KEY": "k"}, "openai") is None
+    assert _runtime("zai/glm-5.1", "high", {"ZCODE_API_KEY": "  "}, "anthropic") is None

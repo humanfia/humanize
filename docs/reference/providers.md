@@ -182,7 +182,7 @@ second time as a variable.
 | --- | --- | --- |
 | `login` | Sign in to a Z.AI account, in a browser. Runs `zcode login`. | — |
 | `device` | The same, from a machine with no browser on it. Runs `zcode login --no-browser`. | — |
-| `key` | A Z.AI or BigModel coding plan key, which its own models run on. | `ZCODE_API_KEY` |
+| `key` | A Z.AI or BigModel coding plan key, which its own models run on. Name the plan's own models — `zai/glm-5.1`, `bigmodel/glm-4.7` — and humanize hands ZCode that plan's endpoint per session. Nothing is written to `~/.zcode/cli/config.json`, so a `zcode login` you already have is untouched. | `ZCODE_API_KEY` |
 | `gateway` | An endpoint speaking ZCode's own protocol — a proxy, a router, another vendor. | `ZCODE_BASE_URL`, `ZCODE_API_KEY` |
 
 **Every backend but DeepSeek Harness, as well as its own:**
