@@ -1212,3 +1212,57 @@ def test_an_agent_on_no_account_still_runs_on_the_file_the_person_has() -> None:
     assert _runtime("zai/glm-5.1", "high", {}, "openai-compatible") is None
     assert _runtime("gw/openai/gpt-5", "high", {"ZCODE_API_KEY": "k"}, "openai") is None
     assert _runtime("zai/glm-5.1", "high", {"ZCODE_API_KEY": "  "}, "anthropic") is None
+
+
+@pytest.mark.agent
+@pytest.mark.timeout(600)
+def test_a_real_turn_lands_on_the_account_humanize_was_given(
+    asking: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ZCode is the one backend with no account of its own on a machine like this.
+
+    The others are signed in where the CLI keeps its own login, so a real-agent test reaches
+    them by doing nothing. ZCode's account is a humanize provider instead, and the suite runs
+    under a `HUMANIZE_HOME` of its own -- which is what keeps a run's epic out of the history
+    of whoever asked for the tests to pass, and which also puts every provider out of reach.
+    So the account is borrowed rather than the home given up: the provider's directory is
+    copied into this run's home, and everything the turn writes still lands in `tmp_path`.
+
+    What it proves is the whole path -- the gateway named as a session's own provider, a
+    catalogue asked of that endpoint and written the way ZCode reads a model, a turn, a tool
+    call, and the file on disk afterwards. None of it could be run at all until ZCode had an
+    install to be run from.
+    """
+    import shutil
+
+    from hmz.coganchor import models
+
+    theirs = Path.home() / ".humanize" / "providers" / "zcode" / "nvidia"
+    if not theirs.is_dir():
+        pytest.skip("no zcode account is configured on this machine")
+    if shutil.which("zcode") is None:
+        pytest.skip("zcode is not installed here")
+    ours = Path(os.environ["HUMANIZE_HOME"]) / "providers" / "zcode" / "nvidia"
+    ours.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(theirs, ours)
+
+    served = [one.name for one in models.ask("zcode", "nvidia", seconds=180)]
+    assert served, "the endpoint said nothing about what it serves"
+    # Written as ZCode reads a model, `provider/id`, which an endpoint cannot say on its own.
+    assert all(one.startswith("gw/") for one in served[:10]), served[:10]
+    wanted = next((one for one in served if "glm" in one), served[0])
+
+    monkeypatch.chdir(tmp_path)  # so an agent that tidies up tidies up nothing of ours
+    agent = ZcodeAgent(ZcodeAgentConfig(model=wanted, effort="high", provider="nvidia"))
+    try:
+        session = agent.new()
+        assert "ok" in session("reply with exactly: ok").lower()
+
+        session("create a file named hello.txt whose only contents are: hi")
+        landed = tmp_path / "hello.txt"
+        # The file rather than the agent's word for it: an agent that reports a write which
+        # never happened is the one failure this whole check exists to catch.
+        assert landed.is_file(), "the turn said it wrote a file that is not there"
+        assert landed.read_text().strip() == "hi"
+    finally:
+        agent.stop()

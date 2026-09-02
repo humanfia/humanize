@@ -598,6 +598,18 @@ class Profile:
         ids a turn of it could name -- one that spells a model `provider/id` out of several
         endpoints at once, or one whose endpoint speaks a protocol of its own -- whose own
         answer is already the account's. :mod:`hmz.coganchor.models` is what reads it.
+      fronted: The word this backend's models are written under when they came from an
+        endpoint rather than from its own configuration, for a CLI that spells a model
+        `provider/id`. Empty for every CLI that names a model on its own.
+
+        An endpoint answers with ids and nothing else -- `nvidia/zai-org/glm-5.3-flash` --
+        and a CLI that reads a model as a pair would take that whole string for the pair,
+        leaving a provider it has never heard of in front of a model the gateway does not
+        serve. So the half the endpoint cannot supply is written here: the provider a turn
+        on that account actually runs on is the account's own endpoint, and this is the name
+        it goes under. Any word would do, which is exactly why it has to be one word and
+        written down once -- what a catalogue offers and what a session is opened with have
+        to agree, and they are read in two different modules.
       signs: What this CLI says when a turn stops that no other one says, and which kind of
         failure each of those makes it. Read before :data:`SIGNS`, which is what every one of
         them says. Empty for a backend whose failures read like everybody else's.
@@ -640,6 +652,7 @@ class Profile:
     ways: tuple[Way, ...] = ()
     ambient: tuple[str, ...] = ()
     endpoint: str = ""
+    fronted: str = ""
     signs: tuple[Sign, ...] = ()
     journal: tuple[str, ...] = ()
     installs: str = ""
@@ -1876,6 +1889,17 @@ PROFILES = (
         # between them, encrypted with a key derived from this machine and this user. It is
         # the one path `ZCODE_DATA_BASE_DIR` moves.
         creds=("v2/credentials.json",),
+        # Its app server has no catalogue of its own to ask for an account on a gateway: what
+        # `workspace/readState` answers with is the providers the person's own configuration
+        # file names, which for an agent handed an account is the wrong file's answer. So the
+        # endpoint is asked instead, as every other backend on a gateway is.
+        endpoint="ZCODE_BASE_URL",
+        # And its ids are written back under a provider, because ZCode reads a model as
+        # `provider/id` and an endpoint answers with the id alone. `gw` is that word: the
+        # provider a turn on such an account runs on *is* the endpoint, and this is what the
+        # session declares it under. The driver reads the provider back off the model, so the
+        # catalogue and the session agree by construction.
+        fronted="gw",
         ambient=(
             # Its own, which outrank the file whichever way it was signed in. `ZCODE_API_KEY`
             # is the last candidate it tries for any provider's key, and the ones before it

@@ -345,7 +345,14 @@ def _served(profile: Profile, environ: Mapping[str, str]) -> list[Model] | None:
         # It is down, it refused, it is not HTTP, it answered something else, or the answer
         # stopped half way through. Every one of them is the CLI's turn to be asked.
         return None
-    return [Model(one, profile.efforts, profile.swarms) for one in ids] if ids else None
+    if not ids:
+        return None
+    # An endpoint answers with ids and nothing else. A CLI that reads a model as `provider/id`
+    # would take the whole of one for the pair, so the half the endpoint cannot supply is
+    # written back on here -- see `Profile.fronted`, which is the name the session declares
+    # that endpoint under, so that what is offered and what is opened are the same string.
+    under = f"{profile.fronted}/" if profile.fronted else ""
+    return [Model(f"{under}{one}", profile.efforts, profile.swarms) for one in ids]
 
 
 def _pointed(profile: Profile, environ: Mapping[str, str]) -> str:
