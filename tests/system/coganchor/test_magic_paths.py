@@ -40,7 +40,7 @@ from hmz.coganchor.linux import procfs
 from hmz.coganchor.linux.procfs import resolve_magic
 
 if TYPE_CHECKING:
-    from tests.coganchor.conftest import Anchorage
+    from tests.coganchor.fixtures import Anchorage
 
 
 def dance(directory: str, name: str, content: str, whose: str = "self") -> str:

@@ -19,11 +19,11 @@ import pytest
 
 from hmz import cli
 from hmz.coganchor import AnchorConfig, check, connect
-from tests.coganchor.conftest import DEFAULT_TIMEOUT, REPO_ROOT
+from tests.coganchor.fixtures import DEFAULT_TIMEOUT, REPO_ROOT
 from tests.supervising import traced
 
 if TYPE_CHECKING:
-    from tests.coganchor.conftest import Anchorage
+    from tests.coganchor.fixtures import Anchorage
 
 
 def test_connect_runs_the_agent_without_a_command_line(anchorage: Anchorage) -> None:

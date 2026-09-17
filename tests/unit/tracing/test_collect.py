@@ -8,7 +8,7 @@ import pytest
 
 from hmz.runtime import tracing
 from hmz.runtime.tracing import collector
-from tests.tracing.conftest import (
+from tests.tracing.fixtures import (
     CLAUDE_ELSEWHERE,
     CLAUDE_SESSION,
     FLOW,

@@ -9,6 +9,6 @@ other tiers that share them; this names the ones the anchored tier needs.
 
 from __future__ import annotations
 
-from tests.coganchor.conftest import anchorage, echo_server
+from tests.coganchor.fixtures import anchorage, echo_server
 
 __all__ = ["anchorage", "echo_server"]

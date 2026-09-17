@@ -36,6 +36,21 @@ if TYPE_CHECKING:
     from hmz.coganchor.backends import Model
     from tests.llm import Serving
 
+# Asks back for what the subsystems lost when their `conftest.py` became a `fixtures.py`.
+# pytest rewrites the asserts in a conftest and in a test module, and in nothing else without
+# being told, so an `assert` in one of these five would have gone from naming the two values
+# it compared to a bare `AssertionError` -- in a fixture, where a failure is already reported
+# against whichever test happened to ask for it. Here because this is loaded before anything
+# imports them, which is the only time the request means anything. `tests/tiers.py` has why
+# those files are named as they are.
+pytest.register_assert_rewrite(
+    "tests.coganchor.fixtures",
+    "tests.daemon.fixtures",
+    "tests.machines.fixtures",
+    "tests.tracing.fixtures",
+    "tests.tui.fixtures",
+)
+
 #: Asking a backend what it runs, before the suite takes it away again. Held here so that a
 #: test which is about the asking can have it back.
 _ASKS = hmz.coganchor.models.ask
@@ -152,7 +167,7 @@ def _clones_nothing_elsewhere() -> Iterator[None]:
     of its own -- except humanize's own flowverse, whose address is a real one, written into
     the package because that is where humanize's flows are kept. So anything that fetches
     flowverses without being told which one fetches that one, and that was the suite's last
-    road off the machine it was started on. It was shut in `tests/tui/conftest.py`, which is
+    road off the machine it was started on. It was shut in `tests/tui/fixtures.py`, which is
     the interface's own directory: two tests inside it turned the fetcher back on without
     saying where it fetched from and spent four seconds of somebody's network on every run,
     and nothing outside that directory was covered at all.

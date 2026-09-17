@@ -28,7 +28,7 @@ from hmz.coganchor import AnchorConfig
 # Taken from the subsystem's own conftest, which stays beside the subsystem rather than
 # moving into a tier: counting `..` from this file would count a directory short the moment
 # a test moved a tier, and a wrong root here is a run started somewhere `hmz` is not.
-from tests.coganchor.conftest import REPO_ROOT
+from tests.coganchor.fixtures import REPO_ROOT
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

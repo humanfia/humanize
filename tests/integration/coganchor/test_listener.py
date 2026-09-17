@@ -22,7 +22,7 @@ from hmz.coganchor.proto import Channel
 from hmz.coganchor.remote import RemoteClient
 from hmz.coganchor.serve import listener
 from hmz.coganchor.serve.exports import ExportTable
-from tests.coganchor.conftest import VIRTUAL_EXPORT
+from tests.coganchor.fixtures import VIRTUAL_EXPORT
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator

@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.coganchor.conftest import REPO_ROOT, Anchorage
+from tests.coganchor.fixtures import REPO_ROOT, Anchorage
 
 #: What the suite keeps out of the home directory of whoever is running it, and off
 #: anybody's network. Named rather than passed wholesale: the point of the environment

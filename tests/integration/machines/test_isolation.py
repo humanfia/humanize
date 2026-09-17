@@ -31,7 +31,7 @@ from hmz.coganchor.machines import (
     MachineBase,
     MachineConfig,
 )
-from tests.machines.conftest import IMAGE
+from tests.machines.fixtures import IMAGE
 from tests.stubs import HereAnchor, ShellAgent
 
 if TYPE_CHECKING:

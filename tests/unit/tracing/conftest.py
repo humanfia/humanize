@@ -1,7 +1,8 @@
 """The recorded agent homes these tests read, borrowed from where they are written.
 
-The fixtures themselves stay in :mod:`tests.tracing.conftest`, which is under no one tier.
-`tests/test_together.py` imports `labels` out of that module directly, so it is a file two
+The fixtures themselves stay in :mod:`tests.tracing.fixtures`, which is under no one tier.
+Both copies of `test_together.py` -- the one in `tests/integration/runtime` and the one in
+`tests/system/runtime` -- import `labels` out of that module directly, so it is a file two
 slices of the suite name by path, and moving it would be one tier's refactor breaking
 another tier's imports.
 
@@ -18,7 +19,7 @@ transcripts.
 
 from __future__ import annotations
 
-from tests.tracing.conftest import (
+from tests.tracing.fixtures import (
     claude_home,
     codex_home,
     dsh_home,

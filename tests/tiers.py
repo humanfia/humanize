@@ -42,18 +42,18 @@ where the option that gates it has to live.
 
 Moving a test into a tree does not move what it was written against, and the two travel
 differently. A *helper* is imported by path -- `tests.stubs`, `tests.agents.standins`,
-`tests.supervising`, `tests.sampling`, and the ones that live inside a subsystem conftest, like
-`tests.tui.conftest.until` -- and keeps working from anywhere, which is why those files stay
-where they are while only `test_*.py` moves: a hundred-odd import lines name them there. A
+`tests.supervising`, `tests.sampling`, and the ones that live beside a subsystem's fixtures,
+like `tests.tui.fixtures.until` -- and keeps working from anywhere, which is why those files
+stay where they are while only `test_*.py` moves: a hundred-odd import lines name them there. A
 *fixture* is inherited from the directory tree instead, so a test that leaves `tests/tui`
-leaves `tests/tui/conftest.py` behind it -- and what it leaves behind there is the autouse pair
-that runs the interface somewhere temporary and stops it fetching from a remote. An autouse
-fixture left behind fails *green*: nothing asked for it by name, so nothing says it is missing,
-and the test goes on passing while reading the home directory of whoever ran it. The tier-side
-conftest takes them back by name:
+leaves what that directory was giving it behind -- the autouse pair that runs the interface
+somewhere temporary and stops it fetching from a remote. An autouse fixture left behind fails
+*green*: nothing asked for it by name, so nothing says it is missing, and the test goes on
+passing while reading the home directory of whoever ran it. The tier-side conftest takes them
+back by name:
 
     # tests/integration/tui/conftest.py
-    from tests.tui.conftest import _elsewhere, _fetches_nothing
+    from tests.tui.fixtures import _elsewhere, _fetches_nothing
 
     __all__ = ["_elsewhere", "_fetches_nothing"]
 
@@ -61,17 +61,39 @@ Named one by one, so that a reader of that directory can see what it is borrowin
 where -- and re-exported through `__all__` rather than a `# noqa`, because the two gates
 disagree about what a re-export looks like: an unused import is an error to pyright, the
 `import x as x` spelling that would answer that is an error to ruff, and a name in `__all__` is
-deliberate to both. The subsystem conftests themselves --
-`tests/tui/conftest.py`, `tests/coganchor/conftest.py`, `tests/tracing/conftest.py`,
-`tests/daemon/conftest.py`, `tests/machines/conftest.py` -- stay put, because a fixture is
-still one definition however many trees ask for it.
+deliberate to both. What is borrowed from stays put, because a fixture is still one definition
+however many trees ask for it.
 
-Leaving a name out of that list is the one mistake here nothing else would notice, so
+And what it stays put as is a plain module: `tests/tui/fixtures.py`,
+`tests/coganchor/fixtures.py`, `tests/tracing/fixtures.py`, `tests/daemon/fixtures.py`,
+`tests/machines/fixtures.py`. Each of those was that subsystem's `conftest.py` until the trees
+took every `test_*.py` out of the directory around it, which left a conftest over no tests --
+and a conftest over no tests is a trap rather than a file. What it declares reaches a test two
+ways, and only one of them survives the move. A *fixture* does: it travels by the import above,
+and is autouse or not wherever it is named. A *hook* does not. `pytest_configure`,
+`pytest_collection_modifyitems` and the rest are called only from a conftest on the path from
+the rootdir to what is being collected, and `tests/daemon` is not on the path to
+`tests/integration/daemon`. So a hook written there fires for `uv run pytest`, which walks past
+the directory, and silently does not for `uv run pytest tests/integration`, which never looks
+at it: the same tests, run two ways, one of them quietly missing a hook, and no error either
+time. Naming the file `fixtures.py` is what takes that away -- a plain module cannot be loaded
+as a plugin, so there is no hook to be half-applied and nothing for a reader to get wrong.
+`tests/test_tiers.py` keeps it from coming back under another name: a `pytest_*` function
+anywhere but a conftest pytest will load for the tests it speaks for is a failure there.
+
+The rename costs one thing, and it is bought back. pytest rewrites the asserts in a conftest
+and in a test module, and in no other file unless asked, so an `assert` inside one of these
+five would have stopped saying what it compared -- in a fixture, where the failure is already
+reported against whichever test happened to ask for it, and a bare `AssertionError` is most of
+a debugging session. `tests/conftest.py` names all five to `pytest.register_assert_rewrite`,
+which is the ask, and does it where it still counts: before anything has imported them.
+
+Leaving a name out of that `__all__` is the mistake here nothing else would notice, so
 `tests/test_tiers.py` reads it back: a test under `tests/<tier>/tui` is held to the autouse
 fixtures of `tests/tui`, and a run says which one went missing rather than passing without it.
 It is the *autouse* ones that need a guard. A fixture asked for by name -- the `sandbox` in
 `tests.composing`, which hands a test a path -- announces its own absence as `fixture 'sandbox'
-not found`, and no check can improve on that; the autouse `sandbox` of `tests/tracing/conftest.py`,
+not found`, and no check can improve on that; the autouse `sandbox` of `tests/tracing/fixtures.py`,
 which redirects four environment variables and returns nothing, goes missing in silence. Two
 fixtures, one name, and only one of them is what this is about.
 
@@ -182,8 +204,8 @@ def came_from(path: Path) -> Path | None:
     """The directory a test was written in, which is its own with the tier taken back out.
 
     `tests/integration/tui/test_boxes.py` was written in `tests/tui`, and what it was written
-    against is still there: the subsystem conftest, and the autouse fixtures a test of the
-    interface is not correct without. That a tree under a tier is named for the subsystem it
+    against is still there: that subsystem's `fixtures.py`, and the autouse fixtures a test of
+    the interface is not correct without. That a tree under a tier is named for the subsystem it
     came from is the whole of the convention, and this is what lets a check ask what a test
     used to be given.
 

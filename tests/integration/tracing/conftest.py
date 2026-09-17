@@ -14,6 +14,6 @@ without having to know to ask.
 
 from __future__ import annotations
 
-from tests.tracing.conftest import sandbox
+from tests.tracing.fixtures import sandbox
 
 __all__ = ["sandbox"]

@@ -9,6 +9,6 @@ that share them; this names the ones the offline tier needs.
 
 from __future__ import annotations
 
-from tests.coganchor.conftest import echo_server, link
+from tests.coganchor.fixtures import echo_server, link
 
 __all__ = ["echo_server", "link"]

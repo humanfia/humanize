@@ -15,7 +15,7 @@ import pytest
 
 from hmz.coganchor.policy import Layout, Router
 from hmz.coganchor.shadow import ShadowTree, prepare_shadow_root
-from tests.coganchor.conftest import VIRTUAL_EXPORT, Link
+from tests.coganchor.fixtures import VIRTUAL_EXPORT, Link
 
 
 @dataclass

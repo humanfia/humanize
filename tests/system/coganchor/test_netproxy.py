@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 if TYPE_CHECKING:
-    from tests.coganchor.conftest import Anchorage
+    from tests.coganchor.fixtures import Anchorage
 
 
 @pytest.mark.timeout(120)

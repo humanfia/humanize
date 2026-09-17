@@ -20,7 +20,7 @@ import pytest
 
 from hmz.tui import Humanize
 from hmz.tui.pick import Confirms, Leaves, Popup, Reports, Unbounded
-from tests.tui.conftest import until
+from tests.tui.fixtures import until
 
 if TYPE_CHECKING:
     from collections.abc import Callable

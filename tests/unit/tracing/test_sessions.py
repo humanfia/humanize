@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz.runtime import tracing
-from tests.tracing.conftest import (
+from tests.tracing.fixtures import (
     CLAUDE_ELSEWHERE,
     CLAUDE_SESSION,
     CODEX_SUBTHREAD,

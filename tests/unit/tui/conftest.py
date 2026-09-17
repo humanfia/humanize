@@ -15,7 +15,7 @@ else. `_fetches_nothing` takes the flow menu's first fetch away; nothing in this
 opens one today, and it is here so that the first test which does cannot quietly make this the
 tier that clones humanize's own flowverse from GitHub.
 
-Imported rather than rewritten so that there is one copy of each, in `tests/tui/conftest.py`
+Imported rather than rewritten so that there is one copy of each, in `tests/tui/fixtures.py`
 where the interface's tests have always kept them. `__all__` is load-bearing: it is what says
 these two names are re-exported rather than unused, and deleting it -- or the import -- takes
 both fixtures off every test here without failing anything.
@@ -23,6 +23,6 @@ both fixtures off every test here without failing anything.
 
 from __future__ import annotations
 
-from tests.tui.conftest import _elsewhere, _fetches_nothing
+from tests.tui.fixtures import _elsewhere, _fetches_nothing
 
 __all__ = ["_elsewhere", "_fetches_nothing"]

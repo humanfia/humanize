@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING
 from hmz.coganchor.netproxy import NetProxy
 
 if TYPE_CHECKING:
-    from tests.coganchor.conftest import Link
+    from tests.coganchor.fixtures import Link
 
 
 def test_loopback_connections_are_left_alone(link: Link) -> None:
