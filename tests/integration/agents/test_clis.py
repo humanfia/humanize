@@ -494,6 +494,14 @@ def stubs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _Stubs:
     _install(binaries, "agy", _AGY, log)
     _install(binaries, "grok", _GROK, log)
     monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
+    # And a home of their own, which is where a backend that keeps its own log keeps it.
+    # Antigravity is the one that does, so a failed turn of the stand-in above sends
+    # `backends.journalled` to `~/.gemini/antigravity-cli/cli.log` -- the log of whatever
+    # real `agy` somebody has running on this machine. One `quota` in its last four
+    # kilobytes reads as `throttled`, and the two failed-turn tests below then spend thirty
+    # seconds of backoff taking a turn again over somebody else's rate limit. The same
+    # reading cost `test_agy_stream.py` a whole extra turn.
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
     return _Stubs(log)
 
 

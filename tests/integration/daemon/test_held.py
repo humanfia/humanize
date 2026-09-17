@@ -197,6 +197,14 @@ def test_letting_go_from_outside_lets_every_terminal_go(held: daemon.Daemon) -> 
 
 
 def test_stopping_ends_the_run_and_takes_its_socket_away(held: daemon.Daemon) -> None:
+    # Asked of a run that has opened, which is not what `start` coming back means: it comes
+    # back once the socket is bound, and the socket is being answered on from the moment it
+    # is -- before the run in the detached process has said how it stops. A stop that lands
+    # in that window is answered `this run cannot be stopped from outside it`, which is
+    # `stop()` False and the run still going: one in four here, and fifteen in twenty-four on
+    # a machine under load. The stand-in says what it is in the same breath as it says how it
+    # stops, so a status carrying `kind` is a run that has said both.
+    assert _until(lambda: "kind" in held.status())
     at = held.at
 
     assert held.stop()

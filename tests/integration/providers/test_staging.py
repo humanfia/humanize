@@ -8,9 +8,10 @@ supervisor is.
 The credentials are files under `tmp_path`, and nothing here reaches a real one. The copies
 are not, and could not be: `/dev/shm` is what the cache is for, a read of it being a read of
 memory rather than of a disk. That one real directory outside `tmp_path` is what keeps these
-out of the unit tier, where a test owns nothing but the path pytest handed it: three of these
+out of the unit tier, where a test owns nothing but the path pytest handed it: two of these
 make a directory in `/dev/shm` on purpose, to check what a run that was killed leaves behind,
-and it is a directory shared with every other process on the machine.
+and it is a directory shared with every other process on the machine -- which is why the
+third, the one about sweeping up after one run and no other, is given a root of its own.
 
 It is not the system tier either, and must not be: there is no tracer here, no container, no
 CLI and no network, so any machine that runs the suite at all can run these. POSIX shared
@@ -220,8 +221,21 @@ def test_what_a_run_that_was_killed_left_behind_is_swept_up(credential: Path) ->
     assert not left.exists()
 
 
-def test_whoever_killed_a_supervisor_sweeps_up_after_it() -> None:
-    """Which is how a turn ends: the process it ran in is killed, and `SIGKILL` runs nothing."""
+def test_whoever_killed_a_supervisor_sweeps_up_after_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Which is how a turn ends: the process it ran in is killed, and `SIGKILL` runs nothing.
+
+    In a directory of this test's own rather than in the real `/dev/shm`, alone among the
+    three here that make one. What is being checked is that sweeping up after one run leaves
+    another run's alone -- so the other run's directory has to be a killed run's too, and a
+    killed run's directory is exactly what every other `Staging()` on the machine takes away
+    on its way past. Under `-n auto` that is another worker of this same suite, and `beside`
+    is gone between the `mkdir` and the assertion: a sweeper looping beside this test fails
+    it fifteen times in fifteen. The real `/dev/shm` is what the two tests either side of
+    this one are in, which is what keeps this file in the integration tier.
+    """
+    monkeypatch.setattr(_staging, "_ROOT", tmp_path)
     killed = os.fork()
     if not killed:
         os._exit(0)
@@ -236,13 +250,10 @@ def test_whoever_killed_a_supervisor_sweeps_up_after_it() -> None:
     beside.mkdir(mode=0o700)
     (left / "1.credentials.json").write_text(PROVIDER)
 
-    try:
-        _staging.swept(killed)
+    _staging.swept(killed)
 
-        assert not left.exists()
-        assert beside.exists()  # another run's is another run's to sweep
-    finally:
-        beside.rmdir()
+    assert not left.exists()
+    assert beside.exists()  # another run's is another run's to sweep
 
 
 def test_a_directory_of_a_run_that_is_still_going_is_left_alone(
