@@ -55,7 +55,7 @@ def _refused(cli: str, why: subprocess.CalledProcessError) -> NoReturn:
     a suite that reads red for somebody's expired subscription is a suite nobody reads, and
     one that said only `skipped` would leave them guessing which of the five it was.
 
-    The check before the skip is the one `tests/agents/test_every_backend.py` makes of every
+    The check before the skip is the one `tests/system/agents/test_every_backend.py` makes of every
     backend installed here, and it is the whole reason a refusal may be skipped rather than
     failed: what humanize owes whoever is at the prompt is not the exit status but the
     sentence, so a failure carrying nothing but a number is this driver's bug after all and
