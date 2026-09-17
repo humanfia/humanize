@@ -1,6 +1,18 @@
 # The second gate. The first is `.pre-commit-config.yaml`; this runs the same hooks over
-# every file rather than the ones one commit touched, and it is the only place the tests
-# run -- on every Python the package claims, and on both systems it is installed on.
+# every file rather than the ones one commit touched, and it runs two of the three test
+# tiers -- on every Python the package claims, and on both systems it is installed on.
+#
+# The two it runs are `tests/unit/` and `tests/integration/`: everything whose every
+# counterpart is something this repository wrote. A stand-in CLI on `PATH`, a fake app
+# server, a loopback socket, the mock LLM service. Those need a checkout and nothing else,
+# which is what makes them a gate rather than a weather report.
+#
+# `tests/system/` is the third, and CI never runs it. It drives a real coding-agent CLI as
+# the account that machine is already signed into -- `as local`, the provider that is no
+# provider -- and with it real ptrace, real seccomp, real docker, real ssh, a real daemon
+# fork. None of that is here, and a hosted runner's absence of it is not news about a
+# change. That tier is run by the person who touched what it covers, on the machine that
+# has the thing.
 
 name: CI
 
@@ -90,15 +102,49 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python }}
 
-      # Every extra, because the tests cover the backends behind them as they cover the rest.
+      # Every extra, and still every extra now that CI runs two tiers rather than all of
+      # them. `[kimi]` is `websockets`, which the development group already brings for the
+      # suite's own websocket server, so that one is free. `[dsh]` is not: the one test
+      # that starts the DeepSeek runtime for real -- in `tests/tui/`, checking what that
+      # runtime answers a turn with no credential -- is not agent-marked, so it is a test
+      # this job runs, and it guards itself with `skipif` on `find_spec`. Without the extra
+      # it does not go red, it goes quiet: a backend stops being covered and the only trace
+      # is a line in the `-ra` summary. Installing the extras is what keeps that skip from
+      # ever being the reason.
       - run: uv sync --frozen --all-extras
 
-      # Everything except the `agent`-marked tests, which drive real coding agents and
-      # need `--run-agents`. `-ra` in pyproject names whatever got skipped.
+      # The unit and integration tiers, in one job rather than two. Splitting them would
+      # turn three Pythons times two systems into twelve, and would make one coverage file
+      # out of two runs that share no disk -- `--cov-append` cannot reach across machines,
+      # so it would be an artifact merge -- to answer a question nobody asked CI. The tiers
+      # are how a person gets a fast loop on their own machine (`uv run pytest tests/unit`
+      # while still writing it); what CI is asked is whether the whole thing passes, and
+      # that is one answer, so it is one job.
+      #
+      # `--ignore` rather than `-m "not system"`, and the difference is not cosmetic.
+      # Deselecting still collects, and collecting is importing. That tier is where the
+      # modules that ask the machine a question at import live -- `tests/supervising.py`
+      # spawns a supervisor while it is being read, to work out whether anything here can
+      # be traced at all -- and it is where a module that imports what only a developer's
+      # machine has would live. Paying for the first is waste; the second is worse, because
+      # a collection error is a red job about a tier this job was never going to run, which
+      # says nothing at all about the change that triggered it.
+      #
+      # What `-ra` buys -- a test that quietly stops running says so -- is bought where it
+      # is worth buying, on the run a contributor does before pushing: there the tier is
+      # collected and skips aloud with its reason. Here the exclusion is one directory,
+      # written in the file somebody opens to find out what CI does.
+      #
+      # It is not the only thing holding real agents out, and must not be the only thing
+      # relied on. `tests/conftest.py` skips every `agent`-marked test unless `--run-agents`
+      # is passed, which this job never passes; that is what covers an agent test wherever
+      # it sits, including one that has not reached `tests/system/` yet.
+      #
       # `--durations` because the two systems are not the same speed and the difference is
       # not spread evenly: a suite that spawns a CLI per test costs far more on one of them,
       # and a list of the slowest twenty-five is how that stays visible.
       - name: pytest
         run: >
           uv run --frozen pytest -q --durations=25 --timeout-method=thread
+          --ignore=tests/system
           --cov=hmz --cov-report=term-missing --cov-report=xml

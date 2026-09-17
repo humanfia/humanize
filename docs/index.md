@@ -230,9 +230,21 @@ and both have to pass:
 
 ```sh
 uv run pre-commit run --all-files   # the formatter, the linter and the type checker
-uv run pytest                       # everything that does not need a real agent
-uv run pytest --run-agents          # also drives the real CLIs, and spends real tokens
+uv run pytest                       # the unit and integration tiers
 ```
+
+The tests sit in three directories, by what is on the other side of them: `tests/unit/` calls
+`hmz` and nothing else, `tests/integration/` talks only to things this repository wrote — a
+stand-in CLI, a fake app server, a loopback socket, a mock LLM service — and `tests/system/`
+wants the real thing. The first two are the gate, and they are all CI runs. The third is a run
+you make on purpose, on a machine that has a coding agent signed in:
+
+```sh
+uv run pytest tests/unit            # the fast loop, while you are still writing it
+uv run pytest --run-agents          # also the system tier: real CLIs, real tokens
+```
+
+See [Contributing](/contributing/) for what belongs where.
 
 What the code is held to: **`pyright` in strict mode** over `src` and `tests`, with `# type:
 ignore` switched off — a suppression names a rule; **`ruff` with every rule on**, less the ones

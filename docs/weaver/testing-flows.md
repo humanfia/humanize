@@ -164,13 +164,59 @@ No agent, no backend, no tokens.
 
 ## Run the real thing deliberately
 
-A test that drives a real CLI is marked and kept out of the default run, which is what humanize
-itself does.
+Sort your tests by what is on the other side of them, which is what humanize itself does. It
+keeps three directories:
+
+| | |
+| --- | --- |
+| `tests/unit/` | Calls the code and asserts. A verdict function, a shape, a setting. No agent, no process |
+| `tests/integration/` | Everything on the far side is something you wrote: a `ShellAgent`, a stand-in CLI, a fake server, a mock LLM service |
+| `tests/system/` | The real thing — a coding agent CLI signed in as you signed it in — and real tokens |
+
+The first two are the gate: they want a checkout and nothing else, so they run everywhere and on
+every change. The third is a run somebody makes on purpose.
 
 ```sh
-uv run pytest                       # everything that does not need a real agent
-uv run pytest --run-agents          # also drives the real coding agent CLIs
+uv run pytest tests/unit            # the fast loop
+uv run pytest                       # the gate: unit and integration
+uv run pytest --run-agents          # also the system tier, which spends real tokens
 ```
+
+`--run-agents` is not a pytest option — it is one humanize registers, and your project has to
+register its own. In the root `conftest.py`:
+
+```python
+import pytest
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "agent: drives a real coding agent CLI")
+
+
+def pytest_addoption(parser):
+    parser.addoption("--run-agents", action="store_true", default=False)
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--run-agents"):
+        return
+    skip = pytest.mark.skip(reason="needs --run-agents (drives real agents, costs tokens)")
+    for item in items:
+        if "agent" in item.keywords:
+            item.add_marker(skip)
+```
+
+The root `conftest.py` and no other — `pytest_addoption` is read there alone. Then put
+`pytest.mark.agent` on the tests, keep `--strict-markers` on so a typo in the name is an error
+rather than a selection of nothing, and set `-ra` in your `addopts`: the summary of an ordinary
+run then names every agent test that sat out and why, and a test that quietly stops running
+says so.
+
+Keep the tier out of your CI the way humanize keeps it out of its own — with
+`--ignore=tests/system` rather than a marker expression that deselects it. Deselecting still
+collects, and collecting is importing: a module that reaches for a CLI your runner has not got
+is a collection error, which fails a job about tests it was never going to run. Locally you want
+the opposite, which is what `-ra` and the skip above are for.
 
 ## See also
 

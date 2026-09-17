@@ -2,7 +2,15 @@
 
 For code:
 
-- MUST pass `uv run pre-commit run --all-files` and `uv run pytest`.
+- MUST pass `uv run pre-commit run --all-files` and `uv run pytest`. That second one is the
+  unit and integration tiers, which is all CI runs.
+- MUST file a new test by what is on the other side of it: `tests/unit/` calls `hmz` and
+  nothing else, `tests/integration/` may talk to anything this repository wrote — a stand-in
+  CLI, a fake app server, a loopback socket, the mock LLM service — and `tests/system/` needs
+  the real thing.
+- MUST run the system tier by hand when the change is one it covers: `uv run pytest
+  tests/system --run-agents`. It drives real CLIs as `as local` and spends real tokens, so CI
+  will not run it and nothing else will run it for you.
 - PREFER use popular and well-maintained libraries rather than custom implementations.
 - MUST also update `humanfia/flowverse` to ensure them working if any changes affect flow impl.
 

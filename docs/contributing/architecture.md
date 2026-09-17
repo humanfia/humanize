@@ -285,8 +285,8 @@ uv sync
 uv run pre-commit install     # then every commit is checked before it is made
 
 uv run pre-commit run --all-files   # format, lint, types
-uv run pytest                       # the tests
-uv run pytest --run-agents          # also drives the real coding agent CLIs
+uv run pytest                       # the unit and integration tiers -- the gate
+uv run pytest --run-agents          # also the system tier: the real CLIs, real tokens
 ```
 
 Run them through `uv run`, not `uvx`: the lockfile pins the versions the hooks and CI enforce.
@@ -297,6 +297,17 @@ Run them through `uv run`, not `uvx`: the lockfile pins the versions the hooks a
   pyright rule or it does not exist.
 - Google-style docstrings, and type annotations everywhere.
 
-CI runs all of it over every file, and the tests on each Python the package claims, on both
-Linux and macOS. The tests that run an agent under an anchor need Linux on x86-64 or aarch64
-and skip aloud anywhere else; the serving half, and everything above it, is held to both.
+The tests are in three directories, by what is on the other side of them — and the layering
+above is why that line can be drawn at all. `tests/unit/` calls into a package and asserts.
+`tests/integration/` reaches a seam, a driver's CLI or an app server or a transport, and finds
+this repository's own stand-in on the far side, which is the same move the layers make for
+imports: a boundary is a place you can put something else behind. `tests/system/` is the tier
+where the far side is real, and it is the one CI does not run.
+[Contributing](/contributing/) has the table.
+
+CI runs all of it over every file, and the first two tiers on each Python the package claims,
+on both Linux and macOS. It never runs `tests/system/` — `--ignore=tests/system`, so on a
+runner that tier is not even collected, since a hosted machine has no signed-in CLI, no ptrace
+and no docker to be right or wrong about. The tests that run an agent under an anchor need
+Linux on x86-64 or aarch64 and skip aloud anywhere else; the serving half, and everything above
+it, is held to both.
