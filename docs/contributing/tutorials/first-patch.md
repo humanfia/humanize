@@ -117,14 +117,21 @@ side is something this repository wrote — a [stand-in CLI](/reference/flows#te
 `PATH`, a fake app server, a loopback socket, the mock LLM service. Both want a checkout and
 nothing more, which is why they are a gate and why CI can run them.
 
+Where you put a new test is what it is: `tests/unit`, `tests/integration` or `tests/system`,
+each of which marks everything beneath it, so there is no decorator to remember and
+`tests/test_tiers.py` goes red if a marker and a directory ever disagree. [Where a test
+lives](/contributing/#where-a-test-lives) has what each tree may touch.
+
 While you are still writing the change, the first tier alone is the loop worth having:
 
 ```sh
 uv run pytest tests/unit
 ```
 
-The third tier, `tests/system/`, is not part of the gate. It is skipped unless you ask for it,
-and it says so rather than going quiet:
+The third tier, `tests/system/`, is the one CI leaves out, by naming the directory rather than
+by deselecting it. Your own `uv run pytest` still collects it, and each test there says for
+itself what it could not find — a machine that cannot trace, an image that was never pulled, a
+`node` that is not installed. The ones that would spend real tokens are skipped until you ask:
 
 ```
 SKIPPED [1] tests/system/agents/test_steering.py:30: needs --run-agents (drives real agents, costs tokens)
