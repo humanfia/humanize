@@ -30,7 +30,7 @@ from hmz.tui.pick import (
     Retries,
 )
 from tests.integration.tui.test_app import drops, keeps, onto, rows
-from tests.tui.conftest import until
+from tests.tui.fixtures import until
 
 if TYPE_CHECKING:
     from textual.pilot import Pilot

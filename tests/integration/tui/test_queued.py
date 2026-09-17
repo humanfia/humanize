@@ -23,7 +23,7 @@ from hmz.tui import Humanize
 from hmz.tui.app import _PINNED
 from hmz.tui.monitor import short
 from tests.stubs import ShellAgent, ShellSession, written
-from tests.tui.conftest import transcript
+from tests.tui.fixtures import transcript
 
 if TYPE_CHECKING:
     from collections.abc import Callable

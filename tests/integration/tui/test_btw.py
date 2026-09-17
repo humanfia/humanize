@@ -13,7 +13,7 @@ from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
 from hmz.tui.app import _COMMANDS
 from hmz.tui.btw import format_snapshot
-from tests.tui.conftest import transcript
+from tests.tui.fixtures import transcript
 
 if TYPE_CHECKING:
     import os

@@ -11,7 +11,7 @@ from textual.widgets import Label, OptionList
 from hmz import home
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
-from tests.tui.conftest import until
+from tests.tui.fixtures import until
 
 if TYPE_CHECKING:
     from pathlib import Path

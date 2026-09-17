@@ -30,7 +30,7 @@ from hmz.tui.pick import (
 )
 from tests.integration.tui.test_app import onto, opens, rows
 from tests.stubs import written
-from tests.tui.conftest import until
+from tests.tui.fixtures import until
 
 if TYPE_CHECKING:
     from pathlib import Path

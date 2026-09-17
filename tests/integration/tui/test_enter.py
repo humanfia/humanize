@@ -18,7 +18,7 @@ from textual.widgets import OptionList
 
 from hmz.tui import Humanize
 from hmz.tui.app import Editor
-from tests.tui.conftest import transcript
+from tests.tui.fixtures import transcript
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

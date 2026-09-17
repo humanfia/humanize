@@ -43,7 +43,7 @@ from tests.integration.tui.test_app import (
     opens,
     rows,
 )
-from tests.tui.conftest import transcript, until
+from tests.tui.fixtures import transcript, until
 
 if TYPE_CHECKING:
     from pathlib import Path

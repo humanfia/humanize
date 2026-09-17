@@ -50,7 +50,7 @@ from hmz.tui.pick import (
     Unbounded,
 )
 from tests.integration.tui.test_app import into_agent, into_flows, onto, rows
-from tests.tui.conftest import until
+from tests.tui.fixtures import until
 
 if TYPE_CHECKING:
     from collections.abc import Callable

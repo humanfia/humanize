@@ -19,7 +19,7 @@ from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
 from hmz.tui.pick import EVERY, Entry, Monitoring
 from tests.integration.tui.test_attach import SteerableAgent
-from tests.tui.conftest import until
+from tests.tui.fixtures import until
 
 if TYPE_CHECKING:
     from textual.pilot import Pilot

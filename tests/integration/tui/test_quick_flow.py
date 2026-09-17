@@ -24,7 +24,7 @@ from hmz.tui.complete import offered
 from hmz.tui.pick import _SAVE, Flows, Unbounded
 from tests.integration.tui.test_app import opens
 from tests.stubs import ShellAgent, written
-from tests.tui.conftest import transcript, until
+from tests.tui.fixtures import transcript, until
 
 if TYPE_CHECKING:
     from pathlib import Path

@@ -24,8 +24,8 @@ from hmz.tui.app import _EVERY, _KEPT
 from hmz.tui.monitor import short
 from hmz.tui.pick import Held, reads
 from tests.stubs import ShellAgent, ShellSession, written
-from tests.tui.conftest import transcript
-from tests.tui.conftest import until as waited
+from tests.tui.fixtures import transcript
+from tests.tui.fixtures import until as waited
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -107,7 +107,7 @@ async def until(ready: Callable[[], bool], driver: Pilot[None]) -> None:
     still a message in the queue.
 
     A wrapper rather than a copy of the body, which is what it was: the pumping is
-    `tests.tui.conftest.until`'s to decide, and what is written here is only the one thing this
+    `tests.tui.fixtures.until`'s to decide, and what is written here is only the one thing this
     file needs on top of it.
 
     Args:

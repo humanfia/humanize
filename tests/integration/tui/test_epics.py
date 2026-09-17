@@ -23,7 +23,7 @@ from hmz.tui import Humanize
 from hmz.tui.pick import Does, Epics
 from tests.integration.tui.test_app import onto, rows
 from tests.stubs import written
-from tests.tui.conftest import until
+from tests.tui.fixtures import until
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -287,7 +287,7 @@ async def test_exporting_a_run_carries_its_own_trace_in_the_archive(
     import tarfile
 
     from hmz.runtime.epic import opened
-    from tests.tui.conftest import transcript
+    from tests.tui.fixtures import transcript
 
     _ran("speaks", "go")
 
@@ -420,7 +420,7 @@ async def test_resuming_from_inside_a_run_is_what_the_command_is(
     on it would be a run starting from the top wearing a line saying which run it came from,
     so it is turned down here in the words the command turns it down in.
     """
-    from tests.tui.conftest import transcript
+    from tests.tui.fixtures import transcript
 
     _ran("plain", "go")
     written(workspace / ".humanize/flows", "plain", COUNTS)
