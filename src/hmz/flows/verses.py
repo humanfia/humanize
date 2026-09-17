@@ -522,7 +522,8 @@ def clone(url: str, at: Path) -> None:
     taking too long is stopped where it stood, and what it had written so far stays. Written
     straight into `at`, that is a name taken by a flowverse that is not there -- and since a
     name already taken is refused, it is a name nobody can use again until somebody finds the
-    directory and removes it. Written beside, it is a hidden directory to sweep up here.
+    directory and removes it. Written beside, it is a hidden directory, and :func:`_swept`
+    is what comes by for it.
 
     And two callers reach one directory as a matter of course: the interface takes what every
     flowverse says now as it opens, and the flow menu fetches whatever has never been fetched
@@ -533,15 +534,21 @@ def clone(url: str, at: Path) -> None:
     written. The move is what settles who won, and whoever lost throws their own copy away and
     says nothing: what they were asking for was a fetched repository, and there is one.
 
+    Which is why what is in the way is swept from here, after the move has failed, rather than
+    by whoever is about to call: a caller that cleared the place first would be clearing away
+    whatever another caller had just finished writing into it, and that is the whole of what
+    the move is for.
+
     Args:
       url: Where the repository is, as somebody wrote it.
-      at: The directory to clone into, which must not already be there. One that is there by
-        the time this is done with is somebody else's clone, which is left alone.
+      at: The directory to clone into. One holding a repository by the time the copy made here
+        is ready to move in is somebody else's clone, which is left where it is; anything else
+        in the way is taken away, having no repository in it to lose.
 
     Raises:
-      OSError: If git is not there, or the clone failed -- and if something that is not a
-        clone is in the way of the move, which is the one failure the move cannot answer by
-        letting the other one win. What git said is attached.
+      OSError: If git is not there, or the clone failed -- and if what is in the way of the
+        move will not go, which is the one failure the move can neither answer by letting the
+        other one win nor by clearing the place. What git said is attached.
     """
     import shutil
     import tempfile
@@ -549,6 +556,7 @@ def clone(url: str, at: Path) -> None:
     # Made here as well as by the callers, since the copy is written beside `at` rather than
     # at it: there has to be somewhere to put it.
     at.parent.mkdir(parents=True, exist_ok=True)
+    _swept(at)
     beside = Path(tempfile.mkdtemp(dir=at.parent, prefix=f".{at.name}."))
     beside.rmdir()  # git clones into a directory it makes; this was only to take the name
     try:
@@ -556,15 +564,86 @@ def clone(url: str, at: Path) -> None:
     except BaseException:
         shutil.rmtree(beside, ignore_errors=True)
         raise
+    if _moved(beside, at):
+        return
+    # Nothing that answers for a commit is in the way, so what is there is half a clone a run
+    # killed partway left behind, or a directory somebody made by hand: neither is a
+    # repository, and neither is anything to keep a fetched one out.
+    shutil.rmtree(at, ignore_errors=True)
+    if _moved(beside, at):
+        return
+    shutil.rmtree(beside, ignore_errors=True)
+    # Scrubbed, the way every other place that says where a flowverse came from is: a
+    # private one is added as `https://x-access-token:$TOKEN@...`, and this is a line in
+    # somebody's log.
+    raise OSError(f"{at} is in the way of a clone of {plain(url)}, and will not go")
+
+
+def _moved(beside: Path, at: Path) -> bool:
+    """Moves a finished clone into the place it is kept, and says whether one is there now.
+
+    The move is one call, so there is no moment when half of it has happened: what is at `at`
+    goes from nothing to a whole repository, whoever is looking.
+
+    Args:
+      beside: The clone just written, under a name of its own.
+      at: Where it is to be kept.
+
+    Returns:
+      Whether `at` holds a repository now -- this one, or the one somebody else got there
+      first with, which is the same answer to whoever asked for a clone. False for anything
+      else in the way, which is for the caller to clear.
+
+    Note:
+      Asked with :func:`standing` rather than by looking for a `.git`, which the half a clone
+      a killed run leaves has too -- git writes its config in the first moments. A stump
+      taken for somebody else's win is a flowverse listed as fetched with no flows in it, and
+      the difference between the two is whether git will name a commit for it.
+    """
+    import shutil
+
     try:
         beside.rename(at)
     except OSError:
+        if not standing(at):
+            return False
+        # Somebody else got there first, which is a fetched repository either way, so the
+        # copy written here is one to throw away rather than one to put anywhere.
         shutil.rmtree(beside, ignore_errors=True)
-        if not _cloned(at):
-            # Something is in the way that is not a clone, which is nobody having won: the
-            # half a clone a killed run left, or a directory somebody made by hand. Said,
-            # rather than passed off as a fetch, since there is nothing there to fetch from.
-            raise
+    return True
+
+
+def _swept(at: Path) -> None:
+    """Takes away what clones of one name left beside it when they were killed.
+
+    A clone is written beside the place and moved into it, so a run killed partway through one
+    leaves a `.<name>.XXXXXX` under the flowverses home holding as much of somebody's
+    repository as git had written by then. Nothing lists it -- a name starting with a dot is
+    not a name a flowverse may have, which is why the copy is written under one -- so nothing
+    would ever notice it either. This is what comes by, on the way past to the next clone of
+    that name.
+
+    Only the ones nothing could still be writing. A clone in flight is a directory of exactly
+    this shape, written by whoever else is cloning the same place at this moment, and sweeping
+    one of those away is the very thing the move is here to stop. So what goes is what is
+    older than the longest a clone is given before it is called off: nothing that old is still
+    being written to by anything this module started.
+
+    Args:
+      at: Where the clone is to be kept, whose name the copies beside it are named after.
+    """
+    import shutil
+    import time
+
+    stale = time.time() - _PATIENCE
+    for one in at.parent.glob(f".{at.name}.*"):
+        try:
+            if one.is_dir() and one.stat().st_mtime < stale:
+                shutil.rmtree(one, ignore_errors=True)
+        except OSError:
+            # One that went while this was looking at it, which is somebody else having
+            # swept it: there is nothing here that wants it to still be there.
+            continue
 
 
 def _git(*said: str) -> None:

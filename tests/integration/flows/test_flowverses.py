@@ -243,11 +243,18 @@ def test_two_callers_cloning_one_place_leave_a_whole_clone_behind(
     taking that directory away would be taking away the clone the other one had just written,
     and `official` would be listed as never fetched with its flows nowhere.
 
-    The interleaving is pinned rather than waited for. A race has orders -- the second caller
-    reaching git while the first is still cloning, and reaching it after the first has
-    finished -- and a test that left which of them happened to the clock would be a guard that
-    passed nineteen runs in twenty and said nothing about the twentieth. Both threads are real
-    and both call the real clone; what is pinned is only which of them reaches git first.
+    One interleaving is pinned, and it is the one that used to do the damage: the second
+    caller reaches git after the first has finished cloning, finds the place taken, and is
+    where the old code swept the winner's work away. Left to the clock that order happens
+    sometimes, which is a guard that passes nineteen runs in twenty and says nothing about the
+    twentieth. The other order the race has -- the second caller arriving while the first is
+    still cloning -- is not produced here and is not claimed to be: git cannot be held still
+    partway through a clone from the outside.
+
+    What is not pinned is which of the two then moves its copy into place first, and the test
+    does not ask. Either way round leaves one whole clone where the flowverse is kept and one
+    copy thrown away, which is the invariant; who won is not something a caller can see and is
+    not something asserted here. Both threads are real and both call the real clone.
     """
     at = store.where("theirs")
     at.parent.mkdir(parents=True, exist_ok=True)
@@ -296,6 +303,67 @@ def test_two_callers_cloning_one_place_leave_a_whole_clone_behind(
     assert (at / FLOWS / "loop" / ENTRY).is_file()
     # And whichever lost took its own copy away rather than leaving it under the flowverses.
     assert list(at.parent.iterdir()) == [at]
+
+
+def test_half_a_clone_in_the_way_is_taken_away_rather_than_taken_for_one(
+    theirs: Path,
+) -> None:
+    """A run killed partway through a clone used to leave a stump under the name it wanted.
+
+    The version that cloned straight into the place left one there, and a stump has a `.git`
+    in it -- git writes its config in the first moments -- so anything that told a repository
+    from a stump by looking for that directory would call it somebody else's finished clone
+    and hand back a flowverse that is fetched and holds no flows. What is asked instead is
+    whether git will name a commit for it, which a stump has none of.
+
+    Swept where the move fails rather than before the clone: what is in the way at that moment
+    has been shown not to be a repository, and a caller that cleared the place beforehand
+    would be clearing away whatever another caller had finished writing into it.
+    """
+    at = store.where("theirs")
+    (at / ".git").mkdir(parents=True)
+    (at / ".git" / "config").write_text("[core]\n\trepositoryformatversion = 0\n")
+
+    store.clone(str(theirs), at)
+
+    assert (at / FLOWS / "loop" / ENTRY).is_file()
+    assert store.flows(store.Flowverse("theirs", "", at, True, False)) == [
+        "loop",
+        "review",
+    ]
+
+
+def test_a_copy_a_killed_clone_left_beside_the_place_is_swept_up_by_the_next(
+    theirs: Path,
+) -> None:
+    """The copy is written under a name nothing lists, which is a name nothing would notice.
+
+    A clone killed partway leaves what it had written; written beside the place under a
+    leading dot, that is a directory no listing of the flowverses will ever show, so nobody
+    would find it to take it away. The next clone of that name is what comes by for it.
+
+    Old ones only. A clone in flight is a directory of exactly this shape belonging to
+    whoever else is cloning the same place at this moment, and sweeping one of those is the
+    thing the copy-and-move is there to stop -- so a fresh one is left alone, and what goes is
+    what is older than the longest a clone is given before it is called off.
+    """
+    import os
+    import time
+
+    under = store.under()
+    under.mkdir(parents=True, exist_ok=True)
+    killed = under / ".theirs.abcdef"
+    killed.mkdir()
+    (killed / "half-written").write_text("what git had got to\n")
+    long_ago = time.time() - 10 * 60
+    os.utime(killed, (long_ago, long_ago))
+    live = under / ".theirs.fedcba"
+    live.mkdir()
+
+    store.clone(str(theirs), store.where("theirs"))
+
+    assert not killed.exists()
+    assert live.is_dir()  # somebody else's clone, still being written
 
 
 def test_one_that_was_added_may_be_taken_away(theirs: Path) -> None:
