@@ -104,13 +104,24 @@ jobs:
 
       # Every extra, and still every extra now that CI runs two tiers rather than all of
       # them. `[kimi]` is `websockets`, which the development group already brings for the
-      # suite's own websocket server, so that one is free. `[dsh]` is not: the one test
-      # that starts the DeepSeek runtime for real -- in `tests/tui/`, checking what that
-      # runtime answers a turn with no credential -- is not agent-marked, so it is a test
-      # this job runs, and it guards itself with `skipif` on `find_spec`. Without the extra
-      # it does not go red, it goes quiet: a backend stops being covered and the only trace
-      # is a line in the `-ra` summary. Installing the extras is what keeps that skip from
-      # ever being the reason.
+      # suite's own websocket server, so that one is free. `[dsh]` is not, and which test
+      # needs it is no longer the one this comment used to name. The test that starts
+      # DeepSeek's own runtime for real, to read back what it answers a turn with no
+      # credential, is `tests/system/tui/test_app.py` -- the third tier, which the `--ignore`
+      # below means this job never reaches, and whose `skipif` on `find_spec` is left there
+      # for the developer who runs that tier without the extra.
+      #
+      # What this job runs is `tests/unit/agents/test_dsh.py`, the same backend against a
+      # fake harness, and the fake does not cover this: its autouse fixture stands in for the
+      # harness type and the runtime executable, but the forty-two tests about what the
+      # runtime composition comes to read the bundled `runtime/cordis.yml` off
+      # `deepseek_harness_runtime` through `_sdk_composition`, on purpose -- the point of
+      # those tests is that an install with nothing set gets the harness's own default rather
+      # than a copy somebody has to keep in step, and a faked copy would be exactly the thing
+      # they exist to refuse. So for the two tiers CI does run, the extra left out is not a
+      # backend going quietly uncovered with a line in the `-ra` summary; it is forty-two red
+      # tests about a dependency rather than about the change. Installing every extra is what
+      # keeps either from ever being the reason.
       - run: uv sync --frozen --all-extras
 
       # The unit and integration tiers, in one job rather than two. Splitting them would

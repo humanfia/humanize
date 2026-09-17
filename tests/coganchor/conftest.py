@@ -1,5 +1,11 @@
 """Shared fixtures.
 
+Shared across tiers rather than within a directory. The tests that ask for these are in
+`tests/integration/coganchor` and `tests/system/coganchor`, each of which names the ones it
+needs in a `conftest.py` of its own; `tests/unit/coganchor` asks for none of them, which is
+most of what makes those tests unit tests. One definition however many trees reach for it is
+why this file stayed put when the tests moved out from under it.
+
 Every end-to-end test runs three directories apart:
 
 ``target``
@@ -116,9 +122,16 @@ def anchorage(tmp_path: Path) -> Anchorage:
     """A fresh target/mirror pair for one test.
 
     The agent half of a session is a seccomp filter and a ptrace supervisor, so a machine
-    that cannot trace cannot have one. The serving half is portable on purpose and is
-    reached through `link` below, which every other test here uses and which asks nothing
-    of the kernel.
+    that cannot trace cannot have one -- which is why every test that asks for this is in
+    `tests/system/coganchor`, and why what it does about a kernel that will not trace is
+    skip. The serving half is portable on purpose and is reached through `link` below, which
+    asks nothing of the kernel and is therefore what the offline tests in
+    `tests/integration/coganchor` are written against.
+
+    Neither of those trees is this one. No test lives beside these fixtures any more, and a
+    fixture is visible only under the conftest that declares it, so each tier takes the one
+    it needs back by name in a `conftest.py` of its own -- `anchorage` there, `link` there,
+    and `echo_server` in both.
     """
     if WITHOUT:
         pytest.skip(WITHOUT)
