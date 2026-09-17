@@ -2,7 +2,8 @@
 
 The cache on its own, without a supervisor around it: what is copied, what is not, when a copy
 stops being the answer, and what is left on `/dev/shm` afterwards. The half of it that is a
-tracee reading through the copy is in `test_redirect.py`, where the supervisor is.
+tracee reading through the copy is in `tests/system/coganchor/test_redirect.py`, where the
+supervisor is.
 
 Everything here is a file under `tmp_path`. Nothing reaches a real credential.
 """

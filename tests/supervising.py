@@ -68,7 +68,7 @@ def cred(
 #: The architectures :mod:`hmz.coganchor.linux.syscalls` has a register map for, spelled out
 #: again rather than read off it: reading it off would mean importing the very module this
 #: says whether it may be imported, which on a third architecture raises. That the two agree
-#: is checked by `tests/coganchor/test_architectures.py`, which runs where the import works.
+#: is checked by `tests/system/coganchor/test_architectures.py`, where the import works.
 SUPPORTED_MACHINES = frozenset({"x86_64", "aarch64"})
 
 

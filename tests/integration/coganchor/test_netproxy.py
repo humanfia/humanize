@@ -1,62 +1,29 @@
-"""Tests for routing the agent's own TCP connections through the target."""
+"""Routing the agent's own TCP connections through the target, decided in this process.
+
+Everything here drives :class:`NetProxy` against the `link` fixture -- both halves of a
+session wired together over a `socketpair`, with no subprocess, no supervisor and nobody
+else's network. What is checked is the decision: which destinations are left alone, which
+are given a stand-in, and that the stand-in carries the bytes.
+
+The other half is `tests/system/coganchor/test_netproxy.py`, where the `connect` being
+redirected is a real traced agent's.
+
+One thing here is not hermetic, and deliberately: `echo_server` binds an address on this host
+that is *not* loopback, because loopback is exactly what the proxy is meant to leave alone --
+an echo server on 127.0.0.1 would be left alone too and prove nothing. It never leaves the
+machine, but it does need the machine to have a routable interface, and skips aloud where
+there is none.
+"""
 
 from __future__ import annotations
 
 import socket
-import threading
 from typing import TYPE_CHECKING
-
-import pytest
 
 from hmz.coganchor.netproxy import NetProxy
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
-
-    from tests.coganchor.conftest import Anchorage, Link
-
-
-def _routable_address() -> str:
-    """An address on this host that is not loopback, or skip."""
-    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        probe.connect(("192.0.2.1", 9))  # TEST-NET-1; no packet is sent
-        address = str(probe.getsockname()[0])
-    except OSError:
-        pytest.skip("no routable address on this host")
-    finally:
-        probe.close()
-    if address.startswith("127."):
-        pytest.skip("only loopback is available on this host")
-    return address
-
-
-@pytest.fixture
-def echo_server() -> Iterator[tuple[str, int]]:
-    """A TCP server on a non-loopback address that echoes what it receives."""
-    host = _routable_address()
-    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    listener.bind((host, 0))
-    listener.listen(8)
-    stop = threading.Event()
-
-    def serve() -> None:
-        while not stop.is_set():
-            try:
-                connection, _ = listener.accept()
-            except OSError:
-                return
-            with connection:
-                while data := connection.recv(4096):
-                    connection.sendall(b"echo:" + data)
-
-    thread = threading.Thread(target=serve, daemon=True)
-    thread.start()
-    yield listener.getsockname()
-    stop.set()
-    listener.close()
-    thread.join(timeout=2)
+    from tests.coganchor.conftest import Link
 
 
 def test_loopback_connections_are_left_alone(link: Link) -> None:
@@ -139,35 +106,3 @@ def test_traffic_reaches_the_destination_through_the_target(
             assert connection.recv(100) == b"echo:ping"
     finally:
         proxy.close()
-
-
-@pytest.mark.timeout(120)
-def test_agent_connections_are_tunnelled_end_to_end(
-    anchorage: Anchorage, echo_server: tuple[str, int]
-) -> None:
-    """A ``connect`` from the traced agent itself is redirected and still works."""
-    host, port = echo_server
-    program = (
-        "import socket\n"
-        f"s = socket.create_connection(({host!r}, {port}), timeout=20)\n"
-        "s.sendall(b'from-the-agent')\n"
-        "print(s.recv(100).decode())\n"
-    )
-    result = anchorage.run("python3", "-c", program, net="remote", timeout=90)
-    assert "echo:from-the-agent" in result.stdout, result.stderr
-
-
-@pytest.mark.timeout(120)
-def test_local_net_mode_leaves_connections_alone(
-    anchorage: Anchorage, echo_server: tuple[str, int]
-) -> None:
-    """The default keeps the agent's own traffic on this machine and working."""
-    host, port = echo_server
-    program = (
-        "import socket\n"
-        f"s = socket.create_connection(({host!r}, {port}), timeout=20)\n"
-        "s.sendall(b'direct')\n"
-        "print(s.recv(100).decode())\n"
-    )
-    result = anchorage.run("python3", "-c", program, timeout=90)
-    assert "echo:direct" in result.stdout, result.stderr

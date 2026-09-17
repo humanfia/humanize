@@ -2,24 +2,26 @@
 
 Everything the parser reads is a field of :class:`AnchorConfig`, and everything a config renders
 is read back by that parser -- a flow spawns what an operator types. The rest of this suite runs
-through both, so what is left to check here is that the two spellings still mean the same, and
-that :func:`connect` is reachable without a command line at all.
+through both, so what is left to check here is that the two spellings still mean the same.
+
+This is the half of that file which needs nothing but the parser: a config is rendered, the
+words are read back, and the settings no session could run under are refused where they are
+written. Nothing here spawns anything, so it runs on any machine at all. The half that starts
+a supervised process to prove :func:`connect` and :func:`check` reach a target -- ptrace,
+seccomp and a subprocess -- is `tests/system/coganchor/test_anchor.py`, which a kernel that
+will not hand over a tracee skips whole.
 """
 
 from __future__ import annotations
 
-import os
-import subprocess
 import sys
 from typing import Any
 
 import pytest
 
 from hmz import cli
-from hmz.coganchor import AnchorConfig, check, connect
+from hmz.coganchor import AnchorConfig
 from hmz.coganchor.argv import parser
-from tests.coganchor.conftest import DEFAULT_TIMEOUT, REPO_ROOT, Anchorage
-from tests.supervising import traced
 
 #: Every setting at once, none of them left at its default. The token is spelled the way one
 #: in eighty of `secrets.token_urlsafe`'s are, and the paths hold a space, because a setting
@@ -78,58 +80,6 @@ def test_a_default_anchor_says_only_where_the_work_lands() -> None:
     ]
 
 
-def test_connect_runs_the_agent_without_a_command_line(anchorage: Anchorage) -> None:
-    """The API the flows use, in a process of its own because the supervisor takes over signals."""
-    anchorage.seed({"greeting.txt": "hello from the target\n"})
-    config = AnchorConfig(
-        target=f"local:{anchorage.target}",
-        workspace=anchorage.workspace,
-        shadow=str(anchorage.mirror),
-    )
-    program = (
-        "from hmz.coganchor import AnchorConfig, connect\n"
-        "raise SystemExit(connect(['bash', '-c', 'cat greeting.txt; echo back > answer.txt'],"
-        f" {config!r}))\n"  # a config reads back as itself, which is how it crosses
-    )
-    result = subprocess.run(
-        [sys.executable, "-c", program],
-        capture_output=True,
-        text=True,
-        timeout=DEFAULT_TIMEOUT,
-        cwd=str(REPO_ROOT),
-        env={**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")},
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert "hello from the target" in result.stdout
-    assert anchorage.target_text("answer.txt") == "back\n"
-
-
-def test_checking_reports_the_target_without_running_anything(
-    anchorage: Anchorage, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """What `--check` prints is what the call returns, and neither starts an agent."""
-    anchorage.seed({"one.txt": "1", "two.txt": "2"})
-    config = AnchorConfig(
-        target=f"local:{anchorage.target}", workspace=anchorage.workspace
-    )
-
-    found = check(config)
-
-    assert found["target"] == f"local:{anchorage.target}"
-    assert found["workspace"] == anchorage.workspace
-    assert found["entries"] == 2
-    assert found["exports"] == [
-        {"virtual": anchorage.workspace, "real": str(anchorage.target)}
-    ]
-
-    assert cli.main([*config.command(())[3:], "--check"]) == 0
-    printed = capsys.readouterr().out
-    assert found["target"] in printed
-    assert f"{anchorage.workspace} (2 entries)" in printed
-
-
 def test_a_target_nobody_can_read_is_refused_the_way_argparse_refuses_an_argument() -> (
     None
 ):
@@ -152,10 +102,3 @@ def test_settings_no_session_could_run_under_are_refused_as_they_are_written(
     """Both spellings refuse the same thing: the command line by parsing, this by construction."""
     with pytest.raises(ValueError, match=complaint):
         AnchorConfig(**settings)
-
-
-@traced
-def test_connect_refuses_to_run_nothing() -> None:
-    """Refused before a mirror is prepared or a target dialled, so nothing is left half done."""
-    with pytest.raises(ValueError, match="no agent"):
-        connect([])
