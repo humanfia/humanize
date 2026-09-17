@@ -29,7 +29,7 @@ from hmz.tui.pick import (
     Fallbacks,
     Retries,
 )
-from tests.tui.test_app import drops, keeps, onto, rows, until
+from tests.integration.tui.test_app import drops, keeps, onto, rows, until
 
 if TYPE_CHECKING:
     from textual.pilot import Pilot

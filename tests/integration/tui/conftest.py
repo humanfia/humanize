@@ -16,19 +16,20 @@ shape: it runs each test somewhere temporary with no backend installed, so a tes
 reads the developer's own PATH.
 
 `catching_up` and `freshening` are the other half of that pair: they hand the fetch back to a
-test that is about the fetching. Nothing here asks for either yet -- the tests that do are
-still in `tests/tui/` -- and they are re-exported now so that those arrive to a directory that
-has them rather than to four errors at collection.
+test that is about the fetching.
 
 Imported rather than rewritten so that there is one copy of each, in `tests/tui/conftest.py`
 where the interface's tests have always kept them. `__all__` is load-bearing: it is what says
 these names are re-exported rather than unused, and deleting it -- or the import -- takes both
-autouse fixtures off every test here without failing anything.
+autouse fixtures off every test here without failing anything. Which also means this list is
+the whole of it: a fixture added over there and not added here reaches the interface tests
+that stayed and not the ones that moved, and if it is autouse that is a difference nothing
+reports. Anything added to `tests/tui/conftest.py` is added here too.
 
-The tests here name their shared helpers from the root -- `tests.tui.test_app` -- rather than
-`.test_app` as a sibling, because that is where those helpers still are. A sibling import
-would resolve inside this directory and find nothing, which is an import error at collection
-rather than a test that fails; name them from the root again if the module holding them moves.
+The tests here name their shared helpers by their whole path -- `tests.integration.tui.test_app`
+-- rather than `.test_app` as a sibling. Both resolve today, now that `test_app.py` is in this
+directory too, but only the first keeps resolving if either module moves again, and a sibling
+import that stops resolving is an error at collection rather than a test that fails.
 """
 
 from __future__ import annotations

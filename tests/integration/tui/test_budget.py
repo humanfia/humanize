@@ -28,8 +28,8 @@ from hmz.tui.pick import (
     Unbounded,
     budget_of,
 )
+from tests.integration.tui.test_app import onto, opens, rows, until
 from tests.stubs import written
-from tests.tui.test_app import onto, opens, rows, until
 
 if TYPE_CHECKING:
     from pathlib import Path

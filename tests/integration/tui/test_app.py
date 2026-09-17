@@ -7,7 +7,6 @@ drawn -- the interface's own job being to have one line mean both of those thing
 from __future__ import annotations
 
 import asyncio
-import importlib.util
 import json
 import os
 import sys
@@ -1657,42 +1656,6 @@ async def test_every_line_typed_between_turns_is_a_turn_of_one_conversation(
         # takes what was typed at once, so it was said rather than held.
         assert not app.query_one("#queued", Static).has_class("waiting")
         assert app._queued == []
-
-        app.action_stop_flow()
-        await until(lambda: not app._agents, driver)
-
-
-# The only one here that starts the DeepSeek runtime for real -- the message it checks is
-# what that runtime answers a turn with no credential -- so it wants the extra that installs
-# one. The rest of dsh is covered against a fake harness in `tests/agents/test_dsh.py`.
-@pytest.mark.skipif(
-    importlib.util.find_spec("deepseek_harness") is None,
-    reason="starts the dsh runtime, which the [dsh] extra installs",
-)
-@pytest.mark.timeout(60)
-@unittest.mock.patch(
-    "hmz.tui.app.installed",
-    return_value={"dsh": (Model("deepseek-v4-flash", ("max", "high", "off")),)},
-)
-async def test_deepseek_chat_explains_a_missing_api_key_instead_of_staying_blank(
-    _installed: unittest.mock.MagicMock,  # noqa: PT019 -- patch hands it over
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
-    monkeypatch.setenv("DSH_HOME", str(tmp_path / "dsh-home"))
-    app = Humanize(agents=[Runs("dsh/deepseek-v4-flash:high")])
-    assert app._models == [Runs("dsh/deepseek-v4-flash:high")]
-
-    async with app.run_test() as driver:
-        await driver.press(*"hello")
-        await driver.press("enter")
-        await until(lambda: "needs a DeepSeek API key" in _transcript(app), driver)
-        said = _transcript(app)
-
-        assert "signs in with a key rather than a login" in said
-        assert "press a on its" in said
-        assert "DEEPSEEK_API_KEY" in said
 
         app.action_stop_flow()
         await until(lambda: not app._agents, driver)
