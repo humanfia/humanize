@@ -164,8 +164,8 @@ Four things they are all held to:
 
 - **A drawing says what the code does.** `HmzAnchor` and `HmzSyscalls` route each call the way
   `specs/coganchor.md` and `coganchor/linux/seccomp.py` route it; `HmzStack`'s edges are the
-  `ALLOWED` table in `tests/test_layering.py`; every box in `theme/flows.ts` is a turn a flow
-  really takes; `HmzBackends` is `hmz/backends.py` and which session base each agent class
+  `ALLOWED` table in `tests/integration/layering/test_layering.py`; every box in
+  `theme/flows.ts` is a turn a flow really takes; `HmzBackends` is `hmz/backends.py` and which session base each agent class
   derives from; `HmzAccounts`' waits are the formulas in `coganchor/fallbacks.py`; every agent on
   `HmzOrchestra` is spelled the way `hmz exec -a` would take it. A diagram that drifts from
   those is a diagram that lies to a reader.

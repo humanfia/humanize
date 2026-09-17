@@ -63,8 +63,8 @@ package, and it is normative: where these docs say what humanize *does*, a SPEC 
 contract itself is wrong, propose that separately — `AGENTS.md` says not to change one unless
 you were asked to.
 
-**Each package depends only downwards.** `tests/test_layering.py` holds the table of what each
-layer may import, and fails on an import that climbs, on two layers that name each other, and
+**Each package depends only downwards.** `tests/integration/layering/test_layering.py`
+holds the table of what each layer may import, and fails on an import that climbs, on two layers that name each other, and
 on a top-level module missing from the table. [Architecture](/contributing/architecture) draws
 the same table.
 

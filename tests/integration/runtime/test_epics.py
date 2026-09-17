@@ -5,6 +5,12 @@ under an id of its own, and say nothing about whose they were, which account too
 or what they were for -- so a trace of a run can only be gathered afterwards if the run itself
 wrote down what it opened, and a person can only find the logs of one if the run points at
 them.
+
+Every agent here is the shell-backed stand-in, so a session is a real process and nothing
+more: no coding agent CLI, no network, nothing CI has not got. The one thing that needs more
+-- what an epic says about the account a session's turns were taken as, which is a supervised
+turn and so a kernel that will hand over a tracee -- is in
+`tests/system/runtime/test_epics.py`.
 """
 
 from __future__ import annotations
@@ -18,8 +24,8 @@ import pytest
 from hmz.coganchor.agents import AgentConfig, Stopped
 from hmz.runtime.epic import JOURNAL, called, epics, linked, opened, read, sessions
 from hmz.runtime.runner import Runner
+from tests.recording import ONE, ClaudeAgent
 from tests.stubs import ShellAgent, events, written
-from tests.supervising import traced
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -37,21 +43,6 @@ def run(agents: tuple[AgentBase, AgentBase], task: str) -> None:
     for at, agent in enumerate(agents):
         agent.new()(f"echo session-{at}")
 """
-
-#: The same, for a flow that drives one agent.
-ONE = """
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
-
-
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    agents[0].new()("echo the-session")
-"""
-
-
-class ClaudeAgent(ShellAgent):
-    """A stand-in that answers to a backend humanize knows where the logs of."""
 
 
 def _lines(epic: Path) -> list[dict[str, Any]]:
@@ -219,33 +210,6 @@ def test_a_session_is_named_for_whose_it_is_what_ran_it_and_which_account(
         JOURNAL,
     )
     assert one.name == called("builder", "claude", "", "the-session")
-
-
-@traced
-def test_a_session_says_which_account_took_its_turns(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Two agents of one CLI are two accounts, and the backend's log says neither."""
-    from hmz.coganchor import providers
-
-    monkeypatch.chdir(tmp_path)
-    written(tmp_path, "flow", ONE)
-    providers.add("claude", "work", "key", {"ANTHROPIC_API_KEY": "sk-nothing"})
-    agent = ClaudeAgent(
-        AgentConfig(model="m", effort="high", provider="work"), name="builder"
-    )
-
-    Runner(tmp_path / "flow", [agent]).run("go")
-
-    (epic,) = epics()
-    (one,) = sessions(epic)
-    assert one.provider == "work"
-    assert one.name == "builder-claude@work-the-session"
-    # And what it was configured with is what the run says it was driven by.
-    ran = read(epic)
-    assert ran is not None
-    assert ran.agents[0].provider == "work"
-    assert ran.agents[0].spec == "claude@work/m:high"
 
 
 def test_the_logs_of_a_session_are_linked_into_the_epic_that_opened_it(

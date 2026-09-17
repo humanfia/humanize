@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// The package, drawn from the table `tests/test_layering.py` enforces: every layer, and
-// everything it is allowed to name. It is a DAG -- everything points downward, nothing points
+// The package, drawn from the table `tests/integration/layering/test_layering.py`
+// enforces: every layer, and everything it is allowed to name. It is a DAG -- everything points downward, nothing points
 // both ways -- and hovering a layer lights up exactly what it is built on. `cli` is not in
 // that table, being what joins the rest; what it names is drawn here anyway, since a picture
 // with a way in missing from it is a picture of something else.
@@ -171,7 +171,8 @@ function hold(id: string) {
       </p>
       <p class="hint">hover a layer</p>
       <p class="rule">
-        The table is <code>tests/test_layering.py</code>, and it fails a build that bends this.
+        The table is <code>tests/integration/layering/test_layering.py</code>, and it
+        fails a build that bends this.
       </p>
     </div>
   </div>

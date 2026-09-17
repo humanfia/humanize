@@ -156,8 +156,8 @@ nothing else — see below.
 
 ## Rules that are checked
 
-`tests/test_layering.py` holds the table and five tests. It is the only place these can be
-checked at all.
+`tests/integration/layering/test_layering.py` holds the table and five tests. It is the
+only place these can be checked at all.
 
 1. **Every layer imports only what it may.** The table lists what each may name besides its own
    subtree and `hmz` itself. A package a submodule was taken out of does not count as named —

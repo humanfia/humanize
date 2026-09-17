@@ -33,7 +33,11 @@ from pathlib import Path
 
 from hmz.coganchor.transport import build_bundle
 
-SRC = Path(__file__).resolve().parent.parent / "src"
+#: The package tree being read, counted back from this file: three directories up out of
+#: `tests/integration/layering/` is the checkout, and `src/` beside it is what the rules
+#: below are about. A test that is moved and keeps the old count reads an empty tree, which
+#: passes every rule in it.
+SRC = Path(__file__).resolve().parents[3] / "src"
 
 #: What each layer may import besides its own subtree and :mod:`hmz` itself. Longest
 #: matching layer wins, and a layer it may name covers the modules inside that layer.
