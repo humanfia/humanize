@@ -33,7 +33,7 @@ Expose both ways of reaching a run, and every type either hands back: `Hmz`, `Ru
 - It MUST be named by no layer. A layer that named this would make the way in from outside a
   seam every way in has to pass through, which is what this stopped being: a rule about how
   humanize is built and a promise to somebody else are two jobs, and one name doing both does
-  the promise badly. `tests/test_layering.py` is what refuses it.
+  the promise badly. `tests/integration/layering/test_layering.py` is what refuses it.
 - Nothing MUST be loaded until it is asked for. A tool that only lists the places flows come
   from MUST NOT pay for the runs, the accounts and the traces to do it, so every layer MUST be
   reached from inside the call that needs it and never at the top of a module -- and each name

@@ -86,7 +86,7 @@ so nothing could be spelled for a stranger without the whole tree moving -- and 
 what goes unmade.
 
 No two layers MUST name each other. A pair that does is two things put in one place, not one
-thing above another, and is what `tests/test_layering.py` refuses.
+thing above another, and is what `tests/integration/layering/test_layering.py` refuses.
 
 Every module MUST be named for what it holds. `coganchor` alone is a name of its own, being
 what the anchor inside it is: a program that ships to a target and could be lifted out whole.
@@ -1031,8 +1031,8 @@ humanize as one object: a workspace, and everything humanize can be asked to do 
 - Running a line and building a run MUST be one thing. Whoever ran an `hmz exec` line through
   this and whoever built a run out of its parts MUST be holding the same run afterwards.
 - It MUST name no way in. A DAG that pointed back at the command line, the daemon, the
-  interface or the SDK would be one of them holding another up, and `tests/test_layering.py`
-  refuses it.
+  interface or the SDK would be one of them holding another up, and
+  `tests/integration/layering/test_layering.py` refuses it.
 - A workspace MUST be kept exactly as it was given. One nobody named is one that follows a
   flow which changes directory; one that was named is the directory it named, spelled the way
   it was named -- since naming sessions without a workspace collects them wherever they were
