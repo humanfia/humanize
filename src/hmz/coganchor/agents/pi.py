@@ -47,8 +47,8 @@ _ROOM = 120
 #: How much of a call's arguments is worth holding on to while they are still arriving, which
 #: is exactly as much of them as :func:`hmz.coganchor.agents.hooks.arriving` ever reads. Anything
 #: past it cannot change what a row says, and a `write` is five megabytes of it. Written here
-#: rather than imported, that being a private of another module's; `tests/agents/test_reaching.py`
-#: is what holds the two to each other.
+#: rather than imported, that being a private of another module's;
+#: `tests/unit/agents/test_reaching.py` is what holds the two to each other.
 _SCANNED = 4096
 
 #: The ways an extension may stop a turn to ask the person at the prompt something. The rest

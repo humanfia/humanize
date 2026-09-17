@@ -141,7 +141,7 @@ def test_claude_maps_the_common_service_tier_to_fast_mode(
     argv = session._command()
     settings = json.loads(argv[argv.index("--settings") + 1])
     # The one key this is about. The same flag carries the hook table a `PreToolUse` is
-    # refused through, which is `tests/agents/test_hooks_gate.py`'s to say.
+    # refused through, which is `tests/integration/agents/test_hooks_gate.py`'s to say.
     assert settings.get("fastMode") is fast_mode
 
 

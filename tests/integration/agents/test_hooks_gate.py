@@ -7,8 +7,8 @@ CLI's own hook table, pointed for the length of one run at a relay that carries 
 to the hooks hung on the agent, so that the CLI is waiting for the answer when it arrives.
 
 Driven against the protocol and the command lines rather than against live CLIs, for the reason
-`tests/test_tools_command.py` is written that way: what is owed to the two ends is exact, and
-a backend that is not installed is not a reason to leave it unchecked.
+`test_tools_command.py` is written that way: what is owed to the two ends is exact, and a
+backend that is not installed is not a reason to leave it unchecked.
 """
 
 from __future__ import annotations
