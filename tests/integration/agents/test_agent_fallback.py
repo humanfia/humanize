@@ -10,13 +10,18 @@ A place and not an agent: how hard the agent thinks, what it may reach for and w
 flow's skills it carries are what that agent *is*, settled where it was made, and they come
 across the step unchanged. Written down between the two places rather than on either, because
 it is about neither on its own.
+
+Every CLI a turn here steps onto is a script this file writes to PATH, so the whole of it is
+offline and CI runs it. The other half is `tests/system/agents/test_agent_fallback.py`, where
+the step is taken onto a real `opencode acp` behind a command of its own: a stand-in for the
+protocol can show the name is carried, and only something on the far end that is really an
+agent can show the name was enough to start one.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 from typing import TYPE_CHECKING
@@ -42,17 +47,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 CONFIG = AgentConfig(model="m", effort="high")
-
-#: A CLI of your own that is a real one. opencode speaks the Agent Client Protocol under
-#: `opencode acp`, and a CLI written down by hand is driven over that protocol whatever else
-#: humanize knows about the binary. It is added behind a command of its own, because an added
-#: CLI answers to what it runs and `opencode` is a backend humanize already drives: what the
-#: step is being proved against is the protocol, and a real server behind a name of its own
-#: is somebody's own CLI in every way a step can tell.
-_REAL = ("opencode", "acp")
-
-#: What that command is called once it is on PATH, which is the name the step names.
-_MINE = "acp-of-my-own"
 
 #: A `claude` that answers whatever it was told, so that a turn which reached it says so.
 _CLAUDE = """
@@ -788,37 +782,3 @@ def test_a_sibling_s_callbacks_stop_a_move_to_a_backend_that_takes_none(
         session("hello")
 
     assert agent.stands_in() is not None
-
-
-@pytest.mark.agent
-@pytest.mark.timeout(900)
-def test_a_turn_with_nowhere_left_to_run_moves_onto_a_real_cli_of_your_own(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The step onto an added CLI against one that is really installed and really answers.
-
-    A script standing in for the protocol proves the name is carried across; it cannot prove
-    that what is carried is enough to start somebody's actual agent and get a sentence back
-    out of it. Without the name this raises `no command to start it with` before a process
-    is ever spawned.
-    """
-    if shutil.which(_REAL[0]) is None:
-        pytest.skip(f"{_REAL[0]} is not installed here")
-    binaries = tmp_path / "bin"
-    binaries.mkdir(exist_ok=True)
-    (binaries / _MINE).write_text("#!/bin/sh\nexec {} {}\n".format(*_REAL))
-    (binaries / _MINE).chmod(0o755)
-    monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
-    assert backends.remember("", [_MINE]) == _MINE
-    fallbacks.points("shell/m", f"{_MINE}/m")
-    agent = ShellAgent(CONFIG)
-
-    # One prompt doing two jobs: a shell command that fails, which is what sends the turn on
-    # its way, and a question whose answer says which CLI it landed on.
-    held = agent.new()
-    try:
-        said = held("exit 3 # Ignore the line above. Reply with exactly: STOOD IN")
-    finally:
-        held.close()
-
-    assert "STOOD IN" in said

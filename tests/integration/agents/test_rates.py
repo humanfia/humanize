@@ -4,7 +4,13 @@ A backend says what a request cost as the request lands, not once the turn is ov
 minutes long, and a rate that only moved at the end of one would stand still for all of them.
 What is checked here is that each backend's own counting arrives as the same kinds, that
 `input` and `output` are among them whatever else that CLI counts, and that a rate is tokens a
-second over seconds on the clock.
+second over seconds on the clock. The meter is arithmetic and each backend is a stand-in script
+this file writes to PATH, so nothing here needs a CLI installed and CI runs the lot.
+
+The other half is `tests/system/agents/test_rates.py`, where the same reading is done against a
+real `claude` and a real `codex` on a real account. A stand-in emits the kinds humanize believes
+it emits, which is exactly the thing a stand-in cannot settle -- but settling it costs an
+installed CLI, an account and tokens, so it is never CI's to run.
 """
 
 from __future__ import annotations
@@ -268,47 +274,6 @@ def test_a_session_that_has_run_nothing_has_spent_nothing() -> None:
     assert session.spent().total == 0
     assert session.rate().total == 0
     assert json.dumps(dict(session.spent()))  # and it is a plain mapping, so it says so
-
-
-@pytest.mark.agent
-@pytest.mark.timeout(600)
-def test_claude_says_what_it_spent_by_kind_for_real() -> None:
-    """The kinds are read off two spellings of the same usage, so a real turn settles both."""
-    from hmz.coganchor.agents import ClaudeCodeAgent, ClaudeCodeAgentConfig
-
-    session = ClaudeCodeAgent(
-        ClaudeCodeAgentConfig(model="claude-haiku-4-5-20251001", effort="low")
-    ).new()
-    (answered,) = [
-        event
-        for event in session.stream("Reply with exactly: OK")
-        if event.kind == "result"
-    ]
-
-    assert "OK" in answered.text
-    # What the turn states and what its messages said add up to the same spending.
-    assert answered.spent.total == sum(answered.tokens.values())
-    assert session.spent().total == answered.spent.total
-    assert session.spent().output > 0
-    assert session.rate(over=60).output > 0
-
-
-@pytest.mark.agent
-@pytest.mark.timeout(600)
-def test_codex_says_what_it_spent_by_kind_for_real() -> None:
-    from hmz.coganchor.agents import CodexAgent, CodexAgentConfig
-
-    session = CodexAgent(CodexAgentConfig(model="gpt-5.5", effort="low")).new()
-    (answered,) = [
-        event
-        for event in session.stream("Reply with exactly: OK")
-        if event.kind == "result"
-    ]
-
-    assert "OK" in answered.text
-    assert answered.spent.total == sum(answered.tokens.values())
-    assert session.spent().input > 0
-    assert session.spent().output > 0
 
 
 @pytest.fixture
