@@ -114,7 +114,7 @@ everything that was skipped, and a test that quietly stops running says so.
 The `agent`-marked tests are skipped unless you ask for them:
 
 ```
-SKIPPED [1] tests/agents/test_steering.py:30: needs --run-agents (drives real agents, costs tokens)
+SKIPPED [1] tests/system/agents/test_steering.py:30: needs --run-agents (drives real agents, costs tokens)
 ```
 
 ```sh

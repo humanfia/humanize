@@ -9,7 +9,7 @@ drivers -- is a generated flow that asks for what nothing serves.
 The vocabulary those names are drawn from is covered here too: which backends steer a turn
 already running, and which capability names a backend's own facts come to. What a capability
 does once it has been asked for is covered where it is driven -- steering a real CLI in
-`tests/agents` -- and not here.
+`tests/system/agents` -- and not here.
 """
 
 from __future__ import annotations
