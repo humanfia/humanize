@@ -142,6 +142,26 @@ class Flowverses:
 
         return verses.edited(one.at)
 
+    def standing(self, one: Flowverse) -> str:
+        """Which commit its clone stands at, which a fetch moves only where it brought something.
+
+        Asked either side of a fetch by whatever fetches without being asked to. Most of those
+        fetches bring nothing down -- the repository has not moved since the last one -- and
+        everything that reads a place's flows reads them by running them, so what is done
+        about a fetch that landed is worth doing only about the ones that landed something.
+
+        Args:
+          one: The flowverse.
+
+        Returns:
+          The commit, and "" for a directory that is not a clone -- which is what a place
+          nobody has fetched yet reads as, and compares unequal to whatever it stands at once
+          it has been.
+        """
+        from hmz.flows import verses
+
+        return verses.standing(one.at)
+
     def where(self, name: str) -> Path:
         """The directory one place is kept in, whether or not anything has been fetched into it."""
         from hmz.flows import verses

@@ -24,8 +24,6 @@ the person at this machine installed are untouched, being theirs.
 from __future__ import annotations
 
 import hashlib
-import shutil
-import tempfile
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
@@ -173,21 +171,17 @@ def fetched(url: str) -> Path:
             return at
         return at
     at.parent.mkdir(parents=True, exist_ok=True)
-    shutil.rmtree(at, ignore_errors=True)  # half a clone from a run that was killed
-    # Cloned beside and then moved into place, so that what is at `at` is either nothing or a
-    # whole repository: a flow's agents fetch as they are got ready, several at once and often
-    # the same repository, and two clones into one directory make one broken one. The move is
-    # what settles who won, and whoever lost throws their own copy away.
-    beside = Path(tempfile.mkdtemp(dir=at.parent, prefix=f".{at.name}."))
-    beside.rmdir()  # git clones into a directory it makes; this was only to take the name
-    try:
-        clone(url, beside)
-        try:
-            beside.rename(at)
-        except OSError:
-            # Somebody else got there first, which is a fetched repository either way.
-            shutil.rmtree(beside, ignore_errors=True)
-    except BaseException:
-        shutil.rmtree(beside, ignore_errors=True)
-        raise
+    # `clone` writes the copy beside `at` and moves it in, so that what is at `at` is either
+    # nothing or a whole repository. A flow's agents fetch as they are got ready, several at
+    # once and often the same repository, and two clones into one directory make one broken
+    # one; whoever loses the move throws their own copy away and finds a fetched repository
+    # there, which is what this was asking for. Written down once there rather than again
+    # here -- a clone means the same thing whichever of the two asked for one.
+    #
+    # And nothing is swept from here first. Half a clone a killed run left is in the way of
+    # the move and `clone` takes it away when it gets there, which looks like the same thing
+    # and is not: a sweep before the clone is a sweep of whatever another agent has finished
+    # writing into that directory in the meantime, and the run reading skills out of it finds
+    # them going as it reads.
+    clone(url, at)
     return at

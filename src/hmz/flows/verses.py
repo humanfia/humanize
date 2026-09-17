@@ -60,6 +60,7 @@ __all__ = [
     "plain",
     "refresh",
     "remove",
+    "standing",
     "under",
 ]
 
@@ -487,41 +488,162 @@ def edited(at: Path) -> bool:
       directory that is not a clone has nothing in it that a fetch could take away, there
       being no fetch.
     """
-    try:
-        done = subprocess.run(
-            ["git", "-C", str(at), "status", "--porcelain", "--untracked-files=no"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=_PATIENCE,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return False
-    return done.returncode == 0 and bool(done.stdout.strip())
+    return bool(_asked("-C", str(at), "status", "--porcelain", "--untracked-files=no"))
+
+
+def standing(at: Path) -> str:
+    """Which commit a clone stands at, which is what a fetch that brought anything down moves.
+
+    Asked either side of a fetch by whatever fetches without being asked to, so that what is
+    done about a fetch that landed is done about the fetches that landed something. Most of
+    them land nothing -- the repository has not moved since the last start -- and everything
+    that reads the flows off a clone reads them by running them, so taking one of those for a
+    change is every flow on the disk imported again to arrive at the list that was already
+    drawn.
+
+    Args:
+      at: The clone.
+
+    Returns:
+      The commit it is on, and "" for a directory that is not a clone, or one git will not
+      answer about. That compares unequal to any commit, so a place cloned for the first time
+      reads as having changed, which it has: its flows were not there before.
+    """
+    return _asked("-C", str(at), "rev-parse", "HEAD")
 
 
 def clone(url: str, at: Path) -> None:
     """Clones a repository, and leaves nothing behind where it could not.
 
+    Cloned beside and then moved into place, so that what is at `at` is either nothing or a
+    whole repository and never the middle of one.
+
     git tidies up after its own failures, but not after being killed: a clone called off for
-    taking too long is stopped where it stood, and what it had written so far stays. That is a
-    name taken by a flowverse that is not there -- and since a name already taken is refused,
-    it is a name that cannot be used again until somebody finds the directory and removes it.
+    taking too long is stopped where it stood, and what it had written so far stays. Written
+    straight into `at`, that is a name taken by a flowverse that is not there -- and since a
+    name already taken is refused, it is a name nobody can use again until somebody finds the
+    directory and removes it. Written beside, it is a hidden directory, and :func:`_swept`
+    is what comes by for it.
+
+    And two callers reach one directory as a matter of course: the interface takes what every
+    flowverse says now as it opens, and the flow menu fetches whatever has never been fetched
+    as it is opened, so typing `/flow` on a machine where `official` has never been fetched is
+    two clones of one place, each begun before the other had finished. Cloning straight into
+    `at` makes the second of them fail on a directory that is already there -- and tidying up
+    after that failure by taking `at` away is taking away the clone the first one had just
+    written. The move is what settles who won, and whoever lost throws their own copy away and
+    says nothing: what they were asking for was a fetched repository, and there is one.
+
+    Which is why what is in the way is swept from here, after the move has failed, rather than
+    by whoever is about to call: a caller that cleared the place first would be clearing away
+    whatever another caller had just finished writing into it, and that is the whole of what
+    the move is for.
 
     Args:
       url: Where the repository is, as somebody wrote it.
-      at: The directory to clone into, which must not already be there.
+      at: The directory to clone into. One holding a repository by the time the copy made here
+        is ready to move in is somebody else's clone, which is left where it is; anything else
+        in the way is taken away, having no repository in it to lose.
 
     Raises:
-      OSError: If git is not there, or the clone failed. What git said is attached.
+      OSError: If git is not there, or the clone failed -- and if what is in the way of the
+        move will not go, which is the one failure the move can neither answer by letting the
+        other one win nor by clearing the place. What git said is attached.
+    """
+    import shutil
+    import tempfile
+
+    # Made here as well as by the callers, since the copy is written beside `at` rather than
+    # at it: there has to be somewhere to put it.
+    at.parent.mkdir(parents=True, exist_ok=True)
+    _swept(at)
+    beside = Path(tempfile.mkdtemp(dir=at.parent, prefix=f".{at.name}."))
+    beside.rmdir()  # git clones into a directory it makes; this was only to take the name
+    try:
+        _git("clone", "--depth", "1", _url_of(url), str(beside))
+    except BaseException:
+        shutil.rmtree(beside, ignore_errors=True)
+        raise
+    if _moved(beside, at):
+        return
+    # Nothing that answers for a commit is in the way, so what is there is half a clone a run
+    # killed partway left behind, or a directory somebody made by hand: neither is a
+    # repository, and neither is anything to keep a fetched one out.
+    shutil.rmtree(at, ignore_errors=True)
+    if _moved(beside, at):
+        return
+    shutil.rmtree(beside, ignore_errors=True)
+    # Scrubbed, the way every other place that says where a flowverse came from is: a
+    # private one is added as `https://x-access-token:$TOKEN@...`, and this is a line in
+    # somebody's log.
+    raise OSError(f"{at} is in the way of a clone of {plain(url)}, and will not go")
+
+
+def _moved(beside: Path, at: Path) -> bool:
+    """Moves a finished clone into the place it is kept, and says whether one is there now.
+
+    The move is one call, so there is no moment when half of it has happened: what is at `at`
+    goes from nothing to a whole repository, whoever is looking.
+
+    Args:
+      beside: The clone just written, under a name of its own.
+      at: Where it is to be kept.
+
+    Returns:
+      Whether `at` holds a repository now -- this one, or the one somebody else got there
+      first with, which is the same answer to whoever asked for a clone. False for anything
+      else in the way, which is for the caller to clear.
+
+    Note:
+      Asked with :func:`standing` rather than by looking for a `.git`, which the half a clone
+      a killed run leaves has too -- git writes its config in the first moments. A stump
+      taken for somebody else's win is a flowverse listed as fetched with no flows in it, and
+      the difference between the two is whether git will name a commit for it.
     """
     import shutil
 
     try:
-        _git("clone", "--depth", "1", _url_of(url), str(at))
+        beside.rename(at)
     except OSError:
-        shutil.rmtree(at, ignore_errors=True)
-        raise
+        if not standing(at):
+            return False
+        # Somebody else got there first, which is a fetched repository either way, so the
+        # copy written here is one to throw away rather than one to put anywhere.
+        shutil.rmtree(beside, ignore_errors=True)
+    return True
+
+
+def _swept(at: Path) -> None:
+    """Takes away what clones of one name left beside it when they were killed.
+
+    A clone is written beside the place and moved into it, so a run killed partway through one
+    leaves a `.<name>.XXXXXX` under the flowverses home holding as much of somebody's
+    repository as git had written by then. Nothing lists it -- a name starting with a dot is
+    not a name a flowverse may have, which is why the copy is written under one -- so nothing
+    would ever notice it either. This is what comes by, on the way past to the next clone of
+    that name.
+
+    Only the ones nothing could still be writing. A clone in flight is a directory of exactly
+    this shape, written by whoever else is cloning the same place at this moment, and sweeping
+    one of those away is the very thing the move is here to stop. So what goes is what is
+    older than the longest a clone is given before it is called off: nothing that old is still
+    being written to by anything this module started.
+
+    Args:
+      at: Where the clone is to be kept, whose name the copies beside it are named after.
+    """
+    import shutil
+    import time
+
+    stale = time.time() - _PATIENCE
+    for one in at.parent.glob(f".{at.name}.*"):
+        try:
+            if one.is_dir() and one.stat().st_mtime < stale:
+                shutil.rmtree(one, ignore_errors=True)
+        except OSError:
+            # One that went while this was looking at it, which is somebody else having
+            # swept it: there is nothing here that wants it to still be there.
+            continue
 
 
 def _git(*said: str) -> None:
@@ -549,6 +671,35 @@ def _git(*said: str) -> None:
         raise OSError(f"git {said[0]} took longer than {_PATIENCE:.0f}s") from slow
     if done.returncode != 0:
         raise OSError(done.stderr.strip() or f"git {said[0]} failed")
+
+
+def _asked(*said: str) -> str:
+    """Runs one git command to read it, and answers with nothing where it could not be run.
+
+    The other half of :func:`_git`, which is for the commands that change something and says
+    what git said by raising. This is for the two that are run to be read -- whether a clone
+    has been written into, and which commit it stands at -- where git refusing, or not being
+    installed at all, is an answer rather than something to raise: both are asked of a
+    directory that may not be a clone, and both are asked while something is being drawn.
+
+    Args:
+      said: The arguments, after `git` itself.
+
+    Returns:
+      What git printed, with the whitespace off it, and "" where it would not run or would
+      not answer.
+    """
+    try:
+        done = subprocess.run(
+            ["git", *said],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_PATIENCE,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return done.stdout.strip() if done.returncode == 0 else ""
 
 
 #: What `owner/repo` looks like, which is the one spelling that is not already something git

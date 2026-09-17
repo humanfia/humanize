@@ -1131,6 +1131,7 @@ class Humanize(App[None]):
                 return
             if one.fetched and await asyncio.to_thread(verses.edited, one):
                 continue
+            was = await asyncio.to_thread(verses.standing, one)
             try:
                 await asyncio.to_thread(verses.fetch, one.name)
             except Exception as why:  # noqa: BLE001 -- a flowverse that would not fetch again
@@ -1138,12 +1139,19 @@ class Humanize(App[None]):
                 # flows that came down last time are still there to run.
                 self.log(f"{one.name} was not fetched again: {why}")
             else:
-                # What is on the disk is something else now, so what anything has read off it
-                # is out of date. A fetch that landed behind a menu already holding the list
-                # from before it is a flow that will not load until the interface is closed
-                # and opened again -- which is the fetch working and nobody being able to
-                # tell.
-                self._flows_changed()
+                # And only where something came down with it. Most of these bring nothing --
+                # the repository has not moved since the last start -- and reading a flow
+                # means running it, so telling the menus to read again after one of those is
+                # every flow on the disk imported, in force, to arrive at the list that is
+                # already drawn. What that costs is somebody else's code run for nothing, on
+                # a machine where it had already been run once.
+                if await asyncio.to_thread(verses.standing, one) != was:
+                    # What is on the disk is something else now, so what anything has read off
+                    # it is out of date. A fetch that landed behind a menu already holding the
+                    # list from before it is a flow that will not load until the interface is
+                    # closed and opened again -- which is the fetch working and nobody being
+                    # able to tell.
+                    self._flows_changed()
 
     def _flows_changed(self) -> None:
         """Tells whatever is drawn that the flows on the disk are not the ones it read.

@@ -551,6 +551,73 @@ async def test_a_fetch_that_lands_makes_an_open_menu_read_the_flows_again(
 
 
 @pytest.mark.timeout(60)
+@pytest.mark.usefixtures("freshening")
+async def test_a_fetch_that_brought_nothing_down_leaves_what_is_drawn_where_it_is(
+    theirs: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Most of the fetches a start does bring nothing down, and cost nothing to have done.
+
+    Reading a flow means running it, so telling every sheet that lists flows to read them
+    again is every flow on the disk imported, in force, and somebody else's code run on this
+    machine to arrive at exactly the list that is already drawn. Worth it for a fetch that
+    landed something -- the flow that arrived cannot be run until the list is read again --
+    and worth nothing at all for the usual one, which is a repository that has not moved since
+    the last time the interface was opened.
+
+    So the two halves are checked together: a start against a repository that has not moved
+    tells nothing, and the same start after a commit lands tells. The first half on its own
+    would pass just as well if nothing were fetching at all, which is why what git was asked
+    is counted alongside.
+    """
+    # The interface fetches every flowverse, humanize's own included, so this test says where
+    # that one is -- and fetches both before the interface opens, so that what it finds is two
+    # places already standing where their repository does.
+    monkeypatch.setattr(store, "OFFICIAL_URL", str(theirs))
+    store.add(str(theirs), name="theirs")
+    store.fetch(OFFICIAL)
+    refreshes = store.refresh
+    asked: list[Path] = []
+
+    def noted(at: Path) -> None:
+        """Takes what the repository says now, and writes down that it was asked."""
+        asked.append(at)
+        refreshes(at)
+
+    told: list[str] = []
+
+    def tells(_app: Humanize) -> None:
+        """What telling the sheets to read the flows again comes to here, which is a note."""
+        told.append("again")
+
+    monkeypatch.setattr(store, "refresh", noted)
+    monkeypatch.setattr(Humanize, "_flows_changed", tells)
+
+    app = Humanize()
+    async with app.run_test() as driver:
+        await until(lambda: len(asked) == 2, driver)
+        # Pumped a while afterwards, what is being waited for here being something that must
+        # not happen.
+        for _ in range(40):
+            await driver.pause()
+            await asyncio.sleep(0.02)
+
+        assert not told
+
+    # And with a commit landing in the repository both of them are fetched from, the next
+    # start does tell -- so what held it back was that nothing had come down rather than
+    # nothing having run.
+    written(theirs / store.FLOWS, "second", FLOW)
+    _git("add", "-A", at=theirs)
+    _git("commit", "-m", "another flow", at=theirs)
+    again = Humanize()
+    async with again.run_test() as driver:
+        await until(lambda: bool(told), driver)
+
+        assert told
+
+
+@pytest.mark.timeout(60)
 async def test_a_flow_that_will_not_load_says_why_it_would_not(tmp_path: Path) -> None:
     """A flow that will not load is a dead end until it says which reason it was.
 
