@@ -18,25 +18,20 @@ import subprocess
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
-from typing import TYPE_CHECKING
 
 import pytest
 
 from hmz.coganchor.agents import (
-    AgentBase,
     AgentConfig,
     ClaudeCodeAgent,
     ClaudeCodeAgentConfig,
     ClaudeCodeSession,
-    CommandSessionBase,
     Event,
     Question,
     Stopped,
 )
 from hmz.coganchor.agents.codenames import SAID
-
-if TYPE_CHECKING:
-    import os
+from tests.stubs import EchoAgent
 
 CONFIG = AgentConfig(model="m", effort="high")
 
@@ -57,25 +52,6 @@ def _nothing_to_launch(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PATH", "")
 
 
-class _EchoSession(CommandSessionBase):
-    """Runs `cat`, echoing the prompt back on stdout -- and here, never asked to.
-
-    A session is what an agent hands out and remembers, so these tests need a concrete one;
-    what it would run is its own business, and nothing below takes a turn on it.
-    """
-
-    def _turn(self, prompt: str) -> tuple[list[str], str | None]:
-        return (["cat"], prompt)
-
-    def _read_session_id(self, transcript: str) -> str:
-        return "echo"
-
-
-class _EchoAgent(AgentBase):
-    def new(self, cwd: str | os.PathLike[str] | None = None) -> _EchoSession:
-        return _EchoSession(self, cwd)
-
-
 def test_every_driven_agent_names_the_backend_it_is_registered_under() -> None:
     """What an agent calls its backend is what its account, its skills and its cost are under.
 
@@ -94,19 +70,19 @@ def test_every_driven_agent_names_the_backend_it_is_registered_under() -> None:
 
 def test_an_agent_is_one_agent_apart_from_its_configuration() -> None:
     # The rlar shape: an actor and the reviewer reading its work, at one model and one effort.
-    actor, reviewer = _EchoAgent(CONFIG), _EchoAgent(CONFIG)
+    actor, reviewer = EchoAgent(CONFIG), EchoAgent(CONFIG)
     assert actor.id != reviewer.id
     assert actor.config == reviewer.config
     # A flow that names its agents keeps those names across restarts; one left unnamed draws
     # a designation out of Amphoreus, so a trace of two of them still reads as two.
-    assert _EchoAgent(CONFIG, name="actor").id == "actor"
+    assert EchoAgent(CONFIG, name="actor").id == "actor"
     assert actor.id in SAID or re.fullmatch(
         r"[A-Z][a-z]+(?:[A-Z][a-z]+)+[0-9]{3}", actor.id
     )
 
 
 def test_an_agent_keeps_the_sessions_it_launched() -> None:
-    agent = _EchoAgent(CONFIG)
+    agent = EchoAgent(CONFIG)
     first, second = agent.new(), agent.new()
     assert agent.sessions == [first, second]  # oldest first
     assert agent.config is CONFIG
@@ -116,7 +92,7 @@ def test_an_agent_keeps_the_sessions_it_launched() -> None:
 
 
 def test_launching_while_another_thread_reads_loses_no_session() -> None:
-    agent = _EchoAgent(CONFIG)
+    agent = EchoAgent(CONFIG)
     stop = threading.Event()
 
     def read() -> None:
@@ -158,7 +134,7 @@ def test_a_session_that_never_opened_cannot_be_talked_to() -> None:
 
 def test_a_backend_without_a_goal_feature_says_so() -> None:
     with pytest.raises(NotImplementedError):
-        _EchoAgent(CONFIG).new().pursue("the suite passes")
+        EchoAgent(CONFIG).new().pursue("the suite passes")
 
 
 @pytest.mark.parametrize(

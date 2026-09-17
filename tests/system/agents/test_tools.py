@@ -20,34 +20,12 @@ import subprocess
 from typing import TYPE_CHECKING, cast
 
 import pytest
-from pydantic import BaseModel, Field
 
-from hmz.coganchor.agents import Tool, Toolbox
+from hmz.coganchor.agents import Toolbox
+from tests.agents import delegating
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-
-class Asked(BaseModel):
-    """What the tool under test is called with."""
-
-    task: str = Field(description="what to have it do")
-    times: int = 1
-
-
-def _tool(seen: list[Asked]) -> Tool:
-    """A callback that writes down what it was called with and answers."""
-
-    def called(said: Asked) -> str:
-        seen.append(said)
-        return f"did {said.task} {said.times}x"
-
-    return Tool(
-        name="delegate",
-        about="hand a task to another flow and wait for what it comes to",
-        takes=Asked,
-        call=called,
-    )
 
 
 @pytest.mark.agent
@@ -68,7 +46,7 @@ def test_a_real_claude_connects_to_the_flow_and_lists_its_callback(
         pytest.skip("claude is not installed here")
     monkeypatch.chdir(tmp_path)
     box = Toolbox()
-    box.offers(1, [_tool([])])
+    box.offers(1, [delegating.delegate([])])
     try:
         done = subprocess.run(
             [

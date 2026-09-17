@@ -87,6 +87,15 @@ so that is checked too. A directory under a tier is named for the subsystem it m
 `tests/integration/tui` holds what was written in `tests/tui` -- which is how a run can tell
 what a moved test used to be given. `tests/tiers.py` has the whole of it.
 
+Splitting one file across two tiers is the common case, and what the two halves share goes into
+a helper module that never moves -- `tests/logins.py`, `tests/composing.py`,
+`tests/agents/homes.py` and the rest -- rather than being copied into both. That holds for a
+fixture too: its body goes in the helper and a three-line fixture calling it stays in each half,
+because pytest finds a fixture by name and a test that names one shadows an import of it. A
+copied *autouse* fixture is the one worth the trouble: nobody asks for it, so the copy that
+falls behind the other is a half that goes on passing while checking less, and nothing reports
+it.
+
 ## What the code is held to
 
 - **`pyright` in strict mode**, over `src` and `tests`. `# type: ignore` comments are switched

@@ -23,7 +23,6 @@ import threading
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from pydantic import BaseModel, Field
 
 from hmz.coganchor.agents import (
     ClaudeCodeAgent,
@@ -35,7 +34,7 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.agents import codex as appservers
 from hmz.coganchor.agents.tools import PROTOCOL, serve
-from tests.agents import standins
+from tests.agents import delegating, standins
 from tests.stubs import ShellAgent
 
 if TYPE_CHECKING:
@@ -43,28 +42,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from hmz.coganchor.agents import AgentConfig
-
-
-class Asked(BaseModel):
-    """What the tool under test is called with."""
-
-    task: str = Field(description="what to have it do")
-    times: int = 1
-
-
-def _tool(seen: list[Asked]) -> Tool:
-    """A callback that writes down what it was called with and answers."""
-
-    def called(said: Asked) -> str:
-        seen.append(said)
-        return f"did {said.task} {said.times}x"
-
-    return Tool(
-        name="delegate",
-        about="hand a task to another flow and wait for what it comes to",
-        takes=Asked,
-        call=called,
-    )
 
 
 def _another(named: str) -> Tool:
@@ -89,8 +66,8 @@ def _sent(method: str, marked: int = 1, **given: object) -> str:
 
 def test_the_protocol_says_who_it_is_and_what_it_has() -> None:
     """The four methods a CLI actually calls, and nothing else pretending to be there."""
-    seen: list[Asked] = []
-    offered = (_tool(seen),)
+    seen: list[delegating.Asked] = []
+    offered = (delegating.delegate(seen),)
 
     said = serve(_sent("initialize"), lambda: offered)
     assert said is not None
@@ -122,8 +99,8 @@ def test_a_notification_is_not_answered() -> None:
 
 def test_calling_one_runs_the_callback_and_answers_with_what_it_said() -> None:
     """Which is the whole feature: the agent reached for it, and the flow's code ran."""
-    seen: list[Asked] = []
-    offered = (_tool(seen),)
+    seen: list[delegating.Asked] = []
+    offered = (delegating.delegate(seen),)
 
     said = serve(
         _sent("tools/call", name="delegate", arguments={"task": "read", "times": 2}),
@@ -139,10 +116,10 @@ def test_calling_one_runs_the_callback_and_answers_with_what_it_said() -> None:
 def test_a_callback_that_raised_is_the_tool_failing_and_not_the_flow() -> None:
     """A flow must not end because a model called one of its tools wrongly."""
 
-    def up(_said: Asked) -> str:
+    def up(_said: delegating.Asked) -> str:
         raise KeyError("task")
 
-    offered = (Tool(name="one", about="a tool", takes=Asked, call=up),)
+    offered = (Tool(name="one", about="a tool", takes=delegating.Asked, call=up),)
 
     said = serve(
         _sent("tools/call", name="one", arguments={"task": "x"}), lambda: offered
@@ -171,7 +148,7 @@ def test_a_toolbox_starts_nothing_until_something_is_offered() -> None:
     try:
         assert box.empty()
         assert box.offered() == ()
-        box.offers(1, [_tool([])])
+        box.offers(1, [delegating.delegate([])])
         assert not box.empty()
         assert [one.name for one in box.offered()] == ["delegate"]
         # And taking it back is the conversation that offered it saying nothing.
@@ -185,9 +162,13 @@ def test_two_conversations_offering_one_name_are_offering_one_tool() -> None:
     """A CLI has one list of tools, so the agent's list is what it is told about."""
     box = Toolbox()
     try:
-        box.offers(1, [_tool([])])
+        box.offers(1, [delegating.delegate([])])
         box.offers(
-            2, [_tool([]), Tool(name="other", about="another", call=lambda: "x")]
+            2,
+            [
+                delegating.delegate([]),
+                Tool(name="other", about="another", call=lambda: "x"),
+            ],
         )
         assert [one.name for one in box.offered()] == ["delegate", "other"]
     finally:
@@ -209,7 +190,7 @@ def test_a_conversation_let_go_of_takes_back_what_it_was_offering() -> None:
     """
     agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-opus-5", effort="high"))
     session = agent.new()
-    session.offers([_tool([])])
+    session.offers([delegating.delegate([])])
     assert not agent.toolbox.empty()
 
     del session
@@ -245,7 +226,7 @@ def test_a_conversation_closed_takes_them_back_once_however_often_it_is_closed()
     """The close and the collection are one taking back, done by whichever gets there first."""
     agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-opus-5", effort="high"))
     session = agent.new()
-    session.offers([_tool([])])
+    session.offers([delegating.delegate([])])
 
     session.close()
     session.close()
@@ -253,7 +234,7 @@ def test_a_conversation_closed_takes_them_back_once_however_often_it_is_closed()
     assert agent.toolbox.empty()
     assert session.tools == ()
     # And a conversation that is spoken to again is one that may offer again.
-    session.offers([_tool([])])
+    session.offers([delegating.delegate([])])
     assert not agent.toolbox.empty()
 
 
@@ -291,19 +272,26 @@ def test_a_cli_reaches_the_callback_through_the_bridge_it_is_told_to_run(
     a subprocess with none of the flow's variables in it; this one is a relay, so the
     function that runs is the one the flow wrote, on this interpreter, in this process.
     """
-    seen: list[Asked] = []
+    seen: list[delegating.Asked] = []
     box = Toolbox()
     here = threading.current_thread().ident
     ran: list[int] = []
 
-    def called(said: Asked) -> str:
+    def called(said: delegating.Asked) -> str:
         seen.append(said)
         ran.append(os.getpid())
         return f"did {said.task} {said.times}x"
 
     box.offers(
         1,
-        [Tool(name="delegate", about="hand a task on", takes=Asked, call=called)],
+        [
+            Tool(
+                name="delegate",
+                about="hand a task on",
+                takes=delegating.Asked,
+                call=called,
+            )
+        ],
     )
     try:
         client = tmp_path / "client.py"
@@ -373,7 +361,7 @@ def test_claude_is_told_about_the_callbacks_on_its_own_command_line(
     session = ClaudeCodeAgent(
         ClaudeCodeAgentConfig(model="claude-opus-5", effort="high")
     ).new()
-    session.offers([_tool([])])
+    session.offers([delegating.delegate([])])
 
     assert session("hello") == "hello"
 
@@ -401,7 +389,7 @@ def test_offering_one_between_two_turns_starts_a_claude_that_knows_about_it(
     ).new()
 
     session("first")
-    session.offers([_tool([])])
+    session.offers([delegating.delegate([])])
     session("second")
 
     first, second = _starts(claude)
@@ -426,7 +414,7 @@ def test_swapping_one_callback_for_another_starts_a_claude_told_about_the_new_on
         ClaudeCodeAgentConfig(model="claude-opus-5", effort="high")
     ).new()
 
-    session.offers([_tool([])])
+    session.offers([delegating.delegate([])])
     session("first")
     session.offers([_another("escalate")])
     session("second")
@@ -459,9 +447,9 @@ def test_offering_an_equal_list_again_leaves_the_claude_that_is_up_alone(
         ClaudeCodeAgentConfig(model="claude-opus-5", effort="high")
     ).new()
 
-    session.offers([_tool([]), _another("escalate")])
+    session.offers([delegating.delegate([]), _another("escalate")])
     session("first")
-    session.offers([_another("escalate"), _tool([])])
+    session.offers([_another("escalate"), delegating.delegate([])])
     session("second")
 
     (argv,) = _starts(claude)
@@ -507,7 +495,7 @@ def test_swapping_one_callback_for_another_starts_a_codex_server_told_about_it(
     agent = CodexAgent(CodexAgentConfig(model="gpt-5.6-sol", effort="high"))
     session = agent.new()
     try:
-        session.offers([_tool([])])
+        session.offers([delegating.delegate([])])
         assert agent.server is not None
         session.offers([_another("escalate")])
         assert agent.server is not None
@@ -532,7 +520,7 @@ def test_a_backend_with_no_way_of_being_told_refuses_a_callback() -> None:
 
     assert not type(session).takes_tools
     with pytest.raises(NotImplementedError, match="no way of being given a tool"):
-        session.offers([_tool([])])
+        session.offers([delegating.delegate([])])
     # And saying it offers nothing is not something to refuse: it was already offering none.
     session.offers(None)
 
@@ -562,7 +550,7 @@ def test_the_bridge_runs_here_for_an_agent_whose_turns_land_elsewhere() -> None:
     # Held for as long as the offer is asked about: what a conversation nobody holds any more
     # was offering is taken back with it.
     session = agent.new()
-    session.offers([_tool([])])
+    session.offers([delegating.delegate([])])
     try:
         held = agent.toolbox.command()[0]
         assert held not in before

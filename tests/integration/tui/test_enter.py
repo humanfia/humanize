@@ -18,7 +18,7 @@ from textual.widgets import OptionList
 
 from hmz.tui import Humanize
 from hmz.tui.app import Editor
-from hmz.tui.selecting import Transcript
+from tests.tui.conftest import transcript
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -47,11 +47,6 @@ async def in_one_read(app: Humanize, driver: Pilot[None], keys: Sequence[str]) -
     await driver.pause()
 
 
-def _transcript(app: Humanize) -> str:
-    """Everything the interface has shown, as one searchable string."""
-    return app.query_one("#transcript", Transcript).text
-
-
 @pytest.mark.timeout(60)
 async def test_a_whole_line_and_its_enter_in_one_read_is_still_sent() -> None:
     """A pasted line goes, rather than being left in the prompt with its enter dropped."""
@@ -63,7 +58,7 @@ async def test_a_whole_line_and_its_enter_in_one_read_is_still_sent() -> None:
 
         assert editor.text == ""  # nothing left behind for a second enter to send
         assert app.history.back("") == "paste this"  # all of it, not a tail of it
-        assert "no coding agent is installed here" in _transcript(app)
+        assert "no coding agent is installed here" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -93,7 +88,7 @@ async def test_a_line_typed_a_key_at_a_time_is_still_sent() -> None:
 
         assert editor.text == ""
         assert app.history.back("") == "typed out"
-        assert "no coding agent is installed here" in _transcript(app)
+        assert "no coding agent is installed here" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -111,7 +106,7 @@ async def test_enter_still_takes_what_is_offered() -> None:
         await driver.pause()
 
         assert editor.text == "/flow "  # taken, not sent
-        assert "no such command" not in _transcript(app)
+        assert "no such command" not in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -134,7 +129,7 @@ async def test_an_offer_that_no_longer_finishes_the_line_is_not_taken() -> None:
 
         assert "/fallback" not in editor.text
         assert app.history.back("") == "/fl"  # sent as it stood instead
-        assert "no such command: /fl" in _transcript(app)
+        assert "no such command: /fl" in transcript(app)
 
 
 @pytest.mark.timeout(60)

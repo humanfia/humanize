@@ -10,10 +10,8 @@ checked is what a keystroke does rather than how it is drawn.
 
 from __future__ import annotations
 
-import asyncio
 import os
 import sys
-import time
 from typing import TYPE_CHECKING
 
 import pytest
@@ -25,8 +23,9 @@ from hmz.tui import Humanize
 from hmz.tui.app import _EVERY, _KEPT
 from hmz.tui.monitor import short
 from hmz.tui.pick import Held, reads
-from hmz.tui.selecting import Transcript
 from tests.stubs import ShellAgent, ShellSession, written
+from tests.tui.conftest import transcript
+from tests.tui.conftest import until as waited
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -100,25 +99,23 @@ class SteerableAgent(ShellAgent):
 
 
 async def until(ready: Callable[[], bool], driver: Pilot[None]) -> None:
-    """Pumps the interface until something is true, or gives up after a while.
+    """The shared wait, and then one more pump once it comes back.
 
-    Waited on the clock rather than counted in pumps: a pump can pass in microseconds,
-    so counting them is a spin that finishes before the worker thread has done anything.
+    What this file waits on is a turn arriving at a transcript that is not the one on screen,
+    so the thing being asserted is drawn by the pump *after* the state it is read off changed:
+    without the extra one, `until` returns the moment the flag flips and the line it put up is
+    still a message in the queue.
+
+    A wrapper rather than a copy of the body, which is what it was: the pumping is
+    `tests.tui.conftest.until`'s to decide, and what is written here is only the one thing this
+    file needs on top of it.
 
     Args:
       ready: What is being waited for.
       driver: The interface to keep pumping while waiting.
     """
-    deadline = time.monotonic() + 30.0
-    while not ready() and time.monotonic() < deadline:
-        await driver.pause()
-        await asyncio.sleep(0.02)
+    await waited(ready, driver)
     await driver.pause()
-
-
-def _transcript(app: Humanize) -> str:
-    """Everything the transcript is showing, as one searchable string."""
-    return app.query_one("#transcript", Transcript).text
 
 
 def _above(app: Humanize) -> str:
@@ -288,7 +285,7 @@ async def test_each_agent_reads_as_itself_and_all_of_them_read_as_the_lot() -> N
         await driver.pause()
 
         # All of them, which is what it opened on: both, and which of them said each.
-        shown = _transcript(app)
+        shown = transcript(app)
         assert "from the first" in shown
         assert "from the second" in shown
 
@@ -296,14 +293,14 @@ async def test_each_agent_reads_as_itself_and_all_of_them_read_as_the_lot() -> N
         await driver.pause()
 
         # That agent's own, drawn from the top: what the other one said is not in it.
-        shown = _transcript(app)
+        shown = transcript(app)
         assert "from the first" in shown
         assert "from the second" not in shown
         assert "reading" in shown
 
         await driver.press("tab")
         await driver.pause()
-        shown = _transcript(app)
+        shown = transcript(app)
         assert "from the second" in shown
         assert "from the first" not in shown
 
@@ -336,7 +333,7 @@ async def test_every_conversation_of_one_agent_runs_down_the_same_transcript() -
         await driver.pause()
 
         # Both rounds, on the one screen, with nothing cleared between them.
-        shown = _transcript(app)
+        shown = transcript(app)
         assert "the first round" in shown
         assert "the second round" in shown
         assert shown.index("the first round") < shown.index("the second round")
@@ -384,11 +381,11 @@ async def test_a_word_put_into_a_turn_is_kept_against_the_agent_that_took_it() -
         app._heard(two, second, Event(kind="took", text="try the other way"))
         await driver.pause()
 
-        assert "try the other way" in _transcript(app)
+        assert "try the other way" in transcript(app)
         # And on the one they all appear on, which is where the run is watched from.
         app._now_reading(_EVERY)
         await driver.pause()
-        assert "try the other way" in _transcript(app)
+        assert "try the other way" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -428,7 +425,7 @@ async def test_reading_nothing_at_all_is_a_key_that_does_nothing() -> None:
     """With no flow running there is nothing working, and a key that says so is in the way."""
     app = Humanize()
     async with app.run_test() as driver:
-        opened = _transcript(app)
+        opened = transcript(app)
 
         await driver.press("tab")
         await driver.press("shift+tab")
@@ -438,7 +435,7 @@ async def test_reading_nothing_at_all_is_a_key_that_does_nothing() -> None:
         assert app._reading() is None
         assert app.is_running
         assert (
-            _transcript(app) == opened
+            transcript(app) == opened
         )  # nothing was drawn again, there being nothing to
 
 
@@ -460,7 +457,7 @@ async def test_a_flow_starting_reads_the_transcript_they_are_all_on(
         await _two_agents(app, driver, workspace)
 
         assert app._attached == _EVERY
-        assert "that flow has gone" in _transcript(app)
+        assert "that flow has gone" in transcript(app)
         _let_go(workspace)
         await until(lambda: not app._agents, driver)
 
@@ -550,13 +547,13 @@ async def test_a_question_the_agent_itself_put_reaches_the_person() -> None:
         app._draw()
         await driver.pause()
         # It is the first agent's, which is not the one being read.
-        assert "which way?" not in _transcript(app)
+        assert "which way?" not in transcript(app)
         assert "unread" in _above(app)
 
         await driver.press("shift+tab")
         await driver.pause()
         assert app._attached == one.id
-        assert "which way?" in _transcript(app)
+        assert "which way?" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -585,7 +582,7 @@ async def test_the_diagram_reads_an_agent_that_is_not_working() -> None:
         await driver.click(boxes, offset=(4, 1 + 4 + 4))
         await until(lambda: app._attached == two.id, driver)
 
-        assert "then it stopped" in _transcript(app)
+        assert "then it stopped" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -630,12 +627,12 @@ async def test_a_cleared_screen_still_says_which_agent_a_line_is_from() -> None:
         await driver.pause()
         app.action_clear()
         await driver.pause()
-        assert "before the clear" not in _transcript(app)
+        assert "before the clear" not in transcript(app)
 
         app._heard(one, first, Event(kind="text", text="after the clear"))
         await driver.pause()
 
-        shown = _transcript(app)
+        shown = transcript(app)
         assert "after the clear" in shown
         assert (
             short(one.id) in shown

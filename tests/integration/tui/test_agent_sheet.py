@@ -33,9 +33,9 @@ from hmz.tui.pick import (
     Flows,
     Unbounded,
 )
+from tests.integration.tui.test_app import drops, into_agent, keeps, onto, opens, rows
 from tests.stubs import written
-
-from .test_app import drops, into_agent, keeps, onto, opens, rows, until
+from tests.tui.conftest import until
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -486,7 +486,7 @@ async def test_a_flow_that_puts_its_agent_here_refuses_one_that_was_pointed_away
     The refusal is the runner's, since where an agent works is the flow's to say -- and it is
     a line at this prompt rather than a traceback out of a flow's own thread.
     """
-    from .test_app import _transcript
+    from tests.tui.conftest import transcript
 
     app = Humanize()
     async with app.run_test() as driver:
@@ -495,8 +495,8 @@ async def test_a_flow_that_puts_its_agent_here_refuses_one_that_was_pointed_away
         app._models = [Runs("claude/claude-opus-5:max", "ssh://box")]
         await driver.press(*"go")
         await driver.press("enter")
-        await until(lambda: "hmz:" in _transcript(app), driver)
-        said = _transcript(app)
+        await until(lambda: "hmz:" in transcript(app), driver)
+        said = transcript(app)
 
     # Wrapped as the transcript wraps it, so it is read a phrase at a time.
     assert "builder runs on this machine" in said

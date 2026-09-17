@@ -17,8 +17,6 @@ everyone takes to be offline on a machine with one.
 from __future__ import annotations
 
 import socket
-import time
-from typing import TYPE_CHECKING
 
 import pytest
 
@@ -26,46 +24,11 @@ from hmz.coganchor.agents import AgentConfig, Hooks, Moment, Occasion
 from hmz.coganchor.agents import preload as layer
 from hmz.coganchor.agents.preload import RUNTIME, Watch, preloaded, reported, runtime
 from hmz.coganchor.backends import named
+from tests.agents import preloading
 from tests.stubs import HereAnchor, ShellAgent
 
-if TYPE_CHECKING:
-    from hmz.coganchor.agents import AgentBase
-
-#: What the stand-in agents here are configured with, which nothing in this file reads.
+#: What the anchored stand-in below is configured with, which nothing here reads back.
 CONFIG = AgentConfig(model="m", effort="high")
-
-#: How long a report written into the socket is waited for. It arrives on a thread of its own,
-#: after the write that carried it, so this is a ceiling on a scheduler rather than a duration
-#: anything here means to spend: a loaded machine is the only reason one of these is not instant.
-PATIENCE = 30.0
-
-
-def _agent(name: str = "worker") -> ShellAgent:
-    """One agent with nothing hung on it, which is an agent nobody is listening to."""
-    return ShellAgent(CONFIG, name=name)
-
-
-def _seen(agent: AgentBase) -> list[Occasion]:
-    """Has every `PreToolUse` of this agent written down, which is what turns the layer on."""
-    said: list[Occasion] = []
-    agent.hooks.on(Moment.PRE_TOOL_USE, said.append)
-    return said
-
-
-def _waits(said: list[Occasion], many: int) -> list[Occasion]:
-    """Waits for that many reports to arrive, or for the patience to run out.
-
-    Args:
-      said: Where the hook is writing them down, which another thread is appending to.
-      many: How many are expected.
-
-    Returns:
-      What arrived, which is what the test then reads -- short, where they did not.
-    """
-    ended = time.monotonic() + PATIENCE
-    while len(said) < many and time.monotonic() < ended:
-        time.sleep(0.05)
-    return list(said)
 
 
 @pytest.mark.parametrize(
@@ -102,7 +65,7 @@ def test_a_runtime_that_says_what_it_did_reaches_the_agents_own_moments() -> Non
             held.sendall(
                 b'{"did": "spawn", "what": "git push"}\n{"did": "write", "what": "/x"}\n'
             )
-            arrived = _waits(said, 2)
+            arrived = preloading.waits(said, 2)
     finally:
         watch.close()
 
@@ -148,7 +111,7 @@ def test_a_hook_that_raises_is_a_hook_that_said_nothing() -> None:
 
 def test_nothing_at_all_is_set_for_an_agent_nobody_is_listening_to() -> None:
     """No socket, no thread and no patched runtime: the turns are the turns they always were."""
-    agent = _agent()
+    agent = preloading.agent()
 
     assert preloaded(agent, {"KEPT": "yes"}) == {"KEPT": "yes"}
 
@@ -157,8 +120,8 @@ def test_the_preload_and_where_to_report_are_set_for_an_agent_with_a_hook_hung()
     None
 ):
     """One variable carries the file, the other says where to say what it saw."""
-    agent = _agent()
-    _seen(agent)
+    agent = preloading.agent()
+    preloading.seen(agent)
     added = preloaded(agent, {"KEPT": "yes"})
     try:
         assert added["KEPT"] == "yes"
@@ -170,8 +133,8 @@ def test_the_preload_and_where_to_report_are_set_for_an_agent_with_a_hook_hung()
 
 def test_an_option_somebody_else_set_is_kept_and_added_to() -> None:
     """A `--max-old-space-size` in somebody's shell profile is theirs; this goes after it."""
-    agent = _agent()
-    _seen(agent)
+    agent = preloading.agent()
+    preloading.seen(agent)
     added = preloaded(agent, {"NODE_OPTIONS": "--max-old-space-size=2048"})
     try:
         assert (
@@ -184,15 +147,15 @@ def test_an_option_somebody_else_set_is_kept_and_added_to() -> None:
 def test_nothing_is_set_for_a_turn_that_lands_on_another_machine() -> None:
     """A socket and a file on this machine name nothing at all on that one."""
     agent = _Anchored(CONFIG, HereAnchor(target="ssh://build-box", workspace="/srv"))
-    _seen(agent)
+    preloading.seen(agent)
 
     assert preloaded(agent, {"KEPT": "yes"}) == {"KEPT": "yes"}
 
 
 def test_one_listener_serves_an_agent_however_many_turns_it_takes() -> None:
     """A backend holding every conversation in one server has one runtime for all of them."""
-    agent = _agent()
-    _seen(agent)
+    agent = preloading.agent()
+    preloading.seen(agent)
     try:
         first = preloaded(agent, {})["HMZ_PRELOAD_AT"]
         assert preloaded(agent, {})["HMZ_PRELOAD_AT"] == first

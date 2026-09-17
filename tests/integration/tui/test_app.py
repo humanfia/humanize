@@ -44,9 +44,9 @@ from hmz.tui.pick import (
 )
 from tests.stubs import events as recorded
 from tests.stubs import written
+from tests.tui.conftest import transcript, until
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
     from pathlib import Path
 
     from textual.pilot import Pilot
@@ -132,32 +132,6 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         monkeypatch.setenv(variable, str(tmp_path / variable.lower()))
     monkeypatch.chdir(tmp_path)
     return tmp_path
-
-
-async def until(ready: Callable[[], bool], driver: Pilot[None]) -> None:
-    """Pumps the interface until something is true, or gives up after a while.
-
-    Waited on the clock rather than counted in pumps: a pump can pass in microseconds,
-    so counting them is a spin that finishes before the worker thread has done anything.
-
-    Args:
-      ready: What is being waited for.
-      driver: The interface to keep pumping while waiting.
-    """
-    deadline = time.monotonic() + 30.0
-    while not ready() and time.monotonic() < deadline:
-        await driver.pause()
-        await asyncio.sleep(0.02)
-
-
-def _transcript(app: Humanize) -> str:
-    """Everything the interface has shown, as one searchable string.
-
-    Read while the interface is still up: its widgets go with it when it exits.
-    """
-    from hmz.tui.selecting import Transcript
-
-    return app.query_one("#transcript", Transcript).text
 
 
 def rows(app: Humanize) -> list[str]:
@@ -305,9 +279,9 @@ async def test_the_command_line_own_commands_are_not_commands_here(
     async with app.run_test() as driver:
         await driver.press(*"/collect .")
         await driver.press("enter")
-        await until(lambda: "no such command" in _transcript(app), driver)
+        await until(lambda: "no such command" in transcript(app), driver)
 
-        assert "no such command: /collect" in _transcript(app)
+        assert "no such command: /collect" in transcript(app)
         assert app.is_running  # and a line to correct leaves the interface up
     assert not list(workspace.glob(".humanize/*.trace.json"))  # noqa: ASYNC240
 
@@ -367,7 +341,7 @@ async def test_a_line_with_nothing_to_run_it_on_says_so_rather_than_vanishing() 
         await driver.pause()
 
         assert app._models == []  # nothing installed, so nothing was set up to run
-        assert "no coding agent is installed here" in _transcript(app)
+        assert "no coding agent is installed here" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -378,7 +352,7 @@ async def test_a_command_that_is_not_one_is_said_so() -> None:
         await driver.press("enter")
         await driver.pause()
 
-        assert "no such command" in _transcript(app)
+        assert "no such command" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -389,10 +363,10 @@ async def test_a_flow_that_is_not_there_is_a_line_to_correct_and_not_the_end() -
         app._flow_named, app._models = "nowhere.py", [Runs("claude/m:high")]
         await driver.press(*"do it")
         await driver.press("enter")
-        await until(lambda: "nowhere.py" in _transcript(app), driver)
+        await until(lambda: "nowhere.py" in transcript(app), driver)
 
         assert app.is_running  # still there to be typed at
-        assert "nowhere.py" in _transcript(app)
+        assert "nowhere.py" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -411,7 +385,7 @@ async def test_a_flow_that_fails_as_it_is_read_is_a_line_to_correct_and_not_the_
         app._flow_named, app._models = "broken", [Runs("claude/m:high")]
         await driver.press(*"do it")
         await driver.press("enter")
-        await until(lambda: "prompt.md" in _transcript(app), driver)
+        await until(lambda: "prompt.md" in transcript(app), driver)
 
         assert app.is_running  # still there to be typed at
 
@@ -501,7 +475,7 @@ async def test_enter_takes_what_is_offered_rather_than_sending_the_half_typed_li
         await driver.pause()
 
         assert editor.text == "/flow "  # taken, not sent
-        assert "no such command" not in _transcript(app)
+        assert "no such command" not in transcript(app)
 
         await driver.press("enter")  # and again, for the flow it is offering now
         await driver.pause()
@@ -512,7 +486,7 @@ async def test_enter_takes_what_is_offered_rather_than_sending_the_half_typed_li
         await driver.pause()
 
         assert editor.text == ""
-        assert f"/flow {found()[0].name}" in _transcript(app)
+        assert f"/flow {found()[0].name}" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -565,7 +539,7 @@ async def test_the_line_is_broken_rather_than_sent(key: str) -> None:
         await driver.press(*"second")
 
         assert editor.text == "first\nsecond"  # still in the editor, and in two lines
-        assert "first" not in _transcript(app)  # nothing was sent by breaking a line
+        assert "first" not in transcript(app)  # nothing was sent by breaking a line
 
 
 @pytest.mark.timeout(60)
@@ -743,7 +717,7 @@ async def test_an_agent_is_set_up_again_under_the_flow_that_is_running_it(
 
         # Said, and said about the agent rather than about the flow: what changed is what
         # this one runs from its next turn on.
-        assert "claude/m:max" in _transcript(app)
+        assert "claude/m:max" in transcript(app)
         assert app._models == [Runs("claude/m:max")]
 
 
@@ -772,12 +746,12 @@ async def test_two_ctrl_c_stop_the_flow_and_not_just_the_turn(workspace: Path) -
         await driver.press("ctrl+c")
         await driver.pause()
         assert app._agents  # one press asks, and asks rather than doing it
-        assert "press ctrl+c again" in _transcript(app)
+        assert "press ctrl+c again" in transcript(app)
 
         await driver.press("ctrl+c")
         await until(lambda: not app._agents, driver)  # the flow itself is over
 
-        assert "stopping the flow" in _transcript(app)
+        assert "stopping the flow" in transcript(app)
         # And the run is over with it: an epic is one run of one flow, and this ends one.
         (epic,) = epics(workspace)
         assert recorded(epic)[-1] == {
@@ -838,7 +812,7 @@ async def test_a_line_to_a_running_flow_is_never_turned_away(workspace: Path) ->
         await driver.pause()
 
         assert app._queued == ["and this"]  # held, not refused
-        assert "nothing is running to be told" not in _transcript(app)
+        assert "nothing is running to be told" not in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -1310,11 +1284,11 @@ async def test_an_agent_that_stops_to_ask_reaches_the_prompt(asking: Path) -> No
         app._flow_named, app._models = "flow", [Runs("claude/m:high")]
         await driver.press(*"start")
         await driver.press("enter")
-        await until(lambda: "Which way?" in _transcript(app), driver)
+        await until(lambda: "Which way?" in transcript(app), driver)
 
         # The question and what it offers are shown, and the next line typed is the answer.
-        assert "left" in _transcript(app)
-        assert "right" in _transcript(app)
+        assert "left" in transcript(app)
+        assert "right" in transcript(app)
         await driver.press(*"right")
         await driver.press("enter")
         await until((asking / "said.txt").exists, driver)
@@ -1418,7 +1392,7 @@ async def test_a_third_ctrl_c_does_not_wait_for_the_flow_to_unwind() -> None:
         # reason there is a third press at all. And the run reads as over from here.
         assert closed == [session]
         assert session not in app._working
-        assert "closing 1 conversation" in _transcript(app)
+        assert "closing 1 conversation" in transcript(app)
         assert app.is_running  # the run, rather than the interface
         assert not app._stopping  # and nothing left for a fourth press to reach
 
@@ -1432,7 +1406,7 @@ async def test_two_ctrl_c_leave_when_there_is_nothing_running() -> None:
         await driver.pause()
 
         assert app.is_running
-        assert "press ctrl+c again to leave" in _transcript(app)
+        assert "press ctrl+c again to leave" in transcript(app)
 
         await driver.press("ctrl+c")
         await driver.pause()
@@ -1456,7 +1430,7 @@ async def test_details_covers_the_thinking_as_well_as_the_tools() -> None:
         await driver.pause()
 
         assert app._details
-        assert "thinking" in _transcript(app)  # said to be part of the same switch
+        assert "thinking" in transcript(app)  # said to be part of the same switch
 
 
 @pytest.mark.timeout(60)
@@ -1479,9 +1453,9 @@ async def test_what_a_turn_did_on_the_way_is_shown_only_where_it_is_asked_for() 
             app._heard(agent, session, Event(kind="ends", text=""))
 
         await asyncio.to_thread(turn)
-        await until(lambda: "Worked for" in _transcript(app), driver)
+        await until(lambda: "Worked for" in transcript(app), driver)
 
-        shown = _transcript(app)
+        shown = transcript(app)
         # What the flow is doing, and what it said: which agent is working, and its answer.
         assert "is working" in shown
         assert "the answer" in shown
@@ -1493,9 +1467,9 @@ async def test_what_a_turn_did_on_the_way_is_shown_only_where_it_is_asked_for() 
         await driver.press("enter")
         await driver.pause()
         await asyncio.to_thread(turn)
-        await until(lambda: "thinking aloud" in _transcript(app), driver)
+        await until(lambda: "thinking aloud" in transcript(app), driver)
 
-        shown = _transcript(app)
+        shown = transcript(app)
         assert "Read(pyproject.toml)" in shown
         assert "thinking aloud" in shown
 
@@ -1530,9 +1504,9 @@ async def test_what_humanize_is_doing_about_a_turn_is_not_hidden_with_the_workin
 
         assert not app._details
         await asyncio.to_thread(turn)
-        await until(lambda: "Worked for" in _transcript(app), driver)
+        await until(lambda: "Worked for" in transcript(app), driver)
 
-        shown = _transcript(app)
+        shown = transcript(app)
         assert "waiting 30s for a rate limit" in shown
         # And still none of the working, which is the other half of the same switch.
         assert "pyproject.toml" not in shown
@@ -1639,13 +1613,13 @@ async def test_every_line_typed_between_turns_is_a_turn_of_one_conversation(
     async with app.run_test() as driver:
         await driver.press(*"first")
         await driver.press("enter")
-        await until(lambda: "heard first" in _transcript(app), driver)
+        await until(lambda: "heard first" in transcript(app), driver)
         # The turn is over and the flow is waiting to be told the next one, rather than gone.
         await until(lambda: app._awaiting, driver)
 
         await driver.press(*"second")
         await driver.press("enter")
-        await until(lambda: "heard second" in _transcript(app), driver)
+        await until(lambda: "heard second" in transcript(app), driver)
 
         # One agent and the person, one session: the second turn resumed the first rather
         # than opening another, so the agent had the first in context.
@@ -1753,7 +1727,7 @@ async def test_deepseek_chat_sends_hello_and_draws_the_sdk_reply(
     async with app.run_test() as driver:
         await driver.press(*"hello")
         await driver.press("enter")
-        await until(lambda: "hello from DeepSeek" in _transcript(app), driver)
+        await until(lambda: "hello from DeepSeek" in transcript(app), driver)
 
         sent = client.session_prompt.call_args
         assert sent.args[1] == [{"type": "text", "text": "hello"}]
@@ -1796,11 +1770,11 @@ async def test_clearing_the_screen_clears_the_screen_and_nothing_else(
     async with app.run_test() as driver:
         await driver.press(*"remember this")
         await driver.press("enter")
-        await until(lambda: "remember this" in _transcript(app), driver)
+        await until(lambda: "remember this" in transcript(app), driver)
 
         await driver.press(*"/clear")
         await driver.press("enter")
-        await until(lambda: "remember this" not in _transcript(app), driver)
+        await until(lambda: "remember this" not in transcript(app), driver)
 
         # The screen, and only the screen: what was set up to run is still set up to run,
         # and what is running is still running.
@@ -1920,9 +1894,9 @@ async def test_a_turn_reads_the_way_claude_code_renders_one() -> None:
             app._heard(agent, session, Event(kind="ends", text=""))
 
         await asyncio.to_thread(turn)
-        await until(lambda: "Worked for" in _transcript(app), driver)
+        await until(lambda: "Worked for" in transcript(app), driver)
 
-        shown = _transcript(app)
+        shown = transcript(app)
 
     assert "❯ do the thing" in shown  # what you said
     assert "is working" in shown  # which agent has the turn, said as it starts
@@ -2530,7 +2504,7 @@ async def test_a_switch_takes_on_and_off_as_well_as_being_flipped() -> None:
         await driver.press("enter")
         await driver.pause()
         assert app._details is False  # unchanged, and said so rather than guessed at
-        assert "say on or off" in _transcript(app)
+        assert "say on or off" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -2655,10 +2629,10 @@ async def test_two_things_said_get_two_answers_and_not_three(
         )
         await driver.press(*"second")
         await driver.press("enter")
-        await until(lambda: "answer to second" in _transcript(app), driver)
+        await until(lambda: "answer to second" in transcript(app), driver)
         await driver.pause()
 
-        shown = _transcript(app)
+        shown = transcript(app)
         assert shown.count("answer to first") == 1
         assert shown.count("answer to second") == 1
 
@@ -2708,7 +2682,7 @@ async def test_the_box_at_the_top_says_what_this_is_and_not_what_is_set_up(
 
     app = Humanize()
     async with app.run_test() as driver:
-        opened = _transcript(app)
+        opened = transcript(app)
         assert "humanize v" in opened
         assert str(metadata("hmz")["Summary"]) in opened  # what it was published as
         assert "claude/claude-opus-5" not in opened
@@ -2723,7 +2697,7 @@ async def test_the_box_at_the_top_says_what_this_is_and_not_what_is_set_up(
         app._draw()
         await driver.pause()
 
-        assert _transcript(app) == opened
+        assert transcript(app) == opened
         assert "claude/claude-opus-5:high" in str(
             app.query_one("#above", Static).content
         )
@@ -2792,20 +2766,20 @@ async def test_the_person_asked_for_a_shape_is_asked_a_question_at_a_time(
 
         # The flow's own words above the first field, and the answers it will take under it.
         await until(
-            lambda: "Which way should this be built?" in _transcript(app), driver
+            lambda: "Which way should this be built?" in transcript(app), driver
         )
-        assert "how should I do this" in _transcript(app)
-        assert "careful" in _transcript(app)
+        assert "how should I do this" in transcript(app)
+        assert "careful" in transcript(app)
         await driver.press(*"careful")
         await driver.press("enter")
 
-        await until(lambda: "Write tests for it?" in _transcript(app), driver)
+        await until(lambda: "Write tests for it?" in transcript(app), driver)
         await driver.press(*"yes")
         await driver.press("enter")
 
         # The one with a default says what to type to leave it, and what that will take.
-        await until(lambda: "How many rounds" in _transcript(app), driver)
-        assert "`-` for 3" in _transcript(app)
+        await until(lambda: "How many rounds" in transcript(app), driver)
+        assert "`-` for 3" in transcript(app)
         await driver.press("-")
         await driver.press("enter")
 

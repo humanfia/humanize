@@ -35,27 +35,12 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.machines import AnchoredConfig
 from tests.agents import standins
-from tests.stubs import HereAnchor, ShellAgent
+from tests.stubs import EchoAgent, HereAnchor, ShellAgent
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 CONFIG = AgentConfig(model="m", effort="high")
-
-
-class _EchoSession(CommandSessionBase):
-    """Runs `cat`, echoing the prompt back on stdout -- the only fake on the stdin path."""
-
-    def _turn(self, prompt: str) -> tuple[list[str], str | None]:
-        return (["cat"], prompt)
-
-    def _read_session_id(self, transcript: str) -> str:
-        return "echo"
-
-
-class _EchoAgent(AgentBase):
-    def new(self, cwd: str | os.PathLike[str] | None = None) -> _EchoSession:
-        return _EchoSession(self, cwd)
 
 
 class _StubbornSession(CommandSessionBase):
@@ -149,7 +134,7 @@ def clis(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _FakeCLIs:
 
 
 def test_run_returns_agent_text() -> None:
-    assert _EchoAgent(CONFIG).new()("hello world") == "hello world"
+    assert EchoAgent(CONFIG).new()("hello world") == "hello world"
 
 
 def test_both_streams_are_teed_and_captured(capsys: pytest.CaptureFixture[str]) -> None:
@@ -217,7 +202,7 @@ def test_a_failed_turn_leaves_nothing_behind_to_remember() -> None:
 
 
 def test_an_agent_does_not_grow_by_the_sessions_a_flow_dropped() -> None:
-    agent = _EchoAgent(CONFIG)
+    agent = EchoAgent(CONFIG)
     kept = agent.new()
     for _ in range(100):  # a Ralph loop: a session per turn, none of them kept
         agent.new()("x")

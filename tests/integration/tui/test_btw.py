@@ -13,7 +13,7 @@ from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
 from hmz.tui.app import _COMMANDS
 from hmz.tui.btw import format_snapshot
-from hmz.tui.selecting import Transcript
+from tests.tui.conftest import transcript
 
 if TYPE_CHECKING:
     import os
@@ -64,10 +64,6 @@ async def until(ready: Callable[[], bool], driver: Pilot[None]) -> None:
     await driver.pause()
 
 
-def _transcript(app: Humanize) -> str:
-    return app.query_one(Transcript).text
-
-
 @pytest.mark.timeout(60)
 async def test_btw_is_offered_and_does_not_enqueue_a_primary_message() -> None:
     """The command is a side turn, not another line for the running flow."""
@@ -85,7 +81,7 @@ async def test_btw_is_offered_and_does_not_enqueue_a_primary_message() -> None:
     async with app.run_test() as driver:
         await driver.press(*"/btw what is happening?")
         await driver.press("enter")
-        await until(lambda: "The builder is checking" in _transcript(app), driver)
+        await until(lambda: "The builder is checking" in transcript(app), driver)
 
         assert app._queued == ["keep working"]
         assert app._given == [(primary.id, "already handed")]

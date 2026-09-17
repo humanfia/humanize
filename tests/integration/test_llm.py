@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from hmz.coganchor import backends, models, providers
-from tests.llm import KEY, MOCKED
+from tests.llm import KEY, MOCKED, POINTED
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -33,10 +33,6 @@ if TYPE_CHECKING:
 # refuses: `_asks_nothing` puts a raiser in its place so that nothing starts a coding agent
 # on whoever's machine is running the tests.
 pytestmark = pytest.mark.usefixtures("asking")
-
-#: Every backend humanize asks an endpoint rather than its CLI, read off the profiles: the
-#: one thing this service is for is that each of them can now be asked in CI.
-POINTED = [profile.name for profile in backends.PROFILES if profile.endpoint]
 
 
 def asks(

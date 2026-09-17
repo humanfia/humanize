@@ -26,9 +26,9 @@ from hmz.flows import ENTRY, OFFICIAL
 from hmz.flows import verses as store
 from hmz.tui import Humanize
 from hmz.tui.pick import Agent, Configures, Flows
+from tests.integration.tui.test_app import into_agent, onto
 from tests.stubs import written
-
-from .test_app import into_agent, onto, until
+from tests.tui.conftest import until
 
 if TYPE_CHECKING:
     from pathlib import Path

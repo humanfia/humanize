@@ -34,9 +34,7 @@ from hmz.tui.pick import (
     Ways,
     reads,
 )
-
-from .test_app import (
-    _transcript,
+from tests.integration.tui.test_app import (
     drops,
     into_agent,
     into_flows,
@@ -44,8 +42,8 @@ from .test_app import (
     onto,
     opens,
     rows,
-    until,
 )
+from tests.tui.conftest import transcript, until
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -209,7 +207,7 @@ async def test_an_account_made_on_the_sheet_lands_in_the_store(
         )
         await driver.press("escape")
         await until(lambda: not isinstance(app.screen, Providers), driver)
-        said = _transcript(app)
+        said = transcript(app)
 
     made = providers.find("claude", "mine")
     assert made is not None
@@ -644,7 +642,7 @@ async def test_an_account_is_signed_in_again_by_the_way_it_was_made_with(
         await until(lambda: isinstance(app.screen, Providers), driver)
         await driver.press("escape")
         await until(lambda: not isinstance(app.screen, Providers), driver)
-        said = _transcript(app)
+        said = transcript(app)
 
     assert "claude/deepseek is signed in" in said
 
@@ -834,7 +832,7 @@ async def test_taking_an_account_away_says_what_went_with_it() -> None:
 
         await keeps(app, driver)
         await until(lambda: not isinstance(app.screen, Providers), driver)
-        said = _transcript(app)
+        said = transcript(app)
 
     assert "claude/deepseek is gone, credentials and all" in said
     assert providers.find("claude", "deepseek") is None
@@ -953,8 +951,8 @@ async def test_an_agent_told_to_run_as_nobody_is_a_line_to_correct(
         app._models = [Runs("claude/claude-opus-5:max", "", "", "nonesuch")]
         await driver.press(*"go")
         await driver.press("enter")
-        await until(lambda: "nonesuch" in _transcript(app), driver)
-        said = _transcript(app)
+        await until(lambda: "nonesuch" in transcript(app), driver)
+        said = transcript(app)
 
     assert "hmz: no claude provider called 'nonesuch'" in said
     assert (

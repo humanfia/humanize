@@ -24,9 +24,9 @@ from hmz.flows import LOCAL, OFFICIAL, USER, flowverses
 from hmz.flows import verses as store
 from hmz.tui import Humanize
 from hmz.tui.pick import _ADD, _TAKES_AWAY, Fetches, Flows, Flowverses, Holds
+from tests.integration.tui.test_app import onto, rows
 from tests.stubs import written
-
-from .test_app import onto, rows, until
+from tests.tui.conftest import until
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -347,7 +347,7 @@ async def test_what_happened_while_it_was_open_is_said_in_the_transcript(
     theirs: Path,
 ) -> None:
     """A menu that ran git and said nothing afterwards is one nobody can read back."""
-    from .test_app import _transcript
+    from tests.tui.conftest import transcript
 
     store.add(str(theirs))
     app = Humanize()
@@ -362,7 +362,7 @@ async def test_what_happened_while_it_was_open_is_said_in_the_transcript(
         await driver.press("escape")
         await until(lambda: not isinstance(app.screen, Flowverses), driver)
 
-        assert "theirs is no longer here" in _transcript(app)
+        assert "theirs is no longer here" in transcript(app)
 
 
 @pytest.mark.timeout(60)
