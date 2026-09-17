@@ -6,9 +6,11 @@ model takes to write the file, which on a slow one is minutes of a turn that loo
 is checked here is that the row goes out at the first fragment there is anything to say it
 about, and exactly once however many ways the backend then repeats the call.
 
-Against the protocol rather than against live CLIs, for the reason `tests/agents/test_hooks_gate.py`
-is written that way: what is owed to the two ends is exact, and reading it off a real turn
-would be reading it off whatever that model happened to do.
+Against the protocol rather than against live CLIs, for the reason
+`tests/integration/agents/test_hooks_gate.py` is written that way: what is owed to the two
+ends is exact, and reading it off a real turn would be reading it off whatever that model
+happened to do. That one stands a relay and a process up to prove it and this one needs
+neither, which is the whole of why they sit in different tiers.
 """
 
 from __future__ import annotations
