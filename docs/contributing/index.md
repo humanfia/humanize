@@ -79,7 +79,10 @@ the directory is for not looking.
 makes the split true rather than aspirational. The helpers and the subsystem conftests --
 `tests/stubs.py`, `tests/agents/standins.py`, `tests/tui/conftest.py` and the rest -- stay where
 they are, and a test that has moved takes the fixtures it needs back by name in a `conftest.py`
-beside it. `tests/tiers.py` has the whole of it.
+beside it: an autouse fixture nobody re-exported is a test that passes while checking nothing,
+so that is checked too. A directory under a tier is named for the subsystem it mirrors --
+`tests/integration/tui` holds what was written in `tests/tui` -- which is how a run can tell
+what a moved test used to be given. `tests/tiers.py` has the whole of it.
 
 ## What the code is held to
 

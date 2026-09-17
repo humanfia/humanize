@@ -80,8 +80,12 @@ def _declared(directory: Path) -> frozenset[str]:
     reading the `__all__` beside them: a name re-exported into a tier conftest but no longer
     autouse where it is defined would pass a check on the spelling and fail the run.
 
+    A directory that was never written in -- one of `tiers.MIRRORS_NOTHING` -- holds no
+    conftest to read, and the walk up to `tests` answers with the fixtures every test in the
+    tree has anyway. Which is the true answer for it: those tests were written in `tests`.
+
     Args:
-      directory: A directory under `tests`.
+      directory: A directory under `tests`, which need not exist.
 
     Returns:
       The names, from `directory` up to `tests` itself.
@@ -90,7 +94,7 @@ def _declared(directory: Path) -> frozenset[str]:
         return _AUTOUSE[directory]
     names: set[str] = set()
     here = directory
-    while True:
+    while here.is_relative_to(_TESTS):
         conftest = here / "conftest.py"
         if conftest.is_file():
             module = importlib.import_module(
@@ -170,6 +174,13 @@ def test_a_test_that_moved_still_has_the_autouse_fixtures_it_was_written_under()
 
     So the conftest beside a moved test has to re-export what it left behind, and the failure
     here names the fixture rather than the symptom.
+
+    Autouse only, which is the whole of what needs a check: a fixture asked for by name says
+    `fixture 'sandbox' not found` when it is missing, and no assertion improves on that. Note
+    that there are two fixtures called `sandbox` in this tree -- one in `tests.composing`,
+    handed to a test that asks for it by name, and the autouse one in `tests/tracing/conftest.py`
+    that redirects four environment variables and returns nothing. Only the second is the kind
+    of thing this is about, and a directory that re-exports the first is not covered by it.
     """
     assert COLLECTED, "the collection was never written down, so this checked nothing"
 
@@ -177,7 +188,7 @@ def test_a_test_that_moved_still_has_the_autouse_fixtures_it_was_written_under()
         f"{item.nodeid}: {', '.join(sorted(missing))}, from {written_in}"
         for item in COLLECTED
         for written_in in [tiers.came_from(item.path)]
-        if written_in is not None and written_in.is_dir()
+        if written_in is not None
         for missing in [_declared(written_in) - _given(item)]
         if missing
     ]
@@ -185,4 +196,35 @@ def test_a_test_that_moved_still_has_the_autouse_fixtures_it_was_written_under()
     assert not lost, (
         "a test moved out of the directory that gave it these autouse fixtures, and the"
         " conftest beside it does not take them back:\n" + "\n".join(lost)
+    )
+
+
+def test_a_tier_directory_is_named_for_the_subsystem_it_holds_or_says_why_not() -> None:
+    """The mirroring the check above is read through, held up by the one thing that can.
+
+    `came_from` answers by name: `tests/<tier>/tui` holds what was written in `tests/tui`. A
+    directory named for nothing therefore mirrors nothing, the fixture check over it compares
+    against `tests/conftest.py` alone, and it passes -- silently, whether that silence was
+    earned or is a misspelling of `tracing` nobody has noticed.
+
+    Some of them earn it: the tests that were written directly in `tests/` were grouped by
+    subject as they moved, into directories no subsystem ever had. `tiers.MIRRORS_NOTHING` is
+    where those are written down, with what is in each, so that a name not on that list and not
+    matching a real directory is a typo the run reports rather than a hole it keeps.
+    """
+    assert COLLECTED, "the collection was never written down, so this checked nothing"
+
+    unexplained = sorted(
+        {
+            f"tests/{tiers.tier(item.path)}/{named}"
+            for item in COLLECTED
+            for named in [tiers.unmirrored(item.path)]
+            if named is not None
+        }
+    )
+
+    assert not unexplained, (
+        "a tier directory is named for no directory under tests/. Rename it for the subsystem"
+        " it mirrors, or add it to tiers.MIRRORS_NOTHING with what it holds:\n"
+        + "\n".join(unexplained)
     )
