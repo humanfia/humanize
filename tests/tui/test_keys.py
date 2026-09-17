@@ -49,8 +49,7 @@ from hmz.tui.pick import (
     Speaks,
     Unbounded,
 )
-
-from .test_app import into_agent, into_flows, onto, rows, until
+from tests.integration.tui.test_app import into_agent, into_flows, onto, rows, until
 
 if TYPE_CHECKING:
     from collections.abc import Callable
