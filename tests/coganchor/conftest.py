@@ -158,3 +158,56 @@ def link(tmp_path: Path) -> Iterator[Link]:
     yield Link(client, target)
     client.close()
     thread.join(timeout=5)
+
+
+def _routable_address() -> str:
+    """An address on this host that is not loopback, or skip."""
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        probe.connect(("192.0.2.1", 9))  # TEST-NET-1; no packet is sent
+        address = str(probe.getsockname()[0])
+    except OSError:
+        pytest.skip("no routable address on this host")
+    finally:
+        probe.close()
+    if address.startswith("127."):
+        pytest.skip("only loopback is available on this host")
+    return address
+
+
+@pytest.fixture
+def echo_server() -> Iterator[tuple[str, int]]:
+    """A TCP server on a non-loopback address that echoes what it receives.
+
+    Not loopback, because loopback is the one thing a session leaves alone: a proxy's
+    decision is only visible against an address it would act on. Nothing here leaves the
+    machine -- it is this host's own interface, bound and connected to from this host -- but
+    a machine with no interface but loopback has nowhere to put it, and is skipped.
+
+    Here rather than beside the tests because those are now two files: the decision is made
+    over a `socketpair` in `tests/integration/coganchor/test_netproxy.py`, and made again by
+    a traced agent's own `connect` in `tests/system/coganchor/test_netproxy.py`.
+    """
+    host = _routable_address()
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listener.bind((host, 0))
+    listener.listen(8)
+    stop = threading.Event()
+
+    def serve() -> None:
+        while not stop.is_set():
+            try:
+                connection, _ = listener.accept()
+            except OSError:
+                return
+            with connection:
+                while data := connection.recv(4096):
+                    connection.sendall(b"echo:" + data)
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    yield listener.getsockname()
+    stop.set()
+    listener.close()
+    thread.join(timeout=2)

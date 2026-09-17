@@ -205,9 +205,9 @@ X86_64_NUMBERS = Numbers(
 )
 
 #: aarch64's table, which is the generic one in <asm-generic/unistd.h> -- the same header
-#: this machine has, so `tests/coganchor/test_architectures.py` checks every number below
-#: against it rather than against this comment.  The fourteen calls spelled `_absent()` are
-#: not in that header at all: a 64-bit architecture added after the ``*at`` calls existed
+#: this machine has, so `tests/system/coganchor/test_architectures.py` checks every number
+#: below against it rather than against this comment.  The fourteen calls spelled `_absent()`
+#: are not in that header at all: a 64-bit architecture added after the ``*at`` calls existed
 #: gets only the ``*at`` calls, and libc synthesises the rest.
 AARCH64_NUMBERS = Numbers(
     EXECVE=221,

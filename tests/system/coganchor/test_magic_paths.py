@@ -10,8 +10,9 @@ The kernel reaches the same file either way. A supervisor matching the workspace
 characters does not: ``/proc/self/fd/19/greeting.txt`` begins with nothing the workspace is
 named with, so the create and the rename used to pass unexamined, the file landed in the
 mirror, nothing carried it to the target -- and the agent, reading back through the plain
-name, reported success. Two of the real-agent tests in :mod:`tests.coganchor.test_agents` are
-exactly that, and these pin the behaviour without needing a CLI, an account or a network.
+name, reported success. Two of the real-agent tests in
+:mod:`tests.system.coganchor.test_agents` are exactly that, and these pin the behaviour
+without needing a CLI, an account or a network -- though they do need this kernel to trace.
 
 The first half drives the whole supervisor, with an interpreter doing what the CLIs do; the
 second is the resolution on its own, against this process's own descriptors.
