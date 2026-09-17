@@ -114,6 +114,7 @@ def _cannot_trace() -> str:
     return ""
 
 
-#: Why the end-to-end tests cannot run here, and the mark that leaves them out when so.
+#: Why the tests that need a real tracer cannot run here, and the mark that leaves them
+#: out when so.
 WITHOUT = _cannot_trace()
 traced = pytest.mark.skipif(bool(WITHOUT), reason=WITHOUT or "this machine can trace")

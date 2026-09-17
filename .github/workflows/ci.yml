@@ -133,13 +133,17 @@ jobs:
       # that is one answer, so it is one job.
       #
       # `--ignore` rather than `-m "not system"`, and the difference is not cosmetic.
-      # Deselecting still collects, and collecting is importing. That tier is where the
-      # modules that ask the machine a question at import live -- `tests/supervising.py`
-      # spawns a supervisor while it is being read, to work out whether anything here can
-      # be traced at all -- and it is where a module that imports what only a developer's
-      # machine has would live. Paying for the first is waste; the second is worse, because
-      # a collection error is a red job about a tier this job was never going to run, which
-      # says nothing at all about the change that triggered it.
+      # Deselecting still collects, and collecting is importing. The system tier is where a
+      # module that imports what only a developer's machine has would live, and a collection
+      # error there is a red job about a tier this job was never going to run -- which says
+      # nothing at all about the change that triggered it.
+      #
+      # Not, note, to save the import-time machine probes: this job pays for those either
+      # way. `tests/integration/coganchor/conftest.py` reaches `tests/coganchor/conftest.py`,
+      # which reads `WITHOUT` out of `tests/supervising.py`, which spawns a supervisor at
+      # module scope to work out whether anything here can be traced -- once per xdist
+      # worker, on both systems, on every run. Ignoring a directory the import does not go
+      # through saves none of that, and the argument above does not need it to.
       #
       # What `-ra` buys -- a test that quietly stops running says so -- is bought where it
       # is worth buying, on the run a contributor does before pushing: there the tier is

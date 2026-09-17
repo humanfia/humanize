@@ -230,7 +230,7 @@ and both have to pass:
 
 ```sh
 uv run pre-commit run --all-files   # the formatter, the linter and the type checker
-uv run pytest                       # the unit and integration tiers
+uv run pytest                       # every tier this machine can run
 ```
 
 The tests sit in three directories, by what is on the other side of them: `tests/unit/` calls

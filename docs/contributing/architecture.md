@@ -285,7 +285,7 @@ uv sync
 uv run pre-commit install     # then every commit is checked before it is made
 
 uv run pre-commit run --all-files   # format, lint, types
-uv run pytest                       # the unit and integration tiers -- the gate
+uv run pytest                       # every tier this machine can run -- the gate
 uv run pytest --run-agents          # also the system tier: the real CLIs, real tokens
 ```
 

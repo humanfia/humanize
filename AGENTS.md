@@ -2,8 +2,9 @@
 
 For code:
 
-- MUST pass `uv run pre-commit run --all-files` and `uv run pytest`. That second one is the
-  unit and integration tiers, which is all CI runs.
+- MUST pass `uv run pre-commit run --all-files` and `uv run pytest`. That second one is all
+  three tiers: CI leaves the system tier out with `--ignore=tests/system`, your own run does
+  not, and each test there says for itself what this machine could not give it.
 - MUST file a new test by what is on the other side of it: `tests/unit/` calls `hmz` and
   nothing else, `tests/integration/` may talk to anything this repository wrote — a stand-in
   CLI, a fake app server, a loopback socket, the mock LLM service — and `tests/system/` needs
