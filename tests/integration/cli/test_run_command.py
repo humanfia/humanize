@@ -147,7 +147,7 @@ PREBUILT = sorted(
     (
         path if path.is_file() else path / "__init__.py"
         for path in (
-            Path(__file__).resolve().parents[1] / "src/hmz/flows/builtin"
+            Path(__file__).resolve().parents[3] / "src/hmz/flows/builtin"
         ).glob("*")
         if not path.name.startswith("_")
         and (path.suffix == ".py" or (path / "__init__.py").is_file())
@@ -780,7 +780,7 @@ def test_every_example_runs_as_the_command_line_it_shows(
     """Each one shows an `hmz exec` line, and it is one that would start that flow."""
     shown = re.search(r"^\s*hmz exec (?:.*\\\n)*.*", flow.read_text(), re.MULTILINE)
     assert shown is not None, "no `hmz exec` command line to be checked against"
-    monkeypatch.chdir(Path(__file__).resolve().parents[1])
+    monkeypatch.chdir(Path(__file__).resolve().parents[3])
 
     def nothing(_self: Runner, _task: str) -> None:
         """Every line is checked as far as the entry point, and no further."""

@@ -1,13 +1,12 @@
-"""The layers composed, which is the only place their fit is checked.
+"""The layers composed on a machine that can supervise a turn, which is the half CI cannot run.
 
-tracing imports none of the others and none imports it: a flow is what joins them, by handing
-tracing what the agents report -- so nothing but this checks that an agent's `opened` really
-names the sessions tracing files under that agent. An agent does read coganchor's settings, but only
-as settings; that they still describe a session it can drive is checked here too.
-
-The flows are run for real against a fake `claude` that records a transcript where the real one
-would and writes a file where it is told to, which is the whole path: the id an agent pins, the
-transcript that id names, the agent that says it opened it, and the machine the work landed on.
+The other half is `tests/integration/runtime/test_together.py`: one flow, two agents, a fake
+`claude` on PATH, and the trace gathered back off what they opened. Everything below runs that
+same fake CLI through a layer the plain one does not reach -- an anchor, which puts the work on
+another machine, and a provider, which answers the paths a turn reads with somebody else's.
+Both are a seccomp filter and a ptrace supervisor around a real process, and a container
+without `CAP_SYS_PTRACE` has every module here and can supervise nothing, so these are a tier
+of their own rather than a skip inside a file CI runs.
 """
 
 from __future__ import annotations
@@ -30,59 +29,8 @@ from tests.tracing.conftest import labels
 if TYPE_CHECKING:
     from pathlib import Path
 
-CONFIG = ClaudeCodeAgentConfig(model="claude-opus-4-8", effort="high")
-
-#: A `claude --print` speaking the streaming protocol: it writes the transcript its session id
-#: names, works, and answers, once per turn written to it.
-FAKE = """
-import datetime, json, os, pathlib, re, sys
-
-flags = dict(zip(sys.argv, sys.argv[1:]))  # every flag paired with what follows it
-cwd = pathlib.Path.cwd()
-taken = flags.get("--session-id") or flags["--resume"]
-print(json.dumps({"type": "system", "session_id": taken}), flush=True)
-path = (
-    pathlib.Path(os.environ["CLAUDE_CONFIG_DIR"])
-    / "projects"
-    / re.sub(r"[^a-zA-Z0-9]", "-", str(cwd))
-    / f"{taken}.jsonl"
-)
-path.parent.mkdir(parents=True, exist_ok=True)
-for line in sys.stdin:
-    now = datetime.datetime.now(datetime.UTC)
-    said = json.loads(line)["message"]["content"][0]["text"]
-    with pathlib.Path("landed.txt").open("a") as landed:  # the work, wherever the workspace is
-        landed.write(taken)
-    with path.open("a") as trajectory:
-        trajectory.write(
-            "".join(
-                json.dumps(record | {"cwd": str(cwd), "sessionId": taken}) + "\\n"
-                for record in (
-                    {
-                        "type": "user",
-                        "timestamp": now.isoformat(),
-                        "message": {"role": "user", "content": said},
-                    },
-                    {
-                        "type": "assistant",
-                        "timestamp": (now + datetime.timedelta(seconds=1)).isoformat(),
-                        "requestId": taken,
-                        "effort": flags["--effort"],
-                        "message": {
-                            "id": taken,
-                            "model": flags["--model"],
-                            "content": [{"type": "text", "text": "done"}],
-                        },
-                    },
-                )
-            )
-        )
-    print(json.dumps({"type": "result", "result": "done"}), flush=True)
-"""
-
-
-#: The same fake, answering with whichever credentials it found rather than with "done": what
-#: an agent run under a provider must come back with is that provider's own account.
+#: The fake `claude`, answering with whichever credentials it found rather than with "done":
+#: what an agent run under a provider must come back with is that provider's own account.
 WHOEVER = """
 import json, pathlib, sys
 
@@ -94,50 +42,6 @@ for line in sys.stdin:
     said = where.read_text().strip() if where.exists() else "nobody"
     print(json.dumps({"type": "result", "result": said}), flush=True)
 """
-
-
-@pytest.fixture
-def sandbox(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Puts a fake `claude` on PATH, hides the real agent homes, and returns the workspace."""
-    binaries = tmp_path / "bin"
-    binaries.mkdir()
-    fake = binaries / "claude"
-    fake.write_text(f"#!{sys.executable}\n{FAKE}")
-    fake.chmod(0o755)
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    monkeypatch.setenv("PATH", f"{binaries}{os.pathsep}{os.environ['PATH']}")
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))
-    for variable in ("CODEX_HOME", "KIMI_CODE_HOME"):
-        monkeypatch.delenv(variable, raising=False)  # neither has a home under our HOME
-    monkeypatch.chdir(workspace)
-    return workspace
-
-
-@pytest.fixture
-def flow(sandbox: Path) -> tuple[Path, dict[str, list[str]]]:
-    """Runs a flow's two agents for real, and reports its workspace and what each opened."""
-    # The rlar shape, at one model and one effort: what nothing in a transcript tells apart.
-    actor = ClaudeCodeAgent(CONFIG, name="actor")
-    reviewer = ClaudeCodeAgent(CONFIG, name="reviewer")
-    actor.new()("do the task")
-    reviewer.new()("review the work")
-    return sandbox, {agent.id: agent.opened for agent in (actor, reviewer)}
-
-
-def test_a_flow_is_traced_as_the_agents_it_ran(
-    flow: tuple[Path, dict[str, list[str]]],
-) -> None:
-    workspace, agents = flow
-
-    document = tracing.collect(workspace, agents=agents)
-
-    assert document["otherData"]["sessions"] == "2"
-    assert labels(document, "process_name") == {
-        "actor · claude-opus-4-8 · high · 1 sessions",
-        "reviewer · claude-opus-4-8 · high · 1 sessions",
-    }
 
 
 @traced
