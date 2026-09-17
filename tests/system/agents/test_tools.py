@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pytest
 from pydantic import BaseModel, Field
@@ -96,5 +96,19 @@ def test_a_real_claude_connects_to_the_flow_and_lists_its_callback(
         box.close()
 
     said = json.loads((done.stdout or "{}").splitlines()[0])
-    assert said.get("mcp_servers") == [{"name": "humanize", "status": "connected"}]
+    servers = cast("list[dict[str, str]]", said.get("mcp_servers") or [])
+    # The name and the state, read out of each record rather than the record compared whole:
+    # Claude Code files its own bookkeeping alongside them -- 2.1.274 adds a `source` saying
+    # where the server was configured from -- and humanize reads none of that. A whole-dict
+    # comparison turns any key the CLI adds into a red test about somebody else's changelog,
+    # which is the failure this spelling prevents. What is pinned is what this test is for:
+    # one server, ours, and Claude talking to it.
+    #
+    # Asked for rather than indexed, and `or []` rather than a default, so that a CLI which
+    # renames one of these keys or says `null` here fails on the assertion -- which names
+    # what was expected and what arrived -- instead of raising a `KeyError` or a `TypeError`
+    # out of the line that reads it.
+    assert [(one.get("name"), one.get("status")) for one in servers] == [
+        ("humanize", "connected")
+    ]
     assert "mcp__humanize__delegate" in said.get("tools", [])

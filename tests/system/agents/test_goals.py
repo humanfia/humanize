@@ -64,7 +64,12 @@ def test_kimi_answers_with_the_last_turn_a_goal_took(
     """An objective no single turn can meet, so the answer is one only the runtime reaches."""
     monkeypatch.chdir(tmp_path)
     answer = (
-        KimiCodeCLIAgent(KimiCodeCLIAgentConfig(model="kimi-code/k3", effort="off"))
+        # `low`, the least of Kimi's own rungs, because how hard it thinks is incidental
+        # here and the cheapest turn that can answer is the one to take. Named off Kimi's
+        # ladder rather than guessed at: `hmz.coganchor.backends` has this backend taking
+        # one of max, high, medium or low, and an agent asked for anything else -- `off`,
+        # which is pi's word and not Kimi's -- is refused as it is configured.
+        KimiCodeCLIAgent(KimiCodeCLIAgentConfig(model="kimi-code/k3", effort="low"))
         .new()
         .pursue(
             "Write the word BANANA in two separate assistant messages. Use no tools. "
