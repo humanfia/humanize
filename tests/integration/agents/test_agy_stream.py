@@ -1,4 +1,10 @@
-"""Antigravity process reuse, cumulative accounting, and print-mode boundaries."""
+"""Antigravity process reuse, cumulative accounting, and print-mode boundaries.
+
+Driven against a stand-in `agy` this suite writes into `tmp_path` and puts on PATH, so a turn
+is taken for real and nothing real is installed. The fingerprint this driver reads off a
+native home to decide whether that process may be kept -- a function of directories and a
+command line, with nothing started -- is in `tests/unit/agents/test_agy_stream.py`.
+"""
 
 from __future__ import annotations
 
@@ -333,39 +339,6 @@ def test_runtime_logs_do_not_invalidate_native_configuration(agy: _Agy) -> None:
     assert len({call["pid"] for call in agy.calls()}) == 1
 
 
-def test_native_home_flag_tracks_custom_settings_without_runtime_databases(
-    tmp_path: Path,
-) -> None:
-    home = tmp_path / "home"
-    native = tmp_path / "isolated"
-    native.mkdir()
-    settings = native / "settings.json"
-    settings.write_text('{"modelProvider":"gemini"}')
-    environment = {"HOME": str(home)}
-    args = ("--app_data_dir", os.path.relpath(native, home / ".gemini"))
-    before = agy_driver._native(tmp_path, environment, args)
-    database = native / "conversations/new.db"
-    database.parent.mkdir()
-    database.write_text("history")
-    assert agy_driver._native(tmp_path, environment, args) == before
-    settings.write_text('{"modelProvider":"gemini","verbosity":"high"}')
-    assert agy_driver._native(tmp_path, environment, args) != before
-
-
-def test_a_data_directory_flag_with_nothing_after_it_names_nothing(
-    tmp_path: Path,
-) -> None:
-    """An empty value is not the whole of `~/.gemini`, which is a home read every turn."""
-    home = tmp_path / "home"
-    (home / ".gemini/antigravity-cli").mkdir(parents=True)
-    (home / ".gemini/antigravity-cli/settings.json").write_text("{}")
-    environment = {"HOME": str(home)}
-
-    assert agy_driver._native(tmp_path, environment, ("--app_data_dir",)) == (
-        agy_driver._native(tmp_path, environment, ())
-    )
-
-
 @pytest.mark.parametrize(
     ("prompt", "shaped"),
     [("read-workspace", False), ("read-workspace", True), ("/read-workspace", False)],
@@ -479,21 +452,6 @@ def test_one_counter_going_backwards_starts_the_whole_count_again(agy: _Agy) -> 
     session._previous = Usage({"input": 100.0, "output": 50.0})
     fresh = Usage({"input": 120.0, "output": 40.0})
     assert dict(session._delta(fresh)) == {"input": 120.0, "output": 40.0}
-
-
-def test_a_native_home_flag_naming_nothing_leaves_the_default_home(
-    tmp_path: Path,
-) -> None:
-    """Rather than collapsing onto the whole Gemini home and walking all of it."""
-    home = tmp_path / "home"
-    (home / ".gemini/antigravity-cli").mkdir(parents=True)
-    (home / ".gemini/settings.json").write_text("{}")
-    environment = {"HOME": str(home)}
-    plain = agy_driver._native(tmp_path, environment, ())
-    for args in (("--app_data_dir",), ("--app_data_dir=",)):
-        assert agy_driver._native(tmp_path, environment, args) == plain
-    # And the flag still moves the home when it names one.
-    assert agy_driver._native(tmp_path, environment, ("--app_data_dir", "x")) != plain
 
 
 def test_a_refreshed_provider_credential_does_not_restart_the_process(

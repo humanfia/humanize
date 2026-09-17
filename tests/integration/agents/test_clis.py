@@ -4,6 +4,10 @@ pi holds one process for the whole session and takes its turns as commands on st
 and mimocode are one run apiece and answer in events. Both are exercised against stand-ins on
 PATH that print what the real ones print, so what is checked is the call each turn is made of
 and the turn read back out of what it answered.
+
+Every stand-in is written here and put on PATH, so nothing real is installed and nothing is
+reached over a network. What these backends refuse before a command line exists at all is in
+`tests/unit/agents/test_clis.py`.
 """
 
 from __future__ import annotations
@@ -631,31 +635,6 @@ def test_pi_takes_what_a_flow_asks_of_it_and_nothing_it_did_not(stubs: _Stubs) -
     assert {"--no-context-files", "--no-extensions", "--offline"} <= set(argv)
 
 
-def test_a_pi_option_with_nothing_in_it_is_refused_where_it_is_written() -> None:
-    """Pi would take the flag and the blank after it and load nothing at all."""
-    with pytest.raises(ValueError, match="append_system_prompt"):
-        PiAgentConfig(
-            model="openai-codex/gpt-5.5", effort="high", append_system_prompt=("  ",)
-        )
-    with pytest.raises(ValueError, match="skill_paths"):
-        PiAgentConfig(model="openai-codex/gpt-5.5", effort="high", skill_paths=("",))
-
-
-def test_a_pi_option_written_as_one_entry_is_refused_rather_than_spelled_out() -> None:
-    """A string is a sequence of strings: `--skill` per character, and pi takes each one."""
-    with pytest.raises(TypeError, match="skill_paths"):
-        PiAgentConfig(
-            model="openai-codex/gpt-5.5",
-            effort="high",
-            skill_paths="/flow/skills/review",  # pyright: ignore[reportArgumentType]
-        )
-
-
-def test_pi_that_never_opened_cannot_be_talked_to() -> None:
-    with pytest.raises(RuntimeError, match="no turn is running"):
-        PiAgent(PI).new().interject("hello?")
-
-
 def test_pi_reports_a_refused_prompt_as_a_failed_turn(stubs: _Stubs) -> None:
     session = PiAgent(PI).new()
     with pytest.raises(subprocess.CalledProcessError):
@@ -762,19 +741,6 @@ def test_mimo_is_opencode_under_its_own_name(stubs: _Stubs) -> None:
     assert "--auto" not in call.argv
 
 
-def test_the_new_backends_name_themselves_as_a_command_line_names_them() -> None:
-    """`AgentBase.backend` is read off the class, so a mismatch is a backend nobody finds."""
-    from hmz.coganchor import backends
-
-    for agent, config in (
-        (PiAgent, PI),
-        (OpencodeAgent, OPENCODE),
-        (MimoCodeAgent, MIMO),
-    ):
-        named = agent(config).backend
-        assert backends.named(named) is not None, named
-
-
 def test_a_backend_that_cannot_be_talked_to_mid_turn_says_so(stubs: _Stubs) -> None:
     with pytest.raises(NotImplementedError):
         OpencodeAgent(OPENCODE).new().interject("hello?")
@@ -875,22 +841,6 @@ def test_a_turn_told_to_impose_nothing_writes_no_permission_table(
     assert call.allowed is None
 
 
-@pytest.mark.parametrize(
-    "narrowed", [{"permission": "read-only"}, {"web_search": False}]
-)
-def test_the_table_is_refused_off_beside_what_it_was_the_only_way_of_saying(
-    narrowed: dict[str, object],
-) -> None:
-    """A setting the CLI never hears is a setting that lies, so it is refused up front."""
-    with pytest.raises(ValueError, match="permission_table"):
-        OpencodeAgentConfig(
-            model="m",
-            effort="high",
-            permission_table=False,
-            **narrowed,  # pyright: ignore[reportArgumentType]
-        )
-
-
 def test_opencode_takes_the_rest_of_its_command_line_from_the_agent(
     stubs: _Stubs,
 ) -> None:
@@ -921,12 +871,6 @@ def test_an_opencode_agent_nobody_named_adds_none_of_it(stubs: _Stubs) -> None:
     assert "--agent" not in call.argv
     assert "--thinking" not in call.argv
     assert "--pure" not in call.argv
-
-
-def test_an_agent_name_the_cli_would_not_find_is_refused() -> None:
-    """It warns and runs the default for one, which is a setting that quietly did nothing."""
-    with pytest.raises(ValueError, match="cli_agent must be"):
-        OpencodeAgentConfig(model="m", effort="high", cli_agent="the planner")
 
 
 def test_a_turn_runs_in_the_flows_own_environment_and_what_it_is_told(
@@ -1224,12 +1168,6 @@ def test_grok_takes_every_turn_on_the_command_line_that_carries_its_own_settings
     assert call.argv[call.argv.index("--rules") + 1] == "be brief"
 
 
-def test_grok_refuses_a_cap_of_less_than_nothing_where_it_is_written() -> None:
-    """Rather than by a CLI refusing the argv, which is a turn that never started."""
-    with pytest.raises(ValueError, match="max_turns"):
-        replace(GROK, max_turns=-1)
-
-
 def test_grok_reports_a_refused_turn_as_a_failed_turn(stubs: _Stubs) -> None:
     """On either transport: the protocol refuses one, and a run says so on a line."""
     with pytest.raises(subprocess.CalledProcessError) as refused:
@@ -1344,32 +1282,6 @@ def test_agy_reports_a_result_that_did_not_succeed_as_a_failed_turn(
 def test_agy_that_said_nothing_at_all_is_a_failed_turn(stubs: _Stubs) -> None:
     with pytest.raises(subprocess.CalledProcessError):
         AntigravityCLIAgent(AGY).new()("quiet")
-
-
-def test_agy_refuses_a_read_only_rung_its_own_flag_would_undo() -> None:
-    """Agy says plan mode has no effect while expansion is off, and goes on writing.
-
-    Said where the config arrives rather than where it is written: the rung is the flow's, and
-    a place declaring `read-only` settles it onto whatever agent it was handed.
-    """
-    told = AntigravityCLIAgentConfig(
-        model="m", effort="high", disable_slash_commands=True
-    )
-    agent = AntigravityCLIAgent(told)
-    with pytest.raises(ValueError, match="plan mode has no effect"):
-        agent.reconfigure(replace(told, permission="read-only"))
-    with pytest.raises(ValueError, match="plan mode has no effect"):
-        AntigravityCLIAgent(replace(told, permission="read-only"))
-    # And the rung is still what it was: a refusal is not half a reconfiguration.
-    assert agent.config.permission == "bypass"
-
-
-@pytest.mark.parametrize("waiting", [0.0, -1.0, float("nan"), float("inf"), 1e16])
-def test_agy_refuses_a_print_clock_that_cannot_be_written_as_a_duration(
-    waiting: float,
-) -> None:
-    with pytest.raises(ValueError, match="positive number of seconds"):
-        AntigravityCLIAgentConfig(model="m", effort="high", print_timeout=waiting)
 
 
 def test_agy_cannot_be_talked_to_mid_turn_and_has_no_goal_feature(
