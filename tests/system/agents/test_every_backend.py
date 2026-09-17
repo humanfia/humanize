@@ -28,7 +28,9 @@ Costs tokens and needs network access, so it only runs with ``pytest --run-agent
 
 from __future__ import annotations
 
+import contextlib
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -57,6 +59,13 @@ _ASKED = "Reply with exactly: OK"
 #: The word itself, read off what was asked rather than written twice: a turn that answered
 #: and the turn that is asserted about must agree on what an answer is.
 _WORD = _ASKED.rpartition(": ")[2]
+
+#: That word on its own, rather than anywhere inside a longer one. `OK` is two letters that
+#: turn up in the middle of others -- `OKAY`, `TOKEN`, `BROKE`, `LOOKS` -- so a plain `in`
+#: passes a backend that answered something else entirely and happened to spell one of them,
+#: which is the reading this test least wants to be wrong about. A boundary on each side
+#: still takes the punctuation and the markdown a model puts around it: `OK.`, `**OK**`.
+_ANSWERED = re.compile(rf"\b{re.escape(_WORD)}\b")
 
 #: How many of a catalogue's models to try before calling a backend one that will not run.
 #: One is not enough and every one of them is a bill: some of these CLIs name a short list
@@ -109,13 +118,22 @@ def _models(cli: str) -> list[tuple[str, str]]:
     models = cast("list[dict[str, Any]]", held.get("models") or [])
     if not models:
         pytest.skip(f"{cli} has said nothing about what it runs on this machine")
+    # Named first, and everything else afterwards from the named ones only. The catalogue is
+    # whatever this machine's own CLI wrote down, which is a file this test does not own: a
+    # row that carries no name is a row no turn can be asked for, and reading `one["name"]`
+    # off it raises `KeyError` out of a test whose subject is whether a CLI answers -- a
+    # failure that says nothing about the backend and sends whoever reads it to the wrong
+    # place. Passed over instead, like any other id that cannot be tried.
+    named = [one for one in models if str(one.get("name") or "").strip()]
+    if not named:
+        pytest.skip(f"{cli} named nothing this machine could ask a turn of")
     wanted = [
         one
-        for one in models
+        for one in named
         if not any(word in str(one["name"]).lower() for word in _NOT_A_CHAT)
     ]
     picked: list[tuple[str, str]] = []
-    for one in (wanted or models)[:_TRIES]:
+    for one in (wanted or named)[:_TRIES]:
         efforts = cast("list[str]", one.get("efforts") or [])
         # The least of the efforts it takes, and none at all for a model that takes none: a
         # backend whose models carry their own effort refuses one said beside the name.
@@ -154,52 +172,72 @@ def test_a_turn_lands_on_every_backend_installed_here(
     one: AgentBase | None = None
     session = None
     tried: list[str] = []
-    for model, effort in _models(cli):
-        # `as local` said rather than left to the default, which is what this whole tier is
-        # for: a default that one day picked up an account humanize was given would send
-        # every turn here through humanize's own redirection without anything going red.
-        one = agent(config(model=model, effort=effort, provider=providers.LOCAL))
-        session = one.new()
-        try:
-            said = session(_ASKED)
-        except subprocess.CalledProcessError as why:
-            # This id, not this backend. A catalogue lists plenty a turn cannot be taken on,
-            # and a vendor retires a model without telling the list -- so the next id is
-            # asked before the backend is called broken.
-            refused = why
-            continue
-        # The turn landed, whatever it said, so there is no refusal outstanding: a backend
-        # that answered on its second id must not be reported as one that would not run.
-        refused = None
-        if _WORD in said:
-            break
-        # It answered, and not the word it was asked for. That is an id this test cannot
-        # read an answer out of rather than a backend that failed -- a load-test stub on a
-        # gateway replies `xxxx` to anything -- so it counts as another id tried.
-        tried.append(f"{model} said {said[:40]!r}")
-    assert one is not None
-    assert session is not None
-    if refused is not None:
-        # The turn did not land. Whether that is this machine's account or this CLI's day,
-        # the one thing humanize owes whoever is at the prompt is which -- so the failure
-        # has to say something beyond the exit status it stopped on.
-        assert isinstance(refused, Failed), (
-            f"{cli}: a turn that failed must say why, and this said only its exit status"
-        )
-        told = str(refused).partition("status")[2]
-        assert told.strip(" .0123456789"), (
-            f"{cli}: nothing was said about why it failed"
-        )
-        pytest.skip(f"{cli} would not take a turn on this machine: {refused}")
+    # Every agent this opens is stopped and every session closed, whichever way the test
+    # ends. What is merely dropped is a daemon still listening, a CLI still resident and a
+    # conversation still open at the vendor for the rest of the run -- an agent holds its
+    # sessions weakly, so letting go of one is not closing it. Registered as each is opened
+    # rather than left to a `finally`, so that an attempt which raised on the way up is not
+    # the one that gets left behind.
+    with contextlib.ExitStack() as holding:
+        for model, effort in _models(cli):
+            if one is not None:
+                # And the attempt before this one goes now rather than at the end of the
+                # test: a backend that needs all six ids would otherwise hold six daemons
+                # and six conversations at once, for as long as the slowest of them takes.
+                # Stopping it twice is not an error -- the stack stops it again -- and
+                # stopping it once too few is a daemon that outlives the run.
+                one.stop()
+            # `as local` said rather than left to the default, which is what this whole tier
+            # is for: a default that one day picked up an account humanize was given would
+            # send every turn here through humanize's own redirection without anything going
+            # red.
+            one = agent(config(model=model, effort=effort, provider=providers.LOCAL))
+            holding.callback(one.stop)
+            session = one.new()
+            holding.callback(session.close)
+            try:
+                said = session(_ASKED)
+            except subprocess.CalledProcessError as why:
+                # This id, not this backend. A catalogue lists plenty a turn cannot be
+                # taken on, and a vendor retires a model without telling the list -- so the
+                # next id is asked before the backend is called broken.
+                refused = why
+                continue
+            # The turn landed, whatever it said, so there is no refusal outstanding: a
+            # backend that answered on its second id must not be reported as one that would
+            # not run.
+            refused = None
+            if _ANSWERED.search(said):
+                break
+            # It answered, and not the word it was asked for. That is an id this test
+            # cannot read an answer out of rather than a backend that failed -- a load-test
+            # stub on a gateway replies `xxxx` to anything -- so it counts as another id
+            # tried.
+            tried.append(f"{model} said {said[:40]!r}")
+        assert one is not None
+        assert session is not None
+        if refused is not None:
+            # The turn did not land. Whether that is this machine's account or this CLI's
+            # day, the one thing humanize owes whoever is at the prompt is which -- so the
+            # failure has to say something beyond the exit status it stopped on.
+            assert isinstance(refused, Failed), (
+                f"{cli}: a turn that failed must say why, and this said only its exit status"
+            )
+            told = str(refused).partition("status")[2]
+            assert told.strip(" .0123456789"), (
+                f"{cli}: nothing was said about why it failed"
+            )
+            pytest.skip(f"{cli} would not take a turn on this machine: {refused}")
 
-    if tried and _WORD not in said:
-        # Every id this machine's catalogue offered that could be tried answered with
-        # something that is not an answer. What that says is about the catalogue rather than
-        # about humanize, which is the same thing a refusal says and gets the same treatment.
-        pytest.skip(
-            f"{cli}: no model this machine offers answered -- {'; '.join(tried)}"
-        )
+        if tried and not _ANSWERED.search(said):
+            # Every id this machine's catalogue offered that could be tried answered with
+            # something that is not an answer. What that says is about the catalogue rather
+            # than about humanize, which is the same thing a refusal says and gets the same
+            # treatment.
+            pytest.skip(
+                f"{cli}: no model this machine offers answered -- {'; '.join(tried)}"
+            )
 
-    assert _WORD in said
-    assert session.id, f"{cli}: the turn landed and the session was never named"
-    assert session.id in one.opened
+        assert _ANSWERED.search(said), f"{cli}: answered {said[:80]!r}"
+        assert session.id, f"{cli}: the turn landed and the session was never named"
+        assert session.id in one.opened
