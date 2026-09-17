@@ -21,8 +21,7 @@ from hmz.tui import Humanize
 from hmz.tui.pick import Agent, Configures, Flows, setting
 from hmz.tui.selecting import Transcript
 from tests.stubs import written
-
-from .test_app import into_agent, keeps, onto, rows
+from tests.tui.test_app import into_agent, keeps, onto, rows
 
 if TYPE_CHECKING:
     from collections.abc import Callable

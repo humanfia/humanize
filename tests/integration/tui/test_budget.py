@@ -29,8 +29,7 @@ from hmz.tui.pick import (
     budget_of,
 )
 from tests.stubs import written
-
-from .test_app import onto, opens, rows, until
+from tests.tui.test_app import onto, opens, rows, until
 
 if TYPE_CHECKING:
     from pathlib import Path
