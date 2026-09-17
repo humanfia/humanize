@@ -1,4 +1,10 @@
-"""Qwen's retained process, resumed shaped turns, and configuration boundaries."""
+"""Qwen's retained process, resumed shaped turns, and configuration boundaries.
+
+Every one of these takes a turn, against a stand-in `qwen` this suite writes into `tmp_path`
+and puts on PATH: nothing real is installed and nothing is reached over a network, so CI runs
+the lot. There is no unit half to this file -- what Qwen settles, it settles on a command
+line, and the boundaries below are read back off a process that ran.
+"""
 
 from __future__ import annotations
 
