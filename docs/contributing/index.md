@@ -33,7 +33,10 @@ Both of the first two have to pass. CI runs them over every file, on each Python
 claims and on both Linux and macOS, and never runs the third. What a machine cannot do it says
 so and skips: running an agent under an anchor is a seccomp filter and a ptrace supervisor, so
 those tests are Linux on x86-64's and aarch64's, and everything above them is held to both
-systems. `ruff` and `pyright` come from this project's own environment rather than one
+systems. The handful that run a real `node` — the preload layer patches a Node runtime from
+inside, and only Node can confirm it did — carry the `node` mark, which says why in the summary
+where there is none and takes them out of a run with `-m "not node"`.
+`ruff` and `pyright` come from this project's own environment rather than one
 pre-commit builds, so bump them with `uv lock --upgrade-package ruff` rather than by editing a
 second pin.
 
