@@ -144,12 +144,21 @@ _ROOTS: Final = {name: _TESTS / name for name in TIERS}
 #: directory whose name is a typo look exactly alike from here: `tests/unit/tracing` mirrors a
 #: subsystem and `tests/unit/tracnig` mirrors nothing, and without this list the second is
 #: indistinguishable from the first. Anything not named here has to mirror a real directory.
+#:
+#: The last two are here for the other reason a mirror can be missing: `providers` and `sdk`
+#: were real subsystem directories, and every file in them moved into the trees. Neither had a
+#: conftest and neither had a helper module, so what was left behind was an empty directory and
+#: git does not keep one -- the mirror is gone because there was nothing in it to keep, which is
+#: the same position as never having had one. Were either to be written into again, the mirror
+#: would come back and its name should come out of here.
 MIRRORS_NOTHING: Final[Mapping[str, str]] = {
     "backends": "what a backend is, what it runs and what it costs",
     "cli": "the command line, and what it prints",
     "flows": "flows as the person who writes one meets them",
     "layering": "the table of which package may depend on which",
+    "providers": "accounts humanize keeps, and the credentials a turn is run under",
     "runtime": "what a run leaves behind it: epics, exports, budgets, telemetry",
+    "sdk": "humanize driven from Python rather than from a command line",
 }
 
 
