@@ -1,11 +1,11 @@
 """The run being held, and the terminals reading it, driven in this process.
 
-`tests/daemon/test_opening.py` and `terminals.py` drive the whole thing as it really works: a
-double fork, a run in the detached process, a reader in a process of its own. Which is the
-right way to check that a run outlives the terminal that started it, and the wrong way to
-check what the holding itself does with each thing that can arrive -- every branch of it is
-two processes away from the assertion, and the one that matters most is the one where a
-terminal misbehaves.
+`tests/integration/daemon/test_held.py` and `tests/daemon/terminals.py` drive the whole thing
+as it really works: a double fork, a run in the detached process, a reader in a process of its
+own. Which is the right way to check that a run outlives the terminal that started it, and the
+wrong way to check what the holding itself does with each thing that can arrive -- every branch
+of it is two processes away from the assertion, and the one that matters most is the one where
+a terminal misbehaves.
 
 So this drives `Held` directly. It is an ordinary object: a pseudoterminal the run draws on,
 a socket terminals arrive at, and a thread carrying between them. The run here is the test

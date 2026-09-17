@@ -4,6 +4,17 @@ Driven end to end, because there is no other way to check it: a daemon is a fork
 with a pseudoterminal, and a terminal reading one is another process with one of its own.
 What stands in for the interface is `tests.daemon.runs`, which is the smallest thing of the
 shape a daemon holds -- so that what is being checked is the holding rather than the drawing.
+
+Integration rather than system, for all that it forks for real. The line between the two tiers
+is what CI cannot be relied on to have, and a double fork with a pseudoterminal is neither a
+docker daemon, nor a ptrace permission, nor a coding agent somebody installed by hand: it is
+`os.fork` and `pty.openpty`, which are there wherever this suite runs at all. Everything on the
+far side of both forks is written in this repo -- `tests.daemon.runs` is the run, and
+`tests.daemon.terminals` is the reader -- so nothing here reaches a machine, a network or a
+binary the tree does not carry. `test_opening.py` next door already starts one of these
+daemons through the `held` fixture, so filing this as system would put two halves of one
+subject in two tiers; and it would take the only check that a run outlives the terminal that
+started it out of every CI job, which is the regression nothing else here would catch.
 """
 
 from __future__ import annotations
