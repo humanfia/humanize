@@ -1,11 +1,12 @@
 """The other arrangement: the CLI already on the target, driven there with nothing below it.
 
 Nothing here traces anything, which is the point of the whole file -- so unlike the
-end-to-end suites beside it, every one of these runs on any machine whether or not it can
-supervise a process. What is being checked is that a turn taken this way is the turn it would
-have been: it runs in the target's copy of the workspace, both its streams come back
-untouched, its status is its own, and the three things that do not follow a CLI across a
-machine boundary on their own are each carried over deliberately and each taken away again.
+end-to-end suites, which seccomp and ptrace a real agent and are a tier up for it, every one
+of these runs on any machine whether or not it can supervise a process. What is being
+checked is that a turn taken this way is the turn it would have been: it runs in the
+target's copy of the workspace, both its streams come back untouched, its status is its own,
+and the three things that do not follow a CLI across a machine boundary on their own are
+each carried over deliberately and each taken away again.
 
 A `local:` target stands in for a remote one throughout, exactly as it does elsewhere here:
 the two sides speak the same protocol over a pipe, and the workspace path the agent is given
@@ -24,10 +25,13 @@ import pytest
 
 from hmz.coganchor import AnchorConfig
 
+# Taken from the subsystem's own conftest, which stays beside the subsystem rather than
+# moving into a tier: counting `..` from this file would count a directory short the moment
+# a test moved a tier, and a wrong root here is a run started somewhere `hmz` is not.
+from tests.coganchor.conftest import REPO_ROOT
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
-
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 #: The workspace path both sides name, which exists on neither machine.
 WORKSPACE = "/coganchor-native"

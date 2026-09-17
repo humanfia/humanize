@@ -45,7 +45,11 @@ class _Listened:
 
 @pytest.fixture
 def listened(monkeypatch: pytest.MonkeyPatch) -> _Listened:
-    """Stands in for the listener, which is `test_listener.py`'s to actually run."""
+    """Stands in for the listener, which is another tier's to actually run.
+
+    A port bound for real is `tests/integration/coganchor/test_listener.py`; what is
+    checked here is only what a command line hands it.
+    """
     from hmz.coganchor.serve import listener
 
     held = _Listened()

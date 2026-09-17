@@ -1,4 +1,11 @@
-"""Unit tests for the target half: exports, filesystem ops, and the server."""
+"""The target half: exports, filesystem ops, and the server that answers for them.
+
+Integration rather than unit: the server is the thing under test, so it is run -- against a
+client on the other end of a `socketpair`, over a pseudoterminal where a session wants one,
+and on a directory `tmp_path` handed out. All of it is this repo talking to itself on one
+machine, with no port, no network and nothing asked of the kernel that a CI runner might not
+have.
+"""
 
 from __future__ import annotations
 

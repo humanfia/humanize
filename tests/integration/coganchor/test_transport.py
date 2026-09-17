@@ -1,4 +1,14 @@
-"""Tests for reaching the target: parsing, bootstrapping, and ssh."""
+"""Reaching a target, as far as it can be reached without a second machine.
+
+A target spelling is parsed here, the zipapp a target is bootstrapped from is built and run
+here, the interpreter that runs it is looked for here, and the line ssh would carry is read
+here -- every one of them against this repo's own code, a subprocess of this interpreter, or
+a string, so all of it is offline and none of it asks the kernel for anything.
+
+The two ways of reaching a target that cannot be stood in for -- a real ssh to localhost,
+and a real seccomp filter with a real ptrace supervisor under it -- are in
+`tests/system/coganchor/test_transport.py` instead.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +18,7 @@ import subprocess
 import sys
 import time
 import zipfile
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -22,7 +32,9 @@ from hmz.coganchor.transport import (
     build_bundle,
     python_command,
 )
-from tests.coganchor.conftest import REPO_ROOT, Anchorage
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_target_parsing() -> None:
@@ -220,97 +232,3 @@ def test_the_line_ssh_carries_is_read_by_the_shell_there_before_anything_runs() 
     assert f" {bundle} " in line, (
         "a quoted ~ is a directory of that name, not the home one"
     )
-
-
-def _bare() -> dict[str, str]:
-    """The environment the anchored run below gets, which is the one the probe must use.
-
-    Deliberately small -- a `PATH`, the source tree, and a home to read an ssh config out of
-    -- so that what reaches the far side is what humanize puts there rather than whatever the
-    suite happened to be started with. `SSH_AUTH_SOCK` is the one that matters: an agent
-    forwarded into the terminal running the tests would let a probe in and leave the run
-    itself outside, which is a skip that never happens in front of a failure that always
-    does.
-    """
-    return {
-        "PATH": "/usr/bin:/bin",
-        "PYTHONPATH": str(REPO_ROOT / "src"),
-        "HOME": str(Path.home()),
-    }
-
-
-def _ssh_to_localhost_works() -> bool:
-    try:
-        probe = subprocess.run(
-            [
-                "ssh",
-                "-o",
-                "BatchMode=yes",
-                "-o",
-                "StrictHostKeyChecking=no",
-                "localhost",
-                "true",
-            ],
-            capture_output=True,
-            timeout=20,
-            env=_bare(),
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return False
-    return probe.returncode == 0
-
-
-@pytest.mark.timeout(180)
-def test_ssh_transport_bootstraps_and_runs(tmp_path: Path) -> None:
-    """The full ssh path: build a zipapp, ship it, and work through the pipe."""
-    if not _ssh_to_localhost_works():
-        pytest.skip("passwordless ssh to localhost is not available")
-
-    target = tmp_path / "target"
-    mirror = tmp_path / "mirror"
-    target.mkdir()
-    mirror.mkdir()
-    (target / "shipped.txt").write_text("arrived over ssh\n")
-
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "hmz",
-            "internal",
-            "anchor",
-            "--target",
-            "ssh://localhost",
-            "--workspace",
-            "/coganchor-project",
-            "--remote-path",
-            str(target),
-            "--shadow",
-            str(mirror),
-            "bash",
-            "-c",
-            "cat shipped.txt; echo written-back > reply.txt",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(REPO_ROOT),
-        env=_bare(),
-        timeout=150,
-        check=False,
-    )
-    assert result.returncode == 0, result.stderr
-    assert "arrived over ssh" in result.stdout
-    assert (target / "reply.txt").read_text() == "written-back\n"
-
-
-def test_running_without_an_agent_is_an_error(anchorage: Anchorage) -> None:
-    result = anchorage.run()
-    assert result.returncode == 2
-    assert "no agent given" in result.stderr
-
-
-def test_unknown_agent_is_reported_clearly(anchorage: Anchorage) -> None:
-    result = anchorage.run("definitely-not-installed-xyz")
-    assert result.returncode == 1
-    assert "not found on PATH" in result.stderr
