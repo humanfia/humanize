@@ -27,9 +27,17 @@ async function walk(at, ext) {
   return found
 }
 
+// One spelling of a route, whichever of the two sides below is asking for it. An index page
+// is built as `contributing/index.html` and has to be *linked* as `/contributing/` - VitePress
+// resolves the trailing slash and calls the bare form a dead link - so neither of the two
+// spellings anybody writes is the `/contributing` they have to meet at. Both the trailing
+// `index` and the trailing slash come off here rather than at each call site: the keys of `ids`
+// and the lookups against it must agree exactly, and a rule added to one copy and not the other
+// is every fragment on an index page reported as `no such page`.
+const normalized = (path) => path.replace(/\/index$/, '').replace(/\/$/, '') || '/'
+
 const route = (path, root, ext) =>
-  ('/' + relative(root, path).replaceAll('\\', '/').slice(0, -ext.length))
-    .replace(/\/index$/, '') || '/'
+  normalized('/' + relative(root, path).replaceAll('\\', '/').slice(0, -ext.length))
 
 const ids = new Map()
 for (const page of await walk(DIST, '.html')) {
@@ -50,11 +58,9 @@ for (const doc of await walk(DOCS, '.md')) {
     if (target.startsWith('http')) continue
     const [base, fragment] = target.split('#')
     if (!fragment) continue
-    const page =
-      (base ? '/' + base.replace(/^\//, '').replace(/\.md$/, '') : here).replace(
-        /\/index$/,
-        '',
-      ) || '/'
+    const page = normalized(
+      base ? '/' + base.replace(/^\//, '').replace(/\.md$/, '') : here,
+    )
     const has = ids.get(page)
     const where = relative(DOCS, doc)
     if (!has) {

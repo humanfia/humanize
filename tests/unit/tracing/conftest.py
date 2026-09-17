@@ -1,9 +1,9 @@
 """The recorded agent homes these tests read, borrowed from where they are written.
 
 The fixtures themselves stay in :mod:`tests.tracing.conftest`, which is under no one tier.
-`tests/test_together.py` imports `labels` out of that module directly, so it is a file two
-slices of the suite name by path, and moving it would be one tier's refactor breaking
-another tier's imports.
+The `test_together.py` in `tests/integration/runtime` and the one in `tests/system/runtime`
+each import `labels` out of that module directly, so it is a file three slices of the suite
+name by path, and moving it would be one tier's refactor breaking another tier's imports.
 
 `sandbox` is re-exported alongside them, and it is the one that must not be forgotten. It is
 autouse, and autouse is a property of the fixture rather than of the file it was named in, so

@@ -294,7 +294,7 @@ model on the faster service. So humanize writes the effort and the service tier 
 model's own answer to a question the effort would be asking again.
 
 **Which combinations exist is the account's answer, not a rule.** The id humanize builds is
-checked against [what that account last said it runs](#what-it-runs-is-discovered-for-the-account),
+checked against [what that account last said it runs](/features/backends#what-it-runs-is-discovered-for-the-account),
 and one it lists no such thing for is refused where the agent is made rather than sent:
 `gpt-5.2` at `medium` says so and names the three ids it does list, because `gpt-5.2-medium` is
 not a model and the turn it goes out on is one Cursor refuses outright. A model listed with no
