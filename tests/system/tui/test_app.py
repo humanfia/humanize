@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
+# The rest of dsh is covered against a fake harness in `tests/unit/agents/test_dsh.py`.
 @pytest.mark.skipif(
     importlib.util.find_spec("deepseek_harness") is None,
     reason="starts the dsh runtime, which the [dsh] extra installs",
