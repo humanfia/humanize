@@ -18,13 +18,13 @@ reads the developer's own PATH.
 `catching_up` and `freshening` are the other half of that pair: they hand the fetch back to a
 test that is about the fetching.
 
-Imported rather than rewritten so that there is one copy of each, in `tests/tui/conftest.py`
+Imported rather than rewritten so that there is one copy of each, in `tests/tui/fixtures.py`
 where the interface's tests have always kept them. `__all__` is load-bearing: it is what says
 these names are re-exported rather than unused, and deleting it -- or the import -- takes both
 autouse fixtures off every test here without failing anything. Which also means this list is
 the whole of it: a fixture added over there and not added here reaches the interface tests
 that stayed and not the ones that moved, and if it is autouse that is a difference nothing
-reports. Anything added to `tests/tui/conftest.py` is added here too.
+reports. Anything added to `tests/tui/fixtures.py` is added here too.
 
 The tests here name their shared helpers by their whole path -- `tests.integration.tui.test_app`
 -- rather than `.test_app` as a sibling. Both resolve today, now that `test_app.py` is in this
@@ -41,6 +41,6 @@ is the only place both can reach. `test_app` is for what only this tier has -- `
 
 from __future__ import annotations
 
-from tests.tui.conftest import _elsewhere, _fetches_nothing, catching_up, freshening
+from tests.tui.fixtures import _elsewhere, _fetches_nothing, catching_up, freshening
 
 __all__ = ["_elsewhere", "_fetches_nothing", "catching_up", "freshening"]

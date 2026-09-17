@@ -21,10 +21,10 @@ from hmz.coganchor import AnchorConfig
 from hmz.coganchor.agents import ClaudeCodeAgent, ClaudeCodeAgentConfig
 from hmz.coganchor.machines import AnchoredConfig
 from hmz.runtime import tracing
-from tests.coganchor.conftest import VIRTUAL_WORKSPACE
+from tests.coganchor.fixtures import VIRTUAL_WORKSPACE
 from tests.stubs import written
 from tests.supervising import traced
-from tests.tracing.conftest import labels
+from tests.tracing.fixtures import labels
 
 if TYPE_CHECKING:
     from pathlib import Path

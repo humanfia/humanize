@@ -1,9 +1,10 @@
 """The recorded agent homes these tests read, borrowed from where they are written.
 
-The fixtures themselves stay in :mod:`tests.tracing.conftest`, which is under no one tier.
-The `test_together.py` in `tests/integration/runtime` and the one in `tests/system/runtime`
-each import `labels` out of that module directly, so it is a file three slices of the suite
-name by path, and moving it would be one tier's refactor breaking another tier's imports.
+The fixtures themselves stay in :mod:`tests.tracing.fixtures`, which is under no one tier.
+All three name it by path -- the tests here, `tests/integration/tracing/conftest.py` for
+`sandbox`, and both copies of `test_together.py` for `labels`, in `tests/integration/runtime`
+and `tests/system/runtime` -- so moving it would be one tier's refactor breaking another
+tier's imports.
 
 `sandbox` is re-exported alongside them, and it is the one that must not be forgotten. It is
 autouse, and autouse is a property of the fixture rather than of the file it was named in, so
@@ -18,7 +19,7 @@ transcripts.
 
 from __future__ import annotations
 
-from tests.tracing.conftest import (
+from tests.tracing.fixtures import (
     claude_home,
     codex_home,
     dsh_home,

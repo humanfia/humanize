@@ -22,7 +22,7 @@ import pytest
 
 from hmz.coganchor.agents import ClaudeCodeAgent, ClaudeCodeAgentConfig
 from hmz.runtime import tracing
-from tests.tracing.conftest import labels
+from tests.tracing.fixtures import labels
 
 if TYPE_CHECKING:
     from pathlib import Path

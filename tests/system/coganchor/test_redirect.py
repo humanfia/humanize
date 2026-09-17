@@ -31,7 +31,7 @@ from hmz.coganchor.linux.syscalls import ARCH
 from hmz.coganchor.policy import Layout, Router
 
 if TYPE_CHECKING:
-    from tests.coganchor.conftest import Anchorage
+    from tests.coganchor.fixtures import Anchorage
 
 #: A provider's copy of a credential and the path the CLI insists on looking at, as
 #: `hmz.coganchor.providers` lays them out.

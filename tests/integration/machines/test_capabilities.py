@@ -27,7 +27,7 @@ from hmz.coganchor.machines import (
     MachineBase,
     MachineConfig,
 )
-from tests.machines.conftest import IMAGE
+from tests.machines.fixtures import IMAGE
 
 if TYPE_CHECKING:
     from pathlib import Path

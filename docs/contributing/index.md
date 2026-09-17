@@ -79,13 +79,20 @@ module that probes the machine as it loads does the probing. `-m` is for choosin
 the directory is for not looking.
 
 `tests/test_tiers.py` fails the run if a marker and a directory ever disagree, which is what
-makes the split true rather than aspirational. The helpers and the subsystem conftests --
-`tests/stubs.py`, `tests/agents/standins.py`, `tests/tui/conftest.py` and the rest -- stay where
+makes the split true rather than aspirational. The helpers and a subsystem's fixtures --
+`tests/stubs.py`, `tests/agents/standins.py`, `tests/tui/fixtures.py` and the rest -- stay where
 they are, and a test that has moved takes the fixtures it needs back by name in a `conftest.py`
 beside it: an autouse fixture nobody re-exported is a test that passes while checking nothing,
 so that is checked too. A directory under a tier is named for the subsystem it mirrors --
 `tests/integration/tui` holds what was written in `tests/tui` -- which is how a run can tell
 what a moved test used to be given. `tests/tiers.py` has the whole of it.
+
+A subsystem's fixtures are a `fixtures.py` rather than a `conftest.py`, because no test is
+under those directories any more. A conftest over no tests is loaded by a run that walks past
+it and not by one that names a tier, so a hook written there would fire for `uv run pytest` and
+silently not for `uv run pytest tests/integration` -- and a plain module cannot be loaded as a
+plugin at all. A `pytest_*` belongs in `tests/conftest.py` or in a tier's own conftest, which
+is checked as well.
 
 Splitting one file across two tiers is the common case, and what the two halves share goes into
 a helper module that never moves -- `tests/logins.py`, `tests/composing.py`,

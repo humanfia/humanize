@@ -113,6 +113,16 @@ asyncio_mode = "auto"
 # test already has a home, a workspace and a temporary directory of its own -- `tmp_path` and
 # the autouse fixtures in `tests/conftest.py` -- so there is no shared state for the workers
 # to race on. `auto` rather than a number: CI's runners are not this machine.
+#
+# It is on for the fast tier too, and that was measured rather than assumed, because bringing
+# workers up looks like pure overhead for a tier that would otherwise be over in seconds.
+# It is not: `tests/unit` is 966 tests and takes four to five seconds either way, and over ten
+# runs each on a 32-core machine the gap between `-n auto` and `-n0` was smaller than the
+# spread within either -- a wash rather than a win for one of them. So there is nothing here
+# to take back by turning xdist off for this tier; the workers start while they collect, which
+# is work the run does whether or not it forks to do it. And there would be nowhere to put it
+# if there were: the worker count is settled once for the session, so a per-path override
+# would be the whole suite's, and the whole suite is the run that wants the workers.
 addopts = ["--strict-markers", "--strict-config", "-ra", "-n", "auto"]
 # A ceiling on any one test that did not ask for its own. Everything here drives processes,
 # sockets and pseudoterminals, and every one of those has a way of waiting forever -- which
@@ -242,7 +252,7 @@ reportUnnecessaryTypeIgnoreComment = "error"
 
 # A test reaches for what it tests, private or not, which is the one thing it may
 # do that its subject's callers may not. The root goes back on the path because a
-# test names its fixtures from the top: `tests.coganchor.conftest`.
+# test names its fixtures from the top: `tests.coganchor.fixtures`.
 [[tool.pyright.executionEnvironments]]
 root = "tests"
 extraPaths = ["."]

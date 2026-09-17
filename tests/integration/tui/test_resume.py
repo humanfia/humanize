@@ -22,7 +22,7 @@ import pytest
 from hmz.runtime.epic import epics, state
 from hmz.tui import Humanize
 from tests.stubs import written
-from tests.tui.conftest import transcript, until
+from tests.tui.fixtures import transcript, until
 
 if TYPE_CHECKING:
     from pathlib import Path

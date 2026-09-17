@@ -20,10 +20,10 @@ import pytest
 
 from hmz.coganchor.proto import Op
 from hmz.coganchor.remote import RemoteOSError
-from tests.coganchor.conftest import VIRTUAL_EXPORT
+from tests.coganchor.fixtures import VIRTUAL_EXPORT
 
 if TYPE_CHECKING:
-    from tests.coganchor.conftest import Link
+    from tests.coganchor.fixtures import Link
 
 
 def _at(link: Link, *named: str) -> str:

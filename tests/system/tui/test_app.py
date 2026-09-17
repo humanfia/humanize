@@ -23,7 +23,7 @@ import pytest
 from hmz.coganchor.backends import Model
 from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
-from tests.tui.conftest import transcript, until
+from tests.tui.fixtures import transcript, until
 
 if TYPE_CHECKING:
     from pathlib import Path

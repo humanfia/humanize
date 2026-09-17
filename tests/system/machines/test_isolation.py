@@ -26,7 +26,7 @@ from hmz.coganchor import check
 from hmz.coganchor.agents import AgentConfig
 from hmz.coganchor.machines import DockerConfig
 from hmz.runtime.runner import Runner
-from tests.machines.conftest import IMAGE
+from tests.machines.fixtures import IMAGE
 from tests.stubs import ShellAgent, written
 
 if TYPE_CHECKING:

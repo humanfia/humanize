@@ -21,7 +21,7 @@ if (
 from hmz.coganchor import standin
 
 if TYPE_CHECKING:
-    from tests.coganchor.conftest import Anchorage
+    from tests.coganchor.fixtures import Anchorage
 
 
 def test_catalogue_is_large_enough() -> None:

@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from hmz.coganchor.machines import DockerConfig
-from tests.machines.conftest import IMAGE
+from tests.machines.fixtures import IMAGE
 
 if TYPE_CHECKING:
     from pathlib import Path

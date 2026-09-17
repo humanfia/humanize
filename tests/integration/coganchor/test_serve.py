@@ -32,13 +32,13 @@ from hmz.coganchor.serve import fsops
 from hmz.coganchor.serve.exports import Export, ExportTable
 from hmz.coganchor.serve.server import Server
 from hmz.coganchor.serve.sessions import _read_stream, compose_env
-from tests.coganchor.conftest import VIRTUAL_EXPORT
+from tests.coganchor.fixtures import VIRTUAL_EXPORT
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
     from pathlib import Path
 
-    from tests.coganchor.conftest import Link
+    from tests.coganchor.fixtures import Link
 
 # --------------------------------------------------------------------- exports
 
