@@ -1755,9 +1755,12 @@ class Flows(Drafts[Chosen]):
         per opening, however it goes, so that a machine with no network says so once rather
         than hammering a server on every keystroke.
 
-        The first fetch only. Taking what one already here says now is the interface's, done
-        in the background as it opens and silently, since there is already a list to show and
-        nothing anybody is waiting for.
+        The first fetch only, which is the half of it worth saying something about: a place
+        nobody has fetched holds no flows at all, so somebody opening this menu to pick one is
+        somebody owed either the list or the reason there is not one. The interface fetches
+        every place as it opens, this one included, in the background and silently -- there is
+        already a list to show there and nobody waiting on it. Whichever of the two gets there
+        first, what the other finds is a place already fetched, and it goes on to the next.
         """
         import asyncio
 
