@@ -48,6 +48,39 @@ third gate is the half no stand-in can stand in for: an account that has lapsed,
 not name, a service withdrawn. Those are about the machine rather than the driver, and every
 backend there skips with what the CLI itself said rather than failing.
 
+## Where a test lives
+
+A test's tier is the directory it is in. Each of the three trees marks everything beneath it
+from its own `conftest.py`, so filing a test is moving it -- there is no decorator to remember,
+and nothing to keep in step with a list.
+
+| | |
+| --- | --- |
+| `tests/unit` | Imports `hmz`, calls it, asserts. No subprocess, no socket, no network, nothing written anywhere but `tmp_path` |
+| `tests/integration` | Several parts together, but everything they talk to is a fake this repo wrote -- a stand-in CLI on `PATH`, a fake app server, a loopback socket, the interface under a Textual pilot. Deterministic and offline |
+| `tests/system` | The real thing -- an installed coding agent, real ptrace and seccomp, docker, ssh, a daemon fork, a real `node`. Never run by CI |
+
+The question that sorts one from another is *does it need something CI cannot be relied on to
+have?* A loopback socket does not, so it is an integration test; a real coding agent does.
+`agent` is a second gate inside `tests/system` rather than a fourth tier, because a system test
+that spends real tokens has to be asked for and one that only needs `node` does not.
+
+```sh
+uv run pytest -m unit                  # one tier, on a machine that has everything
+uv run pytest --ignore=tests/system    # everything CI can be relied on to run
+```
+
+CI names the directory rather than `-m "not system"`, and the two are not two spellings of one
+thing: a deselected test has been imported already, and importing a system test is where a
+module that probes the machine as it loads does the probing. `-m` is for choosing what to run;
+the directory is for not looking.
+
+`tests/test_tiers.py` fails the run if a marker and a directory ever disagree, which is what
+makes the split true rather than aspirational. The helpers and the subsystem conftests --
+`tests/stubs.py`, `tests/agents/standins.py`, `tests/tui/conftest.py` and the rest -- stay where
+they are, and a test that has moved takes the fixtures it needs back by name in a `conftest.py`
+beside it. `tests/tiers.py` has the whole of it.
+
 ## What the code is held to
 
 - **`pyright` in strict mode**, over `src` and `tests`. `# type: ignore` comments are switched

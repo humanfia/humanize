@@ -1,18 +1,21 @@
-"""The one gate every suite's agent-driving tests share.
+"""What the whole suite shares: its markers, the gate on real agents, and the collection.
 
 `pytest_addoption` is honoured only in a root conftest, so `--run-agents` has to live
 here rather than beside the tests it gates; the `agent` marker it keys on is registered
-by `pytest_configure` below.
+by `pytest_configure` below, and so are the three tier markers -- every marker this suite
+has, registered in one place, next to the option that gates one of them. See
+`tests/tiers.py` for which tree is which tier and what a test in it may touch.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 import pytest
 
 import hmz.coganchor.models
 from hmz.runtime import telemetry
+from tests import tiers
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -23,6 +26,16 @@ if TYPE_CHECKING:
 #: Asking a backend what it runs, before the suite takes it away again. Held here so that a
 #: test which is about the asking can have it back.
 _ASKS = hmz.coganchor.models.ask
+
+#: Every test this run collected, written down for the guard at `tests/test_tiers.py`.
+#:
+#: A test cannot otherwise see the collection it is part of. `request.session.items` is what is
+#: left after `-m` has thrown the rest away, so under `-m "not system"` -- which is what CI
+#: runs -- a check reading that would be checking exactly the tests it was already running, and
+#: a system test filed in the wrong tree would be invisible to the run that most needs to catch
+#: it. This is filled from a conftest's hook, and a conftest's hook is called before pytest's
+#: own selection: what is written down is the whole tree, whatever the run asked for.
+COLLECTED: Final[list[pytest.Item]] = []
 
 
 @pytest.fixture(autouse=True)
@@ -161,8 +174,11 @@ def priced(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
 
 
 def pytest_configure(config: pytest.Config) -> None:
+    for line in tiers.TIERS.values():
+        config.addinivalue_line("markers", line)
     config.addinivalue_line(
-        "markers", "agent: end-to-end test that drives a real coding agent binary"
+        "markers",
+        "agent: system test that drives a real coding agent binary, and spends real tokens",
     )
 
 
@@ -171,18 +187,23 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--run-agents",
         action="store_true",
         default=False,
-        help="also run the end-to-end tests that drive real coding agents",
+        help="also run the tests that drive real coding agents, and spend real tokens",
     )
 
 
 def pytest_collection_modifyitems(
     config: pytest.Config, items: list[pytest.Item]
 ) -> None:
+    COLLECTED[:] = items
     if config.getoption("--run-agents"):
         return
     skip = pytest.mark.skip(
         reason="needs --run-agents (drives real agents, costs tokens)"
     )
     for item in items:
-        if "agent" in item.keywords:
+        # Asked of the markers rather than of `item.keywords`, which also holds the names of a
+        # test's parents: a directory or a test called `agent` would otherwise be skipped for
+        # spending tokens it never spends, and `tests/test_tiers.py` -- which reads the markers
+        # -- would not agree that it was an agent test at all.
+        if any(mark.name == "agent" for mark in item.iter_markers()):
             item.add_marker(skip)

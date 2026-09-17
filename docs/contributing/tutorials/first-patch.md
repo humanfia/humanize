@@ -111,6 +111,11 @@ uv run pytest
 The slow gate — minutes, not seconds. `-ra` is set in `pyproject.toml`, so the summary names
 everything that was skipped, and a test that quietly stops running says so.
 
+Where you put a new test is what it is: `tests/unit`, `tests/integration` or `tests/system`,
+each of which marks everything beneath it, so there is no decorator to remember and
+`tests/test_tiers.py` goes red if a marker and a directory ever disagree. [Where a test
+lives](/contributing/#where-a-test-lives) has what each tree may touch.
+
 The `agent`-marked tests are skipped unless you ask for them:
 
 ```
