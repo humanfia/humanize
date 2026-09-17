@@ -503,25 +503,56 @@ def edited(at: Path) -> bool:
 def clone(url: str, at: Path) -> None:
     """Clones a repository, and leaves nothing behind where it could not.
 
+    Cloned beside and then moved into place, so that what is at `at` is either nothing or a
+    whole repository and never the middle of one.
+
     git tidies up after its own failures, but not after being killed: a clone called off for
-    taking too long is stopped where it stood, and what it had written so far stays. That is a
-    name taken by a flowverse that is not there -- and since a name already taken is refused,
-    it is a name that cannot be used again until somebody finds the directory and removes it.
+    taking too long is stopped where it stood, and what it had written so far stays. Written
+    straight into `at`, that is a name taken by a flowverse that is not there -- and since a
+    name already taken is refused, it is a name nobody can use again until somebody finds the
+    directory and removes it. Written beside, it is a hidden directory to sweep up here.
+
+    And two callers reach one directory as a matter of course: the interface takes what every
+    flowverse says now as it opens, and the flow menu fetches whatever has never been fetched
+    as it is opened, so typing `/flow` on a machine where `official` has never been fetched is
+    two clones of one place, each begun before the other had finished. Cloning straight into
+    `at` makes the second of them fail on a directory that is already there -- and tidying up
+    after that failure by taking `at` away is taking away the clone the first one had just
+    written. The move is what settles who won, and whoever lost throws their own copy away and
+    says nothing: what they were asking for was a fetched repository, and there is one.
 
     Args:
       url: Where the repository is, as somebody wrote it.
-      at: The directory to clone into, which must not already be there.
+      at: The directory to clone into, which must not already be there. One that is there by
+        the time this is done with is somebody else's clone, which is left alone.
 
     Raises:
-      OSError: If git is not there, or the clone failed. What git said is attached.
+      OSError: If git is not there, or the clone failed -- and if something that is not a
+        clone is in the way of the move, which is the one failure the move cannot answer by
+        letting the other one win. What git said is attached.
     """
     import shutil
+    import tempfile
 
+    # Made here as well as by the callers, since the copy is written beside `at` rather than
+    # at it: there has to be somewhere to put it.
+    at.parent.mkdir(parents=True, exist_ok=True)
+    beside = Path(tempfile.mkdtemp(dir=at.parent, prefix=f".{at.name}."))
+    beside.rmdir()  # git clones into a directory it makes; this was only to take the name
     try:
-        _git("clone", "--depth", "1", _url_of(url), str(at))
-    except OSError:
-        shutil.rmtree(at, ignore_errors=True)
+        _git("clone", "--depth", "1", _url_of(url), str(beside))
+    except BaseException:
+        shutil.rmtree(beside, ignore_errors=True)
         raise
+    try:
+        beside.rename(at)
+    except OSError:
+        shutil.rmtree(beside, ignore_errors=True)
+        if not _cloned(at):
+            # Something is in the way that is not a clone, which is nobody having won: the
+            # half a clone a killed run left, or a directory somebody made by hand. Said,
+            # rather than passed off as a fetch, since there is nothing there to fetch from.
+            raise
 
 
 def _git(*said: str) -> None:

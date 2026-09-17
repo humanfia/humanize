@@ -13,6 +13,7 @@ there cannot be taken away.
 from __future__ import annotations
 
 import subprocess
+import threading
 from typing import TYPE_CHECKING
 
 import pytest
@@ -46,6 +47,11 @@ def run(agents: tuple[AgentBase], task: str) -> None:
     (agent,) = agents
     agent.new()(task)
 '''
+
+
+#: How long one thread here waits on another before giving up on it. A race nobody resolves
+#: is a suite that hangs rather than one that fails, so every wait here has a clock on it.
+_PATIENCE = 30.0
 
 
 def _git(*said: str, at: Path) -> None:
@@ -223,6 +229,73 @@ def test_fetching_one_that_was_never_fetched_clones_it(
     assert official.fixed  # and it is still the one that cannot be taken away
     assert store.flows(official) == ["chat", "loop", "review"]
     assert ("official", "loop", "A flow of somebody else's.") in found()
+
+
+def test_two_callers_cloning_one_place_leave_a_whole_clone_behind(
+    theirs: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two of them reach one directory, and whichever loses must not take the winner's with it.
+
+    Both callers are real. The interface takes what every flowverse says now as it opens, and
+    the flow menu fetches whatever has never been fetched as it is opened -- so on a machine
+    where `official` has never been fetched, typing `/flow` is two clones of one directory,
+    each begun before the other had finished. A clone that tidied up after its own failure by
+    taking that directory away would be taking away the clone the other one had just written,
+    and `official` would be listed as never fetched with its flows nowhere.
+
+    The interleaving is pinned rather than waited for. A race has orders -- the second caller
+    reaching git while the first is still cloning, and reaching it after the first has
+    finished -- and a test that left which of them happened to the clock would be a guard that
+    passed nineteen runs in twenty and said nothing about the twentieth. Both threads are real
+    and both call the real clone; what is pinned is only which of them reaches git first.
+    """
+    at = store.where("theirs")
+    at.parent.mkdir(parents=True, exist_ok=True)
+    runs = store._git
+    turn = threading.Lock()
+    taken: list[str] = []
+    first = threading.Event()
+
+    def after_the_other(*said: str) -> None:
+        """Runs git, holding whoever gets here second until the first one is done."""
+        with turn:
+            second = bool(taken)
+            taken.append(said[0])
+        if second:
+            first.wait(_PATIENCE)
+            runs(*said)
+            return
+        runs(*said)
+        first.set()
+
+    monkeypatch.setattr(store, "_git", after_the_other)
+    ready = threading.Barrier(2)
+    failed: list[OSError] = []
+
+    def clones() -> None:
+        """One caller, which is whichever of the two this thread turns out to be."""
+        ready.wait(_PATIENCE)
+        try:
+            store.clone(str(theirs), at)
+        except OSError as why:
+            failed.append(why)
+
+    both = [threading.Thread(target=clones) for _ in range(2)]
+    for one in both:
+        one.start()
+    for one in both:
+        one.join(_PATIENCE)
+
+    # Both of them really did reach git, rather than one of them finding the place taken and
+    # never cloning at all -- which would be a race nobody ran.
+    assert taken == ["clone", "clone"]
+    # And neither is left holding an error: a clone somebody else had already finished is a
+    # fetched flowverse, which is what both callers were asking for.
+    assert [str(one) for one in failed] == []
+    assert (at / ".git").is_dir()
+    assert (at / FLOWS / "loop" / ENTRY).is_file()
+    # And whichever lost took its own copy away rather than leaving it under the flowverses.
+    assert list(at.parent.iterdir()) == [at]
 
 
 def test_one_that_was_added_may_be_taken_away(theirs: Path) -> None:
