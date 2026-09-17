@@ -291,6 +291,13 @@ uv run pytest --run-agents          # also the system tier: the real CLIs, real 
 
 Run them through `uv run`, not `uvx`: the lockfile pins the versions the hooks and CI enforce.
 
+A test that needs a model to answer does not reach anybody's gateway: `tests/llm.py` serves an
+OpenAI-compatible endpoint on the loopback — `GET /v1/models` for a catalogue and
+`POST /v1/chat/completions` for a turn — out of what the test said it serves and says, and
+writes down every request it took. The `llm` fixture hands one out, and `Serving.account(cli)`
+writes down an account of any backend pointed at it, reading which variable routes that
+backend's turns off its own profile.
+
 - **ruff** with `select = ["ALL"]`, less what this codebase has a reason to be without. Every
   exemption in `pyproject.toml` carries the reason it is there.
 - **pyright** in strict mode, with `# type: ignore` comments disabled — a suppression names a
