@@ -1,10 +1,18 @@
-"""Making a provider: what a way in is asked, what is written down, and where a login lands.
+"""Where a login lands: the backend's own command, run so that what it writes is the provider's.
 
-The half that is answers is read straight off the store afterwards -- what a way keeps, what
-it sets whatever it was told, what it fills into a backend's own command line. The half that
-is a command is driven against a stand-in CLI on PATH: a script that writes a file at the
-path the real one writes its credentials to, because where that file lands is the one thing
-a real login would tell us and it would cost a browser and an account to ask.
+This is the half of signing in that is a command. Each of these drives a stand-in CLI on PATH
+-- a script that writes a file at the path the real one writes its credentials to, because
+where that file lands is the one thing a real login would tell us and it would cost a browser
+and an account to ask -- and drives it the way a turn does, under the supervisor that answers
+every credential path the CLI names with one inside the provider. A machine that will not hand
+over a tracee can check none of it: a container without `CAP_SYS_PTRACE` has every module here
+and can supervise nothing. Which is what makes these the system tier, the one a gate is meant
+to be able to leave out.
+
+The other half is `tests/unit/providers/test_login.py`: what a way in is asked, and what is
+written down once it has been answered. That reaches nothing and runs anywhere, and it is not
+in this file because a tier is a directory -- left here, it would be left out of the gate
+along with the tracer these need.
 
 Nothing here may touch the credentials of whoever is running the suite: this user's home is
 moved to `tmp_path` for every test that names one, and every backend's own home variable is
@@ -16,13 +24,19 @@ from __future__ import annotations
 import json
 import os
 import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor import backends, providers
+from hmz.coganchor import backends
 from hmz.coganchor.providers import login
+from tests import logins
+from tests.logins import way
 from tests.supervising import traced
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
 
 #: A stand-in for `claude auth login`: what a login leaves behind, without the browser.
 CLAUDE_LOGIN = """\
@@ -78,167 +92,19 @@ def stand_in(monkeypatch: pytest.MonkeyPatch, at: Path, name: str, script: str) 
     return program
 
 
-def way(cli: str, name: str) -> backends.Way:
-    """The way in of that name, which every test that asks for one names one there is."""
-    found = login.way_of(cli, name)
-    assert found is not None, f"{cli} offers no way in called {name!r}"
-    return found
-
-
 @pytest.fixture
 def house(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """This user's home, somewhere temporary: nothing here may read or write the real one."""
-    house = tmp_path / "house"
-    house.mkdir()
-    monkeypatch.setenv("HOME", str(house))
-    for profile in backends.PROFILES:
-        monkeypatch.delenv(profile.home_var, raising=False)
+    """This user's home somewhere temporary, and a mark the stand-ins say they ran at.
+
+    At a path nothing a provider answers for, so that a stand-in which was never spawned is
+    told from one that ran and wrote nowhere.
+    """
+    at = logins.house(tmp_path, monkeypatch)
     monkeypatch.setenv("STAND_IN_RAN", str(tmp_path / "ran"))
-    return house
-
-
-# ------------------------------------------------------------ what is asked
-
-
-def test_a_way_is_found_under_the_name_the_backend_offers_it_by() -> None:
-    found = login.way_of("claude-code", "bedrock")
-
-    assert found is not None
-    assert found.name == "bedrock"
-    assert login.way_of("claude", "env") is providers.ENV
-    assert login.way_of("claude", "nope") is None
-    assert login.way_of("nope", "login") is None
-
-
-def test_a_way_still_has_to_be_told_whatever_it_has_no_answer_for() -> None:
-    gateway = way("claude", "gateway")
-
-    assert login.asked(gateway, {}) == ["ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"]
-    assert login.asked(gateway, {"ANTHROPIC_BASE_URL": "https://x.invalid"}) == [
-        "ANTHROPIC_AUTH_TOKEN"
-    ]
-    assert (
-        login.asked(gateway, {"ANTHROPIC_BASE_URL": "x", "ANTHROPIC_AUTH_TOKEN": "y"})
-        == []
-    )
-
-
-def test_a_question_with_an_answer_that_is_usually_right_is_not_one_to_ask() -> None:
-    assert login.asked(way("claude", "bedrock"), {}) == ["AWS_PROFILE"]
-    assert login.asked(way("claude", "login"), {}) == []
-    assert login.asked(providers.ENV, {}) == []
-
-
-# --------------------------------------------------------- what is written down
-
-
-def test_a_provider_is_what_its_way_in_was_answered_with(house: Path) -> None:
-    provider = login.make(
-        "claude",
-        "mine",
-        way("claude", "gateway"),
-        {
-            "ANTHROPIC_BASE_URL": "https://example.invalid/anthropic",
-            "ANTHROPIC_AUTH_TOKEN": "not-a-real-token",
-        },
-    )
-
-    assert provider.way == "gateway"
-    assert dict(provider.env) == {
-        "ANTHROPIC_BASE_URL": "https://example.invalid/anthropic",
-        "ANTHROPIC_AUTH_TOKEN": "not-a-real-token",
-    }
-    assert providers.find("claude", "mine") == provider
-
-
-def test_an_answer_a_way_does_not_keep_is_not_written_down_anywhere(
-    house: Path,
-) -> None:
-    """Codex reads its key into its own store: a second copy is a second place to leak it."""
-    provider = login.make(
-        "codex", "mine", way("codex", "key"), {"OPENAI_API_KEY": "sk-not-a-real-key"}
-    )
-
-    assert dict(provider.env) == {}
-    assert "sk-not-a-real-key" not in (provider.at / "provider.json").read_text()
-
-
-def test_what_a_way_sets_whatever_it_was_answered_is_set(house: Path) -> None:
-    """The variable that switches a backend onto a vendor's cloud is nobody's to type."""
-    provider = login.make(
-        "claude", "mine", way("claude", "bedrock"), {"AWS_PROFILE": "work"}
-    )
-
-    assert dict(provider.env) == {
-        "AWS_PROFILE": "work",
-        "AWS_REGION": "us-east-1",  # the answer nobody was asked for
-        "CLAUDE_CODE_USE_BEDROCK": "1",
-    }
-
-
-def test_an_answer_is_filled_into_what_the_backend_takes_on_its_command_line(
-    house: Path,
-) -> None:
-    """Codex takes a provider as settings rather than as variables, so a way carries arguments."""
-    provider = login.make(
-        "codex",
-        "mine",
-        way("codex", "gateway"),
-        {
-            "CODEX_PROVIDER_URL": "https://example.invalid/v1",
-            "CODEX_PROVIDER_KEY": "not-a-real-key",
-        },
-    )
-
-    assert (
-        "model_providers.humanize.base_url=https://example.invalid/v1" in provider.args
-    )
-    assert "model_providers.humanize.wire_api=responses" in provider.args
-    assert provider.env["CODEX_PROVIDER_KEY"] == "not-a-real-key"
-
-
-def test_variables_of_your_own_are_kept_whatever_they_are_called(house: Path) -> None:
-    """The way in every backend has: nothing declares these, so nothing may drop them."""
-    provider = login.make("pi", "mine", providers.ENV, {"PI_API_KEY": "not-a-real-key"})
-
-    assert dict(provider.env) == {"PI_API_KEY": "not-a-real-key"}
-
-
-def test_an_answer_nobody_gave_is_not_a_variable_set_to_nothing(house: Path) -> None:
-    provider = login.make(
-        "claude", "mine", way("claude", "key"), {"ANTHROPIC_API_KEY": ""}
-    )
-
-    assert dict(provider.env) == {}
-
-
-def test_making_a_provider_makes_the_places_its_login_will_write_to(
-    house: Path,
-) -> None:
-    provider = login.make("claude", "mine", way("claude", "login"))
-
-    assert provider.swaps()
-    for _, instead in provider.swaps():
-        assert Path(instead).parent.is_dir()
-
-
-def test_a_provider_that_could_not_be_named_is_not_made(house: Path) -> None:
-    with pytest.raises(ValueError, match="is not a provider name"):
-        login.make("claude", "../evil", way("claude", "login"))
-    with pytest.raises(ValueError, match="no such coding agent"):
-        login.make("nope", "mine", providers.ENV)
+    return at
 
 
 # ------------------------------------------------------------- what signs in
-
-
-def test_a_way_that_is_only_answers_has_nothing_to_sign_in(house: Path) -> None:
-    """It was done when it was written down, so there is no command and no status but zero."""
-    provider = login.make(
-        "claude", "mine", way("claude", "key"), {"ANTHROPIC_API_KEY": "not-a-real-key"}
-    )
-
-    assert login.sign_in(provider, way("claude", "key")) == 0
 
 
 @traced

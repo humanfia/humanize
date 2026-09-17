@@ -2,10 +2,20 @@
 
 The cache on its own, without a supervisor around it: what is copied, what is not, when a copy
 stops being the answer, and what is left on `/dev/shm` afterwards. The half of it that is a
-tracee reading through the copy is in `tests/system/coganchor/test_redirect.py`, where the
+tracee reading through the copy is in `tests/system/providers/test_redirect.py`, where the
 supervisor is.
 
-Everything here is a file under `tmp_path`. Nothing reaches a real credential.
+The credentials are files under `tmp_path`, and nothing here reaches a real one. The copies
+are not, and could not be: `/dev/shm` is what the cache is for, a read of it being a read of
+memory rather than of a disk. That one real directory outside `tmp_path` is what keeps these
+out of the unit tier, where a test owns nothing but the path pytest handed it: three of these
+make a directory in `/dev/shm` on purpose, to check what a run that was killed leaves behind,
+and it is a directory shared with every other process on the machine.
+
+It is not the system tier either, and must not be: there is no tracer here, no container, no
+CLI and no network, so any machine that runs the suite at all can run these. POSIX shared
+memory is mounted at `/dev/shm`, so a Linux that has one has this one, and an image built
+without it is the one machine that cannot -- which is what the skip below is for.
 """
 
 from __future__ import annotations
