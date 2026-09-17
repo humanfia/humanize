@@ -2471,9 +2471,10 @@ What the layer promises:
   inlined it into several — and an optional digest. A pattern rather than one release's bytes, because a literal stops matching the morning
   the CLI updates itself, and stops matching in silence: the reach closes and the run goes on down
   the shallower road saying nothing about it. Written to the shape a bundle keeps across releases,
-  the reach survives the release; and `tests/agents/test_patching.py`, under `--run-agents`, checks
-  every fingerprint against the binary actually installed, so a bundle that really did move is
-  something somebody sees rather than something that quietly stops being served.
+  the reach survives the release; and `tests/system/agents/test_patching.py`, under
+  `--run-agents`, checks every fingerprint against the binary actually installed, so a bundle that
+  really did move is something somebody sees rather than something that quietly stops being
+  served.
 - **Fall back on any mismatch or failure.** A bundle this has not seen, a digest that changed, a
   site that has moved, a copy that will not start: every one returns `None` and is logged, and the
   run reaches the CLI a shallower way. A patch that did not apply is never a run that did not
