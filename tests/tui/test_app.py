@@ -1664,7 +1664,7 @@ async def test_every_line_typed_between_turns_is_a_turn_of_one_conversation(
 
 # The only one here that starts the DeepSeek runtime for real -- the message it checks is
 # what that runtime answers a turn with no credential -- so it wants the extra that installs
-# one. The rest of dsh is covered against a fake harness in `tests/agents/test_dsh.py`.
+# one. The rest of dsh is covered against a fake harness in `tests/unit/agents/test_dsh.py`.
 @pytest.mark.skipif(
     importlib.util.find_spec("deepseek_harness") is None,
     reason="starts the dsh runtime, which the [dsh] extra installs",
