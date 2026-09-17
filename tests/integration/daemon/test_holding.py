@@ -360,10 +360,16 @@ def test_a_terminal_dragged_wider_says_so_and_the_run_is_drawn_for_that(
     terminal.hears(OUTPUT)
 
     terminal.says(RESIZE, {"columns": 133, "rows": 44})
-    holding.draws(b"again")
-    terminal.hears(OUTPUT)
 
-    assert _size(holding.run) == (133, 44)
+    # Waited for rather than read once a drawn line has come back round. A frame out and a
+    # frame in are two descriptors of one selector round, and which of them that round
+    # answers first is the kernel's order rather than ours -- so a screen carried out is no
+    # receipt for a size carried in, and reading the size off the back of one is `(100, 30)
+    # == (133, 44)` whenever the round happened to take the run's end first. Two in twenty
+    # under load.
+    assert until(lambda: _size(holding.run) == (133, 44)), (
+        "the run was never drawn for the wider terminal"
+    )
 
 
 @pytest.mark.timeout(60)
@@ -387,8 +393,15 @@ def test_a_size_that_is_not_a_window_somebody_is_reading_is_refused(
     was = _size(holding.run)
 
     terminal.says(RESIZE, said)
-    holding.draws(b"again")
-    terminal.hears(OUTPUT)
+    # Read once the run has answered something sent after it, which is the receipt a resize
+    # has none of. Frames off one socket are taken in the order they were written, so an
+    # answer to the question behind it is the daemon saying it has been past the resize. A
+    # screen drawn in the meantime says nothing of the kind -- that arrives on the run's own
+    # descriptor, and which end of one selector round is taken first is the kernel's order
+    # rather than ours. Read off that, a size that is still what it was is a size that was
+    # refused or a size nobody has looked at yet, and only one of those is what this is about.
+    terminal.says(CONTROL, {"do": "status"})
+    terminal.hears(CONTROL)
 
     assert _size(holding.run) == was
 
