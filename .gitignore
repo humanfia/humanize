@@ -222,3 +222,7 @@ __marimo__/
 
 
 .humanize/
+
+# Scratch the agent harness keeps here: worktrees of this repository, which git would
+# otherwise record as gitlinks to commits no clone of this one can resolve.
+.claude/
