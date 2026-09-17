@@ -1,4 +1,10 @@
-"""Unit tests for the lazily materialised mirror of the target workspace."""
+"""The lazily materialised mirror of the target workspace, filled from a real target.
+
+Integration rather than unit: a mirror is only filled by asking the other half for what is
+in the target, so every test here drives a client and a server wired together over a
+`socketpair` -- this repo talking to itself, in one process, over no port and with no
+subprocess. Nothing below asks the kernel for a feature, which is what keeps it in CI.
+"""
 
 from __future__ import annotations
 
