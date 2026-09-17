@@ -1,7 +1,12 @@
 """What a machine test needs and cannot make for itself: a daemon holding the image.
 
-Shared rather than written out twice, since every file here that drives a real container
-skips for want of one in exactly the same way.
+The tests are under `tests/integration/machines/` and `tests/system/machines/`; this stays
+here, outside both, because the image's name is wanted on either side of that line -- a system
+test starts a container of it, and an integration test names it in a setting it never brings
+up. Shared rather than written out twice so that the skip a machine without docker gets is
+worded once: a second copy that drifted would be a container test reporting failure on a
+machine that simply has no daemon running. `tests/system/machines/conftest.py` re-exports the
+fixture to the tests that want one.
 """
 
 from __future__ import annotations

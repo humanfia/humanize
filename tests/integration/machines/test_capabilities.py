@@ -2,9 +2,14 @@
 
 The setting answers for itself, so that a flow may refuse a place before its first turn, and
 the machine answers for the one thing only a machine can say: the platform it turns out to be
-running, read from the handshake a turn opens. Both halves are driven against real targets --
-a `local:` one, which is a `serve` on the other end of a pipe, and a container where there is
-a daemon to run one -- so a platform that is reported here really did cross the wire.
+running, read from the handshake a turn opens. Most of what is below starts nothing whatever:
+a setting is built and asked, which is the half that has to answer before there is a machine
+to ask. The two that do start something start a `local:` target -- a `serve` on the other end
+of a pipe, written in this tree -- so a platform reported by those really did cross a wire, and
+still nothing was pulled, reached for or installed to get it.
+
+The other half is `tests/system/machines/test_capabilities.py`: the same promise made good on
+by a real container, which wants a docker daemon and so is not something CI runs.
 """
 
 from __future__ import annotations
@@ -152,25 +157,3 @@ def test_a_machine_that_cannot_serve_what_was_asked_of_it_is_refused_as_it_start
         machine.start()
 
     assert HERE in str(refused.value)
-
-
-def test_a_container_confirms_the_platform_its_setting_promised(
-    daemon: None, tmp_path: Path
-) -> None:
-    """Declared before the container exists, and made good on by the container itself.
-
-    Which is the pair working as it should: `linux` is refusable before anything is pulled,
-    and it is still the running container that is asked whether it is true.
-    """
-    machine = DockerConfig(image=IMAGE, workspace=str(tmp_path)).create()
-
-    try:
-        machine.start()
-
-        assert machine.capabilities == frozenset(
-            {"anchor:supervised", "isolated", "linux", "managed", "remote"}
-        )
-        # And the platform among them came off the wire rather than out of the settings.
-        assert machine._seen == frozenset({"linux"})
-    finally:
-        machine.stop()

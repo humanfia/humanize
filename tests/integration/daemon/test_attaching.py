@@ -1,10 +1,11 @@
 """The pieces a terminal reads a held run with, each on its own.
 
-The whole of `reads` is `test_opening.py`'s and `terminals.py`'s: it puts the terminal it is
-called on into raw mode and sits on it until the run lets go, which is a thing to do in a
-process built for it rather than to the one running the suite. What is here is everything
-underneath that -- what is read off the socket, what is put on the terminal, how big the
-terminal says it is, and what each of those does when the thing at the other end has gone.
+The whole of `reads` is `test_held.py`'s and `tests/daemon/terminals.py`'s: it puts the
+terminal it is called on into raw mode and sits on it until the run lets go, which is a thing
+to do in a process built for it rather than to the one running the suite. What is here is
+everything underneath that -- what is read off the socket, what is put on the terminal, how
+big the terminal says it is, and what each of those does when the thing at the other end has
+gone.
 
 Every descriptor below is a pipe or a pseudoterminal of the test's own. Nothing touches the
 terminal the suite was started from.

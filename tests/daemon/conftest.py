@@ -3,6 +3,13 @@
 A daemon is one per workspace, so a test that holds one has to be standing somewhere no other
 test is -- and has to let go of it however it ended, or the next test finds a run it did not
 start.
+
+The tests themselves are under `tests/unit/daemon/` and `tests/integration/daemon/`, and these
+two fixtures stay here beside `runs.py` and `terminals.py` -- what a daemon is handed to hold,
+and the process that reads one back. All four are what the tests are written against rather
+than tests, and there is one copy of each because a second that drifted would be a second
+answer to where this workspace's daemon is. `tests/integration/daemon/conftest.py` re-exports
+what it needs from here.
 """
 
 from __future__ import annotations

@@ -1,102 +1,36 @@
-"""Machines: the one an agent starts for itself, and the anchor its turns then run under.
+"""A container really started, and the turns and flows that then run inside it.
 
-The wiring is checked against a machine that starts nothing, so what it proves is when one is
-brought up and when it is taken down. The docker machine is then driven for real, which needs a
-daemon and the image below.
+Every test here brings up a container of a pulled image and takes it down again, because the
+things being checked are the ones only a real one can answer: that the workspace is the
+directory this machine already had rather than a copy, that a turn ran somewhere that is not
+this host, that a flow naming an image lands its agent there, and that the container is gone
+when the run that asked for it ends. A stand-in cannot say any of that -- it would only repeat
+what the test told it.
+
+That means a docker daemon, a pulled `python:3.12-slim`, and a user who may talk to the
+socket. CI is not given those, so CI does not run this file; the half that needs none of them
+is `tests/integration/machines/test_isolation.py`, which drives the same wiring -- when a
+machine is started, when it is taken down -- against a machine that brings nothing up.
 """
 
 from __future__ import annotations
 
-import gc
 import os
 import socket
 import subprocess
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import pytest
 
 from hmz.coganchor import check
 from hmz.coganchor.agents import AgentConfig
-from hmz.coganchor.machines import (
-    AnchoredConfig,
-    DockerConfig,
-    MachineBase,
-    MachineConfig,
-)
+from hmz.coganchor.machines import DockerConfig
 from hmz.runtime.runner import Runner
 from tests.machines.conftest import IMAGE
-from tests.stubs import HereAnchor, ShellAgent, written
+from tests.stubs import ShellAgent, written
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    from hmz.coganchor import AnchorConfig
-
-
-class _StubMachine(MachineBase):
-    """A machine that is only ever said to be started, and records that it was."""
-
-    def __init__(self, config: _StubMachineConfig) -> None:
-        super().__init__(config)
-        self.anchor = HereAnchor(target="tcp://stub:0")
-        self.started = 0
-        self.stopped = 0
-
-    def start(self) -> AnchorConfig:
-        self.started += 1
-        return self.anchor
-
-    def stop(self) -> None:
-        self.stopped += 1
-
-
-@dataclass(frozen=True, kw_only=True)
-class _StubMachineConfig(MachineConfig):
-    #: Every machine this config builds, so a test can ask what became of them.
-    built: list[_StubMachine]
-
-    def create(self) -> _StubMachine:
-        machine = _StubMachine(self)
-        self.built.append(machine)
-        return machine
-
-
-def test_a_machine_is_started_for_the_first_turn_and_shared_by_the_rest() -> None:
-    setting = _StubMachineConfig(built=[])
-    agent = ShellAgent(AgentConfig(model="m", effort="high", machine=setting))
-    assert setting.built == []  # configuring an agent starts nothing
-
-    agent.new()("echo one")
-    agent.new()("echo two")  # a second session, and still one machine
-    assert len(setting.built) == 1
-    assert setting.built[0].started == 1
-    assert agent.anchor is setting.built[0].anchor
-    # Both turns ran under it, which is what a machine of the agent's own is for.
-    assert setting.built[0].anchor.seen == [
-        ["sh", "-c", "echo one"],
-        ["sh", "-c", "echo two"],
-    ]
-
-
-def test_a_machine_is_taken_down_with_the_agent_that_started_it() -> None:
-    setting = _StubMachineConfig(built=[])
-    agent = ShellAgent(AgentConfig(model="m", effort="high", machine=setting))
-    agent.new()("echo one")
-    assert setting.built[0].stopped == 0  # while the agent may still run a turn
-
-    del agent
-    gc.collect()
-    assert setting.built[0].stopped == 1
-
-
-def test_a_machine_that_was_already_running_is_reached_and_left_running() -> None:
-    """Which is the whole of what an anchor says, and the reason it is a machine like any."""
-    anchor = HereAnchor(target="ssh://build-box")
-    machine = AnchoredConfig(anchor=anchor).create()
-
-    assert machine.start() is anchor
-    machine.stop()  # and there is nothing to take down
 
 
 def _inspect(container: str, field: str) -> str:
@@ -130,14 +64,6 @@ def test_the_container_holds_the_workspace_as_this_user(
         machine.stop()
 
     assert _inspect(container, "{{.Id}}") == ""  # and it goes when it is stopped
-
-
-def test_a_workspace_that_is_not_there_is_refused(tmp_path: Path) -> None:
-    """Rather than mounted into being: docker would create it, owned by root, in this tree."""
-    missing = tmp_path / "not-here"
-    with pytest.raises(FileNotFoundError):
-        DockerConfig(image=IMAGE, workspace=str(missing)).create().start()
-    assert not missing.exists()
 
 
 def test_a_turn_runs_in_the_container_and_leaves_its_work_in_the_workspace(
@@ -276,13 +202,6 @@ def test_a_run_may_be_put_in_one_container_and_every_agent_lands_there(
     assert said[0] != socket.gethostname()
     # And it is taken down when the run ends, whichever way it ends.
     assert _inspect(said[0], "{{.State.Running}}") == ""
-
-
-def test_the_flow_reaches_the_container_only_while_the_run_is_in_one() -> None:
-    """A run on this machine has none, and a flow does what it always did."""
-    from hmz.flows import container
-
-    assert container() is None
 
 
 #: The flow a contained run is started at, which calls one whose place says nothing about
