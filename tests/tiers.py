@@ -69,6 +69,25 @@ still one definition however many trees ask for it.
 Leaving a name out of that list is the one mistake here nothing else would notice, so
 `tests/test_tiers.py` reads it back: a test under `tests/<tier>/tui` is held to the autouse
 fixtures of `tests/tui`, and a run says which one went missing rather than passing without it.
+It is the *autouse* ones that need a guard. A fixture asked for by name -- the `sandbox` in
+`tests.composing`, which hands a test a path -- announces its own absence as `fixture 'sandbox'
+not found`, and no check can improve on that; the autouse `sandbox` of `tests/tracing/conftest.py`,
+which redirects four environment variables and returns nothing, goes missing in silence. Two
+fixtures, one name, and only one of them is what this is about.
+
+There are three ways a fixture reaches a test that moved, and the check knows only the first:
+
+1. **Re-exported into the tier conftest**, as above. The default, and the only one a reader of
+   the directory can see at a glance -- so the only one worth a rule.
+2. **Imported into the test module itself.** An autouse fixture imported into a test file is
+   autouse for that file, which is a real answer for a fixture that belongs to one file and
+   would say nothing in a conftest over a directory. Both gates have to be told it is
+   deliberate, as they do for the conftest form -- `# noqa: F401` and a `# pyright:
+   ignore[reportUnusedImport]`. There is no declaration to compare it against, so nothing here
+   checks it: use it for one file, and re-export for a directory.
+3. **Left in a helper module that never moves** -- `tests/answering.py`, `tests/composing.py`,
+   `tests/recording.py`, `tests/logins.py`, `tests/stubs.py` and the rest. A helper travels by
+   import path, so there is nothing to take back.
 
 A tier root -- `tests/unit/conftest.py` and the other two -- holds its marker and nothing else,
 deliberately. A fixture written there would reach every subsystem in that tree, which is how
@@ -111,6 +130,28 @@ TIERS: Final[Mapping[str, str]] = {
 #: thousand `Path`s for an answer that was settled when this module was imported.
 _ROOTS: Final = {name: _TESTS / name for name in TIERS}
 
+#: The directories under a tier that are named for no subsystem, and what is in each.
+#:
+#: Every other directory under a tier mirrors one: `tests/integration/tui` holds tests written
+#: in `tests/tui`, and that mirroring is what lets `came_from` ask what a moved test used to be
+#: given. These mirror nothing because what they hold was never in a subsystem directory at
+#: all -- it sat directly in `tests/`, and moving it into the trees is what grouped it by
+#: subject. The conftest those tests were written under is `tests/conftest.py`, which is an
+#: ancestor of every tier tree as well, so nothing was left behind and there is nothing for the
+#: fixture check to compare them against.
+#:
+#: Written down rather than inferred, because a directory that mirrors nothing on purpose and a
+#: directory whose name is a typo look exactly alike from here: `tests/unit/tracing` mirrors a
+#: subsystem and `tests/unit/tracnig` mirrors nothing, and without this list the second is
+#: indistinguishable from the first. Anything not named here has to mirror a real directory.
+MIRRORS_NOTHING: Final[Mapping[str, str]] = {
+    "backends": "what a backend is, what it runs and what it costs",
+    "cli": "the command line, and what it prints",
+    "flows": "flows as the person who writes one meets them",
+    "layering": "the table of which package may depend on which",
+    "runtime": "what a run leaves behind it: epics, exports, budgets, telemetry",
+}
+
 
 def tier(path: Path) -> str | None:
     """Which of the three trees a file is in.
@@ -143,12 +184,43 @@ def came_from(path: Path) -> Path | None:
     Returns:
       The directory it mirrors, or None for a file in no tier tree, which has not moved. A file
       directly under a tier root mirrors `tests` itself, whose conftest is an ancestor of every
-      tree and so was never left behind by anything.
+      tree and so was never left behind by anything. The answer is where the test came from
+      rather than somewhere that necessarily exists: a directory named in `MIRRORS_NOTHING`
+      mirrors a path nobody ever wrote in, and `tests` above it is the real ancestor.
     """
     name = tier(path)
     if name is None:
         return None
     return _TESTS / path.relative_to(_ROOTS[name]).parent
+
+
+def unmirrored(path: Path) -> str | None:
+    """The tier directory this test is in that is named for nothing, and says nothing about it.
+
+    The mirroring is what the fixture check is read through, so a directory that mirrors
+    nothing is a directory that check passes over in silence -- which is right for the handful
+    that hold tests written in `tests/` itself, and wrong for a directory whose name is a
+    misspelling of a real subsystem. The two are told apart by `MIRRORS_NOTHING`, and only by
+    it: one is written down and the other is not.
+
+    Args:
+      path: The file a test was collected from.
+
+    Returns:
+      The name to be explained -- the first directory under the tier -- or None when it mirrors
+      a real directory under `tests`, when it is written down as mirroring none, or when the
+      test sits directly under the tier root and mirrors `tests` itself.
+    """
+    name = tier(path)
+    if name is None:
+        return None
+    within = path.relative_to(_ROOTS[name]).parts
+    if len(within) < 2:
+        return None
+    subsystem = within[0]
+    if subsystem in MIRRORS_NOTHING or (_TESTS / subsystem).is_dir():
+        return None
+    return subsystem
 
 
 def applied(name: str, items: Iterable[pytest.Item]) -> None:
