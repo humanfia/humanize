@@ -18,9 +18,8 @@ from hmz.coganchor.agents import AgentConfig, Board, Event, HumanAgent, Refused
 from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
 from hmz.tui.pick import EVERY, Entry, Monitoring
-
-from .test_app import until
-from .test_attach import SteerableAgent
+from tests.tui.test_app import until
+from tests.tui.test_attach import SteerableAgent
 
 if TYPE_CHECKING:
     from textual.pilot import Pilot
