@@ -1096,10 +1096,14 @@ class Humanize(App[None]):
         either -- whoever opened the interface asked for a prompt, not for a download -- so one
         that failed goes to the log, and what is already here goes on being what is offered.
 
-        Only the ones already fetched. The first fetch belongs to the flow menu, which does it
-        as the menu opens and says how it went: humanize's own repository before anybody has
-        asked for it is a download to say something about rather than to do silently, and a
-        first one that failed here without a word would be an empty list with no explanation.
+        Every one with somewhere to fetch from, whether or not it has ever been fetched. The
+        one nobody has fetched is the one most worth getting rather than the one to leave for
+        somebody to ask for: its flows are the flows nobody can run at all, so `official` on a
+        machine humanize was installed on this morning is the handful in the package and
+        nothing else until this lands. Nothing is lost by doing it quietly, either -- the flow
+        menu fetches what has never been fetched as it opens and says how that went, so
+        whoever goes looking for the flows a failure here would have brought is told, at the
+        moment they go looking, rather than left with an empty list and no explanation.
 
         And not one somebody has written into. A fetch resets the clone to what the repository
         says now, so a weaver editing a flow in a flowverse of their own would lose it to a

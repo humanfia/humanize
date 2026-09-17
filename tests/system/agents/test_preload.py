@@ -16,15 +16,16 @@ counting, and on a machine with it they ran a real external runtime inside the t
 believes is offline. A real binary CI cannot be relied on to have is a system test, so they are
 here, and what is left over there is honestly hermetic.
 
-The directory is the gate: the `shutil.which("node")` each one still opens with is what keeps a
-developer's `pytest tests/system` from erroring out where there is no node, and it was never
-what kept them off CI.
+Two gates, and they answer different questions. The directory is what keeps these out of CI,
+which never runs this tree. The `node` mark, registered in `tests/conftest.py`, is what keeps
+them out of a run on a machine with no `node` to run -- named in the `-ra` summary with the
+reason attached, rather than the bare `pytest.skip` in the body they used to carry, which said
+nothing a run could be selected on and nothing a reader could see from the outside.
 """
 
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import time
 from typing import TYPE_CHECKING
@@ -106,12 +107,11 @@ def _ran(
     )
 
 
+@pytest.mark.node
 def test_a_node_program_says_what_it_spawned_wrote_read_and_opened(
     tmp_path: Path,
 ) -> None:
     """Against the real runtime, which is the only thing that can confirm any of this."""
-    if shutil.which("node") is None:
-        pytest.skip("node is not installed here")
     agent = _agent()
     said = _seen(agent)
     added = preloaded(agent, {})
@@ -142,6 +142,7 @@ socket.destroy();
     assert ("connect", "127.0.0.1:9") in did
 
 
+@pytest.mark.node
 def test_the_preload_does_not_follow_a_program_into_another_program(
     tmp_path: Path,
 ) -> None:
@@ -152,8 +153,6 @@ def test_the_preload_does_not_follow_a_program_into_another_program(
     it was already reported by the spawn that ran it. What that program runs in turn finds
     nothing at all, which is what the variables it was handed being taken away means.
     """
-    if shutil.which("node") is None:
-        pytest.skip("node is not installed here")
     agent = _agent()
     said = _seen(agent)
     added = preloaded(agent, {"NODE_OPTIONS": "--max-old-space-size=2048"})
@@ -193,6 +192,7 @@ child.execFileSync(process.execPath, [{json.dumps(str(elsewhere / "theirs.js"))}
     assert not any("other program" in one for one in did)
 
 
+@pytest.mark.node
 def test_the_preload_follows_a_cli_that_re_execs_itself(tmp_path: Path) -> None:
     """Which is the difference between watching a turn and watching a launcher.
 
@@ -200,8 +200,6 @@ def test_the_preload_follows_a_cli_that_re_execs_itself(tmp_path: Path) -> None:
     there. The rule is the program rather than the process: a process started from the same
     install is still the CLI, and goes on reporting.
     """
-    if shutil.which("node") is None:
-        pytest.skip("node is not installed here")
     agent = _agent()
     said = _seen(agent)
     added = preloaded(agent, {})
@@ -224,10 +222,9 @@ child.execFileSync(process.execPath, [{json.dumps(str(tmp_path / "again.js"))}])
     assert "/bin/echo the turn itself" in did
 
 
+@pytest.mark.node
 def test_one_thing_the_program_did_is_one_report(tmp_path: Path) -> None:
     """`exec` reaches for `execFile`, which reaches for `spawn`: one command, not three."""
-    if shutil.which("node") is None:
-        pytest.skip("node is not installed here")
     agent = _agent()
     said = _seen(agent)
     added = preloaded(agent, {})
@@ -248,6 +245,7 @@ child.execSync("/bin/echo once");
     assert [one.about for one in said if one.tool == "spawn"] == ["/bin/echo once"]
 
 
+@pytest.mark.node
 def test_a_patched_call_is_the_call_it_replaced_in_every_other_way(
     tmp_path: Path,
 ) -> None:
@@ -258,8 +256,6 @@ def test_a_patched_call_is_the_call_it_replaced_in_every_other_way(
     and a patch that dropped it would leave `const { stdout } = await exec(...)` undefined,
     which is a CLI broken by something that was only supposed to be watching it.
     """
-    if shutil.which("node") is None:
-        pytest.skip("node is not installed here")
     agent = _agent()
     said = _seen(agent)
     added = preloaded(agent, {})
@@ -288,12 +284,11 @@ promised("/bin/echo promised").then((answer) => {{
     assert [one.about for one in said if one.tool == "spawn"] == ["/bin/echo promised"]
 
 
+@pytest.mark.node
 def test_a_program_whose_preload_has_nowhere_to_report_runs_as_it_would_have(
     tmp_path: Path,
 ) -> None:
     """Fail open. This file runs inside somebody else's program, and must never end one."""
-    if shutil.which("node") is None:
-        pytest.skip("node is not installed here")
     ran = _ran(
         'console.log("the turn ran");',
         tmp_path,
@@ -307,6 +302,7 @@ def test_a_program_whose_preload_has_nowhere_to_report_runs_as_it_would_have(
     assert ran.stdout.strip() == "the turn ran"
 
 
+@pytest.mark.node
 def test_a_program_that_was_never_meant_to_report_loads_it_and_says_nothing(
     tmp_path: Path,
 ) -> None:
@@ -315,8 +311,6 @@ def test_a_program_that_was_never_meant_to_report_loads_it_and_says_nothing(
     Which is what keeps a `node` somebody runs by hand, with this still in their environment
     from a flow that has ended, from connecting to anything.
     """
-    if shutil.which("node") is None:
-        pytest.skip("node is not installed here")
     hooks = Hooks(frozenset(Moment), "worker")
     said: list[Occasion] = []
     hooks.on(Moment.PRE_TOOL_USE, said.append)
@@ -337,6 +331,7 @@ def test_a_program_that_was_never_meant_to_report_loads_it_and_says_nothing(
     assert said == []
 
 
+@pytest.mark.node
 def test_a_cli_that_re_execs_itself_out_of_another_install_is_still_the_cli(
     tmp_path: Path,
 ) -> None:
@@ -347,8 +342,6 @@ def test_a_cli_that_re_execs_itself_out_of_another_install_is_still_the_cli(
     program. A rule written in paths would stop watching there, which is the half of the turn
     that does the work.
     """
-    if shutil.which("node") is None:
-        pytest.skip("node is not installed here")
     agent = _agent()
     said = _seen(agent)
     added = preloaded(agent, {})
@@ -376,6 +369,7 @@ child.execFileSync(process.execPath, [{json.dumps(str(updated / "newer.js"))}]);
     ]
 
 
+@pytest.mark.node
 def test_what_a_cli_reads_and_writes_of_its_own_install_is_not_the_turns_work(
     tmp_path: Path,
 ) -> None:
@@ -384,8 +378,6 @@ def test_what_a_cli_reads_and_writes_of_its_own_install_is_not_the_turns_work(
     A bundle loading itself is thousands of reads and not one of them is the agent doing
     anything; a file beside the work is the turn.
     """
-    if shutil.which("node") is None:
-        pytest.skip("node is not installed here")
     agent = _agent()
     said = _seen(agent)
     added = preloaded(agent, {})

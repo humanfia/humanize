@@ -303,8 +303,13 @@ async def test_every_flowverse_is_fetched_as_the_interface_starts(
 @pytest.mark.usefixtures("freshening")
 async def test_a_flowverse_somebody_has_written_into_is_left_where_it_is(
     theirs: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A fetch resets the clone, and a weaver editing a flow in one would lose the morning."""
+    # What the interface fetches as it starts is every flowverse, humanize's own included, so
+    # a test that turns that back on has to say where humanize's own is -- this one is not
+    # about it, and the address in the package is somebody else's server.
+    monkeypatch.setattr(store, "OFFICIAL_URL", str(theirs))
     added = store.add(str(theirs))
     (held,) = store.holds(added)
     (held / "loop" / ENTRY).write_text(FLOW.replace("Somebody", "Mine now"))
@@ -514,6 +519,7 @@ async def test_copying_one_twice_says_the_copy_is_already_there(
 @pytest.mark.usefixtures("freshening")
 async def test_a_fetch_that_lands_makes_an_open_menu_read_the_flows_again(
     theirs: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The menu holds what it read, and a download landing under it makes that the old list.
 
@@ -521,6 +527,9 @@ async def test_a_fetch_that_lands_makes_an_open_menu_read_the_flows_again(
     can run until the list is read again, and a restart to pick up what is already on the disk
     is the fetch having worked and nothing showing it.
     """
+    # The same as above: the fetch this turns back on is every flowverse's, so where
+    # humanize's own is fetched from is this test's to say rather than the package's.
+    monkeypatch.setattr(store, "OFFICIAL_URL", str(theirs))
     store.add(str(theirs))
     app = Humanize()
     async with app.run_test() as driver:
