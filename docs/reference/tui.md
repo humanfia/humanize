@@ -639,12 +639,14 @@ slower and no noisier for it. It leaves alone a clone you have written into, sin
 resets one to what the repository says now, and it stops at a flow that starts running, for the
 same reason read the other way round.
 
-**A fetch that lands makes whatever is drawn read the flows again.** A menu that lists flows
-reads them once and holds what it read, since reading a flow means running it — so a download
-landing underneath would leave the list from before it, and a flow that arrived in the fetch
-would be one the menu does not offer while a flow whose file changed would be one it will not
-load. Both used to come right only on a restart, which was the fetch working and nothing
-showing it.
+**A fetch that brings something down makes whatever is drawn read the flows again.** A menu
+that lists flows reads them once and holds what it read, since reading a flow means running it
+— so a download landing underneath would leave the list from before it, and a flow that arrived
+in the fetch would be one the menu does not offer while a flow whose file changed would be one
+it will not load. Both used to come right only on a restart, which was the fetch working and
+nothing showing it. A fetch that brings nothing down — which most of them are, the repository
+not having moved since the last start — leaves what is drawn where it is: re-reading for
+nothing is every flow on the disk run again to arrive at the list that is already there.
 
 Enter on a flow opens it: what that flow was last set up with here is read back,
 [what the flow itself takes](#setting-a-flow-up) is asked where it takes anything, and what

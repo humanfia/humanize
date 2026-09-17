@@ -60,6 +60,7 @@ __all__ = [
     "plain",
     "refresh",
     "remove",
+    "standing",
     "under",
 ]
 
@@ -487,17 +488,28 @@ def edited(at: Path) -> bool:
       directory that is not a clone has nothing in it that a fetch could take away, there
       being no fetch.
     """
-    try:
-        done = subprocess.run(
-            ["git", "-C", str(at), "status", "--porcelain", "--untracked-files=no"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=_PATIENCE,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return False
-    return done.returncode == 0 and bool(done.stdout.strip())
+    return bool(_asked("-C", str(at), "status", "--porcelain", "--untracked-files=no"))
+
+
+def standing(at: Path) -> str:
+    """Which commit a clone stands at, which is what a fetch that brought anything down moves.
+
+    Asked either side of a fetch by whatever fetches without being asked to, so that what is
+    done about a fetch that landed is done about the fetches that landed something. Most of
+    them land nothing -- the repository has not moved since the last start -- and everything
+    that reads the flows off a clone reads them by running them, so taking one of those for a
+    change is every flow on the disk imported again to arrive at the list that was already
+    drawn.
+
+    Args:
+      at: The clone.
+
+    Returns:
+      The commit it is on, and "" for a directory that is not a clone, or one git will not
+      answer about. That compares unequal to any commit, so a place cloned for the first time
+      reads as having changed, which it has: its flows were not there before.
+    """
+    return _asked("-C", str(at), "rev-parse", "HEAD")
 
 
 def clone(url: str, at: Path) -> None:
@@ -580,6 +592,35 @@ def _git(*said: str) -> None:
         raise OSError(f"git {said[0]} took longer than {_PATIENCE:.0f}s") from slow
     if done.returncode != 0:
         raise OSError(done.stderr.strip() or f"git {said[0]} failed")
+
+
+def _asked(*said: str) -> str:
+    """Runs one git command to read it, and answers with nothing where it could not be run.
+
+    The other half of :func:`_git`, which is for the commands that change something and says
+    what git said by raising. This is for the two that are run to be read -- whether a clone
+    has been written into, and which commit it stands at -- where git refusing, or not being
+    installed at all, is an answer rather than something to raise: both are asked of a
+    directory that may not be a clone, and both are asked while something is being drawn.
+
+    Args:
+      said: The arguments, after `git` itself.
+
+    Returns:
+      What git printed, with the whitespace off it, and "" where it would not run or would
+      not answer.
+    """
+    try:
+        done = subprocess.run(
+            ["git", *said],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=_PATIENCE,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return done.stdout.strip() if done.returncode == 0 else ""
 
 
 #: What `owner/repo` looks like, which is the one spelling that is not already something git
