@@ -13,12 +13,14 @@ import pytest
 
 import hmz.coganchor.models
 from hmz.runtime import telemetry
+from tests.llm import serving
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
     from hmz.coganchor.backends import Model
+    from tests.llm import Serving
 
 #: Asking a backend what it runs, before the suite takes it away again. Held here so that a
 #: test which is about the asking can have it back.
@@ -110,6 +112,23 @@ def asking(_asks_nothing: None, monkeypatch: pytest.MonkeyPatch) -> None:
     before: two fixtures setting one attribute is the order they run in.
     """
     monkeypatch.setattr(hmz.coganchor.models, "ask", _ASKS)
+
+
+@pytest.fixture
+def llm() -> Iterator[Serving]:
+    """One model endpoint on the loopback, taken down however the test ends.
+
+    What a test uses instead of somebody's gateway: it serves the catalogue an account is
+    asked for, and answers the chat completions a CLI pointed at an OpenAI-compatible gateway
+    takes its turns as, out of what the test said it serves and says. `tests/llm.py` is the
+    service itself, and `Serving.account` is what points a backend at it.
+
+    Here rather than beside the service because a fixture is found by pytest rather than
+    imported: a test module that imported it would shadow the name with the parameter it
+    names it by, which reads as a redefinition rather than as a use.
+    """
+    with serving() as held:
+        yield held
 
 
 @pytest.fixture
