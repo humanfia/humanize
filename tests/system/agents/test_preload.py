@@ -32,52 +32,14 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor.agents import AgentConfig, Hooks, Moment, Occasion
+from hmz.coganchor.agents import Hooks, Moment, Occasion
 from hmz.coganchor.agents import preload as layer
 from hmz.coganchor.agents.preload import Watch, preloaded, runtime
-from tests.stubs import ShellAgent
+from tests.agents import preloading
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
     from pathlib import Path
-
-    from hmz.coganchor.agents import AgentBase
-
-#: What the stand-in agents here are configured with, which nothing in this file reads.
-CONFIG = AgentConfig(model="m", effort="high")
-
-#: How long the reports of one short program are waited for. They arrive on a thread of their
-#: own, after the write that carried them: generous, because what is being waited on is a whole
-#: Node process starting, doing four things and exiting.
-PATIENCE = 30.0
-
-
-def _agent(name: str = "worker") -> ShellAgent:
-    """One agent with nothing hung on it, which is an agent nobody is listening to."""
-    return ShellAgent(CONFIG, name=name)
-
-
-def _seen(agent: AgentBase) -> list[Occasion]:
-    """Has every `PreToolUse` of this agent written down, which is what turns the layer on."""
-    said: list[Occasion] = []
-    agent.hooks.on(Moment.PRE_TOOL_USE, said.append)
-    return said
-
-
-def _waits(said: list[Occasion], many: int) -> list[Occasion]:
-    """Waits for that many reports to arrive, or for the patience to run out.
-
-    Args:
-      said: Where the hook is writing them down, which another thread is appending to.
-      many: How many are expected.
-
-    Returns:
-      What arrived, which is what the test then reads -- short, where they did not.
-    """
-    ended = time.monotonic() + PATIENCE
-    while len(said) < many and time.monotonic() < ended:
-        time.sleep(0.05)
-    return list(said)
 
 
 def _ran(
@@ -102,7 +64,7 @@ def _ran(
         capture_output=True,
         text=True,
         check=False,
-        timeout=PATIENCE,
+        timeout=preloading.PATIENCE,
         env={**os.environ, **env},
     )
 
@@ -112,8 +74,8 @@ def test_a_node_program_says_what_it_spawned_wrote_read_and_opened(
     tmp_path: Path,
 ) -> None:
     """Against the real runtime, which is the only thing that can confirm any of this."""
-    agent = _agent()
-    said = _seen(agent)
+    agent = preloading.agent()
+    said = preloading.seen(agent)
     added = preloaded(agent, {})
     touched = tmp_path / "what-the-turn-wrote.txt"
     program = f"""
@@ -131,7 +93,7 @@ socket.destroy();
     try:
         ran = _ran(program, tmp_path, added)
         assert ran.returncode == 0, ran.stderr
-        _waits(said, 4)
+        preloading.waits(said, 4)
     finally:
         layer._WATCHED[agent].close()
 
@@ -153,8 +115,8 @@ def test_the_preload_does_not_follow_a_program_into_another_program(
     it was already reported by the spawn that ran it. What that program runs in turn finds
     nothing at all, which is what the variables it was handed being taken away means.
     """
-    agent = _agent()
-    said = _seen(agent)
+    agent = preloading.agent()
+    said = preloading.seen(agent)
     added = preloaded(agent, {"NODE_OPTIONS": "--max-old-space-size=2048"})
     install, elsewhere = tmp_path / "install", tmp_path / "elsewhere"
     install.mkdir()
@@ -176,7 +138,7 @@ child.execFileSync(process.execPath, [{json.dumps(str(elsewhere / "theirs.js"))}
     try:
         ran = _ran(program, install, added)
         assert ran.returncode == 0, ran.stderr
-        _waits(said, 1)
+        preloading.waits(said, 1)
     finally:
         layer._WATCHED[agent].close()
 
@@ -200,8 +162,8 @@ def test_the_preload_follows_a_cli_that_re_execs_itself(tmp_path: Path) -> None:
     there. The rule is the program rather than the process: a process started from the same
     install is still the CLI, and goes on reporting.
     """
-    agent = _agent()
-    said = _seen(agent)
+    agent = preloading.agent()
+    said = preloading.seen(agent)
     added = preloaded(agent, {})
     (tmp_path / "again.js").write_text("""
 require("node:child_process").execFileSync("/bin/echo", ["the", "turn", "itself"]);
@@ -213,7 +175,7 @@ child.execFileSync(process.execPath, [{json.dumps(str(tmp_path / "again.js"))}])
     try:
         ran = _ran(program, tmp_path, added)
         assert ran.returncode == 0, ran.stderr
-        _waits(said, 2)
+        preloading.waits(said, 2)
     finally:
         layer._WATCHED[agent].close()
 
@@ -225,8 +187,8 @@ child.execFileSync(process.execPath, [{json.dumps(str(tmp_path / "again.js"))}])
 @pytest.mark.node
 def test_one_thing_the_program_did_is_one_report(tmp_path: Path) -> None:
     """`exec` reaches for `execFile`, which reaches for `spawn`: one command, not three."""
-    agent = _agent()
-    said = _seen(agent)
+    agent = preloading.agent()
+    said = preloading.seen(agent)
     added = preloaded(agent, {})
     program = """
 const child = require("node:child_process");
@@ -235,7 +197,7 @@ child.execSync("/bin/echo once");
     try:
         ran = _ran(program, tmp_path, added)
         assert ran.returncode == 0, ran.stderr
-        _waits(said, 1)
+        preloading.waits(said, 1)
         time.sleep(
             0.5
         )  # long enough for a second report to have arrived, had there been one
@@ -256,8 +218,8 @@ def test_a_patched_call_is_the_call_it_replaced_in_every_other_way(
     and a patch that dropped it would leave `const { stdout } = await exec(...)` undefined,
     which is a CLI broken by something that was only supposed to be watching it.
     """
-    agent = _agent()
-    said = _seen(agent)
+    agent = preloading.agent()
+    said = preloading.seen(agent)
     added = preloaded(agent, {})
     answered = tmp_path / "what-the-promise-answered.json"
     program = f"""
@@ -274,7 +236,7 @@ promised("/bin/echo promised").then((answer) => {{
     try:
         ran = _ran(program, tmp_path, added)
         assert ran.returncode == 0, ran.stderr
-        _waits(said, 1)
+        preloading.waits(said, 1)
     finally:
         layer._WATCHED[agent].close()
 
@@ -342,8 +304,8 @@ def test_a_cli_that_re_execs_itself_out_of_another_install_is_still_the_cli(
     program. A rule written in paths would stop watching there, which is the half of the turn
     that does the work.
     """
-    agent = _agent()
-    said = _seen(agent)
+    agent = preloading.agent()
+    said = preloading.seen(agent)
     added = preloaded(agent, {})
     install, updated = tmp_path / "install", tmp_path / "updated"
     install.mkdir()
@@ -360,7 +322,7 @@ child.execFileSync(process.execPath, [{json.dumps(str(updated / "newer.js"))}]);
     try:
         ran = _ran(program, install, added)
         assert ran.returncode == 0, ran.stderr
-        _waits(said, 2)
+        preloading.waits(said, 2)
     finally:
         layer._WATCHED[agent].close()
 
@@ -378,8 +340,8 @@ def test_what_a_cli_reads_and_writes_of_its_own_install_is_not_the_turns_work(
     A bundle loading itself is thousands of reads and not one of them is the agent doing
     anything; a file beside the work is the turn.
     """
-    agent = _agent()
-    said = _seen(agent)
+    agent = preloading.agent()
+    said = preloading.seen(agent)
     added = preloaded(agent, {})
     install, work = tmp_path / "install", tmp_path / "work"
     install.mkdir()
@@ -395,7 +357,7 @@ fs.readFileSync({json.dumps(str(work / "the-turns.txt"))}, "utf8");
     try:
         ran = _ran(program, install, added)
         assert ran.returncode == 0, ran.stderr
-        _waits(said, 1)
+        preloading.waits(said, 1)
         time.sleep(
             0.5
         )  # long enough for the other read to have arrived, had it been said

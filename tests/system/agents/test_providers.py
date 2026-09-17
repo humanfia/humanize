@@ -27,39 +27,23 @@ import pytest
 
 from hmz.coganchor import providers
 from hmz.coganchor.agents import AgentConfig
-from tests.stubs import ShellAgent, ShellSession
+from tests.agents import homes
+from tests.stubs import ClaudeShellAgent
 from tests.supervising import traced
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 
-class _ClaudeShellSession(ShellSession):
-    """A shell session that says it is Claude's, so a provider's real paths are in play."""
-
-
-class _ClaudeShellAgent(ShellAgent):
-    """A shell-backed agent wearing Claude's name, which is what a provider is looked up by."""
-
-    @property
-    def backend(self) -> str:
-        return "claude"
-
-    def new(self, cwd: str | os.PathLike[str] | None = None) -> _ClaudeShellSession:
-        return _ClaudeShellSession(self, cwd)
-
-
 @pytest.fixture
 def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Puts this user's home somewhere temporary, so nothing here can read the real one."""
-    house = tmp_path / "home"
-    (house / ".claude").mkdir(parents=True)
-    monkeypatch.setenv("HOME", str(house))
-    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
-    # What the machine itself is signed in as, which a turn under a provider must never see.
-    (house / ".claude.json").write_text('{"account": "the one at this machine"}')
-    (house / ".claude" / ".credentials.json").write_text('{"token": "this machine"}')
-    return house
+    """Puts this user's home somewhere temporary, so nothing here can read the real one.
+
+    The body is `tests.agents.homes.home`, which the other half of this file runs under too:
+    what has to be in that home for a redirected turn to be told from an unredirected one is
+    one fact about Claude's layout, and a copy of it is a copy that gets corrected once.
+    """
+    return homes.home(tmp_path, monkeypatch)
 
 
 @traced
@@ -74,7 +58,7 @@ def test_a_provider_that_is_variables_is_what_the_turn_is_run_with(home: Path) -
             "ANTHROPIC_AUTH_TOKEN": "not-a-real-token",
         },
     )
-    agent = _ClaudeShellAgent(AgentConfig(model="m", effort="high", provider="gateway"))
+    agent = ClaudeShellAgent(AgentConfig(model="m", effort="high", provider="gateway"))
 
     assert agent.environment() == {
         "ANTHROPIC_BASE_URL": "https://example.invalid/anthropic",
@@ -95,7 +79,7 @@ def test_a_turn_under_a_provider_reads_that_providers_credentials(home: Path) ->
     where = provider.at / "user" / ".claude.json"
     where.parent.mkdir(parents=True, exist_ok=True)
     where.write_text('{"account": "the provider"}')
-    agent = _ClaudeShellAgent(AgentConfig(model="m", effort="high", provider="mine"))
+    agent = ClaudeShellAgent(AgentConfig(model="m", effort="high", provider="mine"))
 
     said = agent.new()('cat "$HOME/.claude.json"')
 
@@ -111,7 +95,7 @@ def test_a_turn_under_a_provider_reads_that_providers_credentials(home: Path) ->
 def test_what_a_turn_under_a_provider_writes_lands_in_that_provider(home: Path) -> None:
     """A token refreshed mid-run is written back where it was read from, which is the provider."""
     provider = providers.add("claude", "mine", way="login")
-    agent = _ClaudeShellAgent(AgentConfig(model="m", effort="high", provider="mine"))
+    agent = ClaudeShellAgent(AgentConfig(model="m", effort="high", provider="mine"))
 
     assert agent.new()('printf refreshed > "$HOME/.claude/.credentials.json"; echo ok')
 
@@ -131,7 +115,7 @@ def test_two_agents_of_one_cli_under_two_providers_are_two_accounts(home: Path) 
         where.parent.mkdir(parents=True, exist_ok=True)
         where.write_text(json.dumps({"account": name}))
     agents = [
-        _ClaudeShellAgent(AgentConfig(model="m", effort="high", provider=name))
+        ClaudeShellAgent(AgentConfig(model="m", effort="high", provider=name))
         for name in ("first", "second")
     ]
 
@@ -154,7 +138,7 @@ def test_two_accounts_run_at_the_same_time_without_reading_each_others(
         where.parent.mkdir(parents=True, exist_ok=True)
         where.write_text(json.dumps({"account": name}))
     agents = [
-        _ClaudeShellAgent(AgentConfig(model="m", effort="high", provider=name))
+        ClaudeShellAgent(AgentConfig(model="m", effort="high", provider=name))
         for name in ("first", "second")
     ]
 
@@ -186,7 +170,7 @@ def test_a_key_left_lying_about_does_not_outrank_the_account_it_was_told(
     monkeypatch.setenv("ANTHROPIC_API_KEY", "the one in the shell")
     monkeypatch.setenv("CLAUDE_CODE_USE_BEDROCK", "1")
     providers.add("claude", "mine", way="login")
-    agent = _ClaudeShellAgent(AgentConfig(model="m", effort="high", provider="mine"))
+    agent = ClaudeShellAgent(AgentConfig(model="m", effort="high", provider="mine"))
 
     assert "ANTHROPIC_API_KEY" in agent.hushed()
     assert (
@@ -205,7 +189,7 @@ def test_a_provider_keeps_the_variables_it_set_itself(
     providers.add(
         "claude", "gateway", way="gateway", env={"ANTHROPIC_API_KEY": "its own"}
     )
-    agent = _ClaudeShellAgent(AgentConfig(model="m", effort="high", provider="gateway"))
+    agent = ClaudeShellAgent(AgentConfig(model="m", effort="high", provider="gateway"))
 
     assert "ANTHROPIC_API_KEY" not in agent.hushed()
     assert agent.new()('printf %s "$ANTHROPIC_API_KEY"') == "its own"

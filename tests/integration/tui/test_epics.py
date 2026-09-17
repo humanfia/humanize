@@ -21,9 +21,9 @@ from textual.widgets import Label, OptionList
 from hmz.runtime.epic import epics, state
 from hmz.tui import Humanize
 from hmz.tui.pick import Does, Epics
+from tests.integration.tui.test_app import onto, rows
 from tests.stubs import written
-
-from .test_app import onto, rows, until
+from tests.tui.conftest import until
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -287,8 +287,7 @@ async def test_exporting_a_run_carries_its_own_trace_in_the_archive(
     import tarfile
 
     from hmz.runtime.epic import opened
-
-    from .test_app import _transcript
+    from tests.tui.conftest import transcript
 
     _ran("speaks", "go")
 
@@ -321,7 +320,7 @@ async def test_exporting_a_run_carries_its_own_trace_in_the_archive(
         await until(lambda: not isinstance(app.screen, Epics), driver)
         # And said where it can be read back afterwards, rather than only under a list that
         # has since been closed.
-        assert str(at) in _transcript(app)
+        assert str(at) in transcript(app)
 
     with tarfile.open(at) as opened_up:
         (inside,) = [one for one in opened_up.getnames() if one.endswith(".trace.json")]
@@ -421,7 +420,7 @@ async def test_resuming_from_inside_a_run_is_what_the_command_is(
     on it would be a run starting from the top wearing a line saying which run it came from,
     so it is turned down here in the words the command turns it down in.
     """
-    from .test_app import _transcript
+    from tests.tui.conftest import transcript
 
     _ran("plain", "go")
     written(workspace / ".humanize/flows", "plain", COUNTS)
@@ -434,9 +433,9 @@ async def test_resuming_from_inside_a_run_is_what_the_command_is(
         await onto(app, driver, "resume")
         await driver.press("enter")
         await until(lambda: app.screen is not sheet, driver)
-        await until(lambda: "left nothing behind" in _transcript(app), driver)
+        await until(lambda: "left nothing behind" in transcript(app), driver)
 
-        assert "starts from the top" in _transcript(app)
+        assert "starts from the top" in transcript(app)
 
     assert len(epics(workspace)) == 1  # and nothing was started
 

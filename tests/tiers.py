@@ -86,8 +86,16 @@ There are three ways a fixture reaches a test that moved, and the check knows on
    ignore[reportUnusedImport]`. There is no declaration to compare it against, so nothing here
    checks it: use it for one file, and re-export for a directory.
 3. **Left in a helper module that never moves** -- `tests/answering.py`, `tests/composing.py`,
-   `tests/recording.py`, `tests/logins.py`, `tests/stubs.py` and the rest. A helper travels by
-   import path, so there is nothing to take back.
+   `tests/recording.py`, `tests/logins.py`, `tests/stubs.py`, `tests/agents/homes.py` and the
+   rest. A helper travels by import path, so there is nothing to take back.
+
+   Which is also where a fixture goes when it belongs to one *file* whose two halves ended up
+   in different trees, and it is the first thing to reach for there: the body goes in the
+   helper and a three-line fixture calling it stays in each half, as `logins.house`,
+   `homes.home` and the autouse `homes.here` do. The other two answers are both worse for
+   that shape. A conftest reaches a whole directory -- `homes.here` re-exported into
+   `tests/integration/agents/conftest.py` would chdir and re-home forty files that never asked
+   -- and a copy in each half is the drift this whole section is written against.
 
 A tier root -- `tests/unit/conftest.py` and the other two -- holds its marker and nothing else,
 deliberately. A fixture written there would reach every subsystem in that tree, which is how

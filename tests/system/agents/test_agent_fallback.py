@@ -24,6 +24,7 @@ import pytest
 
 from hmz.coganchor import backends, fallbacks
 from hmz.coganchor.agents import AgentConfig
+from tests.agents import homes
 from tests.stubs import ShellAgent
 
 if TYPE_CHECKING:
@@ -45,10 +46,13 @@ _MINE = "acp-of-my-own"
 
 @pytest.fixture(autouse=True)
 def here(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A home nothing has written to, and `shell` as a backend of your own."""
-    monkeypatch.setenv("HUMANIZE_HOME", str(tmp_path / "home"))
-    monkeypatch.chdir(tmp_path)
-    backends.remember("shell", ["shell"])
+    """A home nothing has written to, and `shell` as a backend of your own.
+
+    The body is `tests.agents.homes.here`, which the other half of this file runs under too.
+    Autouse, so nobody names it and nothing reports it missing: written down twice, the copy
+    that fell behind would be a half of this subject quietly testing something else.
+    """
+    homes.here(tmp_path, monkeypatch)
 
 
 @pytest.mark.agent

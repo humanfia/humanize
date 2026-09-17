@@ -1,4 +1,11 @@
-"""What more than one suite needs: a shell-backed agent, and an anchor that stays here.
+"""What more than one suite needs: the stand-in agents, and an anchor that stays here.
+
+Four agents and their sessions, which is every stand-in this repo drives more than one test
+file against. `ShellAgent` runs the prompt as a shell script, so each test spells what it is
+standing in for; `ClaudeShellAgent` is that wearing Claude's name, which is what a provider is
+looked up by; `EchoAgent` runs `cat`, which is a turn taken without anything installed. Each of
+the last two is wanted by both halves of a file that split across tiers, and a stand-in written
+down twice is a stand-in corrected in one copy.
 
 Here rather than in a conftest because these are imported by name, and a conftest is a pytest
 plugin rather than a module to import from -- and because the agents, the epics and the
@@ -76,6 +83,49 @@ class ShellSession(CommandSessionBase):
 class ShellAgent(AgentBase):
     def new(self, cwd: str | os.PathLike[str] | None = None) -> ShellSession:
         return ShellSession(self, cwd)
+
+
+class ClaudeShellSession(ShellSession):
+    """A shell session that says it is Claude's, so a provider's real paths are in play."""
+
+
+class ClaudeShellAgent(ShellAgent):
+    """A shell-backed agent wearing Claude's name, which is what a provider is looked up by.
+
+    Which account a turn runs as is looked up by the backend the agent says it is, so a stub
+    that answers `shell` is a stub no provider is ever found for. Wanted by both halves of the
+    provider tests -- `tests/integration/agents/test_providers.py` reads the command line and
+    the environment one of these would be spawned with, and `tests/system/agents/test_providers.py`
+    actually takes the turn under a ptrace supervisor -- and so here rather than in either.
+    """
+
+    @property
+    def backend(self) -> str:
+        return "claude"
+
+    def new(self, cwd: str | os.PathLike[str] | None = None) -> ClaudeShellSession:
+        return ClaudeShellSession(self, cwd)
+
+
+class EchoSession(CommandSessionBase):
+    """Runs `cat`, echoing the prompt back on stdout -- the only fake on the stdin path.
+
+    What the agent library's own tests are asked about: the object a backend hands out, rather
+    than any CLI. `tests/unit/agents/test_agents.py` never lets one run at all, and
+    `tests/integration/agents/test_agents.py` takes real turns on it through `cat` -- the one
+    program a session can be driven against without anything being installed.
+    """
+
+    def _turn(self, prompt: str) -> tuple[list[str], str | None]:
+        return (["cat"], prompt)
+
+    def _read_session_id(self, transcript: str) -> str:
+        return "echo"
+
+
+class EchoAgent(AgentBase):
+    def new(self, cwd: str | os.PathLike[str] | None = None) -> EchoSession:
+        return EchoSession(self, cwd)
 
 
 def written(

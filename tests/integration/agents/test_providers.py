@@ -26,41 +26,24 @@ from hmz.coganchor import providers
 from hmz.coganchor.agents import AgentConfig, ClaudeCodeAgent, ClaudeCodeAgentConfig
 from hmz.coganchor.backends import named
 from hmz.coganchor.machines import MachineBase, MachineConfig
-from tests.stubs import HereAnchor, ShellAgent, ShellSession
+from tests.agents import homes
+from tests.stubs import ClaudeShellAgent, HereAnchor, ShellAgent
 
 if TYPE_CHECKING:
-    import os
     from pathlib import Path
 
 CONFIG = AgentConfig(model="m", effort="high")
 
 
-class _ClaudeShellSession(ShellSession):
-    """A shell session that says it is Claude's, so a provider's real paths are in play."""
-
-
-class _ClaudeShellAgent(ShellAgent):
-    """A shell-backed agent wearing Claude's name, which is what a provider is looked up by."""
-
-    @property
-    def backend(self) -> str:
-        return "claude"
-
-    def new(self, cwd: str | os.PathLike[str] | None = None) -> _ClaudeShellSession:
-        return _ClaudeShellSession(self, cwd)
-
-
 @pytest.fixture
 def home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Puts this user's home somewhere temporary, so nothing here can read the real one."""
-    house = tmp_path / "home"
-    (house / ".claude").mkdir(parents=True)
-    monkeypatch.setenv("HOME", str(house))
-    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
-    # What the machine itself is signed in as, which a turn under a provider must never see.
-    (house / ".claude.json").write_text('{"account": "the one at this machine"}')
-    (house / ".claude" / ".credentials.json").write_text('{"token": "this machine"}')
-    return house
+    """Puts this user's home somewhere temporary, so nothing here can read the real one.
+
+    The body is `tests.agents.homes.home`, which the other half of this file runs under too:
+    what has to be in that home for a redirected turn to be told from an unredirected one is
+    one fact about Claude's layout, and a copy of it is a copy that gets corrected once.
+    """
+    return homes.home(tmp_path, monkeypatch)
 
 
 def test_an_agent_with_no_provider_is_run_exactly_as_it_was() -> None:
@@ -77,7 +60,7 @@ def test_an_agent_with_no_provider_is_run_with_the_environment_it_was_started_in
 ) -> None:
     """Nothing is taken away from an agent nobody said anything about."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "the one in the shell")
-    agent = _ClaudeShellAgent(AgentConfig(model="m", effort="high"))
+    agent = ClaudeShellAgent(AgentConfig(model="m", effort="high"))
 
     assert agent.hushed() == frozenset()
     assert agent.new()('printf %s "$ANTHROPIC_API_KEY"') == "the one in the shell"
@@ -85,7 +68,7 @@ def test_an_agent_with_no_provider_is_run_with_the_environment_it_was_started_in
 
 def test_an_agent_told_of_an_account_there_is_none_of_says_so(home: Path) -> None:
     """Rather than quietly running as whoever is signed in here, which is the wrong account."""
-    agent = _ClaudeShellAgent(AgentConfig(model="m", effort="high", provider="nowhere"))
+    agent = ClaudeShellAgent(AgentConfig(model="m", effort="high", provider="nowhere"))
 
     with pytest.raises(ValueError, match="no claude provider called 'nowhere'"):
         _ = agent.provider
@@ -98,7 +81,7 @@ def test_what_a_provider_adds_to_the_command_line_is_added_to_the_backends(
     providers.add(
         "claude", "mine", way="gateway", env={"X": "1"}, args=("--flag", "value")
     )
-    agent = _ClaudeShellAgent(AgentConfig(model="m", effort="high", provider="mine"))
+    agent = ClaudeShellAgent(AgentConfig(model="m", effort="high", provider="mine"))
 
     spawned = agent.spawned(["claude", "--print"])
 
@@ -140,7 +123,7 @@ def test_a_turn_that_is_anchored_and_under_a_provider_is_supervised_once(
     """A process has one tracer, so the anchor is told what to answer rather than wrapped."""
     providers.add("claude", "mine", way="login")
     anchor = HereAnchor(target="tcp://stub:0")
-    agent = _ClaudeShellAgent(
+    agent = ClaudeShellAgent(
         AgentConfig(
             model="m",
             effort="high",
@@ -174,7 +157,7 @@ def test_an_anchored_turn_keeps_its_providers_variables_off_the_target(
         "claude", "gateway", way="gateway", env={"ANTHROPIC_AUTH_TOKEN": "not-a-token"}
     )
     anchor = HereAnchor(target="tcp://stub:0")
-    agent = _ClaudeShellAgent(
+    agent = ClaudeShellAgent(
         AgentConfig(
             model="m",
             effort="high",

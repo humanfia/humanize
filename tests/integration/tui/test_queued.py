@@ -22,8 +22,8 @@ from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
 from hmz.tui.app import _PINNED
 from hmz.tui.monitor import short
-from hmz.tui.selecting import Transcript
 from tests.stubs import ShellAgent, ShellSession, written
+from tests.tui.conftest import transcript
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -82,11 +82,6 @@ async def until(ready: Callable[[], bool], driver: Pilot[None]) -> None:
     await driver.pause()
 
 
-def _transcript(app: Humanize) -> str:
-    """Everything the interface has shown, as one searchable string."""
-    return app.query_one("#transcript", Transcript).text
-
-
 def _pinned(app: Humanize) -> str:
     """What is pinned above the prompt, as it reads, or "" with the pin not showing at all."""
     said = app.query_one("#queued", Static)
@@ -134,7 +129,7 @@ async def test_a_line_with_nowhere_to_go_yet_is_pinned_rather_than_written_down(
         await until(lambda: bool(_pinned(app)), driver)
 
         assert "and fix the tests" in _pinned(app)
-        assert "and fix the tests" not in _transcript(app)
+        assert "and fix the tests" not in transcript(app)
         assert app._queued == ["and fix the tests"]
 
 
@@ -150,10 +145,10 @@ async def test_it_goes_into_the_transcript_at_the_moment_it_is_taken() -> None:
 
         # Whichever turn starts next asks for it, which is what `waiting` is for.
         assert app._take() == ["and fix the tests"]
-        await until(lambda: "and fix the tests" in _transcript(app), driver)
+        await until(lambda: "and fix the tests" in transcript(app), driver)
 
         assert _pinned(app) == ""
-        assert "and fix the tests" in _transcript(app)
+        assert "and fix the tests" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -183,12 +178,12 @@ async def test_a_line_into_a_turn_that_is_open_is_pinned_until_the_agent_has_it(
         # Handed over, and not said: it is pinned against the agent that has it.
         assert app._given == [(agent.id, "and this")]
         assert app._queued == []
-        assert "and this" not in _transcript(app)
+        assert "and this" not in transcript(app)
         assert f"with {short(agent.id)}" in _pinned(app)
 
         # And written down when that agent's own stream says the turn has taken it in.
         app._heard(agent, session, Event(kind="took", text="and this"))
-        await until(lambda: "and this" in _transcript(app), driver)
+        await until(lambda: "and this" in transcript(app), driver)
 
         assert _pinned(app) == ""
         assert app._given == []
@@ -215,11 +210,11 @@ async def test_a_turn_that_ended_without_saying_it_had_it_says_that_instead() ->
         await until(lambda: bool(_pinned(app)), driver)
 
         app._heard(agent, session, Event(kind="ends", text=""))
-        await until(lambda: "take this" in _transcript(app), driver)
+        await until(lambda: "take this" in transcript(app), driver)
 
         assert _pinned(app) == ""
         assert app._given == []
-        assert "without saying it had it" in _transcript(app)
+        assert "without saying it had it" in transcript(app)
         del session
 
 
@@ -245,7 +240,7 @@ async def test_a_word_the_backend_would_not_take_goes_back_in_the_queue() -> Non
         # Still on its way, by the other road, and still in front of what followed it.
         assert app._queued == ["never went", "typed after it"]
         assert "never went" in _pinned(app)
-        assert "no active turn to steer" in _transcript(app)
+        assert "no active turn to steer" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -264,7 +259,7 @@ async def test_a_word_put_to_one_agent_is_not_taken_off_by_another() -> None:
         await driver.pause()
 
         assert app._given == [(builder.id, "for the builder")]
-        assert "for the builder" not in _transcript(app)
+        assert "for the builder" not in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -320,8 +315,8 @@ async def test_what_the_stopped_flow_never_took_is_said_to_have_been_dropped() -
 
         assert _pinned(app) == ""
         assert app._queued == []
-        assert "too late" in _transcript(app)
-        assert "never sent" in _transcript(app)
+        assert "too late" in transcript(app)
+        assert "never sent" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -426,12 +421,12 @@ async def test_what_a_flow_that_ended_never_took_is_said_to_have_been_dropped(
 
         (waiting / "go.txt").write_text("")  # and the flow runs out of things to do
         await until(lambda: not app._agents, driver)
-        await until(lambda: "never sent" in _transcript(app), driver)
+        await until(lambda: "never sent" in transcript(app), driver)
 
         assert _pinned(app) == ""
         assert app._queued == []
-        assert "and this too" in _transcript(app)
-        assert "the flow ended first" in _transcript(app)
+        assert "and this too" in transcript(app)
+        assert "the flow ended first" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -516,12 +511,12 @@ async def test_it_reaches_the_transcript_from_the_thread_a_turn_runs_on() -> Non
         took: list[list[str]] = []
         asking = threading.Thread(target=lambda: took.append(app._take()))
         asking.start()
-        await until(lambda: "from a turn" in _transcript(app), driver)
+        await until(lambda: "from a turn" in transcript(app), driver)
         asking.join(5)
 
         assert took == [["from a turn"]]
         assert _pinned(app) == ""
-        assert "from a turn" in _transcript(app)
+        assert "from a turn" in transcript(app)
 
 
 @pytest.mark.timeout(60)

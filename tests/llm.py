@@ -55,6 +55,7 @@ __all__ = [
     "KEY",
     "MADE",
     "MOCKED",
+    "POINTED",
     "SAYS",
     "SERVES",
     "Serving",
@@ -65,6 +66,15 @@ __all__ = [
     "pointing",
     "serving",
 ]
+
+#: Every backend humanize asks an endpoint rather than its CLI, by name. Read off the profiles
+#: rather than written out here, so that a backend given an endpoint tomorrow is covered on the
+#: day it is given one -- which is the one thing this service is for, that each of them can now
+#: be asked in CI. Beside the service rather than in either half of its tests: both
+#: `tests/unit/test_llm.py` and `tests/integration/test_llm.py` parametrize over it, and a list
+#: worked out twice is two answers to a question with one. A tuple rather than a list, for the
+#: same reason it is shared: two modules holding one object is one of them able to append to it.
+POINTED = tuple(profile.name for profile in backends.PROFILES if profile.endpoint)
 
 #: The ids the service lists where a test has not said otherwise. Two rather than one,
 #: because a reader that drops the last entry or keeps only the first reads a catalogue of

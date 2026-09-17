@@ -22,10 +22,9 @@ from hmz.tui import Humanize
 from hmz.tui.app import _COMMANDS, Editor
 from hmz.tui.complete import offered
 from hmz.tui.pick import _SAVE, Flows, Unbounded
-from hmz.tui.selecting import Transcript
+from tests.integration.tui.test_app import opens
 from tests.stubs import ShellAgent, written
-
-from .test_app import opens, until
+from tests.tui.conftest import transcript, until
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -109,11 +108,6 @@ def started(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
     return lines
 
 
-def _transcript(app: Humanize) -> str:
-    """Everything the interface has shown, as one searchable string."""
-    return app.query_one("#transcript", Transcript).text
-
-
 async def sends(app: Humanize, driver: Pilot[None], line: str) -> None:
     """Types a line and sends it, putting away any offers that are up first.
 
@@ -166,7 +160,7 @@ async def test_a_flow_this_workspace_has_set_up_runs_on_the_line_that_named_it(
 
         assert started == [["-f", "chat", "-a", "claude/m:high", "fix the build"]]
         assert not isinstance(app.screen, Flows)  # no menu at all
-        assert "$chat fix the build" in _transcript(app)
+        assert "$chat fix the build" in transcript(app)
 
 
 @pytest.mark.timeout(90)
@@ -248,7 +242,7 @@ async def test_walking_out_of_the_menu_starts_nothing_and_says_so(
         await until(lambda: isinstance(app.screen, Flows), driver)
         await driver.press("escape")  # out again, having answered nothing
         await until(lambda: not isinstance(app.screen, Flows), driver)
-        await until(lambda: "nothing was set up" in _transcript(app), driver)
+        await until(lambda: "nothing was set up" in transcript(app), driver)
 
         assert not started
 
@@ -261,7 +255,7 @@ async def test_a_flow_that_is_not_there_is_a_line_to_correct_and_not_the_end(
     app = Humanize()
     async with app.run_test() as driver:
         await sends(app, driver, "$nosuchflow fix the build")
-        await until(lambda: "no such flow" in _transcript(app), driver)
+        await until(lambda: "no such flow" in transcript(app), driver)
 
         assert app.is_running  # still there to be typed at
         assert not started
@@ -284,12 +278,12 @@ async def test_a_line_that_merely_begins_with_a_dollar_is_still_a_line(
     app = Humanize()
     async with app.run_test() as driver:
         await sends(app, driver, line)
-        await until(lambda: "no coding agent" in _transcript(app), driver)
+        await until(lambda: "no coding agent" in transcript(app), driver)
 
         # It reached the conversation -- which here has nothing to run on and says so -- and
         # was never taken for a flow that is not there.
-        assert "no such flow" not in _transcript(app)
-        assert line in _transcript(app)
+        assert "no such flow" not in transcript(app)
+        assert line in transcript(app)
         assert not started
 
 
@@ -355,7 +349,7 @@ async def test_a_dollar_while_a_flow_runs_is_refused_the_way_choosing_one_is(
     async with app.run_test() as driver:
         app._agents = [ShellAgent(AgentConfig(model="m", effort="high"))]
         await sends(app, driver, "$chat fix the build")
-        await until(lambda: "a flow is running" in _transcript(app), driver)
+        await until(lambda: "a flow is running" in transcript(app), driver)
 
         assert app._agents  # left exactly as it was
         assert not started
@@ -376,7 +370,7 @@ async def test_a_dollar_naming_a_flow_and_nothing_else_chooses_it_and_waits(
         await until(lambda: app._flow_named == "chat", driver)
 
         assert not started
-        assert "say what to do" in _transcript(app)
+        assert "say what to do" in transcript(app)
 
 
 def test_the_flows_there_are_are_offered_under_the_sigil_that_starts_one() -> None:

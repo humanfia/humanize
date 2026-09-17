@@ -26,9 +26,9 @@ from hmz.runtime.epic import epics
 from hmz.runtime.exporting import TRANSCRIPT
 from hmz.tui import Humanize
 from hmz.tui.pick import Does, Epics
+from tests.integration.tui.test_app import onto, rows
 from tests.stubs import written
-
-from .test_app import _transcript, onto, rows, until
+from tests.tui.conftest import transcript, until
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -119,7 +119,7 @@ async def test_packaging_a_run_up_is_not_a_command_of_its_own() -> None:
     async with app.run_test() as driver:
         await driver.press(*"/export")
         await driver.press("enter")
-        await until(lambda: "no such command" in _transcript(app), driver)
+        await until(lambda: "no such command" in transcript(app), driver)
 
         assert app.is_running  # a line that is not a command leaves the interface up
 

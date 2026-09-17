@@ -18,11 +18,7 @@ import pytest
 
 from hmz.coganchor import backends
 from tests import llm
-
-#: Every backend humanize asks an endpoint rather than the CLI, by name. Read off the
-#: profiles rather than written out here, so that a backend given an endpoint tomorrow is
-#: covered by these on the day it is given one.
-POINTED = [profile.name for profile in backends.PROFILES if profile.endpoint]
+from tests.llm import POINTED
 
 #: One that names none, whose turns go wherever its own login says. There is no endpoint of
 #: its to point at a mock, and saying so beats an account that quietly reaches the vendor.

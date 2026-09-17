@@ -30,12 +30,10 @@ from hmz.coganchor.agents import (
     Occasion,
     Verdict,
 )
-from tests.agents import standins
+from tests.agents import cursors, standins
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-CURSOR = CursorAgentConfig(model="composer-2.5", effort="high")
 
 #: A `cursor-agent --print`: it writes down how it was called, names the chat, says a thing or
 #: two, and ends on the result. A prompt of `fleet` sends an agent of its own out and brings it
@@ -165,48 +163,13 @@ def cursor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _Calls:
     return _Calls(log)
 
 
-#: What a signed-in account lists, as `cursor-agent models` prints it: a bare id beside the
-#: variants that carry a rung, one that is listed with no variant at all, and the same model
-#: again with the service it can be served on written behind it.
-_ACCOUNT = (
-    "gpt-5.2",
-    "gpt-5.2-low",
-    "gpt-5.2-high",
-    "gpt-5.2-xhigh",
-    "composer-2.5",
-    "composer-2.5-fast",
-    "auto",
-)
-
-
-def _kept(named: tuple[str, ...]) -> None:
-    """Writes a catalogue down as if this account had just been asked what it runs.
-
-    Args:
-      named: The ids, as the account lists them.
-    """
-    at = models.where("cursor-agent")
-    at.parent.mkdir(parents=True, exist_ok=True)
-    at.write_text(
-        json.dumps(
-            {
-                "asked": "2026-09-17T00:00:00Z",
-                "models": [
-                    {"name": one, "efforts": [], "swarms": False} for one in named
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-
-
 def test_a_rung_moved_mid_run_is_refused_as_the_turn_is_built(cursor: _Calls) -> None:
     """The rung is the one setting a flow moves after the agent was made.
 
     So the turn checks it too: an agent turned up an hour into a loop, onto a rung this model
     has no id for, must not go out as an id nobody lists.
     """
-    _kept(_ACCOUNT)
+    cursors.kept(cursors.ACCOUNT)
     session = CursorAgent(CursorAgentConfig(model="gpt-5.2", effort="low")).new()
     session("hello")
 
@@ -220,7 +183,7 @@ def test_a_rung_moved_mid_run_is_refused_as_the_turn_is_built(cursor: _Calls) ->
 
 def test_a_turn_is_one_run_of_its_command_line(cursor: _Calls) -> None:
     """The model with its bracket, the workspace, and the prompt after a `--`."""
-    session = CursorAgent(CURSOR).new()
+    session = CursorAgent(cursors.CURSOR).new()
 
     assert session("hello") == "hello"
 
@@ -239,7 +202,7 @@ def test_a_turn_is_one_run_of_its_command_line(cursor: _Calls) -> None:
 
 def test_the_second_turn_resumes_the_chat_the_first_one_opened(cursor: _Calls) -> None:
     """Written onto the flag: its own argument is optional, so a separate one is the prompt."""
-    session = CursorAgent(CURSOR).new()
+    session = CursorAgent(cursors.CURSOR).new()
     session("hello")
 
     session("again")
@@ -262,7 +225,7 @@ def test_a_rung_is_the_mode_or_the_sandbox_cursor_has_for_it(cursor: _Calls) -> 
     from dataclasses import replace
 
     for rung, _expected in _RUNGS:
-        CursorAgent(replace(CURSOR, permission=rung)).new()("hello")
+        CursorAgent(replace(cursors.CURSOR, permission=rung)).new()("hello")
 
     for argv, (_rung, expected) in zip(cursor.argv(), _RUNGS, strict=True):
         for one in expected:
@@ -273,7 +236,7 @@ def test_asking_for_the_faster_service_is_the_same_suffix(cursor: _Calls) -> Non
     """Which is why this backend can express a tier at all: the rung, then the service."""
     from dataclasses import replace
 
-    CursorAgent(replace(CURSOR, service_tier="fast")).new()("hello")
+    CursorAgent(replace(cursors.CURSOR, service_tier="fast")).new()("hello")
 
     (argv,) = cursor.argv()
     assert argv[argv.index("--model") + 1] == "composer-2.5-high-fast"
@@ -281,7 +244,7 @@ def test_asking_for_the_faster_service_is_the_same_suffix(cursor: _Calls) -> Non
 
 def test_a_turn_says_what_it_did_as_it_does_it(cursor: _Calls) -> None:
     """A tool call once, as it starts: a row per status is a transcript of statuses."""
-    session = CursorAgent(CURSOR).new()
+    session = CursorAgent(cursors.CURSOR).new()
 
     said = list(session.stream("hello"))
 
@@ -294,7 +257,7 @@ def test_an_agent_of_its_own_is_said_as_one_rather_than_as_a_tool(
     cursor: _Calls,
 ) -> None:
     """A fleet under a turn is agents, and whatever is watching draws them as agents."""
-    session = CursorAgent(CURSOR).new()
+    session = CursorAgent(cursors.CURSOR).new()
 
     said = list(session.stream("fleet"))
 
@@ -307,7 +270,7 @@ def test_an_agent_of_its_own_is_said_as_one_rather_than_as_a_tool(
 
 def test_the_moments_about_a_fleet_are_fired_where_one_runs(cursor: _Calls) -> None:
     """Which is what makes a hook a thing a flow can hang on the agents under its agent."""
-    agent = CursorAgent(CURSOR)
+    agent = CursorAgent(cursors.CURSOR)
     seen: list[Occasion] = []
 
     def note(occasion: Occasion) -> Verdict | None:
@@ -333,7 +296,7 @@ def test_a_turn_that_failed_says_so_rather_than_answering_with_it(
     cursor: _Calls,
 ) -> None:
     """A loop fed that as an answer would be running on it as the work of the turn."""
-    session = CursorAgent(CURSOR).new()
+    session = CursorAgent(cursors.CURSOR).new()
 
     with pytest.raises(subprocess.CalledProcessError) as raised:
         session("boom")
@@ -432,7 +395,7 @@ def test_the_workspace_it_is_trusted_with_can_be_handed_back(cursor: _Calls) -> 
     told = {one.name: one.backends for one in catalogue()}
     assert told["settings:trust"] == frozenset({"cursor-agent"})
 
-    CursorAgent(replace(CURSOR, trust=False)).new()("hello")
+    CursorAgent(replace(cursors.CURSOR, trust=False)).new()("hello")
 
     (argv,) = cursor.argv()
     assert "--trust" not in argv
@@ -446,9 +409,9 @@ def test_the_other_three_say_themselves_on_the_line_when_they_are_asked_for(
 
     beside = tmp_path / "beside"
     beside.mkdir()
-    CursorAgent(replace(CURSOR, approve_mcps=True, add_dirs=(str(beside),))).new()(
-        "hello"
-    )
+    CursorAgent(
+        replace(cursors.CURSOR, approve_mcps=True, add_dirs=(str(beside),))
+    ).new()("hello")
 
     (argv,) = cursor.argv()
     assert "--approve-mcps" in argv
@@ -461,7 +424,7 @@ def test_words_streamed_as_they_are_written_are_not_said_again_whole(
     """Cursor writes both: a line per piece, and the pieces gathered up at the end."""
     from dataclasses import replace
 
-    session = CursorAgent(replace(CURSOR, partial_output=True)).new()
+    session = CursorAgent(replace(cursors.CURSOR, partial_output=True)).new()
 
     said = list(session.stream("hello"))
 
@@ -477,7 +440,7 @@ def test_words_streamed_as_they_are_written_are_not_said_again_whole(
 
 def test_what_the_turn_cost_is_read_off_the_line_it_ends_on(cursor: _Calls) -> None:
     """Cursor counts now, and its input is already net of what the cache answered."""
-    agent = CursorAgent(CURSOR)
+    agent = CursorAgent(cursors.CURSOR)
 
     (answer,) = (one for one in agent.new().stream("hello") if one.kind == "result")
 

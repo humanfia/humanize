@@ -30,6 +30,13 @@ The tests here name their shared helpers by their whole path -- `tests.integrati
 -- rather than `.test_app` as a sibling. Both resolve today, now that `test_app.py` is in this
 directory too, but only the first keeps resolving if either module moves again, and a sibling
 import that stops resolving is an error at collection rather than a test that fails.
+
+Two of those helpers are not `test_app`'s, though several files here once kept a copy as if they
+were: `until` pumps the pilot until something is true, and `transcript` reads back everything the
+interface has shown. Both live in `tests/tui/conftest.py` beside the fixtures above, because the
+system tier's one interface test wants them as much as this tier does and a file in `tests/tui`
+is the only place both can reach. `test_app` is for what only this tier has -- `rows`, `onto`,
+`into_agent` and the rest, which are about sheets no system test opens.
 """
 
 from __future__ import annotations
