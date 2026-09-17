@@ -33,11 +33,6 @@ rather than a test that fails; name them from the root again if the module holdi
 
 from __future__ import annotations
 
-from tests.tui.conftest import (
-    _elsewhere,
-    _fetches_nothing,
-    catching_up,
-    freshening,
-)
+from tests.tui.conftest import _elsewhere, _fetches_nothing, catching_up, freshening
 
 __all__ = ["_elsewhere", "_fetches_nothing", "catching_up", "freshening"]
