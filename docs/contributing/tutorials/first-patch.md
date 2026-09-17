@@ -111,7 +111,20 @@ uv run pytest
 The slow gate — minutes, not seconds. `-ra` is set in `pyproject.toml`, so the summary names
 everything that was skipped, and a test that quietly stops running says so.
 
-The `agent`-marked tests are skipped unless you ask for them:
+That runs two of the three [tiers](/contributing/): `tests/unit/`, which imports
+`hmz` and asserts and touches nothing else, and `tests/integration/`, where everything on the far
+side is something this repository wrote — a [stand-in CLI](/reference/flows#testing-a-flow) on
+`PATH`, a fake app server, a loopback socket, the mock LLM service. Both want a checkout and
+nothing more, which is why they are a gate and why CI can run them.
+
+While you are still writing the change, the first tier alone is the loop worth having:
+
+```sh
+uv run pytest tests/unit
+```
+
+The third tier, `tests/system/`, is not part of the gate. It is skipped unless you ask for it,
+and it says so rather than going quiet:
 
 ```
 SKIPPED [1] tests/system/agents/test_steering.py:30: needs --run-agents (drives real agents, costs tokens)
@@ -121,10 +134,10 @@ SKIPPED [1] tests/system/agents/test_steering.py:30: needs --run-agents (drives 
 uv run pytest --run-agents
 ```
 
-That drives the coding agent CLIs actually installed on your machine, under your own accounts,
-and spends real tokens doing it. CI never runs it. Run it yourself when the change is a driver
-under `coganchor/agents/`, and leave it alone otherwise: the rest of the suite drives
-[stand-in agents](/reference/flows#testing-a-flow), which is why it can run at all in CI.
+That drives the coding agent CLIs actually installed on your machine, signed in as you signed
+them in, and spends real tokens doing it. CI never runs it — it passes `--ignore=tests/system`,
+so on a runner that tier is not even collected. Run it yourself when the change is a driver
+under `coganchor/agents/`, an anchor, or the daemon, and leave it alone otherwise.
 
 ## Commit it
 
@@ -155,7 +168,7 @@ Two workflows then run:
 
 | | |
 | --- | --- |
-| `ci.yml` | `uv lock --check`, `uv sync --frozen`, those same hooks over every file with `--show-diff-on-failure`, and `uv build` — then `pytest` on Python 3.12, 3.13 and 3.14 |
+| `ci.yml` | `uv lock --check`, `uv sync --frozen`, those same hooks over every file with `--show-diff-on-failure`, and `uv build` — then the unit and integration tiers on Python 3.12, 3.13 and 3.14, on Linux and macOS |
 | `build-docs.yml` | Only if the change touches `docs/`: `pnpm build`, then `pnpm check:anchors` |
 
 `--show-diff-on-failure` is why a formatting failure in CI prints the patch that would fix it.
