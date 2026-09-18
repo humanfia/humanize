@@ -1267,6 +1267,23 @@ def test_agy_runs_every_rung_of_the_ladder_as_its_own_flags(
         assert "--dangerously-skip-permissions" not in opened.argv
 
 
+def test_agy_tells_the_cli_nothing_where_nothing_was_said_about_the_rung(
+    stubs: _Stubs,
+) -> None:
+    """The unsaid rung is no flag at all, which is the turn a bare `agy --print` takes."""
+    config = AntigravityCLIAgentConfig(
+        model="gemini-3.5-flash-medium", effort="high", permission=""
+    )
+    assert AntigravityCLIAgent(config).new()("hi") == "hi"
+
+    (opened,) = stubs.calls()
+    assert "--mode" not in opened.argv
+    assert "--dangerously-skip-permissions" not in opened.argv
+    # Nor the sandbox, which is off in the CLI as it is here: what a rung nobody named leaves
+    # behind is a command line carrying nothing about what the agent may do.
+    assert "--sandbox" not in opened.argv
+
+
 def test_agy_says_what_the_turn_did_and_what_it_cost(stubs: _Stubs) -> None:
     """A tool is shown as it starts rather than once per state it passes through."""
     said = list(AntigravityCLIAgent(AGY).new().stream("hi"))
