@@ -413,6 +413,20 @@ def test_kimi_is_told_the_rung_as_a_mode_and_a_plan(
     assert said["plan_mode"] is planning
 
 
+def test_kimi_at_no_rung_is_told_neither_a_mode_nor_a_plan() -> None:
+    """An agent nobody wrote a rung for is left where the CLI's own defaults leave it.
+
+    Which for an install that configures nothing is `manual`, Always Ask: 0.42.0 reads
+    `default_permission_mode` out of the install's config as it bootstraps a session and
+    leaves the mode there when it finds none. That is the bare CLI's own exposure rather
+    than one this driver added -- an approval it cannot answer stops the turn until the
+    watchdog's window runs out -- and matching it is what saying nothing means.
+    """
+    from hmz.coganchor.agents.kimi import _PERMITTED
+
+    assert _PERMITTED[UNSAID] == {}
+
+
 def test_every_backend_has_something_to_say_at_every_rung() -> None:
     """A rung a backend quietly ignored would be a setting that lies."""
     from hmz.coganchor.agents import codex as codex_module

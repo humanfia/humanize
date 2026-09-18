@@ -1715,6 +1715,31 @@ def test_a_kimi_turn_carries_the_rung_it_runs_at(
     assert profile["agent_config"]["plan_mode"] is planning
 
 
+def test_a_kimi_turn_at_no_rung_says_nothing_about_what_it_may_do(
+    kimi: _FakeServer,
+) -> None:
+    """So the session runs wherever this install's own `kimi web` would have run it.
+
+    Neither key is sent rather than both sent at a value humanize picked, which for an
+    install that configures nothing is Always Ask -- the mode a person who starts the daemon
+    by hand and answers it from the browser gets. Nobody is at the browser here, and an
+    approval lives on a route this driver does not read, so what such a turn can stop on is
+    the bare CLI's own exposure and the watchdog is what ends it. Saying a mode instead would
+    be the global default this whole setting exists to stop humanize choosing.
+    """
+    agent = KimiCodeCLIAgent(
+        KimiCodeCLIAgentConfig(model="kimi-code/k3", effort="high", permission="")
+    )
+    agent("hi")
+
+    (profile,) = _bodies(kimi, "/profile")
+    assert profile["agent_config"] == {
+        "model": "kimi-code/k3",
+        "thinking": "high",
+        "swarm_mode": False,
+    }
+
+
 def test_a_kimi_daemon_is_started_the_way_the_flow_asked_for(kimi: _FakeServer) -> None:
     """Every departure from `kimi web`'s own defaults is one a flow can take back off."""
     agent = KimiCodeCLIAgent(
