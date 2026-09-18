@@ -724,6 +724,13 @@ def _declares(read: _Read) -> Iterator[Finding]:
     places in a NamedTuple beside the function as often as inside its annotation, and both
     are the same declaration reaching the same agent.
 
+    Only a rung written out as a literal is held to anything. A place that writes
+    `AgentDefaults(permission=UNSAID)` writes a name rather than a constant, and what a name
+    stands for is something this file cannot know without running the flow it is checking --
+    which is the one thing a check must not do. So that spelling goes by unread, deliberately
+    rather than by oversight: what escapes here is refused all the same, by the config itself,
+    on the first line of the run.
+
     Args:
       read: The file.
 
@@ -733,15 +740,22 @@ def _declares(read: _Read) -> Iterator[Finding]:
       goals at once -- the flow saying two things about one agent, of which only one can be
       done.
     """
-    from hmz.coganchor.agents import PERMISSIONS
+    # Both read off the package rather than written down again here, and composed into the
+    # one tuple the config validates against: the rungs are the ladder a flow may declare,
+    # and the silence is the answer above all of them, which is not a rung and is not in
+    # `PERMISSIONS`. Composed at this call site rather than imported as the config's own
+    # `_SAYABLE`, because that name is private to the module that settles these and a checker
+    # reaching across for it would be one more thing to keep in step.
+    from hmz.coganchor.agents import PERMISSIONS, UNSAID
 
+    sayable = (*PERMISSIONS, UNSAID)
     for node in ast.walk(read.tree):
         if isinstance(node, ast.Call) and _tip(node.func) == "AgentDefaults":
             for said in node.keywords:
                 if (
                     said.arg == "permission"
                     and isinstance(said.value, ast.Constant)
-                    and said.value.value not in PERMISSIONS
+                    and said.value.value not in sayable
                 ):
                     yield Finding(
                         "unknown-permission",
@@ -749,8 +763,10 @@ def _declares(read: _Read) -> Iterator[Finding]:
                         read.where,
                         node.lineno,
                         f"{said.value.value!r} is no rung there is -- what an agent may "
-                        f"do is one of {', '.join(PERMISSIONS)}, and a flow declaring "
-                        "anything else is refused before its first turn",
+                        f"do is one of {', '.join(PERMISSIONS)}, or {UNSAID!r} for a place "
+                        "that would rather humanize said nothing and left the CLI wherever "
+                        "its own headless run leaves it, and a flow declaring anything else "
+                        "is refused before its first turn",
                     )
         if (
             isinstance(node, ast.Subscript)
