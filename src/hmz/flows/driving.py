@@ -419,7 +419,11 @@ class Place(NamedTuple):
       permission: What the agent filling it may do without being asked, which the flow said
         with `AgentDefaults(permission=...)` beside the place. `bypass` for a place that said
         nothing, which is the loosest rung there is and so settles nothing: what an agent
-        already carries is never loosened to reach one of these.
+        already carries is never loosened to reach one of these. The silence
+        :data:`~hmz.coganchor.agents.UNSAID` stands for sits looser still -- it is not a rung
+        but the absence of one, humanize saying nothing to the CLI about what its agent may
+        do -- so it settles nothing either, and an agent left silent by whoever chose it stays
+        silent under any place that declares no rung of its own.
       goals: Whether the backend's own goal feature is available to it, said the same way.
         A place run under a `Goal` has them, whatever else it wrote.
       web_search: Whether it may search the web, said the same way.
@@ -437,7 +441,7 @@ class Place(NamedTuple):
     goal: bool = False
     permission: str = "bypass"
     goals: bool = True
-    web_search: bool = True
+    web_search: bool | None = True
     needs: Needs | None = None
 
 
@@ -1956,7 +1960,7 @@ def runs_at(flow: str | os.PathLike[str], agent: Agent, place: Place) -> AgentCo
     """
     from dataclasses import replace
 
-    from hmz.coganchor.agents import PERMISSIONS
+    from hmz.coganchor.agents import searching, tightest
 
     was = agent.config
     try:
@@ -1966,12 +1970,12 @@ def runs_at(flow: str | os.PathLike[str], agent: Agent, place: Place) -> AgentCo
         # that refusal is the same refusal, owed the same sentence about which place it was.
         wanted = replace(
             was,
-            permission=min(was.permission, place.permission, key=PERMISSIONS.index),
+            permission=tightest(was.permission, place.permission),
             # A place run under a goal has one whatever the agent came with: an agent with
             # goals switched off is refused where the place is filled rather than quietly run
             # without.
             goals=place.goals if place.goal else (was.goals and place.goals),
-            web_search=was.web_search and place.web_search,
+            web_search=searching(was.web_search, place.web_search),
         )
         if wanted == was:
             return was

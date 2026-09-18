@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from .base import AgentBase, CommandSessionBase
-from .config import AgentConfig
+from .config import UNSAID, AgentConfig
 from .event import Event, Failed, Usage
 
 if TYPE_CHECKING:
@@ -52,17 +52,53 @@ _CACHED = ("read", "write")
 #: where it was told nobody is there to and `reject` where it was not -- but those are the two
 #: answers the ends of this table already give, so a rung written as `ask` would say nothing a
 #: rung written outright does not.
+#: The unsaid rung is a row with nothing in it, which is the whole of what there is to say
+#: about it: a turn whose config names no rung is one humanize has no business writing a
+#: permission for. The row is read key by key and the table is built out of the keys it has, so
+#: an empty row leaves the table empty -- and an empty table is no variable at all, which is
+#: the turn running at whatever the person at this machine has configured, as a bare
+#: ``opencode run`` does. What may still be in the table beside such a row is the way out to
+#: the web, that being said by `web_search` rather than by the rung.
 _PERMITTED = {
     "read-only": {"edit": "deny", "bash": "deny", "reach": "allow"},
     "workspace-write": {"edit": "allow", "bash": "allow", "reach": "deny"},
     "auto": {"edit": "allow", "bash": "allow", "reach": "allow"},
     "bypass": {"edit": "allow", "bash": "allow", "reach": "allow"},
+    UNSAID: {},
 }
 
-#: The rungs that withhold nothing, and so the only ones a turn run without a table of its own
-#: can honestly be at: what decides then is whatever the person at this machine has configured,
-#: which a narrower rung would have had to overrule and has no way left to.
-_UNNARROWED = ("auto", "bypass")
+#: The answers that withhold nothing, and so the only ones a turn run without a table of its
+#: own can honestly be at: what decides then is whatever the person at this machine has
+#: configured, which a narrower rung would have had to overrule and has no way left to. The
+#: silence is among them for a reason of its own. Not that a table could have carried it and
+#: is not needed: there is nothing to carry, and taking the table away takes away no answer
+#: because none was given -- which is the same turn either way.
+_UNNARROWED = (UNSAID, "auto", "bypass")
+
+
+def _carried(config: AgentConfig, setting: str) -> bool:
+    """Whether one of the two ways this backend is told a rung applies to this turn.
+
+    Both of them are the rung arriving: the table is what the agent may do, and the flag is
+    what becomes of everything the table left to be asked about. So an answer is taken as the
+    answer it is, and no answer at all comes to whether there was anything to carry -- a rung
+    the config names, or a web switch it states, that being the other thing the table holds. A
+    config saying neither is a turn humanize says nothing about, and a turn said nothing about
+    is the bare ``opencode run`` whoever is at this machine already gets.
+
+    Args:
+      config: What the agent is configured with.
+      setting: Which of the two to ask about, by the name its field goes under. By name and
+        read off the config here, because a config from another backend has neither -- which
+        is the same no answer at all as one of this backend's own leaving it unsaid.
+
+    Returns:
+      Whether the flag goes on the command line, or the table into the environment.
+    """
+    said: bool | None = getattr(config, setting, None)
+    if said is not None:
+        return said
+    return config.permission != UNSAID or config.web_search is not None
 
 
 class OpencodeSession(CommandSessionBase):
@@ -157,7 +193,7 @@ class OpencodeSession(CommandSessionBase):
             # `--fork` forks the session it is given and carries on in the fork, so this run
             # lands in a conversation of its own that starts out knowing what that one knew.
             argv += ["--session", self._forked_from, "--fork"]
-        if getattr(config, "unattended", True):
+        if _carried(config, "unattended"):
             argv += self._unattended()
         return argv, prompt
 
@@ -170,8 +206,10 @@ class OpencodeSession(CommandSessionBase):
         refusals: what the agent may not do is denied, and the flag is what carries the rest.
 
         What the flag is called is all this says. Whether a turn carries it at all is the
-        agent's `unattended`, and a turn that does not gets the CLI's own answer instead --
-        a headless run refuses what it is asked rather than waiting to be told.
+        agent's `unattended`, which where nobody has said comes to whether there was a rung
+        to watch over in the first place. A turn that does not carry it gets the CLI's own
+        answer instead -- a headless run refuses what it is asked rather than waiting to be
+        told.
         """
         return ["--auto"]
 
@@ -186,16 +224,29 @@ class OpencodeSession(CommandSessionBase):
         whatever that person's own configuration says. `permission_table` is where that is
         said, and the config refuses it off beside a rung or a web switch this was the only way
         of carrying.
+
+        A table with nothing in it is not written either, and nobody has to ask for that: a
+        config that names no rung and states no web switch has nothing to put in one, and a
+        variable set to that would be humanize answering a question nobody put to it.
         """
         config = self._agent.config
-        if not getattr(config, "permission_table", True):
+        if not _carried(config, "permission_table"):
             return dict(super()._environment())
         rung = _PERMITTED.get(config.permission, _PERMITTED["bypass"])
         # A rung that already withholds the web is not asked twice: it and `web_search` say
-        # the same thing here, and either of them saying it is enough.
-        reaching = rung["reach"] if config.web_search else "deny"
-        allowed = {"edit": rung["edit"], "bash": rung["bash"]}
-        allowed |= dict.fromkeys(type(self).reaches, reaching)
+        # the same thing here, and either of them saying it is enough. An unsaid rung says
+        # nothing about it at all, so the switch says it alone -- and where the switch is
+        # unstated beside such a rung, the web stays out of the table as everything else does.
+        reaching = (
+            "deny"
+            if config.web_search is False
+            else rung.get("reach") or ("allow" if config.web_search else "")
+        )
+        allowed = {named: rung[named] for named in ("edit", "bash") if named in rung}
+        if reaching:
+            allowed |= dict.fromkeys(type(self).reaches, reaching)
+        if not allowed:
+            return dict(super()._environment())
         return {
             **super()._environment(),
             type(self).permits: json.dumps(allowed),
@@ -381,13 +432,22 @@ class OpencodeAgentConfig(AgentConfig):
         it. Off, as the CLI is, and on for a run that has to be answerable for what was in it:
         somebody else's plugin is somebody else's code inside the turn.
       unattended: Whether the turn carries the CLI's own auto-approve flag, which answers yes
-        to everything the permission table has not refused outright. On, because a flow
-        watches its agent rather than gating it and a turn waiting on an approval nobody is
-        there to give is a flow that has stopped. Off, the CLI answers its own asks by
-        refusing them, which is a turn held to what it was allowed up front.
+        to everything the permission table has not refused outright. Unsaid, which is the flag
+        wherever the config says what its agent may do and no flag at all where it says
+        nothing: a flow that declares a rung watches its agent rather than gating it, and a
+        turn waiting on an approval nobody is there to give is a flow that has stopped -- but
+        that is a reason about a declared rung, and a run that declared nothing asked for the
+        CLI as it comes, which does not come carrying this. On is the flag whatever the config
+        says. Off, the CLI answers its own asks by refusing them, which is a turn held to what
+        it was allowed up front.
       permission_table: Whether `permission` and `web_search` reach the CLI at all, as a table
-        written for this turn in the variable it reads one from. On, and off for a turn that
-        is to run under whatever the person at this machine has configured -- their table,
+        written for this turn in the variable it reads one from. Unsaid, which writes one
+        wherever there is anything to put in it and leaves the variable alone where there is
+        not: a config naming no rung and stating no web switch is a turn run under whatever
+        the person at this machine has configured, which is what a bare ``opencode run`` is.
+        On says as much outright and comes to the same thing, this table holding those two
+        settings and nothing else -- asking for one where neither was said is asking for an
+        empty table. Off is that person's table for a turn that does have something to say,
         with `unattended` still deciding what becomes of anything that table leaves to be
         asked about. Off leaves this backend no way of saying either of the two, so a rung
         that withholds anything and web search switched off are both refused beside it: a
@@ -397,8 +457,8 @@ class OpencodeAgentConfig(AgentConfig):
     cli_agent: str = ""
     thinking: bool = False
     pure: bool = False
-    unattended: bool = True
-    permission_table: bool = True
+    unattended: bool | None = None
+    permission_table: bool | None = None
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -407,7 +467,10 @@ class OpencodeAgentConfig(AgentConfig):
                 f"cli_agent must be one of the CLI's own agent names, "
                 f"not {self.cli_agent!r}"
             )
-        if not self.permission_table:
+        # Of the refusal itself rather than of anything falsy: unsaid is not off, and a config
+        # that answered neither question is the one config there is nothing here to refuse --
+        # what it asked for is this backend saying nothing, which is the table being away.
+        if self.permission_table is False:
             unsayable = [
                 said
                 for said, narrowed in (
@@ -415,7 +478,7 @@ class OpencodeAgentConfig(AgentConfig):
                         f"permission={self.permission!r}",
                         self.permission not in _UNNARROWED,
                     ),
-                    ("web_search=False", not self.web_search),
+                    ("web_search=False", self.web_search is False),
                 )
                 if narrowed
             ]

@@ -660,8 +660,8 @@ would have done if nobody had said anything:
 | `cli_agent` | `--agent NAME` — the turn run as one of the CLI's own agents, which carries a prompt, a model and a tool list of its own | `""`, the agent the CLI starts with |
 | `thinking` | `--thinking` — the reasoning streamed as `Event(kind="reasoning")` on the way to the answer | off, as the CLI is |
 | `pure` | `--pure` — the turn run without the plugins installed around the CLI rather than in it | off, as the CLI is |
-| `unattended` | `--auto` for opencode, `--dangerously-skip-permissions` for mimocode — yes to whatever the rung has not refused outright | on |
-| `permission_table` | `OPENCODE_PERMISSION` / `MIMOCODE_PERMISSION`, the table this turn's [rung](#what-an-agent-may-do) and [web switch](#whether-an-agent-may-search-the-web) are carried in | on |
+| `unattended` | `--auto` for opencode, `--dangerously-skip-permissions` for mimocode — yes to whatever the rung has not refused outright | unsaid: the flag wherever the config says what its agent may do, and no flag where it says nothing |
+| `permission_table` | `OPENCODE_PERMISSION` / `MIMOCODE_PERMISSION`, the table this turn's [rung](#what-an-agent-may-do) and [web switch](#whether-an-agent-may-search-the-web) are carried in | unsaid: written wherever there is something to put in it, and the variable left alone where there is not |
 
 ```python
 from hmz.coganchor.agents import OpencodeAgent, OpencodeAgentConfig
@@ -686,6 +686,13 @@ configured, which is the only honest reason to turn it off — and so it is refu
 rung that withholds anything, or `web_search=False`, since the table was the only way of
 saying either. The table is written for the turn and never into that person's settings file:
 two agents of one flow may be allowed different things.
+
+A config that names no rung and states no web switch says neither of the two: no flag on the
+command line and no variable in the environment, which is the turn running exactly as a bare
+`opencode run` of it would — their permissions, and their own answer to whatever those leave
+to be asked about. `unattended=True` is the flag whatever the config says, for a flow that
+wants it regardless; `permission_table=False` beside such a config takes nothing away, since
+nothing was said for it to take.
 
 An agent takes an optional `name=`:
 

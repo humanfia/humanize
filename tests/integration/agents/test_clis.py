@@ -849,6 +849,57 @@ def test_a_turn_told_to_impose_nothing_writes_no_permission_table(
     assert call.allowed is None
 
 
+def test_a_turn_nobody_said_anything_about_is_a_bare_opencode_run(
+    stubs: _Stubs,
+) -> None:
+    """Neither of the two ways this backend says a rung, because there is no rung to say.
+
+    A config that names none and states no web switch is a run of the CLI as whoever is at
+    this machine already runs it: their own permissions, and their own answer to whatever
+    those leave to be asked about.
+    """
+    session = OpencodeAgent(
+        OpencodeAgentConfig(model="m", effort="high", permission="", web_search=None)
+    ).new()
+    assert session("hi") == "hi"
+
+    (call,) = stubs.calls()
+    assert call.allowed is None
+    assert "--auto" not in call.argv
+
+
+def test_the_same_turn_under_mimocode_says_neither_of_them_either(
+    stubs: _Stubs,
+) -> None:
+    """Its own spelling of the flag and its own variable, and neither of them written."""
+    session = MimoCodeAgent(
+        MimoCodeAgentConfig(model="m", effort="low", permission="", web_search=None)
+    ).new()
+    assert session("hi") == "hi"
+
+    (call,) = stubs.calls()
+    assert call.allowed is None
+    assert "--dangerously-skip-permissions" not in call.argv
+
+
+def test_a_web_switch_beside_no_rung_is_still_carried(stubs: _Stubs) -> None:
+    """It has nowhere else to go: the table is the only thing that says it here.
+
+    And what goes in that table is the switch and nothing beside it -- the rung said nothing,
+    so nothing is written where it would have been, and what the person at this machine has
+    configured for editing and for running commands is left to answer for those.
+    """
+    session = OpencodeAgent(
+        OpencodeAgentConfig(model="m", effort="high", permission="", web_search=False)
+    ).new()
+    assert session("hi") == "hi"
+
+    (call,) = stubs.calls()
+    assert call.allowed is not None
+    assert json.loads(call.allowed) == {"webfetch": "deny", "websearch": "deny"}
+    assert "--auto" in call.argv
+
+
 def test_opencode_takes_the_rest_of_its_command_line_from_the_agent(
     stubs: _Stubs,
 ) -> None:
