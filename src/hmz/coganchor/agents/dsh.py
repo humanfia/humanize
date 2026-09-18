@@ -26,7 +26,7 @@ import yaml
 from hmz.coganchor import backends
 
 from .base import AgentBase, SessionBase
-from .config import AgentConfig
+from .config import UNSAID, AgentConfig
 from .event import Event, Failed, Saying, Unrecoverable, Usage, say
 from .watchdog import Watchdog
 
@@ -216,7 +216,8 @@ class DshAgent(AgentBase):
           config: What its turns are to run at.
 
         Raises:
-          ValueError: If it was allowed anything other than everything. Not humanize's
+          ValueError: If it was allowed anything less than everything -- the silence above
+            the ladder is taken, since it comes to the same agent. Not humanize's
             composition making a choice -- read against the runtime bundled with
             `deepseek-harness-sdk` 0.1.1rc1, there is no composition of what ships that would
             confine these turns honestly.
@@ -227,6 +228,11 @@ class DshAgent(AgentBase):
             `dsh-user-approval` or `dsh-permission-presets`. So bypass is what a bare SDK
             session already runs at, and humanize composing the same pair is agreeing with the
             harness rather than loosening it.
+
+            Which is also why a config that settles no rung is taken. The silence asks for
+            nothing to be said about what the agent may do, and what a bare SDK session does
+            without being told is the unconfined pair above -- so the silence and `bypass`
+            name one agent here, and only one of them is humanize claiming to have chosen it.
 
             What settles it is the bundle rather than the default: the runtime executable
             carries `dsh-fs-sandbox`, `dsh-sandbox-local` and `dsh-sandbox-policy`, but no
@@ -258,10 +264,11 @@ class DshAgent(AgentBase):
             where there is neither bwrap nor a Landlock-enforcing kernel.
         """
         super()._serves(config)
-        if config.permission != "bypass":
+        if config.permission not in (UNSAID, "bypass"):
             raise ValueError(
                 "the dsh runtime bundles no confining bash executor, so no rung below "
-                "bypass can be enforced; permission must be 'bypass'"
+                "bypass can be enforced; permission must be 'bypass', or left unsaid for "
+                f"the composition a bare SDK session already runs, not {config.permission!r}"
             )
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> DshSession:
