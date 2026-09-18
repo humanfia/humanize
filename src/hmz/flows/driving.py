@@ -419,11 +419,13 @@ class Place(NamedTuple):
       permission: What the agent filling it may do without being asked, which the flow said
         with `AgentDefaults(permission=...)` beside the place. `bypass` for a place that said
         nothing, which is the loosest rung there is and so settles nothing: what an agent
-        already carries is never loosened to reach one of these. The silence
-        :data:`~hmz.coganchor.agents.UNSAID` stands for sits looser still -- it is not a rung
-        but the absence of one, humanize saying nothing to the CLI about what its agent may
-        do -- so it settles nothing either, and an agent left silent by whoever chose it stays
-        silent under any place that declares no rung of its own.
+        already carries is never loosened to reach one of these. A place may also write
+        :data:`~hmz.coganchor.agents.UNSAID`, which sits looser still -- it is not a rung but
+        the absence of one, humanize saying nothing to the CLI about what its agent may do --
+        and so settles nothing at all, leaving an agent that was itself left silent silent.
+        `bypass` is still what a place that writes nothing carries, so the silence is reached
+        by writing it rather than by saying nothing; that default is not this field's to
+        change.
       goals: Whether the backend's own goal feature is available to it, said the same way.
         A place run under a `Goal` has them, whatever else it wrote.
       web_search: Whether it may search the web, said the same way.
