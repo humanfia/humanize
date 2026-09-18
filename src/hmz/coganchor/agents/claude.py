@@ -44,6 +44,10 @@ _CONTINUATION_TOOLS = (
 #: The tools that reach the web, by the names Claude calls them. Both, because searching and
 #: fetching are one question here: an agent told not to search the web that went on reading
 #: whatever page it liked would be answering the same question the other way.
+#:
+#: Withheld where the answer is no and nowhere else. Silence is not a no: an agent nobody said
+#: anything about is one Claude ships these two to, so a rule written for it would be humanize
+#: taking a tool away in the name of a question it was never asked.
 _WEB_TOOLS = ("WebSearch", "WebFetch")
 
 #: The tools Claude starts an agent of its own with. A turn that reaches for one of these has
@@ -80,6 +84,12 @@ _UNFINISHED = frozenset(
 #: edit is declined and the turn ends successfully having changed nothing. So humanize takes
 #: the asking rather than skipping it: `bypass` runs at `manual` and answers every request
 #: itself, which is a mode every account allows and which means the same thing on each of them.
+#:
+#: Four rows and no fifth. The silence above the ladder is not a mode of Claude's to be looked
+#: up here but the flag left off altogether, so this stays the four rungs and
+#: :meth:`ClaudeCodeSession._command` says `--permission-mode` only where there is a rung --
+#: the way it says `--effort` only where there is an effort. A row spelled "" would be a flag
+#: carrying nothing, which is a mode named badly rather than a mode unasked for.
 _PERMITTED = {
     "read-only": "plan",
     "workspace-write": "acceptEdits",
@@ -345,15 +355,30 @@ class ClaudeCodeSession(StreamSessionBase):
                 else []
             ),
             *self._holding(),
-            "--permission-mode",
-            _PERMITTED[self._agent.config.permission],
             *(
-                # `bypass` is the rung nobody was asked about, so nobody is at a prompt to
-                # answer for it -- and rather than skip the asking with the flag an account
-                # may forbid, humanize does the answering. `manual` mode routes every request
-                # to whoever the CLI is talking to, and `stdio` is that being us: each one is
-                # read as a `control_request` and answered `allow`, yes to whatever the account
-                # leaves decidable, with its own hard `deny` list still the CLI's to enforce.
+                # The mode the rung means, where there is a rung, said the way the effort
+                # below is. An agent at no rung at all is one humanize says nothing to Claude
+                # about, which leaves it at whatever mode `claude --print` would have run at
+                # on this account. The flag carrying "" would not be that -- it would be a
+                # mode named badly -- and Claude has no mode of its own meaning "whatever you
+                # were going to do", so the two words go onto the line together or neither of
+                # them does.
+                ["--permission-mode", _PERMITTED[self._agent.config.permission]]
+                if self._agent.config.permission
+                else []
+            ),
+            *(
+                # `bypass` is the rung where nothing is asked and nothing is checked, so
+                # nobody is at a prompt to answer for it -- and rather than skip the asking
+                # with the flag an account may forbid, humanize does the answering. An agent
+                # at no rung at all is not that agent: what it stops to ask about is between
+                # it and the account it runs on, and taking the deciding for one would be
+                # humanize answering a question nobody put to it.
+                #
+                # `manual` mode routes every request to whoever the CLI is talking to, and
+                # `stdio` is that being us: each one is read as a `control_request` and
+                # answered `allow`, yes to whatever the account leaves decidable, with its own
+                # hard `deny` list still the CLI's to enforce.
                 #
                 # Not in `claude --help` any more. What 2.1.272 documents is
                 # `--permission-prompts <host|none>`, "who answers permission prompts with
@@ -396,7 +421,10 @@ class ClaudeCodeSession(StreamSessionBase):
         denied: list[str] = []
         if not self._agent.goals_enabled:
             denied += _CONTINUATION_TOOLS
-        if not self._agent.config.web_search:
+        # `is False` rather than falsy, because the answer has three states and the third is
+        # nobody having been asked: a rule written for that one would take the two tools away
+        # in the name of a question this flow never put.
+        if self._agent.config.web_search is False:
             denied += _WEB_TOOLS
         if denied:
             argv += ["--disallowedTools", ",".join(denied)]

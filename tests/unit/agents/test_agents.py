@@ -31,6 +31,7 @@ from hmz.coganchor.agents import (
     Stopped,
 )
 from hmz.coganchor.agents.codenames import SAID
+from hmz.coganchor.agents.config import UNSAID
 from tests.stubs import EchoAgent
 
 CONFIG = AgentConfig(model="m", effort="high")
@@ -122,6 +123,34 @@ def test_claude_narrates_a_reach_by_default_and_takes_that_back_when_told_to() -
     quiet = replace(config, partial_messages=False)
 
     assert "--include-partial-messages" not in ClaudeCodeAgent(quiet).new()._command()
+
+
+def test_claude_at_no_rung_at_all_is_told_nothing_about_what_its_agent_may_do() -> None:
+    """Which is the turn `claude --print` takes for whoever runs it with none of this.
+
+    The silence above the ladder is the flag left off rather than the flag carrying nothing:
+    a `--permission-mode` spelled "" is a mode named badly, and Claude has no mode of its own
+    meaning "whatever you were going to do". Nothing else that would settle the question some
+    other way goes on either -- not the prompt routing that makes the deciding humanize's,
+    not the skip an account may forbid, and not the tool rules that are a rung written out.
+    """
+    argv = (
+        ClaudeCodeAgent(
+            ClaudeCodeAgentConfig(
+                model="m", effort="high", permission=UNSAID, web_search=None
+            )
+        )
+        .new()
+        ._command()
+    )
+
+    assert "--permission-mode" not in argv
+    assert "--permission-prompt-tool" not in argv
+    assert "--dangerously-skip-permissions" not in argv
+    assert "--disallowedTools" not in argv
+    assert "--allowedTools" not in argv
+    # And what is left is the line an agent has always been run on: this model, this effort.
+    assert argv[-4:] == ["--model", "m", "--effort", "high"]
 
 
 def test_a_session_that_never_opened_cannot_be_talked_to() -> None:
