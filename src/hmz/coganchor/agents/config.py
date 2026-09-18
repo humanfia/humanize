@@ -258,11 +258,6 @@ class AgentDefaults:
 
     Attributes:
       permission: What the agent may do without being asked, as one of :data:`PERMISSIONS`,
-<<<<<<< HEAD
-        or :data:`UNSAID` for a place that would rather humanize said nothing about it.
-      goals: Whether the backend's own goal feature is available to it.
-      web_search: Whether it may search the web, or None to say nothing about it either way.
-=======
         and :data:`UNSAID` -- the default -- for a place that never raised the subject. A
         place declaring a rung declares it of the work; one with nothing to declare has no
         business tightening whoever fills it, and no business loosening them either.
@@ -271,7 +266,6 @@ class AgentDefaults:
         never raised that subject either. Three answers rather than two, because asking for
         the web is as much a declaration as refusing it, and neither is the same as not
         asking.
->>>>>>> origin/worktree-agent-a659a954e7af42a62
 
     Raises:
       ValueError: If the rung is not one there is, said as the flow is read rather than
@@ -280,11 +274,7 @@ class AgentDefaults:
 
     permission: str = UNSAID
     goals: bool = True
-<<<<<<< HEAD
-    web_search: bool | None = True
-=======
     web_search: bool | None = None
->>>>>>> origin/worktree-agent-a659a954e7af42a62
 
     def __post_init__(self) -> None:
         if self.permission not in _SAYABLE:
@@ -433,14 +423,6 @@ class AgentConfig:
         project it reads and the commands it runs.
       permission: What this agent may do without being asked, as one of :data:`PERMISSIONS`,
         or :data:`UNSAID` -- not a rung at all, but humanize saying nothing to the CLI and
-<<<<<<< HEAD
-        leaving it wherever that CLI's own headless run leaves it.
-        `bypass` because that is what a flow driving an agent unattended has always run it
-        at: a flow watches its agent rather than gating it, and a turn waiting on an approval
-        nobody is there to give is a flow that has stopped. Anything tighter is the flow's
-        choice, written as an :class:`AgentDefaults` beside the place it declares, and
-        settled onto the agent before its first turn.
-=======
         leaving it wherever that CLI's own headless run leaves it. :data:`UNSAID` is what an
         agent comes at, because a run nobody configured is a run humanize has nothing to say
         about: a rung is an answer, and an answer nobody gave is not humanize's to invent on
@@ -452,7 +434,6 @@ class AgentConfig:
         because it watches its agent rather than gating it and a turn waiting on an approval
         nobody is there to give is a flow that has stopped. That is a different thing from a
         flow which never raised the question, and it is said differently.
->>>>>>> origin/worktree-agent-a659a954e7af42a62
       provider: Which account this agent's turns run as, by the name a provider of its CLI was
         made under, or "" for the CLI as whoever is at this machine already runs it. It is a
         setting of the agent rather than of the flow because it is the agent that signs in:
@@ -512,11 +493,7 @@ class AgentConfig:
     permission: str = UNSAID
     provider: str = ""
     goals: bool = True
-<<<<<<< HEAD
-    web_search: bool | None = True
-=======
     web_search: bool | None = None
->>>>>>> origin/worktree-agent-a659a954e7af42a62
     budget: Budget | None = None
 
     def __post_init__(self) -> None:
