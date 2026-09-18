@@ -45,6 +45,7 @@ __all__ = [
     "Ledger",
     "Reading",
     "allowed",
+    "blinded",
     "unreadable",
     "unwatched",
     "written",
@@ -121,6 +122,10 @@ class Allowance:
         An allowance with nothing named in it is a run under none, and it costs nothing to be
         given one: nothing is added up and no meter is read for a run that cannot reach the
         end of it.
+
+        What was written down rather than what will be reached: a cap on a dimension nothing
+        in the run can read is bounded here and will never bite. Whether anything is actually
+        going to stop the run is :func:`unwatched`, which is handed both.
         """
         return self.hours > 0 or self.tokens > 0 or self.dollars > 0
 
@@ -262,23 +267,12 @@ class Ledger:
         enrolled = self.agents()
         output = 0.0
         billed: list[float] = []
-        priced = 0
-        counted = 0
         for agent in enrolled:
             usage = agent.spent()
             output += usage.output
-            if "output" in type(agent).counts:
-                counted += 1
-            if prices.price(agent.config.model) is not None:
-                priced += 1
-                money = prices.cost(usage, agent.config.model)
-                if money is not None:
-                    billed.append(money)
-        blind: set[str] = set()
-        if self._allowance.tokens > 0 and enrolled and not counted:
-            blind.add("tokens")
-        if self._allowance.dollars > 0 and enrolled and not priced:
-            blind.add("dollars")
+            money = prices.cost(usage, agent.config.model)
+            if money is not None:
+                billed.append(money)
         return Reading(
             seconds=time.monotonic() - self._began,
             output=output,
@@ -290,7 +284,14 @@ class Ledger:
             # nothing, and a bill short of one of those is short exactly as one short of a
             # model nobody lists at all.
             floor=bool(billed) and len(billed) < len(enrolled),
-            blind=frozenset(blind),
+            # Through `blinded`, which is the same question asked of the same agents before
+            # the run started: a reading calling a cap readable that the menu had just called
+            # blind would be two answers to one question.
+            blind=blinded(
+                self._allowance,
+                [one.config.model for one in enrolled],
+                counting=any("output" in type(one).counts for one in enrolled),
+            ),
         )
 
     def over(self) -> str:
@@ -441,6 +442,46 @@ def allowed(
     return declared if declared is not None else DEFAULT
 
 
+def blinded(
+    allowance: Allowance, models: Iterable[str], *, counting: bool
+) -> frozenset[str]:
+    """Which of the caps this allowance sets nothing in such a run could read.
+
+    The one place that is worked out, and worked out from what is known before a turn has
+    been taken rather than from a meter: whether anybody prices a model is a fact about the
+    model, and whether a backend reports what it writes is a fact about the backend. Both are
+    settled the moment the agents are chosen -- which is where somebody can still be asked
+    whether the run they are starting is the run they meant, and :meth:`Ledger.reads` is the
+    same question asked again of a run that is already going.
+
+    Args:
+      allowance: What the run is to be held to. Only a dimension it actually caps is named:
+        an unset one was never going to bite, so it cannot be a cap that will not.
+      models: What the run's agents run, as each of their configs spells it. A run with no
+        model in it at all -- the person at the prompt and nobody else -- is blind to nothing,
+        there being no bill of anybody's to have missed. A model named as nothing is on
+        nobody's list either, which is the safe way round: it is said rather than assumed.
+      counting: Whether anything in the run reports what it writes, which is its backend's
+        `counts` rather than anything about its model -- a CLI added by hand speaks a protocol
+        that counts nothing at all. Asked for rather than defaulted, because the one answer
+        worth nobody's trust here is a caller quietly claiming a cap can be read.
+
+    Returns:
+      The dimensions, as :attr:`Reading.blind` names them and :func:`unreadable` says them.
+    """
+    named = list(models)
+    if not named:
+        return frozenset()
+    blind: set[str] = set()
+    if allowance.tokens > 0 and not counting:
+        blind.add("tokens")
+    if allowance.dollars > 0 and not any(
+        prices.price(one) is not None for one in named
+    ):
+        blind.add("dollars")
+    return frozenset(blind)
+
+
 def unreadable(blind: Iterable[str]) -> str:
     """What to tell somebody about a cap nothing in their run can read.
 
@@ -462,7 +503,9 @@ def unreadable(blind: Iterable[str]) -> str:
     return f"nothing here can read {' or '.join(said)}" if said else ""
 
 
-def unwatched(effective: Allowance, declared: Allowance | None) -> bool:
+def unwatched(
+    effective: Allowance, declared: Allowance | None, blind: Iterable[str] = ()
+) -> bool:
     """Whether a run under this allowance would have nothing at all to stop it.
 
     The one place the question is asked, so that the menu asking somebody to confirm and the
@@ -471,16 +514,31 @@ def unwatched(effective: Allowance, declared: Allowance | None) -> bool:
     unbounded, which is what `chat` is -- rather than by being named in a table here, in the
     menu and in the command line, where three copies of one list is three places to forget.
 
+    A cap nothing in the run can read is no cap. :attr:`Allowance.bounded` reads the three
+    numbers and answers what was written down, which is the other question: fifty dollars on a
+    model nobody prices is written down as a cap and is a run with no limit on it, and the two
+    are the same allowance. So what can be read is handed in with it, and a run whose every
+    cap is unreadable is the run that was given none.
+
     Args:
       effective: What the run will actually be held to.
       declared: What the flow itself said, or None for a flow with no opinion. Only an
         `Allowance()` written out is the claim: a flow that declared a cap and had it
         overridden away has said nothing about running under none.
+      blind: Which of those caps nothing in the run can read, as :attr:`Reading.blind` names
+        them, :func:`blinded` answers before there is a run to read one off and
+        :func:`unreadable` says them. Empty for a caller holding an allowance and no run to
+        hold it over, which claims nothing either way.
 
     Returns:
       Whether nothing will stop this run and nobody has said that is what they meant.
     """
+    # Read into a set once, for the reason `unreadable` does: taken as it is given, a
+    # generator would be drained by the first dimension and every later one would look in
+    # nothing -- which here is a run called watched because its caps were counted twice.
+    unseen = set(blind)
+    stops = any(getattr(effective, one) > 0 and one not in unseen for one in FIELDS)
     # `declared is None` is a flow with no opinion, and a declaration that caps something is
     # a flow whose opinion this run has overridden -- neither is a flow saying an unbounded run
     # is what it is for. Only `Allowance()` written out says that, and only it is exempt.
-    return not effective.bounded and (declared is None or declared.bounded)
+    return not stops and (declared is None or declared.bounded)

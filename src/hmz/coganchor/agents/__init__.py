@@ -16,6 +16,7 @@ from .allowance import (
     Allowance,
     Ledger,
     Reading,
+    blinded,
     unreadable,
     unwatched,
 )
@@ -225,6 +226,7 @@ __all__ = [
     "ZcodeAgentConfig",
     "ZcodeSession",
     "anchored",
+    "blinded",
     "isolated",
     "rung",
     "searching",

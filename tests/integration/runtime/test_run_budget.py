@@ -95,9 +95,26 @@ def stand_in(tmp_path: Path) -> dict[str, str]:
 
 
 def _ran(
-    tmp_path: Path, said: dict[str, str], budget: str, *, timeout: float = 120.0
+    tmp_path: Path,
+    said: dict[str, str],
+    budget: str,
+    *,
+    model: str = "m",
+    timeout: float = 120.0,
 ) -> subprocess.CompletedProcess[str]:
-    """One `hmz exec` of the endless flow, under the budget written in a file."""
+    """One `hmz exec` of the endless flow, under the budget written in a file.
+
+    Args:
+      tmp_path: Where the flow and the file go.
+      said: The environment, out of the `stand_in` fixture.
+      budget: What the file `-c` names says about what the run may spend.
+      model: What the stand-in CLI is told to run -- `m`, which the list beside it prices,
+        unless a test wants one nobody prices.
+      timeout: How long to give it before it is killed, for a run that never ends.
+
+    Returns:
+      What the process did.
+    """
     (tmp_path / "b.yaml").write_text(budget, encoding="utf-8")
     return subprocess.run(
         [
@@ -108,7 +125,7 @@ def _ran(
             "-f",
             str(tmp_path / "flows" / "forever"),
             "-a",
-            "opencode/m:high",
+            f"opencode/{model}:high",
             "-c",
             str(tmp_path / "b.yaml"),
             "go",
@@ -180,6 +197,34 @@ def test_a_run_nothing_will_stop_says_so_and_runs_anyway(
     said = (went_on.value.stderr or b"").decode(errors="replace")
 
     assert "nothing will stop this run" in said
+
+
+@pytest.mark.timeout(300)
+def test_a_cap_nothing_can_price_is_said_and_the_run_goes_on_anyway(
+    tmp_path: Path, stand_in: dict[str, str]
+) -> None:
+    """Fifty dollars on a model nobody lists, which is the run a benchmark actually made.
+
+    Bounded in the file and unbounded on the machine: nothing here can read the money, so
+    nothing here can stop the run. A command line has nobody to ask, so it says both things
+    -- which cap cannot be read, and that this leaves nothing holding the run -- and goes.
+    That it goes is the other half of the claim: a cell in a container must not sit waiting
+    on a question, so the rounds have to be on stdout by the time it is killed.
+    """
+    with pytest.raises(subprocess.TimeoutExpired) as went_on:
+        _ran(
+            tmp_path,
+            stand_in,
+            "budget:\n  dollars: 50\n",
+            model="nobody-lists-this",
+            timeout=10.0,
+        )
+
+    said = (went_on.value.stderr or b"").decode(errors="replace")
+
+    assert "nothing here can read dollars" in said
+    assert "nothing will stop this run" in said
+    assert "round 1" in (went_on.value.stdout or b"").decode(errors="replace")
 
 
 @pytest.mark.timeout(120)

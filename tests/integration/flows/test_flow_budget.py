@@ -58,9 +58,19 @@ def run(agents: tuple[AgentBase], task: str) -> None:
 """
 
 
-def _runner(at: Path, **said: object) -> Runner:
-    """One loaded flow, with the agent it declares."""
-    return Runner(at, [ShellAgent(CONFIG)], **said)  # pyright: ignore[reportArgumentType]
+def _runner(at: Path, model: str = "", **said: object) -> Runner:
+    """One loaded flow, with the agent it declares.
+
+    Args:
+      at: The flow.
+      model: What that agent runs, or "" for `m`, which is on nobody's price list.
+      said: What whoever started the run said about it.
+
+    Returns:
+      The runner.
+    """
+    config = AgentConfig(model=model, effort="high") if model else CONFIG
+    return Runner(at, [ShellAgent(config)], **said)  # pyright: ignore[reportArgumentType]
 
 
 def test_a_flow_that_says_nothing_runs_under_nothing(tmp_path: Path) -> None:
@@ -177,20 +187,48 @@ def test_the_exec_line_carries_what_the_file_said_the_run_may_spend(
     assert budget == Allowance(hours=0.5)
 
 
-def test_a_run_nothing_in_it_can_price_says_the_dollars_cap_cannot_bite(
+def test_a_run_nothing_in_it_can_price_is_a_run_with_no_cap_on_it(
     tmp_path: Path,
 ) -> None:
     """A fifty-dollar limit on a model nobody lists is a run with no limit on it at all.
 
-    And it reads exactly like a limit that has not been reached yet, which is why it has to
-    be said out loud before the first turn rather than left to a run that never stops.
+    And it reads exactly like a limit that has not been reached yet -- so it is said out loud
+    before the first turn, and counted as the no cap it is rather than as the cap it was
+    written down as. A benchmark ran eight cells of an unpriced model under a dollar apiece
+    and was told so in a log line, which is nowhere anybody was being asked anything.
     """
     at = written(tmp_path, "quiet", QUIET)
 
     runner = _runner(at, budget={"dollars": 50})
 
     assert "dollars" in runner.unreadable()
-    assert not runner.unwatched  # it is bounded; it is only unreadable
+    assert runner.unwatched  # bounded on paper, and nothing here can read the paper
+
+
+def test_a_cap_the_run_can_read_is_a_run_something_will_stop(
+    tmp_path: Path, priced: str
+) -> None:
+    """The control: the same allowance on a model somebody lists is a cap that bites."""
+    at = written(tmp_path, "quiet", QUIET)
+
+    runner = _runner(at, priced, budget={"dollars": 50})
+
+    assert runner.unreadable() == ""
+    assert not runner.unwatched
+
+
+def test_a_clock_beside_an_unreadable_cap_still_stops_the_run(tmp_path: Path) -> None:
+    """Which is exactly the case that benchmark hit, and the reason nothing broke there.
+
+    The money could not be read and the hours could, so the cells stopped on the clock. A run
+    with one readable cap on it is a run something will stop, and must not be asked about.
+    """
+    at = written(tmp_path, "quiet", QUIET)
+
+    runner = _runner(at, budget={"hours": 0.2, "dollars": 1})
+
+    assert "dollars" in runner.unreadable()
+    assert not runner.unwatched
 
 
 def test_a_cap_that_can_be_read_is_not_complained_about(tmp_path: Path) -> None:

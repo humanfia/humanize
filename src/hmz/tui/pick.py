@@ -65,7 +65,13 @@ from textual.widgets.option_list import Option
 
 from hmz.coganchor import backends
 from hmz.coganchor.agents import ANYONE, FLOW, SWARM, USER, anchored, driver
-from hmz.coganchor.agents.allowance import Allowance, allowed, unwatched
+from hmz.coganchor.agents.allowance import (
+    Allowance,
+    allowed,
+    blinded,
+    unreadable,
+    unwatched,
+)
 from hmz.coganchor.prices import money
 from hmz.runtime import telemetry
 from hmz.runtime.kept import Runs
@@ -76,7 +82,7 @@ from .monitor import Counted, Shape, lasting, short, thousands
 from .selecting import Choices
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator, Mapping, Sequence
+    from collections.abc import Callable, Generator, Iterable, Mapping, Sequence
 
     from pydantic.fields import FieldInfo
     from textual.app import App, ComposeResult
@@ -1480,9 +1486,75 @@ def _complete(runs: Runs) -> bool:
     Returns:
       True if there is something to run it on.
     """
-    cli, _, rest = runs.spec.partition("/")
-    model, _, _ = rest.rpartition(":")
-    return bool(cli and model)
+    return bool(_cli(runs) and _model(runs))
+
+
+def _cli(runs: Runs) -> str:
+    """Which backend one agent of the menu is driven by, out of what it was set up as.
+
+    Args:
+      runs: The agent.
+
+    Returns:
+      The CLI, or "" for an agent nobody has answered yet.
+    """
+    return runs.spec.partition("/")[0]
+
+
+def _model(runs: Runs) -> str:
+    """What one agent of the menu runs, out of the `cli/model:effort` it was set up as.
+
+    Read from both ends, as :func:`hmz.runtime.kept.written` reads the same word: a model may
+    hold slashes of its own, while a CLI and an effort never do.
+
+    Args:
+      runs: The agent.
+
+    Returns:
+      The model, or "" for an agent nobody has answered yet.
+    """
+    return runs.spec.partition("/")[2].rpartition(":")[0]
+
+
+def _counts(runs: Runs) -> bool:
+    """Whether the backend one agent of the menu is driven by reports what it writes.
+
+    Asked of the CLI rather than of the model, `counts` being that backend's own word for
+    what it can report: a CLI somebody added by hand is driven over a protocol that counts
+    nothing at all, so a cap in tokens on one of those is a cap that will never bite.
+
+    Args:
+      runs: The agent.
+
+    Returns:
+      Whether a token cap could be read off it. True for a CLI nothing here drives, which is
+      an agent no run can be started with either -- there is nothing to warn anybody about.
+    """
+    try:
+        return "output" in driver(_cli(runs))[0].counts
+    except KeyError:
+        return True
+
+
+def _cannot_read(blind: Iterable[str]) -> str:
+    """The line under the question, for a run whose caps are set and cannot be read.
+
+    :func:`hmz.coganchor.agents.allowance.unreadable` already names the dimension and why
+    nothing can read it, and says it in the line `hmz exec` prints on its way past. Said the
+    same way here: two wordings of one fact are two things to keep in step, and a person who
+    reads it in both places is reading about the same run.
+
+    Args:
+      blind: The dimensions nothing can read, as `Reading.blind` names them.
+
+    Returns:
+      The line, or "" for a run every cap of which can be read -- which is the ordinary
+      unbounded one, capped on nothing at all.
+    """
+    said = unreadable(blind)
+    if not said:
+        return ""
+    return f"{said[:1].upper()}{said[1:]}, so that cap cannot stop this run."
 
 
 #: What separates the two halves of a row's id among the flows: which place it came from,
@@ -2341,19 +2413,35 @@ class Flows(Drafts[Chosen]):
         # The one exit that makes an answer, so the one place to ask about a run nothing
         # will stop: the save row and the question on the way out both come through here,
         # and a check written at each of them is a check one of them would lose.
-        if unwatched(allowed(self._budget, self._declared), self._declared):
-            self._means_it()
+        effective = allowed(self._budget, self._declared)
+        # And what those agents are is what says whether the caps can be read at all, which
+        # is asked here because here is where they have just been chosen: a cap in dollars on
+        # a model nobody prices, or in tokens on a CLI that counts none, is a cap that will
+        # never bite -- so a run held to nothing else is a run nothing will stop, and this is
+        # the last moment anybody is at a prompt to be told.
+        blind = blinded(
+            effective,
+            [_model(one) for one in self._runs],
+            counting=any(_counts(one) for one in self._runs),
+        )
+        if unwatched(effective, self._declared, blind):
+            self._means_it(_cannot_read(blind))
             return
         self.dismiss(Chosen(self._flow, tuple(self._runs), self._config, self._budget))
 
     @work
-    async def _means_it(self) -> None:
-        """Asks whether a run nothing will stop is what was meant, and saves if it is."""
+    async def _means_it(self, about: str = "") -> None:
+        """Asks whether a run nothing will stop is what was meant, and saves if it is.
+
+        Args:
+          about: What to say under the question, for a run whose caps are set and cannot be
+            read -- or "" for the ordinary one, which is a run capped on nothing at all.
+        """
         showing = cast(
             "App[None]",
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
-        if await showing.push_screen_wait(Unbounded()) != _KEEP:
+        if await showing.push_screen_wait(Unbounded(about)) != _KEEP:
             telemetry.snag("unbounded-refused", flow=self._flow)
             # Back to the menu holding everything it was holding, which is where a budget is
             # set: the answer was "go and set one", and there is nothing else to do about it.
@@ -4814,6 +4902,19 @@ class Unbounded(Popup):
         "No hours, no output tokens and no dollars are capped, so it runs until it is "
         "stopped by hand."
     )
+
+    def __init__(self, about: str = "") -> None:
+        """Asks it, about this run.
+
+        Args:
+          about: The line under the question, for a run whose caps are set and cannot be read
+            -- fifty dollars on a model nobody prices is a run with no limit on it, and the
+            box that said three caps were unset would be saying the one untrue thing about
+            it. "" for the ordinary one, which is a run capped on nothing at all.
+        """
+        super().__init__()
+        if about:
+            self.about = about
 
     def rows(self) -> list[tuple[str, str, str]]:
         """The two answers: mean it, or go back and cap something."""

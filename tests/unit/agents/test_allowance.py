@@ -22,6 +22,7 @@ from hmz.coganchor.agents import (
     PiAgent,
     PiAgentConfig,
     Usage,
+    blinded,
     unreadable,
     unwatched,
 )
@@ -29,6 +30,14 @@ from hmz.coganchor.agents import (
 #: A model nobody lists, which is what leaves a run's bill unreadable. What is priced comes
 #: from the `priced` fixture, so that no test here reaches the network for a unit price.
 UNLISTED = "nobody-lists-this-model"
+
+#: The two a benchmark of sixteen cells actually ran, as the gateway in front of them spells
+#: them. One is on nobody's list, and eight cells of it reported `$0.00` under a cap of a
+#: dollar apiece -- which is where the question below came from.
+ROUTED, ROUTED_UNLISTED = (
+    "azure/anthropic/claude-haiku-4-5",
+    "azure/openai/gpt-5.4-mini",
+)
 
 
 class _Priced(PiAgent):
@@ -208,6 +217,77 @@ def test_who_is_asked_about_a_run_nothing_will_stop(
 ) -> None:
     """The claim is read off the flow rather than off whether it said anything."""
     assert unwatched(effective, declared) is asked
+
+
+@pytest.mark.parametrize(
+    ("effective", "blind", "asked"),
+    [
+        # The run a benchmark of sixteen cells actually made: a dollar a cell, on a model
+        # nobody prices. Bounded on paper, and nothing in the run can reach the paper.
+        (Allowance(dollars=1), frozenset({"dollars"}), True),
+        # The same dollar on a model somebody does price, which is a cap that will bite.
+        (Allowance(dollars=1), frozenset[str](), False),
+        # And the same dollar beside a clock: the money cannot be read and the hours can, so
+        # something still stops the run. That is the one the benchmark survived on.
+        (Allowance(hours=0.2, dollars=1), frozenset({"dollars"}), False),
+        # Tokens the same way, for a backend that reports nothing of what it writes.
+        (Allowance(tokens=1), frozenset({"tokens"}), True),
+        (Allowance(tokens=1, dollars=1), frozenset({"tokens"}), False),
+    ],
+)
+def test_a_cap_nothing_can_read_counts_as_no_cap(
+    effective: Allowance, blind: frozenset[str], asked: bool
+) -> None:
+    """A cap that will never bite reads exactly like one that has not bitten yet.
+
+    So what `unwatched` answers is asked of what the run can read as well as of what was
+    written down: a person who set a dollar on a model nobody prices has a run with no limit
+    on it, and a `bounded` answering True would be the last word anybody had on it.
+    """
+    assert unwatched(effective, None, blind) is asked
+
+
+def test_a_flow_that_runs_under_nothing_is_not_asked_about_a_cap_nobody_reads() -> None:
+    """The exemption is the flow's claim, and a cap going unread does not withdraw it.
+
+    A flow that wrote `Allowance()` in its own file said an unbounded run is what it is for,
+    and a run of it under a cap nothing can read is the run it said it was.
+    """
+    assert not unwatched(Allowance(dollars=1), Allowance(), {"dollars"})
+
+
+def test_what_can_be_read_is_known_before_the_first_turn(priced: str) -> None:
+    """Which is the moment worth saying it at: somebody is still being asked then.
+
+    Whether anybody prices a model is a fact about the model and whether a backend reports
+    what it writes is a fact about the backend, so both are settled as soon as the agents are
+    known -- the menu that has just been answered with them knows before there is a run at
+    all, let alone a meter to read one off.
+    """
+    money, tokens = Allowance(dollars=1), Allowance(tokens=1)
+
+    assert blinded(money, [UNLISTED], counting=True) == frozenset({"dollars"})
+    assert blinded(money, [priced], counting=True) == frozenset()
+    # As the gateway in front of several clouds spells them, which is how the run that raised
+    # this question spelled them.
+    assert blinded(money, [ROUTED_UNLISTED], counting=True) == frozenset({"dollars"})
+    assert blinded(money, [ROUTED], counting=True) == frozenset()
+    # One priced agent is a bill that can be read, short of the rest of the run's -- which is
+    # a floor, and a floor reaches a cap late rather than never.
+    assert blinded(money, [UNLISTED, priced], counting=True) == frozenset()
+    # And the tokens off the backend rather than the model: a CLI added by hand is driven over
+    # a protocol that counts nothing, whatever it is pointed at.
+    assert blinded(tokens, [priced], counting=False) == frozenset({"tokens"})
+    assert blinded(tokens, [UNLISTED], counting=True) == frozenset()
+
+
+def test_a_cap_nobody_set_is_not_called_unreadable_before_the_run_either() -> None:
+    """Nor is a run with no model in it at all, which has no bill of anybody's to miss."""
+    assert blinded(Allowance(hours=1), [UNLISTED], counting=False) == frozenset()
+    assert blinded(Allowance(dollars=1), [], counting=False) == frozenset()
+    # But a model named as nothing is on nobody's price list either, and the way to be wrong
+    # about that is to say so rather than to assume a bill will turn up.
+    assert blinded(Allowance(dollars=1), [""], counting=True) == frozenset({"dollars"})
 
 
 def test_a_cap_nothing_can_read_is_said_however_it_was_handed_in() -> None:
