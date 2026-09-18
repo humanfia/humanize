@@ -57,6 +57,7 @@ from .base import (
 )
 from .config import UNSAID, AgentConfig
 from .event import Event, Failed, Saying, Unrecoverable, Usage
+from .hooks import EVERYWHERE, Moment
 
 if TYPE_CHECKING:
     import subprocess
@@ -129,6 +130,43 @@ _PERMITTED = {
 _HELD_OPEN = frozenset(
     rung for rung, said in _PERMITTED.items() if set(said) <= {_APPROVAL}
 )
+
+#: The rungs at which a tool call this client is asked about is answered yes, which is every
+#: rung that carries `--always-approve` -- the flag is the whole of what makes a grant here
+#: humanize's to give. At those rungs the CLI approves for itself and a request reaching the
+#: client at all is one a hook of Grok Build's own put in front of it, so granting is saying
+#: again what the flag already said; a flow watches its agent there rather than gating it.
+#:
+#: The row above the ladder carries no flag, and that is the whole reason this set is derived
+#: rather than assumed. An agent nobody was asked about is one `grok` decides for itself, and
+#: on 1.0.24 what it decides is read out of `[ui] permission_mode` in that person's
+#: `~/.grok/config.toml`: a machine set to `always-approve` never asks, and one left at
+#: `default` asks over the protocol, tool call by tool call. Answering those yes would be
+#: humanize granting what nobody told it to grant -- the silence settling the rung it exists
+#: not to settle -- so the silence is not in here and :func:`_permits` refuses for it.
+#:
+#: Derived from the same table :data:`_HELD_OPEN` is, and the two say different things about
+#: it: that one is about which rungs `grok agent` will take as flags, this one about which
+#: rungs make a yes ours to say. The silence is in that set and not in this one, which is the
+#: point -- a turn at no rung is served on the held-open process and refused there.
+_GRANTED = frozenset(rung for rung, said in _PERMITTED.items() if _APPROVAL in said)
+
+#: How a tool call is refused, as `_GRANTS` is how one is permitted: the kind rather than the
+#: id, for the reason ACP gives that field. One kind rather than the two the protocol has,
+#: because the other one is not the same refusal. Run against 1.0.24, `reject_always` writes
+#: the refusal into that project's own configuration -- `User rejected the execution and
+#: excluded 'echo hello-from-grok' from future runs in this project` -- which is one refused
+#: turn leaving a rule behind it on somebody's machine, and the rung this is reached at is the
+#: one whose whole meaning is that humanize settles nothing about this machine. So a request
+#: offering no `reject_once` falls through to `cancelled` instead of to that: refusing without
+#: writing anything down is worth more than refusing in the agent's preferred words.
+#:
+#: What either comes to is the same turn anyway: 1.0.24 fails the tool call with `User
+#: rejected the execution for tool run_terminal_command` and answers `session/prompt` with
+#: `stopReason: cancelled`, which :meth:`_answered` reads as a turn that did not answer. So a
+#: refusal here is a failed turn a flow can read, not a turn left hanging on a client that
+#: said nothing.
+_REFUSES = ("reject_once",)
 
 #: What each answer to the leader question is said with, and why there are three of them.
 #: A leader is one backend process shared by every client that asks for it, and which a
@@ -221,6 +259,11 @@ class GrokBuildSession(StreamSessionBase):
         #: if anything did. The text arrives in chunks, so the answer is what they come to.
         self._said: list[str] = []
         self._failed: str | None = None
+        #: Why this client refused a tool call of the turn now running, or None where it
+        #: refused none. Kept because Grok Build answers a refused prompt with `stopReason:
+        #: cancelled` and says nothing about who cancelled it, and a turn that reads as the
+        #: CLI giving up is a turn whose flow cannot tell a refusal from a fault.
+        self._refused: str | None = None
         #: Those same chunks, gathered into the answers they are pieces of: a response is one
         #: paragraph and is worth one row of a transcript rather than one row a word.
         self._saying = Saying()
@@ -273,7 +316,7 @@ class GrokBuildSession(StreamSessionBase):
         with self._lock:
             self._requested = self._settings()
             self._said, self._failed, self._shown = [], None, set()
-            self._costing, self._saying = Usage(), Saying()
+            self._costing, self._saying, self._refused = Usage(), Saying(), None
             try:
                 yield from super()._stream(prompt)
             except BaseException:
@@ -495,10 +538,20 @@ class GrokBuildSession(StreamSessionBase):
     def _answers(self, at: object, method: str, params: dict[str, Any]) -> None:
         """Answers something the agent asked us, rather than leaving it waiting on us.
 
-        A tool call it asks permission for is granted: `--always-approve` approves what a rung
-        leaves, but a hook of Grok Build's own can put a call in front of the client anyway,
-        and a flow watches its agent rather than gating it. Granted by the *kind* of the
-        option rather than by its id, which is the agent's own word for it.
+        A tool call it asks permission for is answered by the rung it runs at, which is
+        :data:`_GRANTED`. At a rung that carries `--always-approve` the answer is yes: the
+        flag has already approved what the rung leaves, and a request arriving anyway is one
+        a hook of Grok Build's own put in front of the client, which a flow watches rather
+        than gates. At no rung at all the flag is not sent, so the asking is `grok`'s own and
+        the answer is no -- humanize, told nothing about this agent, does not grant on its
+        behalf. Answered either way by the *kind* of the option rather than by its id, which
+        is the agent's own word for it.
+
+        A hook hung on `PERMISSION_REQUEST` is told either way and may refuse either way,
+        this being the one moment `grok agent` waits on and so the one place a refusal here
+        stops the agent doing something. What it may say is no: `Verdict` carries a refusal
+        and a reason and no yes at all, so at no rung a hook gives the refusal its words
+        rather than turning it round.
 
         Args:
           at: The id it asked under.
@@ -506,16 +559,29 @@ class GrokBuildSession(StreamSessionBase):
           params: What it asked with, which carries the options for a permission.
         """
         if method == "session/request_permission":
+            called = cast("dict[str, Any]", params.get("toolCall") or {})
+            asking = self._fire(
+                Moment.PERMISSION_REQUEST,
+                tool=str(called.get("title") or called.get("kind") or ""),
+                about=json.dumps(called.get("rawInput") or {}),
+                called=called,
+            )
+            granted = not asking.refused and self._agent.config.permission in _GRANTED
             self._send(
                 json.dumps(
                     {
                         "jsonrpc": "2.0",
                         "id": at,
-                        "result": {"outcome": _permits(params)},
+                        "result": {"outcome": _permits(params, granted=granted)},
                     }
                 )
                 + "\n"
             )
+            if not granted:
+                # Remembered so that the turn this ends says who ended it. Grok answers a
+                # refused prompt with `stopReason: cancelled` and nothing about why, and a
+                # flow told only that is a flow reading a refusal as the CLI misbehaving.
+                self._refused = asking.because or "humanize did not permit a tool call"
             return
         # Everything else is something this client said it could not do, and an agent asking
         # anyway is told so in the protocol's own words rather than left waiting.
@@ -662,7 +728,14 @@ class GrokBuildSession(StreamSessionBase):
             return Event(kind="failed", text=_why(why))
         result = cast("dict[str, Any]", said.get("result") or {})
         if (why := str(result.get("stopReason") or "")) not in _ANSWERED:
-            return Event(kind="failed", text=f"{_COMMAND} ended the turn on {why}")
+            # Whose refusal it was, where it was this client's. 1.0.24 ends a turn whose tool
+            # call was refused on `cancelled` and says nothing about who refused it, which
+            # reads exactly like the CLI giving up -- so what this client said no to and why
+            # is put back into the diagnostic the flow actually sees.
+            because = f": {self._refused}" if self._refused else ""
+            return Event(
+                kind="failed", text=f"{_COMMAND} ended the turn on {why}{because}"
+            )
         spent = int(self._costing.total)
         return Event(
             kind="result",
@@ -690,7 +763,7 @@ class GrokBuildSession(StreamSessionBase):
           piped stdin as the prompt.
         """
         self._said, self._failed, self._shown = [], None, set()
-        self._costing, self._saying = Usage(), Saying()
+        self._costing, self._saying, self._refused = Usage(), Saying(), None
         config = self._agent.config
         argv = [
             _COMMAND,
@@ -862,16 +935,21 @@ def _left(proc: subprocess.Popen[str], held: list[str]) -> str:
     return "".join(held).strip()
 
 
-def _permits(params: dict[str, Any]) -> dict[str, Any]:
-    """Grants a tool call, by the kind of the option rather than by its name.
+def _permits(params: dict[str, Any], *, granted: bool) -> dict[str, Any]:
+    """Answers a tool call, by the kind of the option rather than by its name.
 
     Args:
       params: What was asked, which carries the options the agent offers.
+      granted: Whether the rung this agent runs at is one humanize says yes at, which is
+        :data:`_GRANTED`. Where it is not, the asking is the CLI's own and so is the tool
+        that does not run.
 
     Returns:
-      The outcome to answer with: the first option that grants it, whatever was offered
-      where none of them does, and a cancellation where nothing was offered at all. Answered
-      either way, because the turn is not this client's to leave hanging.
+      The outcome to answer with: the best option of the kind the rung calls for, and a
+      cancellation where the agent offered nothing of that kind. Answered either way, and
+      never left, because a `session/request_permission` nobody answers is a turn that waits
+      until the watchdog puts the process down -- which is a worse outcome than a refusal,
+      a refused tool being something a flow can read and a wedge being nothing at all.
     """
     offered = [
         cast("dict[str, Any]", one)
@@ -879,9 +957,21 @@ def _permits(params: dict[str, Any]) -> dict[str, Any]:
         if isinstance(one, dict)
     ]
     chosen = next(
-        (one for kind in _GRANTS for one in offered if one.get("kind") == kind),
-        next(iter(offered), None),
+        (
+            one
+            for kind in (_GRANTS if granted else _REFUSES)
+            for one in offered
+            if one.get("kind") == kind
+        ),
+        None,
     )
+    if chosen is None and granted:
+        # Whatever was offered, an agent that named no kind this client knows being better
+        # answered with one of its own options than with none. Only where the rung grants:
+        # the first option of a list is the agent's own best answer, which every 1.0.24
+        # request starts with an `allow_always`, and a refusal that fell through to it would
+        # be a no said as a yes.
+        chosen = next(iter(offered), None)
     if chosen is None:
         return {"outcome": "cancelled"}
     return {"outcome": "selected", "optionId": str(chosen.get("optionId"))}
@@ -1050,6 +1140,14 @@ class GrokBuildAgent(AgentBase):
     #: What it counts, read off the same table its driver reads a usage with, so that what
     #: a run is told this backend reports is what its driver actually parses.
     counts: ClassVar[frozenset[str]] = frozenset(_KINDS)
+
+    #: And the one moment beyond every backend's that this one reaches. `grok agent` puts a
+    #: tool call to its client as `session/request_permission` and holds the tool until the
+    #: answer comes back, so this is a moment a hook can actually refuse something at rather
+    #: than one it is told about after the fact. Reached on the held-open transport only, a
+    #: `grok -p` run having no client to ask; a rung that falls to the command line is a rung
+    #: `--always-approve` already settled, so there is nothing there to be asked about.
+    moments: ClassVar[frozenset[Moment]] = EVERYWHERE | {Moment.PERMISSION_REQUEST}
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> GrokBuildSession:
         """Opens a new Grok Build session, in the directory it is given or in this one."""

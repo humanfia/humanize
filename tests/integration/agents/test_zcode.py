@@ -843,19 +843,40 @@ def test_a_rung_below_the_one_that_grants_it_refuses_what_it_is_asked(
     agent.stop()
 
 
-def test_a_session_at_no_rung_at_all_is_not_refused_for_being_at_none(
+def test_a_session_at_no_rung_at_all_is_not_granted_for_being_at_none(
     server: _FakeServer, tmp_path: Path
 ) -> None:
-    """Nobody named the rung it would be under, so this client is not the one to say no.
+    """Nobody named the rung it would be under, so this client is not the one to say yes.
 
-    What it runs at is whatever mode ZCode opened it in, and refusing its questions here
-    would be humanize settling the rung it was told to leave alone.
+    What it runs at is whatever mode ZCode opened it in, and granting what that mode stops to
+    ask about would make the silence looser at runtime than `workspace-write` -- humanize
+    settling, in the loosest direction there is, the rung it was told to leave alone.
     """
     agent = _agent(permission="")
 
     assert agent.new(tmp_path)("approving") == json.dumps(
-        {"decision": "allow", "reason": "run unattended"}
+        {"decision": "deny", "reason": "nothing said what this agent may do"}
     )
+    agent.stop()
+
+
+def test_a_hook_gets_the_first_word_at_no_rung_and_says_why(
+    server: _FakeServer, tmp_path: Path
+) -> None:
+    """A flow that hung one asked to decide, so it is asked before the silence answers."""
+    agent = _agent(permission="")
+    seen: list[Occasion] = []
+
+    def refuse(occasion: Occasion) -> Verdict:
+        seen.append(occasion)
+        return Verdict(refused=True, because="not that one")
+
+    agent.hooks.on(Moment.PERMISSION_REQUEST, refuse)
+
+    assert agent.new(tmp_path)("approving") == json.dumps(
+        {"decision": "deny", "reason": "not that one"}
+    )
+    assert [one.tool for one in seen] == ["Bash"]
     agent.stop()
 
 

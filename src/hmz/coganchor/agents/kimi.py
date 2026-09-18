@@ -581,9 +581,10 @@ _PERMITTED = {
     #
     # Nobody is at the browser here, which is why this row used to be the one that wedged: the
     # first tool call of such a turn stopped the session somewhere the poll could not move it,
-    # and the watchdog ended it as a stall a quarter of an hour later. It no longer does.
-    # `manual` is a rung this driver can answer now, and saying nothing lands on it the same
-    # way `read-only` does -- the approval is read, a hook gets it, and the turn goes on.
+    # and the watchdog ended it as a stall a quarter of an hour later. It no longer does. The
+    # approval is read, a hook gets it, and the turn goes on -- refused, because what humanize
+    # was told about this agent is nothing, and `rejected` is a line the model reads and works
+    # from rather than a session nobody ever moves. See :data:`_GRANTED`.
     UNSAID: {},
 }
 
@@ -613,6 +614,19 @@ _PERMITTED = {
 #: One thing it cannot do, which is true of every backend here: `Bash` can still `curl`. What
 #: this takes away is the web the CLI hands its agent, which is what `web_search` is about.
 _WEB_TOOLS = ("WebSearch", "FetchURL")
+#: The rungs at which an approval this driver reads is answered yes, which is every row that
+#: names a permission mode at all. The silence is the row that does not, and the one this set
+#: exists to keep out: an agent nobody wrote a rung for bootstraps at `manual`, where every
+#: Bash and every unblessed write raises an approval, so `approved` there would be humanize
+#: granting -- one call at a time and every call there is -- what nobody asked it to grant.
+#: That is the same `yolo` an agent declared at `auto` gets, reached by saying nothing.
+#:
+#: Refusing instead is a turn that carries on rather than one that ends or one that hangs:
+#: 0.42.0's `routes/approvals.ts` hands the model a line saying the tool was not run, with
+#: `feedback` appended as the reason. So the silence here is a turn the model works around and
+#: reports, which is what a flow can read -- and not the fifteen-minute stall that the same
+#: row, unanswered, used to be.
+_GRANTED = frozenset(rung for rung, settings in _PERMITTED.items() if settings)
 
 
 class _AppServer:
@@ -981,11 +995,19 @@ class KimiCodeCLISession(SessionBase):
         but `auto` raises them, which is what makes the rungs above a ladder rather than one
         setting written four times.
 
-        Answered yes, because nobody is at a prompt -- and put to `PERMISSION_REQUEST` first,
-        because this is the moment the backend actually waits on and so the one place a hook
-        here can stop an agent doing something. A refusal is `rejected` with whatever the hook
-        said as its reason, which the daemon hands the model as a line saying the tool was not
-        run: the turn goes on, having been refused, rather than ending.
+        Answered yes at the rungs this layer named -- :data:`_GRANTED` -- because nobody is at
+        a prompt there and the rung has already said what the agent may do. Answered no at the
+        one it did not: a session at no rung runs at whatever `kimi web` bootstraps one at,
+        which is `manual`, and an agent humanize was told nothing about is not one humanize
+        says yes for.
+
+        Put to `PERMISSION_REQUEST` first either way, because this is the moment the backend
+        actually waits on and so the one place a hook here can stop an agent doing something.
+        At no rung a hook can put its own words on the refusal but not turn one round --
+        `Verdict` carries a refusal and no yes -- so what it decides there is what the model is
+        told, not whether. A refusal, the hook's or the silence's, is `rejected` with the
+        reason, which the daemon hands the model as a line saying the tool was not run: the
+        turn goes on, having been refused, rather than ending.
 
         Args:
           session: The session the turn is running in.
@@ -1005,12 +1027,20 @@ class KimiCodeCLISession(SessionBase):
                 called=pending,
             )
             allowed, refused = _ANSWERS
+            if asking.refused:
+                answer = {
+                    "decision": refused,
+                    "feedback": asking.because or "refused by a hook",
+                }
+            elif self._agent.config.permission in _GRANTED:
+                answer = {"decision": allowed}
+            else:
+                answer = {
+                    "decision": refused,
+                    "feedback": "nothing said what this agent may do",
+                }
             self._agent.server.call(
-                "POST",
-                f"/sessions/{session}/approvals/{approval}",
-                {"decision": refused, "feedback": asking.because or "refused by a hook"}
-                if asking.refused
-                else {"decision": allowed},
+                "POST", f"/sessions/{session}/approvals/{approval}", answer
             )
 
     def _asked(self, session: str) -> None:
