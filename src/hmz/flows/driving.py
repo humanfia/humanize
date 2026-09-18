@@ -417,12 +417,17 @@ class Place(NamedTuple):
         work, and where its agents work is the flow's to say rather than a setting somebody
         reaches for.
       permission: What the agent filling it may do without being asked, which the flow said
-        with `AgentDefaults(permission=...)` beside the place. `bypass` for a place that said
-        nothing, which is the loosest rung there is and so settles nothing: what an agent
-        already carries is never loosened to reach one of these.
+        with `AgentDefaults(permission=...)` beside the place.
+        :data:`~hmz.coganchor.agents.UNSAID` for a place that said nothing -- not a rung but
+        the absence of one, humanize saying nothing to the CLI about what its agent may do,
+        and looser than the loosest rung there is. So it settles nothing, and a flow with no
+        opinion about permissions leaves the agent filling the place with whatever it came
+        with, which is itself most often the same silence. What an agent already carries is
+        never loosened to reach any of these.
       goals: Whether the backend's own goal feature is available to it, said the same way.
         A place run under a `Goal` has them, whatever else it wrote.
-      web_search: Whether it may search the web, said the same way.
+      web_search: Whether it may search the web, said the same way, and None for a place that
+        said nothing either way.
       needs: What filling this place takes, which the flow said by writing
         `Annotated[Agent, Needs("steer", where=("isolated",))]` where it declared it -- what
         the backend has to serve, and what the machine its turns land on has to come to.
@@ -435,9 +440,14 @@ class Place(NamedTuple):
     moments: frozenset[Moment]
     where: type[Remote] | Remote | Isolated | None = None
     goal: bool = False
-    permission: str = "bypass"
+    # `UNSAID` under its own name lives in `hmz.coganchor.agents.config`, and is spelled out
+    # here rather than imported: a flow is read long before any of its agents is started, and
+    # naming it would make reading one pay for the half of coganchor that runs a session. The
+    # word is the empty string in both places for exactly that reason -- nothing said is the
+    # same nothing wherever it is read, and is falsy where either of them asks.
+    permission: str = ""
     goals: bool = True
-    web_search: bool = True
+    web_search: bool | None = None
     needs: Needs | None = None
 
 
@@ -1933,12 +1943,13 @@ def runs_at(flow: str | os.PathLike[str], agent: Agent, place: Place) -> AgentCo
     flow's reviewer is allowed to rewrite. So a place carries them, and this is where they
     reach the agent -- before its first turn, over whatever it was constructed with.
 
-    Tighter only, never looser. A place that declares nothing declares the loosest of each --
-    `bypass`, goals on, the web readable -- and what an agent already carries is never
-    loosened to reach it, so a flow declaring nothing runs its agents at exactly what they
-    came with. It is the same rule that makes a call safe: a flow running at `read-only` that
-    called one which declared nothing would otherwise run that one at `bypass`, and calling a
-    flow somebody else wrote would be how a person's `read-only` gets undone.
+    Tighter only, never looser. A place that declares nothing declares nothing at all -- no
+    rung, no answer about the web, goals left as they were -- and what an agent already
+    carries is never loosened to reach it, so a flow declaring nothing runs its agents at
+    exactly what they came with. It is the same rule that makes a call safe: a flow running at
+    `read-only` that called one which declared nothing would otherwise run that one at no rung
+    at all -- looser than any rung, since nothing said is the CLI left to decide -- and calling
+    a flow somebody else wrote would be how a person's `read-only` gets undone.
 
     Args:
       flow: The flow, for what a refusal says.
@@ -1956,7 +1967,7 @@ def runs_at(flow: str | os.PathLike[str], agent: Agent, place: Place) -> AgentCo
     """
     from dataclasses import replace
 
-    from hmz.coganchor.agents import PERMISSIONS
+    from hmz.coganchor.agents import searching, tightest
 
     was = agent.config
     try:
@@ -1966,12 +1977,12 @@ def runs_at(flow: str | os.PathLike[str], agent: Agent, place: Place) -> AgentCo
         # that refusal is the same refusal, owed the same sentence about which place it was.
         wanted = replace(
             was,
-            permission=min(was.permission, place.permission, key=PERMISSIONS.index),
+            permission=tightest(was.permission, place.permission),
             # A place run under a goal has one whatever the agent came with: an agent with
             # goals switched off is refused where the place is filled rather than quietly run
             # without.
             goals=place.goals if place.goal else (was.goals and place.goals),
-            web_search=was.web_search and place.web_search,
+            web_search=searching(was.web_search, place.web_search),
         )
         if wanted == was:
             return was

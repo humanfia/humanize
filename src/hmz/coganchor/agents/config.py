@@ -24,6 +24,7 @@ __all__ = [
     "OUTCOMES",
     "PERMISSIONS",
     "SERVICE_TIERS",
+    "UNSAID",
     "AgentConfig",
     "AgentDefaults",
     "Budget",
@@ -33,6 +34,8 @@ __all__ = [
     "Remote",
     "anchored",
     "isolated",
+    "searching",
+    "tightest",
 ]
 
 #: What an agent may do without being asked, loosest last. Named the way these CLIs name them
@@ -54,6 +57,37 @@ __all__ = [
 #: A backend with no sandbox of its own cannot tell `workspace-write` from `auto`, and says so
 #: where it maps them rather than pretending to a rung it has not got.
 PERMISSIONS = ("read-only", "workspace-write", "auto", "bypass")
+
+
+#: The word for no rung at all: humanize says nothing to the CLI about what its agent may do,
+#: which leaves it wherever that CLI's own headless run leaves it. Outside :data:`PERMISSIONS`
+#: because it is not a rung on the ladder but the absence of one -- the same shape `effort`
+#: already has, where `AUTO` becomes "" and every driver knows to say nothing. Loosest of all,
+#: so a place declaring nothing goes on settling nothing.
+UNSAID = ""
+
+#: Every answer a config may be written with: the ladder, and the silence above it. Loosest
+#: last, which is what :func:`tightest` reads it in.
+_SAYABLE = (*PERMISSIONS, UNSAID)
+
+
+def tightest(was: str, said: str) -> str:
+    """The narrower of two rungs, where a rung is narrower than the silence above them all.
+
+    Args:
+      was: What the agent already carries.
+      said: What the place declares.
+
+    Returns:
+      Whichever of them withholds more, and the silence only where both are silent.
+    """
+    return min(was, said, key=_SAYABLE.index)
+
+
+def searching(was: bool | None, said: bool | None) -> bool | None:
+    """The same, for whether the web may be read: off beats on, and on beats unsaid."""
+    return min(was, said, key=(False, True, None).index)
+
 
 #: How quickly a provider is asked to serve one agent, independent of how hard its model
 #: reasons. Backends map these common meanings into their own request vocabulary and refuse
@@ -219,25 +253,31 @@ class AgentDefaults:
                 AgentBase, AgentDefaults(permission="read-only", web_search=False)
             ]
 
-    and a place that writes nothing runs at what is written here, which is what every agent
-    of every flow has always run at.
+    and a place that writes nothing settles nothing, which leaves whoever fills it exactly as
+    they came.
 
     Attributes:
-      permission: What the agent may do without being asked, as one of :data:`PERMISSIONS`.
+      permission: What the agent may do without being asked, as one of :data:`PERMISSIONS`,
+        and :data:`UNSAID` -- the default -- for a place that never raised the subject. A
+        place declaring a rung declares it of the work; one with nothing to declare has no
+        business tightening whoever fills it, and no business loosening them either.
       goals: Whether the backend's own goal feature is available to it.
-      web_search: Whether it may search the web.
+      web_search: Whether it may search the web, and None -- the default -- for a place that
+        never raised that subject either. Three answers rather than two, because asking for
+        the web is as much a declaration as refusing it, and neither is the same as not
+        asking.
 
     Raises:
       ValueError: If the rung is not one there is, said as the flow is read rather than
         reached down in a driver as a key that is not there.
     """
 
-    permission: str = "bypass"
+    permission: str = UNSAID
     goals: bool = True
-    web_search: bool = True
+    web_search: bool | None = None
 
     def __post_init__(self) -> None:
-        if self.permission not in PERMISSIONS:
+        if self.permission not in _SAYABLE:
             raise ValueError(
                 f"permission must be one of {', '.join(PERMISSIONS)}, "
                 f"not {self.permission!r}"
@@ -381,12 +421,19 @@ class AgentConfig:
         the first turn and says where it is itself. The agent runs here either way, so its
         credentials and its trajectory stay where a flow can reach them; what moves is the
         project it reads and the commands it runs.
-      permission: What this agent may do without being asked, as one of :data:`PERMISSIONS`.
-        `bypass` because that is what a flow driving an agent unattended has always run it
-        at: a flow watches its agent rather than gating it, and a turn waiting on an approval
-        nobody is there to give is a flow that has stopped. Anything tighter is the flow's
-        choice, written as an :class:`AgentDefaults` beside the place it declares, and
-        settled onto the agent before its first turn.
+      permission: What this agent may do without being asked, as one of :data:`PERMISSIONS`,
+        or :data:`UNSAID` -- not a rung at all, but humanize saying nothing to the CLI and
+        leaving it wherever that CLI's own headless run leaves it. :data:`UNSAID` is what an
+        agent comes at, because a run nobody configured is a run humanize has nothing to say
+        about: a rung is an answer, and an answer nobody gave is not humanize's to invent on
+        their behalf. What such a run does is what the same CLI does for whoever types it at a
+        shell, out of the settings they already have -- which is the one behaviour a person
+        can check for themselves. Every rung is the flow's choice, written as an
+        :class:`AgentDefaults` beside the place it declares and settled onto the agent before
+        its first turn; a flow driving an agent unattended writes `bypass` and means it,
+        because it watches its agent rather than gating it and a turn waiting on an approval
+        nobody is there to give is a flow that has stopped. That is a different thing from a
+        flow which never raised the question, and it is said differently.
       provider: Which account this agent's turns run as, by the name a provider of its CLI was
         made under, or "" for the CLI as whoever is at this machine already runs it. It is a
         setting of the agent rather than of the flow because it is the agent that signs in:
@@ -397,16 +444,21 @@ class AgentConfig:
         on/off setting with no inherited state, and it is the flow's to say: an
         `AgentDefaults` beside the place says it, and a place run under a `Goal` has them on
         and cannot be talked out of it.
-      web_search: Whether this agent may search the web. On, because that is what a coding
-        agent has always been able to do and what most work wants; off is the flow's choice
-        -- a run that must read only this repository, one under a rate limit somebody is
-        paying per query on, one whose answers have to be reproducible tomorrow -- and is
-        written as an `AgentDefaults` beside the place. It is said the same way on every
-        backend that can be told, in both directions rather than only one: a CLI whose own
-        web search is off until it is asked for is asked for it here, so that on means the
-        same thing wherever it is read. A backend with no way of being told refuses it off,
-        the way one with no service tier to send refuses `fast` -- an agent that quietly
-        went on searching would be a setting that lies.
+      web_search: Whether this agent may search the web, and None -- which is what it comes
+        at -- for one nobody has said either way about. Neither half of the switch goes on the
+        command line then, so the CLI reads the internet, or does not, exactly as whoever
+        installed it has it set up; the reason is the rung's reason, that a run nobody
+        configured is one humanize is not the one answering for. On and off are both the
+        flow's choice, written as an `AgentDefaults` beside the place -- on for work that
+        wants the internet, off for a run that must read only this repository, one under a
+        rate limit somebody is paying per query on, one whose answers have to be reproducible
+        tomorrow. Either is said the same way on every backend that can be told, in both
+        directions rather than only one: a CLI whose own web search is off until it is asked
+        for is asked for it here, so that on means the same thing wherever it is read. A
+        backend with no way of being told refuses being told, the way one with no service tier
+        to send refuses `fast` -- an agent that quietly went on searching would be a setting
+        that lies -- and refuses nothing where nothing was said, there being nothing then to
+        lie about.
       budget: What each turn of each session of this agent may spend before it is cut off, or
         None for a turn that runs until it is done -- which is what an agent nobody has been
         asked about runs at, because a cap nobody chose is a cap that would truncate the one
@@ -438,10 +490,10 @@ class AgentConfig:
     effort: str
     service_tier: str = "default"
     machine: MachineConfig | None = None
-    permission: str = "bypass"
+    permission: str = UNSAID
     provider: str = ""
     goals: bool = True
-    web_search: bool = True
+    web_search: bool | None = None
     budget: Budget | None = None
 
     def __post_init__(self) -> None:
@@ -461,7 +513,7 @@ class AgentConfig:
         # moment it is read: a rung no backend has a word for is one every driver would have
         # to answer for, so it is refused here where they all pass rather than reached down in
         # one of them as a key that is not there.
-        if self.permission not in PERMISSIONS:
+        if self.permission not in _SAYABLE:
             raise ValueError(
                 f"permission must be one of {', '.join(PERMISSIONS)}, "
                 f"not {self.permission!r}"
