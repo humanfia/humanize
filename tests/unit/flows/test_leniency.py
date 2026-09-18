@@ -20,46 +20,53 @@ installed and no CLI is run.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from hmz.coganchor.agents import (
     UNSAID,
+    AgentBase,
     AgentConfig,
     AgentDefaults,
+    AntigravityCLIAgent,
     ClaudeCodeAgent,
-    DshAgent,
-    KimiCodeCLIAgent,
+    PiAgent,
     Unserved,
 )
 from hmz.flows.driving import NotAFlow, Place, _declared, runs_at
 
-#: The two the acceptance case is about: `dsh` and `kimi` are backends whose profiles say they
-#: cannot be told about the web at all, which is why a flow declaring `web_search=False` used
-#: to kill every cell of theirs before the first turn.
-UNTELLABLE = (DshAgent, KimiCodeCLIAgent)
+#: The backends whose profiles say they cannot be told about the web at all, which is what a
+#: flow declaring `web_search=False` across a roster runs into. `pi` is the soundest of them
+#: and the one the rest of this file leans on: it has tool control its driver already uses and
+#: simply no web tool to withhold, so there is nothing there for anybody to switch off later.
+#: `agy` is the other. `dsh` and `kimi` were on this list until their drivers learned to say
+#: it -- which is the right way to answer a backend that cannot be told, and is why leniency
+#: is the second answer rather than the first.
+UNTELLABLE = (PiAgent, AntigravityCLIAgent)
 
 
-def place(**said: object) -> Place:
+def place(**said: Any) -> Place:
     """A place called `reviewer` that declares what it is given and nothing else."""
-    return Place(name="reviewer", person=False, moments=frozenset(), **said)  # type: ignore[arg-type]
+    return Place(name="reviewer", person=False, moments=frozenset(), **said)
 
 
-def agent(kind: type, **said: object) -> object:
+def agent(kind: type[AgentBase], **said: Any) -> AgentBase:
     """One of those agents, made with a model and an effort nothing here reads."""
-    return kind(AgentConfig(model="a-model", effort="", **said))  # type: ignore[arg-type]
+    return kind(AgentConfig(model="a-model", effort="", **said))
 
 
 class TestTheFlowbenchCase:
     """A place declaring `web_search=False` onto a backend with no way of being told."""
 
     @pytest.mark.parametrize("kind", UNTELLABLE)
-    def test_it_runs_rather_than_being_refused(self, kind: type) -> None:
+    def test_it_runs_rather_than_being_refused(self, kind: type[AgentBase]) -> None:
         """Which is the point: the cell runs, where before it never started."""
-        runs_at("bench.py", agent(kind), place(web_search=False, insist=False))  # type: ignore[arg-type]
+        runs_at("bench.py", agent(kind), place(web_search=False, insist=False))
 
     @pytest.mark.parametrize("kind", UNTELLABLE)
     def test_the_config_does_not_come_out_carrying_the_answer_it_cannot_keep(
-        self, kind: type
+        self, kind: type[AgentBase]
     ) -> None:
         """The honest half. An agent that will search must not be holding `False`.
 
@@ -68,17 +75,20 @@ class TestTheFlowbenchCase:
         refusal it replaced -- the refusal at least said so.
         """
         one = agent(kind)
-        runs_at("bench.py", one, place(web_search=False, insist=False))  # type: ignore[arg-type]
-        assert one.config.web_search is not False  # type: ignore[attr-defined]
+        runs_at("bench.py", one, place(web_search=False, insist=False))
+        assert one.config.web_search is not False
 
     @pytest.mark.parametrize("kind", UNTELLABLE)
     def test_it_says_which_place_which_setting_and_what_happens_instead(
-        self, kind: type
+        self, kind: type[AgentBase]
     ) -> None:
         """The other honest half: dropped is not the same as ignored unless nobody is told."""
         dropped: list[str] = []
         runs_at(  # type: ignore[arg-type]
-            "bench.py", agent(kind), place(web_search=False, insist=False), dropped=dropped
+            "bench.py",
+            agent(kind),
+            place(web_search=False, insist=False),
+            dropped=dropped,
         )
         assert len(dropped) == 1
         assert "reviewer" in dropped[0]
@@ -86,27 +96,37 @@ class TestTheFlowbenchCase:
         assert "reading the web" in dropped[0]
 
     @pytest.mark.parametrize("kind", UNTELLABLE)
-    def test_insisting_is_still_the_refusal_it_always_was(self, kind: type) -> None:
+    def test_insisting_is_still_the_refusal_it_always_was(
+        self, kind: type[AgentBase]
+    ) -> None:
         """A place that says nothing about insisting insists, so nothing moved under anyone."""
-        with pytest.raises(NotAFlow, match="no way of being told not to search the web"):
-            runs_at("bench.py", agent(kind), place(web_search=False))  # type: ignore[arg-type]
+        with pytest.raises(
+            NotAFlow, match="no way of being told not to search the web"
+        ):
+            runs_at("bench.py", agent(kind), place(web_search=False))
 
 
 class TestTheRestIsStillSettled:
     """Dropping one declaration is not dropping the declaration."""
 
     def test_the_servable_one_settles_and_the_other_is_dropped(self) -> None:
-        """Two declared, one carried: kimi takes a rung and cannot be told about the web."""
-        one = agent(KimiCodeCLIAgent)
+        """Two declared, one carried: pi takes a rung and cannot be told about the web.
+
+        `read-only` it serves, out of the `--exclude-tools` its driver already writes; the
+        web it has no tool for at all, so there is nothing to withhold and nothing to say.
+        One declaration settles, the other is given up, and the line names only the one that
+        was given up.
+        """
+        one = agent(PiAgent)
         dropped: list[str] = []
-        runs_at(  # type: ignore[arg-type]
+        runs_at(
             "bench.py",
             one,
             place(web_search=False, permission="read-only", insist=False),
             dropped=dropped,
         )
-        assert one.config.permission == "read-only"  # type: ignore[attr-defined]
-        assert one.config.web_search is not False  # type: ignore[attr-defined]
+        assert one.config.permission == "read-only"
+        assert one.config.web_search is not False
         assert "web_search" in dropped[0]
         assert "permission" not in dropped[0]
 
@@ -114,33 +134,41 @@ class TestTheRestIsStillSettled:
         """Leniency is reached for only where something was actually refused."""
         one = agent(ClaudeCodeAgent)
         dropped: list[str] = []
-        runs_at(  # type: ignore[arg-type]
+        runs_at(
             "bench.py",
             one,
             place(web_search=False, permission="read-only", insist=False),
             dropped=dropped,
         )
-        assert one.config.web_search is False  # type: ignore[attr-defined]
-        assert one.config.permission == "read-only"  # type: ignore[attr-defined]
+        assert one.config.web_search is False
+        assert one.config.permission == "read-only"
         assert dropped == []
 
     def test_two_refusals_take_two_passes_and_both_are_given_up(self) -> None:
         """`_serves` raises at the first thing it finds, so settling asks again.
 
-        dsh can be told neither, and refuses the web first because the base class checks it
-        before the driver checks the rung. One pass would have dropped the web and been
-        refused about the rung; the loop gives up both and says so in one line.
+        agy refuses the web because its profile says it cannot be told, and refuses
+        `read-only` beside `disable_slash_commands` because its plan mode does nothing while
+        expansion is off. The base class checks the web first, so one pass would have dropped
+        that and then been refused about the rung; the loop gives up both and says so in one
+        line. This is the case that makes settling a loop rather than a single `replace`.
         """
-        one = agent(DshAgent)
+        from hmz.coganchor.agents import AntigravityCLIAgentConfig
+
+        one = AntigravityCLIAgent(
+            AntigravityCLIAgentConfig(
+                model="a-model", effort="", disable_slash_commands=True
+            )
+        )
         dropped: list[str] = []
-        runs_at(  # type: ignore[arg-type]
+        runs_at(
             "bench.py",
             one,
             place(web_search=False, permission="read-only", insist=False),
             dropped=dropped,
         )
-        assert one.config.web_search is not False  # type: ignore[attr-defined]
-        assert one.config.permission == UNSAID  # type: ignore[attr-defined]
+        assert one.config.web_search is not False
+        assert one.config.permission == UNSAID
         assert len(dropped) == 1
         assert "permission" in dropped[0]
         assert "web_search" in dropped[0]
@@ -168,7 +196,7 @@ class TestOnlyWhatThePlaceDeclared:
         wave away, however little it insisted about the field it did speak about.
         """
 
-        class RefusesTheTier(DshAgent):
+        class RefusesTheTier(PiAgent):
             """Made happily, and refuses the tier the moment it is set up as anything."""
 
             built = False
@@ -181,12 +209,14 @@ class TestOnlyWhatThePlaceDeclared:
         one = RefusesTheTier(AgentConfig(model="a-model", effort=""))
         one.built = True
         with pytest.raises(NotAFlow, match="cannot be served fast"):
-            runs_at("bench.py", one, place(web_search=False, insist=False))  # type: ignore[arg-type]
+            runs_at("bench.py", one, place(web_search=False, insist=False))
 
-    def test_a_tier_no_backend_can_send_is_refused_where_the_agent_is_built(self) -> None:
+    def test_a_tier_no_backend_can_send_is_refused_where_the_agent_is_built(
+        self,
+    ) -> None:
         """Upstream of every flow, which is why no place may give it up."""
         with pytest.raises(Unserved) as refused:
-            DshAgent(AgentConfig(model="a-model", effort="", service_tier="fast"))
+            PiAgent(AgentConfig(model="a-model", effort="", service_tier="fast"))
         assert refused.value.settings == frozenset({"service_tier"})
 
     def test_an_effort_off_the_ladder_is_refused_where_the_agent_is_built(self) -> None:
@@ -222,11 +252,11 @@ class TestTheRefusalNamesItself:
     def test_a_backend_that_cannot_be_told_names_the_field(self) -> None:
         """Raised where it always was, and now answerable about what it was about."""
         with pytest.raises(Unserved) as refused:
-            DshAgent(AgentConfig(model="a-model", effort="", web_search=False))
+            PiAgent(AgentConfig(model="a-model", effort="", web_search=False))
         assert refused.value.settings == frozenset({"web_search"})
 
     def test_a_pair_refused_together_names_both(self) -> None:
-        """opencode withholding its table hears neither, and dropping one fixes neither."""
+        """Opencode withholding its table hears neither, and dropping one fixes neither."""
         from hmz.coganchor.agents import OpencodeAgentConfig
 
         with pytest.raises(Unserved) as refused:
@@ -268,9 +298,9 @@ class TestTheDefaultDidNotMove:
 
     def test_a_place_declaring_nothing_still_settles_nothing(self) -> None:
         """Leniency is about refusals, and a place with nothing to declare meets none."""
-        one = agent(DshAgent)
-        was = one.config  # type: ignore[attr-defined]
+        one = agent(PiAgent)
+        was = one.config
         dropped: list[str] = []
-        assert runs_at("bench.py", one, place(insist=False), dropped=dropped) == was  # type: ignore[arg-type]
-        assert one.config == was  # type: ignore[attr-defined]
+        assert runs_at("bench.py", one, place(insist=False), dropped=dropped) == was
+        assert one.config == was
         assert dropped == []

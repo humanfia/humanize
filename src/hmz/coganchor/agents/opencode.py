@@ -420,7 +420,9 @@ class OpencodeAgentConfig(AgentConfig):
                 "permission": f"permission={self.permission!r}",
                 "web_search": "web_search=False",
             }
-            if unsayable := [field for field, narrowed in narrowing.items() if narrowed]:
+            if unsayable := [
+                field for field, narrowed in narrowing.items() if narrowed
+            ]:
                 raise Unserved(
                     "permission_table=False withholds the only table this backend hears "
                     f"{' and '.join(said[field] for field in unsayable)} in",

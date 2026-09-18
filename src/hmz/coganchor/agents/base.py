@@ -4382,6 +4382,22 @@ class AgentBase(ABC):
         with self._holding:
             self._watchers.append(listener)
 
+    @property
+    def watched(self) -> bool:
+        """Whether anything is being told what this agent's turns say.
+
+        Whatever is watching owns the screen -- it is already drawing this agent's own lines
+        onto it -- so a line of humanize's own goes on the terminal only where nothing is.
+        The drivers ask this of themselves when they step a rung down mid-turn; asked here
+        as well so that whoever settled a flow onto this agent can ask it without reaching
+        through the class to the list.
+
+        Returns:
+          Whether anybody is listening.
+        """
+        with self._holding:
+            return bool(self._watchers)
+
     def _hold(self, session: SessionBase) -> None:
         """Files a session as this agent's, weakly, as the session opens.
 

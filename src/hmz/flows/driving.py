@@ -1681,10 +1681,7 @@ def _aside(said: Sequence[str], driven: Sequence[Agent]) -> None:
 
     from hmz.coganchor.agents.event import say
 
-    if not said or any(
-        cast("Driven", agent)._watchers  # noqa: SLF001 -- the one question a line of ours asks
-        for agent in driven
-    ):
+    if not said or any(cast("AgentBase", agent).watched for agent in driven):
         return
     for line in said:
         say(line, sys.stderr)
@@ -2031,7 +2028,9 @@ def _instead(setting: str, was: AgentConfig) -> str:
     kept = getattr(was, setting, None)
     if setting == "web_search":
         if kept is None:
-            return "it goes on reading the web exactly as whoever installed its CLI has it"
+            return (
+                "it goes on reading the web exactly as whoever installed its CLI has it"
+            )
         return f"it runs with web_search={kept!r}"
     if setting == "permission":
         if not kept:
