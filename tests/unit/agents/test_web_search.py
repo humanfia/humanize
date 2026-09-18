@@ -144,6 +144,22 @@ def test_a_rung_that_already_withholds_them_does_not_withhold_them_twice() -> No
     assert argv.count("--disable-web-search") == 1
 
 
+def test_grok_is_told_nothing_where_nobody_said_anything_about_the_web() -> None:
+    """None is the agent nobody was asked about, which `grok` answers for itself.
+
+    The flag is the one that takes searching away, so an agent that said nothing must not be
+    given it: `not None` is true, and the shorter test would have switched off the search of
+    every agent nobody had an opinion about.
+    """
+    argv = (
+        GrokBuildAgent(GrokBuildAgentConfig(model="m", effort="high", web_search=None))
+        .new()
+        ._turn("hi")[0]
+    )
+
+    assert "--disable-web-search" not in argv
+
+
 def test_opencode_denies_every_reaching_out_tool_it_names() -> None:
     """Its permission table is where each tool is allowed or denied, so it is said there.
 

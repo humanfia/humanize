@@ -1138,6 +1138,29 @@ def test_grok_writes_no_flag_at_all_for_an_agent_that_was_asked_for_nothing(
     ]
 
 
+def test_grok_says_nothing_at_all_about_an_agent_nobody_was_asked_about(
+    stubs: _Stubs,
+) -> None:
+    """No rung and no answer about the web is `grok` deciding both for itself.
+
+    On either transport, and on the held-open one first: an empty saying is nothing `grok
+    agent` would refuse, so a conversation nobody was asked about stays on the process it is
+    already held open on rather than falling to the command line for a flag nothing writes.
+    """
+    session = GrokBuildAgent(
+        GrokBuildAgentConfig(model="m", effort="high", permission="", web_search=None)
+    ).new()
+    assert session("hi") == "hi"
+
+    (opened,) = stubs.calls()
+    assert opened.argv[:2] == ["agent", "--model"]
+    assert opened.argv[-1] == "stdio"
+    for argv in (opened.argv, session._turn("hi")[0]):
+        assert "--always-approve" not in argv
+        assert "--tools" not in argv
+        assert "--disable-web-search" not in argv
+
+
 @pytest.mark.parametrize(
     ("leader", "wanted"),
     [(False, ["--no-leader"]), (True, ["--leader"]), (None, [])],
