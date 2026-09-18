@@ -131,6 +131,17 @@ def test_a_backend_that_withholds_tools_withholds_the_two_that_reach_the_web(
     assert set(argv[argv.index(flag) + 1].split(",")) >= {"web_search", "web_fetch"}
 
 
+def test_an_agent_nobody_said_either_way_about_is_left_where_its_cli_leaves_it() -> (
+    None
+):
+    """None is not False: silence takes nothing away, and `qwen` goes on as `qwen` does."""
+    session = QwenCodeAgent(
+        QwenCodeAgentConfig(model="m", effort="high", web_search=None)
+    ).new()
+
+    assert "--exclude-tools" not in session._turn("hi")[0]
+
+
 def test_grok_says_it_with_the_flag_its_cli_has_for_exactly_that() -> None:
     """`--disable-web-search` is the CLI's own word for the two tools, so it is the word."""
     session = GrokBuildAgent(
