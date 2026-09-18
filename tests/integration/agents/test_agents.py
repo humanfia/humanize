@@ -308,8 +308,9 @@ def test_claude_holds_one_process_for_the_whole_session(clis: _FakeCLIs) -> None
     launch, first, second = clis.calls()
     assert launch.argv[:2] == ["--print", "--input-format"]
     assert launch.argv[launch.argv.index("--session-id") + 1] == session.id
-    # The default rung is `bypass`, which humanize answers for rather than skips.
-    assert launch.argv[launch.argv.index("--permission-mode") + 1] == "manual"
+    # And no rung: nobody asked this agent what it may do, so nothing is said about it and
+    # Claude runs at whatever `claude -p` runs at for whoever installed it.
+    assert "--permission-mode" not in launch.argv
     assert launch.argv[-4:] == ["--model", "claude-opus-4-8", "--effort", "high"]
     assert "--resume" not in launch.argv  # nothing to resume: it never went away
     assert [first.stdin, second.stdin] == ["hi", "again"]

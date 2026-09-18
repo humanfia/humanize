@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor.agents import AgentConfig
+from hmz.coganchor.agents import UNSAID, AgentConfig
 from hmz.coganchor.agents.skills import Loaded
 from hmz.flows import NotAFlow, load, running
 from hmz.runtime.epic import JOURNAL, epics, read, records, sessions
@@ -601,8 +601,10 @@ def run(agents: tuple[AgentBase], task: str) -> None:
     Runner("over", [agent]).run("go")
 
     assert (flows / "inside.txt").read_text() == "read-only"
-    assert (flows / "allowed.txt").read_text() == "bypass|bypass"
-    assert agent.config.permission == "bypass"
+    # Nothing at either end: the outer flow declared no rung, so the agent it drives is on
+    # none, and the call it makes hands back exactly what it borrowed.
+    assert (flows / "allowed.txt").read_text() == "|"
+    assert agent.config.permission == UNSAID
 
 
 def test_a_called_flow_that_declares_nothing_cannot_loosen_what_it_was_called_at(
@@ -780,8 +782,10 @@ def run(agents: tuple[AgentBase, AgentBase], task: str) -> None:
         "no way of being told not to search the web"
         in (flows / "refused.txt").read_text()
     )
-    assert (flows / "after.txt").read_text() == "True,True"
-    assert told.config.web_search is True
+    # Nobody was ever asked about either of them, and a call that never happened has not
+    # made either one an answer.
+    assert (flows / "after.txt").read_text() == "None,None"
+    assert told.config.web_search is None
 
 
 def test_a_called_flow_can_explicitly_inherit_its_callers_skills(flows: Path) -> None:

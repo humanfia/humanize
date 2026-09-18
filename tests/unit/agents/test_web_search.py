@@ -61,9 +61,9 @@ def run(
 '''
 
 
-def test_an_agent_nobody_has_been_asked_about_may_search_the_web() -> None:
-    """Which is what a coding agent has always been able to do."""
-    assert ClaudeCodeAgentConfig(model="m", effort="high").web_search is True
+def test_an_agent_nobody_has_been_asked_about_is_told_neither_way() -> None:
+    """Whether it reads the internet is then the CLI's own answer rather than humanize's."""
+    assert ClaudeCodeAgentConfig(model="m", effort="high").web_search is None
 
 
 def test_which_backends_can_be_told_is_read_off_the_one_place_a_cli_is_written_down() -> (
@@ -77,7 +77,7 @@ def test_which_backends_can_be_told_is_read_off_the_one_place_a_cli_is_written_d
 
 def test_claude_is_refused_the_two_tools_that_reach_the_web() -> None:
     """A tool call is a tool call, and `--disallowedTools` is that call written as a rule."""
-    config = ClaudeCodeAgentConfig(model="m", effort="high")
+    config = ClaudeCodeAgentConfig(model="m", effort="high", web_search=True)
     searching = ClaudeCodeAgent(config).new()._command()
 
     assert "--disallowedTools" not in searching
@@ -150,7 +150,9 @@ def test_opencode_denies_every_reaching_out_tool_it_names() -> None:
     Every one of them and not just the page fetcher: it searches the web as well as reads it,
     and an agent left the second way out is an agent still searching.
     """
-    config = OpencodeAgentConfig(model="p/m", effort="high")
+    config = OpencodeAgentConfig(
+        model="p/m", effort="high", permission="bypass", web_search=True
+    )
     session = OpencodeAgent(config).new()
     permits, reaches = type(session).permits, type(session).reaches
 
@@ -187,7 +189,7 @@ def test_it_is_refused_wherever_the_config_arrives() -> None:
     with pytest.raises(ValueError, match="no way of being told"):
         agent.reconfigure(replace(agent.config, web_search=False))
 
-    assert agent.config.web_search is True  # and the agent is left as it was
+    assert agent.config.web_search is None  # and the agent is left as it was
 
 
 def test_an_agent_that_may_not_search_is_another_agent_at_the_same_model() -> None:
@@ -195,7 +197,7 @@ def test_an_agent_that_may_not_search_is_another_agent_at_the_same_model() -> No
     config = ClaudeCodeAgentConfig(model="m", effort="high")
 
     assert replace(config, web_search=False) != config
-    assert config.web_search is True
+    assert config.web_search is None
 
 
 def test_the_flow_says_it_and_a_line_that_says_it_is_refused() -> None:

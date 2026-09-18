@@ -1378,15 +1378,7 @@ def test_codex_can_disable_goals_before_its_server_starts(
     # By the path this machine has Codex installed at, which is a name only where it is not
     # installed at all: what is being read here is the arguments it is started with.
     assert [_named(argv) for argv in started] == [
-        [
-            "codex",
-            "app-server",
-            "--disable",
-            "goals",
-            "-c",
-            "tools.web_search=true",
-            "--stdio",
-        ]
+        ["codex", "app-server", "--disable", "goals", "--stdio"]
     ]
     with pytest.raises(RuntimeError, match="goals are disabled"):
         agent.new().pursue("the suite passes", suppress=True)
@@ -1415,8 +1407,6 @@ def test_codex_passes_allowlisted_overrides_to_its_app_server(
         [
             "codex",
             "app-server",
-            "-c",
-            "tools.web_search=true",
             "--stdio",
             "-c",
             "model_context_window=1000000",
@@ -1456,9 +1446,11 @@ def test_codex_starts_the_command_line_codex_would_have_started_for_itself(
 ) -> None:
     """Nothing this driver writes is a setting the flow did not ask for.
 
-    `-c tools.web_search=` is the exception on purpose: Codex searches nothing until it is
-    asked to, so `web_search` -- which is on for every backend -- has to be said here for it
-    to mean the same thing everywhere. Everything else is absent unless a field says otherwise.
+    Not even `-c tools.web_search=`, which used to be the one exception: Codex searches
+    nothing until it is asked to, so an agent that may search the web says so here for
+    `web_search` to mean the same thing everywhere -- and an agent nobody said either way
+    about says neither, which leaves Codex reading its own `config.toml` as a bare app server
+    does. Every other field is absent unless something asked for it.
     """
     started: list[list[str]] = []
 
@@ -1466,9 +1458,7 @@ def test_codex_starts_the_command_line_codex_would_have_started_for_itself(
     agent = CodexAgent(CodexAgentConfig(model="gpt-5.6-sol", effort="high"))
 
     assert agent.server is not None
-    assert [_named(argv) for argv in started] == [
-        ["codex", "app-server", "-c", "tools.web_search=true", "--stdio"]
-    ]
+    assert [_named(argv) for argv in started] == [["codex", "app-server", "--stdio"]]
 
 
 def test_codex_takes_its_own_features_by_name_for_this_agent_alone(
@@ -1497,8 +1487,6 @@ def test_codex_takes_its_own_features_by_name_for_this_agent_alone(
             "multi_agent_v2",
             "--disable",
             "memories",
-            "-c",
-            "tools.web_search=true",
             "--stdio",
         ]
     ]

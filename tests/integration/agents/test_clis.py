@@ -708,7 +708,8 @@ def test_opencode_is_one_run_per_turn_resuming_the_session_it_opened(
     assert first.argv[:4] == ["run", "--format", "json", "--dir"]
     assert first.argv[first.argv.index("--model") + 1] == "opencode/big-pickle"
     assert first.argv[first.argv.index("--variant") + 1] == "high"
-    assert "--auto" in first.argv
+    # And no `--auto`: this agent named no rung, so nothing is skipped on its behalf.
+    assert "--auto" not in first.argv
     assert "--session" not in first.argv  # nothing to carry on yet
     assert second.argv[second.argv.index("--session") + 1] == session.id
     assert [first.stdin, second.stdin] == ["hi", "again"]
@@ -762,8 +763,9 @@ def test_mimo_is_opencode_under_its_own_name(stubs: _Stubs) -> None:
     assert call.argv[:3] == ["run", "--format", "json"]
     assert call.argv[call.argv.index("--model") + 1] == "xiaomi/mimo-v2.5"
     assert call.argv[call.argv.index("--variant") + 1] == "low"
-    # Its own spelling of `--auto`, which is the one thing that differs on the way in.
-    assert "--dangerously-skip-permissions" in call.argv
+    # Its own spelling of `--auto` is the one thing that differs on the way in, and neither
+    # is written here: this agent named no rung either.
+    assert "--dangerously-skip-permissions" not in call.argv
     assert "--auto" not in call.argv
 
 
@@ -904,7 +906,10 @@ def test_a_turn_runs_in_the_flows_own_environment_and_what_it_is_told(
 ) -> None:
     """Adding a variable must not take away the rest: an agent logs in as it already does."""
     monkeypatch.setenv("A_THING_THE_FLOW_HAS", "kept")
-    assert OpencodeAgent(OPENCODE).new()("hi") == "hi"
+    # At a rung, since the table is what this is about: an agent on none has none to add,
+    # and a variable that was never written could not have taken anything away.
+    told = replace(OPENCODE, permission="bypass")
+    assert OpencodeAgent(told).new()("hi") == "hi"
 
     (call,) = stubs.calls()
     assert call.inherited == "kept"
@@ -1027,9 +1032,10 @@ def test_grok_holds_one_process_for_the_conversation_it_opened(stubs: _Stubs) ->
     assert opened.argv[:2] == ["agent", "--model"]
     assert opened.argv[-1] == "stdio"
     assert opened.argv[opened.argv.index("--effort") + 1] == "xhigh"
-    # The documented spelling of the approval, rather than the hidden `--yolo` alias that
-    # says the same thing and that neither command's help lists.
-    assert "--always-approve" in opened.argv
+    # And no approval of any spelling: this agent was asked for no rung, so `grok agent` is
+    # left to answer for itself. The documented `--always-approve` is what a rung that says
+    # so sends, rather than the hidden `--yolo` alias neither command's help lists.
+    assert "--always-approve" not in opened.argv
     assert "--no-leader" in opened.argv
     assert session.id == "ses-grok-stub"
     assert [opened.stdin, again.stdin] == ["hi", "again"]
@@ -1140,7 +1146,12 @@ def test_grok_is_given_only_what_it_may_read_when_it_may_change_nothing(
 def test_grok_writes_no_flag_at_all_for_an_agent_that_was_asked_for_nothing(
     stubs: _Stubs,
 ) -> None:
-    """An install that sets nothing runs the command line the bare CLI runs."""
+    """An install that sets nothing runs the command line the bare CLI runs.
+
+    Which is now true of the approval too: an agent on no rung sends no `--always-approve`,
+    and `grok agent` decides what it may do out of its own settings. What is left is the
+    model, the thought level, the leader this install asked for and the transport.
+    """
     argv = GrokBuildAgent(GROK).new()._command()
 
     assert argv == [
@@ -1150,7 +1161,6 @@ def test_grok_writes_no_flag_at_all_for_an_agent_that_was_asked_for_nothing(
         "grok-4.6",
         "--effort",
         "xhigh",
-        "--always-approve",
         "--no-leader",
         "stdio",
     ]
@@ -1240,7 +1250,8 @@ def test_agy_keeps_one_process_for_the_conversation_it_opened(
     # And no `--effort` beside this model: its name already carries one, and Antigravity
     # refuses the flag against a name that does with `conflicts with --effort`.
     assert "--effort" not in opened.argv
-    assert "--dangerously-skip-permissions" in opened.argv
+    # And no skip flag: this agent was asked for no rung, so `agy` answers for itself.
+    assert "--dangerously-skip-permissions" not in opened.argv
     assert "--conversation" not in opened.argv
     # Its own print clock is five minutes and a turn that reaches it comes back short and
     # successful, so the driver sets one no unattended turn runs into.
