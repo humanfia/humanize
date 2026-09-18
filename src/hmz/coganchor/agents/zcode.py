@@ -1460,7 +1460,10 @@ class ZcodeSession(SessionBase):
         self._held.model = config.model
         self._held.effort = self.effort
         self._held.mode = _PERMITTED.get(config.permission, _PERMITTED["bypass"])
-        searches = config.web_search
+        # A config that says nothing about the web is one this server is told nothing
+        # about: the denylist below is written only where searching was taken away, so
+        # the unsaid and the asked-for come to the same call and only `False` is sent.
+        searches = config.web_search is not False
         # Read off whatever config this agent was made with, since an agent of this backend
         # may be handed the common one: what is not there is what the driver has always sent.
         titles = bool(getattr(config, "titles", _TITLES))
