@@ -13,8 +13,9 @@ inside `tmp_path` and unset `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `DSH_HOME`, `GROK
 `KIMI_CODE_HOME`, which the home fixtures below then set one at a time as a test asks for
 them. Drop it and only the homes a test named are redirected: `tracing.collect` looks for
 every backend, so a test that asked for `claude_home` alone would go on to read the real
-Codex, DSH, Grok Build and Kimi logs of whoever ran the suite -- and still pass, off somebody
-else's transcripts.
+Codex, DSH, Grok Build, Kimi and ZCode logs of whoever ran the suite -- and still pass, off
+somebody else's transcripts. ZCode is the one with no variable in that list: what moves its
+home is `HOME` itself, so setting that is the whole of what keeps this off the developer's own.
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ from tests.tracing.fixtures import (
     kimi_home,
     sandbox,
     workspace,
+    zcode_home,
 )
 
 __all__ = [
@@ -39,4 +41,5 @@ __all__ = [
     "kimi_home",
     "sandbox",
     "workspace",
+    "zcode_home",
 ]

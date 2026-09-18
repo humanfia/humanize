@@ -12,6 +12,9 @@ from tests.tracing.fixtures import (
     CLAUDE_ELSEWHERE,
     CLAUDE_SESSION,
     FLOW,
+    ZCODE_AGENT,
+    ZCODE_SESSION,
+    ZCODE_SUBAGENT,
     banners,
     labels,
     loaded,
@@ -120,6 +123,89 @@ def test_reports_dsh_prompt_reasoning_tool_and_usage(
     assert call["dur"] == 2_000_000
     assert named(document, "say: inspected the module")["args"]["text"] == (
         "inspected the module"
+    )
+
+
+def test_reports_zcode_prompt_reasoning_tool_and_usage(
+    zcode_home: pathlib.Path, workspace: pathlib.Path
+) -> None:
+    """ZCode logs the model rather than the turn, so all of this is read off its requests."""
+    document = tracing.collect(workspace)
+
+    assert document["otherData"]["backends"] == "zcode"
+    assert document["otherData"]["agents"] == "zcode · glm-5.3-flash · high"
+    turn = named(document, "turn: map the module")
+    assert turn["args"]["prompt"] == "map the module"
+    think = named(document, "think: read it first")
+    assert think["args"]["usage"] == {
+        "inputTokens": 20,
+        "outputTokens": 10,
+        "totalTokens": 30,
+        "cacheReadTokens": 0,
+        "reasoningTokens": 4,
+    }
+    assert think["args"]["finish"] == "tool-calls"
+    call = named(document, "Read: module.py")
+    assert call["args"]["input"] == {"file_path": "module.py"}
+    assert call["args"]["output"] == "print('hi')"
+    assert call["args"]["error"] is False
+    # Sent with the request after the one that asked for it, which is when it was answered.
+    assert call["dur"] == 2_000_000
+    assert named(document, "say: the module prints hi")["args"]["text"] == (
+        "the module prints hi"
+    )
+
+
+def test_charges_a_zcode_session_for_naming_itself(
+    zcode_home: pathlib.Path, workspace: pathlib.Path
+) -> None:
+    """ZCode's own errands share the session's file, and their tokens are the session's.
+
+    Naming a conversation is a request to a model like any other -- a smaller one, on the
+    lite role -- and a cell metered off what its agents wrote down has spent those tokens
+    whether or not anybody reads the name.
+    """
+    document = tracing.collect(workspace)
+
+    naming = named(document, "session_title:")
+    assert naming["cat"] == "llm"
+    assert naming["args"]["usage"]["outputTokens"] == 5
+    # And the name itself, which is what the session is titled after rather than its prompt.
+    assert any(
+        event["name"].endswith("map the module")
+        and event["args"]["session"] == f"zcode:{ZCODE_SESSION}"
+        for event in banners(document)
+    )
+
+
+def test_hangs_a_zcode_subagent_off_the_session_that_started_it(
+    zcode_home: pathlib.Path, workspace: pathlib.Path
+) -> None:
+    """A sub-agent is a rollout of its own, tied to its parent by the trace id they share.
+
+    Its label is the `Agent` call's rather than its own: what kind of sub-agent it was and
+    what it was started for are said where it was started, and nowhere in its own log.
+    """
+    document = tracing.collect(workspace)
+
+    sessions = {event["args"]["session"]: event for event in banners(document)}
+    child = sessions[f"zcode:{ZCODE_SUBAGENT}"]
+    assert child["args"]["parent"] == f"zcode:{ZCODE_SESSION}"
+    assert child["name"].startswith("Explore · count the files · ")
+    started = named(document, "Agent: count the files")
+    assert started["args"]["agent"] == ZCODE_AGENT
+    assert any(event["ph"] == "s" for event in document["traceEvents"])
+
+
+def test_leaves_what_zcode_added_to_a_prompt_out_of_it(
+    zcode_home: pathlib.Path, workspace: pathlib.Path
+) -> None:
+    """The skills and the date arrive as user messages, and neither is what anybody asked."""
+    document = tracing.collect(workspace)
+
+    assert (
+        "system-reminder"
+        not in named(document, "turn: map the module")["args"]["prompt"]
     )
 
 
