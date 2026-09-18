@@ -1445,7 +1445,10 @@ def test_a_kimi_turn_at_no_rung_that_reaches_for_a_tool_still_finishes(
 
     An install that configures nothing leaves `kimi web` at `manual`, so the first tool call
     of such a turn is an approval. Answering it is what makes the silence a turn rather than
-    a quarter of an hour of polling ending as a stall.
+    a quarter of an hour of polling ending as a stall -- and the answer is no, because
+    nothing said what this agent may do and nothing is not a yes. The turn carries on from
+    the refusal rather than ending on it, which is the difference between a rung that
+    withholds and a daemon nobody can answer.
     """
     agent = KimiCodeCLIAgent(
         KimiCodeCLIAgentConfig(model="kimi-code/k3", effort="high", permission="")
@@ -1455,7 +1458,64 @@ def test_a_kimi_turn_at_no_rung_that_reaches_for_a_tool_still_finishes(
 
     (profile,) = _bodies(kimi, "/profile")
     assert "permission_mode" not in profile["agent_config"]
-    assert _bodies(kimi, "/approvals/a_0") == [{"decision": "approved"}]
+    assert _bodies(kimi, "/approvals/a_0") == [
+        {"decision": "rejected", "feedback": "nothing said what this agent may do"}
+    ]
+
+
+def test_a_kimi_turn_at_read_only_refuses_the_tool_that_is_not_a_read(
+    kimi: _FakeServer,
+) -> None:
+    """The rung whose whole meaning is change nothing does not grant a write.
+
+    Plan mode refuses the edits outright, and `manual` turns the Bash plan mode lets through
+    into an approval. If that approval were answered yes, a flow declaring `read-only` and
+    hanging no hook would run a command that writes a file -- the rung naming a thing it did
+    not do. The reads never get this far: the daemon approves those by itself, so an approval
+    reaching this driver at this rung is by construction a tool that is not a read.
+    """
+    agent = KimiCodeCLIAgent(
+        KimiCodeCLIAgentConfig(
+            model="kimi-code/k3", effort="high", permission="read-only"
+        )
+    )
+
+    assert agent("approving") == "answered"
+
+    assert _bodies(kimi, "/approvals/a_0") == [
+        {
+            "decision": "rejected",
+            "feedback": "this agent runs at read-only, which withholds approval",
+        }
+    ]
+
+
+def test_a_kimi_hook_that_only_watches_does_not_grant_what_the_rung_withheld(
+    kimi: _FakeServer,
+) -> None:
+    """A hook says no or says nothing; saying nothing is not saying yes.
+
+    The moment fires at the withholding rungs too -- a flow watching its agent wants to see
+    the tool it reached for whether or not the answer was ever in doubt -- so a watcher must
+    not be the thing that turns the rung's refusal into a grant.
+    """
+    agent = KimiCodeCLIAgent(
+        KimiCodeCLIAgentConfig(
+            model="kimi-code/k3", effort="high", permission="read-only"
+        )
+    )
+    seen: list[Occasion] = []
+    agent.hooks.on(Moment.PERMISSION_REQUEST, seen.append)
+
+    assert agent("approving") == "answered"
+
+    assert [one.tool for one in seen] == ["Bash"]
+    assert _bodies(kimi, "/approvals/a_0") == [
+        {
+            "decision": "rejected",
+            "feedback": "this agent runs at read-only, which withholds approval",
+        }
+    ]
 
 
 def test_a_kimi_approval_is_answered_once_however_often_it_is_listed(

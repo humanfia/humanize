@@ -533,10 +533,14 @@ _ANSWERS = ("approved", "rejected")
 #: answer -- and `manual` is the half that catches what plan mode does not. Bash is the one
 #: that matters: Kimi's own plan-mode reminder tells the model "Use Bash only when needed;
 #: Bash follows the normal permission mode and rules", so at `auto` a rung named read-only
-#: would run a command that writes a file. At `manual` that command is an approval, which is a
-#: `PERMISSION_REQUEST` a flow can refuse. The same goes for the `ExitPlanMode` the model is
-#: told to end a plan with: gated at every mode but `auto`, so at this rung leaving the rung is
-#: itself something a hook is asked about.
+#: would run a command that writes a file. At `manual` that command is an approval instead --
+#: and an approval this driver answers `rejected`, because this rung is not in
+#: :data:`_GRANTED`. That is what makes the name true with no hook hung at all: the write is
+#: refused by the rung itself, and a flow that wants the write allowed asks for a looser rung
+#: rather than for a hook -- a hook can refuse what would have been granted, and there is
+#: nothing here for it to widen. The same goes for the `ExitPlanMode` the model is told to end
+#: a plan with: gated at every mode but `auto`, so at this rung the agent cannot quietly leave
+#: the rung either.
 #:
 #: `auto` is `yolo`, for the reason humanize's `auto` exists: the agent may ask for more than
 #: it has, and the asking is granted. That is `yolo` exactly -- the dangerous command, the
@@ -582,9 +586,44 @@ _PERMITTED = {
     # first tool call of such a turn stopped the session somewhere the poll could not move it,
     # and the watchdog ended it as a stall a quarter of an hour later. It no longer does.
     # `manual` is a rung this driver can answer now, and saying nothing lands on it the same
-    # way `read-only` does -- the approval is read, a hook gets it, and the turn goes on.
+    # way `read-only` does -- the approval is read, a hook gets it, and the turn goes on. On
+    # `rejected`, where no hook said otherwise: what humanize was told about this agent is
+    # nothing, and nothing is not a yes. See :data:`_GRANTED`.
     UNSAID: {},
 }
+
+#: The permission modes in which what the agent reaches for is granted rather than asked
+#: about, which is the whole of what decides whether this driver may answer an approval yes.
+#: `auto` approves before any policy can ask, so an approval under it is one Kimi did not
+#: raise; `yolo` is the mode whose bargain is that the agent asks and is granted. `manual` is
+#: neither: it withholds approval for everything but the reads, and an approval arriving
+#: under it is the session doing exactly what the rung told it to.
+_GRANTS = ("auto", "yolo")
+
+#: The rungs at which an approval this driver reads is answered yes. Derived from the table
+#: above rather than written beside it, so that a row whose mode moves takes its answer with
+#: it and the two cannot drift apart.
+#:
+#: Two rows are out, and for one reason said two ways. `read-only` is `manual`: its whole
+#: meaning is that the agent may look at anything and change nothing, and at `manual` the
+#: reads are the part the daemon approves by itself -- so every approval that reaches this
+#: driver at that rung is, by construction, a tool that is not a read. Answering those yes
+#: would make the rung name a thing it does not do: plan mode already refuses the edits, and
+#: the Bash that plan mode lets through is precisely what the approval is for. The silence is
+#: out because it names no mode at all: an agent nobody wrote a rung for bootstraps at
+#: `manual`, and granting there would be humanize handing out, one call at a time, the `yolo`
+#: that an agent declared at `auto` gets by asking for it.
+#:
+#: Refusing is not the same as leaving it: the daemon holds the tool until somebody resolves
+#: it either way, so saying nothing would be the fifteen-minute stall this reading exists to
+#: remove. `rejected` hands the model a line saying the tool was not run, with the reason --
+#: so a turn at a withholding rung is one the agent is told no by and works around, which is
+#: an outcome a flow can read.
+_GRANTED = frozenset(
+    rung
+    for rung, settings in _PERMITTED.items()
+    if settings.get("permission_mode") in _GRANTS
+)
 
 
 class _AppServer:
@@ -976,11 +1015,18 @@ class KimiCodeCLISession(SessionBase):
         but `auto` raises them, which is what makes the rungs above a ladder rather than one
         setting written four times.
 
-        Answered yes, because nobody is at a prompt -- and put to `PERMISSION_REQUEST` first,
-        because this is the moment the backend actually waits on and so the one place a hook
-        here can stop an agent doing something. A refusal is `rejected` with whatever the hook
-        said as its reason, which the daemon hands the model as a line saying the tool was not
-        run: the turn goes on, having been refused, rather than ending.
+        Answered yes at the rungs that mean granting -- :data:`_GRANTED` -- because nobody is
+        at a prompt there and the rung has already said what the agent may do. Answered no at
+        the two that do not: `read-only`, where every approval that gets this far is by
+        construction a tool that is not a read, and the silence, where nothing said what this
+        agent may do and so nothing said yes.
+
+        Put to `PERMISSION_REQUEST` first either way, because this is the moment the backend
+        actually waits on and so the one place a hook here can stop an agent doing something --
+        and because a flow that hung one at a withholding rung asked to be the one deciding.
+        A refusal, the hook's or the rung's, is `rejected` with the reason, which the daemon
+        hands the model as a line saying the tool was not run: the turn goes on, having been
+        refused, rather than ending or hanging.
 
         Once apiece, by the id the daemon gave it: an approval answered a second time is
         refused rather than resolved, and a refusal a second is a working turn dying inside
@@ -1007,12 +1053,22 @@ class KimiCodeCLISession(SessionBase):
                 called=pending,
             )
             allowed, refused = _ANSWERS
+            if asking.refused:
+                answer = {
+                    "decision": refused,
+                    "feedback": asking.because or "refused by a hook",
+                }
+            elif (rung := self._agent.config.permission) in _GRANTED:
+                answer = {"decision": allowed}
+            else:
+                answer = {
+                    "decision": refused,
+                    "feedback": f"this agent runs at {rung}, which withholds approval"
+                    if rung
+                    else "nothing said what this agent may do",
+                }
             self._agent.server.call(
-                "POST",
-                f"/sessions/{session}/approvals/{named}",
-                {"decision": refused, "feedback": asking.because or "refused by a hook"}
-                if asking.refused
-                else {"decision": allowed},
+                "POST", f"/sessions/{session}/approvals/{named}", answer
             )
 
     def _asked(self, session: str) -> None:
@@ -1538,35 +1594,32 @@ class KimiCodeCLIAgent(AgentBase):
     can say no to something and have the agent hear it.
     """
 
-    #: Said of the backend and not of the rung, which is the whole of why this is one line
-    #: rather than a reading of the config beside it. Two rungs of the four raise no
-    #: approvals -- `workspace-write` and `bypass` are Kimi's `auto`, which approves
-    #: everything before any policy can ask -- so a hook hung there is a hook that never
-    #: fires. Declared anyway, for three reasons, and none of them is that another backend
-    #: does it this way:
+    #: Said of the backend and not of the rung, by the rule this repository settles the
+    #: question with: a backend that holds a tool until its client answers is a backend where
+    #: this moment is real. Kimi holds it -- `/approvals` keeps the call, the turn waits, and
+    #: a `rejected` is a line the model reads -- so the moment is declared, once, for the
+    #: class. What a given rung does with it is a fact about the run, the way a turn that
+    #: calls no tool is a run in which `PRE_TOOL_USE` never arrives. :class:`Unhooked` is for
+    #: a hook hung where the backend could never have answered it, which is not this.
     #:
-    #: What :attr:`AgentBase.moments` answers is whether the backend can be answered
-    #: mid-flight at all -- whether there is a surface where a turn waits on us and a refusal
-    #: reaches the model. This one has it: the route, the wait, and the `rejected` the model
-    #: is handed. How often a given run reaches it is a fact about the run. A flow that hangs
-    #: `PRE_TOOL_USE` on an agent whose turn calls no tool also watches a moment that never
-    #: arrives, and that is not what :class:`Unhooked` is for; it is for a hook hung where
-    #: the backend could never have answered it.
+    #: Being exact about what a hook here buys, rung by rung, because the grant gate narrowed
+    #: it. At `workspace-write` and `bypass` -- Kimi's `auto`, which approves before any
+    #: policy can ask -- no approval is raised and the hook never fires. At `auto`, Kimi's
+    #: `yolo`, it is the whole decision: the dangerous command, the sensitive file and the
+    #: `.git` path are asked about, and :data:`_GRANTED` says yes where the hook says
+    #: nothing. At `read-only` and at no rung at all the answer was already no, so what a
+    #: hook there gets is the sight of the tool and the chance to say why -- not the casting
+    #: vote. It cannot turn that no into a yes, and should not be able to: a
+    #: :class:`~hmz.coganchor.agents.hooks.Verdict` can refuse or say nothing, and a hook that
+    #: only watches must never be the thing that widens a rung.
     #:
-    #: The two rungs where it is dead are the two that mean *nothing is asked*. A flow that
-    #: hangs a gate and then picks the rung whose whole content is that there is no gate has
-    #: said two things, and the rung is the more specific of them -- said in the same
-    #: annotation, at the same place, one line from the moment. Refusing that combination
-    #: here would be this driver overruling a flow about the flow's own setting.
-    #:
-    #: And the rung is the thing that moves. A place may narrow one after the agent is
-    #: built, and the rung an agent comes at is a default rather than a fact about this
-    #: backend -- at no rung at all, which is humanize saying nothing, the session runs at
-    #: `manual`, where approvals are raised and this moment is live. So the set of rungs
-    #: that fire it is neither fixed nor this file's to know. A capability that went false
-    #: and true as a setting moved under it would be a worse promise than one that is
-    #: occasionally generous: what this is read for is refusing a flow before its first
-    #: turn, and a promise that changes between the reading and the turn refuses nothing.
+    #: So one rung of the five is where this changes an outcome. Declared for all of them
+    #: anyway, because the rung is the thing that moves: a place may narrow one after the
+    #: agent is built, and the rung an agent comes at is a default rather than a fact about
+    #: this backend. A capability that went false and true as a setting moved under it would
+    #: be a worse promise than one that is occasionally generous -- what this is read for is
+    #: refusing a flow before its first turn, and a promise that changes between the reading
+    #: and the turn refuses nothing.
     moments: ClassVar[frozenset[Moment]] = EVERYWHERE | {Moment.PERMISSION_REQUEST}
 
     #: Kimi keeps itself going toward an objective, which is what `pursue` reaches for.
