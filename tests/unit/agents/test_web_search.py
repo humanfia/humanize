@@ -19,7 +19,6 @@ from hmz.coganchor import backends
 from hmz.coganchor.agents import (
     ClaudeCodeAgent,
     ClaudeCodeAgentConfig,
-    DshAgent,
     DshAgentConfig,
     GrokBuildAgent,
     GrokBuildAgentConfig,
@@ -41,7 +40,17 @@ if TYPE_CHECKING:
 # : The backends that can be told, and the ones that cannot. Read off `hmz.coganchor.backends` here
 # as : everything else reads it, so a backend that gains a way of being told is a backend this :
 # notices rather than a list to remember.
-TELLABLE = ("claude", "codex", "grok", "qwen", "opencode", "mimo", "zcode")
+TELLABLE = (
+    "claude",
+    "codex",
+    "dsh",
+    "grok",
+    "kimi",
+    "qwen",
+    "opencode",
+    "mimo",
+    "zcode",
+)
 
 #: A flow whose one agent reads this repository and nothing else, which is a thing about the
 #: work: it says so where it declares the place, and nobody outside it may say otherwise.
@@ -166,20 +175,67 @@ def test_opencode_denies_every_reaching_out_tool_it_names() -> None:
     assert [allowed[tool] for tool in reaches] == ["deny", "deny"]
 
 
-@pytest.mark.parametrize(
-    ("kind", "config"),
-    [
-        (DshAgent, DshAgentConfig),
-        (KimiCodeCLIAgent, KimiCodeCLIAgentConfig),
-        (PiAgent, PiAgentConfig),
-    ],
-)
-def test_a_backend_with_no_way_of_being_told_refuses_it_off(
-    kind: type, config: type
-) -> None:
+def test_kimi_withholds_the_two_tools_its_daemon_reaches_the_web_with() -> None:
+    """Withheld through the prompt body, which is the one of the two routes that takes them.
+
+    `disabled_tools` is a key of the daemon's prompt schema and not of its session profile's,
+    and the profile route would accept it and drop it -- so it has to be on the body the turn
+    is submitted with rather than on the one the session is set up with.
+    """
+    config = KimiCodeCLIAgentConfig(model="m", effort="high")
+    profile, prompt = KimiCodeCLIAgent(replace(config, web_search=False)).new()._told()
+
+    assert prompt["disabled_tools"] == ["WebSearch", "FetchURL"]
+    # And nothing of it reaches the profile, where the daemon has nowhere to put it.
+    assert "disabled_tools" not in profile
+
+
+def test_kimi_says_it_in_both_directions_because_its_deny_list_is_kept() -> None:
+    """The daemon writes the session's disabled tools to disk, so on has to be said too.
+
+    A session resumed or forked from one that had the web withheld comes back with it still
+    withheld, and an agent that may search would then be an agent that quietly does not.
+    """
+    searching = KimiCodeCLIAgent(KimiCodeCLIAgentConfig(model="m", effort="high")).new()
+
+    assert searching._told()[1]["disabled_tools"] == []
+
+
+def test_kimi_says_nothing_about_the_web_for_an_agent_nobody_was_asked_about() -> None:
+    """The way it sends no rung for one at no rung: the session is left where it was."""
+    unasked = KimiCodeCLIAgent(
+        KimiCodeCLIAgentConfig(model="m", effort="high", web_search=None)
+    ).new()
+
+    assert "disabled_tools" not in unasked._told()[1]
+
+
+def test_dsh_is_told_by_the_plugins_its_composition_carries() -> None:
+    """It has no flag and no deny-list: what a turn may reach for is what is mounted.
+
+    Both directions, because the harness's own composition mounts no web at all -- so on is
+    mounted rather than assumed, the way Codex is asked for a search it does not do unasked.
+    """
+    from hmz.coganchor.agents.dsh import _WEB, _composed
+
+    mounted = [plugin["name"] for plugin in _WEB]
+    config = DshAgentConfig(model="m", effort="high")
+
+    searching = _composed(config)
+    assert all(name in searching for name in mounted)
+
+    quiet = _composed(replace(config, web_search=False))
+    assert not any(name in quiet for name in mounted)
+    # And an agent nobody was asked about is left where the bare SDK leaves one.
+    assert not any(
+        name in _composed(replace(config, web_search=None)) for name in mounted
+    )
+
+
+def test_a_backend_with_no_way_of_being_told_refuses_it_off() -> None:
     """An agent that quietly went on searching would be a setting that lies."""
     with pytest.raises(ValueError, match="no way of being told"):
-        kind(config(model="m", effort="high", web_search=False))
+        PiAgent(PiAgentConfig(model="m", effort="high", web_search=False))
 
 
 def test_it_is_refused_wherever_the_config_arrives() -> None:

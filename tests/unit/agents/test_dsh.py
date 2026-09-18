@@ -156,6 +156,7 @@ def configured(
     goals: bool = True,
     compaction: bool = True,
     session_compression: str = "none",
+    web_search: bool | None = True,
 ) -> DshAgentConfig:
     return DshAgentConfig(
         model="deepseek-v4-flash",
@@ -165,6 +166,7 @@ def configured(
         goals=goals,
         compaction=compaction,
         session_compression=session_compression,
+        web_search=web_search,
     )
 
 
@@ -744,7 +746,16 @@ def test_provider_environment_reaches_the_sdk_runtime(
     assert made["cwd"] == str(tmp_path)
     launch = cast("tuple[str, ...]", made["launch_args_override"])
     assert launch[0].endswith("/env")
-    assert launch[1:] == ("-u", "DEEPSEEK_BASE_URL", "/opt/dsh-runtime")
+    # Both endpoints, because both are places this account's one key would be sent: the
+    # adapter's and the search provider's, which the harness gives two variables because
+    # search and chat completions speak two protocols.
+    assert launch[1:] == (
+        "-u",
+        "DEEPSEEK_BASE_URL",
+        "-u",
+        "DEEPSEEK_SEARCH_BASE_URL",
+        "/opt/dsh-runtime",
+    )
     assert made["request_timeout_seconds"] == 180.0
 
 
@@ -771,14 +782,20 @@ def test_a_gateway_account_points_the_runtime_at_its_own_endpoint(
     made = Harness.made[0].config
     # The endpoint as well as the key: an account whose key belongs to somebody's proxy is an
     # account whose every request has to go there, and the SDK's own default is DeepSeek's --
-    # which refuses every key but DeepSeek's own.
+    # which refuses every key but DeepSeek's own. Both of this backend's endpoints, because
+    # the search provider mounted for an agent that may search has one of its own, and left
+    # at its own default it would send this gateway's key to DeepSeek's public one.
     assert made["env"] == {
         "DEEPSEEK_BASE_URL": "https://gateway.example/v1",
+        "DEEPSEEK_SEARCH_BASE_URL": "https://gateway.example/v1",
         "DEEPSEEK_API_KEY": "gateway-key",
         "HMZ_DSH_EFFORT": "high",
     }
     # Nothing is unset on the way in: what a turn under an account runs without is what that
-    # account did not set itself, and this one sets both.
+    # account did not set itself and this driver did not set for it -- and the search
+    # endpoint is set for it, out of the one endpoint the account named. Unsetting it here
+    # would strip the very value handed over a line above, since `env -u` takes the name out
+    # of what it execs with.
     assert made["launch_args_override"] == ("/opt/dsh-runtime",)
     # The adapter route the runtime registers, which is not a place and does not move for a
     # gateway: the server refuses any other name at the handshake.
@@ -906,7 +923,12 @@ def test_the_composition_is_the_sdks_own_default_plus_only_the_effort() -> None:
     """
     default = dsh._sdk_composition()
     agent = DshAgent(
-        configured(goals=False, compaction=False, session_compression="zstd")
+        configured(
+            goals=False,
+            compaction=False,
+            session_compression="zstd",
+            web_search=None,
+        )
     )
 
     written = composed(agent)
@@ -1162,8 +1184,8 @@ def test_a_turn_already_running_cannot_be_talked_to() -> None:
 def test_the_runtime_composition_uses_only_plugins_bundled_with_the_sdk() -> None:
     """Every plugin mounted is one the runtime executable actually carries.
 
-    The composition is the SDK's own plus the compaction pair, and that pair is the only
-    part humanize names for itself -- so this is the check that those two names are real.
+    The composition is the SDK's own plus the compaction pair and the web four, which are the
+    only parts humanize names for itself -- so this is the check that those six names are real.
     """
     written = composed(DshAgent(configured()))
     mounted = {str(one["name"]) for one in written}
@@ -1174,6 +1196,10 @@ def test_the_runtime_composition_uses_only_plugins_bundled_with_the_sdk() -> Non
     assert mounted - default == {
         "@deepseek-ai/dsh-token-meter",
         "@deepseek-ai/dsh-compaction-basic",
+        "@deepseek-ai/dsh-web",
+        "@deepseek-ai/dsh-web-search-deepseek",
+        "@deepseek-ai/dsh-web-fetch-http",
+        "@deepseek-ai/dsh-tool-web",
     }
 
 

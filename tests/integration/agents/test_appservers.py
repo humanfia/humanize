@@ -28,7 +28,10 @@ from hmz.coganchor.agents import (
     Event,
     KimiCodeCLIAgent,
     KimiCodeCLIAgentConfig,
+    Moment,
+    Occasion,
     Tool,
+    Verdict,
 )
 from hmz.coganchor.agents import codex as appservers
 from hmz.coganchor.agents import kimi as kimicode
@@ -71,6 +74,16 @@ STEERED = []
 ASKED = [{"question_id": "q_0", "questions": [{
     "id": "which", "header": "Which", "question": "Which way?",
     "options": [{"id": "o_l", "label": "left"}, {"id": "o_r", "label": "right"}]}]}]
+# And one approval, the other thing a turn stops on: the daemon holds the tool until
+# somebody resolves it, and how it was resolved is what the turn goes on to say.
+WANTED = [{"approval_id": "a_0", "session_id": "session_fake", "turn_id": 0,
+           "tool_call_id": "call_0", "tool_name": "Bash",
+           "action": "Run rm -rf /tmp/x",
+           "tool_input_display": {"kind": "generic", "summary": "Run rm -rf /tmp/x",
+                                  "detail": {"command": "rm -rf /tmp/x"}},
+           "created_at": "2026-01-01T00:00:00.000Z",
+           "expires_at": "2026-01-02T00:00:00.000Z"}]
+DECIDED = []
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -89,6 +102,12 @@ class Handler(BaseHTTPRequestHandler):
             # Answered, so the turn is no longer waiting on it and it goes down.
             ASKED.clear()
             self.reply({"resolved": True})
+        elif "/approvals/" in self.path:
+            # Resolved, so the tool either runs or is refused, and either way the turn is
+            # no longer stopped on it.
+            DECIDED.append(sent)
+            WANTED.clear()
+            self.reply({"resolved": True, "resolved_at": "2026-01-01T00:00:01.000Z"})
         elif self.path.endswith("/prompts:steer"):
             # What was queued is moved into the turn already running, which is the whole
             # difference between putting a word in and queueing a turn behind this one.
@@ -116,6 +135,10 @@ class Handler(BaseHTTPRequestHandler):
                 # Working until it is told something else, which is what makes a word put in
                 # mid-turn observable: the turn cannot end before it lands.
                 self.reply({"busy": not STEERED})
+            elif QUEUED and QUEUED[0] == "approving":
+                # Stopped on the approval until it has been resolved, which is the wedge:
+                # a driver that could not answer it would poll this forever.
+                self.reply({"busy": not DECIDED})
             else:
                 self.reply({"busy": len(POLLS) == 1})
         elif self.path.split("?", 1)[0].endswith("/questions"):
@@ -124,6 +147,17 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(None, status=400)
                 return
             self.reply({"items": ASKED[:1]})
+        elif self.path.split("?", 1)[0].endswith("/approvals"):
+            # A build old enough to have no approvals route at all, which answers the way
+            # this daemon's own HTTP layer answers for a path it does not serve.
+            if QUEUED[:1] == ["unapproving"]:
+                self.send_error(404, "Not Found")
+                return
+            # Same filter, same shape: the approvals route takes `status=pending` too.
+            if not self.path.endswith("?status=pending"):
+                self.reply(None, status=400)
+                return
+            self.reply({"items": WANTED[:1] if QUEUED[:1] == ["approving"] else []})
         elif self.path.endswith("/goal"):
             # Still being pursued the first time it is asked, as a goal is between its turns.
             GOAL.append(None)
@@ -1343,6 +1377,111 @@ def test_kimi_answers_a_question_the_turn_stopped_on(kimi: _FakeServer) -> None:
     ]
 
 
+def test_kimi_answers_an_approval_the_turn_stopped_on(kimi: _FakeServer) -> None:
+    """The other route a turn stops against, and the one that used to stop it for good.
+
+    The daemon holds the tool until the approval is resolved and reports the session busy
+    meanwhile, so a driver that read only `/questions` would poll this until the watchdog
+    ended it. Nobody is at a prompt, so the answer is the one humanize gives everywhere --
+    and it is `approved` alone, `scope` being left off so that the next call of the same
+    tool is asked about again rather than waved through by a rule the daemon kept.
+    """
+    assert _agent()("approving") == "answered"
+
+    assert _bodies(kimi, "/approvals/a_0") == [{"decision": "approved"}]
+
+
+def test_a_kimi_approval_is_a_permission_request_a_hook_can_refuse(
+    kimi: _FakeServer,
+) -> None:
+    """Which is the whole point of reading the route: a gate, not a blanket yes.
+
+    The hook is told what the daemon said -- the tool, the one line it would have shown a
+    person, and the call itself -- and a refusal goes back as `rejected` with whatever it
+    gave as its reason, which the daemon hands the model as a line saying the tool was not
+    run. The turn carries on from there rather than ending.
+    """
+    agent = _agent()
+    seen: list[Occasion] = []
+
+    def refuse(occasion: Occasion) -> Verdict:
+        seen.append(occasion)
+        return Verdict(refused=True, because="not on this rung")
+
+    with agent.hooks.on(Moment.PERMISSION_REQUEST, refuse):
+        assert agent("approving") == "answered"
+
+    assert [(one.tool, one.about) for one in seen] == [("Bash", "Run rm -rf /tmp/x")]
+    assert seen[0].input["tool_input_display"]["detail"] == {"command": "rm -rf /tmp/x"}
+    assert _bodies(kimi, "/approvals/a_0") == [
+        {"decision": "rejected", "feedback": "not on this rung"}
+    ]
+
+
+def test_a_kimi_turn_at_no_rung_that_reaches_for_a_tool_still_finishes(
+    kimi: _FakeServer,
+) -> None:
+    """Saying nothing lands the session on Always Ask, which is now a rung that runs.
+
+    An install that configures nothing leaves `kimi web` at `manual`, so the first tool call
+    of such a turn is an approval. Answering it is what makes the silence a turn rather than
+    a quarter of an hour of polling ending as a stall.
+    """
+    agent = KimiCodeCLIAgent(
+        KimiCodeCLIAgentConfig(model="kimi-code/k3", effort="high", permission="")
+    )
+
+    assert agent("approving") == "answered"
+
+    (profile,) = _bodies(kimi, "/profile")
+    assert "permission_mode" not in profile["agent_config"]
+    assert _bodies(kimi, "/approvals/a_0") == [{"decision": "approved"}]
+
+
+def test_a_kimi_daemon_with_no_approvals_route_still_runs_its_turns(
+    kimi: _FakeServer,
+) -> None:
+    """A route that is not there is holding nothing, which is not a turn to throw away.
+
+    A build old enough to have no approvals route raises no approvals either, so failing
+    its turns over a list it was never going to fill would be this reading costing what it
+    exists to save. Only the 404 reads that way: it is the one refusal that is about the
+    build rather than the session, every trouble of the session's own arriving inside a 200
+    with a code in it.
+    """
+    assert _agent()("unapproving") == "answered"
+
+    asked = [
+        call["path"]
+        for call in kimi.calls()
+        if call["path"].split("?")[0].endswith("/approvals")
+    ]
+    # Both spellings tried once a round, and neither of them taken for an answer.
+    assert asked[:2] == [
+        "/api/v1/sessions/session_fake/approvals?status=pending",
+        "/api/v1/sessions/session_fake/approvals",
+    ]
+
+
+def test_a_kimi_approval_is_read_even_while_the_question_route_refuses(
+    kimi: _FakeServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Neither of the two routes a turn stops on may be starved by the other.
+
+    A daemon refusing one of them is a hiccup to be carried; an approval left unread behind
+    it would be the wedge back, since the turn waiting on it is the turn doing the polling.
+    """
+
+    def refuse(session: Any, named: str) -> None:
+        raise subprocess.CalledProcessError(500, f"GET /sessions/{named}/questions")
+
+    monkeypatch.setattr(kimicode.KimiCodeCLISession, "_asked", refuse)
+
+    assert _agent()("approving") == "answered"
+
+    assert _bodies(kimi, "/approvals/a_0") == [{"decision": "approved"}]
+
+
 def test_a_codex_turn_is_held_to_the_shape_it_was_asked_for(codex: _FakeServer) -> None:
     """`outputSchema` is a setting of the turn, so the prompt says nothing about the shape."""
     session = CodexAgent(CodexAgentConfig(model="gpt-5.6-sol", effort="high")).new()
@@ -1630,14 +1769,15 @@ def test_a_codex_turn_carries_the_rung_it_runs_at(
 
 @pytest.mark.parametrize(
     ("permission", "mode", "planning"),
-    # `auto` at every rung, plan mode being the whole of what tells them apart: Kimi's `yolo`
-    # is the middle rung rather than the top one, and still stops for an approval -- which
-    # lives on a route of its own that this driver does not read -- before a dangerous or
-    # unparseable command, a sensitive file, a `.git` path or `ExitPlanMode`.
+    # The whole ladder, now that an approval is a thing this driver answers. `manual` under
+    # plan mode is the rung that changes nothing -- plan mode vetoes the edits, `manual`
+    # turns the Bash plan mode lets through into an approval a hook can refuse -- and `yolo`
+    # is the middle rung, which asks before a dangerous or unparseable command, a sensitive
+    # file, a `.git` path or `ExitPlanMode`. The two that ask nothing at all are `auto`.
     [
-        ("read-only", "auto", True),
+        ("read-only", "manual", True),
         ("workspace-write", "auto", False),
-        ("auto", "auto", False),
+        ("auto", "yolo", False),
         ("bypass", "auto", False),
     ],
 )
@@ -1654,6 +1794,75 @@ def test_a_kimi_turn_carries_the_rung_it_runs_at(
     (profile,) = _bodies(kimi, "/profile")
     assert profile["agent_config"]["permission_mode"] == mode
     assert profile["agent_config"]["plan_mode"] is planning
+
+
+def test_a_kimi_turn_at_no_rung_says_nothing_about_what_it_may_do(
+    kimi: _FakeServer,
+) -> None:
+    """So the session runs wherever this install's own `kimi web` would have run it.
+
+    Neither key is sent rather than both sent at a value humanize picked, which for an
+    install that configures nothing is Always Ask -- the mode a person who starts the daemon
+    by hand and answers it from the browser gets. Nobody is at the browser here, so what such
+    a turn stops on is read off `/approvals` and answered there, the same way `read-only`
+    is. Saying a mode instead would be the global default this whole setting exists to stop
+    humanize choosing.
+    """
+    agent = KimiCodeCLIAgent(
+        KimiCodeCLIAgentConfig(model="kimi-code/k3", effort="high", permission="")
+    )
+    agent("hi")
+
+    (profile,) = _bodies(kimi, "/profile")
+    assert profile["agent_config"] == {
+        "model": "kimi-code/k3",
+        "thinking": "high",
+        "swarm_mode": False,
+    }
+
+
+@pytest.mark.parametrize(
+    ("searching", "withheld"),
+    # Both directions, because the daemon keeps the list rather than reading it once: it
+    # writes the session's disabled tools to disk, so a session resumed or forked from one
+    # that had the web taken away comes back with it still taken away. An empty list is what
+    # a session nobody told carries, so saying it costs a turn nothing and means the agent
+    # that may search does.
+    [(False, ["WebSearch", "FetchURL"]), (True, [])],
+)
+def test_a_kimi_turn_says_whether_the_web_is_the_agents(
+    kimi: _FakeServer, searching: bool, withheld: list[str]
+) -> None:
+    """On the prompt body alone, which is the one of the two routes with anywhere to put it.
+
+    `disabled_tools` is a key of the daemon's prompt schema and not of its session profile's,
+    and both are `object()` schemas -- so a profile told this would answer 200 and drop it,
+    and nothing would ever say the web had not been taken away.
+    """
+    agent = KimiCodeCLIAgent(
+        KimiCodeCLIAgentConfig(
+            model="kimi-code/k3", effort="high", web_search=searching
+        )
+    )
+    agent("hi")
+
+    (prompt,) = _bodies(kimi, "/prompts")
+    assert prompt["disabled_tools"] == withheld
+    (profile,) = _bodies(kimi, "/profile")
+    assert "disabled_tools" not in profile["agent_config"]
+
+
+def test_a_kimi_turn_nobody_was_asked_about_says_nothing_about_the_web(
+    kimi: _FakeServer,
+) -> None:
+    """The way one at no rung sends no mode: the session is left carrying what it carried."""
+    agent = KimiCodeCLIAgent(
+        KimiCodeCLIAgentConfig(model="kimi-code/k3", effort="high", web_search=None)
+    )
+    agent("hi")
+
+    (prompt,) = _bodies(kimi, "/prompts")
+    assert "disabled_tools" not in prompt
 
 
 def test_a_kimi_daemon_is_started_the_way_the_flow_asked_for(kimi: _FakeServer) -> None:

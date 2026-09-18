@@ -388,31 +388,47 @@ def test_a_rung_nobody_wrote_down_is_the_one_an_agent_comes_at() -> None:
 @pytest.mark.parametrize(
     ("permission", "mode", "planning"),
     [
-        ("read-only", "auto", True),
+        ("read-only", "manual", True),
         ("workspace-write", "auto", False),
-        ("auto", "auto", False),
+        ("auto", "yolo", False),
         ("bypass", "auto", False),
     ],
 )
 def test_kimi_is_told_the_rung_as_a_mode_and_a_plan(
     permission: str, mode: str, planning: bool
 ) -> None:
-    """`auto` is the only mode that never stops, so plan mode is the whole of the ladder.
+    """All three modes, now that the route a stopped turn waits on is one this driver reads.
 
     Kimi's own three are Always Ask (`manual`), Ask When Needed (`yolo`) and Never Ask
     (`auto`), loosest last -- `yolo` is the middle rung, not the top one the word suggests.
     Its policy that approves everything is consulted behind the ones that ask, so a `yolo`
     turn still stops before a dangerous or unparseable Bash command, a sensitive file, a
-    path under `.git`, and `ExitPlanMode`. Each of those is an approval rather than a
-    question, and this driver reads only `/questions`, so a turn stopped on one never moves
-    again. `manual` is unreachable for the same reason, and is the one rung genuinely left
-    on the table: it would be a truer `read-only` than plan mode is.
+    path under `.git`, and `ExitPlanMode`; `manual` adds no policy at all and so stops
+    before everything but the reads. Each of those is an approval rather than a question and
+    is answered on `/approvals`, where a `PERMISSION_REQUEST` hook gets it first. So
+    `read-only` is `manual` under plan mode, `auto` -- the rung where the agent may ask for
+    more and the asking is granted -- is `yolo`, and the two rungs that ask nothing are
+    `auto`.
     """
     from hmz.coganchor.agents.kimi import _PERMITTED
 
     said = _PERMITTED[permission]
     assert said["permission_mode"] == mode
     assert said["plan_mode"] is planning
+
+
+def test_kimi_at_no_rung_is_told_neither_a_mode_nor_a_plan() -> None:
+    """An agent nobody wrote a rung for is left where the CLI's own defaults leave it.
+
+    Which for an install that configures nothing is `manual`, Always Ask: 0.42.0 reads
+    `default_permission_mode` out of the install's config as it bootstraps a session and
+    leaves the mode there when it finds none. That used to be the row that wedged, an
+    approval being a thing this driver could not answer; it is now the same rung
+    `read-only` runs at, and the turn goes on.
+    """
+    from hmz.coganchor.agents.kimi import _PERMITTED
+
+    assert _PERMITTED[UNSAID] == {}
 
 
 def test_every_backend_has_something_to_say_at_every_rung() -> None:

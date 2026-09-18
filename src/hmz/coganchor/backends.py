@@ -1304,6 +1304,15 @@ PROFILES = (
     ),
     Profile(
         name="dsh",
+        # By composition, which is this backend's only way of saying anything: there is no
+        # command line to put a flag on, and what an agent may reach for is what its
+        # `cordis.yml` mounts. `dsh-web` and the two providers under it are what the
+        # `web_search` and `web_fetch` tools of `dsh-tool-web` run on, and an agent told not
+        # to search is one whose composition carries none of the four -- a tool that is not
+        # in the process rather than one asked not to be reached for. Said in both directions
+        # for the reason Codex's is: the bundled composition mounts no web at all, so on has
+        # to be mounted or it would mean two things.
+        searches=True,
         # Shorter than the rest, and for a reason of its own: this is the one backend driven
         # through an SDK rather than a command line, and the three minutes the driver gives
         # each of that SDK's requests is humanize's own -- `request_timeout_seconds` is None
@@ -1336,7 +1345,13 @@ PROFILES = (
         # `.agents/skills`, but that is its web profile's own harness. What humanize drives is
         # the Python SDK, which carries no skills at all -- so a list here would be of skills
         # nothing in this session would ever load.
-        ambient=("DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL"),
+        # `DEEPSEEK_SEARCH_BASE_URL` beside the other two because the search provider mounted
+        # for an agent that may search reads it, and reads it *instead of* `DEEPSEEK_BASE_URL`:
+        # search speaks the Anthropic-compatible Messages API and chat completions do not, so
+        # the harness gives the two endpoints two variables. It is the same key at the other
+        # end of it, so one left in a shell profile is an account's key sent somewhere the
+        # account never named -- which is what listing it here stops.
+        ambient=("DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL", "DEEPSEEK_SEARCH_BASE_URL"),
         # Its SDK has no model-list request at all, so an endpoint that answers one is the
         # only way this backend ever says something other than the two names it ships with.
         endpoint="DEEPSEEK_BASE_URL",
@@ -1473,6 +1488,13 @@ PROFILES = (
         # per-turn body to put a rung, a thinking level or a swarm width in, and no question
         # an unattended flow can answer. `kimi web` is where a session is a thing.
         shares=True,
+        # `disabled_tools`, which the daemon's prompt body takes and which names `WebSearch`
+        # and `FetchURL` -- the two tools 0.42.0 reaches the web with. A deny-list rather than
+        # a word to the model: the session's tool policy is what filters the tool list a
+        # request carries, so a withheld tool is not in the request at all, and the executor
+        # refuses one reached for anyway. Said in both directions, because the list is session
+        # state written to disk and a forked session would otherwise inherit a deny.
+        searches=True,
         installs="npm i -g @moonshot-ai/kimi-code",
         # Installed as a Node script with a `node` shebang, so the runtime it starts on is one
         # `NODE_OPTIONS` is read by -- the daemon included, which is what a turn of it runs in.
