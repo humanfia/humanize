@@ -513,6 +513,23 @@ def test_permissions_the_sdk_cannot_enforce_are_refused() -> None:
     assert Harness.made == []
 
 
+def test_a_config_that_settles_no_rung_is_the_composition_the_sdk_already_runs() -> (
+    None
+):
+    """The silence is not a rung below bypass, so nothing here has to enforce it.
+
+    A bare SDK session mounts the unconfined pair, and saying nothing about what the agent
+    may do lands on exactly that -- the same agent `bypass` names, without humanize claiming
+    to have chosen it.
+    """
+    agent = DshAgent(configured(permission=""))
+    assert agent.config.permission == ""
+
+    agent.reconfigure(replace(agent.config, permission="bypass"))
+    assert agent.config.permission == "bypass"
+    assert Harness.made == []
+
+
 def test_a_missing_native_api_key_failure_reaches_watchers_with_setup_guidance(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

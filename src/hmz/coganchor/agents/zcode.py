@@ -1460,7 +1460,10 @@ class ZcodeSession(SessionBase):
         self._held.model = config.model
         self._held.effort = self.effort
         self._held.mode = _PERMITTED.get(config.permission, _PERMITTED["bypass"])
-        searches = config.web_search
+        # `is not False` rather than a truth test: a config that settles nothing about the
+        # web is one this driver says nothing about either, which is the same call it makes
+        # at `web_search=True` -- the denylist goes out only where it was asked for.
+        searches = config.web_search is not False
         # Read off whatever config this agent was made with, since an agent of this backend
         # may be handed the common one: what is not there is what the driver has always sent.
         titles = bool(getattr(config, "titles", _TITLES))

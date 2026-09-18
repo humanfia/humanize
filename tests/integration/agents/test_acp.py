@@ -587,6 +587,16 @@ def test_an_added_cli_cannot_be_allowed_less_than_everything(added: str) -> None
         _agent(added, permission="read-only")
 
 
+def test_an_added_cli_may_be_left_at_whatever_it_was_installed_as(added: str) -> None:
+    """The silence above the ladder is the other answer this backend can honestly give.
+
+    Every request is granted here, so the agent does what whoever installed the CLI allowed
+    it to do -- which is exactly what a config settling no rung asks for, and the same agent
+    `bypass` asks for out loud.
+    """
+    assert _agent(added, permission="").config.permission == ""
+
+
 def test_a_conversation_is_picked_back_up_on_the_next_process(
     added: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
