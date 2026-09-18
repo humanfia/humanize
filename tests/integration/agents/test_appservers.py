@@ -95,6 +95,16 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def envelope(self, said):
+        # A refusal about the session rather than about the route: a code in the body and
+        # the status left at 200, which is the shape a real daemon refuses in.
+        body = json.dumps(said).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_POST(self):
         sent = json.loads(self.rfile.read(int(self.headers["Content-Length"])) or b"null")
         note({"path": self.path, "body": sent, "token": self.headers.get("Authorization")})
@@ -103,10 +113,19 @@ class Handler(BaseHTTPRequestHandler):
             ASKED.clear()
             self.reply({"resolved": True})
         elif "/approvals/" in self.path:
+            if DECIDED:
+                # One answer apiece is all the daemon takes: a second is refused rather
+                # than resolved, the way a real one refuses `approval X already resolved`
+                # -- with a code in the envelope and the status left at 200, which is how
+                # every trouble of the session's own arrives here.
+                self.envelope({"code": 40409, "msg": "approval a_0 already resolved",
+                               "data": {"resolved": False}})
+                return
             # Resolved, so the tool either runs or is refused, and either way the turn is
             # no longer stopped on it.
             DECIDED.append(sent)
-            WANTED.clear()
+            if QUEUED[:1] != ["forgetful"]:
+                WANTED.clear()
             self.reply({"resolved": True, "resolved_at": "2026-01-01T00:00:01.000Z"})
         elif self.path.endswith("/prompts:steer"):
             # What was queued is moved into the turn already running, which is the whole
@@ -135,7 +154,7 @@ class Handler(BaseHTTPRequestHandler):
                 # Working until it is told something else, which is what makes a word put in
                 # mid-turn observable: the turn cannot end before it lands.
                 self.reply({"busy": not STEERED})
-            elif QUEUED and QUEUED[0] == "approving":
+            elif QUEUED and QUEUED[0] in ("approving", "forgetful"):
                 # Stopped on the approval until it has been resolved, which is the wedge:
                 # a driver that could not answer it would poll this forever.
                 self.reply({"busy": not DECIDED})
@@ -157,7 +176,8 @@ class Handler(BaseHTTPRequestHandler):
             if not self.path.endswith("?status=pending"):
                 self.reply(None, status=400)
                 return
-            self.reply({"items": WANTED[:1] if QUEUED[:1] == ["approving"] else []})
+            wanted = QUEUED[:1] in (["approving"], ["forgetful"])
+            self.reply({"items": WANTED[:1] if wanted else []})
         elif self.path.endswith("/goal"):
             # Still being pursued the first time it is asked, as a goal is between its turns.
             GOAL.append(None)
@@ -1425,9 +1445,10 @@ def test_a_kimi_turn_at_no_rung_that_reaches_for_a_tool_still_finishes(
 
     An install that configures nothing leaves `kimi web` at `manual`, so the first tool call
     of such a turn is an approval. Answering it is what makes the silence a turn rather than
-    a quarter of an hour of polling ending as a stall -- and the answer is no, an agent
-    humanize was told nothing about being one it does not say yes for. Refused rather than
-    left, because `rejected` is a line the model reads and a stall is nothing at all.
+    a quarter of an hour of polling ending as a stall -- and the answer is no, because
+    nothing said what this agent may do and nothing is not a yes. The turn carries on from
+    the refusal rather than ending on it, which is the difference between a rung that
+    withholds and a daemon nobody can answer.
     """
     agent = KimiCodeCLIAgent(
         KimiCodeCLIAgentConfig(model="kimi-code/k3", effort="high", permission="")
@@ -1461,6 +1482,100 @@ def test_a_hook_gets_the_first_word_on_a_kimi_approval_at_no_rung(
     assert [one.tool for one in seen] == ["Bash"]
     assert _bodies(kimi, "/approvals/a_0") == [
         {"decision": "rejected", "feedback": "not that one"}
+def test_a_kimi_turn_at_read_only_refuses_the_tool_that_is_not_a_read(
+    kimi: _FakeServer,
+) -> None:
+    """The rung whose whole meaning is change nothing does not grant a write.
+
+    Plan mode refuses the edits outright, and `manual` turns the Bash plan mode lets through
+    into an approval. If that approval were answered yes, a flow declaring `read-only` and
+    hanging no hook would run a command that writes a file -- the rung naming a thing it did
+    not do. The reads never get this far: the daemon approves those by itself, so an approval
+    reaching this driver at this rung is by construction a tool that is not a read.
+    """
+    agent = KimiCodeCLIAgent(
+        KimiCodeCLIAgentConfig(
+            model="kimi-code/k3", effort="high", permission="read-only"
+        )
+    )
+
+    assert agent("approving") == "answered"
+
+    assert _bodies(kimi, "/approvals/a_0") == [
+        {
+            "decision": "rejected",
+            "feedback": "this agent runs at read-only, which withholds approval",
+        }
+    ]
+
+
+def test_a_kimi_hook_that_only_watches_does_not_grant_what_the_rung_withheld(
+    kimi: _FakeServer,
+) -> None:
+    """A hook says no or says nothing; saying nothing is not saying yes.
+
+    The moment fires at the withholding rungs too -- a flow watching its agent wants to see
+    the tool it reached for whether or not the answer was ever in doubt -- so a watcher must
+    not be the thing that turns the rung's refusal into a grant.
+    """
+    agent = KimiCodeCLIAgent(
+        KimiCodeCLIAgentConfig(
+            model="kimi-code/k3", effort="high", permission="read-only"
+        )
+    )
+    seen: list[Occasion] = []
+    agent.hooks.on(Moment.PERMISSION_REQUEST, seen.append)
+
+    assert agent("approving") == "answered"
+
+    assert [one.tool for one in seen] == ["Bash"]
+    assert _bodies(kimi, "/approvals/a_0") == [
+        {
+            "decision": "rejected",
+            "feedback": "this agent runs at read-only, which withholds approval",
+        }
+    ]
+
+
+def test_a_kimi_approval_is_answered_once_however_often_it_is_listed(
+    kimi: _FakeServer,
+) -> None:
+    """A second answer is refused rather than resolved, and a refusal a second kills a turn.
+
+    0.42.0 lists the unresolved ones and nothing on the wire says which those are -- a wire
+    approval carries an id, the tool, the action, the call and two timestamps, and no
+    `status` at all. So a daemon that listed a resolved one anyway would have this driver
+    answer it again every second until the recovery window ran out on a turn that was
+    working. Remembered by id instead, which also keeps the hook at one firing per tool
+    call rather than one per poll.
+    """
+    agent = _agent()
+    seen: list[Occasion] = []
+    agent.hooks.on(Moment.PERMISSION_REQUEST, seen.append)
+
+    assert agent("forgetful") == "answered"
+
+    assert _bodies(kimi, "/approvals/a_0") == [{"decision": "approved"}]
+    assert len(seen) == 1
+
+
+def test_a_kimi_daemon_with_no_approvals_route_is_asked_once_and_not_again(
+    kimi: _FakeServer,
+) -> None:
+    """One `kimi web` serves every session of its agent, so a wasted call is eight waiting.
+
+    A build does not grow a route while a turn is running, so the two refusals that found
+    out are the whole cost of finding out.
+    """
+    assert _agent()("unapproving") == "answered"
+
+    assert [
+        call["path"]
+        for call in kimi.calls()
+        if call["path"].split("?")[0].endswith("/approvals")
+    ] == [
+        "/api/v1/sessions/session_fake/approvals?status=pending",
+        "/api/v1/sessions/session_fake/approvals",
     ]
 
 
@@ -1476,17 +1591,6 @@ def test_a_kimi_daemon_with_no_approvals_route_still_runs_its_turns(
     with a code in it.
     """
     assert _agent()("unapproving") == "answered"
-
-    asked = [
-        call["path"]
-        for call in kimi.calls()
-        if call["path"].split("?")[0].endswith("/approvals")
-    ]
-    # Both spellings tried once a round, and neither of them taken for an answer.
-    assert asked[:2] == [
-        "/api/v1/sessions/session_fake/approvals?status=pending",
-        "/api/v1/sessions/session_fake/approvals",
-    ]
 
 
 def test_a_kimi_approval_is_read_even_while_the_question_route_refuses(
