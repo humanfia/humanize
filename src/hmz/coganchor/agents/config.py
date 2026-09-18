@@ -24,6 +24,7 @@ __all__ = [
     "OUTCOMES",
     "PERMISSIONS",
     "SERVICE_TIERS",
+    "UNSAID",
     "AgentConfig",
     "AgentDefaults",
     "Budget",
@@ -33,6 +34,8 @@ __all__ = [
     "Remote",
     "anchored",
     "isolated",
+    "searching",
+    "tightest",
 ]
 
 #: What an agent may do without being asked, loosest last. Named the way these CLIs name them
@@ -54,6 +57,37 @@ __all__ = [
 #: A backend with no sandbox of its own cannot tell `workspace-write` from `auto`, and says so
 #: where it maps them rather than pretending to a rung it has not got.
 PERMISSIONS = ("read-only", "workspace-write", "auto", "bypass")
+
+
+#: The word for no rung at all: humanize says nothing to the CLI about what its agent may do,
+#: which leaves it wherever that CLI's own headless run leaves it. Outside :data:`PERMISSIONS`
+#: because it is not a rung on the ladder but the absence of one -- the same shape `effort`
+#: already has, where `AUTO` becomes "" and every driver knows to say nothing. Loosest of all,
+#: so a place declaring nothing goes on settling nothing.
+UNSAID = ""
+
+#: Every answer a config may be written with: the ladder, and the silence above it. Loosest
+#: last, which is what :func:`tightest` reads it in.
+_SAYABLE = (*PERMISSIONS, UNSAID)
+
+
+def tightest(was: str, said: str) -> str:
+    """The narrower of two rungs, where a rung is narrower than the silence above them all.
+
+    Args:
+      was: What the agent already carries.
+      said: What the place declares.
+
+    Returns:
+      Whichever of them withholds more, and the silence only where both are silent.
+    """
+    return min(was, said, key=_SAYABLE.index)
+
+
+def searching(was: bool | None, said: bool | None) -> bool | None:
+    """The same, for whether the web may be read: off beats on, and on beats unsaid."""
+    return min(was, said, key=(False, True, None).index)
+
 
 #: How quickly a provider is asked to serve one agent, independent of how hard its model
 #: reasons. Backends map these common meanings into their own request vocabulary and refuse
@@ -223,9 +257,10 @@ class AgentDefaults:
     of every flow has always run at.
 
     Attributes:
-      permission: What the agent may do without being asked, as one of :data:`PERMISSIONS`.
+      permission: What the agent may do without being asked, as one of :data:`PERMISSIONS`,
+        or :data:`UNSAID` for a place that would rather humanize said nothing about it.
       goals: Whether the backend's own goal feature is available to it.
-      web_search: Whether it may search the web.
+      web_search: Whether it may search the web, or None to say nothing about it either way.
 
     Raises:
       ValueError: If the rung is not one there is, said as the flow is read rather than
@@ -234,10 +269,10 @@ class AgentDefaults:
 
     permission: str = "bypass"
     goals: bool = True
-    web_search: bool = True
+    web_search: bool | None = True
 
     def __post_init__(self) -> None:
-        if self.permission not in PERMISSIONS:
+        if self.permission not in _SAYABLE:
             raise ValueError(
                 f"permission must be one of {', '.join(PERMISSIONS)}, "
                 f"not {self.permission!r}"
@@ -381,7 +416,9 @@ class AgentConfig:
         the first turn and says where it is itself. The agent runs here either way, so its
         credentials and its trajectory stay where a flow can reach them; what moves is the
         project it reads and the commands it runs.
-      permission: What this agent may do without being asked, as one of :data:`PERMISSIONS`.
+      permission: What this agent may do without being asked, as one of :data:`PERMISSIONS`,
+        or :data:`UNSAID` -- not a rung at all, but humanize saying nothing to the CLI and
+        leaving it wherever that CLI's own headless run leaves it.
         `bypass` because that is what a flow driving an agent unattended has always run it
         at: a flow watches its agent rather than gating it, and a turn waiting on an approval
         nobody is there to give is a flow that has stopped. Anything tighter is the flow's
@@ -441,7 +478,7 @@ class AgentConfig:
     permission: str = "bypass"
     provider: str = ""
     goals: bool = True
-    web_search: bool = True
+    web_search: bool | None = True
     budget: Budget | None = None
 
     def __post_init__(self) -> None:
@@ -461,7 +498,7 @@ class AgentConfig:
         # moment it is read: a rung no backend has a word for is one every driver would have
         # to answer for, so it is refused here where they all pass rather than reached down in
         # one of them as a key that is not there.
-        if self.permission not in PERMISSIONS:
+        if self.permission not in _SAYABLE:
             raise ValueError(
                 f"permission must be one of {', '.join(PERMISSIONS)}, "
                 f"not {self.permission!r}"
