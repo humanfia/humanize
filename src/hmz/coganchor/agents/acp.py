@@ -43,11 +43,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from .base import AgentBase, SessionBase, _ended
-
-# `UNSAID` is already taken here, by the word ACP has for what a backend runs, so the
-# ladder's own word for a rung nobody settled comes in under the name it is described by.
-from .config import UNSAID as NO_RUNG
-from .config import AgentConfig, Unserved
+from .config import AgentConfig
 from .event import Event, Failed, Saying
 from .watchdog import Watchdog
 
@@ -1064,10 +1060,17 @@ class AcpAgentConfig(AgentConfig):
 class AcpAgent(AgentBase):
     """A CLI of your own that speaks the Agent Client Protocol."""
 
-    #: `bypass` and nothing below it, which is what :meth:`_serves` refuses a config for. The
+    #: `bypass` and nothing below it, which is what
+    #: :meth:`~hmz.coganchor.agents.base.AgentBase._serves` refuses a config for. The
     #: protocol's only word about permission is a request a client answers one tool call at a
     #: time, and nobody is at a prompt here -- so a narrower rung would be an agent nothing was
     #: given the chance to refuse.
+    #:
+    #: The silence above them is the one other answer this backend can honestly give, and the
+    #: base class lets it through: a config that settles no rung asks for nothing to be said
+    #: about what the agent may do, and an added CLI doing what whoever installed it allowed
+    #: it to do is exactly that. `bypass` is the flow saying it wants the same thing out loud.
+    #: Neither is humanize allowing anything, because there is nothing here to allow it with.
     #:
     #: Said here as well as refused there because this is the class's own answer to the
     #: question :attr:`~hmz.coganchor.agents.base.AgentBase.rungs` asks, and a subclass that
@@ -1111,37 +1114,6 @@ class AcpAgent(AgentBase):
                 "then `a CLI of your own` is where one is written down"
             )
         return found
-
-    def _serves(self, config: AgentConfig) -> None:
-        """Refuses a config the protocol has no way of carrying.
-
-        Args:
-          config: What the agent is to run at.
-
-        Raises:
-          ValueError: If it was allowed less than everything. ACP's only word about permission
-            is `session/request_permission`, which asks a client to allow one tool call at a
-            time -- and nobody is at a prompt here, so every request is granted and the agent
-            goes on doing what whoever installed it allowed it to do.
-
-            Which is why the silence is the one other answer this backend can honestly give:
-            a config that settles no rung asks for nothing to be said about what the agent may
-            do, and an added CLI doing what whoever installed it allowed it to do is exactly
-            that. `bypass` is the flow saying it wants the same thing out loud. Neither is
-            humanize allowing anything, because there is nothing here to allow it with.
-
-            An agent that never asks is an agent nothing was given the chance to refuse, so a
-            rung below those two is said where the agent is made rather than quietly run as
-            the rung above it.
-        """
-        super()._serves(config)
-        if config.permission not in (NO_RUNG, "bypass"):
-            raise Unserved(
-                "the agent client protocol has no way of allowing an agent less than "
-                "everything; permission must be 'bypass', or left unsaid for the agent as "
-                f"whoever installed the CLI configured it, not {config.permission!r}",
-                "permission",
-            )
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> AcpSession:
         """Opens a new conversation, in the directory it is given or in this one."""

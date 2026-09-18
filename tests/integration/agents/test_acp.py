@@ -581,9 +581,12 @@ def test_an_added_cli_cannot_be_allowed_less_than_everything(added: str) -> None
     """The protocol's only word about permission is a question nobody here is at.
 
     So every tool call is granted, and a rung that says otherwise is said where the agent is
-    made rather than quietly run as the rung above it.
+    made rather than quietly run as the rung above it. Said by the base class off
+    :attr:`AcpAgent.rungs` rather than by a sentence written on this driver, so the tuple
+    whoever is *choosing* a backend reads and the refusal whoever built one gets are the same
+    answer and cannot drift apart.
     """
-    with pytest.raises(ValueError, match="permission must be 'bypass'"):
+    with pytest.raises(ValueError, match="cannot be held to 'read-only'"):
         _agent(added, permission="read-only")
 
 

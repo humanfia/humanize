@@ -260,7 +260,9 @@ def test_kimi_says_it_in_both_directions_because_its_deny_list_is_kept() -> None
     A session resumed or forked from one that had the web withheld comes back with it still
     withheld, and an agent that may search would then be an agent that quietly does not.
     """
-    searching = KimiCodeCLIAgent(KimiCodeCLIAgentConfig(model="m", effort="high")).new()
+    searching = KimiCodeCLIAgent(
+        KimiCodeCLIAgentConfig(model="m", effort="high", web_search=True)
+    ).new()
 
     assert searching._told()[1]["disabled_tools"] == []
 
@@ -283,7 +285,7 @@ def test_dsh_is_told_by_the_plugins_its_composition_carries() -> None:
     from hmz.coganchor.agents.dsh import _WEB, _composed
 
     mounted = [plugin["name"] for plugin in _WEB]
-    config = DshAgentConfig(model="m", effort="high")
+    config = DshAgentConfig(model="m", effort="high", web_search=True)
 
     searching = _composed(config)
     assert all(name in searching for name in mounted)

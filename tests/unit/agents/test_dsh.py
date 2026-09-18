@@ -503,12 +503,17 @@ def test_an_unsupported_effort_is_refused_where_the_rung_arrives(effort: str) ->
 
 
 def test_permissions_the_sdk_cannot_enforce_are_refused() -> None:
-    """Where the config arrives, so a flow that declares one is refused before it runs."""
-    with pytest.raises(ValueError, match="permission must be 'bypass'"):
+    """Where the config arrives, so a flow that declares one is refused before it runs.
+
+    Said by the base class off :attr:`DshAgent.rungs` rather than by a sentence written here,
+    so the tuple whoever is *choosing* a backend reads and the refusal whoever built one gets
+    are the same answer and cannot drift apart.
+    """
+    with pytest.raises(ValueError, match="cannot be held to 'read-only'"):
         DshAgent(configured(permission="read-only"))
 
     agent = DshAgent(configured())
-    with pytest.raises(ValueError, match="permission must be 'bypass'"):
+    with pytest.raises(ValueError, match="cannot be held to 'read-only'"):
         agent.reconfigure(replace(agent.config, permission="read-only"))
 
     assert agent.config.permission == "bypass"  # and it is left as it was

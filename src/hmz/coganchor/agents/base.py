@@ -26,7 +26,7 @@ from typing import IO, TYPE_CHECKING, Any, ClassVar, Literal, Protocol, Self, ov
 from hmz.coganchor.backends import AUTO
 
 from .codenames import codename
-from .config import PERMISSIONS, Unserved
+from .config import PERMISSIONS, UNSAID, Unserved
 from .event import Event, Failed, Question, Stopped, Unrecoverable, Usage, say
 from .hooks import EVERYWHERE, Hooks, Moment, Occasion, Verdict
 from .skills import Loaded, mount, unmount
@@ -3563,18 +3563,35 @@ class AgentBase(ABC):
           config: What the agent is to run at.
 
         Raises:
-          Unserved: If the effort is not a rung this backend's ladder has, if the tier is
-            not one of :attr:`service_tiers`, or if web search was switched off for a backend
-            with no way of being told. Switched off rather than left unsaid: an agent nobody
-            was asked about goes on reaching the web exactly as its CLI lets it, which is the
-            thing this refusal exists to be honest about rather than the thing it forbids.
-            Reading the silence as a no would refuse every backend that cannot be told the
-            moment a config stopped answering for one.
+          Unserved: If the effort is not a rung this backend's ladder has, if the rung is not
+            one of :attr:`rungs`, if the tier is not one of :attr:`service_tiers`, or if web
+            search was switched off for a backend with no way of being told. Switched off
+            rather than left unsaid: an agent nobody was asked about goes on reaching the web
+            exactly as its CLI lets it, which is the thing this refusal exists to be honest
+            about rather than the thing it forbids. Reading the silence as a no would refuse
+            every backend that cannot be told the moment a config stopped answering for one.
 
             Each names the field it is about, so that the one caller entitled to be lenient
             about it can drop that field and settle the rest. It is a `ValueError` still.
         """
         self._thinks(config.effort)
+        # Read off :attr:`rungs` rather than written out in each driver that narrows it. The
+        # tuple is already the answer given to whoever is *choosing* a backend -- the picker
+        # ruling one out for a place, a flow writing `Needs("rung:read-only")` -- and a
+        # refusal spelled separately would be the same table twice, free to disagree with
+        # itself the moment a driver learned a rung and updated only one of them.
+        #
+        # `UNSAID` is not among them and is not meant to be: it is not a rung but the absence
+        # of one, and every backend can be told nothing. So it passes here whatever a driver
+        # narrowed to, which is what lets a config that settles no rung reach the one backend
+        # that can only be run wide open.
+        if config.permission not in (UNSAID, *type(self).rungs):
+            raise Unserved(
+                f"{type(self).__name__} cannot be held to {config.permission!r}; "
+                f"expected {', '.join(type(self).rungs)}, or left unsaid for the agent as "
+                "whoever installed the CLI configured it",
+                "permission",
+            )
         if config.service_tier not in self.service_tiers:
             raise Unserved(
                 f"{type(self).__name__} does not support service tier "

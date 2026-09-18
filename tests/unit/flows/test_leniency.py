@@ -355,11 +355,15 @@ class TestTheWholePath:
         assert "web_search" in said
         assert "pi" in said
 
-    def test_an_insisting_flow_is_refused_where_it_always_was(self, tmp_path: Path) -> None:
+    def test_an_insisting_flow_is_refused_where_it_always_was(
+        self, tmp_path: Path
+    ) -> None:
         where = tmp_path / "quiet.py"
         where.write_text(INSISTS)
 
-        with pytest.raises(NotAFlow, match="no way of being told not to search the web"):
+        with pytest.raises(
+            NotAFlow, match="no way of being told not to search the web"
+        ):
             Runner(str(where), [agent(PiAgent)])
 
     def test_a_run_that_carried_everything_says_nothing(self, tmp_path: Path) -> None:

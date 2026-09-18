@@ -107,6 +107,7 @@ class Unserved(ValueError):  # noqa: N818  -- what the setting is here, not what
         super().__init__(said)
         self.settings = frozenset(settings)
 
+
 def rung(permission: str) -> str:
     """The capability name for one rung, which is how a flow asks for it before its turn.
 

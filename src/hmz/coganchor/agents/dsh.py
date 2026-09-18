@@ -26,7 +26,7 @@ import yaml
 from hmz.coganchor import backends
 
 from .base import AgentBase, SessionBase
-from .config import UNSAID, AgentConfig, Unserved
+from .config import AgentConfig
 from .event import Event, Failed, Saying, Unrecoverable, Usage, say
 from .watchdog import Watchdog
 
@@ -237,10 +237,56 @@ class DshAgent(AgentBase):
     #: The official goal service keeps the session working until its objective is complete.
     pursues: ClassVar[bool] = True
 
-    #: `bypass` and nothing below it, which is what :meth:`_serves` refuses a config for. The
-    #: runtime bundles no confining bash executor, so a narrower rung here would be a rung
-    #: that reads as enforced and enforces nothing -- and this is where a flow, or whoever is
-    #: choosing a backend for one, can be told that before the agent exists.
+    #: `bypass` and nothing below it, which is what
+    #: :meth:`~hmz.coganchor.agents.base.AgentBase._serves` refuses a config for. The runtime
+    #: bundles no confining bash executor, so a narrower rung here would be a rung that reads
+    #: as enforced and enforces nothing -- and this is where a flow, or whoever is choosing a
+    #: backend for one, can be told that before the agent exists. Refused where the config
+    #: arrives rather than where the first turn runs, because what an agent may do is the
+    #: flow's: a flow declaring a reviewer that may not write is refused this backend before
+    #: the run starts, rather than an hour into one by a turn that could never have run.
+    #:
+    #: Not humanize's composition making a choice. The SDK's own default composition -- the
+    #: `runtime/cordis.yml` it injects as `$DSH_CORDIS_CONFIG` for a launch that passes none
+    #: -- mounts `dsh-bash-local` and `dsh-fs-local`, the unconfined executors, and none of
+    #: `dsh-sandbox-*`, `dsh-user-approval` or `dsh-permission-presets`. So bypass is what a
+    #: bare SDK session already runs at, and humanize composing the same pair is agreeing with
+    #: the harness rather than loosening it.
+    #:
+    #: Which is also why the silence above the ladder is taken, as the base class takes it
+    #: everywhere. The silence asks for nothing to be said about what the agent may do, and
+    #: what a bare SDK session does without being told is the unconfined pair above -- so the
+    #: silence and `bypass` name one agent here, and only one of them is humanize claiming to
+    #: have chosen it.
+    #:
+    #: What settles it is the bundle rather than the default: read against the runtime shipped
+    #: with `deepseek-harness-sdk` 0.1.1rc1, the executable carries `dsh-fs-sandbox`,
+    #: `dsh-sandbox-local` and `dsh-sandbox-policy`, but no confining *shell* executor at all.
+    #: `dsh-bash-sandbox` is named in the workspace's dependency lists and in
+    #: `dsh-fs-sandbox`'s own documentation, and is not among the packages built into
+    #: `dsh-jsonrpc-agent-pkg-*`; the only bundled `ctx.shell` is `dsh-bash-local`, whose
+    #: `sandboxMode` is undefined. A rung composed from what does ship would fence
+    #: `write_file` and leave `bash` able to write anywhere -- a rung that lies, which is
+    #: worse than one refused.
+    #:
+    #: Put to the runtime rather than reasoned about, because the whole refusal turns on it: a
+    #: composition naming `dsh-bash-sandbox` is refused at plugin load with `Cannot find
+    #: package '@deepseek-ai/dsh-bash-sandbox'`, while the same composition with only the
+    #: filesystem half swapped loads happily -- which is exactly the rung that would lie, and
+    #: exactly why it is not offered.
+    #:
+    #: Two smaller confirmations of the same fact. `dsh-permission-presets` refuses to load
+    #: over an unconfined executor and says so in those words ("the mounted bash executor does
+    #: not confine (no sandboxMode)"), so mounting it is not unwise but fatal. And `auto` has
+    #: nobody to ask even if it were composable: `ctx.approval` would have to be answered over
+    #: the SDK's JSON-RPC request channel, which this driver does not serve, and the runtime
+    #: fails an unanswered approval closed as `unavailable`.
+    #:
+    #: Left uncertain deliberately: were `dsh-bash-sandbox` bundled, `read-only` and
+    #: `workspace-write` would both be reachable through `dsh-sandbox-policy`'s `mode`, and
+    #: this tuple should widen to all but `auto` -- but only on a host where
+    #: `dsh-sandbox-local` finds a runner, since it fails closed with `SANDBOX_UNAVAILABLE`
+    #: where there is neither bwrap nor a Landlock-enforcing kernel.
     rungs: ClassVar[tuple[str, ...]] = ("bypass",)
 
     #: What it counts. Its reasoning is already inside the output on the dsh contract, so
@@ -251,74 +297,6 @@ class DshAgent(AgentBase):
 
     def __init__(self, config: DshAgentConfig, *, name: str | None = None) -> None:
         super().__init__(config, name=name)
-
-    def _serves(self, config: AgentConfig) -> None:
-        """Refuses a rung this SDK cannot enforce, wherever the config arrives.
-
-        Where the config arrives rather than where the first turn runs, because what an agent
-        may do is the flow's: a flow that declares a reviewer which may not write is refused
-        this backend before the run starts, rather than an hour into one by a turn that could
-        never have run at that rung.
-
-        Args:
-          config: What its turns are to run at.
-
-        Raises:
-          ValueError: If it was allowed anything less than everything -- the silence above
-            the ladder is taken, since it comes to the same agent. Not humanize's
-            composition making a choice -- read against the runtime bundled with
-            `deepseek-harness-sdk` 0.1.1rc1, there is no composition of what ships that would
-            confine these turns honestly.
-
-            The SDK's own default composition, the `runtime/cordis.yml` it injects as
-            `$DSH_CORDIS_CONFIG` for a launch that passes none, mounts `dsh-bash-local` and
-            `dsh-fs-local` -- the unconfined executors -- and none of `dsh-sandbox-*`,
-            `dsh-user-approval` or `dsh-permission-presets`. So bypass is what a bare SDK
-            session already runs at, and humanize composing the same pair is agreeing with the
-            harness rather than loosening it.
-
-            Which is also why a config that settles no rung is taken. The silence asks for
-            nothing to be said about what the agent may do, and what a bare SDK session does
-            without being told is the unconfined pair above -- so the silence and `bypass`
-            name one agent here, and only one of them is humanize claiming to have chosen it.
-
-            What settles it is the bundle rather than the default: the runtime executable
-            carries `dsh-fs-sandbox`, `dsh-sandbox-local` and `dsh-sandbox-policy`, but no
-            confining *shell* executor at all. `dsh-bash-sandbox` is named in the workspace's
-            dependency lists and in `dsh-fs-sandbox`'s own documentation, and is not among the
-            packages built into `dsh-jsonrpc-agent-pkg-*`; the only bundled `ctx.shell` is
-            `dsh-bash-local`, whose `sandboxMode` is undefined. A rung composed from what does
-            ship would fence `write_file` and leave `bash` able to write anywhere -- a rung
-            that lies, which is worse than one refused.
-
-            Put to the runtime rather than reasoned about, because the whole refusal turns on
-            it: a composition naming `dsh-bash-sandbox` is refused at plugin load with
-            `Cannot find package '@deepseek-ai/dsh-bash-sandbox'`, while the same composition
-            with only the filesystem half swapped loads happily -- which is exactly the rung
-            that would lie, and exactly why it is not offered.
-
-            Two smaller confirmations of the same fact. `dsh-permission-presets` refuses to
-            load over an unconfined executor and says so in those words ("the mounted bash
-            executor does not confine (no sandboxMode)"), so mounting it is not unwise but
-            fatal. And `auto` has nobody to ask even if it were composable: `ctx.approval`
-            would have to be answered over the SDK's JSON-RPC request channel, which this
-            driver does not serve, and the runtime fails an unanswered approval closed as
-            `unavailable`.
-
-            Left uncertain deliberately: were `dsh-bash-sandbox` bundled, `read-only` and
-            `workspace-write` would both be reachable through `dsh-sandbox-policy`'s `mode`,
-            and this refusal should narrow to `auto` alone -- but only on a host where
-            `dsh-sandbox-local` finds a runner, since it fails closed with `SANDBOX_UNAVAILABLE`
-            where there is neither bwrap nor a Landlock-enforcing kernel.
-        """
-        super()._serves(config)
-        if config.permission not in (UNSAID, "bypass"):
-            raise Unserved(
-                "the dsh runtime bundles no confining bash executor, so no rung below "
-                "bypass can be enforced; permission must be 'bypass', or left unsaid for "
-                f"the composition a bare SDK session already runs, not {config.permission!r}",
-                "permission",
-            )
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> DshSession:
         """Opens an SDK session, which stays unopened until its first turn."""
