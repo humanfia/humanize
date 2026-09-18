@@ -398,6 +398,23 @@ def test_kimi_cuts_its_fork_with_the_command_its_cli_has_for_it(calls: Path) -> 
     assert cut == "session_cut"
 
 
+def test_a_kimi_fork_at_no_rung_is_cut_with_the_same_command(calls: Path) -> None:
+    """What an agent may do is the session's profile rather than the cut, at every rung.
+
+    Including no rung at all, which is a body with neither key in it and a `kimi fork`
+    spelled exactly as it is spelled for a flow that wrote one down.
+    """
+    session = KimiCodeCLIAgent(
+        KimiCodeCLIAgentConfig(model="m", effort="low", permission="")
+    ).new()
+
+    cut = session._fork("session-parent")
+
+    (argv,) = _argv(calls)
+    assert argv[:4] == ["fork", "session-parent", "--yes", "--cwd"]
+    assert cut == "session_cut"
+
+
 def test_codex_forks_the_thread_rather_than_starting_one() -> None:
     """Its app server answers with a thread of its own holding what that one had got to."""
     session = CodexAgent(CodexAgentConfig(model="m", effort="high")).new()
