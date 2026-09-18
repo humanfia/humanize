@@ -1063,6 +1063,29 @@ def test_every_rung_of_qwens_ladder_is_refusals_and_one_approval_mode(
     assert excluded == withheld
 
 
+def test_qwen_says_nothing_at_all_about_a_rung_nobody_asked_for(stubs: _Stubs) -> None:
+    """A run nobody declared anything for is the run somebody would have typed by hand.
+
+    No `--approval-mode`, because the flag is the rung's whole saying here and there is no
+    mode that means "as `qwen` has it"; no `--exclude-tools`, because a place that took
+    nothing away took nothing away and None is not a no. The settings file the effort goes in
+    says nothing of either, so neither leaks in by the other seam.
+    """
+    session = QwenCodeAgent(
+        QwenCodeAgentConfig(model="m", effort="high", permission="", web_search=None)
+    ).new()
+    assert session("hi") == "hi"
+
+    (call,) = stubs.calls()
+    assert "--approval-mode" not in call.argv
+    assert "--exclude-tools" not in call.argv
+    assert call.thinking is not None
+    said = json.loads(call.thinking)
+    assert "approval" not in call.thinking.lower()
+    assert "web" not in call.thinking.lower()
+    assert set(said) <= {"$version", "model"}
+
+
 def test_qwen_reports_a_result_that_errored_as_a_failed_turn(stubs: _Stubs) -> None:
     """It leaves zero for a turn it could not finish and says so in its own records."""
     with pytest.raises(subprocess.CalledProcessError) as raised:
@@ -1219,6 +1242,29 @@ def test_grok_writes_no_flag_at_all_for_an_agent_that_was_asked_for_nothing(
     ]
 
 
+def test_grok_says_nothing_at_all_about_an_agent_nobody_was_asked_about(
+    stubs: _Stubs,
+) -> None:
+    """No rung and no answer about the web is `grok` deciding both for itself.
+
+    On either transport, and on the held-open one first: an empty saying is nothing `grok
+    agent` would refuse, so a conversation nobody was asked about stays on the process it is
+    already held open on rather than falling to the command line for a flag nothing writes.
+    """
+    session = GrokBuildAgent(
+        GrokBuildAgentConfig(model="m", effort="high", permission="", web_search=None)
+    ).new()
+    assert session("hi") == "hi"
+
+    (opened,) = stubs.calls()
+    assert opened.argv[:2] == ["agent", "--model"]
+    assert opened.argv[-1] == "stdio"
+    for argv in (opened.argv, session._turn("hi")[0]):
+        assert "--always-approve" not in argv
+        assert "--tools" not in argv
+        assert "--disable-web-search" not in argv
+
+
 @pytest.mark.parametrize(
     ("leader", "wanted"),
     [(False, ["--no-leader"]), (True, ["--leader"]), (None, [])],
@@ -1347,6 +1393,23 @@ def test_agy_runs_every_rung_of_the_ladder_as_its_own_flags(
     assert opened.argv[at : at + len(flags)] == flags
     if "--mode" in flags:
         assert "--dangerously-skip-permissions" not in opened.argv
+
+
+def test_agy_tells_the_cli_nothing_where_nothing_was_said_about_the_rung(
+    stubs: _Stubs,
+) -> None:
+    """The unsaid rung is no flag at all, which is the turn a bare `agy --print` takes."""
+    config = AntigravityCLIAgentConfig(
+        model="gemini-3.5-flash-medium", effort="high", permission=""
+    )
+    assert AntigravityCLIAgent(config).new()("hi") == "hi"
+
+    (opened,) = stubs.calls()
+    assert "--mode" not in opened.argv
+    assert "--dangerously-skip-permissions" not in opened.argv
+    # Nor the sandbox, which is off in the CLI as it is here: what a rung nobody named leaves
+    # behind is a command line carrying nothing about what the agent may do.
+    assert "--sandbox" not in opened.argv
 
 
 def test_agy_says_what_the_turn_did_and_what_it_cost(stubs: _Stubs) -> None:

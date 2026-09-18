@@ -139,6 +139,92 @@ def run(agents: tuple[AgentBase], task: str) -> None:
     load("steers")(agents, task)
 '''
 
+#: One that asks of the *agent* for something only a machine can answer. Legal Python, a real
+#: capability name, and the wrong half of `Needs` -- which used to be satisfied by whatever
+#: filled the place, a machine capability carrying no backends and no backends meaning all of
+#: them.
+MISPLACED = '''"""One that asks for a container of the agent rather than of the machine."""
+
+from typing import Annotated, NamedTuple
+
+from hmz.coganchor.agents import AgentBase, Needs
+from hmz.flows import flow
+
+
+class Agents(NamedTuple):
+    """The one it drives, asked for wrongly."""
+
+    builder: Annotated[AgentBase, Needs("isolated")]
+
+
+@flow
+def run(agents: Agents, task: str) -> None:
+    pass
+'''
+
+#: The same slip the other way round: a road humanize only reaches a turn down from inside a
+#: process it started, asked of the machine. No machine's settings have ever carried one, so
+#: this was refused by every machine there is -- a check nothing could pass.
+INSIDE_OUT = '''"""One that asks a machine for the CLI's own hooks."""
+
+from typing import Annotated, NamedTuple
+
+from hmz.coganchor.agents import AgentBase, Needs
+from hmz.flows import flow
+
+
+class Agents(NamedTuple):
+    """The one it drives, asked for wrongly."""
+
+    builder: Annotated[AgentBase, Needs(where=("anchor:hooked",))]
+
+
+@flow
+def run(agents: Agents, task: str) -> None:
+    pass
+'''
+
+#: And the same road asked in the half that can answer it, which is the agent's.
+HOOKED = '''"""One built on reaching its turns through the CLI's own hooks."""
+
+from typing import Annotated, NamedTuple
+
+from hmz.coganchor.agents import AgentBase, Needs
+from hmz.flows import flow
+
+
+class Agents(NamedTuple):
+    """The one it drives, and what filling that place takes."""
+
+    builder: Annotated[AgentBase, Needs("anchor:hooked")]
+
+
+@flow
+def run(agents: Agents, task: str) -> None:
+    pass
+'''
+
+#: One whose agent may look and may change nothing, said as a capability rather than only as
+#: a setting: a backend with no way of being held to that rung is refused before it is chosen.
+READ_ONLY = '''"""One whose reviewer must be holdable to read-only."""
+
+from typing import Annotated, NamedTuple
+
+from hmz.coganchor.agents import AgentBase, Needs
+from hmz.flows import flow
+
+
+class Agents(NamedTuple):
+    """The one it drives, and the rung it has to be holdable to."""
+
+    builder: Annotated[AgentBase, Needs("rung:read-only")]
+
+
+@flow
+def run(agents: Agents, task: str) -> None:
+    pass
+'''
+
 
 def _claude() -> ClaudeCodeAgent:
     """An agent of the backend whose turns can be talked to while they run."""
@@ -163,6 +249,10 @@ def flows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     written(kept, "everyone", EVERYONE)
     written(kept, "plain", PLAIN)
     written(kept, "calls", CALLS)
+    written(kept, "misplaced", MISPLACED)
+    written(kept, "inside_out", INSIDE_OUT)
+    written(kept, "hooked", HOOKED)
+    written(kept, "read_only", READ_ONLY)
     monkeypatch.chdir(where)
     return where
 
@@ -252,3 +342,100 @@ def test_whoever_is_choosing_an_agent_is_offered_only_the_ones_that_would_do() -
     steering = plain._replace(needs=Needs("steer"))
 
     assert [row[0] for row in Clis(offered, place=steering).rows()] == ["claude"]
+
+
+def test_a_place_that_asks_of_the_agent_for_a_machines_answer_is_refused() -> None:
+    """`Needs("isolated")` used to be satisfied by whatever filled the place.
+
+    A machine capability carries no backends, because no backend answers for it, and an empty
+    backend set is how the catalogue says "every backend here". So the one slip a type checker
+    cannot see -- the ask written in the wrong half of `Needs` -- was answered yes by every
+    agent there is, and a flow that meant to be protected was protected by nothing. It is
+    refused now, and the refusal says where the ask belongs.
+    """
+    with pytest.raises(NotAFlow, match=r"Needs\(where=\('isolated',\)\)"):
+        Runner("misplaced", [_claude()])
+
+
+def test_a_place_that_asks_a_machine_for_the_agents_own_road_is_refused() -> None:
+    """The same slip the other way, and the one the docstring used to advertise.
+
+    `anchor:hooked` is a hook table humanize writes for one run of a CLI it started here. It
+    is the CLI's own to take and no machine's settings have ever carried it, so asking for it
+    under `where=` was refused by every machine there is -- always no, which measures nothing.
+    """
+    with pytest.raises(NotAFlow, match=r"Needs\('anchor:hooked'\)"):
+        Runner("inside_out", [_claude()])
+
+
+def test_the_agents_own_road_is_asked_of_the_agent_and_answered_there() -> None:
+    """Which is the half that can answer: the profile is what declares a hook seam."""
+    runner = Runner("hooked", [_claude()])
+
+    assert len(runner.agents) == 1
+
+    with pytest.raises(NotAFlow, match="has to serve anchor:hooked"):
+        Runner("hooked", [_dsh()])
+
+
+def test_a_flow_may_ask_for_a_rung_before_its_first_turn() -> None:
+    """The rung a backend can be held to is a capability like any other.
+
+    dsh bundles no confining executor and refuses everything below `bypass`, which it has
+    always said where the agent is made -- hours after somebody chose it for a flow whose
+    reviewer may change nothing. Said as a capability, it is said where the choice is made.
+    """
+    runner = Runner("read_only", [_claude()])
+
+    assert len(runner.agents) == 1
+
+    with pytest.raises(
+        NotAFlow, match="has to serve rung:read-only, which dsh does not"
+    ):
+        Runner("read_only", [_dsh()])
+
+
+def test_the_rung_a_backend_refuses_is_the_rung_it_does_not_serve() -> None:
+    """One fact, read from the driver class and enforced by it, rather than two."""
+    from hmz.coganchor.agents import PERMISSIONS, rung
+    from hmz.flows.driving import comes_to
+
+    for permission in PERMISSIONS:
+        served = rung(permission) in comes_to("dsh")
+
+        assert served is (permission in DshAgent.rungs), permission
+        if not served:
+            # And the driver refuses it where the agent is made, which is the fact this
+            # capability is a word for rather than a second answer beside it.
+            with pytest.raises(ValueError, match="bypass"):
+                DshAgent(
+                    DshAgentConfig(model="m", effort="high", permission=permission)
+                )
+
+
+def test_the_picker_blames_the_flow_rather_than_the_installation() -> None:
+    """A place asking of the agent for a machine's answer rules out every CLI there is.
+
+    Which it should -- no backend comes to `isolated` -- but saying that nothing installed
+    here will do sends somebody off to install a thirteenth CLI for a flow no CLI can fill.
+    """
+    from hmz.flows.driving import Place
+    from hmz.tui.pick import Clis
+
+    offered: dict[str, tuple[Model, ...]] = {"claude": (), "dsh": ()}
+    wrong = Place(
+        name="builder",
+        person=False,
+        moments=frozenset(),
+        needs=Needs("isolated"),
+    )
+    picking = Clis(offered, place=wrong)
+
+    assert picking.rows() == []
+    assert "Needs(where=('isolated',))" in picking.nothing()
+    # And a place nothing is wrong with says the other thing, which is still the usual one.
+    bare = Place(name="builder", person=False, moments=frozenset())
+    picking = Clis({}, place=bare)
+
+    assert picking.rows() == []
+    assert "no coding agent installed here" in picking.nothing()

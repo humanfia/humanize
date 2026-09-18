@@ -375,6 +375,40 @@ def test_every_rung_is_a_mode_zcode_is_run_in(
     agent.stop()
 
 
+def test_an_agent_at_no_rung_at_all_opens_a_session_naming_no_mode(
+    server: _FakeServer, tmp_path: Path
+) -> None:
+    """Which is the session ZCode itself opens, in whichever mode it opens one in.
+
+    An empty `mode` would be a mode the server has not got, and any of its five would be
+    humanize settling the rung it was told nothing about -- so the key is left out. The same
+    for the web: unsaid is not off, and a denylist nobody asked for is a setting of its own.
+    """
+    agent = _agent(permission="", web_search=None)
+    session = agent.new(tmp_path)
+    session("hello")
+
+    (opened,) = server.named("session/create")
+
+    assert "mode" not in opened
+    assert "toolDenylist" not in opened
+    # Field by field, so that a rung left unsaid is a call saying nothing else of its own.
+    assert set(opened) == {
+        "workspace",
+        "model",
+        "thoughtLevel",
+        "titleGenerationEnabled",
+    }
+    # Nor is one said later. A child is settled with everything its agent runs at, since the
+    # server was told none of it about that session -- and an empty mode is still not a mode.
+    session.fork()("second")
+
+    assert server.named("session/setMode") == []
+    # And a fork of an agent nobody told about the web is one nothing had to be said about.
+    assert server.named("session/close") == []
+    agent.stop()
+
+
 def test_an_agent_that_may_not_search_the_web_is_denied_the_tools_that_reach_it(
     server: _FakeServer, tmp_path: Path
 ) -> None:
@@ -805,6 +839,22 @@ def test_a_rung_below_the_one_that_grants_it_refuses_what_it_is_asked(
 
     assert agent.new(tmp_path)("approving") == json.dumps(
         {"decision": "deny", "reason": "the agent is allowed no more than edit mode"}
+    )
+    agent.stop()
+
+
+def test_a_session_at_no_rung_at_all_is_not_refused_for_being_at_none(
+    server: _FakeServer, tmp_path: Path
+) -> None:
+    """Nobody named the rung it would be under, so this client is not the one to say no.
+
+    What it runs at is whatever mode ZCode opened it in, and refusing its questions here
+    would be humanize settling the rung it was told to leave alone.
+    """
+    agent = _agent(permission="")
+
+    assert agent.new(tmp_path)("approving") == json.dumps(
+        {"decision": "allow", "reason": "run unattended"}
     )
     agent.stop()
 

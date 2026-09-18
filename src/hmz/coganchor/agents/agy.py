@@ -21,7 +21,7 @@ from hmz.coganchor import backends
 
 from ._inputs import snapshot
 from .base import AgentBase, CommandSessionBase, SessionBase, StreamSessionBase
-from .config import AgentConfig, Unserved
+from .config import UNSAID, AgentConfig, Unserved
 from .event import Event, Failed, Saying, Usage
 
 if TYPE_CHECKING:
@@ -52,11 +52,20 @@ _COMMAND = "agy"
 #: -- so there is nothing between the two to reach for. Given `--mode accept-edits` instead,
 #: `auto` would have its commands denied and so be stricter than the `workspace-write` under
 #: it, which is a ladder with a rung upside down.
+#:
+#: The last row is the absence of a rung rather than another one below them. A turn nobody has
+#: said anything about is one this driver says nothing about either -- no `--mode`, no
+#: `--dangerously-skip-permissions` -- so it runs at whatever `agy --print` runs at when it is
+#: started here by hand, which is this CLI's own default approval and the soft-denials its
+#: print mode makes in place of the questions it would have asked. Written into the table
+#: rather than answered around it, so that every word a config may carry is answered where the
+#: flags are; splatting nothing is the whole of what saying nothing takes.
 _PERMITTED = {
     "read-only": ("--mode", "plan"),
     "workspace-write": ("--mode", "accept-edits"),
     "auto": ("--dangerously-skip-permissions",),
     "bypass": ("--dangerously-skip-permissions",),
+    UNSAID: (),
 }
 
 #: How long the CLI's own print-mode clock is given, in seconds, for a turn nobody has said

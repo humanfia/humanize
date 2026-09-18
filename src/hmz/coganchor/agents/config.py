@@ -35,6 +35,7 @@ __all__ = [
     "Unserved",
     "anchored",
     "isolated",
+    "rung",
     "searching",
     "tightest",
 ]
@@ -105,6 +106,31 @@ class Unserved(ValueError):  # noqa: N818  -- what the setting is here, not what
         """
         super().__init__(said)
         self.settings = frozenset(settings)
+
+def rung(permission: str) -> str:
+    """The capability name for one rung, which is how a flow asks for it before its turn.
+
+    Not every backend can be held to every rung. ACP's only word about permission is a
+    request a client answers one tool call at a time, and nobody is at a prompt here; the dsh
+    runtime bundles no confining executor. Both of them therefore refuse anything below
+    `bypass` where the agent is made -- which is the right place for it, but it is also hours
+    after somebody chose that backend for a flow that wanted `read-only`. So the ladder has
+    words in the capability vocabulary too, one per rung, and
+    :attr:`hmz.coganchor.agents.base.AgentBase.rungs` is what each backend answers with.
+
+    Spelled here rather than wherever a name happens to be wanted, so that the driver that
+    refuses a rung, the catalogue that lists it and the flow that asks for it are saying one
+    word: `rung:` and the rung, in the wording :data:`PERMISSIONS` already uses.
+
+    Args:
+      permission: The rung, as :data:`PERMISSIONS` spells it.
+
+    Returns:
+      The capability name. :data:`UNSAID` has none and is not meant to: it is not a rung but
+      the absence of one, every backend can be told nothing, and a capability every backend
+      serves is not a thing to ask about.
+    """
+    return f"rung:{permission}"
 
 
 def tightest(was: str, said: str) -> str:
@@ -406,27 +432,41 @@ class Needs:
 
     Attributes:
       of_agent: What the backend filling the place has to serve, out of the agent vocabulary
-        -- `goal`, `steer`, `shape`, `tools`, `fork`, `search`, `swarm`, `resume`,
-        `narrate`, `tier:fast`, each kind of token as `counts:<its own name>`, a moment only
-        some backends reach as `moment:<its own name>`, and a setting only some of their
-        configs carry as `settings:<its own field>` -- Cursor's `settings:trust`, Codex's
-        `settings:features`, ZCode's `settings:delivery`. One word apiece: a setting is asked
-        for under the name derived from its field and under no second one, so that a field
-        renamed leaves no name behind promising what nothing serves. What every backend here
-        serves counts as served, so a place that names one of those is filled by anything
-        rather than by nothing. Read
+        -- `goal`, `pursue`, `steer`, `shape`, `tools`, `fork`, `search`, `swarm`, `resume`,
+        `narrate`, `tier:fast`, each rung it can be held to as `rung:<its own name>`, each
+        kind of token as `counts:<its own name>`, a moment only some backends reach as
+        `moment:<its own name>`, and a setting only some of their configs carry as
+        `settings:<its own field>` -- Cursor's `settings:trust`, Codex's `settings:features`,
+        ZCode's `settings:delivery`. One word apiece: a setting is asked for under the name
+        derived from its field and under no second one, so that a field renamed leaves no name
+        behind promising what nothing serves. What every backend here serves counts as served,
+        so a place that names one of those is filled by anything rather than by nothing. Read
         off the driver class and off the facts written down about the CLI, neither of which
         needs an agent to have run, so a flow that cannot be driven by what it was given says
         so before it opens anything.
+
+        `anchor:hooked` and `anchor:preloaded` are asked here and not under `where`. They are
+        the two roads humanize reaches a turn down from *inside* the process it started -- a
+        hook table written for one run, a variable the runtime reads before it starts -- and
+        both are the CLI's own to take, declared by
+        :meth:`hmz.coganchor.backends.Profile.tags`. An agent pointed at another machine loses
+        them, since none of that reaches a process somewhere else, and it is refused rather
+        than quietly given the weaker thing.
       where: What the machine its turns land on has to come to, out of the place vocabulary
-        -- `remote`, `isolated`, `managed`, `linux`, `darwin`. Read off that machine's own
+        -- `remote`, `isolated`, `managed`, `linux`, `darwin`, and the road an anchor reaches
+        it by, `anchor:native-cli` or `anchor:supervised`. Read off that machine's own
         settings, :attr:`~hmz.coganchor.machines.MachineConfig.capabilities`, so that a place which
         will not do is refused before an image has been pulled; a place asked for nothing in
         particular may be filled by an agent that was pointed nowhere, whose machine comes to
-        nothing at all. The `anchor:` names belong here too -- how a turn's own commands are
-        reached is a fact about the road rather than about the machine, but it is the machine
-        that was pointed down one, so a flow needing the CLI the target already has asks for
-        it the same way it asks for `remote`.
+        nothing at all.
+
+    Each name belongs to exactly one of the two, and one written in the other half is
+    refused where the place is filled rather than answered wrongly. It used to be answered
+    wrongly both ways: `Needs("isolated")` was satisfied by every backend there is, a machine
+    capability carrying no backends and no backends meaning all of them, and
+    `Needs(where=("anchor:hooked",))` was refused by every machine there is, no machine's
+    settings having ever carried one. `hmz.flows.checking.catalogue` is where the names are
+    written down, each saying which half asks for it.
 
     Raises:
       TypeError: If `where` was written as one name rather than as a sequence of them.

@@ -96,6 +96,21 @@ def test_claude_is_refused_the_two_tools_that_reach_the_web() -> None:
     assert argv[argv.index("--disallowedTools") + 1] == "WebSearch,WebFetch"
 
 
+def test_claude_is_left_the_two_where_nobody_said_anything_about_the_web() -> None:
+    """Silence is not a no, and the flag takes rules rather than an answer to a question.
+
+    An agent whose flow never said is one Claude ships `WebSearch` and `WebFetch` to, so a
+    rule written for it would be humanize taking a tool away in the name of a question it was
+    never asked -- which is the one thing `not web_search` would have done with the third
+    state, `None` being falsy the way `False` is.
+    """
+    agent = ClaudeCodeAgent(
+        ClaudeCodeAgentConfig(model="m", effort="high", web_search=None)
+    )
+
+    assert "--disallowedTools" not in agent.new()._command()
+
+
 def test_claude_says_both_things_it_says_with_that_flag_in_the_one_list() -> None:
     """The flag takes one list, so goals switched off and no web search are one list."""
     agent = ClaudeCodeAgent(
@@ -125,6 +140,17 @@ def test_a_backend_that_withholds_tools_withholds_the_two_that_reach_the_web(
     assert set(argv[argv.index(flag) + 1].split(",")) >= {"web_search", "web_fetch"}
 
 
+def test_an_agent_nobody_said_either_way_about_is_left_where_its_cli_leaves_it() -> (
+    None
+):
+    """None is not False: silence takes nothing away, and `qwen` goes on as `qwen` does."""
+    session = QwenCodeAgent(
+        QwenCodeAgentConfig(model="m", effort="high", web_search=None)
+    ).new()
+
+    assert "--exclude-tools" not in session._turn("hi")[0]
+
+
 def test_grok_says_it_with_the_flag_its_cli_has_for_exactly_that() -> None:
     """`--disable-web-search` is the CLI's own word for the two tools, so it is the word."""
     session = GrokBuildAgent(
@@ -151,6 +177,22 @@ def test_a_rung_that_already_withholds_them_does_not_withhold_them_twice() -> No
     )
 
     assert argv.count("--disable-web-search") == 1
+
+
+def test_grok_is_told_nothing_where_nobody_said_anything_about_the_web() -> None:
+    """None is the agent nobody was asked about, which `grok` answers for itself.
+
+    The flag is the one that takes searching away, so an agent that said nothing must not be
+    given it: `not None` is true, and the shorter test would have switched off the search of
+    every agent nobody had an opinion about.
+    """
+    argv = (
+        GrokBuildAgent(GrokBuildAgentConfig(model="m", effort="high", web_search=None))
+        .new()
+        ._turn("hi")[0]
+    )
+
+    assert "--disable-web-search" not in argv
 
 
 def test_opencode_denies_every_reaching_out_tool_it_names() -> None:

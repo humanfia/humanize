@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from hmz.coganchor.places import REMOTE
+
 from .base import MachineBase, MachineConfig
 
 if TYPE_CHECKING:
@@ -41,7 +43,7 @@ class AnchoredConfig(MachineConfig):
         the one thing about somebody else's machine which cannot be known until it has been
         reached -- :meth:`~hmz.coganchor.machines.MachineBase.observe` reads it from the handshake.
         """
-        return frozenset({"remote"}) | self.anchor.capabilities
+        return frozenset({REMOTE}) | self.anchor.capabilities
 
     def create(self) -> Anchored:
         """Builds the machine, which is one that is already up."""

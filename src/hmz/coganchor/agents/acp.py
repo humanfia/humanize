@@ -1064,6 +1064,21 @@ class AcpAgentConfig(AgentConfig):
 class AcpAgent(AgentBase):
     """A CLI of your own that speaks the Agent Client Protocol."""
 
+    #: `bypass` and nothing below it, which is what :meth:`_serves` refuses a config for. The
+    #: protocol's only word about permission is a request a client answers one tool call at a
+    #: time, and nobody is at a prompt here -- so a narrower rung would be an agent nothing was
+    #: given the chance to refuse.
+    #:
+    #: Said here as well as refused there because this is the class's own answer to the
+    #: question :attr:`~hmz.coganchor.agents.base.AgentBase.rungs` asks, and a subclass that
+    #: refuses a rung and goes on claiming it would be a claim nothing holds it to. The
+    #: catalogue does not reach it: this one class drives every CLI anybody adds and none of
+    #: them is in `DRIVEN`, so what says a hand-added backend takes `bypass` and no more is
+    #: the same convention that says it takes every universal capability -- a rung named
+    #: against nobody is every backend, and the three narrower ones are named against exactly
+    #: the driven CLIs that take them.
+    rungs: ClassVar[tuple[str, ...]] = ("bypass",)
+
     @property
     def backend(self) -> str:
         """The name this CLI was added under, rather than one read off the class.

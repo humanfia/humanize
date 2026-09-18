@@ -237,6 +237,12 @@ class DshAgent(AgentBase):
     #: The official goal service keeps the session working until its objective is complete.
     pursues: ClassVar[bool] = True
 
+    #: `bypass` and nothing below it, which is what :meth:`_serves` refuses a config for. The
+    #: runtime bundles no confining bash executor, so a narrower rung here would be a rung
+    #: that reads as enforced and enforces nothing -- and this is where a flow, or whoever is
+    #: choosing a backend for one, can be told that before the agent exists.
+    rungs: ClassVar[tuple[str, ...]] = ("bypass",)
+
     #: What it counts. Its reasoning is already inside the output on the dsh contract, so
     #: it is not a kind of its own here.
     counts: ClassVar[frozenset[str]] = frozenset(

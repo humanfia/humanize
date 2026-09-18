@@ -5661,10 +5661,13 @@ class Clis(Picks):
         self._agents = dict(agents)
         self._place = place
         self._unavailable = unavailable
+        #: What the place asked of the agent that only a machine can answer, filled in as the
+        #: rows are built. Empty until then, and empty for the flows that asked correctly.
+        self._misplaced: frozenset[str] = frozenset()
 
     def rows(self) -> list[tuple[str, str, str]]:
         """Every CLI that could take this one's turns, and what each of them runs."""
-        from hmz.flows.checking import catalogue
+        from hmz.flows.checking import OF_AGENT, catalogue, misplaced
         from hmz.flows.driving import comes_to
 
         needs: frozenset[Moment] = (
@@ -5679,6 +5682,11 @@ class Clis(Picks):
             if self._place is not None and self._place.needs is not None
             else frozenset()
         )
+        # What the place asked of the agent but which only a machine can answer. No CLI comes
+        # to one of those, so every row would be ruled out and the person at the prompt would
+        # be told that nothing installed here will do -- which blames the installation for a
+        # flow that asked in the wrong half of `Needs`. Kept so that `nothing` can say so.
+        self._misplaced = misplaced(serving, OF_AGENT)
         # Read once for the whole list rather than once per CLI: the catalogue is built off
         # the live interface with `inspect` every time it is asked for, and asking it twelve
         # times to answer one question is eleven walks of the same modules.
@@ -5706,12 +5714,21 @@ class Clis(Picks):
         return listed
 
     def nothing(self) -> str:
-        """Says so where the flow has ruled every backend here out, which is worth knowing."""
-        return (
-            ""
-            if self._rows
-            else "no coding agent installed here can take this one's turns"
-        )
+        """Says so where the flow has ruled every backend here out, which is worth knowing.
+
+        And says which of the two it was. A flow that asked of the agent for something only a
+        machine can answer rules out every CLI there is, and saying that nothing installed
+        here will do would send somebody to install a thirteenth.
+        """
+        if self._rows:
+            return ""
+        if self._misplaced:
+            named = ", ".join(sorted(self._misplaced))
+            return (
+                f"this flow asks the agent for {named}, which is asked of where it works "
+                f"-- Needs(where={tuple(sorted(self._misplaced))!r}) -- so no CLI can answer"
+            )
+        return "no coding agent installed here can take this one's turns"
 
 
 class Accounts(Picks):
