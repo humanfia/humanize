@@ -20,11 +20,12 @@ import re
 import sys
 from typing import TYPE_CHECKING
 
-from hmz.coganchor.agents import DRIVEN, EVERYWHERE, KINDS, Moment
-from hmz.coganchor.agents.config import AgentConfig
+from hmz.coganchor import places
+from hmz.coganchor.agents import DRIVEN, EVERYWHERE, KINDS, PERMISSIONS, Moment, rung
+from hmz.coganchor.agents.config import UNSAID, AgentConfig
 from hmz.coganchor.backends import PROFILES, Bundled, Hooked, Profile, named
 from hmz.flows import Agent, Person, Session
-from hmz.flows.checking import briefed, catalogue, offered, surface
+from hmz.flows.checking import OF_AGENT, WHERE, briefed, catalogue, offered, surface
 
 if TYPE_CHECKING:
     from hmz.coganchor.agents.base import SessionBase
@@ -123,11 +124,17 @@ def test_the_briefing_mentions_every_capability_and_its_backends() -> None:
         assert f"- {one.name}" in page
         for backend in one.backends:
             assert backend in page
-    # The split the compiler steers by: what needs declaring is under the second heading.
-    assert "Every backend:" in page
+    # The split the compiler steers by: what needs declaring is under the second heading,
+    # and what a *machine* has to come to is under a third of its own. Three rather than two
+    # because a flow writes the vocabulary in two places -- `Needs(...)` and `Needs(where=...)`
+    # -- and a page that ran them together was teaching the one mistake nothing used to catch.
+    assert "Every backend -- Needs(...) beside the place:" in page
     assert "Only some backends" in page
+    assert "Where an agent's turns land -- Needs(where=(...))" in page
     assert page.index("- turns:") < page.index("Only some backends")
     assert page.index("Only some backends") < page.index("- pursue")
+    assert page.index("- pursue") < page.index("Where an agent's turns land")
+    assert page.index("Where an agent's turns land") < page.index("- isolated:")
 
 
 def test_a_backend_that_steers_a_running_turn_says_so_and_one_that_cannot_says_so() -> (
@@ -334,3 +341,82 @@ def test_each_kind_of_token_is_a_capability_and_whose_is_the_drivers_own() -> No
     # A kind only some of them count leaves the rest out rather than quietly reading as
     # nought for everybody: `reasoning` is the three that count it beside the output.
     assert told["counts:reasoning"].backends == frozenset({"agy", "mimo", "opencode"})
+
+
+def test_every_name_a_backends_own_facts_come_to_is_in_the_catalogue() -> None:
+    """A name a flow may ask under and a compiler cannot read is one nothing generated asks.
+
+    `search`, `swarm` and `resume` were exactly that. `comes_to` unions a backend's tags in,
+    so they have always worked in `Needs`; the catalogue and the briefing -- the one page a
+    compiler steers by -- said nothing about any of them.
+    """
+    named_here = {one.name for one in catalogue()}
+
+    assert {name for one in PROFILES for name in one.tags()} <= named_here
+    for name in ("search", "swarm", "resume"):
+        (one,) = (held for held in catalogue() if held.name == name)
+
+        assert one.backends == frozenset(
+            backend
+            for backend in DRIVEN
+            if (profile := named(backend)) is not None and name in profile.tags()
+        )
+
+
+def test_every_capability_says_which_half_of_needs_asks_for_it() -> None:
+    """The two halves are answered by different code against different facts.
+
+    A machine capability carries no backends because no backend answers for it, and an empty
+    backend set is how this catalogue says "every backend here". Without the half written
+    down, the one is read as the other: `Needs("isolated")` was satisfied by everything.
+    """
+    held = catalogue()
+
+    assert {one.asked for one in held} == {OF_AGENT, WHERE}
+    asked = {one.name: one.asked for one in held}
+    for name in ("remote", "isolated", "managed", "linux", "darwin"):
+        assert asked[name] == WHERE, name
+    # The roads split between the halves, which is the one thing here that is not obvious.
+    # An anchor declares the two it reaches a machine by; the two humanize takes from inside
+    # a process it started are the CLI's own, and no machine has ever carried either.
+    assert asked["anchor:native-cli"] == WHERE
+    assert asked["anchor:supervised"] == WHERE
+    assert asked["anchor:hooked"] == OF_AGENT
+    assert asked["anchor:preloaded"] == OF_AGENT
+    for one in held:
+        # Backends are meaningless on the machine half and must stay empty there, or the
+        # emptiness that means "all of them" would read off the wrong side of the line.
+        if one.asked == WHERE:
+            assert one.backends == frozenset(), one.name
+
+
+def test_the_places_described_here_are_the_places_coganchor_knows() -> None:
+    """The words are declared beside the machines and only described by the catalogue."""
+    assert {one.name for one in catalogue() if one.asked == WHERE} == (
+        places.PLACES | set(places.ROADS)
+    )
+    assert frozenset({"anchor:hooked", "anchor:preloaded"}) == places.INSIDE
+
+
+def test_a_rung_is_named_against_exactly_the_backends_that_take_it() -> None:
+    """Read off the drivers' own `rungs`, which is what each of them refuses a config for."""
+    told = {one.name: one.backends for one in catalogue()}
+    for permission in PERMISSIONS:
+        taking = frozenset(
+            backend for backend, (cls, _) in DRIVEN.items() if permission in cls.rungs
+        )
+
+        assert told[rung(permission)] == (
+            frozenset() if taking == frozenset(DRIVEN) else taking
+        ), permission
+    # dsh is the one driven backend that cannot be held below `bypass`, and it is the only
+    # one missing from the three narrower rungs.
+    assert frozenset(DRIVEN) - told[rung("read-only")] == {"dsh"}
+    # And `bypass` is every backend there is, which the catalogue says by naming none: a CLI
+    # somebody added by hand is in no `DRIVEN` table, and it takes that rung too.
+    assert told[rung("bypass")] == frozenset()
+
+
+def test_no_rung_is_named_for_the_silence_above_the_ladder() -> None:
+    """`UNSAID` is not a rung, and every backend can be told nothing at all."""
+    assert rung(UNSAID) not in {one.name for one in catalogue()}

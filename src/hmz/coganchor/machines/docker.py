@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from hmz.coganchor import AnchorConfig
+from hmz.coganchor.places import ISOLATED, MANAGED, REMOTE
 from hmz.coganchor.transport import python_command
 
 from .base import MachineBase, MachineConfig
@@ -66,9 +67,14 @@ class DockerConfig(MachineConfig):
         And the road, for the reason an anchored place says it: a container is reached by an
         anchor like any other target, and this is the one place in humanize certain of which
         anchor it will be -- :meth:`Docker.start` builds a supervised one every time.
+
+        The words are :mod:`hmz.coganchor.places`' own. `linux` is the one of the four this
+        module names as a literal, since it is a platform rather than a kind of place: which
+        platforms have a word at all is settled on the wire, and what is asserted here is that
+        a container is one particular one of them.
         """
         return (
-            frozenset({"isolated", "linux", "managed", "remote"})
+            frozenset({ISOLATED, "linux", MANAGED, REMOTE})
             | AnchorConfig().capabilities
         )
 

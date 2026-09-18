@@ -27,11 +27,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, NamedTuple, Protocol
 
+from hmz.coganchor import places
+
 from .agent import Agent, Driven, Person, Session
 
 if TYPE_CHECKING:
     import os
-    from collections.abc import Iterator, Mapping, Sequence
+    from collections.abc import Iterable, Iterator, Mapping, Sequence
 
 __all__ = [
     "Capability",
@@ -2135,35 +2137,59 @@ def _sleeps(body: list[ast.stmt]) -> bool:
 # ---------------------------------------------------------------------------------------
 
 
+#: The two halves of :class:`hmz.coganchor.agents.config.Needs`, by the name of the field a
+#: flow writes each under. Every capability belongs to exactly one of them, and which one is
+#: not a matter of taste: a name in the first is answered by the backend filling the place and
+#: a name in the second by the machine its turns land on, and the two are read by different
+#: code against different facts. A capability that did not say which half it was asked in is
+#: one a flow can write in the wrong one and never be told -- `Needs("isolated")` was exactly
+#: that, silently satisfied by every backend there is, because a machine capability carries no
+#: backends and an empty backend set means every backend.
+OF_AGENT = "of_agent"
+WHERE = "where"
+
+
 class Capability(NamedTuple):
     """One thing a flow may build on, and which backends serve it.
 
     Attributes:
       name: What it is called: a primitive by one word, and a moment only some backends
         reach as `moment:<its own name>`.
-      backends: The backends that serve it, or empty for one every backend serves.
+      backends: The backends that serve it, or empty for one every backend serves. Meaningful
+        only where `asked` is :data:`OF_AGENT`: what a machine comes to is no backend's to
+        answer, so a `where` capability carries none and must not be read as carrying all.
       said: What the ask looks like, with the code spelled out: this is what a compiler
         or a person choosing what to build on is shown.
+      asked: Which half of :class:`~hmz.coganchor.agents.config.Needs` asks for it --
+        :data:`OF_AGENT` or :data:`WHERE`. Most are asked of the agent, so that is the
+        default and the ones that are not say so.
     """
 
     name: str
     backends: frozenset[str]
     said: str
+    asked: str = OF_AGENT
 
 
-#: Where an agent's turns may land, and what a flow writes to say so. Facts of this
-#: installation rather than of any one backend -- what a machine is is the same question
-#: whichever CLI is being driven there -- so every one of these is served for every backend,
-#: and what needs saying is said where the place is declared rather than where the agent is
-#: chosen.
+#: Where an agent's turns may land, and what a flow writes to say so. Asked of the machine
+#: rather than of the agent: what a machine is is the same question whichever CLI is being
+#: driven there, and what answers is
+#: :attr:`~hmz.coganchor.machines.MachineConfig.capabilities`.
+#:
+#: The words are :mod:`hmz.coganchor.places`' and only the prose is this module's, which is the
+#: line this file draws for the whole vocabulary: a capability name is a fact somebody
+#: declares and an ask a flow writes, the fact belongs wherever the thing it is about is
+#: written down, and the ask belongs here. Keyed off the constants rather than off strings, so
+#: that a place humanize learns to reach cannot be described here under a name nothing
+#: answers to -- :func:`_places` checks the two sets against each other.
 _PLACES = {
-    "remote": "an agent whose turns land on another machine -- Annotated[Agent, Remote] -- "
+    places.REMOTE: "an agent whose turns land on another machine -- Annotated[Agent, Remote] -- "
     "and only a place that says so may be given one at all; the agent goes on running here, "
     "and what moves is the project it reads and the commands it runs",
-    "isolated": "an agent that works in a container of its own -- "
+    places.ISOLATED: "an agent that works in a container of its own -- "
     "Annotated[Agent, Isolated('python:3.12')] -- which the flow names and nobody may "
     "configure: what is isolated is the tools a command finds and not the work",
-    "managed": "the machine brought up for the agent and taken down after it, as against an "
+    places.MANAGED: "the machine brought up for the agent and taken down after it, as against an "
     "anchor onto one that was already running -- which is never stopped here, a machine "
     "nobody here started being nobody here's to end",
     "linux": "an agent's turns landing on a Linux machine, which is what a container started "
@@ -2175,31 +2201,64 @@ _PLACES = {
 #: The anchors nothing has to be written down for, each true of every CLI here: every one of
 #: them is a command line humanize spawns, and what a spawned turn runs is what a supervisor
 #: traces. The rest are read off the backends' own facts, under the same name.
-_REACHED = ("anchor:native-cli", "anchor:supervised")
+_REACHED = places.ROADS
 
-#: The reach names humanize can only serve where the turn runs on this machine. Each of them
-#: is humanize putting something inside the process it started -- a hook table written for
-#: one run, a variable the runtime reads before it starts, a patched copy of what the CLI
-#: ships -- and a turn whose process is somewhere else is a process none of that reached. The
-#: drivers each switch themselves off under an anchor for exactly that reason, so a place that
-#: asked for one MUST be refused where it is declared rather than quietly given the weaker
-#: thing: a flow that believes it is gating tools and is only watching them is the failure
-#: asking beforehand exists to prevent.
-INSIDE = frozenset({"anchor:hooked", "anchor:preloaded"})
+#: The reach names humanize can only serve where the turn runs on this machine, re-exported
+#: from :mod:`hmz.coganchor.places` because :func:`hmz.flows.driving.serves` is what takes
+#: them away again and has always reached for them here.
+INSIDE = places.INSIDE
 
 #: How a turn's own commands are reached, which is what an anchor is made of, by the name a
 #: flow and a compiler ask for each under -- and what the ask looks like.
+#:
+#: Split across the two halves of `Needs`, which is the one thing about this vocabulary that
+#: is not obvious and used to be written down wrong. :data:`_REACHED` is asked under `where=`:
+#: a road is how an anchor reaches a machine, and
+#: :attr:`~hmz.coganchor.anchor.AnchorConfig.capabilities` is what declares one, so it is the
+#: machine that was pointed down it which answers. :data:`INSIDE` is asked of the *agent*: a
+#: hook table and a preload are the CLI's own to take, :meth:`hmz.coganchor.backends.Profile.tags`
+#: is what declares them, and no machine's settings have ever carried either -- a flow writing
+#: `Needs(where=("anchor:hooked",))` was refused by every machine there is, which is a check
+#: nothing could pass. What remains true of both, and is why they were ever written down
+#: together, is that a turn landing somewhere else is a turn humanize cannot reach into: that
+#: is not a machine declaring the road, it is the agent losing it, and `serves` is where it is
+#: taken away.
 _ANCHORS = {
-    "anchor:native-cli": "a turn taken as the CLI's own command line, read off its streams "
+    places.NATIVE_CLI: "a turn taken as the CLI's own command line, read off its streams "
     "-- spawned here when nothing anchors it, and on the target when an anchor drives the "
     "CLI already installed there",
-    "anchor:supervised": "a turn whose commands are reached by tracing the process it runs "
+    places.SUPERVISED: "a turn whose commands are reached by tracing the process it runs "
     "them in, which is how an anchored turn's work lands on the machine the flow chose",
-    "anchor:hooked": "a turn reached through the CLI's own hooks, written for this run and "
-    "read by no other -- backends.named(<backend>).hooks says through which seam it is told",
-    "anchor:preloaded": "a turn reached from inside the process, by what its runtime is told "
+    places.HOOKED: "a turn reached through the CLI's own hooks, written for this run and "
+    "read by no other -- backends.named(<backend>).hooks says through which seam it is told; "
+    "asked of the agent, and taken away from one whose turns land on another machine",
+    places.PRELOADED: "a turn reached from inside the process, by what its runtime is told "
     "to load before it starts -- backends.named(<backend>).preloads names the variable that "
-    "carries it",
+    "carries it; asked of the agent, and taken away from one whose turns land elsewhere",
+}
+
+
+#: The facts about a CLI that are a capability of their own, by the name
+#: :meth:`hmz.coganchor.backends.Profile.tags` already answers with -- and what the ask looks
+#: like. `fork` is not here because it has a sentence of its own beside the session
+#: capabilities it belongs with, and the two `anchor:` tags are in :data:`_ANCHORS` for the
+#: same reason.
+#:
+#: They were askable before they were catalogued, which is the bug this closes:
+#: :func:`hmz.flows.driving.comes_to` unions a backend's tags in, so `Needs("search")` has
+#: always worked, while the catalogue and :func:`briefed` -- the one page a compiler steers
+#: by -- said nothing about them. A name a flow may write and a compiler cannot read is a
+#: name a generated flow will never ask under.
+_PROFILED = {
+    "search": "the CLI's own web search, which is the thing AgentConfig(web_search=False) "
+    "takes away -- a backend not among these has none to take away, and is refused where the "
+    "agent is made rather than quietly reaching the web anyway",
+    "swarm": "the CLI runs one turn as several agents at once, which its own ladder says by "
+    "carrying a `swarm`-prefixed rung -- AgentConfig(effort='swarmmax') on a backend among "
+    "these, and the prefix comes off before the rung is read",
+    "resume": "one conversation picked back up across turns, which is what a session here is "
+    "made of -- a backend not among these opens a new conversation per turn, so a flow that "
+    "holds a session across turns holds nothing",
 }
 
 
@@ -2227,10 +2286,24 @@ def _places() -> list[Capability]:
     """Where an agent's turns may land, as a flow says it.
 
     Returns:
-      One capability apiece, each served for every backend: a machine is the same question
-      whichever CLI is being driven on it.
+      One capability apiece, each asked under `where=` and carrying no backends: a machine is
+      no backend's to answer for, whichever CLI is being driven on it.
+
+    Raises:
+      RuntimeError: If coganchor knows a place this module has no sentence for, or has a
+        sentence here for one nothing answers to. The words are declared there and described
+        here, and a description with nothing behind it is a capability a flow can ask for and
+        never be given.
     """
-    return [Capability(name, frozenset(), said) for name, said in _PLACES.items()]
+    described = frozenset(_PLACES)
+    if described != places.PLACES:
+        raise RuntimeError(
+            f"the places described here and the places there are differ: "
+            f"{sorted(described ^ places.PLACES)}"
+        )
+    return [
+        Capability(name, frozenset(), said, WHERE) for name, said in _PLACES.items()
+    ]
 
 
 def _anchors(agents: Mapping[str, type]) -> list[Capability]:
@@ -2245,16 +2318,22 @@ def _anchors(agents: Mapping[str, type]) -> list[Capability]:
 
     Returns:
       One capability per way something here is reached through, with the backends it reaches
-      -- or none at all against a way every one of them serves.
+      -- or none at all against a way every one of them serves. The roads a machine declares
+      are asked under `where=` and the two humanize reaches from inside a process it started
+      are asked of the agent, which is the split :data:`_ANCHORS` argues.
     """
     held: list[Capability] = []
     for name, said in _ANCHORS.items():
-        reaching = frozenset(agents) if name in _REACHED else _tagged(name, agents)
+        road = name in _REACHED
+        reaching = frozenset(agents) if road else _tagged(name, agents)
         if not reaching:
             continue
         held.append(
             Capability(
-                name, frozenset() if reaching == frozenset(agents) else reaching, said
+                name,
+                frozenset() if reaching == frozenset(agents) else reaching,
+                said,
+                WHERE if road else OF_AGENT,
             )
         )
     return held
@@ -2311,6 +2390,18 @@ def catalogue() -> tuple[Capability, ...]:
     -- so what the catalogue promises is what this installation serves, not what some
     edition of it once did.
 
+    Read here rather than in `hmz.coganchor`, deliberately, and the line is between the fact
+    and the ask. A capability name is both: something a backend, a driver or a machine
+    declares, and something a flow writes down where it declares a place. The fact belongs
+    wherever the thing it is about is written down -- a CLI's in `backends.py`, a driver's on
+    the driver class, a machine's in :mod:`hmz.coganchor.places` -- and every one of them is
+    read live from there rather than copied. The ask belongs here, because every reader of it
+    is here or above: `comes_to`, `serves`, `briefed`, the picker. A layer whose whole job is
+    driving a coding agent has no business knowing what a flow may write beside a place, and
+    what used to be wrong was not the address but the contents: the machine vocabulary was
+    written out in this file under names `hmz.coganchor.machines` was separately writing out
+    for itself, which is one word in two places.
+
     One word per capability, and where the capability is a setting that word is the derived
     one: what comes to exactly "this backend's own config carries this field" is served as
     `settings:<field>` and under nothing else. A hand-written name beside it would be the
@@ -2321,19 +2412,38 @@ def catalogue() -> tuple[Capability, ...]:
     `partial_messages` for and one session does; `tier:fast` is `service_tier`, a field of
     the common config that every backend has somewhere to say and only three can serve.
 
+    `pursue` and `goal` are one answer under two words and are meant to be. They are not the
+    same fact twice the way a hand-written `trust` beside `settings:trust` would be: one asks
+    whether `session.pursue(objective)` can be called and the other whether the place may be
+    declared `Annotated[Agent, Goal]`, which are two things a flow writes in two different
+    files, and neither is derived from a name that could be renamed out from under it -- both
+    are read from `cls.pursues` here, in one place, so a rename orphans neither. The rule the
+    settings block states is about *derived* names, and this is not one.
+
     Returns:
-      One capability apiece: the primitives every backend serves, then what only some do
-      -- each moment outside `EVERYWHERE`, the shape a turn can be held to, the tools a
-      flow may offer, a turn that can be steered while it runs, the goal feature, the
-      fork, each kind of token a backend says what it spent on, the turn that can be told
-      to say what it is reaching for as it writes it, the faster tier some can be asked to
-      serve at, and each setting only some of their configs carry -- and then where an
-      agent's turns may land and how a turn's own commands are reached there.
+      One capability apiece, each saying which half of
+      :class:`~hmz.coganchor.agents.config.Needs` asks for it. Asked of the agent: the
+      primitives every backend serves, then what only some do -- each moment outside
+      `EVERYWHERE`, the shape a turn can be held to, the tools a flow may offer, a turn that
+      can be steered while it runs, the goal feature, the fork, the CLI's own search, fleet
+      and resume, each kind of token a backend says what it spent on, the turn that can be
+      told to say what it is reaching for as it writes it, the faster tier some can be asked
+      to serve at, each rung some can be held to, each setting only some of their configs
+      carry, and the two roads humanize reaches a turn down from inside a process it started.
+      Asked of where it works: where an agent's turns may land, and the roads an anchor
+      reaches a machine by.
     """
     import inspect
     import sys as running
 
-    from hmz.coganchor.agents import DRIVEN, EVERYWHERE, KINDS, Moment
+    from hmz.coganchor.agents import (
+        DRIVEN,
+        EVERYWHERE,
+        KINDS,
+        PERMISSIONS,
+        Moment,
+        rung,
+    )
 
     agents = {name: held[0] for name, held in DRIVEN.items()}
     sessions: dict[str, type] = {}
@@ -2518,6 +2628,30 @@ def catalogue() -> tuple[Capability, ...]:
         )
     )
     held.extend(
+        Capability(name, _tagged(name, agents), said)
+        for name, said in _PROFILED.items()
+    )
+    for permission in PERMISSIONS:
+        # Every driven backend reads as none of them, the way an anchor every CLI is reached
+        # through does: an empty set is what says "all of them", and it is also the only
+        # answer that reaches a CLI somebody added by hand -- one driven over the protocol is
+        # in no `DRIVEN` table, so a rung listed against every name there is a rung that
+        # backend would read as not served. `bypass` is exactly that rung.
+        taking = frozenset(
+            name for name, cls in agents.items() if permission in cls.rungs
+        )
+        held.append(
+            Capability(
+                rung(permission),
+                frozenset() if taking == frozenset(agents) else taking,
+                f"the agent held to {permission!r} -- AgentDefaults(permission="
+                f"{permission!r}) beside the place -- which a backend not among these refuses "
+                "where the agent is made rather than running it a rung looser; how coarsely a "
+                "backend that takes the rung maps it onto its own settings is another "
+                "question and is written down in docs/reference/agents.md",
+            )
+        )
+    held.extend(
         Capability(
             f"counts:{kind}",
             frozenset(name for name, cls in agents.items() if kind in cls.counts),
@@ -2564,20 +2698,51 @@ def catalogue() -> tuple[Capability, ...]:
     return tuple(held)
 
 
+def misplaced(names: Iterable[str], asked: str) -> frozenset[str]:
+    """Which of these names are asked for in the other half of `Needs` than the one they are in.
+
+    The one slip in this vocabulary that nothing used to catch. `Needs("isolated")` and
+    `Needs(where=("steer",))` are both legal Python, both spell a name that exists, and both
+    were answered by the wrong side: the first passed whatever filled the place, because a
+    machine capability carries no backends and no backends means every backend; the second was
+    refused by every machine there is, because no machine's settings have ever carried a word
+    about the agent. One always yes and one always no, and neither of them a measurement.
+
+    A name the catalogue does not have at all is not misplaced and is not named here: it is
+    something nothing serves, and the refusal that says so is the ordinary one.
+
+    Args:
+      names: What the place asked for, in one half of :class:`~hmz.coganchor.agents.config.Needs`.
+      asked: Which half that is -- :data:`OF_AGENT` or :data:`WHERE`.
+
+    Returns:
+      Those of them the catalogue asks for in the other half.
+    """
+    other = {one.name for one in catalogue() if one.asked != asked}
+    return frozenset(other & set(names))
+
+
 def briefed() -> str:
     """The catalogue rendered as the one page a compiler steers by.
 
+    Three sections rather than two, because a flow writes the vocabulary in two places and
+    reading it as one is how `Needs("isolated")` came to be written: what a machine has to
+    come to goes in `where=` and what the backend has to serve goes beside it, and a page that
+    ran the two together was teaching the mistake.
+
     Returns:
       What every backend serves, then what only some do -- each with the backends that
-      do, so that a flow built on one can say where it runs.
+      do, so that a flow built on one can say where it runs -- and then what a place may be
+      asked to come to.
     """
     held = catalogue()
+    agent = [one for one in held if one.asked == OF_AGENT]
     lines = [
         "What a flow may build on here, read off this installed humanize.",
         "",
-        "Every backend:",
+        "Every backend -- Needs(...) beside the place:",
     ]
-    lines.extend(f"- {one.name}: {one.said}" for one in held if not one.backends)
+    lines.extend(f"- {one.name}: {one.said}" for one in agent if not one.backends)
     lines += [
         "",
         (
@@ -2587,7 +2752,16 @@ def briefed() -> str:
     ]
     lines.extend(
         f"- {one.name} ({', '.join(sorted(one.backends))}): {one.said}"
-        for one in held
+        for one in agent
         if one.backends
     )
+    lines += [
+        "",
+        (
+            "Where an agent's turns land -- Needs(where=(...)) beside the place, answered "
+            "by that machine's own settings rather than by any backend, and refused before "
+            "an image has been pulled:"
+        ),
+    ]
+    lines.extend(f"- {one.name}: {one.said}" for one in held if one.asked == WHERE)
     return "\n".join(lines)

@@ -21,6 +21,8 @@ import uuid
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
+from .places import NATIVE_CLI, SUPERVISED
+
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
@@ -248,19 +250,25 @@ class AnchorConfig:
         about the machine: the same machine reached two ways is two different sets of things
         a turn may be asked to do.
 
-        There are two ways and each is a function here. `anchor:supervised` is
-        :func:`connect`: the agent runs on this machine under coganchor's supervisor, and
+        There are two ways and each is a function here. :data:`~hmz.coganchor.places.SUPERVISED`
+        is :func:`connect`: the agent runs on this machine under coganchor's supervisor, and
         every file it opens and every command it spawns is answered from the target.
-        `anchor:native-cli` is :func:`drive`: the CLI already installed on the target is the
-        one that runs, read off its own three streams, with nothing traced and nothing
-        mirrored. Further ways name themselves here as they arrive, each under `anchor:` and
-        its own name, so that a flow needing one asks for it by name instead of inferring it
-        from a target.
+        :data:`~hmz.coganchor.places.NATIVE_CLI` is :func:`drive`: the CLI already installed on
+        the target is the one that runs, read off its own three streams, with nothing traced
+        and nothing mirrored. Further ways name themselves in
+        :data:`~hmz.coganchor.places.ROADS` as they arrive, each under `anchor:` and its own
+        name, so that a flow needing one asks for it by name instead of inferring it from a
+        target.
+
+        The words themselves come from :mod:`hmz.coganchor.places` rather than being written
+        out here, for the reason they are gathered there at all: the same two are what the
+        capability catalogue describes and what a flow asks under, and a road spelled out once
+        per place that says it is a road renamed in one of them.
 
         Returns:
           The names reaching this anchor answers to.
         """
-        return frozenset({"anchor:native-cli" if self.native else "anchor:supervised"})
+        return frozenset({NATIVE_CLI if self.native else SUPERVISED})
 
     def command(
         self,

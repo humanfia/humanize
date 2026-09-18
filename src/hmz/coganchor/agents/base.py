@@ -26,6 +26,7 @@ from typing import IO, TYPE_CHECKING, Any, ClassVar, Literal, Protocol, Self, ov
 from hmz.coganchor.backends import AUTO
 
 from .codenames import codename
+from .config import PERMISSIONS
 from .event import Event, Failed, Question, Stopped, Unrecoverable, Usage, say
 from .hooks import EVERYWHERE, Hooks, Moment, Occasion, Verdict
 from .skills import Loaded, mount, unmount
@@ -3335,6 +3336,25 @@ class AgentBase(ABC):
     #: only when it has a native request setting for it, so unsupported requests fail before
     #: the first provider turn.
     service_tiers: ClassVar[tuple[str, ...]] = ("default",)
+
+    #: Which rungs of :data:`hmz.coganchor.agents.config.PERMISSIONS` this backend can be held
+    #: to. Every one of them here, since a CLI humanize drives is one it can say something to
+    #: about what its agent may do; a backend that cannot narrows this, and :meth:`_serves` is
+    #: where the narrowing is enforced when a config actually arrives.
+    #:
+    #: Declared as well as enforced because the two answer different people. The refusal is
+    #: owed to whoever built the agent, and arrives when they build it. This is owed to
+    #: whoever is *choosing* one -- the picker ruling out a CLI for a place it could not fill,
+    #: and a flow writing `Needs("rung:read-only")` where it declares the place -- and both of
+    #: those ask before there is an agent to refuse. :func:`hmz.coganchor.agents.config.rung`
+    #: is the word each of these goes under in the catalogue.
+    #:
+    #: What this says is which rungs a backend will *take*, and not how finely it tells them
+    #: apart once taken: a CLI with no sandbox of its own runs `workspace-write` and `auto`
+    #: as one agent and says so where it maps them, which is a coarseness rather than a
+    #: refusal and is written down in `docs/reference/agents.md` rather than here. A rung
+    #: missing from this tuple is a rung that will not start.
+    rungs: ClassVar[tuple[str, ...]] = PERMISSIONS
 
     #: Which kinds of token this backend reports, out of :data:`hmz.coganchor.agents.KINDS`.
     #: Declared here rather than worked out from what a turn happened to say: a kind nothing

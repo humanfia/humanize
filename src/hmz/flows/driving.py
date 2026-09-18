@@ -1748,12 +1748,24 @@ def serves(flow: str | os.PathLike[str], agent: Agent, place: Place) -> None:
       place: What the flow declared.
 
     Raises:
-      NotAFlow: If the backend does not serve something the place says it has to.
+      NotAFlow: If the backend does not serve something the place says it has to, or if what
+        it asked of the backend is something only a machine can answer -- `Needs("isolated")`
+        rather than `Needs(where=("isolated",))`. That one used to pass whatever was filling
+        the place: a machine capability carries no backends, an empty backend set means every
+        backend, and so a flow that wrote the ask in the wrong half was told nothing and
+        protected by nothing.
     """
     if place.needs is None or not place.needs.of_agent:
         return
-    from .checking import INSIDE
+    from .checking import INSIDE, OF_AGENT, misplaced
 
+    called = place.name or "the agent"
+    if wrong := misplaced(place.needs.of_agent, OF_AGENT):
+        raise NotAFlow(
+            f"{flow}: {called} asks for {', '.join(sorted(wrong))} of the agent, which "
+            "is asked of where it works instead -- "
+            f"Needs(where={tuple(sorted(wrong))!r})"
+        )
     served = comes_to(agent.backend)
     if agent.config.machine is not None:
         # Reaching inside the CLI is something humanize does to a process it started here,
@@ -1764,7 +1776,7 @@ def serves(flow: str | os.PathLike[str], agent: Agent, place: Place) -> None:
     if short := place.needs.of_agent - served:
         where = " where its turns land" if short & INSIDE else ""
         raise NotAFlow(
-            f"{flow}: {place.name or 'the agent'} has to serve "
+            f"{flow}: {called} has to serve "
             f"{', '.join(sorted(short))}, which {agent.backend} does not{where}"
         )
 
@@ -1794,16 +1806,25 @@ def comes_to(
         None reads it here, which is what one question wants.
 
     Returns:
-      The names it serves. What every backend here serves is in it too: the catalogue names
-      no backend against those because they are true of all of them, and a place that asked
-      for one would otherwise be refused every agent there is.
+      The names it serves, out of the half of the vocabulary a backend answers for. What every
+      backend here serves is in it too: the catalogue names no backend against those because
+      they are true of all of them, and a place that asked for one would otherwise be refused
+      every agent there is.
+
+      What a machine comes to is not in it and must not be. Those capabilities carry no
+      backends for the same reason -- no backend answers for them -- and reading that as "all
+      of them" is what made `Needs("isolated")` a check that measured nothing.
     """
     from hmz.coganchor.backends import named
 
-    from .checking import catalogue
+    from .checking import OF_AGENT, catalogue
 
     held = catalogue() if catalogued is None else catalogued
-    comes = {one.name for one in held if not one.backends or backend in one.backends}
+    comes = {
+        one.name
+        for one in held
+        if one.asked == OF_AGENT and (not one.backends or backend in one.backends)
+    }
     profile = named(backend)
     return frozenset(comes if profile is None else comes | profile.tags())
 
@@ -1918,12 +1939,28 @@ def _somewhere(
       place: What the flow declared.
 
     Raises:
-      NotAFlow: If those settings do not come to something the place says it needs. An agent
-        pointed nowhere works on this machine, which comes to nothing at all, so a place that
-        needs anything of where it works needs a machine first.
+      NotAFlow: If those settings do not come to something the place says it needs, or if what
+        it asked of the machine is something only the agent can answer. An agent pointed
+        nowhere works on this machine, which comes to nothing at all, so a place that needs
+        anything of where it works needs a machine first.
+
+        `Needs(where=("anchor:hooked",))` is the second of those and used to be advertised:
+        a hook table and a preload are the CLI's own to take, no machine's settings have ever
+        carried either, and so that ask was refused by every machine there is -- a check
+        nothing could pass, which is worse than no check. It is asked of the agent, where the
+        profile that declares it can answer, and where `serves` takes it away again from an
+        agent whose turns land somewhere humanize cannot reach into.
     """
     if place.needs is None or not place.needs.where:
         return
+    from .checking import WHERE, misplaced
+
+    if wrong := misplaced(place.needs.where, WHERE):
+        raise NotAFlow(
+            f"{flow}: {called} asks for {', '.join(sorted(wrong))} of where it works, "
+            "which is asked of the agent instead -- "
+            f"Needs({', '.join(repr(one) for one in sorted(wrong))})"
+        )
     at: frozenset[str] = machine.capabilities if machine is not None else frozenset()
     if short := place.needs.where - at:
         raise NotAFlow(

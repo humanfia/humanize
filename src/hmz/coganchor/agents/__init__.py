@@ -45,6 +45,7 @@ from .config import (
     Remote,
     anchored,
     isolated,
+    rung,
     searching,
     tightest,
 )
@@ -223,6 +224,7 @@ __all__ = [
     "ZcodeSession",
     "anchored",
     "isolated",
+    "rung",
     "searching",
     "tightest",
     "unreadable",
