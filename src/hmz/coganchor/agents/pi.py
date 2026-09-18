@@ -102,7 +102,10 @@ _CACHE = ("compiled", "pi")
 #: nothing to map the four rungs onto and no `_PERMITTED` table to write, and writing one
 #: would be the failure this is here to avoid: a rung that reads as enforced and enforces
 #: nothing. `read-only` is tools withheld, and `workspace-write`, `auto` and `bypass` are one
-#: and the same agent.
+#: and the same agent -- and so is the silence above them, which asks for nothing at all to be
+#: said to the CLI about what its agent may do. That one costs this driver no code either:
+#: saying nothing is what pi has been served at every rung but `read-only` since there was a
+#: rung to serve, so a config that settles none of it lands on the agent it already had.
 #: A denylist rather than the `--tools read,grep,find,ls` allowlist pi documents for the same
 #: job, because that one also switches off every extension tool and turns on three built-ins
 #: pi ships disabled -- which is a different agent, not a stricter one.
