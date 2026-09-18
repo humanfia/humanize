@@ -55,7 +55,7 @@ from .base import (
     StreamSessionBase,
     _ended,
 )
-from .config import AgentConfig
+from .config import UNSAID, AgentConfig
 from .event import Event, Failed, Saying, Unrecoverable, Usage
 
 if TYPE_CHECKING:
@@ -100,16 +100,27 @@ _NO_WEB = "--disable-web-search"
 #: write a file under it reaches four times and writes nothing. `--disable-web-search` above
 #: it, where what is taken away is the reaching outside the workspace, Grok Build having no
 #: sandbox of its own until somebody writes a profile for it.
+#:
+#: And the silence above the ladder says nothing whatever: no approval, no allowlist, no word
+#: about the web. An agent nobody was asked about is one `grok` decides for itself -- its own
+#: prompting, the permission rules this machine carries, the tools it starts with -- which is
+#: exactly what `grok -p` does when nobody hands it a flag. It is the loosest row here only in
+#: the sense that humanize withholds nothing: what it comes to is 1.0.24's own answer rather
+#: than humanize's.
 _PERMITTED = {
     "read-only": (_APPROVAL, "--tools", "read_file,grep,list_dir"),
     "workspace-write": (_APPROVAL, _NO_WEB),
     "auto": (_APPROVAL,),
     "bypass": (_APPROVAL,),
+    UNSAID: (),
 }
 
-#: The rungs the held-open transport can serve, which is every rung whose whole saying is a
-#: flag `grok agent` takes -- and of the three above only `--always-approve` is: `--tools` and
-#: `--disable-web-search` are both refused there outright, `error: unexpected argument`.
+#: The rungs the held-open transport can serve, which is every rung that says nothing `grok
+#: agent` would refuse -- and of the three flags above only `--always-approve` is one it
+#: takes: `--tools` and `--disable-web-search` are both refused there outright, `error:
+#: unexpected argument`. The row that says nothing at all is in by that same reading, an empty
+#: saying being nothing for `grok agent` to refuse, so an agent nobody was asked about is
+#: served on the process its conversation is already held open on.
 #:
 #: A rung outside this set is not refused, though, the way a backend with no way of saying it
 #: at all refuses one. It falls to the command line, which says it exactly and resumes the
@@ -298,9 +309,13 @@ class GrokBuildSession(StreamSessionBase):
           agent given one that the transport could not carry would be a setting that lies.
         """
         config = self._agent.config
+        # `is False` rather than `not`: the web is three answers, and None is the agent nobody
+        # was asked about, which is said with no flag at all. `not None` is true, so the
+        # shorter test would send every turn of every such conversation to the command line
+        # for a flag it was never going to write.
         return bool(
             config.permission not in _HELD_OPEN
-            or not config.web_search
+            or config.web_search is False
             or _extras(config)
         )
 
@@ -688,8 +703,11 @@ class GrokBuildSession(StreamSessionBase):
             *_PERMITTED[config.permission],
         ]
         # Said once however it was asked for: a rung that already takes the reaching outside
-        # the workspace away has said it, and the flag is a switch rather than a list.
-        if not config.web_search and _NO_WEB not in argv:
+        # the workspace away has said it, and the flag is a switch rather than a list. `is
+        # False` rather than `not`, since None is the agent nobody was asked about and `not
+        # None` is true: an agent nothing was said about would otherwise be told not to search
+        # the web, which is humanize settling the one thing it was meant to leave alone.
+        if config.web_search is False and _NO_WEB not in argv:
             argv.append(_NO_WEB)
         argv += _extras(config)
         if (schema := self._shaping) is not None:
