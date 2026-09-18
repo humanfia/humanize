@@ -3545,7 +3545,11 @@ class AgentBase(ABC):
         Raises:
           ValueError: If the effort is not a rung this backend's ladder has, if the tier is
             not one of :attr:`service_tiers`, or if web search was switched off for a backend
-            with no way of being told.
+            with no way of being told. Switched off rather than left unsaid: an agent nobody
+            was asked about goes on reaching the web exactly as its CLI lets it, which is the
+            thing this refusal exists to be honest about rather than the thing it forbids.
+            Reading the silence as a no would refuse every backend that cannot be told the
+            moment a config stopped answering for one.
         """
         self._thinks(config.effort)
         if config.service_tier not in self.service_tiers:
@@ -3553,7 +3557,7 @@ class AgentBase(ABC):
                 f"{type(self).__name__} does not support service tier "
                 f"{config.service_tier!r}; expected {', '.join(self.service_tiers)}"
             )
-        if not config.web_search and not self._tellable():
+        if config.web_search is False and not self._tellable():
             raise ValueError(
                 f"{type(self).__name__} has no way of being told not to search the web; "
                 "web_search must be on for it"

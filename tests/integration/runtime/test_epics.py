@@ -293,6 +293,56 @@ def test_a_epic_reads_back_as_what_was_run_and_how_it_went(
     assert [one.ident for one in ran.sessions] == ["the-session"]
 
 
+def test_what_an_agent_was_allowed_reads_as_what_that_agent_actually_did(
+    tmp_path: Path,
+) -> None:
+    """Two silences in one field, and a report that read them as one would invent a rung."""
+    at = tmp_path / "epic"
+    at.mkdir()
+    lines: tuple[dict[str, Any], ...] = (
+        {
+            "event": "began",
+            "at": "1",
+            "flow": "f",
+            "task": "go",
+            "agents": [
+                # Written before a run wrote this down at all, which is every run there was
+                # when every agent was allowed everything.
+                {"agent": "older", "backend": "shell", "model": "m", "effort": "high"},
+                # And written by a run that said nothing to the CLI about what its agent
+                # may do, which is a rung nobody chose rather than a record gone missing.
+                {
+                    "agent": "quiet",
+                    "backend": "shell",
+                    "model": "m",
+                    "effort": "high",
+                    "permission": "",
+                },
+                {
+                    "agent": "narrowed",
+                    "backend": "shell",
+                    "model": "m",
+                    "effort": "high",
+                    "permission": "read-only",
+                },
+            ],
+        },
+        {"event": "ended", "at": "2", "how": "done"},
+    )
+    (at / JOURNAL).write_text(
+        "\n".join(json.dumps(one) for one in lines), encoding="utf-8"
+    )
+
+    ran = read(at)
+
+    assert ran is not None
+    assert [(one.agent, one.permission) for one in ran.agents] == [
+        ("older", "bypass"),
+        ("quiet", ""),
+        ("narrowed", "read-only"),
+    ]
+
+
 def test_a_run_written_before_calls_had_records_still_reads_as_what_it_called(
     tmp_path: Path,
 ) -> None:

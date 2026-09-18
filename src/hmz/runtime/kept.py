@@ -30,14 +30,21 @@ class Runs(NamedTuple):
       spec: The agent itself, as `cli/model:effort` -- the same word a command line takes.
       anchor: The machine its work lands on, as a target, or "" to work on this one.
       permission: What it may do without being asked, as one of `hmz.coganchor.agents.PERMISSIONS`,
-        or "" for the one an agent nobody has been asked about runs at.
+        or "" for nothing said about it, which leaves the agent at what it was configured
+        with. An answer withheld rather than a rung named quietly on somebody's behalf.
       provider: The account its turns run as, by the name a provider of its CLI was made
         under, or "" to run as this machine is already signed in.
       goals: Whether backend goals are available. This is always an on/off answer; any
         suggestion attached to the flow's agent place is resolved before this is constructed.
-      web_search: Whether it may search the web. On is what an agent nobody has been asked
-        about does, and is written down all the same, for the reason `goals` is: it is an
-        answer somebody gave rather than a silence.
+      web_search: Whether it may search the web, or None for nothing said about it. Three
+        states rather than the two `goals` has, and the reason the two of them part company
+        here is what happens to the answer afterwards: this one is settled onto the agent's
+        config, and a `True` written down for an agent nobody asked about is an answer that
+        switches searching on wherever the CLI had it off. The old two-state reading of this
+        field -- on is what an agent nobody was asked about does -- was that answer, given
+        every time this was built and never noticed because it agreed with the default it was
+        overwriting. So the silence gets a value of its own and stays a silence all the way
+        to the command line, and off and on go on being written down as the answers they are.
     """
 
     spec: str
@@ -45,7 +52,7 @@ class Runs(NamedTuple):
     permission: str = ""
     provider: str = ""
     goals: bool = True
-    web_search: bool = True
+    web_search: bool | None = None
 
 
 def written(runs: Runs) -> dict[str, Any]:
@@ -73,7 +80,10 @@ def written(runs: Runs) -> dict[str, Any]:
         held["provider"] = runs.provider
     # Both values are material: on may be an override of a workflow whose default is off, so
     # what is written down always records the explicit two-way choice. Web search is written
-    # the same way and for the same reason.
+    # the same way and for the same reason -- and its silence is written too, as the `null`
+    # it is. Left out, it could not be told from a file written before there was such a
+    # setting, and those are the one case that has to read as on: that is what every agent
+    # did then. A key that is there and empty is this file saying nobody was asked.
     held["goals"] = runs.goals
     held["web_search"] = runs.web_search
     return held
@@ -97,7 +107,11 @@ def read_back(held: dict[str, Any], *, goals: bool = True) -> Runs | None:
     # asked about has always run at; one that names no account runs as this machine is signed
     # in. A `skills` an older file holds is the CLI's own business now, and is read past.
     said = held.get("goals")
-    searches = held.get("web_search")
+    # Asked for with a default rather than read off what `get` returns for a key that is not
+    # there, because here the two are different answers: a file holding `null` is one that
+    # was asked and says nobody answered, and a file holding nothing at all is older than the
+    # question.
+    searches = held.get("web_search", True)
     return Runs(
         f"{cli}/{model}:{effort}",
         str(held.get("anchor") or ""),
@@ -105,6 +119,8 @@ def read_back(held: dict[str, Any], *, goals: bool = True) -> Runs | None:
         str(held.get("provider") or ""),
         said if isinstance(said, bool) else goals,
         # An entry written before there was such a setting is one whose agent searched the
-        # web, that being what every agent did then.
-        searches if isinstance(searches, bool) else True,
+        # web, that being what every agent did then. A key holding anything that is not an
+        # answer -- the `null` this writes, or something somebody typed in by hand -- holds
+        # nothing anybody may act on, and it stays nothing.
+        searches if isinstance(searches, bool) else None,
     )

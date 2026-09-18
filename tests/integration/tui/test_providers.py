@@ -422,8 +422,10 @@ async def test_the_account_an_agent_runs_as_is_the_first_thing_asked_about_it(
     chosen = Runs("claude/claude-opus-5:high", "", "", "deepseek")
     assert app._models == [chosen]
     assert app.settings.agents(app._flow_named) == [chosen]
+    # And what it may do between the two: nobody narrowed this one, so the line says what
+    # that comes to rather than leaving a gap where a rung would be.
     assert reads(("builder",), [chosen]) == [
-        "builder · claude/claude-opus-5:high · deepseek"
+        "builder · claude/claude-opus-5:high · as configured · deepseek"
     ]
 
 

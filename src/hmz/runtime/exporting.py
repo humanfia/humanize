@@ -704,6 +704,10 @@ def _manifest(
                 "backend": one.backend,
                 "model": one.model,
                 "effort": one.effort,
+                # Empty where the run said nothing to that CLI about what its agent may
+                # do, which is a value rather than a field that went missing: the rung it
+                # ran at was the CLI's own, and naming one here would be this bundle making
+                # up an answer the run never gave.
                 "permission": one.permission,
                 # By name, and by name only: what an account runs a turn with is the one
                 # thing a bundle must never carry.

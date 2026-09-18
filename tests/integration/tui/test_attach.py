@@ -509,21 +509,22 @@ def test_an_agent_holding_nothing_says_nothing_about_it() -> None:
     """Which is every agent of a flow that is not running, and how that line always read."""
     runs = [Runs("claude/claude-opus-5:max")]
 
-    assert reads(("builder",), runs) == ["builder · claude/claude-opus-5:max"]
-    assert reads(("builder",), runs, [Held()]) == ["builder · claude/claude-opus-5:max"]
+    # What it may do is on the line whether or not anybody narrowed it: an agent nobody
+    # narrowed runs at what it was configured with, and the line says so rather than leaving
+    # the gap a reader could not tell from a setting that had gone missing.
+    at = "builder · claude/claude-opus-5:max · as configured"
+
+    assert reads(("builder",), runs) == [at]
+    assert reads(("builder",), runs, [Held()]) == [at]
     # And a running one says whether it is working, which is the one thing on this line that
     # changes by itself: a filled circle for a turn open, a hollow one for an agent stopped.
-    assert reads(("builder",), runs, [Held(many=5)]) == [
-        "builder · claude/claude-opus-5:max · ○ 5"
-    ]
-    assert reads(("builder",), runs, [Held(many=5, working=True)]) == [
-        "builder · claude/claude-opus-5:max · ● 5"
-    ]
+    assert reads(("builder",), runs, [Held(many=5)]) == [f"{at} · ○ 5"]
+    assert reads(("builder",), runs, [Held(many=5, working=True)]) == [f"{at} · ● 5"]
     assert reads(("builder",), runs, [Held(many=5, reading=True, working=True)]) == [
-        "builder · claude/claude-opus-5:max · ● 5 · reading"
+        f"{at} · ● 5 · reading"
     ]
     assert reads(("builder",), runs, [Held(many=5, unread=True, working=True)]) == [
-        "builder · claude/claude-opus-5:max · ● 5 · unread"
+        f"{at} · ● 5 · unread"
     ]
 
 
