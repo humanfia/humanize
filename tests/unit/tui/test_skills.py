@@ -291,4 +291,6 @@ def test_a_file_that_still_says_skills_is_read_past(tmp_path: Path) -> None:
         {"cli": "claude", "model": "m", "effort": "high", "skills": ["writing"]}
     )
 
-    assert runs == Runs("claude/m:high")
+    # Searching the web among them: a file this old was written before there was such a
+    # setting, and every agent of every flow then searched.
+    assert runs == Runs("claude/m:high", web_search=True)

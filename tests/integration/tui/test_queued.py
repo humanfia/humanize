@@ -587,14 +587,16 @@ async def test_what_went_to_an_agent_is_pinned_in_front_of_what_is_still_queued(
         session = agent.new()
         app._heard(agent, session, Event(kind="begins", text=""))
 
-        app._interject("gone to it")
-        app._interject("behind that")
+        # Short lines, because the pin is cut to the room the block beside it leaves and
+        # this is about which of them comes first rather than about where either is cut.
+        app._interject("gone")
+        app._interject("behind")
         await until(lambda: len(_pinned(app).splitlines()) > 1, driver)
 
         first, second = _pinned(app).splitlines()
-        assert "gone to it" in first
+        assert "gone" in first
         assert f"with {short(agent.id)}" in first  # since that is the one it is holding
-        assert "behind that" in second
+        assert "behind" in second
         del session
 
 

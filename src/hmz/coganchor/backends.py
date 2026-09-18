@@ -31,6 +31,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ALIKE",
+    "AS_CONFIGURED",
     "AUTO",
     "DSH_SDK",
     "FAULTS",
@@ -51,6 +52,7 @@ __all__ = [
     "installing",
     "journalled",
     "named",
+    "permitted",
     "profiles",
     "program",
     "read",
@@ -462,6 +464,36 @@ def written(effort: str) -> str:
       That rung, or :data:`AUTO` where there is none.
     """
     return effort or AUTO
+
+
+#: The word a line uses for an agent nobody has narrowed. Inside that is `""`, no rung at all,
+#: and on a screen `""` is a gap where a word was -- a gap that says nothing about whether
+#: anybody chose it, and reads the same as a setting that had gone missing. This says the
+#: thing that is true of such an agent wherever it is shown: it is allowed what it was
+#: configured to be allowed, and the line is not narrowing it any further.
+#:
+#: Two words rather than one, and a space in the middle of them, because it is only ever
+#: shown. `auto` is a word a person may type back at a line that showed it; this is not one of
+#: the rungs and must never be readable as one, and a rung with a space in it is a rung
+#: nothing takes.
+AS_CONFIGURED = "as configured"
+
+
+def permitted(permission: str) -> str:
+    """What an agent may do as a line names it, the way :func:`written` names an effort.
+
+    Named apart from `allowance.allowed`, which is about whether one tool call gets through:
+    a line showing what an agent is set up to be allowed and a gate deciding one command are
+    two different questions, and one file reads both.
+
+    Args:
+      permission: The rung, as one of `hmz.coganchor.agents.PERMISSIONS`, or "" for an agent
+        nobody has been asked about.
+
+    Returns:
+      That rung, or :data:`AS_CONFIGURED` where there is none.
+    """
+    return permission or AS_CONFIGURED
 
 
 #: How long a turn may say nothing before it is worth looking at, for a backend that has not

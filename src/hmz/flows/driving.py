@@ -437,7 +437,7 @@ class Place(NamedTuple):
     goal: bool = False
     permission: str = "bypass"
     goals: bool = True
-    web_search: bool = True
+    web_search: bool | None = True
     needs: Needs | None = None
 
 
