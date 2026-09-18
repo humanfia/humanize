@@ -46,6 +46,23 @@ from hmz.runtime.tracing.session import (
 #: when a later update has rewritten that title into a sentence about the call.
 _TOOL = "x.ai/tool"
 
+#: The statuses that end a tool call, out of the four the protocol has words for. `pending` and
+#: `in_progress` are the other two, and a call is still running under either -- so they are not
+#: taken as an answer, whose text and moment would otherwise be the call's description and the
+#: moment it started. Grok Build 1.0.24 states neither, sending the call's status only on the
+#: update it finishes on; the protocol defines them, and a reader that read one as an ending
+#: would be wrong quietly rather than loudly.
+_ENDED = ("completed", "failed")
+
+#: How much of a session id names it. Grok Build mints a UUIDv7, whose leading characters are
+#: the millisecond it was minted at rather than anything about which session it is: across the
+#: 5506 sessions on the machine this was written against, the first eight characters -- what
+#: every other reader here shortens an id to -- came to 184 distinct names, one of them worn by
+#: 204 different sessions. Eighteen reaches past the version nibble into the random part and
+#: told all 5506 apart. Kept as a prefix of the id rather than as the interesting characters
+#: pulled out of the middle, so that the id a session slice shows is one `--sessions` takes.
+_SHORT = 18
+
 
 def collect(
     home: pathlib.Path,
@@ -98,7 +115,7 @@ def collect(
             backend="grok",
             ident=ident,
             label="main",
-            title=title_of(ident[:8], parsed[ident][0]),
+            title=title_of(ident[:_SHORT], parsed[ident][0]),
             args={
                 "log": str(logs[ident][0]),
                 "cwd": logs[ident][1],
@@ -189,16 +206,21 @@ def _parse(
             _called(actions, pending, update, at)
             prev = max(prev, at)
         elif kind == "turn_completed":
-            if turn is not None:
-                turn.args.update(
-                    {
-                        "stop_reason": update.get("stop_reason"),
-                        "elapsed_ms": update.get("elapsed_ms"),
-                        "usage": truncate(update.get("usage")),
-                    }
-                )
-                turn.end = max(turn.end, prev, at)
-                actions.append(turn)
+            # A turn nobody saw open is still a turn that was billed: a session resumed with
+            # its prompt carried in has no chunk to open one, and a trace narrowed to a moment
+            # after the prompt cuts one off. Opened here rather than let go, since dropping it
+            # would drop the only statement of what that turn cost.
+            if turn is None:
+                turn = Action("turn", "turn", min(prev, at), at, {})
+            turn.args.update(
+                {
+                    "stop_reason": update.get("stop_reason"),
+                    "elapsed_ms": update.get("elapsed_ms"),
+                    "usage": truncate(update.get("usage")),
+                }
+            )
+            turn.end = max(turn.end, prev, at)
+            actions.append(turn)
             turn, think = None, None
             if info.get("model") is None:
                 info["model"] = _modelled(update)
@@ -209,7 +231,7 @@ def _parse(
 
     closing = max((action.end for action in actions), default=prev)
     for call in pending.values():
-        if call.args.get("status") is not None:
+        if call.args.get("status") in _ENDED:
             continue
         call.end = max(call.start, closing)
         call.args["unfinished"] = True
@@ -357,7 +379,10 @@ def _called(
         at: When it was said.
     """
     marked = str(update.get("toolCallId") or "")
-    call = pending.get(marked)
+    # A call the agent gave no id gets a slice of its own, as it does where the same stream is
+    # read live: there is nothing to tell it from the next one, and folding every nameless call
+    # onto one key would show the first and quietly overwrite it with each one after.
+    call = pending.get(marked) if marked else None
     if call is None:
         tool = mapping(mapping(update.get("_meta")).get(_TOOL))
         name = str(tool.get("name") or update.get("title") or "tool")
@@ -372,23 +397,27 @@ def _called(
                 "input": truncate(update.get("rawInput")),
             },
         )
-        pending[marked] = call
+        if marked:
+            pending[marked] = call
         actions.append(call)
     if update.get("kind") is not None:
         call.args["kind"] = update["kind"]
     status = update.get("status")
-    if status is None:
+    if status is not None:
+        call.args["status"] = status
+    if status not in _ENDED:
         return
-    # `content` is the description of the call until the call has a status, and what it
-    # returned once it has: only the ending update is read for an output.
+    # `content` is the description of the call until the call has ended, and what it returned
+    # once it has: only the ending update is read for an output.
     call.end = max(call.start, at)
-    call.args.update(
-        {
-            "status": status,
-            "error": status == "failed",
-            "output": truncate(_said(update.get("content"))),
-        }
-    )
+    call.args["error"] = status == "failed"
+    said = _said(update.get("content"))
+    call.args["output"] = truncate(said)
+    # An answer with no readable text is not an answer with nothing in it: an edit comes back
+    # as a diff and a search as its matches, neither of which is a block of words. What the
+    # tool actually returned is kept whole beside the empty text rather than lost with it.
+    if not said and update.get("rawOutput") is not None:
+        call.args["result"] = truncate(update["rawOutput"], 512)
 
 
 def _said(content: Any) -> str:

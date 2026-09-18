@@ -159,7 +159,7 @@ def test_a_turn_is_the_prompt_it_opened_on(written: Any) -> None:
     turn = _named(said, "turn:")
     assert turn.category == "turn"
     assert turn.args["prompt"] == "map the repo"
-    assert said.title == f"{SESSION[:8]} · map the repo"
+    assert said.title == f"{SESSION[:18]} · map the repo"
     assert said.args["cwd"].endswith("/project")
     assert said.args["model"] == "grok-4.6"
 
@@ -399,6 +399,97 @@ def test_a_call_nothing_ever_answered_is_left_open(written: Any) -> None:
     assert call.end == _BEGAN + 5.0
 
 
+def test_a_call_that_is_only_under_way_has_not_answered(written: Any) -> None:
+    """The protocol has four statuses and two of them mean the call is still running.
+
+    Grok Build 1.0.24 states neither, sending a status only on the update a call finishes on.
+    A reader that took one as an ending would end the slice where the call started and read
+    the call's own description back as its output.
+    """
+    said = written(
+        _prompt(0.0),
+        _call(2.0),
+        _said(
+            2.0,
+            {
+                "sessionUpdate": "tool_call_update",
+                "toolCallId": "call-1",
+                "status": "in_progress",
+                "content": [
+                    {
+                        "type": "content",
+                        "content": {"type": "text", "text": "Say hello"},
+                    }
+                ],
+            },
+            **_streamed(2.0),
+        ),
+        _completed(5.0),
+    )
+
+    call = _named(said, "run_terminal_command")
+    assert call.args["status"] == "in_progress"
+    assert "output" not in call.args
+    assert call.args["unfinished"] is True
+    assert call.end == _BEGAN + 5.0
+
+
+def test_two_calls_the_agent_named_neither_of_are_two_calls(written: Any) -> None:
+    said = written(
+        _prompt(0.0),
+        _said(
+            2.0,
+            {
+                "sessionUpdate": "tool_call",
+                "title": "read_file",
+                "rawInput": {"file_path": "one.py"},
+            },
+            **_streamed(2.0),
+        ),
+        _said(
+            3.0,
+            {
+                "sessionUpdate": "tool_call",
+                "title": "read_file",
+                "rawInput": {"file_path": "two.py"},
+            },
+            **_streamed(3.0),
+        ),
+        _completed(),
+    )
+
+    assert [one.name for one in said.actions if one.category == "tool"] == [
+        "read_file: one.py",
+        "read_file: two.py",
+    ]
+
+
+def test_an_answer_with_no_words_in_it_is_still_kept(written: Any) -> None:
+    """An edit comes back as a diff and a search as its matches, neither being words."""
+    said = written(
+        _prompt(0.0),
+        _call(2.0),
+        _said(
+            3.0,
+            {
+                "sessionUpdate": "tool_call_update",
+                "toolCallId": "call-1",
+                "status": "completed",
+                "content": [
+                    {"type": "diff", "path": "one.py", "oldText": "a", "newText": "b"}
+                ],
+                "rawOutput": {"type": "EditResult", "EditsApplied": 1},
+            },
+            **_streamed(3.0),
+        ),
+        _completed(),
+    )
+
+    call = _named(said, "run_terminal_command")
+    assert call.args["output"] == ""
+    assert call.args["result"] == {"type": "EditResult", "EditsApplied": 1}
+
+
 def test_the_model_call_ends_where_it_reached_for_something(written: Any) -> None:
     said = written(
         _prompt(0.0),
@@ -529,8 +620,39 @@ def test_only_the_sessions_asked_for_are_read(tmp_path: pathlib.Path) -> None:
             json.dumps(_prompt()) + "\n", encoding="utf-8"
         )
 
-    (one,) = grok.collect(home, workspace, (SESSION[:8],), _EVER)
+    (one,) = grok.collect(home, workspace, (SESSION[:18],), _EVER)
     assert one.key == f"grok:{SESSION}"
+
+
+def test_the_id_a_session_slice_shows_is_one_that_names_that_session(
+    tmp_path: pathlib.Path,
+) -> None:
+    """Grok Build mints a UUIDv7, whose leading characters are a clock rather than a name.
+
+    Two sessions opened in the same second share their first eight -- 204 of the 5506 on the
+    machine this was written against shared one -- so an id shortened the way every other
+    reader here shortens one would title them alike and be taken by `--sessions` as either.
+    """
+    home = tmp_path / "grok"
+    workspace = tmp_path / "project"
+    under = home / "sessions" / urllib.parse.quote(str(workspace), safe="")
+    minted = (
+        "01a0b3c8-d383-7081-98d6-5a8b7437bcc1",
+        "01a0b3c8-d383-74a2-b0ce-1f0e2d3c4b5a",
+    )
+    for ident in minted:
+        (under / ident).mkdir(parents=True)
+        (under / ident / "updates.jsonl").write_text(
+            json.dumps(_prompt(body=f"map {ident[-4:]}")) + "\n", encoding="utf-8"
+        )
+
+    collected = grok.collect(home, workspace, None, _EVER)
+
+    shortened = [one.title.split(" · ")[0] for one in collected]
+    assert len(set(shortened)) == 2
+    for short, one in zip(shortened, collected, strict=True):
+        (found,) = grok.collect(home, workspace, (short,), _EVER)
+        assert found.key == one.key
 
 
 def test_what_happened_outside_the_window_is_cut_off(tmp_path: pathlib.Path) -> None:
@@ -551,13 +673,35 @@ def test_what_happened_outside_the_window_is_cut_off(tmp_path: pathlib.Path) -> 
     assert [held.args["prompt"] for held in one.actions] == ["in"]
 
 
-def test_the_counts_name_the_model_for_a_log_that_opens_on_no_prompt(
-    written: Any,
-) -> None:
-    """A session resumed with its prompt carried in has no chunk to read a model off."""
+def test_a_turn_nobody_saw_open_still_says_what_it_cost(written: Any) -> None:
+    """A session resumed with its prompt carried in has no chunk to open a turn on.
+
+    Its counts are the only statement of what that turn cost, so the turn is opened on the
+    ending rather than let go -- a session collecting as no slices at all would be a cell
+    whose whole bill went missing while the log stated it plainly.
+    """
     said = written(_completed(2.0))
 
+    turn = _named(said, "turn")
+    assert turn.args["usage"]["totalTokens"] == 16533
     assert said.args["model"] == "grok-4.6-build"
+
+
+def test_a_turn_whose_prompt_fell_outside_the_window_still_says_what_it_cost(
+    tmp_path: pathlib.Path,
+) -> None:
+    home = tmp_path / "grok"
+    workspace = tmp_path / "project"
+    at = home / "sessions" / urllib.parse.quote(str(workspace), safe="") / SESSION
+    at.mkdir(parents=True)
+    (at / "updates.jsonl").write_text(
+        "".join(json.dumps(one) + "\n" for one in (_prompt(0.0), _completed(30.0))),
+        encoding="utf-8",
+    )
+
+    (one,) = grok.collect(home, workspace, None, (_BEGAN + 10.0, _BEGAN + 40.0))
+
+    assert _named(one, "turn").args["usage"]["totalTokens"] == 16533
 
 
 def test_a_grok_home_is_collected_like_any_other_backend(
