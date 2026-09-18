@@ -26,6 +26,7 @@ from typing import IO, TYPE_CHECKING, Any, ClassVar, Literal, Protocol, Self, ov
 from hmz.coganchor.backends import AUTO
 
 from .codenames import codename
+from .config import Unserved
 from .event import Event, Failed, Question, Stopped, Unrecoverable, Usage, say
 from .hooks import EVERYWHERE, Hooks, Moment, Occasion, Verdict
 from .skills import Loaded, mount, unmount
@@ -3523,7 +3524,7 @@ class AgentBase(ABC):
           config: What every turn of it is to run at from now on.
 
         Raises:
-          ValueError: If the backend cannot express the service tier asked for. The same
+          Unserved: If the backend cannot express the service tier asked for. The same
             refusal as at construction, and for the same reason: a tier that cannot be sent
             must be said no to rather than silently served at another one.
         """
@@ -3543,24 +3544,29 @@ class AgentBase(ABC):
           config: What the agent is to run at.
 
         Raises:
-          ValueError: If the effort is not a rung this backend's ladder has, if the tier is
+          Unserved: If the effort is not a rung this backend's ladder has, if the tier is
             not one of :attr:`service_tiers`, or if web search was switched off for a backend
             with no way of being told. Switched off rather than left unsaid: an agent nobody
             was asked about goes on reaching the web exactly as its CLI lets it, which is the
             thing this refusal exists to be honest about rather than the thing it forbids.
             Reading the silence as a no would refuse every backend that cannot be told the
             moment a config stopped answering for one.
+
+            Each names the field it is about, so that the one caller entitled to be lenient
+            about it can drop that field and settle the rest. It is a `ValueError` still.
         """
         self._thinks(config.effort)
         if config.service_tier not in self.service_tiers:
-            raise ValueError(
+            raise Unserved(
                 f"{type(self).__name__} does not support service tier "
-                f"{config.service_tier!r}; expected {', '.join(self.service_tiers)}"
+                f"{config.service_tier!r}; expected {', '.join(self.service_tiers)}",
+                "service_tier",
             )
         if config.web_search is False and not self._tellable():
-            raise ValueError(
+            raise Unserved(
                 f"{type(self).__name__} has no way of being told not to search the web; "
-                "web_search must be on for it"
+                "web_search must be on for it",
+                "web_search",
             )
 
     def _thinks(self, effort: str) -> None:
@@ -3594,16 +3600,18 @@ class AgentBase(ABC):
             agent was configured with.
 
         Raises:
-          ValueError: If the backend has a ladder written down and that word is not on it.
+          Unserved: If the backend has a ladder written down and that word is not on it,
+            naming `effort` as the field it is about.
         """
         from hmz.coganchor.backends import named
 
         profile = named(self.backend)
         if not effort or profile is None or profile.takes(effort):
             return
-        raise ValueError(
+        raise Unserved(
             f"{profile.name} cannot be asked to think at {effort!r}; expected one of "
-            f"{', '.join(profile.efforts)}"
+            f"{', '.join(profile.efforts)}",
+            "effort",
         )
 
     def _tellable(self) -> bool:

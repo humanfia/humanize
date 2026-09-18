@@ -47,7 +47,7 @@ from .base import AgentBase, SessionBase, _ended
 # `UNSAID` is already taken here, by the word ACP has for what a backend runs, so the
 # ladder's own word for a rung nobody settled comes in under the name it is described by.
 from .config import UNSAID as NO_RUNG
-from .config import AgentConfig
+from .config import AgentConfig, Unserved
 from .event import Event, Failed, Saying
 from .watchdog import Watchdog
 
@@ -1121,10 +1121,11 @@ class AcpAgent(AgentBase):
         """
         super()._serves(config)
         if config.permission not in (NO_RUNG, "bypass"):
-            raise ValueError(
+            raise Unserved(
                 "the agent client protocol has no way of allowing an agent less than "
                 "everything; permission must be 'bypass', or left unsaid for the agent as "
-                f"whoever installed the CLI configured it, not {config.permission!r}"
+                f"whoever installed the CLI configured it, not {config.permission!r}",
+                "permission",
             )
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> AcpSession:

@@ -38,6 +38,7 @@ from typing import (
     TYPE_CHECKING,
     Annotated,
     Any,
+    Final,
     NamedTuple,
     cast,
     get_args,
@@ -48,7 +49,14 @@ from typing import (
 from hmz.runtime import telemetry
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Generator, Mapping, Sequence
+    from collections.abc import (
+        Awaitable,
+        Callable,
+        Generator,
+        Iterable,
+        Mapping,
+        Sequence,
+    )
 
     from pydantic import BaseModel
 
@@ -428,6 +436,13 @@ class Place(NamedTuple):
         A place run under a `Goal` has them, whatever else it wrote.
       web_search: Whether it may search the web, said the same way, and None for a place that
         said nothing either way.
+      insist: Whether a backend that cannot carry one of the three refuses the run, said the
+        same way and True for a place that said nothing -- which is every place written
+        before there was a word for it, and what the doctrine asks for. False settles what
+        the backend can be told, drops the one setting it cannot, and says which place, which
+        setting and what the agent does instead. It is never the features the flow calls:
+        those are refused whatever this says, an agent without `steer` being one whose loop
+        breaks at the first `interject` rather than before its first turn.
       needs: What filling this place takes, which the flow said by writing
         `Annotated[Agent, Needs("steer", where=("isolated",))]` where it declared it -- what
         the backend has to serve, and what the machine its turns land on has to come to.
@@ -448,6 +463,7 @@ class Place(NamedTuple):
     permission: str = ""
     goals: bool = True
     web_search: bool | None = None
+    insist: bool = True
     needs: Needs | None = None
 
 
@@ -1631,15 +1647,47 @@ def _settled(
         that tried it driving the agents it had, exactly as a refused config does.
     """
     were: list[AgentConfig] = []
+    dropped: list[str] = []
     try:
         for agent, place in zip(driven, places, strict=True):
-            were.append(agent.config if place.person else runs_at(flow, agent, place))
+            were.append(
+                agent.config
+                if place.person
+                else runs_at(flow, agent, place, dropped=dropped)
+            )
     except NotAFlow:
         for agent, was in zip(driven, were, strict=False):
             if agent.config != was:
                 _settles(agent).reconfigure(was)
         raise
+    _aside(dropped, driven)
     return tuple(were)
+
+
+def _aside(said: Sequence[str], driven: Sequence[Agent]) -> None:
+    """Says what a called flow could not carry, where a call is the middle of a run.
+
+    The run is already going by the time a flow calls another, so there is no `Runner` left
+    to ask and nowhere to put the answer until somebody asks for it -- these agents are
+    already being watched or already writing to a terminal. So it is said the way a driver
+    says a thing mid-run: on stderr, and only where nothing is watching. Whatever is watching
+    owns the screen, and it is drawing these agents' own lines onto it.
+
+    Args:
+      said: The lines, which is empty for the calls that carried everything.
+      driven: The agents of the call, for whether anything is watching them.
+    """
+    import sys
+
+    from hmz.coganchor.agents.event import say
+
+    if not said or any(
+        cast("Driven", agent)._watchers  # noqa: SLF001 -- the one question a line of ours asks
+        for agent in driven
+    ):
+        return
+    for line in said:
+        say(line, sys.stderr)
 
 
 def _differently(
@@ -1934,7 +1982,101 @@ def _somewhere(
         )
 
 
-def runs_at(flow: str | os.PathLike[str], agent: Agent, place: Place) -> AgentConfig:
+#: What a place may have an opinion about, and the answer each of them has where the place has
+#: none. Read two ways in one line of :func:`runs_at`: to build what the place asks for, and to
+#: work out which of the settings a refusal names were the place's to give up.
+_DECLARABLE: Final = ("permission", "goals", "web_search")
+
+
+def _declared(place: Place) -> frozenset[str]:
+    """Which of the three the place actually raised the subject of.
+
+    A place declaring nothing declares nothing at all, and the fields carry that as three
+    different silences -- `UNSAID` is the empty rung, None is no answer about the web, and
+    `goals=True` is the goal feature left wherever it was. Each of them settles nothing when
+    it meets an agent, so each of them is nothing to drop either.
+
+    Args:
+      place: What the flow declared.
+
+    Returns:
+      The `AgentConfig` field names the place gave an answer for, which is what leniency is
+      allowed to take back and the whole of it. A tier the agent was built with and an effort
+      somebody typed are refused whatever the place says about insisting: the place never
+      asked for them, so dropping them would be dropping somebody else's answer.
+    """
+    said = {
+        "permission": bool(place.permission),
+        "goals": place.goal or not place.goals,
+        "web_search": place.web_search is not None,
+    }
+    return frozenset(field for field in _DECLARABLE if said[field])
+
+
+def _instead(setting: str, was: AgentConfig) -> str:
+    """What the agent will actually do about a setting that was dropped, in words.
+
+    The whole point of saying a setting was dropped is saying what stands in its place, and
+    what stands in its place is whatever the agent was already carrying. Worded rather than
+    printed as a value, because the value that matters most here is a silence: `None` and
+    `""` are the two answers that read as nothing on a screen and mean something particular.
+
+    Args:
+      setting: The `AgentConfig` field.
+      was: The agent as it was before the place was settled onto it.
+
+    Returns:
+      The half-sentence that follows "so".
+    """
+    kept = getattr(was, setting, None)
+    if setting == "web_search":
+        if kept is None:
+            return "it goes on reading the web exactly as whoever installed its CLI has it"
+        return f"it runs with web_search={kept!r}"
+    if setting == "permission":
+        if not kept:
+            return "it runs at whatever rung its own CLI's headless run leaves it at"
+        return f"it runs at {kept!r}"
+    return f"it runs with {setting}={kept!r}"
+
+
+def _dropped(
+    flow: str | os.PathLike[str],
+    place: Place,
+    agent: Agent,
+    was: AgentConfig,
+    settings: Iterable[str],
+) -> str:
+    """The line that says a declaration was not carried, so that nothing is carried quietly.
+
+    Args:
+      flow: The flow, said the way a refusal says it.
+      place: What the flow declared.
+      agent: The agent filling it.
+      was: What that agent carries, which is what it goes on carrying.
+      settings: The `AgentConfig` fields being given up.
+
+    Returns:
+      One line, naming the place, the setting, and what the agent will do instead.
+    """
+    each = ", ".join(
+        f"{setting} ({_instead(setting, was)})" for setting in sorted(settings)
+    )
+    return (
+        f"{flow}: {place.name or 'the agent'} declares what {agent.backend} cannot be told, "
+        f"so that declaration is dropped rather than kept as one that lies -- {each}. "
+        "The place did not insist; `AgentDefaults(insist=True)` beside it refuses the run "
+        "instead."
+    )
+
+
+def runs_at(
+    flow: str | os.PathLike[str],
+    agent: Agent,
+    place: Place,
+    *,
+    dropped: list[str] | None = None,
+) -> AgentConfig:
     """Settles what one agent may do, whether it has goals and whether it reads the internet.
 
     The three things a flow says about the work rather than about the agent, and the flow is
@@ -1951,10 +2093,40 @@ def runs_at(flow: str | os.PathLike[str], agent: Agent, place: Place) -> AgentCo
     at all -- looser than any rung, since nothing said is the CLI left to decide -- and calling
     a flow somebody else wrote would be how a person's `read-only` gets undone.
 
+    Tighter only is one axis, and how hard the declaration binds is the other. A place that
+    writes `insist=False` says it would rather run on a backend that cannot be told than not
+    run at all -- which is the honest thing for a benchmark to want, `web_search=False` being
+    a statement about the comparison rather than about the roster, and three backends with no
+    switch being three noisier cells rather than three cells that never happened. Leniency
+    then does exactly one thing, and it is not ignoring the setting: the setting that could
+    not be carried is **dropped**, the rest are settled, and what was dropped is said out
+    loud, naming the place, the setting, and what the agent does instead. A config left
+    carrying `web_search=False` on an agent that will go on searching is the failure this
+    whole seam exists to prevent, and it is no less a failure for having been asked for
+    politely.
+
+    Only what the place declared may be dropped. A refusal naming `service_tier` or a rung of
+    `effort` is a refusal about what the agent was built with -- nobody in the flow asked for
+    it, so nobody in the flow may give it up -- and it is raised whatever the place says about
+    insisting. That is what the typed refusal is for: a sentence cannot be asked which field
+    it was about, and this needs to ask.
+
+    Settled in more than one pass, because :meth:`_serves` raises at the first thing it finds
+    and there is no way to ask a backend for the whole list. A place declaring two settings
+    against a backend that can carry neither is refused once about the first, drops it, and is
+    refused again about the second -- so each pass gives up at least one field, and there are
+    only three fields, so it ends. Tried again rather than worked out ahead of time because
+    what a backend serves is the backend's to say: the alternative is a table here of what
+    every driver refuses, which is the same table twice and the second copy always wrong.
+
     Args:
       flow: The flow, for what a refusal says.
       agent: The agent filling the place.
       place: What the flow declared.
+      dropped: Where to put a line about each declaration that was not carried, or None for
+        a caller with nowhere to put one. Collected rather than printed, for the reason
+        `Runner.unreadable` is: the object that knows answers, and whoever has a screen does
+        the saying -- `hmz exec` on stderr, the interface in the transcript.
 
     Returns:
       What the agent was set up as before this, so that a flow which called another can hand
@@ -1963,35 +2135,61 @@ def runs_at(flow: str | os.PathLike[str], agent: Agent, place: Place) -> AgentCo
     Raises:
       NotAFlow: If the backend has no way of being told what the flow said -- a CLI that
         cannot be told not to search the web is a CLI that would go on searching, which is a
-        declaration that lies rather than one that holds.
+        declaration that lies rather than one that holds. Unless the place wrote
+        `insist=False` and the refusal is about something the place itself declared, in which
+        case that one declaration is given up instead and a line about it goes to `dropped`.
     """
     from dataclasses import replace
 
-    from hmz.coganchor.agents import searching, tightest
+    from hmz.coganchor.agents import Unserved, searching, tightest
 
     was = agent.config
-    try:
-        # Inside the try because writing the config is where a backend refuses as surely as
-        # settling it is: a config of its own may hold two of these settings against each
-        # other -- a rung it can only say in a table this agent was told not to write -- and
-        # that refusal is the same refusal, owed the same sentence about which place it was.
-        wanted = replace(
-            was,
-            permission=tightest(was.permission, place.permission),
-            # A place run under a goal has one whatever the agent came with: an agent with
-            # goals switched off is refused where the place is filled rather than quietly run
-            # without.
-            goals=place.goals if place.goal else (was.goals and place.goals),
-            web_search=searching(was.web_search, place.web_search),
-        )
-        if wanted == was:
-            return was
-        _settles(agent).reconfigure(wanted)
-    except ValueError as refused:
-        raise NotAFlow(
-            f"{flow}: {place.name or 'the agent'} cannot be run as this flow declares "
-            f"-- {refused}"
-        ) from refused
+    declared = _declared(place)
+    giving: frozenset[str] = frozenset()
+    while True:
+        try:
+            # Inside the try because writing the config is where a backend refuses as surely
+            # as settling it is: a config of its own may hold two of these settings against
+            # each other -- a rung it can only say in a table this agent was told not to
+            # write -- and that refusal is the same refusal, owed the same sentence about
+            # which place it was.
+            asks = {
+                "permission": tightest(was.permission, place.permission),
+                # A place run under a goal has one whatever the agent came with: an agent
+                # with goals switched off is refused where the place is filled rather than
+                # quietly run without.
+                "goals": place.goals if place.goal else (was.goals and place.goals),
+                "web_search": searching(was.web_search, place.web_search),
+            }
+            # A setting given up is the place's answer taken back out, which leaves the
+            # agent's own -- not some third value, and not the place's applied quietly.
+            wanted = replace(
+                was,
+                **{
+                    field: getattr(was, field) if field in giving else asks[field]
+                    for field in _DECLARABLE
+                },
+            )
+            if wanted == was:
+                break
+            _settles(agent).reconfigure(wanted)
+        except Unserved as refused:
+            give = refused.settings - giving
+            if not place.insist and give and refused.settings <= declared:
+                giving |= give
+                continue
+            raise NotAFlow(
+                f"{flow}: {place.name or 'the agent'} cannot be run as this flow declares "
+                f"-- {refused}"
+            ) from refused
+        except ValueError as refused:
+            raise NotAFlow(
+                f"{flow}: {place.name or 'the agent'} cannot be run as this flow declares "
+                f"-- {refused}"
+            ) from refused
+        break
+    if giving and dropped is not None:
+        dropped.append(_dropped(flow, place, agent, was, giving))
     return was
 
 
@@ -2195,6 +2393,7 @@ def _place(name: str, kind: object) -> Place:
         # checker says so about rather than one that quietly does neither.
         goals=True if goal else runs.goals,
         web_search=runs.web_search,
+        insist=runs.insist,
         needs=needs,
     )
 

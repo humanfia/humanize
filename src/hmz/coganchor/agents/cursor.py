@@ -33,7 +33,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 from hmz.coganchor import backends, models
 
 from .base import AgentBase, CommandSessionBase
-from .config import AgentConfig
+from .config import AgentConfig, Unserved
 from .event import Event, Failed, Usage
 from .hooks import EVERYWHERE, SUBAGENTS, Moment
 
@@ -206,8 +206,10 @@ def spelled(model: str, effort: str, *, fast: bool, listed: tuple[str, ...]) -> 
       What to put after `--model`, which is the model itself where there was nothing to add.
 
     Raises:
-      ValueError: If the account lists this model and not the id the rung or the tier makes of
-        it -- an effort it has no variant for, a service it is not served on.
+      Unserved: If the account lists this model and not the id the rung or the tier makes of
+        it -- an effort it has no variant for, a service it is not served on. It names all
+        three, because the id is all three spelled together and no one of them is the one at
+        fault: `sonnet-4.5` and `high` are each offered, and `sonnet-4.5-high` may not be.
     """
     if "[" in model:
         return model
@@ -220,8 +222,11 @@ def spelled(model: str, effort: str, *, fast: bool, listed: tuple[str, ...]) -> 
         return wanted
     kin = [one for one in listed if one.startswith(f"{model}-")]
     runs = ", ".join(kin) if kin else "itself alone, at whatever Cursor gives it"
-    raise ValueError(
-        f"{_COMMAND} lists no {wanted}: this account runs {model} as {runs}"
+    raise Unserved(
+        f"{_COMMAND} lists no {wanted}: this account runs {model} as {runs}",
+        "model",
+        "effort",
+        "service_tier",
     )
 
 
@@ -555,7 +560,7 @@ class CursorAgent(AgentBase):
           config: What the agent is to run at.
 
         Raises:
-          ValueError: For the three the base class refuses, and for a model this account is
+          Unserved: For the three the base class refuses, and for a model this account is
             offered that it is not offered at this rung or on this service.
         """
         super()._serves(config)

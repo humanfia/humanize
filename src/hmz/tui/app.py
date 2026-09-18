@@ -3320,6 +3320,12 @@ class Humanize(App[None]):
         except Exception as why:  # noqa: BLE001 -- a flow that will not load is a line to fix
             self.show(f"hmz: {why}", "red")
             return
+        # What a place declared that its agent's backend had no way of carrying, for a place
+        # that said it would rather run than be refused. Drawn where the interface's own
+        # lines go, before the run starts: the setting was dropped, and a drop nobody was
+        # told about would be the very thing the drop was there to avoid.
+        for line in runner.unserved().splitlines():
+            self.show(f"hmz: {line}", "yellow")
         agents = list(runner.agents)
         self._agents = self._ran = agents
         with self._btw_lock:

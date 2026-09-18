@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from .base import AgentBase, CommandSessionBase
-from .config import AgentConfig
+from .config import AgentConfig, Unserved
 from .event import Event, Failed, Usage
 
 if TYPE_CHECKING:
@@ -408,21 +408,26 @@ class OpencodeAgentConfig(AgentConfig):
                 f"not {self.cli_agent!r}"
             )
         if not self.permission_table:
-            unsayable = [
-                said
-                for said, narrowed in (
-                    (
-                        f"permission={self.permission!r}",
-                        self.permission not in _UNNARROWED,
-                    ),
-                    ("web_search=False", not self.web_search),
-                )
-                if narrowed
-            ]
-            if unsayable:
-                raise ValueError(
+            narrowing = {
+                # `is False` rather than a truth test: a config that settles nothing about
+                # the web says nothing to this table either, and nothing said is nothing
+                # that can be withheld. The same rule the rest of this package reads the
+                # three-answer `web_search` by.
+                "permission": self.permission not in _UNNARROWED,
+                "web_search": self.web_search is False,
+            }
+            said = {
+                "permission": f"permission={self.permission!r}",
+                "web_search": "web_search=False",
+            }
+            if unsayable := [field for field, narrowed in narrowing.items() if narrowed]:
+                raise Unserved(
                     "permission_table=False withholds the only table this backend hears "
-                    f"{' and '.join(unsayable)} in"
+                    f"{' and '.join(said[field] for field in unsayable)} in",
+                    # Both at once where both were narrowed, because dropping either on its
+                    # own leaves the table just as withheld and the other just as unsayable:
+                    # this is one refusal about a pair, not two that happened to coincide.
+                    *unsayable,
                 )
 
 

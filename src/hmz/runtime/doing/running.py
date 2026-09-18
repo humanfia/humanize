@@ -55,6 +55,15 @@ class Run:
         """
         return self._runner.unreadable()
 
+    def unserved(self) -> str:
+        """Which of this flow's declarations its agents' backends could not carry, in words.
+
+        Returns:
+          One line per declaration given up by a place that wrote `insist=False`, or "" for
+          a run that carried everything its flow declared.
+        """
+        return self._runner.unserved()
+
     @property
     def running(self) -> bool:
         """Whether the flow is still going, which is False before it is started."""

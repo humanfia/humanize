@@ -151,6 +151,11 @@ class Runner:
             raise NotAFlow(
                 f"{flow}: the flow drives {len(asked)} agents, {len(agents)} given"
             )
+        # Whatever a place declared that its agent's backend had no way of carrying, for a
+        # place that said it would rather run than be refused. Kept rather than printed: this
+        # is the same shape as `unreadable`, where the object that knows answers and whoever
+        # has a screen does the saying.
+        unserved: list[str] = []
         # Before the first turn, for the reason the count is: a flow that hangs a hook on a
         # moment its agent does not run would otherwise find out hours into a loop, from a
         # hook that raised where it was hung rather than from the line that chose the agent.
@@ -179,7 +184,7 @@ class Runner:
             # reads the internet -- over whatever it was made with, because those three are
             # the flow's and nobody else's: whoever chose the agent chose a CLI, a model, an
             # effort and an account, and none of that says what the work is.
-            runs_at(flow, agent, place)
+            runs_at(flow, agent, place, dropped=unserved)
         # The person at the prompt is made here rather than given: nobody chooses what they
         # run, so nothing upstream of this was ever asked about them.
         given = iter(agents)
@@ -191,6 +196,7 @@ class Runner:
         # first turn, since a repository the flow named is fetched to get it: a run that
         # cannot reach one says so here rather than an hour into a loop.
         carries(flow, driven)
+        self._unserved = tuple(unserved)
         self._run: Entry = run
         # Only for a flow that said it takes one, so that every flow written before there
         # was such a thing is still called with the two arguments it declares.
@@ -266,6 +272,21 @@ class Runner:
         from hmz.coganchor.agents.allowance import Ledger, unreadable
 
         return unreadable(Ledger(self._budget, self._driven).reads().blind)
+
+    def unserved(self) -> str:
+        """Which of this flow's declarations its agents' backends could not carry, in words.
+
+        A place that wrote `insist=False` would rather run on a backend that cannot be told
+        than not run at all, and what it gets is the declaration dropped rather than applied
+        quietly. Dropped is the honest half; said is the other half, and this is where the
+        saying starts -- answered on the runner, which is what settled them, and worded by
+        whoever has a screen: `hmz exec` on stderr, the interface in the transcript.
+
+        Returns:
+          One line per declaration given up, or "" for a run that carried everything its
+          flow declared -- which is every run of every flow that did not ask for leniency.
+        """
+        return "\n".join(self._unserved)
 
     def run(self, task: str) -> None:
         """Runs the flow in this directory, for as long as it keeps running.

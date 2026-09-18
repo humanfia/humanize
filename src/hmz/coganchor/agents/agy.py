@@ -21,7 +21,7 @@ from hmz.coganchor import backends
 
 from ._inputs import snapshot
 from .base import AgentBase, CommandSessionBase, SessionBase, StreamSessionBase
-from .config import AgentConfig
+from .config import AgentConfig, Unserved
 from .event import Event, Failed, Saying, Usage
 
 if TYPE_CHECKING:
@@ -702,7 +702,7 @@ class AntigravityCLIAgent(AgentBase):
           config: What its turns are to run at.
 
         Raises:
-          ValueError: If slash command expansion is off at `read-only`. agy answers that
+          Unserved: If slash command expansion is off at `read-only`. agy answers that
             pairing with `--mode plan has no effect while slash command expansion is
             disabled` and goes on running, which is an agent that may write under a rung
             saying it may not -- and a rung that lies is worse than one that is refused. Only
@@ -710,9 +710,13 @@ class AntigravityCLIAgent(AgentBase):
         """
         super()._serves(config)
         if _settled(config).disable_slash_commands and config.permission == "read-only":
-            raise ValueError(
+            raise Unserved(
                 f"{_COMMAND} cannot run at read-only with disable_slash_commands: "
-                f"its plan mode has no effect while expansion is off"
+                f"its plan mode has no effect while expansion is off",
+                # The rung rather than the switch: `disable_slash_commands` is a setting of
+                # this backend's own config, which nothing outside it declares and nothing
+                # outside it may drop. The rung is the half a place can have asked for.
+                "permission",
             )
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> AntigravityCLISession:

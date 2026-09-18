@@ -26,7 +26,7 @@ import yaml
 from hmz.coganchor import backends
 
 from .base import AgentBase, SessionBase
-from .config import UNSAID, AgentConfig
+from .config import UNSAID, AgentConfig, Unserved
 from .event import Event, Failed, Saying, Unrecoverable, Usage, say
 from .watchdog import Watchdog
 
@@ -265,10 +265,11 @@ class DshAgent(AgentBase):
         """
         super()._serves(config)
         if config.permission not in (UNSAID, "bypass"):
-            raise ValueError(
+            raise Unserved(
                 "the dsh runtime bundles no confining bash executor, so no rung below "
                 "bypass can be enforced; permission must be 'bypass', or left unsaid for "
-                f"the composition a bare SDK session already runs, not {config.permission!r}"
+                f"the composition a bare SDK session already runs, not {config.permission!r}",
+                "permission",
             )
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> DshSession:

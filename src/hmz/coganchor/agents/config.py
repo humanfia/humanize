@@ -32,6 +32,7 @@ __all__ = [
     "Isolated",
     "Needs",
     "Remote",
+    "Unserved",
     "anchored",
     "isolated",
     "searching",
@@ -69,6 +70,41 @@ UNSAID = ""
 #: Every answer a config may be written with: the ladder, and the silence above it. Loosest
 #: last, which is what :func:`tightest` reads it in.
 _SAYABLE = (*PERMISSIONS, UNSAID)
+
+
+class Unserved(ValueError):  # noqa: N818  -- what the setting is here, not what went wrong
+    """Raised for a setting this backend has no way of carrying.
+
+    Every shortfall in this layer was a bare `ValueError` with a sentence written where it
+    was found, which is everything a person needs and nothing a caller can act on: the one
+    place a flow's declaration meets a backend -- :func:`hmz.flows.driving.runs_at` -- could
+    read the sentence and re-raise it, and no more. To drop the one setting that could not be
+    carried and settle the rest, it has to know which one that was, and a sentence is not a
+    name.
+
+    So the name travels beside the sentence, and the sentence is unchanged: this is a
+    `ValueError` still, raised where the old one was and worded as the old one was, so every
+    `except ValueError` that caught the shortfall before catches it now and every message
+    still reads exactly as it read.
+
+    Attributes:
+      settings: The :class:`AgentConfig` fields this backend could not carry, by name. Almost
+        always one -- a tier it cannot send, a rung it has no word for, a web search it
+        cannot switch off. More than one where a config refuses a pair rather than either
+        half of it: opencode withholding its permission table hears neither a narrowing rung
+        nor a no about the web, and names both, because dropping one of them leaves the other
+        just as unsayable.
+    """
+
+    def __init__(self, said: str, *settings: str) -> None:
+        """Says what could not be carried, and which settings it was.
+
+        Args:
+          said: The sentence, exactly as a bare `ValueError` said it here before.
+          settings: The `AgentConfig` field names, one or more.
+        """
+        super().__init__(said)
+        self.settings = frozenset(settings)
 
 
 def tightest(was: str, said: str) -> str:
@@ -266,6 +302,31 @@ class AgentDefaults:
         never raised that subject either. Three answers rather than two, because asking for
         the web is as much a declaration as refusing it, and neither is the same as not
         asking.
+      insist: Whether a backend that cannot carry one of these refuses the run, which is what
+        a place says nothing about and what every place did before there was a word for it.
+        A declaration is meant to hold, and a backend that quietly went on searching would be
+        a declaration that lies -- so the strict reading is the default and stays the default,
+        and a flow that wants it need write nothing.
+
+        `insist=False` is the other honest answer, and it is not "ignore it". It is: settle
+        what this backend can be told, drop the one setting it cannot, and say out loud which
+        place, which setting, and what the agent will actually do instead. Nothing is left
+        carrying an answer the agent will not keep. What it buys is a flow that declares of
+        the work rather than of the roster -- a benchmark written to run one task across every
+        CLI there is declares `web_search=False` because that is what the comparison needs,
+        and three backends with no way of being told should cost it three noisier cells
+        rather than three cells that never ran::
+
+            reviewer: Annotated[
+                AgentBase, AgentDefaults(web_search=False, insist=False)
+            ]
+
+        It covers only the settings that would otherwise lie about themselves -- this rung,
+        this answer about the web, and the tier and the effort a config reaches a backend
+        already carrying. Deliberately not the features a flow calls: a place that wanted
+        `steer` and got an agent without it is a place whose loop breaks at the first
+        `interject`, and there is nothing kind about moving that failure from before the
+        first turn to five hours in.
 
     Raises:
       ValueError: If the rung is not one there is, said as the flow is read rather than
@@ -275,6 +336,7 @@ class AgentDefaults:
     permission: str = UNSAID
     goals: bool = True
     web_search: bool | None = None
+    insist: bool = True
 
     def __post_init__(self) -> None:
         if self.permission not in _SAYABLE:

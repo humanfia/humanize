@@ -143,6 +143,12 @@ def _exec(argv: list[str]) -> int:
             )
         if blind := running.unreadable():
             out.aside(f"hmz exec: {blind}, so that cap cannot stop this run")
+        # And what a place declared that its agent could not be told. Said for the same
+        # reason and on the same stream: a declaration that was dropped is a fact about how
+        # this run was set up, and one nobody was told about would be a setting that lied
+        # after all.
+        for line in running.unserved().splitlines():
+            out.aside(f"hmz exec: {line}")
         try:
             running.run()
         except (KeyboardInterrupt, SystemExit):
