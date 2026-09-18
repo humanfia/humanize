@@ -554,11 +554,17 @@ _ANSWERS = ("approved", "rejected")
 #: `read-only` and `auto` it does: `AskUserQuestion` is approved by default under both `manual`
 #: and `yolo`, and `/questions` has always been read.
 #:
-#: What would make `read-only` bite harder still is the `tools` key of this same body, which
-#: takes an allow-list: a rung that cannot name `Bash` needs no approval refused, because there
-#: is no call to refuse. That is the honest way to make the rung a fence rather than a gate
-#: somebody has to hold, and it is a change to make deliberately, against a Kimi that can run a
-#: turn, rather than one to infer from reading its bundle.
+#: What would make `read-only` bite harder still is a rung that cannot reach for `Bash` at
+#: all: no call to refuse is a fence, where an approval answered is a gate somebody has to
+#: hold. It is not the `tools` key of this body, which is the thing to say plainly because
+#: this file said the opposite. `sessionAgentConfigSchema` does declare `tools`, so a body
+#: carrying one is taken with a 200 -- and `applySessionAgentConfig` then reads `model`,
+#: `thinking`, `permission_mode`, `plan_mode`, `swarm_mode`, `tower_mode` and the two goal
+#: keys, and nothing else. The allow-list is accepted and dropped, and an agent sent one
+#: keeps all of its tools. What the daemon really takes is `disabled_tools`, on the *prompt*
+#: body rather than this one, which `setSessionDisabledTools` applies to the session. Both
+#: checked against 0.42.0, the first of them live. Which is somebody else's change to make
+#: and is being made: it is a lever on the prompt, and this table sets the session.
 _PERMITTED = {
     "read-only": {"permission_mode": "manual", "plan_mode": True},
     "workspace-write": {"permission_mode": "auto", "plan_mode": False},
@@ -826,6 +832,22 @@ class KimiCodeCLISession(SessionBase):
         #: what has been answered already, so a hiccup on the approvals route moving the
         #: question route onto it would have the flow answer an answered question again.
         self._filter: dict[str, str] = dict.fromkeys(_HELD, "?status=pending")
+        #: Which of :data:`_HELD` this daemon turned out not to serve, so that a build
+        #: without one of them is asked once rather than twice a second forever. Both
+        #: spellings of a route answering 404 is the build saying it has no such route,
+        #: and a build does not grow one while a turn is running.
+        self._unserved: set[str] = set()
+        #: Every approval this session has already answered. The list the daemon holds is
+        #: its unresolved ones, so on 0.42.0 an answered approval is gone from it by the
+        #: time it is read again -- but nothing on the wire says so. An approval carries no
+        #: `status`: `toWireApproval` gives an id, the tool, the action, the call and two
+        #: timestamps, and the filtering is the server's own `findAll({resolved: false})`.
+        #: So a build that listed a resolved one anyway -- or a bare-path fallback onto a
+        #: list that does not leave them out -- would have this driver answer it a second
+        #: time, and a second answer is refused (`approval X already resolved`) every
+        #: second until the turn dies of it. Remembered here instead, which also keeps
+        #: `PERMISSION_REQUEST` at one firing per tool call rather than one per poll.
+        self._answered: set[str] = set()
 
     @property
     def named(self) -> str | None:
@@ -901,6 +923,8 @@ class KimiCodeCLISession(SessionBase):
         Raises:
           subprocess.CalledProcessError: If the daemon will not say either way.
         """
+        if what in self._unserved:
+            return []
         server = self._agent.server
         route = f"/sessions/{session}/{what}"
         try:
@@ -914,12 +938,17 @@ class KimiCodeCLISession(SessionBase):
             try:
                 held = server.call("GET", route + other)
             except subprocess.CalledProcessError as missing:
-                # Neither spelling, and both times for want of the route rather than of an
-                # answer: this daemon does not serve it. Which is nothing held rather than
-                # something unreadable -- a build old enough to have no approvals route
-                # raises no approvals either, and failing its turns over a list it was
-                # never going to fill would be this reading costing what it exists to save.
+                # Neither spelling, and at least one of them for want of the route rather
+                # than of an answer: this daemon does not serve it. Which is nothing held
+                # rather than something unreadable -- a build old enough to have no
+                # approvals route raises no approvals either, and failing its turns over a
+                # list it was never going to fill would be this reading costing what it
+                # exists to save. Written down rather than found again: one `kimi web`
+                # serves every session of its agent, and two refused calls a second on a
+                # route it will never grow is the shared daemon paying for a reading that
+                # cannot answer. Said once, and asked no more for the life of the session.
                 if _ABSENT in (refusal.returncode, missing.returncode):
+                    self._unserved.add(what)
                     return []
                 raise
             # Which one answered is kept, so that a poll a second is not a refusal a second
@@ -953,6 +982,10 @@ class KimiCodeCLISession(SessionBase):
         said as its reason, which the daemon hands the model as a line saying the tool was not
         run: the turn goes on, having been refused, rather than ending.
 
+        Once apiece, by the id the daemon gave it: an approval answered a second time is
+        refused rather than resolved, and a refusal a second is a working turn dying inside
+        the recovery window for having done its job twice.
+
         Args:
           session: The session the turn is running in.
 
@@ -964,6 +997,9 @@ class KimiCodeCLISession(SessionBase):
             pending = cast("dict[str, Any]", raw)
             if not (approval := pending.get("approval_id")):
                 continue  # not an approval, whatever else the daemon answered with
+            if (named := str(approval)) in self._answered:
+                continue  # answered already, and the daemon takes one answer
+            self._answered.add(named)
             asking = self._fire(
                 Moment.PERMISSION_REQUEST,
                 tool=str(pending.get("tool_name") or ""),
@@ -973,7 +1009,7 @@ class KimiCodeCLISession(SessionBase):
             allowed, refused = _ANSWERS
             self._agent.server.call(
                 "POST",
-                f"/sessions/{session}/approvals/{approval}",
+                f"/sessions/{session}/approvals/{named}",
                 {"decision": refused, "feedback": asking.because or "refused by a hook"}
                 if asking.refused
                 else {"decision": allowed},
@@ -1497,13 +1533,40 @@ class KimiCodeCLISession(SessionBase):
 class KimiCodeCLIAgent(AgentBase):
     """Kimi Code, driven through an app server of its own so a whole session is settable.
 
-    Every moment a turn passes through, and one more: at every rung but the two that are
-    `auto`, the daemon holds the tool it is about to run on `/approvals` until somebody
-    resolves it -- so that is the one place a hook here can say no to something and have the
-    agent hear it. At `workspace-write` and `bypass` nothing is ever asked, and a hook hung
-    on that moment never fires.
+    Every moment a turn passes through, and one more: the daemon holds the tool it is about
+    to run on `/approvals` until somebody resolves it, and that is the one place a hook here
+    can say no to something and have the agent hear it.
     """
 
+    #: Said of the backend and not of the rung, which is the whole of why this is one line
+    #: rather than a reading of the config beside it. Two rungs of the four raise no
+    #: approvals -- `workspace-write` and `bypass` are Kimi's `auto`, which approves
+    #: everything before any policy can ask -- so a hook hung there is a hook that never
+    #: fires. Declared anyway, for three reasons, and none of them is that another backend
+    #: does it this way:
+    #:
+    #: What :attr:`AgentBase.moments` answers is whether the backend can be answered
+    #: mid-flight at all -- whether there is a surface where a turn waits on us and a refusal
+    #: reaches the model. This one has it: the route, the wait, and the `rejected` the model
+    #: is handed. How often a given run reaches it is a fact about the run. A flow that hangs
+    #: `PRE_TOOL_USE` on an agent whose turn calls no tool also watches a moment that never
+    #: arrives, and that is not what :class:`Unhooked` is for; it is for a hook hung where
+    #: the backend could never have answered it.
+    #:
+    #: The two rungs where it is dead are the two that mean *nothing is asked*. A flow that
+    #: hangs a gate and then picks the rung whose whole content is that there is no gate has
+    #: said two things, and the rung is the more specific of them -- said in the same
+    #: annotation, at the same place, one line from the moment. Refusing that combination
+    #: here would be this driver overruling a flow about the flow's own setting.
+    #:
+    #: And the rung is the thing that moves. A place may narrow one after the agent is
+    #: built, and the rung an agent comes at is a default rather than a fact about this
+    #: backend -- at no rung at all, which is humanize saying nothing, the session runs at
+    #: `manual`, where approvals are raised and this moment is live. So the set of rungs
+    #: that fire it is neither fixed nor this file's to know. A capability that went false
+    #: and true as a setting moved under it would be a worse promise than one that is
+    #: occasionally generous: what this is read for is refusing a flow before its first
+    #: turn, and a promise that changes between the reading and the turn refuses nothing.
     moments: ClassVar[frozenset[Moment]] = EVERYWHERE | {Moment.PERMISSION_REQUEST}
 
     #: Kimi keeps itself going toward an objective, which is what `pursue` reaches for.
