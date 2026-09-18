@@ -227,6 +227,35 @@ async def test_saving_a_cap_nothing_can_price_asks_the_same_question(
 
 
 @pytest.mark.timeout(60)
+async def test_a_token_cap_on_a_cli_that_counts_nothing_is_asked_about_too(
+    flows: Path, tmp_path: Path
+) -> None:
+    """A CLI somebody added by hand is driven over a protocol that counts nothing at all.
+
+    So ten million output tokens on one of those is a cap that will never bite either, and the
+    menu asks about it exactly as `hmz exec` says it -- which is the whole of this: the box
+    and the line are one question about one run, and a menu that could only see the money
+    would be the same split again a dimension over.
+    """
+    from hmz.coganchor import backends
+
+    backends.remember("spoken", ["spoken"])
+    Settings(tmp_path).remember(
+        "local/quiet", ("",), [Runs("spoken/m:high")], budget={"tokens": 10}
+    )
+    app = Humanize()
+    async with app.run_test() as pilot:
+        await _into(app, pilot, "quiet")
+
+        await onto(app, pilot, _SAVE)
+        await pilot.press("enter")
+        await until(lambda: isinstance(app.screen, Unbounded), pilot)
+
+        shown = app.screen.query_one("#about", Label)
+        assert "nothing here can read tokens" in str(shown.content).lower()
+
+
+@pytest.mark.timeout(60)
 async def test_a_cap_the_run_can_read_is_not_asked_about(
     flows: Path, tmp_path: Path, priced: str
 ) -> None:

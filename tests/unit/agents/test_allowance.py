@@ -22,7 +22,7 @@ from hmz.coganchor.agents import (
     PiAgent,
     PiAgentConfig,
     Usage,
-    unread,
+    blinded,
     unreadable,
     unwatched,
 )
@@ -256,33 +256,38 @@ def test_a_flow_that_runs_under_nothing_is_not_asked_about_a_cap_nobody_reads() 
     assert not unwatched(Allowance(dollars=1), Allowance(), {"dollars"})
 
 
-def test_whether_the_money_can_be_read_is_known_before_the_first_turn(
-    priced: str,
-) -> None:
+def test_what_can_be_read_is_known_before_the_first_turn(priced: str) -> None:
     """Which is the moment worth saying it at: somebody is still being asked then.
 
-    Whether anybody prices a model is a fact about the model, so it is settled as soon as the
-    agents are known -- the menu that has just been answered with them knows it before there
-    is a run at all, let alone a meter to read one off.
+    Whether anybody prices a model is a fact about the model and whether a backend reports
+    what it writes is a fact about the backend, so both are settled as soon as the agents are
+    known -- the menu that has just been answered with them knows before there is a run at
+    all, let alone a meter to read one off.
     """
-    assert unread(Allowance(dollars=1), [UNLISTED]) == frozenset({"dollars"})
-    assert unread(Allowance(dollars=1), [priced]) == frozenset()
+    money, tokens = Allowance(dollars=1), Allowance(tokens=1)
+
+    assert blinded(money, [UNLISTED], counting=True) == frozenset({"dollars"})
+    assert blinded(money, [priced], counting=True) == frozenset()
     # As the gateway in front of several clouds spells them, which is how the run that raised
     # this question spelled them.
-    assert unread(Allowance(dollars=1), [ROUTED_UNLISTED]) == frozenset({"dollars"})
-    assert unread(Allowance(dollars=1), [ROUTED]) == frozenset()
+    assert blinded(money, [ROUTED_UNLISTED], counting=True) == frozenset({"dollars"})
+    assert blinded(money, [ROUTED], counting=True) == frozenset()
     # One priced agent is a bill that can be read, short of the rest of the run's -- which is
     # a floor, and a floor reaches a cap late rather than never.
-    assert unread(Allowance(dollars=1), [UNLISTED, priced]) == frozenset()
+    assert blinded(money, [UNLISTED, priced], counting=True) == frozenset()
+    # And the tokens off the backend rather than the model: a CLI added by hand is driven over
+    # a protocol that counts nothing, whatever it is pointed at.
+    assert blinded(tokens, [priced], counting=False) == frozenset({"tokens"})
+    assert blinded(tokens, [UNLISTED], counting=True) == frozenset()
 
 
 def test_a_cap_nobody_set_is_not_called_unreadable_before_the_run_either() -> None:
     """Nor is a run with no model in it at all, which has no bill of anybody's to miss."""
-    assert unread(Allowance(hours=1), [UNLISTED]) == frozenset()
-    assert unread(Allowance(dollars=1), []) == frozenset()
+    assert blinded(Allowance(hours=1), [UNLISTED], counting=False) == frozenset()
+    assert blinded(Allowance(dollars=1), [], counting=False) == frozenset()
     # But a model named as nothing is on nobody's price list either, and the way to be wrong
     # about that is to say so rather than to assume a bill will turn up.
-    assert unread(Allowance(dollars=1), [""]) == frozenset({"dollars"})
+    assert blinded(Allowance(dollars=1), [""], counting=True) == frozenset({"dollars"})
 
 
 def test_a_cap_nothing_can_read_is_said_however_it_was_handed_in() -> None:

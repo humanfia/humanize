@@ -68,7 +68,7 @@ from hmz.coganchor.agents import ANYONE, FLOW, SWARM, USER, anchored, driver
 from hmz.coganchor.agents.allowance import (
     Allowance,
     allowed,
-    unread,
+    blinded,
     unreadable,
     unwatched,
 )
@@ -1482,16 +1482,26 @@ def _complete(runs: Runs) -> bool:
     Returns:
       True if there is something to run it on.
     """
-    cli, _, rest = runs.spec.partition("/")
-    model, _, _ = rest.rpartition(":")
-    return bool(cli and model)
+    return bool(_cli(runs) and _model(runs))
+
+
+def _cli(runs: Runs) -> str:
+    """Which backend one agent of the menu is driven by, out of what it was set up as.
+
+    Args:
+      runs: The agent.
+
+    Returns:
+      The CLI, or "" for an agent nobody has answered yet.
+    """
+    return runs.spec.partition("/")[0]
 
 
 def _model(runs: Runs) -> str:
     """What one agent of the menu runs, out of the `cli/model:effort` it was set up as.
 
-    Read from both ends, as a command line reads one: a model may hold slashes of its own,
-    while a CLI and an effort never do.
+    Read from both ends, as :func:`hmz.runtime.kept.written` reads the same word: a model may
+    hold slashes of its own, while a CLI and an effort never do.
 
     Args:
       runs: The agent.
@@ -1499,9 +1509,27 @@ def _model(runs: Runs) -> str:
     Returns:
       The model, or "" for an agent nobody has answered yet.
     """
-    _, _, rest = runs.spec.partition("/")
-    model, _, _ = rest.rpartition(":")
-    return model
+    return runs.spec.partition("/")[2].rpartition(":")[0]
+
+
+def _counts(runs: Runs) -> bool:
+    """Whether the backend one agent of the menu is driven by reports what it writes.
+
+    Asked of the CLI rather than of the model, `counts` being that backend's own word for
+    what it can report: a CLI somebody added by hand is driven over a protocol that counts
+    nothing at all, so a cap in tokens on one of those is a cap that will never bite.
+
+    Args:
+      runs: The agent.
+
+    Returns:
+      Whether a token cap could be read off it. True for a CLI nothing here drives, which is
+      an agent no run can be started with either -- there is nothing to warn anybody about.
+    """
+    try:
+        return "output" in driver(_cli(runs))[0].counts
+    except KeyError:
+        return True
 
 
 def _cannot_read(blind: Iterable[str]) -> str:
@@ -2382,11 +2410,16 @@ class Flows(Drafts[Chosen]):
         # will stop: the save row and the question on the way out both come through here,
         # and a check written at each of them is a check one of them would lose.
         effective = allowed(self._budget, self._declared)
-        # And what those agents run is what says whether the money can be read at all, which
-        # is asked here because here is where they have just been chosen: a dollars cap on a
-        # model nobody prices is a cap that will never bite, so a run held to nothing else is
-        # a run nothing will stop -- and this is the last moment anybody can be told.
-        blind = unread(effective, [_model(one) for one in self._runs])
+        # And what those agents are is what says whether the caps can be read at all, which
+        # is asked here because here is where they have just been chosen: a cap in dollars on
+        # a model nobody prices, or in tokens on a CLI that counts none, is a cap that will
+        # never bite -- so a run held to nothing else is a run nothing will stop, and this is
+        # the last moment anybody is at a prompt to be told.
+        blind = blinded(
+            effective,
+            [_model(one) for one in self._runs],
+            counting=any(_counts(one) for one in self._runs),
+        )
         if unwatched(effective, self._declared, blind):
             self._means_it(_cannot_read(blind))
             return

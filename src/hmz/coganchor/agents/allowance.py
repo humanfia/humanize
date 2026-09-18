@@ -45,7 +45,7 @@ __all__ = [
     "Ledger",
     "Reading",
     "allowed",
-    "unread",
+    "blinded",
     "unreadable",
     "unwatched",
     "written",
@@ -267,21 +267,12 @@ class Ledger:
         enrolled = self.agents()
         output = 0.0
         billed: list[float] = []
-        counted = 0
         for agent in enrolled:
             usage = agent.spent()
             output += usage.output
-            if "output" in type(agent).counts:
-                counted += 1
             money = prices.cost(usage, agent.config.model)
             if money is not None:
                 billed.append(money)
-        # The money through `unread`, which is that question asked of the same models before
-        # the run started: a reading calling a cap readable which the menu had just called
-        # blind would be two answers to one question.
-        blind = set(unread(self._allowance, [one.config.model for one in enrolled]))
-        if self._allowance.tokens > 0 and enrolled and not counted:
-            blind.add("tokens")
         return Reading(
             seconds=time.monotonic() - self._began,
             output=output,
@@ -293,7 +284,14 @@ class Ledger:
             # nothing, and a bill short of one of those is short exactly as one short of a
             # model nobody lists at all.
             floor=bool(billed) and len(billed) < len(enrolled),
-            blind=frozenset(blind),
+            # Through `blinded`, which is the same question asked of the same agents before
+            # the run started: a reading calling a cap readable that the menu had just called
+            # blind would be two answers to one question.
+            blind=blinded(
+                self._allowance,
+                [one.config.model for one in enrolled],
+                counting=any("output" in type(one).counts for one in enrolled),
+            ),
         )
 
     def over(self) -> str:
@@ -444,18 +442,17 @@ def allowed(
     return declared if declared is not None else DEFAULT
 
 
-def unread(allowance: Allowance, models: Iterable[str]) -> frozenset[str]:
-    """Which of the caps this allowance sets nothing running these models could read.
+def blinded(
+    allowance: Allowance, models: Iterable[str], *, counting: bool
+) -> frozenset[str]:
+    """Which of the caps this allowance sets nothing in such a run could read.
 
-    Asked of the models rather than of a reading, because whether anybody prices one is
-    settled the moment the agents are known -- which is before the first turn, and before the
-    first turn is where somebody can still be asked whether the run they are starting is the
-    run they meant. :meth:`Ledger.reads` asks the same thing of a run that is already going;
-    this asks it of one that has not started.
-
-    Money is the only dimension a model's name settles. Whether what a run writes can be read
-    at all is its backend's rather than its model's -- what that CLI reports, not what it runs
-    -- so a token cap nothing counts is named by :attr:`Reading.blind` and not here.
+    The one place that is worked out, and worked out from what is known before a turn has
+    been taken rather than from a meter: whether anybody prices a model is a fact about the
+    model, and whether a backend reports what it writes is a fact about the backend. Both are
+    settled the moment the agents are chosen -- which is where somebody can still be asked
+    whether the run they are starting is the run they meant, and :meth:`Ledger.reads` is the
+    same question asked again of a run that is already going.
 
     Args:
       allowance: What the run is to be held to. Only a dimension it actually caps is named:
@@ -464,18 +461,25 @@ def unread(allowance: Allowance, models: Iterable[str]) -> frozenset[str]:
         model in it at all -- the person at the prompt and nobody else -- is blind to nothing,
         there being no bill of anybody's to have missed. A model named as nothing is on
         nobody's list either, which is the safe way round: it is said rather than assumed.
+      counting: Whether anything in the run reports what it writes, which is its backend's
+        `counts` rather than anything about its model -- a CLI added by hand speaks a protocol
+        that counts nothing at all. Asked for rather than defaulted, because the one answer
+        worth nobody's trust here is a caller quietly claiming a cap can be read.
 
     Returns:
       The dimensions, as :attr:`Reading.blind` names them and :func:`unreadable` says them.
     """
     named = list(models)
-    if (
-        allowance.dollars > 0
-        and named
-        and not any(prices.price(one) is not None for one in named)
+    if not named:
+        return frozenset()
+    blind: set[str] = set()
+    if allowance.tokens > 0 and not counting:
+        blind.add("tokens")
+    if allowance.dollars > 0 and not any(
+        prices.price(one) is not None for one in named
     ):
-        return frozenset({"dollars"})
-    return frozenset()
+        blind.add("dollars")
+    return frozenset(blind)
 
 
 def unreadable(blind: Iterable[str]) -> str:
@@ -522,7 +526,7 @@ def unwatched(
         `Allowance()` written out is the claim: a flow that declared a cap and had it
         overridden away has said nothing about running under none.
       blind: Which of those caps nothing in the run can read, as :attr:`Reading.blind` names
-        them, :func:`unread` answers before there is a run to read one off and
+        them, :func:`blinded` answers before there is a run to read one off and
         :func:`unreadable` says them. Empty for a caller holding an allowance and no run to
         hold it over, which claims nothing either way.
 
