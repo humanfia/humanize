@@ -32,7 +32,8 @@ from hmz.coganchor.agents import (
     Moment,
     Verdict,
 )
-from hmz.coganchor.agents.codex import unattended
+from hmz.coganchor.agents.codex import _rung, unattended
+from hmz.coganchor.agents.config import UNSAID
 from tests.agents import standins
 
 if TYPE_CHECKING:
@@ -334,6 +335,34 @@ def test_codex_maps_fast_to_its_priority_service_tier() -> None:
     assert unattended("read-only", "fast")["serviceTier"] == "priority"
 
 
+def test_a_codex_nobody_said_a_rung_for_is_told_neither_of_them() -> None:
+    """Which is `codex app-server` left exactly where its own client default leaves it.
+
+    A sandbox humanize picked and an approval policy humanize picked are the two things a
+    person starting the CLI by hand would not have sent, so an agent nobody was asked about
+    sends neither: what the thread opens at is Codex's answer rather than this layer's.
+    """
+    said = unattended(UNSAID)
+    assert "sandbox" not in said
+    assert "approvalPolicy" not in said
+    # The tier is not a rung and is not silent with it: `default` is what Codex runs at when
+    # nobody asks, which is what it is being asked for here.
+    assert said == {"serviceTier": "default"}
+
+
+def test_a_codex_call_that_named_no_rung_is_not_stepped_down_a_rung() -> None:
+    """An enterprise Codex refusing a sandbox nobody sent has nothing to be met halfway on.
+
+    The step-down exists for a machine whose requirements forbid the sandbox a rung *is*; a
+    call carrying no sandbox at all named no rung to walk down from, so its refusal is the
+    CLI's own to report rather than a call to make again quieter.
+    """
+    assert _rung(unattended(UNSAID)) is None
+    assert _rung({}) is None
+    # And every rung that does name one still reads back as itself.
+    assert [_rung(unattended(rung)) for rung in PERMISSIONS] == list(PERMISSIONS)
+
+
 def test_codex_is_only_ever_asked_at_the_rung_that_means_the_asking_is_granted() -> (
     None
 ):
@@ -344,9 +373,14 @@ def test_codex_is_only_ever_asked_at_the_rung_that_means_the_asking_is_granted()
     assert asked == ["auto"]
 
 
-def test_a_rung_nobody_wrote_down_is_the_one_an_agent_comes_at() -> None:
-    """A config read back out of a file older than this setting is such an agent."""
-    assert unattended("") == unattended("bypass")
+def test_a_word_no_rung_answers_to_is_the_silence_rather_than_a_rung() -> None:
+    """A config read back out of a file naming a rung this Codex has no row for.
+
+    It would once have opened at `bypass`, which is humanize picking the loudest thing there
+    is out of a word it could not read. The silence is the answer instead: nothing is sent,
+    and the thread opens where Codex's own client default opens one.
+    """
+    assert unattended("whatever-that-was") == unattended(UNSAID)
 
 
 @pytest.mark.parametrize(
@@ -589,13 +623,18 @@ def test_codex_steps_down_for_the_rung_and_for_nothing_else(
         ("bypass", "auto"),
         ("auto", "workspace-write"),
         ("workspace-write", "read-only"),
-        ("read-only", ""),
+        ("read-only", None),
     ],
 )
 def test_the_rung_below_each_rung_is_the_next_one_down(
-    refused: str, instead: str
+    refused: str, instead: str | None
 ) -> None:
-    """And below the bottom there is nothing: a machine that will not run one at all."""
+    """And below the bottom there is nothing: a machine that will not run one at all.
+
+    Nothing rather than "", which is the silence :data:`UNSAID` stands for now: a step down
+    that landed there would answer a sandbox this machine refused by asking for no sandbox at
+    all, which is looser than the rung it was refusing rather than one below it.
+    """
     from hmz.coganchor.agents.codex import _tighter
 
     assert _tighter(refused) == instead

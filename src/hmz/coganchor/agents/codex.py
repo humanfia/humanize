@@ -29,10 +29,13 @@ declared so a flow can ask beforehand: ``-c tools.web_search=`` in both directio
 :attr:`~hmz.coganchor.agents.config.AgentConfig.service_tier` is ``fast``, which `tier:fast`
 names; and the sandbox and approval policy of the rung
 :attr:`~hmz.coganchor.agents.config.AgentConfig.permission` asks for, which defaults to
-`bypass` for every backend here rather than for this one. Codex's own settings that none of
-those already answer are :class:`CodexAgentConfig`'s, and every one of them defaults to
-whatever the bare CLI does: an install that sets nothing runs the command line Codex would
-have run for itself.
+`bypass` for every backend here rather than for this one. Two of those have a third answer
+that is neither on nor off: a `web_search` nobody said writes no ``-c`` at all, and a
+`permission` nobody said opens the thread with no sandbox and no approval policy -- which is
+this driver saying nothing, and the app server left wherever it leaves itself. Codex's own
+settings that none of those already answer are :class:`CodexAgentConfig`'s, and every one of
+them defaults to whatever the bare CLI does: an install that sets nothing runs the command
+line Codex would have run for itself.
 """
 
 # A session and the agent holding it are two halves of one object declared in one
@@ -56,7 +59,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from .base import AgentBase, SessionBase
-from .config import PERMISSIONS, AgentConfig
+from .config import PERMISSIONS, UNSAID, AgentConfig
 from .event import Event, Failed, Question, Usage, say
 from .hooks import EVERYWHERE, SUBAGENTS, Moment, Occasion
 from .watchdog import Watchdog
@@ -155,17 +158,19 @@ _APPROVALS = (
 #: never asked, because a turn waiting on an approval nobody is there to give is a flow that
 #: has stopped.
 #:
-#: `bypass` is the loudest thing this layer asks Codex for and the one it asks for by default,
-#: which is humanize's default across every backend rather than Codex's own: a bare
-#: `codex app-server` is told nothing and runs each thread at whatever its client asks. The way
-#: back to anything quieter is the same for every backend -- `AgentConfig(permission=...)`,
-#: declared beside the place a flow gives an agent -- so it is not a setting of Codex's own and
-#: has no field here.
+#: `bypass` is the loudest rung this layer asks Codex for, and above it is the row that asks
+#: for nothing at all. An agent no flow said a rung for sends neither `sandbox` nor
+#: `approvalPolicy`, which is `codex app-server` told nothing: it opens each thread at whatever
+#: its own client default is, exactly as it would for somebody running the CLI by hand. The way
+#: to anything else is the same for every backend -- `AgentConfig(permission=...)`, declared
+#: beside the place a flow gives an agent -- so it is not a setting of Codex's own and has no
+#: field here.
 _PERMITTED = {
     "read-only": {"approvalPolicy": "never", "sandbox": "read-only"},
     "workspace-write": {"approvalPolicy": "never", "sandbox": "workspace-write"},
     "auto": {"approvalPolicy": "on-request", "sandbox": "workspace-write"},
     "bypass": {"approvalPolicy": "never", "sandbox": "danger-full-access"},
+    UNSAID: {},
 }
 
 #: The one of those a turn does not take. `thread/start` and `thread/resume` take `sandbox` as
@@ -194,14 +199,17 @@ def unattended(permission: str, service_tier: str = "default") -> dict[str, Any]
     when nobody asks, and is what an agent nobody configured a tier for asks for.
 
     Args:
-      permission: One of :data:`hmz.coganchor.agents.config.PERMISSIONS`.
+      permission: One of :data:`hmz.coganchor.agents.config.PERMISSIONS`, or
+        :data:`~hmz.coganchor.agents.config.UNSAID` for an agent nobody said a rung for --
+        which sends no sandbox and no approval policy, and is what a word no rung answers to
+        falls back to for the same reason.
       service_tier: The common provider service tier requested for this agent.
 
     Returns:
       The settings to send with the thread. :func:`turning` is what a turn of it takes.
     """
     service = "priority" if service_tier == "fast" else "default"
-    return {"serviceTier": service} | _PERMITTED.get(permission, _PERMITTED["bypass"])
+    return {"serviceTier": service} | _PERMITTED.get(permission, _PERMITTED[UNSAID])
 
 
 def _thinking(effort: str) -> dict[str, str]:
@@ -260,25 +268,34 @@ def _rung(params: Mapping[str, Any]) -> str | None:
     return next(
         (
             rung
+            # The row that names nothing is skipped rather than read: `all` over no settings
+            # is true of every call ever made, and the unset row is the absence of a rung
+            # rather than one of them. So a call humanize sent no sandbox with names no rung
+            # to step down from, and a Codex refusing one is refusing something it was never
+            # asked -- its own error to report, rather than ours to retry a rung quieter.
             for rung, settings in _PERMITTED.items()
-            if all(params.get(key) == value for key, value in settings.items())
+            if settings
+            and all(params.get(key) == value for key, value in settings.items())
         ),
         None,
     )
 
 
-def _tighter(permission: str) -> str:
+def _tighter(permission: str) -> str | None:
     """The rung below one this machine's Codex will not take.
 
     Args:
       permission: The rung that was refused.
 
     Returns:
-      The next rung down, and "" for the bottom of the ladder -- where a refusal is a machine
-      that will not run an agent at all rather than one to be met halfway.
+      The next rung down, and None for the bottom of the ladder -- where a refusal is a
+      machine that will not run an agent at all rather than one to be met halfway. None
+      rather than "", which is no longer a spare word for nothing: "" is :data:`UNSAID`, the
+      silence above the whole ladder, and a step down that landed there would answer a refused
+      sandbox by asking for no sandbox at all -- which is looser than what was refused.
     """
     at = PERMISSIONS.index(permission) if permission in PERMISSIONS else 0
-    return PERMISSIONS[at - 1] if at else ""
+    return PERMISSIONS[at - 1] if at else None
 
 
 #: How long a server being taken down is given to go before it is left to the operating system,
@@ -479,7 +496,9 @@ class _AppServer:
         finding out, rather than one per turn.
 
         Args:
-          permission: One of :data:`hmz.coganchor.agents.config.PERMISSIONS`.
+          permission: One of :data:`hmz.coganchor.agents.config.PERMISSIONS`, or
+            :data:`~hmz.coganchor.agents.config.UNSAID` for an agent nobody said a rung for --
+            which names no rung to be stepped down from, and is sent as it stands.
           service_tier: The common provider service tier requested for this agent.
 
         Returns:
@@ -1751,18 +1770,24 @@ class CodexAgent(AgentBase):
             # for a feature nobody named -- so an agent configured with none of them starts
             # a server at exactly the defaults that command prints.
             argv += ["--enable" if on else "--disable", name]
-        # Said in both directions rather than only when it is off: Codex searches
-        # nothing until it is asked to, so an agent that may search the web has to
-        # say so here for `web_search` to mean on every backend what it says. Still the
-        # live spelling on codex-cli 0.153.4, which is checkable rather than assumed:
-        # `--strict-config -c tools.web_search=true` is taken, and the same run answers
-        # `unknown configuration field` for a key that has gone. The features named
-        # `web_search_cached` and `web_search_request` are deprecated and `search_tool` and
-        # `tool_search` are removed, and none of the four was ever this setting's name.
-        argv += [
-            "-c",
-            f"tools.web_search={'true' if self.config.web_search else 'false'}",
-        ]
+        if self.config.web_search is not None:
+            # Said in both directions rather than only when it is off: Codex searches
+            # nothing until it is asked to, so an agent that may search the web has to
+            # say so here for `web_search` to mean on every backend what it says. Still the
+            # live spelling on codex-cli 0.153.4, which is checkable rather than assumed:
+            # `--strict-config -c tools.web_search=true` is taken, and the same run answers
+            # `unknown configuration field` for a key that has gone. The features named
+            # `web_search_cached` and `web_search_request` are deprecated and `search_tool`
+            # and `tool_search` are removed, and none of the four was ever this setting's
+            # name. Both directions, and neither of them where nobody said one: an agent no
+            # flow was asked about starts a server told nothing about searching at all, and
+            # on 0.153.4 that leaves it where a bare `codex` leaves it -- searching nothing
+            # until it is asked to. Which is why a stated `True` still goes out: of the three
+            # answers it is the one Codex would never have arrived at by itself.
+            argv += [
+                "-c",
+                f"tools.web_search={'true' if self.config.web_search else 'false'}",
+            ]
         # Which is what `--listen stdio://` already is on 0.153.4, so this changes nothing
         # about how the server behaves -- it is said because this client can speak over one
         # transport and no other, and a default is a thing a CLI is free to move. A day when
