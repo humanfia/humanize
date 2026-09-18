@@ -1531,6 +1531,29 @@ def test_codex_can_disable_goals_before_its_server_starts(
         agent.new().pursue("the suite passes", suppress=True)
 
 
+def test_a_codex_nobody_told_about_searching_starts_a_bare_app_server(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Which is the command somebody at this machine would have typed for themselves.
+
+    `--stdio` is the one thing left, and it is not a setting: this client speaks over that
+    transport and no other, and 0.153.4's own default is already the same thing. Everything
+    that would be an answer -- the web, the goal feature, the rung -- is nowhere on the line,
+    so what the server runs at is Codex's answer rather than humanize's.
+    """
+    started: list[list[str]] = []
+
+    monkeypatch.setattr(appservers, "_AppServer", _recording(started))
+    agent = CodexAgent(
+        CodexAgentConfig(
+            model="gpt-5.6-sol", effort="high", permission="", web_search=None
+        )
+    )
+
+    assert agent.server is not None
+    assert [_named(argv) for argv in started] == [["codex", "app-server", "--stdio"]]
+
+
 def test_codex_passes_allowlisted_overrides_to_its_app_server(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1777,6 +1800,30 @@ def test_a_codex_turn_carries_the_rung_it_runs_at(
     assert [call["params"]["approvalPolicy"] for call in opened] == ["never"]
     assert not any("sandbox" in call["params"] for call in started)
     assert [call["params"]["approvalPolicy"] for call in started] == ["never"]
+
+
+def test_a_codex_thread_nobody_said_a_rung_for_carries_neither(
+    working: _FakeServer,
+) -> None:
+    """So `codex app-server` opens it wherever its own client default opens one.
+
+    The rung is the whole of what this driver would have said about what the agent may do, and
+    an agent no flow was asked about says none of it: no `sandbox` on the thread, no
+    `approvalPolicy` on the thread or on the turn. What is left is what a turn is made of --
+    the thread, the words, the model -- which is the same call a person driving the CLI by
+    hand would have made.
+    """
+    agent = CodexAgent(
+        CodexAgentConfig(model="gpt-5.6-sol", effort="high", permission="")
+    )
+    agent("hi")
+
+    opened = [call for call in working.calls() if call.get("method") == "thread/start"]
+    started = [call for call in working.calls() if call.get("method") == "turn/start"]
+    assert [call["method"] for call in opened] == ["thread/start"]
+    assert [call["method"] for call in started] == ["turn/start"]
+    assert not any("sandbox" in call["params"] for call in opened + started)
+    assert not any("approvalPolicy" in call["params"] for call in opened + started)
 
 
 @pytest.mark.parametrize(
