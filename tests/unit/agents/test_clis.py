@@ -89,6 +89,15 @@ def test_the_table_is_refused_off_beside_what_it_was_the_only_way_of_saying(
         )
 
 
+def test_the_table_off_beside_nothing_at_all_takes_nothing_away() -> None:
+    """A config that said neither of the two is the one that is asking for exactly this."""
+    config = OpencodeAgentConfig(
+        model="m", effort="high", permission="", web_search=None, permission_table=False
+    )
+
+    assert config.permission_table is False
+
+
 def test_an_agent_name_the_cli_would_not_find_is_refused() -> None:
     """It warns and runs the default for one, which is a setting that quietly did nothing."""
     with pytest.raises(ValueError, match="cli_agent must be"):
