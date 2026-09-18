@@ -175,6 +175,28 @@ def test_opencode_denies_every_reaching_out_tool_it_names() -> None:
     assert [allowed[tool] for tool in reaches] == ["deny", "deny"]
 
 
+def test_a_switch_nobody_stated_is_not_a_table_saying_it_is_on() -> None:
+    """The variable is left alone, so the turn reaches the web however that machine does.
+
+    Which is the one reading of a switch nobody touched that does not put words in somebody's
+    mouth: a table saying `allow` would be humanize switching it on for a person who had
+    switched it off, and the rung beside it says nothing to write either.
+    """
+    config = OpencodeAgentConfig(
+        model="p/m", effort="high", permission="", web_search=None
+    )
+    session = OpencodeAgent(config).new()
+
+    assert type(session).permits not in session._environment()
+
+    # Stated, it goes back in -- with the rung still unsaid, so the table holds the two ways
+    # out and nothing about editing or running commands.
+    session = OpencodeAgent(replace(config, web_search=True)).new()
+    allowed = json.loads(session._environment()[type(session).permits])
+
+    assert allowed == dict.fromkeys(type(session).reaches, "allow")
+
+
 def test_kimi_withholds_the_two_tools_its_daemon_reaches_the_web_with() -> None:
     """Withheld through the prompt body, which is the one of the two routes that takes them.
 
