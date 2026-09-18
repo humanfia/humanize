@@ -987,6 +987,29 @@ def test_every_rung_of_qwens_ladder_is_refusals_and_one_approval_mode(
     assert excluded == withheld
 
 
+def test_qwen_says_nothing_at_all_about_a_rung_nobody_asked_for(stubs: _Stubs) -> None:
+    """A run nobody declared anything for is the run somebody would have typed by hand.
+
+    No `--approval-mode`, because the flag is the rung's whole saying here and there is no
+    mode that means "as `qwen` has it"; no `--exclude-tools`, because a place that took
+    nothing away took nothing away and None is not a no. The settings file the effort goes in
+    says nothing of either, so neither leaks in by the other seam.
+    """
+    session = QwenCodeAgent(
+        QwenCodeAgentConfig(model="m", effort="high", permission="", web_search=None)
+    ).new()
+    assert session("hi") == "hi"
+
+    (call,) = stubs.calls()
+    assert "--approval-mode" not in call.argv
+    assert "--exclude-tools" not in call.argv
+    assert call.thinking is not None
+    said = json.loads(call.thinking)
+    assert "approval" not in call.thinking.lower()
+    assert "web" not in call.thinking.lower()
+    assert set(said) <= {"$version", "model"}
+
+
 def test_qwen_reports_a_result_that_errored_as_a_failed_turn(stubs: _Stubs) -> None:
     """It leaves zero for a turn it could not finish and says so in its own records."""
     with pytest.raises(subprocess.CalledProcessError) as raised:

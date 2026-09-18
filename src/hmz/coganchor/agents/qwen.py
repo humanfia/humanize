@@ -46,7 +46,7 @@ from hmz import home
 
 from ._inputs import snapshot
 from .base import AgentBase, CommandSessionBase, SessionBase, StreamSessionBase
-from .config import AgentConfig
+from .config import UNSAID, AgentConfig
 from .event import Event, Failed, Usage
 from .hooks import WAITING, Gate, Moment
 from .preload import preloaded
@@ -142,6 +142,14 @@ _CACHE = ("compiled", "qwen")
 #: asking only that a path be absolute and its one sandbox wanting a container runtime that
 #: may not be there -- and that is said where the ladder is documented rather than papered
 #: over here.
+#:
+#: Four rungs and no fifth row, because what is in this table is a mode and there is no mode
+#: for saying nothing: `--approval-mode ""` is a word Qwen Code reads as a mode spelled wrong
+#: rather than as a flag withdrawn, and an empty string sitting here would read as one. So the
+#: flag and its mode are written in `_turn` only where there is a rung to write them for, and
+#: an agent carrying :data:`~hmz.coganchor.agents.config.UNSAID` is run with neither -- left
+#: at whatever `qwen` itself is run at, which is the shape the effort already has, where
+#: `_writing` puts no `model` section at all rather than an empty rung in one.
 _PERMITTED = {
     "read-only": "yolo",
     "workspace-write": "yolo",
@@ -157,7 +165,10 @@ _PERMITTED = {
 #: The five at `read-only` are the four that write and the one that runs something and
 #: watches it -- `monitor` being the tool Qwen Code itself denies alongside the shell whenever
 #: it is refusing what a mode would have asked about, which is the company it keeps here too.
-#: At `workspace-write` it is the one tool that reaches somewhere the workspace is not.
+#: At `workspace-write` it is the one tool that reaches somewhere the workspace is not. And
+#: nothing at all where no rung was asked for: a place that declared nothing takes nothing
+#: away. Written out rather than left to the reader's default, so that the table is the whole
+#: of what a config may carry.
 _WITHHELD = {
     "read-only": (
         "edit",
@@ -169,10 +180,13 @@ _WITHHELD = {
     "workspace-write": ("web_fetch",),
     "auto": (),
     "bypass": (),
+    UNSAID: (),
 }
 
 #: The two that reach the web, by the names Qwen Code calls them, taken away at every rung
 #: for an agent told not to search it rather than only at the one that already refuses them.
+#: Told so, rather than left unsaid: an agent nobody has been asked about carries None here
+#: and not False, and silence is not a no -- it leaves both tools where `qwen` leaves them.
 _WEB_TOOLS = ("web_search", "web_fetch")
 
 #: What Qwen Code answers with when the request behind the turn never landed: the provider's
@@ -631,21 +645,23 @@ class QwenCodeSession(StreamSessionBase):
             "stream-json",
             "--model",
             self._agent.config.model,
+        ]
+        if rung := self._agent.config.permission:
             # Everything the rung leaves is approved without being asked: a flow watches its
             # agent rather than gating it, and a turn waiting on an approval nobody is there
             # to give -- and, on this transport, nobody can answer -- is a flow that has
             # stopped. Off the table rather than written here, since the day this CLI can be
-            # asked a rung it will be one line above and none here.
-            "--approval-mode",
-            _PERMITTED[self._agent.config.permission],
-        ]
+            # asked a rung it will be one line above and none here. And where there is no
+            # rung, no flag: the mode is the rung's whole saying, so an agent nobody declared
+            # one for is started with neither and runs at whatever `qwen` runs itself at.
+            argv += ["--approval-mode", _PERMITTED[rung]]
         if _asked(self._agent.config, "partial_messages", default=False):
             # Off in the CLI and off here, because it is a different stream to read rather
             # than more of the same one, and an install that says nothing gets what `qwen`
             # itself does. On, the words arrive as the model writes them.
             argv += ["--include-partial-messages"]
         withheld = list(_WITHHELD.get(self._agent.config.permission, ()))
-        if not self._agent.config.web_search:
+        if self._agent.config.web_search is False:
             withheld += [one for one in _WEB_TOOLS if one not in withheld]
         if withheld:
             argv += ["--exclude-tools", ",".join(withheld)]
