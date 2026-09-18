@@ -49,7 +49,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 from hmz.coganchor.backends import SWARM
 
 from .base import AgentBase, SessionBase
-from .config import AgentConfig
+from .config import UNSAID, AgentConfig
 from .event import Event, Failed, Question, Usage, say
 from .preload import preloaded
 from .watchdog import Watchdog
@@ -501,6 +501,26 @@ _PERMITTED = {
     "workspace-write": {"permission_mode": "auto", "plan_mode": False},
     "auto": {"permission_mode": "auto", "plan_mode": False},
     "bypass": {"permission_mode": "auto", "plan_mode": False},
+    # An agent nobody wrote a rung for: neither key is sent, and the session runs at whatever
+    # `kimi web` would have run it at on its own. Which is this file's own rule about defaults
+    # applied to the one setting that had been breaking it -- an install that configures
+    # nothing behaves as the bare CLI does. 0.42.0 reads `default_permission_mode` out of the
+    # install's config as it bootstraps a session and leaves the mode at `manual` where there
+    # is none, so what an install that says nothing gets is Always Ask, the same as the person
+    # who starts `kimi web` at a terminal and answers it from the browser.
+    #
+    # Which is the thing to say plainly rather than bury: nobody is at the browser here.
+    # `manual` withholds approval for everything but reads, and an approval is not a question
+    # -- the daemon holds it on `/approvals`, the route this driver does not read -- so the
+    # first tool call of such a turn stops the session somewhere the poll cannot move it. That
+    # is not a wedge this driver introduced; it is the bare CLI's own exposure, reached by
+    # saying nothing, and saying something instead is exactly the default this row exists to
+    # stop humanize choosing. What catches it is the watchdog, whose window over a Kimi turn is
+    # the quarter-hour `backends` gives every backend that names nothing shorter: the session
+    # goes quiet, the clock runs out, and the turn ends as the stall it is rather than hanging
+    # until a person looks. A flow that wants it never to happen writes the rung -- all four
+    # above are `auto`, and `auto` asks nothing.
+    UNSAID: {},
 }
 
 
@@ -1054,9 +1074,11 @@ class KimiCodeCLISession(SessionBase):
             # it is asked for only where a rung said so.
             **({"thinking": effort.removeprefix(SWARM)} if effort else {}),
             "swarm_mode": effort.startswith(SWARM),
-            # What it may do without being asked, which for an unattended flow is everything:
-            # a flow watches its agent rather than answering it, as humanize' own flows do.
-            **_PERMITTED.get(self._agent.config.permission, _PERMITTED["bypass"]),
+            # What it may do without being asked, where a rung said. An agent at no rung
+            # sends neither key and is left wherever this install's own `kimi web` leaves it,
+            # which is what a config written before there was a rung to write comes back off
+            # the disk as too.
+            **_PERMITTED.get(self._agent.config.permission, _PERMITTED[UNSAID]),
         }
         updates: _Updates | None = None
         with self._lock:  # a conversation is a sequence: one turn at a time
