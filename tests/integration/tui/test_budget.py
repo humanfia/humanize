@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 import pytest
-from textual.widgets import OptionList
+from textual.widgets import Label, OptionList
 
 from hmz.coganchor.agents import Allowance
 from hmz.coganchor.backends import Model
@@ -219,8 +219,11 @@ async def test_saving_a_cap_nothing_can_price_asks_the_same_question(
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Unbounded), driver)
 
-        said = cast("Unbounded", app.screen).about.lower()
-        assert "nothing here can read dollars" in said
+        # Read off the label rather than off the attribute: the whole of this is that a
+        # person sees it, and a line that is set and not drawn is the log line again.
+        shown = app.screen.query_one("#about", Label)
+        assert shown.display
+        assert "nothing here can read dollars" in str(shown.content).lower()
 
 
 @pytest.mark.timeout(60)
