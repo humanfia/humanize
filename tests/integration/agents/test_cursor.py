@@ -232,6 +232,21 @@ def test_a_rung_is_the_mode_or_the_sandbox_cursor_has_for_it(cursor: _Calls) -> 
             assert one in argv
 
 
+def test_a_turn_nobody_said_a_rung_for_is_left_where_cursor_leaves_it(
+    cursor: _Calls,
+) -> None:
+    """The silence is not a fifth rung: it is the turn `cursor-agent` would have run itself."""
+    from dataclasses import replace
+
+    CursorAgent(replace(cursors.CURSOR, permission="")).new()("hello")
+
+    (argv,) = cursor.argv()
+    assert "--mode" not in argv
+    assert "--force" not in argv
+    assert "--sandbox" not in argv
+    assert "--auto-review" not in argv
+
+
 def test_asking_for_the_faster_service_is_the_same_suffix(cursor: _Calls) -> None:
     """Which is why this backend can express a tier at all: the rung, then the service."""
     from dataclasses import replace

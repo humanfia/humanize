@@ -33,7 +33,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 from hmz.coganchor import backends, models
 
 from .base import AgentBase, CommandSessionBase
-from .config import AgentConfig
+from .config import UNSAID, AgentConfig
 from .event import Event, Failed, Usage
 from .hooks import EVERYWHERE, SUBAGENTS, Moment
 
@@ -50,11 +50,18 @@ _COMMAND = "cursor-agent"
 #: enabled` is its own sandbox, which is what stops a command at the edge of the workspace;
 #: `--auto-review` is its server-side classifier, which runs the safe calls itself; and
 #: `--force` is Run Everything, which is what an unattended flow has always run its agents at.
+#:
+#: The silence is not a fifth rung and comes to no flag at all. `cursor-agent` has a posture of
+#: its own for a turn nobody has said anything about -- what it asks before, what it runs
+#: itself, which sandbox it opens in -- and the whole of what nothing said means is that the
+#: turn is left in it. Written as a row of its own rather than left out of the table, so that
+#: the one place saying what each answer comes to says this one too.
 _PERMITTED = {
     "read-only": ("--mode", "plan"),
     "workspace-write": ("--force", "--sandbox", "enabled"),
     "auto": ("--auto-review",),
     "bypass": ("--force", "--sandbox", "disabled"),
+    UNSAID: (),
 }
 
 #: The tools it starts a fleet of its own with, by the names its stream calls them. A turn
