@@ -226,3 +226,22 @@ def test_a_backend_that_cannot_be_told_cannot_fill_such_a_place(tmp_path: Path) 
 
     with pytest.raises(NotAFlow, match="no way of being told not to search the web"):
         Runner(str(where), [PiAgent(PiAgentConfig(model="m", effort="high"))])
+
+
+def test_a_backend_that_cannot_be_told_takes_the_silence() -> None:
+    """Off is what it refuses. Nothing said is not an off.
+
+    An agent nobody was asked about goes on reaching the web exactly as its own CLI lets it,
+    which is the thing the refusal is honest about rather than the thing it forbids -- and
+    reading the silence as a no would refuse every backend that cannot be told, which is most
+    of them, the moment a config stopped answering this on anybody's behalf.
+    """
+    quiet = PiAgent(PiAgentConfig(model="m", effort="high", web_search=None))
+
+    assert quiet.config.web_search is None
+    pi = backends.named("pi")
+
+    assert pi is not None
+    assert not pi.searches  # so there is nothing to tell it with
+    with pytest.raises(ValueError, match="no way of being told not to search the web"):
+        PiAgent(PiAgentConfig(model="m", effort="high", web_search=False))

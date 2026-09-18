@@ -184,7 +184,8 @@ class Drove(NamedTuple):
       backend: The CLI it drives.
       model: What that CLI was asked to run.
       effort: How hard it was asked to think.
-      permission: What it was allowed to do without being asked.
+      permission: What it was allowed to do without being asked, or "" where the run said
+        nothing about it -- which is an agent allowed whatever its own CLI allows one.
       provider: The account it was configured to run as, or "" for this machine's own.
       goals: Whether it was allowed to run under its backend's own goal feature.
       person: Whether it was the person at the prompt, who is handed to a flow rather than
@@ -1105,6 +1106,24 @@ def sessions(epic: Path) -> list[Session]:
     return sorted(held, key=lambda one: one.at)
 
 
+def _allowed(said: object) -> str:
+    """What one agent of a run was allowed, as the record it was written in says it.
+
+    Args:
+      said: What the record holds under `permission`, which is None for a record holding
+        nothing there at all.
+
+    Returns:
+      The rung it names, "" for a run that said nothing to its agent's CLI about what it may
+      do, and `bypass` for a record written before a run wrote this down -- every agent of
+      every run then was allowed everything, and a report that showed those as the silence
+      would be reporting a rung nobody was ever at.
+    """
+    from hmz.coganchor.agents import PERMISSIONS
+
+    return str(said) if isinstance(said, str) else PERMISSIONS[-1]
+
+
 def read(epic: Path) -> Ran | None:
     """What one epic was, read back off its own record.
 
@@ -1131,7 +1150,14 @@ def read(epic: Path) -> Ran | None:
                 backend=str(said.get("backend") or ""),
                 model=str(said.get("model") or ""),
                 effort=str(said.get("effort") or ""),
-                permission=str(said.get("permission") or ""),
+                # Two different silences, and the difference is the whole of what this
+                # field now says. A record with no such key at all was written before a run
+                # wrote one down, and every agent of every run then was allowed everything:
+                # it reads as `bypass`, which is what that agent actually did. A record that
+                # holds the key empty was written by a run that said nothing to the CLI, and
+                # it stays empty. Read as one silence, the older runs would report a rung
+                # nobody was ever at.
+                permission=_allowed(said.get("permission")),
                 provider=str(said.get("provider") or ""),
                 goals=bool(said.get("goals", True)),
                 person=bool(said.get("person")),

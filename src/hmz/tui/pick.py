@@ -350,14 +350,18 @@ def reads(
                 named[at] if at < len(named) else "",
                 one.spec,
                 one.anchor,
-                # Only where there is one: an agent nobody has narrowed says nothing here,
-                # which is what every agent a flow has ever driven would have said. The
-                # account it runs as reads the same way -- one that says nothing is the one
-                # this machine is signed in as.
-                one.permission,
+                # A word either way, because both answers are worth reading: the rung this
+                # agent was narrowed to, or the word for not having been narrowed at all --
+                # which leaves it at what it was configured with, and which a gap on the
+                # line could not tell from a setting that had gone missing. The account it
+                # runs as is not like it: one that says nothing is the one this machine is
+                # already signed in as, which is the line saying nothing new.
+                backends.permitted(one.permission),
                 one.provider,
-                # And the same rule: on is what an agent nobody was asked about does.
-                "" if one.web_search else "no web search",
+                # And off is the only one of the three worth a word: on is what a CLI that
+                # searches does anyway, and an agent nobody was asked about is one this line
+                # has nothing to say about either.
+                "no web search" if one.web_search is False else "",
                 _holds(holding[at]) if at < len(holding) else "",
             )
             if part
@@ -5453,14 +5457,19 @@ class Agent(Drafts[Runs]):
         # `swarm` in front of the effort is how a fleet is asked for: one turn at one effort,
         # run wide. A model that does not take it is asked for at the effort alone.
         wide = SWARM if self._swarm and self._swarms() else ""
+        # On for a CLI that cannot be told, whatever the flow asked for: an agent whose
+        # backend has no way of being told is one that searches the web, and a config saying
+        # otherwise is one that backend would refuse. Only an off is turned back, though --
+        # an agent nobody was asked about goes on being one nobody was asked about, that
+        # being a config no backend refuses and the one every CLI can serve.
+        searches = self._given.web_search
+        if searches is False and not self._tellable():
+            searches = True
         return self._given._replace(
             spec=f"{self._cli}/{self._model}:{wide}{backends.written(self._effort)}",
             anchor=self._anchor,
             provider=self._provider,
-            # On for a CLI that cannot be told, whatever the flow asked for: an agent whose
-            # backend has no way of being told is one that searches the web, and a config
-            # saying otherwise is one that backend would refuse.
-            web_search=self._given.web_search or not self._tellable(),
+            web_search=searches,
         )
 
     def applied(self) -> None:

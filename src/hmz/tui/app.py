@@ -2785,7 +2785,16 @@ class Humanize(App[None]):
                     machine=machine,
                     provider=runs.provider,
                     goals=runs.goals,
-                    web_search=runs.web_search,
+                    # Both of the settings a sheet may leave unanswered are passed on only
+                    # where it answered them: what is not said here is what the agent was
+                    # configured with, and writing a `True` over it would be the interface
+                    # switching searching on for an agent nobody asked about -- on a CLI
+                    # that had it off, silently, every time somebody reopened this sheet.
+                    **(
+                        {"web_search": runs.web_search}
+                        if runs.web_search is not None
+                        else {}
+                    ),
                     **({"permission": runs.permission} if runs.permission else {}),
                 )
             )
@@ -3234,7 +3243,10 @@ class Humanize(App[None]):
                 and not runs.permission
                 and not runs.provider
                 and agent.config.goals is runs.goals
-                and agent.config.web_search is runs.web_search
+                and (
+                    runs.web_search is None
+                    or agent.config.web_search is runs.web_search
+                )
             ):
                 moved.append(agent)
                 continue
@@ -3258,7 +3270,14 @@ class Humanize(App[None]):
                         machine=anchored(runs.anchor),
                         provider=runs.provider,
                         goals=runs.goals,
-                        web_search=runs.web_search,
+                        # Said only where the sheet said it, for the reason the rung beside
+                        # it is: an agent nobody was asked about is one this says nothing
+                        # about, and the config keeps what it was made with.
+                        **(
+                            {"web_search": runs.web_search}
+                            if runs.web_search is not None
+                            else {}
+                        ),
                         **({"permission": runs.permission} if runs.permission else {}),
                     )
                 )
