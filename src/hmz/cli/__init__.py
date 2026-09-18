@@ -136,13 +136,16 @@ def _exec(argv: list[str]) -> int:
         # every unattended flow there has ever been for the sake of a question nobody is
         # there to answer. So what it can do is say so plainly, on the stream that is not
         # the answer.
-        if running.unwatched:
-            out.aside(
-                "hmz exec: nothing will stop this run -- no hours, no output tokens and no "
-                "dollars are capped. `-c` with a `budget:` is how one is set."
-            )
+        #
+        # Which cap cannot be read before what that leaves: a run whose only cap is one
+        # nothing here can read is both of these lines, and the first is the second's reason.
         if blind := running.unreadable():
             out.aside(f"hmz exec: {blind}, so that cap cannot stop this run")
+        if running.unwatched:
+            out.aside(
+                "hmz exec: nothing will stop this run -- it goes until it is stopped by "
+                "hand. `-c` with a `budget:` is how a cap that bites is set."
+            )
         try:
             running.run()
         except (KeyboardInterrupt, SystemExit):

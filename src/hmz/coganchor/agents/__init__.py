@@ -16,6 +16,7 @@ from .allowance import (
     Allowance,
     Ledger,
     Reading,
+    unread,
     unreadable,
     unwatched,
 )
@@ -219,6 +220,7 @@ __all__ = [
     "ZcodeSession",
     "anchored",
     "isolated",
+    "unread",
     "unreadable",
     "unwatched",
 ]

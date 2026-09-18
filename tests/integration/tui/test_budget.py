@@ -197,6 +197,79 @@ async def test_a_run_with_a_cap_on_it_is_not_asked_about(
 
 
 @pytest.mark.timeout(60)
+async def test_saving_a_cap_nothing_can_price_asks_the_same_question(
+    flows: Path, tmp_path: Path
+) -> None:
+    """Fifty dollars on a model nobody prices is a run with no limit on it at all.
+
+    Which is the run a benchmark of sixteen cells actually started: capped in the settings,
+    and with nothing on the machine that can read the cap. So it reaches the same box the run
+    capped on nothing reaches, and the box says which cap and why rather than the three that
+    were not set -- the wording being the one `hmz exec` prints on its way past.
+    """
+    Settings(tmp_path).remember(
+        "local/quiet", ("",), [Runs("claude/m:high")], budget={"dollars": 50}
+    )
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into(app, driver, "quiet")
+        assert "stops at $50" in _said(app)
+
+        await onto(app, driver, _SAVE)
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Unbounded), driver)
+
+        said = cast("Unbounded", app.screen).about.lower()
+        assert "nothing here can read dollars" in said
+
+
+@pytest.mark.timeout(60)
+async def test_a_cap_the_run_can_read_is_not_asked_about(
+    flows: Path, tmp_path: Path, priced: str
+) -> None:
+    """The control: the same allowance on a model somebody lists is a cap that will bite."""
+    Settings(tmp_path).remember(
+        "local/quiet", ("",), [Runs(f"claude/{priced}:high")], budget={"dollars": 50}
+    )
+    app = Humanize()
+    async with app.run_test() as driver:
+        sheet = await _into(app, driver, "quiet")
+
+        await onto(app, driver, _SAVE)
+        await driver.press("enter")
+        await until(lambda: app.screen is not sheet, driver)
+
+        assert not isinstance(app.screen, Unbounded)
+
+    assert Settings(tmp_path).flow == "local/quiet"
+
+
+@pytest.mark.timeout(60)
+async def test_a_clock_beside_a_cap_nothing_can_price_is_not_asked_about(
+    flows: Path, tmp_path: Path
+) -> None:
+    """The money cannot be read and the hours can, so something still stops the run.
+
+    Which is the case the benchmark survived on, and it must go on surviving on it.
+    """
+    Settings(tmp_path).remember(
+        "local/quiet",
+        ("",),
+        [Runs("claude/m:high")],
+        budget={"hours": 0.2, "dollars": 1},
+    )
+    app = Humanize()
+    async with app.run_test() as driver:
+        sheet = await _into(app, driver, "quiet")
+
+        await onto(app, driver, _SAVE)
+        await driver.press("enter")
+        await until(lambda: app.screen is not sheet, driver)
+
+        assert not isinstance(app.screen, Unbounded)
+
+
+@pytest.mark.timeout(60)
 async def test_a_flow_run_without_the_menu_is_still_held_to_what_was_set(
     flows: Path, tmp_path: Path
 ) -> None:

@@ -248,10 +248,15 @@ class Runner:
         Asked of a runner rather than worked out again wherever one is started, so that the
         menu's second confirmation and the command line's line on stderr are the same
         question about the same run.
+
+        A cap this run's agents cannot read is handed in as no cap: a dollars cap on a model
+        nobody prices is a run with nothing to stop it, whatever the file it was written in
+        says, and one that said so in a log line and nowhere else was one nobody was asked
+        about.
         """
         from hmz.coganchor.agents.allowance import unwatched
 
-        return unwatched(self._budget, self._declared)
+        return unwatched(self._budget, self._declared, self._blind())
 
     def unreadable(self) -> str:
         """Which of the caps this run was given nothing in it can read, in words.
@@ -263,9 +268,24 @@ class Runner:
         Returns:
           One line about them, or "" where every cap set can be read.
         """
-        from hmz.coganchor.agents.allowance import Ledger, unreadable
+        from hmz.coganchor.agents.allowance import unreadable
 
-        return unreadable(Ledger(self._budget, self._driven).reads().blind)
+        return unreadable(self._blind())
+
+    def _blind(self) -> frozenset[str]:
+        """Which caps this run was given nothing driving it can read.
+
+        Read off the agents rather than off the allowance, and read here rather than in each
+        of the two things that ask: whether a cap can be read at all is a fact about what this
+        run drives, so a run answered `unwatched` and a run answered `unreadable` are answered
+        about the same agents.
+
+        Returns:
+          The dimensions, as `Reading.blind` names them.
+        """
+        from hmz.coganchor.agents.allowance import Ledger
+
+        return Ledger(self._budget, self._driven).reads().blind
 
     def run(self, task: str) -> None:
         """Runs the flow in this directory, for as long as it keeps running.

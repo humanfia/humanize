@@ -65,7 +65,13 @@ from textual.widgets.option_list import Option
 
 from hmz.coganchor import backends
 from hmz.coganchor.agents import ANYONE, FLOW, SWARM, USER, anchored, driver
-from hmz.coganchor.agents.allowance import Allowance, allowed, unwatched
+from hmz.coganchor.agents.allowance import (
+    Allowance,
+    allowed,
+    unread,
+    unreadable,
+    unwatched,
+)
 from hmz.coganchor.prices import money
 from hmz.runtime import telemetry
 from hmz.runtime.kept import Runs
@@ -76,7 +82,7 @@ from .monitor import Counted, Shape, lasting, short, thousands
 from .selecting import Choices
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator, Mapping, Sequence
+    from collections.abc import Callable, Generator, Iterable, Mapping, Sequence
 
     from pydantic.fields import FieldInfo
     from textual.app import App, ComposeResult
@@ -1481,6 +1487,44 @@ def _complete(runs: Runs) -> bool:
     return bool(cli and model)
 
 
+def _model(runs: Runs) -> str:
+    """What one agent of the menu runs, out of the `cli/model:effort` it was set up as.
+
+    Read from both ends, as a command line reads one: a model may hold slashes of its own,
+    while a CLI and an effort never do.
+
+    Args:
+      runs: The agent.
+
+    Returns:
+      The model, or "" for an agent nobody has answered yet.
+    """
+    _, _, rest = runs.spec.partition("/")
+    model, _, _ = rest.rpartition(":")
+    return model
+
+
+def _cannot_read(blind: Iterable[str]) -> str:
+    """The line under the question, for a run whose caps are set and cannot be read.
+
+    :func:`hmz.coganchor.agents.allowance.unreadable` already names the dimension and why
+    nothing can read it, and says it in the line `hmz exec` prints on its way past. Said the
+    same way here: two wordings of one fact are two things to keep in step, and a person who
+    reads it in both places is reading about the same run.
+
+    Args:
+      blind: The dimensions nothing can read, as `Reading.blind` names them.
+
+    Returns:
+      The line, or "" for a run every cap of which can be read -- which is the ordinary
+      unbounded one, capped on nothing at all.
+    """
+    said = unreadable(blind)
+    if not said:
+        return ""
+    return f"{said[:1].upper()}{said[1:]}, so that cap cannot stop this run."
+
+
 #: What separates the two halves of a row's id among the flows: which place it came from,
 #: and which flow it is. A byte no name has in it, since the second half may hold anything --
 #: a flow is offered under the place it came from, and holds a slash and may hold a colon.
@@ -2337,19 +2381,30 @@ class Flows(Drafts[Chosen]):
         # The one exit that makes an answer, so the one place to ask about a run nothing
         # will stop: the save row and the question on the way out both come through here,
         # and a check written at each of them is a check one of them would lose.
-        if unwatched(allowed(self._budget, self._declared), self._declared):
-            self._means_it()
+        effective = allowed(self._budget, self._declared)
+        # And what those agents run is what says whether the money can be read at all, which
+        # is asked here because here is where they have just been chosen: a dollars cap on a
+        # model nobody prices is a cap that will never bite, so a run held to nothing else is
+        # a run nothing will stop -- and this is the last moment anybody can be told.
+        blind = unread(effective, [_model(one) for one in self._runs])
+        if unwatched(effective, self._declared, blind):
+            self._means_it(_cannot_read(blind))
             return
         self.dismiss(Chosen(self._flow, tuple(self._runs), self._config, self._budget))
 
     @work
-    async def _means_it(self) -> None:
-        """Asks whether a run nothing will stop is what was meant, and saves if it is."""
+    async def _means_it(self, about: str = "") -> None:
+        """Asks whether a run nothing will stop is what was meant, and saves if it is.
+
+        Args:
+          about: What to say under the question, for a run whose caps are set and cannot be
+            read -- or "" for the ordinary one, which is a run capped on nothing at all.
+        """
         showing = cast(
             "App[None]",
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
-        if await showing.push_screen_wait(Unbounded()) != _KEEP:
+        if await showing.push_screen_wait(Unbounded(about)) != _KEEP:
             telemetry.snag("unbounded-refused", flow=self._flow)
             # Back to the menu holding everything it was holding, which is where a budget is
             # set: the answer was "go and set one", and there is nothing else to do about it.
@@ -4810,6 +4865,19 @@ class Unbounded(Popup):
         "No hours, no output tokens and no dollars are capped, so it runs until it is "
         "stopped by hand."
     )
+
+    def __init__(self, about: str = "") -> None:
+        """Asks it, about this run.
+
+        Args:
+          about: The line under the question, for a run whose caps are set and cannot be read
+            -- fifty dollars on a model nobody prices is a run with no limit on it, and the
+            box that said three caps were unset would be saying the one untrue thing about
+            it. "" for the ordinary one, which is a run capped on nothing at all.
+        """
+        super().__init__()
+        if about:
+            self.about = about
 
     def rows(self) -> list[tuple[str, str, str]]:
         """The two answers: mean it, or go back and cap something."""
