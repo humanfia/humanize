@@ -234,17 +234,16 @@ def test_a_turn_opens_a_session_naming_what_it_is_to_run(
     (opened,) = server.named("session/create")
     # Field by field, and no field beyond them. No `runtimeModel` among them: this agent is
     # on no account of humanize's, so the provider it runs on is whatever ZCode is already
-    # configured with, exactly as a bare `zcode` would take the turn.
+    # configured with, exactly as a bare `zcode` would take the turn. And no `mode` either,
+    # for the same reason: nobody said what this one may do.
     assert set(opened) == {
         "workspace",
         "model",
         "thoughtLevel",
-        "mode",
         "titleGenerationEnabled",
     }
     assert opened["model"] == {"providerId": "zai", "modelId": "glm-5.3"}
     assert opened["thoughtLevel"] == "high"
-    assert opened["mode"] == "yolo"
     assert opened["workspace"] == {
         "workspacePath": str(tmp_path),
         "workspaceKey": str(tmp_path),

@@ -18,7 +18,7 @@ from typing import Any
 import pytest
 
 from hmz.cli import main
-from hmz.coganchor.agents import PERMISSIONS, AgentConfig
+from hmz.coganchor.agents import PERMISSIONS, UNSAID, AgentConfig
 from hmz.flows import BUILTIN_AT, ENTRY, NotAFlow
 from hmz.runtime.runner import Runner
 from tests.stubs import ShellAgent, written
@@ -256,7 +256,12 @@ def test_an_agent_that_names_no_account_runs_as_this_machine_does(
 def test_the_flow_says_what_each_of_its_agents_may_do(
     tmp_path: Path, permission: str
 ) -> None:
-    """The place carries the rung, and a place that said nothing runs at the default one."""
+    """The place carries the rung, and a place that said nothing settles nothing.
+
+    So the second agent is left on no rung at all, which is what it was made with and what
+    `-a codex/m:high` asked for: a line that names a CLI, a model and an effort has said
+    nothing about permissions.
+    """
     flow = _flow(tmp_path, ACCESS.replace("RUNG", permission))
     main(
         [
@@ -269,7 +274,7 @@ def test_the_flow_says_what_each_of_its_agents_may_do(
         ]
     )
 
-    assert json.loads((tmp_path / "flow.json").read_text()) == [permission, "bypass"]
+    assert json.loads((tmp_path / "flow.json").read_text()) == [permission, UNSAID]
 
 
 def test_a_named_tuple_says_what_each_agent_is_for_as_well_as_how_many(

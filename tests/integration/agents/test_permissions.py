@@ -92,9 +92,16 @@ def test_the_ladder_is_four_rungs_loosest_last() -> None:
     assert PERMISSIONS == ("read-only", "workspace-write", "auto", "bypass")
 
 
-def test_an_agent_nobody_was_asked_about_is_allowed_everything() -> None:
-    """A flow watches its agent rather than gating it, and always has."""
-    assert ClaudeCodeAgentConfig(model="m", effort="high").permission == "bypass"
+def test_an_agent_nobody_was_asked_about_is_on_no_rung_at_all() -> None:
+    """A rung is an answer, and nobody asked this agent the question.
+
+    So there is nothing to settle and nothing to send: the CLI is started without a word about
+    permissions and decides for itself out of the settings whoever installed it already has.
+    `bypass` is still what a flow driving an agent unattended writes, and writing it is how it
+    is reached.
+    """
+    assert ClaudeCodeAgentConfig(model="m", effort="high").permission == UNSAID
+    assert UNSAID not in PERMISSIONS  # not a rung -- the absence of one
 
 
 def test_claude_is_given_its_exact_native_allowed_tool_rules() -> None:
@@ -237,6 +244,24 @@ def test_claude_runs_at_the_permission_mode_the_rung_means(
     assert "--dangerously-skip-permissions" not in argv
 
 
+def test_claude_is_told_no_mode_at_all_for_an_agent_on_no_rung(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--permission-mode` is humanize answering, so an agent nobody asked about carries none.
+
+    Claude then runs at whatever `claude -p` runs at for whoever typed it -- their own
+    settings file, their own managed policy -- which is the whole of what saying nothing
+    means.
+    """
+    log = _claude(tmp_path, monkeypatch)
+    assert ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high")).new()("hi")
+
+    argv = _noted(log)[0]["argv"]
+    assert "--permission-mode" not in argv
+    assert "--permission-prompt-tool" not in argv
+    assert "--dangerously-skip-permissions" not in argv
+
+
 def test_claude_takes_the_asking_for_bypass_rather_than_skipping_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -254,7 +279,9 @@ def test_claude_takes_the_asking_for_bypass_rather_than_skipping_it(
     and leave a flow's `PERMISSION_REQUEST` hooks with none of what they are hung for.
     """
     log = _claude(tmp_path, monkeypatch)
-    assert ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high")).new()("hi")
+    assert ClaudeCodeAgent(
+        ClaudeCodeAgentConfig(model="m", effort="high", permission="bypass")
+    ).new()("hi")
 
     argv = _noted(log)[0]["argv"]
     assert argv[argv.index("--permission-mode") + 1] == "manual"
@@ -262,11 +289,15 @@ def test_claude_takes_the_asking_for_bypass_rather_than_skipping_it(
     assert "--dangerously-skip-permissions" not in argv
 
 
-@pytest.mark.parametrize("permission", ["read-only", "workspace-write", "auto"])
+@pytest.mark.parametrize("permission", ["read-only", "workspace-write", "auto", UNSAID])
 def test_claude_routes_the_asking_home_only_for_bypass(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, permission: str
 ) -> None:
-    """Every other rung is the mode's to enforce, so nothing is routed for it to answer."""
+    """Every other rung is the mode's to enforce, so nothing is routed for it to answer.
+
+    And an agent on no rung at all routes nothing for the same reason twice over: there is no
+    mode to enforce, and nothing humanize was asked to answer.
+    """
     log = _claude(tmp_path, monkeypatch)
     ClaudeCodeAgent(
         ClaudeCodeAgentConfig(model="m", effort="high", permission=permission)
@@ -280,7 +311,9 @@ def test_a_permission_is_granted_unless_the_rung_or_a_hook_refuses(
 ) -> None:
     """The one moment a backend actually waits on, which is the one a refusal reaches."""
     log = _claude(tmp_path, monkeypatch)
-    agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high"))
+    agent = ClaudeCodeAgent(
+        ClaudeCodeAgentConfig(model="m", effort="high", permission="bypass")
+    )
     assert agent.new()("hi") == "hi"
     assert _noted(log)[1]["answered"]["behavior"] == "allow"
 
@@ -301,7 +334,9 @@ def test_a_hook_may_refuse_a_permission_at_any_rung_that_asks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     log = _claude(tmp_path, monkeypatch)
-    agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high"))
+    agent = ClaudeCodeAgent(
+        ClaudeCodeAgentConfig(model="m", effort="high", permission="bypass")
+    )
     with agent.hooks.on(
         Moment.PERMISSION_REQUEST, lambda _: Verdict(refused=True, because="not that")
     ):
@@ -476,7 +511,7 @@ def test_an_agent_allowed_less_is_another_agent_at_the_same_model() -> None:
 
     config = CodexAgentConfig(model="m", effort="high")
     tighter = replace(config, permission="read-only")
-    assert config.permission == "bypass"
+    assert config.permission == UNSAID
     assert tighter.permission == "read-only"
     assert tighter.model == config.model
 
@@ -584,7 +619,9 @@ def test_codex_runs_a_rung_down_where_this_machine_will_not_take_the_one_asked_f
     granted here -- so the flow runs rather than failing on every turn it takes.
     """
     log = _codex(tmp_path, monkeypatch)
-    session = CodexAgent(CodexAgentConfig(model="gpt-5-codex", effort="high")).new()
+    session = CodexAgent(
+        CodexAgentConfig(model="gpt-5-codex", effort="high", permission="bypass")
+    ).new()
 
     assert session("do the task") == "done"
 
@@ -601,7 +638,9 @@ def test_codex_finds_out_what_this_machine_takes_once_and_not_once_a_turn(
 ) -> None:
     """One refusal is the whole cost of finding out, and a resumed thread is told the same."""
     log = _codex(tmp_path, monkeypatch)
-    session = CodexAgent(CodexAgentConfig(model="gpt-5-codex", effort="high")).new()
+    session = CodexAgent(
+        CodexAgentConfig(model="gpt-5-codex", effort="high", permission="bypass")
+    ).new()
     session("do the task")
     session("and the next")
 

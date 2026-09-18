@@ -17,6 +17,7 @@ from dataclasses import replace
 import pytest
 
 from hmz.coganchor.agents import (
+    UNSAID,
     AntigravityCLIAgent,
     AntigravityCLIAgentConfig,
     GrokBuildAgentConfig,
@@ -114,8 +115,9 @@ def test_agy_refuses_a_read_only_rung_its_own_flag_would_undo() -> None:
         agent.reconfigure(replace(told, permission="read-only"))
     with pytest.raises(ValueError, match="plan mode has no effect"):
         AntigravityCLIAgent(replace(told, permission="read-only"))
-    # And the rung is still what it was: a refusal is not half a reconfiguration.
-    assert agent.config.permission == "bypass"
+    # And the rung is still what it was -- none at all: a refusal is not half a
+    # reconfiguration.
+    assert agent.config.permission == UNSAID
 
 
 @pytest.mark.parametrize("waiting", [0.0, -1.0, float("nan"), float("inf"), 1e16])
