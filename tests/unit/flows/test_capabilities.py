@@ -411,3 +411,31 @@ def test_the_rung_a_backend_refuses_is_the_rung_it_does_not_serve() -> None:
                 DshAgent(
                     DshAgentConfig(model="m", effort="high", permission=permission)
                 )
+
+
+def test_the_picker_blames_the_flow_rather_than_the_installation() -> None:
+    """A place asking of the agent for a machine's answer rules out every CLI there is.
+
+    Which it should -- no backend comes to `isolated` -- but saying that nothing installed
+    here will do sends somebody off to install a thirteenth CLI for a flow no CLI can fill.
+    """
+    from hmz.flows.driving import Place
+    from hmz.tui.pick import Clis
+
+    offered: dict[str, tuple[Model, ...]] = {"claude": (), "dsh": ()}
+    wrong = Place(
+        name="builder",
+        person=False,
+        moments=frozenset(),
+        needs=Needs("isolated"),
+    )
+    picking = Clis(offered, place=wrong)
+
+    assert picking.rows() == []
+    assert "Needs(where=('isolated',))" in picking.nothing()
+    # And a place nothing is wrong with says the other thing, which is still the usual one.
+    bare = Place(name="builder", person=False, moments=frozenset())
+    picking = Clis({}, place=bare)
+
+    assert picking.rows() == []
+    assert "no coding agent installed here" in picking.nothing()

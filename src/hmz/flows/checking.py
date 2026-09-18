@@ -2224,11 +2224,12 @@ INSIDE = places.INSIDE
 #: is not a machine declaring the road, it is the agent losing it, and `serves` is where it is
 #: taken away.
 _ANCHORS = {
-    places.NATIVE_CLI: "a turn taken as the CLI's own command line, read off its streams "
-    "-- spawned here when nothing anchors it, and on the target when an anchor drives the "
-    "CLI already installed there",
-    places.SUPERVISED: "a turn whose commands are reached by tracing the process it runs "
-    "them in, which is how an anchored turn's work lands on the machine the flow chose",
+    places.NATIVE_CLI: "an anchored turn taken as the CLI already installed on the target, "
+    "read off its own three streams, with nothing traced and nothing mirrored -- asked of a "
+    "machine, so a place whose agent was pointed nowhere comes to it no more than to remote",
+    places.SUPERVISED: "an anchored turn whose commands are reached by tracing the process it "
+    "runs them in, which is how the work of a turn taken here lands on the machine the flow "
+    "chose -- asked of a machine, the same way",
     places.HOOKED: "a turn reached through the CLI's own hooks, written for this run and "
     "read by no other -- backends.named(<backend>).hooks says through which seam it is told; "
     "asked of the agent, and taken away from one whose turns land on another machine",
@@ -2627,10 +2628,23 @@ def catalogue() -> tuple[Capability, ...]:
             "which session.forks says of a backend beforehand",
         )
     )
-    held.extend(
-        Capability(name, _tagged(name, agents), said)
-        for name, said in _PROFILED.items()
-    )
+    for name, said in _PROFILED.items():
+        # Both normalisations `_anchors` makes, and for the same two reasons. A fact no CLI
+        # here has is left out rather than listed against nobody, an empty set being how this
+        # catalogue says "all of them"; and one every CLI here has is listed against nobody
+        # rather than against twelve names, so that it reads as universal on the briefing and
+        # so that a CLI somebody added by hand -- which is in no `DRIVEN` table -- is not read
+        # as lacking what every backend has.
+        serving = _tagged(name, agents)
+        if not serving:
+            continue
+        held.append(
+            Capability(
+                name,
+                frozenset() if serving == frozenset(agents) else serving,
+                said,
+            )
+        )
     for permission in PERMISSIONS:
         # Every driven backend reads as none of them, the way an anchor every CLI is reached
         # through does: an empty set is what says "all of them", and it is also the only

@@ -355,12 +355,22 @@ def test_every_name_a_backends_own_facts_come_to_is_in_the_catalogue() -> None:
     assert {name for one in PROFILES for name in one.tags()} <= named_here
     for name in ("search", "swarm", "resume"):
         (one,) = (held for held in catalogue() if held.name == name)
-
-        assert one.backends == frozenset(
+        tagged = frozenset(
             backend
             for backend in DRIVEN
             if (profile := named(backend)) is not None and name in profile.tags()
         )
+
+        assert one.backends == (
+            frozenset() if tagged == frozenset(DRIVEN) else tagged
+        ), name
+    # `resume` is every CLI here, so it is named against none of them: an empty set is how
+    # this catalogue says "all of them", and one listed against twelve names would read as
+    # something a CLI somebody added by hand does not have.
+    told = {one.name: one.backends for one in catalogue()}
+
+    assert told["resume"] == frozenset()
+    assert told["swarm"] == {"kimi"}
 
 
 def test_every_capability_says_which_half_of_needs_asks_for_it() -> None:
@@ -420,3 +430,29 @@ def test_a_rung_is_named_against_exactly_the_backends_that_take_it() -> None:
 def test_no_rung_is_named_for_the_silence_above_the_ladder() -> None:
     """`UNSAID` is not a rung, and every backend can be told nothing at all."""
     assert rung(UNSAID) not in {one.name for one in catalogue()}
+
+
+def test_what_a_driver_says_it_takes_is_what_it_actually_takes() -> None:
+    """`rungs` is a word for a refusal, and a word that drifted from one would be a lie.
+
+    The refusal lives in each driver's own `_serves`, which is where it has to be: a config
+    arrives at an agent that is being made and at one being set up as something else, and both
+    are refused there. `rungs` is the same fact said early enough for somebody choosing a
+    backend to read, and nothing in `AgentBase._serves` holds the two together yet -- so this
+    does, by making every driven backend at every rung and asking whether it was refused.
+
+    A backend that learns to refuse a rung and forgets to narrow `rungs` would advertise it,
+    pass the picker, pass `serves`, and raise where the agent is made: exactly the late
+    failure the capability exists to move earlier.
+    """
+    for backend, (cls, config) in DRIVEN.items():
+        for permission in PERMISSIONS:
+            settings = config(model="m", effort="", permission=permission)
+            try:
+                cls(settings)
+            except ValueError:
+                taken = False
+            else:
+                taken = True
+
+            assert taken is (permission in cls.rungs), (backend, permission)

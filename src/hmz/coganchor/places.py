@@ -18,8 +18,9 @@ about flows and no business of a layer that drives agents.
 
 `anchor:hooked` and `anchor:preloaded` are here for the company they keep and not because a
 machine ever declares them. They are the two roads humanize reaches a turn down from *inside*
-the process it started, so they are facts about the CLI -- :meth:`hmz.coganchor.backends.Profile.tags`
-is what answers with them -- and they are asked of the agent rather than of where it works.
+the process it started, so they are facts about the CLI --
+:meth:`hmz.coganchor.backends.Profile.tags` is what answers with them -- and they are asked of
+the agent rather than of where it works.
 :data:`INSIDE` is what says so, and what takes them away again from an agent whose turns land
 on another machine. They are spelled out there rather than imported from here, because
 `backends.py` may name nothing but the standard library; `tests/unit/backends/test_catalogue.py`
@@ -62,16 +63,24 @@ MANAGED = "managed"
 #: here that `hello` could never answer with would be one a machine is refused for lacking.
 PLACES = frozenset({REMOTE, ISOLATED, MANAGED}) | PLATFORMS
 
-#: A turn taken as the CLI's own command line, read off its own three streams. Spawned here
-#: when nothing anchors it, and on the target when an anchor drives the CLI already there.
+#: An anchored turn taken as the CLI already installed on the target, read off its own three
+#: streams, with nothing traced and nothing mirrored.
 NATIVE_CLI = "anchor:native-cli"
 
-#: A turn whose commands are reached by tracing the process it runs them in, which is how an
-#: anchored turn's work lands on the machine the flow chose.
+#: An anchored turn whose commands are reached by tracing the process it runs them in, which
+#: is how the work of a turn taken here lands on the machine the flow chose.
 SUPERVISED = "anchor:supervised"
 
 #: The two roads a *machine* declares, being the two ways an anchor reaches one. Asked for
-#: under `where=`, where the machine that was pointed down one is what answers.
+#: under `where=`, where the machine that was pointed down one is what answers -- and so
+#: answered by no place at all where an agent was pointed nowhere.
+#:
+#: Which is not a gap. A turn on this machine is a CLI humanize spawned here and traced here,
+#: so both roads are travelled; but a road is how an anchor reaches a *machine*, there is no
+#: machine, and nothing declares it. That is the same answer `remote` gives a local place and
+#: for the same reason: what a place comes to is read off the settings of where its work
+#: lands, and work that lands here lands under no settings. A flow asking for one of these is
+#: asking about somewhere else, which is the only place the question has two answers.
 ROADS = (NATIVE_CLI, SUPERVISED)
 
 #: A turn reached through the CLI's own hooks, written for this run and read by no other.
