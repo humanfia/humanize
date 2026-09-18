@@ -897,7 +897,9 @@ def test_a_web_switch_beside_no_rung_is_still_carried(stubs: _Stubs) -> None:
     (call,) = stubs.calls()
     assert call.allowed is not None
     assert json.loads(call.allowed) == {"webfetch": "deny", "websearch": "deny"}
-    assert "--auto" in call.argv
+    # And no flag, which is the one thing that would have granted the two the table says
+    # nothing about: a turn that asked only for less is not a turn that asked for those.
+    assert "--auto" not in call.argv
 
 
 def test_opencode_takes_the_rest_of_its_command_line_from_the_agent(

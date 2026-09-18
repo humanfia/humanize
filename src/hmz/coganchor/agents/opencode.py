@@ -76,29 +76,51 @@ _PERMITTED = {
 _UNNARROWED = (UNSAID, "auto", "bypass")
 
 
-def _carried(config: AgentConfig, setting: str) -> bool:
-    """Whether one of the two ways this backend is told a rung applies to this turn.
+def _tabled(config: AgentConfig) -> bool:
+    """Whether the variable this backend carries a rung in is written for this turn.
 
-    Both of them are the rung arriving: the table is what the agent may do, and the flag is
-    what becomes of everything the table left to be asked about. So an answer is taken as the
-    answer it is, and no answer at all comes to whether there was anything to carry -- a rung
-    the config names, or a web switch it states, that being the other thing the table holds. A
-    config saying neither is a turn humanize says nothing about, and a turn said nothing about
-    is the bare ``opencode run`` whoever is at this machine already gets.
+    Two answers go in it -- what the agent may do, and whether it may read the web -- and the
+    variable is the only place this backend has to say either, so either of them said is a
+    table to write. Neither said is nothing to put in one, and a variable set to that would be
+    humanize answering a question nobody put to it: the turn runs at whatever the person at
+    this machine has configured, as a bare ``opencode run`` does.
 
     Args:
       config: What the agent is configured with.
-      setting: Which of the two to ask about, by the name its field goes under. By name and
-        read off the config here, because a config from another backend has neither -- which
-        is the same no answer at all as one of this backend's own leaving it unsaid.
 
     Returns:
-      Whether the flag goes on the command line, or the table into the environment.
+      Whether the table goes into the environment. `permission_table` is the answer where the
+      config carries one; where it does not -- left unsaid, or a config of another backend
+      with no such field -- it is whether there was anything to carry.
     """
-    said: bool | None = getattr(config, setting, None)
+    said: bool | None = getattr(config, "permission_table", None)
     if said is not None:
         return said
     return config.permission != UNSAID or config.web_search is not None
+
+
+def _flagged(config: AgentConfig) -> bool:
+    """Whether the flag that answers what the table left to be asked about goes on the line.
+
+    The rung alone, where the two decisions part company: what the flag grants is editing and
+    running commands, which is what a rung says and what a web answer says nothing about. A
+    turn that asked only for less -- `web_search=False` beside no rung -- would be granted
+    those two on the strength of a restriction, and a restriction is not a reason to grant
+    anything. The table still goes out for such a turn, the web answer having nowhere else to
+    go; the flag does not, and what the CLI asks about is answered as that person's own
+    configuration says.
+
+    Args:
+      config: What the agent is configured with.
+
+    Returns:
+      Whether the flag goes on the command line. `unattended` is the answer where the config
+      carries one; where it does not, it is whether a rung was named at all.
+    """
+    said: bool | None = getattr(config, "unattended", None)
+    if said is not None:
+        return said
+    return config.permission != UNSAID
 
 
 class OpencodeSession(CommandSessionBase):
@@ -193,7 +215,7 @@ class OpencodeSession(CommandSessionBase):
             # `--fork` forks the session it is given and carries on in the fork, so this run
             # lands in a conversation of its own that starts out knowing what that one knew.
             argv += ["--session", self._forked_from, "--fork"]
-        if _carried(config, "unattended"):
+        if _flagged(config):
             argv += self._unattended()
         return argv, prompt
 
@@ -206,10 +228,9 @@ class OpencodeSession(CommandSessionBase):
         refusals: what the agent may not do is denied, and the flag is what carries the rest.
 
         What the flag is called is all this says. Whether a turn carries it at all is the
-        agent's `unattended`, which where nobody has said comes to whether there was a rung
-        to watch over in the first place. A turn that does not carry it gets the CLI's own
-        answer instead -- a headless run refuses what it is asked rather than waiting to be
-        told.
+        agent's `unattended`, which where nobody has said comes to whether a rung was named at
+        all. A turn that does not carry it gets the CLI's own answer instead -- a headless run
+        refuses what it is asked rather than waiting to be told.
         """
         return ["--auto"]
 
@@ -230,7 +251,7 @@ class OpencodeSession(CommandSessionBase):
         variable set to that would be humanize answering a question nobody put to it.
         """
         config = self._agent.config
-        if not _carried(config, "permission_table"):
+        if not _tabled(config):
             return dict(super()._environment())
         rung = _PERMITTED.get(config.permission, _PERMITTED["bypass"])
         # A rung that already withholds the web is not asked twice: it and `web_search` say
@@ -433,13 +454,14 @@ class OpencodeAgentConfig(AgentConfig):
         somebody else's plugin is somebody else's code inside the turn.
       unattended: Whether the turn carries the CLI's own auto-approve flag, which answers yes
         to everything the permission table has not refused outright. Unsaid, which is the flag
-        wherever the config says what its agent may do and no flag at all where it says
-        nothing: a flow that declares a rung watches its agent rather than gating it, and a
-        turn waiting on an approval nobody is there to give is a flow that has stopped -- but
-        that is a reason about a declared rung, and a run that declared nothing asked for the
-        CLI as it comes, which does not come carrying this. On is the flag whatever the config
-        says. Off, the CLI answers its own asks by refusing them, which is a turn held to what
-        it was allowed up front.
+        wherever the config names a rung and no flag at all where it names none: a flow that
+        declares a rung watches its agent rather than gating it, and a turn waiting on an
+        approval nobody is there to give is a flow that has stopped -- but that is a reason
+        about a declared rung, and a run that declared nothing asked for the CLI as it comes,
+        which does not come carrying this. The rung and not the web switch beside it: what
+        this grants is editing and running commands, and a turn that asked only for less has
+        asked for neither. On is the flag whatever the config says. Off, the CLI answers its
+        own asks by refusing them, which is a turn held to what it was allowed up front.
       permission_table: Whether `permission` and `web_search` reach the CLI at all, as a table
         written for this turn in the variable it reads one from. Unsaid, which writes one
         wherever there is anything to put in it and leaves the variable alone where there is
