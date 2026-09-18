@@ -348,6 +348,38 @@ def run(
         + """
 from typing import Annotated
 
+from hmz.flows import Agent, AgentDefaults, flow
+
+@flow
+def run(
+    agents: tuple[Annotated[Agent, AgentDefaults(permission="")]], task: str
+) -> None:
+    agents[0](task)
+""",
+        CLEAN,
+        id="unknown-permission-edge-nothing-said",
+    ),
+    pytest.param(
+        DOC
+        + """
+from typing import Annotated
+
+from hmz.flows import UNSAID, Agent, AgentDefaults, flow
+
+@flow
+def run(
+    agents: tuple[Annotated[Agent, AgentDefaults(permission=UNSAID)]], task: str
+) -> None:
+    agents[0](task)
+""",
+        CLEAN,
+        id="unknown-permission-edge-nothing-said-by-its-name",
+    ),
+    pytest.param(
+        DOC
+        + """
+from typing import Annotated
+
 from hmz.flows import Agent, AgentDefaults, Goal, flow
 
 @flow
@@ -965,6 +997,42 @@ def test_the_surface_is_the_interfaces_themselves() -> None:
     assert {"loads", "close", "stream"} <= surface(Session)
     assert "rename" not in surface(Agent)
     assert "rename" in surface(Driven)
+
+
+def test_nothing_said_is_a_permission_a_flow_may_write() -> None:
+    """The word for no rung at all is one a flow reaches for, so `hmz.flows` hands it over."""
+    from hmz.coganchor.agents import UNSAID
+
+    assert hmz.flows.UNSAID is UNSAID
+    assert "UNSAID" in hmz.flows.__all__
+    assert UNSAID not in hmz.flows.PERMISSIONS
+
+
+def test_a_rung_there_is_not_says_what_there_is(tmp_path: Path) -> None:
+    """The finding names the ladder and the silence above it, both being writable."""
+    at = written(
+        tmp_path,
+        "one",
+        textwrap.dedent(
+            DOC
+            + """
+from typing import Annotated
+
+from hmz.flows import Agent, AgentDefaults, flow
+
+@flow
+def run(
+    agents: tuple[Annotated[Agent, AgentDefaults(permission="rdonly")]], task: str
+) -> None:
+    agents[0](task)
+"""
+        ),
+    )
+    (said,) = [one for one in checked(at) if one.code == "unknown-permission"]
+    assert "'rdonly' is no rung there is" in said.said
+    for rung in hmz.flows.PERMISSIONS:
+        assert rung in said.said
+    assert "said nothing" in said.said
 
 
 def test_everything_offered_is_reachable() -> None:
