@@ -19,11 +19,21 @@ CODEX_THREAD = "5f6e7d8c-1a2b-3c4d-5e6f-708192a3b4c5"
 CODEX_SUBTHREAD = "9182a3b4-c5d6-e7f8-0912-a3b4c5d6e7f8"
 KIMI_SESSION = "session_20260720T100000_abcdef"
 DSH_SESSION = "session-dsh12345"
+ZCODE_SESSION = "sess_aabbccdd-1122-3344-5566-778899aabbcc"
+ZCODE_AGENT = "agent_ddccbbaa-2211-4433-6655-ccbbaa998877"
+ZCODE_SUBAGENT = f"sess_subagent_{ZCODE_AGENT}"
+#: What hangs a ZCode sub-agent off its parent: the two sessions carry one trace id.
+ZCODE_TRACE = "11223344-5566-7788-99aa-bbccddeeff00"
 
 
 def _stamp(offset: float) -> str:
     """Formats a fixture time the way Claude and Codex write timestamps."""
     return (_BASE + datetime.timedelta(seconds=offset)).isoformat()
+
+
+def _zulu(offset: float) -> str:
+    """Formats a fixture time the way ZCode writes timestamps, `Z` and all."""
+    return _stamp(offset).replace("+00:00", "Z")
 
 
 def _millis(offset: float) -> int:
@@ -668,6 +678,363 @@ def kimi_home(
         ],
     )
     monkeypatch.setenv("KIMI_CODE_HOME", str(home))
+    return home
+
+
+def _io(
+    source: str,
+    turn: str,
+    at: float,
+    took: float,
+    session: str = ZCODE_SESSION,
+    **held: Any,
+) -> dict[str, Any]:
+    """Builds one ZCode model-io line, which is one request and what came back from it.
+
+    Args:
+        source: Which query of the session it was, as `querySource`.
+        turn: The turn it was a request of.
+        at: When it was sent, as an offset from the fixture's own base time.
+        took: How long it took, in seconds.
+        session: Whose session it was, the sub-agent's being one of its own.
+        held: What is particular to this line -- its `request` and what came
+            back as its `response`.
+
+    Returns:
+        The record, with the fields ZCode 0.16.5 writes on every one of them.
+    """
+    return {
+        "type": "model_io",
+        "sessionId": session,
+        "traceId": ZCODE_TRACE,
+        "turnId": turn,
+        "querySource": source,
+        "requestId": f"request-{turn}-{at:g}",
+        "attempt": 1,
+        "startedAt": _zulu(at),
+        "completedAt": _zulu(at + took),
+        "durationMs": int(took * 1000),
+        "model": {
+            "modelId": "glm-5.3-flash",
+            "providerId": "gw",
+            "role": "lite" if source == "session_title" else "main",
+            "source": "session",
+            "variant": "high",
+        },
+        **held,
+    }
+
+
+@pytest.fixture
+def zcode_home(
+    sandbox: None, tmp_path: pathlib.Path, workspace: pathlib.Path
+) -> pathlib.Path:
+    """Builds a ZCode home with a session's rollout and the sub-agent it started.
+
+    Every field is spelled as ZCode 0.16.5 spells it, read off a rollout this machine's own
+    `zcode` wrote: a line per request, the conversation replayed inside it whole the first
+    time and as a `delta` afterwards, the workspace said in the prompt and nowhere else, and
+    the naming of the session charged to it as a query of its own.
+
+    No variable to set, unlike the other three: ZCode has none, and what moves its home is
+    `HOME` -- which the sandbox fixture has already pointed inside `tmp_path`.
+    """
+    home = tmp_path / "home" / ".zcode"
+    _write(
+        home / "cli" / "rollout" / f"model-io-{ZCODE_SESSION}.jsonl",
+        [
+            _io(
+                "session_title",
+                "turn-1",
+                0,
+                1,
+                request={
+                    "messages": [
+                        {"role": "system", "content": "Generate a concise title."},
+                        {"role": "user", "content": "map the module"},
+                    ],
+                    "messagesKind": "full",
+                    "messageCount": 2,
+                    "messageOffset": 0,
+                },
+                response={
+                    "text": '{"title":"map the module"}',
+                    "finishReason": "stop",
+                    "toolCalls": [],
+                    "usage": {
+                        "inputTokens": 9,
+                        "outputTokens": 5,
+                        "totalTokens": 14,
+                        "cacheReadTokens": 0,
+                        "reasoningTokens": 0,
+                    },
+                },
+            ),
+            _io(
+                "main_turn",
+                "turn-1",
+                1,
+                2,
+                request={
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": (
+                                "# Environment\nYou have been invoked in the following"
+                                f" environment:\n- Primary working directory: {workspace}"
+                                "\n- Is a git repository: no\n"
+                            ),
+                        },
+                        {
+                            "role": "user",
+                            "content": "<system-reminder>\nskills\n</system-reminder>",
+                        },
+                        {
+                            "role": "user",
+                            "content": (
+                                "<system-reminder>\n# currentDate\nToday's date is"
+                                " 2026-07-20.\n</system-reminder>"
+                            ),
+                        },
+                        {"role": "user", "content": "map the module"},
+                    ],
+                    "messagesKind": "full",
+                    "messageCount": 4,
+                    "messageOffset": 0,
+                    "toolNames": ["Read", "Agent"],
+                },
+                response={
+                    "modelId": "glm-5.3-flash",
+                    "reasoningText": "read it first",
+                    "text": "",
+                    "finishReason": "tool-calls",
+                    "toolCalls": [
+                        {
+                            "id": "call-read",
+                            "name": "Read",
+                            "input": {"file_path": "module.py"},
+                        }
+                    ],
+                    "usage": {
+                        "inputTokens": 20,
+                        "outputTokens": 10,
+                        "totalTokens": 30,
+                        "cacheReadTokens": 0,
+                        "reasoningTokens": 4,
+                    },
+                },
+            ),
+            _io(
+                "main_turn",
+                "turn-1",
+                5,
+                1,
+                request={
+                    # As ZCode writes a request whose replay is only what is new since the
+                    # line before it: three messages already written, two of its own.
+                    "messages": [
+                        {
+                            "role": "assistant",
+                            "content": [{"type": "reasoning", "text": "read it first"}],
+                            "toolCalls": [
+                                {
+                                    "id": "call-read",
+                                    "name": "Read",
+                                    "input": {"file_path": "module.py"},
+                                }
+                            ],
+                        },
+                        {
+                            "role": "tool",
+                            "toolCallId": "call-read",
+                            "toolName": "Read",
+                            "isError": False,
+                            "content": "print('hi')",
+                        },
+                    ],
+                    "messagesKind": "delta",
+                    "messageCount": 6,
+                    "messageOffset": 4,
+                },
+                response={
+                    "reasoningText": "that is the whole of it",
+                    "text": "the module prints hi",
+                    "finishReason": "stop",
+                    "toolCalls": [],
+                    "usage": {
+                        "inputTokens": 30,
+                        "outputTokens": 8,
+                        "totalTokens": 38,
+                        "cacheReadTokens": 20,
+                        "reasoningTokens": 3,
+                    },
+                },
+            ),
+            _io(
+                "main_turn",
+                "turn-2",
+                7,
+                1,
+                request={
+                    "messages": [
+                        {"role": "assistant", "content": "the module prints hi"},
+                        {"role": "user", "content": "count the files"},
+                    ],
+                    "messagesKind": "delta",
+                    "messageCount": 8,
+                    "messageOffset": 6,
+                },
+                response={
+                    "text": "",
+                    "finishReason": "tool-calls",
+                    "toolCalls": [
+                        {
+                            "id": "call-agent",
+                            "name": "Agent",
+                            "input": {
+                                "description": "count the files",
+                                "prompt": "count the files here",
+                                "subagent_type": "Explore",
+                            },
+                        }
+                    ],
+                    "usage": {
+                        "inputTokens": 40,
+                        "outputTokens": 12,
+                        "totalTokens": 52,
+                        "cacheReadTokens": 20,
+                        "reasoningTokens": 6,
+                    },
+                },
+            ),
+            _io(
+                "main_turn",
+                "turn-2",
+                12,
+                1,
+                request={
+                    "messages": [
+                        {
+                            "role": "assistant",
+                            "content": [],
+                            "toolCalls": [{"id": "call-agent", "name": "Agent"}],
+                        },
+                        {
+                            "role": "tool",
+                            "toolCallId": "call-agent",
+                            "toolName": "Agent",
+                            "isError": False,
+                            "content": (
+                                f"one file\nagentId: {ZCODE_AGENT} (use SendMessage"
+                                f" with to: '{ZCODE_AGENT}' to continue this agent)"
+                            ),
+                        },
+                    ],
+                    "messagesKind": "delta",
+                    "messageCount": 10,
+                    "messageOffset": 8,
+                },
+                response={
+                    "text": "one file, module.py",
+                    "finishReason": "stop",
+                    "toolCalls": [],
+                    "usage": {
+                        "inputTokens": 50,
+                        "outputTokens": 9,
+                        "totalTokens": 59,
+                        "cacheReadTokens": 40,
+                        "reasoningTokens": 0,
+                    },
+                },
+            ),
+        ],
+    )
+    _write(
+        home / "cli" / "rollout" / f"model-io-{ZCODE_SUBAGENT}.jsonl",
+        [
+            _io(
+                "subagent",
+                "turn-3",
+                8,
+                1,
+                session=ZCODE_SUBAGENT,
+                request={
+                    "messages": [
+                        {
+                            "role": "system",
+                            # The other of ZCode's two wordings, which is the one a
+                            # sub-agent is told where it is working in.
+                            "content": (
+                                f"<env>\nWorking directory: {workspace}\nIs directory a"
+                                " git repo: No\n</env>\n"
+                            ),
+                        },
+                        {"role": "user", "content": "count the files here"},
+                    ],
+                    "messagesKind": "full",
+                    "messageCount": 2,
+                    "messageOffset": 0,
+                },
+                response={
+                    "reasoningText": "list them",
+                    "text": "",
+                    "finishReason": "tool-calls",
+                    "toolCalls": [
+                        {
+                            "id": "call-ls",
+                            "name": "Bash",
+                            "input": {"command": "ls", "description": "List files"},
+                        }
+                    ],
+                    "usage": {
+                        "inputTokens": 11,
+                        "outputTokens": 6,
+                        "totalTokens": 17,
+                        "cacheReadTokens": 0,
+                        "reasoningTokens": 2,
+                    },
+                },
+            ),
+            _io(
+                "subagent",
+                "turn-3",
+                10,
+                1,
+                session=ZCODE_SUBAGENT,
+                request={
+                    "messages": [
+                        {
+                            "role": "assistant",
+                            "content": [{"type": "reasoning", "text": "list them"}],
+                            "toolCalls": [{"id": "call-ls", "name": "Bash"}],
+                        },
+                        {
+                            "role": "tool",
+                            "toolCallId": "call-ls",
+                            "toolName": "Bash",
+                            "isError": False,
+                            "content": "module.py",
+                        },
+                    ],
+                    "messagesKind": "delta",
+                    "messageCount": 4,
+                    "messageOffset": 2,
+                },
+                response={
+                    "text": "one file",
+                    "finishReason": "stop",
+                    "toolCalls": [],
+                    "usage": {
+                        "inputTokens": 14,
+                        "outputTokens": 4,
+                        "totalTokens": 18,
+                        "cacheReadTokens": 8,
+                        "reasoningTokens": 0,
+                    },
+                },
+            ),
+        ],
+    )
     return home
 
 
