@@ -104,8 +104,8 @@ Three parts of that prompt are doing real work.
 
 - **The rules against cheating.** The repository's own Readme warns that none of the sub-1,300
   submissions on the first day were valid — in each case a model had edited the tests. An agent
-  running unattended with permissions disabled will find that shortcut, so name it, and name
-  the command that proves you did not take it.
+  running unattended at a rung where nothing is asked will find that shortcut, so name it, and
+  name the command that proves you did not take it.
 - **Measure, change, measure.** Without it a turn can end believing it made things faster.
 - **`NOTES.md`.** Each turn starts from nothing, so anything worth carrying has to be written
   to a file. Ask for that explicitly and the agents build themselves a lab notebook — which is

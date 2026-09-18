@@ -75,10 +75,15 @@ hmz exec -f ./review.py \
     "review this repository and write the findings to REVIEW.md"
 ```
 
-Four rungs exist: `read-only`, `workspace-write`, `auto`, `bypass`. A place that says nothing
-declares `bypass`, the loosest of them, which leaves its agent at whatever it came with; a
-declaration only ever tightens. A rung there is not is refused before any agent runs. See
-[Permissions](/user/permissions).
+Four rungs exist: `read-only`, `workspace-write`, `auto`, `bypass`. A place may also declare
+none, which is looser than all four and what a flow that writes no `AgentDefaults` does: its
+CLI is told nothing and the agent runs as it would headless, prompts and all. A declaration only
+ever tightens, so a place that says nothing leaves its agent at whatever it came with. A rung
+there is not is refused before any agent runs. See [Permissions](/user/permissions).
+
+A flow meant to run with nobody watching is a flow that declares `bypass`, the rung where
+nothing is asked: an agent left at its CLI's own answer may sit at a prompt no one is there to
+answer, or decline the edit and end the turn successfully with the work not done.
 
 ## Run with nobody at a prompt
 

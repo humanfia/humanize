@@ -140,8 +140,10 @@ mimocode are driven unattended — a flow watches its agent rather than gating i
 none of the moments: a moment is a point in a turn of a model, and the person takes no such
 turn.
 
-`PERMISSION_REQUEST` also wants the [`auto` rung](/user/permissions), the one setting under
-which a backend asks and waits.
+`PERMISSION_REQUEST` also wants a rung the flow declared: the [`auto` rung](/user/permissions),
+the one setting under which a backend asks and waits, and on Claude Code `bypass` as well, where
+the asking is routed to humanize. A place that declares no rung routes nothing, so a flow built
+on this moment says which rung it wants it at.
 
 ## Refusing a tool
 

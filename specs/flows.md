@@ -297,22 +297,28 @@ What a flow drives, written as interfaces and nothing else.
   either -- they are on `Driven` and not on `Agent`, like everything else somebody already
   answered -- so a flow that wants an agent allowed less makes another with `Agent.clone`.
 - What a place declares MUST only ever tighten what the agent filling it already carries, and
-  MUST NOT loosen it. A place that declares nothing declares the loosest of each -- `bypass`,
-  goals on, the web readable -- so a flow that says nothing MUST run its agents at exactly
-  what they came with rather than resetting them to those. Otherwise a run somebody started
-  at `read-only` would be at `bypass` the moment it called a flow that mentioned nothing, and
-  calling a flow they did not write would be how their `read-only` gets undone.
+  MUST NOT loosen it. A place that declares nothing declares the loosest of each -- nothing at
+  all about what the agent may do, goals on, nothing at all about the web -- so a flow that says
+  nothing MUST run its agents at exactly what they came with rather than resetting them to
+  those. Otherwise a run somebody started at `read-only` would be back at whatever its CLI does
+  unasked the moment it called a flow that mentioned nothing, and calling a flow they did not
+  write would be how their `read-only` gets undone. Saying nothing MUST therefore be looser than
+  every rung there is, which is what keeps the rule one rule: a declaration always tightens, and
+  the thing it tightens from when nobody has declared anything is the whole of what that CLI
+  would do on its own.
 - A called flow's declaration MUST hold for the length of the call and no longer, and MUST be
   measured against what the calling flow settled rather than against what the agent was made
   with: tightening is the point of declaring, and loosening is a called flow handing itself
   more than its caller has. Two calls holding one agent at once MUST each get what it
   declared, and the agent MUST go back to what it was before any of them took it once the
   last lets go -- not to what the call that happened to end last saw.
-- "Looser" MUST NOT be read as "sees less". At `bypass` humanize answers each of Claude's
-  permission requests itself, so a flow's `PERMISSION_REQUEST` hooks see every one; at `auto`
-  Claude decides for itself and those hooks see nothing. A flow that tightens `bypass` to
-  `auto` therefore gains restriction and loses visibility, and one written around watching
-  what its agent asks for MUST say `bypass` and mean it.
+- "Looser" MUST NOT be read as "sees less". At a declared `bypass` humanize answers each of
+  Claude's permission requests itself, so a flow's `PERMISSION_REQUEST` hooks see every one; at
+  `auto` Claude decides for itself and those hooks see nothing. A flow that tightens `bypass` to
+  `auto` therefore gains restriction and loses visibility, and one written around watching what
+  its agent asks for MUST say `bypass` and mean it. It MUST write the word: a place that declares
+  nothing is not at `bypass`, humanize answers nothing for it, and those hooks see whatever the
+  CLI itself asks humanize -- which on a Claude Code left to itself is nothing at all.
 - A flow MUST be able to put callbacks of its own in front of an agent as tools it may reach
   for, said on the conversation and taking effect from its next turn -- which is where a flow
   is when it has something to offer. The callback MUST run in the process the flow is in, so
@@ -370,9 +376,9 @@ class Place(NamedTuple):
     moments: frozenset[Moment]
     where: type[Remote] | Remote | Isolated | None = None
     goal: bool = False
-    permission: str = "bypass"
+    permission: str = ""
     goals: bool = True
-    web_search: bool = True
+    web_search: bool | None = None
     needs: Needs | None = None
 
 
@@ -519,9 +525,10 @@ run another. `hmz.runtime.runner` asks this and then opens an epic around the an
 - What an agent may do, whether it has goals and whether it may search the web MUST be read
   off the place the same way, out of the `AgentDefaults` a flow wrote beside it, and MUST be
   settled onto the agent here -- `runs_at` -- before its first turn and over whatever it was
-  constructed with. A place that wrote none MUST come out at `bypass`, goals on and the web
-  readable, which is what every agent of every flow ran at before a flow could say; a place
-  run under a `Goal` MUST come out with goals whatever else it wrote.
+  constructed with. A place that wrote none MUST come out with nothing said about what its agent
+  may do, goals on and nothing said about the web, so that its turns are the turns that CLI takes
+  when somebody starts it themselves; a place run under a `Goal` MUST come out with goals
+  whatever else it wrote.
 - A backend that cannot be told one of them MUST be refused as `NotAFlow`, naming the place
   and saying what the backend said: a flow that declares its agent may not search the web
   cannot be driven by a CLI that would go on searching, and a declaration nobody can carry out

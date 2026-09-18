@@ -121,9 +121,10 @@ class Agents(NamedTuple):
 ```
 
 The line that runs it is the same line either way — an agent is a CLI, an account, a model and
-an effort, and nothing on it says what the agent may do. A place that says nothing declares
-`bypass`, the loosest rung, and so settles nothing. On a runner, `workspace-write` costs you
-nothing and bounds the blast radius to the checkout. See [Permissions](/user/permissions).
+an effort, and nothing on it says what the agent may do. A place that says nothing declares no
+rung at all, which is looser than every rung and so settles nothing — the CLI is told nothing
+and runs as it runs on a runner by itself. On a runner, `workspace-write` costs you nothing and
+bounds the blast radius to the checkout. See [Permissions](/user/permissions).
 
 ## Write the workflow
 

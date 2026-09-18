@@ -112,6 +112,6 @@ its flows by name on every machine you add it to. To put one of your own on that
 ::: danger Adding a flowverse is trusting that repository with this machine
 A flow is Python, and reading one means **running** it: listing what a flowverse holds imports
 every file in its `flows/`. Add the ones you would clone and run. Every flow here also runs its
-agents with permission prompts disabled, and nothing turns them back on — read
+agents at whatever rung it declares, up to the one where nothing is asked at all — read
 [Security](/user/security) first.
 :::

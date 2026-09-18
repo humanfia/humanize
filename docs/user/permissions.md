@@ -4,15 +4,21 @@
 the flow declares the agent, and nobody running the flow is asked about it: a reviewer that may
 not write is a reviewer whichever CLI fills the place, so it is a thing about the work.
 
-Each agent sits on one rung of a four-rung ladder, loosest last, named the way these CLIs
-already name them.
+A flow may declare a rung for a place, out of a four-rung ladder, loosest last, named the way
+these CLIs already name them.
 
 | Rung | What it means |
 | --- | --- |
 | `read-only` | It may look at anything and change nothing — no edits, no commands. |
 | `workspace-write` | It may change the workspace it was given, and is stopped at the edge of it. |
 | `auto` | It may reach for anything, and what it asks for is granted. |
-| `bypass` | Nothing is asked and nothing is checked. **The loosest rung, and what a place that says nothing declares.** |
+| `bypass` | Nothing is asked and nothing is checked. **The loosest rung there is.** |
+
+A place may also say nothing, which is not a fifth rung but the absence of one: humanize then
+tells that CLI nothing about what its agent may do, and the agent runs exactly as it would had
+you started it yourself. That is what a place that declares nothing leaves behind, and it is
+looser than every rung in the table — a declaration is a thing said, and nothing said settles
+nothing.
 
 ## Declaring one
 
@@ -69,20 +75,25 @@ belongs to the flow driving it.
 
 ## A declaration only ever tightens
 
-`bypass` is the loosest rung, and it is what a place that says nothing declares: a flow watches
-its agent rather than gating it, and a turn that waits on an approval nobody is there to give
-is a flow that has stopped. But declaring the loosest rung settles nothing. What an agent
+Saying nothing is the loosest thing a place can do, and it settles nothing. What an agent
 already carries is never loosened to reach a declaration, so a flow that says nothing runs its
 agents at exactly what they came with, and a flow you call runs at your rung or tighter --
-never looser. Otherwise a run started at `read-only` would be at `bypass` the moment it called
-a flow that mentioned nothing, and calling a flow you did not write would be how your
-`read-only` gets undone. See [Security](/user/security).
+never looser. Otherwise a run started at `read-only` would be back at its CLI's own defaults the
+moment it called a flow that mentioned nothing, and calling a flow you did not write would be
+how your `read-only` gets undone. See [Security](/user/security).
 
-**Tighter is not always more visible.** At `bypass` humanize answers each of Claude Code's
-permission requests itself, so a flow's `PERMISSION_REQUEST` hooks see every one; at `auto`
-Claude decides for itself and those hooks see nothing. Tightening `bypass` to `auto` therefore
-buys restriction and costs visibility, so a flow written around watching what its agent asks
-for says `bypass` and means it.
+A flow that wants its agent asked nothing says `bypass` and means it: a flow watches its agent
+rather than gating it, and a turn that waits on an approval nobody is there to give is a flow
+that has stopped. But that is a thing to write, not a thing you get for free — an unattended run
+whose flow declares no rung will sit at whatever prompt its CLI puts up.
+
+**Tighter is not always more visible.** At a declared `bypass` humanize answers each of Claude
+Code's permission requests itself, so a flow's `PERMISSION_REQUEST` hooks see every one; at
+`auto` Claude decides for itself and those hooks see nothing. Tightening `bypass` to `auto`
+therefore buys restriction and costs visibility, so a flow written around watching what its
+agent asks for says `bypass` and means it. Declaring nothing is not `bypass` either: humanize
+answers nothing on the agent's behalf, so those hooks see only what the CLI itself asks it,
+which on a Claude Code left alone is nothing.
 
 ## What each backend actually does
 
@@ -91,6 +102,7 @@ reaches for whichever of its own settings says the same thing:
 
 | Rung | Claude Code | Codex | Kimi Code | pi | opencode, mimocode | ZCode |
 | --- | --- | --- | --- | --- | --- | --- |
+| *(none declared)* | nothing sent | nothing sent | nothing sent | nothing sent | nothing sent | nothing sent |
 | `read-only` | `plan` mode | `read-only` sandbox | plan mode | without `bash`, `edit`, `write` | `edit` and `bash` denied | `plan` mode |
 | `workspace-write` | `acceptEdits` mode | `workspace-write` sandbox | plan mode off | — | every way out of the workspace denied | `edit` mode |
 | `auto` | Claude's own `auto` mode | `workspace-write`, approvals on request | — | — | nothing denied | `build` mode, which asks before a tool with side effects |
@@ -98,6 +110,11 @@ reaches for whichever of its own settings says the same thing:
 
 These are the six backends whose rungs differ most; the whole set is in
 [Agents › What an agent may do](/reference/agents#what-an-agent-may-do).
+
+**The first row is the same everywhere because it is nothing.** Where the flow declared no rung
+there is no setting to reach for: no mode, no sandbox, no approval policy and no flag that skips
+a prompt. Each of these CLIs then does what it does when you run it yourself, which for most of
+them is to ask you before it writes.
 
 **A dash is the rung above it, run again.** Where a backend cannot tell two rungs apart it says
 so rather than pretending: asking Kimi for `auto` gets you `workspace-write` behaviour, not a
@@ -118,10 +135,10 @@ and not implemented yet.
 **A Codex whose rules were set by somebody else runs a rung down rather than not at all.** Some
 installations arrive with requirements — an enterprise policy on the account, a
 `requirements.toml` on a machine whose platform packages Codex — and one that forbids
-`danger-full-access` refuses every call asking for it, which would be every turn at the default
-rung. humanize asks again at `auto` instead: the same freedom, with Codex asking before it
-reaches past the workspace and humanize granting what it asks. It is found out once per agent,
-and the rung you chose is always what is tried first. See
+`danger-full-access` refuses every call asking for it, which would be every turn of an agent a
+flow declared `bypass` for. humanize asks again at `auto` instead: the same freedom, with Codex
+asking before it reaches past the workspace and humanize granting what it asks. It is found out
+once per agent, and the rung you chose is always what is tried first. See
 [Troubleshooting](/user/troubleshooting#codex-this-machine-will-not-run-an-agent-at-bypass-so-it-runs-at-auto).
 
 **Claude Code's `bypass` runs the same on an account somebody else set up.** The flag that
@@ -147,9 +164,11 @@ class Agents(NamedTuple):
 hmz exec -f ./rlar.py -a claude/claude-opus-5:max -a codex/gpt-5.6-sol:high "$(cat TASK.md)"
 ```
 
-The actor sits at `bypass` and does the work. The reviewer sits at `read-only` and can only
-look. Two agents, two rungs, one flow — and the same two rungs whoever runs it, on whichever
-CLIs they have.
+The actor is left as it came and does the work: nothing is declared for it, so it runs as the
+CLI filling it runs. The reviewer sits at `read-only` and can only look — the one thing this flow
+insists on, and the same `read-only` whoever runs it, on whichever CLI they have. Write
+`AgentDefaults(permission="bypass")` beside the actor as well where the pair is meant to run
+with nobody watching.
 
 ## What it does not bound
 
@@ -161,9 +180,10 @@ a real boundary, put the agent in [a container of its own](/user/containers).
 
 A [hook](/weaver/hooks) hung on `PERMISSION_REQUEST` can refuse something and have the agent
 hear it only where a backend asks before it acts *and waits for the answer*. `auto` is that
-rung everywhere it exists. Claude Code runs the moment at `bypass` as well, since `bypass`
-there is `manual` mode with the asking routed to humanize: the hook sees every tool an agent
-nobody was asked about reaches for, and can still say no to one.
+rung everywhere it exists. Claude Code runs the moment at a declared `bypass` as well, since
+`bypass` there is `manual` mode with the asking routed to humanize: the hook sees every tool
+that agent reaches for, and can still say no to one. A place that declares no rung routes
+nothing through humanize, so a flow that wants the moment declares the rung it wants it at.
 
 ```python
 def no_force_push(occasion: Occasion) -> Verdict | None:
