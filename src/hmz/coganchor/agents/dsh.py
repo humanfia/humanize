@@ -55,12 +55,54 @@ _COMPACTION = (
     {"id": "compaction-basic", "name": "@deepseek-ai/dsh-compaction-basic"},
 )
 
+#: The four plugins one turn reaches the web through, and the whole of how this backend is
+#: told whether it may. dsh has no flag and no deny-list: what an agent may reach for is what
+#: its composition mounts, so the web is said by mounting these or by leaving them out.
+#:
+#: Four rather than one because the harness splits a capability from its providers and both
+#: from the model-facing tool. `dsh-web` is the seam itself -- the `web` service a provider
+#: registers into and the tool calls. `dsh-web-search-deepseek` is the search provider, chosen
+#: over `dsh-web-search-exa` and `dsh-web-search-perplexity` because it is the one that takes
+#: no second credential: it reuses `DEEPSEEK_API_KEY` through the same credential seam the
+#: adapter does. `dsh-web-fetch-http` is the fetch provider. `dsh-tool-web` is what puts
+#: `web_search` and `web_fetch` in front of the model, and it injects `web`, so it is pending
+#: forever without the seam -- put to the runtime rather than assumed: mounted alone against
+#: `deepseek-harness-sdk` 0.1.1rc1 it fails the boot with `@deepseek-ai/dsh-tool-web: pending
+#: (waiting for service: web)`, and the four together come up.
+#:
+#: One provider of each kind and no more: the seam refuses an ambiguous choice at call time
+#: with `multiple usable web providers are registered ...; configure one explicitly`, so a
+#: second search provider mounted beside this one would be a `web_search` that fails on every
+#: call rather than a wider one.
+#:
+#: The endpoint is the search provider's own -- :data:`_SEARCH_URL_ENV` rather than
+#: `DEEPSEEK_BASE_URL`, because search speaks the Anthropic-compatible Messages API and chat
+#: completions do not, so one variable cannot serve both. Which is why `backends.py` lists
+#: that variable among this backend's ambient ones and why :meth:`DshSession._running` sets it
+#: to whatever endpoint an account named: mounting a provider that reaches out with the
+#: account's key is mounting one that has to reach the place the account said.
+_WEB = (
+    {"id": "web", "name": "@deepseek-ai/dsh-web"},
+    {"id": "web-search", "name": "@deepseek-ai/dsh-web-search-deepseek"},
+    {"id": "web-fetch", "name": "@deepseek-ai/dsh-web-fetch-http"},
+    {"id": "tool-web", "name": "@deepseek-ai/dsh-tool-web"},
+)
+
 #: The YAML tag the runtime's composition uses for a value it evaluates as JavaScript. It is
 #: the runtime's to evaluate and has no meaning here, so it is carried through the read and
 #: the write untouched rather than resolved.
 _JS_TAG = "tag:yaml.org,2002:js"
 _API_KEY_ENV = "DEEPSEEK_API_KEY"
 _BASE_URL_ENV = "DEEPSEEK_BASE_URL"
+
+#: Where the search provider mounted for an agent that may search sends its requests, which
+#: is a second endpoint rather than the one above: search speaks the Anthropic-compatible
+#: Messages API with a native `web_search_20250305` server tool and chat completions do not,
+#: so the harness gives the two their own variables. Unset, the provider uses DeepSeek's own
+#: `https://api.deepseek.com/anthropic/v1` -- right for a key that is DeepSeek's, and a
+#: gateway's key sent to DeepSeek for one that is not, which is why an account that named an
+#: endpoint has this set to it.
+_SEARCH_URL_ENV = "DEEPSEEK_SEARCH_BASE_URL"
 
 #: Which ways in an account a turn runs under may have been made by: all of dsh's own, read
 #: off its profile rather than written down again here. Every way `backends.py` declares for
@@ -516,14 +558,6 @@ class DshSession(SessionBase):
         harness_type = _harness_type()
         where = self._workspace()
         launch = self._agent.spawned(list(_runtime_args()), self.cwd)
-        hushed = sorted(self._agent.hushed())
-        if hushed:
-            env = shutil.which("env")
-            if env is None:
-                raise FileNotFoundError(
-                    "env is required to isolate dsh provider credentials"
-                )
-            launch = [env, *(part for name in hushed for part in ("-u", name)), *launch]
         # An account is the whole of what a turn under it runs on: its key, and the endpoint
         # to send that key to where the account was made by the gateway way. The layers an
         # installed dsh reads -- its `settings.yaml`, its credential store, the project's
@@ -531,17 +565,44 @@ class DshSession(SessionBase):
         # this machine's opinion about somebody else's credentials: a `baseURL` saved by the
         # dsh Models page would otherwise route an account's key to whichever endpoint this
         # machine happens to be pointed at, and the account's own would never be read at all.
-        environment = (
-            _native_dsh_environment(Path(where))
-            if self._agent.provider is None
-            else dict(self._agent.environment())
-        )
+        if self._agent.provider is None:
+            environment = _native_dsh_environment(Path(where))
+        else:
+            environment = dict(self._agent.environment())
+            # And where an account's searches go, where that account named an endpoint at
+            # all. The search provider mounted for an agent that may search reads
+            # `DEEPSEEK_SEARCH_BASE_URL` and falls back to DeepSeek's own public one, so a
+            # gateway account -- whose key is the gateway's -- would have that key sent to
+            # DeepSeek. Which is the leak `hushes()` takes this machine's own copy of the
+            # variable away for, arriving through the provider's own default instead. An
+            # account named one place for its key to go, so both halves of the account go
+            # there; a key account named none, and DeepSeek's own is where a DeepSeek key
+            # belongs. Under an account only: with none there is nothing hushed and nothing
+            # of anybody's to protect, and this machine's own variable governs as it did.
+            if (named := environment.get(_BASE_URL_ENV)) and not environment.get(
+                _SEARCH_URL_ENV
+            ):
+                environment[_SEARCH_URL_ENV] = named
         # The rung, where there is one. The composition reads this variable straight into
         # the adapter's `reasoningEffort`, so an agent at no rung leaves it unset and the
         # adapter keeps its own default -- an empty string there is a level it has no word
         # for, and the SDK would carry it all the way to the request.
         if effort:
             environment[_EFFORT_ENV] = effort
+        # And what this machine left lying about that the account did not answer for, taken
+        # away on the way in. Less what is being set above: `hushed()` already leaves out
+        # what the account named, and a variable this driver is about to hand the runtime is
+        # one it must not unset a moment later -- `env -u` strips the name from what it execs
+        # with, so unsetting and setting the same one is setting nothing. Read here rather
+        # than before the environment for exactly that reason.
+        hushed = sorted(self._agent.hushed() - environment.keys())
+        if hushed:
+            env = shutil.which("env")
+            if env is None:
+                raise FileNotFoundError(
+                    "env is required to isolate dsh provider credentials"
+                )
+            launch = [env, *(part for name in hushed for part in ("-u", name)), *launch]
         cordis = self._cordis(composition)
         harness = harness_type(
             # The SDK's own default for this one; passed rather than left out so that the
@@ -811,8 +872,8 @@ def _composed(config: DshAgentConfig) -> str:
     unset variable is the adapter left at its own reasoning level.
 
     Args:
-      config: The agent's settings, whose `goals`, `compaction` and `session_compression` are
-        the three things that move.
+      config: The agent's settings, whose `goals`, `compaction`, `session_compression` and
+        `web_search` are the four things that move.
 
     Returns:
       The composition to write out and point `$DSH_CORDIS_CONFIG` at.
@@ -846,6 +907,17 @@ def _composed(config: DshAgentConfig) -> str:
         # Appended rather than placed: cordis pends each plugin on the services it injects,
         # so where in the file a plugin is written makes no difference to what it gets.
         composed.extend(dict(plugin) for plugin in _COMPACTION)
+    # The web, where the agent is to have it. Said by mounting rather than by asking, which
+    # is the only way this backend can be told at all -- and so it has to be said in the `on`
+    # direction as well: the bundled composition mounts none of :data:`_WEB`, so a dsh turn
+    # searches nothing until it is composed to, the way a Codex turn searches nothing until
+    # `-c tools.web_search=true` asks it to. An agent nobody was asked about is left where the
+    # bare SDK leaves one, which is with no web at all. `is True` rather than a truth test for
+    # that last reason: `False` and nobody-said both leave these out, but they are two answers
+    # and not one, and a test that could not tell them apart would mount the web for a turn
+    # nobody had asked about the moment the other two branches grew.
+    if config.web_search is True:
+        composed.extend(dict(plugin) for plugin in _WEB)
     return yaml.dump(
         composed, Dumper=_CordisDumper, sort_keys=False, default_flow_style=False
     )

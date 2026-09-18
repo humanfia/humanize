@@ -1833,6 +1833,50 @@ def test_a_kimi_turn_at_no_rung_says_nothing_about_what_it_may_do(
     }
 
 
+@pytest.mark.parametrize(
+    ("searching", "withheld"),
+    # Both directions, because the daemon keeps the list rather than reading it once: it
+    # writes the session's disabled tools to disk, so a session resumed or forked from one
+    # that had the web taken away comes back with it still taken away. An empty list is what
+    # a session nobody told carries, so saying it costs a turn nothing and means the agent
+    # that may search does.
+    [(False, ["WebSearch", "FetchURL"]), (True, [])],
+)
+def test_a_kimi_turn_says_whether_the_web_is_the_agents(
+    kimi: _FakeServer, searching: bool, withheld: list[str]
+) -> None:
+    """On the prompt body alone, which is the one of the two routes with anywhere to put it.
+
+    `disabled_tools` is a key of the daemon's prompt schema and not of its session profile's,
+    and both are `object()` schemas -- so a profile told this would answer 200 and drop it,
+    and nothing would ever say the web had not been taken away.
+    """
+    agent = KimiCodeCLIAgent(
+        KimiCodeCLIAgentConfig(
+            model="kimi-code/k3", effort="high", web_search=searching
+        )
+    )
+    agent("hi")
+
+    (prompt,) = _bodies(kimi, "/prompts")
+    assert prompt["disabled_tools"] == withheld
+    (profile,) = _bodies(kimi, "/profile")
+    assert "disabled_tools" not in profile["agent_config"]
+
+
+def test_a_kimi_turn_nobody_was_asked_about_says_nothing_about_the_web(
+    kimi: _FakeServer,
+) -> None:
+    """The way one at no rung sends no mode: the session is left carrying what it carried."""
+    agent = KimiCodeCLIAgent(
+        KimiCodeCLIAgentConfig(model="kimi-code/k3", effort="high", web_search=None)
+    )
+    agent("hi")
+
+    (prompt,) = _bodies(kimi, "/prompts")
+    assert "disabled_tools" not in prompt
+
+
 def test_a_kimi_daemon_is_started_the_way_the_flow_asked_for(kimi: _FakeServer) -> None:
     """Every departure from `kimi web`'s own defaults is one a flow can take back off."""
     agent = KimiCodeCLIAgent(

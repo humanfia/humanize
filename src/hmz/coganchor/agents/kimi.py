@@ -554,11 +554,18 @@ _ANSWERS = ("approved", "rejected")
 #: `read-only` and `auto` it does: `AskUserQuestion` is approved by default under both `manual`
 #: and `yolo`, and `/questions` has always been read.
 #:
-#: What would make `read-only` bite harder still is the `tools` key of this same body, which
-#: takes an allow-list: a rung that cannot name `Bash` needs no approval refused, because there
-#: is no call to refuse. That is the honest way to make the rung a fence rather than a gate
-#: somebody has to hold, and it is a change to make deliberately, against a Kimi that can run a
-#: turn, rather than one to infer from reading its bundle.
+#: What would make `read-only` bite harder still is a tool the rung cannot name at all: a rung
+#: with no `Bash` needs no approval refused, because there is no call to refuse. This body's
+#: own `tools` key is not it, whatever its schema suggests. `sessionAgentConfigSchema` does
+#: declare `tools: array(string()).optional()`, but `applySessionAgentConfig` -- the whole of
+#: what the profile route does with an `agent_config` -- reads `model`, `thinking`,
+#: `permission_mode`, `plan_mode`, `swarm_mode`, `tower_mode` and the two goal keys, and
+#: nothing else. `tools`, `system_prompt` and `mcp_servers` are accepted and dropped. Put to a
+#: 0.42.0 daemon rather than only read: `POST /sessions/{id}/profile` with
+#: `agent_config: {"tools": ["Read"]}` answers 200 and leaves every one of the other 25 tools
+#: active in `GET /tools`. What does bite is :data:`_WEB_TOOLS` below, through the prompt
+#: body's `disabled_tools` -- a deny-list rather than an allow-list, which is why a rung
+#: cannot be built out of it without naming every tool a rung leaves out.
 _PERMITTED = {
     "read-only": {"permission_mode": "manual", "plan_mode": True},
     "workspace-write": {"permission_mode": "auto", "plan_mode": False},
@@ -579,6 +586,33 @@ _PERMITTED = {
     # way `read-only` does -- the approval is read, a hook gets it, and the turn goes on.
     UNSAID: {},
 }
+
+#: The two tools a Kimi agent reaches the web with, by the names 0.42.0 registers them under.
+#: `WebSearch` is the search -- registered only where the install has a search provider, which
+#: is why a daemon signed into nothing does not list it -- and `FetchURL` is the one that reads
+#: a page it is given. Both are approved by default at every rung this driver sets, so neither
+#: is a tool the permission ladder above ever takes away.
+#:
+#: They are withheld through `disabled_tools`, which the prompt body takes and the profile body
+#: does not: `promptSubmissionSchema` declares it, and the route hands it to
+#: `AgentToolPolicyService.setSessionDisabledTools` before the prompt is enqueued. What that
+#: sets is session state rather than a word to the model. Two things read it, and both are the
+#: whole of what the model is given: `activeEntries` filters the tool list a request carries by
+#: `isToolActive`, so a disabled tool is not in the request at all; and the executor's own
+#: call guard answers `Tool "<name>" is disabled by the active tool policy` for one reached for
+#: anyway. The policy is session-scoped rather than agent-scoped, so a swarm's subagents are
+#: inside it too.
+#:
+#: Said in both directions, because Kimi's is a list rather than a switch. `setSessionDisabledTools`
+#: replaces the whole list and the state it replaces is written to the session's own
+#: `state.json`, so a session resumed or forked from one that had the web withheld comes back
+#: with it still withheld -- and an agent that may search would then be an agent that does not.
+#: An empty list is what a session that was never told carries, so saying it costs a turn
+#: nothing. An agent nobody was asked about says neither, the way it sends no rung.
+#:
+#: One thing it cannot do, which is true of every backend here: `Bash` can still `curl`. What
+#: this takes away is the web the CLI hands its agent, which is what `web_search` is about.
+_WEB_TOOLS = ("WebSearch", "FetchURL")
 
 
 class _AppServer:
@@ -1173,6 +1207,47 @@ class KimiCodeCLISession(SessionBase):
             )
         return found.group(1)
 
+    def _told(self) -> tuple[dict[str, Any], dict[str, Any]]:
+        """What one turn of this session is run at, in the two halves the daemon takes it in.
+
+        Two halves rather than one body because the two routes a turn is made of do not take
+        the same keys. The session profile reads the model, the thinking level, the rung and
+        the width; the prompt body reads all of those and `disabled_tools` besides. Both are
+        `object()` schemas, which drop what they do not declare rather than refusing it, so
+        one body sent to both would be the web said to the profile and silently thrown away
+        -- and a driver relying on that silence is a driver that would never learn the key
+        had moved.
+
+        Returns:
+          The settings both routes take, and beside them the ones only the prompt body has
+          anywhere to put.
+        """
+        effort = self.effort
+        turn: dict[str, Any] = {
+            "model": self._agent.config.model,
+            # The rung where there is one, and the width beside it. An agent at no rung sends
+            # neither: Kimi then runs the model at its own thinking level, where a `thinking`
+            # of "" is a level it has no word for. A fleet is a width rather than a rung, so
+            # it is asked for only where a rung said so.
+            **({"thinking": effort.removeprefix(SWARM)} if effort else {}),
+            "swarm_mode": effort.startswith(SWARM),
+            # What it may do without being asked, where a rung said. An agent at no rung
+            # sends neither key and is left wherever this install's own `kimi web` leaves it,
+            # which is what a config written before there was a rung to write comes back off
+            # the disk as too.
+            **_PERMITTED.get(self._agent.config.permission, _PERMITTED[UNSAID]),
+        }
+        # And whether the web is the agent's, where anybody said. An agent nobody was asked
+        # about sends neither the key nor an empty list: the session is then left carrying
+        # whatever it already carried, which for one this driver opened is nothing.
+        searching = self._agent.config.web_search
+        web: dict[str, Any] = (
+            {}
+            if searching is None
+            else {"disabled_tools": list(_WEB_TOOLS) if searching is False else []}
+        )
+        return turn, web
+
     def _submit(self, prompt: str, *, goal: bool) -> Iterator[Event]:
         """Runs one turn, saying what the agent says as it says it.
 
@@ -1192,21 +1267,7 @@ class KimiCodeCLISession(SessionBase):
           subprocess.CalledProcessError: If the daemon refuses any of the calls a turn is made
             of, leaving the session unopened so that the next call retries the turn.
         """
-        effort = self.effort
-        turn: dict[str, Any] = {
-            "model": self._agent.config.model,
-            # The rung where there is one, and the width beside it. An agent at no rung sends
-            # neither: Kimi then runs the model at its own thinking level, where a `thinking`
-            # of "" is a level it has no word for. A fleet is a width rather than a rung, so
-            # it is asked for only where a rung said so.
-            **({"thinking": effort.removeprefix(SWARM)} if effort else {}),
-            "swarm_mode": effort.startswith(SWARM),
-            # What it may do without being asked, where a rung said. An agent at no rung
-            # sends neither key and is left wherever this install's own `kimi web` leaves it,
-            # which is what a config written before there was a rung to write comes back off
-            # the disk as too.
-            **_PERMITTED.get(self._agent.config.permission, _PERMITTED[UNSAID]),
-        }
+        turn, web = self._told()
         updates: _Updates | None = None
         with self._lock:  # a conversation is a sequence: one turn at a time
             # A turn that failed is as over as one that landed: neither leaves
@@ -1248,11 +1309,15 @@ class KimiCodeCLISession(SessionBase):
                 updates = _Updates(server._base, server._token, session, self._stepped)
                 # Said before the prompt goes in, so that a word put in has a session to be
                 # steered into from the moment there is a turn to interrupt.
-                self._running = _Running(session=session, config=turn)
+                # The web is part of what the turn is running at rather than part of what the
+                # session was set to, so it is carried here: a word steered in is a prompt
+                # submitted to the same route, and one that said nothing about the web would
+                # be the one body of this session that did not.
+                self._running = _Running(session=session, config=turn | web)
                 since = server.call(
                     "POST",
                     f"/sessions/{session}/prompts",
-                    {"content": [{"type": "text", "text": prompt}], **turn},
+                    {"content": [{"type": "text", "text": prompt}], **turn, **web},
                 )["user_message_id"]
                 answer = ""
                 shown: dict[

@@ -352,13 +352,13 @@ def test_a_stand_in_that_cannot_be_told_what_this_agent_was_told_is_no_stand_in(
     None
 ):
     """A setting a backend quietly ignored would be a setting that lies about the turn."""
-    fallbacks.points("claude/claude-opus-5", "kimi/kimi-k3")
+    fallbacks.points("claude/claude-opus-5", "pi/pi-1")
     agent = ClaudeCodeAgent(
         ClaudeCodeAgentConfig(model="claude-opus-5", effort="high", web_search=False)
     )
 
-    # Kimi Code has no way of being told not to search the web, so it is not a place this
-    # agent's turns can go: the turn fails the way it failed before anybody wrote a step.
+    # Pi has no way of being told not to search the web, so it is not a place this agent's
+    # turns can go: the turn fails the way it failed before anybody wrote a step.
     assert agent.stands_in() is None
 
 
