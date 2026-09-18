@@ -87,6 +87,21 @@ def test_claude_is_refused_the_two_tools_that_reach_the_web() -> None:
     assert argv[argv.index("--disallowedTools") + 1] == "WebSearch,WebFetch"
 
 
+def test_claude_is_left_the_two_where_nobody_said_anything_about_the_web() -> None:
+    """Silence is not a no, and the flag takes rules rather than an answer to a question.
+
+    An agent whose flow never said is one Claude ships `WebSearch` and `WebFetch` to, so a
+    rule written for it would be humanize taking a tool away in the name of a question it was
+    never asked -- which is the one thing `not web_search` would have done with the third
+    state, `None` being falsy the way `False` is.
+    """
+    agent = ClaudeCodeAgent(
+        ClaudeCodeAgentConfig(model="m", effort="high", web_search=None)
+    )
+
+    assert "--disallowedTools" not in agent.new()._command()
+
+
 def test_claude_says_both_things_it_says_with_that_flag_in_the_one_list() -> None:
     """The flag takes one list, so goals switched off and no web search are one list."""
     agent = ClaudeCodeAgent(
