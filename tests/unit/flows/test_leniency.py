@@ -20,7 +20,7 @@ installed and no CLI is run.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -35,6 +35,10 @@ from hmz.coganchor.agents import (
     Unserved,
 )
 from hmz.flows.driving import NotAFlow, Place, _declared, runs_at
+from hmz.runtime.runner import Runner
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 #: The backends whose profiles say they cannot be told about the web at all, which is what a
 #: flow declaring `web_search=False` across a roster runs into. `pi` is the soundest of them
@@ -304,3 +308,63 @@ class TestTheDefaultDidNotMove:
         assert runs_at("bench.py", one, place(insist=False), dropped=dropped) == was
         assert one.config == was
         assert dropped == []
+
+
+#: The same flow twice, once insisting and once not -- a place declaring that its answers
+#: have to be the same tomorrow, which is the declaration flowbench makes and the one every
+#: backend with no web switch used to fail.
+INSISTS = '''"""A flow whose answers have to be the same tomorrow."""
+
+from typing import Annotated
+
+from hmz.coganchor.agents import AgentBase, AgentDefaults
+from hmz.flows import flow
+
+
+@flow
+def run(
+    agents: tuple[Annotated[AgentBase, AgentDefaults(web_search=False)]], task: str
+) -> None:
+    agents[0](task)
+'''
+
+LENIENT = INSISTS.replace(
+    "AgentDefaults(web_search=False)", "AgentDefaults(web_search=False, insist=False)"
+)
+
+
+class TestTheWholePath:
+    """From the annotation a flow is written with to the line whoever has a screen says.
+
+    The pieces are tested apart above; this is the one test that walks all of them at once,
+    because a field that reaches `Place` but never reaches `Runner` would pass every one of
+    those and still leave a flow declaring into thin air.
+    """
+
+    def test_a_lenient_flow_loads_and_the_runner_says_what_it_gave_up(
+        self, tmp_path: Path
+    ) -> None:
+        where = tmp_path / "quiet.py"
+        where.write_text(LENIENT)
+        one = agent(PiAgent)
+
+        runner = Runner(str(where), [one])
+
+        assert one.config.web_search is not False
+        said = runner.unserved()
+        assert "web_search" in said
+        assert "pi" in said
+
+    def test_an_insisting_flow_is_refused_where_it_always_was(self, tmp_path: Path) -> None:
+        where = tmp_path / "quiet.py"
+        where.write_text(INSISTS)
+
+        with pytest.raises(NotAFlow, match="no way of being told not to search the web"):
+            Runner(str(where), [agent(PiAgent)])
+
+    def test_a_run_that_carried_everything_says_nothing(self, tmp_path: Path) -> None:
+        """`unserved()` is "" for every flow that did not ask, which is every flow there is."""
+        where = tmp_path / "quiet.py"
+        where.write_text(LENIENT)
+
+        assert Runner(str(where), [agent(ClaudeCodeAgent)]).unserved() == ""
