@@ -63,7 +63,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from .base import AgentBase, SessionBase
-from .config import AgentConfig
+from .config import UNSAID, AgentConfig
 from .event import Event, Failed, Question, Saying, Usage, say
 from .hooks import EVERYWHERE, Moment, Occasion
 from .watchdog import Watchdog
@@ -91,24 +91,35 @@ _BACKLOG = 4096
 #: Its own `auto` is not the `auto` here and is nobody's rung: its permission service answers
 #: `mode.auto.unimplemented` to every tool in that mode -- `Auto mode is reserved but not
 #: implemented yet` -- so an agent run at it would be an agent allowed to do nothing.
+#:
+#: The last row is the absence of a rung, and its answer is the absence of a mode: an agent
+#: humanize was told nothing about is a session that names none, which leaves it in whatever
+#: mode a bare ZCode opens one in. Empty rather than a word of ZCode's, because the word would
+#: be humanize settling the rung it was asked not to settle -- :func:`_allowed` is where the
+#: key is left out rather than sent empty, `""` being a mode the server has not got.
 _PERMITTED = {
     "read-only": "plan",
     "workspace-write": "edit",
     "auto": "build",
     "bypass": "yolo",
+    UNSAID: "",
 }
 
 #: The modes in which what the agent asks for is granted. ZCode asks in three of the four --
 #: `edit` and `build` both stop at a high-risk tool and wait -- and a rung is what says whether
 #: the answer is yes: an agent allowed no more than its workspace is not one that gets a
 #: `rm -rf` by asking twice. `yolo` is here because it is granted rather than asked, and is
-#: never the mode a request arrives under.
+#: never the mode a request arrives under. A session opened naming no mode at all is not here
+#: either, and is not refused for it: what it runs at is ZCode's own, and a client turning its
+#: questions down would be humanize settling what it declined to settle.
 _GRANTS = ("build", "yolo")
 
-#: The two tools ZCode reaches outside the workspace with, and so the two an agent that may not
-#: search the web is denied. Denied at the session rather than in anybody's settings file: two
-#: agents of one flow may be told different things, and neither is a reason to change what the
-#: person at this machine has configured.
+#: The two tools ZCode reaches outside the workspace with, and so the two an agent told it may
+#: not search the web is denied. Told rather than left unsaid: a run that says nothing about the
+#: web denies nothing, which is why every place this list is reached for asks whether the answer
+#: was `False` rather than whether it was falsy -- unsaid is not off. Denied at the session
+#: rather than in anybody's settings file: two agents of one flow may be told different things,
+#: and neither is a reason to change what the person at this machine has configured.
 _WEB = ("WebFetch", "WebSearch")
 
 #: What each kind of token is called in the counts the server states. Reasoning and the cached
@@ -234,7 +245,8 @@ class _Held:
         turn is still running has something to move on.
       model: What this session is to run now, which its agent's config says.
       effort: The same, for the thought level.
-      mode: The same, for the rung.
+      mode: The same, for the rung, or "" for an agent at no rung at all -- which is a session
+        naming no mode, left in whichever one ZCode opened it in.
       runtime: The provider this session's model is served by, as ZCode's own `runtimeModel`,
         or None for an agent on no account of humanize's -- which is a turn on whatever the
         person at this machine has configured, exactly as a bare `zcode` would take it. Sent
@@ -379,7 +391,7 @@ class _AppServer:
         workspace: str,
         held: _Held,
         *,
-        searches: bool,
+        searches: bool | None,
         titles: bool,
         delivery: str,
     ) -> str:
@@ -389,7 +401,8 @@ class _AppServer:
           workspace: The directory the session works in.
           held: What it is to run, which is remembered so a turn at the same settings says
             nothing again.
-          searches: Whether the agent may reach the web.
+          searches: Whether the agent may reach the web, or None where nobody said --
+            which denies nothing, the web being one more thing left to ZCode's own.
           titles: Whether ZCode is to name the session itself, which is a turn of its own.
           delivery: Which of ZCode's delivery kinds this session's stream is read under.
 
@@ -408,13 +421,13 @@ class _AppServer:
                     "modelId": _model(held.model),
                 },
                 **_thought(held.effort),
-                "mode": held.mode,
+                **_allowed(held.mode),
                 # A title is a request of its own before the turn runs, which ZCode makes
                 # unless it is told `false`. Said either way rather than left out, since
                 # leaving it out is one of the two answers and saying nothing about which.
                 "titleGenerationEnabled": titles,
                 **({} if held.runtime is None else {"runtimeModel": held.runtime}),
-                **({} if searches else {"toolDenylist": list(_WEB)}),
+                **({} if searches is not False else {"toolDenylist": list(_WEB)}),
             },
         )
         session = str(opened["session"]["sessionId"])
@@ -448,7 +461,7 @@ class _AppServer:
         workspace: str,
         held: _Held,
         *,
-        searches: bool,
+        searches: bool | None,
         delivery: str,
     ) -> None:
         """Picks a session back up on a server that did not open it.
@@ -463,7 +476,8 @@ class _AppServer:
           session: The session to pick up.
           workspace: The directory it works in.
           held: What it is to run.
-          searches: Whether the agent may reach the web.
+          searches: Whether the agent may reach the web, or None where nobody said --
+            which denies nothing, the web being one more thing left to ZCode's own.
           delivery: Which of ZCode's delivery kinds this session's stream is read under.
             Whether the session goes on being titled the way it was opened is not said again
             here, and not because it does not matter: `session/resume` takes no such field
@@ -480,7 +494,7 @@ class _AppServer:
                 "workspace": _workspace(workspace),
                 **_thought(held.effort),
                 **({} if held.runtime is None else {"runtimeModel": held.runtime}),
-                **({} if searches else {"toolDenylist": list(_WEB)}),
+                **({} if searches is not False else {"toolDenylist": list(_WEB)}),
             },
         )
         self.call("session/subscribe", {"sessionId": session, "deliveryKind": delivery})
@@ -494,7 +508,7 @@ class _AppServer:
         workspace: str,
         held: _Held,
         *,
-        searches: bool,
+        searches: bool | None,
         delivery: str,
     ) -> str:
         """Cuts a second conversation from one this server is already holding.
@@ -522,7 +536,8 @@ class _AppServer:
           parent: The session to cut from, which this server must be holding.
           workspace: The directory the child works in.
           held: What the child is to run.
-          searches: Whether the agent may reach the web.
+          searches: Whether the agent may reach the web, or None where nobody said --
+            which denies nothing, the web being one more thing left to ZCode's own.
           delivery: Which of ZCode's delivery kinds the child's stream is read under.
 
         Returns:
@@ -548,7 +563,7 @@ class _AppServer:
             },
         )
         session = str(forked["forkedSessionId"])
-        if not searches:
+        if searches is False:
             self.call("session/close", {"sessionId": session})
             self.resume(session, workspace, held, searches=False, delivery=delivery)
             return session
@@ -918,17 +933,26 @@ class _AppServer:
         told: dict[str, Any] = message.get("params") or {}
         agents = self._agents
         if message["method"] == _APPROVAL:
-            mode = self.sessions.get(str(told.get("sessionId") or ""), "")
-            if mode not in _GRANTS:
+            # Two silences here, and only one of them is about a rung: None is a session this
+            # server was never told about, and "" is one opened at no rung at all.
+            mode = self.sessions.get(str(told.get("sessionId") or ""))
+            if mode is None or (mode and mode not in _GRANTS):
                 # A rung below the one that means the asking is granted. Refused here rather
                 # than put to a hook: what a hook may do at that moment is say no, and no is
-                # what this rung already says.
+                # what this rung already says. A session at no rung is below nothing and goes
+                # to the hook instead, nobody having named the rung it would be under -- and
+                # a session that is none of this agent's is refused whatever its rung, since
+                # granting it would be answering for a conversation nothing here is driving.
                 self._write(
                     {
                         "id": message["id"],
                         "result": {
                             "decision": "deny",
-                            "reason": f"the agent is allowed no more than {mode} mode",
+                            "reason": (
+                                f"the agent is allowed no more than {mode} mode"
+                                if mode
+                                else "that is not a session this agent opened"
+                            ),
                         },
                     }
                 )
@@ -1047,6 +1071,23 @@ def _thought(effort: str) -> dict[str, str]:
       The one key to merge into the session, or an empty mapping.
     """
     return {"thoughtLevel": effort} if effort else {}
+
+
+def _allowed(mode: str) -> dict[str, str]:
+    """What the agent may do, as a session carries it -- or nothing, where there is no rung.
+
+    ZCode 0.16.5 has five modes and `""` is none of them: a session created with one would be
+    a session asking for a mode this server has no answer for. An agent at no rung leaves the
+    key out instead, which is the session run in whichever mode ZCode itself opens one in --
+    what an agent humanize was told nothing about means.
+
+    Args:
+      mode: The mode, in ZCode's own wording, or "" for no rung at all.
+
+    Returns:
+      The one key to merge into the session, or an empty mapping.
+    """
+    return {"mode": mode} if mode else {}
 
 
 def _provider(model: str) -> str:
@@ -1192,7 +1233,11 @@ def _settling(
                 },
             )
         )
-    if held.mode != told[2]:
+    # An agent at no rung says nothing here either, for the reason :func:`_allowed` gives:
+    # the empty mode is not one to move a session into, and there is no call that unsays a
+    # mode. So a session that was told one keeps it, and one that never was goes on running in
+    # whichever ZCode opened it in.
+    if held.mode and held.mode != told[2]:
         calls.append(("session/setMode", {"sessionId": session, "mode": held.mode}))
     held.told = (held.model, held.effort, held.mode)
     return calls
@@ -1459,11 +1504,11 @@ class ZcodeSession(SessionBase):
         config = self._agent.config
         self._held.model = config.model
         self._held.effort = self.effort
-        self._held.mode = _PERMITTED.get(config.permission, _PERMITTED["bypass"])
-        # A config that says nothing about the web is one this server is told nothing
-        # about: the denylist below is written only where searching was taken away, so
-        # the unsaid and the asked-for come to the same call and only `False` is sent.
-        searches = config.web_search is not False
+        self._held.mode = _PERMITTED.get(config.permission, _PERMITTED[UNSAID])
+        # A config that says nothing about the web is carried down as None rather than
+        # normalised here: the denylist is written only where searching was taken away, so
+        # every place that reaches for it asks whether the answer was `False`.
+        searches = config.web_search
         # Read off whatever config this agent was made with, since an agent of this backend
         # may be handed the common one: what is not there is what the driver has always sent.
         titles = bool(getattr(config, "titles", _TITLES))
