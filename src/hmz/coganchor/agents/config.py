@@ -257,9 +257,10 @@ class AgentDefaults:
     of every flow has always run at.
 
     Attributes:
-      permission: What the agent may do without being asked, as one of :data:`PERMISSIONS`.
+      permission: What the agent may do without being asked, as one of :data:`PERMISSIONS`,
+        or :data:`UNSAID` for a place that would rather humanize said nothing about it.
       goals: Whether the backend's own goal feature is available to it.
-      web_search: Whether it may search the web.
+      web_search: Whether it may search the web, or None to say nothing about it either way.
 
     Raises:
       ValueError: If the rung is not one there is, said as the flow is read rather than
@@ -415,7 +416,9 @@ class AgentConfig:
         the first turn and says where it is itself. The agent runs here either way, so its
         credentials and its trajectory stay where a flow can reach them; what moves is the
         project it reads and the commands it runs.
-      permission: What this agent may do without being asked, as one of :data:`PERMISSIONS`.
+      permission: What this agent may do without being asked, as one of :data:`PERMISSIONS`,
+        or :data:`UNSAID` -- not a rung at all, but humanize saying nothing to the CLI and
+        leaving it wherever that CLI's own headless run leaves it.
         `bypass` because that is what a flow driving an agent unattended has always run it
         at: a flow watches its agent rather than gating it, and a turn waiting on an approval
         nobody is there to give is a flow that has stopped. Anything tighter is the flow's

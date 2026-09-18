@@ -16,8 +16,9 @@ runs at, its thinking level and its swarm width would have to be the process's o
 fixed for the life of a prompt that is one turn long anyway, and ``--plan``/``--yolo``/``--auto``
 are the only three of them there are. And a turn that stops -- to ask, or for a tool it wants
 approving -- stops against a terminal there, not against an object with an id that something
-else can resolve; the daemon's ``/questions`` route is what lets a flow answer or skip one with
-nobody at a keyboard. The server is the only surface in this CLI where a session is a thing
+else can resolve; the daemon holds each on a route of its own -- ``/questions`` and
+``/approvals`` -- which is what lets a flow answer or refuse one with nobody at a keyboard.
+The server is the only surface in this CLI where a session is a thing
 rather than an invocation, so the daemon it is, and the cost of that choice -- one ``kimi web``
 per agent, and its argv -- is paid below.
 """
@@ -51,6 +52,7 @@ from hmz.coganchor.backends import SWARM
 from .base import AgentBase, SessionBase
 from .config import UNSAID, AgentConfig
 from .event import Event, Failed, Question, Usage, say
+from .hooks import EVERYWHERE, Moment
 from .preload import preloaded
 from .watchdog import Watchdog
 
@@ -131,11 +133,20 @@ _RECOVERY_SECONDS = 10.0
 #: daemon that could not be reached or would not finish, which says nothing about the call.
 _REFUSED = 400
 
+#: The status a daemon answers with for a route it does not serve. Told apart from every
+#: other refusal because it is the one that is not about this session: a route that is not
+#: there is holding nothing, where a route that answered 500 is a route holding something
+#: nobody can read. The session's own troubles arrive inside a 200 -- `SESSION_NOT_FOUND`
+#: is an envelope with a code in it, which `call` raises with its own 1 -- so this catches
+#: the build and not the session.
+_ABSENT = 404
+
 #: The frames this daemon raises that a reader wakes for at once, and whether each may have
-#: left a question waiting to be answered. REST stays authoritative for what it will say; this
-#: only says which of its reads is worth the shared daemon's time now rather than on its own
-#: cadence -- and only the question is, because only the question is something a turn stops
-#: on. Whether a turn is still running is read a second apart whatever the daemon says, which
+#: left a question or an approval waiting to be answered. REST stays authoritative for what it
+#: will say; this only says which of its reads is worth the shared daemon's time now rather
+#: than on its own cadence -- and only those two are, because they are the two things a turn
+#: stops on. Whether a turn is still running is read a second apart whatever the daemon says,
+#: which
 #: is the cadence it was read at before there were notifications at all. What a turn has spent
 #: is read on that same second, but the figure it reads is the one carried here: the step
 #: frame below is the only place 0.42.0 says it at all, which is why this listener counts.
@@ -143,8 +154,8 @@ _REFUSED = 400
 #: A frame under no name here is coalesced instead of woken for: the daemon streams a running
 #: command's output and a tool call's arguments a chunk at a time, and a reader woken per
 #: chunk would spend the daemon every session of the agent shares on one session's `cat`. A
-#: question raised under a name that is not written down here is therefore found by the
-#: ordinary second, which is where it was found before any of this.
+#: question or an approval raised under a name that is not written down here is therefore
+#: found by the ordinary second, which is where it was found before any of this.
 _MEANS = {
     "tool.call.started": False,
     "prompt.started": False,
@@ -454,10 +465,46 @@ _BLOCKS = {"text": "text", "thinking": "reasoning", "tool_use": "tool"}
 #: there and grows no further, so a turn that reaches for one says so as it reaches.
 _GROWS = ("text", "thinking")
 
+#: The two lists the daemon holds a stopped turn against, in the order a poll reads them.
+#: Both take the same `status=pending` querystring and both answer with their pending items
+#: under `items`, which is the whole of what :meth:`KimiCodeCLISession._held` needs to know.
+_HELD = ("questions", "approvals")
+
+#: What the daemon calls its approval list, and what an answer to one of them is. The route
+#: each turn that stops for a tool stops on: GET it with the `status=pending` its querystring
+#: schema requires and every unresolved approval of that session comes back under `items`,
+#: each one naming the tool (`tool_name`), the one line the CLI would have shown a person
+#: (`action`), the call itself (`tool_input_display`) and the id an answer goes back to
+#: (`approval_id`). The answer is a POST to that id, and its body is `decision` and three
+#: optional fields: `scope`, `feedback` and `selected_label`. `approved`, `rejected` and
+#: `cancelled` are the three decisions there are -- the first lets the tool run, and either of
+#: the others hands the model back a line saying the tool was not run, with whatever `feedback`
+#: said appended to it as the reason. Which is a turn that carries on having been refused
+#: rather than one that ends. Read off kap-server's own `routes/approvals.ts` and
+#: `protocol/approval.ts` in the 0.42.0 bundle.
+#:
+#: `scope` is the one optional field with teeth, and it is left off deliberately. `session`
+#: there writes the approval down as a rule the session keeps, so every later call matching it
+#: is approved by the daemon without ever reaching this route -- which would be a hook hung on
+#: `PERMISSION_REQUEST` seeing the first `Bash` of a turn and none of the twenty after it. An
+#: approval answered here is answered once, for the call that raised it. `selected_label` is
+#: the one field this driver has nothing to put in: it names which of the options a plan
+#: review offered was taken, and a plan review is a thing shown to a person.
+#:
+#: Read off the bundle and then asked of a real one -- a 0.42.0 `kimi web` started here with
+#: no model configured, which is enough to open a session and read the route if not to run a
+#: turn. It answers the filtered path `{"code": 0, "data": {"items": []}}`, the bare path
+#: `40001 status: Invalid input: expected "pending"`, an id it does not know `40404 approval
+#: nope not found`, and a decision it does not take `40001 decision: Invalid option: expected
+#: one of "approved"|"rejected"|"cancelled"`. Every one of those inside a 200, which is the
+#: thing the querystring dance below turns on: a route this daemon serves refuses in its
+#: envelope and never with a status of its own, so a status is the build answering and not
+#: the session.
+_ANSWERS = ("approved", "rejected")
+
 #: How each rung of the ladder is set on a Kimi session. The daemon takes one of `manual`,
-#: `yolo` and `auto`, and plan mode beside it -- and of the three, `auto` is the only one a
-#: flow with nobody watching can be run at, which is why every rung here is set to it and
-#: plan mode is the whole of what tells them apart.
+#: `yolo` and `auto`, and plan mode beside it, and the two are said together because neither
+#: means much alone.
 #:
 #: The names mislead, so here is 0.42.0's own ladder. Kimi calls them Always Ask (`manual`),
 #: Ask When Needed (`yolo`) and Never Ask (`auto`), loosest last -- `yolo` is the middle rung
@@ -467,39 +514,55 @@ _GROWS = ("text", "thinking")
 #: everything on `yolo` is consulted tenth, behind them. So a `yolo` turn still stops to ask
 #: before a Bash command the parser rates dangerous *or cannot parse at all*, before a
 #: sensitive file, before a path under `.git`, and -- in plan mode -- before the `ExitPlanMode`
-#: the model is told to end a plan with.
+#: the model is told to end a plan with. `manual` adds no policy of its own at all: it is the
+#: absence of the other two, so what survives it is the list of tools approved by default --
+#: `Read`, `Grep`, `Glob`, `WebSearch`, `FetchURL`, `Agent`, `Skill`, `AskUserQuestion` and
+#: the plan and todo tools -- plus a `Write` or `Edit` inside a git worktree's own workspace.
+#: Bash asks, every time.
 #:
-#: Each of those is an approval, and an approval is not a question. The daemon holds the two on
-#: routes of their own and this driver reads `/questions` only, so a turn stopped on an
-#: approval is a turn that never moves again: the session stays busy, the poll finds nothing to
-#: answer, and the watchdog eventually takes down a daemon every other session of that agent is
-#: also using. `manual`, which withholds approval for everything but reads, is unreachable for
-#: the same reason -- and it is the one rung genuinely left on the table, being a truer
-#: `read-only` than plan mode is. Reading `/approvals` is what would buy both of them.
+#: Each of those is an approval and not a question, and until this driver read `/approvals`
+#: that made all three of the tighter modes unreachable: a turn stopped on one stayed busy
+#: with nothing on the route the poll was reading, and ended as the watchdog's stall. That is
+#: what :meth:`KimiCodeCLISession._approved` buys back, so the table below is the ladder
+#: rather than one rung written four times.
 #:
-#: So `auto`, for every rung. It is exactly what `bypass` means -- nothing is asked and nothing
-#: is checked -- and it is as close to the three below as this backend can be run: there is no
-#: sandbox here, so `workspace-write` and `auto` are the same setting either way, and what is
-#: granted on request under humanize' `auto` rung is simply granted without the request. The
-#: one thing it costs is the question: `auto` denies `AskUserQuestion` outright, telling the
-#: model to decide and carry on, so a Kimi turn does not stop to ask a person.
+#: What each row is, then, and why:
 #:
-#: An agent that is to change nothing is put in plan mode, which is Kimi's own way of saying
-#: work it out and do none of it -- and which is weaker than the word `read-only` promises, so
-#: here is what it actually holds. Plan mode vetoes `Write`, `Edit`, `TaskStop` and the two cron
-#: tools, and nothing else. Bash is not among them: Kimi's own plan-mode reminder tells the
-#: model "Use Bash only when needed; Bash follows the normal permission mode and rules", and at
-#: `auto` those rules approve it. So a turn at this rung will not edit a file and may still run
-#: a command that writes one. The model can also leave the rung unasked, `ExitPlanMode` being
-#: approval-gated at every mode except this one -- its own description says as much: "In auto
-#: permission mode, the tool reads the file and exits plan mode without asking the user." What
-#: would make the rung bite is the `tools` key of this same body, which takes an allow-list.
-#: That is a change to make deliberately, against a Kimi that can run a turn, rather than one
-#: to infer from reading its bundle.
+#: `read-only` is `manual` with plan mode on. Plan mode is the hard half -- it vetoes `Write`,
+#: `Edit`, `TaskStop` and the two cron tools outright, with no approval offered and nothing to
+#: answer -- and `manual` is the half that catches what plan mode does not. Bash is the one
+#: that matters: Kimi's own plan-mode reminder tells the model "Use Bash only when needed;
+#: Bash follows the normal permission mode and rules", so at `auto` a rung named read-only
+#: would run a command that writes a file. At `manual` that command is an approval, which is a
+#: `PERMISSION_REQUEST` a flow can refuse. The same goes for the `ExitPlanMode` the model is
+#: told to end a plan with: gated at every mode but `auto`, so at this rung leaving the rung is
+#: itself something a hook is asked about.
+#:
+#: `auto` is `yolo`, for the reason humanize's `auto` exists: the agent may ask for more than
+#: it has, and the asking is granted. That is `yolo` exactly -- the dangerous command, the
+#: sensitive file, the path under `.git`, each one asked for and each one answered -- and it
+#: is the same row Codex's table writes as `on-request`.
+#:
+#: `workspace-write` and `bypass` are `auto`, which is the mode where nothing is asked. There
+#: is no sandbox in this CLI, so `workspace-write` cannot be the fenced thing it is on Codex;
+#: what it can be is the rung that changes the workspace without stopping, and that is `auto`.
+#: `bypass` means nothing asked and nothing checked, which is what `auto` is.
+#:
+#: The one thing `auto` costs is the question. It denies `AskUserQuestion` outright -- "Make a
+#: reasonable decision and continue without asking the user" -- so a turn at either of those
+#: two rungs does not stop to ask a person, and `NOTIFICATION` does not fire there. At
+#: `read-only` and `auto` it does: `AskUserQuestion` is approved by default under both `manual`
+#: and `yolo`, and `/questions` has always been read.
+#:
+#: What would make `read-only` bite harder still is the `tools` key of this same body, which
+#: takes an allow-list: a rung that cannot name `Bash` needs no approval refused, because there
+#: is no call to refuse. That is the honest way to make the rung a fence rather than a gate
+#: somebody has to hold, and it is a change to make deliberately, against a Kimi that can run a
+#: turn, rather than one to infer from reading its bundle.
 _PERMITTED = {
-    "read-only": {"permission_mode": "auto", "plan_mode": True},
+    "read-only": {"permission_mode": "manual", "plan_mode": True},
     "workspace-write": {"permission_mode": "auto", "plan_mode": False},
-    "auto": {"permission_mode": "auto", "plan_mode": False},
+    "auto": {"permission_mode": "yolo", "plan_mode": False},
     "bypass": {"permission_mode": "auto", "plan_mode": False},
     # An agent nobody wrote a rung for: neither key is sent, and the session runs at whatever
     # `kimi web` would have run it at on its own. Which is this file's own rule about defaults
@@ -509,17 +572,11 @@ _PERMITTED = {
     # is none, so what an install that says nothing gets is Always Ask, the same as the person
     # who starts `kimi web` at a terminal and answers it from the browser.
     #
-    # Which is the thing to say plainly rather than bury: nobody is at the browser here.
-    # `manual` withholds approval for everything but reads, and an approval is not a question
-    # -- the daemon holds it on `/approvals`, the route this driver does not read -- so the
-    # first tool call of such a turn stops the session somewhere the poll cannot move it. That
-    # is not a wedge this driver introduced; it is the bare CLI's own exposure, reached by
-    # saying nothing, and saying something instead is exactly the default this row exists to
-    # stop humanize choosing. What catches it is the watchdog, whose window over a Kimi turn is
-    # the quarter-hour `backends` gives every backend that names nothing shorter: the session
-    # goes quiet, the clock runs out, and the turn ends as the stall it is rather than hanging
-    # until a person looks. A flow that wants it never to happen writes the rung -- all four
-    # above are `auto`, and `auto` asks nothing.
+    # Nobody is at the browser here, which is why this row used to be the one that wedged: the
+    # first tool call of such a turn stopped the session somewhere the poll could not move it,
+    # and the watchdog ended it as a stall a quarter of an hour later. It no longer does.
+    # `manual` is a rung this driver can answer now, and saying nothing lands on it the same
+    # way `read-only` does -- the approval is read, a hook gets it, and the turn goes on.
     UNSAID: {},
 }
 
@@ -761,10 +818,14 @@ class KimiCodeCLISession(SessionBase):
         #: turn running at the CLI's own settings instead of at this agent's.
         self._profile: dict[str, Any] = {}
         self._profiled: _AppServer | None = None
-        #: How this daemon takes the pending-question list -- its own querystring says
-        #: `status` is required, and a build that never had it refuses the same thing.
-        #: Whichever answered is kept rather than found again every poll.
-        self._filter = "?status=pending"
+        #: How this daemon takes each of the two pending lists. Its own querystring says
+        #: `status` is required on both, and a build that never had it refuses the same
+        #: thing; whichever answered is kept rather than found again every poll. Kept per
+        #: route rather than once for the daemon, because what the flip costs is not the
+        #: same on both: the unfiltered question list is the one that need not leave out
+        #: what has been answered already, so a hiccup on the approvals route moving the
+        #: question route onto it would have the flow answer an answered question again.
+        self._filter: dict[str, str] = dict.fromkeys(_HELD, "?status=pending")
 
     @property
     def named(self) -> str | None:
@@ -824,6 +885,100 @@ class KimiCodeCLISession(SessionBase):
         """
         yield from self._submit(prompt, goal=False)
 
+    def _held(self, session: str, what: str) -> list[Any]:
+        """Whatever the daemon is holding on one of the two routes a turn stops against.
+
+        The same reading for both: a filtered list whose spelling the daemon decides, and a
+        body that is either the list or the list under `items`.
+
+        Args:
+          session: The session the turn is running in.
+          what: Which of :data:`_HELD` to read.
+
+        Returns:
+          What is waiting there, which is nothing at all where the turn has not stopped.
+
+        Raises:
+          subprocess.CalledProcessError: If the daemon will not say either way.
+        """
+        server = self._agent.server
+        route = f"/sessions/{session}/{what}"
+        try:
+            held = server.call("GET", route + self._filter[what])
+        except subprocess.CalledProcessError as refusal:
+            # This daemon's querystring is `{status: "pending"}` and it refuses the bare
+            # path; one that has never heard of that filter refuses the other. Which way
+            # round it is, is the daemon's business -- but a turn waiting on an answer
+            # cannot be left holding a refusal, so the one is asked and then the other.
+            other = "" if self._filter[what] else "?status=pending"
+            try:
+                held = server.call("GET", route + other)
+            except subprocess.CalledProcessError as missing:
+                # Neither spelling, and both times for want of the route rather than of an
+                # answer: this daemon does not serve it. Which is nothing held rather than
+                # something unreadable -- a build old enough to have no approvals route
+                # raises no approvals either, and failing its turns over a list it was
+                # never going to fill would be this reading costing what it exists to save.
+                if _ABSENT in (refusal.returncode, missing.returncode):
+                    return []
+                raise
+            # Which one answered is kept, so that a poll a second is not a refusal a second
+            # on the daemon every session of the agent shares -- but only where the daemon
+            # refused with a status of its own, which a connection that dropped or a call
+            # that timed out never carries. A daemon that takes both spellings would
+            # otherwise be moved, by one hiccup, onto a list that need not leave out what
+            # has been answered already, and put an answered question again every second --
+            # which is not merely noisier than a wasted call but unrecoverable, since the
+            # flow has already acted on the first answer.
+            if refusal.returncode >= _REFUSED:
+                self._filter[what] = other
+        return (
+            cast("list[Any]", cast("dict[str, Any]", held).get("items") or [])
+            if isinstance(held, dict)
+            else cast("list[Any]", held or [])
+        )
+
+    def _approved(self, session: str) -> None:
+        """Answers whatever the turn has stopped to have approved, and lets a hook refuse it.
+
+        The other of the two things a turn stops on, and the one that used to stop it for
+        good: the daemon holds an approval until it is resolved, and a poll that read only
+        `/questions` left the session busy against a route nothing was answering. Every mode
+        but `auto` raises them, which is what makes the rungs above a ladder rather than one
+        setting written four times.
+
+        Answered yes, because nobody is at a prompt -- and put to `PERMISSION_REQUEST` first,
+        because this is the moment the backend actually waits on and so the one place a hook
+        here can stop an agent doing something. A refusal is `rejected` with whatever the hook
+        said as its reason, which the daemon hands the model as a line saying the tool was not
+        run: the turn goes on, having been refused, rather than ending.
+
+        Args:
+          session: The session the turn is running in.
+
+        Raises:
+          subprocess.CalledProcessError: If the daemon will not say either way, for the same
+            reason a question that cannot be read is a turn that never ends.
+        """
+        for raw in self._held(session, _HELD[1]):
+            pending = cast("dict[str, Any]", raw)
+            if not (approval := pending.get("approval_id")):
+                continue  # not an approval, whatever else the daemon answered with
+            asking = self._fire(
+                Moment.PERMISSION_REQUEST,
+                tool=str(pending.get("tool_name") or ""),
+                about=str(pending.get("action") or ""),
+                called=pending,
+            )
+            allowed, refused = _ANSWERS
+            self._agent.server.call(
+                "POST",
+                f"/sessions/{session}/approvals/{approval}",
+                {"decision": refused, "feedback": asking.because or "refused by a hook"}
+                if asking.refused
+                else {"decision": allowed},
+            )
+
     def _asked(self, session: str) -> None:
         """Answers whatever the turn has stopped to ask, if it has stopped to ask anything.
 
@@ -842,35 +997,7 @@ class KimiCodeCLISession(SessionBase):
             keeps getting this fails rather than polling on forever; one that gets it once
             carries on, because a hiccup is not a daemon that has stopped answering.
         """
-        server = self._agent.server
-        path = f"/sessions/{session}/questions"
-        try:
-            held = server.call("GET", path + self._filter)
-        except subprocess.CalledProcessError as refusal:
-            # This daemon's querystring is `{status: "pending"}` and it refuses the bare
-            # path; one that has never heard of that filter refuses the other. Which way
-            # round it is, is the daemon's business -- but a turn waiting on an answer
-            # cannot be left holding a refusal, so the one is asked and then the other.
-            other = "" if self._filter else "?status=pending"
-            held = server.call("GET", path + other)
-            # Which one answered is kept, so that a poll a second is not a refusal a second
-            # on the daemon every session of the agent shares -- but only where the daemon
-            # refused with a status of its own, which a connection that dropped or a call
-            # that timed out never carries. A daemon that takes both spellings would
-            # otherwise be moved, by one hiccup, onto a list that need not leave out what
-            # has been answered already, and put an answered question again every second --
-            # which is not merely noisier than a wasted call but unrecoverable, since the
-            # flow has already acted on the first answer.
-            if refusal.returncode >= _REFUSED:
-                self._filter = other
-        # A list or a list under `items`, depending on the daemon: what is wanted is the
-        # questions, and a daemon that has none of them has nothing to answer either.
-        waiting: list[Any] = (
-            cast("dict[str, Any]", held).get("items") or []
-            if isinstance(held, dict)
-            else held or []
-        )
-        for raw in waiting:
+        for raw in self._held(session, _HELD[0]):
             pending = cast("dict[str, Any]", raw)
             if not pending.get("question_id"):
                 continue  # not a question, whatever else the daemon answered with
@@ -907,7 +1034,7 @@ class KimiCodeCLISession(SessionBase):
                     }
                 else:
                     answers[str(question["id"])] = {"kind": "other", "text": said}
-            server.call(
+            self._agent.server.call(
                 "POST",
                 f"/sessions/{session}/questions/{pending['question_id']}",
                 {"answers": answers},
@@ -1164,9 +1291,10 @@ class KimiCodeCLISession(SessionBase):
                 # process before believing anything is wrong.
                 with Watchdog(self, riding=lambda: server._proc) as watch:
                     while True:
-                        # First of all: a turn that has stopped to ask waits on the answer, so a
-                        # poll that only read messages would be reading a session that has
-                        # stopped moving. Asked at once when the daemon has said there may be
+                        # First of all: a turn that has stopped -- to ask, or to have a tool
+                        # approved -- waits on the answer, so a poll that only read messages
+                        # would be reading a session that has stopped moving. Asked at once
+                        # when the daemon has said there may be
                         # something to answer, and a second apart when it has not: one daemon
                         # serves every session of the agent, and asking it per notification what
                         # it has already said it has none of is the one cost here that buys
@@ -1180,14 +1308,23 @@ class KimiCodeCLISession(SessionBase):
                         # turn that never ends -- so that one is a failed turn.
                         if due("asked", told=updates.questioned):
                             updates.questioned = False
-                            try:
-                                self._asked(session)
-                            except subprocess.CalledProcessError:
+                            # Both of them, every time, and neither behind the other: a
+                            # question and an approval are separate routes a turn can be
+                            # stopped on, and a daemon refusing one of them for a while
+                            # must not leave the other unread. So each is asked, and a
+                            # refusal is carried until both have been.
+                            stopped: subprocess.CalledProcessError | None = None
+                            for reading in (self._asked, self._approved):
+                                try:
+                                    reading(session)
+                                except subprocess.CalledProcessError as refusal:
+                                    stopped = stopped or refusal
+                            if stopped is None:
+                                refused = 0.0
+                            else:
                                 refused = refused or time.monotonic()
                                 if time.monotonic() - refused >= _RECOVERY_SECONDS:
-                                    raise
-                            else:
-                                refused = 0.0
+                                    raise stopped
                         # Whether it is still working, which is the reading a turn ends on --
                         # and the one read here that is made every time round, because it is
                         # also what paces the round. A session read as stopped is a wait of a
@@ -1358,7 +1495,16 @@ class KimiCodeCLISession(SessionBase):
 
 
 class KimiCodeCLIAgent(AgentBase):
-    """Kimi Code, driven through an app server of its own so a whole session is settable."""
+    """Kimi Code, driven through an app server of its own so a whole session is settable.
+
+    Every moment a turn passes through, and one more: at every rung but the two that are
+    `auto`, the daemon holds the tool it is about to run on `/approvals` until somebody
+    resolves it -- so that is the one place a hook here can say no to something and have the
+    agent hear it. At `workspace-write` and `bypass` nothing is ever asked, and a hook hung
+    on that moment never fires.
+    """
+
+    moments: ClassVar[frozenset[Moment]] = EVERYWHERE | {Moment.PERMISSION_REQUEST}
 
     #: Kimi keeps itself going toward an objective, which is what `pursue` reaches for.
     pursues: ClassVar[bool] = True

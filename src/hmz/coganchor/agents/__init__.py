@@ -35,6 +35,7 @@ from .config import (
     OUTCOMES,
     PERMISSIONS,
     SERVICE_TIERS,
+    UNSAID,
     AgentConfig,
     AgentDefaults,
     Budget,
@@ -44,6 +45,8 @@ from .config import (
     Remote,
     anchored,
     isolated,
+    searching,
+    tightest,
 )
 from .cursor import CursorAgent, CursorAgentConfig, CursorSession
 from .dsh import DshAgent, DshAgentConfig, DshSession
@@ -137,6 +140,7 @@ __all__ = [
     "SERVICE_TIERS",
     "SUBAGENTS",
     "SWARM",
+    "UNSAID",
     "USER",
     "WHOSE",
     "WINDOW",
@@ -219,6 +223,8 @@ __all__ = [
     "ZcodeSession",
     "anchored",
     "isolated",
+    "searching",
+    "tightest",
     "unreadable",
     "unwatched",
 ]
