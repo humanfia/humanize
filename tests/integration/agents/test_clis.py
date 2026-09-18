@@ -1175,8 +1175,13 @@ def test_grok_says_once_that_a_conversation_it_cannot_load_is_gone(
 
 
 def test_grok_grants_a_tool_call_it_is_asked_to_permit(stubs: _Stubs) -> None:
-    """By the kind of the option: an id is the agent's own word for what it offers."""
-    assert GrokBuildAgent(GROK).new()("ask") == "yes"
+    """By the kind of the option: an id is the agent's own word for what it offers.
+
+    At `auto`, which is the rung that means what the agent asks for is granted. The grant is
+    the rung's rather than this client's: an agent nobody was asked about is refused, which
+    is the test below.
+    """
+    assert GrokBuildAgent(replace(GROK, permission="auto")).new()("ask") == "yes"
 
 
 def test_grok_refuses_a_tool_call_for_an_agent_nobody_was_asked_about(

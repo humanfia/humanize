@@ -35,6 +35,7 @@ from hmz.coganchor.agents import (
 )
 from hmz.coganchor.agents import codex as appservers
 from hmz.coganchor.agents import kimi as kimicode
+from hmz.coganchor.agents.config import UNSAID
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -610,9 +611,19 @@ def _install(
     return _FakeServer(Path(f"{fake}.log"))
 
 
-def _agent(effort: str = "high") -> KimiCodeCLIAgent:
-    """A Kimi Code agent at the one model the stand-in daemon answers for."""
-    return KimiCodeCLIAgent(KimiCodeCLIAgentConfig(model="kimi-code/k3", effort=effort))
+def _agent(effort: str = "high", permission: str = UNSAID) -> KimiCodeCLIAgent:
+    """A Kimi Code agent at the one model the stand-in daemon answers for.
+
+    At no rung unless one is named, which is what an agent nobody was asked about carries --
+    and which humanize answers no for. A test about the approval plumbing rather than about
+    the rung names one that grants, so that what it is watching is the route and not the
+    refusal.
+    """
+    return KimiCodeCLIAgent(
+        KimiCodeCLIAgentConfig(
+            model="kimi-code/k3", effort=effort, permission=permission
+        )
+    )
 
 
 def _named(argv: list[str]) -> list[str]:
@@ -1402,11 +1413,13 @@ def test_kimi_answers_an_approval_the_turn_stopped_on(kimi: _FakeServer) -> None
 
     The daemon holds the tool until the approval is resolved and reports the session busy
     meanwhile, so a driver that read only `/questions` would poll this until the watchdog
-    ended it. Nobody is at a prompt, so the answer is the one humanize gives everywhere --
-    and it is `approved` alone, `scope` being left off so that the next call of the same
-    tool is asked about again rather than waved through by a rule the daemon kept.
+    ended it. At `auto` -- the rung whose whole meaning is that what the agent asks for is
+    granted -- the answer is `approved` alone, `scope` being left off so that the next call
+    of the same tool is asked about again rather than waved through by a rule the daemon
+    kept. What the answer is at the rungs that withhold, and at no rung at all, is the tests
+    below.
     """
-    assert _agent()("approving") == "answered"
+    assert _agent(permission="auto")("approving") == "answered"
 
     assert _bodies(kimi, "/approvals/a_0") == [{"decision": "approved"}]
 
@@ -1482,6 +1495,9 @@ def test_a_hook_gets_the_first_word_on_a_kimi_approval_at_no_rung(
     assert [one.tool for one in seen] == ["Bash"]
     assert _bodies(kimi, "/approvals/a_0") == [
         {"decision": "rejected", "feedback": "not that one"}
+    ]
+
+
 def test_a_kimi_turn_at_read_only_refuses_the_tool_that_is_not_a_read(
     kimi: _FakeServer,
 ) -> None:
@@ -1549,7 +1565,7 @@ def test_a_kimi_approval_is_answered_once_however_often_it_is_listed(
     working. Remembered by id instead, which also keeps the hook at one firing per tool
     call rather than one per poll.
     """
-    agent = _agent()
+    agent = _agent(permission="auto")
     seen: list[Occasion] = []
     agent.hooks.on(Moment.PERMISSION_REQUEST, seen.append)
 
@@ -1607,7 +1623,7 @@ def test_a_kimi_approval_is_read_even_while_the_question_route_refuses(
 
     monkeypatch.setattr(kimicode.KimiCodeCLISession, "_asked", refuse)
 
-    assert _agent()("approving") == "answered"
+    assert _agent(permission="auto")("approving") == "answered"
 
     assert _bodies(kimi, "/approvals/a_0") == [{"decision": "approved"}]
 

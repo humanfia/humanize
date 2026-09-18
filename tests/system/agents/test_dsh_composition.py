@@ -78,7 +78,7 @@ def test_the_web_plugins_an_agent_that_may_search_is_composed_with_are_real(
     dropped one of these would otherwise turn every dsh turn into a runtime that will not
     start -- and it would do it at the first turn of a run rather than here.
     """
-    searching = _composed(CONFIG)
+    searching = _composed(replace(CONFIG, web_search=True))
     assert all(plugin["name"] in searching for plugin in _WEB)
 
     _boots(searching, tmp_path)
