@@ -175,8 +175,11 @@ _PERMITTED = {
 
 #: The rungs at which an approval this client is asked for is answered yes, which is every row
 #: that names an approval policy at all. At `auto` that policy is `on-request` and the yes is
-#: the rung's own meaning; everywhere else it is `never`, so nothing is asked and a request
-#: arriving anyway is one the rung has already settled.
+#: the rung's own meaning. Everywhere else it is `never` and nothing is asked, so what those
+#: rows are doing here is saying what happens to a request that arrives anyway -- which is the
+#: behaviour they have always had, kept rather than changed, this commit being about the row
+#: that has no policy at all. A `never` thread that asks is a Codex doing something 0.153.4
+#: does not, and the honest answer to it is a rung of its own to settle, not one to infer.
 #:
 #: The row above the ladder names no policy, and that is what this set exists to keep out of
 #: the yes. `codex app-server` asked for no `approvalPolicy` does not fall silent: run against
@@ -1087,9 +1090,11 @@ class _AppServer:
 
         At no rung the answer is no. Codex opened that thread at its own defaults and asks
         over them, and humanize -- told nothing about this agent -- has nothing to say yes
-        with. The hook is still fired, because a flow that hung one asked to decide, and a
-        refusal from it says so in its own words; with nothing hung the thread is declined all
-        the same, which Codex ends as a turn that ran and did not do the thing.
+        with. The hook is still fired there, so a flow watching its agent sees the moment and
+        can put its own words on the refusal; what it cannot do is turn one round, `Verdict`
+        carrying a refusal and no yes at all. So the answer at that rung is no either way, in
+        the hook's words where it gave any, which Codex ends as a turn that ran and did not do
+        the thing.
 
         The three requests take two shapes of answer: a decision for a command and for a file
         change, and the permissions themselves for a request to widen the sandbox -- where

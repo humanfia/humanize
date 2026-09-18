@@ -324,7 +324,13 @@ if argv[:1] == ["agent"] and "stdio" in argv:
             # of the option rather than by taking whichever came first.
             out({"jsonrpc": "2.0", "id": 9001,
                  "method": "session/request_permission",
-                 "params": {"sessionId": session, "options": [
+                 "params": {"sessionId": session,
+                            # Shaped as 1.0.24 shapes one: the call it is about beside the
+                            # options, which is what a hook hung on this moment reads.
+                            "toolCall": {"toolCallId": "call_1", "kind": "execute",
+                                         "title": "Execute `rm -rf /`",
+                                         "rawInput": {"command": "rm -rf /"}},
+                            "options": [
                      {"optionId": "no", "kind": "reject_once"},
                      {"optionId": "yes", "kind": "allow_always"}]}})
             chosen = json.loads(sys.stdin.readline())
@@ -1180,6 +1186,23 @@ def test_grok_refuses_a_tool_call_for_an_agent_nobody_was_asked_about(
     ).new()
 
     assert session("ask") == "no"
+
+
+def test_a_hook_may_refuse_a_tool_call_grok_asked_to_be_allowed(stubs: _Stubs) -> None:
+    """The one moment `grok agent` waits on, and so the one a hook can stop it at."""
+    from hmz.coganchor.agents import Moment, Occasion, Verdict
+
+    agent = GrokBuildAgent(GROK)
+    seen: list[Occasion] = []
+
+    def refuse(occasion: Occasion) -> Verdict:
+        seen.append(occasion)
+        return Verdict(refused=True, because="not that one")
+
+    with agent.hooks.on(Moment.PERMISSION_REQUEST, refuse):
+        assert agent.new()("ask") == "no"
+
+    assert [one.about for one in seen] == ['{"command": "rm -rf /"}']
 
 
 def test_grok_takes_a_withheld_rung_on_the_command_line_that_can_say_it(

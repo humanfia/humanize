@@ -969,11 +969,12 @@ class KimiCodeCLISession(SessionBase):
         says yes for.
 
         Put to `PERMISSION_REQUEST` first either way, because this is the moment the backend
-        actually waits on and so the one place a hook here can stop an agent doing something,
-        and because a flow that hung one at no rung asked to decide. A refusal -- the hook's,
-        or the silence's -- is `rejected` with the reason, which the daemon hands the model as
-        a line saying the tool was not run: the turn goes on, having been refused, rather than
-        ending.
+        actually waits on and so the one place a hook here can stop an agent doing something.
+        At no rung a hook can put its own words on the refusal but not turn one round --
+        `Verdict` carries a refusal and no yes -- so what it decides there is what the model is
+        told, not whether. A refusal, the hook's or the silence's, is `rejected` with the
+        reason, which the daemon hands the model as a line saying the tool was not run: the
+        turn goes on, having been refused, rather than ending.
 
         Args:
           session: The session the turn is running in.

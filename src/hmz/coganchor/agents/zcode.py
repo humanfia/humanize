@@ -928,11 +928,13 @@ class _AppServer:
         moment a refusal actually stops this agent doing something.
 
         A session at no rung is the one that is neither. It names no mode, so what asks is
-        whichever mode ZCode opened it in, and a hook still gets the first word because a flow
-        that hung one asked to decide. With nothing hung, the answer is no: an agent humanize
-        was told nothing about is not one humanize says yes for, and a `yes` here would make
-        the silence looser at runtime than `workspace-write` -- which would be humanize
-        settling, in the loosest direction there is, the rung it was asked not to settle.
+        whichever mode ZCode opened it in, and a hook is fired there so that a flow watching
+        its agent sees the moment and can put its own words on the refusal. What it cannot do
+        is turn one round -- `Verdict` carries a refusal and no yes -- so the answer at that
+        rung is no either way: an agent humanize was told nothing about is not one humanize
+        says yes for, and a `yes` here would make the silence looser at runtime than
+        `workspace-write`, which would be humanize settling, in the loosest direction there
+        is, the rung it was asked not to settle.
 
         A question is put to whoever is driving the agent and then declined either way: ZCode
         takes an answer to one over a channel its own terminal holds and this does not, so what
