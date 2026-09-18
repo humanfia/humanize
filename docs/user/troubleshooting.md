@@ -236,13 +236,14 @@ If it does not, run fewer opencode agents at once.
 
 ### `codex: this machine will not run an agent at bypass, so it runs at auto`
 
-Not a failure: a note, said once per agent. This Codex was given requirements by somebody
-else — an enterprise policy that arrives with the account, or a `requirements.toml` on a
-machine whose platform packages Codex — forbidding the `danger-full-access` sandbox that
-[`bypass`](/user/permissions) is. Codex refuses such a call outright, so humanize asks again a
-rung down, at `auto`: the same freedom, with Codex asking before it reaches past the workspace
-and humanize granting what it asks. Ask for the agent at `permission=auto` to say it yourself
-and skip the note. What the machine allows is its own to say:
+Not a failure: a note, said once per agent whose flow declared `bypass`. This Codex was given
+requirements by somebody else — an enterprise policy that arrives with the account, or a
+`requirements.toml` on a machine whose platform packages Codex — forbidding the
+`danger-full-access` sandbox that [`bypass`](/user/permissions) is. Codex refuses such a call
+outright, so humanize asks again a rung down, at `auto`: the same freedom, with Codex asking
+before it reaches past the workspace and humanize granting what it asks. Ask for the agent at
+`permission=auto` to say it yourself and skip the note. What the machine allows is its own to
+say:
 
 ```sh
 cat /etc/codex/requirements.toml

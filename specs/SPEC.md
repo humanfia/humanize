@@ -429,7 +429,7 @@ class Runs(NamedTuple):
     permission: str = ""
     provider: str = ""
     goals: bool = True
-    web_search: bool = True
+    web_search: bool | None = None
 
 
 def written(runs: Runs) -> dict[str, Any]: ...
@@ -450,11 +450,19 @@ What an agent is, written down: a shape and the two directions it goes in, and n
   paying for a layer it does not use.
 - One agent MUST be written the same way wherever it is written down, so the shape is said
   once. What says nothing MUST be left out: an agent that works here, may do what an agent
-  nobody was asked about may do and runs as this machine is signed in is one every field of
-  which is that field's own silence. What an older file says about skills MUST be read past:
-  they are the CLI's own now, and not a thing an agent is written down with.
+  nobody was asked about may do, searches the web or does not exactly as its CLI would unasked,
+  and runs as this machine is signed in is one every field of which is that field's own silence.
+  That silence MUST be the same silence the flow's own declaration carries -- nothing said, and
+  so nothing said to the CLI -- rather than a stand-in for a default settled somewhere else,
+  since a file read against the version that wrote it is a file read two ways. What an older
+  file says about skills MUST be read past: they are the CLI's own now, and not a thing an agent
+  is written down with.
 - An entry written before there was a setting MUST read as what every agent did then, rather
-  than as an entry that is not one: a file humanize wrote is a file humanize reads back.
+  than as an entry that is not one: a file humanize wrote is a file humanize reads back. For
+  what an agent may do and whether it may search the web, what every agent did then is whatever
+  its CLI did unasked, that being the whole of what humanize said about either before there was
+  a setting -- so an entry that holds neither MUST read as each field's own silence. A field an
+  entry does hold MUST read back as what it holds.
 
 ## `coganchor/fallbacks.py`
 

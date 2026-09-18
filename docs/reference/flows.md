@@ -474,7 +474,7 @@ class Agents(NamedTuple):
 
 | Written beside the type | What it says |
 | --- | --- |
-| *(nothing)* | `bypass`, goals on, the web readable — what every agent of every flow has always run at |
+| *(nothing)* | nothing said about what it may do, goals on, nothing said about the web — the agent runs as that CLI runs when you start it yourself |
 | `AgentDefaults(permission=…)` | one rung of [the four](/user/permissions) |
 | `AgentDefaults(goals=…)` | whether the backend's own [goal feature](/weaver/goals) is available |
 | `AgentDefaults(web_search=…)` | whether it [may search the web](/reference/agents#whether-an-agent-may-search-the-web) |

@@ -35,7 +35,7 @@ which is the one it opens on. Which, and how to move between them, is
 
 **Above the editor**, one line per agent the flow drives: the name the flow calls it, then what
 it runs as `cli/model:effort`, then the machine its turns land on where that is not this one,
-[what it may do](/user/permissions) where that is not the ordinary rung, the
+[what it may do](/user/permissions) where a rung was said about it at all, the
 [account](#which-cli-and-which-account) it runs as where that is not this machine's own, and
 finally what it is holding — `●` or `○` for whether it is working, how many conversations it
 has open, `reading` on the agent whose transcript is on the screen, and `unread` on one that

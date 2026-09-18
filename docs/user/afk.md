@@ -15,8 +15,9 @@ At the prompt, type:
 ## What it is not
 
 `/afk` controls whether an agent may ask you a **question**. It does not control whether an
-agent may **act**. humanize runs every agent with permission prompts disabled, and no setting
-turns them back on. See [Security](/user/security) and [Permissions](/user/permissions).
+agent may **act**: that is the rung its flow declared, and a flow written to run unattended
+declares the one where nothing is asked. See [Security](/user/security) and
+[Permissions](/user/permissions).
 
 ## At the prompt
 

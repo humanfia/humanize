@@ -108,11 +108,13 @@ def run(agents: Agents, task: str) -> None:
 | `goals=` | whether the backend's own goal feature is available | [Goals](/weaver/goals) |
 | `web_search=` | whether it may read the internet | [Agents](/reference/agents#whether-an-agent-may-search-the-web) |
 
-What a place declares only ever tightens. `bypass`, goals on and the web readable are the
-loosest of each and what a place that writes none of them declares, so a flow that says nothing
-runs its agents at exactly what they came with -- and a flow you call cannot hand itself more
-than you were running at. None of the three can be said on the line that runs the flow, and
-none of them has a row on the sheet an agent is set up on: they are things about the work, and
+What a place declares only ever tightens. Saying nothing at all about what an agent may do,
+goals on and saying nothing at all about the web are the loosest of each and what a place that
+writes none of them declares, so a flow that says nothing runs its agents at exactly what they
+came with -- its CLI told nothing, and asking or not asking as it would had you started it
+yourself -- and a flow you call cannot hand itself more than you were running at. None of the
+three can be said on the line that runs the flow, and none of them has a row on the sheet an
+agent is set up on: they are things about the work, and
 the work is what the flow is.
 
 ## Choose what the next turn remembers

@@ -203,9 +203,9 @@ class Goal: ...
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class AgentDefaults:
-    permission: str = "bypass"
+    permission: str = ""
     goals: bool = True
-    web_search: bool = True
+    web_search: bool | None = None
 
 
 class Remote: ...
@@ -222,10 +222,10 @@ class AgentConfig:
     effort: str
     service_tier: str = "default"
     machine: MachineConfig | None = None
-    permission: str = "bypass"
+    permission: str = ""
     provider: str = ""
     goals: bool = True
-    web_search: bool = True
+    web_search: bool | None = None
     budget: Budget | None = None
 ```
 
@@ -288,22 +288,33 @@ class AgentConfig:
   quietly switch searching back on for -- so whoever chooses an agent chooses a CLI, a model,
   an effort and an account, and MUST NOT be asked or able to say any of these three.
 - `AgentDefaults` MUST be what a flow writes beside a place to say them, the way `Goal`,
-  `Remote` and `Isolated` are written. What it declares by default -- `bypass`, goals on, the
-  web readable -- MUST be the loosest of each, so that a place writing none of them settles
-  nothing: what an agent already carries is never loosened to reach a declaration, which is
-  what makes a flow that declares nothing run its agents at exactly what they came with. It
-  MUST refuse a rung no backend has a word for where it is written, so that a flow declaring
-  one is refused as the flow is read rather than reached down in a driver as a key that is
-  not there.
+  `Remote` and `Isolated` are written. What it declares by default -- nothing about what the
+  agent may do, goals on, nothing about the web -- MUST be the loosest of each, so that a place
+  writing none of them settles nothing: what an agent already carries is never loosened to reach
+  a declaration, which is what makes a flow that declares nothing run its agents at exactly what
+  they came with. Saying nothing MUST therefore be looser than every rung and looser than either
+  answer about the web, and MUST NOT be a rung itself: it is the absence of one, so it belongs
+  outside whatever lists the rungs a flow may declare. It MUST refuse a rung no backend has a
+  word for where it is written, so that a flow declaring one is refused as the flow is read
+  rather than reached down in a driver as a key that is not there.
 - What it says MUST reach the agent before that agent's first turn, over whatever the agent
   was constructed with: a flow is handed agents somebody else made, and one that declared a
   reviewer which may not write cannot be given a reviewer that may. A flow that calls another
   MUST have the called flow's declaration hold for the length of the call and MUST hand the
   agents back as it found them, exactly as it does with the skills it brought.
-- A backend with no way of being run at a rung MUST refuse it wherever the config arrives --
-  where the agent is made, and where a flow settles what it declared onto one it was handed --
-  rather than on the first turn: a rung it would have to ignore is a run to refuse before it
-  starts, the way web search it cannot switch off is.
+- A rung MUST be a thing said rather than a thing assumed. An agent carrying none MUST have
+  nothing said to its CLI about what it may do -- no mode, no sandbox, no approval policy, no
+  flag that skips a prompt -- the way an agent at no rung of effort has nothing said about how
+  hard to think, so that a run nobody declared a rung for is the run that CLI takes when a
+  person starts it themselves. That is the only honest answer to a question nobody asked: a
+  rung chosen here would be humanize settling on the flow's behalf what the flow left open, and
+  a run that declared nothing would then differ from the same CLI started by hand.
+- A backend with no way of being run at a rung it was told MUST refuse it wherever the config
+  arrives -- where the agent is made, and where a flow settles what it declared onto one it was
+  handed -- rather than on the first turn: a rung it would have to ignore is a run to refuse
+  before it starts, the way web search it cannot switch off is. Nothing said MUST NOT be
+  refused anywhere, on any backend: it is not a rung, so there is nothing in it a CLI could be
+  unable to do.
 - `goals` MUST be the explicit on/off availability of backend goals for this agent. It has
   no inherited or automatic state, and a place run under a `Goal` MUST have them: the two
   written against each other on one place is a flow saying two things about one agent, and
@@ -333,16 +344,23 @@ class AgentConfig:
   one wherever the config arrives -- where the agent is made, and where one already running is
   set up as something else -- the way a rung it has no word for is refused there: a tier sent
   nowhere would be a setting that lies about what a turn was served at.
-- `web_search` MUST be whether this agent may search the web, and MUST be on where the flow
-  said nothing: that is what a coding agent has always been able to do. It MUST mean the same thing
-  on every backend that can express it, which means saying it in both directions rather than only
-  one -- a CLI whose own web search is off until it is asked for MUST be asked for it, or on would
-  mean two things. A backend that cannot be told MUST refuse it off wherever the config arrives, the
-  way one with no service tier to send refuses `fast`: an agent that went on searching would be a
-  setting that lies. Which backends those are MUST be read off `hmz.coganchor.backends`, so that the
-  one place that says what a CLI is is the one place this is said too. A flow that declares it off
-  MUST therefore be refused the backends that cannot be told, before the first turn and by name, the
-  way a place declaring a `Goal` refuses a backend with no goal feature.
+- `web_search` MUST be whether this agent may search the web, and MUST be three answers rather than
+  two: off, on, and nothing said. Nothing said MUST be what a flow that did not mention it leaves
+  behind, and MUST have nothing sent to the CLI in either direction, so that the agent searches or
+  does not exactly as it would had a person started it themselves. Off MUST be tighter than on and
+  on tighter than nothing said, for the reason a rung declared is tighter than none: a place that
+  states an answer settles it, and a place that states none settles nothing. An answer stated MUST
+  mean the same thing on every backend that can express it, which means saying it in both directions
+  rather than only one -- a CLI whose own web search is off until it is asked for MUST be asked for
+  it where a flow says on, or on would mean two things. A backend that cannot be told MUST refuse it
+  off wherever the config arrives, the way one with no service tier to send refuses `fast`: an agent
+  that went on searching would be a setting that lies. Nothing said MUST NOT be refused there, on
+  any backend, the way no rung at all is refused nowhere: a CLI that cannot be told is a CLI
+  nothing was going to be said to. Which backends those are MUST be read off
+  `hmz.coganchor.backends`, so that the one place that says what a CLI is is the one place this
+  is said too. A flow that declares it
+  off MUST therefore be refused the backends that cannot be told, before the first turn and by name,
+  the way a place declaring a `Goal` refuses a backend with no goal feature.
 - What skills an agent carries MUST NOT be a setting of it, and MUST NOT be adjustable by
   whoever chose it: a skill installed on this machine is its CLI's own -- installed the way
   that CLI installs one, switched off the way that CLI switches one off -- and humanize MUST

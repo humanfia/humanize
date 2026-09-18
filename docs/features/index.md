@@ -152,7 +152,8 @@ weaver writes to add another: <a :href="withBase('/weaver/writing-a-flow')">Writ
 </div>
 
 ::: warning Before you point one at a repository you care about
-humanize runs every agent with permission prompts disabled, and nothing turns them back on. A
-flow is trusted Python: loading or running it may execute its code, even though static checks
-can inspect selected structure without doing so. Read [Security](/user/security).
+What an agent may do is the flow's to declare, and a flow written to run unattended declares the
+rung where nothing is asked. A flow is trusted Python: loading or running it may execute its
+code, even though static checks can inspect selected structure without doing so. Read
+[Security](/user/security).
 :::

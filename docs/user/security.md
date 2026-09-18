@@ -3,29 +3,34 @@
 Three things about humanize are load-bearing and surprising. Read them before you point one at
 a repository you care about.
 
-## Every agent runs with permission prompts disabled
+## The flow decides what its agents may do to your workspace
 
 humanize drives coding agents unattended, as
-[flowbench](https://humanfia.ai/projects/flowbench) does. **No setting turns the prompts back
-on.** An agent under a flow edits files, runs commands and makes commits without asking.
-
-[`/afk`](/user/afk) governs whether an agent may stop and ask you a *question*. It does not
-govern whether the agent may act. Nothing does.
-
-A flow can narrow [what its agents may do at all](/user/permissions) — four rungs, declared
-beside the agent it drives:
+[flowbench](https://humanfia.ai/projects/flowbench) does, and the only thing between an agent
+and your workspace is the flow driving it. A flow declares [what its agents may
+do](/user/permissions) beside the agent it drives — four rungs, the loosest of which turns that
+CLI's own prompts off altogether:
 
 ```python
 class Agents(NamedTuple):
+    builder: Annotated[Agent, AgentDefaults(permission="bypass")]
     reviewer: Annotated[Agent, AgentDefaults(permission="read-only")]
 ```
 
-A place that says nothing declares `bypass`, the loosest rung, which settles nothing: an agent
-already on a tighter rung stays on it, and a flow you call runs at your rung or tighter rather
-than at its own. Reach for `read-only` where a flow has a second
-agent look at a change without being able to touch it. It is the flow's to say and not the
-line's: what an agent may do is a thing about the work, so **the flow you run is what decides
-what its agents may do to your workspace**. Read one before you run it.
+At `bypass` an agent edits files, runs commands and makes commits without asking, and **a flow
+you did not read can declare it**. It is the flow's to say and not the line's: what an agent may
+do is a thing about the work, so read a flow before you run it.
+
+A place that declares no rung has humanize tell that CLI nothing — no mode, no sandbox, no
+approval policy, no flag that skips a prompt — so the agent runs exactly as it would had you
+started it headless yourself, prompts and all. That settles nothing, which is the point: an
+agent already on a tighter rung stays on it, and a flow you call runs at your rung or tighter
+rather than at its own. Reach for `read-only` where a flow has a second agent look at a change
+without being able to touch it.
+
+[`/afk`](/user/afk) governs whether an agent may stop and ask you a *question*. It does not
+govern whether the agent may act — the rung its flow declared does, and where no flow declared
+one, that CLI's own answer does.
 
 Drive a flow only in a workspace you are willing to have rewritten. That includes [a container
 of the agent's own](/user/containers), which confines the agent to that image but mounts your

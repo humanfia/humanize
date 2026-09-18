@@ -255,8 +255,9 @@ both rows read `as configured` and the agent runs as it was set up to. It cannot
 mid-turn — every agent spells that extension its own way — and it has no goal feature and no
 logs for `Hmz().epics.trace()` to read. Its only word about permission is the question it asks
 per tool call, and nobody is at a prompt for a flow, so every one is granted: an agent of your
-own runs at `bypass`, and a rung below that is refused where the agent is made rather than
-promised and not kept.
+own runs at `bypass` or at no rung at all, which come to the same thing here — the protocol asks
+the client either way, and the client is humanize — and a rung below that is refused where the
+agent is made rather than promised and not kept.
 
 What a client offers *it* is the other half of the handshake, and humanize offers nothing it
 was not asked for — the agent has a machine of its own to read files and run commands on, and
@@ -395,7 +396,8 @@ That length refusal, and a session id the runtime will not answer under, are the
 than retried. A turn that fails without taking its runtime with it leaves that runtime up, so
 the conversation carries on into the turn after it.
 
-Every turn runs at `bypass`, and no tighter rung can be asked for. Not a choice of humanize's:
+Every turn runs at `bypass`, which is also what a flow declaring no rung gets here, and no
+tighter rung can be asked for. Not a choice of humanize's:
 the SDK's own default composition mounts the unconfined `dsh-bash-local` and `dsh-fs-local`
 and none of `dsh-sandbox-*`, `dsh-user-approval` or `dsh-permission-presets`, and the bundled
 runtime carries no confining bash executor at all — so a rung composed from what ships would
@@ -527,10 +529,12 @@ something else. A flow declares `hmz.flows.Agent` and reaches none of them.
 
 ### Whether an agent may search the web
 
-`web_search` is `True` unless the flow says otherwise, because reaching the web is what a
-coding agent has always been able to do. Off is the flow's choice, and one worth having: a run
-that must read only this repository, one under a per-query rate limit somebody is paying for,
-one whose answers have to be reproducible tomorrow.
+`web_search` is three answers rather than two: off, on, and nothing said. Nothing said is what
+a flow that did not mention it leaves behind, and nothing is then sent in either direction — the
+agent searches or does not exactly as it would had you started that CLI yourself. Off is the
+flow's choice, and one worth having: a run that must read only this repository, one under a
+per-query rate limit somebody is paying for, one whose answers have to be reproducible
+tomorrow. On is a choice too, on a CLI that ships with its own search switched off.
 
 ```python
 class Agents(NamedTuple):
@@ -544,11 +548,12 @@ before the first turn:
 config = ClaudeCodeAgentConfig(model="claude-opus-5", effort="high", web_search=False)
 ```
 
-It means the same thing on every backend that can express it, which means it is sent in both
-directions rather than only one. Claude searches the web unless told not to, so off adds
-`WebSearch,WebFetch` to `--disallowedTools`; Codex searches nothing until it is asked to, so on
-sends `-c tools.web_search=true`. If it were only ever sent one way, `on` would mean two
-different things.
+An answer stated means the same thing on every backend that can express it, which means it is
+sent in both directions rather than only one. Claude searches the web unless told not to, so off
+adds `WebSearch,WebFetch` to `--disallowedTools`; Codex searches nothing until it is asked to,
+so on sends `-c tools.web_search=true`. If it were only ever sent one way, `on` would mean two
+different things — and that is exactly what nothing said means instead, each CLI left wherever it
+already stood.
 
 | backend | how it is said |
 | --- | --- |
@@ -564,7 +569,8 @@ different things.
 A backend with no way of being told **refuses it off**, wherever the config arrives — where the
 agent is made, where one already running is set up as something else, and where a flow that
 declared it off is handed one of those to drive. An agent that quietly went on searching would
-be a setting that lies. It composes with
+be a setting that lies. Nothing said is refused nowhere, for the same reason no rung is: a CLI
+that cannot be told is a CLI nothing was going to be said to. It composes with
 [what an agent may do](#what-an-agent-may-do) rather than overriding it: a rung that already
 withholds the reaching-out tools goes on withholding them whatever this says.
 
@@ -660,8 +666,8 @@ would have done if nobody had said anything:
 | `cli_agent` | `--agent NAME` — the turn run as one of the CLI's own agents, which carries a prompt, a model and a tool list of its own | `""`, the agent the CLI starts with |
 | `thinking` | `--thinking` — the reasoning streamed as `Event(kind="reasoning")` on the way to the answer | off, as the CLI is |
 | `pure` | `--pure` — the turn run without the plugins installed around the CLI rather than in it | off, as the CLI is |
-| `unattended` | `--auto` for opencode, `--dangerously-skip-permissions` for mimocode — yes to whatever the rung has not refused outright | on |
-| `permission_table` | `OPENCODE_PERMISSION` / `MIMOCODE_PERMISSION`, the table this turn's [rung](#what-an-agent-may-do) and [web switch](#whether-an-agent-may-search-the-web) are carried in | on |
+| `unattended` | `--auto` for opencode, `--dangerously-skip-permissions` for mimocode — yes to whatever the rung has not refused outright | unsaid: on where the flow declared a rung, absent where it declared none |
+| `permission_table` | `OPENCODE_PERMISSION` / `MIMOCODE_PERMISSION`, the table this turn's [rung](#what-an-agent-may-do) and [web switch](#whether-an-agent-may-search-the-web) are carried in | unsaid: written where there is a rung or a web answer to carry, absent where there is neither |
 
 ```python
 from hmz.coganchor.agents import OpencodeAgent, OpencodeAgentConfig
@@ -684,8 +690,10 @@ every step's own totals whether or not it was asked to say the thinking, so
 `permission_table` off leaves the turn under whatever the person at this machine has
 configured, which is the only honest reason to turn it off — and so it is refused beside a
 rung that withholds anything, or `web_search=False`, since the table was the only way of
-saying either. The table is written for the turn and never into that person's settings file:
-two agents of one flow may be allowed different things.
+saying either. Left unsaid it is that same nothing where the flow declared nothing, and the
+table where the flow declared something to carry: a run nobody has said anything about is the
+run `opencode` makes of it. The table is written for the turn and never into that person's
+settings file: two agents of one flow may be allowed different things.
 
 An agent takes an optional `name=`:
 
@@ -1998,17 +2006,17 @@ whoever starts the run overrides it. See
 | A turn held to a shape | `--json-schema` | `--json-schema` | `outputSchema` | in the prompt | in the prompt | `--json-schema` | in the prompt | in the prompt | `--json-schema` | in the prompt | in the prompt |
 | Sub-agents in a trace | no | yes | yes | no | no | no | yes | no | no | no | no |
 
-DeepSeek Harness currently accepts only the `bypass` rung, so a flow that declares another
-cannot be driven by it, and another value is rejected before the runtime starts rather than
-silently ignored. Two things make bypass the only honest rung, and the second is the one worth
-writing down: its preview SDK exposes neither a per-session sandbox/approval control nor exact
-per-agent skill selection — `initialize` carries the cwd, the provider and the model, and no
-other method the runtime answers could carry one — *and* the composition humanize pins mounts
-`dsh-bash-local` and `dsh-fs-local`, the unconfined executors, and none of the sandbox,
-user-approval or permission-preset plugins. Bypass is therefore what these turns already run
-at rather than a tighter rung being dropped on the way; mounting the presets to get another
-would *introduce* the Bash that fails closed, since local confinement refuses the tool
-outright on a host with neither bwrap nor Landlock.
+DeepSeek Harness accepts only the `bypass` rung and a flow that declares no rung at all, so a
+flow that declares another cannot be driven by it, and another value is rejected before the
+runtime starts rather than silently ignored. Two things make bypass the only honest rung, and
+the second is the one worth writing down: its preview SDK exposes neither a per-session
+sandbox/approval control nor exact per-agent skill selection — `initialize` carries the cwd,
+the provider and the model, and no other method the runtime answers could carry one — *and* the
+composition humanize pins mounts `dsh-bash-local` and `dsh-fs-local`, the unconfined executors,
+and none of the sandbox, user-approval or permission-preset plugins. Bypass is therefore what
+these turns already run at rather than a tighter rung being dropped on the way; mounting the
+presets to get another would *introduce* the Bash that fails closed, since local confinement
+refuses the tool outright on a host with neither bwrap nor Landlock.
 
 `interject` is unsupported for the same kind of reason. The SDK's `session/prompt` is the
 runtime's `followup`, which leaves the word in the `next-turn` inbox — a turn queued behind
@@ -2133,7 +2141,8 @@ The conversation is not restarted with it.
 ## What an agent may do
 
 A config's `permission` is one rung of a four-rung ladder, loosest last — named the way these
-CLIs name them rather than in a vocabulary of humanize's own:
+CLIs name them rather than in a vocabulary of humanize's own — or nothing at all, which is the
+absence of a rung rather than one on it:
 
 | Rung | What it means |
 | --- | --- |
@@ -2157,18 +2166,26 @@ class Agents(NamedTuple):
 There is no `-a` setting for it and no row for it on the sheet an agent is set up on: a line
 that writes `permission=` is refused, naming the flow as the place to say it.
 
-`bypass` is the loosest rung and what a place that says nothing declares, because that is what
-a flow driving an agent unattended has always run it at: a flow watches its agent rather than
-gating it, and a turn waiting on an approval nobody is there to give is a flow that has
-stopped. Anything tighter is the flow author's choice. A declaration only ever tightens: what
-an agent already carries is never loosened to reach one, so a flow that says nothing runs its
-agents at what they came with, and a called flow runs at its caller's rung or tighter.
+A place may declare no rung, and that is what one which writes no `AgentDefaults` does.
+humanize then says nothing to that CLI about what its agent may do — no mode, no sandbox, no
+approval policy, no flag that skips a prompt — so the turn is the turn that CLI takes when a
+person runs it headless. Saying nothing is looser than every rung there is, which leaves the
+rule the same rule it always was: a declaration only ever tightens, what an agent already
+carries is never loosened to reach one, so a flow that says nothing runs its agents at what
+they came with, and a called flow runs at its caller's rung or tighter.
+
+`bypass` is the loosest rung, and still the one an unattended flow reaches for: a flow watches
+its agent rather than gating it, and a turn waiting on an approval nobody is there to give is a
+flow that has stopped. It is a thing to write rather than a thing to inherit — a flow that wants
+its agents asked nothing says so beside the place. Anything tighter is the flow author's choice
+in the same way.
 
 Every backend has a ladder of its own and none of them has the same four rungs, so each driver
 reaches for whichever of its own settings says the same thing:
 
 | Rung | `agy` | `claude` | `codex` | `cursor-agent` | `dsh` | `grok` | `kimi` | `pi` | `qwen` | `opencode`, `mimo` | `zcode` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| *(none declared)* | nothing sent | nothing sent | nothing sent | nothing sent | nothing sent | nothing sent | nothing sent | nothing sent | nothing sent | nothing sent | nothing sent |
 | `read-only` | `--mode plan` | `plan` mode | `read-only` sandbox | `--mode plan` | refused | only `read_file`, `grep`, `list_dir` | plan mode, which stops edits and not commands | without `bash`, `edit`, `write`, `powershell` | without `edit`, `write_file`, `notebook_edit`, `run_shell_command`, `monitor` | `edit` and `bash` denied | `plan` mode |
 | `workspace-write` | `--mode accept-edits`, whose commands are denied | `acceptEdits` mode | `workspace-write` sandbox | `--sandbox enabled` | refused | `--disable-web-search` | plan mode off | — | `web_fetch` denied | every way out of the workspace denied | `edit` mode |
 | `auto` | `--dangerously-skip-permissions` | Claude's own `auto` mode | `workspace-write`, approvals on request | `--auto-review`, its own classifier | refused | `--always-approve` | — | — | — | nothing denied | `build` mode, which asks before a tool with side effects |
@@ -2179,6 +2196,13 @@ rather than an approximation of one. Where a backend cannot tell two rungs apart
 here rather than pretending: a dash is the rung above it, run again. **Refused** is neither: a
 backend with no way of being run at that rung says no where the config arrives, so a flow that
 declares one is refused that backend before its first turn rather than quietly run looser.
+
+**The first row is the same on every one of them because it is nothing.** Where the flow
+declared no rung there is no setting to reach for: each CLI is started as it starts itself, and
+what an agent may then do is that CLI's own answer rather than humanize's — on most of them a
+prompt or a refusal where nobody is at the prompt, on `dsh` and on an ACP CLI of your own an
+agent nothing was confining in the first place. It is refused nowhere, because there is nothing
+in it a backend could be unable to do.
 
 **Grok Build's rung is the tools it is started with, not its `--permission-mode`.** It has one
 — six modes, `default`, `acceptEdits`, `auto`, `dontAsk`, `bypassPermissions` and `plan` — and
@@ -2228,7 +2252,7 @@ installation can be given requirements — an enterprise policy that arrives wit
 `requirements.toml` the platform that packages Codex puts on its machines — and one that
 forbids `danger-full-access` refuses every call that asks for it: `` `approval_policy =
 "never"` cannot be used because requirements do not allow `sandbox_mode =
-"danger-full-access"` ``. Which would be every turn of a flow at the default rung failing on
+"danger-full-access"` ``. Which would be every turn of a flow that declared `bypass` failing on
 such a machine. So humanize takes the answer: it runs that agent at `auto` instead — the same
 freedom with the asking turned back on, and the asking is granted — and says so once, where a
 turn's own words go when nothing is watching the agent:
@@ -2272,9 +2296,10 @@ the tool by itself, so the flag is what makes `bypass` a rung that decides anyth
 a mode every account permits, so `bypass` runs the same
 on an account somebody else set up as on your own; and a yes here is a yes to what the account
 leaves decidable, since the hard `deny` list an organisation ships is the CLI's to refuse
-before it ever asks. The rung means the same thing it always did — an agent nobody was asked
-about, allowed what a person at the prompt would have allowed — reached by standing in for that
-person rather than by turning the question off.
+before it ever asks. The rung means the same thing it always did — an agent allowed whatever a
+person at the prompt would have allowed — reached by standing in for that person rather than by
+turning the question off. An agent whose flow declared no rung is not at `bypass` and gets none
+of this: no mode is sent, no prompt tool is registered, and Claude answers its own asking.
 
 **ZCode has a mode for each of these**, so nothing in its column is a repeat of the one above
 it. `plan` refuses an edit and refuses a command it reads as high-risk. `edit` changes the
@@ -2289,9 +2314,10 @@ and not implemented yet.
 hung on [`PERMISSION_REQUEST`](#hooks) can refuse something only where a backend actually asks
 before it acts and waits for the answer. `auto` is that rung everywhere it exists; Claude Code,
 Codex and ZCode run the moment there. Claude Code runs it at `bypass` as well, because `bypass`
-there is `manual` mode with the asking routed home — so a hook can refuse a tool even an agent
-nobody was asked about reached for, and the agent hears it. The rest have nothing to hang it
-on.
+there is `manual` mode with the asking routed home — so a hook can refuse a tool an agent
+allowed everything reached for, and the agent hears it. A place that declares no rung routes
+nothing home, so a flow built on the moment declares the rung it wants it at. The rest have
+nothing to hang it on.
 
 ## The skills an agent carries
 

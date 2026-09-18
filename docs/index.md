@@ -15,9 +15,10 @@ import { withBase } from 'vitepress'
 ## Run a flow
 
 ::: warning Use a scratch directory
-humanize runs every agent with permission prompts disabled: an agent under it edits files
-without asking. Do this in a throwaway git repository, and read [Security](/user/security)
-before you point it at work you care about.
+The flow decides what its agents may do, and a flow written to run unattended declares the rung
+where nothing is asked: an agent under one edits files without asking. Do this in a throwaway
+git repository, and read [Security](/user/security) before you point it at work you care
+about.
 :::
 
 You need Python 3.12 or newer and **one coding agent CLI you have already logged into**.
@@ -128,8 +129,11 @@ git diff
 +    return a + b
 ```
 
-It made that edit with **no permission prompt**, and there is no setting that turns them back
-on. That is the one thing to have understood before pointing this at a real repository.
+It made that edit under whatever rung its flow declared. A flow written to run unattended
+declares `bypass`, where **nothing is asked**: there is nobody at a prompt to answer, so an
+agent under one edits files, runs commands and makes commits on its own. A flow that declares
+no rung leaves your CLI exactly as it is when you run it headless yourself. Either way the flow
+decides, which is the one thing to have understood before pointing this at a real repository.
 
 ::: details The model id is wrong, or your CLI is not above
 A model id is whatever that CLI shipped this week, and which ones you may name depends on the
@@ -290,8 +294,8 @@ patch](/contributing/tutorials/first-patch) takes one change from clone to pull 
 </div>
 
 <p class="hmz-warn">
-humanize runs every agent with permission prompts disabled, and no setting turns them back on —
-an agent under a flow edits files, runs commands and makes commits without asking. Read
-<a :href="withBase('/user/security')">Security</a> before you point one at a repository you
-care about.
+The flow decides what its agents may do, and a flow written to run unattended declares the rung
+where nothing is asked — an agent under one edits files, runs commands and makes commits
+without asking. Read <a :href="withBase('/user/security')">Security</a> before you point one at
+a repository you care about.
 </p>
