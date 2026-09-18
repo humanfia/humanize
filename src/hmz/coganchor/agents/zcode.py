@@ -109,9 +109,15 @@ _PERMITTED = {
 #: `edit` and `build` both stop at a high-risk tool and wait -- and a rung is what says whether
 #: the answer is yes: an agent allowed no more than its workspace is not one that gets a
 #: `rm -rf` by asking twice. `yolo` is here because it is granted rather than asked, and is
-#: never the mode a request arrives under. A session opened naming no mode at all is not here
-#: either, and is not refused for it: what it runs at is ZCode's own, and a client turning its
-#: questions down would be humanize settling what it declined to settle.
+#: never the mode a request arrives under.
+#:
+#: A session opened naming no mode at all is not here either, and that is the point rather
+#: than an omission: what it runs at is ZCode's own, so the asking is ZCode's own too, and a
+#: client answering it yes would be humanize granting for an agent it was told nothing about.
+#: That answer is also the one that would make the silence looser at runtime than every rung
+#: under it -- `workspace-write` refuses what this route is asked, and a silence that granted
+#: it would be the absence of a rung outranking the rungs. So a hook gets the first word there
+#: and, with none hung, the answer is no; :meth:`_AppServer._asked` is where that is said.
 _GRANTS = ("build", "yolo")
 
 #: The two tools ZCode reaches outside the workspace with, and so the two an agent told it may
@@ -917,9 +923,16 @@ class _AppServer:
     def _asked(self, message: dict[str, Any]) -> None:
         """Answers the one kind of request that is somebody's rather than the runtime's.
 
-        An approval is granted, since the server only asks at all at a rung that means the
-        asking is granted -- and a hook hung on `PERMISSION_REQUEST` gets it first and may say
-        no, which is the one moment a refusal actually stops this agent doing something.
+        An approval is granted at a rung that means the asking is granted, and at no other --
+        and a hook hung on `PERMISSION_REQUEST` gets it first and may say no, which is the one
+        moment a refusal actually stops this agent doing something.
+
+        A session at no rung is the one that is neither. It names no mode, so what asks is
+        whichever mode ZCode opened it in, and a hook still gets the first word because a flow
+        that hung one asked to decide. With nothing hung, the answer is no: an agent humanize
+        was told nothing about is not one humanize says yes for, and a `yes` here would make
+        the silence looser at runtime than `workspace-write` -- which would be humanize
+        settling, in the loosest direction there is, the rung it was asked not to settle.
 
         A question is put to whoever is driving the agent and then declined either way: ZCode
         takes an answer to one over a channel its own terminal holds and this does not, so what
@@ -939,10 +952,12 @@ class _AppServer:
             if mode is None or (mode and mode not in _GRANTS):
                 # A rung below the one that means the asking is granted. Refused here rather
                 # than put to a hook: what a hook may do at that moment is say no, and no is
-                # what this rung already says. A session at no rung is below nothing and goes
-                # to the hook instead, nobody having named the rung it would be under -- and
-                # a session that is none of this agent's is refused whatever its rung, since
-                # granting it would be answering for a conversation nothing here is driving.
+                # what this rung already says. A session at no rung goes to the hook instead,
+                # nobody having named the rung it would be under, and is refused below where
+                # the hook says nothing -- the answer is the same, but a flow that asked to
+                # decide is asked. And a session that is none of this agent's is refused
+                # whatever its rung, since granting it would be answering for a conversation
+                # nothing here is driving.
                 self._write(
                     {
                         "id": message["id"],
@@ -971,11 +986,22 @@ class _AppServer:
                 if agents
                 else None
             )
-            answer = (
-                {"decision": "deny", "reason": asking.because or "refused by a hook"}
-                if asking is not None and asking.refused
-                else {"decision": "allow", "reason": "run unattended"}
-            )
+            if asking is not None and asking.refused:
+                answer = {
+                    "decision": "deny",
+                    "reason": asking.because or "refused by a hook",
+                }
+            elif mode in _GRANTS:
+                answer = {"decision": "allow", "reason": "run unattended"}
+            else:
+                # The session at no rung, with nothing hung to decide it. Denied rather than
+                # left unanswered: the server holds the tool until this route says either way,
+                # so silence here is the turn stopped until the watchdog ends it a quarter of
+                # an hour later, and a refused tool is an outcome a flow can read.
+                answer = {
+                    "decision": "deny",
+                    "reason": "nothing said what this agent may do",
+                }
             self._write({"id": message["id"], "result": answer})
             return
         said: list[str] = []

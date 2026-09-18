@@ -1425,7 +1425,9 @@ def test_a_kimi_turn_at_no_rung_that_reaches_for_a_tool_still_finishes(
 
     An install that configures nothing leaves `kimi web` at `manual`, so the first tool call
     of such a turn is an approval. Answering it is what makes the silence a turn rather than
-    a quarter of an hour of polling ending as a stall.
+    a quarter of an hour of polling ending as a stall -- and the answer is no, an agent
+    humanize was told nothing about being one it does not say yes for. Refused rather than
+    left, because `rejected` is a line the model reads and a stall is nothing at all.
     """
     agent = KimiCodeCLIAgent(
         KimiCodeCLIAgentConfig(model="kimi-code/k3", effort="high", permission="")
@@ -1435,7 +1437,31 @@ def test_a_kimi_turn_at_no_rung_that_reaches_for_a_tool_still_finishes(
 
     (profile,) = _bodies(kimi, "/profile")
     assert "permission_mode" not in profile["agent_config"]
-    assert _bodies(kimi, "/approvals/a_0") == [{"decision": "approved"}]
+    assert _bodies(kimi, "/approvals/a_0") == [
+        {"decision": "rejected", "feedback": "nothing said what this agent may do"}
+    ]
+
+
+def test_a_hook_gets_the_first_word_on_a_kimi_approval_at_no_rung(
+    kimi: _FakeServer,
+) -> None:
+    """A flow that hung one asked to decide, so its words are what the model is handed."""
+    agent = KimiCodeCLIAgent(
+        KimiCodeCLIAgentConfig(model="kimi-code/k3", effort="high", permission="")
+    )
+    seen: list[Occasion] = []
+
+    def refuse(occasion: Occasion) -> Verdict:
+        seen.append(occasion)
+        return Verdict(refused=True, because="not that one")
+
+    with agent.hooks.on(Moment.PERMISSION_REQUEST, refuse):
+        assert agent("approving") == "answered"
+
+    assert [one.tool for one in seen] == ["Bash"]
+    assert _bodies(kimi, "/approvals/a_0") == [
+        {"decision": "rejected", "feedback": "not that one"}
+    ]
 
 
 def test_a_kimi_daemon_with_no_approvals_route_still_runs_its_turns(
@@ -1746,6 +1772,46 @@ def test_a_hook_may_refuse_what_codex_asked_to_be_allowed_to_do(
     )
     with agent.hooks.on(Moment.PERMISSION_REQUEST, lambda _: Verdict(refused=True)):
         assert agent("approving") == json.dumps({"decision": "decline"})
+
+
+def test_codex_refuses_what_an_agent_nobody_was_asked_about_asks_to_do(
+    codex: _FakeServer,
+) -> None:
+    """A thread at no rung is opened at Codex's own defaults, and it does ask over them.
+
+    Run against codex-cli 0.153.4 with a `CODEX_HOME` configuring nothing, a `thread/start`
+    naming neither `sandbox` nor `approvalPolicy` opens read-only and `on-request`, and the
+    first command of the turn arrives as an approval. Saying yes to it would be humanize
+    granting for an agent it was told nothing about, so it says no -- which that same run
+    ends as `The command wasn't run because permission was denied.` rather than as a wedge.
+    """
+    agent = CodexAgent(
+        CodexAgentConfig(model="gpt-5.6-sol", effort="high", permission="")
+    )
+
+    assert agent("approving") == json.dumps({"decision": "decline"})
+    assert agent("widening") == json.dumps({"permissions": {}})
+
+
+def test_a_hook_gets_the_first_word_on_a_codex_approval_at_no_rung(
+    codex: _FakeServer,
+) -> None:
+    """A flow that hung one asked to decide, so it is fired before the silence answers."""
+    from hmz.coganchor.agents import Moment, Verdict
+
+    agent = CodexAgent(
+        CodexAgentConfig(model="gpt-5.6-sol", effort="high", permission="")
+    )
+    seen: list[Occasion] = []
+
+    def refuse(occasion: Occasion) -> Verdict:
+        seen.append(occasion)
+        return Verdict(refused=True, because="not that one")
+
+    with agent.hooks.on(Moment.PERMISSION_REQUEST, refuse):
+        assert agent("approving") == json.dumps({"decision": "decline"})
+
+    assert [one.tool for one in seen] == ["commandExecution"]
 
 
 def test_codex_is_widened_by_handing_back_the_permissions_it_asked_for(

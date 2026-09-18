@@ -173,6 +173,26 @@ _PERMITTED = {
     UNSAID: {},
 }
 
+#: The rungs at which an approval this client is asked for is answered yes, which is every row
+#: that names an approval policy at all. At `auto` that policy is `on-request` and the yes is
+#: the rung's own meaning; everywhere else it is `never`, so nothing is asked and a request
+#: arriving anyway is one the rung has already settled.
+#:
+#: The row above the ladder names no policy, and that is what this set exists to keep out of
+#: the yes. `codex app-server` asked for no `approvalPolicy` does not fall silent: run against
+#: codex-cli 0.153.4 with a `CODEX_HOME` that configures nothing, a `thread/start` carrying
+#: neither `sandbox` nor `approvalPolicy` opens at the client's own defaults -- a read-only
+#: filesystem sandbox and `on-request` -- and the first command out of the turn arrives here
+#: as `item/commandExecution/requestApproval`, reason `Allow writing the requested text to
+#: /tmp/...? The filesystem sandbox is read-only.` So the silence does reach this route, and
+#: granting it would be humanize saying yes for an agent nobody configured.
+#:
+#: Refusing it is a legible turn and not a wedge, which is the thing that had to be checked
+#: rather than assumed: the same run answered `{"decision": "decline"}` completes the item
+#: with status `declined` and ends the turn on `The command wasn't run because permission was
+#: denied.` -- an outcome a flow reads, in the CLI's own words.
+_GRANTED = frozenset(rung for rung, settings in _PERMITTED.items() if settings)
+
 #: The one of those a turn does not take. `thread/start` and `thread/resume` take `sandbox` as
 #: one of Codex's three mode names; `turn/start` has no `sandbox` at all -- its field is
 #: `sandboxPolicy`, and that is a tagged object (`{"type": "dangerFullAccess"}`) rather than a
@@ -246,8 +266,12 @@ def turning(rung: Mapping[str, Any]) -> dict[str, Any]:
 #: with the account, a `requirements.toml` the platform the machine belongs to put there -- and
 #: one that forbids the sandbox a rung is refuses the whole call rather than running it
 #: tighter: `approval_policy = "never"` cannot be used because requirements do not allow
-#: `sandbox_mode = "danger-full-access"`. Which is every turn of an agent nobody was asked
-#: about failing on such a machine, since `bypass` is what one runs at.
+#: `sandbox_mode = "danger-full-access"`. Which is every turn declared at a rung those
+#: requirements forbid failing on such a machine -- `bypass` on the one quoted above. An agent
+#: nobody was asked about is the one turn this cannot happen to, since the row above the
+#: ladder asks for no sandbox at all: there is nothing there for requirements to forbid, and
+#: nothing to step down from either, which is why :func:`_rung` reads such a call as naming no
+#: rung.
 #:
 #: Still word for word what codex-cli 0.153.4 says: that whole sentence is in the binary this
 #: machine has, and the fragment matched here is the part of it that names no rung -- so a
@@ -1053,12 +1077,19 @@ class _AppServer:
             mailbox.put(None)  # it has stopped, and nothing more is coming
 
     def _approve(self, message: dict[str, Any]) -> None:
-        """Grants something the agent asked to be allowed to do, unless a hook refuses.
+        """Answers something the agent asked to be allowed to do, as its rung says.
 
-        The server only asks at all at the rung that means the asking is granted, so this
-        answers yes -- and the one place a refusal actually stops an agent doing something is
-        the moment the backend waits on, which is this one. A hook hung on
-        `PERMISSION_REQUEST` gets it first and may say no.
+        At a rung this layer named -- :data:`_GRANTED` -- the answer is yes: the server asks
+        at all only at `auto`, which is the rung that means the asking is granted, and the one
+        place a refusal actually stops an agent doing something is the moment the backend
+        waits on, which is this one. A hook hung on `PERMISSION_REQUEST` gets it first and may
+        say no.
+
+        At no rung the answer is no. Codex opened that thread at its own defaults and asks
+        over them, and humanize -- told nothing about this agent -- has nothing to say yes
+        with. The hook is still fired, because a flow that hung one asked to decide, and a
+        refusal from it says so in its own words; with nothing hung the thread is declined all
+        the same, which Codex ends as a turn that ran and did not do the thing.
 
         The three requests take two shapes of answer: a decision for a command and for a file
         change, and the permissions themselves for a request to widen the sandbox -- where
@@ -1091,7 +1122,11 @@ class _AppServer:
             if self._agents
             else None
         )
-        refused = asking is not None and asking.refused
+        # A hook's no, or a rung nobody named -- and where there are no agents left to ask,
+        # the rung is unreadable too, which is a request nothing here is driving and so one
+        # more thing not to grant.
+        granted = bool(self._agents) and (self._agents[0].config.permission in _GRANTED)
+        refused = not granted or (asking is not None and asking.refused)
         if message["method"] == _APPROVALS[2]:
             answer: dict[str, Any] = (
                 {"permissions": {}}

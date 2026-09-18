@@ -253,7 +253,12 @@ class OpencodeSession(CommandSessionBase):
         config = self._agent.config
         if not _tabled(config):
             return dict(super()._environment())
-        rung = _PERMITTED.get(config.permission, _PERMITTED["bypass"])
+        # A word this table has no row for falls to the row that says nothing, as codex and
+        # kimi do with theirs. Unreachable while the config validates what it carries, and
+        # written this way for the day it is not: a fall-back to `bypass` would answer a rung
+        # nobody here recognises with the loosest one there is, and the honest answer to a
+        # word humanize cannot read is to say nothing about it.
+        rung = _PERMITTED.get(config.permission, _PERMITTED[UNSAID])
         # A rung that already withholds the web is not asked twice: it and `web_search` say
         # the same thing here, and either of them saying it is enough. An unsaid rung says
         # nothing about it at all, so the switch says it alone -- and where the switch is

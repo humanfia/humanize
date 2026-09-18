@@ -1167,6 +1167,21 @@ def test_grok_grants_a_tool_call_it_is_asked_to_permit(stubs: _Stubs) -> None:
     assert GrokBuildAgent(GROK).new()("ask") == "yes"
 
 
+def test_grok_refuses_a_tool_call_for_an_agent_nobody_was_asked_about(
+    stubs: _Stubs,
+) -> None:
+    """The silence sends no `--always-approve`, so the asking is grok's own -- and so is no.
+
+    Refused by the kind of the option too, and answered rather than left: a request this
+    client never replied to is a turn waiting until the watchdog puts the process down.
+    """
+    session = GrokBuildAgent(
+        GrokBuildAgentConfig(model="m", effort="high", permission="")
+    ).new()
+
+    assert session("ask") == "no"
+
+
 def test_grok_takes_a_withheld_rung_on_the_command_line_that_can_say_it(
     stubs: _Stubs,
 ) -> None:
