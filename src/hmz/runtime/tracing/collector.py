@@ -13,7 +13,7 @@ import dateparser
 from hmz.coganchor import backends
 
 from . import chrome
-from .readers import claude, codex, dsh, kimi
+from .readers import claude, codex, dsh, grok, kimi
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -27,6 +27,7 @@ _READERS = {
     "claude": claude.collect,
     "codex": codex.collect,
     "dsh": dsh.collect,
+    "grok": grok.collect,
     "kimi": kimi.collect,
 }
 

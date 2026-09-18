@@ -48,6 +48,7 @@ def sandbox(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
         "CLAUDE_CONFIG_DIR",
         "CODEX_HOME",
         "DSH_HOME",
+        "GROK_HOME",
         "KIMI_CODE_HOME",
     ):
         monkeypatch.delenv(variable, raising=False)
