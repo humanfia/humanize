@@ -13,8 +13,9 @@ added CLI runs as it was configured to, which is what `as configured` means wher
 an effort are asked for. What the protocol does say is that a client is asked to permit each
 tool call, and nobody is at a prompt here -- so every request is granted, by the *kind* of the
 option rather than by its id, which is the agent's own to name. That is the whole of the
-permission there is, and a rung below `bypass` is refused where the agent is made rather than
-promised here and not kept.
+permission there is: `bypass` and the silence of a config that settles no rung come to one
+agent here -- the one whoever installed the CLI configured -- and a rung below them is refused
+where the agent is made rather than promised here and not kept.
 
 What a client offers the agent is the other half of the handshake, and this one offers nothing
 it was not asked for: the agent has a machine of its own to read files and run commands on,
@@ -42,6 +43,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from .base import AgentBase, SessionBase, _ended
+
+# `UNSAID` is already taken here, by the word ACP has for what a backend runs, so the
+# ladder's own word for a rung nobody settled comes in under the name it is described by.
+from .config import UNSAID as NO_RUNG
 from .config import AgentConfig
 from .event import Event, Failed, Saying
 from .watchdog import Watchdog
@@ -1102,15 +1107,24 @@ class AcpAgent(AgentBase):
           ValueError: If it was allowed less than everything. ACP's only word about permission
             is `session/request_permission`, which asks a client to allow one tool call at a
             time -- and nobody is at a prompt here, so every request is granted and the agent
-            goes on doing what whoever installed it allowed it to do. An agent that never asks
-            is an agent nothing was given the chance to refuse, so a rung below `bypass` is
-            said where the agent is made rather than quietly run as the rung above it.
+            goes on doing what whoever installed it allowed it to do.
+
+            Which is why the silence is the one other answer this backend can honestly give:
+            a config that settles no rung asks for nothing to be said about what the agent may
+            do, and an added CLI doing what whoever installed it allowed it to do is exactly
+            that. `bypass` is the flow saying it wants the same thing out loud. Neither is
+            humanize allowing anything, because there is nothing here to allow it with.
+
+            An agent that never asks is an agent nothing was given the chance to refuse, so a
+            rung below those two is said where the agent is made rather than quietly run as
+            the rung above it.
         """
         super()._serves(config)
-        if config.permission != "bypass":
+        if config.permission not in (NO_RUNG, "bypass"):
             raise ValueError(
                 "the agent client protocol has no way of allowing an agent less than "
-                f"everything; permission must be 'bypass', not {config.permission!r}"
+                "everything; permission must be 'bypass', or left unsaid for the agent as "
+                f"whoever installed the CLI configured it, not {config.permission!r}"
             )
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> AcpSession:

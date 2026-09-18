@@ -618,6 +618,24 @@ def test_a_pi_nobody_configured_is_started_as_the_bare_cli_would_be(
         assert flag not in argv
 
 
+def test_a_pi_told_nothing_about_what_it_may_do_is_started_the_same_way(
+    stubs: _Stubs,
+) -> None:
+    """The silence above the ladder is the agent pi was already serving.
+
+    pi has no permission gate to be told a rung on -- `--approve`/`--no-approve` was checked
+    against 0.85.1 and is not one -- so `read-only` is the only answer that reaches this
+    command line at all, as tools withheld. A config that settles no rung asks for nothing to
+    be said, and nothing is what was being said: the same bare eight-element command.
+    """
+    PiAgent(replace(PI, permission="")).new()("hi")
+
+    argv = stubs.calls()[0].argv
+    assert argv[:3] == ["--mode", "rpc", "--model"]
+    assert len(argv) == 8  # and nothing else at all
+    assert "--exclude-tools" not in argv
+
+
 def test_pi_takes_what_a_flow_asks_of_it_and_nothing_it_did_not(stubs: _Stubs) -> None:
     """Each of pi's own options, as the field on its config that is the ask for it."""
     session = PiAgent(
