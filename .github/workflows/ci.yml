@@ -1,7 +1,7 @@
 # The second gate. The first is `.pre-commit-config.yaml`; this runs the same hooks over
 # every file rather than the ones one commit touched, and it runs two of the three test
-# tiers, on every Python the package claims. Linux only: see the matrix below for why the
-# second system was taken out.
+# tiers. One cell: Linux on the floor Python. The matrix below says what that leaves out
+# and why.
 #
 # The two it runs are `tests/unit/` and `tests/integration/`: everything whose every
 # counterpart is something this repository wrote. A stand-in CLI on `PATH`, a fake app
@@ -82,9 +82,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Every stable minor at or above the floor `requires-python` sets. A new one
-        # ships, a new one goes here -- that is what the README promises.
-        python: ["3.12", "3.13", "3.14"]
+        # The floor `requires-python` sets, and only the floor. `>=3.12` is still what
+        # the package claims and what the docs tell people they need, so 3.13 and 3.14
+        # are promised and are no longer checked here: a thing that works on 3.12 and
+        # breaks on a later one -- a stdlib function that changed under it, a warning
+        # that became an error -- now ships without CI saying so. That is the trade, and
+        # it is worth knowing rather than discovering.
+        #
+        # The floor is the one to keep if only one is kept. It is the version somebody
+        # installing on an older machine actually gets, and the one a new syntax or a new
+        # stdlib name silently stops working on -- which is the failure a newer Python
+        # would never show. Another minor is one word here.
+        python: ["3.12"]
         # Linux, and for now only Linux. The half of this that runs an agent under an
         # anchor is a seccomp filter and a ptrace supervisor, which is Linux on x86-64 and
         # says so by skipping everywhere else -- so Linux is where the whole of the suite
