@@ -155,6 +155,27 @@ def test_what_a_cli_says_when_it_stops_is_read_as_the_kind_it_is() -> None:
         assert backends.trouble("claude", said) == fault, said
 
 
+def test_a_model_grok_is_not_holding_the_catalogue_for_is_waited_out() -> None:
+    """Grok Build refuses an id out of a list it fell back to, not out of the account's.
+
+    With no account it answers `grok models` from a list built into the binary,
+    and the ids a gateway account runs are fetched -- so a fetch that does not
+    land leaves it refusing a model the turn before it ran on. Waiting is what
+    answers that, which `unlisted` would not do and `throttled` does.
+    """
+    said = (
+        "Error: Couldn't set model 'xai/xai/grok-4.6': Invalid params: "
+        "\"unknown model id\". Run 'grok models' to see available models."
+    )
+
+    assert backends.trouble("grok", said) == "throttled"
+    assert fallbacks.answers("throttled").tries > 0
+
+    # One CLI's own sentence and no other's: read for anybody else, the shared
+    # signatures still call a model nothing has heard of a model that is gone.
+    assert backends.trouble("claude", said) == "retired"
+
+
 def test_a_failure_nothing_recognises_is_the_turn_that_has_always_failed() -> None:
     """The only answer that cannot be wrong about something it has not understood."""
     assert backends.trouble("claude", "the build is broken") == ""

@@ -1404,6 +1404,25 @@ PROFILES = (
         # the directory rather than a file, and `updates.jsonl` is the conversation itself --
         # the others beside it are the plan, the rewind points and what it was told.
         logs=("sessions/*/{ident}/updates.jsonl",),
+        # What it says when the model it was handed is not in the catalogue it is
+        # holding -- which is not the same as the model not being the account's.
+        # `grok models` with no account answers out of a list built into the
+        # binary (`grok-4.6`, `grok-4.5`, the plain xAI names); the ids a gateway
+        # account runs are fetched, and where that fetch does not land it falls
+        # back to the built-in list and refuses everything else by this sentence.
+        # So a run of one process per turn asks for that catalogue once a turn,
+        # and the turn after the endpoint gets busy is refused a model the turn
+        # before it ran on perfectly well -- seen across a matrix of twenty-three
+        # cells on one account, where the first turn of each worked and the rest
+        # did not.
+        #
+        # `throttled` rather than `unlisted` for that reason: what is wrong is the
+        # fetch rather than the list, so waiting is what answers it, and walking
+        # to another account after that is right either way. A model that really
+        # is not the account's ends up here too, waits, and is refused again --
+        # a minute spent finding out, with grok's own sentence still saying what
+        # it said.
+        signs=(Sign("throttled", r"couldn't set model.*unknown model id"),),
         efforts=_GROK,
         # Eight places, which is what `grok inspect` answers with: its own home and the
         # shared one under yours, both of the directories a project may keep them in, and
