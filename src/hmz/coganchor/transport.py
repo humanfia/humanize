@@ -499,7 +499,7 @@ def bundled() -> tuple[Path, str]:
       Where it is, and the digest of what is in it.
     """
     global _bundle_held  # noqa: PLW0603 -- one archive per process, per source tree
-    stamp = _stamped(Path(coganchor.__file__).parent)
+    stamp = _lately(Path(coganchor.__file__).parent)
     with _BUNDLING:
         if _bundle_held is not None and _bundle_held[0] == stamp:
             return _bundle_held[1], _bundle_held[2]
@@ -694,6 +694,36 @@ def build_bundle(destination: Path | None = None) -> Path:
     # would let a run that died mid-build be read as a build that finished.
     _publish(stamp, stamping)
     return destination
+
+
+#: How long a reading of the source tree is trusted for. Every rendered line asks whether the
+#: archive is still the right one, and asking costs a `stat` per file in this package -- which
+#: for a hub rendering a line per turn is the largest single thing it does per turn, and it is
+#: asking a question whose answer cannot change while a run is going. Seconds rather than the
+#: whole run: somebody editing this package with a hub up should not have to restart it, and a
+#: few seconds of staleness is the most that can cost them.
+_RESTAMP = 5.0
+_stamp_held: tuple[float, str] | None = None
+_STAMPING = threading.Lock()
+
+
+def _lately(source: Path) -> str:
+    """What the source tree was, as of a moment ago.
+
+    Args:
+      source: The package to read.
+
+    Returns:
+      Its stamp, taken afresh if the last one has gone stale.
+    """
+    global _stamp_held  # noqa: PLW0603 -- one reading per process at a time
+    with _STAMPING:
+        now = time.monotonic()
+        if _stamp_held is not None and now - _stamp_held[0] < _RESTAMP:
+            return _stamp_held[1]
+        stamp = _stamped(source)
+        _stamp_held = (now, stamp)
+        return stamp
 
 
 def _stamped(source: Path) -> str:

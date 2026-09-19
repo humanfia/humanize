@@ -185,6 +185,12 @@ ignore = [
 # recorded in. It is copied into a container and run by path rather than imported, so it
 # is a file rather than a package, and there is nothing for an `__init__.py` to do.
 "docs/tapes/stage.py" = ["INP001"]
+# The capacity rig, which is measured with rather than shipped. Each of its files is run by
+# path and imported by nothing, so there is nothing for an `__init__.py` to do; it reports by
+# printing, which is the only channel a program under an anchor has; and it names paths the way
+# the layer it is measuring names them, because what it is counting is syscalls and `pathlib`
+# is a different number of them.
+"bench/**" = ["INP001", "T201", "PTH"]
 # The syscall layer's domain type is the string path: it reads them out of ptrace
 # registers and puts them on a wire, so `pathlib` would only convert them twice. Named
 # rather than the whole of `coganchor`, which also holds the drivers and the facts about
