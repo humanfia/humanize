@@ -580,15 +580,18 @@ async def test_what_went_to_an_agent_is_pinned_in_front_of_what_is_still_queued(
 ):
     """The pin reads oldest first, as the transcript does -- and what went, went first."""
     app = Humanize()
-    async with app.run_test() as driver:
+    # Wide on purpose. The pin is cut to the room the block beside it leaves, and what
+    # sits in that block is the agent's codename -- which is minted per agent and is not
+    # always the same length. At the default width a long one cuts `gone` down to `go…`
+    # and fails a test that is about which line comes first rather than about where
+    # either is cut. The lines are short and the terminal is wide, so neither is cut.
+    async with app.run_test(size=(120, 24)) as driver:
         await _running(app, driver)
         agent = SteerableAgent(CONFIG)
         app._agents = [agent]
         session = agent.new()
         app._heard(agent, session, Event(kind="begins", text=""))
 
-        # Short lines, because the pin is cut to the room the block beside it leaves and
-        # this is about which of them comes first rather than about where either is cut.
         app._interject("gone")
         app._interject("behind")
         await until(lambda: len(_pinned(app).splitlines()) > 1, driver)

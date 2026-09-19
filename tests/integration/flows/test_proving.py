@@ -239,7 +239,14 @@ def test_the_allowance_a_flow_declares_is_what_ends_its_proof(tmp_path: Path) ->
 
 #: The same loop, declaring its allowance in hours rather than in tokens -- which is the shape
 #: a proof cannot measure unless its world has a clock that moves.
-HOURS = DECLARED.replace("Allowance(tokens=0.3)", "Allowance(hours=0.05)")
+#: Deliberately not a whole number of ticks. The proof's clock is `began + turns * tick`,
+#: so an allowance of exactly three minutes is reached at the very instant the third turn
+#: is counted -- and whether the ledger reads the clock just before or just after that
+#: counter moves is a race it loses about one run in ten on a loaded machine, which is a
+#: test that fails saying `4 == 3` about nothing. 0.06 hours is 216 seconds, which no
+#: multiple of the minute a turn is worth lands on: the third turn is 36 seconds short of
+#: it and the fourth is 24 seconds past, so the same turn ends the walk either way round.
+HOURS = DECLARED.replace("Allowance(tokens=0.3)", "Allowance(hours=0.06)")
 
 
 def test_an_allowance_in_hours_is_walked_to_the_end_of_too(tmp_path: Path) -> None:
@@ -254,8 +261,8 @@ def test_an_allowance_in_hours_is_walked_to_the_end_of_too(tmp_path: Path) -> No
     proof = proved(at, scenarios=(NEVER_DONE,))
 
     assert proof.outcomes[0].finished
-    # 0.05 hours is three minutes, and a turn is worth the scenario's minute.
-    assert proof.outcomes[0].turns == 3
+    # 216 seconds, and a turn is worth the scenario's minute: the fourth reaches it.
+    assert proof.outcomes[0].turns == 4
 
 
 def test_a_flow_that_stopped_itself_did_not_reach_what_it_declared(

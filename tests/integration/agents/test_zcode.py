@@ -34,6 +34,7 @@ from hmz.coganchor.agents import (
     ZcodeAgent,
     ZcodeAgentConfig,
 )
+from tests.supervising import traced
 
 #: A `zcode app-server --stdio` of our own. It speaks ZCode's protocol rather than JSON-RPC --
 #: the frames carry no `jsonrpc`, and the real one refuses any that does -- and it asks its
@@ -528,7 +529,15 @@ def test_a_delivery_kind_that_names_nothing_is_refused_where_it_is_written() -> 
 
 
 def _gateway(**env: str) -> None:
-    """Makes an account of this backend that points ZCode at somebody's endpoint."""
+    """Makes an account of this backend that points ZCode at somebody's endpoint.
+
+    Every test that makes one of these is `@traced`. A turn under a named account
+    reads its credentials through a supervisor -- the account's copy is answered in
+    place of the path the CLI names, whether or not that copy is there, since a
+    provider with nothing written down yet must not fall through to the account
+    this machine is signed into. That supervisor is ptrace on Linux and is nowhere
+    else, so on any other machine these are skipped rather than failed.
+    """
     from hmz.coganchor import providers
 
     providers.add(
@@ -543,6 +552,7 @@ def _gateway(**env: str) -> None:
     )
 
 
+@traced
 def test_a_gateway_account_is_handed_to_the_session_rather_than_written_anywhere(
     server: _FakeServer, tmp_path: Path
 ) -> None:
@@ -581,6 +591,7 @@ def test_a_gateway_account_is_handed_to_the_session_rather_than_written_anywhere
     agent.stop()
 
 
+@traced
 def test_the_protocol_a_gateway_speaks_is_the_one_zcode_would_have_worked_out(
     server: _FakeServer, tmp_path: Path
 ) -> None:
@@ -612,6 +623,7 @@ def test_the_protocol_a_gateway_speaks_is_the_one_zcode_would_have_worked_out(
     agent.stop()
 
 
+@traced
 def test_an_account_that_names_no_endpoint_leaves_zcodes_own_configuration_alone(
     server: _FakeServer, tmp_path: Path
 ) -> None:
@@ -634,6 +646,7 @@ def test_an_account_that_names_no_endpoint_leaves_zcodes_own_configuration_alone
     agent.stop()
 
 
+@traced
 def test_a_plan_key_opens_the_session_on_the_plans_own_endpoint(
     server: _FakeServer, tmp_path: Path
 ) -> None:
@@ -657,6 +670,7 @@ def test_a_plan_key_opens_the_session_on_the_plans_own_endpoint(
     agent.stop()
 
 
+@traced
 def test_a_session_picked_back_up_is_handed_its_provider_again(
     server: _FakeServer, tmp_path: Path
 ) -> None:
