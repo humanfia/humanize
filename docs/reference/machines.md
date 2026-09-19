@@ -287,13 +287,21 @@ turn reaches it, which is a fact about the road rather than about the machine:
 ```python
 AnchorConfig(target="ssh://build-box").capabilities               # {"anchor:supervised"}
 AnchorConfig(target="ssh://build-box", native=True).capabilities  # {"anchor:native-cli"}
+AnchorConfig(target="ssh://build-box", harness="same").capabilities
+#                                       {"anchor:supervised", "anchor:afar"}
 ```
 
 The same machine reached two ways is two different sets of things a turn may be asked to do.
 `anchor:supervised` runs the agent here and answers everything it does from the target;
 `anchor:native-cli` runs the CLI the target already has and carries its streams. The second
 needs that CLI installed there and sends the account across to it; the first needs neither.
-Read [Remote execution](/reference/remote-execution).
+
+`anchor:afar` is the third, and it is said *alongside* `anchor:supervised` rather than instead
+of it: the turn is supervised, and what the name adds is that the supervisor and the agent
+process are not on this machine. A flow that must keep the agent's own process here — because
+the account is here, or because it reaches a provider only this machine can — refuses a place
+that says it, and is refused before anything starts. Read
+[Remote execution](/reference/remote-execution#where-the-harness-runs).
 
 ## Choosing between them
 

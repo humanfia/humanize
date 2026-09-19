@@ -33,6 +33,7 @@ from __future__ import annotations
 from .proto import PLATFORMS
 
 __all__ = [
+    "AFAR",
     "HOOKED",
     "INSIDE",
     "ISOLATED",
@@ -72,7 +73,18 @@ NATIVE_CLI = "anchor:native-cli"
 #: is how the work of a turn taken here lands on the machine the flow chose.
 SUPERVISED = "anchor:supervised"
 
-#: The two roads a *machine* declares, being the two ways an anchor reaches one. Asked for
+#: An anchored turn whose harness -- the agent process and the supervisor tracing it -- runs
+#: on a machine that is not this one. The third arrangement anchoring has, and the one that
+#: says a turn costs this machine nothing per file the agent opens: under
+#: :data:`SUPERVISED` alone the harness is here and every path the agent names is a round
+#: trip, while a harness put beside its work reads that machine's disk at that machine's
+#: speed. Said by an anchor rather than by a machine, like the two above it, because where
+#: the harness runs is a fact about how the turn is reached and not about where it lands --
+#: and a flow that must not send the agent's own process elsewhere is one that has to be able
+#: to ask.
+AFAR = "anchor:afar"
+
+#: The roads a *machine* declares, being the ways an anchor reaches one. Asked for
 #: under `where=`, where the machine that was pointed down one is what answers -- and so
 #: answered by no place at all where an agent was pointed nowhere.
 #:
@@ -82,7 +94,7 @@ SUPERVISED = "anchor:supervised"
 #: for the same reason: what a place comes to is read off the settings of where its work
 #: lands, and work that lands here lands under no settings. A flow asking for one of these is
 #: asking about somewhere else, which is the only place the question has two answers.
-ROADS = (NATIVE_CLI, SUPERVISED)
+ROADS = (NATIVE_CLI, SUPERVISED, AFAR)
 
 #: A turn reached through the CLI's own hooks, written for this run and read by no other.
 HOOKED = "anchor:hooked"

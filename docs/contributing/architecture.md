@@ -38,7 +38,7 @@ for the anchor inside it, a program that ships to a target and could be lifted o
 | `coganchor/models.py` | What each backend runs, asked of that backend the way it offers being asked, and kept per account. Nothing here is a list: a CLI ships models without asking anybody. | `ask`, `offered`, `asked`, `where` |
 | `coganchor/agents/` | The drivers: one per backend, plus the vocabulary a turn is described in (`Event`, `Question`, `Moment`). `AgentBase` and `SessionBase` answer to the interface `flows/` declares, structurally — this layer never names a flow. | everything in `__init__` |
 | `coganchor/machines/` | The setting that says which machine, and the machine it brings up. | `MachineConfig`, `MachineBase`, `AnchoredConfig`, `DockerConfig` |
-| `coganchor/` (the anchor in it) | Syscall interposition: a seccomp-filtered ptrace supervisor here, a replaying server there, a wire protocol between. The half that ships to a target — and the only half that does. | `AnchorConfig`, `connect`, `check` |
+| `coganchor/` (the anchor in it) | Syscall interposition: a seccomp-filtered ptrace supervisor here, a replaying server there, a wire protocol between. The half that ships to a target — and the only half that does. Where the supervisor itself runs is `elsewhere.py`, and the introduction two machines that cannot dial each other need is `rendezvous.py`; both ship to a target too, since under those arrangements the target is the one running them. | `AnchorConfig`, `connect`, `check` |
 | `flows/` | The whole of what a flow imports and nothing besides: the interfaces it drives, the mark, the marks an atlas is written with, and the vocabulary a turn is described in handed through from the layer it is written in. `builtin/` beside it is the one flow humanize keeps in the package. | `Agent`, `Session`, `Person`, `flow`, `atlas`, `mind`, `logic`, `sub`, `load` |
 | `runtime/flowing/` | Everything humanize does to a flow, and none of it a thing a flow names: where flows come from, finding one by name, running its file to read it, what it says it drives, the two readings that refuse one before it can cost anything, compiling an atlas and walking the prophecy, and fetching the skills it named. | `found`, `find`, `held`, `fork`, `flowverses`, `drives`, `wanted`, `load`, `checked`, `proved`, `prophesied`, `walking`, `brought` |
 | `coganchor/fallbacks.py` | The layer between an agent and its accounts: where a turn goes when the place taking it cannot take it at all, and how many times over it is taken again first. A step is written between two places — `CLI[@ACCOUNT]/MODEL` — rather than on the account, which `providers` already answers for. Names `backends` and nothing else. | `Falls`, `falls`, `points`, `retrying`, `tried`, `clear`, `chain`, `spec`, `reads`, `waits`, `POLICIES` |
@@ -64,6 +64,8 @@ coganchor/
 ├── machines/     where an agent's turns land
 ├── anchor.py argv.py proto.py transport.py remote.py supervisor.py handlers.py
 │   policy.py shadow.py standin.py execproxy.py netproxy.py statepaths.py
+│   elsewhere.py  where the harness runs, for the two arrangements it is not here
+│   rendezvous.py the meeting two halves on two machines are introduced at
 ├── linux/        ptrace, seccomp, procfs, syscall numbers (x86-64, aarch64)
 └── serve/        the target half — imports nothing but proto
 

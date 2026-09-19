@@ -3,7 +3,11 @@
 Memory access goes through ``process_vm_readv``/``process_vm_writev`` (no file
 descriptors to manage), and descriptors are duplicated with ``pidfd_getfd``,
 which -- unlike opening ``/proc/<pid>/fd/N`` -- also works for the AF_UNIX
-socketpairs that Node and Rust use for child stdio.
+socketpairs that Node and Rust use for child stdio.  Where that call is refused,
+which is what a container without ``CAP_SYS_PTRACE`` does to it, :func:`steal_fd`
+falls back to opening the descriptor's own ``/proc`` name: everything but a socket
+can be reached that way, and a supervisor that could not would lose the agent's
+output while tracing it perfectly.
 """
 
 from __future__ import annotations
@@ -503,19 +507,51 @@ def _numeric(name: str) -> bool:
 def steal_fd(pid: int, fd: int) -> int:
     """Duplicate a tracee's descriptor into this process.
 
-    Uses ``pidfd_getfd(2)``, so pipes, sockets and ttys all work.
+    Two ways, and the first is the one that always works where it is allowed to.
+    ``pidfd_getfd(2)`` hands over the descriptor itself, so a pipe, a socket and a tty all
+    arrive as what they are.  It is also privileged in a way that is easy to be without: it
+    asks for ptrace-attach rights over the tracee, and the seccomp profile a container gets
+    by default refuses it outright unless the container was given `CAP_SYS_PTRACE`.  A
+    supervisor running *inside* a container -- which is what a harness put on the machine its
+    work lands on is -- would then trace its agent perfectly and lose every byte the agent
+    wrote, since the descriptor it could not borrow is the one the output was going to.
+
+    So where it is refused, the descriptor is opened again through ``/proc``.  That is a
+    second handle on the same pipe, the same tty or the same file rather than the same
+    descriptor, which is enough for everything it is used for here: what is wanted is
+    somewhere to put the output, not the tracee's own offset.  A socket has no name in the
+    filesystem and cannot be reopened this way, and is the one case that still fails -- with
+    the error the first way gave, since that is the one worth acting on.
+
+    Args:
+      pid: The tracee.
+      fd: Which of its descriptors.
+
+    Returns:
+      A descriptor of this process's, open on whatever the tracee's is.
+
+    Raises:
+      OSError: If neither way could reach it.
     """
     ctypes.set_errno(0)
     pidfd = _libc.syscall(NR.PIDFD_OPEN, pid, 0)
-    if pidfd < 0:
-        code = ctypes.get_errno()
-        raise OSError(code, os.strerror(code), f"pidfd_open({pid})")
+    if pidfd >= 0:
+        try:
+            ctypes.set_errno(0)
+            stolen = _libc.syscall(NR.PIDFD_GETFD, pidfd, fd, 0)
+            if stolen >= 0:
+                return int(stolen)
+            refused = ctypes.get_errno()
+        finally:
+            os.close(pidfd)
+    else:
+        refused = ctypes.get_errno()
     try:
-        ctypes.set_errno(0)
-        stolen = _libc.syscall(NR.PIDFD_GETFD, pidfd, fd, 0)
-        if stolen < 0:
-            code = ctypes.get_errno()
-            raise OSError(code, os.strerror(code), f"pidfd_getfd({pid}, {fd})")
-        return int(stolen)
-    finally:
-        os.close(pidfd)
+        # Read for the input and write for the other two, because that is what each of them
+        # is: a pipe reopened the wrong way round is a descriptor that cannot be used, and
+        # `O_RDWR` on the read end of one fails outright.
+        return os.open(f"/proc/{pid}/fd/{fd}", os.O_RDONLY if fd == 0 else os.O_WRONLY)
+    except OSError:
+        raise OSError(
+            refused, os.strerror(refused), f"pidfd_getfd({pid}, {fd})"
+        ) from None

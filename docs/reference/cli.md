@@ -261,11 +261,13 @@ Everything after the agent's name is the agent's own.
 
 | Flag | Default | |
 | --- | --- | --- |
-| `--target URL` | `$HUMANIZE_TARGET`, else `local` | `ssh://HOST`, `docker://CONTAINER`, `tcp://HOST:PORT`, or `local[:DIR]`. |
+| `--target URL` | `$HUMANIZE_TARGET`, else `local` | `ssh://HOST`, `docker://CONTAINER`, `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT`, or `local[:DIR]`. |
+| `--harness WHERE` | `$HUMANIZE_HARNESS`, else `local` | Where the agent process and the supervisor tracing it run: `local`, `same` (wherever `--target` is), or a target spelling of their own. See [where the harness runs](/reference/remote-execution#where-the-harness-runs). |
+| `--broker HOST` | `$HUMANIZE_RENDEZVOUS`, else this machine's outward address | Where the two halves dial to be introduced, when `--harness` and `--target` name different machines. |
 | `--workspace PATH` | this directory | The project directory as it exists on the target. |
 | `--chdir PATH` | `--workspace` | Where inside that workspace the agent starts, as the target names it. What a [session opened at a directory](/reference/agents#the-directory-a-session-works-in) comes to: the agent is put in this machine's mirror of it. |
 | `--remote-path PATH` | `--workspace` | Where that workspace really lives on the target, if not at the same path. |
-| `--shadow PATH` | `--workspace` | The local mirror directory. Defaulting to the workspace path is what makes the paths the agent sees the target's own. |
+| `--shadow PATH` | `$HUMANIZE_SHADOW`, else `--workspace` | The mirror directory, on whichever machine the harness runs on. Defaulting to the workspace path is what makes the paths the agent sees the target's own. A harness elsewhere that was given none is put in one under that machine's own cache, named for what it mirrors and kept between turns. |
 | `--local-path PATH` | — | Keep this path on this machine even when it is inside the workspace. Repeatable. |
 | `--local-exec PATH` | — | Run programs under this path here rather than on the target. Repeatable. |
 | `--redirect FROM=TO` | — | Answer this path with that one — the file it names, or everything under the directory it names — and keep what it is answered with local. What a turn under a [provider](/reference/providers) is given. Repeatable. |
@@ -293,6 +295,8 @@ hmz internal anchor --target ssh://build-box claude
 hmz internal anchor --target ssh://gpu-01 codex exec "run the test suite"
 hmz internal anchor --target docker://build-container --workspace /srv/project claude
 hmz internal anchor --native --target docker://build-container --remote-path /srv/project claude
+hmz internal anchor --harness same --target ssh://build-box --workspace /srv/project claude
+hmz internal anchor --harness ssh://runner --target ssh://build-box --workspace /srv/project claude
 hmz internal anchor --check --target ssh://build-box
 ```
 
@@ -303,7 +307,7 @@ asks of it. Needs only a POSIX system and a recent `python3` — no root, no com
 installed.
 
 ```
-hmz internal anchor serve --export VIRTUAL[:REAL] (--stdio | --listen [HOST:]PORT) [--token TOKEN]
+hmz internal anchor serve --export VIRTUAL[:REAL] (--stdio | --listen [HOST:]PORT | --peer TICKET@HOST:PORT) [--token TOKEN]
 ```
 
 | Flag | |
@@ -311,16 +315,42 @@ hmz internal anchor serve --export VIRTUAL[:REAL] (--stdio | --listen [HOST:]POR
 | `--export VIRTUAL[:REAL]` | **Required, repeatable.** Expose a directory. `VIRTUAL` is the path the agent believes it is using; `REAL` is where it is here. |
 | `--stdio` | Serve one session over stdin/stdout. This is what a bootstrapped target runs. |
 | `--listen [HOST:]PORT` | Serve TCP connections on this address. A bare port listens on `127.0.0.1`. |
+| `--peer TICKET@HOST:PORT` | Serve one session to whoever presents this ticket at that rendezvous — which is how the other half reaches this machine when it cannot dial it. humanize writes this one; it is not a line to type. |
 | `--token TOKEN` | Shared secret required from clients. Defaults to `$HUMANIZE_TOKEN`. |
 | `--log-level` | As for `hmz internal anchor`. |
 
-`--stdio` and `--listen` are mutually exclusive, and one is required.
+`--stdio`, `--listen` and `--peer` are mutually exclusive, and one is required.
 
 **Listening on anything but loopback without `--token` is refused.** An open port is equivalent
 to a shell on that machine — read [Security](/user/security).
 
 ```sh
 hmz internal anchor serve --listen 0.0.0.0:7777 --export /srv/project --token "$SECRET"
+```
+
+## `hmz internal anchor rendezvous`
+
+The meeting place two halves of a session are introduced at, for the arrangement where the
+harness is on one machine and its work on another and neither can dial the other. humanize
+holds one of these inside itself for the sessions it starts; this is the same thing run on its
+own, for a machine both halves can reach that is not the one driving them.
+
+```
+hmz internal anchor rendezvous [--listen [HOST:]PORT] [--punching SECONDS]
+```
+
+| Flag | |
+| --- | --- |
+| `--listen [HOST:]PORT` | The address to hold meetings on. Defaults to every interface on any free port, which is the point of it. |
+| `--punching SECONDS` | How long two halves are given to reach each other before the broker carries the bytes itself. Defaults to 4. |
+| `--log-level` | As for `hmz internal anchor`. |
+
+The address it landed on is announced on stderr, so a port of `0` is usable from a script.
+Pairing is by ticket and a ticket is a 128-bit secret, so there is no token: the only session a
+stranger can join is one they were told the name of.
+
+```sh
+hmz internal anchor rendezvous --listen 0.0.0.0:9001
 ```
 
 ## `hmz internal cred`
@@ -397,6 +427,11 @@ rather than as a turn that failed.
 | --- | --- | --- |
 | `HUMANIZE_HOME` | everything | Where humanize keeps what outlives one run. Defaults to `~/.humanize`. |
 | `HUMANIZE_TARGET` | `hmz internal anchor` | Default for `--target`. |
+| `HUMANIZE_HARNESS` | `hmz internal anchor` | Default for `--harness`. |
+| `HUMANIZE_SHADOW` | `hmz internal anchor` | Default for `--shadow`. How a harness put on another machine is told which directory to mirror into, that machine's home being one this one cannot spell. |
+| `HUMANIZE_RENDEZVOUS` | `hmz internal anchor` | Default for `--broker`: where two halves on two machines dial to be introduced. |
+| `HUMANIZE_RENDEZVOUS_PORT` | humanize | The port humanize's own broker listens on, for a firewall that has to be told one in advance. Any free port by default. |
+| `HUMANIZE_SSH_REUSE` | `hmz internal anchor` | Set to `0` on a host whose sshd refuses connection multiplexing. One `ssh` to a host otherwise serves every command after it. |
 | `HUMANIZE_TOKEN` | `hmz internal anchor`, `hmz internal anchor serve` | Default for `--token`. |
 | `HUMANIZE_LOG` | `hmz internal anchor`, `hmz internal anchor serve` | Default for `--log-level`. |
 | `HUMANIZE_DAEMON` | `hmz` with no command | `off`, `0` or `no` opens the interface in this terminal rather than [holding the run apart from it](/reference/daemon). Anything else — including empty — is silence, and silence holds the run. |

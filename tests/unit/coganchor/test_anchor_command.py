@@ -304,3 +304,94 @@ def test_a_session_interrupted_at_the_keyboard_says_so_the_way_a_shell_does(
     monkeypatch.setattr(connecting, "connect", interrupted)
 
     assert anchor(["--target", f"local:{tmp_path}", "bash"]) == 130
+
+
+# ------------------------------------------------------- the third way one is served
+
+
+def test_serving_to_a_meeting_is_one_of_the_three_ways_and_only_one(
+    exported: str,
+) -> None:
+    """A half already spoken for is spoken for once: a pipe, a port, or a ticket."""
+    for also in (["--stdio"], ["--listen", "8080"]):
+        with pytest.raises(SystemExit) as stopped:
+            anchor(["serve", "--export", exported, "--peer", "cafe@broker:9001", *also])
+        assert stopped.value.code == 2
+
+
+def test_a_meeting_that_is_not_one_is_reported_rather_than_raised(
+    exported: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The ticket and the broker are one word, so half of one is a line that cannot run."""
+    assert anchor(["serve", "--export", exported, "--peer", "cafe@broker"]) == 1
+
+    assert "TICKET@HOST:PORT" in capsys.readouterr().err
+
+
+# ------------------------------------------------------------ the meeting place
+
+
+class _Held:
+    """What a broker was built with, instead of one actually listening."""
+
+    def __init__(self) -> None:
+        self.made: list[tuple[str, int, float]] = []
+
+    def __call__(self, host: str, port: int, *, punching: float) -> _Held:
+        self.made.append((host, port, punching))
+        return self
+
+    def start(self) -> tuple[str, int]:
+        return self.made[-1][0], self.made[-1][1] or 40404
+
+    def serve_forever(self) -> None:
+        """Answered by returning, a broker under test having nobody to introduce."""
+
+
+@pytest.fixture
+def broker(monkeypatch: pytest.MonkeyPatch) -> _Held:
+    """Stands in for the broker, which is another tier's to actually run."""
+    from hmz.coganchor import rendezvous
+
+    held = _Held()
+    monkeypatch.setattr(rendezvous, "Broker", held)
+    return held
+
+
+def test_a_rendezvous_listens_where_both_halves_can_reach_it(broker: _Held) -> None:
+    """Every interface by default, unlike `serve`: the halves are on other machines."""
+    assert anchor(["rendezvous"]) == 0
+
+    assert broker.made[0][:2] == (EVERYWHERE, 0)
+
+
+def test_a_rendezvous_needs_no_secret_to_be_reachable(
+    broker: _Held, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Pairing is by a ticket nobody can guess, and there is nothing else to be let into.
+
+    Which is the opposite of `serve` on the same address, and deliberately: a serving half is
+    a shell on that machine, and a broker is two sockets it splices for whoever holds one
+    secret it never issued.
+    """
+    assert anchor(["rendezvous", "--listen", f"{EVERYWHERE}:9001"]) == 0
+
+    assert broker.made[0][:2] == (EVERYWHERE, 9001)
+    # Announced rather than logged, so a port of 0 is usable from whatever started this.
+    assert "rendezvous listening" in capsys.readouterr().err
+
+
+def test_a_rendezvous_address_that_is_not_one_is_a_bad_argument(
+    broker: _Held, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert anchor(["rendezvous", "--listen", "not-a-port"]) == 2
+
+    assert "malformed listen address" in capsys.readouterr().err
+    assert not broker.made
+
+
+def test_how_long_two_halves_are_given_is_the_line_s_to_say(broker: _Held) -> None:
+    """A window worth spending is a question about the network, not about humanize."""
+    assert anchor(["rendezvous", "--punching", "0.5"]) == 0
+
+    assert broker.made[0][2] == 0.5

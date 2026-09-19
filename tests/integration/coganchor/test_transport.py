@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -23,14 +24,18 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz.coganchor import transport
+from hmz.coganchor.proto import path_within
+from hmz.coganchor.statepaths import COMMON_STATE_PATHS
 from hmz.coganchor.transport import (
     MINIMUM_PYTHON,
     PYTHON_CANDIDATES,
     REMOTE_CACHE,
+    REMOTE_MIRRORS,
+    Road,
     Target,
-    _ssh_serve_line,
     build_bundle,
     python_command,
+    serve_line,
 )
 
 if TYPE_CHECKING:
@@ -48,10 +53,24 @@ def test_target_parsing() -> None:
     )
     assert Target.parse("local") == Target("local")
     assert Target.parse("local:/srv/project") == Target("local", path="/srv/project")
+    assert Target.parse("peer://cafe@broker:9001") == Target(
+        "peer", host="broker", port=9001, path="cafe"
+    )
 
 
 @pytest.mark.parametrize(
-    "spec", ["", "box", "http://box", "docker://", "tcp://box", "tcp://box:none"]
+    "spec",
+    [
+        "",
+        "box",
+        "http://box",
+        "docker://",
+        "tcp://box",
+        "tcp://box:none",
+        "peer://broker:9001",
+        "peer://cafe@broker",
+        "peer://@broker:9001",
+    ],
 )
 def test_malformed_targets_are_rejected(spec: str) -> None:
     with pytest.raises(ValueError, match=r"target|expected"):
@@ -63,6 +82,7 @@ def test_target_descriptions_round_trip() -> None:
         "ssh://build-box",
         "docker://janus-9f2c",
         "tcp://10.0.0.5:7777",
+        "peer://cafe1234@broker.example:9001",
         "local:/srv/project",
     ):
         assert Target.parse(spec).describe() == spec
@@ -210,25 +230,258 @@ def test_a_target_with_no_python_at_all_says_what_it_looked_for(
     assert "/no/python3" in result.stderr
 
 
-def test_the_line_ssh_carries_is_read_by_the_shell_there_before_anything_runs() -> None:
-    """So what it must not take apart, and what it must, are both in it.
+def test_the_line_ssh_carries_survives_the_shell_that_reads_it_there() -> None:
+    """Every word of it, however it was spelled, which is the one rule the road has.
 
-    The line that finds the interpreter is a script and travels quoted; the cache path
-    travels bare, because the ``~`` in it is that shell's to expand and a quoted one names a
-    directory called ``~`` under wherever the session began; and an export holding a space is
-    one word on arrival.
+    ``ssh`` hands the far side one string and a login shell reads it before anything runs.
+    So the whole line is quoted, word by word, and what comes out the other end is the argv
+    that went in -- a workspace path holding a space included. What the far shell is
+    *supposed* to expand does not travel as a word at all: it is written into the script,
+    where the ``sh`` running it is the one that reads it.
+    """
+    road = Road.to(Target.parse("ssh://build-box"))
+
+    line = road.line(["/bin/echo", "/a b", "--export=/c d:/e f"])
+
+    assert line[0] == "ssh"
+    assert line[-2] == "build-box"
+    words = shlex.split(line[-1])
+    assert words == ["exec", "/bin/echo", "/a b", "--export=/c d:/e f"]
+
+
+def test_the_home_the_bundle_lives_under_is_expanded_where_it_names_a_directory() -> (
+    None
+):
+    """On the target, by the ``sh`` inside the line -- not here, and not by a login shell.
+
+    A ``~`` or a ``$HOME`` that crossed as a word of its own would arrive quoted, and name a
+    directory of that name under wherever the session began. So the archive's path is written
+    into the script that looks for an interpreter, which is the one part of the line the far
+    side's ``sh`` reads as text rather than takes as an argument.
     """
     bundle = f"{REMOTE_CACHE}/humanize-0123456789abcdef.pyz"
 
-    line = _ssh_serve_line(bundle, ["/a b:/c d"])
+    argv = python_command(["internal", "anchor", "serve", "--stdio"], bundle=bundle)
 
-    words = shlex.split(line)
-    assert words[:3] == ["exec", "/bin/sh", "-c"]
-    assert "for py in" in words[3], (
-        "the line that finds the interpreter arrived in pieces"
+    assert argv[:2] == ["/bin/sh", "-c"]
+    assert f'exec "$py" "{bundle}" "$@"' in argv[2], (
+        "the archive is not run by the script"
     )
-    assert words[4:8] == ["humanize", bundle, "internal", "anchor"]
-    assert words[-2:] == ["--export", "/a b:/c d"]
-    assert f" {bundle} " in line, (
-        "a quoted ~ is a directory of that name, not the home one"
+    assert bundle not in argv[3:], (
+        "the archive crossed as a word and will not be expanded"
     )
+    assert argv[3:] == ["humanize", "internal", "anchor", "serve", "--stdio"]
+
+
+def test_a_variable_the_far_side_sets_is_set_before_the_interpreter_is_looked_for() -> (
+    None
+):
+    """And a directory made of it, since nothing over there is going to make one first."""
+    argv = python_command(
+        ["internal", "anchor"],
+        bundle="/tmp/humanize/humanize-abc.pyz",
+        setting=(("HUMANIZE_SHADOW", "$HOME/.cache/humanize/mirror-abc"),),
+    )
+
+    script = argv[2]
+    assert script.index("HUMANIZE_SHADOW=") < script.index("for py in")
+    assert 'mkdir -p "$HUMANIZE_SHADOW"' in script
+    assert "export HUMANIZE_SHADOW" in script
+
+
+def test_nothing_is_started_on_the_far_side_of_a_target_somebody_else_started() -> None:
+    """A listening target and a meeting are found rather than run, so there is no road to one."""
+    for spec in ("tcp://10.0.0.5:7777", "peer://cafe@broker:9001"):
+        with pytest.raises(ValueError, match="nothing is started"):
+            Road.to(Target.parse(spec))
+
+
+def test_a_serving_half_sent_to_a_meeting_is_told_which_one() -> None:
+    """Which is the whole of the difference between the two ways one is left answering."""
+    from hmz.coganchor.rendezvous import Meeting
+
+    over_a_pipe = serve_line(Target.parse("local"), ["/project"])
+    at_a_meeting = serve_line(
+        Target.parse("local"), ["/project"], meeting=Meeting("cafe", "broker", 9001)
+    )
+
+    assert "--stdio" in over_a_pipe
+    assert "--peer" not in over_a_pipe
+    assert at_a_meeting[at_a_meeting.index("--peer") + 1] == "cafe@broker:9001"
+    assert "--stdio" not in at_a_meeting
+
+
+def test_a_mirror_is_named_for_what_it_mirrors_and_kept_beside_the_archive() -> None:
+    """So that the second turn against a workspace finds the files already there."""
+    road = Road.to(Target.parse("ssh://build-box"))
+
+    assert road.mirror("0123456789abcdef") == f"{REMOTE_MIRRORS}/0123456789abcdef"
+    assert road.mirror("one") != road.mirror("another")
+
+
+def test_a_mirror_is_never_under_the_state_directory_a_turn_keeps_to_itself() -> None:
+    """Which would be a mirror no path was ever translated through.
+
+    `~/.cache/humanize` is humanize's own state on whichever machine the agent runs on, and a
+    supervised turn answers everything under it from *that* machine rather than from the
+    target. A mirror below it is one the router never maps to the workspace, so the agent
+    finds an empty directory and every command it runs lands somewhere else. The two are kept
+    apart by being siblings, which `path_within` reads as two places rather than one.
+    """
+    road = Road.to(Target.parse("ssh://build-box"))
+
+    for state in COMMON_STATE_PATHS:
+        under = state.replace("~", "$HOME")
+        assert path_within(road.mirror("0123456789abcdef"), under) is None, under
+
+
+def test_an_unchanged_source_tree_is_not_packaged_a_second_time(tmp_path: Path) -> None:
+    """The archive already built for this tree is the one a session takes.
+
+    Building it is the expensive part of reaching a target, and it is a function of the
+    source alone -- so an unchanged tree has nothing to build.
+    """
+    destination = tmp_path / "coganchor.pyz"
+    build_bundle(destination)
+    first = destination.stat()
+
+    build_bundle(destination)
+
+    again = destination.stat()
+    assert (again.st_ino, again.st_mtime_ns) == (first.st_ino, first.st_mtime_ns)
+
+
+def test_a_changed_source_tree_is_packaged_again(tmp_path: Path) -> None:
+    """The stamp beside it says which tree the archive was made from, and only that."""
+    destination = tmp_path / "coganchor.pyz"
+    build_bundle(destination)
+    stamp = destination.with_suffix(".stamp")
+    assert stamp.exists()
+
+    stamp.write_text("a tree this was not built from\n")
+    build_bundle(destination)
+
+    assert stamp.read_text().strip() != "a tree this was not built from"
+
+
+def test_the_line_ssh_carries_runs_the_archive_when_a_real_shell_reads_it(
+    tmp_path: Path,
+) -> None:
+    """The whole road, less the ssh: composed here, read by a shell, and the bundle runs.
+
+    What `ssh` does with the line is hand it to a login shell on the far side, and everything
+    this road has to get right happens in that shell -- the quoting survives it, the `$HOME`
+    in the archive's path is expanded *by* it, and the interpreter search runs under it. So
+    the line is handed to a real `sh` with a real `HOME` here instead. The only thing left out
+    is the network, which is the one part that is not this repository's code.
+    """
+    # With a space in it, which is the thing a `$HOME` the far side expands has to survive.
+    home = tmp_path / "my home"
+    cache = home / ".cache" / "humanize"
+    cache.mkdir(parents=True)
+    archive = cache / "humanize-0123456789abcdef.pyz"
+    shutil.copy(build_bundle(), archive)
+    # Named as the far side spells it, which is the whole point: a `$HOME` that crossed as a
+    # word of its own would be quoted, and name a directory called `$HOME` under wherever the
+    # session began.
+    carried = Road.to(Target.parse("ssh://build-box")).line(
+        python_command(
+            ["internal", "anchor", "serve", "--help"],
+            bundle=f"{REMOTE_CACHE}/humanize-0123456789abcdef.pyz",
+        )
+    )[-1]
+
+    ran = subprocess.run(
+        ["/bin/sh", "-c", carried],
+        capture_output=True,
+        text=True,
+        env={"PATH": os.environ["PATH"], "HOME": str(home)},
+        check=False,
+    )
+
+    assert ran.returncode == 0, ran.stderr
+    assert "--export" in ran.stdout, "the archive under $HOME was not the one run"
+
+
+def test_a_mirror_is_made_on_the_far_side_before_anything_looks_for_an_interpreter(
+    tmp_path: Path,
+) -> None:
+    """Because nothing over there is going to make it, and the harness starts by filling it."""
+    home = tmp_path / "home"
+    home.mkdir()
+    road = Road.to(Target.parse("ssh://build-box"))
+    mirror = road.mirror("0123456789abcdef")
+
+    carried = road.line(
+        python_command(
+            ["-c", "import os; print(os.environ['HUMANIZE_SHADOW'])"],
+            setting=(("HUMANIZE_SHADOW", mirror),),
+        )
+    )[-1]
+    ran = subprocess.run(
+        ["/bin/sh", "-c", carried],
+        capture_output=True,
+        text=True,
+        env={"PATH": os.environ["PATH"], "HOME": str(home)},
+        check=False,
+    )
+
+    assert ran.returncode == 0, ran.stderr
+    landed = home / ".cache" / "humanize-mirrors" / "0123456789abcdef"
+    assert landed.is_dir(), (
+        "the far side was not given the directory it was told to mirror in"
+    )
+    assert ran.stdout.strip() == str(landed)
+
+
+def test_the_archive_is_installed_where_a_home_with_a_space_in_it_says(
+    tmp_path: Path,
+) -> None:
+    """The install line names the archive four times, and the far side expands every one."""
+    home = tmp_path / "my home"
+    home.mkdir()
+    where = f"{REMOTE_CACHE}/humanize-0123456789abcdef.pyz"
+
+    installing = transport._INSTALL.format(file=where)
+    ran = subprocess.run(
+        ["/bin/sh", "-c", installing],
+        input=b"an archive, near enough",
+        capture_output=True,
+        env={"PATH": os.environ["PATH"], "HOME": str(home)},
+        check=False,
+    )
+
+    assert ran.returncode == 0, ran.stderr
+    landed = home / ".cache" / "humanize" / "humanize-0123456789abcdef.pyz"
+    assert landed.read_bytes() == b"an archive, near enough"
+    assert not list(landed.parent.glob("*.part")), (
+        "a half-written archive was left behind"
+    )
+
+
+def test_an_archive_already_there_is_left_exactly_where_it_is(tmp_path: Path) -> None:
+    """A copy already there is the same bytes, and may be the one a live session is reading.
+
+    The archive is named by what is in it, so a second push would write the same file over a
+    path something else may be importing from.
+    """
+    home = tmp_path / "home"
+    cache = home / ".cache" / "humanize"
+    cache.mkdir(parents=True)
+    already = cache / "humanize-0123456789abcdef.pyz"
+    already.write_bytes(b"the one that is already here")
+
+    ran = subprocess.run(
+        [
+            "/bin/sh",
+            "-c",
+            transport._INSTALL.format(file=f"{REMOTE_CACHE}/{already.name}"),
+        ],
+        input=b"a second copy of the same thing",
+        capture_output=True,
+        env={"PATH": os.environ["PATH"], "HOME": str(home)},
+        check=False,
+    )
+
+    assert ran.returncode == 0, ran.stderr
+    assert already.read_bytes() == b"the one that is already here"

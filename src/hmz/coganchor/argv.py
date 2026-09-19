@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
     from .anchor import AnchorConfig
 
-__all__ = ["parser", "render", "settings"]
+__all__ = ["options", "parser", "render", "settings"]
 
 
 def parser() -> ArgumentParser:
@@ -49,6 +49,21 @@ def parser() -> ArgumentParser:
         "(default: $HUMANIZE_TARGET)",
     )
     built.add_argument(
+        "--harness",
+        default=os.environ.get("HUMANIZE_HARNESS", "local"),
+        metavar="WHERE",
+        help="where the agent process and its supervisor run: local, same (wherever "
+        "--target is), or a target spelling of their own (default: $HUMANIZE_HARNESS)",
+    )
+    built.add_argument(
+        "--broker",
+        default=os.environ.get("HUMANIZE_RENDEZVOUS", ""),
+        metavar="HOST",
+        help="the address the two halves dial to be introduced, where the harness and "
+        "the work are on different machines (default: whichever of this machine's "
+        "addresses faces outward)",
+    )
+    built.add_argument(
         "--workspace",
         metavar="PATH",
         default=None,
@@ -63,8 +78,9 @@ def parser() -> ArgumentParser:
     built.add_argument(
         "--shadow",
         metavar="PATH",
-        default=None,
-        help="local mirror directory (default: --workspace, so paths match exactly)",
+        default=os.environ.get("HUMANIZE_SHADOW"),
+        help="mirror directory on the machine the harness runs on (default: "
+        "$HUMANIZE_SHADOW, else --workspace, so paths match exactly)",
     )
     built.add_argument(
         "--local-path",
@@ -201,6 +217,8 @@ def settings(args: Namespace) -> AnchorConfig:
 
     return AnchorConfig(
         target=args.target,
+        harness=args.harness,
+        broker=args.broker,
         workspace=args.workspace,
         chdir=args.chdir,
         remote_path=args.remote_path,
@@ -234,40 +252,62 @@ def render(config: AnchorConfig, argv: Sequence[str]) -> list[str]:
     Returns:
       The command to spawn, which exits with the agent's own status.
     """
+    return [sys.executable, "-m", "hmz", "internal", "anchor", *options(config), *argv]
+
+
+def options(config: AnchorConfig) -> list[str]:
+    """The settings as the options that read back as them, with nothing in front.
+
+    The half of :func:`render` that says nothing about *where* the line runs, which is what a
+    harness on another machine needs: the same options reach it, in front of the same
+    subcommand, behind whatever that machine runs humanize as.
+
+    Args:
+      config: The settings to write out.
+
+    Returns:
+      One option per setting that is not its default.
+    """
     # Joined to their flag rather than following it, so that a setting reading as an option
     # of ours -- a token that happens to start with a dash -- is still its value.
-    options = [f"--target={config.target}", f"--net={config.net}"]
+    written = [f"--target={config.target}", f"--net={config.net}"]
     for flag, value in (
         ("--workspace", config.workspace),
         ("--chdir", config.chdir),
         ("--remote-path", config.remote_path),
         ("--shadow", config.shadow),
         ("--token", config.token),
-        # Written only where there is one, unlike the two above: it defaults to "" rather
+        # Written only where there is one, unlike the two above: each defaults to "" rather
         # than to None, and an empty line would read as a CLI nothing installs.
         ("--installs", config.installs or None),
+        ("--broker", config.broker or None),
     ):
         if value is not None:
-            options.append(f"{flag}={value}")
+            written.append(f"{flag}={value}")
+    # Not written where it is the default, so that the line a harness here is spawned with is
+    # the line it always was -- and a harness elsewhere is handed `local`, since by the time
+    # the line reaches that machine it is the machine the harness runs on.
+    if config.harness != "local":
+        written.append(f"--harness={config.harness}")
     for flag, values in (
         ("--local-path", config.local_paths),
         ("--local-exec", config.local_execs),
         ("--net-allow", config.net_allow),
         ("--hush", config.hushes),
     ):
-        options += [f"{flag}={value}" for value in values]
+        written += [f"{flag}={value}" for value in values]
     for flag, pairs in (
         ("--redirect", config.redirects),
         ("--project", config.projects),
         ("--carry", config.carries),
     ):
-        options += [f"{flag}={one}={other}" for one, other in pairs]
-    options += [f"--private={name}" for name in config.private]
+        written += [f"{flag}={one}={other}" for one, other in pairs]
+    written += [f"--private={name}" for name in config.private]
     if config.force:
-        options.append("--force")
+        written.append("--force")
     if config.native:
-        options.append("--native")
-    return [sys.executable, "-m", "hmz", "internal", "anchor", *options, *argv]
+        written.append("--native")
+    return written
 
 
 def _pair(said: str) -> tuple[str, str]:

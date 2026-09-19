@@ -2234,6 +2234,9 @@ _ANCHORS = {
     places.SUPERVISED: "an anchored turn whose commands are reached by tracing the process it "
     "runs them in, which is how the work of a turn taken here lands on the machine the flow "
     "chose -- asked of a machine, the same way",
+    places.AFAR: "an anchored turn whose harness -- the agent process and the supervisor "
+    "tracing it -- runs on a machine other than this one, beside its work or introduced to "
+    "it through humanize; asked of a machine, the same way",
     places.HOOKED: "a turn reached through the CLI's own hooks, written for this run and "
     "read by no other -- backends.named(<backend>).hooks says through which seam it is told; "
     "asked of the agent, and taken away from one whose turns land on another machine",

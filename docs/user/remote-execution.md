@@ -5,6 +5,9 @@ Remote execution runs an agent on **this** machine while everything it does happ
 model credentials stay where you are. The agent needs no plugin, no configuration and no
 cooperation: it is told none of this and takes part in none of it.
 
+The agent does not have to stay here — [moving it](#moving-the-agent-itself) is one flag — but
+this is what it does by default, and the rest of this page assumes it.
+
 ```
      this machine                              the target
 ┌────────────────────┐                   ┌────────────────────┐
@@ -64,6 +67,7 @@ hmz internal anchor --target ssh://gpu-01 codex exec "run the test suite"
 | `ssh://HOST[:PORT]` | Bootstraps the target half over ssh and speaks to it on that connection's pipes. Uses your ssh config, agent and keys. **Nothing listens.** |
 | `docker://CONTAINER` | Runs the target half inside a running container over `docker exec`. No port and no secret. |
 | `tcp://HOST:PORT` | Connects to a target [left listening](/reference/remote-execution#serving-a-target). Cheap to reconnect, which matters for a loop of short turns. |
+| `peer://TICKET@HOST:PORT` | Meets a serving half at a rendezvous rather than dialling it. humanize writes this one for itself when it has put the harness on another machine; you do not type it. |
 | `local[:DIR]` | Another directory on this machine, standing in for a remote one. Used for development and by the test suite. |
 
 humanize ships the target half as a zipapp and caches it there by digest. It needs no
@@ -116,6 +120,39 @@ guaranteed](/reference/remote-execution#what-is-not-guaranteed). The short versi
 command changes on the target becomes visible to the agent once the command exits, and a
 command that ran while the agent was writing the same file may have run against what was there
 before.
+
+## Moving the agent itself
+
+Everything above puts the agent here and its work over there, which means every path the agent
+names is a round trip. `--harness` moves the agent and its supervisor instead.
+
+```sh
+# the agent runs on the build box, and its work never leaves it
+hmz internal anchor --harness same --target ssh://build-box --workspace /srv/project claude
+
+# the agent runs on one machine and its work lands on another
+hmz internal anchor --harness ssh://runner --target ssh://build-box     --workspace /srv/project claude
+```
+
+Either way this machine spawns one command and reads its three streams, exactly as before, and
+the agent exits with its own status.
+
+**What you get.** A turn stops paying a round trip per file the agent opens — with the harness
+beside its work, none of them cross a wire. The mirror it works in is kept between turns under
+a name derived from what it mirrors, so the second turn against a workspace starts warm.
+
+**What you give up.** The credentials go with the harness. Under the default, the account, the
+state directory and the connection to the model provider are on this machine and nothing about
+them reaches the target; a harness elsewhere is a harness holding them there. **A machine you
+would not trust with the account is a machine to reach with the harness here.**
+
+::: details The two machines cannot reach each other
+They do not have to. humanize holds a rendezvous: it tells each half what it looks like from
+outside, starts the two at each other so each one's outbound attempt opens the hole the other's
+arrives through, and — where that cannot work — splices the two connections it is already
+holding and carries the bytes itself. Nothing is configured for this. `--broker HOST` is there
+for the case where the two machines reach humanize under a name this machine cannot guess.
+:::
 
 ## Anchoring a flow
 

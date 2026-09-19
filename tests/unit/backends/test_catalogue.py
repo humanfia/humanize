@@ -286,14 +286,16 @@ def test_an_anchor_nothing_serves_is_left_out_rather_than_read_as_everybodys() -
     told = {one.name: one for one in catalogue() if one.name.startswith("anchor:")}
     # An empty backend set means every backend here, so a way in that has not been built
     # must not be listed at all, and one only some of them serve must be listed with exactly
-    # those. The two universal ones always are: every backend is a command line spawned here,
-    # and what a spawned turn runs is what an anchor traces. The other two are served by the
-    # CLIs whose profile says so, and are listed against exactly those. There is no
-    # `anchor:patched`: nothing takes a turn down that road yet, and a name here would be one
-    # a flow could ask for and pass.
+    # those. The three universal ones always are: every backend is a command line spawned
+    # here, what a spawned turn runs is what an anchor traces, and a line spawned here is a
+    # line that reads the same on whichever machine it is spawned on. The other two are
+    # served by the CLIs whose profile says so, and are listed against exactly those. There
+    # is no `anchor:patched`: nothing takes a turn down that road yet, and a name here would
+    # be one a flow could ask for and pass.
     assert set(told) == {
         "anchor:native-cli",
         "anchor:supervised",
+        "anchor:afar",
         "anchor:hooked",
         "anchor:preloaded",
     }
@@ -398,6 +400,7 @@ def test_every_capability_says_which_half_of_needs_asks_for_it() -> None:
     # a process it started are the CLI's own, and no machine has ever carried either.
     assert asked["anchor:native-cli"] == WHERE
     assert asked["anchor:supervised"] == WHERE
+    assert asked["anchor:afar"] == WHERE
     assert asked["anchor:hooked"] == OF_AGENT
     assert asked["anchor:preloaded"] == OF_AGENT
     for one in held:

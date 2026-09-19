@@ -16,15 +16,16 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
+import subprocess
 import sys
 import uuid
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
-from .places import NATIVE_CLI, SUPERVISED
+from .places import AFAR, NATIVE_CLI, SUPERVISED
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Generator, Mapping, Sequence
 
     from hmz.coganchor.remote import RemoteClient
     from hmz.coganchor.transport import Target
@@ -122,14 +123,26 @@ class AnchorConfig:
 
     Attributes:
       target: The machine the work lands on, as `ssh://HOST`, `docker://CONTAINER`,
-        `tcp://HOST:PORT` or `local[:DIR]`, where a local target stands in for a remote one.
+        `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT` or `local[:DIR]`, where a local target
+        stands in for a remote one.
+      harness: Where the agent process and the supervisor tracing it run: `local` for this
+        machine, `same` for whichever machine `target` names, or a target spelling of their
+        own. The three arrangements anchoring has, said in one setting --
+        :mod:`hmz.coganchor.elsewhere` is what the two that are not `local` are made of, and
+        what each of them is for.
+      broker: Where the two halves are introduced, when `harness` and `target` are two
+        different machines and neither can dial the other. Empty asks this machine which of
+        its addresses faces outward, which is right wherever the two are on the same network
+        as this one; a machine they reach humanize by some other name at says that name here.
       chdir: Where inside that workspace the agent starts, as the target names it, or None
         for the workspace itself. What a session opened at a directory of its own comes to:
         the agent is put in this machine's mirror of it, and what it does there lands there.
       workspace: The project directory as it exists on the target, defaulting to this one.
       remote_path: Where that workspace really lives on the target, if not `workspace`.
-      shadow: The local mirror directory, defaulting to `workspace` so that the paths the
-        agent sees are the target's own.
+      shadow: The mirror directory on whichever machine the harness runs on, defaulting to
+        `workspace` so that the paths the agent sees are the target's own. A harness
+        elsewhere that was given none is put in one under that machine's own cache, named for
+        what it mirrors and kept between turns.
       local_paths: Paths to keep on this machine even when they are inside the workspace.
       local_execs: Paths whose programs run here rather than on the target.
       private: Variables of the agent's own that must not cross to the target: a credential it
@@ -173,6 +186,8 @@ class AnchorConfig:
     """
 
     target: str = "local"
+    harness: str = "local"
+    broker: str = ""
     workspace: str | None = None
     chdir: str | None = None
     remote_path: str | None = None
@@ -203,9 +218,23 @@ class AnchorConfig:
             a path, a variable to run without is not a variable name, or a credential or a
             directory is to be put somewhere that is not a place.
         """
+        from hmz.coganchor.elsewhere import harnessed
         from hmz.coganchor.transport import Target
 
-        Target.parse(self.target)
+        work = Target.parse(self.target)
+        # Read rather than merely stored, so a harness pointed at a machine that cannot be
+        # spelled is refused here with every other misspelling instead of hours later.
+        where = harnessed(self.harness, self.target)
+        if self.native and where.scheme != "local":
+            raise ValueError(
+                "a native session has no harness to put anywhere: the CLI on the target is "
+                "the one that runs, so --harness and --native ask for opposite things"
+            )
+        if self.harness != "local" and work.scheme == "peer":
+            raise ValueError(
+                "a peer:// target is a meeting humanize books for a harness it is placing; "
+                "naming both is naming the same introduction twice"
+            )
         if self.net not in ("local", "remote"):
             raise ValueError(f"unsupported net {self.net!r}; expected local or remote")
         for pair in self.redirects:
@@ -251,14 +280,20 @@ class AnchorConfig:
         a turn may be asked to do.
 
         There are two ways and each is a function here. :data:`~hmz.coganchor.places.SUPERVISED`
-        is :func:`connect`: the agent runs on this machine under coganchor's supervisor, and
-        every file it opens and every command it spawns is answered from the target.
+        is :func:`connect`: the agent runs under coganchor's supervisor, and every file it
+        opens and every command it spawns is answered from the target.
         :data:`~hmz.coganchor.places.NATIVE_CLI` is :func:`drive`: the CLI already installed on
         the target is the one that runs, read off its own three streams, with nothing traced
         and nothing mirrored. Further ways name themselves in
         :data:`~hmz.coganchor.places.ROADS` as they arrive, each under `anchor:` and its own
         name, so that a flow needing one asks for it by name instead of inferring it from a
         target.
+
+        :data:`~hmz.coganchor.places.AFAR` is the one of those that is not a third way but a
+        second question about the first: the turn is supervised, and what the name adds is
+        that the supervisor and the agent process are on a machine other than this one. So it
+        is said *alongside* `anchor:supervised` rather than instead of it, and a flow that
+        must keep the agent's own process here is one that refuses it.
 
         The words themselves come from :mod:`hmz.coganchor.places` rather than being written
         out here, for the reason they are gathered there at all: the same two are what the
@@ -268,7 +303,12 @@ class AnchorConfig:
         Returns:
           The names reaching this anchor answers to.
         """
-        return frozenset({NATIVE_CLI if self.native else SUPERVISED})
+        from hmz.coganchor.elsewhere import elsewhere
+
+        if self.native:
+            return frozenset({NATIVE_CLI})
+        reached = {SUPERVISED, AFAR} if elsewhere(self) else {SUPERVISED}
+        return frozenset(reached)
 
     def command(
         self,
@@ -301,8 +341,11 @@ class AnchorConfig:
 
         Raises:
           ValueError: If a swap is not between two absolute paths.
+          ConnectionError: If the harness runs on another machine and humanize cannot be put
+            there, or the serving half cannot be left where the work lands.
         """
         from hmz.coganchor.argv import render
+        from hmz.coganchor.elsewhere import afar, elsewhere
 
         answering = (
             replace(
@@ -314,6 +357,11 @@ class AnchorConfig:
             if swaps or private or chdir
             else self
         )
+        # A harness on another machine is the same line behind whatever runs humanize there,
+        # which is why it is answered here: what the layers above spawn is one command whose
+        # streams are the agent's, and where that command runs is no part of what they read.
+        if elsewhere(answering):
+            return afar(answering, argv)
         return render(answering, argv)
 
     def mount(self) -> tuple[Target, str, str]:
@@ -334,6 +382,42 @@ class AnchorConfig:
         return target, workspace, f"{workspace}:{real}" if real else workspace
 
 
+@contextlib.contextmanager
+def _reached(config: AnchorConfig) -> Generator[tuple[Target, str, RemoteClient]]:
+    """Opens the road to the target and puts it down again, whatever was asked of it.
+
+    The dance both the callers that talk to a target *themselves* begin with -- read the
+    settings for where the work lands, open a channel to the serving half, and speak the
+    protocol down it -- said once rather than twice, and unwound in the order it was made.
+    :func:`connect` does it by hand instead, and on purpose: it prepares a mirror first, and
+    a mirror it will not take over is a session that must fail before a machine has been
+    bootstrapped to serve it.
+
+    Args:
+      config: Where the work lands.
+
+    Yields:
+      The target as parsed, the workspace's absolute path here, and the client speaking to
+      the half that answers for it. The handshake is not done: a supervised session makes it
+      after the agent is forked and stopped, which is later than this.
+
+    Raises:
+      ValueError: If the target cannot be read.
+      OSError: If it cannot be reached.
+    """
+    from hmz.coganchor import transport
+    from hmz.coganchor.remote import RemoteClient
+
+    target, workspace, export = config.mount()
+    link = transport.connect(target, [export], config.token)
+    client = RemoteClient(link.channel)
+    try:
+        yield target, workspace, client
+    finally:
+        client.close()
+        link.close()
+
+
 def check(config: AnchorConfig | None = None) -> dict[str, Any]:
     """Asks the target what it is, without running anything on it.
 
@@ -349,22 +433,13 @@ def check(config: AnchorConfig | None = None) -> dict[str, Any]:
       ValueError: If the target cannot be read.
       OSError: If the target cannot be reached, or the workspace is not there.
     """
-    from hmz.coganchor import transport
-    from hmz.coganchor.remote import RemoteClient
-
     config = config or AnchorConfig()
-    target, workspace, export = config.mount()
-    link = transport.connect(target, [export], config.token)
-    client = RemoteClient(link.channel)
-    try:
+    with _reached(config) as (target, workspace, client):
         return client.start(config.token) | {
             "target": target.describe(),
             "workspace": workspace,
             "entries": len(client.listdir(workspace)["entries"]),
         }
-    finally:
-        client.close()
-        link.close()
 
 
 def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
@@ -394,6 +469,15 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     # machine that could not supervise a turn can still take one this way.
     if config.native:
         return drive(command, config)
+
+    # And before that too, for the same reason: a harness on another machine is that
+    # machine's supervisor to run, and this process is the pipe carrying its three streams.
+    # Nothing of the tracer is reached here, so a machine that could not supervise a turn can
+    # still be the one that starts one somewhere that can.
+    from hmz.coganchor.elsewhere import afar, elsewhere
+
+    if elsewhere(config):
+        return subprocess.call(afar(config, command))
 
     # Imported here rather than at the top: this half needs ptrace and an x86-64 register
     # map, which the machines reading the settings above are not required to have.
@@ -515,45 +599,47 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
       NotInstalled: If the agent is not installed on the target.
       OSError: If the target cannot be reached, or a credential cannot be put on it.
     """
-    from hmz.coganchor import __version__, transport
-    from hmz.coganchor.remote import RemoteClient
+    from hmz.coganchor import __version__
 
     config = config or AnchorConfig()
     if not command:
         raise ValueError("no agent given")
-    target, workspace, export = config.mount()
+    _, workspace, _ = config.mount()
     started_in = config.chdir or workspace
     if started_in != workspace and not started_in.startswith(workspace + "/"):
         raise ValueError(f"{started_in} is not inside {workspace}")
 
-    link = transport.connect(target, [export], config.token)
-    client = RemoteClient(link.channel)
     kept: list[str] = []
     making: set[str] = set()
     session = ""
     # What this turn writes its claims on carried directories under. One per turn rather than
     # per session: a turn is what plants them and a turn is what gives them up.
     whose = uuid.uuid4().hex
-    try:
-        client.start(config.token)
-        program = _installed(client, command[0], workspace, config, target.describe())
-        said = {
-            "HUMANIZE": __version__,
-            "HUMANIZE_TARGET": target.describe(),
-            # Agents surface this to the model; being explicit beats it guessing.
-            "HUMANIZE_WORKSPACE": workspace,
-        }
-        if config.projects:
-            session = _session(client, workspace)
-            said |= _projected(client, config.projects, session, workspace)
-        _carried(client, config.carries, workspace, whose, kept, making)
-        log.info("driving %s on %s", program, target.describe())
-        argv = [*_wrapping(config.hushes, said), program, *command[1:]]
-        return _drives(client, argv, started_in, dict(os.environ))
-    finally:
-        _swept(client, session, kept, sorted(making, reverse=True), workspace, whose)
-        client.close()
-        link.close()
+    with _reached(config) as (target, _, client):
+        try:
+            client.start(config.token)
+            program = _installed(
+                client, command[0], workspace, config, target.describe()
+            )
+            said = {
+                "HUMANIZE": __version__,
+                "HUMANIZE_TARGET": target.describe(),
+                # Agents surface this to the model; being explicit beats it guessing.
+                "HUMANIZE_WORKSPACE": workspace,
+            }
+            if config.projects:
+                session = _session(client, workspace)
+                said |= _projected(client, config.projects, session, workspace)
+            _carried(client, config.carries, workspace, whose, kept, making)
+            log.info("driving %s on %s", program, target.describe())
+            argv = [*_wrapping(config.hushes, said), program, *command[1:]]
+            return _drives(client, argv, started_in, dict(os.environ))
+        finally:
+            # Inside the channel rather than beside it: what this takes off the target is
+            # taken off *through* that channel, so it has to happen while there is one.
+            _swept(
+                client, session, kept, sorted(making, reverse=True), workspace, whose
+            )
 
 
 def _ran(

@@ -62,6 +62,7 @@ INPUT = "@input"
 #: it takes a config.
 CONFIG = "@config"
 
+
 class Field(NamedTuple):
     """One field of one shape, as the compiling read it off the model that declares it.
 

@@ -3,6 +3,11 @@
 `serve` is what the zipapp bootstrapped onto a target runs, and it is answered first: only
 the agent half needs ptrace and an x86-64 register map, which is what lets the same program
 serve a target of any architecture.
+
+`rendezvous` is the third thing this line can be, and the only one that is neither half: the
+meeting place two halves on two machines are introduced through, which humanize runs for
+them. It is answered before the agent half too, and for the same reason -- it is a socket and
+a dictionary, and a machine that could host one may be none of the things a supervisor needs.
 """
 
 from __future__ import annotations
@@ -19,6 +24,26 @@ _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 _MAX_PORT = 65535
 
 
+def _listen_on(spec: str, default: str) -> tuple[str, int] | None:
+    """Reads a `[HOST:]PORT` the two listening commands are both given.
+
+    Args:
+      spec: What was typed.
+      default: The host to listen on where only a port was named, which is not the same
+        answer for the two of them: one of them is a shell and the other is an introduction.
+
+    Returns:
+      The host and port, or None if it is not an address.
+    """
+    host, sep, port = spec.rpartition(":")
+    if not sep:
+        host, port = default, spec
+    host = host.strip("[]") or default
+    if not port.isdigit() or not 0 <= int(port) <= _MAX_PORT:
+        return None
+    return host, int(port)
+
+
 def anchor(argv: list[str]) -> int:
     """Runs the agent named on the command line, with its work landing on another machine.
 
@@ -30,6 +55,8 @@ def anchor(argv: list[str]) -> int:
     """
     if argv and argv[0] == "serve":
         return _serve(argv[1:])
+    if argv and argv[0] == "rendezvous":
+        return _rendezvous(argv[1:])
 
     import logging
 
@@ -120,6 +147,12 @@ def _serve(argv: list[str]) -> int:
     where.add_argument(
         "--listen", metavar="[HOST:]PORT", help="serve TCP connections on this address"
     )
+    where.add_argument(
+        "--peer",
+        metavar="TICKET@HOST:PORT",
+        help="serve one session to whoever presents this ticket at that rendezvous, "
+        "which is how the other half reaches this machine when it cannot dial it",
+    )
     parser.add_argument(
         "--token",
         default=os.environ.get("HUMANIZE_TOKEN"),
@@ -148,6 +181,20 @@ def _serve(argv: list[str]) -> int:
         print(f"hmz: {exc}", file=sys.stderr)
         return 2
 
+    if args.peer:
+        # Imported here: a half met through a broker is the one arrangement that needs the
+        # rendezvous at all, and a target serving over a pipe must not pay for it.
+        from hmz.coganchor.rendezvous import SERVE, Meeting, dial
+
+        try:
+            met = dial(Meeting.parse(args.peer), SERVE)
+        except (OSError, ValueError) as exc:
+            print(f"hmz: {exc}", file=sys.stderr)
+            return 1
+        with contextlib.suppress(KeyboardInterrupt):
+            Server(Channel.from_socket(met), table, args.token).serve()
+        return 0
+
     if args.stdio:
         # The real stdin/stdout are duplicated away and fds 0 and 1 pointed at /dev/null, so
         # a stray print from this process or any child it spawns cannot corrupt the protocol
@@ -162,16 +209,14 @@ def _serve(argv: list[str]) -> int:
             Server(channel, table, args.token).serve()
         return 0
 
-    host, sep, port = args.listen.rpartition(":")
-    if not sep:
-        host, port = "127.0.0.1", args.listen
-    host = host.strip("[]") or "127.0.0.1"
-    if not port.isdigit() or not 0 <= int(port) <= _MAX_PORT:
+    where = _listen_on(args.listen, "127.0.0.1")
+    if where is None:
         print(
             f"hmz: malformed listen address {args.listen!r}; expected [HOST:]PORT",
             file=sys.stderr,
         )
         return 2
+    host, port = where
     if host not in _LOOPBACK_HOSTS and not args.token:
         print(
             "hmz: refusing to listen on a non-loopback address without --token",
@@ -179,13 +224,90 @@ def _serve(argv: list[str]) -> int:
         )
         return 2
 
-    # Imported here rather than above: a session over a pipe is the one the bootstrapped
-    # target runs, and it has no use for a listener that serves many.
+    # Imported here rather than above: a session over a pipe, or through a broker, is one
+    # half already spoken for, and neither has use for a listener that serves many.
     from hmz.coganchor.serve.listener import serve_forever
 
     try:
-        serve_forever(host, int(port), table, args.token)
+        serve_forever(host, port, table, args.token)
     except OSError as exc:
         print(f"hmz: cannot listen on {host}:{port}: {exc.strerror}", file=sys.stderr)
         return 1
+    return 0
+
+
+def _rendezvous(argv: list[str]) -> int:
+    """Introduces two halves of a session that cannot reach each other.
+
+    Args:
+      argv: What followed the command name.
+
+    Returns:
+      Zero once it is interrupted, or a status of our own if it could not listen.
+    """
+    import argparse
+    import logging
+    import os
+
+    parser = argparse.ArgumentParser(
+        prog="hmz internal anchor rendezvous",
+        description="Hold the meetings two halves of a session are introduced at: "
+        "tell each what it looks like from outside, start them at each other, and "
+        "carry the bytes where they cannot reach each other at all.",
+    )
+    parser.add_argument(
+        "--listen",
+        metavar="[HOST:]PORT",
+        default="0.0.0.0:0",
+        help="the address to hold meetings on (default: every interface, any port)",
+    )
+    parser.add_argument(
+        "--punching",
+        metavar="SECONDS",
+        type=float,
+        default=None,
+        help="how long two halves are given to reach each other before being carried",
+    )
+    parser.add_argument(
+        "--log-level",
+        default=os.environ.get("HUMANIZE_LOG", "info"),
+        choices=["debug", "info", "warning", "error"],
+        help="logging verbosity (default: info)",
+    )
+    args = parser.parse_args(argv)
+
+    from hmz.coganchor.rendezvous import PUNCHING, Broker
+
+    logging.basicConfig(
+        level=args.log_level.upper(),
+        format="%(asctime)s hmz %(levelname)s %(message)s",
+        stream=sys.stderr,
+    )
+    # Every interface by default, unlike `serve`: the halves being introduced are on other
+    # machines, which is the only reason a broker exists. Nothing here is a shell -- pairing
+    # is by a ticket nobody can guess -- so there is no token to hold it back for.
+    where = _listen_on(args.listen, "0.0.0.0")  # noqa: S104
+    if where is None:
+        print(
+            f"hmz: malformed listen address {args.listen!r}; expected [HOST:]PORT",
+            file=sys.stderr,
+        )
+        return 2
+    host, port = where
+    broker = Broker(
+        host, port, punching=args.punching if args.punching is not None else PUNCHING
+    )
+    try:
+        bound, landed = broker.start()
+    except OSError as exc:
+        print(f"hmz: cannot listen on {host}:{port}: {exc.strerror}", file=sys.stderr)
+        return 1
+    # Not a message but a handshake, the way the listener announces its own: whoever started
+    # this reads the port off this line, a port of 0 having been the way to ask for any free one.
+    print(
+        f"hmz internal anchor rendezvous listening {bound} {landed}",
+        file=sys.stderr,
+        flush=True,
+    )
+    broker.serve_forever()
     return 0

@@ -6,8 +6,13 @@ none of it.
 
 ## The model
 
-There are two arrangements, and which one a session uses is a setting rather than a fact about
-the target. Everything below that is not marked otherwise is about the first.
+Two questions, answered separately. **How** a turn is reached — supervised, or the CLI the
+target already has — is the first, and there are two arrangements of it; which one a session
+uses is a setting rather than a fact about the target. **Where the harness runs** is the
+second, and is [below](#where-the-harness-runs): the supervisor and the agent process can be
+put on the machine the work lands on, or on a third machine again.
+
+Everything that is not marked otherwise is about the first arrangement, with the harness here.
 
 An agent runs on this machine, unchanged. Everything it *does* — reading and writing project
 files, running commands, reaching the network from those commands — happens on the target.
@@ -85,6 +90,76 @@ the *target's* loopback; a gateway a native turn is to use has to be reachable u
 target resolves. And **everything crosses every turn**: each turn is a process of its own, so
 the credentials and the skills are written again each time.
 
+## Where the harness runs
+
+The **harness** is the agent process and the supervisor tracing it. By default it is here and
+the work is over there, which is every diagram above. `--harness` moves it, and there are
+three answers.
+
+| `--harness` | |
+| --- | --- |
+| `local` *(default)* | Here. The agent's credentials, its state directory and its link to its model provider stay on this machine, and every path it names is a round trip to the target. |
+| `same` | On whichever machine `--target` names. The supervisor is beside its work: a file the agent opens is that machine's disk rather than a wire, and what crosses to here is the agent's three streams and nothing else. |
+| a target spelling | On a machine of its own, with the work landing on another. humanize is on neither and introduces the two. |
+
+```
+     this machine                 the harness              the work
+┌────────────────────┐      ┌────────────────────┐   ┌──────────────────┐
+│  hmz internal      │ ssh/ │  claude / codex …  │   │  hmz internal    │
+│    anchor          │─────▶│        ↓ syscalls  │   │    anchor serve  │
+│    ↕ three streams │docker│  ┌──────────────┐  │   │        ↓         │
+│                    │      │  │  supervisor  │──┼──▶│ files, processes │
+│  ┌──────────────┐  │      │  └──────────────┘  │ ▲ │  the network     │
+│  │  rendezvous  │◀─┼──────┼── local mirror ────┼─┘ └──────────────────┘
+│  └──────────────┘  │      └────────────────────┘
+└────────────────────┘        introduced here, then out of the way
+```
+
+### Being introduced
+
+Two machines humanize started are not two machines that can reach each other. So humanize holds
+a **rendezvous**: a ticket names one meeting, each half dials the broker with it, and three
+things are tried in order.
+
+1. **Each half is told what it looks like from outside.** The address a connection arrives from
+   is the one the world has for whoever opened it, which is the one thing a machine behind a NAT
+   cannot learn by asking itself. That is what a STUN server does, and it is one line of JSON
+   here because it is one attribute of an accepted socket.
+2. **The two are started at each other at once.** Both open outward from the port they dialled
+   the broker from and both listen on it. Where a NAT is address-independent — which the common
+   ones are — each side's attempt opens the hole the other's arrives through, and the session
+   runs machine to machine with humanize no longer in the path.
+3. **And humanize carries the bytes where they cannot.** Two symmetric NATs, a firewall that
+   drops what it did not see leave, no route at all: the window closes, both halves say so, and
+   the connections they are *already holding to the broker* are spliced together. The fallback
+   costs one message, because the relay is the socket the introduction was made over.
+
+Which of the three a session got is not something it is told: the channel is a socket either
+way and the protocol above it is the same protocol. A broker that had to carry a pair remembers
+it, so the next session between those two machines is carried without spending the window again
+— and disbelieves itself every sixteenth time, because a firewall rule is the kind of thing that
+changes.
+
+`--broker HOST` says where the halves should dial, for a machine they reach humanize by some
+other name at; by default humanize offers whichever of its own addresses faces outward. A broker
+can also be run on its own with
+[`hmz internal anchor rendezvous`](/reference/cli#hmz-internal-anchor-rendezvous).
+
+### What moving it costs and buys
+
+- **A turn stops paying per syscall.** Under `local`, every path the agent names crosses a
+  link. Beside its work, none of them do.
+- **The account moves with the harness.** Under `local` the credentials, the state directory
+  and the connection to the model provider are here, which is what the supervised arrangement is
+  built to keep. A harness elsewhere is a harness holding them there — the same trade `--native`
+  makes, and the same answer: **a machine that should not be trusted with the account is a
+  machine to reach with the harness here.**
+- **The mirror is kept between turns.** A harness elsewhere that was given no `--shadow` works
+  in one under that machine's own cache, named for what it mirrors rather than for the turn, so
+  the second turn against a workspace starts with its files already there.
+- **`anchor:afar` is what it answers to.** A flow that must not have the agent's own process
+  sent away can [ask](/features/capabilities), and be refused before anything starts.
+
 ## Quick start
 
 ```sh
@@ -113,6 +188,7 @@ Every flag is in the [CLI reference](/reference/cli#hmz-internal-anchor).
 | `ssh://HOST` or `ssh://HOST:PORT` | Bootstraps the target half over ssh and speaks to it on that connection's pipes. Uses your ssh config, agent and keys. |
 | `docker://CONTAINER` | Runs the target half inside a running container over `docker exec`, as whoever that container runs as. No port and no secret. |
 | `tcp://HOST:PORT` | Connects to a target [left listening](#serving-a-target). Cheap to reconnect, which matters for a loop of short turns. |
+| `peer://TICKET@HOST:PORT` | Meets a serving half at a rendezvous rather than dialling it. humanize writes this one for a harness it has placed on another machine; it is not a spelling to type. |
 | `local` or `local:DIR` | Another directory on this machine, standing in for a remote one. Used for testing, and by the container machines. |
 
 The target half is a zipapp humanize ships to the target and caches there by digest. It needs no
@@ -236,7 +312,12 @@ Listening on anything but loopback **without** `--token` is refused. Read
 [Security](#security) before opening one.
 
 The same program serves both ends — the bundle shipped to a target runs `hmz internal anchor serve
---stdio`, which is one session over a pipe.
+--stdio`, which is one session over a pipe, or `--peer TICKET@HOST:PORT`, which is one session
+to whoever is met at that [rendezvous](#being-introduced).
+
+The archive is built once per source tree and cached on each target by its digest, and one
+`ssh` to a host is reused by every command after it, so a second turn against a machine pays
+for none of the bootstrapping the first one did.
 
 ## From Python
 
@@ -252,14 +333,24 @@ status = connect(["claude", "--print"], config)   # the agent's own exit status
 `connect` returns once the agent has exited and everything it wrote has been pushed.
 
 `AnchorConfig` fields map one-to-one onto the flags in the
-[CLI reference](/reference/cli#hmz-internal-anchor): `target`, `workspace`, `chdir`, `remote_path`,
-`shadow`, `local_paths`, `local_execs`, `redirects`, `private`, `net`, `net_allow`, `token`,
-`force`.
+[CLI reference](/reference/cli#hmz-internal-anchor): `target`, `harness`, `broker`, `workspace`,
+`chdir`, `remote_path`, `shadow`, `local_paths`, `local_execs`, `redirects`, `private`, `net`,
+`net_allow`, `token`, `force`.
+
+```python
+# the harness beside its work, so a file the agent opens is that machine's disk
+AnchorConfig(harness="same", target="ssh://build-box", workspace="/srv/project")
+
+# the harness on one machine, its work on another, introduced through humanize
+AnchorConfig(harness="ssh://runner", target="ssh://build-box", workspace="/srv/project")
+```
 
 ## Requirements
 
 **Running an agent** needs Linux on x86-64 or aarch64 and a recent Python. Any other
-architecture is refused at start-up, and told where it can run instead.
+architecture is refused at start-up, and told where it can run instead. That is a requirement
+of whichever machine the harness runs on, so `--harness` moves it too: this machine needs none
+of it to place a harness somewhere that has it.
 
 **Serving** needs only a POSIX system with a Python of the same vintage — no root, no compiler,
 no kernel module, nothing installed.
@@ -303,11 +394,29 @@ Each of these is deliberate, and each looks like a defect if you meet it cold.
 - **64-bit only.** A 32-bit process below the agent is not intercepted and runs against the
   mirror with nothing replayed.
 - **Names resolve here** and are dialled from the target, so split-horizon DNS can disagree.
+- **A rendezvous is IPv4.** A hole is punched from one port to one address, and a candidate the
+  other half cannot open a matching socket for only spends the window. A machine reachable only
+  over IPv6 is carried, which is the answer this already has for every unreachable pair.
+- **A relayed session pays this machine's bandwidth and latency for every byte.** Nothing warns
+  you: neither end of a connection can honestly say whether it is being relayed.
 
 ## Security
 
 **An `hmz internal anchor` port is equivalent to a shell on that machine.** Give `--token` a
 real secret, and prefer `ssh://` or `docker://`, which need no open port at all.
+
+**A rendezvous port is not.** Placing a harness on a machine other than the one its work lands
+on opens one here, on every interface, for as long as the run lasts. Nothing on the other side
+of it is a shell: what it offers is to be paired with whoever presents the same ticket, and a
+ticket is a 128-bit secret humanize mints per session and tells exactly two machines. A
+stranger who dials it can be introduced to nobody but themselves. `HUMANIZE_RENDEZVOUS_PORT`
+pins the port for a firewall that has to be told one in advance.
+
+**A harness elsewhere holds the account.** The supervised arrangement keeps the credentials,
+the state directory and the model provider connection on this machine; `--harness` moves all
+three to wherever it sends the harness. That is the same trade `--native` makes, and it has the
+same answer: a machine you would not trust with the account is a machine to reach with the
+harness here.
 
 The full statement, including what running any agent under humanize means, is in
 [Security](/user/security).
