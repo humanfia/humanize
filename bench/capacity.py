@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import gc
 import json
 import os
 import resource
@@ -32,6 +33,7 @@ import subprocess
 import sys
 import threading
 import time
+from array import array
 from concurrent import futures
 from dataclasses import dataclass
 from pathlib import Path
@@ -101,6 +103,19 @@ STARTERS = int(os.environ.get("HMZ_BENCH_STARTERS", "64"))
 #: is the same number whatever is being compared.
 READERS = int(os.environ.get("HMZ_BENCH_READERS", "4"))
 
+#: How many times a level is run before it is believed. This machine is shared, and about one
+#: run in four picks up a stall of a few hundred milliseconds from something that is not this
+#: -- concurrency does not change how often it happens, and it has survived being chased out
+#: of the ramp, the readers, the memory sampler, the collector and the punching. A single run
+#: therefore reports a knee wherever that stall happened to land. Three runs and the middle
+#: verdict does not.
+TRIES = int(os.environ.get("HMZ_BENCH_TRIES", "3"))
+
+#: The most of a session's life that may be spent bringing the others up. Past this the level
+#: is refused: the first sessions are ending before the last have started, so whatever it holds
+#: it is not the number asked for.
+RAMPING = 0.4
+
 #: How long after the last session is up before lateness starts counting. Bringing a fleet up
 #: is real work and is reported as `up`, but it is not what a fleet that is *running* looks
 #: like, and a number that mixed the two would be a number about starting.
@@ -112,7 +127,7 @@ BEAT = float(os.environ.get("HMZ_BENCH_BEAT", "1.0"))
 
 #: How long a free-remote session is held open, in seconds. Long enough that the levels
 #: overlap properly rather than being a queue of startups.
-HOLDING = float(os.environ.get("HMZ_BENCH_HOLDING", "150"))
+HOLDING = float(os.environ.get("HMZ_BENCH_HOLDING", "120"))
 
 #: How many mocked machines the sessions share. A real fleet has far fewer machines than it
 #: has agents -- a runner hosts several -- and one machine per session would charge every
@@ -326,9 +341,17 @@ def once(arrangement: Arrangement, backend: str, concurrency: int) -> dict[str, 
     # asks the kernel whether there is anything to read, and a buffered reader keeps what it
     # has already pulled -- so a second line that arrived in the same read sits there unnoticed
     # until fresh bytes turn up, and every hub measures one beat late for reasons of its own.
-    took: list[tuple[float, float]] = []
+    # Two flat arrays of doubles rather than a list of tuples, and the collector off while
+    # they fill. A level at a few thousand sessions gathers millions of samples, and as
+    # objects that is a heap the collector walks -- which it does for a fifth of a second at a
+    # time, with every reader stopped, often enough to land on the ninety-fifth percentile and
+    # rarely enough to look like a capacity that moves between runs. Doubles in an array are
+    # not objects and are not walked.
+    when_read = array("d")
+    what_read = array("d")
     began_up: dict[int, float] = {}
     speaking = threading.Lock()
+    gc.disable()
     watched = {"rss": 0.0, "stop": 0.0}
 
     def sampling() -> None:
@@ -358,7 +381,8 @@ def once(arrangement: Arrangement, backend: str, concurrency: int) -> dict[str, 
             assert each.stdout is not None  # noqa: S101
             watching.register(each.stdout.fileno(), selectors.EVENT_READ, each)
             holding[each.stdout.fileno()] = bytearray()
-        said_here: list[tuple[float, float]] = []
+        when_here = array("d")
+        what_here = array("d")
         up_here: dict[int, float] = {}
         live = len(mine)
         while live:
@@ -386,13 +410,15 @@ def once(arrangement: Arrangement, backend: str, concurrency: int) -> dict[str, 
                     except (ValueError, KeyError, TypeError):
                         continue
                     now = time.monotonic()
-                    said_here.append((now, measured))
+                    when_here.append(now)
+                    what_here.append(measured)
                     up_here.setdefault(key.data.pid, now)
             if time.monotonic() - began > PATIENCE:
                 break
         watching.close()
         with speaking:
-            took.extend(said_here)
+            when_read.extend(when_here)
+            what_read.extend(what_here)
             began_up.update(up_here)
 
     threading.Thread(target=sampling, daemon=True).start()
@@ -406,6 +432,8 @@ def once(arrangement: Arrangement, backend: str, concurrency: int) -> dict[str, 
         one.join()
     wall = time.monotonic() - began
     watched["stop"] = 1.0
+    gc.enable()
+    gc.collect()
     # After the waits, not before: a child's CPU is only accounted to its parent once the
     # parent has reaped it, so reading this while the sessions are still running reads nought.
     failed = sum(1 for each in running if each.wait() != 0)
@@ -417,13 +445,13 @@ def once(arrangement: Arrangement, backend: str, concurrency: int) -> dict[str, 
     kids = (after_kids.ru_utime - before_kids.ru_utime) + (
         after_kids.ru_stime - before_kids.ru_stime
     )
-    if not took:
+    if not what_read:
         return {"at": concurrency, "failed": float(concurrency), "median": float("inf")}
     up_by = (max(began_up.values()) if began_up else began) - began
     settled = began + up_by + SETTLING
-    ordered = sorted(what for when, what in took if when >= settled) or sorted(
-        what for _, what in took
-    )
+    ordered = sorted(
+        what for when, what in zip(when_read, what_read, strict=True) if when >= settled
+    ) or sorted(what_read)
     return {
         "at": concurrency,
         "failed": float(failed),
@@ -436,13 +464,44 @@ def once(arrangement: Arrangement, backend: str, concurrency: int) -> dict[str, 
         "hub_cores": own / wall,
         "kid_cores": kids / wall,
         "rss": watched["rss"],
+        "threads": float(len(os.listdir("/proc/self/task"))),
     }
 
 
+def steadily(
+    arrangement: Arrangement, backend: str, at: int, best: float
+) -> tuple[dict[str, float], str]:
+    """Runs one level until its verdict is the same twice, and answers with that.
+
+    Two agreeing out of at most :data:`TRIES` rather than an average, because the thing being
+    filtered is not noise around a value -- it is an occasional stall that turns a level's
+    answer from one number into another. A middle verdict is the right statistic for that; a
+    mean of the two would be a number neither run saw.
+    """
+    seen: list[tuple[dict[str, float], str]] = []
+    for _ in range(TRIES):
+        got = once(arrangement, backend, at)
+        mark = lagging(got, best)
+        say(arrangement.name, backend, got, mark)
+        seen.append((got, mark))
+        agreeing = [one for one in seen if one[1] == mark]
+        if len(agreeing) > TRIES // 2:
+            return agreeing[0]
+    return seen[0]
+
+
 def lagging(got: dict[str, float], best: float) -> str:
-    """Why this level is not a level that worked, or `ok`."""
+    """Why this level is not a level that worked, or `ok`.
+
+    `RAMP` first, because it invalidates the rest: if bringing the sessions up took an
+    appreciable share of how long they are held, the ones started first were gone before the
+    ones started last arrived and the level never had that many running at once. Whatever it
+    then measured, it did not measure that concurrency -- so it is refused rather than read.
+    """
     if got["median"] == float("inf"):
         return "NOTHING"
+    if got.get("up_by", 0.0) > HOLDING * RAMPING:
+        return "RAMP"
     if got["failed"]:
         return "FAILED"
     if got["rss"] > BUDGET:
@@ -463,7 +522,8 @@ def say(arrangement: str, backend: str, got: dict[str, float], mark: str) -> Non
         f"  {arrangement}/{backend} {int(got['at']):5d}: "
         f"round median {got['median'] * 1000:7.1f} ms  p95 {got['p95'] * 1000:8.1f} ms  "
         f"up {got['up_by']:5.1f}s {got['rounds_per_s']:7.1f}/s  "
-        f"cpu {got['hub_cores']:4.2f}+{got['kid_cores']:6.2f} cores {got['rss']:6.2f} GiB  "
+        f"cpu {got['hub_cores']:4.2f}+{got['kid_cores']:6.2f} cores {got['rss']:6.2f} GiB "
+        f"{int(got.get('threads', 0)):6d} thr  "
         f"failed {int(got['failed']):4d}  {mark}",
         flush=True,
     )
@@ -480,9 +540,7 @@ def named_levels(
     """
     best, good, bad, why = float("inf"), 0, 0, "ok"
     for at in sorted(levels):
-        got = once(arrangement, backend, at)
-        mark = lagging(got, best)
-        say(arrangement.name, backend, got, mark)
+        got, mark = steadily(arrangement, backend, at, best)
         if mark == "ok":
             best, good = min(best, got["median"]), at
         elif not bad:
@@ -503,9 +561,7 @@ def sweep(
     good, bad, why = 0, 0, "ok"
     at = max(1, opening)
     while at <= ceiling:
-        got = once(arrangement, backend, at)
-        mark = lagging(got, best)
-        say(arrangement.name, backend, got, mark)
+        got, mark = steadily(arrangement, backend, at, best)
         if mark != "ok":
             bad, why = at, mark
             break
@@ -517,9 +573,7 @@ def sweep(
     if not good:  # even the opening level lagged; walk back down
         at = max(1, bad // 2)
         while at >= 1:
-            got = once(arrangement, backend, at)
-            mark = lagging(got, best)
-            say(arrangement.name, backend, got, mark)
+            got, mark = steadily(arrangement, backend, at, best)
             if mark == "ok":
                 best, good = min(best, got["median"]), at
                 break
@@ -528,9 +582,7 @@ def sweep(
             return {"good": 0, "bad": bad, "why": why, "best": best}
     while bad - good > tightly(good):
         middle = (good + bad) // 2
-        got = once(arrangement, backend, middle)
-        mark = lagging(got, best)
-        say(arrangement.name, backend, got, mark)
+        got, mark = steadily(arrangement, backend, middle, best)
         if mark == "ok":
             best, good = min(best, got["median"]), middle
         else:
