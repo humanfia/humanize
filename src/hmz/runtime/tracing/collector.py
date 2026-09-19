@@ -13,7 +13,7 @@ import dateparser
 from hmz.coganchor import backends
 
 from . import chrome
-from .readers import claude, codex, dsh, grok, kimi, zcode
+from .readers import claude, codex, dsh, grok, kimi, mimo, opencode, pi, qwen, zcode
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -29,6 +29,10 @@ _READERS = {
     "dsh": dsh.collect,
     "grok": grok.collect,
     "kimi": kimi.collect,
+    "mimo": mimo.collect,
+    "opencode": opencode.collect,
+    "pi": pi.collect,
+    "qwen": qwen.collect,
     "zcode": zcode.collect,
 }
 
@@ -149,10 +153,10 @@ def collect(
     for each in backends.PROFILES:
         reader = _READERS.get(each.name)
         home = each.directory()
-        # Only the backends whose logs somebody has written a reader for: the rest keep their
-        # sessions somewhere this cannot read -- rows of a database, a format nobody has taken
-        # apart yet -- and a home directory being there is not a reason to fail the whole
-        # trace.
+        # Only the backends somebody has written a reader for: the rest keep their sessions
+        # in a format nobody has taken apart yet, and a home directory being there is not a
+        # reason to fail the whole trace. Being a database is no longer one of the reasons --
+        # opencode and mimocode keep theirs in SQLite and are read with a query.
         if reader is not None and home.is_dir():
             collected += reader(home, root, names, window)
 

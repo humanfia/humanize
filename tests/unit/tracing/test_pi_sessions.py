@@ -74,7 +74,13 @@ def _written(
     where = home / "sessions" / folder
     where.mkdir(parents=True, exist_ok=True)
     head = [
-        {"type": "session", "version": 3, "id": SESSION, "timestamp": _stamp(0), "cwd": cwd},
+        {
+            "type": "session",
+            "version": 3,
+            "id": SESSION,
+            "timestamp": _stamp(0),
+            "cwd": cwd,
+        },
         {
             "type": "model_change",
             "id": "m1",
@@ -105,7 +111,10 @@ def session_log(tmp_path: pathlib.Path) -> pathlib.Path:
         [
             _message(
                 1,
-                {"role": "user", "content": [{"type": "text", "text": "cut the cycles"}]},
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": "cut the cycles"}],
+                },
             ),
             _message(
                 2,
