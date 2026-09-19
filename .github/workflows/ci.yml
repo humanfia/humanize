@@ -1,6 +1,7 @@
 # The second gate. The first is `.pre-commit-config.yaml`; this runs the same hooks over
 # every file rather than the ones one commit touched, and it runs two of the three test
-# tiers -- on every Python the package claims, and on both systems it is installed on.
+# tiers, on every Python the package claims. Linux only: see the matrix below for why the
+# second system was taken out.
 #
 # The two it runs are `tests/unit/` and `tests/integration/`: everything whose every
 # counterpart is something this repository wrote. A stand-in CLI on `PATH`, a fake app
@@ -73,7 +74,7 @@ jobs:
   test:
     name: test (${{ matrix.os }}, python ${{ matrix.python }})
     runs-on: ${{ matrix.os }}
-    # Both systems finish in about a quarter of an hour. Twice that, because a job killed at
+    # A cell finishes in about a quarter of an hour. Twice that, because a job killed at
     # the wall reports nothing at all about what it was doing -- which is the one outcome
     # worth spending minutes to avoid, and the one this matrix spent a morning learning.
     # What bounds a single test is `timeout` in pyproject.toml, not this.
@@ -84,16 +85,19 @@ jobs:
         # Every stable minor at or above the floor `requires-python` sets. A new one
         # ships, a new one goes here -- that is what the README promises.
         python: ["3.12", "3.13", "3.14"]
-        # Both systems humanize is installed on. The half that runs an agent under an
-        # anchor is a seccomp filter and a ptrace supervisor, which is Linux on x86-64
-        # and says so by skipping everywhere else; everything above it -- the interface,
-        # the flows, the backends, the daemon, the serving half of an anchor -- is meant
-        # to work on either, and this is what holds it to that.
+        # Linux, and for now only Linux. The half of this that runs an agent under an
+        # anchor is a seccomp filter and a ptrace supervisor, which is Linux on x86-64 and
+        # says so by skipping everywhere else -- so Linux is where the whole of the suite
+        # actually runs, and the system this is built to be trusted on.
         #
-        # `macos-latest` rather than a pinned Intel runner: this job installs every extra,
-        # and the DeepSeek runtime behind `[dsh]` publishes a macOS wheel for arm64 alone.
-        # An install that takes no extras is under no such constraint.
-        os: [ubuntu-latest, macos-latest]
+        # macOS was the second cell and has been taken out. It cost three jobs a run to
+        # tell us mostly what Linux had already told us, and the part that was its own was
+        # unreliable rather than informative: the process sampler wedges an interpreter
+        # there -- known and skipped outright on Python 3.13, and seen hanging 3.12 and
+        # 3.14 about one run in three, which is a red build about the runner rather than
+        # about the change. A dimension rather than a bare `runs-on`, so putting it back
+        # is one word here once that is worth paying for again.
+        os: [ubuntu-latest]
     steps:
       - uses: actions/checkout@v7
 
@@ -125,9 +129,9 @@ jobs:
       - run: uv sync --frozen --all-extras
 
       # The unit and integration tiers, in one job rather than two. Splitting them would
-      # turn three Pythons times two systems into twelve, and would make one coverage file
-      # out of two runs that share no disk -- `--cov-append` cannot reach across machines,
-      # so it would be an artifact merge -- to answer a question nobody asked CI. The tiers
+      # double the cells for nothing, and would make one coverage file out of two runs that
+      # share no disk -- `--cov-append` cannot reach across jobs, so it would be an artifact
+      # merge -- to answer a question nobody asked CI. The tiers
       # are how a person gets a fast loop on their own machine (`uv run pytest tests/unit`
       # while still writing it); what CI is asked is whether the whole thing passes, and
       # that is one answer, so it is one job.
@@ -142,8 +146,8 @@ jobs:
       # way. `tests/integration/coganchor/conftest.py` reaches `tests/coganchor/conftest.py`,
       # which reads `WITHOUT` out of `tests/supervising.py`, which spawns a supervisor at
       # module scope to work out whether anything here can be traced -- once per xdist
-      # worker, on both systems, on every run. Ignoring a directory the import does not go
-      # through saves none of that, and the argument above does not need it to.
+      # worker, on every run. Ignoring a directory the import does not go through saves
+      # none of that, and the argument above does not need it to.
       #
       # What `-ra` buys -- a test that quietly stops running says so -- is bought where it
       # is worth buying, on the run a contributor does before pushing: there the tier is
@@ -155,9 +159,9 @@ jobs:
       # is passed, which this job never passes; that is what covers an agent test wherever
       # it sits, including one that has not reached `tests/system/` yet.
       #
-      # `--durations` because the two systems are not the same speed and the difference is
-      # not spread evenly: a suite that spawns a CLI per test costs far more on one of them,
-      # and a list of the slowest twenty-five is how that stays visible.
+      # `--durations` because a suite that spawns a CLI per test is not evenly expensive,
+      # and a runner is not the machine anybody wrote the test on: a list of the slowest
+      # twenty-five is how the one that quietly grew a minute stays visible.
       - name: pytest
         run: >
           uv run --frozen pytest -q --durations=25 --timeout-method=thread
