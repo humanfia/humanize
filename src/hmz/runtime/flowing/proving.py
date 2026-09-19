@@ -1,6 +1,6 @@
 """A flow driven by stubs against a clock: the reading only running the file can give.
 
-:mod:`hmz.flows.checking` reads a flow without running it, and some of what a flow is only
+:mod:`hmz.runtime.flowing.checking` reads a flow without running it, and some of what a flow is only
 running can show -- the annotation built at runtime, the config model declared in a helper,
 the loop that looks bounded and is not. This is that second reading. The flow is loaded and
 driven for real, in a subprocess of its own, by agents that are stubs: every turn lands at
@@ -173,7 +173,7 @@ def proved(
       The findings and one outcome per scenario. A finding is something to fix; an outcome
       that did not finish is a flow that could not end in that world, said with why.
     """
-    from . import find, inside
+    from .finding import find, inside
 
     # Resolved here, where names still mean what the caller meant: the child runs in a
     # scratch directory of its own, against which a relative path names nothing.
@@ -257,7 +257,7 @@ def _asked(
     with tempfile.TemporaryDirectory(prefix="hmz-proving-") as scratch:
         try:
             done = subprocess.run(
-                [sys.executable, "-m", "hmz.flows.proving", flow, spec],
+                [sys.executable, "-m", "hmz.runtime.flowing.proving", flow, spec],
                 capture_output=True,
                 text=True,
                 check=False,
@@ -291,8 +291,9 @@ def _asked(
 
 
 # ---------------------------------------------------------------------------------------
-# The child: loads the flow, builds the stubs, and drives it. Run as `-m hmz.flows.proving`
-# with the flow and the scenario as its two arguments, and answers with one JSON line.
+# The child: loads the flow, builds the stubs, and drives it. Run as
+# `-m hmz.runtime.flowing.proving` with the flow and the scenario as its two arguments, and
+# answers with one JSON line.
 # ---------------------------------------------------------------------------------------
 
 

@@ -705,7 +705,7 @@ def test_a_rung_a_backend_was_told_not_to_carry_is_refused_as_a_declaration() ->
     """
     from hmz.coganchor.agents import OpencodeAgent, OpencodeAgentConfig
     from hmz.flows import NotAFlow
-    from hmz.flows.driving import Place, runs_at
+    from hmz.runtime.flowing.driving import Place, runs_at
 
     agent = OpencodeAgent(
         OpencodeAgentConfig(model="p/m", effort="high", permission_table=False)

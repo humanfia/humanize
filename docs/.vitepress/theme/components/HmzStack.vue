@@ -26,7 +26,8 @@ const NODES: Node[] = [
   { id: 'daemon', dotted: 'hmz.daemon', x: 450, y: 190, blurb: 'a run held where a terminal closing cannot end it', href: '/reference/daemon' },
   { id: 'doing', dotted: 'hmz.runtime.doing', x: 300, y: 264, blurb: 'a workspace and everything that can be done in it — hmz.runtime.Hmz', href: '/reference/sdk' },
   { id: 'runner', dotted: 'hmz.runtime.runner', x: 300, y: 338, blurb: 'finds a flow, checks it, names the agents, drives it', href: '/reference/flows' },
-  { id: 'flows', dotted: 'hmz.flows', x: 120, y: 412, blurb: 'what a flow is, where it is found, what it brings', href: '/reference/flows' },
+  { id: 'flowing', dotted: 'hmz.runtime.flowing', x: 120, y: 412, blurb: 'everything humanize does to a flow: finding, reading, checking, driving, compiling', href: '/reference/flows' },
+  { id: 'flows', dotted: 'hmz.flows', x: 120, y: 486, blurb: 'the whole of what a flow imports, and nothing else', href: '/reference/flows' },
   { id: 'exporting', dotted: 'hmz.runtime.exporting', x: 470, y: 412, blurb: 'one whole run packaged up to send somewhere', href: '/user/export' },
   { id: 'epic', dotted: 'hmz.runtime.epic', x: 470, y: 486, blurb: 'one run of one flow, written down as it happens', href: '/reference/tracing' },
   { id: 'tracing', dotted: 'hmz.runtime.tracing', x: 470, y: 560, blurb: "the backends' own logs, read back as one Chrome trace", href: '/reference/tracing' },
@@ -41,6 +42,7 @@ const EDGES: [string, string][] = [
   ['sdk', 'daemon'],
   ['tui', 'daemon'],
   ['tui', 'flows'],
+  ['tui', 'flowing'],
   ['tui', 'exporting'],
   ['tui', 'epic'],
   ['tui', 'coganchor'],
@@ -53,6 +55,7 @@ const EDGES: [string, string][] = [
   ['daemon', 'doing'],
   ['doing', 'runner'],
   ['doing', 'flows'],
+  ['doing', 'flowing'],
   ['doing', 'exporting'],
   ['doing', 'epic'],
   ['doing', 'tracing'],
@@ -60,13 +63,16 @@ const EDGES: [string, string][] = [
   ['doing', 'settings'],
   ['doing', 'telemetry'],
   ['runner', 'flows'],
+  ['runner', 'flowing'],
   ['runner', 'epic'],
   ['runner', 'coganchor'],
   ['runner', 'settings'],
   ['runner', 'telemetry'],
-  ['flows', 'epic'],
   ['flows', 'coganchor'],
-  ['flows', 'telemetry'],
+  ['flowing', 'flows'],
+  ['flowing', 'epic'],
+  ['flowing', 'coganchor'],
+  ['flowing', 'telemetry'],
   ['exporting', 'epic'],
   ['exporting', 'tracing'],
   ['exporting', 'coganchor'],
@@ -100,7 +106,7 @@ const beneath = computed(() => new Set(EDGES.filter(([f]) => f === active.value)
 const above = computed(() => new Set(EDGES.filter(([, t]) => t === active.value).map(([f]) => f)))
 
 let tour: ReturnType<typeof setInterval> | undefined
-const ORDER = ['coganchor', 'runner', 'doing', 'tracing', 'tui', 'flows']
+const ORDER = ['coganchor', 'runner', 'doing', 'tracing', 'tui', 'flowing', 'flows']
 
 onMounted(() => {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return

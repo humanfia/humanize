@@ -21,17 +21,8 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz.coganchor.agents import AgentConfig
-from hmz.flows import (
-    NotAFlow,
-    about,
-    configures,
-    drives,
-    find,
-    held,
-    load,
-    loaded,
-    resumes,
-)
+from hmz.flows import NotAFlow, load
+from hmz.runtime.flowing import about, configures, drives, find, held, loaded, resumes
 from hmz.runtime.runner import Runner
 from tests.stubs import ShellAgent, written
 

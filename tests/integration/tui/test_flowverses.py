@@ -22,8 +22,8 @@ import pytest
 from textual.widgets import Label, OptionList
 
 from hmz.coganchor.backends import Model
-from hmz.flows import ENTRY, OFFICIAL
-from hmz.flows import verses as store
+from hmz.runtime.flowing import ENTRY, OFFICIAL
+from hmz.runtime.flowing import verses as store
 from hmz.tui import Humanize
 from hmz.tui.pick import Agent, Configures, Flows
 from tests.integration.tui.test_app import into_agent, onto
@@ -491,7 +491,7 @@ async def test_a_flow_is_copied_here_to_be_changed(
 
     at = tmp_path / ".humanize" / "flows" / "chat"
     assert "one agent, one session" in (at / "__init__.py").read_text()
-    from hmz.flows import find
+    from hmz.runtime.flowing import find
 
     assert find("chat") == str(at / "__init__.py")
 

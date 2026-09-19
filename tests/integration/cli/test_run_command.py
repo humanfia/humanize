@@ -19,7 +19,8 @@ import pytest
 
 from hmz.cli import main
 from hmz.coganchor.agents import PERMISSIONS, UNSAID, AgentConfig
-from hmz.flows import BUILTIN_AT, ENTRY, NotAFlow
+from hmz.flows import NotAFlow
+from hmz.runtime.flowing import BUILTIN_AT, ENTRY
 from hmz.runtime.runner import Runner
 from tests.stubs import ShellAgent, written
 
@@ -281,7 +282,7 @@ def test_a_named_tuple_says_what_each_agent_is_for_as_well_as_how_many(
     tmp_path: Path,
 ) -> None:
     """A flow that named its agents is handed the type it asked for, and they answer to it."""
-    from hmz.flows import drives
+    from hmz.runtime.flowing import drives
 
     flow = _flow(tmp_path, NAMED)
     assert drives(flow) == ("builder", "reviewer")
@@ -469,7 +470,7 @@ def test_the_person_at_the_prompt_is_an_agent_nobody_is_asked_to_configure(
     tmp_path: Path,
 ) -> None:
     """A flow says it talks to them; it is handed one, and what they answer with is typed."""
-    from hmz.flows import drives
+    from hmz.runtime.flowing import drives
 
     flow = _flow(tmp_path, PEOPLED)
     # Two places, one of them the person -- so one agent is asked for and one is given.
@@ -516,7 +517,7 @@ def test_a_flow_whose_only_side_is_the_person_names_no_agent_at_all(
     Nobody chooses what the person runs, so a flow whose only side is them has everything it
     needs the moment it is named -- and a line that named no agent is not short of anything.
     """
-    from hmz.flows import drives
+    from hmz.runtime.flowing import drives
 
     flow = _flow(tmp_path, ALONE)
     assert drives(flow) == ()
@@ -580,7 +581,7 @@ def run(agents: Agents, task: str) -> None:
 def test_a_flow_says_what_each_agent_has_to_be_able_to_do(tmp_path: Path) -> None:
     """Beside the type, where the flow declares the place -- and read back before the run."""
     from hmz.coganchor.agents import Moment
-    from hmz.flows import drives, wanted
+    from hmz.runtime.flowing import drives, wanted
 
     flow = _flow(tmp_path, DEMANDING)
 
@@ -632,7 +633,7 @@ def test_what_a_place_asks_for_is_said_where_it_is_refused(tmp_path: Path) -> No
 
 
 def test_a_plain_tuple_says_how_many_agents_and_nothing_more(tmp_path: Path) -> None:
-    from hmz.flows import drives
+    from hmz.runtime.flowing import drives
 
     assert drives(
         _flow(tmp_path, RECORD.replace("AGENTS", "AgentBase, AgentBase"))
@@ -819,7 +820,7 @@ def test_a_flow_of_your_own_is_found_where_flows_live(
     one of yours sharing a name with one of humanize's is listed beside it under a name of its
     own rather than instead of it.
     """
-    from hmz.flows import find, found
+    from hmz.runtime.flowing import find, found
 
     home, project = tmp_path / "home", tmp_path / "project"
     for where in (home / ".humanize/flows", project / ".humanize/flows"):

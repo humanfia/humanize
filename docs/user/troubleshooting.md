@@ -24,7 +24,7 @@ hmz exec -f rlar -a claude/claude-opus-4-8:high -a claude/claude-opus-4-8:high "
 Ask a flow how many it wants without running it:
 
 ```python
-from hmz.flows import drives
+from hmz.runtime.flowing import drives
 
 print(drives("rlar"))   # ('actor', 'reviewer')
 ```

@@ -20,9 +20,9 @@ from typing import TYPE_CHECKING, Any
 
 from hmz.coganchor import AnchorConfig
 from hmz.coganchor.agents import AgentBase, CommandSessionBase
-from hmz.flows import ENTRY
-from hmz.flows.skills import SKILLS
 from hmz.runtime.epic import JOURNAL
+from hmz.runtime.flowing import ENTRY
+from hmz.runtime.flowing.skills import SKILLS
 
 if TYPE_CHECKING:
     import os

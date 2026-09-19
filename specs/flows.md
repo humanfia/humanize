@@ -7,21 +7,14 @@
 ├── __init__.py
 ├── agent.py
 ├── atlas.py
-├── builtin
-├── checking.py
-├── driving.py
-├── prophesying.py
-├── proving.py
-├── skills.py
-├── stepping.py
-└── verses.py
+└── builtin
 ```
 
-What a flow is: what it drives, what it is called, where it is found, which of the ones it holds was
-asked for, what it brings with it, and what it takes for one flow to run another. Nothing here reads
-a command line and nothing here opens an epic: `hmz.runtime.runner` does both, and asks this what
-the flow it was named says about itself. A call asks the epic already open for a record to be
-written into, which is not a second epic: it is part of the one run.
+The whole of what a flow imports, and nothing else: what it drives, the mark that makes a
+function a flow, the marks an atlas declares its graph with, and the vocabulary a turn is
+described in. Nothing here finds a flow, reads one, runs one or compiles one -- all of that is
+`hmz.runtime.flowing`, specified in [flowing.md](flowing.md), which is written against this and
+which nothing here imports at the top of its file.
 
 This MUST be the whole of what a flow imports. A flow is content -- somebody else's
 repository, forked and edited -- and one that named `hmz.coganchor.agents` for the type of what it
@@ -29,9 +22,15 @@ drives and `hmz.coganchor.backends` for a fact about a CLI would be a flow that 
 humanize moves either. So the one import a flow writes MUST be `hmz.flows`, and whatever a
 flow legitimately needs that is written down in another layer MUST be handed through from
 here rather than reached for. What is handed through MUST be fetched when a flow names it
-rather than imported with this module: this is also what a list of flows is drawn from and
-what `hmz exec --help` loads, neither of which MUST pay for every coding agent driver there
-is.
+rather than imported with this module: this is also what a command line is routed through
+before it knows whether it names a flow at all, and that MUST NOT pay for every coding agent
+driver there is.
+
+What MUST NOT be here is everything humanize does *to* a flow. A flow declares itself and
+humanize does the reading, so a module that only ever reads, lists, checks, compiles or drives
+a flow is a module no flow can name and therefore no flow can break on: it MUST live in
+`hmz.runtime.flowing` instead. What is left here MUST be the interfaces, the marks and the
+hand-through, and MUST hold as little implementation as saying that takes.
 
 A flow MUST be a module, and there MUST be two shapes of one: a directory with an
 `__init__.py` in it -- beside whatever it imports and a `skills/` of the skills it works by --
@@ -76,12 +75,6 @@ class Flow:
     budget: Allowance | None = None
 
 
-class Offer(NamedTuple):
-    whose: str
-    name: str
-    about: str = ""
-
-
 def flow[**P, T](
     call: Callable[P, T] | None = None,
     /,
@@ -90,45 +83,16 @@ def flow[**P, T](
     about: str = "",
     skills: Iterable[str] = (),
     resumable: bool = False,
+    selectable: bool = True,
     budget: Allowance | None = None,
 ) -> Callable[P, T] | Callable[[Callable[P, T]], Callable[P, T]]: ...
 
 
-def declared(flow: str | os.PathLike[str]) -> Allowance | None: ...
-
-
-def loaded(where_: str | os.PathLike[str]) -> dict[str, Any]: ...
-
-
-def held(where_: str | os.PathLike[str]) -> list[Flow]: ...
-
-
-def at(named_: str) -> str: ...
-
-
-def offers(one: Flowverse) -> list[Offer]: ...
-
-
-def found() -> list[Offer]: ...
-
-
-def find(named_: str) -> str: ...
-
-
-def inside(named_: str) -> str: ...
-
-
-def about(named_: str) -> str: ...
-
-
-def reading(named_: str) -> str: ...
-
-
-def foretold(named_: str) -> str: ...
-
-
 def __getattr__(name: str) -> object: ...
 ```
+
+The mark that makes a function a flow, what that mark says, and the one door everything else a
+flow writes is reached through.
 
 - A flow MUST be a function marked with `flow`, and nothing else MUST be one: a flow is read by
   running its entry point, and which of the functions that leaves behind is a flow is the
@@ -165,59 +129,24 @@ def __getattr__(name: str) -> object: ...
 - What a flow says about itself MUST be the first line of its docstring where the decorator was
   not told one, and for a file that is one flow MUST fall back to the file's own docstring: a
   file that is one flow is documented as that flow.
-- What a reading of a flow is pointed at MUST be worked out in one place, and MUST NOT be
-  what runs it: both readings take the whole of a flow -- the directory where there is one,
-  so that what the entry point imports beside it is read too, and the file where there is
-  not -- while what runs it is the entry point. Two rules for that is two rules to drift.
-- A name MUST resolve to the `__init__.py` of the directory called that, else to the `.py`
-  file called that. A path given outright MAY be either, and MUST be taken in both shapes:
-  a path with the extension left off is how a single-file flow is written down everywhere a
-  name is not, and one shape resolving where the other does not is a flow that is offered and
-  cannot be run.
-- A flow's directory MAY hold the prophecy its atlas was already compiled to, beside the
-  entry point. Where there is one it MUST be what runs: the compiling is where an atlas is
-  refused, and a repository that has been through it has an answer worth carrying rather than
-  working out again at every run. What is beside it MUST still be there -- a prophecy names
-  the functions its nodes are, and those are in the flow's own Python -- so a directory
-  holding a prophecy and no entry point MUST NOT be a flow, the same way one holding neither
-  is not.
-- A flow MUST be found by name: humanize's own by a bare name, wherever of its two places it
-  is kept, and every other by the place it came from -- `local/scheduler`, `theirs/rlar`. The
-  flows of your own MUST be a place like any other, so that one rule says what a flow is called
-  and one list says where they are. Nearest MUST win -- this project's flows, then yours, then
-  whatever there is to run -- so that a project may mean its own `chat` by `chat`. A name
-  qualified by the place it came from MUST be that place's, and MUST NOT be stood in for.
-- A flow MUST be run to be read, with its own directory and the directory the flows are in
-  importable while it runs and only while: what a flow imports is not something the rest of
-  the process should be able to.
-- It MUST be run afresh each time it is read or run, and MUST NOT be cached: a flow rewritten
-  between two runs of it -- by hand, or by an agent it is itself driving -- MUST be run as it
-  is now. That is what makes a flow, and the skills it brings, a thing a run can improve.
-- Reading what a file holds MUST answer with nothing for a file that will not run: it is asked
-  while a list is being drawn, and a file that will not import is one line of that list rather
-  than the end of it.
-- A file that runs and holds no flow MUST NOT be offered as one -- a directory of flows holds
-  what they import and what sets their tests up -- but one that will not run MUST be, under the
-  name it would have had: it is a flow somebody named, and saying so where it is picked beats
-  hiding it.
-- What one place offers MUST be worked out in `offers` and nowhere else, and `found` MUST be
-  that asked of each place in turn -- the flows of your own included, which is what makes them
-  a place rather than an exception. Anything wanting a single one's flows MUST ask it too
-  rather than building a name from a filename: a file may hold several flows and the file
-  beside it none, so a name spelled out anywhere else is a name `-f` would refuse -- and two
-  places deciding what a flow is called is two places to drift.
 - A flow MAY say it is not to be offered in a list of them. A flow reached only by another
   flow -- one phase of a thing, an engine two flows share -- is a flow to call by name and not
   a flow to start, and one that appeared in the picker would be a line nobody can act on.
-- This module MUST be everything a flow imports, which is the interfaces beside it, the mark,
-  the finding, the calling, the checking, and what is written down in another layer handed
+- This module MUST be everything a flow imports, which is the interfaces beside it, the marks
+  an atlas is written with, the mark itself, and what is written down in another layer handed
   through: the vocabulary a turn is described in, the facts about the CLIs and what each of
-  them runs, and
-  where humanize keeps what outlives a run. What is handed through MUST be the same object the
-  layer it is written in holds, so that a flow and humanize are talking about one thing.
-- What is handed through MUST be fetched when it is asked for. Importing this module MUST cost
-  no more than reading a directory: a menu of flows is drawn from it, and a command line is
-  routed through it before it knows whether it names a flow at all.
+  them runs, where humanize keeps what outlives a run, and what it takes for one flow to run
+  another. What is handed through MUST be the same object the layer it is written in holds, so
+  that a flow and humanize are talking about one thing.
+- What is handed through MUST be fetched when it is asked for, by name and never by import.
+  Importing this module MUST cost no more than reading a directory: a menu of flows is drawn
+  from it, and a command line is routed through it before it knows whether it names a flow at
+  all.
+- Some of what is handed through is written in the layer *above* -- `load`, which is one flow
+  running another, is a run and runs are the runtime's. That MUST be handed through the same
+  way as everything else and MUST NOT be imported: a flow that never calls another flow MUST
+  NOT pay for the runtime by writing `@flow`, and the arrow between the two layers MUST go on
+  pointing one way whenever anything is actually running.
 
 ## `agent.py`
 
@@ -361,436 +290,9 @@ What a flow drives, written as interfaces and nothing else.
   turn's own commands are reached there. A second word for a capability that already has one
   is a generated flow asking for what nothing answers to.
 
-## `driving.py`
-
-```python
-type Entry = Callable[..., Awaitable[None] | None]
-
-
-class NotAFlow(ValueError): ...
-
-
-class Place(NamedTuple):
-    name: str
-    person: bool
-    moments: frozenset[Moment]
-    where: type[Remote] | Remote | Isolated | None = None
-    goal: bool = False
-    permission: str = ""
-    goals: bool = True
-    web_search: bool | None = None
-    needs: Needs | None = None
-
-
-class Running(NamedTuple):
-    flow: str
-    since: float
-    depth: int = 0
-    under: Running | None = None
-
-
-def drives(flow: str | os.PathLike[str]) -> tuple[str, ...]: ...
-
-
-def container() -> Mapped | None: ...
-
-
-@contextlib.contextmanager
-def contained(
-    image: str, workspace: str = ""
-) -> Generator[MachineConfig | None]: ...
-
-
-def lands_in(agents: Sequence[Agent], where_: MachineConfig) -> None: ...
-
-
-def wanted(flow: str | os.PathLike[str]) -> tuple[Place, ...]: ...
-
-
-def configures(flow: str | os.PathLike[str]) -> type[BaseModel] | None: ...
-
-
-def resumes(flow: str | os.PathLike[str]) -> bool: ...
-
-
-def carries(flow: str | os.PathLike[str], agents: Sequence[Agent]) -> None: ...
-
-
-def load(flow: str | os.PathLike[str], *, inherit_skills: bool = False) -> Entry: ...
-
-
-def running() -> tuple[Running, ...]: ...
-
-
-def declares(
-    flow: str | os.PathLike[str],
-) -> tuple[
-    Entry,
-    tuple[Place, ...],
-    Callable[..., tuple[Agent, ...]],
-    type[BaseModel] | None,
-    Flow,
-]: ...
-
-
-def set_up(
-    flow: str | os.PathLike[str],
-    setting: type[BaseModel] | None,
-    config: BaseModel | dict[str, Any],
-) -> BaseModel: ...
-
-
-def serves(flow: str | os.PathLike[str], agent: Agent, place: Place) -> None: ...
-
-
-def comes_to(backend: str) -> frozenset[str]: ...
-
-
-def lands(
-    flow: str | os.PathLike[str],
-    agent: Agent,
-    place: Place,
-    *,
-    container: str = "",
-) -> None: ...
-
-
-def runs_at(
-    flow: str | os.PathLike[str], agent: Agent, place: Place
-) -> AgentConfig: ...
-
-
-def entered(flow: str, agents: Sequence[Agent] = ()) -> Running: ...
-
-
-def left(one: Running) -> None: ...
-```
-
-What a flow says it drives, read off its own entry point, and what it takes for one flow to
-run another. `hmz.runtime.runner` asks this and then opens an epic around the answer.
-
-- A flow's entry point MUST take `(agents: tuple[...], task: str)`, and that tuple MUST be of
-  a fixed length: how many agents the flow drives is the one thing about a flow that a command
-  line running it cannot otherwise know. It MUST be readable where the flow runs rather than
-  only where a type checker looks, since a count nothing can read back is not one a command
-  line can be held to.
-- A `NamedTuple` of agents MUST be accepted in its place, and MUST additionally say what the
-  flow calls each of them. `drives` MUST report those names, so that whatever asks for the
-  agents asks for them by what they are for rather than by their place in a line; a plain tuple
-  MUST report a name apiece that is empty, having said nothing but how many.
-- A flow that runs one of its agents under the backend's own goal feature MUST say so where it
-  declares the place, by writing `Goal` beside the type, and an agent whose backend has none
-  MUST be refused before the first turn -- for the reason a moment it cannot run is: a loop
-  built on `pursue` finds out in the middle of a turn otherwise, hours in. What each backend
-  has MUST be said on the agent rather than asked of it, so that whoever is choosing one can
-  offer only the ones that would work.
-- Where an agent works MUST be the flow's to say rather than a setting anybody may reach for,
-  and MUST be settled here: a place that says nothing runs on this machine and MUST refuse an
-  agent pointed anywhere else.
-- A flow built on something only some backends serve, or on work that has to happen somewhere
-  in particular, MUST be able to say so where it declares the place -- `Needs` -- and MUST be
-  refused an agent or a machine that does not answer, before the first turn. It is the same
-  bar a moment and a `Goal` are held to and for the same reason: a flow that finds out from
-  the call which reached for the thing finds out hours into a loop, from inside a turn rather
-  than from the line that chose the agent.
-- What it asks for MUST be asked for by name, and the names MUST be the ones everything else
-  here already goes under -- `checking.py`'s catalogue -- so that what a flow may ask for and
-  what an installation serves are one vocabulary rather than two that drift. A name nothing
-  serves MUST be a flow to correct rather than a second vocabulary quietly growing.
-- What the backend has to serve MUST be read off the driver class and off the facts written
-  down about the CLI, and MUST NOT need an agent to have opened anything: the answer has to be
-  there before a session, a container or a turn has cost anything.
-- What the machine has to come to MUST be read off that machine's settings rather than off a
-  machine -- `MachineConfig.capabilities` -- for the same reason: a place that will not do MUST
-  be refusable before an image has been pulled or a connection made. A capability only a live
-  handshake can answer MUST NOT be asked here, and MUST NOT be asked twice: a machine that
-  turns out not to be what its settings promised already fails as it starts. What no setting
-  answers for MUST NOT be offered as something to ask for, a requirement nothing can ever
-  satisfy being a run that never starts rather than a flow that is careful.
-- An agent pointed nowhere works on this machine, which comes to nothing at all, so a place
-  that needs anything of where it works MUST be refused one. A place the flow itself put in a
-  container MUST be checked against the container it named, and MUST be checked before the
-  agent is put in it: a refusal leaves whoever was driving that agent driving what they had,
-  and one that had already moved it would hand back an agent pointed somewhere.
-- A whole run put in a container from outside MUST be counted as where that run's work lands,
-  even though nothing is pointed at it until the run starts. Otherwise a place needing
-  somewhere remote would be refused at the top of a run that is about to put every agent of
-  it somewhere remote, and allowed inside that same run where one flow called another.
-- The check MUST be the same one wherever an agent is handed to a flow -- at the top of a run
-  and where one flow calls another -- so that a flow which passes as it is started cannot fail
-  in the middle of the run that started it.
-- Whatever is *choosing* an agent MUST be able to ask the same question before there is one,
-  by backend rather than by agent, so that a CLI which could not fill a place is not offered
-  for it and then refused where the run is set up.
-- What an agent may do, whether it has goals and whether it may search the web MUST be read
-  off the place the same way, out of the `AgentDefaults` a flow wrote beside it, and MUST be
-  settled onto the agent here -- `runs_at` -- before its first turn and over whatever it was
-  constructed with. A place that wrote none MUST come out with nothing said about what its agent
-  may do, goals on and nothing said about the web, so that its turns are the turns that CLI takes
-  when somebody starts it themselves; a place run under a `Goal` MUST come out with goals
-  whatever else it wrote.
-- A backend that cannot be told one of them MUST be refused as `NotAFlow`, naming the place
-  and saying what the backend said: a flow that declares its agent may not search the web
-  cannot be driven by a CLI that would go on searching, and a declaration nobody can carry out
-  is a run to refuse rather than a setting that lies.
-- `runs_at` MUST answer with what the agent was set up as before it, so that a flow which
-  called another can hand the agents back exactly as it found them.
-- A whole run MAY be put in one container from outside, which is a convenience and not a second
-  way of saying where an agent works: it is said once, about all of them, by whoever started
-  the run. One container MUST be started for the run rather than one per agent -- the agents are
-  working on one thing, and two containers under one run would be two workspaces the second
-  agent could not see the first's work in -- and it MUST be taken down however the run ends.
-- Every agent MUST be pointed at it, over whatever each was configured with, since that is what
-  saying it once about all of them means. Two MUST be left alone: a place the flow itself
-  declared `Isolated`, where an agent works being the flow's to say, and the person at the
-  prompt, who takes no turn anywhere.
-- The flow's own reads, writes and commands MUST be able to reach it too. A container is handed
-  the project directory at the path it already has, so a file the flow opens is already the file a
-  turn opened; a command it runs is not, being run by this machine's shell against this machine's
-  tools, which is the thing a container was reached for to avoid. So the run's container MUST be
-  askable for, and MUST answer with the workspace as that machine has it --
-  `hmz.coganchor.machines.Mapped`. A run on this machine MUST answer with nothing, a flow there
-  doing what it always did.
-- Everything here MUST read the flow as it is now, by running it. A flow rewritten between two
-  readings -- by hand, or by an agent it is itself driving -- MUST be read as it is now, which
-  is what makes a run that improves its own flow a run that then drives the improved one.
-- Anything the flow itself raises as it is read MUST be left alone. `NotAFlow` MUST be for a
-  line to correct and nothing else, so that a flow whose own setup fails is not reported as a
-  command line to fix.
-- `load` MUST answer with one flow ready for another flow to run, found by the same name `-f`
-  takes: a flow is a loop over agents, and a loop worth having is one another loop can reach
-  for. A name nothing answers to MUST be refused where it is asked for rather than where the
-  answer is called, so that a flow which asks for another by the wrong name says so at once
-  rather than an hour into a loop. What it answers MUST be called the way the flow itself is --
-  the agents, the task, and the config for one that takes one -- and MUST answer with whatever
-  the flow answers with, so that a flow written as a coroutine is awaited by whoever called it.
-- A called flow MUST be handed the agents it declares, as the tuple it declared them as, and
-  MUST be handed one fewer where it talks to the person, whom nothing chooses. It MUST NOT
-  rename them: they belong to the run that was started, and a name changed under it would
-  change what has already been written down.
-- A called flow MUST carry its own skills and no others, and the agents MUST be handed back
-  carrying what they carried before it: the skills are the flow's, and a flow that called
-  another goes on being driven by its own. A caller MAY say the ones it carries stay reachable,
-  and the called flow MUST still win a name they both use.
-- What a called flow declares its agents run at MUST hold for the length of the call and MUST
-  be handed back the same way, however the call ends: the flow driving an agent is the one
-  entitled to say what it may do, and a call is over when it returns.
-- A called flow that says it can be picked up MUST be handed its own kept state, under its own
-  name, in the epic of the run that called it: a flow that called another is two flows, each
-  with its own to keep, and both of them part of one run.
-- A called flow MUST be written into a record of its own, inside the record of the flow that
-  called it, and what it opens while it runs MUST go there rather than into the record of
-  whatever started the run: a flow that called another is two flows, and each of them ran.
-  Which record a call goes under MUST be read off the flow that made it rather than off the
-  agents it was made with, or a call made from inside one of two flows sharing agents would be
-  filed under whichever of the two moved those agents last. Its agents MUST be pointed back at
-  what they were writing to when the call returns, however it returns, the way they are handed
-  back the skills they carried. A call from a flow that nothing is keeping a record of MUST run
-  and write nothing rather than fail.
-- A run of flows calling flows MUST be tracked as the tree it is rather than as a list. Each
-  flow MUST say what called it and how deep it is, and which flow called it MUST be read off
-  the task the call was made from: a flow written as a coroutine may have two calls going at
-  once, those two run at the same moment and on one thread, and neither of them is under the
-  other. A list would say one of them was.
-- `running` MUST answer with the branch it is asked from where it is asked from inside a flow:
-  the one somebody started, then each flow that had to be called to get here, innermost last.
-  That is the whole of what a flow can truthfully be told -- a flow gathering two calls has a
-  sibling running beside it that is not running under it and is none of its business -- and it
-  MUST NOT report one level twice however many of that level are running at once. Asked from
-  outside every flow it MUST answer with all of them, oldest first, since from outside there is
-  no branch to be on and the interface has a whole run to draw. Nothing else can say either:
-  a flow is a Python file that may branch any way it likes, so what it is doing is only visible
-  where it was started and where it asked for another. A flow MUST come off that branch however
-  it ends -- being cancelled where it waited among them included -- and a call MUST be written
-  into the epic at both ends, saying which record it was written to, a run being what it did as
-  well as what it was started as.
-- A call that never ran MUST have taken nothing. A flow written as a coroutine has not run when
-  the call to it is written, and one gathered and then cancelled before its first step never
-  runs at all: a call put on the branch, given a record and handed the agents by the making of
-  it would be a call nothing ever ends, holding agents nothing ever hands back. So all of that
-  MUST happen where the flow itself starts -- which is also the only place it can, the branch
-  being the task's and two gathered calls being two tasks. What a call is refused for MUST go
-  on being said where the call was written: the wrong agents, a config the flow will not take,
-  a chain with no bottom.
-- What is running MUST be checked against the threads running it. A flow says it has ended as
-  it ends, but only one that got the chance to: a flow abandoned where it stood -- an interface
-  taken down under it -- would otherwise be reported as running for the life of the process,
-  and everything that reads this would name a flow that is no longer there.
-- An agent that two calls are driving at once MUST go on writing where both of them were
-  called from, and MUST carry what that flow gave it. Neither call may have it: a session
-  opened by an agent two flows share is part of the flow they share, and writing it into
-  whichever of the two started last would file it under a flow that merely happened to be
-  there. A branch that wants a record of its own MUST hand over an agent of its own, which is
-  what `Agent.clone` and `drives` are for. However two such calls end, and in whatever order,
-  every agent MUST be handed back what it was before the first of them took it rather than
-  what the call that is ending happened to see.
-- A caller MAY say what the flow it is calling drives one of its places at, naming the place by
-  what the called flow calls it or by what the agent filling it is called. What fills that place
-  MUST then be a clone at that config rather than the agent set up again -- what an agent is is
-  settled where it is made -- and MUST be checked exactly as the agent it stands in for would
-  have been. A name the called flow does not drive MUST be refused where the call was written,
-  and so MUST the person at the prompt, who takes no turn anywhere and so runs nothing to be
-  driven at.
-- A chain of flows calling flows MUST have a bottom, and a call past it MUST be refused as
-  `NotAFlow` naming the flow and how it got there. There is no natural one -- a flow may call
-  itself, and one that decides how deep to go from its own config or from what a model said may
-  decide wrong -- and what an unbounded chain comes to is a `RecursionError` out of whatever
-  the innermost call happened to be importing, which names no flow and blames the wrong line.
-  The bottom MUST be higher than any chain written on purpose reaches and lower than the
-  interpreter's own limit, since it is there to name a mistake rather than to ration a design.
-- What a report of a failure says about the run it happened in MUST be registered here, and
-  MUST be names and never contents: which flow, how long it has been going, and for each of its
-  agents what it drives and at what. What the flow was told, what any agent said and what is in
-  any file MUST NOT be there nor reachable from what is.
-- `resumes` MUST answer whether a flow says so now, read by running the flow rather than off
-  what a run of it recorded: a flow is a directory on disk, and what can happen next is what it
-  says today.
-- `configures` MUST answer with the model a flow says it can be set up with, which is the whole
-  of what may be asked: the fields, their types, what each is for and the combinations the flow
-  refuses are already written down in it, so whatever is starting a flow can put the questions
-  without knowing what any of them mean.
-- `set_up` MUST read a config back through the model this reading of the flow declared rather
-  than take one as it comes: a flow is loaded by running its file, so the class it declared last
-  time is a stranger to the class it declares this time, and what survives that is the fields.
-
-## `checking.py`
-
-```python
-class Finding(NamedTuple):
-    code: str
-    severity: Literal["error", "warning"]
-    where: Path
-    line: int
-    said: str
-
-
-def checked(flow: str | os.PathLike[str]) -> tuple[Finding, ...]: ...
-
-
-def surface(protocol: type) -> frozenset[str]: ...
-
-
-def offered() -> frozenset[str]: ...
-```
-
-The static read of a flow's legality: what will not run, said before anything runs it.
-`driving.py` refuses a flow as it loads it, and loading a flow means running its file -- so
-this is the reading for a flow nobody has read yet, generated or fetched or forked, and it is
-the first of two: what only running the file can show is `proving.py`'s, in a process of its
-own.
-
-- `checked` MUST NOT import or execute anything of the flow it reads. It is pointed at
-  untrusted code -- that is what it is for -- and a checker that ran what it was checking
-  would be the attack it exists to catch. Every file the flow's directory holds MUST be read,
-  except what is under its `skills/`, which is content for the agents rather than code.
-- It MUST answer with findings rather than raise, and every finding MUST carry a code, a
-  severity, a file and a line: a checker is asked so that everything wrong can be said at
-  once, and a finding that cannot say where it is is a finding nobody can act on.
-- `error` MUST be kept for a flow that cannot run, cannot be answered, or cannot end --
-  something no run of it survives -- and `warning` for a flow that runs and may be regretted.
-  A flow with no error findings MUST be one `driving.py` would load, as far as reading can
-  tell; nothing here MUST refuse a flow for style.
-- Every rule MUST be the proof of an absence, worked out one function at a time: no exit in
-  this loop, no bound in this function, no guard on this name. Nothing MUST claim an exit
-  reachable or a bound tight, and nothing MUST follow a value through a call -- a flow that
-  keeps its loop in one function and its bound in another is a flow this reading trusts,
-  since a rule that guessed further would refuse flows that run.
-- A loop that takes a turn of an agent MUST NOT be read as one nothing can end. Every session
-  of every backend is held to the run's allowance, and a turn taken once that is spent raises
-  rather than answering -- so such a loop ends wherever it is, and calling it an error would
-  be the checker requiring the very thing a flow MUST NOT do, which is hold itself to a budget
-  of its own. It MUST still be said, as a warning: a loop whose only end is the allowance
-  stops rather than finishes, and how long that takes is what somebody set rather than
-  anything the flow decided. What the warning tells a flow to add MUST NOT be a budget read
-  off `spent()`.
-- What an agent may be asked MUST be read off the interfaces in `agent.py` themselves, which
-  is `surface`, and what a flow may import MUST be read off this package's own tables, which
-  is `offered`: the checker states what the interface is, so a second copy of either would be
-  the drift it checks for.
-- What a flow declares its agents run at MUST be read here too, the flow being the one that
-  says it: a rung no backend has a word for MUST be an error wherever it is written, and so
-  MUST a place declared under a goal and without goals at once -- one flow saying two things
-  about one agent, of which only one can be done. The rungs there are MUST be read off
-  `hmz.coganchor.agents` rather than written down again.
-
-## `proving.py`
-
-```python
-class Scenario(NamedTuple):
-    name: str
-    verdict: bool | None
-    answer: str
-    climb: float = 100_000.0
-    turns: int = 200
-    seconds: float = 60.0
-
-
-NEVER_DONE: Scenario
-ALWAYS_DONE: Scenario
-SILENT: Scenario
-
-
-class Outcome(NamedTuple):
-    scenario: str
-    finished: bool
-    turns: int
-    said: str
-
-
-class Proof(NamedTuple):
-    findings: tuple[Finding, ...]
-    outcomes: tuple[Outcome, ...]
-
-
-def proved(
-    flow: str | os.PathLike[str],
-    *,
-    name: str = "",
-    config: Mapping[str, object] | None = None,
-    scenarios: tuple[Scenario, ...] = (NEVER_DONE, ALWAYS_DONE),
-) -> Proof: ...
-```
-
-The second of the two readings: the flow loaded and driven for real, by stubs, so that what
-only running the file can show is shown -- and shown in milliseconds, since every turn lands
-at once and costs what the scenario says.
-
-- The flow MUST be run in a process of its own, one per scenario, and the clock MUST be held
-  by the asking process: loading a flow means running its file, and a flow that hangs, spins
-  or corrupts what it touches must be able to be killed without taking the checker with it.
-  Nothing of the flow MUST execute in the asking process.
-- Every proof MUST end. A flow that takes turns is ended by the cap on them, one that takes
-  none by the clock, and which of the two it was MUST be said in the outcome: they are the
-  two ways a flow fails to stop, and the fix is different.
-- The stubs MUST claim every capability there is -- every moment, a goal feature, shapes,
-  tools -- since what is on trial is the flow and not the agents: refusing an agent that
-  cannot fill a place is the loading's job, done where the agents are real. Beneath the
-  claims they MUST be the real driver base classes, so that the hooks a flow hangs fire as
-  they would under a real backend, and a `Stop` hook that refuses is a counted turn.
-- A scenario MUST answer deterministically, whatever it is asked: every boolean field of a
-  shaped answer says its verdict, every string field says its answer, and a verdict of None
-  is a turn that answers nothing -- which is what a failed turn answers, so the silent
-  scenario is every guard tried at once. `NEVER_DONE` MUST be among the default scenarios:
-  the reviewer that never says done is the question every loop must have an answer to.
-- The world a proof runs in MUST sleep for free and MUST work in a scratch directory taken
-  away with the process: the rest a loop takes between rounds and the files it writes while
-  being proved are no part of its shape.
-- The stubs MUST be held to the allowance the flow itself declared and to no other. A real
-  run's allowance is whoever started it's, and a proof standing on one would pass a loop that
-  never ends because somebody's money ran out -- which is a proof of nothing about the flow.
-  A flow that declared one and reaches the end of it MUST read as a flow that finished: it
-  claimed in its own file that a run of it ends there, and this is that claim being tried.
-- A flow the loading refuses MUST come back as a `refused-load` finding rather than a raise,
-  and the config rules MUST be run again on the model the loading actually resolved: a model
-  built out of the static reading's sight is still the one whoever sets the flow up meets.
-
 ## `atlas.py`
 
 ```python
-AGENTS: str
-CONFIG: str
-INPUT: str
-
 type Kind = Literal["mind", "logic", "atlas"]
 
 
@@ -808,62 +310,6 @@ class Marked:
 @dataclass(frozen=True, slots=True)
 class Sub:
     named: str
-
-
-class Field(NamedTuple):
-    name: str
-    shape: str
-    required: bool
-
-
-class Shape(NamedTuple):
-    name: str
-    fields: tuple[Field, ...] = ()
-
-
-class Reads(NamedTuple):
-    reads: str
-    field: str = ""
-
-
-class When(NamedTuple):
-    reads: str
-    field: str
-    truth: bool
-
-
-class Node(NamedTuple):
-    at: str
-    kind: Kind
-    calls: str
-    takes: tuple[Reads, ...] = ()
-    binds: str = ""
-    gives: str = ""
-    rerun: bool = True
-    under: str = ""
-
-
-class Edge(NamedTuple):
-    out_of: str
-    into: str
-    when: When | None = None
-    answers: str = ""
-
-
-class Prophecy(NamedTuple):
-    name: str
-    takes: str
-    gives: str
-    config: str
-    agents: tuple[str, ...]
-    nodes: tuple[Node, ...]
-    edges: tuple[Edge, ...]
-    shapes: tuple[Shape, ...]
-    prophecies: tuple[Prophecy, ...] = ()
-
-    def node(self, at: str) -> Node | None: ...
-    def out_of(self, at: str) -> tuple[Edge, ...]: ...
-    def under(self, named: str) -> Prophecy | None: ...
 
 
 def atlas[**P, T](
@@ -888,31 +334,15 @@ def logic[**P, T](
 
 
 def sub(named: str) -> Sub: ...
-
-
-def canonical(prophecy: Prophecy) -> str: ...
-
-
-def digest(prophecy: Prophecy) -> str: ...
-
-
-def kept(prophecy: Prophecy) -> bytes: ...
-
-
-def told(said: bytes) -> Prophecy | None: ...
-
-
-class Shipped(NamedTuple):
-    at: Path
-    prophecy: Prophecy | None
-
-
-def shipped(under: str | os.PathLike[str]) -> Shipped | None: ...
 ```
 
-What an atlas is written in, and the prophecy it compiles to. A flow is a Python file that may
-branch any way it likes, and the one thing nothing can ask it is what it is about to do; an
-atlas is the other bargain, and this is the vocabulary of both halves.
+What an atlas is written in. A flow is a Python file that may branch any way it likes, and the
+one thing nothing can ask it is what it is about to do; an atlas is the other bargain, whose
+body is a declaration in a narrower Python and whose shape is therefore a graph that exists
+before anything does. This MUST be the half of that an atlas author writes: the marks and
+nothing else. What they compile *to* MUST be `hmz.runtime.flowing.prophecy`, and the compiling
+itself `hmz.runtime.flowing.prophesying` -- neither of which an atlas names, and so neither of
+which MUST be here.
 
 - An atlas MUST be a flow. It MUST carry everything `flow` marks a flow with as well as its
   own mark, so that everything which already finds, lists, names, refuses and runs a flow goes
@@ -939,294 +369,3 @@ atlas is the other bargain, and this is the vocabulary of both halves.
   would be a graph with a hole where a node should be -- which is the one thing a prophecy is
   for not having. What `sub` answers with MUST never be called: the body it is written in is
   read rather than run, and a call MUST say so rather than do something surprising.
-- A prophecy MUST be canonical: two readings of the same atlas MUST answer with the same
-  bytes, and everything in one MUST be ordered by what it is rather than by where it was
-  written. A body reformatted, a comment added, or two nodes swapped where nothing depends on
-  the order MUST compile to the same text -- which is what makes `digest` worth writing down.
-- A node MUST be a call site rather than a function: a body that calls one thing twice is a
-  graph with two nodes in it, each with its own answer and its own place in the run. What a
-  node is called MUST be read off the body's shape rather than off a line number, so that a
-  file reformatted compiles to the prophecy it already was.
-- A node's arguments MUST be read by name rather than off the node that answered them: a body
-  may bind a name twice, which is what a loop is, and the second binding is what the next round
-  reads. The run's agents, what the atlas was called with and what it was set up with MUST be
-  named where a bound name would be, and MUST be spelled so that nothing a body may write
-  collides with them.
-- A prophecy MUST be writable and readable as bytes, for a flowverse that ships one. Reading
-  those bytes runs what they say, which is the trust a flowverse already has; what MUST be
-  added is the check that what came back is a prophecy at all, so that a file which is merely
-  corrupt is refused rather than walked.
-- Where a shipped prophecy is, whether it is there, and what it takes to read it back MUST be
-  one rule rather than one per reader. What to do about a file that will not read back MUST
-  be each reader's own -- a run refuses it and a checking says so -- but a flow that is one
-  file having nowhere to ship anything MUST be answered the same way wherever it is asked.
-- What each of the atlases in one prophecy is called MUST be worked out in one place, since
-  a directory ships one prophecy and a file may hold several atlases: which of them a shipped
-  one is for is read by comparing that name.
-
-## `prophesying.py`
-
-```python
-class Prophesied(NamedTuple):
-    findings: tuple[Finding, ...]
-    prophecy: Prophecy | None
-
-
-def is_atlas(flow: str | os.PathLike[str]) -> bool: ...
-
-
-def named_as(under: Path, inside_: str = "") -> str: ...
-
-
-def prophesied(
-    flow: str | os.PathLike[str],
-    *,
-    name: str = "",
-    whole: _Whole | None = None,
-    through: tuple[tuple[str, str], ...] = (),
-) -> Prophesied: ...
-```
-
-Compiling an atlas: the reading that holds a body to the narrower Python it is written in, and
-turns what it declared into the prophecy a run walks.
-
-- Which reading a flow gets MUST be decidable without paying for either, which is
-  `is_atlas`: the mark that says a flow is an atlas is on a function in its entry point, and
-  whoever is choosing has a choice to make before reading everything the flow holds.
-- It MUST NOT import or execute anything of the atlas it reads, for the reason `checking.py`
-  MUST NOT: the atlas most worth compiling is one nobody has read yet, and a compiler that ran
-  what it was compiling would be the attack it exists to catch.
-- Every rule here MUST be an error, and every one of them MUST be decidable. That is the
-  bargain an atlas makes: `checking.py` proves absences one function at a time and warns where
-  it cannot be sure, and an atlas is written in the subset where there is nothing to be unsure
-  about. That reading's warnings MUST still come back over the node bodies and MUST NOT block:
-  a node body is ordinary Python and MUST be read as it.
-- The two readings MUST share one parsing and one set of rules. An atlas is a flow, and the
-  whole of what makes it one is read next door; a second copy of any of it here would be the
-  drift both readings exist to catch.
-- A body MUST hold only: one call per statement, bound to at most one name; an `if` and a
-  `while` whose test reads a bound name or one field of it; a `return`; `pass`; and the
-  docstring. Everything else -- arithmetic, a call inside a call, a comprehension, `try`,
-  `with`, `import` -- MUST be refused, each of them being a thing a node does and a node
-  being where it goes.
-- A node MUST NOT be a coroutine, and neither MUST an atlas. The walk over a prophecy does
-  not await, so a node written `async def` would answer with a coroutine and hand the next
-  node something no model is built from. What waits is a turn, and a turn is what a mind
-  already is.
-- An atlas that says it can be set up MUST be able to be set up with nothing, every field of
-  its config having a default. A run may be started without one, and the body of an atlas
-  has no way to say what to do about that -- `config or Config()` is work, and work is what
-  a node is for -- so a run nobody set up MUST be handed the model's own defaults.
-- What flows along every edge MUST be checked before anything runs. A node's parameters and
-  its answer MUST each name a shape, which MUST be a pydantic model the flow's own files
-  declare or one of the plain kinds; and what arrives MUST be that shape, or a model holding
-  every field that shape requires at the same shape apiece. A name MUST keep the shape it was
-  first bound with, so that an edge which fits on the first round of a loop fits on every one.
-- An atlas MUST declare its agents as a NamedTuple of them and MUST NOT declare a plain tuple:
-  every turn in a prophecy names the agent it drives, and a place with no name is a turn
-  nothing can be pointed at. A mind MUST be handed one of them and a supernode all of them,
-  and neither MUST be handed anything else.
-- A loop's body MUST NOT end with the node the loop reads again. The edge back runs the head,
-  so a body that repeats it runs it twice a round and throws the body's answer away -- and a
-  node with an effect would have it twice with nothing said.
-- One thing wrong in a body MUST be one finding. What a refused statement would have bound
-  MUST be read as spoilt rather than as unbound, and a body with no nodes in it MUST be said
-  only where nothing else was: a reader given four findings for one mistake has three to work
-  out are consequences.
-- A branch MUST follow a node, and MUST NOT follow another branch: an `elif`, or an arm with
-  nothing in it, is two decisions carried on one edge. A loop MUST leave exactly one node,
-  which is its head -- what the test reads, answered again each round -- and the body MUST
-  bind at least one name that head reads, else nothing in the loop can change what it says and
-  the loop never ends.
-- A supernode MUST be an atlas that takes no config. What is set up is the run, so an atlas
-  that says it can be set up is one to start rather than one to reach for -- and one reached
-  as a node would otherwise read a config nothing ever handed it.
-- A supernode MUST be compiled into the prophecy reaching for it, and one that reaches back
-  into an atlas already being compiled MUST be refused. Which atlas a name means MUST be
-  settled by where it is declared and what it is called there rather than by how it was
-  spelled, since one atlas is `deeper` beside it and `flow:deeper` from anywhere else -- and a
-  check that compared spellings would follow that forever.
-- Where the flow's own directory ships a prophecy, whether it is still the one this source
-  compiles to MUST be said. A run walks the shipped one, so a shipped prophecy that has
-  drifted is a flow that does one thing and reads as another.
-
-## `stepping.py`
-
-```python
-def walking(
-    flow: str | os.PathLike[str], inside: Mapping[str, Any], entry: Entry
-) -> Entry: ...
-```
-
-Running a prophecy: one node at a time, and picking a stopped run up where it left off.
-
-- An atlas's body MUST NOT be run. It is a declaration, and what runs MUST be the prophecy
-  compiling it made -- which is what puts a run in a position to be stopped and started at
-  all.
-- The compiling MUST happen where a run of a flow is being set up, and MUST NOT happen where
-  a flow is only read. What a flow drives, what it can be set up with and whether it can be
-  picked up are questions its entry point's own annotation answers, and an atlas that had to
-  be compiled to be asked one of them would be an atlas a flow picker could not list -- and
-  one that does not compile would answer no rather than say why. A body that does not compile
-  MUST be refused before the run has chosen anything, pulled anything or opened anything,
-  saying every reason at once; and every way of running a flow MUST get both the compiling
-  and the walking without knowing there are two kinds.
-- What a run has done MUST be the answers it has, written down as each arrives rather than
-  when the run ends: a run worth picking up is one that was stopped or killed rather than one
-  that ended tidily. Each MUST be written down against the node and the visit, since a loop is
-  one node visited again and a round that overwrote the last round's answer would be a run
-  nothing could be picked up inside a loop.
-- Picking a run up MUST be walking the same prophecy over the same answers until it reaches
-  the visit that has none, and what happens there MUST be what that node says: run again by
-  default, stepped past where the node says so.
-- A run MUST be picked up into the same prophecy or not at all. What was written down MUST be
-  written down against the digest, and a run whose prophecy has moved MUST start from the top:
-  an atlas rewritten between two runs is a different graph whose nodes happen to share their
-  names, and carrying on into it would be a run resuming into somewhere it has never been.
-- A supernode MUST be walked as the prophecy it is, in the run around it, and its own nodes
-  MUST be written down beneath the visit it is: two graphs, one run, and each node with a line
-  of its own. A flow reached by name MUST be read once for the run rather than once a visit:
-  the shape was settled before anything ran, and a file re-read between two rounds of a loop
-  would be new code running under a graph already agreed.
-- Where the flow's own directory ships a prophecy for the atlas being run, that prophecy MUST
-  be what runs rather than one compiled again. One that cannot be read back MUST be refused
-  rather than compiled again: what a flowverse shipped is what it meant to be run, and
-  quietly running something else is the one thing shipping it was meant to rule out.
-
-## `verses.py`
-
-```python
-@dataclass(frozen=True, slots=True)
-class Flowverse:
-    name: str
-    url: str
-    at: Path
-    fetched: bool
-    fixed: bool
-
-
-def flowverses() -> list[Flowverse]: ...
-
-
-def nearest() -> list[Flowverse]: ...
-
-
-def holds(one: Flowverse) -> tuple[Path, ...]: ...
-
-
-def add(url: str, name: str = "") -> Flowverse: ...
-
-
-def fetch(name: str) -> Flowverse: ...
-
-
-def remove(name: str) -> bool: ...
-
-
-def flows(one: Flowverse) -> list[str]: ...
-
-
-def plain(url: str) -> str: ...
-
-
-def edited(at: Path) -> bool: ...
-
-
-def clone(url: str, at: Path) -> None: ...
-
-
-def refresh(at: Path) -> None: ...
-```
-
-- A flowverse MUST be a git repository with a `flows/` directory in it, cloned into
-  `~/.humanize/flowverses/<name>/`, and every flow in it MUST be offered under that name. A
-  directory with no entry point in it, or one whose name starts with an underscore, MUST NOT
-  be one of them: it is what the flows beside it import.
-- The flows of your own MUST be two places here like any other, `local` for `.humanize/flows`
-  where humanize is being run and `user` for the one in your home directory. They are
-  directories rather than repositories -- nothing fetches them, and what is in one is whatever
-  you put there -- so they MUST be read where they stand the way the package's own are, and
-  MUST NOT be fetched, added under, or taken away. Everything that goes looking for a flow MUST
-  have one list to look in: a place of yours that had to be listed separately is a second rule
-  for what a flow is called, which is a name that will not resolve.
-- These places MUST have two orders, and both MUST be written down here: the order they are
-  offered in, which is humanize's own first and yours last, and the order a name is looked up
-  in, which is nearest first. A place missing from either is a flow that is offered and cannot
-  be run, or one that runs and is nowhere to be seen.
-- Fetching a repository MUST be written down once and reached for by everything that fetches
-  one -- a flowverse, and a repository of skills a flow named -- so that a clone and a fetch
-  mean the same thing whichever asked for it.
-- Only that directory MUST be read for flows, and a fetched flowverse with none MUST hold
-  none. A repository is a repository -- a README, a pyproject, a test suite, whatever sets the
-  tests up -- and reading a flow means running it, so what is run MUST be what somebody put
-  where the flows go rather than every `.py` file that came down with it.
-- Where the flows of one are MUST be worked out in one place, the package's own reading of its
-  own directory included: everything that goes looking for a flow asks that one place, so an
-  exception written down once is an exception rather than a rule to remember. A place MAY be
-  read from more than one directory, and `official` MUST be, being the flows in the package
-  together with the repository of the rest; the package's own MUST come first, so that a name
-  both hold resolves to the one that is always there rather than the one a fetch could take
-  away.
-- Three MUST always be listed: `official`, which is humanize's own, and the two the flows of
-  your own live in. None MUST be removable, and `official` MUST be listed whether or not it has
-  been fetched -- a list that only mentioned it once somebody had thought to add it would be a
-  list that hid what there is to run -- and the flows it keeps in the package MUST be offered
-  whether or not it has been, since what has been downloaded is not the question.
-- A name MUST be one directory name, and one that could climb out of the directory they are
-  kept in MUST be refused wherever it is given.
-- None of the three that are always listed MUST be a name a flowverse can be added under.
-  Cloned into `official` a repository would be shown against humanize's own URL; cloned into
-  either of yours it would be listed under a name that is read from a directory somewhere else
-  and never looked at. All MUST be refused where the name is given rather than discovered
-  afterwards.
-- Fetching one again MUST take what the repository says now rather than merge into it: a
-  flowverse is a copy of somebody else's repository, not a branch of your own, and a merge
-  nobody asked for is a fetch that fails the next time it is run.
-- Whether a clone has anything written into it that such a fetch would undo MUST be answerable
-  here, for whatever fetches without being asked to: resetting a clone is a fair thing to do on
-  a key somebody pressed and not a fair thing to do behind them. It MUST be the tracked files
-  alone, that being what is taken back -- the `__pycache__` reading a flow leaves behind would
-  otherwise make every repository without a `.gitignore` look edited for good.
-- A fetch that failed MUST leave the list as it was and say what git said. Nothing here MUST
-  wait on the network without a limit -- and since a clone called off for reaching that limit
-  is killed rather than allowed to fail, what it had written by then MUST be taken away here:
-  git tidies up after its own failures and cannot tidy up after being killed, and a name held
-  by a flowverse that is not there is a name that cannot be used again.
-- Where a flowverse came from MUST be scrubbed of whatever was signed into it in one place,
-  which everything that shows one asks: a private flowverse is added as
-  `https://x-access-token:$TOKEN@...`, git keeps that verbatim, and it is shown by a command
-  line and at a prompt both. Two places doing it is one place to forget.
-- Where a flowverse came from MUST be read without interpolation. A `%` in a URL is ordinary --
-  a percent-encoded password, or a path with one in it -- and reading it as the start of a
-  substitution would raise where every listing of the flowverses passes.
-
-## `skills.py`
-
-```python
-def brought(at: Path | str, declared: Iterable[str] = ()) -> list[Loaded]: ...
-
-
-def cached(url: str) -> Path: ...
-
-
-def fetched(url: str) -> Path: ...
-```
-
-The skills a flow works by: the ones in its own `skills/`, and the ones it named that live
-somewhere else. Nothing here installs anything, and nothing here mounts anything -- what a
-session does with them is `hmz.coganchor.agents.skills`.
-
-- A flow's own skills MUST be the `skills/` inside it, read as a directory apiece each holding
-  a `SKILL.md`, which is the layout every one of these CLIs already reads a skill in. A flow
-  MUST NOT have to declare them: they are in it, and looking is what finds them.
-- A skill that lives somewhere else MUST be named where the flow is declared, as a git URL
-  anything can clone with an optional `#<skill>` saying which of that repository's `skills/*`
-  is wanted. Without one, every skill that repository holds MUST be brought.
-- Such a repository MUST be cloned under humanize's own home and fetched again the next time a
-  run asks for it, so that a skill somebody else maintains is a skill that keeps up -- and one
-  already fetched MUST go on working when the network is down.
-- The flow's own MUST win a name a repository also uses: a fork that edited a skill meant the
-  edited one.
-- A repository that cannot be fetched at all MUST stop the run where the flow is got ready
-  rather than at the first turn: a flow that works by a skill it has not got is not a flow to
-  start and find out about an hour in.

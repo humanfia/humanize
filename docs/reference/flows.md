@@ -41,6 +41,12 @@ against which CLI is behind it, and it would break the day humanize moved anythi
 `Unrecoverable` is exposed here too, so bounded flows can distinguish a transient failed turn from
 one whose next attempt would necessarily fail the same way.
 
+Everything humanize does *to* a flow is somewhere else: finding one by name, listing them,
+reading one without running it, driving one, compiling an atlas, fetching the skills it named.
+That is `hmz.runtime.flowing`, which is what the pages below reach for when they read a flow
+rather than write one — and which no flow imports, so none of it is anything a flow can break
+on when it moves.
+
 | Name | Is |
 | --- | --- |
 | `Agent` | A coding agent: a turn, a session, a goal, a batch, what it has cost, what is hung on the moments of its turns. What you annotate a place with. |
@@ -345,7 +351,7 @@ may have been rewritten since it last ran:
 
 ```python
 from hmz.runtime.epic import resumed, state
-from hmz.flows import resumes
+from hmz.runtime.flowing import resumes
 
 resumes("weekly")            # what the flow says now, read by running it
 at = resumed("weekly")       # the run its next run would pick up, or None
@@ -585,7 +591,7 @@ turns out not to be what its settings promised
 What the flow declared is readable without driving it:
 
 ```python
-from hmz.flows import wanted
+from hmz.runtime.flowing import wanted
 
 wanted("rlar")   # one Place per agent somebody has to choose:
                           # .name, .moments, .goal, .where, .needs,
@@ -870,7 +876,7 @@ flows](/reference/tracing#records-of-called-flows).
 Nearest wins, so a flow of your own may stand in for one of humanize's by taking its name — a
 `.humanize/flows/chat/` is what `-f chat` runs *in that project*. Which is what `f` in the
 flow menu is for: it copies the flow under the cursor into `.humanize/flows/`, whole, and from
-then on that name means your copy. In Python that is `hmz.flows.fork(name, into=None)`, which
+then on that name means your copy. In Python that is `hmz.runtime.flowing.fork(name, into=None)`, which
 copies a directory flow with its `skills/` and a single-file flow as a file, and refuses a name
 you already have a copy of — in either shape, since a directory would otherwise take a
 single-file flow's name without touching the file it is in — rather than writing over it. A
@@ -1321,7 +1327,7 @@ under its `skills/` excepted), executing nothing, so it is safe to point at a fl
 read. It answers with findings rather than raising, one per thing found:
 
 ```python
-from hmz.flows import checked
+from hmz.runtime.flowing import checked
 
 for one in checked(".humanize/flows/mine"):
     print(f"{one.where}:{one.line}: {one.severity}: {one.code}: {one.said}")
@@ -1367,7 +1373,7 @@ says to `spent()`. The parent holds the clock, sleeps are free, and the flow wor
 scratch directory taken away with the process.
 
 ```python
-from hmz.flows import ALWAYS_DONE, NEVER_DONE, SILENT, proved
+from hmz.runtime.flowing import ALWAYS_DONE, NEVER_DONE, SILENT, proved
 
 proof = proved(".humanize/flows/mine", scenarios=(NEVER_DONE, ALWAYS_DONE, SILENT))
 assert proof.findings == ()
@@ -1388,7 +1394,7 @@ And the catalogue, for the weaver — whoever, or whatever, is writing a flow ag
 installation:
 
 ```python
-from hmz.flows import briefed, catalogue
+from hmz.runtime.flowing import briefed, catalogue
 
 catalogue()   # one Capability per thing a flow may build on, with the backends that serve it
 briefed()     # the same, rendered as one page to steer by
@@ -1407,7 +1413,8 @@ anything happens into a **prophecy** — the graph of what the run will do. The 
 [An atlas](/weaver/atlas); this is the surface.
 
 ```python
-from hmz.flows import Agent, atlas, canonical, digest, logic, mind, prophesied, sub
+from hmz.flows import Agent, atlas, logic, mind, sub
+from hmz.runtime.flowing import canonical, digest, prophesied
 ```
 
 | Mark | What it makes |
@@ -1455,7 +1462,7 @@ name the entry point gave what it is called with, or the name it gave its config
 ### The prophecy
 
 ```python
-from hmz.flows import canonical, digest, prophesied
+from hmz.runtime.flowing import canonical, digest, prophesied
 
 held = prophesied(".humanize/flows/mine")
 if held.prophecy is not None:
@@ -1545,7 +1552,7 @@ as a shell script, so a test spells out exactly what the agent it stands in for 
 To check only that a flow *loads* and declares what it should:
 
 ```python
-from hmz.flows import drives
+from hmz.runtime.flowing import drives
 
 assert drives("my_loop") == ("actor", "reviewer")
 ```

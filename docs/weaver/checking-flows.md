@@ -76,7 +76,7 @@ flow against the worlds worth asking of a loop is the same machinery a step furt
 call of your own:
 
 ```python
-from hmz.flows import NEVER_DONE, SILENT, proved
+from hmz.runtime.flowing import NEVER_DONE, SILENT, proved
 
 proof = proved(".humanize/flows/mine", scenarios=(NEVER_DONE, SILENT))
 assert all(one.finished for one in proof.outcomes), proof.outcomes
@@ -102,7 +102,7 @@ edge, every branch and every shape held to what a graph can be held to. What it 
 on:
 
 ```python
-from hmz.flows import canonical
+from hmz.runtime.flowing import canonical
 from hmz.sdk import Hmz
 
 hmz = Hmz()

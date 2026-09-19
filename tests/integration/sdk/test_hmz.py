@@ -158,7 +158,7 @@ def test_a_directory_that_is_a_clone_of_nothing_reads_as_whoever_shows_it_says(
     tmp_path: pathlib.Path,
 ) -> None:
     """A listing has a column of them and a sheet has a sentence, so it is theirs to say."""
-    from hmz.flows.verses import Flowverse
+    from hmz.runtime.flowing.verses import Flowverse
 
     verses = Hmz().verses
     stray = Flowverse(name="stray", url="", at=tmp_path, fetched=True, fixed=False)

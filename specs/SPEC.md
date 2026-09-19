@@ -21,6 +21,7 @@
 │   ├── doing
 │   ├── epic.py
 │   ├── exporting.py
+│   ├── flowing
 │   ├── kept.py
 │   ├── runner.py
 │   ├── settings.py
@@ -48,6 +49,22 @@ reading the whole of it back afterwards. It MUST drive no coding agent itself. I
 the whole of that as one object as well, written in `runtime/doing` and named by `runtime`
 itself: every way in asks the same questions of a workspace, and an answer written once per
 way in is not one answer.
+
+`flows` MUST be the whole of what a flow imports and nothing besides: the interfaces a flow
+drives, the mark that makes a function a flow, the marks an atlas declares its graph with, and
+the vocabulary a turn is described in handed through from the layer it is written in.
+Everything humanize does *to* a flow -- finding one, listing them, reading one without running
+it, driving one, compiling an atlas, walking the prophecy, fetching the skills a flow named --
+MUST be `runtime/flowing` instead. A flow is somebody else's repository, so what a flow can
+name is what humanize cannot move; keeping the reading out of `flows` is what leaves humanize
+free to move it.
+
+The arrow between the two MUST point one way when anything is running: `runtime/flowing` MAY
+name `flows`, and `flows` MUST NOT import `runtime/flowing`. What a flow legitimately needs
+from that layer -- `load`, which is one flow running another -- MUST be handed through by name
+and fetched when the flow asks for it, so that writing `@flow` costs nothing of the runtime.
+That is the one place the table of layers names a pair both ways, and
+`tests/integration/layering/test_layering.py` MUST hold it to being the only one.
 
 Each subdirectory is a library; one with a contract of its own has a SPEC named for it, and
 one no file is named for is bound by this one. The modules inside `coganchor` and `runtime`
@@ -85,8 +102,11 @@ promise to somebody else. Under one name the rule wins every argument -- everyth
 so nothing could be spelled for a stranger without the whole tree moving -- and the promise is
 what goes unmade.
 
-No two layers MUST name each other. A pair that does is two things put in one place, not one
-thing above another, and is what `tests/integration/layering/test_layering.py` refuses.
+No two layers MUST name each other, but for the one pair above: a pair that does is two things
+put in one place, not one thing above another, and is what
+`tests/integration/layering/test_layering.py` refuses. The exception MUST be a façade that
+imports nothing of what it hands through, and MUST be checked to be one rather than taken on
+trust.
 
 Every module MUST be named for what it holds. `coganchor` alone is a name of its own, being
 what the anchor inside it is: a program that ships to a target and could be lifted out whole.
@@ -1086,7 +1106,7 @@ class Flows:
 
 The flows there are, and the places they come from.
 
-- `check` MUST be the two readings of `hmz.flows` in their order -- the static one, then the
+- `check` MUST be the two readings of a flow in their order -- the static one, then the
   flow loaded in a subprocess -- and the second MUST NOT run where the first found an error,
   nor say again what the first already said: one call is one answer, whichever way in asked.
 - `prophecy` MUST answer with what an atlas compiles to and with nothing for a flow that is

@@ -27,7 +27,8 @@ from hmz.coganchor.agents import (
     PiAgent,
     PiAgentConfig,
 )
-from hmz.flows import NotAFlow, wanted
+from hmz.flows import NotAFlow
+from hmz.runtime.flowing import wanted
 from hmz.runtime.runner import Runner, flow_and_agents
 
 if TYPE_CHECKING:

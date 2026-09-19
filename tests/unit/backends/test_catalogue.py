@@ -25,7 +25,14 @@ from hmz.coganchor.agents import DRIVEN, EVERYWHERE, KINDS, PERMISSIONS, Moment,
 from hmz.coganchor.agents.config import UNSAID, AgentConfig
 from hmz.coganchor.backends import PROFILES, Bundled, Hooked, Profile, named
 from hmz.flows import Agent, Person, Session
-from hmz.flows.checking import OF_AGENT, WHERE, briefed, catalogue, offered, surface
+from hmz.runtime.flowing.checking import (
+    OF_AGENT,
+    WHERE,
+    briefed,
+    catalogue,
+    offered,
+    surface,
+)
 
 if TYPE_CHECKING:
     from hmz.coganchor.agents.base import SessionBase

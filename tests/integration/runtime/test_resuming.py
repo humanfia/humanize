@@ -16,8 +16,9 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz.coganchor.agents import AgentConfig, Stopped
-from hmz.flows import NotAFlow, resumes
+from hmz.flows import NotAFlow
 from hmz.runtime.epic import STATE, epics, read, resumed, state
+from hmz.runtime.flowing import resumes
 from hmz.runtime.runner import Runner
 from tests.stubs import ShellAgent, written
 

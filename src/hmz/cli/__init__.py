@@ -101,7 +101,6 @@ def _exec(argv: list[str]) -> int:
     Returns:
       Zero, once the flow has returned.
     """
-    from hmz.flows import NotAFlow
     from hmz.runtime import Hmz, telemetry
 
     from .output import Out, Shown
@@ -113,8 +112,10 @@ def _exec(argv: list[str]) -> int:
     path, agents, task, config, budget, as_json = hmz.read(argv)
     # Only now that the line is known to name a flow: `--help` has already exited inside the
     # reading above, and a line that runs nothing must not pay for the drivers to be loaded
-    # so that this can learn the name of what a stopped run raises.
+    # so that this can learn the name of what a stopped run raises -- nor for what reads a
+    # flow, so that it can learn the name of what a line naming none is refused with.
     from hmz.coganchor.agents import Stopped
+    from hmz.runtime.flowing import NotAFlow
 
     with Out(as_json=as_json) as out, Shown(out) as shown:
         # The agents the line named, and not whatever else the flow turns out to drive: a

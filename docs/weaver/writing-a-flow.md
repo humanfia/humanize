@@ -224,7 +224,7 @@ for one in Hmz().flows.check("local/twice"):
 And to ask a flow what it declares, without reading it for anything else:
 
 ```python
-from hmz.flows import drives
+from hmz.runtime.flowing import drives
 
 drives("twice")       # the names of the agents it declares
 ```

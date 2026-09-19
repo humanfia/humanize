@@ -17,9 +17,9 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz.coganchor.agents import AgentConfig
-from hmz.flows import resumes
 from hmz.flows.builtin import chat
 from hmz.runtime.epic import STATE, epics
+from hmz.runtime.flowing import resumes
 from hmz.runtime.runner import Runner
 from tests.stubs import ShellAgent
 

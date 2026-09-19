@@ -803,7 +803,7 @@ def test_each_of_the_four_is_a_capability_a_flow_can_ask_for_beforehand() -> Non
     the field's own, under `settings:`, rather than a second word beside it: the catalogue
     derives one per field, so a field renamed here is a name renamed there.
     """
-    from hmz.flows.checking import catalogue
+    from hmz.runtime.flowing.checking import catalogue
 
     told = {one.name: one.backends for one in catalogue()}
 

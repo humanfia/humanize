@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.flows import PROPHECY, canonical, checked, digest, kept
-from hmz.flows.prophesying import Prophesied, prophesied
+from hmz.runtime.flowing import PROPHECY, canonical, checked, digest, kept
+from hmz.runtime.flowing.prophesying import Prophesied, prophesied
 from tests.stubs import written
 
 if TYPE_CHECKING:

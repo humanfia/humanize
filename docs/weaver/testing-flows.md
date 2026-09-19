@@ -10,7 +10,7 @@ The cheapest test there is, and it catches the mistake everybody makes: an `agen
 that cannot be read at runtime.
 
 ```python
-from hmz.flows import drives, wanted
+from hmz.runtime.flowing import drives, wanted
 
 
 def test_it_drives_two() -> None:

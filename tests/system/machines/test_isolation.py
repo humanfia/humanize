@@ -263,7 +263,7 @@ def test_a_second_run_in_a_container_is_refused_rather_than_handed_the_first(
     Two started at once would be two runs sharing a workspace neither was told about, and
     the second of them reading the first's container back as its own.
     """
-    from hmz.flows.driving import contained
+    from hmz.runtime.flowing.driving import contained
 
     monkeypatch.chdir(tmp_path)
     with contained(IMAGE) as where_:

@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Final
 import pytest
 
 import hmz.coganchor.models
-import hmz.flows.verses
+import hmz.runtime.flowing.verses
 from hmz.runtime import telemetry
 from tests import tiers
 from tests.llm import serving
@@ -86,7 +86,7 @@ def _elsewhere(said: str) -> bool:
     this machine, which is a thing a test is allowed to clone.
 
     Args:
-      said: The address, after `hmz.flows.verses` has turned `owner/repo` into a URL.
+      said: The address, after `hmz.runtime.flowing.verses` has turned `owner/repo` into a URL.
 
     Returns:
       Whether cloning it would leave this machine.
@@ -151,7 +151,7 @@ def _nothing_running_yet() -> Iterator[None]:
 
 def _forgotten() -> None:
     """Leaves nothing of one test's flows for the next one to run under."""
-    from hmz.flows import driving
+    from hmz.runtime.flowing import driving
 
     driving._RUNNING.clear()
     driving._CLAIMED.clear()
@@ -200,7 +200,7 @@ def _clones_nothing_elsewhere() -> Iterator[None]:
     run of these tests reaches anybody's network -- and saying where a fetch fetches from is
     the other half, written where the test that meant it is.
     """
-    clones = hmz.flows.verses.clone
+    clones = hmz.runtime.flowing.verses.clone
 
     def only_from_here(url: str, at: Path) -> None:
         """Clones what is already on this machine, and refuses what would have to be sent.
@@ -210,12 +210,14 @@ def _clones_nothing_elsewhere() -> Iterator[None]:
         question whose answer depends on where the process happens to be standing. Asked twice
         it could be answered twice, and the address checked would not be the address cloned.
         """
-        whence = hmz.flows.verses._url_of(url)
+        whence = hmz.runtime.flowing.verses._url_of(url)
         if _elsewhere(whence):
             raise OSError(f"the suite does not clone {whence}")
         clones(whence, at)
 
-    with unittest.mock.patch.object(hmz.flows.verses, "clone", only_from_here):
+    with unittest.mock.patch.object(
+        hmz.runtime.flowing.verses, "clone", only_from_here
+    ):
         yield
 
 

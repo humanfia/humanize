@@ -163,7 +163,7 @@ def holds(one: Flowverse) -> tuple[Path, ...]:
       at any of them -- a repository with no `flows/` in it is a flowverse holding nothing,
       which is a thing to say rather than a thing to raise.
     """
-    from . import BUILTIN_AT
+    from .finding import BUILTIN_AT
 
     if one.name in _AS_THEY_STAND:
         return (one.at,)
@@ -420,7 +420,7 @@ def flows(one: Flowverse) -> list[str]:
       repository both hold is one name here, and which of the two it resolves to is the order
       :func:`holds` puts them in.
     """
-    from . import offered
+    from .finding import offered
 
     found_: list[str] = []
     for under_ in holds(one):

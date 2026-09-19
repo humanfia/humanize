@@ -1818,7 +1818,7 @@ The skills an agent carries reach a `kimi web` session anyway, through the direc
 discovers for itself.
 
 A flow that means to set any of this can ask beforehand. Each field is a capability of its own
-in what [`hmz.flows.checking.catalogue()`](/reference/flows#checking-a-flow) returns —
+in what [`hmz.runtime.flowing.checking.catalogue()`](/reference/flows#checking-a-flow) returns —
 `settings:port`, `settings:open_browser`, `settings:log_level`, `settings:web_title` — read off
 the config class rather than written down beside it, so a place declaring
 `Needs("settings:port")` is refused any backend whose config has nowhere to say it.

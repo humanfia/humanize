@@ -43,7 +43,7 @@ load("rlar")([builder, checker], task)     # arrives as Agents(actor=…, review
 To find out what a flow wants without driving it:
 
 ```python
-from hmz.flows import drives, wanted
+from hmz.runtime.flowing import drives, wanted
 
 drives("rlar")     # ("actor", "reviewer")
 wanted("rlar")     # one Place per agent: .name, .moments, .goal, .where

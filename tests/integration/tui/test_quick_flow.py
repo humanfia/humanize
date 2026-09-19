@@ -375,7 +375,7 @@ async def test_a_dollar_naming_a_flow_and_nothing_else_chooses_it_and_waits(
 
 def test_the_flows_there_are_are_offered_under_the_sigil_that_starts_one() -> None:
     """The same list `/flow ` offers, since it is the same question asked in one word."""
-    from hmz.flows import found
+    from hmz.runtime.flowing import found
 
     every = [f"${one.name}" for one in found()]
     assert offered("$", _COMMANDS) == every

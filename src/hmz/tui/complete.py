@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from hmz.flows import Offer
+    from hmz.runtime.flowing import Offer
 
     from .app import Humanize
 
@@ -115,7 +115,7 @@ def _flows() -> tuple[Offer, ...]:
     """Every flow there is to run, read where it is offered rather than kept here.
 
     Returns:
-      One per flow, as `hmz.flows` lists them -- which is the one place that works out what
+      One per flow, as `hmz.runtime.flowing` lists them -- the one place that works out what
       each is called, since a name that drifted is a name nothing would take. As it was up to
       a moment ago, rather than as it is this instant.
     """
@@ -138,7 +138,7 @@ def _found(_moment: int, _where: str) -> tuple[Offer, ...]:
     Returns:
       One per flow.
     """
-    from hmz.flows import found
+    from hmz.runtime.flowing import found
 
     return tuple(found())
 

@@ -16,14 +16,13 @@ import pytest
 
 from hmz.coganchor.agents import AgentConfig
 from hmz.coganchor.agents.codenames import SAID
-from hmz.flows import (
+from hmz.flows import NotAFlow, flow
+from hmz.runtime.flowing import (
     ENTRY,
-    NotAFlow,
     about,
     configures,
     drives,
     find,
-    flow,
     found,
     held,
     inside,

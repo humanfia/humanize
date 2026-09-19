@@ -142,7 +142,7 @@ class PiAgentConfig(AgentConfig):
 
     Every field here is defaulted to what a bare `pi` already does, so an agent that sets none
     of them starts the CLI as it ships, and each is a capability a flow may ask for before it
-    is handed an agent -- `hmz.flows.checking.catalogue` reads this class and names them
+    is handed an agent -- `hmz.runtime.flowing.checking.catalogue` reads this class and names them
     `settings:<field>`. Three things humanize imposes whatever this says, and
     each is written down where it is imposed: ``--mode rpc``, which is the transport this
     driver is -- a turn is a line written to a process that is already up, and steering and

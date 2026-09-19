@@ -96,8 +96,8 @@ if TYPE_CHECKING:
     from hmz.coganchor.fallbacks import Falls as Step
     from hmz.coganchor.providers import Provider
     from hmz.daemon import Hmz
-    from hmz.flows import Flowverse, Offer, Place
     from hmz.runtime.epic import Ran
+    from hmz.runtime.flowing import Flowverse, Offer, Place
 
     from .monitor import Monitor, Under
 
@@ -1930,7 +1930,7 @@ class Flows(Drafts[Chosen]):
           what having it here is for -- but your own directories are not places to fetch
           anything into, so an empty one is nothing to step to.
         """
-        from hmz.flows import MINE
+        from hmz.runtime.flowing import MINE
 
         return [
             one.name
@@ -2236,7 +2236,7 @@ class Flows(Drafts[Chosen]):
         fetched again over whatever was written into it, so an edit made there is an edit
         that goes away; a copy here is yours, and is what `f` is for.
         """
-        from hmz.flows import LOCAL
+        from hmz.runtime.flowing import LOCAL
 
         if self._inside:
             return
@@ -2813,7 +2813,7 @@ class Flowverses(Sheet[list[str]]):
             self._fill()
             return
         if not one.url:
-            from hmz.flows.verses import MINE
+            from hmz.runtime.flowing.verses import MINE
 
             # The other way to have no URL is a directory under the flowverses home that is
             # not a clone, which is what a clone killed partway leaves behind: there is
@@ -5768,8 +5768,8 @@ class Clis(Picks):
 
     def rows(self) -> list[tuple[str, str, str]]:
         """Every CLI that could take this one's turns, and what each of them runs."""
-        from hmz.flows.checking import OF_AGENT, catalogue, misplaced
-        from hmz.flows.driving import comes_to
+        from hmz.runtime.flowing.checking import OF_AGENT, catalogue, misplaced
+        from hmz.runtime.flowing.driving import comes_to
 
         needs: frozenset[Moment] = (
             self._place.moments if self._place is not None else frozenset()

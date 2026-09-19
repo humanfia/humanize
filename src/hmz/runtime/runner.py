@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.agents import AgentBase
     from hmz.coganchor.agents.allowance import Allowance
-    from hmz.flows.driving import Entry
+    from hmz.runtime.flowing.driving import Entry
 
 __all__ = ["Runner", "flow_and_agents", "read_agent", "set_up_from"]
 
@@ -107,8 +107,9 @@ class Runner:
           container: The image to run the whole of this in, or "" to run it on this machine.
             A convenience rather than a second way of saying where an agent works: it starts
             one container, points every agent of the run at it, and lets the flow's own code
-            reach it through `hmz.flows.container()` -- which is what a run in a container
-            is, said once from outside rather than agent by agent inside.
+            reach it through `hmz.flows.container()`, which is the name a flow writes for
+            what `hmz.runtime.flowing.driving` holds -- and which is what a run in a
+            container is, said once from outside rather than agent by agent inside.
           budget: What this run may spend, as an `Allowance` or the three fields to build one
             from -- which is what a `budget:` in a YAML file reads as. None takes the flow's
             own default, and the flow having none is a run under nothing at all. Given
@@ -126,7 +127,7 @@ class Runner:
         """
         from hmz.coganchor.agents import HumanAgent
         from hmz.coganchor.agents.allowance import allowed
-        from hmz.flows.driving import (
+        from hmz.runtime.flowing.driving import (
             NotAFlow,
             carries,
             declares,
@@ -326,7 +327,7 @@ class Runner:
         import inspect
 
         from hmz.coganchor.agents.allowance import Ledger
-        from hmz.flows.driving import contained, entered, lands_in, left
+        from hmz.runtime.flowing.driving import contained, entered, lands_in, left
 
         from .epic import Epic, state
         from .settings import Settings
@@ -577,7 +578,7 @@ def _as_declared(
             "name every agent or none of them: an agent that names no place fills the flow's "
             "next one, which cannot be counted while the others are filled by name"
         )
-    from hmz.flows.driving import NotAFlow, drives
+    from hmz.runtime.flowing.driving import NotAFlow, drives
 
     try:
         declared = drives(flow)

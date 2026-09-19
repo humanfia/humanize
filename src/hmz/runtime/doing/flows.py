@@ -1,7 +1,8 @@
 """The flows there are, and the places they come from, as two objects rather than two modules.
 
-What a flow is and how one is loaded is :mod:`hmz.flows`; where the fetched ones are kept is
-:mod:`hmz.flows.verses`. Both are reached from here so that a command line, an interface and a
+What a flow is, is :mod:`hmz.flows`; finding one, reading one and driving one is
+:mod:`hmz.runtime.flowing`, and where the fetched ones are kept is the `verses` inside it.
+All of it is reached from here so that a command line, an interface and a
 daemon ask the one object rather than three modules apiece -- and so that the handful of
 answers all three of them need spelled the same way, such as where a flowverse came from, are
 spelled once.
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
     from pydantic import BaseModel
 
     from hmz.coganchor.agents.allowance import Allowance
-    from hmz.flows import Finding, Flowverse, Offer, Place, Prophecy, Running
+    from hmz.runtime.flowing import Finding, Flowverse, Offer, Place, Prophecy, Running
 
 __all__ = ["Flows", "Flowverses"]
 
@@ -38,19 +39,19 @@ class Flowverses:
 
     def all(self) -> list[Flowverse]:
         """Every place there is, in the order their flows are offered."""
-        from hmz.flows import verses
+        from hmz.runtime.flowing import verses
 
         return verses.flowverses()
 
     def nearest(self) -> list[Flowverse]:
         """The same places, in the order a flow's name is looked up in."""
-        from hmz.flows import verses
+        from hmz.runtime.flowing import verses
 
         return verses.nearest()
 
     def find(self, name: str) -> Flowverse | None:
         """The place called this, or None for a name none answers to."""
-        from hmz.flows import verses
+        from hmz.runtime.flowing import verses
 
         return verses.named(name)
 
@@ -69,7 +70,7 @@ class Flowverses:
             directory may be called.
           OSError: If it cannot be cloned or kept.
         """
-        from hmz.flows import verses
+        from hmz.runtime.flowing import verses
 
         return verses.add(url, name)
 
@@ -86,7 +87,7 @@ class Flowverses:
           ValueError: If no place answers to that name, or it is one nothing fetches.
           OSError: If git refused.
         """
-        from hmz.flows import verses
+        from hmz.runtime.flowing import verses
 
         return verses.fetch(name)
 
@@ -103,7 +104,7 @@ class Flowverses:
           ValueError: If it is one of the ones that are always there.
           OSError: If the directory will not go.
         """
-        from hmz.flows import verses
+        from hmz.runtime.flowing import verses
 
         return verses.remove(name)
 
@@ -120,7 +121,7 @@ class Flowverses:
           One offer per flow in it: just the ones in the package for humanize's own before it
           has been fetched, and nothing at all for any other that has not been.
         """
-        from hmz.flows import offers
+        from hmz.runtime.flowing import offers
 
         return offers(one)
 
@@ -138,7 +139,7 @@ class Flowverses:
           Whether there is anything of somebody's own in it, and False for one that is not a
           clone at all -- there being no fetch to take anything away.
         """
-        from hmz.flows import verses
+        from hmz.runtime.flowing import verses
 
         return verses.edited(one.at)
 
@@ -158,19 +159,19 @@ class Flowverses:
           nobody has fetched yet reads as, and compares unequal to whatever it stands at once
           it has been.
         """
-        from hmz.flows import verses
+        from hmz.runtime.flowing import verses
 
         return verses.standing(one.at)
 
     def where(self, name: str) -> Path:
         """The directory one place is kept in, whether or not anything has been fetched into it."""
-        from hmz.flows import verses
+        from hmz.runtime.flowing import verses
 
         return verses.where(name)
 
     def plain(self, url: str) -> str:
         """A URL with whatever was signed into it taken out, as it may be printed."""
-        from hmz.flows import verses
+        from hmz.runtime.flowing import verses
 
         return verses.plain(url)
 
@@ -194,7 +195,7 @@ class Flowverses:
           line is printed every time the places are listed, and a token printed once is a
           token in the log of every job that ran it.
         """
-        from hmz.flows.verses import MINE, plain
+        from hmz.runtime.flowing.verses import MINE, plain
 
         if one.name in MINE:
             return f"your own flows in {MINE[one.name]}"
@@ -214,7 +215,7 @@ class Flows:
 
     def all(self) -> list[Offer]:
         """Every flow there is to run, by the name `-f` takes."""
-        from hmz.flows import found
+        from hmz.runtime.flowing import found
 
         return found()
 
@@ -230,19 +231,19 @@ class Flows:
           tell apart from a flow that is genuinely called that. Whether a flow is there is
           answered by what comes back being a file.
         """
-        from hmz.flows import find
+        from hmz.runtime.flowing import find
 
         return find(named)
 
     def about(self, named: str) -> str:
         """The line a flow says about itself, and "" for one that says nothing."""
-        from hmz.flows import about
+        from hmz.runtime.flowing import about
 
         return about(named)
 
     def places(self, named: str | os.PathLike[str]) -> tuple[Place, ...]:
         """Every agent a flow needs chosen for it, in the order it takes them."""
-        from hmz.flows import wanted
+        from hmz.runtime.flowing import wanted
 
         return wanted(named)
 
@@ -270,7 +271,14 @@ class Flows:
           Every finding, the static reading's first and nothing said twice: a finding the
           static reading already made is not repeated off the live model.
         """
-        from hmz.flows import checked, inside, is_atlas, prophesied, proved, reading
+        from hmz.runtime.flowing import (
+            checked,
+            inside,
+            is_atlas,
+            prophesied,
+            proved,
+            reading,
+        )
 
         whole = reading(str(named))
         found = list(
@@ -303,7 +311,7 @@ class Flows:
           The prophecy, or None for a flow that is not an atlas or does not compile --
           which :meth:`check` says the reasons for.
         """
-        from hmz.flows import inside, prophesied, reading
+        from hmz.runtime.flowing import inside, prophesied, reading
 
         return prophesied(reading(str(named)), name=inside(str(named))).prophecy
 
@@ -328,7 +336,7 @@ class Flows:
         """
         from pathlib import Path
 
-        from hmz.flows import PROPHECY, NotAFlow, at, kept
+        from hmz.runtime.flowing import PROPHECY, NotAFlow, at, kept
 
         held = self.prophecy(named)
         if held is None:
@@ -350,7 +358,7 @@ class Flows:
 
     def configures(self, named: str | os.PathLike[str]) -> type[BaseModel] | None:
         """What a flow can be set up with, or None for one that takes no setting up."""
-        from hmz.flows import configures
+        from hmz.runtime.flowing import configures
 
         return configures(named)
 
@@ -361,13 +369,13 @@ class Flows:
         under nothing at all, which is what keeps a conversation from being asked to confirm
         an unbounded run every time it is picked.
         """
-        from hmz.flows.driving import declared
+        from hmz.runtime.flowing.driving import declared
 
         return declared(named)
 
     def resumes(self, named: str | os.PathLike[str]) -> bool:
         """Whether a flow says it can be picked up where the last run of it left off."""
-        from hmz.flows import resumes
+        from hmz.runtime.flowing import resumes
 
         return resumes(named)
 
@@ -390,7 +398,7 @@ class Flows:
             over.
           OSError: If it cannot be copied.
         """
-        from hmz.flows import fork
+        from hmz.runtime.flowing import fork
 
         return fork(named, into)
 
@@ -402,7 +410,7 @@ class Flows:
         answers with every flow of the run, oldest first, each saying how deep it is and
         what called it.
         """
-        from hmz.flows import running
+        from hmz.runtime.flowing import running
 
         return running()
 

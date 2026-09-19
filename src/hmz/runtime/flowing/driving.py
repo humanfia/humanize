@@ -73,10 +73,10 @@ if TYPE_CHECKING:
     from hmz.coganchor.agents.base import Journal
     from hmz.coganchor.agents.skills import Loaded
     from hmz.coganchor.machines import MachineBase, MachineConfig, Mapped
+    from hmz.flows import Agent, Driven
+    from hmz.flows import Flow as Marked
     from hmz.runtime.epic import Epic, Sub
 
-    from . import Flow as Marked
-    from .agent import Agent, Driven
     from .checking import Capability
 
 __all__ = [
@@ -560,7 +560,7 @@ def _marked(run: Entry) -> Marked:
       The mark. Never None: only a marked function is a flow, so anything that got this far
       has one -- and a flow whose mark cannot be read is read as one that said nothing.
     """
-    from . import Flow as Said
+    from hmz.flows import Flow as Said
 
     held = getattr(run, "__humanize_flow__", None)
     return held if isinstance(held, Said) else Said()
@@ -609,7 +609,7 @@ def declares(
       NotAFlow: If the file is not there, is not a flow -- nothing in it marked `@flow()`, or
         one whose `agents` cannot be read or says nothing about how many it takes.
     """
-    from . import find, inside, loaded
+    from .finding import find, inside, loaded
 
     named = str(flow)
     # Which of the file's flows was asked for, before the name is resolved to a file: a file
@@ -708,7 +708,7 @@ def _compiled(named: str, read: dict[str, Any], run: Entry) -> Entry:
     Returns:
       The entry point for an ordinary flow, and the walk for an atlas.
     """
-    from .atlas import ATLAS
+    from hmz.flows.atlas import ATLAS
 
     if getattr(run, ATLAS, None) is None:
         return run
@@ -861,7 +861,7 @@ def _brought(flow: str | os.PathLike[str]) -> tuple[Loaded, ...] | None:
     Raises:
       NotAFlow: If a repository the flow names cannot be reached.
     """
-    from . import at as directory
+    from .finding import at as directory
     from .skills import brought
 
     where = directory(str(flow))
@@ -891,8 +891,9 @@ def _brings(flow: str | os.PathLike[str]) -> tuple[str, ...]:
     Returns:
       One identifier apiece, and nothing at all for a flow that named none.
     """
-    from . import Flow as Marked
-    from . import find, inside, loaded
+    from hmz.flows import Flow as Marked
+
+    from .finding import find, inside, loaded
 
     wanted = inside(str(flow))
     for one in loaded(find(str(flow))).values():
@@ -913,7 +914,7 @@ def _called(flow: str | os.PathLike[str]) -> str:
       every flow there is, and naming a flow after that would name them all the same -- and
       the file's own name for a file somebody pointed at outright.
     """
-    from . import ENTRY
+    from .finding import ENTRY
 
     said = Path(flow)
     return said.parent.name if said.name == ENTRY else said.stem
@@ -2247,7 +2248,7 @@ def _unfetched(named: str) -> str:
       now, so the first run on a machine that has fetched nothing is exactly where one of them
       goes missing -- and "no such file" is the least useful thing to say about it.
     """
-    from . import flowverses
+    from .verses import flowverses
 
     whose, _, rest = named.partition("/")
     waiting = [
@@ -2278,7 +2279,7 @@ def _entry(inside: dict[str, Any], wanted: str) -> Callable[..., Any] | None:
     Returns:
       The entry point, or None where the file holds no such flow.
     """
-    from . import Flow
+    from hmz.flows import Flow
 
     for one in inside.values():
         said = getattr(one, "__humanize_flow__", None)
@@ -2297,7 +2298,7 @@ def _holds(inside: dict[str, Any]) -> list[str]:
       One name apiece, in the order the file declared them. Its `run` is not among them: it
       is the flow the file holds under its own name, and has no name of its own.
     """
-    from . import Flow
+    from hmz.flows import Flow
 
     said = (getattr(one, "__humanize_flow__", None) for one in inside.values())
     return [one.name for one in said if isinstance(one, Flow) and one.name]
@@ -2541,8 +2542,7 @@ def _is_person(kind: object) -> bool:
       the driver, and the place it meant is the same place.
     """
     from hmz.coganchor.agents import HumanAgent
-
-    from .agent import Person
+    from hmz.flows import Person
 
     people = (Person, HumanAgent)
     if isinstance(kind, str):

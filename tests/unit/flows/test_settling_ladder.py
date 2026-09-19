@@ -1,6 +1,6 @@
 """The rule a place is settled onto an agent by, read on its own, apart from any flow.
 
-Settling is one line of :func:`hmz.flows.driving.runs_at` and the whole of what a flow's
+Settling is one line of :func:`hmz.runtime.flowing.driving.runs_at` and the whole of what a flow's
 declaration comes to: two answers go in -- what the agent already carries and what the place
 declares -- and the narrower of them comes out, so that a flow calling one somebody else wrote
 cannot have its `read-only` undone by a callee that declared nothing.

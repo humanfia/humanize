@@ -241,7 +241,7 @@ compiled is refused, however it is spelled.
 ## Reading what it compiles to
 
 ```python
-from hmz.flows import canonical
+from hmz.runtime.flowing import canonical
 from hmz.sdk import Hmz
 
 print(canonical(Hmz().flows.prophecy("review_loop")))

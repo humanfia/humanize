@@ -405,7 +405,7 @@ def test_the_workspace_it_is_trusted_with_can_be_handed_back(cursor: _Calls) -> 
     """
     from dataclasses import replace
 
-    from hmz.flows.checking import catalogue
+    from hmz.runtime.flowing.checking import catalogue
 
     told = {one.name: one.backends for one in catalogue()}
     assert told["settings:trust"] == frozenset({"cursor-agent"})

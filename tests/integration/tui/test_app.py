@@ -392,7 +392,7 @@ async def test_a_flow_that_fails_as_it_is_read_is_a_line_to_correct_and_not_the_
 
 def test_only_the_flows_there_are_to_run_are_offered() -> None:
     """A flow anywhere else is a path typed out, not something found by walking the tree."""
-    from hmz.flows import found
+    from hmz.runtime.flowing import found
     from hmz.tui.complete import offered
 
     assert offered("/flow ", _COMMANDS) == [one.name for one in found()]
@@ -463,7 +463,7 @@ async def test_enter_takes_what_is_offered_rather_than_sending_the_half_typed_li
     And the offers run out, so enter goes back to sending: `/flow` takes one flow, and a
     line that already names it has nothing left to be finished with.
     """
-    from hmz.flows import found
+    from hmz.runtime.flowing import found
     from hmz.tui.app import Editor
 
     app = Humanize()
@@ -873,7 +873,7 @@ async def test_a_flow_between_two_turns_is_a_flow_that_is_running() -> None:
 @pytest.mark.timeout(60)
 async def test_a_flow_that_called_another_names_both_of_them() -> None:
     """A flow may reach for another and run it, and what is running is then both."""
-    from hmz.flows.driving import entered, left
+    from hmz.runtime.flowing.driving import entered, left
 
     app = Humanize()
     async with app.run_test() as driver:

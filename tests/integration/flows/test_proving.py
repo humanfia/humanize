@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, Field
 
-from hmz.flows.proving import (
+from hmz.runtime.flowing.proving import (
     ALWAYS_DONE,
     NEVER_DONE,
     SILENT,

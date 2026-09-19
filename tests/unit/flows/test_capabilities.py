@@ -25,7 +25,8 @@ from hmz.coganchor.agents import (
     DshAgentConfig,
     Needs,
 )
-from hmz.flows import NotAFlow, load, wanted
+from hmz.flows import NotAFlow, load
+from hmz.runtime.flowing import wanted
 from hmz.runtime.runner import Runner
 from tests.stubs import written
 
@@ -331,7 +332,7 @@ def test_a_place_takes_what_it_needs_as_names_rather_than_as_one_name() -> None:
 
 def test_whoever_is_choosing_an_agent_is_offered_only_the_ones_that_would_do() -> None:
     """Asked by backend before there is an agent, so a place cannot be filled wrong."""
-    from hmz.flows.driving import Place
+    from hmz.runtime.flowing.driving import Place
     from hmz.tui.pick import Clis
 
     offered: dict[str, tuple[Model, ...]] = {"claude": (), "dsh": ()}
@@ -398,7 +399,7 @@ def test_a_flow_may_ask_for_a_rung_before_its_first_turn() -> None:
 def test_the_rung_a_backend_refuses_is_the_rung_it_does_not_serve() -> None:
     """One fact, read from the driver class and enforced by it, rather than two."""
     from hmz.coganchor.agents import PERMISSIONS, rung
-    from hmz.flows.driving import comes_to
+    from hmz.runtime.flowing.driving import comes_to
 
     for permission in PERMISSIONS:
         served = rung(permission) in comes_to("dsh")
@@ -419,7 +420,7 @@ def test_the_picker_blames_the_flow_rather_than_the_installation() -> None:
     Which it should -- no backend comes to `isolated` -- but saying that nothing installed
     here will do sends somebody off to install a thirteenth CLI for a flow no CLI can fill.
     """
-    from hmz.flows.driving import Place
+    from hmz.runtime.flowing.driving import Place
     from hmz.tui.pick import Clis
 
     offered: dict[str, tuple[Model, ...]] = {"claude": (), "dsh": ()}

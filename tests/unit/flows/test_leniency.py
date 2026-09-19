@@ -34,7 +34,7 @@ from hmz.coganchor.agents import (
     PiAgent,
     Unserved,
 )
-from hmz.flows.driving import NotAFlow, Place, _declared, runs_at
+from hmz.runtime.flowing.driving import NotAFlow, Place, _declared, runs_at
 from hmz.runtime.runner import Runner
 
 if TYPE_CHECKING:

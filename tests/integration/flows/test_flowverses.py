@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.flows import (
+from hmz.runtime.flowing import (
     BUILTIN_AT,
     ENTRY,
     FLOWS,
@@ -29,7 +29,7 @@ from hmz.flows import (
     flowverses,
     found,
 )
-from hmz.flows import verses as store
+from hmz.runtime.flowing import verses as store
 from tests.stubs import written
 
 if TYPE_CHECKING:
@@ -494,7 +494,7 @@ def test_a_flow_of_your_own_still_wins_a_bare_name(
 
 def test_a_flow_from_a_flowverse_runs_by_that_name(theirs: Path) -> None:
     """Which is the whole point of fetching one: `-f theirs/loop` is a flow to run."""
-    from hmz.flows import drives
+    from hmz.runtime.flowing import drives
 
     store.add(str(theirs))
 
@@ -505,7 +505,8 @@ def test_a_flowverse_that_has_not_been_fetched_says_so_rather_than_that_there_is
     None
 ):
     """The name is right and the download has not happened, which is a different thing."""
-    from hmz.flows import NotAFlow, drives
+    from hmz.flows import NotAFlow
+    from hmz.runtime.flowing import drives
 
     with pytest.raises(NotAFlow, match="has not been fetched yet"):
         drives(f"{OFFICIAL}/rlar")
@@ -517,7 +518,8 @@ def test_a_bare_name_says_so_too_when_nothing_has_been_fetched(theirs: Path) -> 
     `-f rlar` on a machine that has fetched nothing is a name that is right and a download
     that has not happened, which "no flow to read" is the least useful thing to say about.
     """
-    from hmz.flows import NotAFlow, drives
+    from hmz.flows import NotAFlow
+    from hmz.runtime.flowing import drives
 
     store.add(str(theirs))  # one that is here, so the one that is not is named alone
 

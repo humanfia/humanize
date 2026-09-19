@@ -436,7 +436,7 @@ def test_what_flows_are_running_is_asked_of_the_runtime_rather_than_of_the_run(
     class Drove:
         flow = "rlar"
 
-    monkeypatch.setattr("hmz.flows.running", lambda: (Drove(),))
+    monkeypatch.setattr("hmz.runtime.flowing.driving.running", lambda: (Drove(),))
     asking = holding.terminal(joining=False)
 
     asking.says(CONTROL, {"do": "status"})
@@ -465,7 +465,7 @@ def test_a_runtime_that_will_not_say_is_a_run_running_nothing_rather_than_no_ans
     def raising() -> tuple[object, ...]:
         raise RuntimeError("not today")
 
-    monkeypatch.setattr("hmz.flows.running", raising)
+    monkeypatch.setattr("hmz.runtime.flowing.driving.running", raising)
     asking = holding.terminal(joining=False)
 
     asking.says(CONTROL, {"do": "status"})

@@ -108,7 +108,7 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.agents import AgentBase, Board, Event, Question, SessionBase
     from hmz.daemon import Session
-    from hmz.flows import Place
+    from hmz.runtime.flowing import Place
 
 #: How often the right-hand column and the status line are redrawn, in seconds.
 _REFRESH = 0.5
@@ -985,7 +985,7 @@ class Humanize(App[None]):
           will not load, since a name is a label on something that runs and not a reason for
           anything to stop.
         """
-        from hmz.flows import Place
+        from hmz.runtime.flowing import Place
 
         # By the name it was chosen under, not by the file that name resolves to: a file may
         # hold several flows, and which of them was asked for is the half after the colon --

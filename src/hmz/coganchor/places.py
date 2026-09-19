@@ -1,9 +1,10 @@
 """The words for where an agent's turns land and how its commands are reached there.
 
 One half of the capability vocabulary, kept here rather than beside the other half in
-:mod:`hmz.flows.checking` -- and the reason is the layering. A capability name is two things
-at once: a fact somebody declares, and an ask a flow writes. The ask belongs above, where
-flows are read and refused; the fact belongs wherever the thing it is about is written down,
+:mod:`hmz.runtime.flowing.checking` -- and the reason is the layering. A capability name is
+two things at once: a fact somebody declares, and an ask a flow writes. The ask belongs above,
+where flows are read and refused; the fact belongs wherever the thing it is about is written
+down,
 and every one of these is about a machine or about the road to one. `remote`, `isolated`,
 `managed` and the platforms are what :attr:`~hmz.coganchor.machines.MachineConfig.capabilities`
 answers with; `anchor:native-cli` and `anchor:supervised` are what
@@ -12,9 +13,9 @@ spelling its own words out, and the catalogue above was spelling them out a seco
 describe them -- one word in two places, right in whichever was read last.
 
 So the words live here, where every one of their producers can reach them and where nothing
-has to reach up into `hmz.flows` to say what it serves. What stays above is the prose: what
-the ask looks like, what a flow writes beside a place to reach for one, which is a question
-about flows and no business of a layer that drives agents.
+has to reach up into `hmz.runtime.flowing` to say what it serves. What stays above is the
+prose: what the ask looks like, what a flow writes beside a place to reach for one, which is
+a question about flows and no business of a layer that drives agents.
 
 `anchor:hooked` and `anchor:preloaded` are here for the company they keep and not because a
 machine ever declares them. They are the two roads humanize reaches a turn down from *inside*

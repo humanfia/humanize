@@ -42,7 +42,7 @@ reports a lump, a turn that spanned two models and named the kinds of neither. T
 went on some kind and there is nothing to say which, so every column is short by part of them.
 
 Which kinds each backend reports is a capability like any other: `counts:cache_read` and its
-four siblings say who serves each one, and `hmz.flows.briefed()` lists them.
+four siblings say who serves each one, and `hmz.runtime.flowing.briefed()` lists them.
 
 ## What refreshes it, and when
 

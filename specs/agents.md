@@ -318,7 +318,7 @@ class AgentConfig:
 - `goals` MUST be the explicit on/off availability of backend goals for this agent. It has
   no inherited or automatic state, and a place run under a `Goal` MUST have them: the two
   written against each other on one place is a flow saying two things about one agent, and
-  `hmz.flows.checking` MUST report it.
+  `hmz.runtime.flowing.checking` MUST report it.
 
 - `machine` MUST be the `hmz.coganchor.machines.MachineConfig` the agent's turns land on, or `None`
   to run them on this machine. It is one setting because it is one question: a machine that is
@@ -365,7 +365,7 @@ class AgentConfig:
   whoever chose it: a skill installed on this machine is its CLI's own -- installed the way
   that CLI installs one, switched off the way that CLI switches one off -- and humanize MUST
   NOT rewrite, override or disable any of them. What a flow brings MUST be mounted onto the
-  sessions it opens instead, which is `hmz.flows.skills`, and what a flow brings is the
+  sessions it opens instead, which is `hmz.runtime.flowing.skills`, and what a flow brings is the
   flow author's to change and nobody else's.
   Which of *those* one session carries MUST be that session's own answer -- which is the
   flow's own code speaking, since a session belongs to the flow driving it -- and is one of
@@ -1594,7 +1594,7 @@ class DummySession(CommandSessionBase): ...
 - A driver MUST NOT switch a skill of its CLI on or off, and MUST NOT write the CLI's own
   settings to do it: what the person who started the flow has installed is theirs. The skills
   a flow brings MUST reach a session by being mounted where that backend reads them, which is
-  `hmz.flows.skills` and `Profile.mounts`.
+  `hmz.runtime.flowing.skills` and `Profile.mounts`.
 - What a driver declares on its classes MUST be what is true of driving that CLI: which
   moments it reaches, whether it has a goal feature of its own, whether it can be held to a shape,
   whether it takes a tool the flow wrote, which service tiers it can express, and whether a turn of

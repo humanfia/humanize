@@ -16,10 +16,10 @@ nothing, which is what makes stepping past it possible at all: there is no answe
 comes next to be missing.
 
 A run is picked up into the same prophecy or not at all. What was written down is written
-down against :func:`~hmz.flows.atlas.digest`, and an atlas rewritten between two runs of it
-is a different prophecy whose nodes happen to share their names -- so the digest is checked,
-and a run whose prophecy has moved starts from the top rather than resuming into somewhere it
-has never been.
+down against :func:`~hmz.runtime.flowing.prophecy.digest`, and an atlas rewritten between
+two runs of it is a different prophecy whose nodes happen to share their names -- so the
+digest is checked, and a run whose prophecy has moved starts from the top rather than
+resuming into somewhere it has never been.
 """
 
 from __future__ import annotations
@@ -28,7 +28,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from .atlas import AGENTS, ATLAS, CONFIG, INPUT, Node, Reads, digest, shipped
+from hmz.flows.atlas import ATLAS
+
+from .prophecy import AGENTS, CONFIG, INPUT, Node, Reads, digest, shipped
 
 if TYPE_CHECKING:
     import os
@@ -36,9 +38,10 @@ if TYPE_CHECKING:
 
     from pydantic import BaseModel
 
-    from .agent import Agent
-    from .atlas import Edge, Prophecy
+    from hmz.flows import Agent
+
     from .driving import Entry
+    from .prophecy import Edge, Prophecy
 
 __all__ = ["walking"]
 
@@ -88,9 +91,9 @@ def walking(
     """
     import functools
 
-    from . import inside as which
-    from . import reading
     from .driving import NotAFlow
+    from .finding import inside as which
+    from .finding import reading
     from .prophesying import named_as, prophesied
 
     named = str(flow)
@@ -413,8 +416,8 @@ def _supernode(walk: _Walk, node: Node, held: str, said: list[Any]) -> Any:
       NotAFlow: If the prophecy names a supernode it does not hold, which nothing that
         compiled should be able to say.
     """
-    from . import find, loaded
     from .driving import NotAFlow
+    from .finding import find, loaded
 
     under = walk.prophecy.under(node.under)
     if under is None:

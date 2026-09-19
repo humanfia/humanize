@@ -18,7 +18,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.flows import ENTRY, FLOWS, LOCAL, OFFICIAL, USER, NotAFlow
+from hmz.flows import NotAFlow
+from hmz.runtime.flowing import ENTRY, FLOWS, LOCAL, OFFICIAL, USER
 from hmz.sdk import Hmz
 from tests.stubs import written
 

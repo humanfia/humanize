@@ -20,8 +20,8 @@ from typing import TYPE_CHECKING
 import pytest
 from textual.widgets import Label, OptionList
 
-from hmz.flows import LOCAL, OFFICIAL, USER, flowverses
-from hmz.flows import verses as store
+from hmz.runtime.flowing import LOCAL, OFFICIAL, USER, flowverses
+from hmz.runtime.flowing import verses as store
 from hmz.tui import Humanize
 from hmz.tui.pick import _ADD, _TAKES_AWAY, Fetches, Flows, Flowverses, Holds
 from tests.integration.tui.test_app import onto, rows

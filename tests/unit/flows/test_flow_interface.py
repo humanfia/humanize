@@ -19,9 +19,10 @@ import hmz.coganchor.agents
 import hmz.flows
 from hmz.coganchor.agents import HumanAgent
 from hmz.coganchor.agents import Unrecoverable as AgentUnrecoverable
-from hmz.flows import BUILTIN_AT, Agent, Person, Session
+from hmz.flows import Agent, Person, Session
 from hmz.flows import Unrecoverable as FlowUnrecoverable
-from hmz.flows.checking import surface
+from hmz.runtime.flowing import BUILTIN_AT
+from hmz.runtime.flowing.checking import surface
 
 if TYPE_CHECKING:
     from collections.abc import Iterator

@@ -616,9 +616,10 @@ class Driven(Agent, Protocol):
     be a flow rewriting the choice it was started with. So they are not on :class:`Agent`,
     and a flow that wants one set up differently makes one with :meth:`Agent.clone`.
 
-    They are still on something, because somebody does settle them: `hmz.runtime.runner` before the
-    first turn, `hmz.flows.driving` around a flow that called another, and the interface when
-    somebody watching a run says this agent is to go on as something else. That is this.
+    They are still on something, because somebody does settle them: `hmz.runtime.runner`
+    before the first turn, `hmz.runtime.flowing.driving` around a flow that called another,
+    and the interface when somebody watching a run says this agent is to go on as something
+    else. That is this.
     """
 
     def rename(self, name: str) -> None:

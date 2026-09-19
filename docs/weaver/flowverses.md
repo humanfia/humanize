@@ -282,7 +282,7 @@ Check it in the repository's own CI before anybody else does. A flow that stoppe
 red build:
 
 ```python
-from hmz.flows import drives, wanted
+from hmz.runtime.flowing import drives, wanted
 
 drives("yours/review")     # loads it exactly as `-f` would
 wanted("yours/review")     # what somebody choosing the agents will be asked

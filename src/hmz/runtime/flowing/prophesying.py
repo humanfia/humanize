@@ -3,9 +3,9 @@
 An ordinary flow is read by running it, and the one thing nothing can ask it is what it is
 about to do. An atlas answers that question before anything runs: its body is a declaration
 in a narrower Python, and this is the reading that holds it to that Python and compiles what
-it declared into an :class:`~hmz.flows.atlas.Prophecy`.
+it declared into an :class:`~hmz.runtime.flowing.prophecy.Prophecy`.
 
-Pure `ast`, like :mod:`hmz.flows.checking`, and for the same reason: the atlas most worth
+Pure `ast`, like :mod:`hmz.runtime.flowing.checking`, and for the same reason: the atlas most worth
 compiling is one nobody has read yet -- generated, fetched, forked -- and a compiler that ran
 what it was compiling would be the attack it exists to catch. So an atlas is read, and
 compiled, and only then loaded to be run.
@@ -40,21 +40,6 @@ import ast
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
-from .atlas import (
-    AGENTS,
-    CONFIG,
-    INPUT,
-    Edge,
-    Field,
-    Kind,
-    Node,
-    Prophecy,
-    Reads,
-    Shape,
-    When,
-    digest,
-)
-
 # The reading beside this one, whose parsing, whose rules and whose small readings of a tree
 # this shares: an atlas is a flow, and the whole of what makes it one is read there. Its
 # public surface is what a flow-checker is asked for, and these are two readings of one
@@ -74,9 +59,24 @@ from .checking import (
     _Whole,  # pyright: ignore[reportPrivateUsage]
     _whole,  # pyright: ignore[reportPrivateUsage]
 )
+from .prophecy import (
+    AGENTS,
+    CONFIG,
+    INPUT,
+    Edge,
+    Field,
+    Node,
+    Prophecy,
+    Reads,
+    Shape,
+    When,
+    digest,
+)
 
 if TYPE_CHECKING:
     import os
+
+    from hmz.flows.atlas import Kind
 
 __all__ = ["Prophesied", "is_atlas", "named_as", "prophesied"]
 
@@ -128,7 +128,7 @@ def prophesied(
       name: Which of the atlases the file holds, and "" for the one it holds under its own
         name -- the half after the colon in `official/review:pass`.
       whole: The files already parsed, for a caller that has read them, which is
-        :func:`hmz.flows.checking.checked` handing on the reading it has already done.
+        :func:`hmz.runtime.flowing.checking.checked` handing on the reading it has already done.
       through: The atlases this one is being compiled inside -- where each is and what it
         was named -- so that a supernode reaching back into one of them is refused rather
         than followed forever.
@@ -205,8 +205,8 @@ def _shipped(whole: _Whole, prophecy: Prophecy) -> list[Finding]:
       A `stale-prophecy` error where the two differ, and nothing where they agree, where the
       flow ships none, or where what it ships is another of the atlases its file holds.
     """
-    from . import ENTRY
-    from .atlas import shipped
+    from .finding import ENTRY
+    from .prophecy import shipped
 
     # Beside the entry point, which means the flow's own directory: a flow that is a single
     # file has none, and what is beside such a flow is the other flows.
@@ -285,7 +285,7 @@ def is_atlas(flow: str | os.PathLike[str]) -> bool:
       Whether anything in its entry point is marked `@atlas`. False for a flow that is not
       there, or will not parse -- which is a flow the other reading has plenty to say about.
     """
-    from . import ENTRY
+    from .finding import ENTRY
 
     at = Path(flow)
     entry = at / ENTRY if at.is_dir() else at
@@ -311,7 +311,7 @@ def named_as(under: Path, inside_: str = "") -> str:
 
 def _stem(whole: _Whole) -> str:
     """What the atlas a file holds under its own name is called, which is the file's."""
-    from . import ENTRY
+    from .finding import ENTRY
 
     at = whole.entry
     return named_as(at.parent if at.name == ENTRY else at)
@@ -1271,7 +1271,7 @@ class _Wiring:
             made, found = _compiled(self.whole, self.held, mark, named, self.through)
             self.found.extend(found)
             return made
-        from . import ENTRY, find, inside
+        from .finding import ENTRY, find, inside
 
         at = Path(find(named))
         if self._circular(call, named, _who(at, inside(named))):

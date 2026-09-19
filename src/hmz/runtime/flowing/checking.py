@@ -1,8 +1,9 @@
 """The static read of a flow's legality: what will not run, said before anything runs it.
 
-:mod:`hmz.flows.driving` refuses a flow as it loads it -- the wrong arity, a moment no agent
-can run -- but loading a flow means running its file, and the flow most worth checking is one
-nobody has read yet: generated, fetched, forked and edited. This is the reading that executes
+:mod:`hmz.runtime.flowing.driving` refuses a flow as it loads it -- the wrong arity, a
+moment no agent can run -- but loading a flow means running its file, and the flow most worth
+checking is one nobody has read yet: generated, fetched, forked and edited. This is the
+reading that executes
 nothing. Pure `ast` over every Python file the flow's directory holds, answering with findings
 rather than raising, so that whatever asked can say everything that is wrong at once.
 
@@ -28,8 +29,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal, NamedTuple, Protocol
 
 from hmz.coganchor import places
-
-from .agent import Agent, Driven, Person, Session
+from hmz.flows import Agent, Driven, Person, Session
 
 if TYPE_CHECKING:
     import os
@@ -103,8 +103,11 @@ def offered() -> frozenset[str]:
     """
     # The package's own tables, read by the package's own checker: private to every
     # flow, and one copy rather than a second one kept here to drift.
-    from . import _ELSEWHERE, _MODULES  # pyright: ignore[reportPrivateUsage]
-    from . import __all__ as declared
+    from hmz.flows import (
+        _ELSEWHERE,  # pyright: ignore[reportPrivateUsage]
+        _MODULES,  # pyright: ignore[reportPrivateUsage]
+    )
+    from hmz.flows import __all__ as declared
 
     return frozenset(declared) | frozenset(_ELSEWHERE) | frozenset(_MODULES)
 
@@ -116,11 +119,12 @@ def checked(flow: str | os.PathLike[str]) -> tuple[Finding, ...]:
     imports beside it -- except what is under its `skills/`, which is content for the agents
     rather than code this process runs. Nothing is imported and nothing is executed, so this
     is safe to point at a flow nobody has read: what running the file would refuse is the
-    second reading, :mod:`hmz.flows.proving`, which runs it in a process of its own.
+    second reading, :mod:`hmz.runtime.flowing.proving`, which runs it in a process of its own.
 
     A flow marked `@atlas` gets the stricter reading rather than this one, which is
-    :func:`hmz.flows.prophesying.prophesied`: an atlas is a flow whose body is compiled, so the
-    rules that read a body as a program would be reading it as something it is not.
+    :func:`hmz.runtime.flowing.prophesying.prophesied`: an atlas is a flow whose body is
+    compiled, so the rules that read a body as a program would be reading it as something it
+    is not.
 
     Args:
       flow: The flow: its directory, or the Python file a single-file flow is.
@@ -171,7 +175,7 @@ def _whole(flow: str | os.PathLike[str]) -> _Whole:
     Returns:
       The files and what parsing them found. Nothing is imported and nothing is executed.
     """
-    from . import ENTRY
+    from .finding import ENTRY
 
     at = Path(flow)
     if at.is_dir():
@@ -2204,7 +2208,7 @@ _PLACES = {
 _REACHED = places.ROADS
 
 #: The reach names humanize can only serve where the turn runs on this machine, re-exported
-#: from :mod:`hmz.coganchor.places` because :func:`hmz.flows.driving.serves` is what takes
+#: from :mod:`hmz.coganchor.places` because :func:`hmz.runtime.flowing.driving.serves` is what takes
 #: them away again and has always reached for them here.
 INSIDE = places.INSIDE
 
@@ -2246,7 +2250,7 @@ _ANCHORS = {
 #: same reason.
 #:
 #: They were askable before they were catalogued, which is the bug this closes:
-#: :func:`hmz.flows.driving.comes_to` unions a backend's tags in, so `Needs("search")` has
+#: :func:`hmz.runtime.flowing.driving.comes_to` unions a backend's tags in, so `Needs("search")` has
 #: always worked, while the catalogue and :func:`briefed` -- the one page a compiler steers
 #: by -- said nothing about them. A name a flow may write and a compiler cannot read is a
 #: name a generated flow will never ask under.

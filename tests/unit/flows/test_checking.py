@@ -15,8 +15,10 @@ from typing import TYPE_CHECKING
 import pytest
 
 import hmz.flows
-from hmz.flows import BUILTIN_AT, ENTRY, Agent, Driven, Person, Session, entry
-from hmz.flows.checking import checked, offered, surface
+from hmz.flows import Agent, Driven, Person, Session
+from hmz.runtime import flowing
+from hmz.runtime.flowing import BUILTIN_AT, ENTRY, entry
+from hmz.runtime.flowing.checking import checked, offered, surface
 from tests.stubs import written
 
 if TYPE_CHECKING:
@@ -1069,16 +1071,16 @@ def _swept() -> list[object]:
     places = [("package", BUILTIN_AT)]
     places.extend(
         ("official", under)
-        for verse in hmz.flows.flowverses()
-        if verse.name == hmz.flows.OFFICIAL and verse.fetched
-        for under in hmz.flows.holds(verse)
+        for verse in flowing.flowverses()
+        if verse.name == flowing.OFFICIAL and verse.fetched
+        for under in flowing.holds(verse)
         if under != BUILTIN_AT
     )
     held: list[object] = []
     seen_official = False
     for whose, under in places:
         seen_official = seen_official or whose == "official"
-        for name in hmz.flows.offered(under):
+        for name in flowing.offered(under):
             at = entry(under, name)
             if at is None:
                 continue

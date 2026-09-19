@@ -14,7 +14,8 @@ import pytest
 from pydantic import BaseModel, Field
 
 from hmz.coganchor.agents import AgentConfig
-from hmz.flows import NotAFlow, configures
+from hmz.flows import NotAFlow
+from hmz.runtime.flowing import configures
 from hmz.runtime.runner import Runner, flow_and_agents, set_up_from
 from tests.stubs import ShellAgent
 

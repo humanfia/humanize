@@ -16,8 +16,9 @@ import pytest
 
 from hmz.cli import main
 from hmz.coganchor.agents import AgentConfig, Stopped
-from hmz.flows import NotAFlow, configures, drives, wanted
+from hmz.flows import NotAFlow
 from hmz.runtime.epic import epics, opened
+from hmz.runtime.flowing import configures, drives, wanted
 from hmz.runtime.runner import Runner
 from tests.stubs import ShellAgent, events
 

@@ -21,7 +21,8 @@ import pytest
 
 from hmz.coganchor.agents import AgentConfig, Isolated, Needs, Remote, anchored
 from hmz.coganchor.machines import DockerConfig
-from hmz.flows import NotAFlow, wanted
+from hmz.flows import NotAFlow
+from hmz.runtime.flowing import wanted
 from hmz.runtime.runner import Runner
 from tests.stubs import ShellAgent
 

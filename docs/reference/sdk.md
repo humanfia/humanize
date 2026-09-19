@@ -56,7 +56,7 @@ a workspace is what loads the tracer.
 | `home` | Where humanize keeps what outlives one run — `~/.humanize`, or `$HUMANIZE_HOME`. |
 | `settings` | [What humanize remembers](/reference/tui#what-it-remembers) about this workspace, as `hmz.runtime.settings.Settings`. |
 | `flows` | [The flows there are](#flows), and the places they come from. |
-| `verses` | [Where flows come from](#flowverses) — the same object as `hmz.flows.verses`. |
+| `verses` | [Where flows come from](#flowverses) — the same object as `hmz.runtime.flowing.verses`. |
 | `accounts` | [The accounts an agent may be run as](#accounts), and what each backend runs as one. |
 | `fallbacks` | [Where a turn goes](#fallbacks) when the place taking it cannot take it at all. |
 | `epics` | [The runs of this workspace](#epics) that have already happened. |

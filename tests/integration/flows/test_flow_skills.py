@@ -20,7 +20,7 @@ import pytest
 from hmz.coganchor.agents import AgentConfig
 from hmz.coganchor.agents.skills import Loaded
 from hmz.flows import NotAFlow
-from hmz.flows.skills import brought, cached
+from hmz.runtime.flowing.skills import brought, cached
 from hmz.runtime.runner import Runner
 from tests.stubs import ShellAgent, written
 
@@ -563,7 +563,7 @@ def test_a_flow_is_copied_whole_into_this_projects_own(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Which is what a flow being a directory buys: a copy of one is a flow, skills and all."""
-    from hmz.flows import find, fork
+    from hmz.runtime.flowing import find, fork
 
     monkeypatch.chdir(tmp_path)
     (tmp_path / "theirs").mkdir()
@@ -584,7 +584,7 @@ def test_a_copy_does_not_take_the_name_of_a_flow_of_yours_that_is_one_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A directory wins the name a file also uses, so a copy would shadow yours silently."""
-    from hmz.flows import fork
+    from hmz.runtime.flowing import fork
 
     monkeypatch.chdir(tmp_path)
     (tmp_path / "theirs").mkdir()
@@ -605,7 +605,7 @@ def test_a_copy_that_fails_partway_leaves_the_name_free(
     """Half a flow under the name is one that will not run and cannot be copied again."""
     import shutil
 
-    from hmz.flows import fork
+    from hmz.runtime.flowing import fork
 
     monkeypatch.chdir(tmp_path)
     (tmp_path / "theirs").mkdir()
@@ -630,7 +630,7 @@ def test_a_copy_is_yours_to_change_and_is_what_then_runs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A fetched flowverse is fetched over, so an edit that is to keep is an edit to a copy."""
-    from hmz.flows import fork
+    from hmz.runtime.flowing import fork
 
     monkeypatch.chdir(tmp_path)
     (tmp_path / "theirs").mkdir()
