@@ -115,7 +115,13 @@ def _database(
             connection.execute(
                 "insert into part (id, message_id, session_id, time_created, "
                 "data) values (?,?,?,?,?)",
-                (f"prt_{index}_{offset}", message_id, SESSION, at + offset, json.dumps(part)),
+                (
+                    f"prt_{index}_{offset}",
+                    message_id,
+                    SESSION,
+                    at + offset,
+                    json.dumps(part),
+                ),
             )
     connection.commit()
     connection.close()
@@ -310,7 +316,7 @@ def test_nothing_outside_the_window_is_read(home: pathlib.Path) -> None:
 def test_a_home_with_no_database_is_a_backend_with_nothing_to_say(
     tmp_path: pathlib.Path,
 ) -> None:
-    """opencode need not have been run on this machine at all."""
+    """A machine opencode was never run on holds no database to read."""
     assert opencode.collect(tmp_path / "nowhere", None, None, _EVER) == []
 
 

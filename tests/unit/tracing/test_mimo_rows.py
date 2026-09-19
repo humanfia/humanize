@@ -87,7 +87,13 @@ def _database(home: pathlib.Path, *, directory: str = "/work") -> None:
     connection.execute(
         "insert into part (id, message_id, session_id, time_created, data) "
         "values (?,?,?,?,?)",
-        ("prt_1", "msg_1", SESSION, _BEGAN + 1100, json.dumps({"type": "text", "text": "ok"})),
+        (
+            "prt_1",
+            "msg_1",
+            SESSION,
+            _BEGAN + 1100,
+            json.dumps({"type": "text", "text": "ok"}),
+        ),
     )
     connection.commit()
     connection.close()
