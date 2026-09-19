@@ -13,7 +13,19 @@ import dateparser
 from hmz.coganchor import backends
 
 from . import chrome
-from .readers import claude, codex, dsh, grok, kimi, mimo, opencode, pi, qwen, zcode
+from .readers import (
+    agy,
+    claude,
+    codex,
+    dsh,
+    grok,
+    kimi,
+    mimo,
+    opencode,
+    pi,
+    qwen,
+    zcode,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -24,6 +36,7 @@ if TYPE_CHECKING:
 #: Which reader reads which backend's logs. Where those logs are, and in what order the
 #: backends are gone through, is :mod:`hmz.coganchor.backends`.
 _READERS = {
+    "agy": agy.collect,
     "claude": claude.collect,
     "codex": codex.collect,
     "dsh": dsh.collect,

@@ -8,8 +8,8 @@ file is `runtime.cjs` beside this module, and this is the other end of it -- the
 reports on, and what those reports become here.
 
 Which is near-syscall fidelity without a supervisor, and only where a runtime will have it: a CLI
-shipped as a compiled binary -- claude and opencode are Bun executables, codex and grok are native,
-agy is a compiled Deno -- has no Node to load anything into.
+shipped as a compiled binary -- claude and opencode are Bun executables, and codex, grok and agy are
+native, agy being Go -- has no Node to load anything into.
 :attr:`hmz.coganchor.backends.Profile.preloads` is where it is written down which CLIs take a
 preload and through which variable, and `anchor:preloaded` is the name a flow asks for it under.
 Four backends of twelve is the honest ceiling, which is why this supplements the hooks a CLI offers

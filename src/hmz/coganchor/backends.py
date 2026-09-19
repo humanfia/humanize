@@ -1121,9 +1121,12 @@ PROFILES = (
         # flag. So there is no variable to name here, and `directory()` reads the one place.
         home_var="",
         home_dir=".gemini/antigravity-cli",
-        # None: a conversation here is rows of a SQLite database whose payloads are protobuf,
-        # so there is no log to read a run's cost out of as it is spent, and none to gather.
-        logs=(),
+        # One database per conversation, whose `steps` hold their payload as protobuf --
+        # so a file per session after all, which is what makes it a directory that can be
+        # staged and a conversation that can be read back. Not lines appended to, though:
+        # a row is rewritten in place, so what has been spent is asked of the reader afresh
+        # rather than counted off the bytes that arrived since the last look.
+        logs=("conversations/{ident}.db",),
         # The one backend here that fails without saying why. It exits with `Agent execution
         # terminated due to error` on both streams and puts the HTTP status in its own log --
         # which is how six rate-limited turns of the 2026-09-09 evaluation read as six turns
