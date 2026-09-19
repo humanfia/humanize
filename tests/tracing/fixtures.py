@@ -54,12 +54,22 @@ def _write(path: pathlib.Path, records: list[dict[str, Any]]) -> None:
 def sandbox(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Hides the real agent homes so tests never read the developer's logs."""
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    # Every variable any backend lets its home be moved by, whether or not a
+    # reader for that backend exists yet. `tracing.collect` asks every backend
+    # there is, so one left set is one whose real logs a test would read and
+    # pass off -- and the day a reader is written for it is not the day anybody
+    # would think to come back here. ZCode and Antigravity are absent because
+    # what moves their homes is `HOME`, which is set above.
     for variable in (
         "CLAUDE_CONFIG_DIR",
         "CODEX_HOME",
+        "CURSOR_CONFIG_DIR",
         "DSH_HOME",
         "GROK_HOME",
         "KIMI_CODE_HOME",
+        "PI_CODING_AGENT_DIR",
+        "QWEN_HOME",
+        "XDG_DATA_HOME",
     ):
         monkeypatch.delenv(variable, raising=False)
     monkeypatch.chdir(tmp_path)

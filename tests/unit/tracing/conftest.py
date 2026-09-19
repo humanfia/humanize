@@ -9,13 +9,13 @@ tier's imports.
 `sandbox` is re-exported alongside them, and it is the one that must not be forgotten. It is
 autouse, and autouse is a property of the fixture rather than of the file it was named in, so
 importing it here puts it back over every test in this directory. What it does is set `HOME`
-inside `tmp_path` and unset `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `DSH_HOME`, `GROK_HOME` and
-`KIMI_CODE_HOME`, which the home fixtures below then set one at a time as a test asks for
-them. Drop it and only the homes a test named are redirected: `tracing.collect` looks for
-every backend, so a test that asked for `claude_home` alone would go on to read the real
-Codex, DSH, Grok Build, Kimi and ZCode logs of whoever ran the suite -- and still pass, off
-somebody else's transcripts. ZCode is the one with no variable in that list: what moves its
-home is `HOME` itself, so setting that is the whole of what keeps this off the developer's own.
+inside `tmp_path` and unset every variable a backend lets its home be moved by, which the home
+fixtures below then set one at a time as a test asks for them. Drop it and only the homes a
+test named are redirected: `tracing.collect` looks for every backend there is, so a test that
+asked for `claude_home` alone would go on to read the real Codex, DSH, Grok Build, Kimi, Qwen
+Code and ZCode logs of whoever ran the suite -- and still pass, off somebody else's
+transcripts. ZCode and Antigravity are the two with no variable of their own: what moves their
+homes is `HOME` itself, so setting that is the whole of what keeps this off the developer's.
 """
 
 from __future__ import annotations
