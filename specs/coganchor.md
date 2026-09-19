@@ -5,9 +5,15 @@ are deliberately not.
 
 ## The model
 
-There are two arrangements, and which one a session uses is a setting of the
-session rather than a fact about the target. They are opposites, and everything
-below that is not marked otherwise is about the first.
+Two questions, answered separately, and each of them a setting of the session
+rather than a fact about the target.
+
+**How** a turn is reached has two answers and they are opposites. Everything
+below that is not marked otherwise is about the first of them.
+
+**Where the harness runs** has three, and is [its own section](#where-the-harness-runs)
+below. It is a second question about the first answer rather than a third answer
+to it: a supervised turn is supervised wherever its supervisor happens to be.
 
 **Supervised.** An agent runs on this machine, unchanged. Everything it *does* —
 reading and writing project files, running commands, reaching the network from
@@ -59,6 +65,86 @@ is a program on this machine speaking to a socket in this process, and the CLI
 that would start it is on the target. A turn offering them is refused rather
 than taken without them.
 
+## Where the harness runs
+
+The **harness** is the agent process and the supervisor tracing it. A supervised
+session has always had it here and its work over there. That is one arrangement
+of three, and the session says which under a setting of its own.
+
+- **Here.** The default, and everything above. The agent's credentials, its
+  state directory and its link to its model provider stay on this machine, and
+  every path the agent names crosses the link.
+- **Beside its work.** The harness is put on the machine the work lands on and
+  supervises a turn that never leaves it. What crosses is the agent's own three
+  streams and nothing else — no file, no syscall, no round trip per `open`.
+- **On a machine of its own.** The harness on one machine, the work on another,
+  and coganchor on neither.
+
+A harness that is not here MUST say so, under `anchor:afar`, and MUST say it
+*alongside* `anchor:supervised` rather than instead of it: the turn is
+supervised either way, and a flow that must keep the agent's own process here
+is one that refuses the added name rather than one that fails to find the first.
+`anchor:afar` and `anchor:native-cli` are opposite asks and a session MUST NOT
+be both: a native turn has no harness to put anywhere.
+
+Whatever the line does, it MUST look the same from above. What a layer above
+spawns is one command whose three streams are the agent's and whose status is
+the agent's, and where that command runs is no part of what it reads. The
+requirements below are then requirements of *whichever machine the harness runs
+on* — a machine that could not supervise a turn itself may still start one
+somewhere that can.
+
+And the account goes where the harness goes. A harness elsewhere holds the
+credentials, the state directory and the provider connection on that machine for
+the length of the turn, which is the same trade a native session makes and has
+the same answer: a machine that should not be trusted with the account is a
+machine to reach with the harness here.
+
+### Being introduced
+
+Two machines coganchor started are not two machines that can reach each other.
+Both can reach coganchor, and that is what the third arrangement is built on.
+
+A **meeting** is named by a ticket — one secret, one session — and each half
+presents it. A ticket MUST be unguessable, because presenting it is the whole of
+what is asked of either half; nothing else authenticates a peer, and a meeting
+MUST pair only the two halves that were told the same one.
+
+Three things are tried, in order, and a session takes the first that works.
+
+1. **Each half is told what it looks like from outside**, that being the address
+   its connection arrived from — the one thing a machine behind a NAT cannot
+   learn by asking itself. Each half is given the other's alongside the addresses
+   that half claims for itself.
+2. **The two are started at each other at once**, from the port each dialled the
+   meeting from and listening on the same. Where a NAT is address-independent,
+   each side's outbound attempt opens the hole the other's arrives through.
+3. **The bytes are carried** where they cannot be. The connections the two halves
+   are already holding to the meeting are spliced, so the fallback costs one
+   message and no second port.
+
+Which of the three a session got MUST NOT change anything above it. The channel
+is a socket either way and the protocol above it is the same protocol, and a
+session is not told and cannot ask.
+
+Exactly one connection MUST carry the session. Several may get through at once —
+each half knocks while it listens — and the two halves MUST agree on which, or
+each would hold one end of a different one and the session would hang with both
+of them certain it had started.
+
+And nothing of the session MUST reach a half before that half has been told how
+the session is joined. The two halves are answered independently, so the one
+carrying the bytes can be ready before the other has been spoken to; a byte
+arriving then is read as the rest of a control line, and the stream is shifted
+from that point on with neither end able to notice.
+
+What is not promised: a meeting is IPv4. A hole is punched from one port to one
+address, and a candidate the other half cannot open a matching socket for only
+spends the window; a machine reachable no other way is carried instead. A
+carried session pays coganchor's own bandwidth and latency for every byte of
+it, and nothing says so at the time — no end of a connection can honestly
+report that it is being relayed.
+
 ## What the agent observes
 
 It starts in the workspace, or in whichever directory inside it the session was
@@ -105,7 +191,8 @@ coganchor exits nothing it started is left running.
 
 ## What stays on this machine
 
-Under a supervised session:
+Under a supervised session — and "this machine" here is whichever one the
+harness runs on, which is this one unless the session said otherwise:
 
 - the agent's own executable and its re-execs
 - its state directory — every backend humanize drives is known by name, under
@@ -187,6 +274,8 @@ Each of these is deliberate, and each looks like a defect if you meet it cold.
 
 Running an agent needs Linux on x86-64 or aarch64 and a recent Python; any
 other architecture is refused at start-up, and told where it can run instead.
+That is asked of whichever machine the harness runs on, so a session that put
+the harness elsewhere asks it of that machine and nothing of this one.
 Serving needs only a POSIX system with a Python of the same vintage — no root,
 no compiler, no kernel module, nothing installed. A macOS target serves as
 readily as a Linux one, on either architecture: macOS ships no `python3` on the

@@ -98,9 +98,23 @@ GREETING = 3.0
 #: How long a half waits on the broker's own answers, which are sent as soon as it has them.
 _ANSWERING = 30.0
 
-#: How many tickets one broker will hold at once. A cap rather than a policy: pairing is by a
-#: secret nobody can guess, so the only thing a stranger can do here is ask for room.
-_TICKETS = 4096
+#: How deep the queue of halves waiting to be accepted is allowed to get. `SOMAXCONN` is what
+#: the kernel is willing to hold, and what is wanted here is all of it: the alternative to
+#: queueing a connection is dropping it.
+_BACKLOG = socket.SOMAXCONN
+
+#: How many goes at taking one port for the two sockets that need it. A handful: each failure
+#: is another socket's to have taken the port in between, which is a thing that happens and
+#: not a thing that keeps happening.
+_TRIES = 8
+
+#: How many tickets one broker will hold at once. A backstop rather than a budget: a meeting
+#: only exists while a half is connected to it, and a half is a connection and a thread, so
+#: what actually bounds this is the same thing that bounds every other server. The number is
+#: therefore set well past where those run out -- a hub introducing four thousand pairs at
+#: once was refusing them here, at a cap chosen for the size of a dictionary rather than for
+#: the size of a fleet, and the sessions it refused were sessions that would have worked.
+_TICKETS = 1 << 16
 
 #: How many pairs of machines a broker remembers having failed to introduce, and how often it
 #: tries them again anyway. Two machines with no route between them do not grow one between
@@ -111,6 +125,14 @@ _TICKETS = 4096
 #: sessions that could now go straight across.
 _HOPELESS = 1024
 _DISBELIEVING = 16
+
+#: And how many failures it takes before the answer is believed at all. More than one, and
+#: that matters: a pair here is named by the two addresses the world has for the two halves,
+#: and every machine behind one NAT wears the same one. A single unlucky punch -- a port that
+#: was not free for the moment it was wanted, a window that closed a beat early -- would
+#: otherwise condemn every pair of machines behind those two addresses to being carried.
+#: Something genuinely unroutable fails every time and reaches this in short order.
+_CONVINCED = 3
 
 #: What goes across a punched socket before anything else, so that neither half mistakes a
 #: port scan, a health check or its own listener for the session it is waiting for. The digest
@@ -202,18 +224,14 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
     """
     if role not in ROLES:
         raise ValueError(f"unsupported role {role!r}; expected {ANCHOR} or {SERVE}")
-    home = _outward()
-    ear: socket.socket | None = None
+    # One port for both, taken before either is used for anything: the broker has to see this
+    # half at the port its peer will be sent at, and the peer has to find something listening
+    # there. Which of the two is opened first matters, and it is the listener -- see `_both`.
+    home, ear, port = _both()
     punched: socket.socket | None = None
     try:
         home.settimeout(timeout)
         home.connect((meeting.host, meeting.port))
-        port = int(home.getsockname()[1])
-        # The same port the broker was dialled from, so that whatever a NAT made of this
-        # connection is the mapping the other half is about to be sent at. A machine whose
-        # kernel will not lend the port twice still punches outward and is still reachable at
-        # whatever it is given; it simply has no address of its own worth advertising.
-        ear = _listening(port)
         lines = _Lines(home)
         _say(home, {"ticket": meeting.ticket, "role": role, "at": _mine(home, port)})
         seen = lines.read(timeout).get("seen")
@@ -343,7 +361,12 @@ class Broker:
         listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             listener.bind((self._host, self._port))
-            listener.listen(64)
+            # As deep a queue as the kernel will give. Both halves of every session arrive
+            # here, and a run bringing a fleet up brings all of them up at once -- so what
+            # queues at this socket is two connections per agent, arriving as fast as some
+            # other machine can fork. A shallow backlog drops the overflow, and what that
+            # looks like from a session is the other half never having arrived.
+            listener.listen(_BACKLOG)
         except OSError:
             listener.close()
             raise
@@ -401,7 +424,13 @@ class Broker:
             mine = [*_pairs(hello.get("at")), (whence[0], whence[1])]
             pair = self._join(name, role, half, mine)
             if pair is None:
-                _say(half, {"go": "no", "why": "too many meetings are open here"})
+                _say(
+                    half,
+                    {
+                        "go": "no",
+                        "why": f"this rendezvous is already holding {_TICKETS} meetings",
+                    },
+                )
                 return
             other = pair.await_other(role, self._patience)
             if other is None:
@@ -413,6 +442,7 @@ class Broker:
             direct = bool(lines.read(punching + _ANSWERING).get("direct"))
             joined = pair.settle(role, direct=direct, patience=_ANSWERING)
             _say(half, {"go": "direct" if joined else "relay"})
+            pair.spoke(role)
             if role == ANCHOR:
                 self._learn(between, worked=joined)
             if not joined:
@@ -441,10 +471,10 @@ class Broker:
             return True
         with self._lock:
             failed = self._failed.get(between, 0)
-        # Nought is never here -- a pair only arrives once it has failed -- so what the
-        # modulus answers is the attempt *after* the sixteenth failure, and every sixteenth
-        # failure after that one.
-        return failed == 0 or failed % _DISBELIEVING == 0
+        # And every so often after that, because a firewall rule is the kind of thing that
+        # changes: the modulus answers the attempt *after* the sixteenth failure, and after
+        # every sixteenth one since.
+        return failed < _CONVINCED or failed % _DISBELIEVING == 0
 
     def _learn(self, between: tuple[str, str] | None, *, worked: bool) -> None:
         """Remembers how that went, so the next pair of these two need not find out again."""
@@ -496,6 +526,12 @@ class _Pair:
     )
     #: Set when it has said whether it got through.
     answered: dict[str, threading.Event] = field(
+        default_factory=lambda: {role: threading.Event() for role in ROLES}
+    )
+    #: Set once that half has been told how the session will be joined. The two halves are
+    #: answered by two threads and nothing else orders them, so this is what keeps the one
+    #: that carries the bytes from starting before the other has been spoken to.
+    told: dict[str, threading.Event] = field(
         default_factory=lambda: {role: threading.Event() for role in ROLES}
     )
     #: Set once the bytes have finished flowing, for whichever thread is not carrying them.
@@ -550,15 +586,27 @@ class _Pair:
         with self.lock:
             return all(self.verdicts.get(name, False) for name in ROLES)
 
+    def spoke(self, role: str) -> None:
+        """Says that half has been told how the session will be joined."""
+        self.told[role].set()
+
     def carry(self, role: str) -> None:
         """Moves the bytes between the two, for a pair that could not be introduced.
 
         One of the two threads does the carrying and the other waits for it, so that neither
         socket is closed from under the splice by the half that stopped having anything to do.
+
+        And the carrying waits until both halves have been spoken to. The two are answered by
+        two threads with nothing ordering them, so the one that carries can reach here while
+        the *other* half has not yet been sent the line saying a splice is coming -- and the
+        first bytes of the session would then arrive where that half is still reading a
+        control line, one character at a time, out of a frame. There is no recovering from
+        that and no recognising it: the stream is simply shifted from then on.
         """
         if role != ANCHOR:
             self.done.wait(timeout=None)
             return
+        self.told[_OPPOSITE[ANCHOR]].wait(timeout=_ANSWERING)
         with self.lock:
             here, there = self.halves.get(ANCHOR), self.halves.get(SERVE)
         try:
@@ -571,6 +619,7 @@ class _Pair:
         """Takes one half out, and says whether that was the last of them."""
         # Whoever goes first releases the other from waiting on a splice that is not coming.
         self.done.set()
+        self.told[role].set()
         self.answered[role].set()
         self.arrived[role].set()
         with self.lock:
@@ -587,6 +636,14 @@ def _splice(one: socket.socket, two: socket.socket) -> None:
     agent is most of a turn -- can arrive at each waiting on the other. Two threads cannot do
     that to each other, and two threads is the whole of what a carried session costs here.
     """
+    for end in (one, two):
+        # Both of them, and before either thread starts. These sockets have been carrying the
+        # introduction, which is read a line at a time under a deadline, so each of them is
+        # still holding whatever timeout the last line left on it. A `sendall` that timed out
+        # mid-frame would have sent *part* of one -- and the far side would read the rest of
+        # the session shifted by however many bytes were lost, which is not an error it can
+        # recover from or even recognise. Blocking, always, once this is a pipe.
+        end.settimeout(None)
     moving = [
         threading.Thread(target=_pour, args=(source, sink), daemon=True)
         for source, sink in ((one, two), (two, one))
@@ -606,8 +663,9 @@ def _pour(source: socket.socket, sink: socket.socket) -> None:
     The half-close is the point of the `finally`: one direction ending is not the session
     ending, and a peer waiting to read the last of what it was sent has to be told that is
     the last of it rather than left holding a connection nothing more is coming down.
+
+    Both sockets are blocking by the time this runs -- :func:`_splice` says why that matters.
     """
-    source.settimeout(None)
     try:
         while True:
             moving = source.recv(_RELAY)
@@ -712,7 +770,12 @@ def _punch(
         return None
     deadline = time.monotonic() + seconds
     won: queue.Queue[socket.socket] = queue.Queue()
-    claimed = threading.Event()
+    # A latch rather than a flag, because reading it and setting it have to be one thing: two
+    # connections can get through at once -- each half knocks while it listens, so a pair that
+    # punches cleanly makes two -- and two threads that both found it clear would both accept,
+    # leaving the two halves holding one end each of *different* sockets. Taken once, never
+    # given back; whoever gets it is the connection this session is.
+    claimed = threading.Lock()
     stop = threading.Event()
     threads = [
         threading.Thread(
@@ -754,7 +817,7 @@ def _knocking(
     name: str,
     role: str,
     won: queue.Queue[socket.socket],
-    claimed: threading.Event,
+    claimed: threading.Lock,
     stop: threading.Event,
     deadline: float,
 ) -> None:
@@ -762,16 +825,25 @@ def _knocking(
     while not stop.is_set() and time.monotonic() < deadline:
         knock = _outward()
         try:
-            knock.bind(("", port))
+            try:
+                knock.bind(("", port))
+            except OSError:
+                # Somebody else has this half's own port and this moment. Knock from wherever
+                # the kernel will have us instead: the hole it opens is at a different port,
+                # so a NAT in the way will not be punched through -- but a peer on the same
+                # network is reached all the same, and the alternative is not knocking.
+                knock.bind(("", 0))
             knock.settimeout(max(0.2, min(1.0, deadline - time.monotonic())))
             knock.connect(where)
-        except OSError:
+        except OSError as exc:
             knock.close()
+            log.debug("knocked at %s and got %s", where, exc)
             # A beat before the next one: a refused connection is instant, and a tight loop
             # on it would spend the window on syscalls rather than on giving the other half
             # time to open its own side.
             stop.wait(0.05)
             continue
+        log.debug("opened outward to %s", where)
         _greet(knock, name, role, won, claimed)
         return
 
@@ -781,7 +853,7 @@ def _answering(
     name: str,
     role: str,
     won: queue.Queue[socket.socket],
-    claimed: threading.Event,
+    claimed: threading.Lock,
     stop: threading.Event,
     deadline: float,
 ) -> None:
@@ -792,6 +864,7 @@ def _answering(
             arrived, _ = ear.accept()
         except (TimeoutError, OSError):
             continue
+        log.debug("something arrived on the shared port")
         threading.Thread(
             target=_greet,
             args=(arrived, name, role, won, claimed),
@@ -804,7 +877,7 @@ def _greet(
     name: str,
     role: str,
     won: queue.Queue[socket.socket],
-    claimed: threading.Event,
+    claimed: threading.Lock,
 ) -> None:
     """Proves a connection is the other half of this session, and settles who keeps it.
 
@@ -832,13 +905,16 @@ def _greet(
             # The serving half is the one that decides, because it is the one that can see
             # every offer: whichever GO it reads first is the socket, and its OK is what
             # tells that anchor thread it won while the others hear nothing and give up.
-            if claimed.is_set():
+            # Tested and taken in one step, so that two offers arriving together cannot both
+            # be answered -- which would leave the two halves on two different sockets, each
+            # certain it had been agreed to.
+            if not claimed.acquire(blocking=False):
                 return
-            claimed.set()
             punched.sendall(_OK + b"\n")
         kept = True
         won.put(punched)
-    except (OSError, ValueError, IndexError):
+    except (OSError, ValueError, IndexError) as exc:
+        log.debug("a greeting at %s came to nothing: %s", punched.getsockname(), exc)
         return
     finally:
         if not kept:
@@ -866,17 +942,45 @@ def _outward() -> socket.socket:
     return made
 
 
-def _listening(port: int) -> socket.socket | None:
-    """The socket the peer's punch arrives on, or None where the port cannot be shared."""
-    ear = _outward()
-    try:
-        ear.bind(("", port))
-        ear.listen(8)
-    except OSError as exc:
-        log.debug("this half cannot listen on %s as well: %s", port, exc)
-        ear.close()
-        return None
-    return ear
+def _both() -> tuple[socket.socket, socket.socket | None, int]:
+    """A socket to dial the broker from and a listener, sharing one port.
+
+    The listener is bound *first* and the dialling socket is bound to the port it landed on,
+    which is the opposite of the obvious order and is the whole of what makes this reliable.
+    Taking an ephemeral port by connecting and then asking for it again is a race: the second
+    bind can lose, and a half that lost it can neither be reached nor reach out -- every one
+    of its own knocks is bound to the same port and fails the same way. A window then passes
+    with nothing through it, and a pair that could have met perfectly well is carried instead.
+    Binding the listener first makes the one socket that must exist the one that is never in
+    doubt, and the second bind is retried a few times before it is given up on.
+
+    Returns:
+      The socket to dial the broker from, the listener or None if the port could not be
+      shared after all, and the port the two of them are on. A half with no listener still
+      punches outward and is still worth introducing; it simply cannot be knocked at.
+    """
+    for _ in range(_TRIES):
+        ear = _outward()
+        try:
+            ear.bind(("", 0))
+            ear.listen(8)
+            port = int(ear.getsockname()[1])
+            home = _outward()
+            try:
+                home.bind(("", port))
+            except OSError:
+                home.close()
+                raise
+        except OSError as exc:
+            log.debug("could not take a port for both halves of a punch: %s", exc)
+            ear.close()
+            continue
+        return home, ear, port
+    # Nothing shareable to be had. The broker still sees this half at wherever it dials from,
+    # and its own knocks still open holes; it is only the listening that is lost.
+    home = _outward()
+    home.bind(("", 0))
+    return home, None, int(home.getsockname()[1])
 
 
 def _settled(held: socket.socket) -> socket.socket:

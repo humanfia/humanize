@@ -105,12 +105,19 @@ MINIMUM_PYTHON = (3, 12)
 #: already there is left where it is: it is named by its digest, so it is the same archive, and
 #: rewriting it would be rewriting a file a live session may still be importing from.
 #:
+#: That name of its own carries the writing shell's pid, because two sessions bootstrapping one
+#: machine at the same moment is the ordinary case rather than the unlucky one -- a fleet coming
+#: up does it by the hundred. Sharing a temporary name, both would write it and the second `mv`
+#: would find nothing there to move; each having its own, both write, both rename, and the
+#: loser's rename replaces a file with the identical bytes while anything already reading the
+#: old one goes on reading it.
+#:
 #: Quoted at every mention, because the path has a `$HOME` in it and that is the far side's to
 #: expand: a home directory with a space in its name would otherwise arrive as two words and
 #: the archive would be written somewhere nothing looks for it.
 _INSTALL = (
     'mkdir -p "$(dirname -- "{file}")" || exit 1; '
-    'if [ ! -s "{file}" ]; then cat > "{file}.part" && mv "{file}.part" "{file}"; '
+    'if [ ! -s "{file}" ]; then cat > "{file}.$$" && mv -f "{file}.$$" "{file}"; '
     "else cat > /dev/null; fi"
 )
 

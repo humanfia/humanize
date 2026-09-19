@@ -12,6 +12,7 @@ and a real seccomp filter with a real ptrace supervisor under it -- are in
 
 from __future__ import annotations
 
+import concurrent.futures
 import os
 import shlex
 import shutil
@@ -485,3 +486,38 @@ def test_an_archive_already_there_is_left_exactly_where_it_is(tmp_path: Path) ->
 
     assert ran.returncode == 0, ran.stderr
     assert already.read_bytes() == b"the one that is already here"
+
+
+def test_two_sessions_installing_the_archive_at_once_both_succeed(
+    tmp_path: Path,
+) -> None:
+    """Which is the ordinary case rather than the unlucky one: a fleet comes up by the hundred.
+
+    Both write, both rename, and whichever loses replaces a file holding the identical bytes.
+    A shared temporary name instead would have the second one find nothing there to move, and
+    that session would fail for having been the second to arrive.
+    """
+    home = tmp_path / "home"
+    home.mkdir()
+    where = f"{REMOTE_CACHE}/humanize-0123456789abcdef.pyz"
+    installing = transport._INSTALL.format(file=where)
+    payload = b"an archive, near enough" * 4096
+
+    def pushed(_which: int) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.run(
+            ["/bin/sh", "-c", installing],
+            input=payload,
+            capture_output=True,
+            env={"PATH": os.environ["PATH"], "HOME": str(home)},
+            check=False,
+        )
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pushing:
+        done = list(pushing.map(pushed, range(16)))
+
+    assert [one.returncode for one in done] == [0] * 16, [
+        one.stderr.decode() for one in done if one.returncode
+    ]
+    landed = home / ".cache" / "humanize" / "humanize-0123456789abcdef.pyz"
+    assert landed.read_bytes() == payload
+    assert sorted(one.name for one in landed.parent.iterdir()) == [landed.name]

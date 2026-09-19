@@ -20,12 +20,16 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz.coganchor.rendezvous import (
+    _CONVINCED,
     _DISBELIEVING,
     ANCHOR,
     PUNCHING,
     SERVE,
     Broker,
     Meeting,
+    _both,
+    _Pair,
+    _splice,
     dial,
     ticket,
 )
@@ -39,6 +43,30 @@ PATIENCE = 30.0
 #: A window wide enough for two halves of this machine to find each other through, which on
 #: loopback is every window there is -- what these tests vary is whether one is opened at all.
 PUNCHING_ENOUGH = PUNCHING
+
+
+def _shares_a_port() -> bool:
+    """Whether this kernel lends one port to two sockets, which is what a punch is made of.
+
+    Both halves open outward from, and listen on, the port they dialled the broker from, and
+    a kernel that will not allow that leaves a half punching outward only -- which works
+    between two machines and cannot work between two halves of this one, both of them being
+    behind the same refusal. So it is asked rather than assumed, and asked of the same call
+    `dial` asks it of: the tests that need a direct path say so, and a machine that cannot
+    give them one says which thing it could not give.
+    """
+    home, ear, _ = _both()
+    home.close()
+    if ear is None:
+        return False
+    ear.close()
+    return True
+
+
+#: Asked once: it is a fact about the kernel, and it is two sockets to find out.
+punches = pytest.mark.skipif(
+    not _shares_a_port(), reason="this kernel will not lend one port to two sockets"
+)
 
 
 @pytest.fixture
@@ -93,6 +121,7 @@ def talk(held: dict[str, socket.socket]) -> None:
             one.close()
 
 
+@punches
 def test_two_halves_that_can_reach_each_other_are_introduced(broker: Broker) -> None:
     """And the broker is out of the path, which is what its own count says."""
     meeting = Meeting(ticket(), *broker.address)
@@ -200,25 +229,32 @@ def test_two_meetings_at_one_broker_do_not_meet_each_other(broker: Broker) -> No
                 one_end.close()
 
 
+@punches
 def test_a_pair_that_could_not_be_introduced_is_not_tried_again(broker: Broker) -> None:
     """Two machines with no route between them do not grow one between two sessions.
 
-    So the second pair of the same two is carried without spending the window on an answer
-    the broker already has -- which at a hundred sessions is the difference between a run
-    that pauses for a few minutes in total and one that does not.
+    So a later pair of the same two is carried without spending the window on an answer the
+    broker already has, which at a hundred sessions is several minutes of nothing happening.
+    It takes more than one failure to be believed: a pair here is named by the two addresses
+    the world has for the two halves, and every machine behind one NAT wears the same one --
+    so a single unlucky punch must not condemn every pair of machines behind them.
     """
     broker._punching = 0.0
-    met(broker, Meeting(ticket(), *broker.address))  # one failure, on the record
-    broker._punching = (
-        PUNCHING_ENOUGH  # and a window that would work, if it were opened
-    )
+    for _ in range(_CONVINCED):
+        for one in met(broker, Meeting(ticket(), *broker.address)).values():
+            one.close()
+    assert broker.carried == _CONVINCED
+    broker._punching = PUNCHING_ENOUGH  # a window that would work, if one were opened
 
     held = met(broker, Meeting(ticket(), *broker.address))
 
     talk(held)
-    assert broker.carried == 2, "the broker went looking for a route it had not found"
+    assert broker.carried == _CONVINCED + 1, (
+        "the broker went looking for a route it had already failed to find"
+    )
 
 
+@punches
 def test_a_pair_is_disbelieved_every_so_often(broker: Broker) -> None:
     """A firewall rule is the kind of thing that changes, so the answer is not kept forever."""
     broker._punching = 0.0
@@ -233,3 +269,73 @@ def test_a_pair_is_disbelieved_every_so_often(broker: Broker) -> None:
     assert broker.carried == _DISBELIEVING, (
         "the broker never went back to see whether the two could reach each other"
     )
+
+
+def test_a_carried_session_is_not_cut_short_by_a_deadline_left_on_its_sockets() -> None:
+    """The two sockets a splice is handed have just finished carrying the introduction.
+
+    That is read a line at a time under a deadline, so each of them arrives still holding
+    whatever timeout the last line left -- which for a meeting that took its time is a very
+    short one. A `sendall` that timed out would have sent part of a frame and the far side
+    would read the rest of the session shifted by however many bytes went missing, which is
+    not something either end can recognise, let alone recover from. So the splice clears them
+    before it moves a byte, and this is that.
+    """
+    one, near = socket.socketpair()
+    far, two = socket.socketpair()
+    # As short as the last line of an introduction that nearly ran out of patience leaves it.
+    near.settimeout(0.001)
+    far.settimeout(0.001)
+    payload = bytes(range(256)) * 16384  # four mebibytes, many frames' worth
+
+    threading.Thread(target=_splice, args=(near, far), daemon=True).start()
+    try:
+        threading.Thread(target=one.sendall, args=(payload,), daemon=True).start()
+        read = bytearray()
+        two.settimeout(PATIENCE)
+        while len(read) < len(payload):
+            block = two.recv(1 << 16)
+            assert block, (
+                f"the splice stopped after {len(read)} of {len(payload)} bytes"
+            )
+            read += block
+        assert bytes(read) == payload
+    finally:
+        for end in (one, near, far, two):
+            end.close()
+
+
+def test_a_pair_is_not_carried_until_both_halves_have_been_told_it_will_be() -> None:
+    """Otherwise the session's first bytes arrive where a control line is still expected.
+
+    The two halves are answered by two threads and nothing orders them, so the one that does
+    the carrying can reach the splice while the *other* half has not yet been sent the line
+    saying a splice is coming. That half is reading a control line a character at a time, and
+    what it would read is the first frame of the session -- which it cannot recognise, cannot
+    recover from, and would spend the rest of the session shifted by.
+
+    Driven against the pair itself rather than through a broker, because what is being checked
+    is an ordering between two threads and a test that hoped to lose a race is a test that
+    passes when the race is lost the other way.
+    """
+    pair = _Pair("a-meeting")
+    ends = {role: socket.socketpair() for role in (ANCHOR, SERVE)}
+    try:
+        for role, (theirs, brokers) in ends.items():
+            pair.arrive(role, brokers, [("127.0.0.1", 1)])
+            theirs.settimeout(0.5)
+        pair.spoke(ANCHOR)  # and not the other one
+
+        threading.Thread(target=pair.carry, args=(ANCHOR,), daemon=True).start()
+        ends[ANCHOR][0].sendall(b"the session, starting\n")
+
+        with pytest.raises(TimeoutError):
+            ends[SERVE][0].recv(64)
+        pair.spoke(SERVE)
+        assert ends[SERVE][0].recv(64) == b"the session, starting\n"
+    finally:
+        pair.leave(ANCHOR)
+        pair.leave(SERVE)
+        for theirs, brokers in ends.values():
+            theirs.close()
+            brokers.close()
