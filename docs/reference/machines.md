@@ -365,7 +365,7 @@ what `AnchoredConfig` uses. `capabilities` has a default too — the empty set, 
 says nothing comes to nothing rather than to everything it never denied — and `observe` is on
 `MachineBase` for every machine that has an anchor to ask.
 
-The contract is `specs/machines.md`.
+The contract is `specs/coganchor/machines.md`.
 
 ## API summary
 

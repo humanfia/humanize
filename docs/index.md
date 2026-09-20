@@ -257,7 +257,7 @@ library in preference to a custom implementation.
 
 Each package depends only downwards, and a test checks the layering —
 [Architecture](/contributing/architecture) has the layers and the rules that keep them. Most
-packages have a SPEC under `specs/`, in a file named for the package. **Do not modify a SPEC**
+packages have a SPEC under `specs/`, whose tree mirrors `src/hmz/`. **Do not modify a SPEC**
 unless you were asked to: it is the contract, and the code is what has to move.
 
 **Next.** [Contributing](/contributing/) is the whole of it, and [Your first

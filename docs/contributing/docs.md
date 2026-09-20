@@ -163,7 +163,7 @@ HmzStack.vue        contributing/architecture
 Four things they are all held to:
 
 - **A drawing says what the code does.** `HmzAnchor` and `HmzSyscalls` route each call the way
-  `specs/coganchor.md` and `coganchor/linux/seccomp.py` route it; `HmzStack`'s edges are the
+  `specs/coganchor/SPEC.md` and `coganchor/linux/seccomp.py` route it; `HmzStack`'s edges are the
   `ALLOWED` table in `tests/integration/layering/test_layering.py`; every box in
   `theme/flows.ts` is a turn a flow really takes; `HmzBackends` is `hmz/backends.py` and which session base each agent class
   derives from; `HmzAccounts`' waits are the formulas in `coganchor/fallbacks.py`; every agent on
@@ -247,6 +247,6 @@ the nav, the sidebar and the theme's own logo name, VitePress prepends the base 
 
 - **`README.md`** follows [standard-readme](https://github.com/RichardLitt/standard-readme) and
   must not explain how anything works. It links here.
-- **`specs/*.md`** are the packages' contracts, a file for each package that has one, named for
-  the package. **Do not modify one** unless you were asked to.
+- **`specs/`** holds the packages' contracts in a tree that mirrors `src/hmz/`, a file for each
+  package that has one. **Do not modify one** unless you were asked to.
 - **Docstrings** are Google style and are checked by `ruff`.

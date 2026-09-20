@@ -234,25 +234,32 @@ and it is `coganchor` — an abbreviation, and an easter egg.
 Under `specs/`, and normative. Where this documentation says what humanize *does*, a SPEC says
 what it *must* do, in MUST/MUST NOT terms, for whoever is changing it.
 
-One flat directory, and a package with a contract of its own has a file named for it:
-`specs/agents.md` is the contract for `coganchor/agents/`. A package no file is named for is bound by the
-nearest one above it that has a file, and `specs/SPEC.md` is the one for the tree itself.
+The tree under `specs/` mirrors the tree under `src/hmz/`: a package with a contract of its
+own has a file named for it at the path it is written at, so `specs/coganchor/agents.md` is
+the contract for `coganchor/agents/`, and a package with subpackages of its own has a
+directory with a `SPEC.md` in it. A package no file is named for is bound by the nearest one
+above it that has a file, and `specs/SPEC.md` is the one for the tree itself.
 Together rather than beside the code, because a contract is read as a set — what one package may
 demand of another is a question about several of them at once — and because a file under `src/`
 is a file the wheel ships: a SPEC is for whoever changes humanize, not for whoever installs it.
 
 | | |
 | --- | --- |
-| `specs/SPEC.md` | The tree, the top-level modules, and every command line |
-| `specs/agents.md` | The agent and session contract every backend keeps |
+| `specs/SPEC.md` | The tree, what each layer is, and how they may name one another |
+| `specs/cli.md` | Every command line |
+| `specs/coganchor/SPEC.md` | Driving a coding agent CLI, and what an anchor entitles you to |
+| `specs/coganchor/agents.md` | The agent and session contract every backend keeps |
+| `specs/coganchor/linux.md` | What the anchor intercepts on the target |
+| `specs/coganchor/machines.md` | What a machine is |
+| `specs/coganchor/providers.md` | Which account an agent runs as, and how a turn is run under it |
+| `specs/coganchor/serve.md` | The half that ships to a target |
 | `specs/flows.md` | The whole of what a flow imports: what it drives, the mark, the atlas marks |
-| `specs/flowing.md` | What humanize does to a flow: finding, reading, checking, driving, compiling |
-| `specs/machines.md` | What a machine is |
-| `specs/providers.md` | Which account an agent runs as, and how a turn is run under it |
-| `specs/coganchor.md` | What you are entitled to under an anchor, and what you deliberately are not |
-| `specs/tracing.md` | The collect API and how a trace is built |
-| `specs/sdk.md` | How a tool that is not humanize reaches humanize |
+| `specs/runtime/SPEC.md` | What a run is, and what humanize remembers of one |
+| `specs/runtime/doing.md` | humanize as one object: a workspace and everything doable in it |
+| `specs/runtime/flowing.md` | What humanize does to a flow: finding, reading, checking, driving, compiling |
+| `specs/runtime/tracing.md` | The collect API and what a trace must hold |
 | `specs/daemon.md` | Holding a run apart from a terminal, and the terminals that read one |
+| `specs/sdk.md` | How a tool that is not humanize reaches humanize |
 | `specs/tui.md` | Every behaviour the interface must have |
 
 `AGENTS.md` says not to modify a SPEC unless you were told to. Change the code to match the
@@ -265,7 +272,7 @@ entry in the `DRIVEN` table in `coganchor/agents/__init__.py`, which `runtime/ru
 the interface both read, a way of asking it what it runs in `coganchor/models.py`'s `_READING`
 table, and its state paths in `coganchor/statepaths.py`. Subclass `CommandSessionBase` if a turn is one run of a command
 line, or `StreamSessionBase` if it is one long-lived process spoken to a line at a time —
-`specs/agents.md` says which and why.
+`specs/coganchor/agents.md` says which and why.
 
 Then whatever its logs allow, and nothing more: a reader in `runtime/tracing/readers/` where a session
 of it can be gathered afterwards, and a branch in `tui/tally.py`'s `_spent` where a row of them

@@ -1,267 +1,81 @@
-# Daemon
+# `daemon`
 
-## File Structure
+A run held where a terminal closing cannot end it, and the terminals that come and go from
+it. How a run is opened is not this package's: what it holds is a callable that opens one and
+returns when it is over.
 
-```
-.
-├── __init__.py
-├── attach.py
-├── proto.py
-├── serve.py
-├── session.py
-└── where.py
-```
-
-## `__init__.py`
+## API
 
 ```python
+# __init__.py -- finding, starting and asking after a held run
 @dataclass(frozen=True, slots=True)
 class Daemon:
     at: Path
     workspace: str
     pid: int
     started: str
-
-    @property
-    def alive(self) -> bool: ...
-
+    alive: bool    # property
     def attach(self) -> int: ...
     def status(self) -> dict[str, Any]: ...
     def detach(self) -> int: ...
     def stop(self, *, seconds: float = 20.0) -> bool: ...
     def kill(self, *, seconds: float = 20.0) -> bool: ...
     def asked(self, said: dict[str, Any]) -> dict[str, Any]: ...
-
-
 def running(workspace: str | os.PathLike[str] | None = None) -> Daemon | None: ...
 def daemons() -> list[Daemon]: ...
-def start(
-    opens: Callable[[Held], object],
-    workspace: str | os.PathLike[str] | None = None,
-    *,
-    columns: int = 0,
-    rows: int = 0,
-    seconds: float = 10.0,
-) -> Daemon: ...
-```
-
-Expose `Daemon`, `Held`, `Session`, `running`, `daemons`, `start` -- and `Hmz`, which is
-`hmz.runtime`'s and is handed through under this name.
-
-A run held where a terminal closing cannot end it, and the terminals that come and go from it.
-
-- How a run is opened MUST go on being none of this. What it holds is a callable that opens
-  one and returns when it is over, so that what draws and what holds stay apart: an interface
-  draws on a terminal, and whether that terminal is somebody's ssh session or one of these is
-  not a thing it has to be told. That is what makes the interface running under one identical
-  to the interface running under none.
-- What a run *is* MUST be this package's. It is the process a run of the workspace happens in,
-  so it MUST be where the runtime is reached from: `Hmz` MUST be offered here, and the
-  interface it holds MUST ask it for everything it does rather than draws. It MUST be the same
-  object handed through rather than anything of this package's own, and it MUST be fetched
-  when it is named rather than imported at the top: a line asking which runs are being held
-  must not pay for the flows, the drivers and the traces.
-- It MUST be a name and not a message. The interface being held draws inside this process, so
-  a round trip from it to here would be a process asking itself -- the protocol on the socket
-  is for the terminals outside, and MUST NOT grow a second one for what is already in hand.
-- What is running here MUST be answered here. The flows are running in this process, so a
-  status is this package's to answer out of the runtime rather than one it is handed by
-  whatever it is holding; what has been *drawn* is still whatever is drawing's, and says
-  itself. A run that cannot be asked MUST answer as one running nothing rather than as one
-  that cannot be read: a status nobody can read is worse than a thin one.
-- It MUST be one daemon per workspace. Two runs of one project in one directory are two flows
-  writing over each other's epic, and a daemon somebody cannot find is a daemon nobody can
-  stop. It MUST be held by a lock rather than by looking: looking is what leaves a window
-  between the look and the socket, and two `hmz` started in the same second would both find
-  nothing and both bind. The lock MUST be one the kernel drops however the process ends, so
-  that there is no such thing as one left behind by a machine that was turned off.
-- Holding a run MUST be done the way `nohup` and `screen` are done underneath, and MUST NOT
-  be done by running either: a fork so that whatever asked for it is not waiting on it,
-  `setsid` so that the terminal which started it is no longer its own -- which is what keeps a
-  hangup from reaching it -- and a second fork so that it can never take a controlling
-  terminal again. Its standard streams MUST be a pseudoterminal of its own, so that there is a
-  screen to draw on when nobody is reading, and MUST be put back if the caller was not a
-  forked child.
-- The process holding a run MUST be adopted rather than waited on: the middle process forks
-  it and exits, so that whatever asked for a daemon has nothing left to reap.
-- Whoever asked for one MUST be told whether it came up, and MUST be told through a
-  descriptor the held process closes rather than by looking for a socket that may take a
-  moment: a failure to bind is a thing to report and not a thing to time out on.
-- What is running MUST be told from what once was. A socket file outlives the process that
-  bound it, so a directory MUST read as holding nothing unless the process is there *and*
-  something answers on the socket -- process numbers come round, and a terminal that hangs is
-  worse than one that says nothing is running.
-- Letting go MUST NOT be stopping. Every terminal reading a run MUST be closable without the
-  run noticing, and the run MUST be told only so that it can say so; stopping is a separate
-  request and is what closing the interface means.
-
-## `where.py`
-
-```python
-SOCKET: str
-RECORD: str
-LOG: str
-LOCK: str
-
-
-def under() -> Path: ...
-def at(workspace: str | os.PathLike[str] | None = None) -> Path: ...
-def reached(where: Path) -> Generator[str]: ...
-def holds(where: Path) -> int: ...
-def wrote(where: Path, said: dict[str, Any]) -> None: ...
-def held(where: Path) -> dict[str, Any]: ...
-def alive(pid: int) -> bool: ...
-```
-
-Where one workspace's daemon keeps its socket, and what is written down beside it.
-
-- A directory MUST be named for the project and then for the whole path it is at: two
-  checkouts of one repository are two workspaces, and a directory of these is read by people.
-- What is written down MUST be written whole and moved into place, as every other file
-  humanize writes is.
-- A note whose process has gone MUST read as nothing written down: it is what tells a daemon
-  that is running from one whose machine went down without it.
-- What kind of terminal a run is drawing for MUST be written down and MUST be readable from
-  outside it. A run holds one pseudoterminal for its whole life and takes its kind from the
-  terminal it was started on, so a terminal of another kind that reads it later is read in the
-  first one's language -- which is a thing to be able to see rather than one to discover.
-- A socket MUST be reachable however deep the directory it is in. A Unix socket address holds
-  about a hundred bytes whole, and a project under a deep home is longer than that, so a path
-  that will not fit MUST be reached by standing in its directory and naming the socket alone.
-  That MUST be done only where a process has one thread and never while a flow is running,
-  which is a flow that may be standing somewhere of its own.
-
-## `proto.py`
-
-```python
-HELLO: bytes
-INPUT: bytes
-OUTPUT: bytes
-RESIZE: bytes
-GONE: bytes
-CONTROL: bytes
-
-
-def frame(kind: bytes, payload: bytes = b"") -> bytes: ...
-def spoken(kind: bytes, said: dict[str, Any]) -> bytes: ...
-def asked(payload: bytes) -> dict[str, Any]: ...
-
-
-class Frames:
-    def feed(self, data: bytes) -> list[tuple[bytes, bytes]]: ...
-```
-
-What the socket between a run and the terminals reading it carries.
-
-- It MUST be framed rather than a pipe both ways. The two directions are not only bytes: a
-  terminal that has been resized has to say so, and a run letting go of one has to say that
-  rather than closing a socket the terminal would read as the machine going down.
-- A length no frame of this protocol has MUST be refused rather than allocated for: a socket
-  carrying something else is a socket to close.
-- What was read MUST be taken out of the buffer before any of it is handed over. A caller
-  that stops reading partway -- a terminal that has just been told the run is over -- MUST
-  NOT leave a frame it has already been handed sitting there to be handed out again.
-- A question about the run rather than a terminal reading it MUST be one of these too, and
-  MUST be answered on the same connection and closed: one socket is one protocol.
-
-## `serve.py`
-
-```python
-class Held:
-    def __init__(self, master: int, listening: socket.socket, at: Path): ...
-
-    @property
-    def attached(self) -> int: ...
-
+def start(opens: Callable[[Held], object],
+          workspace: str | os.PathLike[str] | None = None,
+          *, columns: int = 0, rows: int = 0, seconds: float = 10.0) -> Daemon: ...
+def __getattr__(name: str) -> object: ...  # `Hmz`, handed through from `hmz.runtime`
+# session.py -- a run outliving its terminal, as whatever draws it sees it
+@runtime_checkable
+class Session(Protocol):
+    attached: int
+    def detach(self) -> int: ...
+# serve.py -- the run on its pseudoterminal, and the terminals reading it
+class Held:  # answers to `Session`
+    attached: int
     def detach(self) -> int: ...
     def redrawn(self, hook: Callable[[], None]) -> None: ...
     def stopping(self, hook: Callable[[], None]) -> None: ...
     def says(self, hook: Callable[[], dict[str, Any]]) -> None: ...
     def start(self) -> None: ...
     def close(self, why: str = "the run is over") -> None: ...
-
-
-def sized(fd: int, columns: int, rows: int) -> None: ...
-def logged(at: Path, about: str) -> None: ...
-def hosts(
-    opens: Callable[[Held], object],
-    at: Path,
-    *,
-    columns: int = 80,
-    rows: int = 24,
-    telling: int | None = None,
-) -> None: ...
+def hosts(opens: Callable[[Held], object], at: Path, *, columns: int = 80,
+          rows: int = 24, telling: int | None = None) -> None: ...
+# proto.py -- the framed protocol between a run and the terminals reading it
+HELLO: bytes; INPUT: bytes; OUTPUT: bytes; RESIZE: bytes; GONE: bytes; CONTROL: bytes
+def frame(kind: bytes, payload: bytes = b"") -> bytes: ...
+def spoken(kind: bytes, said: dict[str, Any]) -> bytes: ...
+def asked(payload: bytes) -> dict[str, Any]: ...
+class Frames:
+    def feed(self, data: bytes) -> list[tuple[bytes, bytes]]: ...
 ```
 
-The run on its pseudoterminal, and the terminals that come and go from it.
+## Requirements
 
-- `Held` MUST be what `session.Session` asks for and no less, since it is what the interface
-  is handed.
-- A terminal that has just arrived MUST be drawn for from the top. It has none of what was
-  drawn before it: it is in whatever modes the shell left it in, at whatever size it happens
-  to be. Asking for that MUST NOT be done on the thread carrying what the run draws -- a
-  screen's worth of bytes has to be being carried out while it happens, and waiting for it
-  there would be waiting on a buffer this is the only reader of.
-- What a run drew before anybody was reading MUST be kept for the first terminal to arrive,
-  and MUST be dropped whole rather than in part once it is more than is worth keeping: half
-  an escape sequence is worse than none, and the terminal that arrives is drawn for again
-  anyway. Once one has read it, output with nobody reading MUST be dropped rather than kept.
-- A terminal that has stopped reading MUST NOT be able to stop the run: one that will not take
-  what it is sent within a bounded time MUST be let go of.
-- A size of nothing or less MUST be refused rather than believed. What is drawing on the other
-  side lays a screen out against it, and a terminal that has never been told its own size
-  reports zero -- which is not a terminal one column wide.
-- The run MUST be told a terminal has resized by a signal to this process. The pseudoterminal
-  has no foreground process group to signal, this process having no controlling terminal at
-  all, so that is the one way left.
-- Nothing this does MUST be able to end the run. A thread that raised, a hook that raised, a
-  socket that will not accept: each MUST be written down where it can be read afterwards and
-  left there.
-
-## `attach.py`
-
-```python
-def attaches(at: os.PathLike[str] | str) -> socket.socket: ...
-def reads(one: socket.socket) -> int: ...
-def size() -> tuple[int, int]: ...
-```
-
-This terminal, reading a run somebody else is holding.
-
-- Nothing of the interface MUST be here. This puts the terminal into the mode a full-screen
-  program needs and gets out of the way: every byte typed goes to the run, every byte the run
-  draws comes back, and a terminal that changes size says so.
-- Putting the terminal back MUST be this side's and this side's alone, whichever way the
-  reading ended. A run that has let go says so and goes on running, so nothing on the other
-  end is ever going to write the sequences that leave the alternate screen and show the cursor
-  -- and a terminal left in a full-screen program's modes is a shell nobody can use.
-- Raw MUST be what the terminal is put in, which is what every terminal multiplexer does: the
-  run on the other end does its own echoing, its own line editing and its own interrupts, and
-  a terminal doing any of them too would be doing them twice.
-- Why the reading ended MUST be said after the terminal has been put back and not before: a
-  line drawn on the alternate screen is a line thrown away with it, and why a terminal was
-  let go of is the one thing somebody is looking at when it happens.
-- How big this terminal is MUST be answered here and asked of here. A terminal that has never
-  been told its own size reports zero of both, which is not a terminal one column wide -- it
-  is one that has not said, and what a full-screen program does about that is assume the
-  ordinary eighty by twenty-four.
-
-## `session.py`
-
-```python
-@runtime_checkable
-class Session(Protocol):
-    @property
-    def attached(self) -> int: ...
-
-    def detach(self) -> int: ...
-```
-
-A run being read from a terminal, as whatever is holding the run sees it.
-
-- It MUST be a protocol rather than `Held` itself. A run held apart from a terminal and a run
-  in the process somebody typed `hmz` in are one interface drawing on one terminal: one is
-  handed one of these and the other is handed none, and what is drawing says so where the
-  question is asked rather than being written twice.
-- It MUST be the whole of what an interface has to know about being held somewhere: how many
-  terminals are reading, and how to let go of them without stopping anything.
+- MUST hold whatever `opens` opens and MUST know nothing about how a run is opened.
+- MUST offer `Hmz` under this package, as the same object `hmz.runtime` holds and fetched when named;
+  what is held MUST reach the runtime by that name rather than over the socket.
+- MUST be one daemon per workspace, claimed against a race rather than by looking first, released
+  however the process ends, and MUST read a workspace as holding nothing unless the process is there
+  and something answers on its socket.
+- MUST answer what is running out of the runtime in the holding process, and a run that cannot be
+  asked MUST answer as one running nothing rather than as one that cannot be read.
+- MUST outlive the terminal it was started from: no controlling terminal, unreachable by a hangup, and
+  nothing left for whoever asked for it to wait on or reap. It MUST tell them whether it came up, and
+  MUST report a failure to start rather than make them wait out a timeout.
+- MUST let go of terminals without stopping the run; stopping MUST be a separate request.
+- MUST draw for a terminal that has just arrived from the top, without holding up what the run is
+  drawing meanwhile, and MUST keep for it what was drawn before anybody was reading -- dropped whole
+  rather than in part once it is more than is worth keeping, and dropped outright once one has read.
+- MUST let go of a terminal that will not take what it is sent within a bounded time, MUST NOT let any
+  terminal, thread, hook or socket end the run -- what failed MUST be written down where it can be
+  read afterwards -- and MUST refuse a reported size of nothing or less.
+- MUST carry framed messages both ways so that a resize and a run letting go are said rather than
+  inferred, MUST refuse a length no frame of this protocol has, MUST NOT hand the same frame out
+  twice, and MUST answer a question about the run on the connection it was asked on and under this
+  same protocol.
+- MUST put this terminal back however a reading ended, and MUST say why only afterwards.
+- `Session` MUST be the whole of what an interface has to know about being held: how many terminals
+  are reading, and how to let go of them.

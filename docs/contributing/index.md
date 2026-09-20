@@ -113,7 +113,7 @@ it.
 - **Popular, well-maintained libraries** in preference to a custom implementation.
 - **Each package depends only downwards**, which is checked by a test.
   [Architecture](/contributing/architecture) has the layers and the rules that keep them.
-- **Most packages have a SPEC under `specs/`**, in a file named for the package. Do not modify
+- **Most packages have a SPEC under `specs/`**, whose tree mirrors `src/hmz/`. Do not modify
   one unless you were asked to — it is the contract, and the code is what has to move.
 
 ## Documentation
