@@ -137,6 +137,11 @@ class Agent(Protocol):
         *,
         env: Env,
     ) -> Session: ...
+
+    async def stop(
+        self,
+        session: Session,
+    ) -> None: ...
 ```
 
 ```py
@@ -240,7 +245,7 @@ class Flow(Protocol):
         task: str,
         *,
         epic: Epic,
-    ) -> Any: ...
+    ) -> Any: ... # Or resume if epic.state is not None.
 
     async def spawn(
         self,
@@ -249,6 +254,11 @@ class Flow(Protocol):
         envs: EnvSourceCollection,
         params: FlowParams,
     ) -> Epic: ...
+
+    async def stop(
+        self,
+        epic: Epic,
+    ) -> None: ...
 ```
 
 `Epic` is to `Flow` what `Session` is to `Agent`: a passive record the flow is
