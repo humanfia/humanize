@@ -1,112 +1,147 @@
 # Flows
 
-## Principles
+Protocol classes here are pure protocols for type checking, with no implementation, and they are only used for type checking. During runtime, the real classes (also derived from these protocols) are passed to the flow function.
 
-The user can configure:
+Mixin system is crucial to the flow system. It allows the flow to declare what it needs from the envs and agents, and the runtime will generate envs and agents satisfy those requirements. For example, if we only require an agent, it will not be able to run `/goal` command, even the underlying harness support it; if we require an agent with `GoalAgentMixin`, the underlying harness will be able to run `/goal` command. The same applies to envs.
 
-- agents: `-a name=harness@provider/model:effort,...`
-- env sources: `-e name=backend@provider/workdir:capacity,...`
-- flow params
+## CLI
 
-The flow can enforce:
+`hmz exec` should support these flags:
 
-- agent capabilities (e.g. permission mode, goal, etc.)
-- env requirements (e.g. container image, resource limits, etc.)
-
-Both are declared as subclasses, read from the flow's collection annotations, and
-checked at `-a`/`-e` parse time — before any session starts.
+- `-a <role>=<harness>@<provider>/<model>:<effort>`: specifying an agent spec;
+- `-e <role>=<backend>@<provider>/<workdir>`: specifying an env spec;
+- `-p <key>=<value>`: specifying a flow param.
 
 ## Environments
 
 ```py
-class EnvSource(Protocol):
-    _cpu_count: ClassVar[int] = 0        # 0: no requirement
-    _memory: ClassVar[int] = 0
+class EnvBackendKind(StrEnum):
+    LOCAL = auto()
+    SSH = auto()
 
+class Env(Protocol):
     @property
-    def backend(self) -> EnvBackendType: ...
-
-    @property
-    def capacity(self) -> int: ...
-
-    @property
-    def envs(self) -> Sequence[Env]: ...
-
-    @property
-    def name(self) -> str: ...
+    def backend(self) -> EnvBackendKind: ...
 
     @property
     def provider(self) -> str: ...
 
     @property
-    def workdir(self) -> pathlib.Path: ...
+    def role(self) -> str: ...
 
-    async def new(self) -> Env: ...      # one of `capacity`; the flow closes it
+    @property
+    def workdir(self) -> pathlib.PurePosixPath: ...
 
-    @staticmethod
-    async def new_local(workdir: pathlib.Path) -> LocalEnv: ...
-```
+class LocalEnv(Env, Protocol): ...
+    # Automatically added to the env collection if requested, and the user cannot override it.
 
-```py
-class EnvSourceCollection(TypedDict, extra_items=ReadOnly[EnvSource]):
+class EnvCollection(TypedDict, extra_items=ReadOnly[Env]):
     pass
 ```
 
+There are also various capability mixins for the envs, e.g.
+
 ```py
-class Env(Protocol):
-    @property
-    def source(self) -> EnvSource: ...
+class CPUEnvMixin:
+    _cpu_count: ClassVar[int] = 1
+
+class MemoryEnvMixin:
+    _memory: ClassVar[int] = 0
+
+class ShellEnvMixin:
+    async def exec(self, argv: Sequence[str], *, timeout: float = 0) -> tuple[int, str, str]: ...
+
+class BashEnvMixin(ShellEnvMixin):
+    @overload
+    async def exec(self, script: str, *, timeout: float = 0) -> tuple[int, str, str]: ... 
+
+class FilesEnvMixin:
+    async def read(self, path: str) -> bytes: ...
+    async def write(self, path: str, data: bytes) -> None: ...
+
+class GPUEnvMixin:
+    _gpu_count: ClassVar[int] = 1
+    _gpu_memory: ClassVar[int] = 0
+
+...
 ```
 
-The flow declares what a source must be able to give by subclassing it:
+Here is an example of a flow's environment collection:
 
 ```py
-class MySource(EnvSource, GPUSourceMixin, BashSourceMixin):
+class MyEnv(Env, CPUEnvMixin, MemoryEnvMixin):
     _cpu_count = 4
     _memory = 8 * 1024 * 1024 * 1024
 
-    _gpu_count = 1
-    _gpu_memory = 8 * 1024 * 1024 * 1024
-
-class MyEnvSourceCollection(EnvSourceCollection):
-    my_source: MySource
+class MyEnvCollection(EnvCollection):
+    my_env: MyEnv
 ```
 
 ## Agents
 
 ```py
+class HarnessKind(StrEnum):
+    CLAUDE = "claude"
+    CODEX = "codex"
+    CURSOR_AGENT = "cursor-agent"
+    ...
+
+class PermissionKind(StrEnum):
+    NONE = auto()
+    READ = auto()
+    WRITE = auto()
+
+@dataclass(frozen=True)
+class Permission:
+    local: PermissionKind = PermissionKind.READ
+    user: PermissionKind = PermissionKind.NONE
+    system: PermissionKind = PermissionKind.NONE
+    online: PermissionKind = PermissionKind.NONE
+
+    def __post_init__(self) -> None: ...
+        # Ensure local >= user >= system.
+        # Ensure online is either NONE or READ.
+
+class HookKind(StrEnum):
+    PRE_TOOL_USE = auto()
+    ...
+
+class HookFn[TParams: HookParams, TResult](Protocol):
+    async def __call__(self, params: TParams) -> TResult: ...
+
+class Session(Protocol):
+    @property
+    def agent(self) -> Agent: ...
+
+    @property
+    def env(self) -> Env: ...
+
 class Agent(Protocol):
-    _permission: ClassVar[PermissionType]
+    _permission: ClassVar[Permission]
     _skills: ClassVar[tuple[str, ...]]
 
     @property
     def effort(self) -> str: ...
 
     @property
-    def harness(self) -> HarnessType: ...
-
-    @property
-    def hooks(self) -> HookHub: ...
+    def harness(self) -> HarnessKind: ...
 
     @property
     def model(self) -> str: ...
 
     @property
-    def name(self) -> str: ...
+    def role(self) -> str: ...
 
     @property
     def provider(self) -> str: ...
 
-    @property
-    def sessions(self) -> Sequence[Session]: ...
-
+    @overload
     def derive(
         self,
         *,
-        name: str | None = None,                 # None: derived from self.name
-        permission: PermissionType | None = None,
+        permission: Permission | None = None,
         skills: tuple[str, ...] | None = None,
-    ) -> Self: ...                               # hooks are copied, not shared
+    ) -> Self: ...
 
     async def fork(
         self,
@@ -114,6 +149,15 @@ class Agent(Protocol):
         *,
         env: Env,
     ) -> Session: ...
+
+    @overload
+    def hook(
+        self,
+        kind: Literal[HookKind.PRE_TOOL_USE],
+        fn: HookFn[PreToolUseHookParams, PreToolUseHookResult] | None,
+    ) -> Self: ...
+
+    ... # Should include all the common hooks of all the harnesses.
 
     @overload
     async def run(
@@ -124,7 +168,7 @@ class Agent(Protocol):
     ) -> str: ...
 
     @overload
-    async def run[TOutput: SessionOutput](
+    async def run[TOutput: pydantic.BaseModel](
         self,
         prompt: str,
         *,
@@ -138,155 +182,91 @@ class Agent(Protocol):
         env: Env,
     ) -> Session: ...
 
-    async def stop(
-        self,
-        session: Session,
-    ) -> None: ...
-```
+class Outworlder(Agent, Protocol): ...
+    # Automatically added to the agent collection if requested, and the user cannot override it.
+    # Note that this is not steering: steering is that the user can attach to a session and inject prompts, while this is that the user (or designated agent by the outside flow) can act as an agent in the flow.
 
-```py
 class AgentCollection(TypedDict, extra_items=ReadOnly[Agent]):
     pass
+```
+
+There are also various capability mixins for the agents, e.g.
+
+```py
+class GoalCommandAgentMixin: ...
+    # This will lead to `/goal <goal>` command being available in agent.run(...).
+
+class LoopCommandAgentMixin: ...
+    # This will lead to `/loop <interval> <task>` command being available in agent.run(...).
 ```
 
 The flow declares what an agent must be able to do by subclassing it:
 
 ```py
-class MyAgent(Agent, GoalMixin):
-    _permission = PermissionType.WORKSPACE_WRITE
+class MyAgent(Agent, GoalCommandAgentMixin, LoopCommandAgentMixin):
+    _permission = Permission(
+        local=PermissionKind.WRITE,
+        user=PermissionKind.READ,
+        system=PermissionKind.NONE,
+        online=PermissionKind.NONE,
+    )
     _skills = ("review-notes",)
 
 class MyAgentCollection(AgentCollection):
     my_agent: MyAgent
 ```
 
-### Outworlder
-
-An `Outworlder` is an `Agent` that stands for whoever is outside the flow — the
-TUI user, a parent flow, a test. It is not filled from `-a`; the runtime
-constructs it. To the flow it is an ordinary agent: `run(prompt, session=)`
-sends `prompt` out and returns what comes back (`""` when nobody is there).
-
-```py
-class Outworlder(Agent, Protocol):
-    pass
-
-class MyAgentCollection(AgentCollection):
-    my_agent: MyAgent
-    user: Outworlder
-```
-
-## Hooks
-
-```py
-class HookFn[TParams, TResult](Protocol):
-    async def __call__(self, params: TParams) -> TResult: ...
-
-class HookHub(Protocol):
-    @property
-    def pre_tool_use(self) -> HookFn[PreToolUseHookParams, PreToolUseHookResult] | None: ...
-
-    @pre_tool_use.setter
-    def pre_tool_use(self, hook: HookFn[PreToolUseHookParams, PreToolUseHookResult] | None) -> None: ...
-
-    @pre_tool_use.deleter
-    def pre_tool_use(self) -> None: ...
-
-    ... # Should include the common hooks of all the harnesses.
-```
-
-Every hook's params carry the `session` the hook fired in. A change to an
-agent's hooks takes effect on its next `run`.
-
-## Sessions
-
-```py
-class SessionOutput(pydantic.BaseModel):
-    pass
-
-class Session(Protocol):
-    @property
-    def agent(self) -> Agent: ...
-
-    @property
-    def env(self) -> Env: ...
-```
-
 ## Flows
 
 ```py
-class Epic(Protocol):
-    @property
-    def flow(self) -> Flow: ...
-
-    @property
-    def state(self) -> object | None: ...
-
-    @state.setter
-    def state(self, value: object | None) -> None: ...   # persisted on write
-```
-
-```py
 class Flow(Protocol):
-    @classmethod
-    async def load(cls, ref: str) -> Self: ...
-
     @property
     def description(self) -> str | None: ...
 
     @property
-    def hidden(self) -> bool: ...
-
-    @property
     def resumable(self) -> bool: ...
 
-    async def run(
+    async def __call__(
         self,
         task: str,
         *,
-        epic: Epic,
-    ) -> Any: ... # Or resume if epic.state is not None.
-
-    async def spawn(
-        self,
-        *,
         agents: AgentCollection,
-        envs: EnvSourceCollection,
-        params: FlowParams,
-    ) -> Epic: ...
+        envs: EnvCollection,
+        params: pydantic.BaseModel,
+        try_resume: bool = False,
+    ) -> Any: ...
 
-    async def stop(
-        self,
-        epic: Epic,
-    ) -> None: ...
+def load(ref: str) -> Flow: ...
 ```
 
-`Epic` is to `Flow` what `Session` is to `Agent`: a passive record the flow is
-run against. `run` may be called on the same epic more than once; `state` is
-shared across those runs, and `resume` continues the last unfinished one.
+A flow ref can be either:
 
-This is the actual flow class that is run by the runtime. Developers should not
-derive it directly; they define an entrypoint function and mark it with `@flow`,
-which wraps it into a `Flow` instance.
+- (in a flow only) `:<subflow>`: another flow in the same flow module;
+- (in a flow only) `<flow>:<subflow>`: a flow in the same flowverse;
+- `<pip-style-vcs-url>#<flow>:<subflow>`: a flow in another flowverse.
 
 ## Defining a flow
 
 ```py
-class FlowFn[TAgentCollection: AgentCollection, TEnvSourceCollection: EnvSourceCollection, TFlowParams: FlowParams](Protocol):
+class FlowFn[TAgentCollection: AgentCollection, TEnvCollection: EnvCollection, TFlowParams: pydantic.BaseModel](Protocol):
     async def __call__(
         self,
         task: str,
         *,
         agents: TAgentCollection,
-        envs: TEnvSourceCollection,
+        envs: TEnvCollection,
         params: TFlowParams,
         epic: Epic,
     ) -> Any: ...
 
-def flow[TAgentCollection: AgentCollection, TEnvSourceCollection: EnvSourceCollection, TFlowParams: FlowParams](
+def flow[TAgentCollection: AgentCollection, TEnvCollection: EnvCollection, TFlowParams: pydantic.BaseModel](
     *,
+    agents: type[TAgentCollection],
+    envs: type[TEnvCollection],
+    params: type[TFlowParams],
     description: str | None = None,
     hidden: bool = False,
     resumable: bool = False,
-) -> Callable[[FlowFn[TAgentCollection, TEnvSourceCollection, TFlowParams]], Flow]: ...
+) -> Callable[[FlowFn[TAgentCollection, TEnvCollection, TFlowParams]], Flow]: ...
+    # The decorated function name is the flow name.
 ```
