@@ -55,12 +55,16 @@ working.
 
 ## The money
 
-**Where the money comes from.** The unit prices are not written down in humanize — vendors move
-them without asking anybody, and a list shipped in a release is wrong the week after it ships.
-They are fetched from [OpenLLMPrices](https://openllmprices.com/), which publishes one JSON
-file of them, and kept under `~/.humanize/prices.json`. The interface fetches it once as it
-opens, on a thread of its own, and refreshes it about once a day. **Nothing you type ever waits
-on that**: what is drawn is read out of the file that is already there.
+**Where the money comes from.** The unit prices are fetched from
+[OpenLLMPrices](https://openllmprices.com/), which publishes one JSON file of them, and kept
+under `~/.humanize/prices.json`. The interface fetches it once as it opens, on a thread of its
+own, and refreshes it about once a day. **Nothing you type ever waits on that**: what is drawn
+is read out of the file that is already there.
+
+That list lags the vendors — a model can be on sale for months before it appears — so beside it
+humanize ships the vendors' own list prices for the models it drives most (`hmz.coganchor.listed`,
+read off Anthropic's and OpenAI's pricing pages and dated the day they were read). Per model the
+newer of the two lists wins, so once the fetched list catches up it replaces what shipped.
 
 **A model nobody lists shows tokens and no money at all.** The list covers a few dozen models;
 humanize drives whatever CLI you have installed. So the unlisted model is the ordinary case,

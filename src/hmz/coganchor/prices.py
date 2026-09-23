@@ -4,6 +4,10 @@ A token count says how much work was done and nothing about what it came to. The
 are somebody else's to keep -- they change on the vendors' own schedule, and a list written
 down in here would be wrong the week after it was written -- so they are fetched from
 OpenLLMPrices, which is one JSON file of them, and kept under humanize's own home.
+That list lags the vendors, so beside it stands :mod:`hmz.coganchor.listed`: the vendors' own
+list prices for the models humanize drives most, dated the day they were read. Per model the
+newer of the two lists wins, and a source somebody named in `HUMANIZE_PRICES` -- a file, a URL,
+or `off` -- is the whole of it, with nothing shipped beside it.
 
 Two rules hold this whole module up. **Nothing here may cost a prompt its responsiveness**:
 `price` and `cost` read what was already kept and never reach for the network, and fetching
@@ -102,7 +106,7 @@ _lock = threading.Lock()
 #: What was last read off the disk, and the modification time it was read at -- so that a
 #: refresh landing is picked up without the file being parsed again on every draw.
 _listing: dict[str, Price] | None = None
-_read_from: tuple[str, float] | None = None
+_read_from: tuple[str, float, bool] | None = None
 #: Whether a fetch is already running, and when one was last attempted: a source that is down
 #: must not be asked again on every redraw of a screen.
 _fetching = False
@@ -519,7 +523,8 @@ def _index() -> dict[str, Price]:
         stamp = 0.0
     # The path as well as the time it was written: a home moved out from under this -- which
     # is what a suite does to every test -- is another list, however old either of them is.
-    at = (str(kept), stamp)
+    # And whether the shipped list stands beside it, which the environment decides.
+    at = (str(kept), stamp, _shipping())
     with _lock:
         if _listing is not None and at == _read_from:
             return _listing
@@ -529,16 +534,40 @@ def _index() -> dict[str, Price]:
 
 
 def _read(kept: pathlib.Path) -> dict[str, Price]:
-    """Builds the lookup out of what was kept.
+    """Builds the lookup out of what was kept, and what ships beside it.
 
     Args:
       kept: The file.
 
     Returns:
       Every listed model under every spelling of it this can recognise. An id wins over a
-      name, two models never being one because their display names squash the same.
+      name, two models never being one because their display names squash the same; and
+      between the two lists the one dated later wins, the fetched one on a tie.
     """
-    held = _held(kept)
+    lists = [_shipped()] if _shipping() else []
+    lists.append(_held(kept))
+    found: dict[str, Price] = {}
+    # Oldest first, so that what is left standing for a model is the newest list's price.
+    for held in sorted(lists, key=lambda one: str(one.get("date") or "")):
+        found.update(_listed(held))
+    found.pop("", None)
+    return found
+
+
+def _shipping() -> bool:
+    """Whether the shipped list stands beside what was fetched: only while nobody named a source."""
+    return _whence() == SOURCE
+
+
+def _shipped() -> dict[str, Any]:
+    """The vendors' list prices humanize ships, cut to the shape a fetched list is kept in."""
+    from hmz.coganchor.listed import LISTED
+
+    return _trim(LISTED, "hmz.coganchor.listed", "") or {}
+
+
+def _listed(held: dict[str, Any]) -> dict[str, Price]:
+    """One list's models, under every spelling of each this can recognise."""
     models: object = held.get("models")
     if not isinstance(models, dict):
         return {}
@@ -564,7 +593,6 @@ def _read(kept: pathlib.Path) -> dict[str, Price]:
         )
         found[_squash(named)] = priced
         found.setdefault(_squash(str(model.get("name") or "")), priced)
-    found.pop("", None)
     return found
 
 

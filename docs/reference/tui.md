@@ -47,7 +47,8 @@ that figure is a floor rather than the total; with one agent running nothing is 
 stopped — and the whole readout is worked out again every five seconds and whenever an agent
 does anything, rather than only when a count lands. The money is per model, since two agents at
 one model are one bill; it comes from [OpenLLMPrices](https://openllmprices.com/), fetched once
-as the interface opens and kept under `~/.humanize/prices.json`; a model nobody lists shows its
+as the interface opens and kept under `~/.humanize/prices.json`, and from the vendors' own list
+prices humanize ships for the models that list has not caught up with; a model nobody lists shows its
 tokens with nothing beside them rather than `$0.00`, and a run mixing a priced model with an
 unpriced one marks its total `$1.34+`. See [Cost and rate](/user/tally).
 

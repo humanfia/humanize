@@ -1922,7 +1922,8 @@ command-per-turn backend it ends the turn under way rather than only preventing 
 
 **What any of that came to in money** is `hmz.coganchor.prices`, which prices a `Usage` kind by kind
 against a list fetched from [OpenLLMPrices](https://openllmprices.com/) and kept under
-`~/.humanize/prices.json`:
+`~/.humanize/prices.json`, beside the vendors' own list prices humanize ships
+(`hmz.coganchor.listed`) — per model the newer of the two wins:
 
 ```python
 from hmz import prices

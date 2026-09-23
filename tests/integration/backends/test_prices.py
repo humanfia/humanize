@@ -531,3 +531,58 @@ def test_a_source_that_is_not_answering_leaves_what_was_kept_serving(
     assert not prices.refresh(wait=True)
 
     assert prices.price("kept-from-before") is not None
+
+
+def _dated(date: str, *models: dict[str, Any]) -> dict[str, Any]:
+    """A document of one version, at the date given."""
+    return {**_listing(*models), "versions": [{"date": date, "models": list(models)}]}
+
+
+def test_the_vendors_own_prices_stand_beside_a_list_that_has_not_caught_up(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Nothing fetched at all, and the models humanize drives most are priced anyway."""
+    monkeypatch.delenv(prices.WHENCE, raising=False)
+
+    opus = prices.price("claude-opus-5-5")
+    sol = prices.price("gpt-5.6-sol")
+
+    assert opus is not None
+    assert opus.provider == "Anthropic"
+    assert opus.per_million["output"] == 20
+    assert sol is not None
+    assert sol.per_million["input"] == 4
+    assert prices.cost({"output": 1_000_000}, "claude-opus-5-5") == pytest.approx(20.0)
+    assert prices.price("some-model-nobody-has-heard-of") is None
+
+
+@pytest.mark.parametrize(
+    ("date", "output"), [("2099-01-01", 99.0), ("2026-01-01", 20.0)]
+)
+def test_per_model_the_newer_of_the_two_lists_wins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, date: str, output: float
+) -> None:
+    """A fetched list that has caught up replaces what shipped; one that is older does not."""
+    source = tmp_path / "source.json"
+    source.write_text(
+        json.dumps(
+            _dated(date, _model("claude-opus-5.5", input_tokens=9, output_tokens=99))
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(prices.WHENCE, str(source))
+    prices._tried = 0.0
+    assert prices.refresh(wait=True)
+    monkeypatch.delenv(prices.WHENCE)
+
+    found = prices.price("claude-opus-5-5")
+
+    assert found is not None
+    assert found.per_million["output"] == output
+
+
+def test_a_source_somebody_named_is_the_whole_of_it(listed: Any) -> None:
+    """`HUMANIZE_PRICES` pointing at a list, or at nothing, leaves nothing shipped beside it."""
+    assert listed(_model("gpt-5.6-sol", input_tokens=4, output_tokens=20))
+
+    assert prices.price("claude-opus-5-5") is None
