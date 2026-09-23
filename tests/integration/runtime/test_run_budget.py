@@ -237,3 +237,51 @@ def test_a_budget_written_as_one_number_stops_the_line_before_anything_runs(
     assert ran.returncode != 0
     assert "rather than one number" in ran.stderr
     assert _how(stand_in) == []  # nothing ran at all
+
+
+@pytest.mark.timeout(300)
+def test_a_cap_a_fetch_would_price_is_fetched_for_before_the_run_starts(
+    tmp_path: Path, stand_in: dict[str, str]
+) -> None:
+    """A machine that only ever runs `hmz exec` never opened the interface that fetches prices.
+
+    So the list has never been fetched there, and every dollars cap reads as one nothing can
+    read -- a container cell above all. The line fetches it itself before the first turn, when
+    a cap could not otherwise be read, and the cap then stops the run as it was written to.
+    """
+    source = tmp_path / "prices-source.json"
+    source.write_text(
+        json.dumps(
+            {
+                "currency": "USD",
+                "unit": "per 1M tokens",
+                "versions": [
+                    {
+                        "date": "2026-09-10",
+                        "models": [
+                            {
+                                "provider": "nobody",
+                                "id": "fresh",
+                                "pricingItems": [
+                                    {"category": "input_tokens", "price": 1},
+                                    {"category": "output_tokens", "price": 5},
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    said = {**stand_in, "HUMANIZE_PRICES": str(source)}
+
+    ran = _ran(
+        tmp_path,
+        said,
+        f"budget:\n  dollars: {2 * EACH * 5 / 1_000_000}\n",
+        model="fresh",
+    )
+
+    assert "cannot stop this run" not in ran.stderr, ran.stderr
+    assert "$0.04 spent" in ran.stderr + ran.stdout, ran.stderr

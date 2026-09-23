@@ -88,6 +88,21 @@ def _prepare_textual_terminal(
         target.setdefault("TEXTUAL_DISABLE_KITTY_KEY", "1")
 
 
+def _priced_again() -> bool:
+    """Fetches the unit prices on this thread, before a run that has not started yet.
+
+    Conditional on what is already kept and held to the fetch's own timeout, and a no where
+    `HUMANIZE_PRICES` turned fetching off -- so a run pays for this at most once, before its
+    first turn, and only when a cap it was given could not otherwise be read.
+
+    Returns:
+      Whether a list was fetched and kept, so that the caps are worth asking about again.
+    """
+    from hmz.coganchor import prices
+
+    return prices.refresh(wait=True)
+
+
 def _exec(argv: list[str]) -> int:
     """Drives the flow named on the command line, on the agents it names.
 
@@ -140,7 +155,13 @@ def _exec(argv: list[str]) -> int:
         #
         # Which cap cannot be read before what that leaves: a run whose only cap is one
         # nothing here can read is both of these lines, and the first is the second's reason.
-        if blind := running.unreadable():
+        blind = running.unreadable()
+        if blind and _priced_again():
+            # A cap nothing can read may only be a price list never fetched here: the
+            # interface fetches it as it opens, and a machine that only ever runs this line
+            # never opened one. Asked again of what the fetch brought.
+            blind = running.unreadable()
+        if blind:
             out.aside(f"hmz exec: {blind}, so that cap cannot stop this run")
         if running.unwatched:
             out.aside(

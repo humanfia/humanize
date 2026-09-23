@@ -113,8 +113,11 @@ figure either.** Some do: a Codex rollout row may name a total and nothing else.
 bill beside them is the honest reading of that.
 
 **If the file has never been fetched** — a first start, an air-gapped machine, a network that
-was down — everything reads as tokens alone until it lands. Setting `HUMANIZE_PRICES=off` turns
-the fetching off for good; setting it to a path or a URL reads the list from there instead.
+was down — only what shipped is priced until it lands. `hmz exec` never opens the interface, so
+where a cap it was given could not otherwise be read it fetches the list itself, once, before the
+first turn. Setting `HUMANIZE_PRICES=off` turns the fetching off for good; setting it to a path
+or a URL reads the list from there instead. Either way that is the whole of it: nothing shipped
+stands beside a source somebody named.
 
 ## Three readings, three questions
 
