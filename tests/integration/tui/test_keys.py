@@ -47,7 +47,6 @@ from hmz.tui.pick import (
     Retries,
     Sheet,
     Speaks,
-    Unbounded,
 )
 from tests.integration.tui.test_app import into_agent, into_flows, onto, rows
 from tests.tui.fixtures import until
@@ -105,7 +104,6 @@ def test_the_keys_are_written_in_one_place() -> None:
     "opens",
     [
         pytest.param(Confirms, id="confirms"),
-        pytest.param(Unbounded, id="unbounded"),
         pytest.param(partial(Leaves, held=True), id="leaves"),
         pytest.param(Reports, id="reports"),
         pytest.param(Fetches, id="fetches"),

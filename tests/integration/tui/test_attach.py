@@ -24,7 +24,7 @@ from hmz.tui.app import _EVERY, _KEPT
 from hmz.tui.monitor import short
 from hmz.tui.pick import Held, reads
 from tests.stubs import ShellAgent, ShellSession, written
-from tests.tui.fixtures import transcript
+from tests.tui.fixtures import holding, set_up, transcript
 from tests.tui.fixtures import until as waited
 
 if TYPE_CHECKING:
@@ -61,18 +61,29 @@ for line in sys.stdin:
 HOLDING = """
 import asyncio
 
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams
+from hmz.flows import LocalEnv, flow
 
 
-@flow
-def run(agents: tuple[AgentBase, AgentBase], task: str) -> None:
-    async def both() -> None:
-        # A turn apiece, open at the same time and neither answering until the fake CLI is
-        # let go: two agents working at once is the case tab is for.
-        await asyncio.gather(*(agent.aturn("hold") for agent in agents))
+class Agents(AgentCollection):
+    builder: Agent
+    reviewer: Agent
 
-    asyncio.run(both())
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams, name="flow")
+async def run(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
+              ctx: FlowContext) -> None:
+    async def hold(agent: Agent) -> None:
+        session = await agent.spawn(env=envs["workspace"])
+        await agent.run("hold", session=session)
+
+    # A turn apiece, open at the same time and neither answering until the fake CLI is let
+    # go: two agents working at once is the case tab is for.
+    await asyncio.gather(hold(agents["builder"]), hold(agents["reviewer"]))
 """
 
 
@@ -149,15 +160,18 @@ async def _two_agents(app: Humanize, driver: Pilot[None], where: Path) -> None:
       driver: What is pumping it.
       where: The workspace it is running in.
     """
-    app._flow_named = "flow"
-    app._models = [Runs("claude/m:high"), Runs("claude/m:high")]
+    set_up(
+        app,
+        "flow",
+        {"builder": Runs("claude/m:high"), "reviewer": Runs("claude/m:high")},
+    )
     await driver.press(*"do it")
     await driver.press("enter")
     await until(lambda: len(app._conversations()) == 2, driver)
     # Both working, which is what tab steps between: a turn that has not started is not one
     # to step onto, and one that has ended is not either.
     await until(lambda: len(app._working) == 2, driver)
-    assert app._agents  # and it holds them until it is let go, so nothing here can race
+    assert app._run is not None  # held until it is let go, so nothing here can race
     assert not (where / "go.txt").exists()
 
 
@@ -186,8 +200,12 @@ async def _both_working(
       Each agent and the conversation it is working in, in the order the flow takes them.
     """
     one, two = SteerableAgent(CONFIG), SteerableAgent(CONFIG)
-    app._agents = [one, two]
-    app._models = [Runs("claude/m:high"), Runs("codex/n:high")]
+    # Named for the roles they fill, as the run names the agent behind each session it opens.
+    one.rename("builder")
+    two.rename("reviewer")
+    holding(app, one, two)
+    app._models = {"builder": Runs("claude/m:high"), "reviewer": Runs("codex/n:high")}
+    app._declared = None  # a flow nothing here loads, whose roles are these two
     first, second = one.new(), two.new()
     app._heard(one, first, Event(kind="begins", text=""))
     app._heard(two, second, Event(kind="begins", text=""))
@@ -209,7 +227,7 @@ async def test_it_opens_on_the_transcript_every_agent_is_on(workspace: Path) -> 
         assert app._attached == _EVERY
         assert app._reading() is None
         _let_go(workspace)
-        await until(lambda: not app._agents, driver)
+        await until(lambda: app._run is None, driver)
 
 
 @pytest.mark.timeout(60)
@@ -233,7 +251,7 @@ async def test_tab_steps_round_the_agents_that_are_working(workspace: Path) -> N
         assert app._attached == _EVERY
 
         _let_go(workspace)
-        await until(lambda: not app._agents, driver)
+        await until(lambda: app._run is None, driver)
 
 
 @pytest.mark.timeout(60)
@@ -253,7 +271,7 @@ async def test_shift_tab_steps_the_other_way_round(workspace: Path) -> None:
         assert app._attached == first
 
         _let_go(workspace)
-        await until(lambda: not app._agents, driver)
+        await until(lambda: app._run is None, driver)
 
 
 @pytest.mark.timeout(60)
@@ -311,8 +329,9 @@ async def test_every_conversation_of_one_agent_runs_down_the_same_transcript() -
     app = Humanize()
     async with app.run_test() as driver:
         agent = SteerableAgent(CONFIG)
-        app._agents = [agent]
-        app._models = [Runs("claude/m:high")]
+        agent.rename("builder")
+        holding(app, agent)
+        app._models = {"builder": Runs("claude/m:high")}
         first = agent.new()
         app._heard(agent, first, Event(kind="begins", text=""))
         app._heard(agent, first, Event(kind="text", text="the first round"))
@@ -408,8 +427,9 @@ async def test_nothing_is_said_to_a_conversation_between_turns() -> None:
     app = Humanize()
     async with app.run_test() as driver:
         agent = SteerableAgent(CONFIG)
-        app._agents = [agent]
-        app._models = [Runs("claude/m:high")]
+        agent.rename("builder")
+        holding(app, agent)
+        app._models = {"builder": Runs("claude/m:high")}
         session = agent.new()  # open, and no turn in it
 
         await driver.press(*"and this")
@@ -459,7 +479,7 @@ async def test_a_flow_starting_reads_the_transcript_they_are_all_on(
         assert app._attached == _EVERY
         assert "that flow has gone" in transcript(app)
         _let_go(workspace)
-        await until(lambda: not app._agents, driver)
+        await until(lambda: app._run is None, driver)
 
 
 @pytest.mark.timeout(60)
@@ -509,10 +529,8 @@ def test_an_agent_holding_nothing_says_nothing_about_it() -> None:
     """Which is every agent of a flow that is not running, and how that line always read."""
     runs = [Runs("claude/claude-opus-5:max")]
 
-    # What it may do is on the line whether or not anybody narrowed it: an agent nobody
-    # narrowed runs at what it was configured with, and the line says so rather than leaving
-    # the gap a reader could not tell from a setting that had gone missing.
-    at = "builder · claude/claude-opus-5:max · as configured"
+    # The role and what it runs, and nothing about what it may do: that is the flow's.
+    at = "builder · claude/claude-opus-5:max"
 
     assert reads(("builder",), runs) == [at]
     assert reads(("builder",), runs, [Held()]) == [at]
@@ -594,8 +612,13 @@ async def test_the_diagram_marks_who_is_working_and_who_handed_to_whom() -> None
     app = Humanize()
     async with app.run_test() as driver:
         one, two = SteerableAgent(CONFIG), SteerableAgent(CONFIG)
-        app._agents = [one, two]
-        app._models = [Runs("claude/m:high"), Runs("codex/n:high")]
+        one.rename("builder")
+        two.rename("reviewer")
+        holding(app, one, two)
+        app._models = {
+            "builder": Runs("claude/m:high"),
+            "reviewer": Runs("codex/n:high"),
+        }
         first, second = one.new(), two.new()
         # A turn, and then a turn of the other agent: which is a handover between them.
         app._heard(one, first, Event(kind="begins", text=""))

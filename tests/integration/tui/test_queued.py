@@ -23,7 +23,7 @@ from hmz.tui import Humanize
 from hmz.tui.app import _PINNED
 from hmz.tui.monitor import short
 from tests.stubs import ShellAgent, ShellSession, written
-from tests.tui.fixtures import transcript
+from tests.tui.fixtures import holding, set_up, transcript
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -59,17 +59,21 @@ class SteerableAgent(ShellAgent):
 #: A flow that runs until a file appears, so that a line can be typed while it is up and the
 #: flow can then be let finish of its own accord.
 FLOW = """
-import time
+import asyncio
 from pathlib import Path
 
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams, flow
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
+class Agents(AgentCollection):
+    coder: Agent
+
+
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams, name="flow")
+async def run(task: str, *, agents: Agents, envs: EnvCollection, params: FlowParams,
+              ctx: FlowContext) -> None:
     while not Path("go.txt").exists():
-        time.sleep(0.02)
+        await asyncio.sleep(0.02)
 """
 
 
@@ -94,8 +98,9 @@ async def _running(app: Humanize, driver: Pilot[None]) -> None:
     Which is a flow between two turns, or one inside a sleep of its own -- the moment a line
     has nowhere to go but the queue.
     """
-    app._flow_named, app._models = "flow", [Runs("claude/m:high")]
-    app._agents = [ShellAgent(CONFIG)]
+    app._flow_named, app._models = "flow", {"coder": Runs("claude/m:high")}
+    app._declared = None  # a flow nothing here loads, whose one role is `coder`
+    holding(app, ShellAgent(CONFIG))
     app._queued = []
     await driver.pause()
 
@@ -410,17 +415,17 @@ async def test_what_a_flow_that_ended_never_took_is_said_to_have_been_dropped(
     """
     app = Humanize()
     async with app.run_test() as driver:
-        app._flow_named, app._models = "flow", [Runs("claude/m:high")]
+        set_up(app, "flow")
         await driver.press(*"the task")
         await driver.press("enter")
-        await until(lambda: bool(app._agents), driver)
+        await until(lambda: app._run is not None, driver)
 
         await driver.press(*"and this too")
         await driver.press("enter")
         await until(lambda: bool(_pinned(app)), driver)
 
         (waiting / "go.txt").write_text("")  # and the flow runs out of things to do
-        await until(lambda: not app._agents, driver)
+        await until(lambda: app._run is None, driver)
         await until(lambda: "never sent" in transcript(app), driver)
 
         assert _pinned(app) == ""
@@ -644,7 +649,7 @@ async def test_three_lines_typed_in_a_row_are_three_turns_of_a_chat() -> None:
     app = Humanize()
     async with app.run_test() as driver:
         await _running(app, driver)
-        agent = app._agents[0]
+        generation = app._generation
         prompts: list[str] = []
 
         def chatting() -> None:
@@ -652,7 +657,7 @@ async def test_three_lines_typed_in_a_row_are_three_turns_of_a_chat() -> None:
             while said:
                 # What a session does on the way in, then what the flow does after.
                 prompts.append("\n\n".join([said, *app._at_turn_start()]))
-                said = app._listen(agent)
+                said = app._listen(generation)
 
         talking = threading.Thread(target=chatting)
         talking.start()
@@ -662,7 +667,7 @@ async def test_three_lines_typed_in_a_row_are_three_turns_of_a_chat() -> None:
                 await driver.press("enter")
             await until(lambda: len(prompts) == 4, driver)
         finally:
-            app._agents = []  # which is what stopping the flow leaves behind
+            app._run = None  # which is what stopping the flow leaves behind
             app._spoke.set()
             talking.join(5)
 
@@ -708,6 +713,4 @@ async def test_a_pinned_line_is_cut_to_what_is_left_beside_it() -> None:
         beside = app.query_one("#above", Static).region
         assert _pinned(app).endswith("…")
         assert pin.right <= beside.x  # cut short of it rather than over it
-        assert beside.width >= len(
-            "assistant · claude/m:high"
-        )  # which still fits whole
+        assert beside.width >= len("coder · claude/m:high")  # which still fits whole

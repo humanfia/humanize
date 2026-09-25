@@ -46,11 +46,14 @@ from hmz.tui.pick import Flows
 from hmz.tui.selecting import Transcript
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
     from pathlib import Path
 
     from textual.pilot import Pilot
 
+    from hmz.coganchor.agents import AgentBase
+    from hmz.flows import Budget
+    from hmz.runtime.kept import Runs
     from hmz.tui import Humanize
 
 #: How long anything here waits for the interface to catch up before giving up on it.
@@ -139,3 +142,114 @@ def transcript(app: Humanize) -> str:
     Read while the interface is still up: its widgets go with it when it exits.
     """
     return app.query_one("#transcript", Transcript).text
+
+
+#: A flow of one agent role, `coder`, working in the workspace it was started in: one turn on
+#: the task, and what that turn answered written beside it to `said.txt`. Written against the
+#: flow API, as every flow a test here runs is, and run through the runtime on whatever `-a`
+#: the interface is set up with.
+ONE = """
+from pathlib import Path
+
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams
+from hmz.flows import LocalEnv, flow
+
+
+class Agents(AgentCollection):
+    coder: Agent
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+class Params(FlowParams):
+    pass
+
+
+@flow(agents=Agents, envs=Envs, params=Params, name="flow")
+async def run(task: str, *, agents: Agents, envs: Envs, params: Params, ctx: FlowContext):
+    coder = agents["coder"]
+    session = await coder.spawn(env=envs["workspace"])
+    Path("said.txt").write_text(await coder.run(task, session=session) + "\\n")
+"""
+
+
+def set_up(
+    app: Humanize,
+    flow: str,
+    agents: Mapping[str, Runs] | None = None,
+    *,
+    budget: Budget | None = None,
+) -> None:
+    """Sets the interface up to run one flow, as saving the flow menu would.
+
+    Args:
+      app: The interface.
+      flow: The flow, by the name it is offered under or a path.
+      agents: What each agent role runs, by role; `claude/m:high` for `coder` where None.
+      budget: What a run of it may spend; a dollar where None.
+    """
+    from hmz.flows import Budget
+    from hmz.runtime.kept import Runs
+    from hmz.tui.pick import declared_of
+
+    app._flow_named = flow
+    app._declared = declared_of(flow)
+    app._models = (
+        dict(agents) if agents is not None else {"coder": Runs("claude/m:high")}
+    )
+    app._budget = budget if budget is not None else Budget(cost=1)
+
+
+class Holding:
+    """A run the interface is holding that runs nothing: for a test about that state alone.
+
+    Attributes:
+      stopped: Whether it was told to stop.
+      closed: Whether it was closed.
+    """
+
+    flow = "flow"
+
+    def __init__(self) -> None:
+        from hmz.flows import Budget, Usage
+
+        self.budget = Budget(cost=1)
+        self.usage = Usage()
+        self.stopped = False
+        self.closed = False
+
+    def watch(self, listener: object) -> None:
+        """Hears nothing, there being nothing to hear."""
+
+    def opened(self, callback: object) -> None:
+        """Opens nothing, and so tells nothing."""
+
+    def run(self) -> None:
+        """Runs nothing."""
+
+    def stop(self) -> None:
+        """Writes down that it was told to."""
+        self.stopped = True
+
+    def close(self) -> None:
+        """Likewise."""
+        self.closed = True
+
+
+def holding(app: Humanize, *agents: AgentBase) -> Holding:
+    """Puts the interface in the state of holding a running flow, with these agents in it.
+
+    Args:
+      app: The interface.
+      agents: The agents behind the sessions the run has opened.
+
+    Returns:
+      The run it is holding.
+    """
+    run = Holding()
+    app._run = run
+    app._agents = list(agents)
+    app._ran = app._agents
+    return run

@@ -13,7 +13,7 @@ from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
 from hmz.tui.app import _COMMANDS
 from hmz.tui.btw import format_snapshot
-from tests.tui.fixtures import transcript
+from tests.tui.fixtures import holding, transcript
 
 if TYPE_CHECKING:
     import os
@@ -69,9 +69,10 @@ async def test_btw_is_offered_and_does_not_enqueue_a_primary_message() -> None:
     """The command is a side turn, not another line for the running flow."""
     app = Humanize()
     primary = MainAgent(CONFIG)
+    primary.rename("builder")
     held = primary.new()
-    app._agents = [primary]
-    app._models = [Runs("claude/m:high")]
+    holding(app, primary)
+    app._models = {"builder": Runs("claude/m:high")}
     app._queued = ["keep working"]
     app._given = [(primary.id, "already handed")]
     app._monitor.begins(primary.id, "m")
