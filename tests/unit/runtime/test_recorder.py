@@ -23,7 +23,7 @@ from hmz.flows import (
     LocalEnv,
     flow,
 )
-from hmz.runtime.epic import Epic, tree
+from hmz.runtime.epic import Epic, sessions, tree
 from hmz.runtime.flowing.fakes import FakeAgentDriver, run_fake
 from hmz.runtime.runner import Recorder
 
@@ -153,6 +153,43 @@ async def test_what_a_run_spent_counts_its_open_sessions_and_its_closed_ones() -
     assert seen == [(1, 10)]
     assert recorder.sessions == ()
     assert recorder.usage().output_tokens == 10
+
+
+async def test_a_session_named_late_is_written_down_by_its_name() -> None:
+    """Once its CLI has named it, rather than as it opened with a name it did not have."""
+    epic = Epic("rounds", "go")
+    driver = FakeAgentDriver(names_late=True)
+    with epic:
+        await run_fake(rounds, "go", agents={"agent": driver}, recorder=Recorder(epic))
+
+    (session,) = sessions(epic.path)
+    assert session.ident == driver.sessions[0].id
+
+
+async def test_what_a_run_spent_is_what_its_budget_was_held_to() -> None:
+    """The engine's own reckoning, which a session closed mid-turn goes on adding to."""
+    epic = Epic("rounds", "go")
+    recorder = Recorder(epic)
+    reckoned: list[int] = []
+
+    @flow(agents=Solo, envs=Here, params=Rounds)
+    async def spends(
+        task: str, *, agents: Solo, envs: Here, params: Rounds, ctx: FlowContext
+    ) -> None:
+        await rounds(task, agents=agents, envs=envs, params=Rounds(rounds=3))
+        reckoned.append(ctx.usage.output_tokens)
+
+    with epic:
+        await run_fake(
+            spends,
+            "go",
+            agents={"agent": FakeAgentDriver(output_tokens=7)},
+            recorder=recorder,
+        )
+
+    assert reckoned == [21]
+    assert recorder.finished().output_tokens == 21
+    assert recorder.usage().output_tokens == 21
 
 
 async def test_a_flow_called_is_written_down_with_the_task_it_was_called_with() -> None:

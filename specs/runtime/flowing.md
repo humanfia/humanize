@@ -91,10 +91,13 @@ class LiveCall:
     task: str = ""
     resumable: bool = False
 class Recorder(Protocol):
+    def began(self, spent: Callable[[], Usage]) -> None: ...  # the run's own reckoning
     def entered(self, call: LiveCall) -> None: ...
     def left(self, call: LiveCall, error: BaseException | None) -> None: ...
     def spawned(self, call: LiveCall, role: str, session: SessionHandle,
                 driver: AgentDriver) -> None: ...
+    def named(self, call: LiveCall, role: str, session: SessionHandle,
+              driver: AgentDriver) -> None: ...  # a session its CLI named after it opened
     def closed(self, session: SessionHandle) -> None: ...
 def define_flow(fn, *, agents, envs, params, name, description, hidden, resumable,
                 caller_globals, caller_locals) -> Flow: ...
@@ -339,7 +342,8 @@ def under() -> Path: ...
   JSON lines, appended to while the run goes, holding `call`, `set`, `del`, `end`, `session`
   and `tmp` records. A state write MUST be flushed as it is made; everything else MAY be
   batched, for no longer than a tenth of a second. The journal MUST be synced as the run ends.
-  A `session` record MUST carry the id the CLI gave the session, written once it has one.
+  A `session` record MUST carry the id the CLI gave the session, written once the turn that
+  named it reports what it spent, and no later than that turn's end.
 - A call's digest MUST cover the callee's canonical ref, the task, each role's agent (harness,
   account, model, effort, permission, skills) or environment (how it was derived from what a
   command line named, never a path), and the params.
