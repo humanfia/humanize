@@ -484,11 +484,21 @@ def _evict(held: FlowModule) -> None:
         sys.path.remove(str(held.at))
 
 
-def forget() -> None:
-    """Forgets every flow module nobody is running, which a test does between tests."""
+def forget(under: str | os.PathLike[str] | None = None) -> None:
+    """Forgets every flow module nobody is running, which a test does between tests.
+
+    Args:
+      under: Forget only the flows kept in this directory or below it -- the copy a test
+        made of a flowverse, say -- and leave every other flow imported as it was, so that
+        what another test imported of one is still the module the next run uses. None
+        for every flow.
+    """
+    root = None if under is None else Path(os.path.realpath(under))
     with _LOCK:
         for held in list(_MODULES.values()):
-            if not held.pins:
+            if held.pins:
+                continue
+            if root is None or held.at == root or root in held.at.parents:
                 _evict(held)
 
 

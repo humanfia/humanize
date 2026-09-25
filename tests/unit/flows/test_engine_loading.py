@@ -409,6 +409,21 @@ def test_modules_are_let_go_only_when_nobody_runs_them(tmp_path: Path) -> None:
     assert str(flows / "counted") not in sys.path
 
 
+def test_forgetting_one_flowverse_leaves_every_other_flow_as_it_was(
+    tmp_path: Path,
+) -> None:
+    mine = flowverse(tmp_path / "mine", {"counted": COUNTED.format(version="one")})
+    theirs = flowverse(tmp_path / "theirs", {"kept": COUNTED.format(version="two")})
+    load(str(mine / "counted"))
+    load(str(theirs / "kept"))
+    kept = sys.modules["kept"]
+    loading.forget(mine)
+    assert "counted" not in sys.modules
+    assert str(mine / "counted") not in sys.path
+    assert sys.modules["kept"] is kept
+    assert str(theirs / "kept") in sys.path
+
+
 async def test_two_checkouts_of_one_flow_conflict_while_one_is_running(
     tmp_path: Path,
 ) -> None:
