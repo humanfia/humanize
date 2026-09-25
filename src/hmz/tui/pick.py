@@ -8395,7 +8395,7 @@ class Monitoring(Sheet[str]):
     def action_adding(self) -> None:
         """Puts a line on the board, which is what somebody with more to say does."""
         if self._boarding() is None:
-            self._said = "this flow does not talk to you, so there is no board on it"
+            self._said = "this run keeps no board"
             self._fill()
             return
         self._writes("")

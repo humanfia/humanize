@@ -141,7 +141,7 @@ async def test_a_run_with_no_person_in_its_flow_has_no_board() -> None:
         assert "Board" not in _drawn(app)
         await driver.press("a")
         await driver.pause()
-        assert "no board on it" in str(app.screen.query_one("#tuning", Label).content)
+        assert "keeps no board" in str(app.screen.query_one("#tuning", Label).content)
 
 
 @pytest.mark.timeout(60)
