@@ -85,7 +85,7 @@ from .viewing import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Coroutine
+    from collections.abc import Callable, Coroutine, Reversible
 
     from hmz.flows import (
         AgentCollection,
@@ -104,7 +104,7 @@ if TYPE_CHECKING:
         SessionHandle,
         Skill,
     )
-    from .viewing import Releasable
+    from .viewing import Opened, Releasable
 
 __all__ = [
     "DEPTH",
@@ -739,7 +739,7 @@ class _Clock:
         self.inflight = 0
         self.expired = False
         self.fired = False
-        self.handle: asyncio.TimerHandle | None = asyncio.get_running_loop().call_later(
+        self.handle: asyncio.Handle | None = asyncio.get_running_loop().call_later(
             max(delay, 0.0), self.expire
         )
 
@@ -755,10 +755,19 @@ class _Clock:
     def turned(self, delta: int) -> None:
         """A turn under the call started or ended."""
         self.inflight += delta
-        if self.expired and self.inflight == 0 and not self.fired:
-            self._fire()
+        if (
+            self.expired
+            and self.inflight == 0
+            and not self.fired
+            and self.handle is None
+        ):
+            # From the loop rather than from here: the turn that ended may be the call's
+            # own, in its task, and a flow returning without awaiting again would carry a
+            # cancel sent now out to whoever called it.
+            self.handle = asyncio.get_running_loop().call_soon(self._fire)
 
     def _fire(self) -> None:
+        self.handle = None
         if not self.node.ended:
             self.fired = True
             self.task.cancel(f"{self.node.ref}: its budget's duration is spent")
@@ -846,7 +855,7 @@ class Call:
         self.resumed = False
         self.state: FlowStateImpl | None = None
         self.clock: _Clock | None = None
-        self.res: list[Releasable] | None = None
+        self.res: dict[int, Releasable] | None = None
         self.seqs: dict[str, int] | None = None
         self._record: LiveCall | None = None
 
@@ -923,8 +932,13 @@ class Call:
                 )
             node = node.parent
 
-    def limits(self, budget: Budget | None) -> Limits:
+    def limits(self, budget: Budget | None) -> tuple[Limits, float | None]:
         """What a turn of this call may spend now, every budget over it taken together.
+
+        Returns:
+          The limits its driver is handed, and the deadline the engine holds the turn to
+          itself -- a hard one due after the graceful deadline the limits carry, which lets
+          the turn run on past it -- or None where the driver's limits do.
 
         Raises:
           FlowCancelled: If the call's caller, or the run, is over.
@@ -933,7 +947,7 @@ class Call:
         # Each limit is the least any budget over the turn leaves, and the turn is hard --
         # stopped mid-turn when a limit is reached -- where a budget that sets one of them
         # is: a hard budget stays hard under a graceful one, and the other way round.
-        cost = tokens = until = _INF
+        cost = tokens = until = cut = _INF
         cost_hard = tokens_hard = until_hard = False
         node: Call | None = self
         while node is not None:
@@ -954,6 +968,8 @@ class Call:
                     ends = node.since + own.duration.total_seconds()
                     if ends < until or (hard and ends == until):
                         until, until_hard = ends, hard
+                    if hard and ends < cut:
+                        cut = ends
             node = node.parent
         now = time.monotonic()
         deadline = self.deadline
@@ -984,16 +1000,23 @@ class Call:
                         ends,
                         hard or (until_hard and ends == deadline),
                     )
+                if hard and ends < cut:
+                    cut = ends
+        # `Limits` carry one deadline, and one `graceful` for every limit. A graceful soonest
+        # deadline lets the turn run on past it, which a driver told a hard limit would not:
+        # one held to a hard cost or token limit is told the hard deadline instead, if any,
+        # and one held to none is held to the hard deadline by the engine.
+        bites = (cost_hard and cost != _INF) or (tokens_hard and tokens != _INF)
+        if deadline != _INF and not until_hard:
+            if bites:
+                return limits_of(cost, tokens, cut, graceful=False), None
+            return (
+                limits_of(cost, tokens, deadline, graceful=True),
+                None if cut == _INF else cut,
+            )
         return limits_of(
-            cost,
-            tokens,
-            deadline,
-            graceful=not (
-                (cost_hard and cost != _INF)
-                or (tokens_hard and tokens != _INF)
-                or (until_hard and deadline != _INF)
-            ),
-        )
+            cost, tokens, deadline, graceful=not (bites or deadline != _INF)
+        ), None
 
     def turning(self, delta: int) -> None:
         """A turn of this call started (+1) or ended (-1), which a deadline waits on."""
@@ -1005,13 +1028,17 @@ class Call:
             node = node.parent
 
     def hold(self, resource: Releasable) -> None:
-        """Keeps something the call made, to release when the call and its callees end."""
+        """Keeps something the call made, to release when the call and its callees end.
+
+        Kept by `id`, in the order it was made, so that a session closed before then -- its
+        view let go of -- is let go of here too, however many the call opens.
+        """
         res = self.res
         if res is None:
-            self.res = [resource]
+            self.res = {id(resource): resource}
             self.run.holding.add(self)
         else:
-            res.append(resource)
+            res[id(resource)] = resource
 
     def made(self, view: EnvView, kind: str, name: str, derived: EnvView) -> None:
         """A temporary copy or scratch directory was made through one of this call's views.
@@ -1034,7 +1061,7 @@ class Call:
                 }
             )
             return
-        for one in self.res or ():
+        for one in (self.res or {}).values():
             if (
                 type(one) is Made
                 and one.driver is driver
@@ -1047,16 +1074,16 @@ class Call:
     def unmade(self, driver: EnvDriver, kind: str, name: str) -> None:
         """A temporary copy or scratch directory was removed by the flow itself."""
         if self.res:
-            self.res = [
-                one
-                for one in self.res
+            self.res = {
+                key: one
+                for key, one in self.res.items()
                 if not (
                     type(one) is Made
                     and one.driver is driver
                     and one.kind == kind
                     and one.id == name
                 )
-            ]
+            }
 
     def arm(self, own: Budget) -> None:
         """Starts the call's own deadline, where it is sooner than the one above it."""
@@ -1115,7 +1142,7 @@ async def _cascade(node: Call) -> None:
         if res is not None:
             node.res = None
             node.run.holding.discard(node)
-            await _released(res)
+            await _released(res.values())
         parent = node.parent
         if parent is None:
             return
@@ -1125,7 +1152,8 @@ async def _cascade(node: Call) -> None:
         node = parent
 
 
-async def _released(res: list[Releasable]) -> None:
+async def _released(res: Reversible[Releasable]) -> None:
+    """Releases what a call made, the last made first."""
     for one in reversed(res):
         try:
             await one.release()
@@ -1187,7 +1215,10 @@ class Run:
 
     __slots__ = (
         "bringing",
+        "closing",
         "derived",
+        "dropped",
+        "due",
         "fetched",
         "here_chain",
         "here_driver",
@@ -1199,6 +1230,7 @@ class Run:
         "loads",
         "local",
         "lock",
+        "loop",
         "opened",
         "past",
         "person",
@@ -1207,6 +1239,7 @@ class Run:
         "recorder",
         "skills",
         "specs",
+        "thread",
     )
 
     def __init__(
@@ -1216,6 +1249,13 @@ class Run:
         local: EnvDriver | None,
         recorder: Recorder | None,
     ) -> None:
+        """A run about to start, on the loop running now.
+
+        Raises:
+          RuntimeError: If no loop is.
+        """
+        self.loop = asyncio.get_running_loop()
+        self.thread = threading.get_ident()
         self.lock = threading.Lock()
         self.live: dict[Call, None] = {}
         self.person = person
@@ -1237,6 +1277,9 @@ class Run:
         self.holding: set[Call] = set()
         self.fetched: dict[tuple[str, str | None], asyncio.Future[Path]] = {}
         self.reapers: set[asyncio.Future[None]] = set()
+        self.dropped: list[Opened] = []
+        self.due = False
+        self.closing: set[asyncio.Task[None]] = set()
         self.derived: dict[int, EnvDriver] = {}
         self.specs: dict[tuple[AgentDriver, Grant], str] = {}
 
@@ -1274,6 +1317,24 @@ class Run:
             )
         return said
 
+    def drain(self) -> None:
+        """Starts closing every session whose view went since this was last done."""
+        dropped = self.dropped
+        if dropped:
+            self.dropped = []
+            for opened in dropped:
+                opened.drop()
+
+    def drain_soon(self) -> None:
+        """Drains as soon as the loop gets to it, asked once however many views go first."""
+        if not self.due:
+            self.due = True
+            self.loop.call_soon(self._drained)
+
+    def _drained(self) -> None:
+        self.due = False
+        self.drain()
+
     def spawned(
         self, node: Call, role: str, handle: SessionHandle, driver: AgentDriver
     ) -> None:
@@ -1297,19 +1358,27 @@ class Run:
         from .loading import unpin
 
         try:
+            self.drain()
             if self.reapers:
                 await asyncio.wait(set(self.reapers), timeout=REAP)
             # What calls still going made -- ones a flow started and never waited for --
             # goes with the run, which is over whether they are or not.
             left: list[Releasable] = []
             for node in list(self.holding):
-                left.extend(node.res or ())
+                left.extend((node.res or {}).values())
                 node.res = None
             self.holding.clear()
+            # With them, the sessions let go of whose close is still under way, which the
+            # environments they are in outlive.
+            waiting = set(self.closing)
             if left:
-                try:
-                    await asyncio.wait_for(asyncio.shield(_released(left)), REAP)
-                except TimeoutError:
+                releasing = asyncio.ensure_future(_released(left))
+                self.reapers.add(releasing)
+                releasing.add_done_callback(self.reapers.discard)
+                waiting.add(releasing)
+            if waiting:
+                _, late = await asyncio.wait(waiting, timeout=REAP)
+                if late:
                     log.warning("cleaning up after a run took longer than %ss", REAP)
             closing = list(reversed(self.derived.values()))
             if self.opened and self.local is not None:
