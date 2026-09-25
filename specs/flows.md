@@ -8,9 +8,13 @@ Mixin system is crucial to the flow system. It allows the flow to declare what i
 
 `hmz exec` should support these flags:
 
-- `-a <role>=<harness>@<provider>/<model>:<effort>`: specifying an agent spec;
-- `-e <role>=<backend>@<provider>/<workdir>`: specifying an env spec;
-- `-p <key>=<value>`: specifying a flow param.
+- `-a|--agents <role>=<harness>@<provider>/<model>:<effort>`: specifying an agent spec;
+- `-e|--envs <role>=<backend>@<provider>/<workdir>`: specifying an env spec;
+- `-p|--params <key>=<value>`: specifying a flow param.
+
+All of the above supports comma-separated list and multiple flags. (e.g. `-a role1=... -a role2=...` or `-a role1=...,role2=...`)
+
+- `-b|--budget duration=<duration>,cost=<cost>,output_tokens=<output_tokens>`: specifying a flow budget. Also supports multiple flags.
 
 ## Environments
 
@@ -20,6 +24,9 @@ class EnvBackendKind(StrEnum):
     SSH = auto()
 
 class Env(Protocol):
+    @property
+    def available(self) -> bool: ...
+
     @property
     def backend(self) -> EnvBackendKind: ...
 
@@ -31,6 +38,13 @@ class Env(Protocol):
 
     @property
     def workdir(self) -> pathlib.PurePosixPath: ...
+
+    async def derive_subdir(
+        self,
+        *,
+        subdir: pathlib.PurePosixPath | str,
+    ) -> Env:
+        ...
 
 class LocalEnv(Env, Protocol): ...
     # Automatically added to the env collection if requested, and the user cannot override it.
@@ -63,6 +77,20 @@ class GPUEnvMixin:
     _gpu_count: ClassVar[int] = 1
     _gpu_memory: ClassVar[int] = 0
 
+class GitWorktreeEnvMixin:
+    async def derive_worktree(
+        self,
+        *,
+        ref: str | None = None,
+        dir: pathlib.PurePosixPath | str | None = None,
+    ) -> Env:
+        ...
+
+class TemporaryClonedDirEnvMixin:
+    async def derive_temp_clone(self, id: str) -> Env: ...
+        # Derive an env at a temporary dir with the same content as the current env. The temporary dir will be automatically cleaned up when the flow ends and the flow is not resumable.
+
+    async def destroy_temp_clone(self, id: str) -> None: ...
 ...
 ```
 
@@ -89,25 +117,54 @@ class HarnessKind(StrEnum):
 class PermissionKind(StrEnum):
     NONE = auto()
     READ = auto()
-    WRITE = auto()
+    ALL = auto()
 
 @dataclass(frozen=True)
 class Permission:
-    local: PermissionKind = PermissionKind.READ
-    user: PermissionKind = PermissionKind.NONE
-    system: PermissionKind = PermissionKind.NONE
-    online: PermissionKind = PermissionKind.NONE
+    local: PermissionKind = PermissionKind.ALL
+    user: PermissionKind = PermissionKind.READ
+    system: PermissionKind = PermissionKind.READ
+    online: PermissionKind = PermissionKind.NONE # Can only be NONE or ALL.
 
     def __post_init__(self) -> None: ...
         # Ensure local >= user >= system.
-        # Ensure online is either NONE or READ.
 
 class HookKind(StrEnum):
-    PRE_TOOL_USE = auto()
+    SOME_HOOK = auto() # Just a placeholder for the example.
+    ... # Including ALL possible hooks of all the harnesses.
+
+@dataclass(frozen=True)
+class HookParams:
+    ctx: FlowContext
+    session: Session
+
+@dataclass(frozen=True)
+class SomeHookHookParams(HookParams):
+    ...
+
+@dataclass(frozen=True)
+class HookResult:
+    ...
+
+@dataclass(frozen=True)
+class SomeHookHookResult(HookResult):
     ...
 
 class HookFn[TParams: HookParams, TResult](Protocol):
     async def __call__(self, params: TParams) -> TResult: ...
+
+class Budget(pydantic.BaseModel):
+    duration: datetime.timedelta | None = None
+    cost: float | None = None # In USD.
+    output_tokens: int | None = None
+    # Must ensure at least one of the above is not None.
+    # For `chat` flow, we set cost as inf to make it unlimited.
+    graceful: bool = True # If True, the run will try to finish the current turn before stopping. If False, the run will stop immediately.
+
+class Usage(pydantic.BaseModel):
+    duration: datetime.timedelta = datetime.timedelta(0)
+    cost: float = 0.0 # In USD.
+    output_tokens: int = 0
 
 class Session(Protocol):
     @property
@@ -115,6 +172,9 @@ class Session(Protocol):
 
     @property
     def env(self) -> Env: ...
+
+    @property
+    def usage(self) -> Usage: ... # Live updated.
 
 class Agent(Protocol):
     _permission: ClassVar[Permission]
@@ -153,9 +213,9 @@ class Agent(Protocol):
     @overload
     def hook(
         self,
-        kind: Literal[HookKind.PRE_TOOL_USE],
-        fn: HookFn[PreToolUseHookParams, PreToolUseHookResult] | None,
-    ) -> Self: ...
+        kind: Literal[HookKind.SOME_HOOK],
+        fn: HookFn[SomeHookHookParams, SomeHookHookResult] | None,
+    ) -> None: ...
 
     ... # Should include all the common hooks of all the harnesses.
 
@@ -165,6 +225,7 @@ class Agent(Protocol):
         prompt: str,
         *,
         session: Session,
+        budget: Budget | None = None,
     ) -> str: ...
 
     @overload
@@ -173,7 +234,8 @@ class Agent(Protocol):
         prompt: str,
         *,
         session: Session,
-        output_schema: Type[TOutput]
+        output_schema: Type[TOutput],
+        budget: Budget | None = None,
     ) -> TOutput: ...
 
     async def spawn(
@@ -185,6 +247,29 @@ class Agent(Protocol):
 class Outworlder(Agent, Protocol): ...
     # Automatically added to the agent collection if requested, and the user cannot override it.
     # Note that this is not steering: steering is that the user can attach to a session and inject prompts, while this is that the user (or designated agent by the outside flow) can act as an agent in the flow.
+
+    @classmethod
+    def new(cls) -> Self: ...
+        # Create a fake outworlder agent. This is used for the case where the callee wants to run the outworlder, and the caller can pre-configure this to act as an outworlder.
+
+    @property
+    def away(self) -> bool: ...
+        # True if /afk is on.
+        # When away, all runs will response default value (e.g. "" for str, and all values by default for pydantic.BaseModel).
+
+    @overload
+    def hook(
+        self,
+        kind: Literal[HookKind.OUTWORLDER_RUN],
+        fn: HookFn[OutworlderRunHookParams, OutworlderRunHookResult] | None,
+    ) -> None: ...
+        # A fake hook to handle the case where the callee wants to run the outworlder. The caller can pre-configure this to act as an outworlder.
+
+class ClaudeCodeAgent(Agent, ..., Protocol):
+    pass
+    # With all supported mixins. This is a useful type for flows to declare that they require exactly a Claude Code agent.
+
+... # And all other harnesses.
 
 class AgentCollection(TypedDict, extra_items=ReadOnly[Agent]):
     pass
@@ -198,14 +283,42 @@ class GoalCommandAgentMixin: ...
 
 class LoopCommandAgentMixin: ...
     # This will lead to `/loop <interval> <task>` command being available in agent.run(...).
+
+class SteeringAgentMixin:
+    async def steer(
+        self,
+        prompt: str,
+        *,
+        session: Session,
+        queued: bool = True, # Claude Code & Codex supports interrupting the current turn, or queueing the prompt to be executed after the current turn. (Just like pressing Esc or not after sending msg to a running agent.)
+    ) -> None: ...
+        # Used to steer.
+
+class PermissionRequestHookAgentMixin:
+    @overload
+    def hook(
+        self,
+        kind: Literal[HookKind.PERMISSION_REQUEST],
+        fn: HookFn[PermissionRequestHookParams, PermissionRequestHookResult] | None,
+    ) -> None: ...
+
+... # And ALL hooks of all the harnesses.
+
+class AskUserHookAgentMixin: # A fake hook to handle the case where the harness want to ask the user something.
+    @overload
+    def hook(
+        self,
+        kind: Literal[HookKind.ASK_USER],
+        fn: HookFn[AskUserHookParams, AskUserHookResult] | None,
+    ) -> None: ...
 ```
 
 The flow declares what an agent must be able to do by subclassing it:
 
 ```py
-class MyAgent(Agent, GoalCommandAgentMixin, LoopCommandAgentMixin):
+class MyAgent(Agent, GoalCommandAgentMixin, LoopCommandAgentMixin, PermissionRequestHookAgentMixin):
     _permission = Permission(
-        local=PermissionKind.WRITE,
+        local=PermissionKind.ALL,
         user=PermissionKind.READ,
         system=PermissionKind.NONE,
         online=PermissionKind.NONE,
@@ -219,9 +332,46 @@ class MyAgentCollection(AgentCollection):
 ## Flows
 
 ```py
+class FlowParams(pydantic.BaseModel): ...
+
+class FlowState(Protocol):
+    def __getitem__(self, key: str) -> Any: ...
+
+    def __setitem__(self, key: str, value: Any) -> None: ...
+
+    def __delitem__(self, key: str) -> None: ...
+
+    def __contains__(self, key: str) -> bool: ...
+
+class FlowContext(Protocol):
+    @property
+    def budget(self) -> Budget: ...
+
+    @property
+    def flow(self) -> Flow: ...
+
+    @property
+    def resumed(self) -> bool: ...
+
+    @property
+    def state(self) -> FlowState | None: ...
+        # Only available if the flow is resumable.
+
+    @property
+    def usage(self) -> Usage: ...
+
 class Flow(Protocol):
     @property
     def description(self) -> str | None: ...
+
+    @property
+    def expected_agents(self) -> type[AgentCollection]: ...
+
+    @property
+    def expected_envs(self) -> type[EnvCollection]: ...
+
+    @property
+    def expected_params(self) -> type[FlowParams]: ...
 
     @property
     def resumable(self) -> bool: ...
@@ -232,9 +382,10 @@ class Flow(Protocol):
         *,
         agents: AgentCollection,
         envs: EnvCollection,
-        params: pydantic.BaseModel,
-        try_resume: bool = False,
+        params: FlowParams,
+        budget: Budget | None = None,
     ) -> Any: ...
+        # The passed agents and envs must be not be more narrow than the flow's declared agents and envs.
 
 def load(ref: str) -> Flow: ...
 ```
@@ -245,10 +396,12 @@ A flow ref can be either:
 - (in a flow only) `<flow>:<subflow>`: a flow in the same flowverse;
 - `<pip-style-vcs-url>#<flow>:<subflow>`: a flow in another flowverse.
 
+If the parent flow is resumed, the subflows resumes as well if they are called with exactly the same task agents, envs, and params.
+
 ## Defining a flow
 
 ```py
-class FlowFn[TAgentCollection: AgentCollection, TEnvCollection: EnvCollection, TFlowParams: pydantic.BaseModel](Protocol):
+class FlowFn[TAgentCollection: AgentCollection, TEnvCollection: EnvCollection, TFlowParams: FlowParams](Protocol):
     async def __call__(
         self,
         task: str,
@@ -256,17 +409,36 @@ class FlowFn[TAgentCollection: AgentCollection, TEnvCollection: EnvCollection, T
         agents: TAgentCollection,
         envs: TEnvCollection,
         params: TFlowParams,
-        epic: Epic,
+        ctx: FlowContext,
     ) -> Any: ...
 
-def flow[TAgentCollection: AgentCollection, TEnvCollection: EnvCollection, TFlowParams: pydantic.BaseModel](
+def flow[TAgentCollection: AgentCollection, TEnvCollection: EnvCollection, TFlowParams: FlowParams](
     *,
     agents: type[TAgentCollection],
     envs: type[TEnvCollection],
     params: type[TFlowParams],
     description: str | None = None,
     hidden: bool = False,
-    resumable: bool = False,
+    resumable: bool = False, # A flag to enable /resume.
 ) -> Callable[[FlowFn[TAgentCollection, TEnvCollection, TFlowParams]], Flow]: ...
     # The decorated function name is the flow name.
 ```
+
+## Misc
+
+Should have a very fine-grained and hierarchical exception system, so that the flow can catch specific exceptions and handle them, and the flow can also catch all exceptions and handle them.
+
+```py
+class FlowException(Exception): ...
+    # Base class for all flow exceptions.
+
+... # And ALL exceptions of all the harnesses.
+
+... # And ALL exceptions of all the envs.
+
+... # And ALL exceptions of Humanize flow runtime.
+```
+
+Some harnesses mix permission with approval policy. In our design, all approval are BYPASS (e.g. danger-full-access + never for Codex, or bypassPermissions for Claude Code). And we never use any auto review mode (where the model is responsible for reviewing the action). If the managed policy rejects BYPASS, they will be run in the most permissive-possible non-auto mode, and all their action requests will be always approved. For example, if BYPASS is disallowed in Claude Code, it will be run in acceptEdits mode, and all its action requests will be always approved. This is to ensure that the flow can always run without any human intervention, and the harnesses will never be able to reject any action request.
+
+`chat` flow is a special flow. It will always use the harness specific agent (e.g. ClaudeCodeAgent) for the selected harness. Therefore, it will always has all the capabilities of the agent.
