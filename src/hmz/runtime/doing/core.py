@@ -22,19 +22,18 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import os
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Iterable, Mapping
 
-    from pydantic import BaseModel
-
-    from hmz.coganchor.agents import AgentBase
-    from hmz.coganchor.agents.allowance import Allowance
     from hmz.coganchor.backends import Profile
+    from hmz.flows import Budget, FlowParams
     from hmz.runtime.doing.accounts import Accounts
     from hmz.runtime.doing.epics import Epics
     from hmz.runtime.doing.fallbacks import Fallbacks
     from hmz.runtime.doing.flows import Flows, Flowverses
     from hmz.runtime.doing.running import Run
-    from hmz.runtime.runner import Runner
+    from hmz.runtime.flowing import AgentDriver, EnvDriver, OutworlderDriver
+    from hmz.runtime.flowing.specs import AgentSpec, EnvSpec
+    from hmz.runtime.runner import Line, Runner
     from hmz.runtime.settings import Settings
 
 __all__ = ["Hmz"]
@@ -141,105 +140,133 @@ class Hmz:
 
         return telemetry.start()
 
-    def read(
-        self, argv: list[str]
-    ) -> tuple[
-        str, list[AgentBase], str, dict[str, Any] | None, Allowance | None, bool
-    ]:
-        """Reads an `hmz exec` line into a flow, the agents, the task, and the flow's setup.
+    def read(self, argv: list[str]) -> Line:
+        """Reads an `hmz exec` line: the flow, what each role is given, the params and budget.
 
         Args:
           argv: The line, as `hmz exec` takes it.
 
         Returns:
-          The flow's path, the agents to drive it with in the order the flow takes them, the
-          task, what to set the flow up with, what the run may spend, and whether the line
-          asked for the run to be written for a program rather than for a person.
+          The line, read. Nothing is loaded: whether the flow takes what it names is asked
+          of it by :meth:`runner`.
 
         Raises:
-          SystemExit: If the line does not name a flow and an agent apiece, as argparse
-            rejects it.
+          SystemExit: If the line is not one argparse accepts, or an `-a`, `-e`, `-p` or `-b`
+            on it cannot be read.
         """
-        from hmz.runtime.runner import flow_and_agents
+        from hmz.runtime.runner import read_line
 
-        return flow_and_agents(argv)
+        return read_line(argv)
 
     def runner(
         self,
         flow: str | os.PathLike[str],
-        agents: Sequence[AgentBase],
-        config: BaseModel | dict[str, Any] | None = None,
-        resume: str | os.PathLike[str] | None = None,
-        container: str = "",
-        budget: Allowance | Mapping[str, Any] | None = None,
+        *,
+        agents: Mapping[str, str | AgentDriver] | Iterable[AgentSpec] = (),
+        envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
+        params: Mapping[str, Any] | FlowParams | None = None,
+        budget: Budget | Mapping[str, Any] | None = None,
+        resume: bool | str | os.PathLike[str] = False,
     ) -> Runner:
-        """Loads a flow and hands it the agents it was written for.
+        """Loads a flow and opens a driver for every role it is given, checking all of it.
 
         Args:
-          flow: The Python file the flow is written in, or the name it is offered under.
-          agents: The agents to hand it, as many as it declares.
-          config: What it was set up with, for a flow that says it can be.
-          resume: The run to pick up from, for a flow that says it can be picked up.
-          container: The image to run the whole of it in, or "" for this machine.
-          budget: What the run may spend, or None for whatever the flow says.
+          flow: The flow, by the name it is offered under, a path, or a ref.
+          agents: What each agent role runs, by role -- an `-a` spec after `<role>=`, or a
+            driver -- or the specs a line read.
+          envs: What each environment role is, likewise with `-e`.
+          params: The flow's params, or None for its defaults.
+          budget: What the run may spend; only a flow humanize ships runs without one.
+          resume: Whether to pick up the newest run of it here, or the epic to pick up.
 
         Returns:
-          The flow, loaded, with the agents it drives in hand.
+          The flow, loaded, with its drivers in hand and nothing started.
 
         Raises:
-          NotAFlow: If the flow is not there, is not a flow, or takes other agents than these.
+          Refused: If the flow is not there, or is given what it does not declare, or is not
+            given what it needs -- before anything runs.
         """
         from hmz.runtime.runner import Runner
 
         return Runner(
-            flow, agents, config, resume=resume, container=container, budget=budget
+            flow,
+            agents=agents,
+            envs=envs,
+            params=params,
+            budget=budget,
+            resume=resume,
+            workspace=self._workspace,
         )
 
     def run(
         self,
         flow: str | os.PathLike[str],
-        agents: Sequence[AgentBase],
         task: str,
-        config: BaseModel | dict[str, Any] | None = None,
-        resume: str | os.PathLike[str] | None = None,
-        container: str = "",
-        budget: Allowance | Mapping[str, Any] | None = None,
+        *,
+        agents: Mapping[str, str | AgentDriver] | Iterable[AgentSpec] = (),
+        envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
+        params: Mapping[str, Any] | FlowParams | None = None,
+        budget: Budget | Mapping[str, Any] | None = None,
+        resume: bool | str | os.PathLike[str] = False,
+        outworlder: OutworlderDriver | None = None,
     ) -> Run:
         """A run of one flow, loaded and ready to be started.
 
         Args:
-          flow: The Python file the flow is written in, or the name it is offered under.
-          agents: The agents to hand it, as many as it declares.
-          task: What the flow is to have them do.
-          config: What it was set up with, for a flow that says it can be.
-          resume: The run to pick up from, for a flow that says it can be picked up.
-          container: The image to run the whole of it in, or "" for this machine.
-          budget: What the run may spend, or None for whatever the flow says.
+          flow: The flow, by the name it is offered under, a path, or a ref.
+          task: What it is to do.
+          agents: What each agent role runs; see :meth:`runner`.
+          envs: What each environment role is; see :meth:`runner`.
+          params: The flow's params, or None for its defaults.
+          budget: What the run may spend; only a flow humanize ships runs without one.
+          resume: Whether to pick up the newest run of it here, or the epic to pick up.
+          outworlder: Whoever is outside the run, or None for nobody.
 
         Returns:
           The run. Nothing has started: `run()` runs it here, `start()` on a thread.
 
         Raises:
-          NotAFlow: If the flow is not there, is not a flow, or takes other agents than these.
+          Refused: If the flow is not there, or is given what it does not declare, or is not
+            given what it needs -- before anything runs.
         """
         from hmz.runtime.doing.running import Run
 
-        return Run(self.runner(flow, agents, config, resume, container, budget), task)
+        return Run(
+            self.runner(
+                flow,
+                agents=agents,
+                envs=envs,
+                params=params,
+                budget=budget,
+                resume=resume,
+            ),
+            task,
+            outworlder=outworlder,
+        )
 
-    def exec(self, argv: list[str]) -> None:
-        """Runs the flow one `hmz exec` line names, on the agents it names, to its return.
+    def exec(self, argv: list[str]) -> Any:
+        """Runs the flow one `hmz exec` line names, on what it names, to its return.
 
         Args:
           argv: The line, as `hmz exec` takes it.
 
+        Returns:
+          What the flow returned.
+
         Raises:
-          NotAFlow: If the line names a flow that is not there, or takes other agents than it
-            declares -- which is a line that was wrong before anything ran.
+          Refused: If the line names a flow that is not there, or gives it what it does not
+            take -- which is a line that was wrong before anything ran.
           SystemExit: If the line is not one argparse accepts.
         """
-        # What the line said about who is reading is the command line's to act on: this
-        # answers with the run itself rather than with a rendering of it.
-        flow, agents, task, config, budget, _ = self.read(argv)
+        line = self.read(argv)
         # Through a run, which is the one thing a flow being driven is: whoever ran a line
         # through this and whoever built a run are then holding the same thing.
-        self.run(flow, agents, task, config, budget=budget).run()
+        return self.run(
+            line.flow,
+            line.task,
+            agents=line.agents,
+            envs=line.envs,
+            params=line.params,
+            budget=line.budget,
+            resume=line.resume,
+        ).run()

@@ -1,9 +1,9 @@
 """Setting a flow up: the sheet between choosing the flow and choosing what runs it.
 
-A flow says what it can be set up with by declaring a model, and this is that model with a
-cursor on it. Nothing here knows what any of the settings mean: the types say how a value is
-moved and the model says which combinations it will not take, so what is checked is that both
-of those reach the person setting it up.
+A flow says what it can be set up with by declaring its params, a `FlowParams` model, and this
+is that model with a cursor on it. Nothing here knows what any of the settings mean: the types
+say how a value is moved and the model says which combinations it will not take, so what is
+checked is that both of those reach the person setting it up.
 """
 
 from __future__ import annotations
@@ -34,16 +34,19 @@ if TYPE_CHECKING:
 FLOW = '''
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams, flow
 
 FIRST = {"section": "first  ·  how loudly"}
 SECOND = {"section": "second  ·  how far"}
 
 
-class Config(BaseModel):
+class Agents(AgentCollection):
+    worker: Agent
+
+
+class Config(FlowParams):
     """What this flow takes."""
 
     loud: bool = Field(
@@ -66,51 +69,68 @@ class Config(BaseModel):
         return self
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str, config: Config | None = None) -> None:
+@flow(agents=Agents, envs=EnvCollection, params=Config)
+async def settable(task: str, *, agents: Agents, envs: EnvCollection, params: Config,
+                   ctx: FlowContext) -> None:
     pass
 '''
 
 #: A flow that takes settings but groups none of them, which is a sheet of one list.
 UNGROUPED = '''
-from pydantic import BaseModel, Field
+from pydantic import Field
 
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams, flow
 
 
-class Config(BaseModel):
+class Agents(AgentCollection):
+    worker: Agent
+
+
+class Config(FlowParams):
     """What this flow takes."""
 
     loud: bool = Field(default=False, description="say it twice")
     rounds: int = Field(default=3, description="how many times round")
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str, config: Config | None = None) -> None:
+@flow(agents=Agents, envs=EnvCollection, params=Config)
+async def ungrouped(task: str, *, agents: Agents, envs: EnvCollection, params: Config,
+                    ctx: FlowContext) -> None:
     pass
 '''
 
 #: A flow that takes no setting up at all, which is what most of them are.
 PLAIN = """
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams, flow
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
+class Agents(AgentCollection):
+    worker: Agent
+
+
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams)
+async def plain(task: str, *, agents: Agents, envs: EnvCollection, params: FlowParams,
+                ctx: FlowContext) -> None:
     pass
 """
 
 
 @pytest.fixture
 def flows(tmp_path: Path) -> Path:
-    """Puts both flows where this project's own would be."""
+    """Puts the flows where this project's own would be, each with a budget set for a run.
+
+    Set rather than asked, since saving a flow a run of which has none is refused, and none
+    of these tests is about that: the workspace is left set up on `chat`, as it opens.
+    """
     where = tmp_path / ".humanize" / "flows"
     where.mkdir(parents=True)
     written(where, "settable", FLOW)
     written(where, "plain", PLAIN)
     written(where, "ungrouped", UNGROUPED)
+    kept = Settings(tmp_path)
+    for one in ("settable", "plain", "ungrouped"):
+        kept.remember(f"local/{one}", {}, budget={"cost": 1.0})
+    kept.remember("chat", {})
     return where
 
 
@@ -324,13 +344,13 @@ async def test_how_it_was_set_up_is_kept_and_read_back(
             await driver.press("enter")
             await until(lambda: isinstance(app.screen, Flows), driver)
             await keeps(app, driver)
-            await until(lambda: app._config is not None, driver)
+            await until(lambda: app._params is not None, driver)
 
-    assert Settings(tmp_path).config("local/settable")["loud"] is True
+    assert Settings(tmp_path).params("local/settable")["loud"] is True
     # And a second interface opens on it, rather than back at the flow's own defaults.
     again = Humanize()
-    assert again._config is not None
-    assert again._config.model_dump()["loud"] is True
+    assert again._params is not None
+    assert again._params.model_dump()["loud"] is True
 
 
 @pytest.mark.timeout(60)
@@ -389,14 +409,16 @@ def test_a_config_that_no_longer_fits_the_flow_is_started_over_from(
 ) -> None:
     """A settings file is a convenience, and one that has gone stale is not a reason to fail."""
     Settings(tmp_path).remember(
-        "settable", ("",), [Runs("claude/opus:high")], {"gone": "away", "rounds": 99}
+        "local/settable",
+        {"worker": Runs("claude/opus:high")},
+        params={"gone": "away", "rounds": 99},
     )
 
     app = Humanize()
 
-    from hmz.tui.pick import config_of
+    from hmz.tui.pick import params_of
 
-    assert config_of("settable", app.settings.config("settable")) is None
+    assert params_of("local/settable", app.settings.params("local/settable")) is None
 
 
 @pytest.mark.timeout(60)
@@ -504,8 +526,8 @@ async def test_walking_past_how_the_flow_is_set_up_leaves_it_alone(flows: Path) 
             await keeps(app, driver)
             await until(lambda: not isinstance(app.screen, Flows), driver)
 
-            assert app._config is not None
-            assert app._config.model_dump()["loud"] is True
+            assert app._params is not None
+            assert app._params.model_dump()["loud"] is True
 
 
 @pytest.mark.timeout(60)

@@ -35,7 +35,7 @@ from typing import TYPE_CHECKING, Any, Self
 from . import many
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable
+    from collections.abc import Callable
     from types import TracebackType
     from typing import IO
 
@@ -357,10 +357,10 @@ class Out:
 class Shown:
     """A run of a flow as it happens, laid out for whoever is reading it.
 
-    Built on `AgentBase.watch`, which is the same stream the interface draws from -- so the
-    two readings of one run say the same things in the same order. Registering a watcher is
-    also what stops every driver teeing its own raw progress to stderr, so this replaces that
-    tee rather than being printed beside it.
+    Handed to `Run.watch`, which hands it to every session of the run -- the same stream the
+    interface draws from -- so the two readings of one run say the same things in the same
+    order. Watching a session is also what stops its CLI teeing its own raw progress to
+    stderr, so this replaces that tee rather than being printed beside it.
     """
 
     def __init__(self, out: Out) -> None:
@@ -397,15 +397,6 @@ class Shown:
     ) -> None:
         """Takes it down again, however the run ended."""
         self._out.spins(None)
-
-    def watches(self, agents: Iterable[AgentBase]) -> None:
-        """Has everything these agents' turns say reach this.
-
-        Args:
-          agents: The agents the flow is being driven with.
-        """
-        for agent in agents:
-            agent.watch(self.heard)
 
     def heard(
         self, agent: AgentBase, session: SessionBase | None, event: Event

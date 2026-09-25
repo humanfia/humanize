@@ -1,9 +1,10 @@
 """What humanize remembers: what was set up to run here, and what is true everywhere.
 
 One file under humanize's own home. Most of it is one entry per workspace -- the flow that was
-last run there, and for each flow the workspace has run, what each of its agents was running --
-so a project driven by one flow on two agents is driven by them again tomorrow, rather than
-falling back to the default every time it is opened. Beside those is the handful of settings
+last run there, and for each flow the workspace has run, what each of its roles was given, what
+it was set up with and what a run of it may spend -- so a project driven by one flow on two
+agents is driven by them again tomorrow, rather than falling back to the default every time it
+is opened. Beside those is the handful of settings
 that are not a workspace's at all, which is what `enable_sentry` is: whether humanize reports
 its own failures, answered once and true wherever it is run from.
 
@@ -13,10 +14,9 @@ interface to do it. `hmz exec` reports a crash or does not according to the same
 menu wrote.
 
 Kept per flow rather than per workspace alone, because what an agent runs is only meaningful
-against the flow that drives it: a flow's second agent is its reviewer, and the flow before it
-had no second agent at all. And keyed by what the flow calls each one where it calls them
-anything, so that a flow which grows an agent in the middle does not silently hand the
-reviewer's model to the builder.
+against the flow that drives it: a flow's `reviewer` is its own, and the flow before it had no
+reviewer at all. And keyed by the role each fills, so that a flow which grows a role in the
+middle does not silently hand the reviewer's model to the builder.
 
 There is nowhere else an agent is written down. What an agent is -- a CLI, an account, a model
 at an effort -- is short enough now that a template kept under a name was more to hold in step
@@ -37,7 +37,7 @@ from hmz import home
 from hmz.runtime.kept import Runs, read_back, written
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping
 
 __all__ = ["Settings"]
 
@@ -130,41 +130,39 @@ class Settings:
         self._write()
         return True
 
-    def agents(
-        self, flow: str, goal_defaults: Sequence[bool] | None = None
-    ) -> list[Runs]:
-        """What each agent of one flow was last running here, and where its turns landed.
+    def agents(self, flow: str) -> dict[str, Runs]:
+        """What each agent role of one flow was last given here.
 
         Args:
           flow: The flow they were driving.
-          goal_defaults: What each agent place currently suggests. Used only for an entry
-            written before goal selection was stored; with none, goals default on.
 
         Returns:
-          One `cli/model:effort` apiece with the machine it was anchored to, what it may do
-          without being asked and the account it ran as, in the order the flow takes them,
-          and nothing at all for a flow this workspace has not run.
+          One agent per role, in the order they were written down, and nothing at all for a
+          flow this workspace has not run -- or one whose entry this did not write, which
+          reads as nothing remembered rather than as half of something.
         """
-        flows: dict[str, Any] = self._mine().get("flows") or {}
-        kept: dict[str, Any] = flows.get(flow) or {}
-        agents: dict[str, Any] = kept.get("agents") or {}
-        said: list[Runs] = []
-        for at, raw in enumerate(agents.values()):
-            if not isinstance(raw, dict):
-                return []  # written by hand and not the way this writes it
-            # An anchor is what a workspace that has one has: an entry written before there
-            # were any is a workspace whose agents work here, which is what leaving it out
-            # already meant.
-            runs = read_back(
-                cast("dict[str, Any]", raw),
-                goals=goal_defaults[at]
-                if goal_defaults is not None and at < len(goal_defaults)
-                else True,
-            )
+        said: dict[str, Runs] = {}
+        for role, raw in self._kept(flow, "agents").items():
+            runs = read_back(raw)
             if runs is None:
-                return []
-            said.append(runs)
+                return {}
+            said[role] = runs
         return said
+
+    def envs(self, flow: str) -> dict[str, str]:
+        """What each environment role of one flow was last given here, as `-e` spells one.
+
+        Args:
+          flow: The flow they were for.
+
+        Returns:
+          One `<backend>@<provider>/<workdir>` per role, and nothing at all for a flow that
+          was given none here -- one whose environments are the workspace it runs in.
+        """
+        held = self._kept(flow, "envs")
+        if not all(isinstance(one, str) for one in held.values()):
+            return {}
+        return {role: str(one) for role, one in held.items()}
 
     def flows(self) -> dict[str, Any]:
         """What every flow this workspace has run was last set up with, by flow.
@@ -180,12 +178,12 @@ class Settings:
         held = self._mine().get("flows")
         return cast("dict[str, Any]", held) if isinstance(held, dict) else {}
 
-    def config(self, flow: str) -> dict[str, Any]:
-        """How one flow was last set up here, for a flow that can be set up at all.
+    def params(self, flow: str) -> dict[str, Any]:
+        """How one flow was last set up here, as its params.
 
-        Kept beside what its agents run and for the same reason: a flow of forty settings is
-        not one to answer again every morning. Read back through the flow's own model rather
-        than trusted, so a setting the flow has since dropped or renamed is one the model
+        Kept beside what its roles were given and for the same reason: a flow of forty params
+        is not one to answer again every morning. Read back through the flow's own model
+        rather than trusted, so a param the flow has since dropped or renamed is one the model
         refuses rather than one that quietly comes back.
 
         Args:
@@ -195,21 +193,20 @@ class Settings:
           What was set, field by field, and nothing at all for a flow this workspace has
           never set up.
         """
-        return self._kept(flow, "config")
+        return self._kept(flow, "params")
 
     def budget(self, flow: str) -> dict[str, Any]:
         """What a run of one flow here was last said to be allowed to spend.
 
         Beside what the flow was set up with rather than inside it, because it is not one of
-        the flow's settings: the flow said at most a default, and this is what the person
-        running it here decided a run of it is worth.
+        the flow's params: it is what the person running it here decided a run of it is worth.
 
         Args:
           flow: The flow it was set for.
 
         Returns:
-          The dimensions that were set, and nothing at all for a flow nobody has set one for
-          here -- which is a run under whatever the flow itself says.
+          The budget as JSON -- `duration`, `cost`, `output_tokens`, `graceful` -- and
+          nothing at all for a flow nobody has set one for here.
         """
         return self._kept(flow, "budget")
 
@@ -224,48 +221,43 @@ class Settings:
           What was written down, and nothing at all where it was not or is not a mapping.
         """
         flows: dict[str, Any] = self._mine().get("flows") or {}
-        kept: dict[str, Any] = flows.get(flow) or {}
-        held = kept.get(under)
+        kept = flows.get(flow)
+        if not isinstance(kept, dict):
+            return {}
+        held = cast("dict[str, Any]", kept).get(under)
         return cast("dict[str, Any]", held) if isinstance(held, dict) else {}
 
     def remember(
         self,
         flow: str,
-        names: tuple[str, ...],
-        models: Sequence[Runs],
-        config: dict[str, Any] | None = None,
+        agents: Mapping[str, Runs],
+        envs: Mapping[str, str] | None = None,
+        params: dict[str, Any] | None = None,
         budget: dict[str, Any] | None = None,
     ) -> None:
         """Writes down what this workspace is set up to run, so that it opens that way.
 
         Args:
           flow: The flow to run.
-          names: What that flow calls each agent it drives, which is "" apiece for a flow
-            that said how many it drives and nothing more.
-          models: What each of them runs and where, in the order the flow takes them.
-          config: What the flow itself was set up with, or None to leave whatever was kept
-            for it as it was -- choosing the agents again is not a way of forgetting how the
-            flow was set up.
-          budget: What a run of it here may spend, or None to leave whatever was kept as it
-            was. The same asymmetry as `config` and for the same reason: the flow's whole
+          agents: What each of its agent roles runs, by role.
+          envs: What each of its environment roles is given, as `-e` spells one, or None to
+            leave whatever was kept for it as it was -- choosing the agents again is not a
+            way of forgetting where they work.
+          params: What the flow itself was set up with, or None to leave whatever was kept.
+          budget: What a run of it here may spend, as JSON, or None to leave whatever was
+            kept. The same asymmetry as the rest and for the same reason: the flow's whole
             entry is replaced below, so what is not handed in has to be read back or it is
-            forgotten. A value that is empty erases it, which is how the menu says a flow is
-            back to running under whatever the flow itself says.
+            forgotten. A value that is empty erases it.
         """
-        agents: dict[str, dict[str, Any]] = {
-            # By what the flow calls it, or by where it comes in the line when it has no name.
-            (names[at] if at < len(names) and names[at] else str(at + 1)): written(runs)
-            for at, runs in enumerate(models)
-        }
         mine = self._mine()
         mine["flow"] = flow
-        kept: dict[str, Any] = {"agents": agents}
-        held = config if config is not None else self.config(flow)
-        if held:
-            kept["config"] = held
-        spends = budget if budget is not None else self.budget(flow)
-        if spends:
-            kept["budget"] = spends
+        kept: dict[str, Any] = {
+            "agents": {role: written(runs) for role, runs in agents.items()}
+        }
+        for under, given in (("envs", envs), ("params", params), ("budget", budget)):
+            held = dict(given) if given is not None else self._kept(flow, under)
+            if held:
+                kept[under] = held
         mine.setdefault("flows", {})[flow] = kept
         self._write()
 

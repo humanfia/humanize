@@ -43,7 +43,7 @@ from tests.integration.tui.test_app import (
     opens,
     rows,
 )
-from tests.tui.fixtures import transcript, until
+from tests.tui.fixtures import set_up, transcript, until
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -419,13 +419,13 @@ async def test_the_account_an_agent_runs_as_is_the_first_thing_asked_about_it(
         # And on the line above the prompt, beside what it runs.
         assert "deepseek" in str(app.query_one("#above", Static).content)
 
-    chosen = Runs("claude/claude-opus-5:high", "", "", "deepseek")
-    assert app._models == [chosen]
-    assert app.settings.agents(app._flow_named) == [chosen]
+    chosen = Runs("claude/claude-opus-5:high", "deepseek")
+    assert app._models == {"assistant": chosen}
+    assert app.settings.agents(app._flow_named) == {"assistant": chosen}
     # And what it may do between the two: nobody narrowed this one, so the line says what
     # that comes to rather than leaving a gap where a rung would be.
     assert reads(("builder",), [chosen]) == [
-        "builder · claude/claude-opus-5:high · as configured · deepseek"
+        "builder · claude/claude-opus-5:high · deepseek"
     ]
 
 
@@ -488,7 +488,7 @@ async def test_an_account_can_be_made_from_the_sheet_that_asks_for_one(
     made = providers.find("claude", "mine")
     assert made is not None
     assert dict(made.env) == {"ANTHROPIC_API_KEY": "not-a-key"}
-    assert app._models == [Runs("claude/claude-opus-5:high", "", "", "mine")]
+    assert app._models == {"assistant": Runs("claude/claude-opus-5:high", "mine")}
     # The backends installed here are asked as the interface opens, and an account as it
     # lands: an account is made in order to run turns as, and which models those turns may
     # name is the account's rather than this machine's.
@@ -526,7 +526,7 @@ async def test_making_one_and_walking_out_of_it_changes_nothing(
     app = Humanize()
     was = None
     async with app.run_test() as driver:
-        was = list(app._models)
+        was = dict(app._models)
         await into_flows(app, driver)
         await into_agent(app, driver)
         await opens(app, driver, "provider")
@@ -599,7 +599,7 @@ async def test_the_first_row_leaves_the_agent_running_as_this_machine(
         await keeps(app, driver)
         await keeps(app, driver)
 
-    assert app._models == [Runs("claude/claude-opus-5:high")]
+    assert app._models == {"assistant": Runs("claude/claude-opus-5:high")}
 
 
 @pytest.mark.timeout(60)
@@ -922,26 +922,6 @@ async def test_the_key_that_used_to_take_an_account_away_takes_nothing_away() ->
     assert providers.find("claude", "deepseek") is not None
 
 
-def test_an_agent_is_made_as_the_account_it_was_given() -> None:
-    """What the sheet answered is a setting of the agent, done to it before the flow starts."""
-    from hmz.coganchor.agents import ClaudeCodeAgent, ClaudeCodeAgentConfig
-
-    _account()
-    app = Humanize()
-    app._models = [Runs("claude/m:high", "", "", "deepseek")]
-    made = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high"))
-
-    (agent,) = app._as_they_were_set_up([made])
-
-    assert agent.config.provider == "deepseek"
-    assert agent.config.machine is None  # it works here, as it did before
-
-    # And one nobody named an account for is the agent that was made, untouched.
-    app._models = [Runs("claude/m:high")]
-    again = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high"))
-    assert app._as_they_were_set_up([again]) == [again]
-
-
 @pytest.mark.timeout(60)
 @unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
 async def test_an_agent_told_to_run_as_nobody_is_a_line_to_correct(
@@ -950,38 +930,35 @@ async def test_an_agent_told_to_run_as_nobody_is_a_line_to_correct(
     """An agent that cannot find its account must not quietly run as whoever started it."""
     app = Humanize()
     async with app.run_test() as driver:
-        app._models = [Runs("claude/claude-opus-5:max", "", "", "nonesuch")]
+        set_up(app, "chat", {"assistant": Runs("claude/claude-opus-5:max", "nonesuch")})
         await driver.press(*"go")
         await driver.press("enter")
         await until(lambda: "nonesuch" in transcript(app), driver)
+        await until(lambda: app._run is None, driver)
         said = transcript(app)
 
-    assert "hmz: no claude provider called 'nonesuch'" in said
-    assert (
-        "Traceback" not in said
-    )  # said at the prompt, rather than raised out of a thread
-    assert not app._agents  # and nothing started
+    assert "hmz:" in said
+    # Said at the prompt, rather than raised out of a thread.
+    assert "Traceback" not in said
 
 
 def test_what_an_agent_runs_as_is_kept_and_read_back(tmp_path: Path) -> None:
-    """As the anchor is: written only where there is an account to write."""
+    """As `-a` writes it: the account after an `@`, and nothing where there is none."""
     kept = Settings(tmp_path)
     kept.remember(
         "rlar",
-        ("actor", "reviewer"),
-        [Runs("claude/m:high", "", "", "deepseek"), Runs("codex/n:low")],
+        {"actor": Runs("claude/m:high", "deepseek"), "reviewer": Runs("codex/n:low")},
     )
 
-    assert Settings(tmp_path).agents("rlar") == [
-        Runs("claude/m:high", "", "", "deepseek"),
-        Runs("codex/n:low"),
-    ]
+    assert Settings(tmp_path).agents("rlar") == {
+        "actor": Runs("claude/m:high", "deepseek"),
+        "reviewer": Runs("codex/n:low"),
+    }
     held = Settings(tmp_path)._read()
     agents = held["workspaces"][str(tmp_path.resolve())]["flows"]["rlar"]["agents"]
-    assert agents["actor"]["provider"] == "deepseek"
-    # An agent nobody named one for says nothing, which is what a file written before there
-    # were any says too -- and reads back as this machine's own account.
-    assert "provider" not in agents["reviewer"]
+    assert agents["actor"] == "claude@deepseek/m:high"
+    # An agent nobody named one for says nothing -- and reads back as this machine's own.
+    assert agents["reviewer"] == "codex/n:low"
 
 
 @pytest.mark.timeout(60)

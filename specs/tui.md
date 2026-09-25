@@ -12,15 +12,17 @@ class Humanize(App[None]):
     def __init__(
         self,
         flow: str = "",
-        agents: Sequence[Runs] = (),
-        config: BaseModel | None = None,
+        agents: Mapping[str, Runs] | None = None,  # by role
+        params: BaseModel | None = None,  # the flow's params
         session: Session | None = None,
     ) -> None: ...
     def reattached(self) -> None: ...
     def action_quit(self) -> None: ...
+    def said(self) -> dict[str, Any]: ...  # the flow, its budget and usage, as JSON
 ```
 
-Textual's `run()` opens it; the other two are what a run held elsewhere calls to redraw or stop.
+Textual's `run()` opens it; the other three are what a run held elsewhere calls to redraw, stop,
+or say what it is running.
 
 ## Requirements
 
@@ -52,20 +54,27 @@ Textual's `run()` opens it; the other two are what a run held elsewhere calls to
 - MUST offer exactly these commands, each doing what it says: `/flow`, `/btw`, `/flowverses`,
   `/providers`, `/fallback`, `/epics`, `/resume`, `/settings`, `/monitor`, `/clear`, `/details`,
   `/afk`, `/stop`, `/exit`. `/btw` MUST be answered from a snapshot, not by asking the flow.
-- MUST carry the last run of this directory on for `/resume` — its flow, agents, task and what it
-  left behind, saying which — say why there is none to carry on, and refuse it, as it refuses
-  picking any run up, while a flow is running or stopping.
+- MUST carry the last run of this directory of a flow that can be picked up on for `/resume` —
+  its flow, roles, params, budget and task, picking up its journal, saying which — say why there
+  is none to carry on, and refuse it, as it refuses picking any run up, while a flow is running
+  or stopping.
 - MUST let a flow's agents be set up whatever is happening, but offer a flow choice only when idle.
 - MUST read the flows a place at a time — every flowverse fetched or not, then this project's own
   — showing which place is read, and letting a flow be copied here whole and under its name.
-- MUST apply a saved menu to running agents from their next turn on, say that a changed CLI takes
-  effect only from the next run, and refuse to save a flow whose agent names no model.
-- MUST let what a run may spend be set and read on the page its agents are on, asking once before
-  saving a run nothing will stop unless the flow says it is meant to run unbounded.
+- MUST set a flow up by its roles: one row per agent role and one per environment role the flow
+  declares, leaving out the ones the runtime fills -- an `Outworlder`, a `LocalEnv` -- then its
+  params, asked with the flow's own params model, and what a run may spend. A saved menu MUST take
+  effect from the next run, and MUST refuse to save a flow whose agent role names no model, or --
+  for every flow but `chat` -- one that has no budget.
+- MUST let what a run may spend -- a duration, a cost, output tokens, and whether a turn is let
+  finish -- be set and read on the page its roles are on.
 - MUST make an agent a CLI, an account, a model and an effort and nothing else, offering only
-  CLIs installed here, this machine's own account as `as local`, models known runnable as the
-  chosen account, and efforts that model takes — returning unchanged whatever the flow said and
-  the sheet never asked, and letting an account be made where one is asked for.
+  CLIs installed here whose harness is the one the role names and serves what the role asks,
+  this machine's own account as `as local`, models known runnable as the chosen account, and
+  efforts that model takes -- and letting an account be made where one is asked for. An
+  environment role MUST take a spec as `-e` spells one.
+- MUST be whoever is outside a run: a question a flow puts to its outworlder MUST be asked at
+  the prompt and answered with the next line typed, and `/afk` MUST make the outworlder away.
 - MUST offer, per place flows come from, what it holds, adding one, fetching it again and taking
   one away, against the same store the flows are read from, with any credential in a URL hidden.
 - MUST list every account under its CLI and offer correcting, re-signing, what it falls back to

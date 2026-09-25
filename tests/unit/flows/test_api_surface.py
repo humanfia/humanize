@@ -93,9 +93,16 @@ def _ours(name: str) -> bool:
 def test_importing_it_asks_for_nothing_of_humanize_and_nothing_heavy(
     fresh: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Every import statement the package runs, recorded as it runs, cached or not."""
+    """Every import statement the package runs, recorded as it runs, cached or not.
+
+    On this thread alone: a thread another test left running imports what it imports, and
+    the package importing is what is being watched.
+    """
+    import threading
+
     asked: set[str] = set()
     importing = builtins.__import__
+    here = threading.get_ident()
 
     def recorded(
         name: str,
@@ -105,7 +112,9 @@ def test_importing_it_asks_for_nothing_of_humanize_and_nothing_heavy(
         level: int = 0,
     ) -> Any:
         package = (globals or {}).get("__package__")
-        if level and isinstance(package, str):
+        if threading.get_ident() != here:
+            pass
+        elif level and isinstance(package, str):
             asked.add(importlib.util.resolve_name("." * level + name, package))
         else:
             asked.add(name)

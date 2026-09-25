@@ -476,37 +476,6 @@ def test_every_backend_has_something_to_say_at_every_rung() -> None:
         assert rung in zcode._PERMITTED
 
 
-#: A flow that says its one agent may look at anything and change nothing.
-_READING = '''"""A flow whose agent reviews and does not write."""
-
-from typing import Annotated
-
-from hmz.coganchor.agents import AgentBase, AgentDefaults
-from hmz._legacy_flows import flow
-
-
-@flow
-def run(
-    agents: tuple[Annotated[AgentBase, AgentDefaults(permission="read-only")]], task: str
-) -> None:
-    agents[0](task)
-'''
-
-
-def test_the_flow_says_which_rung_its_agent_is_on(tmp_path: Path) -> None:
-    """Settled onto the agent before its first turn, over whatever it was made with."""
-    from hmz.runtime.runner import Runner
-
-    where = tmp_path / "reading.py"
-    where.write_text(_READING)
-    agent = CodexAgent(CodexAgentConfig(model="m", effort="high", permission="auto"))
-
-    Runner(str(where), [agent])
-
-    assert agent.config.permission == "read-only"
-    assert unattended(agent.config.permission)["sandbox"] == "read-only"
-
-
 def test_an_agent_allowed_less_is_another_agent_at_the_same_model() -> None:
     """The config is frozen, so the rung is part of what the agent is."""
     from dataclasses import replace
@@ -693,26 +662,3 @@ def test_the_rung_below_each_rung_is_the_next_one_down(
     from hmz.coganchor.agents.codex import _tighter
 
     assert _tighter(refused) == instead
-
-
-def test_a_rung_a_backend_was_told_not_to_carry_is_refused_as_a_declaration() -> None:
-    """Which is where a refusal about a rung belongs, and what it has always come back as.
-
-    opencode is told what an agent may do in a table of its own, and an agent may be set up
-    not to have one written -- at which point the rung has nowhere to go. That is a config
-    refusing itself as it is built rather than a session refusing to open, and the place it
-    surfaces is the same one every other refusal about a declaration surfaces at.
-    """
-    from hmz._legacy_flows import NotAFlow
-    from hmz.coganchor.agents import OpencodeAgent, OpencodeAgentConfig
-    from hmz.runtime.flowing.driving import Place, runs_at
-
-    agent = OpencodeAgent(
-        OpencodeAgentConfig(model="p/m", effort="high", permission_table=False)
-    )
-    place = Place(
-        name="reader", person=False, moments=frozenset(), permission="read-only"
-    )
-
-    with pytest.raises(NotAFlow, match="reader cannot be run as this flow declares"):
-        runs_at("flow.py", agent, place)
