@@ -52,8 +52,12 @@ async def _opens(app: Humanize, driver: Pilot[None]) -> None:
 def _two(app: Humanize) -> tuple[AgentBase, AgentBase]:
     """Two agents of a flow, neither of which has taken a turn yet."""
     one, two = SteerableAgent(CONFIG), SteerableAgent(CONFIG)
+    # Named for the roles they fill, as a run names the agent behind each session it opens.
+    one.rename("builder")
+    two.rename("reviewer")
     app._agents = [one, two]
-    app._models = [Runs("claude/m:high"), Runs("codex/n:high")]
+    app._models = {"builder": Runs("claude/m:high"), "reviewer": Runs("codex/n:high")}
+    app._declared = None  # a flow nothing here loads, whose roles are these two
     return one, two
 
 

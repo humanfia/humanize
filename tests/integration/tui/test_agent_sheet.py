@@ -1,10 +1,12 @@
-"""One agent of a flow, set up on one sheet reached from the page the flow's agents are on.
+"""The roles of a flow, each set up on the page the flow's roles are on.
 
-Everything an agent is is a row, and there are four of them: the CLI that takes its turns, the
-account they run as, the model at an effort, and -- only where the flow said that agent may be
-pointed at a machine -- where its work lands. Which is the point: an agent is one thing rather
-than three questions, and changing the effort of one already set up is a row and an arrow
-rather than a walk through two sheets that had nothing to say.
+Every agent role is a sheet of rows: the CLI that takes its turns, the account they run as,
+and the model at an effort. Which is the point: an agent is one thing rather than three
+questions, and changing the effort of one already set up is a row and an arrow rather than a
+walk through two sheets that had nothing to say. An environment role is a row of its own,
+where the place it works is said the way `-e` says it; the roles the runtime fills -- the
+person outside the run, the workspace it was started in -- are nobody's to choose, and are no
+row at all.
 
 Driven headlessly, as every test of the interface is, so what is checked is where a keystroke
 lands rather than how it is drawn.
@@ -12,6 +14,7 @@ lands rather than how it is drawn.
 
 from __future__ import annotations
 
+import datetime
 import unittest.mock
 from typing import TYPE_CHECKING, cast
 
@@ -19,6 +22,7 @@ import pytest
 from textual.widgets import Label, OptionList
 
 from hmz.coganchor.backends import Model
+from hmz.flows import Budget
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
@@ -26,16 +30,15 @@ from hmz.tui.pick import (
     _BUDGET,
     _SAVE,
     Agent,
-    Anchors,
     Catalogue,
     Clis,
+    Configures,
     Confirms,
     Flows,
-    Unbounded,
 )
 from tests.integration.tui.test_app import drops, into_agent, keeps, onto, opens, rows
 from tests.stubs import written
-from tests.tui.fixtures import until
+from tests.tui.fixtures import set_up, transcript, until
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -45,100 +48,87 @@ if TYPE_CHECKING:
 #: What one installed CLI looks like, for every sheet here.
 CLAUDE = {"claude": (Model("claude-opus-5", ("max", "high")),)}
 
-#: A flow whose agent it says nothing about, which is one that works here and is not asked.
+#: A flow of one agent role, working in the workspace it was started in -- which is a role the
+#: runtime fills, and so no row -- and talking to whoever is outside it, which is another.
 HERE = '''
 """One agent, working where the flow is."""
 
-from typing import NamedTuple
-
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams
+from hmz.flows import LocalEnv, Outworlder, flow
 
 
-class Agents(NamedTuple):
+class Agents(AgentCollection):
+    """Just the one, and the person."""
+
+    builder: Agent
+    human: Outworlder
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def here(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
+               ctx: FlowContext) -> None:
+    pass
+'''
+
+#: A flow with an environment of its own, which somebody says the place of.
+PLACED = '''
+"""One agent, working in a place somebody names."""
+
+from hmz.flows import Agent, AgentCollection, Env, EnvCollection, FlowContext, FlowParams
+from hmz.flows import ShellEnvMixin, flow
+
+
+class Repo(Env, ShellEnvMixin): ...
+
+
+class Agents(AgentCollection):
     """Just the one."""
 
-    builder: AgentBase
+    builder: Agent
 
 
-@flow
-def run(agents: Agents, task: str) -> None:
+class Envs(EnvCollection):
+    repo: Repo
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def placed(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
+                 ctx: FlowContext) -> None:
     pass
 '''
 
-#: A flow that says its agent may be pointed at a machine, which is a row of its own.
-REMOTE = '''
-"""One agent, which may work anywhere it is pointed at."""
-
-from typing import Annotated, NamedTuple
-
-from hmz.coganchor.agents import AgentBase, Remote
-from hmz._legacy_flows import flow
-
-
-class Agents(NamedTuple):
-    """Just the one, and it moves."""
-
-    builder: Annotated[AgentBase, Remote]
-
-
-@flow
-def run(agents: Agents, task: str) -> None:
-    pass
-'''
-
-#: A flow that settles the container itself, which is a machine nobody configures.
-BOXED = '''
-"""One agent, in a container of the flow's own."""
-
-from typing import Annotated, NamedTuple
-
-from hmz.coganchor.agents import AgentBase, Isolated
-from hmz._legacy_flows import flow
-
-
-class Agents(NamedTuple):
-    """Just the one, in a box."""
-
-    tester: Annotated[AgentBase, Isolated("python:3.12")]
-
-
-@flow
-def run(agents: Agents, task: str) -> None:
-    pass
-'''
-
-#: Two agents that may both be pointed somewhere, which is a sheet apiece.
+#: Two agent roles, which is a sheet apiece.
 PAIR = '''
-"""Two agents, both of which may work elsewhere."""
+"""Two agents."""
 
-from typing import Annotated, NamedTuple
-
-from hmz.coganchor.agents import AgentBase, Remote
-from hmz._legacy_flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams, flow
 
 
-class Agents(NamedTuple):
+class Agents(AgentCollection):
     """One writes, one reads."""
 
-    builder: Annotated[AgentBase, Remote]
-    reviewer: Annotated[AgentBase, Remote]
+    builder: Agent
+    reviewer: Agent
 
 
-@flow
-def run(agents: Agents, task: str) -> None:
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams)
+async def pair(task: str, *, agents: Agents, envs: EnvCollection, params: FlowParams,
+               ctx: FlowContext) -> None:
     pass
 '''
 
 
 @pytest.fixture
 def flows(tmp_path: Path) -> Path:
-    """Puts the four flows where this project's own would be."""
+    """Puts the flows where this project's own would be."""
     where = tmp_path / ".humanize" / "flows"
     where.mkdir(parents=True)
     written(where, "here", HERE)
-    written(where, "remote", REMOTE)
-    written(where, "boxed", BOXED)
+    written(where, "placed", PLACED)
     written(where, "pair", PAIR)
     return where
 
@@ -149,9 +139,14 @@ def _asked(app: Humanize) -> str:
 
 
 def _value(app: Humanize, held: str) -> str:
-    """What one row of the agent sheet is set to, as it is drawn."""
+    """What one row of the sheet on top is set to, as it is drawn."""
     listing = app.screen.query_one("#choices", OptionList)
     return str(listing.get_option_at_index(rows(app).index(held)).prompt)
+
+
+def _said(app: Humanize) -> str:
+    """What the sheet on top says under its list."""
+    return str(app.screen.query_one("#tuning", Label).content)
 
 
 async def _open(app: Humanize, driver: Pilot[None], flow: str) -> None:
@@ -160,6 +155,16 @@ async def _open(app: Humanize, driver: Pilot[None], flow: str) -> None:
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Flows), driver)
     await into_agent(app, driver)
+
+
+async def _budgets(app: Humanize, driver: Pilot[None], duration: str) -> None:
+    """Sets what a run may spend from its row on the roles page, as a duration."""
+    await onto(app, driver, _BUDGET)
+    await driver.press("enter")
+    await until(lambda: isinstance(app.screen, Configures), driver)
+    await driver.press(*duration)
+    await driver.press("enter")
+    await until(lambda: isinstance(app.screen, Flows), driver)
 
 
 @pytest.mark.timeout(60)
@@ -171,22 +176,35 @@ async def test_one_agent_is_one_sheet_of_rows_in_the_order_they_depend(
     """The CLI settles the accounts and the models, so it comes above both of them."""
     app = Humanize()
     async with app.run_test() as driver:
-        await _open(app, driver, "remote")
+        await _open(app, driver, "here")
 
         assert "builder" in _asked(app)
-        # Four rows and where it works, and nothing else: what it may do, the goals it may
-        # reach for and whether it searches the web are the flow's, and the skills it
-        # carries are its CLI's -- none of them is the agent's to be asked about here.
-        assert rows(app) == [
-            "cli",
-            "provider",
-            "model",
-            "effort",
-            "where",
-            _SAVE,
-        ]
+        # Four rows, and nothing else: what it may do and what it can are the flow's, where
+        # it works is the environment's, and the skills it carries are its CLI's -- none of
+        # them is the agent's to be asked about here.
+        assert rows(app) == ["cli", "provider", "model", "effort", _SAVE]
         # The account nobody chose is always the first row of the list it is chosen from.
         assert "as local" in _value(app, "provider")
+
+
+@pytest.mark.timeout(60)
+@unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
+async def test_the_roles_the_runtime_fills_are_no_rows_of_the_menu(
+    _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
+    flows: Path,
+) -> None:
+    """The person outside the run and the workspace it starts in are nobody's to choose."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        await driver.press(*"/flow here")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Flows), driver)
+        sheet = cast("Flows", app.screen)
+        await until(lambda: sheet._inside, driver)
+
+        # `builder` and nothing of `human` or `workspace`.
+        assert rows(app) == ["0", _BUDGET, _SAVE]
+        assert "builder" in _value(app, "0")
 
 
 @pytest.mark.timeout(60)
@@ -195,7 +213,7 @@ async def test_two_agents_are_two_rows_and_a_sheet_apiece(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
     flows: Path,
 ) -> None:
-    """Opening a flow lists what it drives, by the name the flow calls each of them."""
+    """Opening a flow lists its roles, by the name the flow calls each of them."""
     app = Humanize()
     async with app.run_test() as driver:
         await driver.press(*"/flow pair")
@@ -253,21 +271,19 @@ async def test_explicit_saves_accept_two_agents_then_apply_the_complete_flow(
         await opens(app, driver, _SAVE)
         await until(lambda: isinstance(app.screen, Flows), driver)
 
+        await _budgets(app, driver, "1h")
         await onto(app, driver, _SAVE)
-        await driver.press("enter")
-        # Nobody set a budget and this flow declares none, so saving asks whether a run with
-        # nothing at all to stop it is what was meant. It is, here.
-        await until(lambda: isinstance(app.screen, Unbounded), driver)
         await driver.press("enter")
         await until(lambda: not isinstance(app.screen, Flows), driver)
 
-    chosen = [
-        Runs("claude/claude-opus-5:high"),
-        Runs("claude/claude-opus-5:max"),
-    ]
+    chosen = {
+        "builder": Runs("claude/claude-opus-5:high"),
+        "reviewer": Runs("claude/claude-opus-5:max"),
+    }
     assert app._flow_named == "pair"
     assert app._models == chosen
     assert Settings(tmp_path).agents("pair") == chosen
+    assert Settings(tmp_path).budget("pair")["duration"] == "PT1H"
 
 
 @pytest.mark.timeout(60)
@@ -292,105 +308,115 @@ async def test_explicit_flow_save_refuses_an_agent_with_no_model(
         await driver.pause()
 
         assert app.screen is sheet
-        assert "builder has no model yet" in str(
-            sheet.query_one("#tuning", Label).content
-        )
+        assert "builder is not set up yet" in _said(app)
 
 
 @pytest.mark.timeout(60)
-@pytest.mark.parametrize("flow", ["here", "boxed"])
 @unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
-async def test_where_it_works_is_asked_only_where_the_flow_says_it_moves(
+async def test_a_flow_is_not_saved_until_a_run_of_it_is_given_a_budget(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
-    flows: Path,
-    flow: str,
-) -> None:
-    """A place that said nothing works here; one in a container was settled by the flow."""
-    app = Humanize()
-    async with app.run_test() as driver:
-        await _open(app, driver, flow)
-
-        if flow == "here":
-            # Nothing to say: an agent that works where the flow does is what every agent
-            # nobody said anything about has always been.
-            assert "where" not in rows(app)
-        else:
-            # Read rather than opened: the flow settled it, so nobody is being asked.
-            assert "in a container of python:3.12" in _value(app, "where")
-            await opens(app, driver, "where")
-            await driver.pause()
-            assert isinstance(app.screen, Agent)
-            assert "the flow settled" in str(
-                app.screen.query_one("#tuning", Label).content
-            )
-
-
-@pytest.mark.timeout(60)
-@unittest.mock.patch(
-    "hmz.tui.pick.machines", return_value=[("ssh://box", "ssh config")]
-)
-@unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
-async def test_where_an_agent_works_rides_along_with_what_it_runs(
-    _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
-    _machines: unittest.mock.MagicMock,  # noqa: PT019
     flows: Path,
     tmp_path: Path,
 ) -> None:
-    """It is a setting of the agent, so it is kept beside the model and read back with it."""
+    """Only a flow humanize ships runs with none; every other is refused until it has one.
+
+    And the budget is asked on the sheet a flow's params are asked on: a duration typed as
+    `-b` takes one, and one that does not read is refused where it is typed.
+    """
     app = Humanize()
     async with app.run_test() as driver:
-        await _open(app, driver, "remote")
-        await opens(app, driver, "where")
-        await until(lambda: isinstance(app.screen, Anchors), driver)
-        listing = app.screen.query_one("#choices", OptionList)
-        await until(lambda: bool(listing.options), driver)
-        # This machine first, then the ones there are to be found.
-        assert rows(app) == ["", "ssh://box"]
-
-        await driver.press("down")
+        await driver.press(*"/flow here")
         await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Agent), driver)
+        await until(lambda: isinstance(app.screen, Flows), driver)
+        sheet = cast("Flows", app.screen)
+        await until(lambda: sheet._inside, driver)
+        assert "none yet" in _value(app, _BUDGET)
 
-        await keeps(app, driver)
-        await keeps(app, driver)
+        await onto(app, driver, _SAVE)
+        await driver.press("enter")
+        await driver.pause()
+        assert app.screen is sheet
+        assert "given a budget" in _said(app)
 
-    chosen = Runs("claude/claude-opus-5:high", "ssh://box")
-    assert app._models == [chosen]
-    assert Settings(tmp_path).agents("remote") == [chosen]
-    # And a second interface opens on what this workspace was left set up to run.
-    again = Humanize()
-    assert again._models == [chosen]
+        await onto(app, driver, _BUDGET)
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Configures), driver)
+        assert rows(app) == ["duration", "cost", "output_tokens", "graceful"]
+        await driver.press(*"soon")
+        await driver.press("enter")
+        await driver.pause()
+        assert isinstance(app.screen, Configures)  # not a duration, so not taken
+        assert "not a duration" in _said(app)
+        for _ in "soon":
+            await driver.press("backspace")
+        await driver.press(*"90m")
+        await driver.press("enter")
+        await until(lambda: app.screen is sheet, driver)
+        assert "stops at 1h30m" in _value(app, _BUDGET)
+
+        await onto(app, driver, _SAVE)
+        await driver.press("enter")
+        await until(lambda: not isinstance(app.screen, Flows), driver)
+
+    assert app._budget == Budget(duration=datetime.timedelta(minutes=90))
+    assert Settings(tmp_path).budget("here") == {
+        "duration": "PT1H30M",
+        "cost": None,
+        "output_tokens": None,
+        "graceful": True,
+    }
 
 
 @pytest.mark.timeout(60)
-@unittest.mock.patch("hmz.tui.pick.machines", return_value=[])
 @unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
-async def test_a_machine_nothing_here_can_see_is_a_target_that_is_typed(
+async def test_an_environment_role_is_a_row_where_its_place_is_said(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
-    _machines: unittest.mock.MagicMock,  # noqa: PT019
     flows: Path,
+    tmp_path: Path,
 ) -> None:
-    """The list is a convenience; a target is a string, and any string that reads as one goes."""
+    """Written as `-e` writes it, and read the way `-e` is: one that does not read is refused."""
     app = Humanize()
     async with app.run_test() as driver:
-        await _open(app, driver, "remote")
-        await opens(app, driver, "where")
-        await until(lambda: isinstance(app.screen, Anchors), driver)
-        listing = app.screen.query_one("#choices", OptionList)
-        await until(lambda: bool(listing.options), driver)
+        await driver.press(*"/flow placed")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Flows), driver)
+        sheet = cast("Flows", app.screen)
+        await until(lambda: sheet._inside, driver)
+        assert rows(app) == ["0", "@repo", _BUDGET, _SAVE]
+        assert "not said yet" in _value(app, "@repo")
 
-        await driver.press("s")
-        await driver.press(*"nonsense")
+        # Not said, so not saved: a run of it would be refused before it started.
+        await _budgets(app, driver, "1h")
+        await onto(app, driver, _SAVE)
+        await driver.press("enter")
         await driver.pause()
-        # Not a target and not a row, so there is nothing there to choose.
-        assert rows(app) == []
+        assert "repo is not set up yet" in _said(app)
 
-        for _ in range(len("nonsense")):
+        await onto(app, driver, "@repo")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Configures), driver)
+        await driver.press(*"nowhere")
+        await driver.press("enter")
+        await until(lambda: app.screen is sheet, driver)
+        assert "expected <role>=<backend>" in _said(app)
+        assert "not said yet" in _value(app, "@repo")
+
+        await onto(app, driver, "@repo")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Configures), driver)
+        for _ in "nowhere":
             await driver.press("backspace")
-        await driver.press(*"docker://box")
-        await driver.pause()
+        await driver.press(*f"local@{tmp_path}")
+        await driver.press("enter")
+        await until(lambda: app.screen is sheet, driver)
+        assert f"local@{tmp_path}" in _value(app, "@repo")
 
-        assert rows(app) == ["docker://box"]
+        await onto(app, driver, _SAVE)
+        await driver.press("enter")
+        await until(lambda: not isinstance(app.screen, Flows), driver)
+
+    assert app._envs == {"repo": f"local@{tmp_path}"}
+    assert Settings(tmp_path).envs("placed") == {"repo": f"local@{tmp_path}"}
 
 
 @pytest.mark.timeout(60)
@@ -405,8 +431,8 @@ async def test_nothing_is_applied_until_the_menu_is_saved_on_the_way_out(
     """
     app = Humanize()
     async with app.run_test() as driver:
-        was = (app._flow_named, list(app._models))
-        await _open(app, driver, "remote")
+        was = (app._flow_named, dict(app._models))
+        await _open(app, driver, "here")
         await onto(app, driver, "effort")
         await driver.press("left")  # one effort down, which is a change
         await driver.pause()
@@ -420,16 +446,18 @@ async def test_nothing_is_applied_until_the_menu_is_saved_on_the_way_out(
         assert (app._flow_named, app._models) == was
 
         # And the same walk saved lands the lot, flow and agent together.
-        await _open(app, driver, "remote")
+        await _open(app, driver, "here")
         await onto(app, driver, "effort")
         await driver.press("left")
         await driver.pause()
         await keeps(app, driver)
+        await until(lambda: isinstance(app.screen, Flows), driver)
+        await _budgets(app, driver, "1h")
         await keeps(app, driver)
         await until(lambda: not isinstance(app.screen, Flows), driver)
 
-    assert app._flow_named == "remote"
-    assert app._models == [Runs("claude/claude-opus-5:high")]
+    assert app._flow_named == "here"
+    assert app._models == {"builder": Runs("claude/claude-opus-5:high")}
 
 
 @pytest.mark.timeout(60)
@@ -441,7 +469,7 @@ async def test_the_question_on_the_way_out_is_two_answers_and_esc(
     """Going back to the menu is what esc is everywhere else, so it is not a row as well."""
     app = Humanize()
     async with app.run_test() as driver:
-        await _open(app, driver, "remote")
+        await _open(app, driver, "here")
         await onto(app, driver, "effort")
         await driver.press("left")
         await driver.pause()
@@ -468,7 +496,7 @@ async def test_walking_out_of_an_unchanged_sheet_asks_nothing(
     """A walk in to look and out again is not a question anybody wants asked of them."""
     app = Humanize()
     async with app.run_test() as driver:
-        await _open(app, driver, "remote")
+        await _open(app, driver, "here")
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Flows), driver)
         # Straight back, rather than through a question about a change nobody made.
@@ -477,32 +505,23 @@ async def test_walking_out_of_an_unchanged_sheet_asks_nothing(
 
 @pytest.mark.timeout(60)
 @unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
-async def test_a_flow_that_puts_its_agent_here_refuses_one_that_was_pointed_away(
+async def test_a_flow_given_no_budget_is_refused_where_it_is_started(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
     flows: Path,
 ) -> None:
-    """Which is why the row is only offered where the flow allows it.
-
-    The refusal is the runner's, since where an agent works is the flow's to say -- and it is
-    a line at this prompt rather than a traceback out of a flow's own thread.
-    """
-    from tests.tui.fixtures import transcript
-
+    """The refusal is the runtime's, and it is a line at this prompt rather than a traceback."""
     app = Humanize()
     async with app.run_test() as driver:
-        app._flow_named = "here"
-        app._wanted = app._places_of("here")
-        app._models = [Runs("claude/claude-opus-5:max", "ssh://box")]
+        set_up(app, "here", {"builder": Runs("claude/claude-opus-5:max")})
+        app._budget = None
         await driver.press(*"go")
         await driver.press("enter")
         await until(lambda: "hmz:" in transcript(app), driver)
         said = transcript(app)
 
-    # Wrapped as the transcript wraps it, so it is read a phrase at a time.
-    assert "builder runs on this machine" in said
-    assert "cannot be pointed at one" in said
+    assert "given a budget" in said
     assert "Traceback" not in said  # said at the prompt, not raised out of a thread
-    assert not app._agents  # and nothing started
+    assert app._run is None  # and nothing started
 
 
 @pytest.mark.timeout(60)
@@ -514,7 +533,7 @@ async def test_the_flow_may_rule_a_backend_out_of_the_clis_offered(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
     tmp_path: Path,
 ) -> None:
-    """A CLI that cannot do what the place needs is one choosing would refuse to start on."""
+    """A CLI that cannot do what the role declares is one choosing would refuse to start on."""
     where = tmp_path / ".humanize" / "flows"
     where.mkdir(parents=True)
     written(
@@ -523,20 +542,22 @@ async def test_the_flow_may_rule_a_backend_out_of_the_clis_offered(
         '''
 """One agent, under a goal of its own."""
 
-from typing import Annotated, NamedTuple
-
-from hmz.coganchor.agents import AgentBase, Goal
-from hmz._legacy_flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams
+from hmz.flows import GoalCommandAgentMixin, flow
 
 
-class Agents(NamedTuple):
+class Pursues(Agent, GoalCommandAgentMixin): ...
+
+
+class Agents(AgentCollection):
     """The one that pursues."""
 
-    worker: Annotated[AgentBase, Goal]
+    worker: Pursues
 
 
-@flow
-def run(agents: Agents, task: str) -> None:
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams)
+async def goal(task: str, *, agents: Agents, envs: EnvCollection, params: FlowParams,
+               ctx: FlowContext) -> None:
     pass
 ''',
     )
@@ -552,6 +573,51 @@ def run(agents: Agents, task: str) -> None:
 
 
 @pytest.mark.timeout(60)
+@unittest.mock.patch(
+    "hmz.tui.app.installed",
+    return_value=CLAUDE
+    | {
+        "codex": (Model("gpt-5.5", ("high",)),),
+        "opencode": (Model("anthropic/opus", ("high",)),),
+    },
+)
+async def test_a_role_typed_as_one_harness_is_offered_that_harness_alone(
+    _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
+    tmp_path: Path,
+) -> None:
+    """A role declared a `CodexAgent` is Codex: every other CLI would be refused at the run."""
+    where = tmp_path / ".humanize" / "flows"
+    where.mkdir(parents=True)
+    written(
+        where,
+        "codex_only",
+        '''
+"""One agent, and it is Codex."""
+
+from hmz.flows import AgentCollection, CodexAgent, EnvCollection, FlowContext, FlowParams
+from hmz.flows import flow
+
+
+class Agents(AgentCollection):
+    reviewer: CodexAgent
+
+
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams)
+async def codex_only(task: str, *, agents: Agents, envs: EnvCollection,
+                     params: FlowParams, ctx: FlowContext) -> None:
+    pass
+''',
+    )
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _open(app, driver, "codex_only")
+        await opens(app, driver, "cli")
+        await until(lambda: isinstance(app.screen, Clis), driver)
+
+        assert rows(app) == ["codex"]
+
+
+@pytest.mark.timeout(60)
 @unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
 async def test_the_models_are_what_that_cli_last_said_and_are_asked_again_on_r(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
@@ -560,7 +626,7 @@ async def test_the_models_are_what_that_cli_last_said_and_are_asked_again_on_r(
     """A CLI ships a model without asking anybody, so the list is asked for rather than kept."""
     app = Humanize()
     async with app.run_test() as driver:
-        await _open(app, driver, "remote")
+        await _open(app, driver, "here")
         await opens(app, driver, "model")
         await until(lambda: isinstance(app.screen, Catalogue), driver)
         keys = str(app.screen.query_one("#keys", Label).content)

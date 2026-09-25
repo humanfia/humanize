@@ -36,14 +36,24 @@ if TYPE_CHECKING:
 #: A flow, as short as one can be: what is being fetched is the file, not what it does.
 FLOW = '''"""Somebody else's loop, fetched from somewhere else."""
 
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams
+from hmz.flows import LocalEnv, flow
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    (agent,) = agents
-    agent.new()(task)
+class Agents(AgentCollection):
+    worker: Agent
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def run(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
+              ctx: FlowContext) -> None:
+    """Somebody else's loop, fetched from somewhere else."""
+    worker = agents["worker"]
+    await worker.run(task, session=await worker.spawn(env=envs["workspace"]))
 '''
 
 

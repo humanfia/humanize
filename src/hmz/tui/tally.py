@@ -222,6 +222,14 @@ class Tally:
         self._reading: set[str] = set()
         self._stop = threading.Event()
 
+    def add(self, agent: AgentBase) -> None:
+        """Reads the logs of one more agent, which a run opens a session at a time.
+
+        Args:
+          agent: The agent behind a session the run has just opened.
+        """
+        self._agents.append(agent)
+
     def watch(self) -> None:
         """Reads the logs for as long as the flow runs, on a thread of its own.
 
@@ -247,7 +255,7 @@ class Tally:
         business reading, a row half written. What a run costs is worth nothing at the price
         of the run, so anything that goes wrong is left for the next read to find gone.
         """
-        for agent in self._agents:
+        for agent in list(self._agents):
             profile = backends.named(agent.backend)
             if profile is None:
                 continue
