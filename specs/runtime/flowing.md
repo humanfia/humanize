@@ -6,10 +6,6 @@ writes against is `hmz.flows` (see [flows.md](../flows.md)), whose `flow`, `load
 `Outworlder.new` hand their calls to the engine here. Nothing here drives a coding agent
 itself: the harness drivers are written against `hmz.coganchor`.
 
-The previous flow API's machinery -- `checking`, `driving`, `prophecy`, `prophesying`,
-`stepping`, `proving` -- is still here, written against `hmz._legacy_flows`, and goes when
-every way in has moved over; its part of this spec is marked *legacy* below.
-
 ## API
 
 ```python
@@ -236,9 +232,8 @@ def standing(at: Path) -> str: ...
 def plain(url: str) -> str: ...  # a URL with whatever was signed into it taken out
 
 # finding.py -- which flow a name means
-BUILTIN_AT: Path  # where humanize's own flows are
+BUILTIN_AT: Path  # where humanize's own flows are: hmz/flows/builtin
 ENTRY = "__init__.py"  # what a flow's own directory is entered by
-PROPHECY = "prophecy.pkl"  # legacy: what a shipped prophecy is called beside it
 class Offer(NamedTuple):
     whose: str  # the flowverse it comes from
     name: str
@@ -249,13 +244,11 @@ def offered(under: Path) -> list[str]: ...
 def entry(under: Path, name: str) -> Path | None: ...
 def within(one: Flowverse, name: str) -> Path | None: ...
 def find(named_: str) -> str: ...  # what runs
-def reading(named_: str) -> str: ...  # what a reading is pointed at
-def foretold(named_: str) -> str: ...  # legacy: what a prophecy is compiled out of
 def at(named_: str) -> str: ...  # its own directory, or ""
-def inside(named_: str) -> str: ...  # which of the flows a file holds
+def inside(named_: str) -> str: ...  # which of the flows a module holds
 def about(named_: str) -> str: ...
-def held(where_: str | os.PathLike[str]) -> list[Flow]: ...  # legacy mark
-def loaded(where_: str | os.PathLike[str]) -> dict[str, Any]: ...  # legacy
+def resolved(named_: str) -> FlowImpl: ...  # the flow a way in runs, loaded
+def builtin(flow: FlowImpl) -> bool: ...  # whether humanize ships it
 def fork(named_: str, into: str | os.PathLike[str] | None = None) -> str: ...
 
 # skills.py -- what a flow brings its agents; `CARD`, `SKILLS` and `Loaded` come from
@@ -265,16 +258,6 @@ def cached(url: str) -> Path: ...
 def fetched(url: str) -> Path: ...
 def under() -> Path: ...
 ```
-
-*Legacy* -- written against `hmz._legacy_flows`, removed with it: `checking.py` (`Finding`,
-`Capability`, `checked`, `catalogue`, `briefed`, `surface`, `offered`, `misplaced`),
-`driving.py` (`Entry`, `NotAFlow`, `Running`, `Place`, `drives`, `wanted`, `configures`,
-`resumes`, `declared`, `load`, `running`, `container`, `declares`, `readies`, `carries`,
-`set_up`, `serves`, `lands`, `runs_at`, `comes_to`, `contained`, `entered`, `left`,
-`lands_in`), `prophecy.py` (`Field`, `Shape`, `Reads`, `When`, `Node`, `Edge`, `Prophecy`,
-`Shipped`, `canonical`, `digest`, `kept`, `told`, `shipped`), `prophesying.py` (`Prophesied`,
-`prophesied`, `is_atlas`, `named_as`), `stepping.py` (`walking`) and `proving.py` (`Scenario`,
-`Outcome`, `Proof`, `proved`), with the signatures they have today.
 
 ## Requirements
 
@@ -309,7 +292,8 @@ def under() -> Path: ...
   machine short of a declared resource (`ResourceUnmet`), and another harness for a role typed
   as one (`HarnessMismatch`). A refusal for one kind of agent MUST be worked out once.
 - An `Outworlder` role left out MUST be the run's own outworlder, and one given `Outworlder.new()`
-  that one. A `LocalEnv` role left out MUST be the run's workspace.
+  that one. A `LocalEnv` role left out MUST be the run's workspace, and one given an
+  environment on another machine MUST be refused with `CapabilityMissing`.
 - Params MUST be taken as they are when they are the callee's own class, and validated
   otherwise -- from another model, or a mapping whose string values are read as the fields'
   types or as JSON -- raising `ParamsError` when they do not validate.
@@ -400,9 +384,15 @@ def under() -> Path: ...
 ### Where flows come from
 
 - Every flow MUST be listable under one name apiece -- humanize's own by a bare name, every
-  other as `<flowverse>/<name>`, a file holding several as `<name>:<inside>` -- and a name
-  MUST resolve nearest first: this project's flows, then yours, then the rest. A name
-  qualified by a flowverse MUST NOT be stood in for, and a path MUST be taken outright.
+  other as `<flowverse>/<name>`; the flow a bare name means under its module's own name and
+  every other visible flow of the module as `<name>:<inside>`, a hidden one not at all -- and
+  a name MUST resolve nearest first: this project's flows, then yours, then the rest. A name
+  qualified by a flowverse MUST NOT be stood in for, and a path MUST be taken outright. A
+  module that will not import MUST still be listed, under its name.
+- `resolved` MUST load what a way in names -- a name, `<flowverse>/<flow>`, either with
+  `:<inside>`, a path, or a VCS ref, fetched on the calling thread -- MUST say so where a
+  name nothing answers to could have come from a flowverse not fetched yet, and MUST mark the
+  flows humanize ships with `full_view`; nothing else is.
 - `brought` MUST bring the flow's own skills first and the ones it named after, the flow's own
   winning a shared name, and MUST raise where one cannot be fetched rather than at the turn.
 - `fork` MUST copy the whole of a flow and MUST refuse a name already taken rather than write
@@ -411,22 +401,3 @@ def under() -> Path: ...
 - Every name above MUST be fetched only when it is named, so that listing flows costs nothing
   that reading or driving one does. Nothing here MAY be imported by `hmz.flows` at import, or
   drive an agent.
-
-### Legacy
-
-- *(legacy)* A flow MUST be read as it is when it is asked for, never cached, and a file that
-  will not read MUST be one line of a list rather than the end of it.
-- *(legacy)* `checked` MUST import and execute nothing of the flow it reads, MUST answer with
-  findings rather than raise, and MUST keep `error` for a flow that cannot run, cannot be
-  answered or cannot end. A flow with no error finding MUST be one `load` would take.
-- *(legacy)* What a flow declares MUST be readable before an agent is chosen, and MUST raise
-  `NotAFlow` otherwise. An agent that cannot serve a place MUST be refused, saying why.
-- *(legacy)* `catalogue` MUST report what this installation serves at the moment it is asked.
-- *(legacy)* `driving.load` MUST refuse a name nothing answers to where the flow is asked for,
-  run the called flow as a flow of its own, and give the caller's agents back as they were.
-- *(legacy)* `driving.running` MUST answer with the branch it is asked from inside a flow and
-  with every flow of the run from outside; `container` MUST answer with the workspace as the
-  machine a contained run works on has it.
-- *(legacy)* A prophecy MUST be canonical, a shipped one MUST be what runs, and a run MUST be
-  picked up only into the prophecy it was doing. `proved` MUST drive the flow in a process of
-  its own, one per scenario, and MUST end every proof.
