@@ -31,7 +31,7 @@ Everything the run wrote down about itself, and everything its sessions were log
 | --- | --- |
 | `epic.jsonl` | what happened, a line at a time: which flow, on what, by which agents, which session each of them opened, and how it ended |
 | `epic.<flow>_<id>.jsonl` | the same again for every flow this run [called](/weaver/calling-flows) — one run, however many flows it took |
-| `state.json` | what a [resumable](/user/resuming) flow left behind |
+| the journal | what a [resumable](/user/resuming) flow did, for picking it up |
 | `profile.jsonl` | the programs it ran, for a [profiled](/user/tracing#profiling-a-run) run |
 | `traces/…` | every [trace](/user/tracing) gathered of it |
 | `sessions/<session>/…` | the backends' own logs, **as their contents** rather than as the links the run keeps — one directory per session, named for the agent, the CLI, the account and the id |

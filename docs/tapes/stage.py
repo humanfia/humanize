@@ -52,16 +52,37 @@ PROJECT = {
 #: A flow of the project's own, so `hmz exec` has one to name that is not humanize's.
 FLOW = '''"""Two passes: do the work, then read it back and fix what is wrong."""
 
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    EnvCollection,
+    FlowContext,
+    FlowParams,
+    LocalEnv,
+    flow,
+)
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    (agent,) = agents
-    session = agent.new()
-    session(task)
-    session("Now review what you just did, and fix anything that is wrong.")
+class Agents(AgentCollection):
+    builder: Agent
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def twice(
+    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
+) -> None:
+    """Does the work, then reads it back and fixes what is wrong."""
+    builder = agents["builder"]
+    session = await builder.spawn(env=envs["workspace"])
+    await builder.run(task, session=session)
+    await builder.run(
+        "Now review what you just did, and fix anything that is wrong.",
+        session=session,
+    )
 '''
 
 #: And one that says it can be picked up where the last run of it left off, so that the runs
@@ -72,19 +93,37 @@ It says it can be picked up, so what it is keeping track of -- which round it is
 it has already fixed -- outlives the run and is handed to the next one.
 """
 
-from typing import Any
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    EnvCollection,
+    FlowContext,
+    FlowParams,
+    LocalEnv,
+    flow,
+)
 
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+
+class Agents(AgentCollection):
+    fixer: Agent
 
 
-@flow(resumable=True)
-def run(agents: tuple[AgentBase], task: str, state: dict[str, Any]) -> None:
-    (agent,) = agents
-    state["rounds"] = state.get("rounds", 0) + 1
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams, resumable=True)
+async def nightly(
+    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
+) -> None:
+    """Keeps at the list, a fresh session a round, for as long as it is let."""
+    fixer, state = agents["fixer"], ctx.state
+    assert state is not None  # a resumable flow always has one
+    state["rounds"] = (state["rounds"] if "rounds" in state else 0) + 1
     while True:
-        said = agent.new()(f"{task}. Round {state['rounds']}.")
-        state.setdefault("fixed", []).append(said)
+        session = await fixer.spawn(env=envs["workspace"])
+        said = await fixer.run(f"{task}. Round {state['rounds']}.", session=session)
+        state["fixed"] = [*(state["fixed"] if "fixed" in state else []), said]
 '''
 
 

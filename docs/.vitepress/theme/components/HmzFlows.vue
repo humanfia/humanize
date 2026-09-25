@@ -74,12 +74,6 @@ const note = computed(() => WHERE.find((one) => one.id === place.value)?.note ??
             <circle class="core" cx="66" cy="20" r="3.5" />
           </template>
 
-          <!-- an effort moved a rung a round to hold an answer to a size -->
-          <template v-else-if="flow.family === 'governor'">
-            <line class="target" x1="6" y1="20" x2="126" y2="20" />
-            <rect v-for="n in 4" :key="n" class="bar" :style="{ '--n': n }" :x="12 + (n - 1) * 30" y="20" width="16" height="10" rx="2" />
-          </template>
-
           <!-- two agents, alternating -->
           <template v-else-if="flow.family === 'pair'">
             <line class="rail" x1="6" y1="12" x2="126" y2="12" />
@@ -193,7 +187,7 @@ const note = computed(() => WHERE.find((one) => one.id === place.value)?.note ??
   margin-bottom: 10px;
 }
 
-/* The name gets a line of its own: `parallel_flame_chase_mission` is wider than a
+/* The name gets a line of its own: `parallel_flame_chase_git_pr` is wider than a
    third of the column, and a badge beside it would break it a word earlier still. */
 .head {
   display: block;
@@ -399,36 +393,6 @@ dd code {
   70%,
   100% {
     stroke-dashoffset: 0;
-  }
-}
-
-/* governor */
-.governor .target {
-  stroke: var(--hmz-accent);
-  stroke-width: 1.4;
-  stroke-dasharray: 4 4;
-}
-
-.governor .bar {
-  fill: var(--hmz-lane-1);
-  opacity: 0.75;
-  transform-origin: center top;
-  transform-box: fill-box;
-  animation: settle 3.6s ease-in-out infinite;
-  animation-delay: calc((var(--n) - 1) * 0.5s);
-}
-
-@keyframes settle {
-  0%,
-  100% {
-    transform: scaleY(0.2) translateY(0);
-  }
-  25% {
-    transform: scaleY(1.5) translateY(0);
-  }
-  55%,
-  85% {
-    transform: scaleY(1) translateY(0);
   }
 }
 

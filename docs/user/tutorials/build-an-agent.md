@@ -51,7 +51,7 @@ and reads every review against what came after.
 ```sh
 export DEEPSEEK_API_KEY=sk-…
 hmz exec -f humanize1:gen-idea \
-    -a dsh/deepseek-v4-pro:high \
+    -a drafter=dsh/deepseek-v4-pro:high -b cost=5 \
     "A small terminal coding agent for deepseek-v4-flash. One Python package, one entry point, no framework. It talks to the DeepSeek API with the OpenAI-compatible chat completions endpoint, holds a message list, and offers the model three tools: read a file, write a file, run a shell command. It loops until the model answers without asking for a tool. It is meant for a fast, cheap model, so it must keep the context small and the tool schemas short."
 ```
 
@@ -97,9 +97,9 @@ design. That is what "repo-grounded" means, and it is the difference between a d
 plausible essay.
 
 ::: tip Change how wide it explores
-`--n` is a field on the flow's settings, so `-c setup.yaml` with `n: 3` narrows it and `n: 10`
-widens it. In the interface, the same fields are on `/config`. See [A flow with settings of its
-own](/weaver/flow-settings).
+`--n` is a field of the flow's params, so `-p n=3` narrows it and `-p n=10` widens it. In the
+interface, the same fields are on the sheet `/flow` puts up as the flow is chosen. See
+[Params of its own](/weaver/flow-settings).
 :::
 
 **Read the draft before going on.** It is a file, and editing it is expected. If it picked the
@@ -110,8 +110,9 @@ than after the plan is written.
 
 ```sh
 hmz exec -f humanize1:gen-plan \
-    -a dsh/deepseek-v4-pro:high \
-    -a dsh/deepseek-v4-pro:high \
+    -a planner=dsh/deepseek-v4-pro:high \
+    -a analyst=dsh/deepseek-v4-pro:high \
+    -b cost=10 \
     "A small terminal coding agent for deepseek-v4-flash. …"
 ```
 
@@ -153,38 +154,38 @@ to look at what the DeepSeek API actually returns.
 third phase treats it as the contract and will not let the builder edit it.
 
 ::: details Skipping the argument
-`mode: direct` in a `-c setup.yaml` writes the plan once with no convergence rounds. Faster,
-and worse — the round trip is where the analyst finds the things the planner assumed.
+`-p mode=direct` writes the plan once with no convergence rounds. Faster, and worse — the
+round trip is where the analyst finds the things the planner assumed.
 :::
 
 ## Step 4 — build it under review
 
 ```sh
 hmz exec -f humanize1:rlcr \
-    -a claude/claude-opus-4-8:high \
-    -a codex/gpt-5.6-sol:high \
+    -a builder=claude/claude-opus-5:high \
+    -a reviewer=codex/gpt-5.6-sol:high \
+    -b duration=12h,cost=100 \
     "build it"
 ```
 
-Two `-a` flags — **the builder** and **the reviewer**. The flow also drives a third agent, the
-person at the prompt, and that one is not named on the command line: with nobody there, they
-answer with nothing and the run carries on.
+Two `-a` flags — **the builder** and **the reviewer**. The flow also has a third role, `human`,
+the person at the prompt, and that one is not named on the command line: humanize fills it, and
+with nobody there it answers with nothing and the run carries on.
 
 The task string is not put to any agent. `docs/plan.md` is what the loop runs on; `"build it"`
 is only what the run is called wherever you watch it.
 
-The builder must be Claude Code or Codex because this phase hangs a hook on the
-`PERMISSION_REQUEST` moment, and those are the two backends that run it. The hook is what keeps
-the plan fixed and the loop's own state out of the builder's hands. Any backend can review.
+The builder must be a CLI that serves a permission-request hook — Claude Code, Codex, Kimi
+Code or ZCode — because this phase hangs one on it, and a builder on any other is refused before
+anything runs. The hook is what keeps the plan fixed and the loop's own state out of the
+builder's hands. Any backend can review. See [Hooks](/weaver/hooks).
 
-### The loop is a hook
+### The loop
 
-The builder is not asked "is it finished?". It is left to work until it believes the plan is
-done and tries to **stop** — and a `Stop` hook catches that. What the reviewer says is what the
-builder hears instead of stopping.
-
-That is the same sentence as the original Claude Code plugin, which blocks Claude's exit and
-puts the round to Codex there. See [Hooks](/weaver/hooks).
+The builder is not asked "is it finished?" after every step. It is left to work until it
+believes the plan is done, the loop's gates are run over what it did, and what the reviewer says
+of the round is what the builder hears next — the same shape as the original Claude Code plugin,
+which blocks Claude's exit and puts the round to Codex there.
 
 ### What a round looks like
 
@@ -318,11 +319,11 @@ is a row of short ones — and the gaps between them are where the hook fired.
 - **Stop between phases and edit the file.** The draft and the plan are both files, and both
   are meant to be read. The plugin this is a rebuild of has a `refine-plan` command; here you
   have a text editor, which is the same thing.
-- **Point `rlcr` at a plan you wrote yourself.** `plan_file` in a `-c setup.yaml` names it.
+- **Point `rlcr` at a plan you wrote yourself.** `-p plan_file=…` names it.
   Nothing about the third phase requires the first two — it requires a plan.
 
 ## Next
 
 You have now run three flows somebody else wrote. Whoever writes one is a **weaver**, and the
 [Weaver Guide](/weaver/) teaches that — starting with [Build under
-test](/weaver/tutorials/checked-build).
+test](/weaver/tutorials/build-under-test).

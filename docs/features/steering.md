@@ -60,9 +60,10 @@ loses what was put in and leaves the rest for the next turn to take as its own.
 | **ZCode** | Nothing: a second prompt is refused while one is running. |
 | **opencode**, **mimocode**, and every other backend given a turn's whole prompt up front | Nothing: there is nothing there to hear it. |
 
-Which of the two a backend is is written on it rather than found out: `session.steers` says so
-before a word is put in, so a flow that means to steer picks an agent that can be rather than
-catching the refusal from a turn it is already an hour into.
+Which of the two a backend is is written on it rather than found out. A flow that means to steer
+says so where it declares the role — `SteeringAgentMixin` — and a harness that cannot be steered
+is refused for that role before anything runs, rather than refusing a word from a turn the flow
+is already an hour into.
 
 ## The anchored exception
 
@@ -73,13 +74,26 @@ for the life of the agent and can be steered throughout, at the cost of that gua
 
 ## The same road, from a flow
 
-A flow says a word into a running turn the same way, and the pinned line at the prompt is made
-of two hooks of the driver's own: one asked as each turn starts for anything said while no turn
-was open, the other between turns for the next thing to say — so a flow can be a conversation
-rather than a loop.
+A flow says a word into a running turn with `steer`, on a role declared to take one:
+
+```python
+class Builder(Agent, SteeringAgentMixin): ...
+
+
+turn = asyncio.create_task(builder.run(task, session=session))
+...
+await builder.steer("actually, use pathlib", session=session)
+said = await turn
+```
+
+`queued=True`, the default, is the line typed and left: the agent takes it when it next looks,
+and carries on. `queued=False` is pressing escape first: the turn is interrupted and goes on from
+the words put in. Either is a word *in* the turn, so a session with no turn under way refuses it
+with `SessionError`, and a role declared without the mixin raises `CapabilityNotGranted`.
 
 ## Where the detail is
 
 - [Talking to a running turn](/user/steering) — the keys, the pin, and the Python
+- [Flows reference](/reference/flows#sessions-and-turns) — `steer`, in full
 - [Many conversations at once](/user/conversations) — which agent a line reaches
 - [Stopping](/user/stopping) — when a steer is not enough

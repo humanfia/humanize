@@ -9,14 +9,14 @@ One session, held for the whole run, re-sent the task every round. The opposite 
 approaches it has already ruled out.
 
 ```sh
-hmz exec -f stateful_ralph -a kimi/kimi-code/k3:high "$(cat TASK.md)"
+hmz exec -f stateful_ralph -a agent=kimi/kimi-code/k3:high -b duration=6h "$(cat TASK.md)"
 ```
 
 <HmzFlowShape flow="stateful_ralph" />
 
 ## What grows
 
-Two things, and only one of them is money. The spend is the allowance's business. The other is
+Two things, and only one of them is money. The spend is the budget's business. The other is
 the context window: one session is one conversation, and a conversation that has been going for
 six hours is one the backend is compacting, summarising or refusing. That ceiling is the
 backend's rather than humanize's.
@@ -26,26 +26,23 @@ expensive thing to rediscover — and for `ralph_loop` when the work is long.
 
 ## What ends it
 
-The run's [allowance](/features/allowances) — hours, millions of output tokens, dollars — held
-to at the edges of every turn of every session rather than implemented here; the flow itself
-takes no settings at all. It declares **ten million output tokens** as what a run of it is worth
-by default, and `-c budget.yaml` with a `budget:` mapping in it, or the **budget** row in
-`/flow`, says otherwise.
+The run's [budget](/features/allowances) — `-b duration=…,cost=…,output_tokens=…` — held to at
+every turn of every session rather than implemented here. The flow itself takes no params and
+declares no budget of its own, so `hmz exec` refuses to start it without a `-b`.
 
 ## What it keeps
 
 `rounds` — and not the session, which is the one thing this flow is and the one thing a run
-picked up cannot have back. No backend reopens a named session, so running this again is a
-conversation of its own, starting from the task and the repository with none of the rounds
-before it in context. A loop stopped on its fortieth round says round 41 when it is started
-again, and remembers nothing else about the forty.
+picked up cannot have back. A run picked up with `--resume` spawns a conversation of its own,
+starting from the task and the repository with none of the rounds before it in context. A loop
+stopped on its fortieth round says round 41 when it is started again, and remembers nothing else
+about the forty.
 
 ## What else ends it
 
-**Three rounds in a row that answered with nothing**, exactly as in
-[`ralph_loop`](/flows/ralph-loop#what-else-ends-it): a stall under a token allowance that never
-moves, stopped rather than declared over, with what it kept left alone for the run that fixes
-it.
+**Three rounds in a row that came to nothing**, exactly as in
+[`ralph_loop`](/flows/ralph-loop#what-else-ends-it): a stall that spends nothing, stopped rather
+than declared over, with what it kept left alone for the run that fixes it.
 
 ## See also
 
