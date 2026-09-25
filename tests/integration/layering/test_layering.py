@@ -30,8 +30,12 @@ import importlib.util
 import subprocess
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from hmz.coganchor.transport import build_bundle
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 #: The package tree being read, counted back from this file: three directories up out of
 #: `tests/integration/layering/` is the checkout, and `src/` beside it is what the rules
@@ -109,23 +113,30 @@ ALLOWED: dict[str, set[str]] = {
     # fetching the skills a flow named. It names what a flow is written against, because
     # reading a flow means reading the mark and the interfaces it declared its agents with; it
     # names the agents those flows drive; and a flow that calls another is written into the
-    # epic of the run that called it.
+    # epic of the run that called it. And the new flow API's engine, the seam its drivers
+    # are written against, and the reading of the flags that name them, all written against
+    # `hmz.flows` -- beside the old ones until every way in has moved over.
     "hmz.runtime.flowing": {
         "hmz.coganchor",
         "hmz._legacy_flows",
+        "hmz.flows",
         "hmz.runtime.epic",
         "hmz.runtime.telemetry",
     },
     # What a flow is written against, which is why it is also the one import a flow needs:
-    # the interfaces it drives, the mark that makes a function a flow, the marks an atlas
-    # declares its graph with, and the vocabulary a turn is described in. A flow that has to
-    # know where its own agent keeps its tasks, or what models that account runs, is reading
-    # a fact rather than a log, and those are `coganchor`'s.
-    #
-    # It holds none of what humanize does *to* a flow -- finding one, reading one, driving
-    # one, compiling an atlas -- which is `hmz.runtime.flowing`, the layer written against
-    # this one. The one thing it names there is what it hands back to a flow that calls
-    # another, and it names it for a type checker and never at import: see HANDED_THROUGH.
+    # the protocols its agents, environments and context answer to, the moments it hangs
+    # hooks on, the exceptions it catches, and the decorator that makes a function a flow.
+    # Types, bar three calls -- `flow`, `load` and `Outworlder.new` -- which hand what they
+    # are given to the engine in `hmz.runtime.flowing` when they are made, and never at
+    # import: see HANDED_THROUGH. It names nothing else of humanize's, not even `coganchor`:
+    # a flow is somebody else's repository, and what it imports is a promise.
+    "hmz.flows": {"hmz.runtime.flowing"},
+    # The old flow API, kept whole under a name nothing new will import until every way in
+    # has moved to `hmz.flows` and it can go: the interfaces its flows drive, the mark that
+    # makes a function one of them, the marks an atlas declares its graph with, and the
+    # vocabulary a turn is described in, handed through from `coganchor`. The one thing it
+    # names in `hmz.runtime.flowing` is what it hands back to a flow that calls another, and
+    # it names it for a type checker and never at import: see HANDED_THROUGH.
     "hmz._legacy_flows": {"hmz.coganchor", "hmz.runtime.flowing"},
     # humanize as one object: one workspace and everything that can be done in it, composed
     # out of the layers beside it. It is the front door of the runtime rather than a layer of
@@ -191,18 +202,26 @@ ALLOWED: dict[str, set[str]] = {
     "hmz.sdk": {"hmz.daemon", "hmz.runtime"},
 }
 
-#: The one pair the table is allowed to name both ways, and what makes it one pair rather than
-#: a hole. :mod:`hmz._legacy_flows` is the whole of what a flow imports, and a flow that calls
-#: another flow writes `from hmz._legacy_flows import load` like every other line it writes --
-#: so the façade has to offer a name whose implementation is in the layer above it, `load`
-#: being a run of a flow and runs being the runtime's. It offers it the way it offers
-#: everything it does not hold: by name, out of :data:`hmz._legacy_flows._ELSEWHERE`, fetched
-#: the moment a flow asks for it and never before. The import that pairs the two is there for
-#: a type checker alone, which is what
-#: :func:`test_the_flow_facade_names_the_runtime_for_types_and_never_at_import` holds it to --
-#: so the arrow at import time still points one way, and this stays a pair rather than
+#: The pairs the table is allowed to name both ways, and what makes each one a pair rather
+#: than a hole. A flow API is the whole of what a flow imports, and a flow that calls another
+#: flow writes `load` from it like every other line it writes -- so the façade has to offer a
+#: name whose implementation is in the layer above it, `load` being a run of a flow and runs
+#: being the runtime's.
+#:
+#: :mod:`hmz.flows` offers `flow`, `load` and `Outworlder.new`, each of which imports the
+#: engine inside the call and hands the call to it; nothing of the runtime is imported at the
+#: top of any of its modules, not even for a type checker, which is what
+#: :func:`test_the_flow_api_reaches_the_runtime_from_inside_a_call_and_nowhere_else` holds it
+#: to. :mod:`hmz._legacy_flows` offers `load` the way it offers everything it does not hold: by
+#: name, out of :data:`hmz._legacy_flows._ELSEWHERE`, fetched the moment a flow asks for it
+#: and never before, and names the runtime for a type checker alone, which is what
+#: :func:`test_the_flow_facade_names_the_runtime_for_types_and_never_at_import` holds it to.
+#: So the arrow at import time still points one way, and these stay pairs rather than
 #: becoming a habit.
-HANDED_THROUGH = {("hmz._legacy_flows", "hmz.runtime.flowing")}
+HANDED_THROUGH = {
+    ("hmz.flows", "hmz.runtime.flowing"),
+    ("hmz._legacy_flows", "hmz.runtime.flowing"),
+}
 
 #: What reaching the target half costs besides: the two modules of the command line that route
 #: to it, and the front door of the package they route through. All are held to the same bar as
@@ -338,6 +357,80 @@ def test_the_flow_facade_names_the_runtime_for_types_and_never_at_import() -> No
         and node not in typed
     }
     assert not ran, f"the flow façade imports the runtime for real: {ran}"
+
+
+def test_the_flow_api_reaches_the_runtime_from_inside_a_call_and_nowhere_else() -> None:
+    """`hmz.flows` names the engine in the three calls that run, and names nothing else.
+
+    Every import of humanize's own in the package, however it is spelled, is of the package
+    itself -- or of `hmz.runtime.flowing` from inside `flow`, `load` or `Outworlder.new` --
+    so importing the flow API, which is what every flow does first, costs none of the runtime
+    and none of the drivers, and a type checker is given nothing of the runtime either.
+    """
+    reached: dict[str, set[str]] = {}
+    for source in sorted((SRC / "hmz" / "flows").rglob("*.py")):
+        package = _module_name(source)
+        if source.name != "__init__.py":
+            package = package.rpartition(".")[0]
+        for node, calls in _imports_within(ast.parse(source.read_text())):
+            if isinstance(node, ast.Import):
+                named = [alias.name for alias in node.names]
+            else:
+                module = node.module or ""
+                if node.level:
+                    module = importlib.util.resolve_name(
+                        "." * node.level + module, package
+                    )
+                named = [module]
+            for name in named:
+                if name.split(".")[0] != "hmz" or _covers("hmz.flows", name):
+                    continue
+                if not (calls and calls[0] in HANDING) or not _covers(
+                    "hmz.runtime.flowing", name
+                ):
+                    reached.setdefault(source.name, set()).add(ast.unparse(node))
+    assert not reached, f"the flow API reaches past itself: {reached}"
+
+
+#: The three calls of the flow API that hand their work to the runtime.
+HANDING = {"flow", "load", "new"}
+
+
+def _imports_within(
+    tree: ast.AST, calls: tuple[str, ...] = ()
+) -> Iterator[tuple[ast.Import | ast.ImportFrom, tuple[str, ...]]]:
+    """Every import statement under a node, with the functions it is written inside."""
+    for child in ast.iter_child_nodes(tree):
+        if isinstance(child, ast.Import | ast.ImportFrom):
+            yield child, calls
+        inside = (
+            (*calls, child.name)
+            if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef)
+            else calls
+        )
+        yield from _imports_within(child, inside)
+
+
+def test_importing_the_flow_api_loads_nothing_else_of_humanize() -> None:
+    """The static rule again, against what an interpreter importing it actually loads."""
+    probe = (
+        "import sys\n"
+        "import hmz.flows\n"
+        "print(' '.join(m for m in sys.modules if m.split('.')[0] == 'hmz'))\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-X", "importtime", "-c", probe],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    loaded = set(result.stdout.split())
+    assert "hmz.flows" in loaded, "the probe imported nothing, so this checks nothing"
+    assert loaded <= {"hmz"} | {
+        name for name in loaded if _covers("hmz.flows", name)
+    }, loaded
+    timed = [line for line in result.stderr.splitlines() if " hmz." in line]
+    assert all(" hmz.flows" in line for line in timed), timed
 
 
 def test_every_module_at_the_top_is_a_layer_the_table_governs() -> None:
