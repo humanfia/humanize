@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     import pytest
 
 FLOW = """
-from hmz.flows import Agent, flow
+from hmz._legacy_flows import Agent, flow
 
 
 @flow()

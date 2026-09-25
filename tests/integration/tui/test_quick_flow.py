@@ -37,7 +37,7 @@ _INSTALLED = {"claude": (Model("m", ("high",)),)}
 
 #: A flow of one agent, for the workspace that has set none of them up yet.
 _ONE = """
-from hmz.flows import Agent, flow
+from hmz._legacy_flows import Agent, flow
 
 
 @flow
@@ -50,7 +50,7 @@ def run(agents: tuple[Agent], task: str) -> None:
 _PAIR = """
 from typing import NamedTuple
 
-from hmz.flows import Agent, flow
+from hmz._legacy_flows import Agent, flow
 
 
 class Pair(NamedTuple):
@@ -67,7 +67,7 @@ def run(agents: Pair, task: str) -> None:
 #: which `humanize1:gen-idea` is, and which a sigil that stopped reading at the dash would put
 #: to the conversation whole instead of running.
 _PHASES = """
-from hmz.flows import Agent, flow
+from hmz._legacy_flows import Agent, flow
 
 
 @flow

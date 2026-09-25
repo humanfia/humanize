@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 PLAIN = '''"""Runs once, and says what it was told."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow

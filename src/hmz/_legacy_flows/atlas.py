@@ -11,7 +11,7 @@ thing this holds.
 An atlas is a flow. It is marked, found, named, listed and run the way every other flow is,
 so nothing that already knows what a flow is has to learn a second thing::
 
-    from hmz.flows import Agent, atlas, logic, mind
+    from hmz._legacy_flows import Agent, atlas, logic, mind
     from pydantic import BaseModel
 
     class Agents(NamedTuple):
@@ -49,7 +49,7 @@ told apart: a branch is a decision, and a decision nothing but a model made is a
 reading of the flow can state. So the node a branch hangs off is a logic node, and what a
 model said reaches a branch by being read by one.
 
-A mark marks and does not wrap, the way :func:`~hmz.flows.flow` does and for the same
+A mark marks and does not wrap, the way :func:`~hmz._legacy_flows.flow` does and for the same
 reason: a body is read rather than run, so what the mark said has to travel on the function,
 where the reading will find it.
 """
@@ -92,7 +92,8 @@ ATLAS = "__humanize_atlas__"
 class Atlas:
     """That a function is an atlas, and what the mark said beyond what `Flow` holds.
 
-    An atlas carries this as well as the :class:`~hmz.flows.Flow` every flow carries, so that
+    An atlas carries this as well as the :class:`~hmz._legacy_flows.Flow` every flow carries, so
+    that
     everything which already reads flows goes on reading this one, and only what compiles it
     has to know the difference.
 
@@ -162,7 +163,8 @@ class Sub:
 def sub(named: str) -> Sub:
     """Names the atlas one supernode is, for a body to call it by.
 
-    The counterpart of :func:`~hmz.flows.load`, and the only one an atlas has: `load` answers
+    The counterpart of :func:`~hmz._legacy_flows.load`, and the only one an atlas has: `load`
+    answers
     with a flow that may be anything, and an atlas that called one would be a prophecy with a
     hole where a node should be. So an atlas reaches another atlas, by the name `-f` takes,
     and reaches nothing else.
@@ -300,7 +302,7 @@ def atlas[**P, T](
 ) -> Callable[P, T] | Callable[[Callable[P, T]], Callable[P, T]]:
     """Marks a function as an atlas: a flow whose body is a graph rather than a program.
 
-    Everything :func:`~hmz.flows.flow` marks a flow with, this marks too -- the name, the
+    Everything :func:`~hmz._legacy_flows.flow` marks a flow with, this marks too -- the name, the
     line it says about itself, the skills it works by, whether it is offered in a list -- so
     an atlas is found, listed, chosen and run exactly as any other flow is. What it adds is
     that the body is read instead of executed::

@@ -14,9 +14,9 @@ from pathlib import Path
 
 import pytest
 
+from hmz._legacy_flows import NotAFlow, flow
 from hmz.coganchor.agents import AgentConfig
 from hmz.coganchor.agents.codenames import SAID
-from hmz.flows import NotAFlow, flow
 from hmz.runtime.flowing import (
     ENTRY,
     about,
@@ -41,7 +41,7 @@ from typing import NamedTuple
 from pydantic import BaseModel
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Drafting(NamedTuple):
@@ -83,7 +83,7 @@ def run(agents: Drafting, task: str) -> None:
 ONE = '''"""Just the one, and it says what it does here."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -96,7 +96,7 @@ def whatever_it_is_called(agents: tuple[AgentBase], task: str) -> None:
 BOTH = '''"""One under its own name, and one beside it."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -118,7 +118,7 @@ def twice(agents: tuple[AgentBase], task: str) -> None:
 AUXILIARY = '''"""One flow to choose and one implementation detail."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -436,7 +436,7 @@ BESIDE = '''"""Says what the module beside it says."""
 import beside
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow

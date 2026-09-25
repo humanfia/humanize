@@ -482,7 +482,7 @@ _READING = '''"""A flow whose agent reviews and does not write."""
 from typing import Annotated
 
 from hmz.coganchor.agents import AgentBase, AgentDefaults
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -703,8 +703,8 @@ def test_a_rung_a_backend_was_told_not_to_carry_is_refused_as_a_declaration() ->
     refusing itself as it is built rather than a session refusing to open, and the place it
     surfaces is the same one every other refusal about a declaration surfaces at.
     """
+    from hmz._legacy_flows import NotAFlow
     from hmz.coganchor.agents import OpencodeAgent, OpencodeAgentConfig
-    from hmz.flows import NotAFlow
     from hmz.runtime.flowing.driving import Place, runs_at
 
     agent = OpencodeAgent(

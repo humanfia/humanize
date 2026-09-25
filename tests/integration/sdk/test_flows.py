@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.flows import NotAFlow
+from hmz._legacy_flows import NotAFlow
 from hmz.runtime.flowing import ENTRY, FLOWS, LOCAL, OFFICIAL, USER
 from hmz.sdk import Hmz
 from tests.stubs import written
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 #: A flow, as short as one can be, that says a line about itself and takes one agent.
 FLOW = '''"""A flow of somebody else's."""
 
-from hmz.flows import Agent, flow
+from hmz._legacy_flows import Agent, flow
 
 
 @flow
@@ -45,7 +45,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from hmz.flows import Agent, flow
+from hmz._legacy_flows import Agent, flow
 
 
 class Config(BaseModel):

@@ -20,11 +20,11 @@ import re
 import sys
 from typing import TYPE_CHECKING
 
+from hmz._legacy_flows import Agent, Person, Session
 from hmz.coganchor import places
 from hmz.coganchor.agents import DRIVEN, EVERYWHERE, KINDS, PERMISSIONS, Moment, rung
 from hmz.coganchor.agents.config import UNSAID, AgentConfig
 from hmz.coganchor.backends import PROFILES, Bundled, Hooked, Profile, named
-from hmz.flows import Agent, Person, Session
 from hmz.runtime.flowing.checking import (
     OF_AGENT,
     WHERE,
@@ -105,7 +105,7 @@ def test_every_ask_the_catalogue_spells_is_on_the_interfaces() -> None:
     for name, member in anchored.items():
         assert member in asks
         assert member in said[name], name
-    # And the ones whose anchor is the vocabulary hmz.flows hands through.
+    # And the ones whose anchor is the vocabulary hmz._legacy_flows hands through.
     offers = offered()
     for name, word in {
         "subflows": "load",

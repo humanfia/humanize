@@ -35,7 +35,7 @@ CONFIG = AgentConfig(model="m", effort="high")
 #: A flow that opens one session per agent, each of which names itself as it lands.
 FLOW = """
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -125,7 +125,7 @@ def test_a_run_that_was_interrupted_says_so(
         tmp_path,
         "flow",
         "from hmz.coganchor.agents import AgentBase, Stopped\n"
-        "from hmz.flows import flow\n\n\n"
+        "from hmz._legacy_flows import flow\n\n\n"
         "@flow\n"
         "def run(agents: tuple[AgentBase], task: str) -> None:\n"
         '    raise Stopped("stopped")\n',
@@ -147,7 +147,7 @@ def test_a_run_that_failed_says_so(
         tmp_path,
         "flow",
         "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz.flows import flow\n\n\n"
+        "from hmz._legacy_flows import flow\n\n\n"
         "@flow\n"
         "def run(agents: tuple[AgentBase], task: str) -> None:\n"
         '    agents[0].new()("exit 3")\n',
@@ -256,7 +256,7 @@ def test_a_log_written_after_the_last_turn_is_linked_when_the_run_ends(
         "import os\n"
         "from pathlib import Path\n\n"
         "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz.flows import flow\n\n\n"
+        "from hmz._legacy_flows import flow\n\n\n"
         "@flow\n"
         "def run(agents: tuple[AgentBase], task: str) -> None:\n"
         '    agents[0].new()("echo the-session")\n'

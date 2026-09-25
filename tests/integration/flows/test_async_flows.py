@@ -14,9 +14,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz._legacy_flows import NotAFlow
 from hmz.cli import main
 from hmz.coganchor.agents import AgentConfig, Stopped
-from hmz.flows import NotAFlow
 from hmz.runtime.epic import epics, opened
 from hmz.runtime.flowing import configures, drives, wanted
 from hmz.runtime.runner import Runner
@@ -37,7 +37,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -65,7 +65,7 @@ import json
 from pathlib import Path
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -83,7 +83,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Config(BaseModel):
@@ -104,7 +104,7 @@ async def run(agents: tuple[AgentBase], task: str, config: Config | None = None)
 #: A coroutine flow that fails partway, which is a flow that failed and not a flow to correct.
 FAILING = """
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -117,7 +117,7 @@ async def run(agents: tuple[AgentBase], task: str) -> None:
 #: after that raises where the flow is waiting for it.
 STOPPED = """
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -137,7 +137,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -164,7 +164,7 @@ async def run(agents: Agents, task: str) -> None:
 #: refused for a coroutine exactly as it is for a function.
 UNCOUNTED = """
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -369,7 +369,7 @@ import json
 from pathlib import Path
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow

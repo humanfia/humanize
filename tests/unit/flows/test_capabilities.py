@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz._legacy_flows import NotAFlow, load
 from hmz.coganchor.agents import (
     ClaudeCodeAgent,
     ClaudeCodeAgentConfig,
@@ -25,7 +26,6 @@ from hmz.coganchor.agents import (
     DshAgentConfig,
     Needs,
 )
-from hmz.flows import NotAFlow, load
 from hmz.runtime.flowing import wanted
 from hmz.runtime.runner import Runner
 from tests.stubs import written
@@ -41,7 +41,7 @@ STEERS = '''"""One that talks to its agent mid-turn."""
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Needs
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -61,7 +61,7 @@ SEVERAL = '''"""One built on more than a flow usually is."""
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Needs
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -82,7 +82,7 @@ RESUMES = '''"""One that picks a conversation back up."""
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Needs
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -102,7 +102,7 @@ EVERYONE = '''"""One built on what nobody has to shop for."""
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Needs
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -120,7 +120,7 @@ def run(agents: Agents, task: str) -> None:
 PLAIN = '''"""One that any agent can drive."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -132,7 +132,7 @@ def run(agents: tuple[AgentBase], task: str) -> None:
 CALLS = '''"""One that reaches for the flow that steers."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow, load
+from hmz._legacy_flows import flow, load
 
 
 @flow
@@ -149,7 +149,7 @@ MISPLACED = '''"""One that asks for a container of the agent rather than of the 
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Needs
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -171,7 +171,7 @@ INSIDE_OUT = '''"""One that asks a machine for the CLI's own hooks."""
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Needs
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -191,7 +191,7 @@ HOOKED = '''"""One built on reaching its turns through the CLI's own hooks."""
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Needs
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -212,7 +212,7 @@ READ_ONLY = '''"""One whose reviewer must be holdable to read-only."""
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Needs
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):

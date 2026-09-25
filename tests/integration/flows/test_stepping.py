@@ -12,8 +12,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz._legacy_flows import NotAFlow
 from hmz.coganchor.agents import AgentConfig
-from hmz.flows import NotAFlow
 from hmz.runtime.epic import epics, state
 from hmz.runtime.flowing import PROPHECY, configures, kept, resumes, wanted
 from hmz.runtime.flowing.prophesying import prophesied
@@ -34,7 +34,7 @@ from typing import NamedTuple
 
 from pydantic import BaseModel, Field
 
-from hmz.flows import Agent, atlas, logic, mind
+from hmz._legacy_flows import Agent, atlas, logic, mind
 
 
 class Agents(NamedTuple):
@@ -97,7 +97,7 @@ from typing import NamedTuple
 
 from pydantic import BaseModel, Field
 
-from hmz.flows import Agent, atlas, logic, mind
+from hmz._legacy_flows import Agent, atlas, logic, mind
 
 
 class Agents(NamedTuple):
@@ -156,7 +156,7 @@ from typing import NamedTuple
 
 from pydantic import BaseModel, Field
 
-from hmz.flows import Agent, atlas, mind
+from hmz._legacy_flows import Agent, atlas, mind
 
 
 class Agents(NamedTuple):
@@ -196,7 +196,7 @@ from typing import NamedTuple
 
 from pydantic import BaseModel, Field
 
-from hmz.flows import Agent, atlas, logic, sub
+from hmz._legacy_flows import Agent, atlas, logic, sub
 
 
 class Agents(NamedTuple):
@@ -464,7 +464,7 @@ from typing import NamedTuple
 
 from pydantic import BaseModel, Field
 
-from hmz.flows import Agent, atlas, logic, mind
+from hmz._legacy_flows import Agent, atlas, logic, mind
 
 
 class Agents(NamedTuple):

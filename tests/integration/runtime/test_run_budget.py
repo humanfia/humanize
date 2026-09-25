@@ -43,7 +43,7 @@ time.sleep({PAUSE})
 #: absent, so that anything which ends this run is the run's allowance and nothing else.
 FOREVER = """
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow

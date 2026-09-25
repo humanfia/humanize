@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz._legacy_flows import NotAFlow, load, running
 from hmz.coganchor.agents import UNSAID, AgentConfig
 from hmz.coganchor.agents.skills import Loaded
-from hmz.flows import NotAFlow, load, running
 from hmz.runtime.epic import JOURNAL, epics, read, records, sessions
 from hmz.runtime.runner import Runner
 from tests.stubs import ShellAgent, events, written
@@ -30,7 +30,7 @@ INNER = '''"""The one that is called."""
 from pathlib import Path
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -46,8 +46,8 @@ OUTER = '''"""The one that calls."""
 from pathlib import Path
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
-from hmz.flows import load, running
+from hmz._legacy_flows import flow
+from hmz._legacy_flows import load, running
 
 
 @flow
@@ -62,8 +62,8 @@ def run(agents: tuple[AgentBase], task: str) -> None:
 TWICE = '''"""The one that calls the same flow twice."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
-from hmz.flows import load
+from hmz._legacy_flows import flow
+from hmz._legacy_flows import load
 
 
 @flow
@@ -76,8 +76,8 @@ def run(agents: tuple[AgentBase], task: str) -> None:
 NESTS = '''"""The one at the top."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
-from hmz.flows import load
+from hmz._legacy_flows import flow
+from hmz._legacy_flows import load
 
 
 @flow
@@ -89,8 +89,8 @@ def run(agents: tuple[AgentBase], task: str) -> None:
 DEEPER = '''"""The one in the middle."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
-from hmz.flows import load
+from hmz._legacy_flows import flow
+from hmz._legacy_flows import load
 
 
 @flow
@@ -143,8 +143,8 @@ def test_the_called_flow_is_running_while_it_runs(flows: Path) -> None:
         '"""Says what is running while it runs."""\n\n'
         "from pathlib import Path\n\n"
         "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz.flows import flow\n"
-        "from hmz.flows import running\n\n\n"
+        "from hmz._legacy_flows import flow\n"
+        "from hmz._legacy_flows import running\n\n\n"
         "@flow\n"
         "def run(agents: tuple[AgentBase], task: str) -> None:\n"
         '    Path("deep.txt").write_text(" > ".join(one.flow for one in running()))\n',
@@ -154,8 +154,8 @@ def test_the_called_flow_is_running_while_it_runs(flows: Path) -> None:
         "over",
         '"""Calls the one that says."""\n\n'
         "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz.flows import flow\n"
-        "from hmz.flows import load\n\n\n"
+        "from hmz._legacy_flows import flow\n"
+        "from hmz._legacy_flows import load\n\n\n"
         "@flow\n"
         "def run(agents: tuple[AgentBase], task: str) -> None:\n"
         '    load("deep")(agents, task)\n',
@@ -183,7 +183,7 @@ def test_a_called_flow_is_handed_the_agents_it_declares(flows: Path) -> None:
         "from pathlib import Path\n"
         "from typing import NamedTuple\n\n"
         "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz.flows import flow\n\n\n"
+        "from hmz._legacy_flows import flow\n\n\n"
         "class Both(NamedTuple):\n"
         '    """Two of them."""\n\n'
         "    builder: AgentBase\n"
@@ -217,7 +217,7 @@ def test_a_called_flow_is_set_up_the_way_a_run_of_it_is(flows: Path) -> None:
         "from pathlib import Path\n\n"
         "from pydantic import BaseModel\n\n"
         "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz.flows import flow\n\n\n"
+        "from hmz._legacy_flows import flow\n\n\n"
         "class Config(BaseModel):\n"
         '    """What it takes."""\n\n'
         "    rounds: int = 3\n\n\n"
@@ -269,8 +269,8 @@ def test_a_flow_that_calls_one_written_as_a_coroutine_awaits_it(flows: Path) -> 
         "import asyncio\n"
         "from pathlib import Path\n\n"
         "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz.flows import flow\n"
-        "from hmz.flows import running\n\n\n"
+        "from hmz._legacy_flows import flow\n"
+        "from hmz._legacy_flows import running\n\n\n"
         "@flow\n"
         "async def run(agents: tuple[AgentBase], task: str) -> None:\n"
         "    await asyncio.sleep(0)\n"
@@ -282,8 +282,8 @@ def test_a_flow_that_calls_one_written_as_a_coroutine_awaits_it(flows: Path) -> 
         '"""Waits for the one it called."""\n\n'
         "from pathlib import Path\n\n"
         "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz.flows import flow\n"
-        "from hmz.flows import load\n\n\n"
+        "from hmz._legacy_flows import flow\n"
+        "from hmz._legacy_flows import load\n\n\n"
         "@flow\n"
         "async def run(agents: tuple[AgentBase], task: str) -> None:\n"
         '    await load("slow")(agents, task)\n'
@@ -411,7 +411,7 @@ def test_a_call_that_raised_says_so_where_it_was_written(flows: Path) -> None:
         '''"""Raises."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -425,8 +425,8 @@ def run(agents: tuple[AgentBase], task: str) -> None:
         '''"""Calls the one that raises, and carries on."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
-from hmz.flows import load
+from hmz._legacy_flows import flow
+from hmz._legacy_flows import load
 
 
 @flow
@@ -458,7 +458,7 @@ def test_a_flow_that_fails_is_no_longer_running(flows: Path) -> None:
         "bad",
         '"""Raises."""\n\n'
         "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz.flows import flow\n\n\n"
+        "from hmz._legacy_flows import flow\n\n\n"
         "@flow\n"
         "def run(agents: tuple[AgentBase], task: str) -> None:\n"
         '    raise RuntimeError("no")\n',
@@ -468,8 +468,8 @@ def test_a_flow_that_fails_is_no_longer_running(flows: Path) -> None:
         "tries",
         '"""Calls the one that raises, and lets it through."""\n\n'
         "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz.flows import flow\n"
-        "from hmz.flows import load\n\n\n"
+        "from hmz._legacy_flows import flow\n"
+        "from hmz._legacy_flows import load\n\n\n"
         "@flow\n"
         "def run(agents: tuple[AgentBase], task: str) -> None:\n"
         '    load("bad")(agents, task)\n',
@@ -495,8 +495,8 @@ def test_a_flow_rewritten_between_calls_is_the_one_that_runs_next(flows: Path) -
         '"""Calls the same flow twice, rewriting it in between."""\n\n'
         "from pathlib import Path\n\n"
         "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz.flows import flow\n"
-        "from hmz.flows import load\n\n\n"
+        "from hmz._legacy_flows import flow\n"
+        "from hmz._legacy_flows import load\n\n\n"
         "@flow\n"
         "def run(agents: tuple[AgentBase], task: str) -> None:\n"
         '    calling = load("inner")\n'
@@ -532,8 +532,8 @@ def test_a_called_flow_brings_its_own_skills_and_hands_the_agents_back(
         '"""Says what it is carrying, before, during and after."""\n\n'
         "from pathlib import Path\n\n"
         "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz.flows import flow\n"
-        "from hmz.flows import load\n\n\n"
+        "from hmz._legacy_flows import flow\n"
+        "from hmz._legacy_flows import load\n\n\n"
         "@flow\n"
         "def run(agents: tuple[AgentBase], task: str) -> None:\n"
         "    (agent,) = agents\n"
@@ -564,7 +564,7 @@ from pathlib import Path
 from typing import Annotated
 
 from hmz.coganchor.agents import AgentBase, AgentDefaults
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -584,7 +584,7 @@ def run(
 from pathlib import Path
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow, load
+from hmz._legacy_flows import flow, load
 
 
 @flow
@@ -626,7 +626,7 @@ def test_a_called_flow_that_declares_nothing_cannot_loosen_what_it_was_called_at
 from pathlib import Path
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -644,7 +644,7 @@ from pathlib import Path
 from typing import Annotated
 
 from hmz.coganchor.agents import AgentBase, AgentDefaults
-from hmz.flows import flow, load
+from hmz._legacy_flows import flow, load
 
 
 @flow
@@ -675,7 +675,7 @@ from pathlib import Path
 from typing import Annotated
 
 from hmz.coganchor.agents import AgentBase, AgentDefaults
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -696,7 +696,7 @@ from pathlib import Path
 from typing import Annotated
 
 from hmz.coganchor.agents import AgentBase, AgentDefaults
-from hmz.flows import flow, load
+from hmz._legacy_flows import flow, load
 
 
 @flow
@@ -731,7 +731,7 @@ def test_a_call_refused_leaves_the_caller_driving_the_agents_it_had(
 from typing import Annotated
 
 from hmz.coganchor.agents import AgentBase, AgentDefaults
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 Quiet = Annotated[AgentBase, AgentDefaults(web_search=False)]
 
@@ -750,7 +750,7 @@ def run(agents: tuple[Quiet, Quiet], task: str) -> None:
 from pathlib import Path
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import NotAFlow, flow, load
+from hmz._legacy_flows import NotAFlow, flow, load
 
 
 @flow
@@ -796,7 +796,7 @@ def test_a_called_flow_can_explicitly_inherit_its_callers_skills(flows: Path) ->
 from pathlib import Path
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -823,8 +823,8 @@ def run(agents: tuple[AgentBase], task: str) -> None:
 from pathlib import Path
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
-from hmz.flows import load
+from hmz._legacy_flows import flow
+from hmz._legacy_flows import load
 
 
 @flow
@@ -858,7 +858,7 @@ def test_inherited_skills_are_restored_when_the_called_flow_raises(flows: Path) 
         '''"""Fails after receiving inherited skills."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -876,8 +876,8 @@ def run(agents: tuple[AgentBase], task: str) -> None:
 from pathlib import Path
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
-from hmz.flows import load
+from hmz._legacy_flows import flow
+from hmz._legacy_flows import load
 
 
 @flow

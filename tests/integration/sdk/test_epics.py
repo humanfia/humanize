@@ -35,7 +35,7 @@ FLOW = '''"""Opens a session, and counts the runs of itself."""
 from typing import Any
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow(resumable=True)

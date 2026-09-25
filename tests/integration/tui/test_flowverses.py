@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 FLOW = '''"""Somebody else's loop, fetched from somewhere else."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -360,7 +360,7 @@ from typing import NamedTuple
 from pydantic import BaseModel
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Drafting(NamedTuple):

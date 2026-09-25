@@ -91,7 +91,7 @@ ISOLATING = f'''
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Isolated
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -158,7 +158,7 @@ def test_a_session_may_be_opened_at_a_directory_on_the_machine_it_lands_on(
 CONTAINED = """
 from typing import NamedTuple
 
-from hmz.flows import Agent, container, flow
+from hmz._legacy_flows import Agent, container, flow
 
 
 class Agents(NamedTuple):
@@ -208,7 +208,7 @@ def test_a_run_may_be_put_in_one_container_and_every_agent_lands_there(
 #: where its agent works -- which is what every flow written before this said.
 CALLING = '''"""Calls a flow that says nothing about where its agent works."""
 
-from hmz.flows import Agent, flow, load
+from hmz._legacy_flows import Agent, flow, load
 
 
 @flow
@@ -221,7 +221,7 @@ def run(agents: tuple[Agent], task: str) -> None:
 #: And the one it calls, which has its agent leave a mark saying where the turn ran.
 CALLED = '''"""The one that is called, driving the agents it was handed."""
 
-from hmz.flows import Agent, flow
+from hmz._legacy_flows import Agent, flow
 
 
 @flow

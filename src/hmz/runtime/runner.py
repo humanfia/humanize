@@ -5,7 +5,8 @@ interface starts a flow from that same line and then keeps the agents -- which i
 something typed while the flow runs reach the one working. A reader that lived in the command
 line would be one the interface had to reach up into.
 
-What a flow is, and what it says it drives, is :mod:`hmz.flows`. This asks it, hands the flow
+What a flow is, and what it says it drives, is :mod:`hmz._legacy_flows`. This asks it, hands the
+flow
 the agents it declared under the names it calls them, and writes the run down as an epic.
 Nothing a flow itself reaches for is here: a flow names one module of humanize's, and it is
 not this one.
@@ -107,7 +108,7 @@ class Runner:
           container: The image to run the whole of this in, or "" to run it on this machine.
             A convenience rather than a second way of saying where an agent works: it starts
             one container, points every agent of the run at it, and lets the flow's own code
-            reach it through `hmz.flows.container()`, which is the name a flow writes for
+            reach it through `hmz._legacy_flows.container()`, which is the name a flow writes for
             what `hmz.runtime.flowing.driving` holds -- and which is what a run in a
             container is, said once from outside rather than agent by agent inside.
           budget: What this run may spend, as an `Allowance` or the three fields to build one
@@ -341,7 +342,7 @@ class Runner:
             # One container for the run, started here rather than where the runner was made:
             # reading a flow must not pull an image, and a run that never starts must not
             # leave one behind. Every agent is pointed at it as it comes up, and what the
-            # flow itself reads, writes and runs there is `hmz.flows.container`.
+            # flow itself reads, writes and runs there is `hmz._legacy_flows.container`.
             with (
                 contained(self._container) as where_,
                 Epic(

@@ -115,6 +115,6 @@ def test_a_workspace_that_is_not_there_is_refused(tmp_path: Path) -> None:
 
 def test_the_flow_reaches_the_container_only_while_the_run_is_in_one() -> None:
     """A run on this machine has none, and a flow does what it always did."""
-    from hmz.flows import container
+    from hmz._legacy_flows import container
 
     assert container() is None

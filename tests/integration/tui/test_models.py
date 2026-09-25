@@ -48,7 +48,7 @@ HERE = '''
 from typing import NamedTuple
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 from tests.stubs import written
 
 

@@ -17,9 +17,9 @@ from typing import Any
 
 import pytest
 
+from hmz._legacy_flows import NotAFlow
 from hmz.cli import main
 from hmz.coganchor.agents import PERMISSIONS, UNSAID, AgentConfig
-from hmz.flows import NotAFlow
 from hmz.runtime.flowing import BUILTIN_AT, ENTRY
 from hmz.runtime.runner import Runner
 from tests.stubs import ShellAgent, written
@@ -32,7 +32,7 @@ import os
 from pathlib import Path
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -58,7 +58,7 @@ import json
 from pathlib import Path
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -76,7 +76,7 @@ from pathlib import Path
 from typing import Annotated
 
 from hmz.coganchor.agents import AgentBase, AgentDefaults
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -98,7 +98,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -130,7 +130,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 if TYPE_CHECKING:
     from hmz.coganchor.agents import AgentBase
@@ -148,7 +148,7 @@ PREBUILT = sorted(
     (
         path if path.is_file() else path / "__init__.py"
         for path in (
-            Path(__file__).resolve().parents[3] / "src/hmz/flows/builtin"
+            Path(__file__).resolve().parents[3] / "src/hmz/_legacy_flows/builtin"
         ).glob("*")
         if not path.name.startswith("_")
         and (path.suffix == ".py" or (path / "__init__.py").is_file())
@@ -441,7 +441,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from hmz.coganchor.agents import AgentBase, HumanAgent
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -493,7 +493,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from hmz.coganchor.agents import HumanAgent
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -561,7 +561,7 @@ from pathlib import Path
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Moment, Verdict
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -668,7 +668,7 @@ def test_the_flow_runs_where_the_command_was_given(
     [
         ("flow = None\n", "nothing in it is marked @flow()"),
         (
-            "from hmz.flows import flow\n\n\n@flow\ndef run(agents, task):\n    pass\n",
+            "from hmz._legacy_flows import flow\n\n\n@flow\ndef run(agents, task):\n    pass\n",
             "tuple",
         ),
         (RECORD.replace("AGENTS", "AgentBase, ..."), "fixed length"),
@@ -887,9 +887,9 @@ def test_the_chat_flow_is_one_session_for_as_long_as_it_is_told_things(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Talking to a coding agent, with no loop around it: the turns are a conversation."""
+    from hmz._legacy_flows.builtin.chat import Chat
+    from hmz._legacy_flows.builtin.chat import run as chat
     from hmz.coganchor.agents import HumanAgent
-    from hmz.flows.builtin.chat import Chat
-    from hmz.flows.builtin.chat import run as chat
 
     agent = ShellAgent(AgentConfig(model="m", effort="high"))
     said = ["echo third", "echo second"]
@@ -910,9 +910,9 @@ def test_the_chat_flow_run_from_a_command_line_does_the_one_thing_it_was_given(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Nobody is at a prompt there, so there is nothing to wait for and it returns."""
+    from hmz._legacy_flows.builtin.chat import Chat
+    from hmz._legacy_flows.builtin.chat import run as chat
     from hmz.coganchor.agents import HumanAgent
-    from hmz.flows.builtin.chat import Chat
-    from hmz.flows.builtin.chat import run as chat
 
     agent = ShellAgent(AgentConfig(model="m", effort="high"))
 

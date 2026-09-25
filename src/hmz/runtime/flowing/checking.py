@@ -28,8 +28,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, NamedTuple, Protocol
 
+from hmz._legacy_flows import Agent, Driven, Person, Session
 from hmz.coganchor import places
-from hmz.flows import Agent, Driven, Person, Session
 
 if TYPE_CHECKING:
     import os
@@ -92,7 +92,7 @@ def surface(protocol: type) -> frozenset[str]:
 
 
 def offered() -> frozenset[str]:
-    """Every name a flow may import from `hmz.flows`, which is the whole of its vocabulary.
+    """Every name a flow may import from `hmz._legacy_flows`, which is the whole of its vocabulary.
 
     What the module says it offers rather than what happens to be reachable on it: a name
     that works today because a submodule leaked it is a name the next release takes away.
@@ -103,11 +103,11 @@ def offered() -> frozenset[str]:
     """
     # The package's own tables, read by the package's own checker: private to every
     # flow, and one copy rather than a second one kept here to drift.
-    from hmz.flows import (
+    from hmz._legacy_flows import (
         _ELSEWHERE,  # pyright: ignore[reportPrivateUsage]
         _MODULES,  # pyright: ignore[reportPrivateUsage]
     )
-    from hmz.flows import __all__ as declared
+    from hmz._legacy_flows import __all__ as declared
 
     return frozenset(declared) | frozenset(_ELSEWHERE) | frozenset(_MODULES)
 
@@ -306,7 +306,7 @@ _PROTOCOLS = {
     "Driven": "driven",
 }
 
-#: The two marks that make a function a node of a prophecy, by the name `hmz.flows` offers
+#: The two marks that make a function a node of a prophecy, by the name `hmz._legacy_flows` offers
 #: each under.
 _NODES = ("mind", "logic")
 
@@ -355,11 +355,12 @@ class _Read:
 
     where: Path
     tree: ast.Module
-    #: The local names of :func:`hmz.flows.flow`, `Moment` and pydantic's `Field`.
+    #: The local names of :func:`hmz._legacy_flows.flow`, `Moment` and pydantic's `Field`.
     flow_alias: set[str] = field(default_factory=set[str])
     moment_alias: set[str] = field(default_factory=set[str])
     field_alias: set[str] = field(default_factory=set[str])
-    #: And of :func:`hmz.flows.atlas`, :func:`hmz.flows.sub` and :func:`hmz.flows.load`:
+    #: And of :func:`hmz._legacy_flows.atlas`, :func:`hmz._legacy_flows.sub` and
+    #: :func:`hmz._legacy_flows.load`:
     #: the mark that says a flow is compiled, the one way an atlas reaches another, and the
     #: one way an ordinary flow does -- which is the call an atlas may not write.
     atlas_alias: set[str] = field(default_factory=set[str])
@@ -429,7 +430,7 @@ def _collected(read: _Read, body: list[ast.stmt], *, type_checking: bool) -> Non
         is bound for a type checker and for nothing that runs.
     """
     for node in body:
-        if isinstance(node, ast.ImportFrom) and node.module == "hmz.flows":
+        if isinstance(node, ast.ImportFrom) and node.module == "hmz._legacy_flows":
             for alias in node.names:
                 bound = alias.asname or alias.name
                 if type_checking:
@@ -618,20 +619,24 @@ def _imports(read: _Read) -> Iterator[Finding]:
 
     Yields:
       A `foreign-import` error per import of a module of humanize's own that is not
-      `hmz.flows`, and an `unknown-name` error per name asked of `hmz.flows` that it does
+      `hmz._legacy_flows`, and an `unknown-name` error per name asked of `hmz._legacy_flows`
+      that it does
       not offer.
     """
     offers: frozenset[str] | None = None
     for node in ast.walk(read.tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                if alias.name.split(".")[0] == "hmz" and alias.name != "hmz.flows":
+                if (
+                    alias.name.split(".")[0] == "hmz"
+                    and alias.name != "hmz._legacy_flows"
+                ):
                     yield Finding(
                         "foreign-import",
                         "error",
                         read.where,
                         node.lineno,
-                        f"a flow imports hmz.flows and nothing else of humanize's -- "
+                        f"a flow imports hmz._legacy_flows and nothing else of humanize's -- "
                         f"{alias.name} is humanize's own business, and a flow that names "
                         "it breaks whenever humanize moves it",
                     )
@@ -639,13 +644,13 @@ def _imports(read: _Read) -> Iterator[Finding]:
             said = node.module
             if said.split(".")[0] != "hmz":
                 continue
-            if said != "hmz.flows":
+            if said != "hmz._legacy_flows":
                 yield Finding(
                     "foreign-import",
                     "error",
                     read.where,
                     node.lineno,
-                    f"a flow imports hmz.flows and nothing else of humanize's -- "
+                    f"a flow imports hmz._legacy_flows and nothing else of humanize's -- "
                     f"{said} is humanize's own business, and a flow that names it "
                     "breaks whenever humanize moves it",
                 )
@@ -659,7 +664,7 @@ def _imports(read: _Read) -> Iterator[Finding]:
                         "error",
                         read.where,
                         node.lineno,
-                        f"hmz.flows does not offer {alias.name!r} -- what a flow may "
+                        f"hmz._legacy_flows does not offer {alias.name!r} -- what a flow may "
                         "import from it is what it hands through, and a name it does "
                         "not hold fails at the first run",
                     )
@@ -1763,7 +1768,9 @@ def _asked(node: ast.Attribute, scope: _Scope) -> None:
         return
     if node.attr in scope.asks.allowed(held):
         return
-    what = " or ".join(f"hmz.flows.{kind.capitalize()}" for kind in sorted(held))
+    what = " or ".join(
+        f"hmz._legacy_flows.{kind.capitalize()}" for kind in sorted(held)
+    )
     scope.findings.append(
         Finding(
             "unknown-ask",

@@ -42,7 +42,7 @@ _INSTALLED = {"claude": (Model("m", ("high",)),)}
 
 #: A flow with no opinion about what a run of it is worth, which is what most flows are.
 QUIET = """
-from hmz.flows import Agent, flow
+from hmz._legacy_flows import Agent, flow
 
 
 @flow
@@ -52,7 +52,7 @@ def run(agents: tuple[Agent], task: str) -> None:
 
 #: And one that says it is meant to run under nothing at all, as `chat` does.
 LOOSE = """
-from hmz.flows import Agent, Allowance, flow
+from hmz._legacy_flows import Agent, Allowance, flow
 
 
 @flow(budget=Allowance())

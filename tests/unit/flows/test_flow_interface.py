@@ -1,6 +1,7 @@
 """The one import a flow writes, and what answers to it.
 
-Three things nothing else checks. That `hmz.flows` really is the whole of what a flow needs --
+Three things nothing else checks. That `hmz._legacy_flows` really is the whole of what a flow
+needs --
 which is only true while the flows humanize itself ships name nothing else, since they are the
 worked example every other flow is copied from. That everything it says it offers is reachable,
 the vocabulary being handed through by name rather than imported. And that the drivers answer
@@ -15,12 +16,12 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+import hmz._legacy_flows
 import hmz.coganchor.agents
-import hmz.flows
+from hmz._legacy_flows import Agent, Person, Session
+from hmz._legacy_flows import Unrecoverable as FlowUnrecoverable
 from hmz.coganchor.agents import HumanAgent
 from hmz.coganchor.agents import Unrecoverable as AgentUnrecoverable
-from hmz.flows import Agent, Person, Session
-from hmz.flows import Unrecoverable as FlowUnrecoverable
 from hmz.runtime.flowing import BUILTIN_AT
 from hmz.runtime.flowing.checking import surface
 
@@ -31,7 +32,7 @@ if TYPE_CHECKING:
 #: What a flow may name of humanize's own, which is one thing. Everything else it needs --
 #: the vocabulary a turn is described in, the facts about the CLIs, where humanize keeps what
 #: outlives a run -- is handed through from there.
-ONLY = "hmz.flows"
+ONLY = "hmz._legacy_flows"
 
 #: What a flow names for the two things that reach back out of a turn: the callbacks it puts
 #: in front of an agent as tools, and the board it and the person both write on. Each is
@@ -65,16 +66,16 @@ def test_a_flow_humanize_ships_names_nothing_of_humanize_but_hmz_flows(
     assert _named(source) <= {ONLY}
 
 
-@pytest.mark.parametrize("name", sorted(hmz.flows.__all__))
+@pytest.mark.parametrize("name", sorted(hmz._legacy_flows.__all__))
 def test_everything_it_offers_is_there(name: str) -> None:
     """A name in `__all__` with nothing behind it is an import that fails at the first run."""
-    assert getattr(hmz.flows, name, None) is not None
+    assert getattr(hmz._legacy_flows, name, None) is not None
 
 
 def test_a_name_it_does_not_offer_is_an_attribute_error() -> None:
     """Handing names through must not turn a typo into something that is silently None."""
     with pytest.raises(AttributeError):
-        _ = hmz.flows.ClaudeCodeAgent  # type: ignore[attr-defined]
+        _ = hmz._legacy_flows.ClaudeCodeAgent  # type: ignore[attr-defined]
 
 
 def test_an_unrecoverable_turn_is_the_same_exception_a_flow_can_catch() -> None:
@@ -90,8 +91,8 @@ def test_what_reaches_back_out_of_a_turn_is_offered_by_name(name: str) -> None:
     a name only `__getattr__` knows about is a name a flow imports and then cannot call --
     and the same object, since the tool the flow builds is the tool a backend is handed.
     """
-    assert name in hmz.flows.__all__
-    assert getattr(hmz.flows, name) is getattr(hmz.coganchor.agents, name)
+    assert name in hmz._legacy_flows.__all__
+    assert getattr(hmz._legacy_flows, name) is getattr(hmz.coganchor.agents, name)
 
 
 def test_everything_handed_through_is_offered() -> None:
@@ -102,8 +103,8 @@ def test_everything_handed_through_is_offered() -> None:
     never listed. So the list above is these four names being right today, and this is the
     rule they are right by.
     """
-    handed = set(hmz.flows._ELSEWHERE) | set(hmz.flows._MODULES)
-    assert handed <= set(hmz.flows.__all__)
+    handed = set(hmz._legacy_flows._ELSEWHERE) | set(hmz._legacy_flows._MODULES)
+    assert handed <= set(hmz._legacy_flows.__all__)
 
 
 def _answers(driver: object) -> set[str]:

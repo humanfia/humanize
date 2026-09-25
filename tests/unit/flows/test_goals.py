@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz._legacy_flows import NotAFlow
 from hmz.coganchor.agents import (
     ClaudeCodeAgent,
     ClaudeCodeAgentConfig,
@@ -27,7 +28,6 @@ from hmz.coganchor.agents import (
     PiAgent,
     PiAgentConfig,
 )
-from hmz.flows import NotAFlow
 from hmz.runtime.flowing import wanted
 from hmz.runtime.runner import Runner, flow_and_agents
 
@@ -40,7 +40,7 @@ PURSUING = '''"""A loop that hands the objective to the agent and lets it decide
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Goal
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -58,7 +58,7 @@ def run(agents: Agents, task: str) -> None:
 PLAIN = '''"""A loop of plain turns, which any backend takes."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -74,7 +74,7 @@ GOALS_OFF = '''"""A loop that owns its continuations, and says so where it decla
 from typing import Annotated
 
 from hmz.coganchor.agents import AgentBase, AgentDefaults
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow

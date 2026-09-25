@@ -15,8 +15,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz._legacy_flows import NotAFlow
 from hmz.coganchor.agents import AgentConfig, Stopped
-from hmz.flows import NotAFlow
 from hmz.runtime.epic import STATE, epics, read, resumed, state
 from hmz.runtime.flowing import resumes
 from hmz.runtime.runner import Runner
@@ -33,7 +33,7 @@ COUNTS = '''"""Counts the runs of itself."""
 from typing import Any
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow(resumable=True)
@@ -50,7 +50,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Config(BaseModel):
@@ -136,7 +136,7 @@ def test_a_flow_that_says_nothing_is_run_from_the_top_every_time(
         tmp_path,
         "plain",
         "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz.flows import flow\n\n\n"
+        "from hmz._legacy_flows import flow\n\n\n"
         "@flow\n"
         "def run(agents: tuple[AgentBase], task: str) -> None:\n"
         '    agents[0].new()("echo one")\n',
@@ -161,7 +161,7 @@ def test_the_state_of_a_run_that_was_stopped_is_there_to_be_picked_up(
         '"""Writes, and then is stopped where it stands."""\n\n'
         "from typing import Any\n\n"
         "from hmz.coganchor.agents import AgentBase, Stopped\n"
-        "from hmz.flows import flow\n\n\n"
+        "from hmz._legacy_flows import flow\n\n\n"
         "@flow(resumable=True)\n"
         "def run(agents: tuple[AgentBase], task: str, state: dict[str, Any]) -> None:\n"
         '    state["reached"] = "half way"\n'
@@ -187,7 +187,7 @@ def test_something_written_inside_the_state_is_saved_when_the_run_ends(
         '"""Appends to a list it keeps."""\n\n'
         "from typing import Any\n\n"
         "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz.flows import flow\n\n\n"
+        "from hmz._legacy_flows import flow\n\n\n"
         "@flow(resumable=True)\n"
         "def run(agents: tuple[AgentBase], task: str, state: dict[str, Any]) -> None:\n"
         '    state.setdefault("seen", []).append(task)\n',
@@ -226,8 +226,8 @@ def test_a_called_flow_keeps_its_own_state_under_its_own_name(
         '"""Calls the one that counts, and counts itself."""\n\n'
         "from typing import Any\n\n"
         "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz.flows import flow\n"
-        "from hmz.flows import load\n\n\n"
+        "from hmz._legacy_flows import flow\n"
+        "from hmz._legacy_flows import load\n\n\n"
         "@flow(resumable=True)\n"
         "def run(agents: tuple[AgentBase], task: str, state: dict[str, Any]) -> None:\n"
         '    state["outer"] = state.get("outer", 0) + 1\n'
@@ -245,7 +245,7 @@ def test_a_flow_called_outside_a_run_is_handed_a_dict_that_is_nowhere(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A call is a call: a flow with nowhere to keep its state runs and keeps none."""
-    from hmz.flows import load
+    from hmz._legacy_flows import load
 
     monkeypatch.chdir(tmp_path)
     where = tmp_path / ".humanize/flows"
@@ -266,7 +266,7 @@ def test_a_flow_that_says_it_resumes_and_takes_no_dict_says_so(
         tmp_path,
         "short",
         "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz.flows import flow\n\n\n"
+        "from hmz._legacy_flows import flow\n\n\n"
         "@flow(resumable=True)\n"
         "def run(agents: tuple[AgentBase], task: str) -> None:\n"
         "    pass\n",
@@ -303,7 +303,7 @@ def test_a_flow_that_emptied_its_state_starts_the_next_run_clean(
         '"""Counts, and clears what it kept when it is told to stop counting."""\n\n'
         "from typing import Any\n\n"
         "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz.flows import flow\n\n\n"
+        "from hmz._legacy_flows import flow\n\n\n"
         "@flow(resumable=True)\n"
         "def run(agents: tuple[AgentBase], task: str, state: dict[str, Any]) -> None:\n"
         '    if task == "done":\n'
