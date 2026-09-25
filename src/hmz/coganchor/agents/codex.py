@@ -106,6 +106,9 @@ _FEATURE_MAX_CHARS = 64
 #: same thing straight through.
 _ANSWERED = ("browser_use", "computer_use", "standalone_web_search", "web_search")
 
+#: The approval policies a config may put in place of its rung's, "" being the rung's own.
+_APPROVAL_POLICIES = ("", "untrusted", "on-failure", "on-request", "never")
+
 #: What the server calls a turn stopping to ask its user something. Every other request it
 #: makes of a client is an approval, which an unattended flow does not stop for.
 _ASKS = "item/tool/requestUserInput"
@@ -212,6 +215,55 @@ _THREAD_ONLY = ("sandbox",)
 #: inside the input rather than beside it, so it is not a kind of its own here: adding it would
 #: be counting the same tokens twice.
 _KINDS = {"input": "inputTokens", "output": "outputTokens"}
+
+
+#: The keywords of a JSON Schema whose value maps names to schemas, rather than being one.
+_NAMED_SCHEMAS = ("properties", "$defs", "definitions", "patternProperties")
+
+
+def strict(schema: Mapping[str, Any]) -> dict[str, Any]:
+    """A JSON Schema as the structured outputs Codex's models are held to will take it.
+
+    Those take an object only with every property required and no other property allowed,
+    and refuse the whole turn otherwise -- `additionalProperties is required to be supplied
+    and to be false` -- where a pydantic model leaves a field with a default out of `required`
+    and says nothing of other properties. So every object here is closed and has every
+    property it names required, and defaults are dropped: the model writes every field, and
+    what it writes is read back through the pydantic model the schema came from, defaults
+    and all. An object that names no properties -- a mapping of whatever keys -- is left as
+    it is, having nothing to require.
+
+    Args:
+      schema: The schema, as `model_json_schema()` writes it.
+
+    Returns:
+      The same schema, held to that.
+    """
+
+    def held(node: object) -> object:
+        if isinstance(node, list):
+            return [held(one) for one in cast("list[Any]", node)]
+        if not isinstance(node, dict):
+            return node
+        said: dict[str, Any] = {}
+        for key, value in cast("dict[str, Any]", node).items():
+            if key == "default":
+                continue
+            if key in _NAMED_SCHEMAS and isinstance(value, dict):
+                # Names mapped to schemas, where a name may be spelled like a keyword.
+                said[key] = {
+                    name: held(one)
+                    for name, one in cast("dict[str, Any]", value).items()
+                }
+            else:
+                said[key] = held(value)
+        named = said.get("properties")
+        if isinstance(named, dict):
+            said["required"] = list(cast("dict[str, Any]", named))
+            said["additionalProperties"] = False
+        return said
+
+    return cast("dict[str, Any]", held(schema))
 
 
 def unattended(permission: str, service_tier: str = "default") -> dict[str, Any]:
@@ -619,7 +671,9 @@ class _AppServer:
                 pass  # a read with no deadline ends in a message or in the server stopping
             return self._answer(message, "")
 
-    def pursue(self, params: dict[str, Any]) -> str:
+    def pursue(
+        self, params: dict[str, Any], spends: Callable[[Usage], None] | None = None
+    ) -> str:
         """Starts a turn on a thread that has a goal, and reads until the goal is done with it.
 
         A goal is as many turns of the model as the objective takes, and Codex starts each one
@@ -636,6 +690,8 @@ class _AppServer:
 
         Args:
           params: What to start the first turn with.
+          spends: Told what each request of the goal cost as the server says it, which a
+            goal spends as surely as a turn does, or None to tell nobody.
 
         Returns:
           The last thing the agent said, stripped.
@@ -675,6 +731,10 @@ class _AppServer:
                                 # only sign it is running -- said whole, as each message of
                                 # it lands, which is how a turn is watched here too.
                                 say(said, sys.stderr)
+                    case "thread/tokenUsage/updated" if spends is not None:
+                        risen = self._rose(thread, message.get("params") or {})
+                        if risen is not None:
+                            spends(risen)
                     case "thread/goal/updated":
                         pursuing = message["params"]["goal"]["status"] == "active"
                     case "thread/goal/cleared":
@@ -816,35 +876,7 @@ class _AppServer:
                                     ],
                                 )
                         case "thread/tokenUsage/updated":
-                            # Sent as the turn spends it. `total` is the thread, every turn of
-                            # it; `last` is the one request that just came back. Cached input
-                            # is counted inside the input rather than beside it, so the input
-                            # the server states is the whole of what went in -- and the two
-                            # kinds together are the whole of what crossed the wire.
-                            counted: dict[str, Any] = told.get("tokenUsage") or {}
-                            usage: dict[str, Any] = counted.get("total") or {}
-                            held = Counter(
-                                {
-                                    kind: int(usage.get(named) or 0)
-                                    for kind, named in _KINDS.items()
-                                    if usage.get(named)
-                                }
-                            )
-                            if sum(held.values()):
-                                risen = Usage(
-                                    {
-                                        kind: tokens
-                                        for kind in set(held) | set(before)
-                                        if (
-                                            tokens := held[kind]
-                                            - (self._counted.get(thread) or Counter())[
-                                                kind
-                                            ]
-                                        )
-                                        > 0
-                                    }
-                                )
-                                self._counted[thread] = held
+                            if (risen := self._rose(thread, told)) is not None:
                                 costing = costing + risen
                                 if running.spends is not None:
                                     # As the turn spends it rather than once it is over: a
@@ -888,6 +920,56 @@ class _AppServer:
                 else {},
                 spent=costing,
             )
+
+    def _rose(self, thread: str, told: Mapping[str, Any]) -> Usage | None:
+        """What one `thread/tokenUsage/updated` says the thread has spent since the last.
+
+        Sent as a turn spends it. `total` is the thread, every turn of it; `last` is the one
+        request that just came back. Cached input is counted inside the input rather than
+        beside it, so the input the server states is the whole of what went in -- and the two
+        kinds together are the whole of what crossed the wire.
+
+        Args:
+          thread: The thread it is about.
+          told: The notification's params.
+
+        Returns:
+          The rise by kind, and None for a notification that states nothing.
+        """
+        counted: dict[str, Any] = told.get("tokenUsage") or {}
+        usage: dict[str, Any] = counted.get("total") or {}
+        held = Counter(
+            {
+                kind: int(usage.get(named) or 0)
+                for kind, named in _KINDS.items()
+                if usage.get(named)
+            }
+        )
+        if not sum(held.values()):
+            return None
+        before = self._counted.get(thread)
+        self._counted[thread] = held
+        if before is None:
+            # The first word of a thread this server did not start: one picked back up after
+            # a server was put down, or a fork. Its total is the thread's whole history, which
+            # the server it was picked up from counted already, so what this request cost is
+            # what the server says it cost -- `last` -- and the total is where the next rise
+            # is read from.
+            last: dict[str, Any] = counted.get("last") or {}
+            return Usage(
+                {
+                    kind: float(tokens)
+                    for kind, named in _KINDS.items()
+                    if (tokens := int(last.get(named) or 0)) > 0
+                }
+            )
+        return Usage(
+            {
+                kind: tokens
+                for kind in set(held) | set(before)
+                if (tokens := held[kind] - before[kind]) > 0
+            }
+        )
 
     def steer(self, thread: str, turn: str, text: str, ticket: str) -> None:
         """Says something to a turn that is already running.
@@ -1342,6 +1424,12 @@ class CodexAgentConfig(AgentConfig):
         and the web families are
         :attr:`~hmz.coganchor.agents.config.AgentConfig.web_search` and
         :attr:`~hmz.coganchor.agents.config.AgentConfig.permission` -- see :data:`_ANSWERED`.
+      approvals: Codex's own approval policy, in place of the one the rung comes with, or ""
+        for the rung's. Asked for by a caller that wants every command put to it first while
+        the sandbox stays where the rung puts it -- `untrusted` at `bypass` is full access
+        with nothing but a known-safe read run unasked, and every request answered by this
+        client, which grants it unless a hook hung on `PERMISSION_REQUEST` refuses. A policy
+        said here is not stepped down from on an installation that refuses the rung's sandbox.
       strict_config: Whether the app server refuses a setting it does not recognise rather
         than passing over it -- `--strict-config`. False, as Codex's own default is. A flow
         that turns it on finds out at the first turn that a key it names has been renamed by
@@ -1372,9 +1460,16 @@ class CodexAgentConfig(AgentConfig):
     overrides: tuple[tuple[str, str], ...] = ()
     features: tuple[tuple[str, bool], ...] = ()
     strict_config: bool = False
+    approvals: str = ""
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        if self.approvals not in _APPROVAL_POLICIES:
+            raise ValueError(
+                "approvals must be one of "
+                f"{', '.join(repr(one) for one in _APPROVAL_POLICIES)}, "
+                f"not {self.approvals!r}"
+            )
         object.__setattr__(self, "overrides", _overrides(self.overrides))
         object.__setattr__(self, "features", _features(self.features))
 
@@ -1400,6 +1495,14 @@ class CodexSession(SessionBase):
     #: The thread is still there and still running, so a word put in is steered into the turn
     #: under way rather than answered as the next one -- which is what an app server buys.
     steers: ClassVar[bool] = True
+
+    #: `thread/fork` takes the `cwd` the child is opened at, and reads the thread it cuts from
+    #: out of the account's own store, which is not kept per directory.
+    forks_elsewhere: ClassVar[bool] = True
+
+    #: The app server holds every thread of the agent, and hears an interrupt only once the
+    #: turn has answered; a goal is not a turn at all.
+    cuts_transport: ClassVar[bool] = True
 
     def __init__(
         self, agent: AgentBase, cwd: str | os.PathLike[str] | None = None
@@ -1471,16 +1574,11 @@ class CodexSession(SessionBase):
                             "model": self._agent.config.model,
                             **_thinking(self.effort),
                             **(
-                                {"outputSchema": schema.model_json_schema()}
+                                {"outputSchema": strict(schema.model_json_schema())}
                                 if schema is not None
                                 else {}
                             ),
-                            **turning(
-                                server.permitted(
-                                    self._agent.config.permission,
-                                    self._agent.config.service_tier,
-                                )
-                            ),
+                            **turning(self._permitted(server)),
                         },
                         self._running,
                     ):
@@ -1534,6 +1632,27 @@ class CodexSession(SessionBase):
             self.took(ticket)
             raise
 
+    def _permitted(self, server: _AppServer) -> dict[str, Any]:
+        """What this session's calls tell the server the agent may do, and who is asked.
+
+        The rung's own settings, as the server will take them, with the approval policy the
+        config says in place of the rung's where it says one: a sandbox is the rung's, and
+        whether the server asks before a command is something a flow may want a say in
+        without the sandbox moving.
+
+        Args:
+          server: The server the call is made on.
+
+        Returns:
+          The settings to send.
+        """
+        config = self._agent.config
+        rung = server.permitted(config.permission, config.service_tier)
+        asked = str(getattr(config, "approvals", ""))
+        if asked and "approvalPolicy" in rung:
+            rung["approvalPolicy"] = asked
+        return rung
+
     def _thread(self, server: _AppServer) -> str:
         """The thread this session is, started or picked back up as needed.
 
@@ -1544,9 +1663,7 @@ class CodexSession(SessionBase):
         Returns:
           The thread's id, which is also the session's.
         """
-        rung = server.permitted(
-            self._agent.config.permission, self._agent.config.service_tier
-        )
+        rung = self._permitted(server)
         if (thread := self._id) is None:
             opened = {
                 "cwd": self._workspace(),
@@ -1617,10 +1734,9 @@ class CodexSession(SessionBase):
                         "input": [{"type": "text", "text": objective}],
                         "model": config.model,
                         **_thinking(self.effort),
-                        **turning(
-                            server.permitted(config.permission, config.service_tier)
-                        ),
-                    }
+                        **turning(self._permitted(server)),
+                    },
+                    self._spends,
                 )
             finally:
                 server.give()

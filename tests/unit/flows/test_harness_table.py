@@ -54,7 +54,7 @@ TABLE: dict[HarnessKind, tuple[str, set[type]]] = {
     HarnessKind.CURSOR_AGENT: ("CursorAgent", SUBAGENTS),
     HarnessKind.KIMI: ("KimiCodeAgent", {GOAL, STEER, PERMISSION, ASK}),
     HarnessKind.ZCODE: ("ZCodeAgent", {GOAL, PERMISSION, ASK}),
-    HarnessKind.GROK: ("GrokBuildAgent", {PERMISSION}),
+    HarnessKind.GROK: ("GrokBuildAgent", set()),
     HarnessKind.PI: ("PiAgent", {STEER, ASK}),
     HarnessKind.DSH: ("DeepSeekHarnessAgent", {GOAL}),
     HarnessKind.OPENCODE: ("OpenCodeAgent", set()),

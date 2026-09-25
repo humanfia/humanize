@@ -306,6 +306,9 @@ class DshAgent(AgentBase):
 class DshSession(SessionBase):
     """One durable DeepSeek Harness conversation."""
 
+    #: The SDK's runtime holds the turn, and nothing reaches into it to stop one.
+    cuts_transport: ClassVar[bool] = True
+
     def __init__(
         self, agent: DshAgent, cwd: str | os.PathLike[str] | None = None
     ) -> None:
