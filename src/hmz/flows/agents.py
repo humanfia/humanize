@@ -650,7 +650,7 @@ class KimiCodeAgent(
     """Kimi Code, with everything it can do."""
 
 
-class GrokBuildAgent(Agent, PermissionRequestHookAgentMixin, Protocol):
+class GrokBuildAgent(Agent, Protocol):
     """Grok Build, with everything it can do."""
 
 
