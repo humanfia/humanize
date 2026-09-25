@@ -62,7 +62,8 @@ So the child is a conversation in every way a run counts one:
 | **Its own future** | turns of one are not turns of the other |
 
 It belongs to the same agent as the parent — the same CLI, model and grant, and the same
-[hooks](/weaver/hooks) — and is closed with the flow that opened it, like any session.
+[hooks](/weaver/hooks) — and is closed like any session: as soon as nothing holds it, or when
+the flow call that opened it ends, whichever comes first.
 
 ## Use the child before the parent moves on
 

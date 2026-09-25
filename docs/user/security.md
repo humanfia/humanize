@@ -50,8 +50,8 @@ So adding a flowverse trusts that git repository with this machine, exactly as i
 package does. Add the ones you would clone and run.
 
 `official` is always there — `chat` ships with the package, and the rest is
-[humanfia/flowverse](https://github.com/humanfia/flowverse). humanize does not fetch that
-repository until something wants what is in it.
+[humanfia/flowverse](https://github.com/humanfia/flowverse). The interface fetches it, as it
+fetches every flowverse, in the background each time it opens.
 
 ## An `hmz internal anchor` port is equivalent to a shell on that machine
 

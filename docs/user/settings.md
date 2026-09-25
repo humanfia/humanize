@@ -6,10 +6,11 @@ this when you want to see what a directory remembers, change it, or have it forg
 What it remembers:
 
 - the **flow** that was last run there (a flow is a directory of Python);
-- for **each** flow that workspace has run: what each of its **agents** was running (an agent
-  is a CLI the flow runs), where its turns landed, which [account](/user/providers) it ran as
-  and [what it may do](/user/permissions);
-- how the flow itself was [set up](/reference/tui#setting-a-flow-up);
+- for **each** flow that workspace has run: what each of its **agent roles** was running (an
+  agent is a CLI the flow runs) and which [account](/user/providers) it ran as, and where each
+  of its **environment roles** was;
+- how the flow itself was [set up](/reference/tui#setting-a-flow-up), and what a run of it may
+  spend;
 - whether the programs a run here starts are [profiled](#whether-a-run-here-is-profiled) as
   well as traced.
 
@@ -119,9 +120,9 @@ reads two things from outside the line:
   the workspace's rather than the run's;
 - whether [reporting](/user/reporting) was answered yes.
 
-A flow that says it [can be picked up](/user/resuming) is handed what the last run of it here
-left behind — the run's own doing rather than a setting, so an unattended run of one is the
-next stretch rather than the same stretch again.
+With `--resume`, a flow that says it [can be picked up](/user/resuming) is handed what the last
+run of it here left behind — the run's own doing rather than a setting, so an unattended run of
+one is the next stretch rather than the same stretch again.
 
 ## The first time
 

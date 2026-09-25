@@ -335,16 +335,16 @@ function reset() {
           <span>{{ journal }} complete lines · append as events happen</span>
         </div>
         <div class="file state">
-          <strong>state.json</strong>
-          <span>revision {{ stateRevision }} · replace when the flow writes</span>
+          <strong>resume.jsonl</strong>
+          <span>{{ stateRevision }} state writes · each flushed as the flow makes it</span>
         </div>
         <div class="file errors">
           <strong>daemon.log</strong>
           <span>append failures that no terminal could show</span>
         </div>
         <p>
-          The terminal screen is not kept here. The journal records the run's shape, state is
-          what a resumable flow chose to keep, and the backend owns the conversation.
+          The terminal screen is not kept here. The epic records the run's shape, the engine's
+          journal what a resumable flow chose to keep, and the backend owns the conversation.
         </p>
       </aside>
     </div>

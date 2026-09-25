@@ -124,8 +124,10 @@ the `first_chaser`, Claude Code, the second to the `second_chaser`, Codex, and r
 `-b` is what the run may spend — eight hours or a hundred dollars, whichever comes first — and
 `hmz exec` will not start a loop without one.
 
-The first time you name a flow only the official flowverse holds, humanize fetches the [official
-flowverse](/weaver/flowverses) — a git repository of flows — into `~/.humanize/flowverses/`.
+`flame_chase` is in the [official flowverse](/weaver/flowverses) — a git repository of flows —
+which humanize fetches into `~/.humanize/flowverses/` as `/flow` first opens in the interface.
+Until it has, `hmz exec` naming one of its flows says so: open `hmz` once and press `/flow`, or
+fetch it with `r` at `/flowverses`.
 
 ::: warning `flame_chase` never stops itself
 There is no exit condition in those lines, because "as few cycles as possible" has no end. The

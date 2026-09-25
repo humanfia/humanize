@@ -41,8 +41,8 @@ A `+` is also there when **something was counted without its kind being said** �
 reports a lump, a turn that spanned two models and named the kinds of neither. Those tokens
 went on some kind and there is nothing to say which, so every column is short by part of them.
 
-Which kinds each backend reports is a capability like any other: `counts:cache_read` and its
-four siblings say who serves each one, and `hmz.runtime.flowing.briefed()` lists them.
+Which kinds each backend reports is said by its agent class: `counts`, the kinds it reports —
+`CodexAgent.counts`, say, from `hmz.coganchor.agents`.
 
 ## What refreshes it, and when
 
@@ -114,8 +114,9 @@ the fetching off for good; setting it to a path or a URL reads the list from the
 
 ## Three readings, three questions
 
-The rest of this page is the weaver's — whoever wrote the flow. Every session and every agent
-answers the same three:
+The rest of this page is for whoever drives agents from Python. A flow reads what it has spent
+as `session.usage` and `ctx.usage` — the time, the money and the output tokens; an agent driven
+by hand, and every session of it, answers the same three:
 
 | | Answers | Moves with |
 | --- | --- | --- |
@@ -136,7 +137,7 @@ agent.juice()
 And what any of those came to, in money:
 
 ```python
-from hmz import prices
+from hmz.coganchor import prices
 
 prices.cost(agent.spent(), agent.config.model)   # dollars, or None for an unlisted model
 prices.price("claude-haiku-4-5-20251001")        # Price(model="claude-haiku-4.5", …)
@@ -195,9 +196,7 @@ billed twice.
 
 **Which kinds a backend reports is a fact about the backend, not about the turn**, and it is
 declared rather than guessed: a turn that spent nothing on a cache write is missing that kind
-exactly as a CLI that never counts one is. `AgentBase.counts` says it, the catalogue serves it
-as `counts:<kind>`, and a flow can be refused an agent whose backend never reports what it
-means to steer by:
+exactly as a CLI that never counts one is. `AgentBase.counts` says it:
 
 | Backend | Counts |
 | --- | --- |
@@ -230,7 +229,7 @@ tokens were spent over, and it is the honest reading of what a run costs per hou
 the conversation so far, sent again at every request and mostly served out of a cache: it grows
 with the length of the transcript rather than with the work, so a rate counting it says how
 long the conversation has got — and doubles the moment a backend starts reporting what it read
-back out of its cache. `session.rate()` itself is per kind, so a flow can read whichever it
+back out of its cache. `session.rate()` itself is per kind, so a caller can read whichever it
 means.
 
 The window defaults to five minutes — `hmz.coganchor.agents.base.WINDOW`, the same window the
@@ -266,7 +265,7 @@ if agent.juice(over=120) < target:
 A loop driving an agent from Python can do that a rung a round, to hold the agent to a target;
 the flow API has no way of moving an agent's effort while it runs.
 
-A window with no turn in it reads as `0.0`. There is nothing to go on, and a flow tells that
+A window with no turn in it reads as `0.0`. There is nothing to go on, and a caller tells that
 apart from a turn that said nothing.
 
 A backend that states a whole turn's cost **after** having said what each request in it came to
@@ -284,7 +283,7 @@ each says it as the turn lands.
 
 - [Efforts](/user/efforts) — what `juice` responds to
 - [A turn can be cut off](/features/budgets) — the same reading, used as a cap on one turn
-- [Every run has an allowance](/features/allowances) — the same reading, used as a cap on the
+- [Every run has a budget](/features/allowances) — the same reading, used as a cap on the
   whole run, money included
 - [Watching a run](/user/monitor)
 - [Agents › What it has cost, and how fast](/reference/agents#what-it-has-cost-and-how-fast)

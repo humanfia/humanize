@@ -16,7 +16,7 @@ carries what is behind it.
 
 [`/epics`](/user/tracing#what-a-run-writes-down) lists every run of this directory, newest
 first. Enter on one opens what there is to do with it, and **export it** is there beside
-collecting its trace — a run is exported where the runs are, rather than by a command about
+resuming it — a run is exported where the runs are, rather than by a command about
 whichever one your screen happens to be showing. Then look at what it names:
 
 ```sh
@@ -31,7 +31,7 @@ Everything the run wrote down about itself, and everything its sessions were log
 | --- | --- |
 | `epic.jsonl` | what happened, a line at a time: which flow, on what, by which agents, which session each of them opened, and how it ended |
 | `epic.<flow>_<id>.jsonl` | the same again for every flow this run [called](/weaver/calling-flows) — one run, however many flows it took |
-| the journal | what a [resumable](/user/resuming) flow did, for picking it up |
+| `resume.jsonl` | what a [resumable](/user/resuming) flow did, for picking it up |
 | `profile.jsonl` | the programs it ran, for a [profiled](/user/tracing#profiling-a-run) run |
 | `traces/…` | every [trace](/user/tracing) gathered of it |
 | `sessions/<session>/…` | the backends' own logs, **as their contents** rather than as the links the run keeps — one directory per session, named for the agent, the CLI, the account and the id |
@@ -40,9 +40,9 @@ Everything the run wrote down about itself, and everything its sessions were log
 
 The manifest is what makes the rest readable by somebody who was not there — humanize's own
 version, Python's and the machine's; the flow, the task and how it went; one line per agent
-saying the CLI, the model, the effort, what it was allowed and the account **by name**; the
-workspace and the commit it is on if it is a git repository; and, per backend, the version it
-says it is and the SHA-256 of the executable that actually took the turns. These CLIs move
+saying the CLI, the model, the effort and the account **by name**; where each environment was;
+the workspace and the commit it is on if it is a git repository; and, per backend, the version
+it says it is and the SHA-256 of the executable that actually took the turns. These CLIs move
 weekly, so a bug is a bug in a build.
 
 It also says the shape the run ran in: every flow it called, however deep, each naming the

@@ -229,7 +229,7 @@ Nothing is written until something needs it.
 | `~/.humanize/history.jsonl` | what has been typed at the prompt |
 | `~/.humanize/flowverses/` | the [flowverses](/weaver/flowverses) fetched here |
 | `~/.humanize/providers/` | the [accounts](/user/providers), `0600` in a `0700` directory |
-| `.humanize/` in a project | exported transcripts, and this project's own flows |
+| `.humanize/` in a project | [exported runs](/user/export), and this project's own flows |
 
 `HUMANIZE_HOME` moves the first five somewhere else. The full list is in the [CLI
 reference](/reference/cli#files).

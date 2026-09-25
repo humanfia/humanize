@@ -25,8 +25,8 @@ the `swarm` row turns swarm mode on for a model that has one.
 ## Set the effort
 
 `backend/model:effort` is how an agent carries one on a command line — the effort last, after
-the last colon, however many slashes the model's own name has in it. A flow's Python config
-takes the same word:
+the last colon, however many slashes the model's own name has in it. An agent configured in
+Python takes the same word:
 
 ::: code-group
 
@@ -140,5 +140,5 @@ hold the agent to a target. A flow cannot: the flow API hands a flow an agent's 
 ## See also
 
 - [Cost and rate](/user/tally)
-- [Permissions](/user/permissions) — the other thing set on the model sheet
+- [Permissions](/user/permissions) — what an agent may do, which its flow says
 - [Agents › Efforts](/reference/agents#efforts)

@@ -65,25 +65,38 @@ a workspace is what loads the tracer.
 | --- | --- |
 | `backends()` | Every coding agent CLI humanize drives, as `hmz.coganchor.backends.Profile`. |
 | `reports()` | Starts [reporting humanize's own failures](/user/reporting) where that has been answered yes. Returns whether anything is being reported. |
-| `read(argv)` | Reads an `hmz exec` line into what it says: the flow, an agent and an environment per role, the params, the budget, the task, and whether to pick a run up. Everything [refused before anything runs](/reference/cli#what-is-refused-before-anything-runs) is refused here. |
-| `run(...)` | A [`Run`](#run) of a flow over what a line said — the agents and environments by role, the params and the budget — which is what `exec` makes of one. |
+| `read(argv)` | Reads an `hmz exec` line into a `Line`: the flow, the `-a`, `-e` and `-p` it gave, the budget, the task, whether to `--resume` and whether `--json`. Only the line — nothing is loaded, and a line argparse cannot read raises `SystemExit`. |
+| `runner(flow, *, agents=(), envs=(), params=None, budget=None, resume=False)` | The flow loaded, with a driver for every role it was given and everything checked — `hmz.runtime.runner.Runner` — and nothing started. Everything [refused before anything runs](/reference/cli#what-is-refused-before-anything-runs) raises `Refused` here. |
+| `run(flow, task, *, agents=(), envs=(), params=None, budget=None, resume=False, outworlder=None)` | A [`Run`](#run) of that runner and the task, which is what `exec` makes of a line. `agents` and `envs` are `-a` and `-e` specs by role — `{"builder": "claude/claude-opus-5:high"}` — or drivers, or what `read` read; `params` a mapping or the flow's own model; `budget` a `Budget` or a mapping, required for every flow humanize does not ship; `resume` `True` for the newest run of the flow here that can be picked up, or the epic to pick up; `outworlder` whoever is outside the run, `None` for nobody. |
 | `exec(argv)` | The whole of `hmz exec`: reads the line, loads the flow, runs it to its return. |
+
+`Refused` — `hmz.sdk.Refused`, a `ValueError` — is a run refused before anything of it ran: a
+line or a setup to correct, its message saying what and its cause the exception it was refused
+for. `hmz.sdk.fakes` is the in-memory kit a flow is [tested](/weaver/testing-flows) on,
+`hmz.runtime.flowing.fakes`, handed through whole.
 
 ## `Run`
 
-One run of one flow. Making one starts nothing — whoever made it says which of the two they are
-holding.
+One run of one flow: `Run(runner, task, *, outworlder=None)`. Making one starts nothing —
+whoever made it says which of the two they are holding.
 
 | | |
 | --- | --- |
-| `agents` | Every agent it drives, by role. |
+| `flow`, `ref`, `task` | The flow as it was named, its canonical ref, and what it was asked to do. |
+| `declaration`, `budget` | What the flow declares, and what the run may spend. |
+| `usage` | What every session of the run has spent so far, as a `Usage` — what its budget is held to. |
+| `agents` | The coganchor agent behind each session of the run still open, oldest first, each named for its role. |
+| `epic` | The [epic](/reference/tracing#epics) the run is written into, once it has started. |
 | `running` | Whether the flow is still going. `False` before it is started. |
-| `raised` | Whatever the flow raised, for a run started on a thread and now over. |
+| `raised`, `result` | Whatever the flow raised, or returned, for a run started on a thread and now over. |
+| `watch(listener)` | Has everything every session says reach `listener` — the agent, the conversation and the event — from whichever thread a CLI is read on. |
+| `opened(callback)` | Has each session told to `callback` as it opens: the role, the coganchor agent and its conversation. |
+| `unreadable()` | Which cap of the budget nothing the run drives can read — a cost cap over a model nobody prices — in words, or `""`. |
 | `run()` | Runs the flow here, until it returns. |
 | `start()` | Runs it on a thread of its own, and returns at once. |
 | `wait(timeout=None)` | Waits for it to end. Returns whether it has. |
-| `stop()` | Stops the flow: the turn running now is cut off, and every flow call of the run raises `FlowCancelled` at its next step rather than handing on. |
-| `close()` | Closes every conversation still open, which is the backend's process going. The last thing there is to do about a run. |
+| `stop()` | Stops the flow: the turn under way is interrupted and the flow unwinds — every call raises where it stands, every session it opened is closed and every temporary directory it made is taken away, in its own time. From any thread. |
+| `close()` | Stops the flow and ends every conversation still open, without waiting for it: what the flow gets back is a turn that failed. The last thing there is to do about a run. |
 
 ```python
 from hmz.sdk import Hmz
@@ -105,7 +118,8 @@ then `stop()` or `wait()` — made by `run(...)` from what `read(argv)` read off
 | `all()` | Every flow there is to run, by the name `-f` takes. |
 | `find(named)` | The file one flow is written in — or `named` itself where nothing answers to it, so whether a flow is there is whether what comes back is a file. |
 | `about(named)` | The line a flow says about itself. |
-| the roles | What it declares: an agent role and an environment role apiece — which of them the runtime fills, which may be left out, and what each must be able to do — its [params](/reference/flows#settings-of-the-flow-s-own), and whether it [can be picked up](/user/resuming). What `/flow` asks its questions from. |
+| `declared(named)` | What it declares: an agent role and an environment role apiece — which of them the runtime fills, which may be left out, and what each must be able to do — its [params](/reference/flows#settings-of-the-flow-s-own), and whether it [can be picked up](/user/resuming). What `/flow` asks its questions from. |
+| `resumes(named)` | Whether it can be picked up. |
 | `fork(named, into=None)` | Copies it into this project's own flows, whole. |
 | `running()` | Every flow call of the run going now, each with its depth and the call it is under. |
 | `verses` | [Where flows come from](#flowverses). |
@@ -196,6 +210,8 @@ happened.
 | `sessions(epic)` | Every session it opened. |
 | `opened(epic)` | What each agent opened, by the name the run knew that agent as. |
 | `resumed(flow)` | The newest run of one flow here that can be picked up — what `--resume` carries on. |
+| `picks_up(epic)` | Whether a run can be picked up from one epic: whether its journal holds a flow call. |
+| `state(epic, flow="")` | What a resumable flow kept in one run, as its journal left it — the flow the run was of, or another by its canonical ref. |
 | `traced(epic, *, output=None, start=None, end=None)` | Gathers one run into a [trace](/reference/tracing) of that run — its own sessions, by the ids it wrote down, beside the programs it profiled — and answers with where it went and what is in it. It goes beside the run unless an output is named. |
 | `trace(*, sessions=None, agents=None, output=None, start=None, end=None, profile=None)` | The same collector, asked for whatever sessions you name — which is how a session no run ever drove is read back. |
 | `bundled(epic, *, output=None, transcript=None)` | Packages one whole run up as one archive to send somewhere — its own records, every session log the backends wrote for it with the links followed, and a manifest — and answers with where it went and what went in. Credentials are struck out of every byte. See [Exporting a run](/user/export). |

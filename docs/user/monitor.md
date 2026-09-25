@@ -9,7 +9,8 @@ first glance.
 The diagram is the sheet, not a header on one. It takes the height your terminal has, and the
 few lines under it are only what a picture cannot say.
 
-It is also where [the board](/user/board) is, where a run has one.
+It is also where [the board](/user/board) is, where a run has one — which a run of a flow
+written against the flow API never does.
 
 ## Try it
 
@@ -115,9 +116,8 @@ graph and spin a clock at them while they thought.
 Little of this waits for `/monitor`. Three parts of the screen carry it while the run goes on.
 
 **Above the editor**, continuously: one line per agent. Each line shows the name the flow calls
-it, what it runs as `cli/model:effort`, the machine, [what it may do](/user/permissions) and
-the account where those are not the ordinary ones, and how many conversations it holds. `●` is
-an agent with a turn open, `○` one that has stopped.
+it, what it runs as `cli/model:effort`, the account where that is not this machine's own, and
+how many conversations it holds. `●` is an agent with a turn open, `○` one that has stopped.
 
 **On the status line, left**: whose turn it is and how long it has been going; between turns,
 the flow and how long the run has been going. A flow that [called
@@ -160,7 +160,7 @@ Which flows are running, innermost last:
 ```python
 from hmz.runtime.flowing import running
 
-running()                       # one LiveCall(ref, name, depth, since, id, parent) apiece
+running()                       # one LiveCall(ref, name, depth, since, id, parent, task, resumable) apiece
 [one.name for one in running()] # ["chat", "rlar"]
 ```
 

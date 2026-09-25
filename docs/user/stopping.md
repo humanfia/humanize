@@ -86,10 +86,12 @@ rather than telling it again.
 **Not `/clear`.** That clears the screen and nothing else. It clears the conversation being
 read, not the others, and nothing that is running.
 
-**Not choosing another flow.** `/flow` is refused while one is running, with `no choosing a
-flow while a flow is running: ctrl+c twice stops it first`. A run holds the agents and
-environments it was started on until it ends. Stop it first, then choose. Looking at
-`/flow` and leaving without choosing changes nothing.
+**Not choosing another flow.** Naming one while a flow is running — `/flow <name>` or a `$`
+line — is refused with `a flow is running; no choosing a flow`, and `/flow` on its own opens
+inside the roles of the flow that is going rather than on the flows. A run holds the agents and
+environments it was started on until it ends, so what is saved there is what the next run
+starts on. Stop it first, then choose. Looking at `/flow` and leaving without saving changes
+nothing.
 
 **Not a question ending.** A question still up when the flow ends or is stopped ends with it.
 Stopping is never blocked on one.

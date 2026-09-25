@@ -47,7 +47,7 @@ account, not the model.
 
 ```console
 $ hmz exec -f rlar -a actor=claude/claude-opus-5:max -b cost=20 "fix the build"
-hmz exec: error: rlar:rlar: no agent was given for 'reviewer'
+hmz exec: error: rlar needs an agent for 'reviewer'; give each with -a ROLE=CLI/MODEL:EFFORT
 ```
 
 Read an agent from both ends: the CLI comes first, and the effort comes after the **last**
@@ -84,8 +84,8 @@ hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b duration=6h,cost=50
 | `graceful` | `false` cuts the turn under way off the moment a limit is reached; the default lets it finish |
 
 At least one limit, and whichever is reached first stops the run. A flow calling another shares
-it: what the callee spends counts against the caller too. See [Every run has an
-allowance](/features/allowances).
+it: what the callee spends counts against the caller too. See [Every run has a
+budget](/features/allowances).
 
 ## Narrow what an agent may do
 
@@ -168,13 +168,16 @@ Run these on purpose. Each is refused before a single turn:
 
 ```console
 $ hmz exec -f rlar -a actor=claude/claude-opus-5:max -b cost=20 "fix the build"
-hmz exec: error: rlar:rlar: no agent was given for 'reviewer'
+hmz exec: error: rlar needs an agent for 'reviewer'; give each with -a ROLE=CLI/MODEL:EFFORT
 
 $ hmz exec -f ralph_loop -a claude/claude-opus-5:high -b cost=5 "fix the build"
+usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
+                [-p KEY=VALUE[,...]] [-b KEY=VALUE[,...]] [--resume] [--json]
+                task
 hmz exec: error: -a 'claude/claude-opus-5:high': expected <role>=<harness>[@<provider>]/<model>:<effort>
 
 $ hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high "fix the build"
-hmz exec: error: ralph_loop needs a budget: -b duration=…,cost=…,output_tokens=…
+hmz exec: error: ralph_loop: a run is given a budget -- -b duration=...,cost=...,output_tokens=... -- and this one was given none
 ```
 
 Everything that can be known before the first turn is checked before the first turn: a missing
@@ -211,7 +214,7 @@ the flow will not run is refused where you wrote it.
 
 | | |
 | --- | --- |
-| `0` | it did what it was asked |
+| `0` | it did what it was asked, or spent its budget — said as `hmz exec: stopped -- …` |
 | `1` | it could not — no such provider, target unreachable, a turn that could not be supervised |
 | `2` | the command line was wrong |
 | `130` | interrupted |
@@ -231,12 +234,13 @@ Stop it with **ctrl+c**. The interrupt reaches the whole process group, so the a
 process takes it too. The turn under way dies with it, what it was doing is left where it got
 to, and the command exits `130`.
 
-The [epic](/user/tracing#what-a-run-writes-down) records that run as **`failed`**. `stopped`
-is for a run [told to stop by hand](/user/stopping), with ctrl+c twice or `/stop` in the
-interface. Nothing on a command line tells the two apart.
+The [epic](/user/tracing#what-a-run-writes-down) records that run as **`stopped`**, as it
+does a run [told to stop by hand](/user/stopping) with ctrl+c twice or `/stop` in the interface,
+and a run its budget stopped: a run interrupted from outside is stopped, whatever the turn under
+way made of it.
 
-Either way, a flow that says it [can be picked up](/user/resuming) carries on from what that
-run left behind: the same line with `--resume` picks up the newest run of that flow here, or
+A flow that says it [can be picked up](/user/resuming) carries on from what that run left
+behind: the same line with `--resume` picks up the newest run of that flow here, or
 type `/resume` in the interface.
 
 ## Checking a line before it goes into cron
