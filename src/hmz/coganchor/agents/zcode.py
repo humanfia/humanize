@@ -1430,6 +1430,14 @@ class ZcodeSession(SessionBase):
 
     _agent: ZcodeAgent  # every turn is run on the app server this agent holds
 
+    #: `session/fork` is told the workspace the child works in, and cuts it from a session
+    #: the server picks back up by id wherever that one was working.
+    forks_elsewhere: ClassVar[bool] = True
+
+    #: The app server holds every session of the agent, and nothing reaches into one of its
+    #: turns to stop it.
+    cuts_transport: ClassVar[bool] = True
+
     def __init__(
         self, agent: AgentBase, cwd: str | os.PathLike[str] | None = None
     ) -> None:
