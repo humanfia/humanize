@@ -184,7 +184,6 @@ _ROOTS: Final = {name: _TESTS / name for name in TIERS}
 MIRRORS_NOTHING: Final[Mapping[str, str]] = {
     "backends": "what a backend is, what it runs and what it costs",
     "cli": "the command line, and what it prints",
-    "flows": "flows as the person who writes one meets them",
     "layering": "the table of which package may depend on which",
     "providers": "accounts humanize keeps, and the credentials a turn is run under",
     "runtime": "what a run leaves behind it: epics, exports, budgets, telemetry",

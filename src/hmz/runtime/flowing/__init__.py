@@ -1,23 +1,30 @@
 """Everything humanize does to a flow: finding one, reading one, driving one, compiling one.
 
 A flow is content -- somebody else's repository, forked and edited -- and the whole of what it
-imports is :mod:`hmz._legacy_flows`: the interfaces it drives, the mark that makes it a flow,
-and the
-vocabulary a turn is described in. This is the other side of that line. Where flows come from
-and what each is called is [verses.py](verses.py) and [finding.py](finding.py); what a flow
-says it drives, and what it takes for one flow to run another, is [driving.py](driving.py);
-the two readings of a flow that refuse one before it can cost anything are
-[checking.py](checking.py) and [proving.py](proving.py); an atlas is compiled by
-[prophesying.py](prophesying.py) into the graph [prophecy.py](prophecy.py) describes, and a
-run of one is walked by [stepping.py](stepping.py); the skills a flow named that live
-somewhere else are fetched by [skills.py](skills.py).
+imports is :mod:`hmz.flows`: the protocols its agents and environments answer to, the
+decorator that makes it a flow, and the exceptions it can catch. This is the other side of
+that line, and for now it holds two flow APIs.
 
-The arrow points one way. Everything here may name :mod:`hmz._legacy_flows`, and nothing in
-:mod:`hmz._legacy_flows` names anything here at the top of its file -- what a flow legitimately
-needs
-from this layer, which is `load` and the little that goes with it, is handed through from
-there when the flow asks for it. So a module that moves here moves without a flow anywhere
-noticing, which is the point of the line being where it is.
+The new one is written against :mod:`hmz.flows`. What a driver and the engine promise each
+other is [spi.py](spi.py); what `-a`, `-e`, `-p` and `-b` say is [specs.py](specs.py); the
+engine that defines, loads and runs flows is [engine.py](engine.py); and the drivers over
+coding agent CLIs and over machines are [harnesses.py](harnesses.py) and
+[environments.py](environments.py).
+
+The old one is written against :mod:`hmz._legacy_flows`, and goes when every way in has moved
+over. Where flows come from and what each is called is [verses.py](verses.py) and
+[finding.py](finding.py); what a flow says it drives, and what it takes for one flow to run
+another, is [driving.py](driving.py); the two readings of a flow that refuse one before it can
+cost anything are [checking.py](checking.py) and [proving.py](proving.py); an atlas is
+compiled by [prophesying.py](prophesying.py) into the graph [prophecy.py](prophecy.py)
+describes, and a run of one is walked by [stepping.py](stepping.py); the skills a flow named
+that live somewhere else are fetched by [skills.py](skills.py).
+
+The arrow points one way. Everything here may name either flow API, and neither names
+anything here at the top of its file -- what a flow legitimately needs from this layer, which
+is defining a flow, loading another and making an outworlder, is reached from there when the
+flow asks for it. So a module that moves here moves without a flow anywhere noticing, which is
+the point of the line being where it is.
 
 Nothing here drives a coding agent either. That is :mod:`hmz.coganchor`, which this is written
 against and which names nothing here.
@@ -49,6 +56,8 @@ if TYPE_CHECKING:
         set_up,
         wanted,
     )
+    from .engine import define_flow, load_flow, new_outworlder, run_flow
+    from .environments import local_env, open_env
     from .finding import (
         BUILTIN_AT,
         ENTRY,
@@ -69,6 +78,7 @@ if TYPE_CHECKING:
         reading,
         within,
     )
+    from .harnesses import open_agent
     from .prophecy import (
         Edge,
         Node,
@@ -92,6 +102,39 @@ if TYPE_CHECKING:
         proved,
     )
     from .skills import brought
+    from .specs import (
+        AgentSpec,
+        AgentSpecError,
+        BudgetSpecError,
+        EnvSpec,
+        EnvSpecError,
+        ParamSpecError,
+        SpecError,
+        parse_agents,
+        parse_budget,
+        parse_duration,
+        parse_envs,
+        parse_params,
+    )
+    from .spi import (
+        AGENT_CAPABILITIES,
+        ENV_CAPABILITIES,
+        HARNESS_CAPABILITIES,
+        AgentDriver,
+        BoundHook,
+        EnvDriver,
+        HookBridge,
+        HookTable,
+        Limits,
+        OutworlderDriver,
+        Placement,
+        SessionHandle,
+        Skill,
+        TurnRequest,
+        UsageSink,
+        capabilities_of,
+        default_result,
+    )
     from .stepping import walking
     from .verses import (
         FLOWS,
@@ -106,10 +149,13 @@ if TYPE_CHECKING:
     )
 
 __all__ = [
+    "AGENT_CAPABILITIES",
     "ALWAYS_DONE",
     "BUILTIN_AT",
     "ENTRY",
+    "ENV_CAPABILITIES",
     "FLOWS",
+    "HARNESS_CAPABILITIES",
     "LOCAL",
     "MINE",
     "NEVER_DONE",
@@ -117,34 +163,56 @@ __all__ = [
     "PROPHECY",
     "SILENT",
     "USER",
+    "AgentDriver",
+    "AgentSpec",
+    "AgentSpecError",
+    "BoundHook",
+    "BudgetSpecError",
     "Capability",
     "Edge",
     "Entry",
+    "EnvDriver",
+    "EnvSpec",
+    "EnvSpecError",
     "Finding",
     "Flowverse",
+    "HookBridge",
+    "HookTable",
+    "Limits",
     "Node",
     "NotAFlow",
     "Offer",
     "Outcome",
+    "OutworlderDriver",
+    "ParamSpecError",
     "Place",
+    "Placement",
     "Proof",
     "Prophecy",
     "Prophesied",
     "Running",
     "Scenario",
+    "SessionHandle",
     "Shape",
     "Shipped",
+    "Skill",
+    "SpecError",
+    "TurnRequest",
+    "UsageSink",
     "about",
     "at",
     "briefed",
     "brought",
     "canonical",
+    "capabilities_of",
     "carries",
     "catalogue",
     "checked",
     "configures",
     "container",
     "declared",
+    "default_result",
+    "define_flow",
     "digest",
     "drives",
     "entry",
@@ -160,14 +228,25 @@ __all__ = [
     "is_atlas",
     "kept",
     "load",
+    "load_flow",
     "loaded",
+    "local_env",
     "nearest",
+    "new_outworlder",
     "offered",
     "offers",
+    "open_agent",
+    "open_env",
+    "parse_agents",
+    "parse_budget",
+    "parse_duration",
+    "parse_envs",
+    "parse_params",
     "prophesied",
     "proved",
     "reading",
     "resumes",
+    "run_flow",
     "running",
     "set_up",
     "told",
@@ -181,16 +260,30 @@ __all__ = [
 #: them: the `ast` of two readings and every coding agent driver there is are behind some of
 #: these, and a menu of flows must pay for none of it.
 _WRITTEN = {
+    "AGENT_CAPABILITIES": "hmz.runtime.flowing.spi",
     "ALWAYS_DONE": "hmz.runtime.flowing.proving",
+    "AgentDriver": "hmz.runtime.flowing.spi",
+    "AgentSpec": "hmz.runtime.flowing.specs",
+    "AgentSpecError": "hmz.runtime.flowing.specs",
     "BUILTIN_AT": "hmz.runtime.flowing.finding",
+    "BoundHook": "hmz.runtime.flowing.spi",
+    "BudgetSpecError": "hmz.runtime.flowing.specs",
     "Capability": "hmz.runtime.flowing.checking",
     "ENTRY": "hmz.runtime.flowing.finding",
+    "ENV_CAPABILITIES": "hmz.runtime.flowing.spi",
     "Edge": "hmz.runtime.flowing.prophecy",
     "Entry": "hmz.runtime.flowing.driving",
+    "EnvDriver": "hmz.runtime.flowing.spi",
+    "EnvSpec": "hmz.runtime.flowing.specs",
+    "EnvSpecError": "hmz.runtime.flowing.specs",
     "FLOWS": "hmz.runtime.flowing.verses",
     "Finding": "hmz.runtime.flowing.checking",
     "Flowverse": "hmz.runtime.flowing.verses",
+    "HARNESS_CAPABILITIES": "hmz.runtime.flowing.spi",
+    "HookBridge": "hmz.runtime.flowing.spi",
+    "HookTable": "hmz.runtime.flowing.spi",
     "LOCAL": "hmz.runtime.flowing.verses",
+    "Limits": "hmz.runtime.flowing.spi",
     "MINE": "hmz.runtime.flowing.verses",
     "NEVER_DONE": "hmz.runtime.flowing.proving",
     "Node": "hmz.runtime.flowing.prophecy",
@@ -198,50 +291,72 @@ _WRITTEN = {
     "OFFICIAL": "hmz.runtime.flowing.verses",
     "Offer": "hmz.runtime.flowing.finding",
     "Outcome": "hmz.runtime.flowing.proving",
+    "OutworlderDriver": "hmz.runtime.flowing.spi",
     "PROPHECY": "hmz.runtime.flowing.finding",
+    "ParamSpecError": "hmz.runtime.flowing.specs",
     "Place": "hmz.runtime.flowing.driving",
+    "Placement": "hmz.runtime.flowing.spi",
     "Proof": "hmz.runtime.flowing.proving",
     "Prophecy": "hmz.runtime.flowing.prophecy",
     "Prophesied": "hmz.runtime.flowing.prophesying",
     "Running": "hmz.runtime.flowing.driving",
     "SILENT": "hmz.runtime.flowing.proving",
     "Scenario": "hmz.runtime.flowing.proving",
+    "SessionHandle": "hmz.runtime.flowing.spi",
     "Shape": "hmz.runtime.flowing.prophecy",
     "Shipped": "hmz.runtime.flowing.prophecy",
+    "Skill": "hmz.runtime.flowing.spi",
+    "SpecError": "hmz.runtime.flowing.specs",
+    "TurnRequest": "hmz.runtime.flowing.spi",
     "USER": "hmz.runtime.flowing.verses",
+    "UsageSink": "hmz.runtime.flowing.spi",
     "about": "hmz.runtime.flowing.finding",
     "at": "hmz.runtime.flowing.finding",
     "briefed": "hmz.runtime.flowing.checking",
     "brought": "hmz.runtime.flowing.skills",
     "canonical": "hmz.runtime.flowing.prophecy",
+    "capabilities_of": "hmz.runtime.flowing.spi",
     "carries": "hmz.runtime.flowing.driving",
     "catalogue": "hmz.runtime.flowing.checking",
     "checked": "hmz.runtime.flowing.checking",
     "configures": "hmz.runtime.flowing.driving",
     "container": "hmz.runtime.flowing.driving",
     "declared": "hmz.runtime.flowing.driving",
+    "default_result": "hmz.runtime.flowing.spi",
+    "define_flow": "hmz.runtime.flowing.engine",
     "digest": "hmz.runtime.flowing.prophecy",
     "drives": "hmz.runtime.flowing.driving",
     "entry": "hmz.runtime.flowing.finding",
     "find": "hmz.runtime.flowing.finding",
     "flowverses": "hmz.runtime.flowing.verses",
+    "foretold": "hmz.runtime.flowing.finding",
     "fork": "hmz.runtime.flowing.finding",
     "found": "hmz.runtime.flowing.finding",
-    "foretold": "hmz.runtime.flowing.finding",
     "held": "hmz.runtime.flowing.finding",
     "holds": "hmz.runtime.flowing.verses",
     "inside": "hmz.runtime.flowing.finding",
     "is_atlas": "hmz.runtime.flowing.prophesying",
     "kept": "hmz.runtime.flowing.prophecy",
     "load": "hmz.runtime.flowing.driving",
+    "load_flow": "hmz.runtime.flowing.engine",
     "loaded": "hmz.runtime.flowing.finding",
+    "local_env": "hmz.runtime.flowing.environments",
     "nearest": "hmz.runtime.flowing.verses",
+    "new_outworlder": "hmz.runtime.flowing.engine",
     "offered": "hmz.runtime.flowing.finding",
     "offers": "hmz.runtime.flowing.finding",
+    "open_agent": "hmz.runtime.flowing.harnesses",
+    "open_env": "hmz.runtime.flowing.environments",
+    "parse_agents": "hmz.runtime.flowing.specs",
+    "parse_budget": "hmz.runtime.flowing.specs",
+    "parse_duration": "hmz.runtime.flowing.specs",
+    "parse_envs": "hmz.runtime.flowing.specs",
+    "parse_params": "hmz.runtime.flowing.specs",
     "prophesied": "hmz.runtime.flowing.prophesying",
     "proved": "hmz.runtime.flowing.proving",
     "reading": "hmz.runtime.flowing.finding",
     "resumes": "hmz.runtime.flowing.driving",
+    "run_flow": "hmz.runtime.flowing.engine",
     "running": "hmz.runtime.flowing.driving",
     "set_up": "hmz.runtime.flowing.driving",
     "told": "hmz.runtime.flowing.prophecy",

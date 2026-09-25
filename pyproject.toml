@@ -27,6 +27,10 @@ dependencies = [
     # that reports its own failures is an install whose failures are not reported.
     "sentry-sdk>=2.68.1",
     "textual>=8.2.8",
+    # A flow declares its agents and environments as TypedDicts open to more roles of one
+    # type (PEP 728's `extra_items`), which no `typing` this package supports can say --
+    # and a dependency the flow API imports is one it declares, whoever else brings it.
+    "typing-extensions>=4.13",
 ]
 
 # What two of the backends want from this Python environment, and nobody else does. Every
@@ -230,6 +234,10 @@ ignore = [
 # that starts it. What a flow prints is what it says: the interface captures everything
 # printed under it into the transcript, so a warning a flow has to give is a `print`.
 "src/hmz/_legacy_flows/builtin/**" = ["D103", "T201"]
+# The exceptions a flow catches are named for what happened -- `FlowNotFound`,
+# `BudgetExceeded`, `TempCloneBusy` -- as the flow API's spec names them, rather than each
+# given an `Error` suffix that would say only that they are exceptions.
+"src/hmz/flows/errors.py" = ["N818"]
 # What a command line writes, it prints.
 "src/hmz/cli/**" = ["T201"]
 "tests/**" = [
