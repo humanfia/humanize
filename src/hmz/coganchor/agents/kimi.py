@@ -861,6 +861,14 @@ class KimiCodeCLISession(SessionBase):
     #: put in rather than one waiting.
     steers: ClassVar[bool] = True
 
+    #: `kimi fork --cwd` cuts the child where it is told to work, out of the account's own
+    #: store rather than one kept beside the directory the parent is in.
+    forks_elsewhere: ClassVar[bool] = True
+
+    #: The daemon holds every conversation of the agent, and nothing reaches into one of its
+    #: turns to stop it.
+    cuts_transport: ClassVar[bool] = True
+
     def __init__(
         self, agent: AgentBase, cwd: str | os.PathLike[str] | None = None
     ) -> None:
