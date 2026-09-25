@@ -1,323 +1,184 @@
-"""A flow that says it can be picked up where the last run of it left off.
+"""A flow that says it can be picked up where a run of it left off.
 
 A loop meant to run for a week is a loop that will be stopped and started: a machine goes
 down, somebody presses esc, a turn takes the process with it. What such a flow needs is not a
 second copy of the transcript -- the backends keep that -- but the handful of things it is
 itself keeping track of: which round it is on, which files it has been through, what it has
-decided so far. So a flow says it can be picked up, and is handed a dict: what it wrote there
-last time, kept in the run's own epic and saved as it writes.
+decided so far. So a flow says it is `resumable`, keeps those in `ctx.state`, and the engine
+writes them into a journal inside the run's own epic as it writes them.
+
+`--resume` -- `resume=True` here -- picks up the newest run of that flow in this workspace that
+got as far as writing anything down; without it every run starts from the top. The run that
+picks one up is a run of its own, in an epic of its own, handed a copy of the journal it picks
+up and saying which run that came from.
 """
 
 from __future__ import annotations
 
-import json
 from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz._legacy_flows import NotAFlow
-from hmz.coganchor.agents import AgentConfig, Stopped
-from hmz.runtime.epic import STATE, epics, read, resumed, state
-from hmz.runtime.flowing import resumes
-from hmz.runtime.runner import Runner
-from tests.stubs import ShellAgent, written
+from hmz.runtime.epic import RESUME, epics, picks_up, read, resumed, state
+from hmz.runtime.runner import Refused, Runner
+from tests.stubs import written
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-CONFIG = AgentConfig(model="m", effort="high")
-
-#: A flow that counts the runs of it, which is the smallest thing a state is for.
+#: A flow that counts the runs of it, and fails on the run it is told to.
 COUNTS = '''"""Counts the runs of itself."""
 
-from typing import Any
-
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
+from hmz.flows import AgentCollection, EnvCollection, FlowParams, flow
 
 
-@flow(resumable=True)
-def run(agents: tuple[AgentBase], task: str, state: dict[str, Any]) -> None:
-    state["rounds"] = state.get("rounds", 0) + 1
-    agents[0].new()(f"echo round-{state['rounds']}")
+class Params(FlowParams):
+    fail: bool = False
+
+
+@flow(agents=AgentCollection, envs=EnvCollection, params=Params, resumable=True)
+async def counts(task, *, agents, envs, params, ctx):
+    ctx.state["runs"] = (ctx.state["runs"] if "runs" in ctx.state else 0) + 1
+    ctx.state["resumed"] = ctx.resumed
+    if params.fail:
+        raise RuntimeError("stopped halfway")
+    return ctx.state["runs"]
+
+
+@flow(agents=AgentCollection, envs=EnvCollection, params=FlowParams, resumable=True)
+async def calls(task, *, agents, envs, params, ctx):
+    ctx.state["mine"] = "outer"
+    return await inner(task, agents={}, envs={}, params=FlowParams())
+
+
+@flow(agents=AgentCollection, envs=EnvCollection, params=FlowParams, resumable=True)
+async def inner(task, *, agents, envs, params, ctx):
+    ctx.state["seen"] = (ctx.state["seen"] if "seen" in ctx.state else 0) + 1
+    return ctx.state["seen"]
+
+
+@flow(agents=AgentCollection, envs=EnvCollection, params=FlowParams)
+async def once(task, *, agents, envs, params, ctx):
+    return ctx.state
 '''
 
-#: One that takes a config as well, so the state is the argument after it.
-CONFIGURED = '''"""Counts, and takes a setting."""
-
-from typing import Any
-
-from pydantic import BaseModel
-
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
+#: What every run here may spend, which is nothing it will reach.
+BUDGET = {"cost": 1}
 
 
-class Config(BaseModel):
-    """What it takes."""
-
-    step: int = 1
-
-
-@flow(resumable=True)
-def run(
-    agents: tuple[AgentBase],
-    task: str,
-    config: Config | None = None,
-    state: dict[str, Any] | None = None,
-) -> None:
-    held = state if state is not None else {}
-    held["at"] = held.get("at", 0) + (config or Config()).step
-'''
-
-
-def _state(epic: Path) -> dict[str, object]:
-    """What one epic's state file holds, by flow."""
-    return json.loads((epic / STATE).read_text())
-
-
-def test_a_resumable_flow_is_handed_what_the_last_run_of_it_left(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Which is the whole of it: run it again, and it goes on rather than starting over."""
+@pytest.fixture
+def counts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> str:
+    """The flow above, written into this project's own flows; its name."""
     monkeypatch.chdir(tmp_path)
-    flow = written(tmp_path, "counts", COUNTS)
-
-    for _ in range(3):
-        Runner(flow, [ShellAgent(CONFIG)]).run("go")
-
-    first, second, third = epics()
-    assert _state(first) == {str(flow): {"rounds": 1}}
-    assert _state(second) == {str(flow): {"rounds": 2}}
-    assert _state(third) == {str(flow): {"rounds": 3}}
-    # Each run is a run of its own, whatever it picked up: an epic is never reopened.
-    assert read(third) is not None
-    assert read(third).resumable  # pyright: ignore[reportOptionalMemberAccess]
+    written(tmp_path / ".humanize" / "flows", "counts", COUNTS)
+    return "counts"
 
 
-def test_a_run_says_which_run_it_was_picked_up_from(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def _run(named: str, *, resume: bool | Path = False, fail: bool = False) -> object:
+    return Runner(
+        named,
+        params={"fail": fail} if named == "counts" else None,
+        budget=BUDGET,
+        resume=resume,
+    ).run("go")
+
+
+def test_a_resumable_flow_is_handed_what_the_run_it_picks_up_left(counts: str) -> None:
+    assert _run(counts) == 1
+    assert _run(counts, resume=True) == 2
+    assert _run(counts, resume=True) == 3
+
+    newest = epics()[-1]
+    assert state(newest) == {"runs": 3, "resumed": True}
+    assert picks_up(newest)
+
+
+def test_without_resume_every_run_starts_from_the_top(counts: str) -> None:
+    """Picking a run up is asked for; a run that was not asked to is a run of its own."""
+    assert _run(counts) == 1
+    assert _run(counts) == 1
+
+    assert [state(one) for one in epics()] == [
+        {"runs": 1, "resumed": False},
+        {"runs": 1, "resumed": False},
+    ]
+
+
+def test_a_run_says_which_run_it_was_picked_up_from(counts: str) -> None:
+    _run(counts)
+    first = epics()[-1]
+
+    _run(counts, resume=True)
+
+    ran = read(epics()[-1])
+    assert ran is not None
+    assert ran.picked_up == first.name
+    assert ran.resumable
+    # And the run picked up keeps what it wrote: a closed epic is never reopened.
+    assert state(first) == {"runs": 1, "resumed": False}
+
+
+def test_a_run_picked_up_from_a_named_epic_takes_that_one_s_journal(
+    counts: str,
 ) -> None:
-    """An epic is what a run was, and being the second half of another one is part of that."""
-    monkeypatch.chdir(tmp_path)
-    flow = written(tmp_path, "counts", COUNTS)
+    _run(counts)
+    first = epics()[-1]
+    _run(counts, resume=True)
+    _run(counts, resume=True)
 
-    Runner(flow, [ShellAgent(CONFIG)]).run("go")
-    Runner(flow, [ShellAgent(CONFIG)]).run("go")
-
-    first, second = epics()
-    began = json.loads((second / "epic.jsonl").read_text().splitlines()[0])
-    assert began["picked_up"] == first.name
-    assert began["resumable"] is True
+    assert _run(counts, resume=first) == 2
 
 
-def test_a_run_picked_up_from_a_named_epic_takes_that_one_s_state(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_what_a_run_that_failed_kept_is_there_to_be_picked_up(counts: str) -> None:
+    """A state write is flushed as it is made, so a run that died still wrote it."""
+    with pytest.raises(RuntimeError, match="halfway"):
+        _run(counts, fail=True)
+
+    failed = epics()[-1]
+    assert (failed / RESUME).is_file()
+    assert resumed("counts:counts") == failed
+    assert _run(counts, resume=True) == 2
+
+
+def test_the_newest_run_that_can_be_picked_up_is_the_one_picked_up(
+    counts: str,
 ) -> None:
-    """Which is what choosing one in `/epics` and carrying on comes to."""
-    monkeypatch.chdir(tmp_path)
-    flow = written(tmp_path, "counts", COUNTS)
+    """Not a run of another flow, and not one that was not resumable."""
+    _run(counts)
+    wanted = epics()[-1]
+    _run("counts:once")
+    _run("counts:calls")
 
-    for _ in range(3):
-        Runner(flow, [ShellAgent(CONFIG)]).run("go")
-    first, _, _ = epics()
-
-    Runner(flow, [ShellAgent(CONFIG)], resume=first).run("go")
-
-    assert _state(epics()[-1]) == {str(flow): {"rounds": 2}}
+    assert resumed("counts:counts") == wanted
+    assert resumed("counts") == wanted  # as it was named, as well as by its ref
+    assert resumed("counts:once") is None
 
 
-def test_a_flow_that_says_nothing_is_run_from_the_top_every_time(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_a_called_flow_keeps_its_own_state_under_its_own_name(counts: str) -> None:
+    """A resumable run picks up every call it made that is made the same way again."""
+    assert _run("counts:calls") == 1
+    assert _run("counts:calls", resume=True) == 2
+
+    newest = epics()[-1]
+    assert state(newest) == {"mine": "outer"}
+    assert state(newest, "counts:inner") == {"seen": 2}
+
+
+def test_a_flow_that_is_not_resumable_is_not_picked_up(counts: str) -> None:
+    with pytest.raises(Refused, match="does not say it can be picked up"):
+        Runner("counts:once", budget=BUDGET, resume=True)
+
+
+def test_a_run_with_nothing_to_pick_up_says_so(counts: str) -> None:
+    with pytest.raises(Refused, match="no run here to pick up"):
+        Runner("counts", budget=BUDGET, resume=True)
+
+
+def test_a_flow_that_is_not_resumable_keeps_no_journal_and_no_state(
+    counts: str,
 ) -> None:
-    """Which is what every flow was before there was such a thing as picking one up."""
-    monkeypatch.chdir(tmp_path)
-    flow = written(
-        tmp_path,
-        "plain",
-        "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz._legacy_flows import flow\n\n\n"
-        "@flow\n"
-        "def run(agents: tuple[AgentBase], task: str) -> None:\n"
-        '    agents[0].new()("echo one")\n',
-    )
-
-    Runner(flow, [ShellAgent(CONFIG)]).run("go")
-
-    assert not resumes(flow)
-    assert not (epics()[0] / STATE).exists()
-    assert read(epics()[0]) is not None
-    assert not read(epics()[0]).resumable  # pyright: ignore[reportOptionalMemberAccess]
-
-
-def test_the_state_of_a_run_that_was_stopped_is_there_to_be_picked_up(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The point of it: state saved only at the end is state a stopped run has none of."""
-    monkeypatch.chdir(tmp_path)
-    flow = written(
-        tmp_path,
-        "stops",
-        '"""Writes, and then is stopped where it stands."""\n\n'
-        "from typing import Any\n\n"
-        "from hmz.coganchor.agents import AgentBase, Stopped\n"
-        "from hmz._legacy_flows import flow\n\n\n"
-        "@flow(resumable=True)\n"
-        "def run(agents: tuple[AgentBase], task: str, state: dict[str, Any]) -> None:\n"
-        '    state["reached"] = "half way"\n'
-        '    raise Stopped("esc")\n',
-    )
-
-    with pytest.raises(Stopped):
-        Runner(flow, [ShellAgent(CONFIG)]).run("go")
+    assert _run("counts:once") is None
 
     (epic,) = epics()
-    assert state(epic) == {"reached": "half way"}
-    assert resumed(str(flow)) == epic
-
-
-def test_something_written_inside_the_state_is_saved_when_the_run_ends(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A list appended to is a change no mapping can see, and is still what the flow kept."""
-    monkeypatch.chdir(tmp_path)
-    flow = written(
-        tmp_path,
-        "appends",
-        '"""Appends to a list it keeps."""\n\n'
-        "from typing import Any\n\n"
-        "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz._legacy_flows import flow\n\n\n"
-        "@flow(resumable=True)\n"
-        "def run(agents: tuple[AgentBase], task: str, state: dict[str, Any]) -> None:\n"
-        '    state.setdefault("seen", []).append(task)\n',
-    )
-
-    Runner(flow, [ShellAgent(CONFIG)]).run("one")
-    Runner(flow, [ShellAgent(CONFIG)]).run("two")
-
-    assert state(epics()[-1]) == {"seen": ["one", "two"]}
-
-
-def test_a_resumable_flow_that_takes_a_config_is_handed_both(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The state is the argument after the config, which is where the flow declared it."""
-    monkeypatch.chdir(tmp_path)
-    flow = written(tmp_path, "configured", CONFIGURED)
-
-    Runner(flow, [ShellAgent(CONFIG)], {"step": 4}).run("go")
-    Runner(flow, [ShellAgent(CONFIG)], {"step": 4}).run("go")
-
-    assert state(epics()[-1]) == {"at": 8}
-
-
-def test_a_called_flow_keeps_its_own_state_under_its_own_name(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A flow that called another is two flows, and neither writes the other's."""
-    monkeypatch.chdir(tmp_path)
-    where = tmp_path / ".humanize/flows"
-    where.mkdir(parents=True)
-    written(where, "inner", COUNTS)
-    written(
-        where,
-        "outer",
-        '"""Calls the one that counts, and counts itself."""\n\n'
-        "from typing import Any\n\n"
-        "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz._legacy_flows import flow\n"
-        "from hmz._legacy_flows import load\n\n\n"
-        "@flow(resumable=True)\n"
-        "def run(agents: tuple[AgentBase], task: str, state: dict[str, Any]) -> None:\n"
-        '    state["outer"] = state.get("outer", 0) + 1\n'
-        '    load("inner")(agents, task)\n',
-    )
-
-    Runner("outer", [ShellAgent(CONFIG)]).run("go")
-    Runner("outer", [ShellAgent(CONFIG)]).run("go")
-
-    held = _state(epics()[-1])
-    assert held == {"outer": {"outer": 2}, "inner": {"rounds": 2}}
-
-
-def test_a_flow_called_outside_a_run_is_handed_a_dict_that_is_nowhere(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A call is a call: a flow with nowhere to keep its state runs and keeps none."""
-    from hmz._legacy_flows import load
-
-    monkeypatch.chdir(tmp_path)
-    where = tmp_path / ".humanize/flows"
-    where.mkdir(parents=True)
-    written(where, "counts", COUNTS)
-
-    load("counts")([ShellAgent(CONFIG)], "go")
-
-    assert epics() == []
-
-
-def test_a_flow_that_says_it_resumes_and_takes_no_dict_says_so(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A flow is called with what it declares, so one that declares neither is one to correct."""
-    monkeypatch.chdir(tmp_path)
-    flow = written(
-        tmp_path,
-        "short",
-        "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz._legacy_flows import flow\n\n\n"
-        "@flow(resumable=True)\n"
-        "def run(agents: tuple[AgentBase], task: str) -> None:\n"
-        "    pass\n",
-    )
-
-    assert resumes(flow)
-    with pytest.raises(TypeError):
-        Runner(flow, [ShellAgent(CONFIG)]).run("go")
-
-
-def test_asking_a_flow_that_is_not_one_whether_it_resumes_says_it_is_not_one(
-    tmp_path: Path,
-) -> None:
-    """Read by running the flow, so a name nothing answers to is refused as ever."""
-    del tmp_path
-    with pytest.raises(NotAFlow):
-        resumes("no_such_flow_anywhere")
-
-
-def test_a_flow_that_emptied_its_state_starts_the_next_run_clean(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Clearing it says the next run starts clean, and is not the same as never writing.
-
-    A run that wrote nothing at all is nothing to pick up and the search goes past it. A run
-    that wrote and then emptied what it had written is a run that finished with nothing to
-    hand on -- and handing the next one the state of the run before that would be answering
-    the opposite of what it said.
-    """
-    monkeypatch.chdir(tmp_path)
-    flow = written(
-        tmp_path,
-        "clears",
-        '"""Counts, and clears what it kept when it is told to stop counting."""\n\n'
-        "from typing import Any\n\n"
-        "from hmz.coganchor.agents import AgentBase\n"
-        "from hmz._legacy_flows import flow\n\n\n"
-        "@flow(resumable=True)\n"
-        "def run(agents: tuple[AgentBase], task: str, state: dict[str, Any]) -> None:\n"
-        '    if task == "done":\n'
-        "        state.clear()\n"
-        "        return\n"
-        '    state["rounds"] = state.get("rounds", 0) + 1\n',
-    )
-
-    Runner(flow, [ShellAgent(CONFIG)]).run("go")
-    Runner(flow, [ShellAgent(CONFIG)]).run("go")
-    assert state(epics()[-1]) == {"rounds": 2}
-
-    Runner(flow, [ShellAgent(CONFIG)]).run("done")  # which empties it
-    Runner(flow, [ShellAgent(CONFIG)]).run("go")
-
-    # From nothing, rather than from the two rounds two runs ago.
-    assert state(epics()[-1]) == {"rounds": 1}
+    assert not (epic / RESUME).exists()
+    assert not picks_up(epic)

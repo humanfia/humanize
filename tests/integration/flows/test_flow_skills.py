@@ -1,15 +1,21 @@
 """The skills a flow brings, and the sessions they are mounted onto.
 
-A flow is a directory, and `skills/` inside it is what that flow works by. Every session its
-agents open is given them -- copied where that backend reads a project's own skills, for as
-long as the session lives, and taken away again after -- so a flow carries what it needs
-rather than expecting it to be installed on whoever's machine runs it. A flow may also name
-skills that live in somebody else's repository, which are fetched and then mounted the same
-way.
+A flow is a directory, and `skills/` inside it is what that flow works by. A role names the
+ones its agent is given -- `_skills` where the role is declared -- and every session that agent
+opens is given them: copied where that backend reads a project's own skills, for as long as
+the session lives, and taken away again after, so a flow carries what it needs rather than
+expecting it to be installed on whoever's machine runs it. A role may also name skills that
+live in somebody else's repository, which are fetched and then mounted the same way.
+
+Most of what is checked here is the mount, which is the agent's: what the runtime hands a
+session's agent -- :func:`~hmz.runtime.flowing.skills.brought`, loaded with `loads` -- and what
+the agent does with it. A run through the runtime, with a stand-in CLI, checks that a role is
+given the skills it names and no others.
 """
 
 from __future__ import annotations
 
+import contextlib
 import gc
 import subprocess
 import time
@@ -17,11 +23,11 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz._legacy_flows import NotAFlow
-from hmz.coganchor.agents import AgentConfig
+from hmz.coganchor.agents import AgentBase, AgentConfig
 from hmz.coganchor.agents.skills import Loaded
 from hmz.runtime.flowing.skills import brought, cached
-from hmz.runtime.runner import Runner
+from hmz.runtime.runner import Refused, Runner
+from tests.flows import standins
 from tests.stubs import ShellAgent, written
 
 if TYPE_CHECKING:
@@ -71,56 +77,72 @@ class PiAgent(ShellAgent):
     """A stand-in named for pi, whose project directories are read only once approved."""
 
 
-#: A flow that does what it is told, in a session of its own: what the turn is is the shell
-#: line the test hands it, so a test can have it look at what was mounted beside it.
+#: A flow that is a directory, which is what brings skills: what it does is not the point.
 DOES = '''"""Does the one thing it is told."""
 
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowParams, LocalEnv, flow
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    (agent,) = agents
-    agent(task)
+class Agents(AgentCollection):
+    agent: Agent
+
+
+class Envs(EnvCollection):
+    here: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def mine(task, *, agents, envs, params, ctx):
+    session = await agents["agent"].spawn(env=envs["here"])
+    return await agents["agent"].run(task, session=session)
 '''
 
-#: The same, holding one session across two turns, so that two of them are open at once.
-TWICE = '''"""Opens two sessions and does the thing in both."""
+#: A flow whose role names one of its skills, and reads what its session was given while the
+#: session is open. NAMED is filled in per test.
+READS = '''"""Reads what its agent's session was given."""
 
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    EnvCollection,
+    FilesEnvMixin,
+    FlowParams,
+    LocalEnv,
+    ShellEnvMixin,
+    flow,
+)
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    (agent,) = agents
-    one, other = agent.new(), agent.new()
-    one(task)
-    other(task)
-    one.close()
-    # The other is still open, so what they share is still there for it.
-    other("ls .claude/skills > while-one-is-shut.txt")
-    other.close()
+class Noter(Agent):
+    _skills = NAMED
+
+
+class Here(LocalEnv, FilesEnvMixin, ShellEnvMixin): ...
+
+
+class Agents(AgentCollection):
+    agent: Noter
+
+
+class Envs(EnvCollection):
+    here: Here
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def reads(task, *, agents, envs, params, ctx):
+    here = envs["here"]
+    session = await agents["agent"].spawn(env=here)
+    await agents["agent"].run(task, session=session)
+    code, out, _ = await here.exec(["ls", ".claude/skills"])
+    said = await here.read(".claude/skills/note-taking/SKILL.md") if "note-taking" in out else b""
+    return out.split(), said.decode()
 '''
 
-#: A flow that holds a session open and calls another flow while it is open, which is what
-#: `load` is for: the two of them are running at once, in one workspace.
-CALLING = '''"""Holds a session open, then calls another flow."""
 
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
-from hmz._legacy_flows import load
-
-
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    (agent,) = agents
-    held = agent.new()
-    held("true")  # a turn, so this flow's session is open and its skills are mounted
-    load("inner")(agents, task)
-    held.close()
-'''
+def _given(agent: AgentBase, flow: Path, *urls: str) -> AgentBase:
+    """What the runtime hands a session's agent: the skills the flow brings, loaded onto it."""
+    agent.loads(brought(flow, urls))
+    return agent
 
 
 def skill(name: str, says: str = "Do the thing.") -> str:
@@ -221,18 +243,21 @@ def test_the_flows_own_wins_a_name_a_repository_also_uses(tmp_path: Path) -> Non
 
 
 def test_a_repository_that_cannot_be_reached_stops_the_run_before_it_starts(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, claude: None
 ) -> None:
     """A flow that works by a skill it has not got is not one to start and find out later."""
     monkeypatch.chdir(tmp_path)
     written(
         tmp_path / ".humanize/flows",
-        "mine",
-        DOES.replace("@flow\n", '@flow(skills=("/nowhere/at/all",))\n'),
+        "reads",
+        READS.replace("NAMED", '("/nowhere/at/all#note-taking",)'),
+    )
+    run = Runner(
+        "reads", agents={"agent": "claude/claude-haiku-4-5:low"}, budget={"cost": 1}
     )
 
-    with pytest.raises(NotAFlow):
-        Runner("mine", [ClaudeAgent(CONFIG)])
+    with pytest.raises(Refused, match="cannot be fetched"):
+        run.run("Reply with the single word: hi")
 
 
 def test_a_session_is_given_them_where_its_backend_reads_a_projects_own(
@@ -240,14 +265,14 @@ def test_a_session_is_given_them_where_its_backend_reads_a_projects_own(
 ) -> None:
     """Mounted as the session opens, and gone once the session it was for has ended."""
     monkeypatch.chdir(tmp_path)
-    written(
+    at = written(
         tmp_path / ".humanize/flows",
         "mine",
         DOES,
         {"note-taking": skill("note-taking")},
     )
 
-    Runner("mine", [ClaudeAgent(CONFIG)]).run(
+    _given(ClaudeAgent(CONFIG), at)(
         "ls .claude/skills > listed.txt; cat .claude/skills/note-taking/SKILL.md > read.txt"
     )
     gc.collect()  # the session the turn ran in, let go of by the flow
@@ -277,14 +302,14 @@ def test_a_shared_skill_backend_is_given_flow_skills_in_the_project_directory(
 ) -> None:
     """Every backend that reads the shared project directory is given the flow's skills."""
     monkeypatch.chdir(tmp_path)
-    written(
+    at = written(
         tmp_path / ".humanize/flows",
         "mine",
         DOES,
         {"note-taking": skill("note-taking")},
     )
 
-    Runner("mine", [agent_type(CONFIG)]).run(
+    _given(agent_type(CONFIG), at)(
         "ls .agents/skills > listed.txt; "
         "cat .agents/skills/note-taking/SKILL.md > read.txt"
     )
@@ -305,14 +330,14 @@ def test_a_backend_that_would_not_read_them_there_is_given_none(
     leave a directory in somebody's project that no turn of that flow would ever read.
     """
     monkeypatch.chdir(tmp_path)
-    written(
+    at = written(
         tmp_path / ".humanize/flows",
         "mine",
         DOES,
         {"note-taking": skill("note-taking")},
     )
 
-    Runner("mine", [PiAgent(CONFIG)]).run("ls -a > listed.txt")
+    _given(PiAgent(CONFIG), at)("ls -a > listed.txt")
     gc.collect()
 
     assert ".agents" not in (tmp_path / "listed.txt").read_text().split()
@@ -328,14 +353,14 @@ def test_a_projects_own_skill_of_that_name_is_left_alone(
     (tmp_path / ".claude" / "skills" / "note-taking" / "SKILL.md").write_text(
         skill("note-taking", says="The project's own.")
     )
-    written(
+    at = written(
         tmp_path / ".humanize/flows",
         "mine",
         DOES,
         {"note-taking": skill("note-taking")},
     )
 
-    Runner("mine", [ClaudeAgent(CONFIG)]).run(
+    _given(ClaudeAgent(CONFIG), at)(
         "cat .claude/skills/note-taking/SKILL.md > read.txt"
     )
     gc.collect()
@@ -350,14 +375,16 @@ def test_two_sessions_of_one_flow_share_the_mount_until_the_last_is_done(
 ) -> None:
     """One closing must not take out from under the other what both were given."""
     monkeypatch.chdir(tmp_path)
-    written(
-        tmp_path / ".humanize/flows",
-        "twice",
-        TWICE,
-        {"note-taking": skill("note-taking")},
-    )
+    at = written(tmp_path, "twice", DOES, {"note-taking": skill("note-taking")})
+    agent = _given(ClaudeAgent(CONFIG), at)
 
-    Runner("twice", [ClaudeAgent(CONFIG)]).run("ls .claude/skills > listed.txt")
+    one, other = agent.new(), agent.new()
+    one("true")
+    other("true")
+    one.close()
+    # The other is still open, so what they share is still there for it.
+    other("ls .claude/skills > while-one-is-shut.txt")
+    other.close()
     gc.collect()
 
     assert (tmp_path / "while-one-is-shut.txt").read_text().split() == ["note-taking"]
@@ -372,25 +399,31 @@ def test_a_called_flows_skill_does_not_take_over_the_name_from_the_flow_that_cal
     A mount is one directory per name, shared between the sessions holding it. Shared by name
     alone, a flow calling another flow whose skills happen to be named the same would have the
     called flow's session reading the caller's skill -- and, worse, the caller's session
-    reading the called one's after it ended and the count fell.
+    reading the called one's after it ended and the count fell. Each flow's sessions are
+    their own agent's, given that flow's skills.
     """
     monkeypatch.chdir(tmp_path)
-    written(
-        tmp_path / ".humanize/flows",
+    outer = written(
+        tmp_path / "flows",
         "outer",
-        CALLING,
+        DOES,
         {"note-taking": skill("note-taking", says="The outer flow's.")},
     )
-    written(
-        tmp_path / ".humanize/flows",
+    inner = written(
+        tmp_path / "flows",
         "inner",
         DOES,
         {"note-taking": skill("note-taking", says="The inner flow's.")},
     )
 
-    Runner("outer", [ClaudeAgent(CONFIG)]).run(
+    held = _given(ClaudeAgent(CONFIG), outer).new()
+    held(
+        "true"
+    )  # a turn, so the outer flow's session is open and its skills are mounted
+    _given(ClaudeAgent(CONFIG), inner)(
         "cat .claude/skills/note-taking/SKILL.md > read.txt"
     )
+    held.close()
     gc.collect()
 
     # The one that was there first is the one both read: a name is one skill to the CLI, and
@@ -399,59 +432,18 @@ def test_a_called_flows_skill_does_not_take_over_the_name_from_the_flow_that_cal
     assert not (tmp_path / ".claude").exists()  # and both of them are taken away after
 
 
-#: A flow that closes its session and then goes on working in another, which is what a flow
-#: whose agent was stopped and started again does.
-AGAIN = '''"""Closes a session and opens another."""
-
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
-
-
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    (agent,) = agents
-    one = agent.new()
-    one("true")
-    one.close()
-    agent.new()(task)
-'''
-
-#: A flow whose turn takes long enough to be stopped in the middle of, and reads the skill it
-#: was given after it has been.
-SLOWLY = '''"""Takes one long turn."""
-
-import threading
-
-from hmz.coganchor.agents import AgentBase, Stopped
-from hmz._legacy_flows import flow
-
-
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    (agent,) = agents
-    threading.Timer(0.2, agent.stop).start()
-    try:
-        agent(task)
-    except Stopped:
-        pass
-'''
-
-
 def test_a_session_opened_after_one_was_closed_is_given_them_too(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """What a closing takes away is the closing session's, not the flow's for the rest of it."""
     monkeypatch.chdir(tmp_path)
-    written(
-        tmp_path / ".humanize/flows",
-        "again",
-        AGAIN,
-        {"note-taking": skill("note-taking")},
-    )
+    at = written(tmp_path, "again", DOES, {"note-taking": skill("note-taking")})
+    agent = _given(ClaudeAgent(CONFIG), at)
 
-    Runner("again", [ClaudeAgent(CONFIG)]).run(
-        "cat .claude/skills/note-taking/SKILL.md > read.txt"
-    )
+    one = agent.new()
+    one("true")
+    one.close()
+    agent.new()("cat .claude/skills/note-taking/SKILL.md > read.txt")
     gc.collect()
 
     assert "Do the thing" in (tmp_path / "read.txt").read_text()
@@ -470,18 +462,18 @@ def test_a_stop_ends_the_turns_process_and_takes_the_skills_after_it(
     stopping it, only breaking it. So the turn lets go of them as it unwinds, which is the
     first moment nothing is working by them.
     """
+    import threading
+
+    from hmz.coganchor.agents import Stopped
+
     monkeypatch.chdir(tmp_path)
-    written(
-        tmp_path / ".humanize/flows",
-        "slowly",
-        SLOWLY,
-        {"note-taking": skill("note-taking")},
-    )
+    at = written(tmp_path, "slowly", DOES, {"note-taking": skill("note-taking")})
+    agent = _given(ClaudeAgent(CONFIG), at)
 
     began = time.monotonic()
-    Runner("slowly", [ClaudeAgent(CONFIG)]).run(
-        "cat .claude/skills/note-taking/SKILL.md > read.txt; sleep 30"
-    )
+    threading.Timer(0.2, agent.stop).start()
+    with contextlib.suppress(Stopped):
+        agent("cat .claude/skills/note-taking/SKILL.md > read.txt; sleep 30")
     took = time.monotonic() - began
     gc.collect()
 
@@ -498,14 +490,14 @@ def test_a_directory_the_project_already_had_is_left_where_it_is(
     """Even an empty one: what humanize takes away is what humanize made."""
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".claude" / "skills").mkdir(parents=True)
-    written(
+    at = written(
         tmp_path / ".humanize/flows",
         "mine",
         DOES,
         {"note-taking": skill("note-taking")},
     )
 
-    Runner("mine", [ClaudeAgent(CONFIG)]).run("true")
+    _given(ClaudeAgent(CONFIG), at)("true")
     gc.collect()
 
     assert (tmp_path / ".claude" / "skills").is_dir()
@@ -545,9 +537,10 @@ def test_a_backend_that_reads_no_such_directory_carries_none(
         DOES,
         {"note-taking": skill("note-taking")},
     )
-    agent = ShellAgent(CONFIG)  # a backend with nowhere a skill of a flow's could go
+    # A backend with nowhere a skill of a flow's could go.
+    agent = _given(ShellAgent(CONFIG), tmp_path / ".humanize/flows/mine")
 
-    Runner("mine", [agent]).run("ls -a > listed.txt")
+    agent("ls -a > listed.txt")
 
     assert agent.loaded == (
         Loaded(
@@ -630,7 +623,9 @@ def test_a_copy_is_yours_to_change_and_is_what_then_runs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A fetched flowverse is fetched over, so an edit that is to keep is an edit to a copy."""
-    from hmz.runtime.flowing import fork
+    from pathlib import Path
+
+    from hmz.runtime.flowing import find, fork
 
     monkeypatch.chdir(tmp_path)
     (tmp_path / "theirs").mkdir()
@@ -639,9 +634,60 @@ def test_a_copy_is_yours_to_change_and_is_what_then_runs(
     at = tmp_path / ".humanize/flows/mine/skills/note-taking/SKILL.md"
     at.write_text(skill("note-taking", says="Changed, and mine."))
 
-    Runner("mine", [ClaudeAgent(CONFIG)]).run(
+    _given(ClaudeAgent(CONFIG), Path(find("mine")).parent)(
         "cat .claude/skills/note-taking/SKILL.md > read.txt"
     )
     gc.collect()
 
     assert "Changed, and mine" in (tmp_path / "read.txt").read_text()
+
+
+@pytest.fixture
+def claude(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A stand-in Claude Code on PATH, with a home of its own."""
+    standins.install(tmp_path / "bin", "claude", standins.CLAUDE)
+    monkeypatch.setenv("PATH", standins.path_with(tmp_path / "bin"))
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude-home"))
+
+
+def test_a_role_is_given_the_skills_it_names_through_a_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, claude: None
+) -> None:
+    """What the runtime hands a session: the role's own skills, mounted while it is open."""
+    monkeypatch.chdir(tmp_path)
+    written(
+        tmp_path / ".humanize/flows",
+        "reads",
+        READS.replace("NAMED", '("note-taking",)'),
+        {"note-taking": skill("note-taking"), "other": skill("other")},
+    )
+
+    listed, said = Runner(
+        "reads",
+        agents={"agent": "claude/claude-haiku-4-5:low"},
+        budget={"cost": 1},
+    ).run("Reply with the single word: hi")
+
+    # The one the role named, and not the flow's other skill.
+    assert listed == ["note-taking"]
+    assert "does a thing" in said
+    assert not (tmp_path / ".claude").exists()  # and gone once the run is over
+
+
+def test_a_role_naming_a_skill_the_flow_has_not_got_stops_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, claude: None
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    written(
+        tmp_path / ".humanize/flows",
+        "reads",
+        READS.replace("NAMED", '("nowhere",)'),
+        {"note-taking": skill("note-taking")},
+    )
+    run = Runner(
+        "reads", agents={"agent": "claude/claude-haiku-4-5:low"}, budget={"cost": 1}
+    )
+
+    with pytest.raises(Refused, match="nowhere"):
+        run.run("Reply with the single word: hi")

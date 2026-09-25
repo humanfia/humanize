@@ -1,33 +1,26 @@
 """What a run of a flow may spend, set from the menu that sets everything else up.
 
-A row on the page the flow's agents are on, because it is a setting of the run rather than of
-the flow: the flow declares at most a default and never holds itself to one. What is checked
-is that the row says what the run is held to without being opened, that what is set there is
-written down beside what the flow was set up with and read back, and that saving a run with
-nothing at all to stop it asks whether that is what was meant -- except of a flow that says in
-its own file that it is meant to run that way, which `chat` does.
+A row on the page the flow's roles are on, because it is a setting of the run rather than of
+the flow. What is checked is that the row says what the run is held to without being opened,
+that what is set there is written down beside what the flow was set up with and read back,
+and that a flow is not saved until a run of it is given one -- except `chat`, the flow
+humanize ships, which is a conversation and stops when the person does.
 """
 
 from __future__ import annotations
 
+import datetime
 from typing import TYPE_CHECKING, cast
 
 import pytest
 from textual.widgets import Label, OptionList
 
-from hmz.coganchor.agents import Allowance
 from hmz.coganchor.backends import Model
+from hmz.flows import Budget
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
-from hmz.tui.pick import (
-    _BUDGET,
-    _SAVE,
-    Configures,
-    Flows,
-    Unbounded,
-    budget_of,
-)
+from hmz.tui.pick import _BUDGET, _SAVE, Configures, Flows, budget_of
 from tests.integration.tui.test_app import onto, opens, rows
 from tests.stubs import written
 from tests.tui.fixtures import until
@@ -40,30 +33,25 @@ if TYPE_CHECKING:
 #: One backend, so that the menu has something to set an agent up as and can be saved.
 _INSTALLED = {"claude": (Model("m", ("high",)),)}
 
-#: A flow with no opinion about what a run of it is worth, which is what most flows are.
+#: A flow like most: one agent, and a run of it is given a budget.
 QUIET = """
-from hmz._legacy_flows import Agent, flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams, flow
 
 
-@flow
-def run(agents: tuple[Agent], task: str) -> None:
-    pass
-"""
-
-#: And one that says it is meant to run under nothing at all, as `chat` does.
-LOOSE = """
-from hmz._legacy_flows import Agent, Allowance, flow
+class Agents(AgentCollection):
+    worker: Agent
 
 
-@flow(budget=Allowance())
-def run(agents: tuple[Agent], task: str) -> None:
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams)
+async def quiet(task: str, *, agents: Agents, envs: EnvCollection, params: FlowParams,
+                ctx: FlowContext) -> None:
     pass
 """
 
 
 @pytest.fixture
 def flows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Puts the two flows where this project's own would be, with a backend to run them."""
+    """Puts the flow where this project's own would be, with a backend to run it."""
     import hmz.tui.app
     import hmz.tui.pick
 
@@ -72,13 +60,12 @@ def flows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     where = tmp_path / ".humanize" / "flows"
     where.mkdir(parents=True)
     written(where, "quiet", QUIET)
-    written(where, "loose", LOOSE)
     return where
 
 
 async def _into(app: Humanize, driver: Pilot[None], flow: str) -> Flows:
     """Opens the menu already inside one flow, which is where the budget row is."""
-    await driver.press(*f"/flow local/{flow}")
+    await driver.press(*f"/flow {flow}")
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Flows), driver)
     sheet = cast("Flows", app.screen)
@@ -92,17 +79,22 @@ def _said(app: Humanize) -> str:
     return str(listing.get_option_at_index(rows(app).index(_BUDGET)).prompt)
 
 
+def _under(app: Humanize) -> str:
+    """What the sheet on top says under its list."""
+    return str(app.screen.query_one("#tuning", Label).content)
+
+
 @pytest.mark.timeout(60)
 async def test_the_row_says_what_the_run_is_held_to_without_being_opened(
     flows: Path,
 ) -> None:
-    """An allowance nobody can see without opening something is one nobody checks."""
+    """A budget nobody can see without opening something is one nobody checks."""
     app = Humanize()
     async with app.run_test() as driver:
-        await _into(app, driver, "quiet")
+        await _into(app, driver, "local/quiet")
 
         assert rows(app) == ["0", _BUDGET, _SAVE]
-        assert "nothing stops this run" in _said(app)
+        assert "none yet" in _said(app)
 
 
 @pytest.mark.timeout(60)
@@ -112,23 +104,24 @@ async def test_what_is_set_there_is_kept_and_read_back(
     """Beside what the flow was set up with, since it is a setting of the run beside it."""
     app = Humanize()
     async with app.run_test() as driver:
-        await _into(app, driver, "quiet")
+        await _into(app, driver, "local/quiet")
         await opens(app, driver, _BUDGET)
         await until(lambda: isinstance(app.screen, Configures), driver)
         sheet = cast("Configures", app.screen)
 
-        # Three rows and nothing else: hours, millions of output tokens, dollars.
-        assert rows(app) == ["hours", "tokens", "dollars"]
+        # The four `-b` takes, and nothing else.
+        assert rows(app) == ["duration", "cost", "output_tokens", "graceful"]
 
-        await driver.press("right")  # hours: 0 -> 1
-        await driver.press("down", "right")  # tokens: 0 -> 1
+        await driver.press(*"1h")  # a duration is written, as `-b` writes one
+        await driver.press("down", "right")  # cost: 0 -> 1
         await driver.pause()
-        assert (sheet._typed_in["hours"], sheet._typed_in["tokens"]) == ("1.0", "1.0")
+        assert (sheet._typed_in["duration"], sheet._typed_in["cost"]) == ("1h", "1.0")
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flows), driver)
 
         # Said on the row it came back to, so that it is read rather than remembered.
-        assert "stops at 1h, 1M out" in _said(app)
+        assert "stops at 1h" in _said(app)
+        assert "$1.00" in _said(app)
 
         await onto(app, driver, _SAVE)
         await driver.press("enter")
@@ -136,169 +129,68 @@ async def test_what_is_set_there_is_kept_and_read_back(
 
     # Written down under the flow, beside its agents, and read back by the next interface.
     assert Settings(tmp_path).budget("local/quiet") == {
-        "hours": 1.0,
-        "tokens": 1.0,
-        "dollars": 0.0,
+        "duration": "PT1H",
+        "cost": 1.0,
+        "output_tokens": None,
+        "graceful": True,
     }
     again = Humanize()
-    assert again._budget == Allowance(hours=1.0, tokens=1.0)
+    assert again._budget == Budget(duration=datetime.timedelta(hours=1), cost=1)
 
 
 @pytest.mark.timeout(60)
-async def test_saving_a_run_nothing_will_stop_asks_whether_that_is_what_was_meant(
+async def test_a_flow_is_not_saved_until_a_run_of_it_has_a_budget(
     flows: Path, tmp_path: Path
 ) -> None:
-    """Three caps and none of them set is a run that goes until somebody notices.
-
-    A fair thing to ask for and a poor thing to arrive at by not answering three questions,
-    and the two look identical afterwards -- so it is asked once, where it can be changed.
-    """
+    """A run is given one before anything runs, and a menu saved without is a run refused."""
     app = Humanize()
     async with app.run_test() as driver:
-        await _into(app, driver, "quiet")
+        sheet = await _into(app, driver, "local/quiet")
         await onto(app, driver, _SAVE)
         await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Unbounded), driver)
+        await driver.pause()
 
-        # And the second answer goes back to the menu holding everything it was holding,
-        # which is where a budget is set.
-        await driver.press("down", "enter")
-        await until(lambda: isinstance(app.screen, Flows), driver)
+        assert app.screen is sheet  # still here, holding everything it was holding
+        assert "given a budget" in _under(app)
         assert Settings(tmp_path).flow != "local/quiet"
-
-        # Asked again on the way past, and meant this time.
-        await onto(app, driver, _SAVE)
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Unbounded), driver)
-        await driver.press("enter")
-        await until(lambda: not isinstance(app.screen, Flows), driver)
-
-    assert Settings(tmp_path).flow == "local/quiet"
 
 
 @pytest.mark.timeout(60)
-async def test_a_run_with_a_cap_on_it_is_not_asked_about(
-    flows: Path, tmp_path: Path
+async def test_a_budget_that_limits_nothing_is_refused_where_it_is_typed(
+    flows: Path,
 ) -> None:
-    """The question is about a run nothing will stop, and one cap is something."""
+    """At least one limit, which is what makes it a budget: none is refused on the sheet."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into(app, driver, "local/quiet")
+        await opens(app, driver, _BUDGET)
+        await until(lambda: isinstance(app.screen, Configures), driver)
+
+        await driver.press("enter")
+        await driver.pause()
+
+        assert isinstance(app.screen, Configures)
+        assert "at least one" in _under(app)
+
+
+@pytest.mark.timeout(60)
+async def test_a_run_with_a_budget_saves_at_once(flows: Path, tmp_path: Path) -> None:
+    """What was set is read back as the menu opens, and saving it asks nothing."""
     Settings(tmp_path).remember(
-        "local/quiet", ("",), [Runs("claude/m:high")], budget={"hours": 2}
+        "local/quiet",
+        {"worker": Runs("claude/m:high")},
+        budget={"duration": "PT2H"},
     )
     app = Humanize()
     async with app.run_test() as driver:
-        sheet = await _into(app, driver, "quiet")
+        sheet = await _into(app, driver, "local/quiet")
         assert "stops at 2h" in _said(app)
 
         await onto(app, driver, _SAVE)
         await driver.press("enter")
         await until(lambda: app.screen is not sheet, driver)
 
-        assert not isinstance(app.screen, Unbounded)
-
-
-@pytest.mark.timeout(60)
-async def test_saving_a_cap_nothing_can_price_asks_the_same_question(
-    flows: Path, tmp_path: Path
-) -> None:
-    """Fifty dollars on a model nobody prices is a run with no limit on it at all.
-
-    Which is the run a benchmark of sixteen cells actually started: capped in the settings,
-    and with nothing on the machine that can read the cap. So it reaches the same box the run
-    capped on nothing reaches, and the box says which cap and why rather than the three that
-    were not set -- the wording being the one `hmz exec` prints on its way past.
-    """
-    Settings(tmp_path).remember(
-        "local/quiet", ("",), [Runs("claude/m:high")], budget={"dollars": 50}
-    )
-    app = Humanize()
-    async with app.run_test() as driver:
-        await _into(app, driver, "quiet")
-        assert "stops at $50" in _said(app)
-
-        await onto(app, driver, _SAVE)
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Unbounded), driver)
-
-        # Read off the label rather than off the attribute: the whole of this is that a
-        # person sees it, and a line that is set and not drawn is the log line again.
-        shown = app.screen.query_one("#about", Label)
-        assert shown.display
-        assert "nothing here can read dollars" in str(shown.content).lower()
-
-
-@pytest.mark.timeout(60)
-async def test_a_token_cap_on_a_cli_that_counts_nothing_is_asked_about_too(
-    flows: Path, tmp_path: Path
-) -> None:
-    """A CLI somebody added by hand is driven over a protocol that counts nothing at all.
-
-    So ten million output tokens on one of those is a cap that will never bite either, and the
-    menu asks about it exactly as `hmz exec` says it -- which is the whole of this: the box
-    and the line are one question about one run, and a menu that could only see the money
-    would be the same split again a dimension over.
-    """
-    from hmz.coganchor import backends
-
-    backends.remember("spoken", ["spoken"])
-    Settings(tmp_path).remember(
-        "local/quiet", ("",), [Runs("spoken/m:high")], budget={"tokens": 10}
-    )
-    app = Humanize()
-    async with app.run_test() as pilot:
-        await _into(app, pilot, "quiet")
-
-        await onto(app, pilot, _SAVE)
-        await pilot.press("enter")
-        await until(lambda: isinstance(app.screen, Unbounded), pilot)
-
-        shown = app.screen.query_one("#about", Label)
-        assert "nothing here can read tokens" in str(shown.content).lower()
-
-
-@pytest.mark.timeout(60)
-async def test_a_cap_the_run_can_read_is_not_asked_about(
-    flows: Path, tmp_path: Path, priced: str
-) -> None:
-    """The control: the same allowance on a model somebody lists is a cap that will bite."""
-    Settings(tmp_path).remember(
-        "local/quiet", ("",), [Runs(f"claude/{priced}:high")], budget={"dollars": 50}
-    )
-    app = Humanize()
-    async with app.run_test() as driver:
-        sheet = await _into(app, driver, "quiet")
-
-        await onto(app, driver, _SAVE)
-        await driver.press("enter")
-        await until(lambda: app.screen is not sheet, driver)
-
-        assert not isinstance(app.screen, Unbounded)
-
     assert Settings(tmp_path).flow == "local/quiet"
-
-
-@pytest.mark.timeout(60)
-async def test_a_clock_beside_a_cap_nothing_can_price_is_not_asked_about(
-    flows: Path, tmp_path: Path
-) -> None:
-    """The money cannot be read and the hours can, so something still stops the run.
-
-    Which is the case the benchmark survived on, and it must go on surviving on it.
-    """
-    Settings(tmp_path).remember(
-        "local/quiet",
-        ("",),
-        [Runs("claude/m:high")],
-        budget={"hours": 0.2, "dollars": 1},
-    )
-    app = Humanize()
-    async with app.run_test() as driver:
-        sheet = await _into(app, driver, "quiet")
-
-        await onto(app, driver, _SAVE)
-        await driver.press("enter")
-        await until(lambda: app.screen is not sheet, driver)
-
-        assert not isinstance(app.screen, Unbounded)
 
 
 @pytest.mark.timeout(60)
@@ -307,75 +199,50 @@ async def test_a_flow_run_without_the_menu_is_still_held_to_what_was_set(
 ) -> None:
     """`$flow <task>` runs a flow this workspace has set up without opening the menu.
 
-    Which is the whole point of that line -- and a path that dropped the allowance on the way
-    would start an unbounded run out of a workspace whose settings say six hours, with nothing
-    asked either, the question living on the menu that did not open.
+    Which is the whole point of that line -- and a path that dropped the budget on the way
+    would start a run the runtime refuses, out of a workspace whose settings say six hours.
     """
     Settings(tmp_path).remember(
-        "local/quiet", ("",), [Runs("claude/m:high")], budget={"hours": 6}
+        "local/quiet",
+        {"worker": Runs("claude/m:high")},
+        budget={"duration": "PT6H"},
     )
     app = Humanize()
     async with app.run_test():
         held = app._remembered_for("local/quiet")
 
         assert held is not None
-        assert held.budget == Allowance(hours=6)
+        assert held.budget == Budget(duration=datetime.timedelta(hours=6))
 
 
 @pytest.mark.timeout(60)
-async def test_setting_every_dimension_back_to_nothing_forgets_it(
+async def test_one_remembered_with_no_budget_is_asked_about_rather_than_run(
     flows: Path, tmp_path: Path
 ) -> None:
-    """Rather than writing three zeros down, which would override the flow for good.
-
-    A flow is back under what it says for itself by there being nothing remembered for it, so
-    an allowance that caps nothing has to be written down as nothing.
-    """
-    Settings(tmp_path).remember(
-        "local/quiet", ("",), [Runs("claude/m:high")], budget={"hours": 6}
-    )
+    """A flow set up before it had one is set up again, rather than started to be refused."""
+    Settings(tmp_path).remember("local/quiet", {"worker": Runs("claude/m:high")})
     app = Humanize()
-    async with app.run_test() as driver:
-        await _into(app, driver, "quiet")
-        assert "stops at 6h" in _said(app)
-
-        await opens(app, driver, _BUDGET)
-        await until(lambda: isinstance(app.screen, Configures), driver)
-        await driver.press("left")  # hours: 6 -> 5
-        for _ in range(5):
-            await driver.press("left")  # and down to nothing
-        await driver.pause()
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Flows), driver)
-        await onto(app, driver, _SAVE)
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Unbounded), driver)
-        await driver.press("enter")
-        await until(lambda: not isinstance(app.screen, Flows), driver)
-
-    assert Settings(tmp_path).budget("local/quiet") == {}
-    assert budget_of("local/quiet") is None
+    async with app.run_test():
+        assert app._remembered_for("local/quiet") is None
+        assert budget_of("local/quiet") is None
 
 
 @pytest.mark.timeout(60)
-async def test_a_flow_that_says_it_runs_unbounded_is_never_asked(
-    flows: Path, tmp_path: Path
+async def test_the_conversation_humanize_ships_is_never_asked_for_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`@flow(budget=Allowance())` is a flow claiming an unbounded run is what it is for.
+    """`chat` stops when the person does, and runs under no budget of anybody's."""
+    import hmz.tui.app
 
-    Which is the whole of the exemption and the whole of why `chat` is not named in the menu,
-    the command line and the settings: it is one line in the flow's own file, and any flow may
-    make the same claim.
-    """
+    monkeypatch.setattr(hmz.tui.app, "installed", lambda: dict(_INSTALLED))
     app = Humanize()
     async with app.run_test() as driver:
-        sheet = await _into(app, driver, "loose")
-        assert "nothing stops this run" in _said(app)
+        sheet = await _into(app, driver, "chat")
+        assert "none needed" in _said(app)
 
         await onto(app, driver, _SAVE)
         await driver.press("enter")
         await until(lambda: app.screen is not sheet, driver)
 
-        assert not isinstance(app.screen, Unbounded)
-
-    assert Settings(tmp_path).flow == "local/loose"
+    assert Settings(tmp_path).flow == "chat"
+    assert app._budget is None

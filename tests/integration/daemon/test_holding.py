@@ -432,16 +432,30 @@ def test_what_flows_are_running_is_asked_of_the_runtime_rather_than_of_the_run(
     Which is why nothing was registered here to say so: what is running is read out of the
     runtime by whoever was asked about the run.
     """
+    import time
 
-    class Drove:
-        flow = "rlar"
+    from hmz.runtime.flowing.engine import LiveCall
 
-    monkeypatch.setattr("hmz.runtime.flowing.driving.running", lambda: (Drove(),))
+    top = LiveCall("rlar:rlar", "rlar", 1, time.monotonic() - 5, 1, None)
+    under = LiveCall("rlar:review", "review", 2, time.monotonic(), 2, top)
+    monkeypatch.setattr("hmz.runtime.flowing.engine.running", lambda: (top, under))
     asking = holding.terminal(joining=False)
 
     asking.says(CONTROL, {"do": "status"})
 
-    assert json.loads(asking.hears(CONTROL))["flows"] == ["rlar"]
+    said = json.loads(asking.hears(CONTROL))
+    assert said["flows"] == ["rlar:rlar", "rlar:review"]
+    # The running tree whole: each call by its ref and name, how deep, how long it has been
+    # going, and the call that made it by its place in the list.
+    (first, second) = said["calls"]
+    assert (first["ref"], first["name"], first["depth"], first["parent"]) == (
+        "rlar:rlar",
+        "rlar",
+        1,
+        None,
+    )
+    assert first["seconds"] >= 5
+    assert (second["ref"], second["depth"], second["parent"]) == ("rlar:review", 2, 0)
 
 
 @pytest.mark.timeout(60)
@@ -465,7 +479,7 @@ def test_a_runtime_that_will_not_say_is_a_run_running_nothing_rather_than_no_ans
     def raising() -> tuple[object, ...]:
         raise RuntimeError("not today")
 
-    monkeypatch.setattr("hmz.runtime.flowing.driving.running", raising)
+    monkeypatch.setattr("hmz.runtime.flowing.engine.running", raising)
     asking = holding.terminal(joining=False)
 
     asking.says(CONTROL, {"do": "status"})
@@ -473,6 +487,7 @@ def test_a_runtime_that_will_not_say_is_a_run_running_nothing_rather_than_no_ans
     said = json.loads(asking.hears(CONTROL))
     assert said["ok"]
     assert said["flows"] == []
+    assert said["calls"] == []
 
 
 @pytest.mark.timeout(60)

@@ -1,7 +1,7 @@
 """``hmz`` -- the whole command line, over layers that have none of their own.
 
     hmz
-    hmz exec -f ralph_loop -a claude/MODEL:high "$(cat TASK.md)"
+    hmz exec -f ralph_loop -a coder=claude/MODEL:high -b cost=5 "$(cat TASK.md)"
 
 There is one command anybody types, and everything else humanize keeps is walked at the
 prompt: a listing with a noun in it for every store would be a second interface to learn, and
@@ -22,8 +22,8 @@ coganchor is the only layer present and the architecture is whatever the target 
 A command whose line takes a parser of its own has a module of its own here, so that reaching
 one of them costs nothing for the others -- which is what `anchor.py`, `cred.py`, `hook.py` and
 `tools.py`, the four under `hmz internal`, are. `exec` has none: the line it takes is
-read by :func:`hmz.runtime.runner.flow_and_agents`, since the terminal interface starts a flow from
-that same line.
+read by :func:`hmz.runtime.runner.read_line`, since the terminal interface starts a flow from
+the same parts.
 
 :mod:`hmz.cli.output` is the one module every command may reach: who is reading -- somebody at
 a terminal, or a program -- is one question rather than one per command, and it costs nothing
@@ -89,11 +89,11 @@ def _prepare_textual_terminal(
 
 
 def _exec(argv: list[str]) -> int:
-    """Drives the flow named on the command line, on the agents it names.
+    """Runs the flow named on the command line, on what it names, to its return.
 
     What the run looks like while it happens is settled here rather than by each backend
-    teeing its own progress: watching the agents is what makes one run read as one run,
-    whichever CLIs it was given, and registering a watcher is what stops those tees.
+    teeing its own progress: watching every session is what makes one run read as one run,
+    whichever CLIs it was given, and watching one is what stops that tee.
 
     Args:
       argv: What followed the command name.
@@ -101,7 +101,7 @@ def _exec(argv: list[str]) -> int:
     Returns:
       Zero, once the flow has returned.
     """
-    from hmz.runtime import Hmz, telemetry
+    from hmz.runtime import Hmz, Refused, telemetry
 
     from .output import Out, Shown
 
@@ -109,60 +109,51 @@ def _exec(argv: list[str]) -> int:
     # If it has been answered yes, and never otherwise: a run with nobody at a terminal is a
     # run with nobody to ask, and silence is not an answer.
     hmz.reports()
-    path, agents, task, config, budget, as_json = hmz.read(argv)
+    line = hmz.read(argv)
     # Only now that the line is known to name a flow: `--help` has already exited inside the
-    # reading above, and a line that runs nothing must not pay for the drivers to be loaded
-    # so that this can learn the name of what a stopped run raises -- nor for what reads a
-    # flow, so that it can learn the name of what a line naming none is refused with.
-    from hmz.coganchor.agents import Stopped
-    from hmz.runtime.flowing import NotAFlow
+    # reading above, and a line that runs nothing must not pay for the flow API to learn the
+    # name of what a run that spent its budget raises.
+    from hmz.flows import BudgetExceeded
 
-    with Out(as_json=as_json) as out, Shown(out) as shown:
-        # The agents the line named, and not whatever else the flow turns out to drive: a
-        # flow whose other side is the person drives one more, and with nobody at a prompt
-        # that one answers nothing to every turn it is given. Rows saying so would be the
-        # only thing on the terminal that is about humanize rather than about the run.
-        shown.watches(agents)
+    with Out(as_json=line.as_json) as out, Shown(out) as shown:
         try:
-            running = hmz.run(path, agents, task, config, budget=budget)
-        except NotAFlow as error:
-            # A flow that is not there, or one that takes other agents than these, is a
-            # command line that was wrong before anything ran, so it exits as argparse's own
-            # rejections do. What the flow raises for itself is the flow's, and is left to
-            # say so itself.
+            # Nobody is at a prompt, so whoever is outside the run is away: a flow that asks
+            # the person anything is answered with nothing, or its schema's defaults.
+            running = hmz.run(
+                line.flow,
+                line.task,
+                agents=line.agents,
+                envs=line.envs,
+                params=line.params,
+                budget=line.budget,
+                resume=line.resume,
+            )
+        except Refused as error:
+            # A flow that is not there, or one given other roles than it declares, is a
+            # command line that was wrong before anything ran, so it exits as argparse's
+            # own rejections do. What the flow raises for itself is the flow's.
             print(f"hmz exec: error: {error}", file=sys.stderr)
             raise SystemExit(2) from error
-        # Said and then run, never asked. The interface asks somebody to confirm a run that
-        # nothing will stop; a command line has nobody to ask, and refusing here would break
-        # every unattended flow there has ever been for the sake of a question nobody is
-        # there to answer. So what it can do is say so plainly, on the stream that is not
-        # the answer.
-        #
-        # Which cap cannot be read before what that leaves: a run whose only cap is one
-        # nothing here can read is both of these lines, and the first is the second's reason.
+        running.watch(shown.heard)
+        # Said and then run, never asked: a command line has nobody to ask, so what it can
+        # do is say so plainly, on the stream that is not the answer.
         if blind := running.unreadable():
-            out.aside(f"hmz exec: {blind}, so that cap cannot stop this run")
-        if running.unwatched:
-            out.aside(
-                "hmz exec: nothing will stop this run -- it goes until it is stopped by "
-                "hand. `-c` with a `budget:` is how a cap that bites is set."
-            )
-        # And what a place declared that its agent could not be told. Said for the same
-        # reason and on the same stream: a declaration that was dropped is a fact about how
-        # this run was set up, and one nobody was told about would be a setting that lied
-        # after all.
-        for line in running.unserved().splitlines():
-            out.aside(f"hmz exec: {line}")
+            out.aside(f"hmz exec: {blind}")
         try:
             running.run()
+        except Refused as error:
+            # An environment that could not be reached, or one short of what its role
+            # needs, which is only known once it has been asked -- still before the flow ran.
+            print(f"hmz exec: error: {error}", file=sys.stderr)
+            raise SystemExit(2) from error
         except (KeyboardInterrupt, SystemExit):
             # Somebody stopping a run is not a run that went wrong.
             raise
-        except Stopped as why:
+        except BudgetExceeded as why:
             # Nor is a run that spent what it was allowed. It is the ordinary end of a
-            # budgeted loop -- a flow with no exit of its own runs until its allowance is
-            # gone, which is what having one is for -- so it is said in a line rather than
-            # reported as a crash and printed as a traceback nobody has anything to do about.
+            # budgeted loop -- a flow with no exit of its own runs until its budget is gone,
+            # which is what having one is for -- so it is said in a line rather than reported
+            # as a crash and printed as a traceback nobody has anything to do about.
             out.aside(f"hmz exec: stopped -- {why}")
         except BaseException as why:
             # Reported and then raised on exactly as it was: what a flow does when it fails
@@ -392,6 +383,10 @@ def apart(session: Held) -> None:
     # the runtime itself, rather than being handed the answer by whatever it is holding.
     session.redrawn(lambda: app.call_from_thread(app.reattached))
     session.stopping(lambda: app.call_from_thread(app.action_quit))
+    # And what the interface says about the run it holds -- the flow, what it may spend and
+    # what it has spent -- which the daemon adds to its status. Read on the daemon's thread,
+    # off what the run keeps under its own locks rather than off the screen.
+    session.says(app.said)
     app.run()
 
 

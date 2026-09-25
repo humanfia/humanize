@@ -43,7 +43,7 @@ import weakref
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, Protocol, cast
 
 import pyfiglet
 from rich.box import ROUNDED
@@ -77,6 +77,7 @@ from .pick import (
     Adjusted,
     Adjusts,
     Chosen,
+    Declared,
     Drawn,
     Epics,
     Fallbacks,
@@ -89,11 +90,10 @@ from .pick import (
     Reports,
     Runs,
     budget_of,
-    config_of,
-    dimensions,
-    model_of,
-    opens_on,
-    places_of,
+    declared_of,
+    named_as,
+    params_model,
+    params_of,
     reads,
     settled,
 )
@@ -102,13 +102,57 @@ from .selecting import Choices, Transcript
 from .tally import Tally
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
     from pydantic import BaseModel
 
     from hmz.coganchor.agents import AgentBase, Board, Event, Question, SessionBase
     from hmz.daemon import Session
-    from hmz.runtime.flowing import Place
+    from hmz.flows import Budget, Usage
+    from hmz.runtime.flowing.harnesses import Listener
+
+
+class _Running(Protocol):
+    """A run of a flow, as the interface holds one: `hmz.runtime.Run`, named by its shape.
+
+    Named here rather than imported, the runtime being reached through the daemon alone.
+    """
+
+    @property
+    def budget(self) -> Budget:
+        """What the run may spend."""
+        ...
+
+    @property
+    def usage(self) -> Usage:
+        """What it has spent so far."""
+        ...
+
+    @property
+    def flow(self) -> str:
+        """The flow, as it was named."""
+        ...
+
+    def watch(self, listener: Listener) -> None:
+        """Has everything every session of the run says reach `listener`."""
+        ...
+
+    def opened(self, callback: Callable[[str, AgentBase, SessionBase], None]) -> None:
+        """Has each session the run opens told to `callback` as it opens."""
+        ...
+
+    def run(self) -> object:
+        """Runs the flow here, until it returns."""
+        ...
+
+    def stop(self) -> None:
+        """Stops the flow, which unwinds in its own time."""
+        ...
+
+    def close(self) -> None:
+        """Stops it and ends every conversation still open, without waiting."""
+        ...
+
 
 #: How often the right-hand column and the status line are redrawn, in seconds.
 _REFRESH = 0.5
@@ -146,13 +190,6 @@ _AGAIN = 3.0
 #: while it is said in one wording: two sentences for it are two states to whoever is at the
 #: prompt, and each of them one somebody has to work out for themselves.
 _UNWINDING = "it is closing out the turn it was in"
-
-#: The three steps one agent of a flow is configured in, in the order they are asked: which
-#: coding agent takes its turns and as whom, which model it runs and at what effort, and --
-#: only for a place the flow said may be pointed anywhere -- which machine its work lands on.
-#: Each depends on the one before it: an account belongs to a backend, and a model belongs to
-#: the CLI that runs it.
-_WHO, _WHAT, _WHERE = 0, 1, 2
 
 #: The flow the interface opens on, which is the one that is only talking to one agent.
 _STARTS_ON = "chat"
@@ -636,9 +673,10 @@ class Humanize(App[None]):
         A flow is a loop and a turn can think for minutes, so leaving without stopping it
         would leave the interface gone and the work going -- which reads as a hang.
         """
-        for agent in self._agents:
-            agent.stop()
-        self._agents = []
+        for run in (self._run, self._stopping):
+            if run is not None:
+                run.close()
+        self._run, self._stopping, self._agents = None, None, []
         self._close_btw()
         self.exit()
 
@@ -657,7 +695,7 @@ class Humanize(App[None]):
         who has decided to leave should be asked what becomes of it once rather than having
         to know which of two words asks.
         """
-        if not self._agents:
+        if self._run is None:
             self.action_quit()
             return
         said = await self.push_screen_wait(Leaves(held=self._session is not None))
@@ -738,9 +776,9 @@ class Humanize(App[None]):
         # would do has been gone for most of that.
         self._presses = self._presses + 1 if now - self._pressed < _AGAIN else 1
         self._pressed = now
-        if self._agents:
+        if self._run is not None:
             self._interrupts()
-        elif self._stopping:
+        elif self._stopping is not None:
             # A flow told to stop and not yet gone. However long ago it was told: this is
             # the one thing left that a key can do about it, and asking for it twice over
             # would be asking twice about a run that is already over.
@@ -764,52 +802,51 @@ class Humanize(App[None]):
     def _forces(self) -> None:
         """The press after the one that stopped a flow, which does not wait for it to go.
 
-        Telling an agent to stop closes its conversations, and a backend that took no notice
-        of that is the reason there is a third press: every conversation still open is closed
-        again, which is the backend's process going. What the flow gets back is a turn that
-        failed, the same thing it would have got had the agent fallen over by itself.
+        Stopping a flow interrupts the turn it was in and lets it unwind, and a backend that
+        took no notice of that is the reason there is a third press: every conversation still
+        open is closed, which is the backend's process going. What the flow gets back is a
+        turn that failed, the same thing it would have got had the agent fallen over by itself.
 
         And the run reads as over from here, whatever is still unwinding behind it: nothing
         is left that a turn could still be running in, so nothing is left spinning at the
         person who has just asked twice for it to stop.
         """
+        run, self._stopping = self._stopping, None
+        self._presses = 0
+        if run is None:
+            return
         closing = [
             session
-            for agent in self._stopping
+            for agent in self._ran
             for session in agent.sessions
             if session in self._working
         ]
-        self._presses = 0
-        self._stopping = []
-        if not closing:
-            return
-        self.show(
-            f"[dim]— closing {len(closing)} conversation(s) under their turns —[/dim]"
-        )
+        if closing:
+            self.show(
+                f"[dim]— closing {len(closing)} conversation(s) under their turns —[/dim]"
+            )
         # On this thread, as telling the flow to stop is: closing a conversation is closing
         # the process behind it, which is a second at the outside.
+        run.close()
         for session in closing:
-            with contextlib.suppress(Exception):  # a conversation already gone is gone
-                session.close()
             self._working.discard(session)
 
     def __init__(
         self,
         flow: str = "",
-        agents: Sequence[Runs] = (),
-        config: BaseModel | None = None,
+        agents: Mapping[str, Runs] | None = None,
+        params: BaseModel | None = None,
         session: Session | None = None,
     ) -> None:
         """Initializes an interface holding no agents, because nothing is running yet.
 
         Args:
           flow: The flow to open on, which is what a run being picked up names -- or "" to
-            open on what
-            this workspace was last set up to run, and on the one that only talks to one
-            agent where it has run nothing.
-          agents: What each of that flow's agents runs, in the order it takes them, or
-            nothing to open on what was remembered.
-          config: What that flow is set up with, or None to open on what was remembered.
+            open on what this workspace was last set up to run, and on the one that only
+            talks to one agent where it has run nothing.
+          agents: What each of that flow's agent roles runs, by role, or None to open on
+            what was remembered.
+          params: What that flow is set up with, or None to open on what was remembered.
             Checked by whatever read the line: an interface is opened set up, not corrected.
           session: What is holding this run somewhere a terminal closing cannot reach, or
             None for one opened in the terminal it is drawn on -- where letting go of the
@@ -832,7 +869,13 @@ class Humanize(App[None]):
         #: that is only in the terminal it was opened in. The whole of what the interface
         #: knows about that: how many terminals are reading, and how to let go of them.
         self._session = session
-        #: The agents of the flow running now, which is who a typed line is said to.
+        #: The run going now, or None: which is what `a flow is running` means here.
+        self._run: _Running | None = None
+        #: Which run is the one going now, counted: what the person outside it is asked is
+        #: answered only while the run asking is still the one going.
+        self._generation = 0
+        #: The agents behind the sessions the run going now has opened, which is who a typed
+        #: line is said to. One per session, each named for the role it was opened for.
         self._agents: list[AgentBase] = []
         #: What the flow has done so far, which is what the right-hand column shows, and who
         #: reads the agents' own logs into it while it runs.
@@ -857,29 +900,27 @@ class Humanize(App[None]):
         #: agents said to each other and to you is that, and a tool row per file read is a
         #: transcript nobody is reading and the answer scrolled off the top of it.
         self._details = False
-        #: Whether an agent may stop and ask, which `/afk` toggles. It may, until you say you
-        #: are not there: a question nobody answers is a flow that has stopped.
+        #: Whether anybody is here to be asked, which `/afk` toggles. They are, until you say
+        #: you are not: a flow that asks the person outside it and is answered by nobody is a
+        #: flow that has stopped. Away, the outworlder answers what an away one answers.
         self._afk = False
-        #: The question a turn has stopped on, if one has, and where its answer goes -- and
+        #: The question the flow has stopped on, if one has, and where its answer goes -- and
         #: which agent it was shown against, so that what it will take for an answer is shown
         #: under it rather than wherever the person is looking by the time it lands.
         self._asked_on: str | None = None
         self._asking: Question | None = None
         self._answer = ""
         self._answered = threading.Event()
+        #: The last thing a turn answered with, and the last thing an agent stopped to ask:
+        #: what the flow puts to the person is often exactly that -- a conversation says the
+        #: agent's answer back to you to ask what next -- and a line already on the screen is
+        #: not put there twice.
+        self._last_answer = ""
+        self._last_asked = ""
         #: When something was last copied off the screen, so that the status line can say so
         #: for a moment: a clipboard is written to silently, and a gesture that says nothing
         #: is one nobody knows worked.
         self._copied = 0.0
-        #: The flow to run and what each of its agents runs, which start out as the flow that
-        #: is only talking to one agent and the first agent there is to talk to. So the first
-        #: thing you say starts something rather than being told to pick a flow first: a flow
-        #: is what you reach for once talking to one agent is not the shape of the work, and
-        #: nobody knows that before they have said anything.
-        #:
-        #: Nothing at all until some backend here has said what it runs, which is asked for in
-        #: the background as this opens: a model to open on is one of that CLI's own, and
-        #: there is no telling what those are without asking it.
         #: humanize, as the one object everything the interface does goes through: the
         #: flows there are, the agents and accounts they run as, the runs already made here
         #: and the run being started now. Reached through the daemon, which is the process a
@@ -889,50 +930,51 @@ class Humanize(App[None]):
         #: What this workspace was last set up to run, so that opening it again finds it
         #: that way rather than back at the default.
         self.settings = self.hmz.settings
+        #: The flow to run and what each of its roles is given, which start out as the flow
+        #: that is only talking to one agent and the first agent there is to talk to. So the
+        #: first thing you say starts something rather than being told to pick a flow first:
+        #: a flow is what you reach for once talking to one agent is not the shape of the
+        #: work, and nobody knows that before they have said anything.
         self._flow_named = flow or self.settings.flow or _STARTS_ON
-        self._models = list(agents)
-        #: One place per agent the flow drives: what the flow calls it, which is "" apiece
-        #: for a flow that said how many it drives and nothing more, and the moments it needs
-        #: that one to run. Kept beside the models rather than read off the flow each time the
-        #: line above the prompt is drawn: that means loading and running a Python file, and
-        #: this is drawn twice a second.
-        self._wanted = self._places_of(self._flow_named)
-        # What is installed here and what each of them says it runs, which is what a place
-        # nothing was remembered for falls back on.
-        backends = installed()
-        if not self._models:
-            self._models = self.settings.agents(
-                self._flow_named,
-                tuple(place.goals for place in self._wanted),
-            ) or opens_on(
-                backends,
-                goals=self._wanted[0].goals if self._wanted else True,
-            )
-            # If the flow would not load, `_places_of` falls back to agents already in hand;
-            # the remembered ones were not in hand on the first read.
-            if not self._wanted and self._models:
-                self._wanted = self._places_of(self._flow_named)
-        self._models = settled(self._models, self._wanted, backends)
-        #: What the flow itself is set up with, for a flow that says it can be set up at
-        #: all: an instance of the model it declared, or None. Read back from what this
-        #: workspace last ran, so a flow of many settings opens the way it was left.
-        self._config = config or config_of(
-            self._flow_named, self.settings.config(self._flow_named)
+        #: What the flow declares, kept rather than read off the flow each time the line
+        #: above the prompt is drawn: that means importing the flow, and this is drawn twice
+        #: a second. None for a flow that will not load.
+        self._declared: Declared | None = declared_of(self._flow_named)
+        # What is installed here and what each of them says it runs, which is what a role
+        # nothing was remembered for falls back on. Nothing at all until some backend here
+        # has said what it runs, which is asked for in the background as this opens.
+        remembered = (
+            dict(agents)
+            if agents is not None
+            else self.settings.agents(self._flow_named)
         )
-        #: What a run of it here may spend, or None for a flow nobody has set one for --
-        #: which is a run under whatever the flow itself declares. Beside the config and not
-        #: inside it: it is a setting of the run rather than one of the flow's own.
-        self._budget = budget_of(self._flow_named)
+        self._models: dict[str, Runs] = (
+            settled(remembered, self._declared.agents, installed())
+            if self._declared is not None
+            else remembered
+        )
+        #: Where each environment role is, as `-e` says it.
+        self._envs: dict[str, str] = self.settings.envs(self._flow_named)
+        #: What the flow itself is set up with, for a flow that takes params at all: an
+        #: instance of its model, or None. Read back from what this workspace last ran, so a
+        #: flow of many params opens the way it was left.
+        self._params: BaseModel | None = params or params_of(
+            self._flow_named, self.settings.params(self._flow_named)
+        )
+        #: What a run of it here may spend, or None for none yet -- which only a flow
+        #: humanize ships runs with. Beside the params and not inside them: it is a setting
+        #: of the run rather than one of the flow's own.
+        self._budget: Budget | None = budget_of(self._flow_named)
         #: What has been typed here before, which the arrows walk. Read now rather than each
         #: time it is asked for: a run started here writes this project's own history into
         #: being, and what is being walked must not change under whoever is walking it.
         self.history = History()
         #: When each agent's turn started, for the line that closes it.
         self._began: dict[str, float] = {}
-        #: What each transcript has to show: one per agent, under that agent's id, and one
-        #: under `_EVERY` where all of them appear together. Kept by name rather than by the
-        #: object, since an agent's conversations come and go under it -- a Ralph loop opens
-        #: one a turn -- and what is read is the agent rather than whichever of them is open.
+        #: What each transcript has to show: one per role, under the role, and one under
+        #: `_EVERY` where all of them appear together. Kept by name rather than by the
+        #: object, since a role's sessions come and go under it -- a Ralph loop opens one a
+        #: turn -- and what is read is the role rather than whichever of them is open.
         self._kept: dict[str, _Kept] = {}
         #: Which transcript is being read: what the screen shows, and which agent a typed
         #: line is said to. The one they all appear on until somebody steps off it, that
@@ -943,14 +985,13 @@ class Humanize(App[None]):
         #: counts for.
         self._pressed = 0.0
         self._presses = 0
-        #: The agents of a flow that has been told to stop and has not finished unwinding.
-        #: A third ctrl+c closes their conversations under whatever turn is still open, which
-        #: is the only thing left that a key can do about a flow already on its way out.
-        self._stopping: list[AgentBase] = []
+        #: A run that has been told to stop and has not finished unwinding. A third ctrl+c
+        #: closes its conversations under whatever turn is still open, which is the only
+        #: thing left that a key can do about a flow already on its way out.
+        self._stopping: _Running | None = None
         #: The agents of the last run, which outlive it: their transcripts are still on the
         #: screen when the flow is over, so the diagram that reads one out is still about
-        #: them. `_agents` is the running flow's and is let go of the moment it ends, so that
-        #: the next thing typed starts something rather than being put to a flow that is gone.
+        #: them. The run going now's are the same list, filled as its sessions open.
         self._ran: list[AgentBase] = []
         #: The conversations with a turn open, which are the only ones a typed line can go
         #: into: one written to a conversation between turns is answered on its own, outside
@@ -974,33 +1015,44 @@ class Humanize(App[None]):
         self._spoke = threading.Event()
         self._awaiting = False
 
-    def _places_of(self, flow: str) -> tuple[Place, ...]:
-        """The agents a flow drives: what it calls each one, and what each has to be able to do.
+    def said(self) -> dict[str, Any]:
+        """What this interface says about the run it is holding, for the daemon's status.
 
-        Args:
-          flow: The flow, by name or as a path.
+        Called from the daemon's own thread, so it reads what the run keeps under its own
+        locks and nothing of the screen. As JSON: a budget with no limit on its cost is
+        written as the string `Infinity`, which reads back.
 
         Returns:
-          One place apiece -- and one unnamed place per agent already in hand for a flow that
-          will not load, since a name is a label on something that runs and not a reason for
-          anything to stop.
+          The flow, what the run may spend and what it has spent -- the two as None with
+          nothing running.
         """
-        from hmz.runtime.flowing import Place
+        import json
 
-        # By the name it was chosen under, not by the file that name resolves to: a file may
-        # hold several flows, and which of them was asked for is the half after the colon --
-        # which resolving the name to a path throws away.
-        places = places_of(flow)
-        if places is not None:
-            return places
-        return tuple(
-            Place(name="", person=False, moments=frozenset()) for _ in self._models
-        )
+        run = self._run
+        return {
+            "flow": run.flow if run is not None else self._flow_named,
+            "budget": json.loads(run.budget.model_dump_json())
+            if run is not None
+            else None,
+            "usage": json.loads(run.usage.model_dump_json())
+            if run is not None
+            else None,
+        }
 
     @property
     def _named_by(self) -> tuple[str, ...]:
-        """What the flow calls each agent it drives, which is what a line about one says."""
-        return tuple(place.name for place in self._wanted)
+        """The agent roles somebody chooses an agent for, in the order the flow declares them.
+
+        What a line about one says, and what every transcript but the shared one is named
+        by. For a flow that will not load, the roles something was remembered for.
+        """
+        if self._declared is not None:
+            return self._declared.roles
+        return tuple(self._models)
+
+    def _in_order(self) -> list[Runs]:
+        """What each agent role runs, in the order the flow declares them."""
+        return [self._models.get(role, Runs("")) for role in self._named_by]
 
     def compose(self) -> ComposeResult:
         """The transcript, the offers, the editor, the status. The width is the transcript's.
@@ -1074,11 +1126,8 @@ class Humanize(App[None]):
                 continue
             # Which may be the first model there is to open on, for an interface that opened
             # with nothing installed to talk to.
-            if not self._models:
-                self._models = opens_on(
-                    installed(),
-                    goals=self._wanted[0].goals if self._wanted else True,
-                )
+            if self._declared is not None:
+                self._models = settled(self._models, self._declared.agents, installed())
             self._draw()
 
     @work
@@ -1127,7 +1176,7 @@ class Humanize(App[None]):
             # package until this lands.
             if not one.url:
                 continue
-            if self._agents or self._stopping:
+            if self._run is not None or self._stopping is not None:
                 return
             if one.fetched and await asyncio.to_thread(verses.edited, one):
                 continue
@@ -1425,35 +1474,39 @@ class Humanize(App[None]):
         is asked of the conversations, and there are none of those once a run is over.
 
         Returns:
-          One apiece, in the order the flow takes them, less the person -- who is talked to
-          at this prompt rather than read.
+          One per session opened, oldest first, each named for its role.
         """
-        from hmz.coganchor.agents import HumanAgent
+        return list(self._agents or self._ran)
 
-        held = self._agents or self._ran
-        return [one for one in held if not isinstance(one, HumanAgent)]
+    def _of(self, role: str) -> list[AgentBase]:
+        """The agents behind every session one role has opened, oldest first."""
+        return [one for one in self._driven() if one.id == role]
 
     def _working_agents(self) -> list[str]:
-        """Which of the flow's agents have a turn open, in the order the flow takes them.
+        """Which of the flow's roles have a turn open, in the order they opened sessions.
 
         Returns:
-          Their ids. These are the ones tab steps between: with ten agents going, what
+          Their names. These are the ones tab steps between: with ten agents going, what
           somebody is stepping between is the ones thinking.
         """
-        return [
-            agent.id
-            for agent in self._driven()
-            if any(session in self._working for session in agent.sessions)
-        ]
+        return list(
+            dict.fromkeys(
+                agent.id
+                for agent in self._driven()
+                if any(session in self._working for session in agent.sessions)
+            )
+        )
 
     def _reading(self) -> AgentBase | None:
-        """The agent being read, where one is rather than all of them.
+        """The agent being read, where one role is rather than all of them.
 
         Returns:
-          The agent, or None on the transcript they all appear on and for one whose flow is
-          over -- the transcript stays up either way, there being nothing to say to it.
+          The newest agent of that role, or None on the transcript they all appear on and
+          for one whose flow is over -- the transcript stays up either way, there being
+          nothing to say to it.
         """
-        return next((one for one in self._driven() if one.id == self._attached), None)
+        held = self._of(self._attached) if self._attached != _EVERY else []
+        return held[-1] if held else None
 
     def _says_to(self) -> SessionBase | None:
         """Which conversation a typed line goes into, which is the one on the screen.
@@ -1496,10 +1549,9 @@ class Humanize(App[None]):
             # them: an agent left marked unread here would be marked for what is on the screen.
             for one in self._kept.values():
                 one.unread = False
-        agent = self._reading()
         shown = self.query_one("#transcript", Transcript)
         shown.clear()
-        held = len(agent.sessions) if agent is not None else 0
+        held = sum(len(one.sessions) for one in self._of(whose)) if whose else 0
         many = f"{_DOT}{held} conversations" if held > 1 else ""
         named = "every agent" if whose == _EVERY else f"{escape(short(whose))}{many}"
         shown.write(
@@ -1522,22 +1574,31 @@ class Humanize(App[None]):
         return kept is not None and kept.unread
 
     def _held(self) -> list[Held]:
-        """How many conversations each of the flow's agents has, and which one is being read.
+        """How many conversations each of the flow's roles has, and which one is being read.
 
         Returns:
-          One per agent the flow drives, in the order it takes them -- and nothing at all
-          with no flow running, which is a line about what is set up rather than about what
-          it is doing.
+          One per agent role, in the order the flow declares them -- and nothing at all with
+          no flow run, which is a line about what is set up rather than about what it is
+          doing.
         """
-        return [
-            Held(
-                many=len(agent.sessions),
-                reading=agent.id == self._attached,
-                unread=self._unread(agent.id),
-                working=any(one in self._working for one in agent.sessions),
+        if not self._driven():
+            return []
+        held: list[Held] = []
+        for role in self._named_by:
+            agents = self._of(role)
+            held.append(
+                Held(
+                    many=sum(len(agent.sessions) for agent in agents),
+                    reading=role == self._attached,
+                    unread=self._unread(role),
+                    working=any(
+                        one in self._working
+                        for agent in agents
+                        for one in agent.sessions
+                    ),
+                )
             )
-            for agent in self._driven()
-        ]
+        return held
 
     def action_attach_next(self) -> None:
         """Reads the next agent that is working, which is what tab is for."""
@@ -1661,12 +1722,12 @@ class Humanize(App[None]):
         # Left, first match wins, as opencode's status line resolves it: what is running if
         # anything is, else where this is. Right, the usage. The two ends are pushed apart.
         working = self._monitor.now_working()
-        if self._agents and not working and self._awaiting:
+        if self._run is not None and not working and self._awaiting:
             # A flow that has run out of things to do until it is told one. Spinning a bar at
             # it would read as a turn that has been thinking for as long as you have been
             # deciding what to say, which is the opposite of what is happening.
             left = f"[$text-muted]{_SPINNER[0]} waiting for you{_DOT}ctrl+c twice to stop[/]"
-        elif working or self._agents:
+        elif working or self._run is not None:
             bar = _SPINNER[int(time.monotonic() / _REFRESH) % len(_SPINNER)]
             # Whoever is talking and how long their turn has been going, or -- between two
             # turns -- the flow itself and how long the run has. A flow sleeps off a round,
@@ -1712,8 +1773,8 @@ class Humanize(App[None]):
         # and they are read one at a time, against the name the flow calls each one by -- and
         # with the conversations each of them is holding, since one of those is what is being
         # read and what a typed line goes to.
-        lines = reads(self._named_by, self._models, self._held()) or [
-            "no agent installed"
+        lines = reads(self._named_by, self._in_order(), self._held()) or [
+            "no agent installed" if self._named_by else "no agent to choose"
         ]
         if spent:
             costing = f"{money(bill)}{floor}{_DOT}" if bill is not None else ""
@@ -1771,17 +1832,18 @@ class Humanize(App[None]):
     def _flowing(self) -> str:
         """What is running now, flow inside flow, for the line that names one.
 
-        A flow may reach for another by name and run it, so what is running is a list rather
+        A flow may reach for another by ref and run it, so what is running is a list rather
         than a name: the one that was started, and whatever it called, innermost last. Read
-        from the runner rather than asked of the flow -- a flow is a Python file and may branch
-        any way it likes, so what it is doing is only ever visible where it was started.
+        from the running tree rather than asked of the flow -- a flow may branch any way it
+        likes, so what it is doing is only ever visible where it is being run.
 
         Returns:
           The flows, innermost last, and the one that is set up to run where none is running --
           which is what this line says with nothing going on.
         """
         return (
-            " ▸ ".join(one.flow for one in self.hmz.flows.running()) or self._flow_named
+            " ▸ ".join(named_as(one.ref) for one in self.hmz.flows.running())
+            or self._flow_named
         )
 
     def _waiting_lines(self, beside: int = 0) -> list[str]:
@@ -1884,7 +1946,7 @@ class Humanize(App[None]):
                 "enter answer"
                 if self._asking is not None
                 else "enter say"
-                if self._agents
+                if self._run is not None
                 else "enter start"
             )
         if len(self._ring()) > 1:
@@ -1898,11 +1960,13 @@ class Humanize(App[None]):
             keys.append("ctrl+c clear")
         elif self._counting():
             keys.append(
-                "ctrl+c again to stop" if self._agents else "ctrl+c again to exit"
+                "ctrl+c again to stop"
+                if self._run is not None
+                else "ctrl+c again to exit"
             )
-        elif self._agents:
+        elif self._run is not None:
             keys.append("ctrl+c stop")
-        elif self._stopping:
+        elif self._stopping is not None:
             keys.append("ctrl+c close them")
         else:
             keys.append("ctrl+c exit")
@@ -1942,7 +2006,7 @@ class Humanize(App[None]):
         Returns:
           True if a flow is running or on its way out, having said which.
         """
-        if self._agents:
+        if self._run is not None:
             self.show(
                 f"hmz: {what} while a flow is running: ctrl+c twice stops it first",
                 "red",
@@ -1952,7 +2016,7 @@ class Humanize(App[None]):
         # its round, a turn is closed out -- and it writes down where it got to as it goes,
         # so a run picked up from a state that is still moving is a round done twice. And
         # `ctrl+c twice` is not the answer here: it has already been pressed.
-        if self._stopping:
+        if self._stopping is not None:
             self.show(
                 f"hmz: {what} while the flow is still stopping: {_UNWINDING}", "red"
             )
@@ -1972,9 +2036,9 @@ class Humanize(App[None]):
             Monitoring(
                 self._flow_named,
                 self._named_by,
-                self._models,
+                self._in_order(),
                 self._monitor,
-                self._config,
+                self._params,
                 drawn=self._boxes,
                 reading=self._attached,
                 board=self._board,
@@ -2003,35 +2067,43 @@ class Humanize(App[None]):
         )
 
     def _boxes(self) -> list[Drawn]:
-        """The agents that have worked, as the diagram draws them, in the flow's own order.
+        """The roles that have worked, as the diagram draws them, in the flow's own order.
 
-        The ones that have worked rather than the ones the flow declares. A flow may drive
-        ten agents and reach three of them, and seven boxes that have never done anything are
-        seven rows saying nothing -- the diagram is what the run *is doing*, and a flow is a
-        Python file that may never take the branch the other seven are on. Each appears as
+        The ones that have worked rather than the ones the flow declares. A flow may declare
+        ten roles and reach three of them, and seven boxes that have never done anything are
+        seven rows saying nothing -- the diagram is what the run *is doing*. Each appears as
         its first turn starts and stays for the rest of the run, which is what makes this a
         picture of the run growing rather than a list of what was configured.
 
         Returns:
-          One per agent that has taken a turn, in the order the flow takes them, and nothing
-          at all before the first turn of a run -- which is a sheet about what is set up
-          rather than about what it is doing.
+          One per role that has taken a turn, in the order the flow declares them, and
+          nothing at all before the first turn of a run -- which is a sheet about what is set
+          up rather than about what it is doing.
         """
-        named = self._named_by
         shape = self._monitor.shape()
-        return [
-            Drawn(
-                who=agent.id,
-                named=named[at] if at < len(named) else "",
-                runs=self._models[at].spec if at < len(self._models) else "",
-                working=working,
-                reading=agent.id == self._attached,
-                unread=self._unread(agent.id),
+        named = self._named_by
+        seen = list(dict.fromkeys(agent.id for agent in self._driven()))
+        seen.sort(key=lambda who: named.index(who) if who in named else len(named))
+        drawn: list[Drawn] = []
+        for who in seen:
+            working = any(
+                one in self._working
+                for agent in self._of(who)
+                for one in agent.sessions
             )
-            for at, agent in enumerate(self._driven())
-            if (working := any(one in self._working for one in agent.sessions))
-            or shape.turns.get(agent.id, 0)
-        ]
+            if not (working or shape.turns.get(who, 0)):
+                continue
+            drawn.append(
+                Drawn(
+                    who=who,
+                    named=who,
+                    runs=self._models[who].spec if who in self._models else "",
+                    working=working,
+                    reading=who == self._attached,
+                    unread=self._unread(who),
+                )
+            )
+        return drawn
 
     @on(Editor.Sent)
     def _sent(self, event: Editor.Sent) -> None:
@@ -2126,7 +2198,7 @@ class Humanize(App[None]):
         if not question:
             self.show("hmz: usage: /btw <question>", "red")
             return
-        if not self._agents:
+        if self._run is None:
             self.show("hmz: /btw needs a flow that is running", "red")
             return
         candidates = self._btw_candidates()
@@ -2171,24 +2243,18 @@ class Humanize(App[None]):
 
     def _btw_snapshot(self) -> FlowSnapshot:
         """Copies the current run into a prompt-sized, immutable observation."""
-        from hmz.coganchor.agents import HumanAgent
-
         shape = self._monitor.shape()
-        driven = tuple(self._agents)
-        named = self._named_by
+        # One per role, however many sessions it opened: a role is what is watched, and each
+        # of its sessions is an agent of its own named for it.
+        driven = {agent.id: agent for agent in self._agents if agent.id}
         agents = tuple(
-            (
-                at,
-                AgentProgress(
-                    agent=agent.id,
-                    model=agent.config.model,
-                    turns=shape.turns.get(agent.id, 0),
-                    working=agent.id in shape.working,
-                ),
+            AgentProgress(
+                agent=who,
+                model=agent.config.model,
+                turns=shape.turns.get(who, 0),
+                working=who in shape.working,
             )
-            for at, agent in enumerate(driven)
-            if not isinstance(agent, HumanAgent)
-            if agent.id
+            for who, agent in driven.items()
         )
         handovers = tuple(
             sorted(
@@ -2219,16 +2285,16 @@ class Humanize(App[None]):
             (one.kind, one.tokens, one.whole)
             for one in self._monitor.reckoning(now=ended or moment)
         )
-        # Keep the role separate from the stable id used by the monitor and handover records.
+        # The role beside the id the monitor and the handovers use, which is the same word.
         labelled = tuple(
             AgentProgress(
                 agent=item.agent,
                 model=item.model,
                 turns=item.turns,
                 working=item.working,
-                role=named[index] if index < len(named) else "",
+                role=item.agent,
             )
-            for index, item in agents
+            for item in agents
         )
         return FlowSnapshot(
             flow=self._flowing(),
@@ -2438,9 +2504,9 @@ class Humanize(App[None]):
         then unwound, that is the interface closing on one key after a line that said there
         was nothing to stop.
         """
-        if self._agents:
+        if self._run is not None:
             self.action_stop_flow()
-        elif self._stopping:
+        elif self._stopping is not None:
             self.show(f"hmz: the flow is already stopping: {_UNWINDING}", "red")
         else:
             self.show("hmz: no flow is running, so there is nothing to stop", "red")
@@ -2450,26 +2516,27 @@ class Humanize(App[None]):
     def action_stop_flow(self) -> None:
         """Stops the whole flow, not just the turn -- which is the second ctrl+c or `/stop`.
 
-        Every agent is told to take no further turn, so the one running now is closed out and
-        the loop driving it ends rather than handing on to the next agent. The agents are let
-        go of here rather than when the flow's own thread notices, so that the next thing
-        said starts something instead of being put to a flow that is on its way out -- and
-        kept as the ones stopping, since a flow unwinds in its own time and the press after
-        this one is the one that does not wait for it.
+        The turn running now is interrupted and every call of the flow unwinds from where it
+        stands, closing what it opened. The run is let go of here rather than when its own
+        thread notices, so that the next thing said starts something instead of being put to
+        a flow that is on its way out -- and kept as the one stopping, since a flow unwinds in
+        its own time and the press after this one is the one that does not wait for it.
 
         Silent when nothing is running, every caller having its own answer for that: the key
         is mid-gesture and the press after it says what it does, a flow chosen while none runs
         has nothing to say about the one that was not there, and `/stop` looks before it calls
         this and says for itself that there was nothing to stop.
         """
-        for agent in self._agents:
-            agent.stop()
-        if self._agents:
-            self.show("[dim]— stopping the flow —[/dim]")
+        run = self._run
+        if run is None:
+            return
+        run.stop()
+        self.show("[dim]— stopping the flow —[/dim]")
         # Held by identity, so that the run's own thread can say when it has finished
         # unwinding and nothing says it of a run that started since.
-        self._agents, self._stopping = [], self._agents
+        self._run, self._stopping, self._agents = None, run, []
         self._spoke.set()  # and a flow waiting to be told hears that it is over
+        self._answered.set()  # as does one waiting on an answer
         self._never_sent("the flow stopped first")
 
     def on_unmount(self) -> None:
@@ -2480,10 +2547,12 @@ class Humanize(App[None]):
         waiting on a prompt that is not there, holding a backend open behind it. Said to
         nobody rather than to the transcript, which has gone with everything else.
         """
-        for agent in self._agents:
-            agent.stop()
-        self._agents, self._stopping = [], []
+        for run in (self._run, self._stopping):
+            if run is not None:
+                run.close()
+        self._run, self._stopping, self._agents = None, None, []
         self._spoke.set()
+        self._answered.set()
         self._close_btw()
 
     def _never_sent(self, because: str) -> None:
@@ -2536,7 +2605,7 @@ class Humanize(App[None]):
         Args:
           named: A flow of your own, as a path, to open the menu already holding.
         """
-        running = bool(self._agents)
+        running = self._run is not None
         if named and running:
             self.show("hmz: a flow is running; no choosing a flow", "red")
             return
@@ -2557,8 +2626,8 @@ class Humanize(App[None]):
           running: Whether a flow is running, which is what takes the flows away.
 
         Returns:
-          The flow, its agents and how the flow itself is set up, or None for a menu walked
-          out of -- which changes nothing at all.
+          The flow, what its roles are given and how the flow itself is set up, or None for a
+          menu walked out of -- which changes nothing at all.
         """
         # Opened whether or not there is a backend to run one on: which flow to run is worth
         # reading either way, and the sheet an agent is set up on says for itself that there
@@ -2569,14 +2638,15 @@ class Humanize(App[None]):
         # What is in hand is what is in hand for the flow the interface is set up on. A menu
         # opened straight into another flow is handed none, and reads what that one was last
         # set up with here -- which is what turning to it would have read.
-        holding = self._models if not named or named == self._flow_named else ()
+        holding = not named or named == self._flow_named
         return await self.push_screen_wait(
             Flows(
                 named or self._flow_named,
-                holding,
-                self._config if holding else None,
+                self._models if holding else {},
+                self._params if holding else None,
                 agents,
                 self.settings.flows(),
+                envs=self._envs if holding else None,
                 budget=self._budget if holding else None,
                 unavailable=frozenset(unavailable),
                 running=running,
@@ -2612,7 +2682,7 @@ class Humanize(App[None]):
             telemetry.snag("unknown-flow", length=len(named))
             self.show(f"hmz: no such flow: {named}", "red")
             return
-        if self._agents:
+        if self._run is not None:
             # The same answer `/flow <name>` gives while one runs, since it is the same thing
             # being asked for: two ways of choosing a flow that did opposite things would be
             # one of them ending a day's work on a line meant to queue the next one up.
@@ -2635,98 +2705,82 @@ class Humanize(App[None]):
           flow: The flow, by the name it is offered under.
 
         Returns:
-          The flow, its agents and how it is set up -- exactly what the menu would have been
-          saved holding -- or None for a flow to put that menu up about: one this workspace
-          has never set up, one that has grown, lost or renamed an agent since it last was,
-          and one whose kept settings no longer read back through the model it declares now.
-          A settings file is a convenience, and one that no longer fits the flow is a question
-          to ask again rather than a run to start on half an answer. A flow nothing was kept
-          for is not one of those: it takes its own defaults, exactly as it does on a command
-          line with nothing handed to it -- and neither is one that has since dropped its
-          settings altogether, which is a flow nothing is asked about.
+          The flow, what its roles are given and how it is set up -- exactly what the menu
+          would have been saved holding -- or None for a flow to put that menu up about: one
+          this workspace has never set up, one that has grown, lost or renamed a role since
+          it last was, one whose kept params no longer read back through the model it
+          declares now, and one given no budget that needs one. A settings file is a
+          convenience, and one that no longer fits the flow is a question to ask again rather
+          than a run to start on half an answer.
         """
-        places = places_of(flow)
-        if places is None:
-            # A flow that will not load says nothing about what it drives, so nothing here can
-            # tell whether it is set up. Running it is where that is said, exactly as it is
-            # for the flow already in force.
-            return Chosen(
-                flow, tuple(self.settings.agents(flow)), budget=budget_of(flow)
-            )
-        held = self.settings.flows().get(flow)
-        kept = cast("dict[str, Any]", held) if isinstance(held, dict) else {}
-        agents = kept.get("agents")
-        # By what the flow calls each place and in the flow's own order, which is how they
-        # were written down: a flow that grew a reviewer in the middle would otherwise read as
-        # set up and hand the builder's model to it.
-        wanted = [place.name or str(at + 1) for at, place in enumerate(places)]
-        if (
-            not isinstance(agents, dict)
-            or list(cast("dict[str, Any]", agents)) != wanted
-        ):
+        declared = declared_of(flow)
+        agents = self.settings.agents(flow)
+        envs = self.settings.envs(flow)
+        if declared is None:
+            # A flow that will not load says nothing about what it declares, so nothing here
+            # can tell whether it is set up. Running it is where that is said, exactly as it
+            # is for the flow already in force.
+            return Chosen(flow, agents, envs, budget=budget_of(flow))
+        if set(agents) != set(declared.roles):
             return None
-        runs = self.settings.agents(flow, [place.goals for place in places])
-        if len(runs) != len(places):
-            return None  # written by hand, or written by something that writes it otherwise
-        written_ = self.settings.config(flow)
-        config = config_of(flow, written_)
-        if written_ and config is None and model_of(flow) is not None:
-            # Set up with settings this flow no longer accepts, which is one that has
-            # dropped, renamed or retyped a setting since. Nothing here can guess what the
-            # answer that no longer reads was meant to say, so it is asked where it is asked.
-            # A flow that dropped its settings model outright asks nothing, so it is not one
-            # of these: what was kept for it is a dead entry rather than a wrong answer.
+        if any(role.required and role.name not in envs for role in declared.envs):
             return None
-        # Through the same settling every other way into the models goes through, or a flow
-        # that has since declared it needs the backend's own goals at a place would run here
-        # with them off and be refused before its first turn.
-        # What a run of it may spend, among the rest of what was remembered: this is the
-        # path a flow runs by without the menu ever opening, and one that dropped the
-        # allowance would start an unbounded run out of a workspace whose settings say six
-        # hours -- with nothing asked, the question living on the menu that did not open.
-        return Chosen(flow, tuple(settled(runs, places)), config, budget_of(flow))
+        written_ = self.settings.params(flow)
+        params = params_of(flow, written_)
+        if written_ and params is None and params_model(flow) is not None:
+            # Set up with params this flow no longer accepts, which is one that has dropped,
+            # renamed or retyped a param since. Nothing here can guess what the answer that no
+            # longer reads was meant to say, so it is asked where it is asked.
+            return None
+        budget = budget_of(flow)
+        if budget is None and not declared.unbounded:
+            return None
+        return Chosen(flow, agents, envs, params, budget)
 
     def _took_flow(self, chosen: Chosen, *, running: bool, starting: str = "") -> None:
         """Applies what the flow menu was saved with, and writes it down.
 
         Args:
-          chosen: The flow, its agents, and how the flow itself is set up.
+          chosen: The flow, what its roles are given, and how the flow itself is set up.
           running: Whether a flow was running when the menu opened, which is what decides
             between starting fresh and changing the agents under a run.
           starting: What to start the flow on now that it is set up, for a `$` line that
             named the flow and said what to do in one go, or "" to leave it waiting to be
             told -- which is what every other way of choosing a flow leaves it doing.
         """
-        places = places_of(chosen.flow)
-        same = (chosen.flow, list(chosen.agents), chosen.config, chosen.budget) == (
-            self._flow_named,
-            self._models,
-            self._config,
-            self._budget,
-        )
+        import json
+
+        same = (
+            chosen.flow,
+            chosen.agents,
+            chosen.envs,
+            chosen.params,
+            chosen.budget,
+        ) == (self._flow_named, self._models, self._envs, self._params, self._budget)
         if not running and not same:
             # A flow is chosen in order to be run, so whatever is running stops: the interface
             # opens on one already, and a choice that quietly went to the back of the queue
             # behind it would read as no choice at all. Answering the same way twice is not a
             # choice, though, and must not end the conversation.
             self.action_stop_flow()
-        self._flow_named, self._models = chosen.flow, list(chosen.agents)
-        self._wanted = places if places is not None else self._places_of(chosen.flow)
-        self._config = chosen.config
-        self._budget = chosen.budget
+        # Read again whether or not it is the same flow: a fetch or an edit since may have
+        # given it roles the menu was just saved with.
+        self._declared = declared_of(chosen.flow)
+        self._flow_named = chosen.flow
+        self._models, self._envs = dict(chosen.agents), dict(chosen.envs)
+        self._params, self._budget = chosen.params, chosen.budget
         self.settings.remember(
             chosen.flow,
-            self._named_by,
             self._models,
-            chosen.config.model_dump(mode="json")
-            if chosen.config is not None
+            self._envs,
+            # As JSON, which is what a settings file holds and reads back through the model.
+            json.loads(chosen.params.model_dump_json())
+            if chosen.params is not None
             else None,
-            # An allowance that caps nothing is written down as nothing rather than as three
-            # zeros, which is how the menu says a flow is back to running under whatever the
-            # flow itself declares. Three zeros kept would override the flow's own default for
-            # good, and there would be no way left to say `as the flow has it`.
-            dimensions(chosen.budget)
-            if chosen.budget is not None and chosen.budget.bounded
+            # And a budget of nothing written down as nothing, which is how a flow that
+            # needs none is told apart from one that was given one.
+            json.loads(chosen.budget.model_dump_json())
+            if chosen.budget is not None
             else {},
         )
         if running:
@@ -2739,69 +2793,17 @@ class Humanize(App[None]):
             self._starts(starting)
 
     def _reconfigured(self) -> None:
-        """Sets the agents of a run that is going to what they have just been changed to.
+        """Says what becomes of agents changed under a run that is going.
 
-        An agent is configured once and read from there on, so what a running one is doing now
-        is what it was set up with, and what it is asked for next is what it is set up with by
-        the time it is asked. So the ones whose CLI has not changed are set up where they
-        stand: the turn under way finishes as it started -- a model does not think harder
-        halfway through an answer -- and everything asked for after it is at the new model,
-        effort, account, rung and machine.
-
-        A CLI that has changed is not one of those. What drives a backend is the class the
-        agent is, and the flow is holding the agents it was handed when it started; one of
-        them cannot become another backend without becoming another object, which is a thing
-        only starting the flow again does. So that one is written down and runs from the next
-        time the flow is started.
+        A run is handed a driver per role as it starts -- the CLI, the account, the model and
+        the effort -- and every session of that role is opened on it for as long as the run
+        goes. Nothing under a running flow can be swapped for another without the flow
+        noticing, so what was changed is written down and is what the next run starts on.
         """
-        from dataclasses import replace
-
-        from hmz.coganchor.agents import anchored
-
-        for at, agent in enumerate(self._agents):
-            if at >= len(self._models):
-                break
-            runs = self._models[at]
-            cli, _, rest = runs.spec.partition("/")
-            model, _, effort = rest.rpartition(":")
-            if cli != agent.backend:
-                self.show(
-                    f"[dim]{escape(agent.id)} is {escape(cli)} from the next run; "
-                    "an agent cannot become another backend under the flow holding it[/dim]"
-                )
-                continue
-            try:
-                machine = anchored(runs.anchor)
-            except ValueError as why:  # a target that cannot be read is one to correct
-                self.show(f"hmz: {escape(agent.id)}: {why}", "red")
-                continue
-            # Said to the agent rather than to a session: what a person changes here they
-            # change about the agent, and every conversation it opens from now on is at it.
-            agent.reconfigure(
-                replace(
-                    agent.config,
-                    model=model,
-                    effort=effort,
-                    machine=machine,
-                    provider=runs.provider,
-                    goals=runs.goals,
-                    # Both of the settings a sheet may leave unanswered are passed on only
-                    # where it answered them: what is not said here is what the agent was
-                    # configured with, and writing a `True` over it would be the interface
-                    # switching searching on for an agent nobody asked about -- on a CLI
-                    # that had it off, silently, every time somebody reopened this sheet.
-                    **(
-                        {"web_search": runs.web_search}
-                        if runs.web_search is not None
-                        else {}
-                    ),
-                    **({"permission": runs.permission} if runs.permission else {}),
-                )
-            )
-            self.show(
-                f"[dim]{escape(agent.id)} is {escape(runs.spec)} "
-                "from its next turn[/dim]"
-            )
+        self.show(
+            "[dim]the roles of the run going now stay as it started; what was changed is "
+            "what the next run starts on[/dim]"
+        )
 
     @work
     async def _asks_about_reports(self) -> None:
@@ -2924,7 +2926,7 @@ class Humanize(App[None]):
         is going, on the sheet where it was asked for. Whether one is going is asked there
         rather than handed over, since this list outlives the run it was opened during.
         """
-        said = await self.push_screen_wait(Epics(running=lambda: bool(self._agents)))
+        said = await self.push_screen_wait(Epics(running=lambda: self._run is not None))
         if said is None:
             return
         for one in said.said:
@@ -2933,16 +2935,17 @@ class Humanize(App[None]):
             self._carries_on(said.epic)
 
     def action_resume(self, argv: Sequence[str] = ()) -> None:
-        """Carries the last run in this directory on, which is what `/resume` is for.
+        """Carries the last run here of a flow that can be picked up on: what `/resume` is for.
 
         `/epics` already offers this of whichever run you go into, and needing to find that
         row is the whole of what is wrong with it: a loop is left running overnight, the
         machine goes down, and what somebody who comes back to a stopped one wants is the
-        work carried on rather than a list to look for it in. So this is the last run here
-        and no other -- there is nothing to choose, which is why it is a command rather than
-        a row -- and a run that cannot be carried on says why rather than quietly handing the
-        one before it over: a loop resumed from the day before yesterday because yesterday's
-        died early is a day's work thrown away without anybody being told.
+        work carried on rather than a list to look for it in. So this is the last run here of
+        a resumable flow and no other -- a conversation had since is not a run to carry on,
+        and there is nothing to choose, which is why it is a command rather than a row -- and
+        a run that cannot be carried on says why rather than quietly handing the one before
+        it over: a loop resumed from the day before yesterday because yesterday's died early
+        is a day's work thrown away without anybody being told.
 
         Args:
           argv: Whatever was typed after the command, which is nothing: said back rather
@@ -2956,17 +2959,32 @@ class Humanize(App[None]):
                 "red",
             )
             return
-        runs = self.hmz.epics.all()  # oldest first, so the last of them is the last run
+        epics = self.hmz.epics
+        runs = epics.all()  # oldest first, so the last of them is the last run
         if not runs:
             self.show(
                 "hmz: no flow has been run here, so there is nothing to carry on from",
                 "red",
             )
             return
+        # Past every run of a flow that neither was nor is one to pick up -- a conversation
+        # had since -- and no further: a run of one that was or is, or a record that cannot
+        # be read, is the one this settles on, and says for itself what stands in its way.
+        for epic in reversed(runs):
+            ran = epics.read(epic)
+            if ran is None or ran.resumable or self._picks_up(ran.flow):
+                break
+        else:
+            self.show(
+                "hmz: no run here was of a flow that can be picked up, so there is nothing "
+                "to carry on from",
+                "red",
+            )
+            return
         # Which run is the whole of what this command settles. Why a run cannot be carried
         # on is settled in one place for both ways in, so that a run walked into on `/epics`
         # is turned down for the same reasons in the same words.
-        self._carries_on(runs[-1])
+        self._carries_on(epic)
 
     def _picks_up(self, flow: str) -> bool:
         """Whether one flow says now that it can be picked up.
@@ -2990,22 +3008,20 @@ class Humanize(App[None]):
             return False
 
     def _carries_on(self, epic: Path) -> None:
-        """Runs the flow of one run again, on what that run left behind.
+        """Runs the flow of one run again, picking up what that run left behind.
 
         Which is a run of its own: an epic is one run and is never reopened, so this is the
-        flow started again with the state of the run being picked up, writing into an epic of
-        its own that says which one it came from.
+        flow started again from the journal of the run being picked up, writing into an epic
+        of its own that says which one it came from.
 
-        The flow, its agents and what it was asked to do all come from the run rather than
-        from what the interface happens to be set up on: picking up a run means running what
-        ran, and an agent swapped under it would be a different run wearing its name.
+        The flow, what its roles were given, its params, its budget and what it was asked to
+        do all come from the run rather than from what the interface happens to be set up
+        on: picking up a run means running what ran, and an agent swapped under it would be
+        a different run wearing its name -- and one the journal would not pick up from.
 
         What stands in the way of carrying one on is read here and nowhere else, whether the
         run was named by `/resume` or walked into on `/epics`: two ways in that turned the
-        same run down for different reasons -- or one that took up what the other refused --
-        would be two answers to one question. The flow is therefore asked again here, having
-        been asked to draw the row: a flow is a file, and the one that matters is the one it
-        is when somebody presses the key rather than when the list was drawn.
+        same run down for different reasons would be two answers to one question.
 
         Args:
           epic: The run to pick up, by the directory it is written in.
@@ -3029,46 +3045,46 @@ class Humanize(App[None]):
                 "red",
             )
             return
-        # Nothing left behind is a run that stopped before it wrote down where it had got
-        # to, or one that emptied what it had written -- which is a flow saying the next run
-        # here starts clean. Either way carrying it on would be a run starting from the top
-        # wearing a line that says which run it came from, which is a record of something
-        # that did not happen. So it says what the next move is instead.
-        if not self.hmz.epics.state(epic, ran.flow):
+        # A journal with nothing in it is a run killed before it wrote down where it had got
+        # to, and carrying it on would be a run starting from the top wearing a line that
+        # says which run it came from -- a record of something that did not happen.
+        if not self.hmz.epics.picks_up(epic):
             self.show(
                 f"hmz: {escape(ran.name)} left nothing behind, so there is nothing to "
                 "carry on from: say what to do and the flow starts from the top",
                 "red",
             )
             return
-        # The person at the prompt is not one of the agents anybody chooses, so a flow that
-        # talks to one wrote down an agent nothing on a command line names -- and the run
-        # itself is what says which of them that was.
         # Named here rather than at the top of the file: `backends` is a local elsewhere in
         # this class, and an agent at no rung has to be written back out as `auto` or the
         # spec it goes into is `MODEL:`, which nothing can read again.
         from hmz.coganchor import backends
+        from hmz.flows import Budget
 
-        drove = [one for one in ran.agents if not one.person]
         self._flow_named = ran.flow
-        self._models = [
-            Runs(
+        self._declared = declared_of(ran.flow)
+        self._models = {
+            one.agent: Runs(
                 f"{one.backend}/{one.model}:{backends.written(one.effort)}",
-                permission=one.permission,
-                provider=one.provider,
-                goals=one.goals,
+                one.provider,
             )
-            for one in drove
-        ]
-        self._wanted = self._places_of(ran.flow)
-        self._config = config_of(ran.flow, self.settings.config(ran.flow))
-        self._budget = budget_of(ran.flow)
-        named = [part for runs in self._models for part in ("-a", runs.spec)]
+            for one in ran.agents
+        }
+        self._envs = {
+            role: spec
+            for role, _, spec in (one.partition("=") for one in ran.envs)
+            if spec
+        }
+        self._params = params_of(ran.flow, ran.params)
+        try:
+            self._budget = Budget.model_validate(ran.budget) if ran.budget else None
+        except ValueError:
+            self._budget = None
         self.show(
             f"[dim]carrying on from {escape(ran.name)}: {escape(ran.flow)} on what that "
             "run left behind[/dim]"
         )
-        self._flow(["-f", ran.flow, *named, ran.task], resume=epic)
+        self._flow(ran.task, resume=epic)
 
     @work
     async def action_fallback(self) -> None:
@@ -3156,7 +3172,9 @@ class Humanize(App[None]):
         try:
             asyncio.get_running_loop()
         except RuntimeError:  # no loop here, so this is a thread of somebody's own
-            with contextlib.suppress(RuntimeError):  # or the interface has gone
+            if not self.is_running:
+                return  # and one that has gone has nothing left to draw on
+            with contextlib.suppress(RuntimeError):  # or it went just now
                 self.call_from_thread(lambda: doing(*said, **and_so))
             return
         if self.is_running:  # and one that has gone has nothing left to draw on
@@ -3172,162 +3190,51 @@ class Humanize(App[None]):
             self._said_by_you(said)
         self._draw()
 
-    def _listen(self, agent: AgentBase) -> str | None:
-        """Waits at the prompt for a flow that has nothing to do until it is told something.
-
-        Called from the flow's own thread, which waits here. Nothing on the event loop is
-        touched, so the interface goes on being an interface while a flow waits in it.
-
-        Asked of the agent that is waiting rather than of whatever is running now: a flow
-        that has been stopped takes a while to unwind, and one still sitting here when the
-        next flow has started would otherwise read that flow's agents as its own -- and take
-        the line meant for it.
+    def _flow(self, task: str, resume: Path | None = None) -> None:
+        """Starts the flow that is set up, keeping the run so that a typed line reaches it.
 
         Args:
-          agent: Whose flow is waiting, which is the one this answers about.
-
-        Returns:
-          What was said next, or None once this flow is over -- stopped by hand, or the
-          interface going away, either of which has to release this rather than leave a
-          thread waiting on a prompt that is not there.
+          task: What it is to do.
+          resume: The run to pick up, for a flow that says it can be picked up, or None for
+            a run from the top.
         """
-        if agent.stopped or agent not in self._agents:
-            return None
-        self._awaiting = True
-        try:
-            while True:
-                # Cleared before the queue is read, so that a line arriving between the two
-                # sets it again and is not waited through.
-                self._spoke.clear()
-                if agent.stopped or agent not in self._agents:
-                    return None
-                if held := self._take():
-                    # Whatever turn this answer starts is that line's turn, and takes
-                    # nothing else out of the queue on the way in.
-                    with self._saying:
-                        self._handed = True
-                    return "\n\n".join(held)
-                self._spoke.wait(_REFRESH)
-        finally:
-            self._awaiting = False
-
-    def _as_they_were_set_up(self, chosen: list[AgentBase]) -> list[AgentBase]:
-        """Sets each agent up as it was chosen: where it works, what it holds, who it is.
-
-        Done to the agents rather than said on the line that made them: all of them are
-        settings of the agent, and `hmz exec` reads a line that says what each one runs and
-        nothing else. An agent that works here and runs as this machine is signed in is left
-        exactly as it was.
-
-        Args:
-          chosen: The agents the line named, in the order the flow takes them.
-
-        Returns:
-          The same agents, or one set up in place of any that was given a machine, a rung of
-          what it may do, or an account to run as.
-
-        Raises:
-            ValueError: If a target cannot be read, or an agent was given an account there is
-              no such thing as -- both before any of them has run, since either is a line to
-              correct at the prompt rather than a traceback out of a flow's own thread.
-        """
-        from dataclasses import replace
-
-        from hmz.coganchor.agents import anchored
-
-        moved: list[AgentBase] = []
-        for at, agent in enumerate(chosen):
-            runs = self._models[at] if at < len(self._models) else Runs("")
-            if (
-                not runs.anchor
-                and not runs.permission
-                and not runs.provider
-                and agent.config.goals is runs.goals
-                and (
-                    runs.web_search is None
-                    or agent.config.web_search is runs.web_search
-                )
-            ):
-                moved.append(agent)
-                continue
-            if (
-                runs.provider
-                and self.hmz.accounts.find(agent.backend, runs.provider) is None
-            ):
-                # Asked now rather than when the first turn needs it: an agent that cannot
-                # find the account it was told to run as must not quietly run as whoever
-                # started it is signed in as, and must not do it half an hour in.
-                raise ValueError(
-                    f"no {agent.backend} provider called {runs.provider!r}"
-                )
-            # The config is frozen, so an agent that works elsewhere, allowed less than an
-            # agent nobody asked about, or signed in as somebody else, is another agent at
-            # the same model and effort -- which is what it is.
-            moved.append(
-                type(agent)(
-                    replace(
-                        agent.config,
-                        machine=anchored(runs.anchor),
-                        provider=runs.provider,
-                        goals=runs.goals,
-                        # Said only where the sheet said it, for the reason the rung beside
-                        # it is: an agent nobody was asked about is one this says nothing
-                        # about, and the config keeps what it was made with.
-                        **(
-                            {"web_search": runs.web_search}
-                            if runs.web_search is not None
-                            else {}
-                        ),
-                        **({"permission": runs.permission} if runs.permission else {}),
-                    )
-                )
-            )
-        return moved
-
-    def _flow(self, argv: list[str], resume: Path | None = None) -> None:
-        """Starts a flow, keeping its agents so that a typed line can reach one.
-
-        Args:
-          argv: The command line, as `hmz exec` takes it.
-          resume: The run to pick up from, for a flow that says it can be picked up, or None
-            for one starting from whatever the last run of it here left -- which is what
-            running a resumable flow again means.
-        """
-        if self._agents:
+        if self._run is not None:
             self.show("hmz: a flow is already running", "red")
             return
+        from hmz.runtime.flowing import open_outworlder
+        from hmz.runtime.kept import written
+
+        self._generation += 1
+        generation = self._generation
         try:
-            # `--json` says how a run is written for whoever is at a command line, and there
-            # is nobody at one here: the interface draws the same events itself.
-            path, chosen, task, _, _, _ = self.hmz.read(argv)
-        except SystemExit:
-            return  # argparse has already said what was wrong, and it went to the transcript
-        try:
-            chosen = self._as_they_were_set_up(chosen)
-        except ValueError as why:  # a target that cannot be read is a line to correct
-            self.show(f"hmz: {why}", "red")
-            return
-        try:
-            # Loaded here rather than on the thread it will run on, so that the agents it
-            # drives are in hand before anything is hooked up to them: a flow that says it
-            # talks to the person drives one more than was chosen, and the person is reached
-            # through this interface like everything else. How the flow itself is set up
-            # goes with them: it is a setting of the flow rather than of any agent, so it
-            # is not on the line that says what each of them runs.
-            runner = self.hmz.runner(
-                path, chosen, self._config, resume=resume, budget=self._budget
+            # Whoever is outside the run is whoever is at this prompt: asked on a thread of
+            # the run's own, and away while `/afk` says so -- which a run asks as it asks.
+            run: _Running = self.hmz.run(
+                self._flow_named,
+                task,
+                agents={
+                    role: written(runs)
+                    for role, runs in self._models.items()
+                    if role in self._named_by
+                },
+                envs={
+                    role: spec
+                    for role, spec in self._envs.items()
+                    if self._declared is None or role in self._declared.places
+                },
+                params=self._params.model_dump() if self._params is not None else None,
+                budget=self._budget,
+                resume=resume if resume is not None else False,
+                outworlder=open_outworlder(
+                    ask=functools.partial(self._outworlder_asks, generation),
+                    away=lambda: self._afk,
+                ),
             )
-        except Exception as why:  # noqa: BLE001 -- a flow that will not load is a line to fix
+        except Exception as why:  # noqa: BLE001 -- a flow that will not start is a line to fix
             self.show(f"hmz: {why}", "red")
             return
-        # What a place declared that its agent's backend had no way of carrying, for a place
-        # that said it would rather run than be refused. Drawn where the interface's own
-        # lines go, before the run starts: the setting was dropped, and a drop nobody was
-        # told about would be the very thing the drop was there to avoid.
-        for line in runner.unserved().splitlines():
-            self.show(f"hmz: {line}", "yellow")
-        agents = list(runner.agents)
-        self._agents = self._ran = agents
+        agents: list[AgentBase] = []
+        self._run, self._agents, self._ran = run, agents, agents
         with self._btw_lock:
             old_side_sessions = [session for _, session in self._btw_active.values()]
             self._btw_active.clear()
@@ -3341,65 +3248,56 @@ class Humanize(App[None]):
         # Nothing is left of the flow before this one to press a key about, and what is
         # being read is one of its agents unless it was the transcript they all appear on.
         # Which is where a run is watched from, so it is where a run starts.
-        self._stopping = []
+        self._stopping = None
         if self._attached != _EVERY:
             self._now_reading(_EVERY, stepped=False)
         self._monitor = Monitor()
         # What the run costs is read from the logs the agents keep, which they write as they
         # go: a backend only says what a turn cost once the turn is over, and a turn is long.
-        self._tally = Tally(agents, self._monitor)
+        self._tally = Tally([], self._monitor)
         self._tally.watch()
         with self._saying:
             self._queued, self._given, self._handed = [], [], False
-
-        from hmz.coganchor.agents import HumanAgent
-
-        for agent in agents:
-            agent.watch(self._heard)
-            if not isinstance(agent, HumanAgent):
-                # What its backend counts, said before its first turn: a kind nothing was
-                # spent on this turn is missing from that turn's reckoning exactly as a kind
-                # the CLI never counts is, and what is drawn of a run driving two backends has
-                # to tell the two apart to say which of its figures are whole. The person is
-                # not one of these -- nobody counts what a person costs -- and counting them
-                # as a backend that reports nothing would mark every figure of a run they are
-                # in as short of tokens nobody ever spent. What the CLI's own log says is
-                # added to this by the tally, once it has actually read one: Codex's server
-                # never names a cached read and the rollout it writes does, but a rollout
-                # written on another machine is one nothing here reads.
-                self._monitor.reporting(agent.id, type(agent).counts)
-            # Whichever turn starts next takes the oldest line that was held.
-            agent.waiting = self._at_turn_start
-            # Bound to the agent, so that each of these answers about the flow that is
-            # asking rather than about whichever flow is running by the time it is asked.
-            agent.ask = functools.partial(self._ask, agent)
-            agent.prompting = functools.partial(self._listen, agent)
+        watching, tally = self._monitor, self._tally
+        run.watch(self._heard)
+        run.opened(functools.partial(self._opened, agents, watching, tally))
         self._draw()
 
-        # This run's, whatever is being watched by the time it ends.
-        watching, tally = self._monitor, self._tally
-
         def drive() -> int:
+            from hmz.flows import BudgetExceeded, FlowException
+            from hmz.runtime import Refused
+
             try:
-                runner.run(task)
+                run.run()
+            except asyncio.CancelledError:
+                pass  # stopped by hand, which said so as it was stopped
+            except Refused as why:
+                self._on_screen(self.show, f"hmz: {why}", "red")
+            except BudgetExceeded as why:
+                # The ordinary end of a budgeted loop rather than a crash: what a run is
+                # given a budget for.
+                self._on_screen(self.show, f"hmz: stopped -- {why}", "yellow")
+            except FlowException as why:
+                # A failure the flow API has a name for -- a harness that would not take the
+                # turn, a machine that went away, a flow that refused what it was handed --
+                # which is said as what it is rather than as a traceback nobody can act on.
+                self._on_screen(self.show, f"hmz: {type(why).__name__}: {why}", "red")
             finally:
                 tally.stops()  # read once more, for what the last turn wrote on its way out
                 watching.stops()  # the clock the rate is over is the run's, and it is over
                 # Only this run's own, and only while it is still the one running. A flow
-                # takes a while to unwind after it is stopped -- a loop sleeps off its round,
-                # a server is given seconds to go -- and the next flow may have started in
-                # the meantime. Clearing then would leave the running one unreachable, and
-                # saying it was done would be saying it of the wrong flow.
-                if self._stopping is agents:
+                # takes a while to unwind after it is stopped, and the next flow may have
+                # started in the meantime. Clearing then would leave the running one
+                # unreachable, and saying it was done would be saying it of the wrong flow.
+                if self._stopping is run:
                     # Stopped by hand, and now finished unwinding: there is nothing left for
                     # the press that does not wait for it to reach.
-                    self._stopping = []
-                if self._agents is agents:
-                    self._agents = []
-                    with contextlib.suppress(RuntimeError):
-                        self.call_from_thread(
-                            self.show, "[dim]— the flow is done —[/dim]"
-                        )
+                    self._stopping = None
+                if self._run is run:
+                    self._run, self._agents = None, []
+                    self._spoke.set()
+                    self._answered.set()
+                    self._on_screen(self.show, "[dim]— the flow is done —[/dim]")
                     # And whatever it never got round to taking, which is now on its way
                     # nowhere: a flow that ends of its own accord strands the pin exactly as
                     # one that is stopped does.
@@ -3407,6 +3305,40 @@ class Humanize(App[None]):
             return 0
 
         self._background(drive)
+
+    def _opened(
+        self,
+        agents: list[AgentBase],
+        monitor: Monitor,
+        tally: Tally,
+        role: str,
+        agent: AgentBase,
+        session: SessionBase,
+    ) -> None:
+        """Takes one session a run has just opened as one of the run's own.
+
+        Told on the run's own thread, before the session's first turn, with the agent behind
+        it already named for its role: its transcript is that role's, what its backend counts
+        is said to the monitor, and whichever turn of it starts next takes the oldest line
+        that was held.
+
+        Args:
+          agents: The run's agents, which this one joins.
+          monitor: The run's monitor.
+          tally: What reads the run's logs.
+          role: The role it was opened for.
+          agent: The agent behind it.
+          session: Its conversation.
+        """
+        del role, session
+        agent.waiting = self._at_turn_start
+        agents.append(agent)
+        # What its backend counts, said before its first turn: a kind nothing was spent on
+        # this turn is missing from that turn's reckoning exactly as a kind the CLI never
+        # counts is, and what is drawn of a run driving two backends has to tell the two
+        # apart to say which of its figures are whole.
+        monitor.reporting(agent.id, type(agent).counts)
+        tally.add(agent)
 
     def _remember_btw(self, agent: AgentBase, event: Event) -> None:
         """Keeps a compact progress record for future side questions.
@@ -3418,7 +3350,7 @@ class Humanize(App[None]):
         # A stopped flow can take a moment to unwind while a new one is already up. Its old
         # watcher is still bound to this method, but its events must not become progress for
         # the new run.
-        if self._agents and not any(agent is held for held in self._agents):
+        if self._run is not None and not any(agent is held for held in self._agents):
             return
         if event.kind not in {
             "begins",
@@ -3502,6 +3434,12 @@ class Humanize(App[None]):
         # only when one arrives stands still through all of them.
         self._monitor.stirring()
         self._remember_btw(agent, event)
+        if event.kind == "result":
+            # Kept to tell a flow saying an agent's answer back to the person -- a
+            # conversation asking what next -- from a question it asks them.
+            self._last_answer = event.text
+        elif event.kind == "asks":
+            self._last_asked = event.text
         if event.kind == "took":
             # The agent saying a word put into its turn is now in front of it, which is the
             # one thing that makes a word said rather than posted.
@@ -3620,19 +3558,20 @@ class Humanize(App[None]):
                 packs=False,
             )
 
-    @staticmethod
-    def _conversation(agent: AgentBase, session: SessionBase | None) -> str:
-        """Which of an agent's conversations a turn is being taken in, where it has several.
+    def _conversation(self, agent: AgentBase, session: SessionBase | None) -> str:
+        """Which of a role's conversations a turn is being taken in, where it has several.
 
         Args:
-          agent: Whose turn it is.
+          agent: Whose turn it is -- one of the agents behind the role's sessions.
           session: The conversation it is in, or None where the agent said it.
 
         Returns:
-          Which one, counting from one, and nothing at all for an agent holding one -- there
+          Which one, counting from one, and nothing at all for a role holding one -- there
           being nothing to tell it apart from.
         """
-        held = agent.sessions
+        held = [
+            one for each in self._of(agent.id) for one in each.sessions
+        ] or agent.sessions
         if session is None or len(held) < 2:  # noqa: PLR2004 -- one is none to tell apart
             return ""
         at = next(
@@ -3740,7 +3679,7 @@ class Humanize(App[None]):
             self._said_by_you(text)
             self._answer = text
             self._answered.set()  # and the turn waiting on it carries on
-        elif self._agents:
+        elif self._run is not None:
             self._interject(text)
         else:
             self._said_by_you(text)
@@ -3762,30 +3701,87 @@ class Humanize(App[None]):
             telemetry.snag("nothing-started", because="no coding agent installed")
             self.show("hmz: no coding agent is installed here", "red")
             return
-        named = [part for runs in self._models for part in ("-a", runs.spec)]
-        self._flow(["-f", self._flow_named, *named, task])
+        self._flow(task)
 
-    def _ask(self, agent: AgentBase, question: Question) -> str | None:
-        """Puts a question a turn stopped on to whoever is at this prompt, and waits for them.
+    def _outworlder_asks(self, generation: int, question: Question) -> str | None:
+        """Puts what a flow asks the person outside it to this prompt, and waits for them.
 
-        Called from the turn's own thread, which is the one that waits: the agent has stopped
-        working until this is answered. `/afk` is what says nobody is here to answer, and so
-        is a flow that ends or is stopped while the question is still up -- neither leaves a
-        turn waiting on a reply that is not coming.
-
-        Asked of the agent that is asking rather than of whatever is running now, as
-        :meth:`_listen` is, so that a flow on its way out cannot take the answer meant for
-        the flow that replaced it.
+        Called from a thread of the run's own, which waits here. A question asked while a
+        turn is open -- an agent that stopped to ask, put to the person by its flow -- or one
+        with answers to choose from is shown and answered by the line typed after it, since a
+        line typed into an open turn would otherwise go to the turn. Anything else is what to
+        say next, answered by the next line typed, a line typed before it was asked included;
+        what was asked is shown first, unless it is what an agent has just answered, which the
+        transcript already shows -- a conversation saying back what was said. `/afk`, a run
+        that has ended or been stopped, and an interface that has gone each answer nobody,
+        which the flow hears as whoever is outside the run being away.
 
         Args:
-          agent: Whose turn stopped to ask.
-          question: What the agent wants to know.
+          generation: Which run is asking, so that a run on its way out cannot take the
+            answer meant for the run that replaced it.
+          question: What it asks.
 
         Returns:
           What was typed, or None if nobody was there to type it.
         """
-        if self._afk or agent.stopped or agent not in self._agents:
+        if not self._live(generation):
             return None
+        if question.options or len(self._working):
+            return self._ask(generation, question)
+        said = question.text.strip()
+        if said and said != self._last_answer.strip():
+            with contextlib.suppress(RuntimeError):  # or the interface has gone
+                self.call_from_thread(self._show_question, question)
+        return self._listen(generation)
+
+    def _live(self, generation: int) -> bool:
+        """Whether the run asking is still the one going, and somebody is here to answer."""
+        return (
+            not self._afk and generation == self._generation and self._run is not None
+        )
+
+    def _listen(self, generation: int) -> str | None:
+        """Waits at the prompt for a flow that has nothing to do until it is told something.
+
+        Nothing on the event loop is touched, so the interface goes on being an interface
+        while a flow waits in it.
+
+        Args:
+          generation: Which run is waiting.
+
+        Returns:
+          What was said next, or None once this flow is over -- stopped by hand, or the
+          interface going away, either of which has to release this rather than leave a
+          thread waiting on a prompt that is not there.
+        """
+        self._awaiting = True
+        try:
+            while True:
+                # Cleared before the queue is read, so that a line arriving between the two
+                # sets it again and is not waited through.
+                self._spoke.clear()
+                if not self._live(generation):
+                    return None
+                if held := self._take():
+                    # Whatever turn this answer starts is that line's turn, and takes
+                    # nothing else out of the queue on the way in.
+                    with self._saying:
+                        self._handed = True
+                    return "\n\n".join(held)
+                self._spoke.wait(_REFRESH)
+        finally:
+            self._awaiting = False
+
+    def _ask(self, generation: int, question: Question) -> str | None:
+        """Puts a question the flow asks to whoever is at this prompt, and waits for them.
+
+        Args:
+          generation: Which run is asking.
+          question: What it wants to know.
+
+        Returns:
+          What was typed, or None if nobody was there to type it.
+        """
         # Cleared before the question goes up, so that an answer arriving between the two is
         # not cleared away with it.
         self._answered.clear()
@@ -3794,38 +3790,44 @@ class Humanize(App[None]):
             self.call_from_thread(self._show_question, question)
         while not self._answered.wait(_REFRESH):
             # `/afk` while the question is up says so too, or saying you are away would
-            # leave the turn waiting on the answer you had just declined to give.
-            if self._afk or agent.stopped or agent not in self._agents:
+            # leave the flow waiting on the answer you had just declined to give.
+            if not self._live(generation):
                 break
         self._asking = None
         return self._answer or None
 
     def _show_question(self, question: Question) -> None:
-        """Shows what a question offers, under the question itself.
+        """Shows a question the flow asks, and what it will take for an answer.
 
-        The question is shown as the turn says it, like anything else the agent said. What is
-        added here is what it will take for an answer, which only the one asking knows -- and
-        it goes against the agent the question went against, or the two would be read apart.
+        On whichever transcript is being read, the question being the flow's rather than any
+        one agent's -- unless an agent has just stopped to ask the same thing, which is
+        already on its own transcript and is not said twice.
 
         Args:
-          question: What the agent wants to know.
+          question: What the flow wants to know.
         """
-        asked = self._asked_on
+        asked = question.text.strip()
+        repeated = bool(self._last_asked) and asked == self._last_asked.strip()
+        self._asked_on = None if not repeated else self._asked_on
+        if not repeated:
+            self._part(None, f"[yellow]{_SAID}[/] {escape(asked)}", packs=False)
         for option in question.options:
-            self._into(asked, f"      [dim]· {escape(option)}[/dim]")
-        self._into(asked, "   [dim]type an answer, or /afk to stop being asked[/dim]")
+            self._into(self._asked_on, f"      [dim]· {escape(option)}[/dim]")
+        self._into(
+            self._asked_on, "   [dim]type an answer, or /afk to stop being asked[/dim]"
+        )
 
     @property
     def _set_up(self) -> bool:
-        """Whether there is something for each of the flow's agents to run on.
+        """Whether there is an agent for each of the flow's agent roles.
 
         There is always a flow -- the interface opens on one -- so this is only ever short of
-        an agent, which is a machine with no coding agent installed on it. A flow that asks
-        for none is not short of anything: the person at this prompt is an agent it is handed
-        rather than one anybody chooses, so a flow that talks only to them has everything it
-        needs the moment it is chosen.
+        an agent, which is a machine with no coding agent installed on it. A flow with no
+        agent role is not short of anything: whoever is outside it is at this prompt.
         """
-        return bool(self._models) or not self._wanted
+        return all(
+            role in self._models and self._models[role].spec for role in self._named_by
+        )
 
     def _interject(self, text: str) -> None:
         """Puts something in the queue for the flow, and sends it if nothing is in the way.

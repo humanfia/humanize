@@ -52,7 +52,8 @@ def home() -> pathlib.Path: ...
   the protocols a flow's agents, environments, sessions and context answer to, and the values
   a flow writes or catches. The objects a flow is handed MUST be the runtime's, answering to
   those protocols structurally. Everything humanize does *to* a flow MUST be `runtime/flowing`
-  instead.
+  instead. The flows humanize ships MUST be kept in `flows/builtin`, written against `flows`
+  like any other flow and importing nothing else.
 - `cli`, `daemon` and `tui` MUST each be a way of reaching the runtime's one object rather
   than a second copy of what it does. Anything two of them would otherwise each have written
   MUST be written in `runtime` instead, so that a thing which can be done one way can be done
@@ -68,9 +69,6 @@ def home() -> pathlib.Path: ...
   `Outworlder.new` to `runtime/flowing`, importing it inside the call and never at import.
   `flows` MUST import nothing else of humanize, and MUST be checked to do so rather than taken
   on trust.
-- `_legacy_flows` is the previous flow API, kept whole until every way in has moved to
-  `flows`. It MAY go on naming `coganchor`, and pairing with `runtime/flowing`, as it did
-  under the old name; nothing new MUST import it, and it MUST go when nothing does.
 - `cli` MUST reach `runtime` by name. `tui` MUST reach it through `daemon`, and `daemon` MUST
   offer it. `sdk` MUST be named by no layer.
 - `coganchor/serve` — the half that ships to a target of any architecture — MUST name the

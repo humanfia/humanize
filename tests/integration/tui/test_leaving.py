@@ -15,11 +15,10 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
 from hmz.tui.pick import DETACHES, STAYS, STOPS, Leaves
 from tests.stubs import written
-from tests.tui.fixtures import transcript, until
+from tests.tui.fixtures import ONE, set_up, transcript, until
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -28,18 +27,7 @@ if TYPE_CHECKING:
 
 #: A flow whose one turn does not end until something else is said to it, so that a test can
 #: ask what happens to a run that is still running.
-FLOW = """
-from pathlib import Path
-
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
-
-
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    session = agents[0].new()
-    Path("said.txt").write_text(session(task) + "\\n")
-"""
+FLOW = ONE
 
 #: A `claude` that does not answer until it is told something else, so that a turn stays open.
 PATIENT = """
@@ -130,12 +118,9 @@ async def test_the_key_that_leaves_asks_what_leaving_asks(workspace: Path) -> No
     written(workspace, "flow", FLOW)
     app = Humanize(session=Holding())
     async with app.run_test() as driver:
-        app._flow_named, app._models = "flow", [Runs("claude/m:high")]
+        set_up(app, "flow")
         await _says(app, driver, "start")
-        await until(
-            lambda: bool(app._agents and any(agent.sessions for agent in app._agents)),
-            driver,
-        )
+        await until(lambda: any(agent.sessions for agent in app._agents), driver)
         await driver.press("ctrl+q")
         await until(lambda: isinstance(app.screen, Leaves), driver)
 
@@ -158,12 +143,9 @@ async def test_exit_with_nothing_running_asks_nothing() -> None:
 
 async def _asks(app: Humanize, driver: Pilot[None]) -> None:
     """Starts the flow, waits for its turn to be open, and asks the interface to close."""
-    app._flow_named, app._models = "flow", [Runs("claude/m:high")]
+    set_up(app, "flow")
     await _says(app, driver, "start")
-    await until(
-        lambda: bool(app._agents and any(agent.sessions for agent in app._agents)),
-        driver,
-    )
+    await until(lambda: any(agent.sessions for agent in app._agents), driver)
     await _says(app, driver, "/exit")
     await until(lambda: isinstance(app.screen, Leaves), driver)
 
@@ -214,7 +196,7 @@ async def test_leaving_it_running_lets_go_of_the_terminal_instead(
 
         assert holding.let_go == 1
         assert app.is_running  # the flow is still going, where nothing is reading it
-        assert app._agents
+        assert app._run is not None
 
 
 @pytest.mark.timeout(120)

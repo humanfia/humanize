@@ -31,18 +31,16 @@ from hmz import cli
 #: it opens onto is the half that runs on a target where no other layer is installed.
 COMMANDS = [
     # The two leaves that say whether humanize reports its own failures and where the answer
-    # is kept: a command that cannot report a crash is a crash nobody hears about. And what a
-    # flow is, which is where the refusal a line naming no flow is answered with is written.
-    # Naming it must not cost the drivers: what a flow imports from `coganchor` is fetched
-    # when a flow names it, not when the line is read -- which is why the facts about the
-    # CLIs are here and nothing else of that layer is. And the front door of the runtime,
-    # which is the one object every way in holds: it reaches a layer only from inside the
-    # call that needs it, so naming it costs nothing but itself.
+    # is kept: a command that cannot report a crash is a crash nobody hears about. And the
+    # reading of the line, which names the CLIs there are in its help -- the facts about the
+    # CLIs, and nothing else of that layer. Not the flow API, the engine or a driver: those
+    # are reached once the line is known to name a flow, and `--help` names none. And the
+    # front door of the runtime, which is the one object every way in holds: it reaches a
+    # layer only from inside the call that needs it, so naming it costs nothing but itself.
     (
         "exec",
         {
             "hmz.coganchor.backends",
-            "hmz._legacy_flows",
             "hmz.runtime.doing",
             "hmz.runtime.kept",
             "hmz.runtime.runner",

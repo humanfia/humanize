@@ -9,9 +9,13 @@ decides.
 
 ```shell
 hmz [<command> [<args>...]] | hmz --version | hmz --help   # no command: the terminal interface
-hmz exec -f|--flow [<flowverse>/]<flow>[:<name>] -a|--agent <spec>[,<spec>...] [-a ...]
-         [-c|--config <path>] [--json] <task>
-<spec> := [<name>=]<cli>[@<provider>]/<model>:<effort>
+hmz exec -f|--flow <ref> [-a|--agents <agent>[,<agent>...]]... [-e|--envs <env>[,<env>...]]...
+         [-p|--params <key>=<value>[,...]]... [-b|--budget <limit>[,<limit>...]]...
+         [--resume] [--json] <task>
+<ref>    := [<flowverse>/]<flow>[:<name>] | <path> | git+<url>[@<rev>]#<flow>[:<name>]
+<agent>  := <role>=<cli>[@<provider>]/<model>:<effort>
+<env>    := <role>=<backend>@<provider>/<workdir>
+<limit>  := duration=<duration> | cost=<usd> | output_tokens=<count> | graceful=<bool>
 hmz internal <command> [<args>...]
 hmz internal anchor [<options>] <agent> [<args>...]
 hmz internal anchor serve --export <virtual>[:<real>] [--export ...]
@@ -52,8 +56,7 @@ class Out:    # a run written for a person, or as NDJSON for a program; a contex
 
 class Shown:    # the agents' own events, drawn as one run; a context manager
     def __init__(self, out: Out) -> None: ...
-    def watches(self, agents: Iterable[AgentBase]) -> None: ...
-    def heard(
+    def heard(  # handed to `Run.watch`, which every session of a run is watched through
         self, agent: AgentBase, session: SessionBase | None, event: Event
     ) -> None: ...
 
@@ -89,23 +92,26 @@ def tools(argv: list[str]) -> int: ...
   carrying objects alone -- and MUST NOT carry what only a terminal needed.
 - MUST say nothing to a program that a line for a person would not: an account is its variable names
   and never their values, a flowverse its URL with any secret taken out.
-- `hmz exec` MUST take every `-a` on the line as one list of agents in the order written, however it
-  was broken up, and two agents of one spelling MUST be two agents.
-- A `<spec>` MAY name the place it fills; naming MUST be all or nothing, and a name the flow does not
-  declare, one given twice, a place left unfilled, or naming places to a flow that declared a plain
-  tuple MUST each be a usage error before any agent has run -- as MUST a flow that is not there, has
-  no entry point, or drives a different number of agents than were given.
-- MUST refuse a written-out agent -- `cli=`, `model=`, `effort=`, `provider=`, `service_tier=`,
-  `config.<key>=` -- and MUST refuse `permission=` and `web_search=` saying where they are said
-  instead.
+- `hmz exec` MUST take every `-a`, `-e`, `-p` and `-b` on the line as one list apiece, however it
+  was broken up, and two roles given one spelling MUST be two agents.
+- Every `<agent>` and `<env>` MUST name the role it fills. A role the flow does not declare, one
+  given twice, a required role left unfilled, a role the runtime fills -- an `Outworlder`, a
+  `LocalEnv` -- named at all, a param the flow does not take or cannot read, a spec that cannot be
+  read, an agent whose harness is not the one its role names or does not serve what its role asks,
+  and a line with no `-b` -- for every flow but `chat`, which runs under `Budget(cost=inf)` -- MUST
+  each be a usage error before any agent has started, as MUST a flow that is not there or will not
+  load, and `--resume` of a flow that cannot be picked up or has no run to pick up.
+- `--resume` MUST pick up the newest run of that flow in this workspace that can be picked up;
+  without it every run MUST start from the top.
 - MUST read `<cli>` from the front and `<effort>` from after the last colon so that a model's own
   punctuation stays the model's, and MUST NOT restate here which backends exist.
+- A run started from a command line MUST have nobody outside it: its outworlder is away.
 - MUST draw a run from the agents' own event stream rather than from each backend's own progress and
   MUST NOT show both, saying which agent is taking a turn and in which conversation, what it said,
   what it ran, what it started, and what a turn cost -- in money as well as tokens, and tokens alone
   for a model nobody prices -- with something going on moving while a terminal is reading.
-- MUST say, without asking, when nothing will stop the run, when a cap cannot be read, and what a flow
-  declared that its agent could not be told.
+- MUST say, without asking, when a cap cannot be read -- a cost cap over a model nobody prices -- and
+  MUST say a run its budget stopped in a line rather than as a failure.
 - `hmz internal anchor` MUST load `coganchor` and nothing else of humanize, the door included.
 - `hmz internal cred` MUST exit with the program's own status, MUST refuse a line naming nothing to
   answer or no program to run, and MUST NOT fall back to running unsupervised.

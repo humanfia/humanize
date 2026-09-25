@@ -9,8 +9,8 @@ what it offers -- every answer is `hmz.runtime`'s or `hmz.daemon`'s.
 ```python
 # __init__.py -- both ways in, and every type either hands back
 __all__ = ["Accounts", "Daemon", "Daemons", "Epics", "Fallbacks", "Flows", "Flowverses",
-           "Held", "Hmz", "Run", "Session"]
-def __getattr__(name: str) -> object: ...
+           "Held", "Hmz", "Refused", "Run", "Session", "fakes"]
+def __getattr__(name: str) -> object: ...  # `fakes` is `hmz.runtime.flowing.fakes`, whole
 
 # daemons.py -- the runs being held apart from a terminal
 class Daemons:

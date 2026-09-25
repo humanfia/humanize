@@ -16,13 +16,13 @@ the menu holds, adding one more of what the list is of, being rid of what the sh
 read as one more thing to pick, and a menu whose way out looks like one of its answers is a
 menu nobody can see the way out of.
 
-One agent is three steps, in this order and one agent at a time: which coding agent takes its
-turns and which account it runs as (:class:`RunsAs`), which model it runs and at what effort
-(:class:`Models`), and -- only where the flow said that one may be pointed at a machine --
-where its work lands (:class:`Anchors`). The order is the order of what depends on what: an
-account belongs to a backend and a model belongs to the CLI that runs it, so neither can be
-asked before the CLI has been. The backends are read one at a time, a tab apiece: the ones
-installed here plus an optional one the sheet can teach somebody to install. Every model of
+A flow is set up by role: each agent role it declares is a CLI, an account, a model and an
+effort (:class:`Agent`); each environment role is where it is, written as `-e` writes it; and
+beside them are the flow's own params and what a run of it may spend. The order of one agent's
+rows is the order of what depends on what: an account belongs to a backend and a model belongs
+to the CLI that runs it, so neither can be asked before the CLI has been. The backends are read
+one at a time, a tab apiece: the ones installed here plus an optional one the sheet can teach
+somebody to install. Every model of
 every CLI in one list is a list that grows each time any of them ships a model. The effort is
 the line with the arrows on it, exactly as Claude Code's is, and beside it the things that
 really are side questions about the same agent.
@@ -53,7 +53,7 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from rich.markup import escape
 from textual import events, on, work
 from textual.await_complete import AwaitComplete
@@ -64,30 +64,24 @@ from textual.widgets import Label, OptionList
 from textual.widgets.option_list import Option
 
 from hmz.coganchor import backends
-from hmz.coganchor.agents import ANYONE, FLOW, SWARM, USER, anchored, driver
-from hmz.coganchor.agents.allowance import (
-    Allowance,
-    allowed,
-    blinded,
-    unreadable,
-    unwatched,
-)
+from hmz.coganchor.agents import ANYONE, FLOW, SWARM, USER, driver
 from hmz.coganchor.prices import money
+from hmz.flows import Budget
 from hmz.runtime import telemetry
 from hmz.runtime.kept import Runs
 from hmz.runtime.telemetry import KEPT, SAYS, SENT
 
-from .discover import installed, machines, ready_to_open
+from .discover import installed, ready_to_open
 from .monitor import Counted, Shape, lasting, short, thousands
 from .selecting import Choices
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator, Iterable, Mapping, Sequence
+    from collections.abc import Callable, Generator, Mapping, Sequence
 
     from pydantic.fields import FieldInfo
     from textual.app import App, ComposeResult
 
-    from hmz.coganchor.agents import AgentBase, Board, Moment
+    from hmz.coganchor.agents import AgentBase, Board
     from hmz.coganchor.backends import Model, Way
 
     # Under another name, because `Falls` here is the sheet one account's chain is chosen on
@@ -97,7 +91,7 @@ if TYPE_CHECKING:
     from hmz.coganchor.providers import Provider
     from hmz.daemon import Hmz
     from hmz.runtime.epic import Ran
-    from hmz.runtime.flowing import Flowverse, Offer, Place
+    from hmz.runtime.flowing import AgentRole, EnvRole, Flowverse, Offer
 
     from .monitor import Monitor, Under
 
@@ -112,13 +106,13 @@ __all__ = [
     "Accounts",
     "Agent",
     "Alike",
-    "Anchors",
     "Backends",
     "Catalogue",
     "Chosen",
     "Clis",
     "Configures",
     "Confirms",
+    "Declared",
     "Does",
     "Doing",
     "Drafts",
@@ -141,66 +135,35 @@ __all__ = [
     "Signs",
     "Speaks",
     "Ways",
+    "budget_of",
     "called",
-    "config_of",
-    "model_of",
+    "declared_of",
+    "named_as",
     "opens_on",
-    "places_of",
-    "pointed",
+    "params_model",
+    "params_of",
     "reads",
+    "serves",
     "setting",
     "settled",
+    "spent",
 ]
 
 
-def called(places: tuple[Place, ...], at: int) -> str:
+def called(roles: Sequence[str], at: int) -> str:
     """What to call the agent being configured, which every step of configuring it says.
 
     In one place because it is said in three, and an agent that read as two different things
     between one step and the next would be two.
 
     Args:
-      places: One place per agent the flow drives, in the order it takes them.
+      roles: The agent roles the flow declares, in the order it declares them.
       at: Which of them is being asked about, counting from zero.
 
     Returns:
-      The name the flow calls it, or where it comes among them for a flow that named none.
+      The role, which is what the flow calls it.
     """
-    return places[at].name or f"agent {at + 1} of {len(places)}"
-
-
-def pointed(place: Place) -> bool:
-    """Whether where one agent works is a question anybody is asked about it.
-
-    Only for a place the flow declared `Remote`: a flow that says so is a flow that expects
-    to be told where that agent works, and one that says nothing has said its agent works
-    here. A container the flow named is not asked about either -- the flow settled it, and
-    nobody else has any say in it.
-
-    Args:
-      place: What the flow declared.
-
-    Returns:
-      True if there is a machine to be chosen for it, which is a step of its own.
-    """
-    from hmz.coganchor.agents import Remote
-
-    return place.where is Remote or isinstance(place.where, Remote)
-
-
-def _settled(place: Place) -> str:
-    """The container a flow put one of its agents in, where it named one.
-
-    Args:
-      place: What the flow declared.
-
-    Returns:
-      The image, or "" for an agent that works here and one that is asked where it works --
-      neither of which is something the flow settled.
-    """
-    from hmz.coganchor.agents import Isolated
-
-    return place.where.image if isinstance(place.where, Isolated) else ""
+    return roles[at] if at < len(roles) else f"agent {at + 1} of {len(roles)}"
 
 
 #: What Claude Code rules the top of a sheet with, and how far in everything under it sits.
@@ -330,9 +293,9 @@ def _holds(held: Held) -> str:
 
 
 def reads(
-    named: tuple[str, ...], runs: list[Runs], holding: Sequence[Held] = ()
+    named: tuple[str, ...], runs: Sequence[Runs], holding: Sequence[Held] = ()
 ) -> list[str]:
-    """One line per agent a flow drives: what it runs, where, and what it is holding.
+    """One line per agent role a flow declares: what it runs, and what it is holding.
 
     In one place because it is read in two -- above the prompt while a flow runs, and under
     the diagram on `/monitor` before any agent has worked -- and an agent that read as two
@@ -341,8 +304,8 @@ def reads(
     line without it, and it says nothing there.
 
     Args:
-      named: What the flow calls each of them, "" apiece where it names none.
-      runs: What each of them runs, and where its turns land.
+      named: The role each of them fills.
+      runs: What each of them runs.
       holding: The conversations each of them has open, in the same order, or nothing at all
         for a flow that is not running -- which holds none.
 
@@ -355,19 +318,9 @@ def reads(
             for part in (
                 named[at] if at < len(named) else "",
                 one.spec,
-                one.anchor,
-                # A word either way, because both answers are worth reading: the rung this
-                # agent was narrowed to, or the word for not having been narrowed at all --
-                # which leaves it at what it was configured with, and which a gap on the
-                # line could not tell from a setting that had gone missing. The account it
-                # runs as is not like it: one that says nothing is the one this machine is
-                # already signed in as, which is the line saying nothing new.
-                backends.permitted(one.permission),
+                # The account it runs as, where it is not the one this machine is already
+                # signed in as -- which is the line saying nothing new.
                 one.provider,
-                # And off is the only one of the three worth a word: on is what a CLI that
-                # searches does anyway, and an agent nobody was asked about is one this line
-                # has nothing to say about either.
-                "no web search" if one.web_search is False else "",
                 _holds(holding[at]) if at < len(holding) else "",
             )
             if part
@@ -377,7 +330,7 @@ def reads(
 
 
 _SHEET = """
-Anchors, Backends, Configures, Flows, Models, Monitoring, Providers, RunsAs, Signing,
+Backends, Configures, Flows, Models, Monitoring, Providers, RunsAs, Signing,
 Ways {
     align: center middle; background: $background; }
 #sheet { width: 100%; height: auto; padding: 0; }
@@ -1171,39 +1124,134 @@ class Drafts[T](Sheet[T]):
 class Chosen(NamedTuple):
     """What the flow menu was answered with: what to run, on what, and set up how.
 
-    One answer rather than three, because the menu is one thing answered once: what is held
+    One answer rather than four, because the menu is one thing answered once: what is held
     on each of its pages lands together when it is saved, or none of it does.
 
     Attributes:
       flow: The flow to run, by the name it was offered under.
-      agents: What each of its agents is, in the order the flow takes them.
-      config: What the flow itself is set up with, or None for a flow that takes no setting
-        up and one that was left as it comes.
-      budget: What a run of it may spend, or None to run under whatever the flow itself
-        says -- which is what a flow nobody has set one for here does. Beside the config
-        rather than inside it, because it is a setting of the run: the flow declares at most
-        a default and never holds itself to one.
+      agents: What each of its agent roles runs, by role.
+      envs: Where each of its environment roles is, by role, as `-e` spells one.
+      params: What the flow itself is set up with, or None for a flow that takes no params
+        and one that was left at its defaults.
+      budget: What a run of it may spend, or None for none -- which only a flow humanize
+        ships may be run with.
     """
 
     flow: str
-    agents: tuple[Runs, ...]
-    config: BaseModel | None = None
-    budget: Allowance | None = None
+    agents: dict[str, Runs]
+    envs: dict[str, str] = {}  # noqa: RUF012 -- a NamedTuple's default, never written to
+    params: BaseModel | None = None
+    budget: Budget | None = None
+
+
+class Declared(NamedTuple):
+    """What a flow declares that the menu asks about, read once per flow.
+
+    Attributes:
+      agents: The agent roles somebody chooses an agent for, in the order the flow declares
+        them. An `Outworlder` role is whoever is at this prompt, and is not among them.
+      envs: The environment roles somebody names a place for. A `LocalEnv` role is the
+        workspace a run is started in, and is not among them either.
+      params: What the flow can be set up with.
+      unbounded: Whether a run of it needs no budget: a flow humanize ships -- `chat`, a
+        conversation, which stops when the person does.
+      resumable: Whether a run of it can be picked up where it left off.
+    """
+
+    agents: tuple[AgentRole, ...]
+    envs: tuple[EnvRole, ...]
+    params: type[BaseModel]
+    unbounded: bool = False
+    resumable: bool = False
+
+    @property
+    def roles(self) -> tuple[str, ...]:
+        """The agent roles, by name, in the order the flow declares them."""
+        return tuple(one.name for one in self.agents)
+
+    @property
+    def places(self) -> tuple[str, ...]:
+        """The environment roles, by name, in the order the flow declares them."""
+        return tuple(one.name for one in self.envs)
+
+
+def declared_of(flow: str) -> Declared | None:
+    """What a flow declares, or None for a flow that will not load.
+
+    Args:
+      flow: The flow, by the name it was offered under -- not by the file that name resolves
+        to, since a module may hold several and which of them was asked for is the half after
+        the colon.
+
+    Returns:
+      Its roles, params and marks, and None where reading the flow raised at all -- which is
+      a flow to report rather than a reason for a menu not to draw.
+    """
+    from hmz.runtime.flowing import builtin, resolved
+
+    try:
+        # Loaded once, and asked both questions: loading a flow reads its directory.
+        impl = resolved(flow)
+        said = impl.describe()
+        unbounded = builtin(impl)
+    except Exception:  # noqa: BLE001 -- a flow that will not load is still not a crash
+        return None
+    return Declared(
+        tuple(one for one in said.agents if not one.auto),
+        tuple(one for one in said.envs if not one.auto),
+        said.params,
+        unbounded=unbounded,
+        resumable=said.resumable,
+    )
+
+
+def _harness(backend: str) -> str:
+    """Which harness a CLI is, as the flow API names it: its own name, or `acp`."""
+    from hmz.flows import HarnessKind
+
+    try:
+        return HarnessKind(backend).value
+    except ValueError:
+        return HarnessKind.ACP.value
+
+
+def serves(backend: str, role: AgentRole | None) -> bool:
+    """Whether one CLI could fill an agent role, as a run of the flow would ask it.
+
+    Args:
+      backend: The CLI.
+      role: What the flow declared of the role, or None for an agent that is no flow's --
+        either end of a fallback step, which a flow says nothing about.
+
+    Returns:
+      False for a CLI that is not the harness the role names, or that cannot do what the
+      role declares it must; True otherwise.
+    """
+    if role is None:
+        return True
+    from hmz.flows import HarnessKind
+    from hmz.runtime.flowing import HARNESS_CAPABILITIES
+
+    harness = HarnessKind(_harness(backend))
+    if role.harness is not None and harness != role.harness:
+        return False
+    return role.capabilities <= HARNESS_CAPABILITIES[harness]
 
 
 def opens_on(
-    agents: Mapping[str, tuple[Model, ...]], *, goals: bool = True
+    agents: Mapping[str, tuple[Model, ...]], role: AgentRole | None = None
 ) -> list[Runs]:
-    """The one agent to fall back on where nothing has been remembered for a place.
+    """The one agent to fall back on where nothing has been remembered for a role.
 
-    The first backend installed here that has said what it runs and can be opened without
-    further setup, at the first model it named -- which is that CLI's own idea of what it runs
-    by default, and the only idea of it worth having. Nothing is written down here: a model
-    named in this file would be a model this file was right about on the day it was written.
+    The first backend installed here that has said what it runs, can be opened without
+    further setup and could fill the role, at the first model it named -- which is that CLI's
+    own idea of what it runs by default, and the only idea of it worth having. Nothing is
+    written down here: a model named in this file would be a model this file was right about
+    on the day it was written.
 
     Args:
       agents: The backends there are, and what each of them says it runs.
-      goals: Whether backend goals start available to it.
+      role: What the flow declared of the role, or None for any.
 
     Returns:
       The one agent, or nothing at all where no backend here has both said what it runs and
@@ -1211,7 +1259,7 @@ def opens_on(
     """
     where = Path.cwd()
     for backend, found in agents.items():
-        if found and ready_to_open(backend, where):
+        if found and serves(backend, role) and ready_to_open(backend, where):
             # Not the hardest effort, which is where the cursor starts: that is the one to
             # reach for, and this is the one to spend before anybody has asked for anything.
             # `high` where the model takes it, which is nearly always -- and the least it
@@ -1223,28 +1271,8 @@ def opens_on(
             effort = "high" if "high" in one.efforts else ""
             if not effort and one.efforts:
                 effort = one.efforts[-1]
-            return [
-                Runs(f"{backend}/{one.name}:{backends.written(effort)}", goals=goals)
-            ]
+            return [Runs(f"{backend}/{one.name}:{backends.written(effort)}")]
     return []
-
-
-def places_of(flow: str) -> tuple[Place, ...] | None:
-    """The agents a flow drives, or None for a flow that will not load.
-
-    Args:
-      flow: The flow, by the name it was offered under -- not by the file that name resolves
-        to, since a file may hold several and which of them was asked for is the half after
-        the colon.
-
-    Returns:
-      One place per agent it drives, and None where reading the flow raised at all -- which
-      is a flow to report rather than a reason for a menu not to draw.
-    """
-    try:
-        return _hmz().flows.places(flow)
-    except Exception:  # noqa: BLE001 -- a flow that will not load is still not a crash
-        return None
 
 
 def why_not(flow: str) -> str:
@@ -1252,7 +1280,7 @@ def why_not(flow: str) -> str:
 
     "will not load" on its own is a dead end: the reasons are nothing alike -- a flowverse
     that has not been fetched, a module the flow imports that is not installed, a syntax
-    error somebody just wrote, a file holding several flows and none of them named -- and
+    error somebody just wrote, a module holding several flows and none of them named -- and
     each is fixed somewhere else. So the reason is read off the exception rather than
     swallowed, and shown where the flow is picked.
 
@@ -1267,7 +1295,7 @@ def why_not(flow: str) -> str:
       that loads, this being asked only of one that did not.
     """
     try:
-        _hmz().flows.places(flow)
+        _hmz().flows.declared(flow)
     except Exception as why:  # noqa: BLE001 -- the reason is the answer here
         said = str(why).strip().splitlines()
         first = said[0].strip() if said else ""
@@ -1329,23 +1357,24 @@ def _wont_load(flow: str, also: str = "") -> str:
     return bad(said)
 
 
-def model_of(flow: str) -> type[BaseModel] | None:
-    """What a flow says it can be set up with, if it says anything.
+def params_model(flow: str) -> type[BaseModel] | None:
+    """What a flow can be set up with, where it takes anything at all.
 
     Args:
       flow: The flow, by name or as a path.
 
     Returns:
-      The model to ask with, or None for a flow that takes no setting up -- and for one that
-      will not load, which is a flow to report where it is run rather than here.
+      Its params model, or None for a flow whose params have no fields -- a sheet with
+      nothing on it is not a question -- and for one that will not load, which is a flow to
+      report where it is run rather than here.
     """
-    try:
-        return _hmz().flows.configures(flow)
-    except Exception:  # noqa: BLE001 -- a flow that will not load is still not a crash
+    declared = declared_of(flow)
+    if declared is None or not declared.params.model_fields:
         return None
+    return declared.params
 
 
-def config_of(flow: str, kept: dict[str, Any]) -> BaseModel | None:
+def params_of(flow: str, kept: Mapping[str, Any]) -> BaseModel | None:
     """How a flow was last set up, read back through the flow's own model rather than trusted.
 
     Args:
@@ -1353,127 +1382,116 @@ def config_of(flow: str, kept: dict[str, Any]) -> BaseModel | None:
       kept: What was written down for it, field by field.
 
     Returns:
-      What it was set up with, or None for a flow that takes no setting up, has not been set
+      What it was set up with, or None for a flow that takes no params, has not been set
       up here, or has since changed enough that what was kept no longer reads -- a settings
       file is a convenience, and one that no longer fits is one to start over from.
     """
-    model = model_of(flow)
+    model = params_model(flow)
     if model is None or not kept:
         return None
     try:
-        return model.model_validate(kept)
+        return model.model_validate(dict(kept))
     except Exception:  # noqa: BLE001 -- what was kept no longer fits the flow
         return None
 
 
-def dimensions(said: Allowance) -> dict[str, float]:
-    """An allowance as the three fields a sheet asks for and a settings file writes down."""
-    return {"hours": said.hours, "tokens": said.tokens, "dollars": said.dollars}
-
-
-def _spending(held: Allowance | None, declared: Allowance | None) -> str:
-    """What a run of this flow may spend, said the way a row about it says it.
-
-    Said on the row rather than only inside the sheet it opens, because an allowance nobody
-    can see without opening something is one nobody checks: the row is where a person finds
-    out that the run they are about to start has no cap on it.
+def spent(budget: Budget) -> str:
+    """What a budget caps, shortest first, as a row says it.
 
     Args:
-      held: What was set here, or None for a flow nobody has set one for.
-      declared: What the flow itself says, or None for a flow with no opinion.
+      budget: The budget.
 
     Returns:
-      The caps, shortest first, or a line saying there are none.
+      Each limit it sets -- the time, the output tokens, the money -- and `no limit` for the
+      one a conversation runs under, whose one cap is an infinite cost.
     """
-    said = held if held is not None else declared
-    if said is None or not said.bounded:
-        return "nothing stops this run"
-    caps = [
-        f"{said.hours:g}h" if said.hours else "",
-        f"{said.tokens:g}M out" if said.tokens else "",
-        money(said.dollars) if said.dollars else "",
-    ]
-    whose = "" if held is not None else ", as the flow has it"
-    return f"stops at {', '.join(one for one in caps if one)}{whose}"
+    import math
+
+    caps: list[str] = []
+    if budget.duration is not None:
+        caps.append(lasting(budget.duration.total_seconds()))
+    if budget.output_tokens is not None:
+        caps.append(f"{thousands(budget.output_tokens)} out")
+    if budget.cost is not None and not math.isinf(budget.cost):
+        caps.append(money(budget.cost))
+    if not caps:
+        return "no limit"
+    return ", ".join(caps) + ("" if budget.graceful else ", cut mid-turn")
 
 
-def budget_of(flow: str) -> Allowance | None:
+def _spending(held: Budget | None, *, unbounded: bool) -> str:
+    """What a run of this flow may spend, said the way a row about it says it.
+
+    Said on the row rather than only inside the sheet it opens, because a budget nobody can
+    see without opening something is one nobody checks: the row is where a person finds out
+    what the run they are about to start is held to -- or that it is held to nothing yet,
+    which is a run that will not start.
+
+    Args:
+      held: What was set here, or None for none.
+      unbounded: Whether the flow needs none: a conversation, which stops when you do.
+
+    Returns:
+      The caps, or what having none comes to.
+    """
+    if held is None:
+        return (
+            "none needed; it stops when you stop talking"
+            if unbounded
+            else "none yet; a run is given one"
+        )
+    return f"stops at {spent(held)}"
+
+
+def budget_of(flow: str) -> Budget | None:
     """What a run of one flow here was last set to be allowed to spend.
 
     Args:
       flow: The flow.
 
     Returns:
-      The allowance, or None for a flow nobody has set one for here -- which is a run under
-      whatever the flow itself declares. What was written down is read back rather than
-      trusted, so a settings file somebody edited by hand into something that is not an
-      allowance is one the flow's own default is used instead of.
+      The budget, or None for a flow nobody has set one for here. What was written down is
+      read back rather than trusted, so a settings file somebody edited by hand into
+      something that is not a budget is one that asks again.
     """
-    from hmz.coganchor.agents.allowance import written
-
     kept = _hmz().settings.budget(flow)
     if not kept:
         return None
     try:
-        return written(kept)
+        return Budget.model_validate(kept)
     except ValueError:
         return None
 
 
-def declared_by(flow: str) -> Allowance | None:
-    """What the flow itself says a run of it is worth, if it says anything.
-
-    Args:
-      flow: The flow, by name or as a path.
-
-    Returns:
-      What it declared, `Allowance()` for a flow that says it is meant to run under nothing
-      at all, and None for a flow with no opinion -- which is the one the menu asks about.
-    """
-    try:
-        return _hmz().flows.declared(flow)
-    except Exception:  # noqa: BLE001 -- a flow that will not load is still not a crash
-        return None
-
-
 def settled(
-    runs: Sequence[Runs],
-    places: Sequence[Place],
+    runs: Mapping[str, Runs],
+    roles: Sequence[AgentRole],
     agents: Mapping[str, tuple[Model, ...]] | None = None,
-) -> list[Runs]:
-    """One agent per place a flow drives, out of however many were remembered for it.
+) -> dict[str, Runs]:
+    """One agent per role a flow declares, out of whatever was remembered for it.
 
-    A flow that has grown an agent since it was last run here is a flow with a place nothing
-    was remembered for, and one that has lost one is a flow with an agent nobody will drive.
+    A flow that has grown a role since it was last run here is a flow with a role nothing was
+    remembered for, and one that has lost one is a flow with an agent nobody will drive.
     Neither is a reason to start over: what is there is kept, and what is missing falls back
-    on the agent the interface opens talking to.
+    on the agent the interface opens talking to, where one here could fill that role.
 
     Args:
-      runs: What was remembered, in the order the flow took them then.
-      places: What the flow drives now.
-      agents: The backends there are, for the place nothing was remembered for, or None
-        where there is nothing to fall back on -- which leaves such a place unanswered.
+      runs: What was remembered, by role.
+      roles: What the flow declares now.
+      agents: The backends there are, for a role nothing was remembered for, or None where
+        there is nothing to fall back on -- which leaves such a role unanswered.
 
     Returns:
-      One apiece, with goals forced on for a place the flow declared it needs them at -- that
-      one is the flow's own requirement rather than anybody's choice.
+      One agent per role that has one, by role, in the order the flow declares them.
     """
-    spare = opens_on(agents) if agents is not None else []
-    held: list[Runs] = []
-    for at, place in enumerate(places):
-        if at < len(runs):
-            one = runs[at]
-        elif spare:
-            # What the flow suggested for a place nothing was remembered for: a flow that
-            # says its agent starts without goals is one whose fallback agent starts that
-            # way too, rather than one whose suggestion only counts on a command line.
-            one = spare[0]._replace(goals=place.goals)
-        else:
-            # Nothing remembered and nothing to fall back on, which is a machine with no
-            # coding agent installed on it: a place with no agent is a place with no agent,
-            # and an agent naming no model would be a worse answer than none.
-            break
-        held.append(one._replace(goals=True) if place.goal else one)
+    held: dict[str, Runs] = {}
+    for role in roles:
+        one = runs.get(role.name)
+        if one is None and agents is not None:
+            spare = opens_on(agents, role)
+            one = spare[0] if spare else None
+        if one is not None:
+            held[role.name] = one
     return held
 
 
@@ -1504,8 +1522,8 @@ def _cli(runs: Runs) -> str:
 def _model(runs: Runs) -> str:
     """What one agent of the menu runs, out of the `cli/model:effort` it was set up as.
 
-    Read from both ends, as :func:`hmz.runtime.kept.written` reads the same word: a model may
-    hold slashes of its own, while a CLI and an effort never do.
+    Read from both ends, as :func:`hmz.runtime.kept.read_back` reads the same word: a model
+    may hold slashes of its own, while a CLI and an effort never do.
 
     Args:
       runs: The agent.
@@ -1516,45 +1534,25 @@ def _model(runs: Runs) -> str:
     return runs.spec.partition("/")[2].rpartition(":")[0]
 
 
-def _counts(runs: Runs) -> bool:
-    """Whether the backend one agent of the menu is driven by reports what it writes.
+def placed(role: str, spec: str) -> str:
+    """What is wrong with where an environment role was said to be, or "" for nothing.
 
-    Asked of the CLI rather than of the model, `counts` being that backend's own word for
-    what it can report: a CLI somebody added by hand is driven over a protocol that counts
-    nothing at all, so a cap in tokens on one of those is a cap that will never bite.
+    Read the way `-e` is read, so that what the menu takes is what a command line would.
 
     Args:
-      runs: The agent.
+      role: The role.
+      spec: Where it is, as `-e` spells one after `<role>=`.
 
     Returns:
-      Whether a token cap could be read off it. True for a CLI nothing here drives, which is
-      an agent no run can be started with either -- there is nothing to warn anybody about.
+      Why it is not one, in words, or "" for a spec that reads.
     """
+    from hmz.runtime.flowing import SpecError, parse_envs
+
     try:
-        return "output" in driver(_cli(runs))[0].counts
-    except KeyError:
-        return True
-
-
-def _cannot_read(blind: Iterable[str]) -> str:
-    """The line under the question, for a run whose caps are set and cannot be read.
-
-    :func:`hmz.coganchor.agents.allowance.unreadable` already names the dimension and why
-    nothing can read it, and says it in the line `hmz exec` prints on its way past. Said the
-    same way here: two wordings of one fact are two things to keep in step, and a person who
-    reads it in both places is reading about the same run.
-
-    Args:
-      blind: The dimensions nothing can read, as `Reading.blind` names them.
-
-    Returns:
-      The line, or "" for a run every cap of which can be read -- which is the ordinary
-      unbounded one, capped on nothing at all.
-    """
-    said = unreadable(blind)
-    if not said:
-        return ""
-    return f"{said[:1].upper()}{said[1:]}, so that cap cannot stop this run."
+        parse_envs([f"{role}={spec}"])
+    except SpecError as why:
+        return str(why)
+    return ""
 
 
 #: What separates the two halves of a row's id among the flows: which place it came from,
@@ -1600,10 +1598,11 @@ class Flows(Drafts[Chosen]):
     list of flows is being read; what can happen to a flowverse is the menu `v` opens, which
     is a question about the places rather than about which flow to run.
 
-    Choosing a flow asks what that flow itself takes, where it takes anything, and then opens
-    what will drive it. A key that set the flow up was a key nobody pressed: a flow with
-    settings is chosen in order to be run with settings, and the moment it is chosen is the
-    one moment somebody is thinking about that flow rather than about its agents.
+    Choosing a flow asks what that flow itself takes -- its params -- where it takes anything,
+    and then opens its roles: a row per agent role somebody chooses an agent for, a row per
+    environment role somebody says the place of, what a run of it may spend, and saving. The
+    roles the runtime fills -- whoever is at this prompt, the workspace a run starts in -- are
+    not rows: nobody chooses them.
 
     Nothing is applied by walking in or back out. What the menu holds is a draft of the whole
     of it, and it lands together from the save row or when saving is confirmed on the way out.
@@ -1628,12 +1627,13 @@ class Flows(Drafts[Chosen]):
     def __init__(
         self,
         flow: str,
-        runs: Sequence[Runs],
-        config: BaseModel | None,
+        runs: Mapping[str, Runs],
+        params: BaseModel | None,
         agents: dict[str, tuple[Model, ...]],
         kept: dict[str, Any],
         *,
-        budget: Allowance | None = None,
+        envs: Mapping[str, str] | None = None,
+        budget: Budget | None = None,
         unavailable: frozenset[str] = frozenset(),
         running: bool = False,
         inside: bool = False,
@@ -1642,16 +1642,16 @@ class Flows(Drafts[Chosen]):
 
         Args:
           flow: The flow running now, or the one this workspace is set up to run.
-          runs: What each of its agents is, in the order the flow takes them.
-          config: What the flow itself is set up with, for one that takes setting up.
+          runs: What each of its agent roles runs, by role.
+          params: What the flow itself is set up with, for one that takes params.
           agents: The backends offered here, and what each of them says it runs.
-          budget: What a run of it may spend here, or None for a flow nobody has set one
-            for -- which runs under whatever the flow itself says.
           kept: What each flow was last set up with here, by flow -- read when the draft flow
             changes, so that turning to a flow this workspace has run finds it as it was left.
+          envs: Where each of its environment roles is, by role.
+          budget: What a run of it may spend here, or None for none yet.
           unavailable: The optional backends among them that still need installing.
           running: Whether a flow is running, which is what takes the flows away.
-          inside: Whether to open inside the flow's agents rather than on the flows, for a
+          inside: Whether to open inside the flow's roles rather than on the flows, for a
             menu opened already naming one -- a flow that was named has been chosen, so what
             is left to answer is what drives it.
         """
@@ -1659,32 +1659,28 @@ class Flows(Drafts[Chosen]):
         self._agents = dict(agents)
         self._unavailable = unavailable
         self._kept = kept
-        # Said outright, both of them: the flow is read where it is set, so what it is has to
+        # Said outright, all of them: the flow is read where it is set, so what it is has to
         # be settled without reading what reads it.
         self._flow: str = flow
-        self._places: tuple[Place, ...] = places_of(flow) or ()
+        #: What the flow declares, read once per flow rather than on every redraw: reading
+        #: it means importing the flow, and the roles page is drawn on every keystroke.
+        self._declared: Declared | None = declared_of(flow)
+        self._runs: dict[str, Runs]
+        self._envs: dict[str, str]
         if runs:
-            self._runs = (
-                self._fitted(settled(runs, self._places, self._agents))
-                if self._places
-                else list(runs)
-            )
-            self._config = config
+            self._runs = self._fitted(dict(runs))
+            self._envs = dict(envs or {})
+            self._params = params
             self._budget = budget
         else:
             # A flow the interface is not set up on, opened straight into: what it was last
             # set up with here is what it opens holding, exactly as turning to it would be.
-            self._runs = self._fitted(
-                settled(self._remembered(flow), self._places, self._agents)
-            )
-            self._config = config_of(flow, self._held(flow).get("config") or {})
+            self._runs = self._fitted(self._remembered(flow))
+            self._envs = self._placed(flow)
+            self._params = params_of(flow, self._held(flow).get("params") or {})
             self._budget = budget_of(flow)
-        #: What the flow itself says a run of it is worth, read once per flow rather than on
-        #: every redraw: reading it means running the flow's own file, and the agents page is
-        #: drawn again on every keystroke.
-        self._declared = declared_by(self._flow)
         #: Every flow there is, read once: this is redrawn on every keystroke, and reading it
-        #: means running each flow file to see what it holds. Cleared when a flowverse is
+        #: means importing each flow to see what it holds. Cleared when a flowverse is
         #: fetched or taken away, which is when the list is something else.
         self._offers: list[Offer] | None = None
         #: Which row of the flows the cursor is on, as `where it came from` and `which flow`:
@@ -1693,21 +1689,21 @@ class Flows(Drafts[Chosen]):
         self._was = ""
         #: Which place's flows are being read, the arrows stepping between them. "" until the
         #: flows are first drawn: which place the flow in force came from is a thing only the
-        #: list of every flow there is can say, and reading that list is running every file.
+        #: list of every flow there is can say, and reading that list is importing every flow.
         self._where = ""
         #: What became of the last fetch, said under the list.
         self._said = ""
         #: What is being fetched now, so that a second fetch is not started over it and so
         #: that what is said under the list is what is being fetched. "" for none.
         self._fetching = ""
-        #: Whether the agents are the whole of this menu, there being no flows behind them
-        #: to step back to: while a flow runs choosing one is not offered, and a flow that was
+        #: Whether the roles are the whole of this menu, there being no flows behind them to
+        #: step back to: while a flow runs choosing one is not offered, and a flow that was
         #: named was chosen on the line that named it rather than picked out of a list. Esc
         #: reads off this -- a step back to a list nobody walked through is a step somebody
         #: did not take, and on a `$` that named a flow it would swallow the line typed with
         #: it.
         self._only = running or inside
-        #: Whether what is open is the agents of the flow rather than the flows.
+        #: Whether what is open is the roles of the flow rather than the flows.
         self._inside = self._only
 
     def searching(self) -> str:
@@ -1765,50 +1761,63 @@ class Flows(Drafts[Chosen]):
         if _HALVES in named:
             self._was = named
 
-    def _fitted(self, runs: Sequence[Runs]) -> list[Runs]:
-        """One row per agent the flow drives, whatever there was to fill it with.
+    def _fitted(self, runs: Mapping[str, Runs]) -> dict[str, Runs]:
+        """One agent per agent role the flow declares, whatever there was to fill it with.
 
-        A place nothing was remembered for and nothing falls back on still has a row here:
-        this is where it is set up, and a place with no row is a place nobody can answer. What
-        such a row says is that it has not been answered yet.
+        A role nothing was remembered for and nothing falls back on still has a row: this is
+        where it is set up, and a role with no row is a role nobody can answer. What such a
+        row holds is an agent that names nothing, which says it has not been answered yet.
 
         Args:
-          runs: What there is, in the order the flow takes them.
+          runs: What there is, by role.
 
         Returns:
-          One apiece, padded with an agent that names nothing.
+          One apiece, by role, in the order the flow declares them.
         """
-        return [
-            runs[at] if at < len(runs) else Runs("") for at in range(len(self._places))
-        ]
+        declared = self._declared
+        if declared is None:
+            return dict(runs)
+        held = settled(runs, declared.agents, self._agents)
+        return {role: held.get(role, Runs("")) for role in declared.roles}
 
     def _held(self, name: str) -> dict[str, Any]:
         """What one flow was last set up with here, which is nothing for one never run."""
         held = self._kept.get(name)
         return cast("dict[str, Any]", held) if isinstance(held, dict) else {}
 
-    def _remembered(self, name: str) -> list[Runs]:
-        """What one flow's agents were last set up as here, in the order it takes them.
+    def _remembered(self, name: str) -> dict[str, Runs]:
+        """What one flow's agent roles were last set up as here, by role.
 
         Args:
           name: The flow.
 
         Returns:
-          One apiece, and nothing at all for a flow this workspace has never run -- which is
-          a flow whose agents fall back on the one the interface opens talking to.
+          One agent per role that has one, and nothing at all for a flow this workspace has
+          never run -- which is a flow whose agents fall back on the one the interface opens
+          talking to.
         """
         from hmz.runtime.kept import read_back
 
-        agents: dict[str, Any] = self._held(name).get("agents") or {}
-        return [
-            runs
-            for runs in (
-                read_back(cast("dict[str, Any]", one))
-                for one in agents.values()
-                if isinstance(one, dict)
-            )
-            if runs is not None
-        ]
+        agents = self._held(name).get("agents")
+        if not isinstance(agents, dict):
+            return {}
+        held: dict[str, Runs] = {}
+        for role, said in cast("dict[str, Any]", agents).items():
+            runs = read_back(said)
+            if runs is not None:
+                held[str(role)] = runs
+        return held
+
+    def _placed(self, name: str) -> dict[str, str]:
+        """Where one flow's environment roles were last said to be here, by role."""
+        envs = self._held(name).get("envs")
+        if not isinstance(envs, dict):
+            return {}
+        return {
+            str(role): str(said)
+            for role, said in cast("dict[str, Any]", envs).items()
+            if isinstance(said, str)
+        }
 
     def _ask(self) -> None:
         """Puts up whichever of the two it opened on, and catches up on fetches."""
@@ -1860,15 +1869,14 @@ class Flows(Drafts[Chosen]):
     def reread(self) -> None:
         """Drops the flows read before a fetch landed, and draws the list again.
 
-        The places too, for the flow in force: its file may be one of the ones that just came
-        down, and the agents page is drawn off what was read from the old one. A flow that
+        What the flow in force declares too: its module may be one of the ones that just came
+        down, and the roles page is drawn off what was read from the old one. A flow that
         would not load before the fetch is exactly the flow this is for.
         """
         self._offers = None
         if self._flow:
-            self._places = places_of(self._flow) or ()
-            self._declared = declared_by(self._flow)
-            self._runs = self._fitted(settled(self._runs, self._places, self._agents))
+            self._declared = declared_of(self._flow)
+            self._runs = self._fitted(self._runs)
         self._fill()
 
     def _walks(self, *, inside: bool) -> None:
@@ -1896,8 +1904,9 @@ class Flows(Drafts[Chosen]):
             # opened.
             self.query_one("#asked", Label).update(escape(self._flow))
             self.query_one("#about", Label).update(
-                "What each agent it drives is: the CLI that takes its turns, the account "
-                "they run as, and the model at an effort."
+                "What each of its roles is given: an agent -- the CLI that takes its turns, "
+                "the account they run as, and the model at an effort -- or where an "
+                "environment is."
             )
             self.tabbed("")
             self._agents_page()
@@ -2104,76 +2113,102 @@ class Flows(Drafts[Chosen]):
             return "no flow of that name"
         return ""
 
+    def _roles(self) -> tuple[str, ...]:
+        """The agent roles somebody chooses an agent for, in the flow's own order."""
+        return self._declared.roles if self._declared is not None else ()
+
+    def _places(self) -> tuple[str, ...]:
+        """The environment roles somebody names a place for, in the flow's own order."""
+        return self._declared.places if self._declared is not None else ()
+
     def _agents_page(self) -> None:
-        """Puts up each agent the flow drives, followed by saving the complete setup."""
+        """Puts up each role the flow declares, its budget, and saving the whole setup."""
         listing = self.query_one("#choices", OptionList)
-        named = tuple(place.name for place in self._places)
-        lines = reads(named, self._runs)
-        # The save row is past the end of the numbering, so what is numbered is the agents.
-        self._counting = len(str(max(len(self._places), 1)))
-        # One row past the agents for what a run may spend, and one past that for saving.
-        at = min(listing.highlighted or 0, len(self._places) + 1)
+        roles, places = self._roles(), self._places()
+        runs = [self._runs.get(role, Runs("")) for role in roles]
+        lines = reads(roles, runs)
+        # The rows set apart are past the end of the numbering, so what is numbered is the
+        # roles: the agents, then the environments.
+        count = len(roles) + len(places)
+        self._counting = len(str(max(count, 1)))
+        # One row past the roles for what a run may spend, and one past that for saving.
+        at = min(listing.highlighted or 0, count + 1)
         rows = [
             Option(
                 self._row(
                     seen,
-                    called(self._places, seen),
+                    called(roles, seen),
                     lines[seen].split(_DOT, 1)[-1]
-                    if self._runs[seen].spec
+                    if runs[seen].spec
                     else "not chosen yet",
                     here=seen == at,
                     inforce=False,
                 ),
                 id=f"={seen}",
             )
-            for seen in range(len(self._places))
+            for seen in range(len(roles))
         ]
+        rows.extend(
+            Option(
+                self._row(
+                    len(roles) + seen,
+                    place,
+                    self._envs.get(place) or "not said yet",
+                    here=len(roles) + seen == at,
+                    inforce=False,
+                ),
+                id=f"=@{place}",
+            )
+            for seen, place in enumerate(places)
+        )
         rows.append(
             Option(
                 self._apart(
                     "budget",
-                    _spending(self._budget, self._declared),
-                    here=at == len(self._places),
+                    _spending(
+                        self._budget,
+                        unbounded=self._declared is not None
+                        and self._declared.unbounded,
+                    ),
+                    here=at == count,
                 ),
                 id=f"={_BUDGET}",
             )
         )
-        rows.append(
-            self._saves("the flow and its agents", here=at == len(self._places) + 1)
-        )
+        rows.append(self._saves("the flow and its roles", here=at == count + 1))
         listing.set_options(rows)
         listing.highlighted = at
         self._drawn = listing.highlighted
-        said = self._said or ("" if self._places else self._noagents())
+        said = self._said or ("" if count else self._noagents())
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
         # Esc is out of the menu only where there is no list of flows to step back to,
         # which is while a flow is running: the row says what the key does here.
         back = Key("esc", "close" if self._only else "back to the flows")
-        if at == len(self._places) + 1:
+        if at == count + 1:
             self._footed(Key("enter", "save"), back)
         else:
-            # What enter says is read off the row it is on -- `open` over an agent and `set`
+            # What enter says is read off the row it is on -- `open` over a role and `set`
             # over the budget, which `Sheet._footed` rewrites from the row set apart.
             self._footed(Key("enter", "open"), Key(_CHORD, "save"), back)
 
     def _noagents(self) -> str:
-        """Why there is no agent to set up, which is not always the same reason."""
-        if places_of(self._flow) is None:
+        """Why there is no role to set up, which is not always the same reason."""
+        if self._declared is None:
             return _wont_load(self._flow, "nothing here can be set up")
-        return f"{escape(self._flow)} drives no agents; it talks only to you"
+        return f"{escape(self._flow)} has no role to choose for; it talks only to you"
 
     @work
     async def _configures(self) -> None:
-        """Asks what the flow itself takes, and turns to what will drive it.
+        """Asks what the flow itself takes, and turns to its roles.
 
-        Which is the moment to ask it: a flow that takes settings has just been chosen, and
+        Which is the moment to ask it: a flow that takes params has just been chosen, and
         what it is set up with is a thing about the flow rather than about its agents. A flow
         that takes none is not asked -- a sheet with nothing on it is not a question -- and
         the walk is the same either way, so nobody has to know which kind they picked.
         """
-        model = model_of(self._flow)
+        model = params_model(self._flow)
         if model is not None:
             showing = cast(
                 "App[None]",
@@ -2183,26 +2218,26 @@ class Flows(Drafts[Chosen]):
                 Configures(
                     self._flow,
                     model,
-                    self._config if isinstance(self._config, model) else None,
+                    self._params if isinstance(self._params, model) else None,
                 )
             )
             if held is not None:
-                self._config = held
+                self._params = held
                 self.changed()
             # And walking out of it leaves the flow set up as the draft has it, which is
-            # still a flow to go on and answer the agents of.
+            # still a flow to go on and answer the roles of.
         self._walks(inside=True)
 
     @work
     async def _budgets(self) -> None:
-        """Asks what a run of this flow may spend, from the row on the agents page.
+        """Asks what a run of this flow may spend, from the row on the roles page.
 
-        A row reached rather than a sheet the walk goes through, because every flow has an
-        allowance and most runs want the one they already have: a page that had to be pressed
-        past on the way to the agents would be a question asked of somebody who has answered
-        it. It is on the agents page rather than among the flow's own settings because it is a
-        setting of the run: the flow's model would refuse the fields, and a budget read back
-        as one of the flow's settings is the one mistake this must not make.
+        A row reached rather than a sheet the walk goes through, because most runs want the
+        budget they already have: a page that had to be pressed past on the way to the roles
+        would be a question asked of somebody who has answered it. It is not among the
+        flow's params because it is a setting of the run: the flow's model would refuse the
+        fields, and a budget read back as one of the flow's params is the one mistake this
+        must not make.
         """
         showing = cast(
             "App[None]",
@@ -2212,16 +2247,63 @@ class Flows(Drafts[Chosen]):
             Configures(
                 self._flow,
                 Budgeted,
-                Budgeted.model_validate(dimensions(self._budget))
-                if self._budget is not None
-                else None,
+                Budgeted.of(self._budget) if self._budget is not None else None,
                 asked=f"What a run of {self._flow} may spend",
-                about="Nothing is capped unless it is named, and 0 is no cap at all. "
-                "Whichever of them is reached first stops the run.",
+                about="A run stops at whichever limit it reaches first; at least one is "
+                "set. Empty or 0 is no limit on that one.",
             )
         )
         if isinstance(spends, Budgeted):
-            self._budget = Allowance(**spends.model_dump())
+            self._budget = spends.budget()
+            self.changed()
+        self._fill()
+
+    @work
+    async def _placing(self, role: str) -> None:
+        """Asks where one environment role is, as `-e` says it, and holds the answer.
+
+        Args:
+          role: The environment role.
+        """
+        from pydantic import create_model
+
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        model = create_model(
+            "Where",
+            where=(
+                str,
+                Field(
+                    default="",
+                    description="local@/abs/path, or ssh@host/abs/path -- "
+                    "ssh@host/~/path under the login's home",
+                ),
+            ),
+        )
+        held = await showing.push_screen_wait(
+            Configures(
+                self._flow,
+                model,
+                model(where=self._envs.get(role, "")),
+                asked=f"Where {role} is",
+                about="The machine and the directory this environment role works in, "
+                "as -e says one after the role.",
+            )
+        )
+        if held is None:
+            return
+        said = str(held.model_dump().get("where") or "").strip()
+        wrong = placed(role, said) if said else ""
+        if wrong:
+            self._said = bad(escape(wrong))
+        else:
+            if said:
+                self._envs[role] = said
+            else:
+                self._envs.pop(role, None)
+            self._said = ""
             self.changed()
         self._fill()
 
@@ -2298,7 +2380,7 @@ class Flows(Drafts[Chosen]):
 
     @on(OptionList.OptionSelected)
     def _took(self, event: OptionList.OptionSelected) -> None:
-        """Chooses the flow under the cursor, or opens the agent under it.
+        """Chooses the flow under the cursor, or opens the role under it.
 
         Args:
           event: What was chosen.
@@ -2314,6 +2396,9 @@ class Flows(Drafts[Chosen]):
             return
         if held == _BUDGET:
             self._budgets()
+            return
+        if held.startswith("@"):
+            self._placing(held[1:])
             return
         try:
             at = int(held)
@@ -2331,48 +2416,48 @@ class Flows(Drafts[Chosen]):
           name: The flow, by the name it was offered under.
         """
         if name != self._flow:
-            places = places_of(name)
-            if places is None:
+            declared = declared_of(name)
+            if declared is None:
                 self._said = _wont_load(name)
                 self._fill()
                 return
-            self._flow, self._places = name, places
-            self._runs = self._fitted(
-                settled(self._remembered(name), places, self._agents)
-            )
-            self._config = config_of(name, self._held(name).get("config") or {})
+            self._flow, self._declared = name, declared
+            self._runs = self._fitted(self._remembered(name))
+            self._envs = self._placed(name)
+            self._params = params_of(name, self._held(name).get("params") or {})
             self._budget = budget_of(name)
-            self._declared = declared_by(name)
             self.changed()
-        # On to what the flow itself takes, where it takes anything, and then to what will
-        # drive it: three things about one flow, asked in the order they depend on nothing.
+        # On to what the flow itself takes, where it takes anything, and then to its roles:
+        # things about one flow, asked in the order they depend on nothing.
         self._configures()
 
     @work
     async def _configuring(self, at: int) -> None:
-        """Opens one agent of the flow, and holds whatever comes back as a draft.
+        """Opens one agent role of the flow, and holds whatever comes back as a draft.
 
         Args:
           at: Which of them, counting from zero.
         """
-        if not 0 <= at < len(self._places):
+        declared = self._declared
+        if declared is None or not 0 <= at < len(declared.agents):
             return
+        role = declared.agents[at]
         showing = cast(
             "App[None]",
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
         chosen = await showing.push_screen_wait(
             Agent(
-                called(self._places, at),
-                self._runs[at],
+                role.name,
+                self._runs.get(role.name, Runs("")),
                 self._agents,
-                place=self._places[at],
+                role=role,
                 unavailable=self._unavailable,
             )
         )
         if chosen is None:
             return  # walked out of it, which leaves that agent as the draft has it
-        self._runs[at] = chosen
+        self._runs[role.name] = chosen
         self.changed()
         self._fill()
 
@@ -2390,63 +2475,52 @@ class Flows(Drafts[Chosen]):
         super().leaving()
 
     def applied(self) -> None:
-        """Answers with the flow, its agents and how it is set up, all of it at once.
+        """Answers with the flow, its roles and how it is set up, all of it at once.
 
-        Unless one of them has not been answered: a flow driven by an agent that names no
-        model is a flow that stops on its first turn, and where it would be answered is what
-        to be looking at when that is said.
+        Unless something a run needs has not been answered: an agent that names no model is
+        a run that stops on its first turn, an environment nobody said the place of is a run
+        refused before it starts, and so is a run given no budget -- which only a flow
+        humanize ships may be. Each is said where it would be answered.
         """
+        declared = self._declared
         missing = [
-            called(self._places, at)
-            for at, one in enumerate(self._runs)
-            if not _complete(one)
+            role
+            for role, one in self._runs.items()
+            if not _complete(one) and (declared is None or role in declared.roles)
         ]
+        if declared is not None:
+            missing.extend(
+                one.name
+                for one in declared.envs
+                if one.required and not self._envs.get(one.name)
+            )
         if missing:
             telemetry.snag("save-refused", missing=len(missing))
             if not self._inside:
-                # Refused from the flows, on the way out: the agents are what is to be looked
+                # Refused from the flows, on the way out: the roles are what is to be looked
                 # at, and the cursor was on a row of another list.
                 self._walks(inside=True)
-            self._said = iffy(f"{escape(', '.join(missing))} has no model yet")
+            self._said = iffy(f"{escape(', '.join(missing))} is not set up yet")
             self._fill()
             return
-        # The one exit that makes an answer, so the one place to ask about a run nothing
-        # will stop: the save row and the question on the way out both come through here,
-        # and a check written at each of them is a check one of them would lose.
-        effective = allowed(self._budget, self._declared)
-        # And what those agents are is what says whether the caps can be read at all, which
-        # is asked here because here is where they have just been chosen: a cap in dollars on
-        # a model nobody prices, or in tokens on a CLI that counts none, is a cap that will
-        # never bite -- so a run held to nothing else is a run nothing will stop, and this is
-        # the last moment anybody is at a prompt to be told.
-        blind = blinded(
-            effective,
-            [_model(one) for one in self._runs],
-            counting=any(_counts(one) for one in self._runs),
-        )
-        if unwatched(effective, self._declared, blind):
-            self._means_it(_cannot_read(blind))
+        if self._budget is None and declared is not None and not declared.unbounded:
+            telemetry.snag("save-refused", missing=0)
+            if not self._inside:
+                self._walks(inside=True)
+            self._said = iffy(
+                "a run of this flow is given a budget: set what it may spend first"
+            )
+            self._fill()
             return
-        self.dismiss(Chosen(self._flow, tuple(self._runs), self._config, self._budget))
-
-    @work
-    async def _means_it(self, about: str = "") -> None:
-        """Asks whether a run nothing will stop is what was meant, and saves if it is.
-
-        Args:
-          about: What to say under the question, for a run whose caps are set and cannot be
-            read -- or "" for the ordinary one, which is a run capped on nothing at all.
-        """
-        showing = cast(
-            "App[None]",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
+        self.dismiss(
+            Chosen(
+                self._flow,
+                dict(self._runs),
+                dict(self._envs),
+                self._params,
+                self._budget,
+            )
         )
-        if await showing.push_screen_wait(Unbounded(about)) != _KEEP:
-            telemetry.snag("unbounded-refused", flow=self._flow)
-            # Back to the menu holding everything it was holding, which is where a budget is
-            # set: the answer was "go and set one", and there is nothing else to do about it.
-            return
-        self.dismiss(Chosen(self._flow, tuple(self._runs), self._config, self._budget))
 
 
 def _added(url: str, name: str) -> str:
@@ -3160,102 +3234,6 @@ class Speaks(Sheet[str]):
         self.dismiss(said)
 
 
-class Anchors(Sheet[str]):
-    """Where one agent's turns land: this machine, or one an anchor reaches.
-
-    A row of the sheet one agent is set up on, and only for a place the flow declared
-    `Remote`: a flow that says so is one that expects to be told where that agent works, and
-    one that said nothing has said its agent works here.
-
-    The agent itself runs here whatever is chosen -- its credentials, its state directory and
-    its link to its model provider stay put. What moves is the project it reads and the
-    commands it runs, which is why this is a question about the agent rather than about the
-    flow: two agents of one flow may work on two machines.
-
-    Listed rather than typed where the machine is one this one can see -- a container that is
-    running, a host with an entry in the ssh config -- and typed where it is not: a target is
-    a string, and the row for what has been typed appears among them, as soon as it reads as
-    one, while a search is running.
-    """
-
-    LETTERS: ClassVar = frozenset({"search"})
-
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        Binding("s", "search", "search", priority=True),
-    ]
-
-    def __init__(self, named: str, current: str = "") -> None:
-        """Initializes the moving.
-
-        Args:
-          named: What the flow calls the agent this is about, which every step of configuring
-            it says.
-          current: The target this agent is on now, or "" for this machine.
-        """
-        super().__init__()
-        self._named = named
-        self._current = current
-        self._found: list[tuple[str, str]] | None = None
-
-    def _ask(self) -> None:
-        """Lists the machines there are to work on, and says what choosing one does."""
-        self.query_one("#asked", Label).update(f"Select where {self._named} works")
-        self.query_one("#about", Label).update(
-            "The machine its work lands on. The agent runs here either way; what moves is "
-            "the project it reads and the commands it runs."
-        )
-        self.query_one("#tuning", Label).update(
-            "[$text-muted]a target of your own -- ssh://HOST, docker://CONTAINER, "
-            "tcp://HOST:PORT -- joins these as it is typed into a search[/]"
-        )
-        self._fill()
-
-    def _fill(self) -> None:
-        """Puts the machines up, with whatever has been typed among them if it reads as one."""
-        listing = self.query_one("#choices", OptionList)
-        if self._found is None:
-            # Once: looking costs a `docker ps`, and this is redrawn on every keystroke.
-            self._found = machines()
-        rows: list[tuple[str, str, str]] = [("", "this machine", "nothing moves")]
-        rows.extend((target, target, whose) for target, whose in self._found)
-        shown = [row for row in rows if self.fits(row[1], row[2])]
-        if self._typed and not any(row[0] == self._typed for row in shown):
-            # What has been typed, as soon as it is a target: a machine nobody here can see
-            # is still a machine, and this is the only way to name one.
-            try:
-                anchored(self._typed)
-            except ValueError:
-                pass
-            else:
-                shown.append((self._typed, self._typed, "as typed"))
-        self._counting = len(str(len(shown)))
-        at = min(listing.highlighted or 0, max(len(shown) - 1, 0))
-        listing.set_options(
-            Option(
-                self._row(
-                    seen, label, whose, here=seen == at, inforce=target == self._current
-                ),
-                # Every row is a target, and "" is this machine -- which an id of its own
-                # keeps tellable from a row that was never chosen.
-                id=f"={target}",
-            )
-            for seen, (target, label, whose) in enumerate(shown)
-        )
-        listing.highlighted = at if shown else None
-        self._drawn = at
-        self._footed(Key("enter", "choose"), Key("esc", "back"))
-
-    @on(OptionList.OptionSelected)
-    def _took(self, event: OptionList.OptionSelected) -> None:
-        """Answers with the target that was picked.
-
-        Args:
-          event: What was chosen.
-        """
-        self.dismiss(str(event.option.id).removeprefix("="))
-
-
 class Falls(Sheet[str]):
     """Which account a turn under this one carries on under when it fails.
 
@@ -3531,30 +3509,71 @@ _OFF = "off"
 class Budgeted(BaseModel):
     """What a run of a flow may spend, as the menu asks it.
 
-    A model rather than three rows written by hand, so that the budget is asked with the same
-    sheet a flow's own settings are asked with: one place that knows how a number is typed,
-    stepped and read back, and three descriptions that say what each dimension means. What
-    comes out of it is fed to `Allowance`, which is where zero meaning "no limit" and a
-    negative meaning "correct this" are settled.
+    A model rather than four rows written by hand, so that the budget is asked with the same
+    sheet a flow's own params are asked with: one place that knows how a number is typed,
+    stepped and read back, and a description apiece saying what each limit means. What comes
+    out of it is a :class:`hmz.flows.Budget`, which is where "at least one limit" is settled.
 
-    Not `hmz.coganchor.agents.Budget`, which is a cap on one turn. This is the run.
+    Not a turn's budget, which is a flow's to give. This is the run's.
     """
 
-    hours: float = Field(
-        default=0.0,
-        ge=0,
-        description="hours on the clock the whole run may take, 0 for as long as it takes",
+    duration: str = Field(
+        default="",
+        description="how long the run may take: 1h30m, 90s, PT2H; empty for no limit",
     )
-    tokens: float = Field(
-        default=0.0,
-        ge=0,
-        description="millions of output tokens it may come to, 0 for as many as it takes",
+    cost: float = Field(
+        default=0.0, ge=0, description="US dollars it may cost, 0 for no limit"
     )
-    dollars: float = Field(
-        default=0.0,
-        ge=0,
-        description="US dollars it may cost, 0 for whatever it costs",
+    output_tokens: int = Field(
+        default=0, ge=0, description="output tokens it may come to, 0 for no limit"
     )
+    graceful: bool = Field(
+        default=True,
+        description="off to cut a turn off mid-way when a limit is reached",
+    )
+
+    @field_validator("duration")
+    @classmethod
+    def _reads(cls, said: str) -> str:
+        """Refuses a duration that is not one, where it is typed."""
+        from hmz.runtime.flowing import parse_duration
+
+        if said.strip():
+            parse_duration(said)
+        return said.strip()
+
+    @model_validator(mode="after")
+    def _limits_something(self) -> Budgeted:
+        """Refuses a budget that limits nothing, which is no budget."""
+        if not (self.duration or self.cost or self.output_tokens):
+            raise ValueError("set at least one of duration, cost and output_tokens")
+        return self
+
+    @classmethod
+    def of(cls, budget: Budget) -> Budgeted:
+        """A budget, as the sheet shows it."""
+        import math
+
+        seconds = budget.duration.total_seconds() if budget.duration else 0.0
+        return cls(
+            duration=f"{seconds:g}s" if seconds else "",
+            cost=budget.cost
+            if budget.cost is not None and not math.isinf(budget.cost)
+            else 0.0,
+            output_tokens=budget.output_tokens or 0,
+            graceful=budget.graceful,
+        )
+
+    def budget(self) -> Budget:
+        """What the sheet was answered with, as a run's budget."""
+        from hmz.runtime.flowing import parse_duration
+
+        return Budget(
+            duration=parse_duration(self.duration) if self.duration else None,
+            cost=self.cost or None,
+            output_tokens=self.output_tokens or None,
+            graceful=self.graceful,
+        )
 
 
 def _shown(value: object) -> str:
@@ -3592,6 +3611,20 @@ def _grouped(field: FieldInfo) -> str:
     return str(said) if said else ""
 
 
+def named_as(ref: str) -> str:
+    """A flow's canonical ref as a line about it says it.
+
+    Args:
+      ref: `<module>:<flow>`, as the running tree names a call.
+
+    Returns:
+      The module alone for the flow named after it -- `chat` rather than `chat:chat` -- and
+      the ref as it is otherwise.
+    """
+    where, _, name = ref.partition(":")
+    return where if name == where else ref
+
+
 def _flowing(started: str) -> list[str]:
     """Which flow is running, and inside which, for the row that names one.
 
@@ -3611,9 +3644,10 @@ def _flowing(started: str) -> list[str]:
     if not now:
         return [escape(started)]
     return [
-        f"{'  ' * at}{'▸ ' if at else ''}{escape(one.flow)}"
+        f"{'  ' * (one.depth - 1)}{'▸ ' if one.depth > 1 else ''}"
+        f"{escape(named_as(one.ref))}"
         f"   [$text-muted]{time.monotonic() - one.since:.0f}s[/]"
-        for at, one in enumerate(now)
+        for one in now
     ]
 
 
@@ -4874,61 +4908,6 @@ class Confirms(Popup):
         self._footed(Key("enter", "choose"), Key("esc", "back"))
 
 
-class Unbounded(Popup):
-    """Whether a run nothing at all will stop is what was meant, asked as the menu is saved.
-
-    Three caps and none of them set is a flow that will go until somebody notices -- for days,
-    and for whatever days of a model cost. That is a fair thing to ask for and a poor thing to
-    arrive at by not answering three questions, and the two look identical afterwards. So it
-    is asked once, here, where it can still be changed.
-
-    Not asked of a flow that said so itself. A flow writing `@flow(budget=Allowance())` has
-    claimed in its own file that it is meant to run under nothing -- `chat` is a conversation
-    that ends when the person stops typing -- and a question asked every time somebody picks
-    one of those is a question nobody reads by the third time.
-
-    The question and not a receipt: what is kept is written to a file that may not be
-    writable, and a box saying the run was saved would be claiming something this cannot
-    know.
-    """
-
-    #: The same box, said again for this class: every rule in this file selects by the name
-    #: of the sheet it is about, so a box drawn for another one is a rule of its own.
-    CSS = f"Unbounded {{ align: center middle; background: transparent; }}\n{_POPUP}"
-
-    asked = "Nothing will stop this run."
-
-    about = (
-        "No hours, no output tokens and no dollars are capped, so it runs until it is "
-        "stopped by hand."
-    )
-
-    def __init__(self, about: str = "") -> None:
-        """Asks it, about this run.
-
-        Args:
-          about: The line under the question, for a run whose caps are set and cannot be read
-            -- fifty dollars on a model nobody prices is a run with no limit on it, and the
-            box that said three caps were unset would be saying the one untrue thing about
-            it. "" for the ordinary one, which is a run capped on nothing at all.
-        """
-        super().__init__()
-        if about:
-            self.about = about
-
-    def rows(self) -> list[tuple[str, str, str]]:
-        """The two answers: mean it, or go back and cap something."""
-        return [
-            (_KEEP, "that is what I meant", ""),
-            (_DROP, "go back and set one", ""),
-        ]
-
-    def _fill(self) -> None:
-        """Puts the two answers up, and says that esc is the second of them."""
-        super()._fill()
-        self._footed(Key("enter", "choose"), Key("esc", "back"))
-
-
 #: What to do about a flow that is running when the interface is being closed: stop it, let
 #: go of the terminal and leave it running, or stay here after all. Named out here because
 #: what to do about each is the interface's rather than this sheet's: one of them closes it.
@@ -5320,7 +5299,6 @@ _ACCOUNT = "provider"
 _MODEL = "model"
 _EFFORT = "effort"
 _SWARM = "swarm"
-_WHERE = "where"
 
 #: Which of them are stepped along where they stand rather than opened, and which are opened.
 _STEPPED = (_EFFORT, _SWARM)
@@ -5329,16 +5307,11 @@ _STEPPED = (_EFFORT, _SWARM)
 class Agent(Drafts[Runs]):
     """Everything one agent is, on one sheet, each row opened or stepped where it stands.
 
-    Which is the walk of three sheets that used to ask it, folded into the thing it was asking
-    about. An agent is a CLI, an account, a model at an effort and the machine its work lands
-    on -- and asking that as a walk meant that changing the effort of an agent already set up
-    was four keypresses through two sheets that had nothing to say.
-
-    Four rows and not a dozen, because the rest of what this sheet used to ask is not the
-    agent's to hold. What it may do, which goals it may reach for and whether it searches the
-    web are the flow's, said where the flow declares the place this agent fills; the skills it
-    carries are its CLI's, installed and switched off where that CLI keeps them. A row
-    offering to set any of those would be a second answer to a question already settled.
+    An agent is a CLI, an account, and a model at an effort -- the word `-a` takes after the
+    role -- and nothing else. What it may do, what it is capable of and the skills it carries
+    are the flow's, declared where the flow declares the role this agent fills; where its work
+    lands is the environment the flow opens its session in. A row offering to set any of
+    those would be a second answer to a question already settled.
 
     The order the rows go in is still the order of what depends on what: the CLI settles which
     accounts there are to choose from and which models that CLI will name, and the account
@@ -5367,24 +5340,24 @@ class Agent(Drafts[Runs]):
         runs: Runs,
         agents: dict[str, tuple[Model, ...]],
         *,
-        place: Place,
+        role: AgentRole | None = None,
         unavailable: frozenset[str] = frozenset(),
     ) -> None:
         """Initializes the sheet on what the agent is now.
 
         Args:
-          named: What to call the agent being set up, which the question at the top says.
+          named: The role being set up, which the question at the top says.
           runs: What it is now, which every row reads back.
           agents: The backends offered here, and what each of them says it runs.
-          place: What the flow declared about this one. Always one: an agent belongs to the
-            flow that drives it, so there is no agent here with no place to fill.
+          role: What the flow declared of the role, which is what rules a CLI out, or None
+            for an agent that is no flow's.
           unavailable: The optional backends that still need installing.
         """
         super().__init__()
         self._named = named
         self._agents = dict(agents)
         self._unavailable = unavailable
-        self._place = place
+        self._role = role
         cli, _, rest = runs.spec.partition("/")
         model, _, effort = rest.rpartition(":")
         # Said outright, all of them: each is read where it is set -- what a CLI runs is
@@ -5397,11 +5370,6 @@ class Agent(Drafts[Runs]):
         self._swarm: bool = effort.startswith(SWARM)
         self._effort: str = effort.removeprefix(SWARM)
         self._provider: str = runs.provider
-        self._anchor = runs.anchor
-        #: What it was handed, which is where everything this sheet does not ask comes back
-        #: from. Those are the flow's answers, and carrying them across is how they stay the
-        #: flow's rather than being reset by a sheet that never showed them.
-        self._given = runs
         #: What the chosen CLI says it runs as the chosen account, read once per pair: this
         #: is redrawn each time the cursor moves, and reading it is reading a file.
         self._catalogue: tuple[Model, ...] | None = None
@@ -5425,8 +5393,7 @@ class Agent(Drafts[Runs]):
 
         Returns:
           One `(id, what it is set to, the line about it)` apiece, in the order they are
-          asked. A row nobody is being asked about is not among them: a flow that settled
-          where its agent works has not left that question open.
+          asked. The fleet row only for a model that runs a turn as one.
         """
         rows: list[tuple[str, str, str]] = [
             (_CLI, self._cli or "—", "which coding agent takes its turns"),
@@ -5438,16 +5405,6 @@ class Agent(Drafts[Runs]):
             rows.append(
                 (_SWARM, _YES if self._swarm else _NO, "one turn run as a fleet")
             )
-        if pointed(self._place):
-            rows.append(
-                (
-                    _WHERE,
-                    self._anchor or "this machine",
-                    "the machine its work lands on",
-                )
-            )
-        elif image := _settled(self._place):
-            rows.append((_WHERE, f"in a container of {image}", "the flow settled this"))
         return rows
 
     def _fill(self) -> None:
@@ -5546,31 +5503,14 @@ class Agent(Drafts[Runs]):
         model = self._under_model()
         return model is not None and model.swarms
 
-    def _tellable(self) -> bool:
-        """Whether the chosen CLI can be told whether its agents may search the web."""
-        from hmz.coganchor.backends import named
-
-        profile = named(self._cli) if self._cli else None
-        return profile is not None and profile.searches
-
     def _made(self) -> Runs:
         """This agent as it now stands, which is what the sheet answers with."""
         # `swarm` in front of the effort is how a fleet is asked for: one turn at one effort,
         # run wide. A model that does not take it is asked for at the effort alone.
         wide = SWARM if self._swarm and self._swarms() else ""
-        # On for a CLI that cannot be told, whatever the flow asked for: an agent whose
-        # backend has no way of being told is one that searches the web, and a config saying
-        # otherwise is one that backend would refuse. Only an off is turned back, though --
-        # an agent nobody was asked about goes on being one nobody was asked about, that
-        # being a config no backend refuses and the one every CLI can serve.
-        searches = self._given.web_search
-        if searches is False and not self._tellable():
-            searches = True
-        return self._given._replace(
-            spec=f"{self._cli}/{self._model}:{wide}{backends.written(self._effort)}",
-            anchor=self._anchor,
-            provider=self._provider,
-            web_search=searches,
+        return Runs(
+            f"{self._cli}/{self._model}:{wide}{backends.written(self._effort)}",
+            self._provider,
         )
 
     def applied(self) -> None:
@@ -5638,7 +5578,7 @@ class Agent(Drafts[Runs]):
         if held == _SAVE:
             self.applied()
             return
-        if held in (_CLI, _ACCOUNT, _MODEL, _WHERE):
+        if held in (_CLI, _ACCOUNT, _MODEL):
             self._opens(held)
 
     @work
@@ -5658,8 +5598,6 @@ class Agent(Drafts[Runs]):
             await self._chose_account(showing)
         elif held == _MODEL:
             await self._chose_model(showing)
-        elif held == _WHERE:
-            await self._chose_where(showing)
         self._fill()
 
     async def _chose_cli(self, showing: App[None]) -> None:
@@ -5668,7 +5606,7 @@ class Agent(Drafts[Runs]):
             Clis(
                 self._agents,
                 self._cli,
-                place=self._place,
+                role=self._role,
                 unavailable=self._unavailable,
             )
         )
@@ -5712,26 +5650,14 @@ class Agent(Drafts[Runs]):
             self._effort = efforts[0] if efforts else ""
         self.changed()
 
-    async def _chose_where(self, showing: App[None]) -> None:
-        """Asks which machine its work lands on, where that is a question anybody is asked."""
-        if not pointed(self._place):
-            self._said = "the flow settled where this one works"
-            return
-        where = await showing.push_screen_wait(Anchors(self._named, self._anchor))
-        if where is None:
-            return
-        self._anchor, self._said = where, ""
-        self.changed()
-
 
 class Clis(Picks):
     """Which coding agent takes one agent's turns, out of the ones that could.
 
-    Not always all of them: a flow that hangs a hook on a moment only some backends run said
-    so where it declared the place, and a CLI that does not run that moment is one choosing
-    would make the flow refuse to start. The same goes for whatever else that place says
-    filling it takes -- a turn it can talk to while it runs, a turn held to a shape -- which
-    is asked here of the backend the way a run of the flow asks it of the agent.
+    Not always all of them: a role typed as one harness -- `ClaudeCodeAgent` -- is that
+    harness and no other, and one declared with a capability -- `/goal`, steering, a hook
+    only some harnesses fire -- is one only the harnesses that have it can fill. A CLI that
+    cannot is one choosing would make the run refuse to start, so it is not offered.
     """
 
     asked = "Select which coding agent takes its turns"
@@ -5745,7 +5671,7 @@ class Clis(Picks):
         agents: dict[str, tuple[Model, ...]],
         current: str = "",
         *,
-        place: Place | None = None,
+        role: AgentRole | None = None,
         unavailable: frozenset[str] = frozenset(),
     ) -> None:
         """Initializes the choosing.
@@ -5753,53 +5679,21 @@ class Clis(Picks):
         Args:
           agents: The backends offered here, and what each of them says it runs.
           current: The one it is now.
-          place: What the flow declared about this agent, which is what rules a CLI out, or
-            None where a CLI is being chosen for something that is not a flow's agent --
-            the two ends of a fallback step, which a flow says nothing about.
+          role: What the flow declared of the role this agent fills, which is what rules a
+            CLI out, or None where a CLI is being chosen for something that is not a flow's
+            agent -- the two ends of a fallback step, which a flow says nothing about.
           unavailable: The optional backends that still need installing.
         """
         super().__init__(current)
         self._agents = dict(agents)
-        self._place = place
+        self._role = role
         self._unavailable = unavailable
-        #: What the place asked of the agent that only a machine can answer, filled in as the
-        #: rows are built. Empty until then, and empty for the flows that asked correctly.
-        self._misplaced: frozenset[str] = frozenset()
 
     def rows(self) -> list[tuple[str, str, str]]:
         """Every CLI that could take this one's turns, and what each of them runs."""
-        from hmz.runtime.flowing.checking import OF_AGENT, catalogue, misplaced
-        from hmz.runtime.flowing.driving import comes_to
-
-        needs: frozenset[Moment] = (
-            self._place.moments if self._place is not None else frozenset()
-        )
-        pursuing = self._place is not None and self._place.goal
-        # And whatever else the flow said filling this place takes, asked the way a run of
-        # that flow asks it: a CLI offered here and then refused where the run is set up
-        # would be a question put to somebody who cannot answer it right.
-        serving: frozenset[str] = (
-            self._place.needs.of_agent
-            if self._place is not None and self._place.needs is not None
-            else frozenset()
-        )
-        # What the place asked of the agent but which only a machine can answer. No CLI comes
-        # to one of those, so every row would be ruled out and the person at the prompt would
-        # be told that nothing installed here will do -- which blames the installation for a
-        # flow that asked in the wrong half of `Needs`. Kept so that `nothing` can say so.
-        self._misplaced = misplaced(serving, OF_AGENT)
-        # Read once for the whole list rather than once per CLI: the catalogue is built off
-        # the live interface with `inspect` every time it is asked for, and asking it twelve
-        # times to answer one question is eleven walks of the same modules.
-        catalogued = catalogue() if serving else ()
         listed: list[tuple[str, str, str]] = []
         for backend in sorted(self._agents):
-            drives = _drives(backend)
-            if drives is None or not needs <= drives.moments:
-                continue
-            if pursuing and not drives.pursues:
-                continue
-            if serving and not serving <= comes_to(backend, catalogued=catalogued):
+            if _drives(backend) is None or not serves(backend, self._role):
                 continue
             listed.append(
                 (
@@ -5815,19 +5709,18 @@ class Clis(Picks):
         return listed
 
     def nothing(self) -> str:
-        """Says so where the flow has ruled every backend here out, which is worth knowing.
-
-        And says which of the two it was. A flow that asked of the agent for something only a
-        machine can answer rules out every CLI there is, and saying that nothing installed
-        here will do would send somebody to install a thirteenth.
-        """
+        """Says so where the flow has ruled every backend here out, which is worth knowing."""
         if self._rows:
             return ""
-        if self._misplaced:
-            named = ", ".join(sorted(self._misplaced))
+        role = self._role
+        if role is not None and (role.harness is not None or role.capabilities):
+            asked = [
+                *([str(role.harness)] if role.harness is not None else []),
+                *sorted(one.__name__ for one in role.capabilities),
+            ]
             return (
-                f"this flow asks the agent for {named}, which is asked of where it works "
-                f"-- Needs(where={tuple(sorted(self._misplaced))!r}) -- so no CLI can answer"
+                f"{escape(role.name)} needs {escape(', '.join(asked))}, and no coding agent "
+                "installed here has that"
             )
         return "no coding agent installed here can take this one's turns"
 
@@ -7480,7 +7373,7 @@ class Epics(Sheet[Doing]):
         # Asked of the flow rather than read off the run, for the reason the menu asks it of
         # the flow: a flow is a directory on disk, and one marked resumable since that run is
         # one whose older runs can be picked up now.
-        return f"{held}{_DOT}can be picked up" if self._picks_up(ran.flow) else held
+        return f"{held}{_DOT}can be picked up" if self._carries_on(ran) else held
 
     def _fill(self) -> None:
         """Puts the runs up, marked where the cursor is."""
@@ -7563,12 +7456,23 @@ class Epics(Sheet[Doing]):
         """The run the cursor is on, or None where the list has nothing in it."""
         return next((one for one in self._ran if one.name == self._was), None)
 
+    def _carries_on(self, ran: Ran) -> bool:
+        """Whether one run can be carried on: its flow says so now, and it left a journal.
+
+        Args:
+          ran: The run.
+
+        Returns:
+          Whether picking it up would have anything to pick up from.
+        """
+        return self._picks_up(ran.flow) and _hmz().epics.picks_up(ran.at)
+
     def _picks_up(self, flow: str) -> bool:
         """Whether one flow says now that it can be picked up.
 
         Asked of the flow rather than of the run that recorded it: a flow is a directory on
         disk and may have been rewritten since, and what can happen next is what it says now.
-        Asked once per flow, since reading one means running its file.
+        Asked once per flow, since reading one means importing it.
 
         Args:
           flow: The flow, as the run named it.

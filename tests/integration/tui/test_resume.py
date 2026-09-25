@@ -22,26 +22,31 @@ import pytest
 from hmz.runtime.epic import epics, state
 from hmz.tui import Humanize
 from tests.stubs import written
-from tests.tui.fixtures import transcript, until
+from tests.tui.fixtures import Holding, holding, transcript, until
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from textual.pilot import Pilot
 
-#: A flow that says it can be picked up, and counts the runs of itself in what it is handed.
+#: A flow that says it can be picked up, and counts the runs of itself in what it keeps.
 COUNTS = '''"""Counts the runs of itself."""
 
 from pathlib import Path
-from typing import Any
 
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams, flow
 
 
-@flow(resumable=True)
-def run(agents: tuple[AgentBase], task: str, state: dict[str, Any]) -> None:
-    state["rounds"] = state.get("rounds", 0) + 1
+class Agents(AgentCollection):
+    worker: Agent
+
+
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams, resumable=True)
+async def counts(task: str, *, agents: Agents, envs: EnvCollection, params: FlowParams,
+                 ctx: FlowContext) -> None:
+    state = ctx.state
+    assert state is not None
+    state["rounds"] = (state["rounds"] if "rounds" in state else 0) + 1
     Path("rounds.txt").write_text(str(state["rounds"]))
 '''
 
@@ -50,45 +55,17 @@ PLAIN = '''"""Runs once, and says nothing about being picked up."""
 
 from pathlib import Path
 
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams, flow
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
+class Agents(AgentCollection):
+    worker: Agent
+
+
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams)
+async def plain(task: str, *, agents: Agents, envs: EnvCollection, params: FlowParams,
+                ctx: FlowContext) -> None:
     Path("plain.txt").write_text(task)
-'''
-
-#: One that says it can be picked up and writes nothing down, which is what a run stopped
-#: before it got anywhere leaves behind: the mark, and nothing under it.
-BLANK = '''"""Says it can be picked up, and never writes down where it got to."""
-
-from pathlib import Path
-from typing import Any
-
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
-
-
-@flow(resumable=True)
-def run(agents: tuple[AgentBase], task: str, state: dict[str, Any]) -> None:
-    Path("blank.txt").write_text(task)
-'''
-
-#: One that says it can be picked up, writes something down and then empties it, which is a
-#: flow saying the next run here starts clean rather than carrying this one on.
-EMPTIES = '''"""Writes down where it got to, and then says the next run starts clean."""
-
-from typing import Any
-
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
-
-
-@flow(resumable=True)
-def run(agents: tuple[AgentBase], task: str, state: dict[str, Any]) -> None:
-    state["rounds"] = state.get("rounds", 0) + 1
-    state.clear()
 '''
 
 #: A `claude` that answers whatever it is told, since what is being tested is the run rather
@@ -117,8 +94,6 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     where.mkdir(parents=True)
     written(where, "counts", COUNTS)
     written(where, "plain", PLAIN)
-    written(where, "blank", BLANK)
-    written(where, "empties", EMPTIES)
     monkeypatch.chdir(tmp_path)
     return tmp_path
 
@@ -126,15 +101,12 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def _ran(flow: str, task: str) -> None:
     """Runs one flow here, the way a command line would, so there is a run to carry on.
 
-    On the fake `claude` this suite puts on PATH rather than on a stand-in of our own: a run
-    is carried on as a command line naming what each of its agents runs, so the agents of a
-    run have to be agents something can name.
+    On the fake `claude` this suite puts on PATH: a run is carried on as the specs each of its
+    roles was given, so the agents of a run have to be agents something can name.
     """
-    from hmz.coganchor.agents import driver
-    from hmz.runtime.runner import Runner
+    from hmz.runtime import Hmz
 
-    agent, config = driver("claude")
-    Runner(flow, [agent(config(model="m", effort="high"))]).run(task)
+    Hmz().run(flow, task, agents={"worker": "claude/m:high"}, budget={"cost": 1}).run()
 
 
 async def _resumes(app: Humanize, driver: Pilot[None]) -> None:
@@ -184,17 +156,17 @@ async def test_a_directory_nothing_has_been_run_in_says_so(workspace: Path) -> N
 
 
 @pytest.mark.timeout(60)
-async def test_a_flow_that_no_longer_says_it_can_be_picked_up_says_why(
+async def test_a_run_of_a_flow_that_cannot_be_picked_up_is_not_the_one_carried_on(
     workspace: Path,
 ) -> None:
-    """Asked of the flow, as it is wherever it is asked -- and named, so it can be fixed."""
+    """A conversation had since is not a run to carry on, and says why there is none."""
     _ran("plain", "go")
 
     app = Humanize()
     async with app.run_test() as driver:
         await _resumes(app, driver)
 
-        assert "plain does not say it can be picked up" in transcript(app)
+        assert "no run here was of a flow that can be picked up" in transcript(app)
         assert len(epics(workspace)) == 1  # and nothing was started
 
 
@@ -208,8 +180,12 @@ async def test_a_run_that_left_nothing_behind_is_not_carried_on(
     on from the day before yesterday, because yesterday's died before it wrote anything, is a
     day's work thrown away without anybody being told.
     """
+    from hmz.runtime.epic import RESUME
+
     _ran("counts", "keep going")  # which left something
-    _ran("blank", "go")  # and which is not what the last run here was
+    _ran("counts", "again")  # a run from the top, killed before it wrote anything down
+    (last,) = [one for one in epics(workspace) if (one / RESUME).is_file()][-1:]
+    (last / RESUME).unlink()
 
     app = Humanize()
     async with app.run_test() as driver:
@@ -217,7 +193,7 @@ async def test_a_run_that_left_nothing_behind_is_not_carried_on(
 
         assert "left nothing behind" in transcript(app)
         assert len(epics(workspace)) == 2
-        assert (workspace / "rounds.txt").read_text() == "1"
+        assert (workspace / "rounds.txt").read_text() == "1"  # and nothing ran again
 
 
 @pytest.mark.timeout(60)
@@ -238,27 +214,6 @@ async def test_a_record_that_cannot_be_read_back_says_so(workspace: Path) -> Non
         await _resumes(app, driver)
 
         assert "cannot be read back" in transcript(app)
-
-
-@pytest.mark.timeout(60)
-async def test_a_run_that_emptied_what_it_wrote_is_not_carried_on(
-    workspace: Path,
-) -> None:
-    """A flow that cleared its state said the next run here starts clean.
-
-    Which is the opposite of what handing it that state back would say. A run stopped for
-    having spent its allowance is not that: it was stopped rather than finished, so it leaves
-    what it kept and picking it up is the point of having kept it.
-    """
-    _ran("empties", "go")
-
-    app = Humanize()
-    async with app.run_test() as driver:
-        await _resumes(app, driver)
-
-        assert "left nothing behind" in transcript(app)
-        assert "starts from the top" in transcript(app)
-        assert len(epics(workspace)) == 1
 
 
 @pytest.mark.timeout(60)
@@ -290,13 +245,13 @@ async def test_carrying_on_is_refused_while_a_flow_is_running(workspace: Path) -
 
     app = Humanize()
     async with app.run_test() as driver:
-        app._agents = [ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high"))]
+        holding(app, ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high")))
         await _resumes(app, driver)
 
         assert "no picking a run up while a flow is running" in transcript(app)
         assert "ctrl+c twice stops it first" in transcript(app)
         assert len(epics(workspace)) == 1
-        app._agents = []
+        app._run = None
 
 
 @pytest.mark.timeout(60)
@@ -309,22 +264,18 @@ async def test_carrying_on_is_refused_while_the_flow_is_still_unwinding(
     a round the stopped run had already recorded. And `ctrl+c twice` is not the answer here,
     since that is what was just pressed.
     """
-    from hmz.coganchor.agents.claude import ClaudeCodeAgent, ClaudeCodeAgentConfig
-
     _ran("counts", "keep going")
 
     app = Humanize()
     async with app.run_test() as driver:
-        # What `ctrl+c` twice leaves behind: let go of as the running agents, kept as the
-        # ones on their way out.
-        app._stopping = [
-            ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high"))
-        ]
+        # What `ctrl+c` twice leaves behind: let go of as the run going, kept as the one on
+        # its way out.
+        app._stopping = Holding()
         await _resumes(app, driver)
 
         assert "while the flow is still stopping" in transcript(app)
         assert len(epics(workspace)) == 1
-        app._stopping = []
+        app._stopping = None
 
 
 @pytest.mark.timeout(60)

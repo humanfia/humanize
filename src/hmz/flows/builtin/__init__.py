@@ -15,7 +15,8 @@ something anybody running one has to know. Both are offered under `official`, an
 from here to there goes on answering to the name it always had.
 
 A directory of flows and nothing else, one directory apiece: the `__init__.py` that is the
-flow, whatever it imports beside it, and the `skills/` it brings. A flowverse that is fetched
-keeps its flows in a `flows/` directory, having a repository around them to keep out of the
-way; these have none, being in the package, and are read where they stand.
+flow, whatever it imports beside it, and the `skills/` it brings. Each is written against
+:mod:`hmz.flows` like any other flow and imports nothing else of humanize's; what sets them
+apart -- a flow here is handed every capability of its agent's harness -- is the runtime's to
+say, in :func:`hmz.runtime.flowing.finding.resolved`.
 """
