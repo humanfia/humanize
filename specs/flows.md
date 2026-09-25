@@ -83,14 +83,20 @@ class GitWorktreeEnvMixin:
         *,
         ref: str | None = None,
         dir: pathlib.PurePosixPath | str | None = None,
-    ) -> Env:
+    ) -> Self:
         ...
 
 class TemporaryClonedDirEnvMixin:
-    async def derive_temp_clone(self, id: str) -> Env: ...
-        # Derive an env at a temporary dir with the same content as the current env. The temporary dir will be automatically cleaned up when the flow ends and the flow is not resumable.
+    async def derive_temp_clone(self, id: str) -> Self: ...
+        # Derive an env at a temporary dir with the same content as the current env. The temporary dir will be automatically cleaned up when the flow ends and the flow is not resumable. Same ID refers to the same temporary dir. But if another env holds it, an exception will be raised.
 
     async def destroy_temp_clone(self, id: str) -> None: ...
+
+class ScratchDirEnvMixin:
+    async def derive_scratch(self, id: str) -> Self: ...
+    
+    async def destroy_scratch(self, id: str) -> None: ...
+
 ...
 ```
 
@@ -254,7 +260,7 @@ class Outworlder(Agent, Protocol): ...
 
     @property
     def away(self) -> bool: ...
-        # True if /afk is on.
+        # True if /afk is on or `hmz exec`.
         # When away, all runs will response default value (e.g. "" for str, and all values by default for pydantic.BaseModel).
 
     @overload
@@ -301,6 +307,7 @@ class PermissionRequestHookAgentMixin:
         kind: Literal[HookKind.PERMISSION_REQUEST],
         fn: HookFn[PermissionRequestHookParams, PermissionRequestHookResult] | None,
     ) -> None: ...
+        # Note that this hook can override BYPASS approval policy.
 
 ... # And ALL hooks of all the harnesses.
 
@@ -417,6 +424,7 @@ def flow[TAgentCollection: AgentCollection, TEnvCollection: EnvCollection, TFlow
     agents: type[TAgentCollection],
     envs: type[TEnvCollection],
     params: type[TFlowParams],
+    name: str | None = None, # By default, the function name is used as the subflow name.
     description: str | None = None,
     hidden: bool = False,
     resumable: bool = False, # A flag to enable /resume.
