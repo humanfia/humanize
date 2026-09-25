@@ -136,13 +136,14 @@ def _humanize_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def _nothing_running_yet() -> Iterator[None]:
-    """Starts each test with no flow running, on no branch, and leaves neither behind.
+    """Starts each test with no flow running and no flow module held, and leaves neither.
 
-    What is running is the process's own, and the branch this task is on is the context's.
+    What is running is the process's own, and so are the flow modules a run imported.
     Several tests here hold a flow open on purpose -- two agents working at once is what half
     the interface is about -- and its thread is still alive when the test lets go of it, so
-    the next test would find that flow running, say so on its own status line, and call its
-    own flows under it.
+    the next test would find that flow running and say so on its own status line; and a flow
+    directory a test wrote is imported under its own name, which the next test's flow of the
+    same name must not be answered with.
     """
     _forgotten()
     yield
@@ -151,12 +152,10 @@ def _nothing_running_yet() -> Iterator[None]:
 
 def _forgotten() -> None:
     """Leaves nothing of one test's flows for the next one to run under."""
-    from hmz.runtime.flowing import driving
+    from hmz.runtime.flowing import engine, loading
 
-    driving._RUNNING.clear()
-    driving._CLAIMED.clear()
-    driving._WRITTEN.clear()
-    driving._ON.set(None)
+    engine._RUNS.clear()
+    loading.forget()
 
 
 @pytest.fixture(autouse=True, scope="session")

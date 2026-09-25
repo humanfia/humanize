@@ -3,7 +3,7 @@
     from hmz.sdk import Hmz
 
     hmz = Hmz()
-    hmz.run("chat", [], "say hello").run()
+    hmz.run("chat", "say hello", agents={"assistant": "claude/claude-haiku-4-5:low"}).run()
 
 There are two ways to reach a run from out here, and both are offered.
 
@@ -17,6 +17,10 @@ need to write its own.
 per workspace, reached over its socket. That is what a tool looking after a run somebody else
 started asks: what is being held here, what it is running, letting go of the terminals on it,
 stopping it. A run held that way outlives the program that asked for it.
+
+:mod:`fakes` is the third thing a tool outside wants: the in-memory drivers a flow is tested
+on -- scripted agents, dictionary filesystems, an outworlder that answers from a list -- which
+are :mod:`hmz.runtime.flowing.fakes`, handed through whole.
 
 Nothing under this names it. What is here is not a layer humanize is built out of -- every
 answer is written where it is carried out, in :mod:`hmz.runtime` and :mod:`hmz.daemon`, and
@@ -35,7 +39,17 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from hmz.daemon import Daemon, Held, Session
-    from hmz.runtime import Accounts, Epics, Fallbacks, Flows, Flowverses, Hmz, Run
+    from hmz.runtime import (
+        Accounts,
+        Epics,
+        Fallbacks,
+        Flows,
+        Flowverses,
+        Hmz,
+        Refused,
+        Run,
+    )
+    from hmz.runtime.flowing import fakes
     from hmz.sdk.daemons import Daemons
 
 __all__ = [
@@ -48,8 +62,10 @@ __all__ = [
     "Flowverses",
     "Held",
     "Hmz",
+    "Refused",
     "Run",
     "Session",
+    "fakes",
 ]
 
 #: Which front door each of them is behind: the runtime, reached straight, and the daemon
@@ -67,9 +83,13 @@ _WRITTEN = {
     "Flowverses": "hmz.runtime",
     "Held": "hmz.daemon",
     "Hmz": "hmz.runtime",
+    "Refused": "hmz.runtime",
     "Run": "hmz.runtime",
     "Session": "hmz.daemon",
 }
+
+#: What is offered as a module rather than out of one: the fakes are a kit, used as one.
+_MODULES = {"fakes": "hmz.runtime.flowing.fakes"}
 
 
 def __getattr__(name: str) -> object:
@@ -87,6 +107,8 @@ def __getattr__(name: str) -> object:
     """
     from importlib import import_module
 
+    if name in _MODULES:
+        return import_module(_MODULES[name])
     where_ = _WRITTEN.get(name)
     if where_ is None:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -107,7 +107,6 @@ def test_one_flow_runs_two_agents_of_one_cli_as_two_accounts(
     import json as reading
 
     from hmz.coganchor import providers
-    from hmz.coganchor.agents import ClaudeCodeAgent, ClaudeCodeAgentConfig
     from hmz.runtime.runner import Runner
 
     binaries = tmp_path / "bin"
@@ -135,23 +134,35 @@ def test_one_flow_runs_two_agents_of_one_cli_as_two_accounts(
 import json
 from pathlib import Path
 
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowParams, LocalEnv, flow
 
 
-@flow
-def run(agents: tuple[AgentBase, AgentBase], task: str) -> None:
-    Path("said.json").write_text(json.dumps([agent(task) for agent in agents]))
+class Agents(AgentCollection):
+    subscription: Agent
+    gateway: Agent
+
+
+class Envs(EnvCollection):
+    here: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def run(task, *, agents, envs, params, ctx):
+    said = []
+    for role in ("subscription", "gateway"):
+        session = await agents[role].spawn(env=envs["here"])
+        said.append(await agents[role].run(task, session=session))
+    Path("said.json").write_text(json.dumps(said))
 """,
     )
-    agents = [
-        ClaudeCodeAgent(
-            ClaudeCodeAgentConfig(model="m", effort="high", provider=named), name=named
-        )
-        for named in ("subscription", "gateway")
-    ]
 
-    Runner(workspace / "flow", agents).run("who are you")
+    Runner(
+        workspace / "flow",
+        agents={
+            named: f"claude@{named}/m:high" for named in ("subscription", "gateway")
+        },
+        budget={"cost": 1},
+    ).run("who are you")
 
     assert reading.loads((workspace / "said.json").read_text()) == [
         '"subscription"',

@@ -1,449 +1,111 @@
-"""What starts a flow: the file it is in, the agents it takes, and the line naming both.
+"""What starts a flow: the line naming it, the drivers it is handed, and the run written down.
 
 The line is read here rather than beside the command that carries it out, because the terminal
-interface starts a flow from that same line and then keeps the agents -- which is what lets
-something typed while the flow runs reach the one working. A reader that lived in the command
-line would be one the interface had to reach up into.
+interface starts a flow from the same parts: a flow, what each of its agent and environment
+roles is given, its params, and what the run may spend. A reader that lived in the command line
+would be one the interface had to reach up into.
 
-What a flow is, and what it says it drives, is :mod:`hmz._legacy_flows`. This asks it, hands the
-flow
-the agents it declared under the names it calls them, and writes the run down as an epic.
-Nothing a flow itself reaches for is here: a flow names one module of humanize's, and it is
-not this one.
+A run is four steps, and the first three refuse before anything runs. The flow is loaded and
+what it declares is read (:mod:`hmz.runtime.flowing.finding`); what each role is given is
+checked against that declaration and opened as a driver
+(:func:`~hmz.runtime.flowing.harnesses.open_agent`,
+:func:`~hmz.runtime.flowing.environments.open_env`) -- which starts no CLI and reaches no
+machine; each environment given is probed, which does reach it; and then the flow is run by
+:func:`~hmz.runtime.flowing.engine.run_flow`, written down as it goes into an epic that also
+holds the engine's journal of a flow that can be picked up. What refuses a run before it has
+started is :class:`Refused`, which a command line reports as a line to correct.
+
+What a flow is, and everything it is handed, is :mod:`hmz.flows` and the engine behind it.
+Nothing a flow itself reaches for is here: a flow names one module of humanize's, and it is not
+this one.
 """
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import json
+import math
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
-
-from hmz.coganchor import backends
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 if TYPE_CHECKING:
     import os
-    from argparse import ArgumentParser
-    from collections.abc import Awaitable, Mapping, Sequence
+    from collections.abc import Callable, Iterable, Mapping
 
-    from pydantic import BaseModel
+    from hmz.coganchor.agents import AgentBase, SessionBase
+    from hmz.flows import Budget, FlowParams, Usage
+    from hmz.runtime.flowing import (
+        AgentDriver,
+        Declaration,
+        EnvDriver,
+        FlowImpl,
+        LiveCall,
+        OutworlderDriver,
+        SessionHandle,
+    )
+    from hmz.runtime.flowing.harnesses import Listener
+    from hmz.runtime.flowing.specs import AgentSpec, EnvSpec
 
-    from hmz.coganchor.agents import AgentBase
-    from hmz.coganchor.agents.allowance import Allowance
-    from hmz.runtime.flowing.driving import Entry
+    from .epic import Drove, Epic
 
-__all__ = ["Runner", "flow_and_agents", "read_agent", "set_up_from"]
+__all__ = ["Line", "Refused", "Runner", "read_line"]
 
-
-def _finished(running: Awaitable[None]) -> None:
-    """Runs a flow that is a coroutine, until it returns.
-
-    A flow may be written as ``async def run``, which is how one drives many agents at once:
-    the loop is the flow's own, started here and closed when the flow returns, so that a flow
-    which awaits nothing and one which awaits ten thousand turns are both just run. Starting
-    the flow is the same call either way -- whatever is driving one is driving a flow, not an
-    event loop, and none of them has to know which kind it took.
-
-    Args:
-      running: The flow, as the coroutine calling it made.
-    """
-    import asyncio
-    import contextvars
-    from concurrent.futures import ThreadPoolExecutor
-
-    async def flowing() -> None:
-        # A coroutine of our own around it: `asyncio.run` takes one of those, and what a
-        # flow answered with is whatever awaiting it is spelled as where the flow was written.
-        await running
-
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        asyncio.run(flowing())  # nothing is turning here, which is the ordinary way in
-        return
-    # Started from a thread that is already running a loop of its own -- an interface, a test.
-    # A flow cannot be run on that one: it would be the flow waiting for turns that are
-    # waiting for the loop the flow is holding, which is a run that never takes its first.
-    #
-    # The context goes with it, since a thread is otherwise handed an empty one: what the run
-    # was entered as is held there, and a flow that called another from a thread that had
-    # never heard of the run would be a flow with no branch to be on.
-    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="humanize-flow") as apart:
-        apart.submit(contextvars.copy_context().run, asyncio.run, flowing()).result()
+#: What is told of each session a run opens, as it is opened: the role it was opened for, and
+#: the coganchor agent and conversation behind it.
+type Opened = Callable[[str, AgentBase, SessionBase], None]
 
 
-class Runner:
-    """A flow, loaded from a file and handed the agents it was written for.
+class Refused(ValueError):  # noqa: N818 -- named for what happened, as the flow API names its own
+    """A run refused before anything of it ran: a line, or a setup, to correct.
 
-    A flow is a Python file with a ``run(agents: tuple[...], task: str)`` in it, and the tuple
-    is how many agents it drives -- the one thing about a flow that cannot be read off the
-    command line starting it. Checking it before anything runs is what keeps a two-agent flow
-    started with one agent from failing on an unpacking hours into a loop, with a turn's work
-    already behind it. A flow that declares a NamedTuple instead has also said what each of
-    its agents is for, and they are called that from here on.
+    The message says what, in words; the exception it was refused for is its cause.
     """
 
-    def __init__(
-        self,
-        flow: str | os.PathLike[str],
-        agents: Sequence[AgentBase],
-        config: BaseModel | dict[str, Any] | None = None,
-        resume: str | os.PathLike[str] | None = None,
-        container: str = "",
-        budget: Allowance | Mapping[str, Any] | None = None,
-    ) -> None:
-        """Loads the flow and holds the agents to drive it with.
 
-        Args:
-          flow: The Python file the flow is written in. It is run to be read, so whatever it
-            does as it is imported happens here, and fails here as it would anywhere.
-          agents: The agents to hand it, as many as it declares.
-          config: What it was set up with, for a flow that says it can be -- an instance of
-            the model :func:`configures` answers with, or the fields to build one from, which
-            is what a YAML file of them reads as. None is a flow left as it comes, and is
-            what a flow that takes no setting up is given either way.
-          resume: The epic to pick up from, for a flow that says it can be picked up: the
-            state that run left behind is what this one is handed. None is the last run of
-            this flow here, which is what running a resumable flow again means -- a loop
-            meant to run for a week is one that carries on where it stopped. A flow that
-            says nothing about being resumable ignores this, having nowhere to put it.
-          container: The image to run the whole of this in, or "" to run it on this machine.
-            A convenience rather than a second way of saying where an agent works: it starts
-            one container, points every agent of the run at it, and lets the flow's own code
-            reach it through `hmz._legacy_flows.container()`, which is the name a flow writes for
-            what `hmz.runtime.flowing.driving` holds -- and which is what a run in a
-            container is, said once from outside rather than agent by agent inside.
-          budget: What this run may spend, as an `Allowance` or the three fields to build one
-            from -- which is what a `budget:` in a YAML file reads as. None takes the flow's
-            own default, and the flow having none is a run under nothing at all. Given
-            rather than read off the flow, because what a run is worth is whoever started it
-            to say and the flow only ever said a default.
+class Line(NamedTuple):
+    """An `hmz exec` line, read.
 
-        Raises:
-          NotAFlow: If the flow is not there, is not a flow -- nothing in it marked
-            ``@flow()``, or one whose ``agents`` cannot be read or says nothing about how many
-            it takes -- or is a
-            flow that drives a different number of agents than were given, or one of them
-            cannot run a moment the flow said that place has to, or was set up with something
-            that is not what it asked for, or brings a skill from a repository that cannot be
-            reached.
-        """
-        from hmz.coganchor.agents import HumanAgent
-        from hmz.coganchor.agents.allowance import allowed
-        from hmz.runtime.flowing.driving import (
-            NotAFlow,
-            carries,
-            declares,
-            lands,
-            readies,
-            runs_at,
-            serves,
-            set_up,
-        )
-
-        from .epic import resumed
-
-        run, places, make, setting, mark = declares(flow)
-        # Before anything is chosen or opened: an atlas whose body does not compile is a
-        # flow refused where the run is set up rather than from inside one that has already
-        # pulled an image and opened an epic.
-        readies(run)
-        if config is not None:
-            config = set_up(flow, setting, config)
-        asked = [place for place in places if not place.person]
-        if len(asked) != len(agents):
-            raise NotAFlow(
-                f"{flow}: the flow drives {len(asked)} agents, {len(agents)} given"
-            )
-        # Whatever a place declared that its agent's backend had no way of carrying, for a
-        # place that said it would rather run than be refused. Kept rather than printed: this
-        # is the same shape as `unreadable`, where the object that knows answers and whoever
-        # has a screen does the saying.
-        unserved: list[str] = []
-        # Before the first turn, for the reason the count is: a flow that hangs a hook on a
-        # moment its agent does not run would otherwise find out hours into a loop, from a
-        # hook that raised where it was hung rather than from the line that chose the agent.
-        for agent, place in zip(agents, asked, strict=True):
-            if short := place.moments - type(agent).moments:
-                raise NotAFlow(
-                    f"{flow}: {place.name or 'the agent'} has to run "
-                    f"{', '.join(sorted(short))}, which {agent.backend} does not"
-                )
-            if place.goal and not type(agent).pursues:
-                raise NotAFlow(
-                    f"{flow}: {place.name or 'the agent'} is run under a goal, which "
-                    f"{agent.backend} has no feature for"
-                )
-            if place.goal and not agent.goals_enabled:
-                raise NotAFlow(
-                    f"{flow}: {place.name or 'the agent'} is run under a goal, but goals "
-                    "were switched off for it"
-                )
-            serves(flow, agent, place)
-            # Told what the whole run will be put in, because nothing is pointed at that
-            # container until the run starts: a place needing somewhere remote must not be
-            # refused here and then allowed when a flow called another inside the same run.
-            lands(flow, agent, place, container=container)
-            # And what the flow says this one may do, whether it has goals and whether it
-            # reads the internet -- over whatever it was made with, because those three are
-            # the flow's and nobody else's: whoever chose the agent chose a CLI, a model, an
-            # effort and an account, and none of that says what the work is.
-            runs_at(flow, agent, place, dropped=unserved)
-        # The person at the prompt is made here rather than given: nobody chooses what they
-        # run, so nothing upstream of this was ever asked about them.
-        given = iter(agents)
-        driven = [HumanAgent() if place.person else next(given) for place in places]
-        for agent, place in zip(driven, places, strict=True):
-            if place.name:
-                agent.rename(place.name)
-        # What the flow works by, mounted onto every session these agents open. Before the
-        # first turn, since a repository the flow named is fetched to get it: a run that
-        # cannot reach one says so here rather than an hour into a loop.
-        carries(flow, driven)
-        self._unserved = tuple(unserved)
-        self._run: Entry = run
-        # Only for a flow that said it takes one, so that every flow written before there
-        # was such a thing is still called with the two arguments it declares.
-        self._config: BaseModel | None = config if setting is not None else None
-        self._setting = setting
-        # The drivers themselves, which is what the run is written down out of and what
-        # whoever started the flow reaches for: the person the flow talks to is among them,
-        # having been made here rather than chosen.
-        self._driven = tuple(driven)
-        # And the same agents as the flow declared them: a flow whose agents are a NamedTuple
-        # reaches them by name, and one that unpacks a plain tuple sees no difference.
-        self._agents = make(driven)
-        self._flow = str(
-            flow
-        )  # as it was named, which is what a run of it is named after
-        #: Whether the flow says it can be picked up where the last run of it left off, and
-        #: which run that was. Asked here rather than when the run starts, so that an epic
-        #: named at the prompt is one whoever named it hears about before anything runs.
-        self._resumable = mark.resumable
-        #: What this run may spend, settled here so that every way of starting a flow reaches
-        #: one answer: what the line or the menu said, else what the flow declared, else
-        #: nothing at all. What the flow declared is kept beside it, because the two together
-        #: are what says whether an unbounded run is one anybody meant.
-        self._declared = mark.budget
-        self._budget = allowed(budget, mark.budget)
-        #: The image the whole run works in, or "" for a run on this machine. The container
-        #: is started as the flow starts rather than here: constructing a runner reads a
-        #: flow, and reading one must not pull an image.
-        self._container = container
-        self._picked_up: Path | None = None
-        if self._resumable:
-            self._picked_up = (
-                Path(resume) if resume is not None else resumed(self._flow)
-            )
-
-    @property
-    def agents(self) -> tuple[AgentBase, ...]:
-        """Every agent this drives, in the order the flow takes them.
-
-        Which is not what it was given: a flow that says it talks to the person is driving
-        one more agent than anybody chose, and whatever is driving the flow has to reach
-        that one too -- it is the one thing here that answers with what was typed.
-        """
-        return self._driven
-
-    @property
-    def budget(self) -> Allowance:
-        """What this run will be held to, whoever or whatever settled it."""
-        return self._budget
-
-    @property
-    def unwatched(self) -> bool:
-        """Whether nothing at all will stop this run and nobody has said that is the point.
-
-        Asked of a runner rather than worked out again wherever one is started, so that the
-        menu's second confirmation and the command line's line on stderr are the same
-        question about the same run.
-
-        A cap this run's agents cannot read is handed in as no cap: a dollars cap on a model
-        nobody prices is a run with nothing to stop it, whatever the file it was written in
-        says, and one that said so in a log line and nowhere else was one nobody was asked
-        about.
-        """
-        from hmz.coganchor.agents.allowance import unwatched
-
-        return unwatched(self._budget, self._declared, self._blind())
-
-    def unreadable(self) -> str:
-        """Which of the caps this run was given nothing in it can read, in words.
-
-        Answered before the first turn rather than at the end of a run that never stopped: a
-        dollars cap on a model nobody prices is a cap that cannot bite, and it reads exactly
-        like one that has not bitten yet.
-
-        Returns:
-          One line about them, or "" where every cap set can be read.
-        """
-        from hmz.coganchor.agents.allowance import unreadable
-
-        return unreadable(self._blind())
-
-    def _blind(self) -> frozenset[str]:
-        """Which caps this run was given nothing driving it can read.
-
-        Read off the agents rather than off the allowance, and read here rather than in each
-        of the two things that ask: whether a cap can be read at all is a fact about what this
-        run drives, so a run answered `unwatched` and a run answered `unreadable` are answered
-        about the same agents.
-
-        Returns:
-          The dimensions, as `Reading.blind` names them.
-        """
-        from hmz.coganchor.agents.allowance import Ledger
-
-        return Ledger(self._budget, self._driven).reads().blind
-
-    def unserved(self) -> str:
-        """Which of this flow's declarations its agents' backends could not carry, in words.
-
-        A place that wrote `insist=False` would rather run on a backend that cannot be told
-        than not run at all, and what it gets is the declaration dropped rather than applied
-        quietly. Dropped is the honest half; said is the other half, and this is where the
-        saying starts -- answered on the runner, which is what settled them, and worded by
-        whoever has a screen: `hmz exec` on stderr, the interface in the transcript.
-
-        Returns:
-          One line per declaration given up, or "" for a run that carried everything its
-          flow declared -- which is every run of every flow that did not ask for leniency.
-        """
-        return "\n".join(self._unserved)
-
-    def run(self, task: str) -> None:
-        """Runs the flow in this directory, for as long as it keeps running.
-
-        The run is written down as it happens: which agents were driven, at what, and which
-        sessions each of them opened. Nothing else knows a session was part of a run -- the
-        backends log them one by one, under ids of their own -- and the run is over the moment
-        this returns, however it returns.
-
-        A flow written as ``async def run`` is run to its return here too, on a loop of its
-        own: this waits for the flow either way, so that whatever started one is holding a
-        run rather than a coroutine somebody has to remember to await.
-
-        Args:
-          task: What the flow is to have its agents do.
-        """
-        import inspect
-
-        from hmz.coganchor.agents.allowance import Ledger
-        from hmz.runtime.flowing.driving import contained, entered, lands_in, left
-
-        from .epic import Epic, state
-        from .settings import Settings
-
-        # Written down as running before it is: what a flow calls is written down the same
-        # way, so that whatever is watching reads one list of what is running under what,
-        # rather than a flow it was told about and a flow it was not.
-        started = entered(self._flow, self._driven)
-        picked_up = self._picked_up
-        try:
-            # One container for the run, started here rather than where the runner was made:
-            # reading a flow must not pull an image, and a run that never starts must not
-            # leave one behind. Every agent is pointed at it as it comes up, and what the
-            # flow itself reads, writes and runs there is `hmz._legacy_flows.container`.
-            with (
-                contained(self._container) as where_,
-                Epic(
-                    self._flow,
-                    self._driven,
-                    task,
-                    resumable=self._resumable,
-                    picked_up=picked_up.name if picked_up is not None else "",
-                    # Whether this workspace asked for its runs to be profiled as well as
-                    # traced, which is a thing about the project being worked on: a repository
-                    # whose tests take an hour is a different question from one whose take a
-                    # minute. Read here rather than in the epic, which is the run written down
-                    # rather than the settings under it.
-                    profile=Settings().profiling,
-                ) as epic,
-            ):
-                # One reckoning for the run, and every agent holds it: an allowance is the
-                # run's money rather than any one agent's, and a clone made mid-flow joins
-                # it as it is made. Here rather than wherever a run is started from, so that
-                # `hmz exec`, the interface and a flow calling another all get it -- nothing
-                # a flow can be started by has to remember to hang one on.
-                ledger = Ledger(self._budget, self._driven)
-                for agent in self._driven:
-                    agent.epic = epic
-                    agent.allowance = ledger
-                if where_ is not None:
-                    lands_in(self._driven, where_)
-                # As it was set up, or as it comes: a flow that takes a config takes None
-                # for the run nobody set up, which is the default the flow declared. And
-                # after it, for a flow that says it can be picked up, what the run it is
-                # being picked up from left behind -- which is a dict it writes into, kept
-                # in this run's own epic as it writes.
-                said: list[Any] = [self._agents, task]
-                if self._setting is not None:
-                    said.append(self._config)
-                if self._resumable:
-                    said.append(
-                        epic.state(
-                            self._flow,
-                            state(picked_up, self._flow)
-                            if picked_up is not None
-                            else None,
-                        )
-                    )
-                running_now = self._run(*said)
-                # Read off what the call answered rather than off the function: a flow is what
-                # it does when it is called, and one wrapped in something of its own -- a
-                # decorator that times its rounds -- is the same flow.
-                if inspect.isawaitable(running_now):
-                    _finished(running_now)
-        finally:
-            left(started)
-
-
-def read_agent(spec: str) -> tuple[str, backends.Profile, str, str, str]:
-    """Reads and validates one command-line agent specification.
-
-    The grammar itself is `hmz.coganchor.backends.read`, an agent being a backend before it is
-    anything else. This is the name the line's own reading of one goes by, kept because that is what
-    the spec calls it -- and holding nothing of its own, since everything it used to check moved
-    into the grammar when the written-out spelling went.
-
-    Args:
-      spec: One agent, as `-a` spells one. An `-a` naming several is split into them first.
-
-    Returns:
-      The place the agent fills -- "" for one the line left to fill a place in order -- the
-      backend, model, effort and provider. What the agent may do, whether it has goals and
-      whether it may search the web are not among them: those are the flow's, said where it
-      declares the place, and a line that says one is a line to correct.
-
-    Raises:
-      ValueError: If the specification is malformed, or says what the flow says.
+    Attributes:
+      flow: The flow, as the line named it.
+      task: What it is to do.
+      agents: What each agent role is given, in the order the line wrote them.
+      envs: What each environment role is given, likewise.
+      params: Each param as the line wrote it, which the flow's own model reads.
+      budget: What the run may spend, or None where the line said nothing.
+      resume: Whether to pick up the newest run of the flow here that can be.
+      as_json: Whether a program is reading the run rather than a person.
     """
-    return backends.read(spec)
+
+    flow: str
+    task: str
+    agents: tuple[AgentSpec, ...] = ()
+    envs: tuple[EnvSpec, ...] = ()
+    params: dict[str, str] = {}  # noqa: RUF012 -- a NamedTuple's default, never written to
+    budget: Budget | None = None
+    resume: bool = False
+    as_json: bool = False
 
 
-def flow_and_agents(
-    argv: list[str],
-) -> tuple[str, list[AgentBase], str, dict[str, Any] | None, Allowance | None, bool]:
-    """Reads an `hmz exec` line into a flow, the agents to drive it, the task, and its setup.
+def read_line(argv: list[str]) -> Line:
+    """Reads an `hmz exec` line.
 
-    A flow says how many agents it drives and what it calls each of them, and this is where
-    they come from: one for each, at the model and effort each is to run at, in the order the
-    flow takes them or each naming the place it fills.
+    Only the line: which roles the flow has, and whether it needs a budget, are asked of the
+    flow by :class:`Runner`, so that `--help` loads no flow and pays for no driver.
 
     Args:
       argv: What followed the command name.
 
     Returns:
-      The flow's path, the agents to drive it with in the order the flow takes them, the task,
-      what to set the flow up with -- the YAML file `-c` named, read but not yet checked
-      against the flow's own model, or None where the line named none -- what that file said
-      the run may spend or None where it said nothing, and whether a program is reading the
-      run rather than a person.
+      The line.
 
     Raises:
-      SystemExit: If the line does not name a flow and an agent apiece, names a place the flow
-        has not got, or names a config that cannot be read, as argparse rejects it.
+      SystemExit: For a line that is not one, as argparse rejects it -- an unknown flag, no
+        flow or task, or an `-a`, `-e`, `-p` or `-b` that cannot be read.
     """
     import argparse
+
+    from hmz.coganchor import backends
 
     parser = argparse.ArgumentParser(
         prog="hmz exec", description="Run an agent flow in this directory."
@@ -453,34 +115,51 @@ def flow_and_agents(
         "--flow",
         required=True,
         metavar="FLOW",
-        help="the flow to drive: one humanize ships or a flowverse holds, by name, or a file "
-        "of your own; `<flow>:<name>` for one of several in a file",
+        help="the flow to run: one humanize ships or a flowverse holds, by name, a directory "
+        "or file of your own, or a git+URL#flow ref; `<flow>:<name>` for another flow of "
+        "the same module",
     )
     parser.add_argument(
         "-a",
-        "--agent",
+        "--agents",
         action="append",
-        # One agent for each the flow drives, which for a flow that talks only to the person
-        # at the prompt is none: the person is handed over rather than chosen, so a line that
-        # named one would be naming what nobody picks. A line short of an agent the flow does
-        # need is caught where every other miscount is, by the flow's own declaration.
         default=[],
-        dest="agents",
-        metavar="SPEC[,SPEC...]",
-        help="the agents to drive the flow with, each [NAME=]CLI[@PROVIDER]/MODEL:EFFORT -- "
-        "several to one option, separated by commas, and the option repeated as often as "
-        "suits. Unnamed they fill the flow's places in the order it takes them; NAME fills "
-        "the place the flow calls that, and either every one of them names a place or none "
-        f"does. CLI is one of {', '.join(sorted(one.name for one in backends.profiles()))}",
+        metavar="ROLE=SPEC[,...]",
+        help="what an agent role runs: ROLE=CLI[@PROVIDER]/MODEL:EFFORT, several to one "
+        "option separated by commas, the option repeated as often as suits. CLI is one of "
+        f"{', '.join(sorted(one.name for one in backends.profiles()))}",
     )
     parser.add_argument(
-        "-c",
-        "--config",
-        metavar="PATH",
-        help="a YAML file of what to set the flow up with, one field per line, as the flow "
-        "declares them; only for a flow that says it can be set up. Its `budget:` is the "
-        "run's own rather than the flow's -- `{hours: 6, tokens: 10, dollars: 50}`, each "
-        "0 or absent for no limit on that one",
+        "-e",
+        "--envs",
+        action="append",
+        default=[],
+        metavar="ROLE=SPEC[,...]",
+        help="where an environment role is: ROLE=local@/abs/path or "
+        "ROLE=ssh@[user@]host[:port]/abs/path (ssh@host/~/path under the login's home). "
+        "A role the runtime fills -- the workspace -- is never named",
+    )
+    parser.add_argument(
+        "-p",
+        "--params",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE[,...]",
+        help="a param of the flow; a value is read as the param's type, or as JSON",
+    )
+    parser.add_argument(
+        "-b",
+        "--budget",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE[,...]",
+        help="what the run may spend: duration=1h30m, cost=5 (USD), output_tokens=200k, "
+        "graceful=false to stop a turn mid-way. Required, except for chat",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="pick up the newest run of this flow here, for a flow that can be picked up",
     )
     parser.add_argument(
         "--json",
@@ -491,173 +170,659 @@ def flow_and_agents(
     )
     parser.add_argument(
         "task",
-        help="what the flow is to have the agents do, after -- if it starts with a dash",
+        help="what the flow is to do, after -- if it starts with a dash",
     )
     args = parser.parse_args(argv)
-    held: dict[str, Any] | None = None
-    budget: Allowance | None = None
-    if args.config is not None:
-        try:
-            held, budget = set_up_from(args.config)
-        except ValueError as why:
-            parser.error(str(why))
 
-    # Only now that the line is known to name agents: `--help` has already exited, and it
-    # should not have paid for three backends to say what it takes.
-    from hmz.coganchor.agents import driver
-    from hmz.coganchor.agents.base import identifying
-
-    agents: list[AgentBase] = []
-    places: list[str] = []
-    # The list is split here rather than where one agent is read: every `-a` on the line adds
-    # to the same list, so what the line names is one list however it was typed -- and one
-    # mistyped agent among three is then reported as itself rather than as all three.
-    for spec in (one for said in args.agents for one in said.split(",")):
-        try:
-            place, profile, model, effort, provider = read_agent(spec)
-        except ValueError as bad:
-            parser.error(f"bad agent {spec!r}: {bad}")
-        agent, config = driver(profile.name)
-        try:
-            # What it may do, whether it has goals and whether it may search the web are
-            # left as they come: `Runner` settles all three from what the flow declared,
-            # which is the one place any of them is said.
-            configured = config(
-                model=model,
-                effort=effort,
-                provider=provider,
-                # And which CLI it is, where the class does not say so by itself: a line
-                # naming a CLI somebody added by hand is driven by the one class that drives
-                # all of them, and the name on the line is the only thing that tells it
-                # which. `identifying` is where the same argument is written out.
-                **identifying(config, profile.name),
-            )
-            agents.append(agent(configured))
-        except ValueError as bad:
-            parser.error(f"bad agent {spec!r}: {bad}")
-        places.append(place)
-    return (
-        args.flow,
-        _as_declared(parser, args.flow, agents, places),
-        args.task,
-        held,
-        budget,
-        args.as_json,
+    from hmz.runtime.flowing.specs import (
+        SpecError,
+        parse_agents,
+        parse_budget,
+        parse_envs,
+        parse_params,
     )
 
+    try:
+        return Line(
+            flow=args.flow,
+            task=args.task,
+            agents=tuple(parse_agents(args.agents)),
+            envs=tuple(parse_envs(args.envs)),
+            params=parse_params(args.params),
+            budget=parse_budget(args.budget) if args.budget else None,
+            resume=args.resume,
+            as_json=args.as_json,
+        )
+    except SpecError as bad:
+        parser.error(str(bad))
 
-def _as_declared(
-    parser: ArgumentParser,
-    flow: str,
-    agents: list[AgentBase],
-    places: list[str],
-) -> list[AgentBase]:
-    """Puts the agents in the order the flow takes them, for a line that named their places.
 
-    A line that named none is in that order already, having been written in it. One that named
-    them is read against what the flow declares here, before anything runs: an actor handed
-    the reviewer's place is an hour of the wrong work, and which places there are is a
-    question the flow answers without being given any agents at all.
+class Runner:
+    """A flow, loaded, with a driver for every role it was given and everything checked.
 
-    Args:
-      parser: The line, for reporting one to correct.
-      flow: The flow, as the line named it.
-      agents: The agents, in the order the line named them.
-      places: What each was named for, "" for one the line named no place for.
+    Nothing has run once one is made, and nothing has been started: an agent's CLI is reached
+    when its first session opens, and an environment's machine when it is probed, which
+    :meth:`arun` does before the flow is called.
+    """
 
-    Returns:
-      The same agents, in the order the flow takes them.
+    def __init__(
+        self,
+        flow: str | os.PathLike[str],
+        *,
+        agents: Mapping[str, str | AgentDriver] | Iterable[AgentSpec] = (),
+        envs: Mapping[str, str | EnvDriver] | Iterable[EnvSpec] = (),
+        params: Mapping[str, Any] | FlowParams | None = None,
+        budget: Budget | Mapping[str, Any] | None = None,
+        resume: bool | str | os.PathLike[str] = False,
+        workspace: str | os.PathLike[str] | None = None,
+    ) -> None:
+        """Loads the flow and checks what it is given against what it declares.
+
+        Args:
+          flow: The flow, as `-f` names one.
+          agents: What each agent role runs: an `-a` spec after `<role>=` or a driver, by
+            role, or the specs a line read. A role the runtime fills -- an `Outworlder` --
+            is never given.
+          envs: What each environment role is: an `-e` spec after `<role>=` or a driver, by
+            role, or the specs a line read. A `LocalEnv` role is never given; it is the
+            workspace.
+          params: The flow's params, as its model or as a mapping of values -- strings from
+            `-p` among them -- or None for its defaults.
+          budget: What the run may spend. Only a flow humanize ships may be run without one,
+            under `Budget(cost=inf)`.
+          resume: Whether to pick up the newest run of this flow in the workspace that can
+            be picked up, or the epic to pick up.
+          workspace: Where the run happens, defaulting to this directory.
+
+        Raises:
+          Refused: For a flow that cannot be loaded; a role given that it does not declare,
+            that the runtime fills, or that is given twice; a required role left out; an
+            agent that is not the harness its role names or cannot do what its role asks; a
+            spec a driver cannot be made for; params the flow does not take; no budget; and a
+            run to pick up that is not there or of a flow that cannot be picked up.
+        """
+        from hmz.flows import Budget, FlowException
+        from hmz.runtime.flowing import builtin, resolved
+
+        self._named = str(flow)
+        self._workspace = Path(workspace) if workspace is not None else Path.cwd()
+        try:
+            impl = resolved(self._named)
+            declared = impl.describe()
+        except FlowException as why:
+            raise Refused(str(why)) from why
+        self._impl: FlowImpl = impl
+        self._declared = declared
+        agents_given, self._specs = self._agents_of(agents)
+        envs_given, self._places = self._envs_of(envs)
+        try:
+            self._params = impl.params_of({} if params is None else params)
+        except FlowException as why:
+            raise Refused(str(why)) from why
+        if budget is None:
+            if not builtin(impl):
+                raise Refused(
+                    f"{self._named}: a run is given a budget -- -b duration=...,cost=...,"
+                    "output_tokens=... -- and this one was given none"
+                )
+            budget = Budget(cost=math.inf)
+        self._budget = budget if isinstance(budget, Budget) else _budget(budget)
+        self._picked_up = self._picks_up(resume)
+        # Made last, once everything that could refuse the run has had its say: a driver
+        # starts nothing as it is made, and none is made for a run that is refused.
+        self._agents = _agent_drivers(agents_given)
+        self._envs = _env_drivers(envs_given)
+        self._recorder: Recorder | None = None
+
+    # ------------------------------------------------------------------ what is checked
+
+    def _agents_of(
+        self, given: Mapping[str, str | AgentDriver] | Iterable[AgentSpec]
+    ) -> tuple[dict[str, AgentSpec | AgentDriver], dict[str, str]]:
+        """What each agent role was given, checked, and the spec each was written as.
+
+        Raises:
+          Refused: For a role that cannot be given this.
+        """
+        from hmz.runtime.flowing.specs import AgentSpec, SpecError, parse_agents
+        from hmz.runtime.flowing.spi import HARNESS_CAPABILITIES
+
+        named = self._named
+        drivers: dict[str, AgentSpec | AgentDriver] = {}
+        specs: dict[str, str] = {}
+        for name, given_as in _by_role(given):
+            role = self._declared.agent(name)
+            if role is None:
+                raise Refused(
+                    f"{named} has no agent role {name!r}; its agent roles are "
+                    f"{_roles(one.name for one in self._declared.agents if not one.auto)}"
+                )
+            if role.auto:
+                raise Refused(
+                    f"{named}: {name!r} is filled by the runtime -- whoever is outside "
+                    "the run -- and is not given with -a"
+                )
+            if name in drivers:
+                raise Refused(f"{named}: the agent role {name!r} is given twice")
+            try:
+                said = (
+                    parse_agents([f"{name}={given_as}"])[0]
+                    if isinstance(given_as, str)
+                    else given_as
+                    if isinstance(given_as, AgentSpec)
+                    else cast("AgentDriver", given_as)
+                )
+            except SpecError as why:
+                raise Refused(str(why)) from why
+            if isinstance(said, AgentSpec):
+                harness, capabilities = said.harness, HARNESS_CAPABILITIES[said.harness]
+            else:
+                harness, capabilities = said.harness, said.capabilities
+            if role.harness is not None and harness != role.harness:
+                raise Refused(
+                    f"{named}: {name!r} is {role.harness}, and {harness} was given"
+                )
+            if lacking := role.capabilities - capabilities:
+                raise Refused(
+                    f"{named}: {name!r} needs "
+                    f"{', '.join(sorted(one.__name__ for one in lacking))}, which "
+                    f"{harness} does not do"
+                )
+            drivers[name] = said
+            if isinstance(said, AgentSpec):
+                specs[name] = str(said).partition("=")[2]
+            else:
+                account = f"@{said.provider}" if said.provider else ""
+                specs[name] = (
+                    f"{said.harness}{account}/{said.model}:{said.effort or 'auto'}"
+                )
+        if missing := [
+            one.name
+            for one in self._declared.agents
+            if one.required and not one.auto and one.name not in drivers
+        ]:
+            raise Refused(
+                f"{named} needs an agent for {_roles(missing)}; give each with "
+                "-a ROLE=CLI/MODEL:EFFORT"
+            )
+        return drivers, specs
+
+    def _envs_of(
+        self, given: Mapping[str, str | EnvDriver] | Iterable[EnvSpec]
+    ) -> tuple[dict[str, EnvSpec | EnvDriver], dict[str, str]]:
+        """What each environment role was given, checked, and the spec each was written as.
+
+        Raises:
+          Refused: For a role that cannot be given this.
+        """
+        from hmz.runtime.flowing.specs import EnvSpec, SpecError, parse_envs
+
+        named = self._named
+        drivers: dict[str, EnvSpec | EnvDriver] = {}
+        specs: dict[str, str] = {}
+        for name, given_as in _by_role(given):
+            role = self._declared.env(name)
+            if role is None:
+                raise Refused(
+                    f"{named} has no environment role {name!r}; its environment roles "
+                    f"are {_roles(one.name for one in self._declared.envs if not one.auto)}"
+                )
+            if role.auto:
+                raise Refused(
+                    f"{named}: {name!r} is the workspace the run is started in, and is "
+                    "not given with -e"
+                )
+            if name in drivers:
+                raise Refused(f"{named}: the environment role {name!r} is given twice")
+            try:
+                said = (
+                    parse_envs([f"{name}={given_as}"])[0]
+                    if isinstance(given_as, str)
+                    else given_as
+                    if isinstance(given_as, EnvSpec)
+                    else cast("EnvDriver", given_as)
+                )
+            except SpecError as why:
+                raise Refused(str(why)) from why
+            drivers[name] = said
+            if isinstance(said, EnvSpec):
+                specs[name] = str(said).partition("=")[2]
+            else:
+                # As `-e` spells one, which a run picked up is given again.
+                workdir = str(said.workdir).lstrip("/")
+                specs[name] = f"{said.backend}@{said.provider}/{workdir}"
+        if missing := [
+            one.name
+            for one in self._declared.envs
+            if one.required and not one.auto and one.name not in drivers
+        ]:
+            raise Refused(
+                f"{named} needs an environment for {_roles(missing)}; give each with "
+                "-e ROLE=BACKEND@PROVIDER/WORKDIR"
+            )
+        return drivers, specs
+
+    def _picks_up(self, resume: bool | str | os.PathLike[str]) -> Path | None:  # noqa: FBT001
+        """The epic this run picks up, or None for a run from the top.
+
+        Raises:
+          Refused: For a flow that cannot be picked up, or no run of it to pick up.
+        """
+        from .epic import picks_up, resumed
+
+        if resume is False:
+            return None
+        if not self._impl.resumable:
+            raise Refused(
+                f"{self._named} does not say it can be picked up, so there is no run of "
+                "it to resume"
+            )
+        if resume is True:
+            found = resumed(self._impl.ref, self._workspace)
+            if found is None:
+                raise Refused(
+                    f"{self._named} has no run here to pick up: none got as far as "
+                    "writing anything down"
+                )
+            return found
+        found = Path(resume)
+        if not picks_up(found):
+            raise Refused(f"{found.name} holds nothing a run could be picked up from")
+        return found
+
+    # ----------------------------------------------------------------------- what it is
+
+    @property
+    def flow(self) -> str:
+        """The flow, as it was named."""
+        return self._named
+
+    @property
+    def impl(self) -> FlowImpl:
+        """The flow, loaded."""
+        return self._impl
+
+    @property
+    def declaration(self) -> Declaration:
+        """What the flow declares."""
+        return self._declared
+
+    @property
+    def agents(self) -> dict[str, AgentDriver]:
+        """The driver each agent role was given, by role."""
+        return dict(self._agents)
+
+    @property
+    def envs(self) -> dict[str, EnvDriver]:
+        """The driver each environment role was given, by role."""
+        return dict(self._envs)
+
+    @property
+    def params(self) -> FlowParams:
+        """The flow's params, validated."""
+        return self._params
+
+    @property
+    def budget(self) -> Budget:
+        """What the run may spend."""
+        return self._budget
+
+    @property
+    def picked_up(self) -> Path | None:
+        """The epic this run picks up, or None for a run from the top."""
+        return self._picked_up
+
+    @property
+    def workspace(self) -> Path:
+        """Where the run happens."""
+        return self._workspace
+
+    @property
+    def recorder(self) -> Recorder | None:
+        """What is writing the run down, once it has started, or None before."""
+        return self._recorder
+
+    def unreadable(self) -> str:
+        """Which cap of the run nothing it drives can read, in words, or "" for none.
+
+        A cost cap over an agent whose model nobody prices is a cap that cannot bite: its
+        turns cost nothing anybody can count, which reads exactly like a cap that has not bitten
+        yet. Answered before the first turn rather than at the end of a run that never stopped.
+        """
+        from hmz.coganchor.prices import price
+
+        cost = self._budget.cost
+        if cost is None or math.isinf(cost):
+            return ""
+        unpriced = sorted(
+            {one.model for one in self._agents.values() if price(one.model) is None}
+        )
+        if not unpriced:
+            return ""
+        return (
+            f"nobody lists a price for {', '.join(unpriced)}, so cost={cost:g} cannot "
+            "stop what it spends"
+        )
+
+    def watch(self, listener: Listener) -> None:
+        """Has everything every session of the run says reach `listener`.
+
+        What a way in shows a run through: every session is watched for what it spends,
+        which also stops a CLI writing its own progress to this process's streams.
+
+        Args:
+          listener: What to tell, from whichever thread a CLI is read on.
+        """
+        for driver in self._agents.values():
+            watch = getattr(driver, "watch", None)
+            if callable(watch):
+                watch(listener)
+
+    # ------------------------------------------------------------------------- running
+
+    async def arun(
+        self,
+        task: str,
+        *,
+        outworlder: OutworlderDriver | None = None,
+        opened: Opened | None = None,
+        started: Callable[[Epic], None] | None = None,
+    ) -> Any:
+        """Runs the flow to its return, on the loop this is awaited on.
+
+        Args:
+          task: What it is to do.
+          outworlder: Whoever is outside the run, or None for nobody -- an outworlder that is
+            always away, which is what a command line is.
+          opened: What is told of each session as it opens, or None.
+          started: What is handed the epic the run is written into, once it is open.
+
+        Returns:
+          What the flow returned.
+
+        Raises:
+          Refused: If an environment cannot be reached, or the drivers do not meet what the
+            flow declares -- before the flow has been called.
+          BaseException: Whatever the flow raised, as it raised it.
+        """
+        from hmz.flows import (
+            BudgetExceeded,
+            FlowCancelled,
+            FlowDefinitionError,
+            FlowException,
+            ParamsError,
+            RequirementError,
+        )
+        from hmz.runtime.flowing import local_env, open_outworlder, probe, run_flow
+
+        from .epic import Epic
+        from .settings import Settings
+
+        try:
+            for driver in self._envs.values():
+                await probe(driver)
+            local = local_env(self._workspace)
+        except BaseException as why:
+            # Stopped, or refused, before the run began: what it was given goes either way.
+            await asyncio.shield(self._closed(None))
+            if isinstance(why, FlowException):
+                raise Refused(str(why)) from why
+            raise
+        impl = self._impl
+        epic = Epic(
+            self._named,
+            task,
+            self._workspace,
+            ref=impl.ref,
+            agents=[_drove(role, spec) for role, spec in self._specs.items()],
+            envs=[f"{role}={spec}" for role, spec in self._places.items()],
+            # Through JSON text rather than `mode="json"`, which leaves an infinite cost a
+            # float: `Budget(cost=inf)` is written as the string it reads back from.
+            params=json.loads(self._params.model_dump_json()),
+            budget=json.loads(self._budget.model_dump_json()),
+            resumable=impl.resumable,
+            picked_up=self._picked_up,
+            profile=Settings(self._workspace).profiling,
+        )
+        recorder = Recorder(epic, opened)
+        self._recorder = recorder
+        try:
+            with epic:
+                if started is not None:
+                    started(epic)
+                try:
+                    return await run_flow(
+                        impl,
+                        task,
+                        agents=self._agents,
+                        envs=self._envs,
+                        params=self._params,
+                        budget=self._budget,
+                        outworlder=outworlder or open_outworlder(),
+                        journal=epic.resume if impl.resumable else None,
+                        resume=self._picked_up is not None,
+                        local=local,
+                        recorder=recorder,
+                    )
+                except (RequirementError, ParamsError, FlowDefinitionError) as why:
+                    # Refused by the engine before the flow was called: the drivers do not
+                    # meet what it declares, or a skill a role names is not to be had.
+                    if not recorder.started:
+                        raise Refused(str(why)) from why
+                    raise
+                except (asyncio.CancelledError, FlowCancelled, BudgetExceeded):
+                    epic.stopped()
+                    raise
+                finally:
+                    usage = recorder.usage()
+                    epic.write(
+                        "usage",
+                        cost=usage.cost,
+                        output_tokens=usage.output_tokens,
+                        seconds=usage.duration.total_seconds(),
+                    )
+        finally:
+            await asyncio.shield(self._closed(local))
+
+    async def aclose(self) -> None:
+        """Closes every driver the run was given, for a run that will not be run after all."""
+        await self._closed(None)
+
+    async def _closed(self, local: EnvDriver | None) -> None:
+        """Closes every driver the run was given, and the workspace's, however it ended."""
+        for driver in (*self._agents.values(), *self._envs.values(), local):
+            if driver is None:
+                continue
+            with contextlib.suppress(Exception):
+                await driver.close()
+
+    def run(self, task: str, *, outworlder: OutworlderDriver | None = None) -> Any:
+        """Runs the flow to its return, on a loop of its own in this thread.
+
+        Args:
+          task: What it is to do.
+          outworlder: Whoever is outside the run, or None for nobody.
+
+        Returns:
+          What the flow returned.
+        """
+        return asyncio.run(self.arun(task, outworlder=outworlder))
+
+
+class Recorder:
+    """What writes a run down as the engine runs it: a record per flow call, and each session.
+
+    Answers to :class:`hmz.runtime.flowing.engine.Recorder`. Every call is told on the loop
+    the run is on.
+
+    Attributes:
+      started: Whether the flow the run was started with has been called, which is what
+        tells a run refused before it started from one that failed.
+    """
+
+    def __init__(self, epic: Epic, opened: Opened | None = None) -> None:
+        """Holds the epic to write into, and what to tell of each session opened."""
+        self._epic = epic
+        self._opened = opened
+        self._records: dict[int, Epic] = {}
+        self._sessions: list[SessionHandle] = []
+        self.started = False
+
+    def entered(self, call: LiveCall) -> None:
+        """A flow call started: the run's own, or one written into a record of its own."""
+        self.started = True
+        if call.parent is None:
+            self._records[id(call)] = self._epic
+            return
+        above = self._records.get(id(call.parent), self._epic)
+        self._records[id(call)] = above.called(call.ref)
+
+    def left(self, call: LiveCall, error: BaseException | None) -> None:
+        """A flow call ended, which closes its record."""
+        from hmz.flows import BudgetExceeded, FlowCancelled
+
+        from .epic import Sub
+
+        record = self._records.pop(id(call), None)
+        if not isinstance(record, Sub):
+            return
+        stopped = isinstance(
+            error, asyncio.CancelledError | FlowCancelled | BudgetExceeded
+        )
+        record.ended(
+            None if error is None else type(error), "stopped" if stopped else ""
+        )
+
+    def spawned(
+        self, call: LiveCall, role: str, session: SessionHandle, driver: AgentDriver
+    ) -> None:
+        """A flow call opened a session: named for its role, and written into its record."""
+        self._sessions.append(session)
+        record = self._records.get(id(call), self._epic)
+        agent: AgentBase | None = getattr(session, "agent", None)
+        if agent is None:
+            # A driver with no coganchor agent behind it -- a fake -- names its session as
+            # it opens it, and is written down then.
+            record.session(
+                role, str(driver.harness), driver.provider, session.id or "?"
+            )
+            return
+        # Named for its role, and written down in the record of the call that opened it
+        # once its CLI has said what it calls the conversation, which is its first turn.
+        agent.rename(role)
+        agent.epic = record
+        conversation: SessionBase | None = getattr(session, "coganchor", None)
+        if self._opened is not None and conversation is not None:
+            self._opened(role, agent, conversation)
+
+    @property
+    def sessions(self) -> tuple[SessionHandle, ...]:
+        """Every session the run has opened, oldest first."""
+        return tuple(self._sessions)
+
+    def usage(self) -> Usage:
+        """Everything the run's sessions have spent, up to the moment it is read."""
+        import datetime
+
+        from hmz.flows import Usage
+
+        cost = 0.0
+        tokens = 0
+        seconds = 0.0
+        for session in tuple(self._sessions):
+            said = session.usage
+            cost += said.cost
+            tokens += said.output_tokens
+            seconds += said.duration.total_seconds()
+        return Usage(
+            duration=datetime.timedelta(seconds=seconds),
+            cost=cost,
+            output_tokens=tokens,
+        )
+
+
+def _agent_drivers(
+    given: Mapping[str, AgentSpec | AgentDriver],
+) -> dict[str, AgentDriver]:
+    """A driver per agent role, made for each role given a spec.
 
     Raises:
-      SystemExit: If some of them name a place and some do not, if the flow calls its agents
-        nothing, or if the names are not one apiece of the ones it declares.
+      Refused: For a spec its CLI cannot be configured at.
     """
-    if not any(places):
-        return agents
-    if not all(places):
-        parser.error(
-            "name every agent or none of them: an agent that names no place fills the flow's "
-            "next one, which cannot be counted while the others are filled by name"
-        )
-    from hmz.runtime.flowing.driving import NotAFlow, drives
+    from hmz.flows import FlowException
+    from hmz.runtime.flowing.harnesses import open_agent
+    from hmz.runtime.flowing.specs import AgentSpec
 
     try:
-        declared = drives(flow)
-    except NotAFlow:
-        # A flow that cannot be read is `Runner`'s to report and not this line's: reading one
-        # here is for the names, and a line refused twice is refused in two voices.
-        return agents
-    if not declared:
-        # A flow that has nobody to choose for it is a line with one agent too many, which
-        # is a miscount like every other and `Runner`'s to report.
-        return agents
-    if not any(declared):
-        parser.error(
-            f"{flow} declares a plain tuple and calls the agents it drives nothing, so they "
-            "are given in the order it takes them rather than by name"
-        )
-    for place in places:
-        if place not in declared:
-            parser.error(
-                f"{flow} drives no agent called {place}; it drives {', '.join(declared)}"
-            )
-        if places.count(place) > 1:
-            parser.error(
-                f"{flow} drives one agent called {place}, and the line names "
-                f"{places.count(place)}"
-            )
-    if unfilled := [one for one in declared if one not in places]:
-        parser.error(
-            f"{flow} also drives {', '.join(unfilled)}, which the line names nothing for"
-        )
-    held = dict(zip(places, agents, strict=True))
-    return [held[one] for one in declared]
+        return {
+            role: open_agent(said) if isinstance(said, AgentSpec) else said
+            for role, said in given.items()
+        }
+    except FlowException as why:
+        raise Refused(str(why)) from why
 
 
-def set_up_from(
-    said: str | os.PathLike[str],
-) -> tuple[dict[str, Any] | None, Allowance | None]:
-    """Reads what a flow is to be set up with, and what the run may spend, out of a file.
-
-    The file is what the flow menu would have asked, written down: one field per
-    line, under the names the flow declared. It is not checked here -- the flow's own model
-    is what checks it, and the model is not there until the flow is loaded.
-
-    One key of it is reserved and is not the flow's: `budget`, which is the run's allowance
-    rather than a setting of the flow. Taken out here rather than left in, because the flow's
-    own model refuses a field it never declared -- and it is a mapping of the three
-    dimensions rather than a bare number, which is refused loudly for saying nothing about
-    which of the three it meant.
-
-    Args:
-      said: The path to the YAML.
-
-    Returns:
-      What it holds field by field with the reserved key taken out, or None where it left
-      nothing for the flow at all -- an empty file, or one that says only what the run may
-      spend, which is not a flow set up with nothing but a flow left as it comes. And the
-      run's allowance, or None where the file said nothing about one.
+def _env_drivers(given: Mapping[str, EnvSpec | EnvDriver]) -> dict[str, EnvDriver]:
+    """A driver per environment role, made for each role given a spec.
 
     Raises:
-      ValueError: If the file cannot be read, holds something that is not a mapping, or says
-        a budget that cannot be read as one.
+      Refused: For a spec whose machine is known not to have its workdir.
     """
-    import yaml
-
-    from hmz.coganchor.agents.allowance import KEY, written
+    from hmz.flows import FlowException
+    from hmz.runtime.flowing.environments import open_env
+    from hmz.runtime.flowing.specs import EnvSpec
 
     try:
-        held = yaml.safe_load(Path(said).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, yaml.YAMLError) as why:
-        raise ValueError(f"cannot read {said}: {why}") from why
-    if held is None:
-        return None, None
-    if not isinstance(held, dict):
-        raise ValueError(  # noqa: TRY004 -- a file to correct, not a caller's type error
-            f"{said}: a flow is set up from a mapping, not a {type(held).__name__}"
-        )
-    fields = cast("dict[str, Any]", held)
-    # Copied rather than popped in place: what was handed in is the caller's, and a reader
-    # that emptied it would be a file that reads differently the second time it is read.
-    rest = {name: value for name, value in fields.items() if name != KEY}
-    return rest or None, written(fields[KEY], str(said)) if KEY in fields else None
+        return {
+            role: open_env(said) if isinstance(said, EnvSpec) else said
+            for role, said in given.items()
+        }
+    except FlowException as why:
+        raise Refused(str(why)) from why
+
+
+def _by_role(given: object) -> list[tuple[str, object]]:
+    """What each role was given, whether by role or as the specs a line read."""
+    from collections.abc import Mapping
+
+    if isinstance(given, Mapping):
+        return [
+            (str(role), said)
+            for role, said in cast("Mapping[object, object]", given).items()
+        ]
+    return [
+        (str(getattr(one, "role", "")), one) for one in cast("Iterable[object]", given)
+    ]
+
+
+def _drove(role: str, spec: str) -> Drove:
+    """One agent role as the epic writes it down, off the spec it was given as."""
+    from .epic import Drove
+    from .kept import read_back
+
+    runs = read_back(spec)
+    cli, _, rest = (runs.spec if runs is not None else spec).partition("/")
+    model, _, effort = rest.rpartition(":")
+    return Drove(role, cli, model, effort, runs.provider if runs is not None else "")
+
+
+def _roles(names: Iterable[str]) -> str:
+    """Some roles, as a line says them."""
+    said = [repr(one) for one in names]
+    return ", ".join(said) if said else "none"
+
+
+def _budget(said: Mapping[str, Any]) -> Budget:
+    """A budget written down as JSON, read back.
+
+    Raises:
+      Refused: For one that is not a budget.
+    """
+    import pydantic
+
+    from hmz.flows import Budget
+
+    try:
+        return Budget.model_validate(dict(said))
+    except pydantic.ValidationError as why:
+        raise Refused(f"the budget is not one: {why}") from why

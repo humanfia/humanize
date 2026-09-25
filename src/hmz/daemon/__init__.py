@@ -137,7 +137,7 @@ class Daemon:
         said = self.asked({"do": "status"})
         if said.get("ok"):
             return said
-        return {**self._written(), "attached": 0, "flows": []}
+        return {**self._written(), "attached": 0, "flows": [], "calls": []}
 
     def detach(self) -> int:
         """Lets go of every terminal reading this run, leaving the run running.

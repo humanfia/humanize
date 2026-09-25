@@ -1,9 +1,9 @@
 """A run that is profiled as well as traced, end to end.
 
-The innovation this is here for: an agent's turns and the programs those turns ran are one
+The innovation this is here for: an agent's turns and the programs a run started are one
 document at one scale, so that `what was this run doing at 09:41` has one answer. Driven as a
-real run -- a flow, an agent that starts processes, an epic -- rather than as a profile handed
-to a renderer, since what is being checked is that the two halves meet at all.
+real run -- a flow, a workspace it starts processes in, an epic -- rather than as a profile
+handed to a renderer, since what is being checked is that the two halves meet at all.
 """
 
 from __future__ import annotations
@@ -13,21 +13,18 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor.agents import AgentConfig
 from hmz.runtime.epic import TRACES, epics, opened
 from hmz.runtime.runner import Runner
 from hmz.runtime.settings import Settings
 from hmz.runtime.tracing.collector import collect
 from hmz.runtime.tracing.profile import PROFILE, read
 from tests.sampling import sampled
-from tests.stubs import ShellAgent, written
+from tests.stubs import written
 
 if TYPE_CHECKING:
     import pathlib
 
-CONFIG = AgentConfig(model="m", effort="high")
-
-#: What the turn runs: a shell running a sleep, which is two programs, and the profile has to
+#: What the run runs: a shell running a sleep, which is two programs, and the profile has to
 #: hold both of them.
 #:
 # : A second rather than the tenth of one it takes to say what is being checked. What reads it : is
@@ -36,15 +33,21 @@ CONFIG = AgentConfig(model="m", effort="high")
 # difference between a test of the profiler and a test of the clock.
 SAID = "sleep 1; echo the-session"
 
-#: A flow whose agent runs a program, which is what a turn mostly is.
+#: A flow that runs a program in its workspace, which is what a turn mostly is.
 FLOW = f"""
-from hmz.coganchor.agents import AgentBase
-from hmz._legacy_flows import flow
+from hmz.flows import AgentCollection, BashEnvMixin, EnvCollection, FlowParams, LocalEnv, flow
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    agents[0].new()("{SAID}")
+class Here(LocalEnv, BashEnvMixin): ...
+
+
+class Envs(EnvCollection):
+    here: Here
+
+
+@flow(agents=AgentCollection, envs=Envs, params=FlowParams)
+async def run(task, *, agents, envs, params, ctx):
+    await envs["here"].exec("{SAID}")
 """
 
 
@@ -66,12 +69,12 @@ def test_a_run_is_profiled_when_the_workspace_asks_for_it(
     """Off unless somebody says otherwise: it is a sampler running as long as the flow does."""
     Settings().profiles(on=True)
 
-    Runner(workspace / "flow", [ShellAgent(CONFIG)]).run("go")
+    Runner(workspace / "flow", budget={"cost": 1}).run("go")
 
     (epic,) = epics()
     ran = read(epic / PROFILE)
     assert ran, "the programs the turn ran are not in the run's profile"
-    # The turn itself, which is a shell running a sleep: both are programs this run started.
+    # What it ran, which is a shell running a sleep: both are programs this run started.
     # The shell is named by what it was given rather than by what it is called, one system's
     # `/bin/sh` being another's `bash`; the sleep is called the same thing everywhere.
     assert "sleep" in {one.name for one in ran}
@@ -83,7 +86,7 @@ def test_a_run_nobody_asked_to_profile_is_traced_and_not_profiled(
     workspace: pathlib.Path,
 ) -> None:
     """A sampler nobody asked for is a sampler running for the length of every run there is."""
-    Runner(workspace / "flow", [ShellAgent(CONFIG)]).run("go")
+    Runner(workspace / "flow", budget={"cost": 1}).run("go")
 
     (epic,) = epics()
     assert not (epic / PROFILE).exists()
@@ -96,7 +99,7 @@ def test_the_programs_and_the_sessions_are_one_document(
 ) -> None:
     """Which is the point of profiling into a trace rather than into a profile of its own."""
     Settings().profiles(on=True)
-    Runner(workspace / "flow", [ShellAgent(CONFIG)]).run("go")
+    Runner(workspace / "flow", budget={"cost": 1}).run("go")
     (epic,) = epics()
 
     output = epic / TRACES / "one.trace.json"

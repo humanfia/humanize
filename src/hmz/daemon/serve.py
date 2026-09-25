@@ -575,23 +575,42 @@ class Held:
         """
         said: dict[str, Any] = dict(where.held(self._at))
         said["attached"] = self.attached
-        said["flows"] = self._flows()
+        calls = self._calls()
+        said["flows"] = [one["ref"] for one in calls]
+        said["calls"] = calls
         hook = self._saying
         if hook is not None:
             with contextlib.suppress(Exception):
                 said.update(hook())
         return said
 
-    def _flows(self) -> list[str]:
-        """Every flow of the run being held here, oldest first, and none where none is.
+    def _calls(self) -> list[dict[str, Any]]:
+        """Every flow call of the run being held here, oldest first, and none where none is.
 
-        Answered rather than raised however it goes: a status nobody can read is worse than
-        one that says a run it could not ask about is running no flows.
+        The running tree, as JSON: each call's flow by its canonical ref, its name, how deep
+        it is, how long it has been going and the call that made it, by its place in this
+        list. Answered rather than raised however it goes: a status nobody can read is worse
+        than one that says a run it could not ask about is running no flows.
         """
+        import time
+
         with contextlib.suppress(Exception):
             from hmz.runtime import Hmz
 
-            return [one.flow for one in Hmz().flows.running()]
+            running = Hmz().flows.running()
+            now = time.monotonic()
+            at = {id(one): index for index, one in enumerate(running)}
+            return [
+                {
+                    "ref": one.ref,
+                    "name": one.name,
+                    "depth": one.depth,
+                    "seconds": round(now - one.since, 3),
+                    "id": one.id,
+                    "parent": None if one.parent is None else at.get(id(one.parent)),
+                }
+                for one in running
+            ]
         return []
 
     def _closing(self, selector: selectors.BaseSelector, one: socket.socket) -> None:

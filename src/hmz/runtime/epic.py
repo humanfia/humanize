@@ -19,14 +19,14 @@ One epic is one run, and one directory::
     ~/.humanize/epics/<workspace>/<when>-<which>/
         epic.jsonl                      what happened, a line at a time
         epic.<flow>_<which>.jsonl       the same, for one flow the run called
-        state.json                      what a flow that can be picked up again left behind
+        resume.jsonl                    the engine's journal, for a flow that can be picked up
         profile.jsonl                   the programs it ran, for a run that was profiled
         sessions/<session>/…            a link per file the backend logged it to
         traces/<when>.trace.json        what was gathered of it afterwards, to be read
 
-A flow may call another, and a called flow opens sessions and keeps state exactly as the flow
-that called it does. So each call gets a record of its own beside the run's own, and the
-record of whatever called it says what it called and which file to read it in. Still one run
+A flow may call another, and a called flow opens sessions exactly as the flow that called it
+does. So each call gets a record of its own beside the run's own, and the record of whatever
+called it says what it called and which file to read it in. Still one run
 and still one directory: a called flow is part of the run that called it, not another run.
 
 One directory and one tree. A call made from inside a called flow is written under *that*
@@ -37,16 +37,20 @@ than as thirty-one things one run did -- which is what :func:`tree` reads it as.
 It opens when the flow starts and closes when the flow stops, however it stops -- finished,
 failed, or interrupted. A closed epic is never reopened: running the flow again is another
 run, with sessions of its own, and so another epic -- which is what a flow that says it can
-be picked up again is picked up as. What it left behind is read out of the epic it left it
-in and handed to the next run of it, which writes into an epic of its own.
+be picked up again is picked up as. What a resumable flow keeps is the engine's journal
+(:mod:`hmz.runtime.flowing.journaling`), written into the epic of the run keeping it; a run
+picking it up is handed a copy of it in an epic of its own, which the engine compacts and goes
+on appending to.
 """
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import datetime
 import json
 import re
+import shutil
 import threading
 import uuid
 from collections import Counter
@@ -57,7 +61,7 @@ from hmz import home
 from hmz.coganchor import backends
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Iterator, Mapping, Sequence
 
     from hmz.coganchor.agents import AgentBase
 
@@ -68,20 +72,20 @@ __all__ = [
     "LOCAL",
     "RECORD",
     "RECORDS",
+    "RESUME",
     "SESSIONS",
-    "STATE",
     "TRACES",
     "Called",
     "Drove",
     "Epic",
     "Ran",
     "Session",
-    "State",
     "Sub",
     "called",
     "epics",
     "linked",
     "opened",
+    "picks_up",
     "read",
     "records",
     "resumed",
@@ -116,8 +120,9 @@ RECORDS = "epic.*.jsonl"
 #: Where the links to the sessions' own logs go, a directory per session.
 SESSIONS = "sessions"
 
-#: What a resumable flow left behind, kept beside the run it left it in.
-STATE = "state.json"
+#: The engine's journal of a resumable run: what each flow call kept, and which calls ended.
+#: What `--resume` and `/resume` pick a run up from, kept beside the run it was written by.
+RESUME = "resume.jsonl"
 
 #: Where the traces gathered of one run go, inside that run's own directory. A trace of a run
 #: belongs with the run: the sessions it points at and the state it left are already there.
@@ -177,36 +182,27 @@ class Session(NamedTuple):
 
 
 class Drove(NamedTuple):
-    """One agent a run was driven by, as the run wrote it down.
+    """One agent a run was given, as the run wrote it down.
 
     Attributes:
-      agent: What the flow calls it.
+      agent: The role the flow calls it by.
       backend: The CLI it drives.
       model: What that CLI was asked to run.
-      effort: How hard it was asked to think.
-      permission: What it was allowed to do without being asked, or "" where the run said
-        nothing about it -- which is an agent allowed whatever its own CLI allows one.
+      effort: How hard it was asked to think, "" for the CLI's own default.
       provider: The account it was configured to run as, or "" for this machine's own.
-      goals: Whether it was allowed to run under its backend's own goal feature.
-      person: Whether it was the person at the prompt, who is handed to a flow rather than
-        chosen -- so a run picked up again is picked up on the agents somebody chose, and
-        the person is handed over afresh by whatever is doing the picking up.
     """
 
     agent: str
     backend: str
     model: str
     effort: str
-    permission: str = ""
     provider: str = ""
-    goals: bool = True
-    person: bool = False
 
     @property
     def spec(self) -> str:
-        """What it runs, spelled the way `-a` spells one."""
+        """What it runs, spelled the way `-a` spells one after the role."""
         cli = f"{self.backend}@{self.provider}" if self.provider else self.backend
-        return f"{cli}/{self.model}:{self.effort}"
+        return f"{cli}/{self.model}:{self.effort or 'auto'}"
 
 
 class Called(NamedTuple):
@@ -248,7 +244,7 @@ class Ran(NamedTuple):
       began: When it started.
       ended: When it stopped, or "" for one still running or abandoned where it stood.
       how: How it stopped -- done, failed or stopped -- and "" while it has not.
-      agents: What drove it, in the order the flow takes them.
+      agents: What it was given for each agent role, in the order the flow declares them.
       sessions: Every session it opened, oldest first, the ones opened inside a flow it
         called among them -- one run is one run, however many flows it took to run it.
       called: Every flow this run called, in the order it called them. What each of those
@@ -256,6 +252,12 @@ class Ran(NamedTuple):
       resumable: Whether the flow said it could be picked up again when this run happened.
         Whether it says so now is asked of the flow: this is what the run recorded, which is
         what it was rather than what can be done with it today.
+      ref: The flow's canonical ref, which is what a run is picked up by whatever it was
+        named as; "" for a run written before there was one.
+      envs: What it was given for each environment role, each as `-e` spells one.
+      params: What the flow was set up with, as JSON.
+      budget: What the run was allowed to spend, as JSON, or None where it said nothing.
+      picked_up: The epic this run was picked up from, by name, or "".
     """
 
     at: Path
@@ -269,6 +271,11 @@ class Ran(NamedTuple):
     sessions: tuple[Session, ...] = ()
     called: tuple[Called, ...] = ()
     resumable: bool = False
+    ref: str = ""
+    envs: tuple[str, ...] = ()
+    params: dict[str, Any] = {}  # noqa: RUF012 -- a NamedTuple's default, never written to
+    budget: dict[str, Any] | None = None
+    picked_up: str = ""
 
     @property
     def name(self) -> str:
@@ -412,185 +419,99 @@ def _link(at: Path, backend: str, ident: str) -> list[str]:
     return made
 
 
-class State(dict[str, Any]):
-    """What a resumable flow left behind, and what it is writing now.
+def _journal(epic: Path) -> Iterator[dict[str, Any]]:
+    """Every record of one epic's resume journal, skipping what a killed run left half-written.
 
-    A dict as far as the flow is concerned -- it is handed one, it writes into it, and the
-    next run of that flow is handed what it wrote. What it also is is a file in the epic,
-    written as the flow writes: a flow worth picking up again is one that was stopped or
-    killed rather than one that ended tidily, and state saved only at the end is state a
-    stopped run does not have. Something written inside a value it holds -- a list appended
-    to, a dict of its own written into -- is a change no mapping can see, and is saved when
-    the run ends or when the flow says :meth:`save`.
+    Args:
+      epic: The epic's directory.
+
+    Yields:
+      One record apiece, and nothing at all for an epic that keeps no journal.
     """
-
-    def __init__(
-        self, at: Path, flow: str, held: Mapping[str, Any] | None = None
-    ) -> None:
-        """Holds what one flow left behind, against the epic it is being written into.
-
-        Args:
-          at: The epic's directory.
-          flow: Whose state this is, since a flow that called another is two flows and each
-            has its own to keep.
-          held: What was read back, or nothing for a run that is picking nothing up.
-        """
-        super().__init__(held or {})
-        self._at = at
-        self._flow = flow
-        self._writing = threading.Lock()
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        super().__setitem__(key, value)
-        self.save()
-
-    def __delitem__(self, key: str) -> None:
-        super().__delitem__(key)
-        self.save()
-
-    def update(self, *said: Any, **and_so: Any) -> None:
-        super().update(*said, **and_so)
-        self.save()
-
-    def setdefault(self, key: str, default: Any = None) -> Any:
-        held = super().setdefault(key, default)
-        self.save()
-        return held
-
-    def pop(self, *said: Any) -> Any:
-        held = super().pop(*said)
-        self.save()
-        return held
-
-    def popitem(self) -> tuple[str, Any]:
-        held = super().popitem()
-        self.save()
-        return held
-
-    def clear(self) -> None:
-        super().clear()
-        self.save()
-
-    def save(self) -> None:
-        """Writes what this flow is holding into the epic, beside what the others hold.
-
-        Read again and merged rather than dumped over, for the reason the settings are: a
-        flow that called another is two flows writing one file, and a plain dump would put
-        back a file missing whatever the other had written. Whole and then moved into place,
-        so that one read while it is being written is the old one or the new one.
-
-        Anything that cannot be written -- a value no JSON has a shape for, a directory that
-        has gone -- leaves the run as it was: state is what a flow may pick up, and a run
-        that stopped because it could not save it would be worse than one that cannot.
-        """
-        with self._writing:
-            held = _kept(self._at)
-            held[self._flow] = dict(self)
-            try:
-                self._at.mkdir(parents=True, exist_ok=True)
-                said = json.dumps(held, ensure_ascii=False, default=str)
-                beside = self._at / f".{STATE}.new"
-                beside.write_text(said, encoding="utf-8")
-                beside.replace(self._at / STATE)
-            except (OSError, TypeError, ValueError):
-                return
+    try:
+        lines = (epic / RESUME).read_bytes().splitlines()
+    except OSError:
+        return
+    for line in lines:
+        try:
+            said = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(said, dict):
+            yield cast("dict[str, Any]", said)
 
 
-def _kept(epic: Path) -> dict[str, Any]:
-    """What every flow of one epic left behind, by the name each was run as.
+def picks_up(epic: Path) -> bool:
+    """Whether a run can be picked up from one epic: whether its journal holds a flow call.
 
     Args:
       epic: The epic's directory.
 
     Returns:
-      One entry per flow that wrote anything, and nothing at all for an epic that holds no
-      state, holds one nothing can read, or holds one written by hand as something else.
+      True where the run was of a resumable flow and got as far as writing its first call
+      down; False for any other run, and for one killed before it wrote anything.
     """
-    try:
-        said = json.loads((epic / STATE).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    if not isinstance(said, dict):
-        return {}
-    return {
-        str(flow): cast("dict[str, Any]", one)
-        for flow, one in cast("dict[str, Any]", said).items()
-        if isinstance(one, dict)
-    }
+    return any(one.get("t") == "call" for one in _journal(epic))
 
 
 def state(epic: Path, flow: str = "") -> dict[str, Any]:
-    """What a resumable flow left behind in one epic.
+    """What a resumable flow kept in one run, as the run left it.
 
     Args:
       epic: The epic's directory.
-      flow: Which flow's, as it was named when it ran, or "" for the one the epic is a run
-        of -- which is the flow somebody picking the epic up is picking up.
+      flow: Which flow's, by its canonical ref -- the last call of it the run made -- or ""
+        for the flow the run was of.
 
     Returns:
-      What it wrote, and nothing at all where that flow wrote nothing.
+      What it kept, key by key, and nothing at all where that flow kept nothing or the run
+      kept no journal.
     """
-    held = _kept(epic)
-    if flow:
-        return held.get(flow, {})
-    ran = read(epic)
-    return held.get(ran.flow, {}) if ran is not None else {}
+    calls: dict[int, str] = {}
+    held: dict[int, dict[str, Any]] = {}
+    which: int | None = None
+    for said in _journal(epic):
+        kind = said.get("t")
+        try:
+            ident = int(said["id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if kind == "call":
+            calls[ident] = str(said.get("ref") or "")
+            held[ident] = {}
+            if (not flow and said.get("parent") == 0 and which is None) or (
+                flow and calls[ident] == flow
+            ):
+                which = ident
+        elif kind == "set" and ident in held:
+            held[ident][str(said.get("key"))] = said.get("value")
+        elif kind == "del" and ident in held:
+            held[ident].pop(str(said.get("key")), None)
+    return held.get(which, {}) if which is not None else {}
 
 
 def resumed(flow: str, workspace: Path | str | None = None) -> Path | None:
-    """The epic one flow's next run picks up from, which is the last run of it here.
+    """The epic a resumable flow's next run picks up from: the newest one it can be.
 
     Args:
-      flow: The flow, as it is named when it is run.
+      flow: The flow, by its canonical ref or as it was named when it was run.
       workspace: Where it runs, defaulting to this directory.
 
     Returns:
-      The epic, or None where the flow has not run here. A run that wrote nothing at all is
-      nothing to pick up and the search goes past it; a run that wrote and then emptied what
-      it had written is not the same thing, and is where the search stops -- a flow that
-      cleared its state said the next run starts clean, and answering that by handing it the
-      state of the run before would be answering the opposite. Found by what the state holds
-      rather than by what the run was of, so that a flow which was called by another is
-      picked up too -- it wrote under its own name, which is where it is looked for.
+      The newest epic of that flow here whose run was resumable and wrote its journal, or
+      None where there is none -- a flow that never ran here, ran as something that could
+      not be picked up, or was killed before it wrote anything down.
     """
     for epic in reversed(epics(workspace)):
-        if flow in _kept(epic):
+        began = next(
+            (one for one in _events(epic) if one.get("event") == "began"), None
+        )
+        if began is None or not began.get("resumable"):
+            continue
+        if flow not in (began.get("ref"), began.get("flow")):
+            continue
+        if picks_up(epic):
             return epic
     return None
-
-
-def _drove(agents: Sequence[AgentBase]) -> list[dict[str, Any]]:
-    """What each agent of a run is, for the line a record opens with.
-
-    Args:
-      agents: The agents, in the order the flow takes them.
-
-    Returns:
-      One entry apiece, saying what it drives and at what.
-    """
-    from hmz.coganchor.agents import HumanAgent
-
-    return [
-        {
-            "agent": agent.id,
-            "backend": agent.backend,
-            "model": agent.config.model,
-            "effort": agent.config.effort,
-            "service_tier": agent.config.service_tier,
-            "permission": agent.config.permission,
-            # What it was configured with rather than what a turn of it ends up running as:
-            # the account a turn fell back onto is written down against the session that ran
-            # there, which is where it happened.
-            "provider": agent.config.provider,
-            "goals": agent.config.goals,
-            "web_search": agent.config.web_search,
-            # Asked as the run is written down rather than read back off a name: what the
-            # person's backend is called is the agents' own business, and what a run picked
-            # up again needs is which of its agents nobody chose.
-            "person": isinstance(agent, HumanAgent),
-        }
-        for agent in agents
-    ]
 
 
 class Epic:
@@ -599,26 +520,34 @@ class Epic:
     def __init__(
         self,
         flow: str,
-        agents: Sequence[AgentBase],
         task: str,
         workspace: Path | None = None,
         *,
+        ref: str = "",
+        agents: Sequence[Drove] = (),
+        envs: Sequence[str] = (),
+        params: Mapping[str, Any] | None = None,
+        budget: Mapping[str, Any] | None = None,
         resumable: bool = False,
-        picked_up: str = "",
+        picked_up: Path | None = None,
         profile: bool = False,
     ) -> None:
         """Opens an epic, and writes down what it is a run of.
 
         Args:
           flow: The flow being run, as it was named.
-          agents: The agents it is being run with, in the order it takes them.
-          task: What they were asked to do.
+          task: What its agents were asked to do.
           workspace: Where the run happens, defaulting to this directory. Epics are kept
             under the workspace they ran in, since that is what anyone looking for one has.
+          ref: The flow's canonical ref, which is what a run is picked up by.
+          agents: What each agent role was given, in the order the flow declares them.
+          envs: What each environment role was given, as `-e` spells one.
+          params: What the flow was set up with, as JSON.
+          budget: What the run may spend, as JSON, or None.
           resumable: Whether the flow says it can be picked up again, which is what makes
-            the state it leaves behind something to run it on rather than something to read.
-          picked_up: The epic this run was picked up from, by name, or "" for one starting
-            from nothing.
+            the journal it keeps something to run it on rather than something to read.
+          picked_up: The epic this run is picked up from, whose journal is copied into this
+            one for the run to go on from, or None for a run starting from nothing.
           profile: Whether to sample the programs the agents start while the run goes, so
             that what a turn spent its minutes on is in the run's trace beside the turn. A
             setting of the workspace, asked of it by whoever opens the epic.
@@ -636,8 +565,13 @@ class Epic:
             JOURNAL,
             (workspace or Path.cwd()).resolve(),
             flow,
-            agents,
         )
+        if picked_up is not None:
+            # A copy rather than the file itself: the run it came from is closed, and the
+            # engine compacts what it picks up before it appends to it.
+            self._at.mkdir(parents=True, exist_ok=True)
+            with contextlib.suppress(OSError):
+                shutil.copyfile(picked_up / RESUME, self._at / RESUME)
         #: The programs this run starts, sampled while it runs, or None for a run nobody
         #: asked to profile -- which is every run until somebody says otherwise.
         self._profiler = self._profiling() if profile else None
@@ -647,46 +581,41 @@ class Epic:
             task=task,
             workspace=str(self._where),
             resumable=resumable,
-            **({"picked_up": picked_up} if picked_up else {}),
-            agents=_drove(agents),
+            **({"ref": ref} if ref else {}),
+            **({"picked_up": picked_up.name} if picked_up is not None else {}),
+            agents=[one._asdict() for one in agents],
+            envs=list(envs),
+            params=dict(params or {}),
+            **({"budget": dict(budget)} if budget is not None else {}),
         )
 
-    def _begin(
-        self,
-        at: Path,
-        journal: str,
-        workspace: Path,
-        flow: str,
-        agents: Sequence[AgentBase],
-    ) -> None:
+    def _begin(self, at: Path, journal: str, workspace: Path, flow: str) -> None:
         """Settles what is written down, and where.
 
         Shared with the record of a flow this one called, which is the same thing written
-        into a file of its own beside this one: a called flow opens sessions and keeps state
-        exactly as the flow that called it does, and neither writes the other's.
+        into a file of its own beside this one: a called flow opens sessions exactly as the
+        flow that called it does, and neither writes the other's.
 
         Args:
           at: The epic's directory.
           journal: The file inside it these lines go to.
           workspace: Where the run is happening.
           flow: The flow this is a record of, as it was named.
-          agents: The agents it is being run with, in the order it takes them.
         """
         self._at = at
         self._journal = journal
         self._writing = (
             threading.Lock()
         )  # sessions open on whichever thread a turn runs on
-        self._agents = list(agents)
         #: Every session this run has opened, by the name it was written down under, so that
         #: the links can be made again as the backends go on writing to them.
         self._sessions: dict[str, tuple[str, str]] = {}
-        #: What each resumable flow of this run is holding, so that a value written inside
-        #: one -- which no mapping can see -- is still saved when the run ends.
-        self._state: list[State] = []
         self._flow = flow
         self._where = workspace
         self._profiler: Profiler | None = None
+        #: How it ended, where whoever is running it has said: "stopped" for a run stopped
+        #: by hand or by what it was allowed to spend, rather than one that failed.
+        self._how = ""
 
     @property
     def path(self) -> Path:
@@ -707,6 +636,20 @@ class Epic:
     def workspace(self) -> Path:
         """Where this run is happening, which is what its epics are kept under."""
         return self._where
+
+    @property
+    def resume(self) -> Path:
+        """Where the engine keeps this run's journal, for a flow that can be picked up."""
+        return self._at / RESUME
+
+    def stopped(self) -> None:
+        """Says the run was stopped rather than failed, for the line it ends with.
+
+        A run stopped by hand, or by the budget it was given, is the ordinary end of a run
+        nothing else ends; what raised out of it is still what stopped it, and is not a
+        failure to report.
+        """
+        self._how = "stopped"
 
     def _profiling(self) -> Profiler | None:
         """The sampler this run is profiled by, started, or None where there is none.
@@ -730,22 +673,6 @@ class Epic:
             return None
         return one
 
-    def state(self, flow: str = "", held: Mapping[str, Any] | None = None) -> State:
-        """The dict a resumable flow of this run writes what it wants back into.
-
-        Args:
-          flow: Whose it is, as that flow was named, or "" for the flow this is a run of.
-            A flow that called another is two flows, and each keeps its own.
-          held: What it is picking up, or nothing for a run starting from nothing.
-
-        Returns:
-          The state, saved into this epic as the flow writes it.
-        """
-        one = State(self._at, flow or self._flow, held)
-        with self._writing:
-            self._state.append(one)
-        return one
-
     def __enter__(self) -> Self:
         """Hands the epic to whatever is running the flow inside it."""
         return self
@@ -761,8 +688,6 @@ class Epic:
           traceback: Where it was raised, unread.
         """
         self._close(kind)
-        for agent in self._agents:
-            agent.epic = None
 
     def _close(self, kind: type[BaseException] | None) -> None:
         """Writes down that what this is a record of has ended, and how it ended.
@@ -773,8 +698,6 @@ class Epic:
         Args:
           kind: What was raised out of it, if anything.
         """
-        from hmz.coganchor.agents import Stopped
-
         # The sampler first, so that what it saw is written down before anything reads it,
         # and so that a run which is over stops costing anything.
         if self._profiler is not None:
@@ -783,41 +706,30 @@ class Epic:
         # the session runs and finishes writing it after the last turn, and a sub-agent's
         # transcript appears whenever that sub-agent was started.
         self.links()
-        # And what each flow of this run is holding, which is where a value written inside
-        # something the state holds -- a list appended to -- is finally written down.
-        for one in list(self._state):
-            one.save()
-        # An agent that was told to stop is a run that was stopped, whatever the turn under
-        # way made of it: the process goes out from under that turn, and from inside one that
-        # reads as a turn that could not finish.
-        stopped = kind is not None and (
-            issubclass(kind, Stopped) or any(agent.stopped for agent in self._agents)
+        # A run interrupted from outside is a run that was stopped, however the turn under
+        # way made of it: the process goes out from under that turn, and from inside one
+        # that reads as a turn that could not finish.
+        stopped = kind is not None and issubclass(
+            kind, KeyboardInterrupt | asyncio.CancelledError
         )
         self.write(
             "ended",
-            how="stopped" if stopped else "failed" if kind is not None else "done",
+            how=self._how
+            or ("stopped" if stopped else "failed" if kind is not None else "done"),
         )
 
-    def called(
-        self,
-        flow: str,
-        agents: Sequence[AgentBase],
-        task: str,
-        *,
-        resumable: bool = False,
-    ) -> Sub:
+    def called(self, flow: str, task: str = "", *, resumable: bool = False) -> Sub:
         """Opens the record of a flow this one called, beside this one's own.
 
-        A flow that called another is two flows, and each of them opened sessions, kept its
-        own state and may have called a third. So each gets a record of its own -- one file
-        per call, in the directory of the run that started it -- and this one is left saying
-        what it called, when, and which file to read it in. One run, written down as the
-        shape it actually ran in rather than as one flat list nothing can be attributed to.
+        A flow that called another is two flows, and each of them opened sessions and may
+        have called a third. So each gets a record of its own -- one file per call, in the
+        directory of the run that started it -- and this one is left saying what it called,
+        when, and which file to read it in. One run, written down as the shape it actually
+        ran in rather than as one flat list nothing can be attributed to.
 
         Args:
-          flow: The flow being called, as it was asked for.
-          agents: The agents it was handed, in the order it takes them.
-          task: What it was called with.
+          flow: The flow being called, by its canonical ref.
+          task: What it was called with, where that is known.
           resumable: Whether it says it can be picked up again.
 
         Returns:
@@ -827,7 +739,7 @@ class Epic:
         # runs of it, each with its own sessions, and one file for both would say neither.
         record = _record(flow, uuid.uuid4().hex[:6])
         self.write("called", flow=flow, task=task, epic=record)
-        return Sub(self, record, flow, agents, task, resumable=resumable)
+        return Sub(self, record, flow, task, resumable=resumable)
 
     def opened(self, agent: AgentBase, session: str, parent: str = "") -> None:
         """Writes down a session one of the agents has just opened.
@@ -844,16 +756,29 @@ class Epic:
           parent: The id of the conversation it was forked from, or "" for one that
             started from nothing.
         """
-        provider = _provider(agent)
-        name = called(agent.id, agent.backend, provider, session)
+        self.session(agent.id, agent.backend, _provider(agent), session, parent)
+
+    def session(
+        self, agent: str, backend: str, provider: str, ident: str, parent: str = ""
+    ) -> None:
+        """Writes down a session, as :meth:`opened` does, for one no coganchor agent opened.
+
+        Args:
+          agent: Whose it is, by the role the flow calls that agent.
+          backend: What took its turns.
+          provider: The account they ran as, or "" for this machine's own.
+          ident: Its id.
+          parent: The id of the conversation it was forked from, or "".
+        """
+        name = called(agent, backend, provider, ident)
         with self._writing:
-            self._sessions[name] = (agent.backend, session)
+            self._sessions[name] = (backend, ident)
         self.write(
             "opened",
-            agent=agent.id,
-            backend=agent.backend,
+            agent=agent,
+            backend=backend,
             provider=provider or LOCAL,
-            session=session,
+            session=ident,
             name=name,
             # Where to look for it inside this epic, which is a link and not the log itself.
             where=f"{SESSIONS}/{name}",
@@ -896,7 +821,7 @@ class Sub(Epic):
     """One flow another flow called, written down in a record of its own.
 
     Everything a run writes down, a flow the run called writes down too: the sessions it
-    opened, what it kept, and whatever it called in turn. What it does not have is a
+    opened, and whatever it called in turn. What it does not have is a
     directory: it is part of the run that called it, so its record sits beside that run's own
     in the same epic, and its sessions link into the same `sessions/`.
 
@@ -911,8 +836,7 @@ class Sub(Epic):
         under: Epic,
         record: str,
         flow: str,
-        agents: Sequence[AgentBase],
-        task: str,
+        task: str = "",
         *,
         resumable: bool = False,
     ) -> None:
@@ -921,13 +845,12 @@ class Sub(Epic):
         Args:
           under: What called it, which is where the call itself is written down.
           record: What this record is called, inside the epic they share.
-          flow: The flow being called, as it was asked for.
-          agents: The agents it was handed, in the order it takes them.
-          task: What it was called with.
+          flow: The flow being called, by its canonical ref.
+          task: What it was called with, where that is known.
           resumable: Whether it says it can be picked up again.
         """
         self._under = under
-        self._begin(under.path, record, under.workspace, flow, agents)
+        self._begin(under.path, record, under.workspace, flow)
         self.write(
             "began",
             flow=flow,
@@ -937,15 +860,18 @@ class Sub(Epic):
             # Which record called this one, so that a flow that called a flow that called a
             # flow reads back as what it was rather than as three things one run did.
             under=under.record,
-            agents=_drove(agents),
         )
 
-    def ended(self, kind: type[BaseException] | None = None) -> None:
+    def ended(self, kind: type[BaseException] | None = None, how: str = "") -> None:
         """Closes this record, and writes the call's other end where the call was written.
 
         Args:
           kind: What was raised out of the called flow, if anything.
+          how: How it ended where the caller knows better than `kind` says -- "stopped"
+            for a call stopped rather than failed -- or "" to read it off `kind`.
         """
+        if how:
+            self._how = how
         self._close(kind)
         self._under.write("returned", flow=self._flow, epic=self._journal)
 
@@ -1106,24 +1032,6 @@ def sessions(epic: Path) -> list[Session]:
     return sorted(held, key=lambda one: one.at)
 
 
-def _allowed(said: object) -> str:
-    """What one agent of a run was allowed, as the record it was written in says it.
-
-    Args:
-      said: What the record holds under `permission`, which is None for a record holding
-        nothing there at all.
-
-    Returns:
-      The rung it names, "" for a run that said nothing to its agent's CLI about what it may
-      do, and `bypass` for a record written before a run wrote this down -- every agent of
-      every run then was allowed everything, and a report that showed those as the silence
-      would be reporting a rung nobody was ever at.
-    """
-    from hmz.coganchor.agents import PERMISSIONS
-
-    return str(said) if isinstance(said, str) else PERMISSIONS[-1]
-
-
 def read(epic: Path) -> Ran | None:
     """What one epic was, read back off its own record.
 
@@ -1150,19 +1058,12 @@ def read(epic: Path) -> Ran | None:
                 backend=str(said.get("backend") or ""),
                 model=str(said.get("model") or ""),
                 effort=str(said.get("effort") or ""),
-                # Two different silences, and the difference is the whole of what this
-                # field now says. A record with no such key at all was written before a run
-                # wrote one down, and every agent of every run then was allowed everything:
-                # it reads as `bypass`, which is what that agent actually did. A record that
-                # holds the key empty was written by a run that said nothing to the CLI, and
-                # it stays empty. Read as one silence, the older runs would report a rung
-                # nobody was ever at.
-                permission=_allowed(said.get("permission")),
                 provider=str(said.get("provider") or ""),
-                goals=bool(said.get("goals", True)),
-                person=bool(said.get("person")),
             )
         )
+    envs = began.get("envs")
+    params = began.get("params")
+    budget = began.get("budget")
     return Ran(
         at=epic,
         flow=str(began.get("flow") or ""),
@@ -1175,6 +1076,14 @@ def read(epic: Path) -> Ran | None:
         sessions=tuple(sessions(epic)),
         called=tuple(_calls(events)),
         resumable=bool(began.get("resumable")),
+        ref=str(began.get("ref") or ""),
+        envs=tuple(
+            str(one)
+            for one in cast("list[Any]", envs if isinstance(envs, list) else [])
+        ),
+        params=cast("dict[str, Any]", params) if isinstance(params, dict) else {},
+        budget=cast("dict[str, Any]", budget) if isinstance(budget, dict) else None,
+        picked_up=str(began.get("picked_up") or ""),
     )
 
 
