@@ -47,6 +47,7 @@ from hmz.flows import (
     CapabilityMissing,
     CostExceeded,
     DurationExceeded,
+    EnvBackendKind,
     FlowCancelled,
     FlowDefinitionError,
     FlowDepthExceeded,
@@ -130,6 +131,9 @@ DEPTH = 64
 REAP = 30.0
 
 _INF = math.inf
+
+#: The backend a `LocalEnv` role may be given an environment on.
+_LOCAL = EnvBackendKind.LOCAL
 
 #: What a role's memo answers for a grant it has not been offered yet.
 _UNSEEN: Any = object()
@@ -368,7 +372,11 @@ class FlowImpl:
         for role in self._eroles:
             name = role.name
             given = envs.get(name)
-            if type(given) is EnvView and not role.resources:
+            if (
+                type(given) is EnvView
+                and not role.resources
+                and (not role.auto or given._driver.backend == _LOCAL)
+            ):
                 grant = given._grant
                 if grant is role.grant or role._seen.get(grant, _UNSEEN) is None:
                     env_views[name] = EnvView(
@@ -577,6 +585,12 @@ def _env(role: EnvRole, given: object, node: Call, flow: FlowImpl) -> EnvView:
         raise RequirementError(
             f"{flow.ref}: {role.name!r} was given {given!r}, which is not an environment "
             "the run handed out"
+        )
+    driver = given._driver
+    if role.auto and driver.backend != _LOCAL:
+        raise CapabilityMissing(
+            f"{flow.ref}: {role.name!r} is a LocalEnv, and the environment given is "
+            f"{driver.backend}@{driver.provider}{driver.workdir}, which is not this machine"
         )
     return _narrowed(
         role,

@@ -463,6 +463,57 @@ async def test_a_local_role_is_the_run_s_workspace_unless_one_is_passed() -> Non
     assert said == ["/home/me/project", "/elsewhere"]
 
 
+@pytest.mark.parametrize("declared", [HereEnvs, HereShellEnvs])
+async def test_a_local_role_refuses_an_environment_on_another_machine(
+    declared: type[EnvCollection],
+) -> None:
+    """A `LocalEnv` is this machine: one on an ssh host is refused, down either path."""
+
+    @flow(agents=AgentCollection, envs=declared, params=Nothing)
+    async def inner(
+        task: str,
+        *,
+        agents: AgentCollection,
+        envs: EnvCollection,
+        params: Nothing,
+        ctx: FlowContext,
+    ) -> str:
+        return str(envs["here"].workdir)
+
+    class Shell(Env, ShellEnvMixin): ...
+
+    class Two(EnvCollection):
+        remote: Shell
+        local: Shell
+
+    @flow(agents=AgentCollection, envs=Two, params=Nothing)
+    async def outer(
+        task: str,
+        *,
+        agents: AgentCollection,
+        envs: Two,
+        params: Nothing,
+        ctx: FlowContext,
+    ) -> str:
+        for _ in range(2):  # the second time a grant is met is the fast path's
+            with pytest.raises(CapabilityMissing, match="not this machine"):
+                await inner(
+                    task, agents={}, envs={"here": envs["remote"]}, params=Nothing()
+                )
+        return await inner(
+            task, agents={}, envs={"here": envs["local"]}, params=Nothing()
+        )
+
+    said = await run_fake(
+        outer,
+        envs={
+            "remote": FakeEnvDriver(workdir="/far", backend="ssh", provider="box"),
+            "local": FakeEnvDriver(workdir="/near"),
+        },
+    )
+    assert said == "/near"
+
+
 async def test_a_local_role_cannot_be_given_a_driver() -> None:
     @flow(agents=AgentCollection, envs=HereEnvs, params=Nothing)
     async def here(
