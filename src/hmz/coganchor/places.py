@@ -1,21 +1,16 @@
 """The words for where an agent's turns land and how its commands are reached there.
 
-One half of the capability vocabulary, kept here rather than beside the other half in
-:mod:`hmz.runtime.flowing.checking` -- and the reason is the layering. A capability name is
-two things at once: a fact somebody declares, and an ask a flow writes. The ask belongs above,
-where flows are read and refused; the fact belongs wherever the thing it is about is written
-down,
-and every one of these is about a machine or about the road to one. `remote`, `isolated`,
-`managed` and the platforms are what :attr:`~hmz.coganchor.machines.MachineConfig.capabilities`
-answers with; `anchor:native-cli` and `anchor:supervised` are what
-:attr:`~hmz.coganchor.anchor.AnchorConfig.capabilities` answers with. Each of those was
-spelling its own words out, and the catalogue above was spelling them out a second time to
-describe them -- one word in two places, right in whichever was read last.
+The machine half of coganchor's capability vocabulary, and the reason it is here is the
+layering: a capability name is a fact somebody declares, and the fact belongs wherever the
+thing it is about is written down -- every one of these is about a machine or about the road
+to one. `remote`, `isolated`, `managed` and the platforms are what
+:attr:`~hmz.coganchor.machines.MachineConfig.capabilities` answers with; `anchor:native-cli`
+and `anchor:supervised` are what :attr:`~hmz.coganchor.anchor.AnchorConfig.capabilities`
+answers with. Each of those spelling its own words out would be one word in several places,
+right in whichever was read last.
 
 So the words live here, where every one of their producers can reach them and where nothing
-has to reach up into `hmz.runtime.flowing` to say what it serves. What stays above is the
-prose: what the ask looks like, what a flow writes beside a place to reach for one, which is
-a question about flows and no business of a layer that drives agents.
+has to reach up into `hmz.runtime` to say what it serves.
 
 `anchor:hooked` and `anchor:preloaded` are here for the company they keep and not because a
 machine ever declares them. They are the two roads humanize reaches a turn down from *inside*
