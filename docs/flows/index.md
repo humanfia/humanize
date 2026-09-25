@@ -9,8 +9,8 @@ each is asked, in what order, and when to stop. humanize runs flows and has no o
 what a good one is — so a flow is content rather than product, whoever writes one is a
 **weaver**, and the list below is something to read, fork, publish and beat.
 
-Eleven come with humanize — thirteen by name, since [`humanize1`](/flows/humanize1) is three
-phases. Between them they are most of the loop shapes the field has converged on.
+Ten are drawn here — twelve by name, since [`humanize1`](/flows/humanize1) is three phases.
+Between them they are most of the loop shapes the field has converged on.
 
 <HmzFlowShape pick="ralph_loop,stateful_ralph,flame_chase,rlar,goal,parallel_flame_chase" />
 
@@ -29,67 +29,61 @@ honest answers.
 | A long unattended run that cannot poison itself with its own context | [`ralph_loop`](/flows/ralph-loop) |
 | A long run where the agent has to remember what it tried | [`stateful_ralph`](/flows/stateful-ralph), [`continue_loop`](/flows/continue-loop) |
 | The model, rather than your loop, to decide a turn is not over | [`goal`](/flows/goal) |
-| Each round to cost about the same | [`fixed_juice_ralph`](/flows/fixed-juice-ralph) |
 | Two agents to check each other by working on the same tree | [`flame_chase`](/flows/flame-chase) |
 | A reviewer that reads the work and writes the next prompt | [`rlar`](/flows/rlar) |
 | A plan agreed first, then built under review | [`humanize1`](/flows/humanize1) |
 | Three streams of work at once, only one of them touching your tree | [`parallel_flame_chase`](/flows/parallel-flame-chase) |
+| Three lanes, each with a clone, merged into `main` only by a measurement | [`parallel_flame_chase_git_pr`](/flows/parallel-flame-chase-git-pr) |
 
-Seven name a [FlowBench](https://humanfia.ai/projects/flowbench) loop in their own docstring,
+Six name a [FlowBench](https://humanfia.ai/projects/flowbench) loop in their own docstring,
 so that comparing one method against another is a flag rather than a reimplementation.
 
 ## Running one
 
-`-f` takes the flow, and `-a` one agent per agent the flow wants, in the order it wants them:
+`-f` takes the flow, `-a` one agent per role it declares — named, so the order is yours — and
+`-b` what the run may spend:
 
 ```sh
 hmz exec -f rlar \
-    -a claude/claude-opus-5:high -a codex/gpt-5.6-sol:high "$(cat TASK.md)"
+    -a actor=claude/claude-opus-5:high -a reviewer=codex/gpt-5.6-sol:high \
+    -b duration=6h,cost=60 "$(cat TASK.md)"
 ```
 
-Without `-f` the terminal interface opens on [`chat`](/flows/chat), and `/flow` changes it.
-Settings come from a YAML file with `-c`, and `/config` is the same fields at the prompt:
+A role the runtime fills itself is never named: `human`, the person at the prompt, and
+`workspace`, the directory the run was started in. A flow that takes params takes them as `-p`:
 
 ```sh
-hmz exec -f ralph_loop -c budget.yaml -a claude/claude-opus-5:high "$(cat TASK.md)"
+hmz exec -f humanize1:rlcr -a builder=claude/claude-opus-5:max \
+    -a reviewer=codex/gpt-5.6-sol:max -b duration=2d -p max=20,base_branch=main "build it"
 ```
 
-Every flag is in the [CLI reference](/reference/cli).
+Without `-f` the terminal interface opens on [`chat`](/flows/chat), and `/flow` changes it —
+asking for each role by name, then the params, then the budget. Every flag is in the
+[CLI reference](/reference/cli).
 
 ## What ends a loop
 
 A loop with nothing to stop it runs until somebody stops it, which is a bill nobody agreed to
-and a week of rounds nobody read. So every run of every flow here is held to an
-**[allowance](/features/allowances)** — hours on the clock, millions of output tokens, dollars —
-and whichever of the three it reaches first is the one that stops it:
+and a week of rounds nobody read. So every run is held to a **[budget](/features/allowances)** —
+a duration, a cost, a count of output tokens — and whichever it reaches first is the one that
+stops it. `hmz exec` refuses to start a run without one:
 
-```yaml
-budget:
-  hours: 6      # wall clock, 0 for as long as it takes
-  tokens: 10    # millions of output tokens, 0 for as many as it takes
-  dollars: 50   # what it may cost, 0 for whatever it costs
+```sh
+-b duration=6h,cost=50,output_tokens=10m
 ```
 
-The allowance is humanize's rather than any flow's. It is held to at the edges of every turn of
-every session of every agent, whatever backend, so a loop needs no stopping condition of its own
-and none of them can opt out of one somebody set. It is also **per run**: a loop restarted forty
-times gets forty allowances rather than one between the forty, which is what makes a run stopped
-by its allowance a run to pick up rather than one that is over.
+The budget is humanize's rather than any flow's, and no flow declares a default any more. It is
+held to at every turn of every session of every agent, whatever backend, so a loop needs no
+stopping condition of its own and none of them can opt out of one somebody set. It is also
+**per run**: a run picked up with `--resume` gets the budget its own command line gives it, which
+is what makes a run stopped by its budget a run to pick up rather than one that is over.
 
-Six of them say what a run of them is worth by default: [`ralph_loop`](/flows/ralph-loop),
-[`stateful_ralph`](/flows/stateful-ralph), [`continue_loop`](/flows/continue-loop),
-[`goal`](/flows/goal), [`fixed_juice_ralph`](/flows/fixed-juice-ralph) and
-[`flame_chase`](/flows/flame-chase) each declare ten million output tokens. `-c budget.yaml`
-with a `budget:` mapping in it, or the **budget** row in `/flow`, says otherwise.
-
-The rest reach an end of their own first: [`chat`](/flows/chat) when you stop typing,
-[`rlar`](/flows/rlar) when its reviewer agrees the work is done, and
-[`humanize1`](/flows/humanize1)'s loop on `--max` rounds. The two
-[lane flows](/flows/parallel-flame-chase) are under the allowance like everything else, and for
-`parallel_flame_chase` it is the only end there is: its lanes are scheduled again for as long as
-it runs, so until there was an allowance a run of it went on until somebody stopped it. It
-declares no default either, so a run of one that caps nothing is a run `hmz exec` says on stderr
-that nothing will stop, and one the interface asks about before it saves it.
+Some reach an end of their own first: [`chat`](/flows/chat) when you stop typing — the one flow
+that runs without a `-b` — [`rlar`](/flows/rlar) when its reviewer agrees the work is done,
+[`goal`](/flows/goal) when the model says the objective is met, and
+[`humanize1`](/flows/humanize1)'s loop on its `max` rounds. For the two
+[lane flows](/flows/parallel-flame-chase) the budget is the only end there is: their lanes are
+scheduled again for as long as they run, so give them a duration.
 
 ## Where they come from
 

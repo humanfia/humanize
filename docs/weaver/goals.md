@@ -8,141 +8,115 @@ in a single prompt.
 ## Try it
 
 ```python
-agent.pursue("the suite passes and nothing has been stubbed out")
+await worker.run("/goal the suite passes and nothing has been stubbed out", session=session)
 ```
 
-That is the backend's own goal feature — the one its `/goal` command reaches — not a prompt
-asking for one. The backend starts the extra turns itself; `pursue` follows the goal across all
-of them and returns the last. Four spellings, and every one of them exists: `agent.pursue`,
-`await agent.apursue`, `session.pursue`, `await session.apursue`.
+A prompt that starts `/goal` is not sent as a prompt. It goes to the CLI's own goal feature —
+the one its `/goal` command reaches — with everything after the word as the objective. The CLI
+starts the extra turns itself; `run` follows the goal across all of them and answers with the
+last. What they spend counts against the run's [budget](/features/budgets) like any other turn.
 
-A goal that goes quiet has stopped because the goal itself said so. A flow that loops over
-`pursue` runs the objective again; it does not nudge an agent that stopped early:
+A goal that goes quiet has stopped because the goal itself said so. A flow that loops over it
+runs the objective again; it does not nudge an agent that stopped early:
 
 ```python
 while True:
-    agent.pursue(objective, suppress=True)
+    session = await worker.spawn(env=workspace)
+    await worker.run(f"/goal {task}", session=session)
 ```
 
-## Which backends have one
+## Ask for an agent that has one
 
-| Backend | |
-| --- | --- |
-| Claude Code | yes |
-| Codex | yes |
-| DeepSeek Harness | yes |
-| Kimi Code | yes |
-| ZCode | yes |
-| pi, opencode, mimocode | no |
-
-On a backend without one, `pursue` raises `NotImplementedError`, whether or not `suppress` is
-set. A missing feature is a flow to correct, not a turn to retry.
-
-## Disabling goals
-
-If your flow owns every continuation, declare `off` for each agent it drives:
+A goal is something only some CLIs can do, so a flow that sets one says so on the role, by
+mixing `GoalCommandAgentMixin` into its type:
 
 ```python
-from typing import Annotated, NamedTuple
+from hmz.flows import Agent, AgentCollection, GoalCommandAgentMixin
 
-from hmz.flows import Agent, AgentDefaults
 
-class Agents(NamedTuple):
-    actor: Annotated[Agent, AgentDefaults(goals=False)]
-    reviewer: Annotated[Agent, AgentDefaults(goals=False)]
-```
-
-What the flow declares is what the agents run with. It reaches every agent handed to that
-place before its first turn, over whatever it was made with — there is no row for it on the
-sheet an agent is set up on and no `-a` setting for it, because whether an agent keeps itself
-going is a thing about the work rather than about the agent. There is no third state, and the
-flow does not change an agent after the run has started.
-
-A place run under a `Goal` has goals, whatever else it wrote; writing both against one place is
-a flow saying two things about one agent, and [checking it](/weaver/checking-flows) says so:
-
-```text
-loop.py:11: error: goals-both-ways: this place is run under a goal and declared without
-goals -- a required goal is a goal, so drop one of the two rather than leaving the flow to
-say which it meant
-```
-
-Ordinary turns still work. Later calls to `pursue` raise `RuntimeError`, even with
-`suppress=True`, and each backend is held to that its own way:
-
-| | |
-| --- | --- |
-| **Codex** | that agent's app server starts with its goal tools disabled |
-| **Claude Code** | no such switch, so humanize refuses the goal before it invokes the CLI |
-
-Claude is also refused the tools that would carry work past the turn it is holding: `Agent`,
-`ScheduleWakeup`, `CronCreate`, `CronDelete`, `CronList` and `Workflow`, as one
-`--disallowedTools` argument written in that order. `Agent` covers the `Task` spelling of the
-same tool, which is an alias of it; `Workflow` is the script the model writes for Claude to
-run in the background, which forks agents of its own out of it. Everything else the agent may reach for is what its
-[permission](/user/permissions) rung says it may, exactly as before. Neither path changes your
-global backend configuration, and an agent whose goals are on keeps the command it always had.
-
-## Asking for an agent that has one
-
-A flow built on `pursue` says so where it declares its agents, and is refused before its first
-turn rather than an hour into a loop:
-
-```python
-from typing import Annotated, NamedTuple
-
-from hmz.flows import Agent, Goal
-
-class Agents(NamedTuple):
+class Worker(Agent, GoalCommandAgentMixin):
     """The one it drives, which has to have a goal of its own."""
 
-    worker: Annotated[Agent, Goal]
+
+class Agents(AgentCollection):
+    worker: Worker
 ```
+
+That does two things. An agent handed to `worker` whose CLI has no goal feature is refused
+before the first turn rather than an hour into a loop:
 
 ```console
-$ hmz exec -f pursuing -a pi/openai-codex/gpt-5.5:high "fix the build"
-hmz exec: error: pursuing: worker is run under a goal, which pi has no feature for
+$ hmz exec -f pursuing -a worker=pi/openai-codex/gpt-5.5:high -b cost=5 "fix the build"
+hmz exec: error: pursuing:pursuing: 'worker' needs GoalCommandAgentMixin, which pi does not serve
 ```
 
-Opening that flow in `/flow` then offers only the CLIs that have one, so there is no wrong choice
-to make.
+And a role that did **not** declare it cannot set one, whichever CLI fills it: a `/goal` prompt
+on a plain `Agent` raises `CapabilityNotGranted`, even on Claude Code. A flow gets exactly what
+it declared, so a flow that never asked for goals is a flow that cannot start one by accident.
 
-## A goal by hand: refusing `STOP`
+Opening that flow in `/flow` offers only the CLIs that have one, so there is no wrong choice to
+make.
 
-A goal written by hand is a refused `STOP` [hook](/weaver/hooks): the turn is not over until
-the hook lets it be. Do this on a backend with no goal feature, and when the condition is
-something a Python function can check rather than something the model should judge:
+## Which CLIs have one
+
+| CLI | `/goal` | `/loop` |
+| --- | --- | --- |
+| Claude Code | yes | yes |
+| Codex | yes | no |
+| Kimi Code | yes | no |
+| ZCode | yes | no |
+| DeepSeek Harness | yes | no |
+| cursor-agent, opencode, MiMo Code, Qwen Code, Grok Build, pi, Antigravity, an ACP CLI | no | no |
+
+The whole table of what each CLI serves is [on Flows](/reference/flows#what-each-harness-serves).
+
+## A recurring task: `/loop`
+
+`LoopCommandAgentMixin` is the same bargain for Claude Code's own `/loop <interval> <task>`: a
+role that declares it may send one, and the prompt goes to the CLI as it is, which runs the
+task again on the interval for as long as the turn lasts. Only Claude Code serves it. Without
+the mixin, a `/loop` prompt raises `CapabilityNotGranted`.
+
+## A goal by hand: blocking `STOP`
+
+A goal written by hand is a `STOP` [hook](/weaver/hooks) that blocks: the turn is not over
+until the hook lets it be. Hang one on a CLI with no goal feature, or when the condition is
+something a function can check rather than something the model should judge:
 
 ```python
-def unfinished(occasion: Occasion) -> Verdict | None:
-    if occasion.again < 5 and "- [ ]" in Path("TASK.md").read_text():
-        return Verdict(refused=True, because="TASK.md still has unticked boxes.")
-    return None
+from hmz.flows import StopHookParams, StopHookResult
 
-with agent.hooks.on(Moment.STOP, unfinished):
-    agent(task, suppress=True)
+
+async def unfinished(params: StopHookParams) -> StopHookResult:
+    if params.again < 5 and b"- [ ]" in await workspace.read("TASK.md"):
+        return StopHookResult(block=True, reason="TASK.md still has unticked boxes.")
+    return StopHookResult()
+
+
+worker.on_stop(unfinished)
+await worker.run(task, session=session)
 ```
 
-`occasion.again` counts how many times this turn has already been sent on, so a hook that keeps
-refusing can use it to decide when to stop.
+`params.again` counts how many times this turn has already been kept going, so a hook that
+keeps blocking can use it to decide when to stop. `on_stop` is on every agent: it needs no
+mixin, and every CLI reaches it.
 
 | | Decides it is done | Costs |
 | --- | --- | --- |
-| `pursue` | the **model**, against the objective in its own words | turns you did not ask for, until it says so |
-| a refused `STOP` | **your code**, against whatever it can read | one extra turn per refusal, bounded by `again` |
+| `/goal` | the **model**, against the objective in its own words | turns you did not ask for, until it says so |
+| a blocking `STOP` hook | **your code**, against whatever it can read | one extra turn per block, bounded by `again` |
 
 ## The flow that is this
 
-[`goal`](/flows/goal) is Ralph with the task set as the agent's own goal. The loop
-starts it over only when it stopped without having met it.
+[`goal`](/flows/goal) sets the task once as the agent's own goal, in a role called `worker`:
 
 ```sh
-hmz exec -f goal -a claude/claude-opus-5:max "$(cat TASK.md)"
+hmz exec -f goal -a worker=claude/claude-opus-5:max -b cost=20 "$(cat TASK.md)"
 ```
 
 ## See also
 
 - [Hooks](/weaver/hooks)
-- [Agents › Goals](/reference/agents#goals)
+- [It decides when it is done](/features/goals)
 - [Flows › Asking for an agent that can do
   something](/reference/flows#asking-for-an-agent-that-can-do-something)

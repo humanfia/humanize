@@ -7,49 +7,72 @@ and you want to try more than one way out of it.
 ## Try it
 
 ```python
-session = agent.new()
-session("read src/ and tell me what this service does")
+session = await agent.spawn(env=workspace)
+await agent.run("read src/ and tell me what this service does", session=session)
 
-careful, quick = session.fork(), session.fork()
-careful("now rewrite the retry logic, and mind the timeouts")
-quick("now rewrite the retry logic, fastest thing that works")
+careful = await agent.fork(session, env=workspace)
+quick = await agent.fork(session, env=workspace)
+await asyncio.gather(
+    agent.run("now rewrite the retry logic, and mind the timeouts", session=careful),
+    agent.run("now rewrite the retry logic, fastest thing that works", session=quick),
+)
 ```
 
 Both children start out knowing everything `session` knew — the hour of reading is paid for
 once. What either of them is told afterwards is its own: the original is untouched, and the two
-never see each other's turns.
+never see each other's turns. They are two sessions, so they may take their turns at once.
+
+`fork` is on every agent. It needs no mixin, because it is not something a flow can be refused
+for asking: it is something some CLIs cannot do, and those [say so](#which-clis-can) when they
+are asked.
+
+## Fork into another directory
+
+The `env` a fork is given is where the child works, and it need not be where the parent did. A
+conversation that has read the repository can carry on in a worktree of its own, so the two
+ways out of it do not write over each other:
+
+```python
+class Workspace(LocalEnv, GitWorktreeEnvMixin): ...
+
+
+trying = await workspace.derive_worktree(ref="main")
+elsewhere = await agent.fork(session, env=trying)
+await agent.run("try the rewrite here, on a clean checkout", session=elsewhere)
+```
+
+Claude Code, Codex, Kimi Code and ZCode carry a conversation into another directory: the child
+is told where it now is, and on Claude Code its transcript is copied to where the CLI resumes
+from. Every other CLI that forks does so only into the directory the conversation is already
+in. No CLI forks onto another machine.
 
 ## What the child is
 
 The CLI's own fork does the carrying. There is no transcript replayed into a fresh session and
-no context handed between two processes: the backend loads the conversation it already has and
+no context handed between two processes: the CLI loads the conversation it already has and
 calls what follows a session of its own.
 
 So the child is a conversation in every way a run counts one:
 
 | | |
 | --- | --- |
-| **Its own id** | `child.id` is the backend's id for the new conversation, not the old one |
-| **Its own spending** | `child.spent()` starts at nothing; nothing spent on the parent counts twice |
-| **Its own place** | it is in `agent.opened` and in the run's record, beside the one it came from |
+| **Its own id** | the CLI's id for the new conversation, not the old one |
+| **Its own spending** | `child.usage` starts at nothing; nothing spent on the parent counts twice |
+| **Its own place** | it is a session of its own in the run's record |
 | **Its own future** | turns of one are not turns of the other |
 
-What the conversation was *running by* comes across, since that is what the child continues:
-the effort it had got to, the skills it is carrying now, the callbacks it is offering. What the
-agent was set up with is the agent's and was never the session's.
-
-A fork costs nothing until it is used. The backend call happens on the child's first turn, so
-`[session.fork() for _ in range(8)]` is eight objects and no backend calls.
+It belongs to the same agent as the parent — the same CLI, model and grant, and the same
+[hooks](/weaver/hooks) — and is closed with the flow that opened it, like any session.
 
 ## Use the child before the parent moves on
 
-Because the fork *is* the child's first turn, the branch point is where you called `fork()` —
-and it can only stay there if the parent has not been given another turn in between:
+A fork is cut where the child takes its first turn, so the branch point is where you called
+`fork` only if the parent has not taken another turn in between:
 
 ```python
-child = session.fork()
-session("carry on here")        # the parent moves on
-child("and here")               # RuntimeError: fork it again to branch from where it is now
+child = await agent.fork(session, env=workspace)
+await agent.run("carry on here", session=session)    # the parent moves on
+await agent.run("and here", session=child)           # SessionError: fork it again
 ```
 
 That is refused rather than done, because the alternative is a child branched from somewhere
@@ -57,67 +80,58 @@ nobody chose which reads exactly like the branch that was asked for. Fork again 
 the newer boundary. Driving one child does not move the parent, so the two-children pattern
 above is unaffected.
 
-## Which backends can
-
-| Backend | |
-| --- | --- |
-| Claude Code | `--fork-session` |
-| Codex | `thread/fork` |
-| Grok Build | `--fork-session` |
-| Kimi Code | `kimi fork` |
-| opencode, mimocode | `run --fork` |
-| pi | `--fork` |
-| Qwen Code | `--fork-session` |
-| ZCode | `session/fork`, cut at the last message of the conversation |
-| A CLI you added | ACP's `session/fork` |
-| Antigravity, Cursor, DeepSeek Harness | no |
-
-On a backend without one, `fork` raises `NotImplementedError`. It is not answered with a second
-handle on the same conversation: two loops each continuing what they take to be their own is a
-run nothing downstream could explain.
-
-Ask first rather than catching it:
-
-```python
-if session.forks:
-    other = session.fork()
-```
-
-`session.forks` is a fact about the backend, read out of the one place a fact about a CLI is
-written down. A CLI you added yourself answers `True`, because the protocol has the call — an
-agent that has not implemented it refuses where the fork is asked for instead.
-
 ## When there is nothing to fork
 
+A conversation that has taken no turn has no history to carry, so forking one raises
+`SessionError`: it is one to open rather than one to fork. `spawn` a second session instead —
+the same agent, a conversation of its own, remembering nothing:
+
 ```python
-session = agent.new()
-session.fork()   # RuntimeError: session has not run a turn yet
+first = await agent.spawn(env=workspace)
+second = await agent.spawn(env=workspace)   # independent: neither knows the other
 ```
 
-A conversation that has got nowhere has no history to carry, so it is one to open rather than
-one to fork. Open a second session instead.
+## Which CLIs can
 
-## Not `agent.clone`
+| CLI | Forks | Into another directory |
+| --- | --- | --- |
+| Claude Code | yes | yes |
+| Codex | yes | yes |
+| Kimi Code | yes | yes |
+| ZCode | yes | yes |
+| Grok Build, opencode, MiMo Code, pi, Qwen Code, an ACP CLI | yes | no |
+| cursor-agent, Antigravity, DeepSeek Harness | no | no |
+
+A fork a CLI cannot make raises `UnsupportedOperation`, where it is asked for. It is not
+answered with a second handle on the same conversation: two loops each continuing what they
+take to be their own is a run nothing downstream could explain. A flow that wants to fork on
+any CLI catches it, and spawns instead:
+
+```python
+from hmz.flows import UnsupportedOperation
+
+try:
+    other = await agent.fork(session, env=workspace)
+except UnsupportedOperation:
+    other = await agent.spawn(env=workspace)
+```
+
+## Not `derive`
 
 The two are halves of one idea, which is why they are not one word:
 
 | | |
 | --- | --- |
-| `agent.clone()` | another **agent**, set up like this one, which has held no conversation |
-| `session.fork()` | another **conversation** of this one agent, which knows what this one knows |
+| `agent.derive(...)` | the same **agent** under a narrower grant, which holds no conversation of its own |
+| `agent.fork(session, env=...)` | another **conversation** of this one agent, which knows what this one knows |
 
-An agent is structure, so cloning one copies the structure and none of the history. A session
-is history, so forking one copies the history and none of the structure. See
+An agent is structure, so deriving one narrows the structure and carries none of the history.
+A session is history, so forking one copies the history and none of the structure. See
 [Concepts › Agent](/user/concepts#agent).
-
-## Reading it back afterwards
-
-The run writes down which conversation a child was forked from, because the backend's own log
-does not: it shows only a session that opened on an agent already knowing things. So a
-[trace](/user/tracing) of the run reads back as the branches it actually ran in.
 
 ## See also
 
 - [Many conversations at once](/user/conversations)
 - [Many turns at once](/weaver/async-flows), for driving both branches together
-- [Worktrees](/weaver/worktrees), for branching the files rather than the conversation
+- [Worktrees, copies and scratch](/weaver/worktrees), for branching the files rather than the
+  conversation

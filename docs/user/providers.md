@@ -34,9 +34,9 @@ list says about the account afterwards](/demo/accounts.gif)
 
 ```sh
 hmz exec -f flame_chase \
-    -a claude@anthropic/claude-opus-5:max \
-    -a claude@deepseek/deepseek-chat:high \
-    "fix the build"
+    -a first_chaser=claude@anthropic/claude-opus-5:max \
+    -a second_chaser=claude@deepseek/deepseek-chat:high \
+    -b cost=20 "fix the build"
 ```
 
 `flame_chase` hands the same task to two agents in turn, and both run the same Claude Code. The
@@ -332,8 +332,8 @@ naming the agent and what it was called. An agent that cannot find the account i
 run as **does not quietly run as yours**:
 
 ```console
-$ hmz exec -f ralph_loop -a claude@gone/claude-opus-5:max "…"
-… ValueError: NeiKos496: no claude provider called 'gone'
+$ hmz exec -f ralph_loop -a agent=claude@gone/claude-opus-5:max -b cost=5 "…"
+… no claude provider called 'gone'
 ```
 
 In the interface, an agent given an account that has since been taken away is a red line when

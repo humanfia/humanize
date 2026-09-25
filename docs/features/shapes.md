@@ -8,6 +8,17 @@ A turn given a pydantic model answers with **that model** instead of with prose.
 reads a field — `done`, `notes`, `approach` — rather than searching a paragraph for a phrase
 and hoping the wording holds next time.
 
+```python
+class Review(BaseModel):
+    done: bool = Field(description="True only if there is nothing left to do or to fix.")
+    notes: str = Field(description="What to say to the agent, passed on word for word.")
+
+
+review = await reviewer.run(REVIEW + task, session=session, output_schema=Review)
+if review.done:
+    return
+```
+
 <HmzShape />
 
 ## The model is the question
@@ -29,17 +40,25 @@ A backend with a setting for this is held to it there — a flag of its command 
 of the turn. A backend with none is asked in the prompt instead. Each backend records which of
 the two it is, so a flow never has to know.
 
-**Either way the answer is read back through the model.** The road only decides who refuses a
-bad answer first.
+**Either way the answer is read back through the model** — as the whole answer, then each
+fenced block in it, then the span from its first brace to its last, since a backend asked in the
+prompt may talk around the object. The road only decides who refuses a bad answer first.
 
 ## An answer that is not the shape is a turn that did not do what it was told
 
 However cleanly the backend exited. So a turn asked for a shape that came back as something
-else is caught the way a failed turn is caught: it answers with nothing rather than with an
-empty string, and without suppression it raises.
+else raises `OutputSchemaError` rather than answering — which is also a `ValueError`, so a flow
+that already catches one catches the other.
 
 The branch a flow writes for that is "take this round again", and it is almost always the right
-one — the same branch it writes for [a person who was not there](/features/human).
+one:
+
+```python
+try:
+    review = await reviewer.run(prompt, session=session, output_schema=Review)
+except OutputSchemaError:
+    continue  # the round is taken again
+```
 
 ## Why a loop wants one
 
@@ -58,7 +77,9 @@ asked a question per field — the description is the question, a `Literal` beco
 offers, a `bool` becomes yes and no — and the model is built out of what they typed.
 
 Which is the point of stating the shape once: the same decision goes to a model or to a person,
-in the same shape, and comes back through the same branch.
+in the same shape, through the same `run`. A person who is away answers with the model's
+defaults where every field has one, and raises `OutworlderAway` where one does not — so a shape
+meant for a run nobody is watching gives its fields defaults.
 
 ## One more thing a shape moves
 
@@ -70,5 +91,6 @@ same thing [moving an effort](/user/efforts) does.
 ## Where the detail is
 
 - [Answers in a shape](/weaver/shapes) — writing the model, and the failing branch
-- [Agents reference](/reference/agents#answering-in-a-shape) — every call that takes one
+- [Flows reference](/reference/flows#sessions-and-turns) — `run` and its `output_schema`
+- [Agents reference](/reference/agents#answering-in-a-shape) — the backends underneath
 - [You, as one of the agents](/features/human) — the same shape, asked of a person

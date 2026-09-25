@@ -73,10 +73,9 @@ push.
 
 | | |
 | --- | --- |
-| [Python becomes a prophecy](/features/prophecy) | A deliberately narrow flow becomes a typed graph that can be checked, compared and resumed node by node. |
-| [A flow is Python](/features/flows) | Ordinary Python and compiled atlases live side by side, chosen by how much of the work must be knowable before it runs. |
+| [A flow is Python](/features/flows) | An async function that declares its agents, environments and params by typed roles, and is handed exactly what it declared. |
 | [Many turns at once](/features/concurrency) | Turns are sequential inside one session; concurrency comes from having several conversations to run. |
-| [Picked up where it stopped](/features/resuming) | Ordinary flows preserve explicit state; atlases preserve completed node visits. Neither recreates a conversation. |
+| [Picked up where it stopped](/features/resuming) | A resumable flow journals its calls and the state it keeps, and `--resume` picks them up. No conversation is recreated. |
 
 ### Agent control plane
 
@@ -85,12 +84,12 @@ push.
 | [Many backends, one agent](/features/backends) | Native servers, streaming CLIs and Agent Client Protocol backends meet one session contract. |
 | [Two accounts of one CLI](/features/accounts) | Credentials, model catalogues and failure chains stay isolated while a session changes where it runs. |
 | [A line typed mid-turn](/features/steering) | Acknowledged queues put guidance into the turn that is working rather than behind it. |
-| [A turn can be cut off](/features/budgets) | A per-turn cap on tokens or clock, read off the live meter, ends the turn that is running. |
-| [Every run has an allowance](/features/allowances) | Hours, millions of output tokens and dollars, held to at every session edge, stop the whole run. |
+| [A turn can be cut off](/features/budgets) | A per-turn budget of duration, cost or output tokens, read off the live meter, ends the turn that is running. |
+| [Every run has a budget](/features/allowances) | Duration, cost and output tokens, held to at every turn and narrowed for every flow a flow calls, stop the run. |
 | [Answers in a shape](/features/shapes) | A pydantic model is both the question and the contract the answer must satisfy. |
 | [It decides when it is done](/features/goals) | A backend-owned pursuit loop continues until the model settles the objective. |
-| [The moments of a turn](/features/hooks) | Typed lifecycle moments let a flow react without teaching the backend about the flow. |
-| [You, as one of the agents](/features/human) | Questions, the mission board and a person-shaped agent put human decisions on the same run. |
+| [The moments of a turn](/features/hooks) | One `on_*` method per moment lets a flow react without teaching the backend about the flow. |
+| [You, as one of the agents](/features/human) | Questions and a person-shaped agent — the outworlder — put human decisions on the same run. |
 
 ### Execution fabric
 
@@ -139,7 +138,7 @@ weaver writes to add another: <a :href="withBase('/weaver/writing-a-flow')">Writ
   </a>
   <a :href="withBase('/weaver/')">
     <strong>Weaver Guide</strong>
-    <span>For the weaver writing them: Python, atlases, checks and tests.</span>
+    <span>For the weaver writing them: Python, roles, hooks and tests.</span>
   </a>
   <a :href="withBase('/contributing/')">
     <strong>Contributing</strong>
@@ -153,7 +152,6 @@ weaver writes to add another: <a :href="withBase('/weaver/writing-a-flow')">Writ
 
 ::: warning Before you point one at a repository you care about
 What an agent may do is the flow's to declare, and a flow written to run unattended declares the
-rung where nothing is asked. A flow is trusted Python: loading or running it may execute its
-code, even though static checks can inspect selected structure without doing so. Read
-[Security](/user/security).
+permission where nothing is asked. A flow is trusted Python: loading or running it executes its
+code. Read [Security](/user/security).
 :::

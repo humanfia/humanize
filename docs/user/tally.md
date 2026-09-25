@@ -233,8 +233,8 @@ long the conversation has got — and doubles the moment a backend starts report
 back out of its cache. `session.rate()` itself is per kind, so a flow can read whichever it
 means.
 
-The window defaults to five minutes — `hmz.flows.WINDOW`, the same window the interface's
-readout uses. A run younger than the window is measured **over the run**, so a rate read a
+The window defaults to five minutes — `hmz.coganchor.agents.base.WINDOW`, the same window the
+interface's readout uses. A run younger than the window is measured **over the run**, so a rate read a
 minute in is what that minute came to, not a fifth of it.
 
 **The rate moves while the turn is still running.** A turn is minutes long, so a number that
@@ -263,8 +263,8 @@ if agent.juice(over=120) < target:
     agent.effort = harder(agent.effort)
 ```
 
-That is what [`fixed_juice_ralph`](/flows/fixed-juice-ralph) does, a rung a round, to
-hold the agent to a target.
+A loop driving an agent from Python can do that a rung a round, to hold the agent to a target;
+the flow API has no way of moving an agent's effort while it runs.
 
 A window with no turn in it reads as `0.0`. There is nothing to go on, and a flow tells that
 apart from a turn that said nothing.

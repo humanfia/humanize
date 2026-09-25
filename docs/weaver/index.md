@@ -10,59 +10,56 @@ shortest flow there is.
 
 ## Tutorials
 
-Taken in order, each a whole flow written from scratch.
+A whole flow written from scratch, run, and tested.
 
 | | |
 | --- | --- |
-| [Build under test](/weaver/tutorials/checked-build) | The shortest useful flow there is: a writer, `pytest` between turns, a reviewer |
-| [Four agents on a maths problem](/weaver/tutorials/prove) | Several turns at once, answers held to a shape, and nothing to compile |
+| [Build under test](/weaver/tutorials/build-under-test) | The shortest useful flow there is: a writer, `pytest` between turns, a reviewer — and a test of it that spends nothing |
 
 ## Writing a flow
 
 | | |
 | --- | --- |
-| [Writing a flow](/weaver/writing-a-flow) | The dozen lines that make a directory a flow |
+| [Writing a flow](/weaver/writing-a-flow) | An `async def`, the roles it drives, the directory it works in |
 | [Loops](/weaver/loops) | Ralph, stateful ralph, and the shapes a loop takes |
-| [Settings of its own](/weaver/flow-settings) | A pydantic model that becomes a settings sheet |
-| [Many turns at once](/weaver/async-flows) | `async def run`, and awaiting several turns |
-| [A flow that calls a flow](/weaver/calling-flows) | Composition, and whose agents the inner one gets |
-| [An atlas](/weaver/atlas) | Restricted Python compiled into a typed, resumable prophecy |
+| [Params of its own](/weaver/flow-settings) | A `FlowParams` model that becomes `-p` and a form at the prompt |
+| [Many turns at once](/weaver/async-flows) | `gather`, `TaskGroup`, and a session apiece |
+| [A flow that calls a flow](/weaver/calling-flows) | Refs, what the called flow is handed, its budget, and picking it up |
 
 ## What an agent can be asked
 
 | | |
 | --- | --- |
-| [Goals](/weaver/goals) | The backend's own goal feature: it decides when it is done |
+| [Goals](/weaver/goals) | The CLI's own goal feature: it decides when it is done |
 | [Answers in a shape](/weaver/shapes) | A turn that answers with a pydantic model instead of prose |
-| [Hooks](/weaver/hooks) | Python callables hung on the moments of a turn |
-| [Callbacks as tools](/weaver/tools) | Functions of the flow's own, put in front of the agent |
-| [The person as an agent](/weaver/human-agent) | You, driven by a flow like any other agent |
+| [Hooks](/weaver/hooks) | Async functions hung on the moments of a session |
+| [The agent asking the flow](/weaver/tools) | A question mid-turn, answered by the flow's own code |
+| [The person as an agent](/weaver/human-agent) | You, driven by a flow like any other agent — or somebody standing in for you |
 | [Branching a conversation](/weaver/branching) | Two ways out of one conversation, paid for once |
-| [Worktrees](/weaver/worktrees) | One agent working in several directories at once |
+| [Worktrees, copies and scratch](/weaver/worktrees) | One agent working in several directories at once |
 
-## Checking and publishing
+## Testing and publishing
 
 | | |
 | --- | --- |
-| [Checking a flow](/weaver/checking-flows) | Static findings and executable proof before a real turn |
-| [Testing a flow](/weaver/testing-flows) | Checking the loop without spending a turn |
-| [Flowverses](/weaver/flowverses) | A git repository of flows, offered by name |
+| [Testing a flow](/weaver/testing-flows) | The fake kit: the flow, run exactly as it runs, on agents that answer from a script |
+| [Flowverses](/weaver/flowverses) | A git repository of flows, offered by name and callable by ref |
 
 ## From the User Guide
 
-A flow sets up the agents it drives, so five pages written for whoever runs one are pages a
-weaver writes against.
+A flow declares what the agents it drives may do, so five pages written for whoever runs one
+are pages a weaver writes against.
 
 | | |
 | --- | --- |
 | [Concepts](/user/concepts) | The vocabulary the rest of this uses |
 | [Security](/user/security) | A flow is Python, and reading one means running it |
 | [Skills](/user/skills) | What an agent carries: its CLI's own, and the ones the flow brings |
-| [Permissions](/user/permissions) | Four rungs, from `read-only` to `bypass`, or none at all — yours to declare |
-| [Efforts](/user/efforts) | How hard to think — and moving it while the flow runs |
+| [Permissions](/user/permissions) | What each role may touch — yours to declare |
+| [Efforts](/user/efforts) | How hard to think |
 
 ---
 
-Eleven flows already exist, and reading one is the shortest way to see what a twelfth could be:
-[Flows](/flows/). For the contract in full — every argument, every refusal, every return —
+The official flowverse is the shortest way to see what a flow of your own could be: reading one
+is [Flows](/flows/). For the contract in full — every argument, every refusal, every return —
 [Reference › Flows](/reference/flows).

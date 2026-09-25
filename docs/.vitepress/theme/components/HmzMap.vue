@@ -23,43 +23,43 @@ const SYSTEMS: SystemDomain[] = [
   {
     code: 'A',
     name: 'Flow system',
-    sub: 'express · prove · compose · resume',
+    sub: 'declare · test · compose · resume',
     groups: [
       {
         code: 'A1',
-        name: 'Expression & compilation',
-        link: '/features/prophecy',
+        name: 'Expression & declaration',
+        link: '/features/flows',
         start: true,
         guarantee:
-          'Free-form Python shares one runtime with an atlas, whose restricted body compiles into a graph.',
+          'A flow is async Python that declares its agents, environments and params, and is handed exactly those.',
       },
       {
         code: 'A2',
-        name: 'Static correctness & proving',
-        link: '/features/prophecy',
+        name: 'Requirements & testing',
+        link: '/weaver/testing-flows',
         guarantee:
-          'Structural mistakes are rejected before a model call costs time, money, or a live run.',
+          'What a run cannot meet is refused before a model call costs anything; fakes run the rest in memory.',
       },
       {
         code: 'A3',
-        name: 'Composition & hot reload',
+        name: 'Composition & reload',
         link: '/features/flows',
         guarantee:
-          'Flows and skills can nest; regular flows can reload current source between calls.',
+          'Flows call flows by ref, narrowed to what each declares; a changed flow is imported afresh by the next run.',
       },
       {
         code: 'A4',
         name: 'Scheduling, state & resumption',
         link: '/features/resuming',
         guarantee:
-          'Placement and fan-out pair with explicit state or atlas node-level resumption.',
+          'Sessions fan out concurrently; a resumable flow keeps a journal and picks up its calls on --resume.',
       },
     ],
   },
   {
     code: 'B',
     name: 'Agent control plane',
-    sub: 'sessions · tools · recovery · identity',
+    sub: 'sessions · skills · recovery · identity',
     groups: [
       {
         code: 'B1',
@@ -74,14 +74,14 @@ const SYSTEMS: SystemDomain[] = [
         link: '/features/steering',
         start: true,
         guarantee:
-          'Typed, capability-aware controls steer, clone, and pursue goals where a backend supports them.',
+          'Capability-typed roles steer, fork, and pursue goals only where the role declared it and the harness serves it.',
       },
       {
         code: 'B3',
-        name: 'Tools & skills',
-        link: '/weaver/tools',
+        name: 'Skills & hooks',
+        link: '/features/hooks',
         guarantee:
-          'Skills are selected per session, while flow callbacks can become temporary native tools.',
+          'Each role carries the skills it declares, and hooks let a flow answer the moments of a turn.',
       },
       {
         code: 'B4',

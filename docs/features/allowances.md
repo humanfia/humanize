@@ -2,146 +2,113 @@
 pageClass: hmz-feature
 ---
 
-# Every run has an allowance
+# Every run has a budget
 
-A run can be given an **allowance** — how many hours it may take, how many millions of output
-tokens it may come out with, how many dollars it may cost — and when one of them is reached,
-the run stops. Every flow has one, whether or not the flow says anything about it.
-
-```yaml
-# budget.yaml
-budget:
-  hours: 6
-  tokens: 10
-  dollars: 50
-```
+A run is given a **budget** — how long it may take, how much it may cost, how many output
+tokens its agents may write — and when one of them is spent, the run stops. `hmz exec` will not
+start without one:
 
 ```sh
-hmz exec -f ralph_loop -a claude/MODEL:high -c budget.yaml "$(cat TASK.md)"
+hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high \
+    -b duration=6h,cost=50,output_tokens=10m "$(cat TASK.md)"
 ```
 
-Whichever of the three is reached first is the one that stops it. Each is a non-negative
-number and **0 is no cap on that dimension**, so an allowance with nothing named in it is a run
-under nothing at all.
+Whichever limit is reached first is the one that stops it, and a budget names at least one. A
+command line that names none is a usage error before any agent starts; the one exception is
+[`chat`](/flows/chat), a conversation that ends when you stop typing, which runs under
+`Budget(cost=inf)`.
 
-## Why three, and why these three
+| `-b` | What it limits | Written as |
+| --- | --- | --- |
+| `duration` | wall clock, from when the run starts | `90s`, `1h30m`, `2d`, `PT1H30M`, `01:30:00`, or seconds |
+| `cost` | USD | `50`, `$50`, `inf` |
+| `output_tokens` | tokens the agents write | `200000`, `200k`, `1.5m` |
+| `graceful` | whether the turn under way may finish when a limit is reached | `true` (the default) or `false` |
 
-**Hours** are wall clock, and they are the only dimension that moves whether or not anything is
-being spent. That is what makes them the one that stops a loop whose every turn is failing: a
-turn that could not run spends no tokens and costs no money, so a refused account would go
-round on the same failure for as long as it was left.
+`-b` repeats and takes a comma list, as every flag of `hmz exec` does: `-b duration=6h -b cost=50`
+is the same budget as `-b duration=6h,cost=50`.
 
-**Tokens** are millions of *output* tokens. Output because that is what the work is — the input
-of a turn is the conversation so far, sent again at every request and mostly served from a
-cache — and millions because that is the size a run comes in: a round is thousands, and a day
-of rounds is millions. A number with six zeros on it is a number nobody can type without
-counting the zeros twice.
+## Why these three
 
-**Dollars** are what you actually pay. It is the one of the three that cannot always be read: a
-model nobody lists has no price, and humanize answers `None` for it rather than `$0.00`, which
-would say the run had been free. A cap that cannot be read is a cap that will never bite, and
-it looks exactly like one that has not bitten yet — so a run whose dollars cannot be read says
-so on stderr before it takes its first turn.
+**Duration** is the only one that moves whether or not anything is being spent. That is what
+makes it the one that stops a loop whose every turn is failing: a turn that could not run spends
+no tokens and costs no money, so a refused account would go round on the same failure for as
+long as it was left.
+
+**Output tokens** are what the work is. The input of a turn is the conversation so far, sent
+again at every request and mostly served from a cache; what the agent writes is what a run is
+paying for.
+
+**Cost** is what you actually pay, priced from what each turn's CLI reports. It is the one that
+cannot always be read: a model nobody lists a price for is counted at nothing, so a cost limit on
+such a model never bites. Put a duration or a token limit beside it.
 
 ## It is not a flow's to implement
 
-It used to be. Six flows in the official flowverse each carried a copy of the same `budget`
-setting, the same million, and the same `if spent >= budget` block. Six copies is six places to
-get it wrong, a cap that only those flows had, a cap that read only the tokens those flows
-happened to count, and a cap nobody could set from the menu they set everything else from.
+It used to be, and then it was a default a flow declared. Neither any more: a flow has no budget
+of its own to offer, and whoever runs it says what the run may spend. What a flow sees of it is
+`ctx.budget` — what this call may still spend, every budget above it taken together — and
+`ctx.usage`, what it and every call under it have spent so far.
 
-Now it is held to once, off the meters every backend already feeds, at the edges of every turn
-of every session of every agent of the run. No driver cooperates and none can opt out — the
-check is on the session base class rather than on a moment a flow hangs a hook on, because a
-hook is the *flow's* seam and an allowance the person set must not be defeatable by a flow
-hanging one.
+It is held to by the runtime, at every turn of every session of every agent, whatever harness is
+behind it. No driver cooperates and none can opt out; a hook is the *flow's* seam, and a budget
+the person set must not be defeatable by a flow hanging one.
 
-A flow may still say what a run of it is worth **by default**:
+## A flow that calls a flow
+
+A called flow may be given a budget of its own:
 
 ```python
-@flow(budget=Allowance(hours=6, tokens=10.0, dollars=50))
-def run(agents: tuple[Agent], task: str) -> None:
-    ...
+verdict = await review(task, agents=..., envs=..., params=..., budget=Budget(cost=2))
 ```
 
-and whoever runs it overrides that. Saying nothing is a flow with no opinion.
+and runs under **the tighter of its own and what remains of its caller's**. So a flow can hold a
+step to two dollars, and a run that has one dollar left holds it to one.
+
+- **Cost and output tokens roll up.** What a turn spends counts against the call it was taken in
+  and every call above it, from whichever thread the CLI reported it on. A fan-out of ten
+  reviews spends ten reviews' worth of the run's budget.
+- **Duration is a deadline.** A call's `duration` is counted from when that call started and is
+  not summed over its children: ten reviews gathered at once under a one-hour deadline have an
+  hour between them, not ten.
+- **A spent budget stays spent.** Once a call's budget runs out, every later turn under it —
+  its own, and those of every flow it calls — is refused rather than spending more.
+
+`run` takes a `budget=` too, for one turn on top of the call's: see
+[A turn can be cut off](/features/budgets).
 
 ## What "stopped" means
 
-The turn that spends the last of it still answers with what it said. A turn cut off has done
-what it did — its edits are on disk, its conversation is open — so it is a round that ended
-rather than a round that failed; read as a failure a loop would take it again, on an allowance
-that is already spent.
+The next turn under a spent budget raises the leaf of `BudgetExceeded` for the limit that ran
+out — `DurationExceeded` (which is also a `TimeoutError`), `CostExceeded`,
+`OutputTokensExceeded` — and a flow that does not catch it ends with it, as the run does.
 
-The *next* turn raises `Stopped`. Not waiting, because an allowance only ever runs out and
-nothing that waits here is ever released; and not answering with nothing, because a flow cannot
-tell `""` from a round that failed. `Stopped` is not a `CalledProcessError`, so the loops that
-carry on past a turn that failed do not carry on past this one.
+**What happens to the turn under way is `graceful`'s to say.** A graceful budget — the default —
+lets the turn that spends the last of it run to its end and answer with what it said: its edits
+are on disk and its conversation is open, so it is a round that ended rather than a round that
+failed. The turn after it is refused. A deadline that passes while turns are running waits for
+them to finish, then stops the call.
 
-The allowance is the run's, so the moment one reading says it is spent it is spent for every
-session at once. There is no set of blocked sessions to collect: every agent is stopped
-together, which closes every session each of them holds, so a turn running elsewhere on the
-run's money ends too. The run is written down as `stopped` rather than as having finished what
-it set out to do.
+A budget with `graceful=false` cuts the turn off the moment a limit is reached — the CLI stops
+spending — and that turn raises instead of answering. Which is what a budget has to be where a
+turn that overruns is worse than a turn that stops mid-sentence.
 
-## Clones count, and so do stand-ins
-
-An agent cloned mid-flow is another agent for every other purpose — it has opened no
-conversation, is watched by nobody, and is written down in the trace as itself. It is not
-another agent for money. A flow that does all of its work through clones, which is how a flow
-that recurses is written, would otherwise read as having spent nothing at all and run under an
-allowance that could never bite.
-
-An agent that fell through to a stand-in spends the run's too: an account going down is not a
-reason for the money to stop being counted.
+A call whose deadline passes is stopped where it stands — everything under it, awaited or
+gathered — and raises `DurationExceeded` there. A run cancelled from outside is still a cancel,
+not a spent budget.
 
 ## Per run, not across runs
 
-The allowance is this run's. The flow budgets it replaces accumulated across every run of a
-flow in a workspace, so forty restarts of a week-long loop shared one ten-million budget; now
-they get forty. That is the intended change: a budget somebody has just set in the menu that
-reads as already spent from a run last week is not one anybody can reason about.
-
-Which means a run stopped by its allowance is a run to **pick up**, not one that is over. Its
-kept state is left exactly as a stalled run's is, and running the flow again carries on from
-where it stopped under a fresh allowance.
+The budget is this run's. A run [picked up](/features/resuming) with `--resume` is a new run
+with the budget its own command line gave it; what it kept is left exactly where it was, which
+is what makes a run stopped by its budget a run to pick up rather than one that is over.
 
 ## Setting one
 
-From a command line, `-c file.yaml` with a top-level `budget:` in it, as above. It has to be a
-mapping of the dimensions — a bare `budget: 25` is refused, naming all three things it could
-have meant, because a quarter of a day, twenty-five million tokens and twenty-five dollars are
-not each other and a run held to the wrong one stops a thousand times too early or never.
+From a command line, `-b`, as above. From the interface, `/flow` asks for the budget with the
+rest of the run — its roles, its environments, its params — and remembers it per flow, so a flow
+run every morning is not a budget to type every morning.
 
-From the interface, `/flow` has a **budget** row on the page a flow's agents are on. It says
-what the run is held to without being opened, because an allowance nobody can see without
-opening something is one nobody checks.
-
-## When nothing will stop it
-
-Three dimensions and none of them set is a run that goes until somebody notices, for whatever
-days of a model cost. That is a fair thing to ask for and a poor thing to arrive at by not
-answering three questions, and the two are identical afterwards. So saving one in the interface
-asks once whether that is what was meant.
-
-`hmz exec` does not ask. A run with nobody at a terminal is a run with nobody to answer, and a
-blocking question there would hang every unattended flow there has ever been — so it says
-plainly on stderr that nothing will stop the run, and goes.
-
-A flow that is *meant* to run unbounded says so in its own file:
-
-```python
-@flow(budget=Allowance())
-def run(agents: Chat, task: str) -> None:
-    ...
-```
-
-which is what `chat` writes. A conversation ends when the person stops typing, and there is no
-round of it they did not ask for. Any flow may make the same claim; the question exists to stop
-an accidental unbounded run rather than a deliberate one — and it is one reviewable line in one
-file rather than a list of names kept in the interface, the command line and the settings
-alike.
-
-See [A turn can be cut off](/features/budgets) for the cap on one turn rather than on the run,
+See [A turn can be cut off](/features/budgets) for the limit on one turn rather than on the run,
 [Cost and rate](/user/tally) for what the readings are made of, and
 [Stopping](/user/stopping) for ending a run by hand.

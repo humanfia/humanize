@@ -9,9 +9,9 @@ specific to GitHub Actions.
 | | |
 | --- | --- |
 | **Questions** | An agent that asks is told nobody answered and carries on. There is nothing to switch — see [Being away](/user/afk). |
-| **The person** | A `Person` answers nothing, so a conversation flow does the one thing it was given and returns. |
+| **The person** | A flow's `Outworlder` is away: it answers `""`, or the defaults of the shape it was asked for, so a conversation flow does the one thing it was given and returns. |
 | **Settings** | `hmz exec` reads nothing and remembers nothing. The line is the whole configuration. |
-| **Stopping** | Nobody is there to stop it. A `while True` flow will run until the job's timeout, so give it a bound. |
+| **Stopping** | Nobody is there to stop it — which is why `hmz exec` will not start a flow without a `-b` saying what the run may spend. |
 | **The log** | A job log is not a terminal, so the run is written to stderr with no escape sequences in it. Set `FORCE_COLOR: "1"` on the job for colour a log viewer renders; `NO_COLOR` turns it off whatever else is set. |
 
 ## Watch the run from the job
@@ -24,7 +24,7 @@ For a step that reads the run rather than displays it, `--json` writes
 says, flushed as it is said, and nothing else in the stream:
 
 ```sh
-hmz exec -f nightly -a claude@ci/claude-opus-5:high --json "$(cat TASK.md)" \
+hmz exec -f nightly -a agent=claude@ci/claude-opus-5:high -b duration=45m,cost=10 --json "$(cat TASK.md)" \
     | tee run.ndjson \
     | jq -r 'select(.kind == "tool") | .text'
 ```
@@ -40,29 +40,53 @@ answers alone.
 
 ## Bound the run
 
-A Ralph loop is a `while True`, and a CI job has a bill. Bound it three ways in the flow, and
-take whichever fires first — this part is the [weaver's](/weaver/writing-a-flow):
+A Ralph loop is a loop, and a CI job has a bill. The run's budget is the bound that is
+humanize's rather than the flow's — `-b duration=45m,cost=10`, whichever is reached first, and
+the line will not run without one. What is the flow's is when the work is done, and how many
+rounds it is worth — this part is the [weaver's](/weaver/writing-a-flow):
 
 ```python
 # .humanize/flows/nightly/__init__.py
-"""One pass over TASK.md, bounded by rounds and by the clock."""
+"""One pass over TASK.md, a fresh session a round, until nothing on it is left unticked."""
 
-import time
-from pathlib import Path
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    EnvCollection,
+    FilesEnvMixin,
+    FlowContext,
+    FlowParams,
+    HarnessError,
+    LocalEnv,
+    flow,
+)
 
-from hmz.flows import Agent, flow
+
+class Workspace(LocalEnv, FilesEnvMixin): ...
 
 
-@flow
-def run(agents: tuple[Agent], task: str) -> None:
-    (agent,) = agents
-    deadline = time.monotonic() + 45 * 60
-    for _ in range(12):                                  # rounds
-        if time.monotonic() > deadline:                  # the clock
-            print("out of time")
-            return
-        agent(task, suppress=True)
-        if "- [ ]" not in Path("TASK.md").read_text():   # the finish line
+class Agents(AgentCollection):
+    agent: Agent
+
+
+class Envs(EnvCollection):
+    workspace: Workspace
+
+
+class Params(FlowParams):
+    rounds: int = 12
+
+
+@flow(agents=Agents, envs=Envs, params=Params)
+async def nightly(task: str, *, agents: Agents, envs: Envs, params: Params, ctx: FlowContext):
+    agent, workspace = agents["agent"], envs["workspace"]
+    for _ in range(params.rounds):                                # rounds
+        session = await agent.spawn(env=workspace)
+        try:
+            await agent.run(task, session=session)
+        except HarnessError:
+            continue                                              # a failed round, and round again
+        if b"- [ ]" not in await workspace.read("TASK.md"):       # the finish line
             return
 ```
 
@@ -100,7 +124,7 @@ browser, and a token or a key is exactly the way in that does not.
 Then name the account on the agent, with `@` in front of it:
 
 ```sh
-hmz exec -f nightly -a claude@ci/claude-opus-5:high "$(cat TASK.md)"
+hmz exec -f nightly -a agent=claude@ci/claude-opus-5:high -b duration=45m,cost=10 "$(cat TASK.md)"
 ```
 
 ::: tip Why a provider rather than an exported variable
@@ -111,20 +135,23 @@ meant, and the turn would be taken as the wrong account with nothing looking wro
 
 ## Narrow what it may do
 
-What an agent may do is declared by the flow, not by the line that runs it, so narrowing it on
-a runner means writing it into the flow the runner runs:
+What an agent may touch is declared by the flow, not by the line that runs it, so narrowing it
+on a runner means writing it into the flow the runner runs:
 
 ```python
 # .humanize/flows/nightly/__init__.py
-class Agents(NamedTuple):
-    worker: Annotated[Agent, AgentDefaults(permission="workspace-write")]
+from hmz.flows import Agent, Permission, PermissionKind
+
+
+class Worker(Agent):
+    _permission = Permission(user=PermissionKind.NONE, system=PermissionKind.NONE)
 ```
 
-The line that runs it is the same line either way — an agent is a CLI, an account, a model and
-an effort, and nothing on it says what the agent may do. A place that says nothing declares no
-rung at all, which is looser than every rung and so settles nothing — the CLI is told nothing
-and runs as it runs on a runner by itself. On a runner, `workspace-write` costs you nothing and
-bounds the blast radius to the checkout. See [Permissions](/user/permissions).
+and typing the role `agent: Worker`. The line that runs it is the same line either way — an
+agent is a CLI, an account, a model and an effort, and nothing on it says what the agent may
+do. Nothing is ever put to anybody for approval, so the flow runs with nobody watching whatever
+it declares; a permission bounds what the agent's tools reach, not what a command it runs does.
+See [Permissions](/user/permissions).
 
 ## Write the workflow
 
@@ -165,7 +192,8 @@ jobs:
         run: python ci/account.py
 
       - name: Run the loop
-        run: hmz exec -f nightly -a claude@ci/claude-opus-5:high "$(cat TASK.md)"
+        # The hmz exec line, kept in the repository: see below.
+        run: bash ci/nightly.sh
 
       - name: Collect the trace
         if: always()
@@ -231,7 +259,7 @@ up rather than finished.
 ## Act on the exit status
 
 ```sh
-hmz exec -f nightly -a claude@ci/claude-opus-5:high "$(cat TASK.md)" || {
+bash ci/nightly.sh || {
     echo "::error::the loop did not finish"
     exit 1
 }
@@ -244,34 +272,29 @@ hmz exec -f nightly -a claude@ci/claude-opus-5:high "$(cat TASK.md)" || {
 | `2` | the command line was wrong |
 | `130` | interrupted |
 
-A wrong `-a` or a miscounted flow is a `2` **before any agent runs**: a scheduled job fails in
-two seconds rather than in forty minutes.
+A wrong `-a`, a role left unfilled or a missing `-b` is a `2` **before any agent runs**: a
+scheduled job fails in two seconds rather than in forty minutes.
 
 ## Make the run cheap to reproduce
 
-Keep the line and its settings in the repository, not in the workflow:
-
-```yaml
-# ci/nightly.yaml
-rounds: 12
-mode: careful
-```
+Keep the line in the repository, not in the workflow:
 
 ```sh
-hmz exec -f nightly -c ci/nightly.yaml -a claude@ci/claude-opus-5:high "$(cat TASK.md)"
+# ci/nightly.sh
+hmz exec -f nightly -a agent=claude@ci/claude-opus-5:high -p rounds=12 -b duration=45m,cost=10 "$(cat TASK.md)"
 ```
 
 Now the same line runs on your own machine, and the file in the repository is what both of
-them were set up from. `-c` is `hmz exec`'s: at a terminal the same answers are given on the
-sheet [`/flow` puts up as the flow is chosen](/reference/tui#setting-a-flow-up), and what you
-answer there is what the next `hmz` in that directory opens on. The file is the version that
-can be reviewed in a pull request, which is why it is the one CI reads.
+them run. At a terminal the same answers are given on the sheet
+[`/flow` puts up as the flow is chosen](/reference/tui#setting-a-flow-up), and what you answer
+there is what the next `hmz` in that directory opens on. The script is the version that can be
+reviewed in a pull request, which is why it is the one CI runs.
 
 ## Things that bite
 
-**A flow that needs a feature the runner's backend has not got.** The weaver says so in the
-annotation: `Annotated[Agent, Goal]` or `Annotated[Agent, Moment.PERMISSION_REQUEST]`, and it
-is refused up front. See [Port a project](/user/tutorials/port-a-project).
+**A flow that needs a feature the runner's backend has not got.** The weaver says so on the
+role's type — `class Worker(Agent, GoalCommandAgentMixin)` — and an agent whose CLI cannot serve
+it is refused up front. See [Port a project](/user/tutorials/port-a-project).
 
 **A flowverse that has not been fetched.** `-f` says so rather than saying there is no such
 file — for a name qualified by a place and for a bare one alike, humanize's own flows being
@@ -284,8 +307,9 @@ request:
 git diff --quiet && { echo "nothing changed"; exit 0; }
 ```
 
-**A container-backed flow.** Its trajectories are in a mirror rather than in the checkout, and
-they still trace: the run wrote down the ids. See [Containers](/user/containers).
+**A flow whose environment is another machine.** Its trajectories are in a mirror rather than
+in the checkout, and they still trace: the run wrote down the ids. See
+[Remote execution](/user/remote-execution).
 
 ## See also
 

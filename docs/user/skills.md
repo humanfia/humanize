@@ -82,17 +82,27 @@ rlar/
         └── SKILL.md
 ```
 
-The flow's agents get those skills in every session they open. They are **mounted**: copied
-where that backend reads a project's own skills for as long as the session lives, then taken
-away again after. Nothing is installed, and nothing of yours is touched. See
-[Flows › The skills a flow brings](/reference/flows#the-skills-a-flow-brings).
-
-A flow may also name skills that live in somebody else's repository:
+A role says which of them its agent carries, by name, in `_skills` on the role's type:
 
 ```python
-@flow(skills=("https://github.com/humanfia/flowverse#review-notes",))
-def run(agents: Agents, task: str) -> None:
-    ...
+from hmz.flows import Agent
+
+
+class Reviewer(Agent):
+    _skills = ("review-notes",)
+```
+
+The agent filling that role gets those skills in every session it opens. They are **mounted**:
+copied where that backend reads a project's own skills for as long as the session lives, then
+taken away again after. Nothing is installed, and nothing of yours is touched. A name the flow's
+`skills/` does not hold is refused before anything runs. See
+[Flows › The skills a flow brings](/reference/flows#the-skills-a-flow-brings).
+
+A role may also name skills that live in somebody else's repository:
+
+```python
+class Reviewer(Agent):
+    _skills = ("https://github.com/humanfia/flowverse#review-notes",)
 ```
 
 The value is a git URL anything can clone. The part after the `#` names which of that
@@ -119,25 +129,22 @@ Two sessions of one flow working in one directory share the mount until the last
 done with it, and a flow called by another flow follows the same rule: whatever is already
 there under that name is what both of them read.
 
-Skills are mounted into the workspace on this machine. An agent [whose turns land
-elsewhere](/user/remote-execution) is given them where that machine reads this directory — a
-container handed this workspace is such a place. Otherwise the agent works with the skills its
-CLI installs.
+Skills are mounted where the session works. An agent [whose turns land
+elsewhere](/user/remote-execution) is given them where that machine reads its directory;
+otherwise it works with the skills its CLI installs.
 
 ### Which of them a conversation carries
 
-Every session an agent opens carries all of the flow's skills — until it says otherwise:
+Every session an agent opens carries all of its role's skills. A flow that wants a conversation
+carrying fewer derives an agent that carries fewer, and opens that conversation with it:
 
 ```python
-session = agent.new()
-session.loads(["writing-tests"])   # from its next turn on
-session.loads(None)                # all of them again
+writing = agents["builder"].derive(skills=("writing-tests",))
+session = await writing.spawn(env=workspace)   # carries writing-tests, and nothing else
 ```
 
-An agent is what it was made as. A conversation is a thing that gets somewhere, and this is the
-one thing about what it works by that moves with it: a session that has finished reading the
-codebase and started writing the tests wants the skill about writing them and no longer wants
-the eight about reading it. Two conversations of one agent may carry different sets at once.
+`derive` only narrows: a skill the role did not name is refused with `CapabilityNotGranted`.
+Two conversations of one role may carry different sets at once, one opened by each agent.
 
 This is the flow's own code saying which of the flow's own skills one of its conversations
 carries, which is why it is allowed: the flow brought them. The ones the CLI installed are

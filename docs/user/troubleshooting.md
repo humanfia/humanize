@@ -12,32 +12,100 @@ happened.
 
 ## Starting a flow
 
-### `the flow drives 2 agents, 1 given`
+### `no agent was given for 'reviewer'`
 
-The flow declares more agents than `-a` named, or fewer. Give one `-a` per agent, in the order
-the flow takes them:
+The flow declares an agent role nothing on the line filled. Give one `-a` per agent role, by
+the role's name:
 
 ```sh
-hmz exec -f rlar -a claude/claude-opus-4-8:high -a claude/claude-opus-4-8:high "fix the build"
+hmz exec -f rlar -a actor=claude/claude-opus-5:high -a reviewer=codex/gpt-5.6-sol:high \
+    -b cost=20 "fix the build"
 ```
 
-Ask a flow how many it wants without running it:
+Ask a flow what it declares without running it — every role, whether it is required, and
+whether humanize fills it:
 
 ```python
-from hmz.runtime.flowing import drives
+from hmz.runtime.flowing import load_flow
 
-print(drives("rlar"))   # ('actor', 'reviewer')
+flow = load_flow("rlar", caller_globals={})
+for role in flow.describe().agents:
+    print(role.name, role.required, role.auto)
 ```
 
-A `Person` place does **not** count. Nobody chooses what the person runs.
+A role typed as an `Outworlder` — the person — and one typed as a `LocalEnv` — the directory
+the run started in — do **not** need filling. Nobody chooses what the person runs.
 
-### `<flow>: no flow to read: a flow is a directory with an __init__.py in it`
+### `<flow> declares no agent role 'builder'`
 
-`-f` named something that is not there, or a directory with no flow in it. humanize looks for a
-name in `.humanize/flows`, then `~/.humanize/flows`, then among the flows humanize ships and
-every [flowverse](/reference/flows#flowverses) fetched here. A name no place answers to is taken
-as a path — `flows/mine` and `flows/mine.py` both. See
-[where flows live](/reference/flows#where-flows-live).
+The line named a role the flow has not got — a typo, or the name another flow gives its agent.
+The flows each name their own: `agent` for `ralph_loop`, `actor` and `reviewer` for `rlar`.
+
+### `the agent role 'human' is filled by the runtime, and cannot be given`
+
+The line named a role humanize fills itself: an `Outworlder`, which is whoever is outside the
+run, or a `LocalEnv`, which is the directory the run was started in. Take it off the line.
+
+### `-a 'claude/claude-opus-5:high': expected <role>=<harness>[@<provider>]/<model>:<effort>`
+
+An agent with no role in front of it. Every agent on a line says which of the flow's roles it
+fills — `-a agent=claude/claude-opus-5:high` — since agents are no longer taken in the order a
+flow takes them.
+
+### `-a 'agent=claude:high': expected [NAME=]CLI[@PROVIDER]/MODEL:EFFORT`
+
+An `-a` is missing a part. The CLI, the model and the effort are all three required:
+
+```sh
+-a agent=claude/claude-opus-5:high
+```
+
+The CLI is read from the front and the effort from after the **last** colon. A model with
+slashes in it, such as `kimi/kimi-code/k3:high`, is fine.
+
+### `… needs a budget`
+
+Every flow but `chat` is run under a budget, and `hmz exec` will not start one without it:
+
+```sh
+-b cost=20
+-b duration=6h,output_tokens=10m
+```
+
+See [Run it unattended](/user/unattended#say-what-the-run-may-spend).
+
+### `'worker' needs GoalCommandAgentMixin, which pi does not serve`
+
+The role declares something that CLI cannot do — a goal, being steered, a hook only some CLIs
+reach. The flow is written for agents that can; pick a CLI that serves it. Which does what is in
+[Flows › What each harness serves](/reference/flows#what-each-harness-serves).
+
+### `'builder' is claude, and codex was given`
+
+The role is typed as one CLI's own protocol — `ClaudeCodeAgent` and the rest — which asks for
+that CLI and everything it can do. Give it that CLI.
+
+### `permission is the flow's to say`
+
+What an agent may touch, and whether it may search the web, are not settings of `-a`: the flow
+declares them on the role, so that they mean the same thing whichever CLI fills it. Take the key
+off the line and write it into the flow:
+
+```python
+from hmz.flows import Agent, Permission, PermissionKind
+
+class Reviewer(Agent):
+    _permission = Permission(local=PermissionKind.READ)
+```
+
+See [Permissions](/user/permissions).
+
+### `<flow>: no flow is called '<name>', and it is not a path`
+
+`-f` named something that is not there. humanize looks for a name in `.humanize/flows`, then
+`~/.humanize/flows`, then among the flows humanize ships and every
+[flowverse](/reference/flows#flowverses) fetched here. A name no place answers to is taken as a
+path. See [where flows live](/reference/flows#where-flows-live).
 
 ### `the official flowverse has not been fetched yet`
 
@@ -45,88 +113,46 @@ The name is right; the download has not happened. `/flow` fetches whatever has n
 fetched as it opens. Press `r` on it in [`/flowverses`](/weaver/flowverses) to fetch it again —
 or, from a script with no terminal to press it at, `Hmz().verses.fetch("official")`.
 
-### `nothing in it is marked @flow(), and it holds …`
+### `… holds gen-idea, gen-plan, rlcr and none is called 'humanize1'; name one as humanize1:<flow>`
 
-The file holds [several flows](/reference/flows#several-flows-in-one-file), and none of them is
-under its own name. Say which one you want with a colon: `-f humanize1:gen-plan`.
+The module holds [several flows](/reference/flows#several-flows-in-one-file), none of them
+named after its directory, and more than one of them visible. Say which one you want with a
+colon: `-f humanize1:gen-plan`.
 
-### `nothing in it is marked @flow()`
+### `… defines no flow`
 
-Nothing in the file says which of its functions is a flow. A function called `run` is not a
-flow because it is called that. Mark it:
+Nothing in the module is marked `@flow`. A function is a flow because it is decorated, not
+because of what it is called:
 
 ```python
-from hmz.flows import flow
-
-@flow
-def run(agents: tuple[Agent], task: str) -> None:
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def mine(task, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext):
     ...
 ```
 
-### `a flow is a function marked @flow() taking (agents, task), whose agents are annotated …`
+### ``… a flow is an `async def` function``
 
-The `agents` parameter is annotated with a type that does not say how many agents there are.
-`tuple[Agent, ...]` means any number, which is no answer.
+Every flow is a coroutine now: `async def`, taking the task and then `agents`, `envs`, `params`
+and `ctx` as keywords. A plain `def` is refused where it is decorated. See
+[Writing a flow](/weaver/writing-a-flow).
 
-```python
-def run(agents: tuple[Agent], task: str) -> None:          # one agent
-def run(agents: tuple[Agent, Agent], task: str) -> None:  # two
-def run(agents: Agents, task: str) -> None:                     # a NamedTuple of them
-```
+### `Agents.reviewer: 'Reviewer' cannot be resolved: …`
 
-(Each is marked `@flow`, which is what makes it a flow at all.)
-
-### `the flow's agents cannot be read here (…)`
-
-The annotation names something that exists only for a type checker:
+A role's type is named only for a type checker:
 
 ```python
 if TYPE_CHECKING:                     # ← this is the problem
     from hmz.flows import Agent
 ```
 
-Import it at runtime instead. The count has to be readable where the flow runs, not only where
-pyright looks.
+Import it at runtime instead. The roles are read where the flow runs, not only where pyright
+looks.
 
-### `bad agent 'claude:high': expected [NAME=]CLI[@PROVIDER]/MODEL:EFFORT`
+### A params error naming a field
 
-An `-a` is missing a part. The CLI, the model and the effort are all three required:
-
-```sh
--a claude/claude-opus-4-8:high
-```
-
-The CLI is read from the front and the effort from after the **last** colon. A model with
-slashes in it, such as `kimi/kimi-code/k3:high`, is fine.
-
-### `bad agent 'cli=claude': cli= is gone`
-
-The written-out `cli=…,model=…,effort=…` form no longer exists, and neither do `provider=`,
-`service_tier=` or `config.KEY=`. `=` on the line means something else now — it names which of
-the flow's agents this one is:
-
-```sh
--a claude@deepseek/claude-opus-4-8:high        # the account is @, not provider=
--a reviewer=codex/gpt-5.6-sol:max              # = names the place it fills
-```
-
-A latency tier and a backend-native override are still an agent's to carry. They are set where
-the agent is made — from the [SDK](/reference/sdk), or by the flow that declares it — rather
-than on the line that names one.
-
-### `bad agent '…': permission is the flow's to say`
-
-What an agent may do, and whether it may search the web, are not settings of `-a`: the flow
-declares them where it declares the place, so that they mean the same thing whichever CLI fills
-it. Take the key off the line and write it into the flow:
-
-```python
-class Agents(NamedTuple):
-    reviewer: Annotated[Agent, AgentDefaults(permission="read-only")]
-```
-
-See [Permissions](/user/permissions) and
-[Writing a flow](/weaver/writing-a-flow#say-what-each-agent-is-allowed).
+`-p` gave a field the flow's `FlowParams` refuses — a value its type will not read, a key it
+does not declare, or a combination its validators rule out. The message is the model's own. Fix
+the value, or leave the key off for its default.
 
 ### The agent starts and immediately fails
 
@@ -153,6 +179,12 @@ The kinds are `throttled`, `refused`, `unlisted`, `retired`, `contended`, `dropp
 [a different answer](/user/fallback#what-went-wrong) before
 the turn is given up on. A failure with no kind in brackets is one nothing recognised, which is
 tried again exactly as a failed turn always was.
+
+In a flow, each kind is an exception of its own, and all of them are `HarnessError`:
+`HarnessThrottled`, `HarnessRefused`, `ModelUnavailable` (unlisted and retired),
+`HarnessContended`, `HarnessDropped`, `HarnessKilled`, `HarnessSandboxed` and `HarnessMissing`,
+with `HarnessUnrecoverable` for one no retry could change. A flow catches the one it can do
+something about. See [Flows › When something goes wrong](/reference/flows#when-something-goes-wrong).
 
 ### `(refused: that account needs signing in again)`
 
@@ -347,7 +379,7 @@ The default window is a quarter of an hour of **complete** silence — no reason
 call, no line of protocol — which no ordinary turn reaches. If yours does, say so:
 
 ```sh
-HUMANIZE_WATCHDOG=3600 hmz exec -f rlar -a claude/claude-opus-5:high "…"
+HUMANIZE_WATCHDOG=3600 hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b cost=5 "…"
 ```
 
 `HUMANIZE_WATCHDOG=0` turns the watchdog off entirely. See
@@ -362,21 +394,32 @@ about a turn that cannot be asked — the watchdog puts the process down instead
 ### `NotImplementedError: … has no goal feature`
 
 `pursue` is the backend's own goal feature, not a prompt asking for one. `suppress=True` does
-not catch this, deliberately. Asking for a feature that is not there is a flow to correct.
+not catch this, deliberately. Asking for a feature that is not there is a flow to correct — and
+a flow written against `hmz.flows` never meets it: a `/goal` prompt without
+`GoalCommandAgentMixin` on the role raises `CapabilityNotGranted`, and a role with it is refused
+a CLI that has no goal before anything runs.
 
-### My loop never ends after I stop it
+### My flow's loop never ends after I stop it
 
-Your loop is catching the stop. `Stopped` is not a `CalledProcessError`, and `suppress=True`
-does not catch it. But a bare `except Exception` in your flow will. Let it propagate.
+Your loop is catching the stop. A run stopped by hand cancels the flow, and a spent budget
+raises `BudgetExceeded`; neither is a `HarnessError`. A bare `except Exception` in your flow
+catches the second, and `except BaseException` the first. Catch what you mean and let the rest
+propagate.
 
-### A turn raises `subprocess.CalledProcessError` and I want the loop to continue
+### A turn failed and I want the flow's loop to continue
 
 ```python
-agent(task, suppress=True)
+from hmz.flows import HarnessError
+
+try:
+    await agent.run(task, session=session)
+except HarnessError:
+    pass   # the round failed; the loop goes round again
 ```
 
-Whatever the turn was actually run through, a failed turn raises this one type. So a flow
-catches turns rather than transports.
+Whatever the turn was run through, a failed turn raises a `HarnessError`, so a flow catches
+turns rather than transports. Driving an agent by hand, outside a flow, `agent(task,
+suppress=True)` is the same thing said as a keyword.
 
 ## Collecting a trace
 

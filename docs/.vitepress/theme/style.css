@@ -272,7 +272,7 @@
   }
 }
 
-/* A flow is named the way `-f` takes it, and `official/parallel_flame_chase_mission` is longer
+/* A flow is named the way `-f` takes it, and `official/parallel_flame_chase_git_pr` is longer
    than the sidebar is wide. The theme lets a line like that run off the edge; this breaks it
    instead, and only where there is nothing else to break on. */
 .VPSidebarItem .text {

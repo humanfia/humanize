@@ -26,20 +26,45 @@ my-flowverse/
 └── README.md
 ```
 
-`review` is a directory whose `__init__.py` holds the function marked `@flow`:
+`review` is a directory whose `__init__.py` holds the `async` function marked `@flow`:
 
 ```python
 # flows/review/__init__.py
 """Review the current diff and write the findings to REVIEW.md."""
 
-from hmz.flows import Agent, flow
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    EnvCollection,
+    FlowContext,
+    FlowParams,
+    LocalEnv,
+    flow,
+)
 
 
-@flow
-def run(agents: tuple[Agent], task: str) -> None:
-    (agent,) = agents
-    agent(f"Read the diff and write what is wrong to REVIEW.md.\n\n{task}", suppress=True)
+class Agents(AgentCollection):
+    reviewer: Agent
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def review(
+    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
+) -> None:
+    """Review the current diff and write the findings to REVIEW.md."""
+    reviewer = agents["reviewer"]
+    session = await reviewer.spawn(env=envs["workspace"])
+    await reviewer.run(
+        f"Read the diff and write what is wrong to REVIEW.md.\n\n{task}", session=session
+    )
 ```
+
+The flow is named after its directory — `review` in `review/` — which is what makes `yours/review`
+mean it: a bare name is the flow named after the directory, else the one visible flow in it.
 
 2. **Push it.**
 
@@ -67,7 +92,8 @@ verses.holds(verses.find("yours"))
 4. **Run one.**
 
 ```sh
-hmz exec -f yours/review -a claude/claude-opus-4-8:high "the payments module"
+hmz exec -f yours/review -a reviewer=claude/claude-opus-5:high -b cost=5 \
+    "the payments module"
 ```
 
 `yours/review` is the qualified spelling, `<flowverse>/<flow>`, the one spelling nothing can
@@ -84,12 +110,18 @@ humanize's business rather than yours, so both are offered under the one name an
 humanize's is run by a bare one:
 
 ```sh
-hmz exec -f rlar -a claude/claude-opus-5:max -a codex/gpt-5.6-sol:max "$(cat TASK.md)"
+hmz exec -f rlar -a actor=claude/claude-opus-5:max -a reviewer=codex/gpt-5.6-sol:max \
+    -b cost=30 "$(cat TASK.md)"
 ```
 
 `official/rlar` is the qualified spelling and still resolves — it is the one that pins a flow to
 the place it came from — but nothing needs it, and a flow that moves from the package into the
 flowverse goes on answering to the name it always had.
+
+What `official` holds is whatever humanfia/flowverse's default branch says, fetched live rather
+than pinned to a release of humanize: a flow fixed there is fixed here at the next fetch. A flow
+that must run one version of a flow and no other names it by commit instead —
+`git+https://github.com/humanfia/flowverse@<sha>#rlar`.
 
 It cannot be taken away, and it is **listed before it has been fetched**, because what there is
 to run is not the same question as what has been downloaded. Opening `/flow` fetches whatever
@@ -121,7 +153,8 @@ Use this for a machine being set up, a CI job that runs a flow somebody else wro
 the interface is not open. What it added is findable by `-f` at once:
 
 ```sh
-hmz exec -f yours/review -a claude/claude-opus-5:high "the payments module"
+hmz exec -f yours/review -a reviewer=claude/claude-opus-5:high -b cost=5 \
+    "the payments module"
 ```
 
 - `add` names it after the repository when you do not, as `git clone` does.
@@ -229,40 +262,54 @@ wrote out. Both shapes work: `flows/nightly` finds `flows/nightly/__init__.py` a
 
 ## A flowverse is a library too
 
-`load` takes exactly what `-f` takes, so a flow in a flowverse can be called from inside
-another flow:
+A flow can [call another](/weaver/calling-flows) by its ref. Inside one flowverse, a flow names
+its neighbours by their directory — `humanize1`, `humanize1:gen-plan` — and the flows beside
+it in its own directory as `:gen-plan`. A flow of *another* flowverse is named by where it is,
+the way pip names a package in a repository:
 
 ```python
 from hmz.flows import load
 
-plan = load("humanize1:gen-plan")
-plan(agents, f"plan this first: {task}")
+review = load("git+https://github.com/you/my-flowverse@v1.2#review")
+plan = load("git+https://github.com/humanfia/flowverse@main#humanize1:gen-plan")
 ```
 
-A name nothing answers to is refused where you ask for it, rather than an hour into your loop.
-Publish two small flows rather than one large one for exactly this reason.
+`git+` and any URL git fetches, `@` and a branch, tag or commit — the default branch where
+there is none — and `#` and the flow, `:` and the one it holds where it holds several. Nothing
+is fetched until the flow is first called; then it is fetched once per URL and revision for the
+whole run, pinned to the commit that revision stood at, and cloned once per commit, so a run
+that calls it a thousand times fetches it once and runs one version of it throughout. What
+cannot be fetched, or has no such flow, raises `FlowNotFound` at the call.
+
+A flowverse that is added is a library by name as well; a flowverse that is not is still one by
+URL. Publish two small flows rather than one large one for exactly this reason: a phase another
+weaver can call is worth more than a pipeline they can only run whole.
 
 ## Making one
 
-Any git repository will do, laid out the way [Try it](#try-it) lays one out, and held to six
+Any git repository will do, laid out the way [Try it](#try-it) lays one out, and held to seven
 rules:
 
 | Rule | |
 | --- | --- |
 | the flows go in `flows/` | and nothing outside it is read, or run |
-| one directory per flow | its `__init__.py` holds the function marked `@flow` |
+| one directory per flow | its `__init__.py` holds the `async` function marked `@flow` |
+| the entry flow is named after its directory | so that the bare name means it: `review` in `review/` |
 | or a single `.py` | for a flow with nothing to bring and nothing to import |
 | a name starting with `_` is not a flow | which is where shared code goes |
 | the flow's docstring's first line | is what is shown beside its name |
-| one file may hold several | `@flow(name="…")`, run as `<flow>:<name>` |
+| one directory may hold several | each `@flow` a flow of its own, run as `<flow>:<name>` |
 
 Add it with **a** in `/flowverses`, or clone it into `~/.humanize/flowverses/<name>/` yourself.
 
 Whoever adds your flowverse is trusting it with their machine. Earn it. Say in the README:
 
-- **What each flow drives**: how many agents, and what each is for.
-- **Which backends it needs.** A flow that hangs a `PERMISSION_REQUEST` hook needs Claude Code
-  or Codex; one built on `pursue` needs a backend with a goal feature.
+- **What each flow drives**: its roles by name, and what each is for.
+- **Which CLIs it needs.** A role that declares `PermissionRequestHookAgentMixin` needs Claude
+  Code, Codex, Kimi Code or ZCode; one that declares `GoalCommandAgentMixin` needs a CLI with a
+  goal feature. humanize refuses the rest before the first turn, but a README that says so saves
+  somebody the attempt.
+- **Its params**, and what each does.
 - **What it writes.** Files, branches, commits, pushes.
 - **The `hmz exec` line that starts it**, verbatim. Each of humanize's own flows names its own
   in its docstring; do the same.
@@ -278,14 +325,18 @@ is imported is the flow's own business, and it fails for somebody who was only b
 list. See [Security](/user/security).
 :::
 
-Check it in the repository's own CI before anybody else does. A flow that stopped loading is a
-red build:
+Check it in the repository's own CI before anybody else does. The [fake
+kit](/weaver/testing-flows) runs a flow the way `-f` would, with no agent and no tokens, so a
+flow that stopped loading — or stopped doing what it says — is a red build:
 
 ```python
-from hmz.runtime.flowing import drives, wanted
+from hmz.runtime.flowing.fakes import FakeAgentDriver, run_fake
 
-drives("yours/review")     # loads it exactly as `-f` would
-wanted("yours/review")     # what somebody choosing the agents will be asked
+
+async def test_review_asks_for_the_diff() -> None:
+    reviewer = FakeAgentDriver()
+    await run_fake("flows/review", "the payments module", agents={"reviewer": reviewer})
+    assert "REVIEW.md" in reviewer.prompts[0]
 ```
 
 ## See also

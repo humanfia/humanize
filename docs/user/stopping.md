@@ -1,7 +1,7 @@
 # Stopping
 
-A flow ends when its `run` returns. Most interesting flows never return, and a Ralph loop is a
-`while True`, so you end them from outside. You reach for stopping when a flow is running and
+A flow ends when its function returns. Most interesting flows never return, and a Ralph loop is
+a `while True`, so you end them from outside — or its budget does. You reach for stopping when a flow is running and
 you want it to end now.
 
 ## Try it
@@ -12,14 +12,13 @@ the flow`, and the second one does it.
 
 Or type **`/stop`** and send it, which is the same stop asked once.
 
-## The four ways to stop
+## The three ways to stop
 
 | | |
 | --- | --- |
 | **ctrl+c** twice, in the interface | Stops the flow — the whole flow, not just the turn. Clears what is half-typed first, if anything is. |
 | **`/stop`**, at the prompt | The same, asked once. |
 | **ctrl+c**, on a `hmz exec` command line | The same. |
-| **`agent.stop()`**, from anywhere | The same, for that agent. |
 
 **`/stop` is not asked twice.** The key is, because a finger lands on it by mistake; nothing is
 typed by mistake, so writing the command out and sending it is the deliberation the second
@@ -34,8 +33,7 @@ unwinding, and otherwise the first of a fresh one.
 **A third press does not wait for it.** A flow told to stop unwinds in its own time — a loop
 sleeps off its round, a server is given its seconds — and the press after the one that stopped
 it closes every conversation still open under whatever turn it is in. That is the backend's
-process going, so the flow reads a turn that *failed* rather than an agent that was stopped,
-and nothing is left reading as a run in progress. It is the last thing a key can do about a
+process going, and nothing is left reading as a run in progress. It is the last thing a key can do about a
 run.
 
 **esc does not stop anything.** It is pressed to dismiss whatever is on the screen everywhere
@@ -45,7 +43,9 @@ presses of **ctrl+c** leave the interface.
 
 ## What a stop does to the turn under way
 
-The turn is **closed out**, and every later call into that agent raises `Stopped`.
+The turn is **cut off** — the CLI is interrupted and stops spending — and the flow is
+cancelled where it is waiting: every flow call of the run, however deep, unwinds from the `await`
+it was at, and one that tries anything more raises `FlowCancelled`.
 
 A stop leaves the turn where it got to. It does not wait for the turn, because a stop that
 waited would not read as a stop. A model can think for minutes, and a key that took four of
@@ -55,30 +55,31 @@ A file the agent had half-written stays half-written. What ends is the agent's p
 which includes the CLI process the turn was running in and whatever that process had started:
 a stop that left the agent still writing would not be a stop.
 
-To end one turn without ending the run, a flow has
-[`session.interrupt`](/features/budgets#cutting-one-off-by-hand), and a turn can be given a
-[budget](/features/budgets) that cuts it off on its own.
+To end one turn without ending the run, a flow gives that turn a
+[budget](/features/budgets) of its own — `await agent.run(prompt, session=…,
+budget=Budget(duration=timedelta(minutes=10), graceful=False))` — or cancels the task awaiting
+it, which interrupts the CLI.
 
-To have a run stop itself rather than wait for a key, give it an
-[allowance](/features/allowances): hours on the clock, millions of output tokens, dollars.
-Every run has one, and a run that reached the end of it is stopped exactly as this key stops
-one — turns left where they got to, state kept, and the run worth picking up.
+To have a run stop itself rather than wait for a key, it has a [budget](/features/allowances):
+a duration, a cost, a count of output tokens — `-b`, which every run but `chat` must have. A run
+that reaches the end of it raises the `BudgetExceeded` leaf for what ran out — turns left where
+they got to, state kept, and the run worth picking up.
 
 ## After a stop
 
 A stop is what makes a run worth picking up. Where the flow says it [can be picked
-up](/user/resuming), **`/resume`** at the prompt carries the last run here on from where it
-stopped — its own flow, its own agents, its own task, and whatever it had written down by the
-time the key was pressed. Nothing carries on by itself: stopped means stopped, and the run that
+up](/user/resuming), **`/resume`** at the prompt — or the same `hmz exec` line with
+`--resume` — carries the run on from where it stopped: its own flow, its own agents, its own
+task, and whatever it had written down by the time the key was pressed. Nothing carries on by itself: stopped means stopped, and the run that
 carries on is a run somebody asked for.
 
 Wait for it to go, though. A flow told to stop unwinds in its own time and writes down where it
 got to as it goes, so `/resume` in that window is refused with `no picking a run up while the
-flow is still stopping` — picked up from a state still moving under it, the next run would do a
-round the stopped one had already recorded. A flow that will not unwind at all is what the third
-press is for: it leaves nothing reading as a run in progress, and `/resume` is answerable again.
-A second `/stop` in that window is no help either — it says the flow is already stopping rather
-than telling it again, since the agents it is holding are what that press reaches.
+flow is still stopping` — picked up from a journal still being written, the next run would
+do a round the stopped one had already recorded. A flow that will not unwind at all is what the
+third press is for: it leaves nothing reading as a run in progress, and `/resume` is answerable
+again. A second `/stop` in that window is no help either — it says the flow is already stopping
+rather than telling it again.
 
 ## What stopping is not
 
@@ -86,54 +87,43 @@ than telling it again, since the agents it is holding are what that press reache
 read, not the others, and nothing that is running.
 
 **Not choosing another flow.** `/flow` is refused while one is running, with `no choosing a
-flow while a flow is running: ctrl+c twice stops it first`. A flow drives the agents it was
-handed, and it must not have them swapped underneath it. Stop it first, then choose. Looking at
+flow while a flow is running: ctrl+c twice stops it first`. A run holds the agents and
+environments it was started on until it ends. Stop it first, then choose. Looking at
 `/flow` and leaving without choosing changes nothing.
 
 **Not a question ending.** A question still up when the flow ends or is stopped ends with it.
 Stopping is never blocked on one.
 
-## Why `suppress=True` does not catch a stop
+## Why catching a failed turn does not catch a stop
 
-The other side of that key press is the loop a [weaver
-wrote](/weaver/writing-a-flow#make-the-loop-survive-a-bad-turn), which has to let it out.
-`suppress` turns a **failed turn** into an empty answer:
-
-```python
-agent(task, suppress=True)   # a turn that failed answers ""; the loop goes round again
-```
-
-It deliberately does not catch `Stopped`. A loop that carried on past a stop would never end:
+The other side of that key press is the loop a [weaver wrote](/weaver/writing-a-flow), which has
+to let it out. A failed turn raises a `HarnessError`, and a loop that goes round again catches
+that:
 
 ```python
 while True:
-    agent(task, suppress=True)     # ← Stopped comes out of here, and the flow unwinds
+    session = await agent.spawn(env=workspace)
+    try:
+        await agent.run(task, session=session)   # ← a stop comes out of here, and the flow unwinds
+    except HarnessError:
+        continue                                # a turn that failed; the loop goes round again
 ```
 
-`Stopped` is not a `subprocess.CalledProcessError`. Nothing that catches a failed turn catches
-this by accident. Let it propagate. The [epic](/user/tracing#what-a-run-writes-down) then
-records the run as **stopped by hand** rather than as one that finished — the difference
-between "it decided it was done" and "somebody stopped it", and the only place that distinction
-is written down.
+A stop is a cancellation — `asyncio.CancelledError`, which is not an `Exception` at all — so
+nothing that catches a failed turn catches it by accident, and neither does a bare
+`except Exception`. A spent budget is `BudgetExceeded`, which is not a `HarnessError` either.
+Let both propagate. The [epic](/user/tracing#what-a-run-writes-down) then records the run as
+**stopped by hand** rather than as one that finished — the difference between "it decided it was
+done" and "somebody stopped it", and the only place that distinction is written down.
 
-There is one other thing `suppress` does not catch, for the same reason. An
-[`Unrecoverable`](/reference/agents#when-an-account-goes-down) is a turn that failed for a
-reason no other try could come out differently on — a conversation longer than the model's
-context window, a session id the backend will not answer under. A `while True` that swallowed
-one would go round on the same failure until somebody stopped it, so it comes out of the loop
-and the run ends with it. Unlike a stop, it is a `CalledProcessError`, so a flow that really
-does want to catch everything still can.
+There is one `HarnessError` a loop should think twice about catching, for the same reason.
+`HarnessUnrecoverable` is a turn that failed for a reason no other try could come out
+differently on — a conversation longer than the model's context window, a session id the backend
+will not answer under. A `while True` that swallowed one would go round on the same failure until
+the budget ran out.
 
-`agent.prompted()` raises `Stopped` too, so a run ended while it waited also reads as ended by
-hand. `agent.stopped` is the quiet way to ask the same question — a bool, and never a raise:
-
-```python
-agent.prompted()      # waiting for the next thing to say; raises if the wait ended in a stop
-agent.stopped         # whether it has been told to stop; answers True, and never raises
-```
-
-A hook that raises is normally the hook's own problem: a flow must not fail because something
-hung off it did. `Stopped` is the one exception, and it is let out.
+A hook runs as the flow the agent belongs to, and what it raises fails the turn it arrived in —
+so a hook that catches nothing lets a stop out as the flow's own code does.
 
 ## See also
 

@@ -103,9 +103,8 @@ other's arrives through. Where that cannot work — two symmetric NATs, a firewa
 it did not see leave, no route at all — humanize splices the two connections it is already
 holding and carries the bytes itself.
 
-Nothing above the anchor is told which of the three happened. The line is the same line, the
-status is the agent's own status, and a flow that needs the agent's process to stay on this
-machine refuses `anchor:afar` rather than inspecting anything.
+Nothing above the anchor is told which of the three happened. The line is the same line, and
+the status is the agent's own status.
 
 ## The turn is also where the session ends
 

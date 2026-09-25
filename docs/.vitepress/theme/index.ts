@@ -22,7 +22,6 @@ import HmzMap from './components/HmzMap.vue'
 import HmzMoments from './components/HmzMoments.vue'
 import HmzOrchestra from './components/HmzOrchestra.vue'
 import HmzPerson from './components/HmzPerson.vue'
-import HmzProphecy from './components/HmzProphecy.vue'
 import HmzResume from './components/HmzResume.vue'
 import HmzShape from './components/HmzShape.vue'
 import HmzStack from './components/HmzStack.vue'
@@ -52,7 +51,6 @@ export default {
     app.component('HmzMoments', HmzMoments)
     app.component('HmzOrchestra', HmzOrchestra)
     app.component('HmzPerson', HmzPerson)
-    app.component('HmzProphecy', HmzProphecy)
     app.component('HmzResume', HmzResume)
     app.component('HmzShape', HmzShape)
     app.component('HmzStack', HmzStack)

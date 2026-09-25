@@ -82,8 +82,8 @@ appended to a log beside it.
 
 The run's journal gains one complete line for each event as the event happens, so an abrupt end
 still leaves everything written before it. If the flow is resumable, each change to its state
-mapping writes a complete replacement file into place: a reader sees either the old state or
-the new one, never a half-written state. What those records preserve is the shape and state of
+is a line of the run's journal, written as it is made, so a run killed the moment after still
+has it. What those records preserve is the shape and state of
 the run — the coding-agent backend remains the owner of the conversation.
 
 ## Where the detail is
