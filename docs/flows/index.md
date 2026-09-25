@@ -9,8 +9,8 @@ each is asked, in what order, and when to stop. humanize runs flows and has no o
 what a good one is — so a flow is content rather than product, whoever writes one is a
 **weaver**, and the list below is something to read, fork, publish and beat.
 
-Ten are drawn here — twelve by name, since [`humanize1`](/flows/humanize1) is three phases.
-Between them they are most of the loop shapes the field has converged on.
+Fourteen are listed here — sixteen by name, since [`humanize1`](/flows/humanize1) is three
+phases. Between them they are most of the loop shapes the field has converged on.
 
 <HmzFlowShape pick="ralph_loop,stateful_ralph,flame_chase,rlar,goal,parallel_flame_chase" />
 
@@ -34,6 +34,9 @@ honest answers.
 | A plan agreed first, then built under review | [`humanize1`](/flows/humanize1) |
 | Three streams of work at once, only one of them touching your tree | [`parallel_flame_chase`](/flows/parallel-flame-chase) |
 | Three lanes, each with a clone, merged into `main` only by a measurement | [`parallel_flame_chase_git_pr`](/flows/parallel-flame-chase-git-pr) |
+| A long loop whose workspace is distilled every few turns | [`ralph_loop_agent_cleanup`, `flame_chase_agent_cleanup`](/flows/agent-cleanup) |
+| A Lean theorem proved by recursive decomposition | [`recursive_lean_prover`](/flows/recursive-lean-prover) |
+| A flow written for you from a description | [`aot`](/flows/aot) |
 
 Six name a [FlowBench](https://humanfia.ai/projects/flowbench) loop in their own docstring,
 so that comparing one method against another is a flag rather than a reimplementation.
@@ -81,15 +84,20 @@ is what makes a run stopped by its budget a run to pick up rather than one that 
 Some reach an end of their own first: [`chat`](/flows/chat) when you stop typing — the one flow
 that runs without a `-b` — [`rlar`](/flows/rlar) when its reviewer agrees the work is done,
 [`goal`](/flows/goal) when the model says the objective is met, and
-[`humanize1`](/flows/humanize1)'s loop on its `max` rounds. For the two
+[`humanize1`](/flows/humanize1)'s loop when its reviewer says the plan is complete, or on its
+`max` rounds. The loops of one agent stop after three rounds in a row that came to nothing, and
+several end with the error after three failed turns in a row. For the two
 [lane flows](/flows/parallel-flame-chase) the budget is the only end there is: their lanes are
 scheduled again for as long as they run, so give them a duration.
+
+A run its budget stopped ends with `BudgetExceeded` — `hmz exec` says which limit and exits 0 —
+and one that can be picked up carries on from there with `--resume` and a fresh `-b`.
 
 ## Where they come from
 
 | | |
 | --- | --- |
-| `official` | humanize's own, which is [`chat`](/flows/chat) in the package and [humanfia/flowverse](https://github.com/humanfia/flowverse) for everything else, fetched the first time somebody wants what is in it |
+| `official` | humanize's own, which is [`chat`](/flows/chat) in the package and [humanfia/flowverse](https://github.com/humanfia/flowverse) for everything else, fetched as `/flow` first opens or with `r` at `/flowverses` — until then `hmz exec` naming one of its flows says so |
 | `local` · `user` | `.humanize/flows/` here, and `~/.humanize/flows/` everywhere |
 
 Which of humanize's two places a flow is kept in is humanize's business, so all of them are

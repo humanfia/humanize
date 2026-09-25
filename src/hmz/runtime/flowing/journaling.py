@@ -20,6 +20,11 @@ digest and the lowest `seq` nobody has claimed yet, so a loop calling the same s
 same way three times picks up the three of them in order, and a gather of identical calls
 picks up one apiece.
 
+A `session` is one session a call opened, written once its CLI has named it -- as it opens
+for a harness that names a session up front, as its first turn goes for one that names it
+then -- so that `session` is the id the CLI logs it under. A session never named, one whose
+CLI never started, is not written down.
+
 A state write is flushed as it is made: it is what the flow will read back, and a run killed
 the moment after it must still have it. Everything else is batched -- written within a tenth
 of a second, or with the next state write, whichever comes first -- which is what keeps a run

@@ -795,10 +795,13 @@ class Epic:
             this run has opened.
         """
         with self._writing:
-            held = dict(self._sessions)
+            if not only:
+                held = dict(self._sessions)
+            elif only in self._sessions:
+                held = {only: self._sessions[only]}
+            else:
+                return
         for name, (backend, ident) in held.items():
-            if only and name != only:
-                continue
             _link(self._at / SESSIONS / name, backend, ident)
 
     def write(self, event: str, **said: Any) -> None:

@@ -23,7 +23,7 @@ dropped. A held line is pinned onto the editor rather than written into the tran
 behind the same `❯`:
 
 ```
-                                           assistant · claude-opus-5:high
+                                    assistant · claude/claude-opus-5:high
 ❯ and fix the tests too            input 11.2k · output 1.1k · cache_read 0
 ❯ then push                                                    84 out/s
 ────────────────────────────────────────────────────────────────────────
@@ -59,9 +59,10 @@ the one the screen is showing anyway. See [Many conversations at once](/user/con
 
 Four of them take a word mid-turn — Claude Code, Codex, Kimi Code and pi. The rest were handed
 the whole prompt up front and have nowhere to put a second one, so what they do with a line is
-answer it as the turn after. **`type(session).steers` says which before anything is said**, so a
-flow that means to steer asks beforehand rather than catching a `NotImplementedError` out of a
-turn already an hour in.
+answer it as the turn after. **`type(session).steers` says which before anything is said**, so
+code driving an agent asks beforehand rather than catching a `NotImplementedError` out of a
+turn already an hour in; a flow declares `SteeringAgentMixin` on the role instead, and a CLI
+that cannot steer is refused before anything runs.
 
 | Backend | What a mid-turn line does |
 | --- | --- |
@@ -108,14 +109,15 @@ session.interject("actually, use pathlib")
 - On a backend that can be talked to, it raises `RuntimeError` when nothing is running to hear
   it.
 
-Two related hooks, both set by the flow driving the agent:
+Two related hooks, both set by whatever is driving the agent:
 
 | | |
 | --- | --- |
 | `agent.waiting` | Asked as each turn starts for anything said to this agent while no turn was open. What it returns goes into that turn. |
 | `agent.prompting` | Asked between turns for the next thing to say, so a flow can be a conversation rather than a loop. `None` once there will be nothing more. |
 
-That pair is how the pin in the interface works.
+`waiting` is how the pin in the interface works; what a flow is told next comes to it through
+its [outworlder](/weaver/human-agent) instead.
 
 ## See also
 

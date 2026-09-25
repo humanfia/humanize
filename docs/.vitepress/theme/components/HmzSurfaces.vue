@@ -9,6 +9,9 @@ type PlanMode = 'discussion' | 'direct'
 type SurfaceKey = 'python' | 'cli' | 'tui' | 'daemon'
 
 const PLAN_MODES: PlanMode[] = ['discussion', 'direct']
+// What the params form offers for `turn_retries`: one more than the model takes, so that the
+// refusal the model answers with is one a reader can reach.
+const RETRIES = [0, 1, 2, 3, 4]
 
 interface LookupRow {
   key: string
@@ -39,8 +42,8 @@ interface GraphEdge {
 }
 
 const forked = ref(false)
-const genIdea = ref(true)
-const genPlan = ref(true)
+const autoStart = ref(false)
+const retries = ref(1)
 const planMode = ref<PlanMode>('discussion')
 const surface = ref<SurfaceKey>('tui')
 const attached = ref(1)
@@ -76,16 +79,16 @@ const lookup = computed<LookupRow[]>(() =>
       ],
 )
 
-const configAccepted = computed(() => !genIdea.value || genPlan.value)
+const configAccepted = computed(() => retries.value <= 3)
 const configState = computed(() =>
   configAccepted.value
     ? [
         'accepted',
-        `idea ${genIdea.value ? 'on' : 'off'}`,
-        `plan ${genPlan.value ? 'on' : 'off'}`,
         planMode.value,
+        `retries ${retries.value}`,
+        `auto-start ${autoStart.value ? 'on' : 'off'}`,
       ].join(' · ')
-    : 'refused · gen idea is on while gen plan is off',
+    : 'refused · turn_retries: input should be less than or equal to 3',
 )
 const resolved = computed(() =>
   forked.value
@@ -98,8 +101,9 @@ const SURFACES: Surface[] = [
     key: 'python',
     label: 'Python SDK',
     about:
-      'Builds a Run around the loaded runner and task, then runs it here or on a ' +
-      'thread of its own.',
+      'Hmz().run(flow, task, agents={role: spec}, envs=, params=, budget=, resume=, ' +
+      'outworlder=) loads a Runner and hands back a Run of it and the task: run here or ' +
+      'on a thread of its own, watched, stopped or closed.',
     path: [
       'python-workspace',
       'workspace-run',
@@ -113,8 +117,8 @@ const SURFACES: Surface[] = [
     key: 'cli',
     label: 'CLI',
     about:
-      'Reads the line into the same flow, agents, task and setup, then drives the SDK ' +
-      'Run to its return.',
+      'Hmz.read(argv) reads the line into a Line -- the flow, -a/-e/-p/-b and the task -- ' +
+      'then drives the same Run to its return.',
     path: [
       'cli-workspace',
       'workspace-run',
@@ -128,8 +132,8 @@ const SURFACES: Surface[] = [
     key: 'tui',
     label: 'TUI',
     about:
-      'Keeps the workspace and runner in hand so it can configure, watch and steer the ' +
-      'agent conversations while they run.',
+      'Sets the flow up by role, keeps its Runner and Run in hand, and answers for the ' +
+      'outworlder while it watches and steers the conversations.',
     path: ['tui-workspace', 'workspace-runner', 'runner-conversations', 'runner-epic'],
     nodes: ['tui', 'workspace', 'runner', 'conversations', 'epic'],
   },
@@ -190,8 +194,8 @@ function forkFlow() {
 
 function reset() {
   forked.value = false
-  genIdea.value = true
-  genPlan.value = true
+  autoStart.value = false
+  retries.value = 1
   planMode.value = 'discussion'
   surface.value = 'tui'
   attached.value = 1
@@ -258,29 +262,36 @@ function reset() {
           </div>
         </header>
 
-        <div class="group">gen-idea</div>
-        <label class="field switch">
-          <span class="field-copy">
-            <strong>gen idea</strong>
-            <span>open the idea into a grounded draft</span>
-          </span>
-          <span class="toggle">
-            <input v-model="genIdea" type="checkbox" />
-            {{ genIdea ? 'on' : 'off' }}
-          </span>
-        </label>
-
         <div class="group plan">gen-plan</div>
         <label class="field switch">
           <span class="field-copy">
-            <strong>gen plan</strong>
-            <span>turn the draft into a plan</span>
+            <strong>auto start rlcr if converged</strong>
+            <span>no review gate once converged</span>
           </span>
           <span class="toggle">
-            <input v-model="genPlan" type="checkbox" />
-            {{ genPlan ? 'on' : 'off' }}
+            <input v-model="autoStart" type="checkbox" />
+            {{ autoStart ? 'on' : 'off' }}
           </span>
         </label>
+
+        <div class="field">
+          <div class="field-copy">
+            <strong>turn retries</strong>
+            <span>how many times a failed or empty turn is retried</span>
+          </div>
+          <div class="choices" role="group" aria-label="turn retries">
+            <button
+              v-for="one in RETRIES"
+              :key="one"
+              type="button"
+              :aria-pressed="retries === one"
+              :class="{ on: retries === one }"
+              @click="retries = one"
+            >
+              {{ one }}
+            </button>
+          </div>
+        </div>
 
         <div class="field">
           <div class="field-copy">
@@ -310,9 +321,9 @@ function reset() {
           {{ configState }}
         </p>
         <p class="model-note">
-          Turn gen plan off while gen idea remains on. The model refuses the relationship;
-          the interface only shows what it said. The whole set is validated again when the
-          current flow is loaded.
+          Ask for four retries. The model takes at most three and refuses it; the interface
+          only shows what it said. The whole set is validated again when the current flow is
+          loaded.
         </p>
       </section>
     </div>

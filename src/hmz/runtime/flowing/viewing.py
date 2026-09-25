@@ -35,6 +35,7 @@ from __future__ import annotations
 # underscore keeps from flows rather than from them.
 # pyright: reportPrivateUsage=false
 import asyncio
+import contextlib
 import contextvars
 import logging
 import threading
@@ -167,6 +168,37 @@ class _Sink:
                 node.tokens += output_tokens
                 node.secs += duration
                 node = node.parent
+
+
+class _Naming(_Sink):
+    """A turn's sink for a session the run is still waiting on its CLI to name.
+
+    A CLI names a session as its first turn starts, and that turn may run for hours: the first
+    thing the turn is reported to have spent after that has the session written down then,
+    on the run's loop, rather than when the turn ends -- which a run killed mid-turn never
+    reaches.
+    """
+
+    __slots__ = ("_session",)
+
+    def __init__(self, node: Call, session: SessionView) -> None:
+        super().__init__(node)
+        self._session: SessionView | None = session
+
+    def add(self, *, cost: float, output_tokens: int, duration: float) -> None:
+        super().add(cost=cost, output_tokens=output_tokens, duration=duration)
+        with self._lock:
+            session = self._session
+            if session is None or session._handle.id is None:
+                return
+            self._session = None
+        run = self._node.run
+        if threading.get_ident() == run.thread:
+            session._named()
+            return
+        # A loop that is closed is a run that is over, which there is nothing left to tell.
+        with contextlib.suppress(RuntimeError):
+            run.loop.call_soon_threadsafe(session._named)
 
 
 class _Cut:
@@ -345,7 +377,7 @@ class AgentView:
         opened = Opened(session, self, env, handle)
         line.sessions[id(handle)] = opened
         node.hold(opened)
-        run.spawned(node, self._role, handle, self._driver)
+        session._unnamed = run.spawned(node, self._role, handle, self._driver)
         return session
 
     @overload
@@ -399,7 +431,8 @@ class AgentView:
         cut = None if hard is None else _Cut(node.run.loop, handle, hard)
         try:
             said = await handle.turn(
-                TurnRequest(prompt, output_schema, limits), _Sink(node)
+                TurnRequest(prompt, output_schema, limits),
+                _Naming(node, taken) if taken._unnamed else _Sink(node),
             )
         except asyncio.CancelledError:
             handle.interrupt()
@@ -419,6 +452,9 @@ class AgentView:
             node.turning(-1)
             if cut is not None:
                 cut.stop()
+            if taken._unnamed and handle.id is not None:
+                # Named by its CLI as this turn went, and nothing it spent said so sooner.
+                taken._named()
         # A fork is cut by now, and the session it was cut from may go.
         taken._parent = None
         failed = taken._error
@@ -611,6 +647,7 @@ class SessionView:
         "_handle",
         "_line",
         "_parent",
+        "_unnamed",
     )
 
     def __init__(
@@ -628,6 +665,8 @@ class SessionView:
         self._closed = False
         self._error: Exception | None = None
         self._parent: SessionView | None = None
+        #: Whether the run's journal or recorder is still waiting on its CLI to name it.
+        self._unnamed = False
 
     def __repr__(self) -> str:
         return f"<session of {self._agent.role} in {self._env.workdir}>"
@@ -648,6 +687,22 @@ class SessionView:
     def id(self) -> str | None:
         """The CLI's own id for the conversation, or None before it has said one."""
         return self._handle.id
+
+    def _named(self) -> None:
+        """Its CLI has named it: written down and told, against the call that opened it.
+
+        Once, however many times it is asked, and never raising: a journal that cannot be
+        written to is a run that can no longer be picked up, not a turn that failed.
+        """
+        if not self._unnamed:
+            return
+        self._unnamed = False
+        opener: AgentView = self._agent  # pyright: ignore[reportAssignmentType]
+        node = opener._node
+        try:
+            node.run.named(node, opener._role, self._handle, opener._driver)
+        except Exception:
+            log.exception("writing down the session of %s failed", opener._role)
 
     def _failed(self, error: Exception) -> None:
         """A hook of this session raised: the turn under way stops, and raises it."""
@@ -749,9 +804,13 @@ class Opened(weakref.ref["SessionView"]):
         except Exception:
             log.exception("closing %r failed", self)
         finally:
-            line = self.agent._line
+            agent = self.agent
+            line = agent._line
             if line is not None:
                 line.sessions.pop(id(handle), None)
+            recorder = agent._node.run.recorder
+            if recorder is not None:
+                recorder.closed(handle)
 
     def _settled(self, task: asyncio.Task[None]) -> None:
         """Its close is over, and the call has nothing of it left to release."""

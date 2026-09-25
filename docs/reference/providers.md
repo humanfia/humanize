@@ -347,7 +347,7 @@ It is *falls back to* on the menu **enter** opens, which offers that backend's o
 and one call apiece from Python:
 
 ```python
-from hmz import providers
+from hmz.coganchor import providers
 
 providers.points("claude", "subscription", "key")
 providers.points("claude", "key", "gateway")

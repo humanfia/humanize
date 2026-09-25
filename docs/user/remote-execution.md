@@ -218,8 +218,8 @@ hmz exec -f onbox -a builder=claude/claude-opus-5:high -a reviewer=codex/gpt-5.6
 A role typed as a `LocalEnv` — `workspace` above — is the directory the run started in, and is
 never named on the line. The flow's own `await envs["box"].exec([...])`, `read` and `write` run
 on the box too, so the flow reads what the agent did where the agent did it. At the prompt the
-same answer is a row of the flow's sheet in [`/flow`](/reference/tui#choosing-a-flow), listing the
-hosts in your `~/.ssh/config`.
+same answer is a row of the flow's sheet in [`/flow`](/reference/tui#where-each-agent-works),
+typed as `-e` spells it.
 
 **Outside a flow**, give an agent's config an anchored machine and its turns land there:
 

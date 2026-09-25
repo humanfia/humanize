@@ -1979,7 +1979,7 @@ against a list fetched from [OpenLLMPrices](https://openllmprices.com/) and kept
 `~/.humanize/prices.json`:
 
 ```python
-from hmz import prices
+from hmz.coganchor import prices
 
 prices.cost(agent.spent(), agent.config.model)   # dollars, or None for an unlisted model
 prices.price("claude-haiku-4-5-20251001")        # Price(model="claude-haiku-4.5", …)

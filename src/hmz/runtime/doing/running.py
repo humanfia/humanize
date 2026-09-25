@@ -48,7 +48,6 @@ class Run:
         self._task = task
         self._outworlder = outworlder
         self._opened: list[Callable[[str, AgentBase, SessionBase], None]] = []
-        self._agents: list[AgentBase] = []
         self._epic: Path | None = None
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -95,12 +94,17 @@ class Run:
 
     @property
     def agents(self) -> tuple[AgentBase, ...]:
-        """The coganchor agent behind each session the run has opened, oldest first.
+        """The coganchor agent behind each session of the run still open, oldest first.
 
-        Each is named for the role it was opened for, which is what its events say.
+        Each is named for the role it was opened for, which is what its events say. Only the
+        open ones: a run that opens a session a round for a week holds no more than one that
+        opened one, and a session that closed has no agent left to reach.
         """
-        with self._lock:
-            return tuple(self._agents)
+        recorder = self._runner.recorder
+        if recorder is None:
+            return ()
+        held = (getattr(one, "agent", None) for one in recorder.sessions)
+        return tuple(one for one in held if one is not None)
 
     @property
     def epic(self) -> Path | None:
@@ -164,8 +168,6 @@ class Run:
         )
 
     def _told(self, role: str, agent: AgentBase, session: SessionBase) -> None:
-        with self._lock:
-            self._agents.append(agent)
         for callback in tuple(self._opened):
             callback(role, agent, session)
 

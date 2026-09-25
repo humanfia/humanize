@@ -344,6 +344,32 @@ def test_the_logs_of_a_session_are_linked_into_the_epic_that_opened_it(
     assert linked(epic) == {one.name: [str(log)]}
 
 
+def test_a_resumable_run_journals_each_session_by_the_id_its_cli_gave_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A CLI names a session as its first turn goes, and the journal says that name."""
+    standing_in(tmp_path, monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    written(
+        tmp_path,
+        "flow",
+        ONE.replace("params=FlowParams)", "params=FlowParams, resumable=True)"),
+    )
+
+    Runner(tmp_path / "flow", agents={"builder": AGENT}, budget=BUDGET).run(TASK)
+
+    (epic,) = epics()
+    (one,) = sessions(epic)
+    journaled = [
+        json.loads(line)
+        for line in (epic / "resume.jsonl").read_text().splitlines()
+        if '"t":"session"' in line
+    ]
+    assert [(said["role"], said["harness"], said["session"]) for said in journaled] == [
+        ("builder", "claude", one.ident)
+    ]
+
+
 def test_a_log_written_after_the_last_turn_is_linked_when_the_run_ends(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -418,12 +444,14 @@ def test_flows_calling_flows_read_back_as_the_tree_they_ran_in(
 
     (epic,) = epics()
     calls = tree(epic)
-    assert sorted((one.flow, len(one.calls), one.how) for one in calls) == [
-        ("flow:branch", 0, "done"),
-        ("flow:branch", 1, "done"),
+    assert sorted((one.flow, one.task, len(one.calls), one.how) for one in calls) == [
+        ("flow:branch", "left", 1, "done"),
+        ("flow:branch", "right", 0, "done"),
     ]
     (deeper,) = [one for one in calls if one.calls]
-    assert [(one.flow, one.how) for one in deeper.calls] == [("flow:branch", "done")]
+    assert [(one.flow, one.task, one.how) for one in deeper.calls] == [
+        ("flow:branch", "left", "done")
+    ]
     # Every session in the record of the call that opened it, and none in the run's own.
     records = {one.record for one in sessions(epic)}
     assert JOURNAL not in records

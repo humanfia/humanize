@@ -26,8 +26,12 @@ import asyncio
 import contextlib
 import json
 import math
+import time
+import weakref
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
+
+from . import telemetry
 
 if TYPE_CHECKING:
     import os
@@ -586,6 +590,7 @@ class Runner:
         )
         recorder = Recorder(epic, opened)
         self._recorder = recorder
+        _GOING.add(self)
         try:
             with epic:
                 if started is not None:
@@ -614,7 +619,7 @@ class Runner:
                     epic.stopped()
                     raise
                 finally:
-                    usage = recorder.usage()
+                    usage = recorder.finished()
                     epic.write(
                         "usage",
                         cost=usage.cost,
@@ -622,6 +627,7 @@ class Runner:
                         seconds=usage.duration.total_seconds(),
                     )
         finally:
+            _GOING.discard(self)
             await asyncio.shield(self._closed(local))
 
     async def aclose(self) -> None:
@@ -653,7 +659,12 @@ class Recorder:
     """What writes a run down as the engine runs it: a record per flow call, and each session.
 
     Answers to :class:`hmz.runtime.flowing.engine.Recorder`. Every call is told on the loop
-    the run is on.
+    the run is on; what the run has spent is read from any thread.
+
+    What the run has spent is the engine's own reckoning of it -- every turn of every session,
+    as its budget is held to -- rather than a sum over the sessions, so the recorder holds the
+    sessions still open and nothing of the ones that closed: a loop that opens a session a
+    round for a week holds as much as one that opened one.
 
     Attributes:
       started: Whether the flow the run was started with has been called, which is what
@@ -662,11 +673,20 @@ class Recorder:
 
     def __init__(self, epic: Epic, opened: Opened | None = None) -> None:
         """Holds the epic to write into, and what to tell of each session opened."""
+        import threading
+
         self._epic = epic
         self._opened = opened
         self._records: dict[int, Epic] = {}
-        self._sessions: list[SessionHandle] = []
+        self._lock = threading.Lock()
+        self._live: dict[int, SessionHandle] = {}
+        self._spent: Callable[[], Usage] | None = None
+        self._final: Usage | None = None
         self.started = False
+
+    def began(self, spent: Callable[[], Usage]) -> None:
+        """The run began, and `spent()` is what it has spent so far."""
+        self._spent = spent
 
     def entered(self, call: LiveCall) -> None:
         """A flow call started: the run's own, or one written into a record of its own."""
@@ -675,7 +695,9 @@ class Recorder:
             self._records[id(call)] = self._epic
             return
         above = self._records.get(id(call.parent), self._epic)
-        self._records[id(call)] = above.called(call.ref)
+        self._records[id(call)] = above.called(
+            call.ref, call.task, resumable=call.resumable
+        )
 
     def left(self, call: LiveCall, error: BaseException | None) -> None:
         """A flow call ended, which closes its record."""
@@ -697,15 +719,15 @@ class Recorder:
         self, call: LiveCall, role: str, session: SessionHandle, driver: AgentDriver
     ) -> None:
         """A flow call opened a session: named for its role, and written into its record."""
-        self._sessions.append(session)
+        with self._lock:
+            self._live[id(session)] = session
         record = self._records.get(id(call), self._epic)
         agent: AgentBase | None = getattr(session, "agent", None)
         if agent is None:
-            # A driver with no coganchor agent behind it -- a fake -- names its session as
-            # it opens it, and is written down then.
-            record.session(
-                role, str(driver.harness), driver.provider, session.id or "?"
-            )
+            # A driver with no coganchor agent behind it -- a fake -- is written down here,
+            # once it has said what it calls the session: now, or when it is `named`.
+            if session.id is not None:
+                record.session(role, str(driver.harness), driver.provider, session.id)
             return
         # Named for its role, and written down in the record of the call that opened it
         # once its CLI has said what it calls the conversation, which is its first turn.
@@ -715,30 +737,108 @@ class Recorder:
         if self._opened is not None and conversation is not None:
             self._opened(role, agent, conversation)
 
+    def named(
+        self, call: LiveCall, role: str, session: SessionHandle, driver: AgentDriver
+    ) -> None:
+        """A session was named as a turn of it went: written into its record, if it was not.
+
+        A coganchor agent writes its own session down as its CLI names it, into the record
+        :meth:`spawned` handed it; this is for a driver with none behind it.
+        """
+        if getattr(session, "agent", None) is not None or session.id is None:
+            return
+        record = self._records.get(id(call), self._epic)
+        record.session(role, str(driver.harness), driver.provider, session.id)
+
+    def closed(self, session: SessionHandle) -> None:
+        """A session closed, and is let go of: what it spent is already the run's."""
+        with self._lock:
+            self._live.pop(id(session), None)
+
     @property
     def sessions(self) -> tuple[SessionHandle, ...]:
-        """Every session the run has opened, oldest first."""
-        return tuple(self._sessions)
+        """Every session of the run still open, oldest first."""
+        with self._lock:
+            return tuple(self._live.values())
 
     def usage(self) -> Usage:
         """Everything the run's sessions have spent, up to the moment it is read."""
-        import datetime
-
         from hmz.flows import Usage
 
-        cost = 0.0
-        tokens = 0
-        seconds = 0.0
-        for session in tuple(self._sessions):
-            said = session.usage
-            cost += said.cost
-            tokens += said.output_tokens
-            seconds += said.duration.total_seconds()
-        return Usage(
-            duration=datetime.timedelta(seconds=seconds),
-            cost=cost,
-            output_tokens=tokens,
-        )
+        final, spent = self._final, self._spent
+        if final is not None:
+            return final
+        return Usage() if spent is None else spent()
+
+    def finished(self) -> Usage:
+        """The run is over: what it spent, kept as it stands, and the run let go of."""
+        final = self._final = self.usage()
+        self._spent = None
+        return final
+
+
+#: The runs going now in this process, for a report of a failure to say what was running.
+_GOING: weakref.WeakSet[Runner] = weakref.WeakSet()
+
+#: The most flow calls a report lists: a flow of ten thousand calls is described by its
+#: oldest, and by how many there were.
+_LISTED = 64
+
+
+def _about() -> dict[str, object]:
+    """What was running when a failure was reported: the flows, and what each role ran.
+
+    Registered with :mod:`telemetry` as `flow`, and asked only if a report is ever made.
+    Names and settings, never a task or a path: which flow, how deep, for how long, and each
+    agent role's CLI, model, effort, account by name, what it may do and the skills it carries.
+    """
+    from hmz.runtime.flowing import running
+
+    calls = running()
+    now = time.monotonic()
+    agents: list[dict[str, object]] = []
+    for runner in tuple(_GOING):
+        for role, driver in runner.agents.items():
+            declared = runner.declaration.agent(role)
+            may = (
+                ""
+                if declared is None
+                else " ".join(
+                    f"{scope}={getattr(declared.permission, scope)}"
+                    for scope in ("local", "user", "system", "online")
+                )
+            )
+            agents.append(
+                {
+                    "flow": runner.impl.ref,
+                    "called": role,
+                    "cli": str(driver.harness),
+                    "model": driver.model,
+                    "effort": driver.effort,
+                    "account": driver.provider or "as this machine is signed in",
+                    "may": may,
+                    "skills": list(declared.skills) if declared is not None else [],
+                }
+            )
+    return {
+        "flow": next((one.ref for one in calls if one.parent is None), ""),
+        "calls": len(calls),
+        "running": [
+            {
+                "flow": one.ref,
+                "deep": one.depth,
+                "under": one.parent.ref if one.parent is not None else "",
+                "for": round(now - one.since),
+            }
+            for one in calls[:_LISTED]
+        ],
+        "agents": agents,
+    }
+
+
+# Registered once, as the module is loaded: what it answers is what is running at the moment
+# of a report, rather than anything one run holds.
+telemetry.about("flow", _about)
 
 
 def _agent_drivers(

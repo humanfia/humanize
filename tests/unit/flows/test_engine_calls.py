@@ -58,6 +58,9 @@ from hmz.runtime.flowing.fakes import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from hmz.flows import Usage
     from hmz.runtime.flowing.spi import AgentDriver, SessionHandle
 
 
@@ -937,8 +940,11 @@ class Heard:
     def __init__(self) -> None:
         self.said: list[tuple[Any, ...]] = []
 
+    def began(self, spent: Callable[[], Usage]) -> None:
+        self.said.append(("began", spent().output_tokens))
+
     def entered(self, call: LiveCall) -> None:
-        self.said.append(("entered", call.name, call.depth))
+        self.said.append(("entered", call.name, call.depth, call.task))
 
     def left(self, call: LiveCall, error: BaseException | None) -> None:
         self.said.append(("left", call.name, type(error).__name__ if error else None))
@@ -948,23 +954,35 @@ class Heard:
     ) -> None:
         self.said.append(("spawned", call.name, role, session.id is not None))
 
+    def named(
+        self, call: LiveCall, role: str, session: SessionHandle, driver: AgentDriver
+    ) -> None:
+        self.said.append(("named", call.name, role))
+
+    def closed(self, session: SessionHandle) -> None:
+        self.said.append(("closed", session.id is not None))
+
 
 async def test_a_recorder_hears_every_call_and_session() -> None:
     @flow(agents=Solo, envs=Place, params=Nothing)
     async def recorded(
         task: str, *, agents: Solo, envs: Place, params: Nothing, ctx: FlowContext
     ) -> None:
-        await agents["agent"].spawn(env=envs["env"])
+        session = await agents["agent"].spawn(env=envs["env"])
         with pytest.raises(BoomError):
-            await boom(task, agents={}, envs={}, params=Depth())
+            await boom("under", agents={}, envs={}, params=Depth())
+        del session
+        await asyncio.sleep(0)
 
     heard = Heard()
-    await run_fake(recorded, recorder=heard)
+    await run_fake(recorded, "over", recorder=heard)
     assert heard.said == [
-        ("entered", "recorded", 1),
+        ("began", 0),
+        ("entered", "recorded", 1, "over"),
         ("spawned", "recorded", "agent", True),
-        ("entered", "boom", 2),
+        ("entered", "boom", 2, "under"),
         ("left", "boom", "BoomError"),
+        ("closed", True),
         ("left", "recorded", None),
     ]
 

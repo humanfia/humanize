@@ -11,7 +11,6 @@ src/hmz/
 ├── __main__.py       python -m hmz
 ├── coganchor/        everything humanize knows about driving a coding agent CLI
 ├── flows/            the whole of what a flow imports, and nothing else: types
-├── _legacy_flows/    the flow API before this one, until every way in has moved off it
 ├── runtime/          what a run is: driving one, writing it down, reading it back —
 │                     flowing/, which is everything humanize does to a flow, and
 │                     doing/, which is the whole of that as one object
@@ -44,7 +43,7 @@ for the anchor inside it, a program that ships to a target and could be lifted o
 | `runtime/flowing/` | Everything humanize does to a flow, and none of it a thing a flow names. **The engine**: defining a flow, calling one, the views a flow is handed, budgets, the resume journal, refs and the module cache. **The drivers** the engine runs over, behind one SPI: an agent driver per harness over `coganchor`, and an environment driver for this machine and for ssh hosts. The parsers `-a`, `-e`, `-p` and `-b` are read with, the in-memory fake kit a flow is tested on, and where flows come from, finding one by name and the skills a flow brings. | `run_flow`, `load_flow`, `define_flow`, `running`, `open_agent`, `open_env`, `local_env`, `parse_agents`, `parse_envs`, `parse_params`, `parse_budget`, `run_fake`, `found`, `find`, `fork`, `flowverses`, `brought` |
 | `coganchor/fallbacks.py` | The layer between an agent and its accounts: where a turn goes when the place taking it cannot take it at all, and how many times over it is taken again first. A step is written between two places — `CLI[@ACCOUNT]/MODEL` — rather than on the account, which `providers` already answers for. Names `backends` and nothing else. | `Falls`, `falls`, `points`, `retrying`, `tried`, `clear`, `chain`, `spec`, `reads`, `waits`, `POLICIES` |
 | `runtime/epic.py` | One run of one flow as a directory: the journal, the links to each session's log, and what a flow that can be picked up left behind. Written by `runner`, read by `tracing`, `cli` and `tui`. | `Epic`, `epics`, `read`, `opened`, `state`, `resumed` |
-| `runtime/runner.py` | Handing a flow the drivers its roles are filled with, and running it under an epic. Also reads the `hmz exec` line, which the interface starts a flow from too. | `Runner`, `flow_and_agents`, `read_agent`, `set_up_from` |
+| `runtime/runner.py` | Handing a flow the drivers its roles are filled with, and running it under an epic. Also reads the `hmz exec` line, which the interface starts a flow from too. | `Runner`, `Recorder`, `Refused`, `Line`, `read_line` |
 | `runtime/tracing/` | Reading the backends' logs back — and, for a profiled run, sampling the programs its agents start — and rendering both as one Chrome trace. | `collect`, `profile.Profiler` |
 | `runtime/doing/` | humanize as one object, and the front door `hmz.runtime` hands through. A workspace, what is remembered about it, the flows there are, the agents and accounts they run as, the runs already made and the run being made now. It composes the layers and restates none of them, and it reaches each of them from inside the call that needs it — which is what lets a caller name it without paying for the tracer. | `Hmz`, `Run` |
 | `tui/` | The terminal interface. It reaches the runtime through the daemon holding the run it is drawing. | `Humanize` |
@@ -106,9 +105,7 @@ runtime/flowing/
 ├── fakes.py          in-memory drivers for every seam, to test a flow on
 ├── finding.py        a flow by name, nearest first
 ├── skills.py         the skills a flow brings, its own and the ones it named
-├── verses.py         where flows come from when they come from somewhere else
-└── checking.py driving.py prophecy.py prophesying.py stepping.py proving.py
-                      the previous flow API's machinery, over _legacy_flows, and going with it
+└── verses.py         where flows come from when they come from somewhere else
 ```
 
 The line between those two is the point of them. A flow is somebody else's repository, so

@@ -20,8 +20,9 @@ runs under `Budget(cost=inf)`.
 ## Two agents, and the second is you
 
 `chat` drives an `assistant` and a `human` — the [outworlder](/features/human), whoever is outside
-the run, filled in by the runtime and never by `-a`. Saying something to the person is asking
-what to say next, and what they answer with is what they typed:
+the run, filled in by the runtime and never by `-a` — in `workspace`, a `LocalEnv`: the directory
+it was started in, which no `-e` names either. Saying something to the person is asking what to
+say next, and what they answer with is what they typed:
 
 ```python
 conversation = await assistant.spawn(env=workspace)
@@ -43,7 +44,8 @@ is said to you, and by then there is a conversation to carry on.
 
 ## Every capability the harness has
 
-`chat` declares a plain `Agent`, because it talks to whichever harness it is given — and it is
+`chat` declares a plain `Agent` — allowed the web, `Permission(online=PermissionKind.ALL)`, as a
+person talking to one would expect — because it talks to whichever harness it is given; and it is
 the one flow the runtime hands the harness's **full** view, so everything that harness can do is
 there: a `/goal` typed at it on a harness with one, a question the agent stops to ask put to you
 on a harness that asks. Every other flow gets exactly what it declared.

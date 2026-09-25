@@ -64,10 +64,13 @@ picked an earlier one up. A flow that says nothing runs from the top every time.
 
 ## Where it lives
 
-A resumable run keeps a **journal** beside its epic: one JSON line per thing a run picking it up
-needs — each flow call and how it ended, each write to a flow's state, each session opened, each
-temporary copy and scratch directory kept. It is appended to as the run goes, so a run that was
-killed rather than stopped still says what it got to.
+A resumable run keeps a **journal** inside its epic, `resume.jsonl`: one JSON line per thing a
+run picking it up needs — each flow call and how it ended, each write to a flow's state (a
+`{"t":"set",…}` line, and `{"t":"del",…}` for a key taken out), each session opened once its CLI
+has named it, each temporary copy and scratch directory kept. It is appended to as the run goes,
+so a run that was killed rather than stopped still says what it got to. There is no separate
+state file: what a run kept is read back off those lines, which is what
+`Hmz().epics.state(epic)` does from Python.
 
 State is kept **per call**, so a flow that calls [another
 one](/reference/flows#a-flow-that-calls-another-flow) is two flows, each keeping its own state
@@ -98,7 +101,9 @@ reviews of the rounds it had done, and a round with a different task is a new ro
 Temporary copies and scratch directories a resumable run made are kept rather than removed as
 the flow that made them ends, so the run picking it up finds them where they were.
 
-The budget is not picked up: a run picked up is held to the `-b` of the line that picked it up.
+What the budget has spent is not picked up. On a command line a run picked up is held to the
+`-b` of the line that picked it up; in the interface, to the budget the run it picks up was
+given, counted again from nothing.
 
 ## Running it again
 
@@ -111,9 +116,10 @@ changing `-p` on a `--resume` line does not start the run over; leaving `--resum
 
 ## Picking one up from the interface
 
-**`/resume`** picks up the newest run of the flow in force here that can be picked up: that
-run's own flow, on its own agents and environments, with its params and what it was asked to do.
-Which one that was comes back on the line that starts it —
+**`/resume`** picks up the last run here of a flow that can be picked up, whichever flow that
+was: that run's own flow, on its own agents and environments, with its params, its budget and
+what it was asked to do. Runs since of a flow that cannot be picked up — a conversation had in
+between — are passed over. Which one that was comes back on the line that starts it —
 
 ```
 carrying on from 20260910T021407.882Z-a3f19c: nightly on what that run left behind
@@ -124,22 +130,24 @@ they need to know first. Where there is nothing to pick up it says which reason 
 
 | | |
 | --- | --- |
-| `no run of <flow> here can be picked up` | Nothing has run that flow in this directory, or nothing that ran it kept a journal. |
+| `no flow has been run here` | Nothing has run in this directory at all. |
+| `no run here was of a flow that can be picked up` | Every run here was of a flow that neither said nor says it can be picked up. |
 | `<run> cannot be read back` | Its record is not one: a run that died mid-line left a line rather than an epic. |
-| `<flow> does not say it can be picked up` | Asked of the flow as it stands today, not of what the run recorded. |
+| `<flow> does not say it can be picked up` | Asked of the flow as it stands today, not of what the run recorded. The last run here was of a flow that said so then and does not now — and a run further back is not handed over instead. |
+| `<run> left nothing behind` | It was killed before its journal held anything. Say what to do and the flow starts from the top. |
 | `no picking a run up while a flow is running` | A run picked up is a flow started, and one is going. [ctrl+c twice or `/stop`](/user/stopping) stops it first. |
 | `no picking a run up while the flow is still stopping` | ctrl+c twice was pressed and the flow has not gone yet — it is closing out the turn it was in, and its journal is still being written. |
 
 `/resume` takes nothing after it: a line that names a run is said back rather than dropped.
-To carry on a run that is **not** the newest, open the list and go into that run — which is the
-next section.
+To carry on any other run, open the list and go into that run — which is the next section.
 
 ## Carrying an older one on
 
-`/epics` is every run of a flow in this directory, newest first: when it happened, which flow
-it was, what it was asked to do, how many sessions it opened, and a mark on the runs whose flow
-says it can be picked up. Enter goes **into** the run under the cursor — which says where that
-run is written down, and offers what there is to do with it:
+`/epics` is every run of a flow in this directory, newest first: when it happened, which flow it
+was, what it was asked to do, how many sessions it opened, and a mark on the runs whose flow
+says it can be picked up and that left a journal to pick up from. Enter goes **into** the run
+under the cursor — which says where that run is written down, and offers what there is to do
+with it:
 
 ![the /epics list with the run that can be picked up marked, and what opens inside one run:
 its directory, over resuming it and exporting it](/demo/epics.gif)
@@ -149,11 +157,13 @@ its directory, over resuming it and exporting it](/demo/epics.gif)
 | **resume this run** | Pick this run up, from where its journal says it got to |
 | **export it** | The whole run as one archive, its [trace](/user/tracing) and its session logs in it — see [Exporting a run](/user/export) |
 
-**It is `/resume` with the run already named.** The reasons a run cannot be picked up are said
-here in the same words, so the table above holds inside a run as well as at the prompt.
+**It is `/resume` with the run already named.** The reasons that run cannot be picked up are
+said here in the same words, so the table above holds inside a run as well as at the prompt,
+from `<run> cannot be read back` down.
 
-The mark in the list and that first row are one question, asked of the **flow** rather than of
-the run. The weaver may have rewritten it since, so what can happen next is what it says today:
+The mark in the list and that first row both ask the **flow** rather than the run — the mark
+asks as well that the run left a journal. The weaver may have rewritten the flow since, so what
+can happen next is what it says today:
 
 - A flow that has since dropped `resumable=True` has neither the mark nor the row, whatever the
   run wrote down at the time; where the row is gone, the reason stands under the list.
@@ -166,10 +176,10 @@ stops a flow.
 
 ## What carrying on runs
 
-The flow, its agents, its environments, its params and what it was asked to do all come off the
-run rather than off whatever the interface happens to be set up on — an agent swapped under it
-would be a different run wearing its name. The person at the prompt is not an agent anybody
-chose, so a flow that talks to one talks to whoever is there now.
+The flow, its agents, its environments, its params, its budget and what it was asked to do all
+come off the run rather than off whatever the interface happens to be set up on — an agent
+swapped under it would be a different run wearing its name. The person at the prompt is not an
+agent anybody chose, so a flow that talks to one talks to whoever is there now.
 
 ## An epic is never reopened
 

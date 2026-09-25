@@ -11,6 +11,7 @@ Nothing here reads the machine it runs on.
 
 from __future__ import annotations
 
+import asyncio
 import datetime
 import json
 import pathlib
@@ -355,8 +356,8 @@ def _runs() -> None:
 
     Invented, like everything else here -- the moments included, so that a rendered GIF says
     the same date tomorrow. What is not invented is the shape: this is `hmz.runtime.epic` writing
-    its own record, linking each session to the transcript above and keeping what a flow that
-    can be picked up left behind.
+    its own record, linking each session to the transcript above, and the engine's journal
+    keeping what a flow that can be picked up left behind.
     """
     from hmz.coganchor.agents import AgentConfig
     from hmz.runtime import epic as written_as
@@ -371,23 +372,75 @@ def _runs() -> None:
     written_as.uuid = _Invented()
 
     config = AgentConfig(model="claude-opus-4-8", effort="high")
+    budget = {"duration": None, "cost": 5.0, "output_tokens": None, "graceful": True}
     written_as._now = _ticks(0)  # noqa: SLF001 -- each run happened when it happened
     first = _Drove(id="builder", backend="claude", config=config)
-    with written_as.Epic("twice", [first], "work through TASK.md", WORK) as one:
+    with written_as.Epic(
+        "twice",
+        "work through TASK.md",
+        WORK,
+        ref="twice:twice",
+        agents=[written_as.Drove("builder", "claude", "claude-opus-4-8", "high")],
+        budget=budget,
+    ) as one:
         first.epic = one
         one.opened(first, SESSION)
 
     written_as._now = _ticks(LATER)  # noqa: SLF001
     second = _Drove(id="fixer", backend="claude", config=config)
     with written_as.Epic(
-        "nightly", [second], "keep the tests green", WORK, resumable=True
+        "nightly",
+        "keep the tests green",
+        WORK,
+        ref="nightly:nightly",
+        agents=[written_as.Drove("fixer", "claude", "claude-opus-4-8", "high")],
+        budget=budget,
+        resumable=True,
     ) as two:
         second.epic = two
         two.opened(second, NIGHTLY)
-        held = two.state("nightly")
-        held["rounds"] = 3
-        held["fixed"] = ["add() subtracted", "divide() raised nothing"]
+        asyncio.run(_kept(two.resume))
         _profile(two.path)
+        two.stopped()  # its budget ran out, which is how a loop like this one ends
+
+
+async def _kept(at: pathlib.Path) -> None:
+    """Writes what the resumable run kept into its journal, as the engine writes one.
+
+    Args:
+      at: The journal, inside the epic.
+    """
+    from hmz.runtime.flowing.journaling import Journal, digest
+
+    journal, _ = Journal.opened(at, asyncio.get_running_loop(), resume=False)
+    journal.call(
+        1,
+        0,
+        digest(
+            "nightly:nightly",
+            "keep the tests green",
+            ["fixer=claude@/claude-opus-4-8:high"],
+            b"{}",
+        ),
+        0,
+        b'"nightly:nightly"',
+    )
+    journal.set(1, "rounds", b"3")
+    journal.set(
+        1, "fixed", json.dumps(["add() subtracted", "divide() raised nothing"]).encode()
+    )
+    journal.note(
+        {
+            "t": "session",
+            "id": 1,
+            "role": "fixer",
+            "harness": "claude",
+            "model": "claude-opus-4-8",
+            "session": NIGHTLY,
+        }
+    )
+    journal.end(1, ok=False)
+    journal.close()
 
 
 #: What the invented run is to have spent its minutes on: an agent's turn is mostly other
@@ -466,7 +519,11 @@ def _settings() -> None:
     Settings(WORK).profiles(on=True)
     # And what this project was last set up to run, so that what humanize remembers about a
     # directory is a directory it has been used in.
-    Settings(WORK).remember("twice", ("",), [Runs("claude/claude-opus-4-8:high")])
+    Settings(WORK).remember(
+        "twice",
+        {"builder": Runs("claude/claude-opus-4-8:high")},
+        budget={"cost": 5.0},
+    )
 
 
 if __name__ == "__main__":

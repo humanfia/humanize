@@ -282,6 +282,8 @@ class FakeSession:
 
     @property
     def id(self) -> str | None:
+        if self.driver.names_late and not self._started:
+            return None
         return self._id
 
     @property
@@ -514,6 +516,8 @@ class FakeAgentDriver:
       output_tokens: How many tokens each answer writes.
       seconds: How long each answer is reported to take; nothing actually waits.
       forks: Whether it can fork a session.
+      names_late: Whether a session says its id only once its first turn has started, as a
+        real CLI's does, rather than as it opens.
 
     Attributes:
       sessions: Every session it opened, in order.
@@ -535,6 +539,7 @@ class FakeAgentDriver:
         output_tokens: int = 1,
         seconds: float = 0.0,
         forks: bool = True,
+        names_late: bool = False,
     ) -> None:
         self.harness = HarnessKind(harness)
         self.capabilities = (
@@ -550,6 +555,7 @@ class FakeAgentDriver:
         self.output_tokens = output_tokens
         self.seconds = seconds
         self.forks = forks
+        self.names_late = names_late
         self.sessions: list[FakeSession] = []
         self.live = 0
         self.peak = 0

@@ -229,6 +229,9 @@ export default defineConfig({
             { text: 'flame_chase', link: '/flows/flame-chase' },
             { text: 'rlar', link: '/flows/rlar' },
             { text: 'humanize1', link: '/flows/humanize1' },
+            { text: '…_agent_cleanup', link: '/flows/agent-cleanup' },
+            { text: 'recursive_lean_prover', link: '/flows/recursive-lean-prover' },
+            { text: 'aot', link: '/flows/aot' },
           ],
         },
         {
