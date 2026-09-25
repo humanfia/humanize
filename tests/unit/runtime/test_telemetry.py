@@ -74,8 +74,8 @@ def test_a_workspace_forgotten_is_forgotten_whichever_one_did_it(
     """A merge cannot see an absence: only what this instance read when it opened tells it."""
     from hmz.runtime.kept import Runs
 
-    Settings(tmp_path / "one").remember("chat", ("a",), [Runs("claude/m:high")])
-    Settings(tmp_path / "other").remember("rlar", ("a",), [Runs("codex/n:low")])
+    Settings(tmp_path / "one").remember("chat", {"a": Runs("claude/m:high")})
+    Settings(tmp_path / "other").remember("rlar", {"a": Runs("codex/n:low")})
 
     assert Settings(tmp_path / "one").forget(str((tmp_path / "other").resolve()))
 
@@ -332,7 +332,7 @@ def test_a_setting_written_elsewhere_survives_a_workspace_being_remembered(
 
     one, other = Settings(tmp_path), Settings(tmp_path)
     one.answers(enable_sentry=True)
-    other.remember("chat", ("a",), [Runs("claude/m:high")])
+    other.remember("chat", {"a": Runs("claude/m:high")})
 
     read = Settings(tmp_path)
     assert read.enable_sentry is True
@@ -347,9 +347,9 @@ def test_a_workspace_may_be_forgotten_without_forgetting_anything_else(
 
     Settings(tmp_path).answers(enable_sentry=False)
     kept = Settings(tmp_path)
-    kept.remember("chat", ("a",), [Runs("claude/m:high")])
+    kept.remember("chat", {"a": Runs("claude/m:high")})
     elsewhere = Settings(tmp_path / "other")
-    elsewhere.remember("rlar", ("a",), [Runs("codex/n:low")])
+    elsewhere.remember("rlar", {"a": Runs("codex/n:low")})
 
     assert Settings(tmp_path).forget()
 

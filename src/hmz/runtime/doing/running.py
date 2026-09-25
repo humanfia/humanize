@@ -1,68 +1,133 @@
 """A flow that is running, and the handful of things there are to do to one.
 
-:class:`hmz.runtime.runner.Runner` is a flow loaded and handed its agents; running it is a call that
-returns when the flow does, which for a loop meant to run for a week is not a call anything
-holding a terminal can make. This is that call put on a thread of its own, with the two things
-somebody watching a run asks for -- whether it is still going, and to stop it.
+:class:`hmz.runtime.runner.Runner` is a flow loaded and handed its drivers; running it is a
+coroutine that returns when the flow does, which for a loop meant to run for a week is not a
+call anything holding a terminal can make. This is that coroutine put on a loop of its own --
+here, or on a thread of its own -- with the things somebody watching a run asks for: what it
+has opened, what it has spent, whether it is still going, and to stop it.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import asyncio
+import threading
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    import threading
+    from collections.abc import Callable
+    from pathlib import Path
 
-    from hmz.coganchor.agents import AgentBase
+    from hmz.coganchor.agents import AgentBase, SessionBase
+    from hmz.flows import Budget, Usage
+    from hmz.runtime.epic import Epic
+    from hmz.runtime.flowing import Declaration, OutworlderDriver
+    from hmz.runtime.flowing.harnesses import Listener
     from hmz.runtime.runner import Runner
 
 __all__ = ["Run"]
 
 
 class Run:
-    """One run of one flow: the agents driving it, and how it ends."""
+    """One run of one flow: what it opened, what it spent, and how it ends."""
 
-    def __init__(self, runner: Runner, task: str) -> None:
-        """Holds a loaded flow and what it is to have its agents do.
+    def __init__(
+        self, runner: Runner, task: str, *, outworlder: OutworlderDriver | None = None
+    ) -> None:
+        """Holds a loaded flow and what it is to do.
 
         Nothing is started here: a run is started by :meth:`start`, or run to its return by
         :meth:`run`, so that whoever made one chooses which of the two they are holding.
 
         Args:
-          runner: The flow, loaded and handed the agents it declared.
-          task: What the flow is to have them do.
+          runner: The flow, loaded and handed its drivers.
+          task: What it is to do.
+          outworlder: Whoever is outside the run, or None for nobody -- an outworlder that is
+            always away, which is what a command line is.
         """
         self._runner = runner
         self._task = task
+        self._outworlder = outworlder
+        self._opened: list[Callable[[str, AgentBase, SessionBase], None]] = []
+        self._agents: list[AgentBase] = []
+        self._epic: Path | None = None
         self._thread: threading.Thread | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._running: asyncio.Task[Any] | None = None
+        self._stopping = False
         self._raised: BaseException | None = None
+        self._result: Any = None
+        self._lock = threading.Lock()
+
+    # ----------------------------------------------------------------------- what it is
+
+    @property
+    def flow(self) -> str:
+        """The flow, as it was named."""
+        return self._runner.flow
+
+    @property
+    def ref(self) -> str:
+        """The flow's canonical ref, which is what the running tree names it by."""
+        return self._runner.impl.ref
+
+    @property
+    def task(self) -> str:
+        """What it was asked to do."""
+        return self._task
+
+    @property
+    def declaration(self) -> Declaration:
+        """What the flow declares."""
+        return self._runner.declaration
+
+    @property
+    def budget(self) -> Budget:
+        """What the run may spend."""
+        return self._runner.budget
+
+    @property
+    def usage(self) -> Usage:
+        """What every session of the run has spent so far."""
+        from hmz.flows import Usage
+
+        recorder = self._runner.recorder
+        return Usage() if recorder is None else recorder.usage()
 
     @property
     def agents(self) -> tuple[AgentBase, ...]:
-        """Every agent this drives, the person the flow talks to among them."""
-        return self._runner.agents
+        """The coganchor agent behind each session the run has opened, oldest first.
+
+        Each is named for the role it was opened for, which is what its events say.
+        """
+        with self._lock:
+            return tuple(self._agents)
 
     @property
-    def unwatched(self) -> bool:
-        """Whether nothing at all will stop this run and nobody has said that is the point."""
-        return self._runner.unwatched
+    def epic(self) -> Path | None:
+        """The epic the run is written into, once it has started."""
+        return self._epic
 
     def unreadable(self) -> str:
-        """Which of the caps this run was given nothing in it can read, in words.
-
-        Returns:
-          One line about them, or "" where every cap set can be read.
-        """
+        """Which cap of the run nothing it drives can read, in words, or "" for none."""
         return self._runner.unreadable()
 
-    def unserved(self) -> str:
-        """Which of this flow's declarations its agents' backends could not carry, in words.
+    def watch(self, listener: Listener) -> None:
+        """Has everything every session of the run says reach `listener`, as it is said.
 
-        Returns:
-          One line per declaration given up by a place that wrote `insist=False`, or "" for
-          a run that carried everything its flow declared.
+        Args:
+          listener: What to tell -- the agent, the conversation and the event -- from
+            whichever thread a CLI is read on.
         """
-        return self._runner.unserved()
+        self._runner.watch(listener)
+
+    def opened(self, callback: Callable[[str, AgentBase, SessionBase], None]) -> None:
+        """Has each session the run opens told to `callback` as it opens.
+
+        Args:
+          callback: What to tell: the role, the coganchor agent and its conversation. Told
+            on the run's own loop, before the session's first turn.
+        """
+        self._opened.append(callback)
 
     @property
     def running(self) -> bool:
@@ -74,30 +139,68 @@ class Run:
         """Whatever the flow raised, for a run started on a thread of its own and now over."""
         return self._raised
 
-    def run(self) -> None:
+    @property
+    def result(self) -> Any:
+        """What the flow returned, for a run started on a thread of its own and now over."""
+        return self._result
+
+    # ------------------------------------------------------------------------- running
+
+    async def _main(self) -> Any:
+        """The run, on whichever loop is running it."""
+        with self._lock:
+            self._loop = asyncio.get_running_loop()
+            self._running = asyncio.current_task()
+            stopping = self._stopping
+        if stopping:
+            # Stopped before it began: nothing ran, and what it was given goes all the same.
+            await self._runner.aclose()
+            raise asyncio.CancelledError
+        return await self._runner.arun(
+            self._task,
+            outworlder=self._outworlder,
+            opened=self._told,
+            started=self._began,
+        )
+
+    def _told(self, role: str, agent: AgentBase, session: SessionBase) -> None:
+        with self._lock:
+            self._agents.append(agent)
+        for callback in tuple(self._opened):
+            callback(role, agent, session)
+
+    def _began(self, epic: Epic) -> None:
+        self._epic = epic.path
+
+    def run(self) -> Any:
         """Runs the flow here, until it returns.
+
+        On a loop of its own in this thread, which is where a signal reaches it; from a
+        thread already running a loop -- an interface, a test -- on a thread of its own, the
+        flow's turns being waited on by a loop this one must not hold.
+
+        Returns:
+          What the flow returned.
 
         Raises:
           BaseException: Whatever the flow raised, as it raised it.
         """
-        self._runner.run(self._task)
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self._main())
+        self.start()
+        self.wait()
+        if self._raised is not None:
+            raise self._raised
+        return self._result
 
     def start(self) -> None:
         """Starts the flow on a thread of its own, and returns at once.
 
-        One run in a container at a time, per process: the container a run works in is the
-        process's, since a flow that called another is one run working in one place -- so two
-        of these started at once with an image between them would be two runs reaching for
-        one container. Runs on this machine have no such thing between them. The second of
-        two is refused where the container is settled, which is on the thread this starts --
-        so what says so is :attr:`raised` rather than this call, and a caller holding two
-        runs in containers has to read it. :meth:`run` raises it where it stands.
-
         Raises:
           RuntimeError: If it has already been started.
         """
-        import threading
-
         if self._thread is not None:
             raise RuntimeError("this run has already been started")
         self._thread = threading.Thread(
@@ -106,9 +209,9 @@ class Run:
         self._thread.start()
 
     def _drives(self) -> None:
-        """Runs the flow, keeping whatever it raised for whoever asks afterwards."""
+        """Runs the flow, keeping what it returned or raised for whoever asks afterwards."""
         try:
-            self._runner.run(self._task)
+            self._result = asyncio.run(self._main())
         except BaseException as why:  # noqa: BLE001 -- kept rather than swallowed
             self._raised = why
 
@@ -127,23 +230,35 @@ class Run:
         return not self._thread.is_alive()
 
     def stop(self) -> None:
-        """Tells every agent to take no further turn, so the loop ends rather than handing on.
+        """Stops the flow: the turn under way is interrupted, and the flow unwinds.
 
-        The turn running now is closed out first: a flow told to stop unwinds in its own time.
-        :meth:`close` is what does not wait for it.
+        Every call of it raises where it stands, every session it opened is closed and every
+        temporary directory it made is taken away -- in its own time, which :meth:`close` does
+        not wait for. From any thread.
         """
-        for agent in self.agents:
-            agent.stop()
+        with self._lock:
+            self._stopping = True
+            loop, running = self._loop, self._running
+        if loop is None or running is None or loop.is_closed():
+            return
+        try:
+            loop.call_soon_threadsafe(running.cancel)
+        except RuntimeError:  # the loop closed between the two
+            return
 
     def close(self) -> None:
-        """Closes every conversation still open, which is the backend's process going.
+        """Stops the flow and ends every conversation still open, without waiting for it.
 
         What the flow gets back is a turn that failed, the same thing it would have got had
         the agent fallen over by itself. The last thing there is to do about a run.
         """
         import contextlib
 
+        self.stop()
+        recorder = self._runner.recorder
+        for handle in () if recorder is None else recorder.sessions:
+            with contextlib.suppress(Exception):
+                handle.interrupt()
         for agent in self.agents:
-            for session in agent.sessions:
-                with contextlib.suppress(Exception):
-                    session.close()
+            with contextlib.suppress(Exception):
+                agent.stop()

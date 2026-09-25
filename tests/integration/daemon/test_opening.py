@@ -132,8 +132,16 @@ def test_the_interface_is_handed_what_is_holding_the_run(workspace: Path) -> Non
         def run(self) -> None:
             return None
 
+        def said(self) -> dict[str, object]:
+            return {"flow": "chat"}
+
+    held = unittest.mock.Mock(spec=daemon.Held)
     with unittest.mock.patch("hmz.tui.Humanize", Stands):
-        cli.apart(unittest.mock.Mock(spec=daemon.Held))
+        cli.apart(held)
+
+    # And what the interface says about the run it holds is what a status question is told.
+    (hook,), _ = held.says.call_args
+    assert hook() == {"flow": "chat"}
 
     assert made["session"] is not None
     assert set(made) == {

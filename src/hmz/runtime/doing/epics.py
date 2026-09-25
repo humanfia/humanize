@@ -1,7 +1,7 @@
 """The runs of a workspace that have already happened, and what is gathered out of them.
 
-One run is one epic: a directory holding what happened, what each session was logged to, and what a
-flow that says it can be picked up left behind. What is written down as a run happens is
+One run is one epic: a directory holding what happened, what each session was logged to, and the
+journal of a flow that says it can be picked up. What is written down as a run happens is
 :mod:`hmz.runtime.epic`; reading the backends' own logs back is :mod:`hmz.runtime.tracing`;
 packaging one whole run up to send somewhere is :mod:`hmz.runtime.exporting`. All three are asked
 here, so that whatever is listing the runs -- a command line, the interface's own `/epics` -- asks
@@ -68,13 +68,23 @@ class Epics:
         return opened(epic)
 
     def resumed(self, flow: str) -> Path | None:
-        """The last run of one flow here, which is what running a resumable flow picks up."""
+        """The newest run of one flow here that can be picked up, which `--resume` picks up.
+
+        Args:
+          flow: The flow, by its canonical ref or as it was named when it was run.
+        """
         from hmz.runtime.epic import resumed
 
         return resumed(flow, self._workspace)
 
+    def picks_up(self, epic: Path) -> bool:
+        """Whether a run can be picked up from one epic: it kept a journal, and wrote in it."""
+        from hmz.runtime.epic import picks_up
+
+        return picks_up(epic)
+
     def state(self, epic: Path, flow: str = "") -> dict[str, Any]:
-        """What a flow that says it can be picked up left behind in one run."""
+        """What a resumable flow kept in one run: the run's own flow, or one it called by ref."""
         from hmz.runtime.epic import state
 
         return state(epic, flow)

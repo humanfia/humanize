@@ -396,19 +396,12 @@ def test_a_model_is_offered_at_the_rungs_this_account_lists_ids_for(
 
 
 def test_the_workspace_it_is_trusted_with_can_be_handed_back(cursor: _Calls) -> None:
-    """The one thing this driver overrules the bare command line about, and it is sayable.
+    """The one thing this driver overrules the bare command line about.
 
-    Trusted by default because a headless turn has nobody to answer the question; a flow
-    somebody is watching says so and gets Cursor's own behaviour back -- and asks beforehand
-    for the backend whose config has somewhere to say it as `settings:trust`, the name the
-    catalogue derives from the field rather than a second word minted beside it.
+    Trusted by default because a headless turn has nobody to answer the question; whoever is
+    watching says so and gets Cursor's own behaviour back.
     """
     from dataclasses import replace
-
-    from hmz.runtime.flowing.checking import catalogue
-
-    told = {one.name: one.backends for one in catalogue()}
-    assert told["settings:trust"] == frozenset({"cursor-agent"})
 
     CursorAgent(replace(cursors.CURSOR, trust=False)).new()("hello")
 

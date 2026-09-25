@@ -1,6 +1,6 @@
 """The flows there are, and the places they come from, as two objects rather than two modules.
 
-What a flow is, is :mod:`hmz._legacy_flows`; finding one, reading one and driving one is
+What a flow is, is :mod:`hmz.flows`; finding one, reading one and running one is
 :mod:`hmz.runtime.flowing`, and where the fetched ones are kept is the `verses` inside it.
 All of it is reached from here so that a command line, an interface and a
 daemon ask the one object rather than three modules apiece -- and so that the handful of
@@ -15,12 +15,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import os
     from pathlib import Path
-    from typing import Any
 
-    from pydantic import BaseModel
-
-    from hmz.coganchor.agents.allowance import Allowance
-    from hmz.runtime.flowing import Finding, Flowverse, Offer, Place, Prophecy, Running
+    from hmz.runtime.flowing import Declaration, Flowverse, LiveCall, Offer
 
 __all__ = ["Flows", "Flowverses"]
 
@@ -241,143 +237,29 @@ class Flows:
 
         return about(named)
 
-    def places(self, named: str | os.PathLike[str]) -> tuple[Place, ...]:
-        """Every agent a flow needs chosen for it, in the order it takes them."""
-        from hmz.runtime.flowing import wanted
+    def declared(self, named: str | os.PathLike[str]) -> Declaration:
+        """Everything a flow declares: its agent and environment roles, params and marks.
 
-        return wanted(named)
-
-    def check(
-        self, named: str | os.PathLike[str], *, static: bool = False
-    ) -> tuple[Finding, ...]:
-        """Reads a flow for what will not run, before anything runs it.
-
-        Two readings, in their order. The static one is pure `ast` over every file the
-        flow holds and executes nothing, which is the whole of what `static` keeps. The
-        second loads the flow and reads its live config model, in a subprocess held to a
-        clock -- and is left out where the first found an error: a flow that cannot run is
-        not one to run to find out more about.
+        What a picker offers a flow's roles from, and what a line naming them is read
+        against -- the roles the runtime fills among them, marked as such.
 
         Args:
-          named: The flow, by the name `-f` takes or by a path.
-          static: Only the reading that executes nothing.
-
-        An atlas gets the stricter of the two static readings, which is the compiling: its
-        body is a declaration rather than a program. It is chosen here rather than deeper
-        down because this is where both halves of the name are held, and which of the
-        atlases a file holds was asked for is half of it.
+          named: The flow, by the name `-f` takes, a path, or a ref.
 
         Returns:
-          Every finding, the static reading's first and nothing said twice: a finding the
-          static reading already made is not repeated off the live model.
-        """
-        from hmz.runtime.flowing import (
-            checked,
-            inside,
-            is_atlas,
-            prophesied,
-            proved,
-            reading,
-        )
-
-        whole = reading(str(named))
-        found = list(
-            prophesied(whole, name=inside(str(named))).findings
-            if is_atlas(whole)
-            else checked(whole)
-        )
-        if static or any(one.severity == "error" for one in found):
-            return tuple(found)
-        # By what each said and not by its code alone: the two readings make the same
-        # findings about different fields, and one dropped for sharing a code with another
-        # is a field nothing ever mentions.
-        proof = proved(whole, name=inside(str(named)), scenarios=())
-        said = {(one.code, one.said) for one in found}
-        found.extend(one for one in proof.findings if (one.code, one.said) not in said)
-        return tuple(found)
-
-    def prophecy(self, named: str | os.PathLike[str]) -> Prophecy | None:
-        """What an atlas compiles to, read without running any of it.
-
-        An atlas is a flow whose body is a graph: it is checked and compiled before
-        anything runs, and what runs is the prophecy that compiling made. This is that
-        prophecy -- the nodes, the edges, the shapes that flow along them, and one of these
-        again for every supernode.
-
-        Args:
-          named: The flow, by the name `-f` takes or by a path.
-
-        Returns:
-          The prophecy, or None for a flow that is not an atlas or does not compile --
-          which :meth:`check` says the reasons for.
-        """
-        from hmz.runtime.flowing import inside, prophesied, reading
-
-        return prophesied(reading(str(named)), name=inside(str(named))).prophecy
-
-    def foretell(self, named: str | os.PathLike[str]) -> str:
-        """Compiles an atlas and writes the prophecy into its own directory.
-
-        What lands is `prophecy.pkl`, which every run of that flow from then on walks
-        instead of compiling the atlas again: a repository that has been through the
-        compiling once has an answer worth shipping. :meth:`check` says when the file and
-        the source it came from have drifted apart.
-
-        Args:
-          named: The flow, by the name `-f` takes or by a path.
-
-        Returns:
-          Where it was written.
+          The declaration.
 
         Raises:
-          NotAFlow: If it is not an atlas, does not compile, or is a flow that is a single
-            file -- which has no directory of its own to ship anything in, what is beside
-            such a flow being the other flows.
+          FlowException: If the flow cannot be loaded -- not there, not a ref, written wrong
+            -- as the flow API names what went wrong.
         """
-        from pathlib import Path
+        from hmz.runtime.flowing import resolved
 
-        from hmz.runtime.flowing import PROPHECY, NotAFlow, at, kept
-
-        held = self.prophecy(named)
-        if held is None:
-            raise NotAFlow(
-                f"{named}: not an atlas that compiles -- "
-                f"Hmz().flows.check({named!r}) says why"
-            )
-        # "" for a flow that is a single file, which has no directory of its own: what is
-        # beside such a flow is the other flows, and none of it came with this one.
-        beside = at(str(named))
-        if not beside:
-            raise NotAFlow(
-                f"{named}: a flow that is one file has no directory to ship a prophecy "
-                "in -- make it a directory with an __init__.py in it"
-            )
-        into = Path(beside) / PROPHECY
-        into.write_bytes(kept(held))
-        return str(into)
-
-    def configures(self, named: str | os.PathLike[str]) -> type[BaseModel] | None:
-        """What a flow can be set up with, or None for one that takes no setting up."""
-        from hmz.runtime.flowing import configures
-
-        return configures(named)
-
-    def declared(self, named: str | os.PathLike[str]) -> Allowance | None:
-        """What a flow says a run of it may spend by default, or None for one with no opinion.
-
-        `Allowance()` is neither: it is a flow saying in its own file that it is meant to run
-        under nothing at all, which is what keeps a conversation from being asked to confirm
-        an unbounded run every time it is picked.
-        """
-        from hmz.runtime.flowing.driving import declared
-
-        return declared(named)
+        return resolved(str(named)).describe()
 
     def resumes(self, named: str | os.PathLike[str]) -> bool:
         """Whether a flow says it can be picked up where the last run of it left off."""
-        from hmz.runtime.flowing import resumes
-
-        return resumes(named)
+        return self.declared(named).resumable
 
     def fork(self, named: str, into: str | os.PathLike[str] | None = None) -> str:
         """Copies a flow into this project's own flows, whole -- what it imports and all.
@@ -402,36 +284,12 @@ class Flows:
 
         return fork(named, into)
 
-    def running(self) -> tuple[Running, ...]:
-        """Every flow running in this process now: the branch inside one, all of them outside.
+    def running(self) -> tuple[LiveCall, ...]:
+        """Every flow call going in this process now, oldest first.
 
-        Asked from inside a flow it answers with the branch that flow is on -- the one
-        somebody started, then each flow called to get there. Asked from anywhere else it
-        answers with every flow of the run, oldest first, each saying how deep it is and
-        what called it.
+        Each says its flow, how deep it is and which call made it: the running tree, read the
+        same way from anywhere, inside a flow or out.
         """
         from hmz.runtime.flowing import running
 
         return running()
-
-    def set_up_from(
-        self, said: str | os.PathLike[str]
-    ) -> tuple[dict[str, Any] | None, Allowance | None]:
-        """Reads what a flow is to be set up with, and what a run of it may spend, out of YAML.
-
-        Args:
-          said: The path to the file.
-
-        Returns:
-          What it holds field by field with the run's own `budget:` taken out of it -- that
-          one being a setting of the run rather than of the flow -- or None where it left
-          nothing for the flow at all. And the allowance that key said, or None where the
-          file said nothing about one.
-
-        Raises:
-          ValueError: If the file cannot be read, holds something that is not a mapping, or
-            says a budget that cannot be read as one.
-        """
-        from hmz.runtime.runner import set_up_from
-
-        return set_up_from(said)

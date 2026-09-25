@@ -795,27 +795,6 @@ def test_an_agent_handed_the_common_config_runs_at_what_was_always_sent(
     agent.stop()
 
 
-def test_each_of_the_four_is_a_capability_a_flow_can_ask_for_beforehand() -> None:
-    """Humanize deciding something on ZCode's behalf is something a flow may ask about.
-
-    The field is where the other answer is given; the name is what a place declares to be
-    refused an agent that has no such answer to give before its first turn. That name is
-    the field's own, under `settings:`, rather than a second word beside it: the catalogue
-    derives one per field, so a field renamed here is a name renamed there.
-    """
-    from hmz.runtime.flowing.checking import catalogue
-
-    told = {one.name: one.backends for one in catalogue()}
-
-    for name in (
-        "settings:titles",
-        "settings:native_search",
-        "settings:delivery",
-        "settings:protocol",
-    ):
-        assert "zcode" in told[name], name
-
-
 def test_a_failed_turn_says_what_zcode_said_about_it(
     server: _FakeServer, tmp_path: Path
 ) -> None:
