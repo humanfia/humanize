@@ -31,7 +31,11 @@ The run's [budget](/features/allowances) — `-b duration=…,cost=…,output_to
 spend it between them** rather than apiece, and that is the ordinary case rather than this
 flow's own arithmetic: a budget is the run's, and every agent of a run spends out of the one
 reckoning whichever of them was writing. The flow itself takes no params and declares no budget
-of its own, so `hmz exec` refuses to start it without a `-b`.
+of its own, so `hmz exec` refuses to start it without a `-b`. A spent budget raises
+`BudgetExceeded`, and `--resume` starts with whichever chaser was next.
+
+A turn that fails passes to the other chaser; three failures in a row end the run with the last
+one.
 
 ## What it keeps
 

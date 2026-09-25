@@ -24,19 +24,28 @@ sends the task, and only once a turn has actually landed does the prompt become 
 try:
     answered = await agent.run(prompt, session=session)
 except HarnessError:
+    failed += 1
+    if failed >= 3:
+        raise
     answered = ""
+else:
+    failed = 0
 if answered:
     prompt = "continue"
 ```
 
-A turn that failed — a backend that fell over before it said anything — lands nothing, and the
-next round sends the task rather than nudging a session that never got it.
+A turn that failed or answered nothing — a backend that fell over before it said anything — is
+sent again: the task until a turn has answered, `continue` after. Three failed turns in a row
+end the run with the last failure.
 
 ## What ends it
 
 The run's [budget](/features/allowances) — `-b duration=…,cost=…,output_tokens=…` — held to at
 every turn of the session rather than implemented here. The flow itself takes no params and
-declares no budget of its own, so `hmz exec` refuses to start it without a `-b`.
+declares no budget of its own, so `hmz exec` refuses to start it without a `-b`. The turn that
+finds it spent raises `BudgetExceeded`, which is how the run ends, and `--resume` carries on
+counting rounds under a fresh `-b`. Three failed turns in a row end it sooner, with the last
+failure.
 
 ## What it keeps
 

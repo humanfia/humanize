@@ -916,6 +916,8 @@ of them — and two of one name are refused with `FlowDefinitionError`.
 
 `hidden=True` keeps an implementation flow, used only by the flows that load it, out of the
 lists and the `/flow` picker without losing its name: it remains callable as `<flow>:<name>`.
+The lists show the flow a bare name means under the directory's name, and every other visible
+flow of the module as `<flow>:<name>`.
 
 ## A flow that calls another flow
 
@@ -1202,7 +1204,7 @@ is the conversation, and the harness logged it.
 ## The official flowverse
 
 Everything else humanize offers is in [humanfia/flowverse](https://github.com/humanfia/flowverse),
-fetched the first time somebody wants what is in it. [Flows](/flows/) is the same list with the
+fetched as `/flow` first opens, or with `r` at `/flowverses`. [Flows](/flows/) is the same list with the
 shape of each one drawn.
 
 | Flow | Roles | What it does |
@@ -1217,7 +1219,11 @@ shape of each one drawn.
 | `humanize1:gen-plan` | `planner`, `analyst` | Turns that draft into a plan both sides have converged on. |
 | `humanize1:rlcr` | `builder`, `reviewer`, `human` | Builds the plan under review until nothing is left to say. Run it in a git repository. |
 | `parallel_flame_chase` | `coordinator`, `lane_1_actor_a` … `lane_3_actor_b`, `human` | A coordinator plans three isolated lanes; six actors alternate two to a lane and coordinate by durable report. |
-| `parallel_flame_chase_git_pr` | `orchestrateor`, `lane_1_actor_a` … `lane_3_actor_b`, `human` | The same three lanes, each in a clone of its own, landing work through pull requests that are merged only when an evaluator's receipt says they improve `main`. |
+| `parallel_flame_chase_git_pr` | `orchestrator`, `lane_1_actor_a` … `lane_3_actor_b`, `human` | The same three lanes, each in a clone of its own, landing work through pull requests that are merged only when an evaluator's receipt says they improve `main`. |
+| `ralph_loop_agent_cleanup` | `agent`, `cleaner`, `human` | `ralph_loop`, with a cleaner that distills the workspace every few turns. Every agent role is declared with `SteeringAgentMixin`. |
+| `flame_chase_agent_cleanup` | `first_chaser`, `second_chaser`, `cleaner`, `human` | `flame_chase`, with the same cleaner. |
+| `recursive_lean_prover` | `worker`, `reviewer` | A Lean theorem proved by recursive decomposition, each node planned and built by `humanize1`'s phases in a worktree of its own. |
+| `aot` | `writer`, `critic`, `human` | Writes a flow from a description, and lands it only once it has loaded, run on fakes and been read by a critic. |
 
 A `human` role is [the person at the prompt](#the-person-at-the-prompt) and a `workspace` the
 directory the run was started in, both filled by the runtime. None of them declares a budget of

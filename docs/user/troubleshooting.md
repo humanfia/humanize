@@ -12,7 +12,7 @@ happened.
 
 ## Starting a flow
 
-### `no agent was given for 'reviewer'`
+### `… needs an agent for 'reviewer'; give each with -a ROLE=CLI/MODEL:EFFORT`
 
 The flow declares an agent role nothing on the line filled. Give one `-a` per agent role, by
 the role's name:
@@ -36,15 +36,16 @@ for role in flow.describe().agents:
 A role typed as an `Outworlder` — the person — and one typed as a `LocalEnv` — the directory
 the run started in — do **not** need filling. Nobody chooses what the person runs.
 
-### `<flow> declares no agent role 'builder'`
+### `<flow> has no agent role 'builder'; its agent roles are …`
 
 The line named a role the flow has not got — a typo, or the name another flow gives its agent.
 The flows each name their own: `agent` for `ralph_loop`, `actor` and `reviewer` for `rlar`.
 
-### `the agent role 'human' is filled by the runtime, and cannot be given`
+### `'human' is filled by the runtime -- whoever is outside the run -- and is not given with -a`
 
 The line named a role humanize fills itself: an `Outworlder`, which is whoever is outside the
-run, or a `LocalEnv`, which is the directory the run was started in. Take it off the line.
+run, or — as `… is the workspace the run is started in, and is not given with -e` — a
+`LocalEnv`, which is the directory the run was started in. Take it off the line.
 
 ### `-a 'claude/claude-opus-5:high': expected <role>=<harness>[@<provider>]/<model>:<effort>`
 
@@ -63,7 +64,7 @@ An `-a` is missing a part. The CLI, the model and the effort are all three requi
 The CLI is read from the front and the effort from after the **last** colon. A model with
 slashes in it, such as `kimi/kimi-code/k3:high`, is fine.
 
-### `… needs a budget`
+### `… a run is given a budget -- -b duration=...,cost=...,output_tokens=... -- and this one was given none`
 
 Every flow but `chat` is run under a budget, and `hmz exec` will not start one without it:
 
@@ -74,7 +75,7 @@ Every flow but `chat` is run under a budget, and `hmz exec` will not start one w
 
 See [Run it unattended](/user/unattended#say-what-the-run-may-spend).
 
-### `'worker' needs GoalCommandAgentMixin, which pi does not serve`
+### `'worker' needs GoalCommandAgentMixin, which pi does not do`
 
 The role declares something that CLI cannot do — a goal, being steered, a hook only some CLIs
 reach. The flow is written for agents that can; pick a CLI that serves it. Which does what is in
@@ -268,14 +269,13 @@ If it does not, run fewer opencode agents at once.
 
 ### `codex: this machine will not run an agent at bypass, so it runs at auto`
 
-Not a failure: a note, said once per agent whose flow declared `bypass`. This Codex was given
-requirements by somebody else — an enterprise policy that arrives with the account, or a
-`requirements.toml` on a machine whose platform packages Codex — forbidding the
-`danger-full-access` sandbox that [`bypass`](/user/permissions) is. Codex refuses such a call
-outright, so humanize asks again a rung down, at `auto`: the same freedom, with Codex asking
-before it reaches past the workspace and humanize granting what it asks. Ask for the agent at
-`permission=auto` to say it yourself and skip the note. What the machine allows is its own to
-say:
+Not a failure: a note, said once per agent that runs at `bypass` — one whose role may write its
+workdir. This Codex was given requirements by somebody else — an enterprise policy that arrives
+with the account, or a `requirements.toml` on a machine whose platform packages Codex —
+forbidding the `danger-full-access` sandbox that [`bypass`](/user/permissions) is. Codex refuses
+such a call outright, so humanize asks again a rung down, at `auto`: the same freedom, with
+Codex asking before it reaches past the workspace and humanize granting what it asks. What the
+machine allows is its own to say:
 
 ```sh
 cat /etc/codex/requirements.toml
@@ -292,15 +292,16 @@ drives the CLI you already have; it holds no API key and talks to no model provi
 command -v claude codex kimi pi opencode mimo zcode
 ```
 
-### `no choosing a flow while a flow is running: ctrl+c twice stops it first`
+### `a flow is running; no choosing a flow`
 
-Or `no switching flow while a flow is running`. Choosing a flow means running it, which means
+A `/flow <name>` or a `$` line while a flow runs. Choosing a flow means running it, which means
 stopping whatever was running — and humanize says so rather than doing it behind your back.
 Press ctrl+c twice first, or type [`/stop`](/user/stopping), which is the same stop asked once.
+`/flow` on its own is not refused: it opens inside the roles of the flow that is going.
 
 ### `a flow is already running`
 
-This has the same cause, from a `/flow` that named a path.
+This has the same cause: a flow was to be started while another was still running.
 
 ### `say on or off, not 'yes'`
 

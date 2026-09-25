@@ -20,8 +20,10 @@ hmz exec -f humanize1:rlcr \
     -b duration=2d,cost=300 -p max=20 "build it"
 ```
 
-`rlcr`'s third role, `human`, is you — the [outworlder](/features/human), filled in by the
-runtime rather than by `-a`.
+`humanize1` has no flow of the directory's own name, so a bare `-f humanize1` is refused,
+listing the three: name a phase, `humanize1:<phase>`. All three work in `workspace`, the
+directory the run was started in, and `rlcr`'s third role, `human`, is you — the
+[outworlder](/features/human), filled in by the runtime rather than by `-a`.
 
 Three rather than one because each is set up on its own agents, and what passes between them is
 a file, as it is in the plugin — the draft, then the plan. So an idea may be opened on one
@@ -36,16 +38,22 @@ review reads what came after it.
 <HmzFlowShape flow="humanize1-gen-idea" />
 
 One agent, `n` directions explored at once, one draft written out. `n` and `output` are the two
-params, under the names the plugin gives them: `-p n=5,output=IDEA.md`.
+params, under the names the plugin gives them: `-p n=5,output=IDEA.md`. `n` is 6 unless it is
+given, from 2 to 10; an `output` left blank writes `.humanize/ideas/<slug>-<stamp>.md`, and one
+that already exists is refused.
 
 ## 2 · `gen-plan`
 
 <HmzFlowShape flow="humanize1-gen-plan" />
 
 The planner holds one session for the whole of the planning; the analyst arrives fresh each
-time and reads the plan against the repository. They converge, or the round limit stops them.
-`input` names the draft to plan from, `mode` is `discussion` or `direct`, and
-`alternative_plan_language` writes a translated plan beside the plan.
+time and reads the plan against the repository. They converge — up to three review rounds,
+stopping after two in which nothing material changed. `input` names the draft to plan from (the
+newest `.humanize/ideas/*.md` where it is blank), `output` the plan to write (`docs/plan.md`,
+which must not exist yet), `mode` is `discussion` or `direct`, `alternative_plan_language`
+writes a translated plan beside the plan, and `turn_timeout`, `total_timeout` (3600 and 14400
+seconds, `0` for none) and `turn_retries` (1) bound the agents' turns. A decision the two left
+`PENDING` fails the run once the plan is written.
 
 ## 3 · `rlcr`
 
@@ -58,11 +66,14 @@ here it is the flow's own loop, builder, gates and reviewer, which reads the sam
 harness. The plugin's tool validators are hooks, as they are there: an
 [`on_permission_request` hook](/features/hooks) on the builder, which is why the builder's role
 is declared with `PermissionRequestHookAgentMixin` and has to be a harness that asks — Claude
-Code, Codex, Kimi Code or ZCode.
+Code, Codex, Kimi Code or ZCode — beside an `on_pre_tool_use` hook that watches what it reads
+and its task list, and an `on_user_prompt_submit` hook on its opening prompt.
 
 Every flag the plugin takes is a field on that phase's own params, under the plugin's own name
-for it: `max`, `full_review_round`, `skip_code_review`, `plan_file`, `base_branch`, and the rest.
-`-p` sets any of them, and the params form in `/flow` is all of them.
+for it: `max` (42), `full_review_round` (5), `codex_timeout` (5400 seconds), `skip_code_review`,
+`plan_file` (`docs/plan.md` where it is blank), `base_branch` (`origin/HEAD`, then `main`, then
+`master` where it is blank), `skip_quiz`, `yolo`, and the rest. `-p` sets any of them, and the
+params form in `/flow` is all of them. The task on the line is not read: the plan is the task.
 
 It writes what the plugin writes, where the plugin writes it: `.humanize/rlcr/<timestamp>/`
 with `state.md`, `goal-tracker.md`, and a prompt, summary, contract and review per round — so
@@ -77,13 +88,16 @@ The plugin's mechanism, where humanize's is not the same mechanism:
 | `codex review --base <ref>` | Takes no prompt and is a Codex feature. Here the reviewer is whichever agent was chosen, so the code review is **asked for**, in a prompt that asks for exactly the `[P0-9]` output the loop then reads the same way. |
 | `--codex-timeout` | A review that runs past it is treated as a review that failed, which is the state the plugin's own timeout leaves the round in. |
 | `/humanize:ask-codex` | A task the plan tags `analyze` is a shell script the builder runs there. Here the builder has no way to reach the reviewer mid-round, so it is told to put the question in its round summary, where the reviewer answers it. |
-| The plan quiz | Put to `human`, the outworlder, the way a coding agent's own question is put — so a run with nobody at the prompt is answered for at once rather than waiting for a person who is not there. |
+| The plan quiz | Put to `human`, the outworlder, only when somebody is there: the reviewer writes the questions and you pick an answer to each. With nobody at the prompt — `hmz exec`, `/afk` — it is skipped, and no reviewer turn is spent on it. |
 
 ## What it keeps
 
 `rlcr` is meant to run for days, so a run of it can be picked up with `--resume`: it keeps
-**which** `.humanize/rlcr/` directory the loop is in and the round it reached, and reads
-`state.md` back as it stands rather than stamping a new directory beside a week of rounds. Everything else is
+**which** `.humanize/rlcr/` directory the loop is in and the round it reached, reads `state.md`
+back as it stands rather than stamping a new directory beside a week of rounds, and sends the
+round's saved prompt to a new builder session. It ends `complete` — the reviewer saying so and a
+clean code review — `maxiter` on its `max` rounds, `stop` where the reviewer or the drift breaker
+says to, or `unexpected`. Everything else is
 already in that directory in the plugin's own format, and a second copy here would be a second
 place for it to be wrong.
 

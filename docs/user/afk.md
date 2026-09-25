@@ -50,7 +50,8 @@ the answer, rather than a word in the turn. The agent's offer appears with it, b
 not limited to those options — every backend that offers them also takes something else.
 
 A question still up when the flow ends or is stopped ends with it, so stopping a flow is never
-blocked on a question.
+blocked on a question. One still up when you turn `/afk` on is answered by nobody at all, which
+the flow hears as `OutworlderAway`.
 
 ## On a command line
 

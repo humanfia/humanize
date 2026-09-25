@@ -147,8 +147,8 @@ and three to run. Each asks only for the roles it drives.
 
 At the prompt a flow is named by that same name, and a `$` in front of it
 [starts one outright](/reference/tui#starting-a-flow-outright): `$ralph_loop fix the failing
-test` is that flow, run on that line — the menu only opens if this directory has never set
-that flow up.
+test` is that flow, run on that line — the menu only opens if that flow is not set up in this
+directory.
 
 See [Flows](/reference/flows).
 

@@ -62,8 +62,8 @@ In Python the account is a field of the config:
 ClaudeCodeAgentConfig(model="claude-opus-5", effort="max", provider="deepseek")
 ```
 
-At the prompt it is the **account** row of the sheet an agent is set up on, which is the second
-page of `/flow`. It sits under the `cli` row, because an account belongs
+At the prompt it is the `provider` row of the sheet an agent is set up on, which enter on one of
+a flow's roles in `/flow` opens. It sits under the `cli` row, because an account belongs
 to one backend: what signs in to Claude Code is not what signs in to codex. Opening it lists
 that CLI's own accounts with `as local` first:
 
@@ -336,8 +336,8 @@ $ hmz exec -f ralph_loop -a agent=claude@gone/claude-opus-5:max -b cost=5 "…"
 … no claude provider called 'gone'
 ```
 
-In the interface, an agent given an account that has since been taken away is a red line when
-the flow is started, before any turn has run.
+In the interface it is the same: an agent given an account that has since been taken away
+fails the first turn it takes, naming the account that is not there.
 
 ## When one goes down
 

@@ -11,7 +11,7 @@ configuration that did best in a twelve-hour Git PR Lite experiment, and nothing
 
 ```sh
 hmz exec -f parallel_flame_chase_git_pr \
-    -a orchestrateor=codex/gpt-5.6-sol:max \
+    -a orchestrator=codex/gpt-5.6-sol:max \
     -a lane_1_actor_a=codex/gpt-5.6-sol:max,lane_1_actor_b=claude/claude-opus-5:max \
     -a lane_2_actor_a=claude/claude-opus-5:max,lane_2_actor_b=codex/gpt-5.6-sol:max \
     -a lane_3_actor_a=claude/claude-opus-5:max,lane_3_actor_b=codex/gpt-5.6-sol:max \
@@ -24,13 +24,16 @@ hmz exec -f parallel_flame_chase_git_pr \
 
 | | |
 | --- | --- |
-| `orchestrateor` | Plans the three lanes, once |
+| `orchestrator` | Plans the three lanes, once |
 | `lane_1_actor_a` · `lane_1_actor_b` | Lane 1, alternating in fresh turns, in a clone of its own |
 | `lane_2_actor_a` · `lane_2_actor_b` | Lane 2, the same |
 | `lane_3_actor_a` · `lane_3_actor_b` | Lane 3, the same |
 
 The eighth role, `human`, is you — the [outworlder](/features/human), filled in by the runtime
 and never by `-a`. There is no reviewer role: nothing here asks a model whether a change is good.
+The lane actors declare `Permission(user=ALL)` — they push to the run's central repository and
+write receipts outside their own clone — every role carries the flow's skill, and none is
+declared with the goal mixin, so any harness can fill any of them.
 
 ## A pull request is merged by a measurement
 
@@ -53,22 +56,29 @@ turn the measured workflow into a different one by accident.
 
 ## What it takes
 
-The base flow's params — `rest_seconds`, `resume_mode`, the large-workspace thresholds — each a
-`-p`. Before it makes its copies it measures the source, and warns where the planning tree, the
-three lane clones, the integration clone and the git objects between them come to more than the
-thresholds; `-p confirm_large_workspace_copies=true` makes it ask first instead.
+The base flow's params — `rest_seconds` (`1.0`), `resume_mode` (`auto`), the large-workspace
+thresholds (`5000` files, `1073741824` bytes) — each a `-p`. Before it makes its copies it
+measures the source, and warns where the planning tree, the three lane clones, the integration
+clone and the git objects between them come to more than the thresholds;
+`-p confirm_large_workspace_copies=true` makes it ask first instead — and under `hmz exec`,
+where nobody is there to answer, the run does not start.
 
 The [skill](/user/skills) it brings, `parallel-flame-chase-git-pr`, is the lane, pull-request and
 receipt protocol, carried by every session the flow opens.
 
 Like the base flow, its lanes go on for as long as it runs, so the run's
-[budget](/features/allowances) is its end: give `-b` a duration.
+[budget](/features/allowances) is its end: give `-b` a duration. When it is spent the turns under
+way land and are recorded, and `BudgetExceeded` ends the run — `--resume` carries it on.
 
 ## What it keeps
 
 The central repository's refs, the receipts, the artifacts, the report archive and the official
-ledger, for a run picked up with `--resume`. The original source is assumed not to change
-outside the flow while it holds the source lock.
+ledger, for a run picked up with `--resume` — all of it in a scratch directory of the workspace
+under humanize's home, `~/.humanize/envs/<workspace>-<digest>/scratch/parallel_flame_chase_git_pr-<run-id>-…`,
+which a call from a flow that cannot be picked up has removed when it ends. `-p resume_mode=fresh`
+starts another run. The original source is assumed not to change outside the flow while it holds
+the source lock, which it shares with [`parallel_flame_chase`](/flows/parallel-flame-chase): a
+second run over the same source, of either flow, refuses to start.
 
 ## See also
 

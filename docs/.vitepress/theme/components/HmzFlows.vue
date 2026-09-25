@@ -13,9 +13,9 @@ import { FLOWS, type Place } from '../flows'
 // separates is which of the two places one is kept in, which is the one thing that shows --
 // the package is there before anything has been fetched, and the repository is not.
 const WHERE: { id: Place | 'all'; said: string; note: string }[] = [
-  { id: 'all', said: 'every flow', note: 'eleven, and humanize 1 is three of them' },
+  { id: 'all', said: 'every flow', note: 'fourteen, and humanize 1 is three of them' },
   { id: 'package', said: 'in the package', note: 'chat, which is there before anything is fetched' },
-  { id: 'flowverse', said: 'the official flowverse', note: 'humanfia/flowverse, fetched the first time somebody wants it' },
+  { id: 'flowverse', said: 'the official flowverse', note: 'humanfia/flowverse, fetched as /flow first opens' },
 ]
 
 const place = ref<Place | 'all'>('all')

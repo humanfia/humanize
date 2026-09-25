@@ -38,6 +38,7 @@ Sleep 3s
 Screenshot "/out/run-linked.png"
 Sleep 600ms
 
-# What a flow that says it can be picked up left for the next run of it.
-Type 'cat "$run"state.json' Enter
+# What a flow that says it can be picked up left for the next run of it: the engine's
+# journal, whose `set` lines are the state `--resume` hands back.
+Type 'cat "$run"resume.jsonl' Enter
 Sleep 2800ms

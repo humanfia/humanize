@@ -33,21 +33,26 @@ never by `-a`:
 | `lane_2_actor_a` · `lane_2_actor_b` | Lane 2, alternating, in a snapshot of its own |
 | `lane_3_actor_a` · `lane_3_actor_b` | Lane 3, alternating, in a snapshot of its own |
 
-None of the seven is declared with the [goal](/features/goals) mixin, because a lane's turn
-ends where the lane protocol says it ends rather than where a model decides it has met the
-objective. The flow declares it, so it holds for whichever agents the run is given: a `/goal`
-through any of them is refused.
+Every one of the seven declares full permission — `Permission(local=ALL, user=ALL, system=ALL,
+online=ALL)` — and the flow's skill, so any harness can fill any of them. None is declared with
+the [goal](/features/goals) mixin, because a lane's turn ends where the lane protocol says it
+ends rather than where a model decides it has met the objective. The flow declares it, so it
+holds for whichever agents the run is given: a `/goal` through any of them is refused.
 
 ## One writer, and two that cannot write
 
-A per-source advisory lock permits only one lane 1 owner; lanes 2 and 3 are confined to
+A per-source lock permits only one lane 1 owner — shared with
+[`parallel_flame_chase_git_pr`](/flows/parallel-flame-chase-git-pr), so a run of either refuses a
+source the other holds; lanes 2 and 3 are confined to
 snapshots, and the runtime's control paths reject links and replacements. What they produce
 reaches lane 1 as a **report** and a hashed, reconstructable artifact package, and reports are
 redelivered until the receiving lane completes a valid turn and acknowledges them, so a lane
 that fell over does not lose what it was told.
 
-Durable data lives under `~/.humanize/parallel_flame_chase/<workspace-key>/<run-id>/`. The flow
-coordinates local work only: there is no release, deployment, submission, messaging or purchase
+Durable data lives in a scratch directory of the workspace,
+`~/.humanize/envs/<workspace>-<digest>/scratch/parallel_flame_chase-<run-id>-<digest>/`: kept
+for `--resume` by a run that can be picked up, and removed when the flow is called from one that
+cannot. Lane 1's work in the source stays either way. The flow coordinates local work only: there is no release, deployment, submission, messaging or purchase
 executor in it.
 
 ## What it takes
@@ -56,16 +61,18 @@ Its params, each a `-p`:
 
 | | |
 | --- | --- |
-| `rest_seconds` | what the single-writer scheduler rests between control passes; `1.0` |
+| `rest_seconds` | what the single-writer scheduler rests between control passes; `1.0`, from `0.05` to `60` |
 | `resume_mode` | `auto`, or `fresh` to deliberately start another run |
-| `confirm_large_workspace_copies` | whether to ask before copying a very large workspace; `false` |
-| `workspace_file_warning_threshold` · `workspace_copy_warning_threshold_bytes` | what counts as very large |
+| `confirm_large_workspace_copies` | whether to ask before copying a very large workspace; `false`. With `true`, a run with nobody to answer — `hmz exec` — stops before copying |
+| `workspace_file_warning_threshold` · `workspace_copy_warning_threshold_bytes` | what counts as very large; `5000` files, `1073741824` bytes |
 
 The [skill](/user/skills) it brings, `parallel-flame-chase`, is the actor, report, artifact,
 checkpoint and resume protocol — carried by every session the flow opens.
 
 Its lanes are scheduled again for as long as it runs, so the run's
-[budget](/features/allowances) is the only end there is: give `-b` a duration.
+[budget](/features/allowances) is the only end there is: give `-b` a duration. When it is spent
+the turns under way land and are recorded, the run is marked stopped, and `BudgetExceeded`
+ends it — `--resume` carries it on under a fresh `-b`.
 
 ## What it keeps
 

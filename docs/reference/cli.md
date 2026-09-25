@@ -263,13 +263,23 @@ already behind it:
   required role left unfilled — a role the flow declares `NotRequired` may be left out;
 - an agent whose harness cannot serve what its role declares, or a role typed as one harness's
   own protocol given another harness;
-- an environment short of what its role declares;
+- an environment short of what its role declares, or one that cannot be reached — every
+  environment the line gives is probed before the flow is called;
 - params the flow's model refuses;
 - a skill a role names that cannot be found or fetched.
 
+Each is one line on stderr, `hmz exec: error: …`, and exit status 2. A line argparse itself
+cannot read — an unknown flag, no `-f` or task, an `-a`, `-e`, `-p` or `-b` that is not one —
+prints argparse's usage line first:
+
 ```console
 $ hmz exec -f rlar -a actor=claude/claude-opus-5:high -b cost=20 "fix the build"
-hmz exec: error: rlar:rlar: no agent was given for 'reviewer'
+hmz exec: error: rlar needs an agent for 'reviewer'; give each with -a ROLE=CLI/MODEL:EFFORT
+$ hmz exec -f rlar -a actor=opus -b cost=20 "fix the build"
+usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
+                [-p KEY=VALUE[,...]] [-b KEY=VALUE[,...]] [--resume] [--json]
+                task
+hmz exec: error: -a 'actor=opus': expected [NAME=]CLI[@PROVIDER]/MODEL:EFFORT
 ```
 
 Whatever else a flow does as it is imported is the flow's own, and fails as it would anywhere.
@@ -277,13 +287,22 @@ Whatever else a flow does as it is imported is the flow's own, and fails as it w
 ### Picking a run up
 
 A flow that says it [can be picked up](/reference/flows#a-flow-that-can-be-picked-up) keeps a
-journal of what it did while it runs. `--resume` carries on the newest such run of the same flow
-in this workspace: the flow at the top picks up what it kept, and each flow it calls picks up
-where it is called again with the same task, agents, environments and params. The line still
-says what to run it on — its own `-a`, `-e`, `-p` and a fresh `-b` — so an agent that changed
-is a flow called afresh from there down.
+journal of what it did while it runs: `resume.jsonl`, inside the run's
+[epic](/user/tracing#what-a-run-writes-down), each state write a `{"t":"set",…}` line of it. `--resume` carries on the
+newest run of the same flow in this workspace that got as far as writing one: the flow at the
+top picks up what it kept, and each flow it calls picks up where it is called again with the
+same task, agents, environments and params. The line still says what to run it on — its own
+`-a`, `-e`, `-p` and a fresh `-b` — so an agent that changed is a flow called afresh from there
+down. The run picking one up is an epic of its own, handed a copy of that journal, and says
+which epic it `picked_up` from.
 
-Without `--resume` every run starts afresh, whatever an earlier one left behind.
+A flow that is not resumable, or one with no such run here, is refused with `--resume`. Without
+it every run starts afresh, whatever an earlier one left behind.
+
+A loop that only its budget ends ends that way: the turn it was in is let finish (unless the
+budget said `graceful=false`), the run stops, `hmz exec: stopped -- …` says which limit it
+reached, and the exit status is 0. A resumable one carries on from there with `--resume` and a
+fresh `-b`.
 
 ### Examples
 
@@ -590,9 +609,9 @@ into them.
 
 | | |
 | --- | --- |
-| `0` | It did what it was asked. |
+| `0` | It did what it was asked — a run its budget stopped included. |
 | `1` | It could not: the target could not be reached, the listener could not be started, a turn could not be supervised. |
-| `2` | The command line was wrong — argparse's own rejections, a flow that is not there, a `-a`, `-e`, `-p` or `-b` that cannot be read or does not meet what the flow declares, no `-b` for a flow that is not `chat`, a malformed listen address, a non-loopback listener with no token. |
+| `2` | The command line was wrong — argparse's own rejections, a flow that is not there, a `-a`, `-e`, `-p` or `-b` that cannot be read or does not meet what the flow declares, no `-b` for a flow that is not `chat`, an environment that cannot be reached, `--resume` with nothing to pick up, a malformed listen address, a non-loopback listener with no token. |
 | `130` | Interrupted. |
 | *the agent's own* | `hmz internal anchor` exits with the status of the program it ran, and `hmz internal cred` with that of the program it supervised. |
 

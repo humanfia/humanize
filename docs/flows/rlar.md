@@ -28,16 +28,18 @@ class Review(BaseModel):
     notes: str   # the review itself, written as a message to the coding agent
 ```
 
-`notes` becomes the actor's next prompt verbatim. `done` is what ends the run — this is the one
-flow here that ends on a judgement rather than on running out. The run's
-[budget](/features/allowances) is under it as it is under every flow, and it is the ceiling
-rather than the point: what ordinarily stops this one is the reviewer agreeing.
+`notes` becomes the actor's next prompt verbatim. `done` is what ends the run — it ends on a
+judgement rather than on running out, as [`goal`](/flows/goal) and
+[`humanize1`](/flows/humanize1)'s loop do. The run's [budget](/features/allowances) is under it
+as it is under every flow, and it is the ceiling rather than the point: what ordinarily stops
+this one is the reviewer agreeing. A turn that fails, or a review out of shape, is taken again
+the next round; three in a row end the run with the last failure.
 
 The reviewer's prompt tells it to be skeptical, and to treat reward hacking — tests weakened or
 special-cased, work stubbed out or faked — as the thing it is most there to catch. How to read
 a round of work, and how to write the review the actor is then handed, is the flow's own
-[skill](/user/skills): `skills/review-notes`, which its roles name and every session of theirs
-carries. A weaver who wants the reviews written differently forks the flow, edits that one file,
+[skill](/user/skills): `skills/review-notes`, which the `reviewer` role names, so every review
+session carries it — the actor's sessions do not. A weaver who wants the reviews written differently forks the flow, edits that one file,
 and runs.
 
 ## Give the two the same model, if you like
