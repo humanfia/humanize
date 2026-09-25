@@ -26,6 +26,8 @@ from hmz.flows import (
     FlowContext,
     FlowParams,
     StateNotSerializable,
+    StopHookParams,
+    StopHookResult,
     TemporaryClonedDirEnvMixin,
     flow,
 )
@@ -363,6 +365,37 @@ async def test_a_session_is_written_down_once_its_cli_has_named_it(
             "session": used.id,
         }
     ]
+
+
+async def test_a_session_named_mid_turn_is_written_down_before_the_turn_ends(
+    tmp_path: Path,
+) -> None:
+    """A first turn may run for hours: what it is reported to have spent says it was named."""
+    journal = tmp_path / "run.jsonl"
+    seen: list[list[str]] = []
+
+    @flow(agents=Solo, envs=Place, params=Step, resumable=True)
+    async def long(
+        task: str, *, agents: Solo, envs: Place, params: Step, ctx: FlowContext
+    ) -> None:
+        state = ctx.state
+        assert state is not None
+
+        async def stopping(hooked: StopHookParams) -> StopHookResult:
+            del hooked
+            state["flushed"] = True  # a state write writes whatever is waiting
+            seen.append([one["t"] for one in _records(journal)])
+            return StopHookResult()
+
+        agent = agents["agent"]
+        agent.on_stop(stopping)
+        session = await agent.spawn(env=envs["env"])
+        await agent.run(task, session=session)
+
+    await _run(
+        long, journal, resume=False, agents={"agent": FakeAgentDriver(names_late=True)}
+    )
+    assert seen == [["journal", "call", "session", "set"]]
 
 
 async def test_a_state_write_is_on_disk_before_the_call_goes_on(tmp_path: Path) -> None:

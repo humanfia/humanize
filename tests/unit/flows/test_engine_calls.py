@@ -58,6 +58,9 @@ from hmz.runtime.flowing.fakes import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from hmz.flows import Usage
     from hmz.runtime.flowing.spi import AgentDriver, SessionHandle
 
 
@@ -937,6 +940,9 @@ class Heard:
     def __init__(self) -> None:
         self.said: list[tuple[Any, ...]] = []
 
+    def began(self, spent: Callable[[], Usage]) -> None:
+        self.said.append(("began", spent().output_tokens))
+
     def entered(self, call: LiveCall) -> None:
         self.said.append(("entered", call.name, call.depth, call.task))
 
@@ -947,6 +953,11 @@ class Heard:
         self, call: LiveCall, role: str, session: SessionHandle, driver: AgentDriver
     ) -> None:
         self.said.append(("spawned", call.name, role, session.id is not None))
+
+    def named(
+        self, call: LiveCall, role: str, session: SessionHandle, driver: AgentDriver
+    ) -> None:
+        self.said.append(("named", call.name, role))
 
     def closed(self, session: SessionHandle) -> None:
         self.said.append(("closed", session.id is not None))
@@ -966,6 +977,7 @@ async def test_a_recorder_hears_every_call_and_session() -> None:
     heard = Heard()
     await run_fake(recorded, "over", recorder=heard)
     assert heard.said == [
+        ("began", 0),
         ("entered", "recorded", 1, "over"),
         ("spawned", "recorded", "agent", True),
         ("entered", "boom", 2, "under"),
