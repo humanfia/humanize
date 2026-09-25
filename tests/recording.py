@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 #: A flow that drives one agent, and says its session is called what the log is named after.
 ONE = """
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow

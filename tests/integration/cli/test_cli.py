@@ -42,7 +42,7 @@ COMMANDS = [
         "exec",
         {
             "hmz.coganchor.backends",
-            "hmz.flows",
+            "hmz._legacy_flows",
             "hmz.runtime.doing",
             "hmz.runtime.kept",
             "hmz.runtime.runner",

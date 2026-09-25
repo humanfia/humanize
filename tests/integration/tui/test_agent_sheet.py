@@ -52,7 +52,7 @@ HERE = '''
 from typing import NamedTuple
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -73,7 +73,7 @@ REMOTE = '''
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Remote
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -94,7 +94,7 @@ BOXED = '''
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Isolated
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -115,7 +115,7 @@ PAIR = '''
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Remote
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -526,7 +526,7 @@ async def test_the_flow_may_rule_a_backend_out_of_the_clis_offered(
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Goal
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):

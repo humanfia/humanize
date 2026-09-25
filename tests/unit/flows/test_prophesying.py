@@ -29,7 +29,7 @@ from typing import NamedTuple
 
 from pydantic import BaseModel, Field
 
-from hmz.flows import Agent, atlas, logic, mind
+from hmz._legacy_flows import Agent, atlas, logic, mind
 
 
 class Agents(NamedTuple):
@@ -328,7 +328,7 @@ def test_the_body_an_atlas_may_not_hold(
 
 def test_an_atlas_reaches_an_atlas_and_nothing_else(tmp_path: Path) -> None:
     """`load` answers with a flow that may be anything, which is a hole in a graph."""
-    body = '''from hmz.flows import load
+    body = '''from hmz._legacy_flows import load
 
 chat = load("chat")
 
@@ -380,7 +380,7 @@ def test_a_supernode_that_reaches_back_into_its_own_graph_is_refused(
     """
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.chdir(tmp_path)
-    body = '''from hmz.flows import sub
+    body = '''from hmz._legacy_flows import sub
 
 again = sub("one:inner")
 
@@ -405,7 +405,7 @@ def test_a_flow_that_is_not_an_atlas_is_not_compiled(tmp_path: Path) -> None:
     """`checked` is the reading for those, and it is what it goes on being."""
     plain = '''"""An ordinary flow."""
 
-from hmz.flows import Agent, flow
+from hmz._legacy_flows import Agent, flow
 
 
 @flow

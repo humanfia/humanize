@@ -1,6 +1,6 @@
 """The flows there are, and the places they come from, as two objects rather than two modules.
 
-What a flow is, is :mod:`hmz.flows`; finding one, reading one and driving one is
+What a flow is, is :mod:`hmz._legacy_flows`; finding one, reading one and driving one is
 :mod:`hmz.runtime.flowing`, and where the fetched ones are kept is the `verses` inside it.
 All of it is reached from here so that a command line, an interface and a
 daemon ask the one object rather than three modules apiece -- and so that the handful of

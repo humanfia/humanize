@@ -13,7 +13,7 @@ three things to run. What the function is called is the flow's own business: `ru
 
 And this is the whole of what a flow imports::
 
-    from hmz.flows import Agent, Moment, flow
+    from hmz._legacy_flows import Agent, Moment, flow
 
     @flow
     def run(agents: tuple[Agent, Agent], task: str) -> None:

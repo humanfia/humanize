@@ -41,7 +41,7 @@ BUDGETED = '''
 
 import time
 
-from hmz.flows import Agent, flow
+from hmz._legacy_flows import Agent, flow
 
 
 @flow
@@ -58,7 +58,7 @@ def run(agents: tuple[Agent], task: str) -> None:
 VERDICT_ONLY = '''
 """A loop only its reviewer can end."""
 
-from hmz.flows import Agent, flow
+from hmz._legacy_flows import Agent, flow
 from pydantic import BaseModel, Field
 
 
@@ -110,7 +110,7 @@ def test_a_flow_that_takes_no_turns_is_killed_by_the_clock(tmp_path: Path) -> No
             '''
             """A loop with no turns for the cap to count."""
 
-            from hmz.flows import Agent, flow
+            from hmz._legacy_flows import Agent, flow
 
 
             @flow
@@ -135,7 +135,7 @@ def test_a_crash_is_the_outcome_with_its_last_words(tmp_path: Path) -> None:
             '''
             """A flow that falls over."""
 
-            from hmz.flows import Agent, flow
+            from hmz._legacy_flows import Agent, flow
 
 
             @flow
@@ -164,7 +164,7 @@ def test_what_is_not_a_flow_is_a_refused_load(tmp_path: Path) -> None:
 CONFIGURED = '''
 """A loop held to whatever budget it is set up with."""
 
-from hmz.flows import Agent, flow
+from hmz._legacy_flows import Agent, flow
 from pydantic import BaseModel, Field
 
 
@@ -203,7 +203,7 @@ def test_a_config_is_read_back_through_the_flows_own_model(tmp_path: Path) -> No
 DECLARED = '''
 """A loop that ends when the allowance the flow declared is spent."""
 
-from hmz.flows import Agent, Allowance, flow
+from hmz._legacy_flows import Agent, Allowance, flow
 
 
 @flow(budget=Allowance(tokens=0.3))
@@ -280,7 +280,7 @@ def test_a_flow_that_stopped_itself_did_not_reach_what_it_declared(
             '''
             """A loop that stops its own agent and then asks it for another turn."""
 
-            from hmz.flows import Agent, Allowance, flow
+            from hmz._legacy_flows import Agent, Allowance, flow
 
 
             @flow(budget=Allowance(tokens=100.0))
@@ -325,7 +325,7 @@ def test_an_empty_proof_only_loads_and_reads_the_live_config(tmp_path: Path) -> 
             '''
             """A flow with a config that says nothing about itself."""
 
-            from hmz.flows import Agent, flow
+            from hmz._legacy_flows import Agent, flow
             from pydantic import BaseModel
 
 
@@ -348,7 +348,7 @@ def test_an_empty_proof_only_loads_and_reads_the_live_config(tmp_path: Path) -> 
 GUARDED = '''
 """A flow that guards what a turn answered."""
 
-from hmz.flows import Agent, flow
+from hmz._legacy_flows import Agent, flow
 from pydantic import BaseModel, Field
 
 
@@ -372,7 +372,7 @@ def run(agents: tuple[Agent], task: str) -> None:
 UNGUARDED = '''
 """A flow that reads a field off whatever came back."""
 
-from hmz.flows import Agent, flow
+from hmz._legacy_flows import Agent, flow
 from pydantic import BaseModel, Field
 
 
@@ -409,7 +409,7 @@ def test_the_person_answers_what_the_scenario_says(tmp_path: Path) -> None:
 
             from typing import NamedTuple
 
-            from hmz.flows import Agent, Person, flow
+            from hmz._legacy_flows import Agent, Person, flow
 
 
             class Chat(NamedTuple):
@@ -444,7 +444,7 @@ def test_an_async_flow_is_awaited(tmp_path: Path) -> None:
             '''
             """A flow written as a coroutine."""
 
-            from hmz.flows import Agent, flow
+            from hmz._legacy_flows import Agent, flow
 
 
             @flow

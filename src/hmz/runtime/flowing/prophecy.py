@@ -1,6 +1,6 @@
 """What an atlas compiles to: the prophecy a run of one walks, and the file it ships in.
 
-An atlas is written with the marks in :mod:`hmz.flows.atlas` and read by
+An atlas is written with the marks in :mod:`hmz._legacy_flows.atlas` and read by
 :mod:`hmz.runtime.flowing.prophesying`. This is what that reading answers with -- the nodes,
 the edges, the shapes that flow along them -- and what :mod:`hmz.runtime.flowing.stepping`
 walks a run over. None of it is a thing an atlas author writes, which is why it is here and
@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 if TYPE_CHECKING:
     import os
 
-    from hmz.flows.atlas import Kind
+    from hmz._legacy_flows.atlas import Kind
 
 __all__ = [
     "AGENTS",

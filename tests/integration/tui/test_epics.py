@@ -37,7 +37,7 @@ from pathlib import Path
 from typing import Any
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow(resumable=True)
@@ -52,7 +52,7 @@ PLAIN = '''"""Runs once, and says nothing about being picked up."""
 from pathlib import Path
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -64,7 +64,7 @@ def run(agents: tuple[AgentBase], task: str) -> None:
 SPEAKS = '''"""Takes one turn, and says nothing about being picked up."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow

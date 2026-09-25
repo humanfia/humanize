@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz._legacy_flows import NotAFlow
 from hmz.coganchor import backends
 from hmz.coganchor.agents import (
     ClaudeCodeAgent,
@@ -31,7 +32,6 @@ from hmz.coganchor.agents import (
     QwenCodeAgent,
     QwenCodeAgentConfig,
 )
-from hmz.flows import NotAFlow
 from hmz.runtime.runner import Runner
 
 if TYPE_CHECKING:
@@ -59,7 +59,7 @@ SEARCHLESS = '''"""A flow whose answers have to be the same tomorrow."""
 from typing import Annotated
 
 from hmz.coganchor.agents import AgentBase, AgentDefaults
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow

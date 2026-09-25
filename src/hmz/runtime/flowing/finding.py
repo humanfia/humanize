@@ -12,14 +12,16 @@ of your own may stand in for one of humanize's by taking its name, and `local/ch
 spelling that says which one it is.
 
 Reading a flow means running it. A flow is a Python file, what it holds is whatever marking a
-function with :func:`~hmz.flows.flow` left behind, and the only way to find that out is to run
+function with :func:`~hmz._legacy_flows.flow` left behind, and the only way to find that out is
+to run
 the file -- with its own directory importable while it does and only while, and forgotten again
 afterwards, so that the module beside one flow is never answered with the module beside
 another. Run afresh every time, too: a flow rewritten between two runs of it -- by hand, or by
 an agent it is itself driving -- is the flow that runs next.
 
 None of this is a thing a flow names. A flow says what it is with the mark, and humanize does
-the finding: :mod:`hmz.flows` is the whole of what a flow imports, and everything that reads a
+the finding: :mod:`hmz._legacy_flows` is the whole of what a flow imports, and everything that
+reads a
 flow is here, written against it.
 """
 
@@ -32,8 +34,8 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 
-import hmz.flows
-from hmz.flows import (
+from hmz import _legacy_flows
+from hmz._legacy_flows import (
     _SAID,  # pyright: ignore[reportPrivateUsage]
     Flow,
     _first,  # pyright: ignore[reportPrivateUsage]
@@ -66,12 +68,12 @@ __all__ = [
 ]
 
 #: Where the flows humanize ships in the package are: a directory of them inside
-#: :mod:`hmz.flows`, which is where a flow lives, rather than beside this file, which is how
+#: :mod:`hmz._legacy_flows`, which is where a flow lives, rather than beside this file, which is how
 #: one is found. They are the whole of what is there, so there is no `flows/` in it to tell
 #: them from the rest. Offered under `official` along with the repository of the rest of
 #: humanize's flows: which of the two places one of them is kept in is humanize's business
 #: rather than whoever is running it.
-BUILTIN_AT = Path(hmz.flows.__file__).parent / "builtin"
+BUILTIN_AT = Path(_legacy_flows.__file__).parent / "builtin"
 
 #: What a flow's directory holds the flow itself in. The rest of the directory is what it
 #: imports and the `skills/` it brings, so the entry point is named rather than guessed.

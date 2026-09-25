@@ -56,7 +56,7 @@ FLOW = """
 from pathlib import Path
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -71,7 +71,7 @@ CATCHING = """
 from pathlib import Path
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -87,7 +87,7 @@ AWAITED = """
 from pathlib import Path
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -2050,7 +2050,7 @@ async def test_deepseek_is_selectable_from_agents(
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Goal
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -2718,7 +2718,7 @@ from typing import Literal, NamedTuple
 from pydantic import BaseModel, Field
 
 from hmz.coganchor.agents import HumanAgent
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):

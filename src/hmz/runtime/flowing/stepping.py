@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from hmz.flows.atlas import ATLAS
+from hmz._legacy_flows.atlas import ATLAS
 
 from .prophecy import AGENTS, CONFIG, INPUT, Node, Reads, digest, shipped
 
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 
     from pydantic import BaseModel
 
-    from hmz.flows import Agent
+    from hmz._legacy_flows import Agent
 
     from .driving import Entry
     from .prophecy import Edge, Prophecy

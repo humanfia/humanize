@@ -19,9 +19,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz._legacy_flows import Agent, Driven
 from hmz.coganchor.agents import AgentConfig, Event, HumanAgent, Moment
 from hmz.coganchor.agents.skills import Loaded
-from hmz.flows import Agent, Driven
 from tests.stubs import ShellAgent
 
 if TYPE_CHECKING:

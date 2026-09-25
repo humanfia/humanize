@@ -32,7 +32,7 @@ ESCAPES = re.compile(r"\x1b\[")
 #: A flow that drives no agents and prints, which is what a layer under one does too. Under
 #: `--json` there is nowhere for a line like this to land but stderr.
 LOUD = """
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow

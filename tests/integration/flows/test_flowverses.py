@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 FLOW = '''"""A flow of somebody else's."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -505,7 +505,7 @@ def test_a_flowverse_that_has_not_been_fetched_says_so_rather_than_that_there_is
     None
 ):
     """The name is right and the download has not happened, which is a different thing."""
-    from hmz.flows import NotAFlow
+    from hmz._legacy_flows import NotAFlow
     from hmz.runtime.flowing import drives
 
     with pytest.raises(NotAFlow, match="has not been fetched yet"):
@@ -518,7 +518,7 @@ def test_a_bare_name_says_so_too_when_nothing_has_been_fetched(theirs: Path) -> 
     `-f rlar` on a machine that has fetched nothing is a name that is right and a download
     that has not happened, which "no flow to read" is the least useful thing to say about.
     """
-    from hmz.flows import NotAFlow
+    from hmz._legacy_flows import NotAFlow
     from hmz.runtime.flowing import drives
 
     store.add(str(theirs))  # one that is here, so the one that is not is named alone

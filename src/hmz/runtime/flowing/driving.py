@@ -60,6 +60,8 @@ if TYPE_CHECKING:
 
     from pydantic import BaseModel
 
+    from hmz._legacy_flows import Agent, Driven
+    from hmz._legacy_flows import Flow as Marked
     from hmz.coganchor.agents import (
         AgentBase,
         AgentConfig,
@@ -73,8 +75,6 @@ if TYPE_CHECKING:
     from hmz.coganchor.agents.base import Journal
     from hmz.coganchor.agents.skills import Loaded
     from hmz.coganchor.machines import MachineBase, MachineConfig, Mapped
-    from hmz.flows import Agent, Driven
-    from hmz.flows import Flow as Marked
     from hmz.runtime.epic import Epic, Sub
 
     from .checking import Capability
@@ -479,7 +479,8 @@ def drives(flow: str | os.PathLike[str]) -> tuple[str, ...]:
     Returns:
       One name per agent its entry point declares that somebody has to choose, which is how
       many it has to be given. A flow that declares a plain tuple has not named them, and each
-      is "" -- the count is all it said. A place it declared as a :class:`~hmz.flows.Person` is not
+      is "" -- the count is all it said. A place it declared as a
+      :class:`~hmz._legacy_flows.Person` is not
       among them: nobody chooses what the person at the prompt runs, so nobody is asked.
 
     Raises:
@@ -560,7 +561,7 @@ def _marked(run: Entry) -> Marked:
       The mark. Never None: only a marked function is a flow, so anything that got this far
       has one -- and a flow whose mark cannot be read is read as one that said nothing.
     """
-    from hmz.flows import Flow as Said
+    from hmz._legacy_flows import Flow as Said
 
     held = getattr(run, "__humanize_flow__", None)
     return held if isinstance(held, Said) else Said()
@@ -708,7 +709,7 @@ def _compiled(named: str, read: dict[str, Any], run: Entry) -> Entry:
     Returns:
       The entry point for an ordinary flow, and the walk for an atlas.
     """
-    from hmz.flows.atlas import ATLAS
+    from hmz._legacy_flows.atlas import ATLAS
 
     if getattr(run, ATLAS, None) is None:
         return run
@@ -804,7 +805,7 @@ def readies(run: Entry) -> Entry:
 def _settles(agent: Agent) -> Driven:
     """One agent as whoever hands it to a flow holds it, rather than as a flow does.
 
-    A flow sees an agent through :class:`~hmz.flows.agent.Agent`, which is what a flow may
+    A flow sees an agent through :class:`~hmz._legacy_flows.agent.Agent`, which is what a flow may
     ask of one and says nothing about setting it up: an agent is what somebody already chose,
     and a flow that could change it would be a flow rewriting that choice. This module is one
     of the three places entitled to -- it settles where an isolated agent works, and what the
@@ -891,7 +892,7 @@ def _brings(flow: str | os.PathLike[str]) -> tuple[str, ...]:
     Returns:
       One identifier apiece, and nothing at all for a flow that named none.
     """
-    from hmz.flows import Flow as Marked
+    from hmz._legacy_flows import Flow as Marked
 
     from .finding import find, inside, loaded
 
@@ -1211,7 +1212,7 @@ def load(flow: str | os.PathLike[str], *, inherit_skills: bool = False) -> Entry
 
     A flow is a loop over agents, and a loop worth having is one another loop can reach for::
 
-        from hmz.flows import Agent, flow, load
+        from hmz._legacy_flows import Agent, flow, load
 
         @flow
         def run(agents: tuple[Agent, Agent], task: str) -> None:
@@ -1224,7 +1225,8 @@ def load(flow: str | os.PathLike[str], *, inherit_skills: bool = False) -> Entry
     is a library as well as a menu.
 
     Loading rather than calling, because that is what this does: what comes back is a flow to
-    run, and running it is the caller's own line. It is not :func:`hmz.flows.loaded`, which is
+    run, and running it is the caller's own line. It is not :func:`hmz._legacy_flows.loaded`,
+    which is
     what running a flow's file leaves behind -- one loads a flow, the other reads a file.
 
     What comes back is the flow's own function, with the run written down around it: what is
@@ -2279,7 +2281,7 @@ def _entry(inside: dict[str, Any], wanted: str) -> Callable[..., Any] | None:
     Returns:
       The entry point, or None where the file holds no such flow.
     """
-    from hmz.flows import Flow
+    from hmz._legacy_flows import Flow
 
     for one in inside.values():
         said = getattr(one, "__humanize_flow__", None)
@@ -2298,7 +2300,7 @@ def _holds(inside: dict[str, Any]) -> list[str]:
       One name apiece, in the order the file declared them. Its `run` is not among them: it
       is the flow the file holds under its own name, and has no name of its own.
     """
-    from hmz.flows import Flow
+    from hmz._legacy_flows import Flow
 
     said = (getattr(one, "__humanize_flow__", None) for one in inside.values())
     return [one.name for one in said if isinstance(one, Flow) and one.name]
@@ -2541,8 +2543,8 @@ def _is_person(kind: object) -> bool:
       answers to that interface is taken for it too: a flow written before there was one names
       the driver, and the place it meant is the same place.
     """
+    from hmz._legacy_flows import Person
     from hmz.coganchor.agents import HumanAgent
-    from hmz.flows import Person
 
     people = (Person, HumanAgent)
     if isinstance(kind, str):

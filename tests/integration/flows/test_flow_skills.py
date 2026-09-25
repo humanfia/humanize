@@ -17,9 +17,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz._legacy_flows import NotAFlow
 from hmz.coganchor.agents import AgentConfig
 from hmz.coganchor.agents.skills import Loaded
-from hmz.flows import NotAFlow
 from hmz.runtime.flowing.skills import brought, cached
 from hmz.runtime.runner import Runner
 from tests.stubs import ShellAgent, written
@@ -76,7 +76,7 @@ class PiAgent(ShellAgent):
 DOES = '''"""Does the one thing it is told."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -89,7 +89,7 @@ def run(agents: tuple[AgentBase], task: str) -> None:
 TWICE = '''"""Opens two sessions and does the thing in both."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -109,8 +109,8 @@ def run(agents: tuple[AgentBase], task: str) -> None:
 CALLING = '''"""Holds a session open, then calls another flow."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
-from hmz.flows import load
+from hmz._legacy_flows import flow
+from hmz._legacy_flows import load
 
 
 @flow
@@ -404,7 +404,7 @@ def test_a_called_flows_skill_does_not_take_over_the_name_from_the_flow_that_cal
 AGAIN = '''"""Closes a session and opens another."""
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -423,7 +423,7 @@ SLOWLY = '''"""Takes one long turn."""
 import threading
 
 from hmz.coganchor.agents import AgentBase, Stopped
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow

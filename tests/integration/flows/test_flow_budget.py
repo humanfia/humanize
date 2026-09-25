@@ -27,7 +27,7 @@ CONFIG = AgentConfig(model="m", effort="high")
 #: there was such a thing.
 QUIET = """
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -38,7 +38,7 @@ def run(agents: tuple[AgentBase], task: str) -> None:
 #: One that says what a run of it is worth by default.
 SAYS = """
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import Allowance, flow
+from hmz._legacy_flows import Allowance, flow
 
 
 @flow(budget=Allowance(hours=6, tokens=10.0, dollars=50))
@@ -49,7 +49,7 @@ def run(agents: tuple[AgentBase], task: str) -> None:
 #: And one that says it is meant to run under nothing at all, which `chat` is.
 LOOSE = """
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import Allowance, flow
+from hmz._legacy_flows import Allowance, flow
 
 
 @flow(budget=Allowance())

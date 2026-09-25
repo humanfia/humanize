@@ -538,7 +538,7 @@ def _crewed(
     """The stub agents for one flow's places, all of one scenario and one turn count.
 
     Built inside a function because the drivers are heavy and the parent half of this
-    module is imported by `hmz.flows` itself: only a child actually proving a flow pays
+    module is imported by `hmz._legacy_flows` itself: only a child actually proving a flow pays
     for them.
 
     The stubs claim every capability there is -- every moment, a goal feature, shapes,

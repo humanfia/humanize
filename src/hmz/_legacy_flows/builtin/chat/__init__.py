@@ -23,7 +23,7 @@ starting this again is another conversation rather than the last one carried on.
 
 from typing import NamedTuple
 
-from hmz.flows import Agent, Allowance, Person, flow
+from hmz._legacy_flows import Agent, Allowance, Person, flow
 
 
 class Chat(NamedTuple):

@@ -39,7 +39,7 @@ SAID = "sleep 1; echo the-session"
 #: A flow whose agent runs a program, which is what a turn mostly is.
 FLOW = f"""
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow

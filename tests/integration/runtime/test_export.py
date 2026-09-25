@@ -49,7 +49,7 @@ CONFIG = AgentConfig(model="m", effort="high")
 #: A flow that opens one session per agent, each naming itself as it lands.
 FLOW = """
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -61,7 +61,7 @@ def run(agents: tuple[AgentBase, AgentBase], task: str) -> None:
 #: A flow that calls another, so that a bundle has a record beside the run's own to carry.
 CALLS = """
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow, load
+from hmz._legacy_flows import flow, load
 
 
 @flow
@@ -72,7 +72,7 @@ def run(agents: tuple[AgentBase], task: str) -> None:
 #: The one it calls, which opens a session of its own -- one run, two records.
 UNDER = """
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -84,7 +84,7 @@ def run(agents: tuple[AgentBase], task: str) -> None:
 #: manifest has to say which of them a session belongs to.
 TWICE = """
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow, load
+from hmz._legacy_flows import flow, load
 
 
 @flow
@@ -96,7 +96,7 @@ def run(agents: tuple[AgentBase], task: str) -> None:
 #: The one it calls twice, whose session is named after the call so the two are two.
 EACH = """
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -109,7 +109,7 @@ KEEPS = """
 from typing import Any
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow(resumable=True)

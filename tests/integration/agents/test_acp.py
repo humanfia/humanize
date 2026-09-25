@@ -183,7 +183,7 @@ for line in sys.stdin:
 #: A flow of one agent, for the line that names which CLI is to fill it.
 _FLOW = """
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow

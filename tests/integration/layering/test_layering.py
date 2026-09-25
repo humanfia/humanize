@@ -97,7 +97,7 @@ ALLOWED: dict[str, set[str]] = {
     # says it drives is `flows`'s to answer.
     "hmz.runtime.runner": {
         "hmz.coganchor",
-        "hmz.flows",
+        "hmz._legacy_flows",
         "hmz.runtime.epic",
         "hmz.runtime.flowing",
         "hmz.runtime.settings",
@@ -112,7 +112,7 @@ ALLOWED: dict[str, set[str]] = {
     # epic of the run that called it.
     "hmz.runtime.flowing": {
         "hmz.coganchor",
-        "hmz.flows",
+        "hmz._legacy_flows",
         "hmz.runtime.epic",
         "hmz.runtime.telemetry",
     },
@@ -126,7 +126,7 @@ ALLOWED: dict[str, set[str]] = {
     # one, compiling an atlas -- which is `hmz.runtime.flowing`, the layer written against
     # this one. The one thing it names there is what it hands back to a flow that calls
     # another, and it names it for a type checker and never at import: see HANDED_THROUGH.
-    "hmz.flows": {"hmz.coganchor", "hmz.runtime.flowing"},
+    "hmz._legacy_flows": {"hmz.coganchor", "hmz.runtime.flowing"},
     # humanize as one object: one workspace and everything that can be done in it, composed
     # out of the layers beside it. It is the front door of the runtime rather than a layer of
     # its own -- everything here is one place several callers would otherwise each have
@@ -135,7 +135,7 @@ ALLOWED: dict[str, set[str]] = {
     # keeps `hmz exec` from paying for a tracer.
     "hmz.runtime.doing": {
         "hmz.coganchor",
-        "hmz.flows",
+        "hmz._legacy_flows",
         "hmz.runtime.epic",
         "hmz.runtime.exporting",
         "hmz.runtime.flowing",
@@ -156,7 +156,7 @@ ALLOWED: dict[str, set[str]] = {
         # to and what a token costs -- all of which are one layer now, and all of which the
         # sheets read to draw what they are about.
         "hmz.coganchor",
-        "hmz.flows",
+        "hmz._legacy_flows",
         # What a flow says it drives, which the flow picker asks before it offers an agent for
         # a place, and where flows come from, which is the list `/flow` walks.
         "hmz.runtime.flowing",
@@ -192,16 +192,17 @@ ALLOWED: dict[str, set[str]] = {
 }
 
 #: The one pair the table is allowed to name both ways, and what makes it one pair rather than
-#: a hole. :mod:`hmz.flows` is the whole of what a flow imports, and a flow that calls another
-#: flow writes `from hmz.flows import load` like every other line it writes -- so the façade
-#: has to offer a name whose implementation is in the layer above it, `load` being a run of a
-#: flow and runs being the runtime's. It offers it the way it offers everything it does not
-#: hold: by name, out of :data:`hmz.flows._ELSEWHERE`, fetched the moment a flow asks for it
-#: and never before. The import that pairs the two is there for a type checker alone, which is
-#: what :func:`test_the_flow_facade_names_the_runtime_for_types_and_never_at_import` holds it
-#: to -- so the arrow at import time still points one way, and this stays a pair rather than
+#: a hole. :mod:`hmz._legacy_flows` is the whole of what a flow imports, and a flow that calls
+#: another flow writes `from hmz._legacy_flows import load` like every other line it writes --
+#: so the façade has to offer a name whose implementation is in the layer above it, `load`
+#: being a run of a flow and runs being the runtime's. It offers it the way it offers
+#: everything it does not hold: by name, out of :data:`hmz._legacy_flows._ELSEWHERE`, fetched
+#: the moment a flow asks for it and never before. The import that pairs the two is there for
+#: a type checker alone, which is what
+#: :func:`test_the_flow_facade_names_the_runtime_for_types_and_never_at_import` holds it to --
+#: so the arrow at import time still points one way, and this stays a pair rather than
 #: becoming a habit.
-HANDED_THROUGH = {("hmz.flows", "hmz.runtime.flowing")}
+HANDED_THROUGH = {("hmz._legacy_flows", "hmz.runtime.flowing")}
 
 #: What reaching the target half costs besides: the two modules of the command line that route
 #: to it, and the front door of the package they route through. All are held to the same bar as
@@ -322,7 +323,7 @@ def test_the_flow_facade_names_the_runtime_for_types_and_never_at_import() -> No
     calls another flow must not load the runtime by importing the module it writes its own
     `@flow` with, and `hmz exec` reading a line that names no flow must not either.
     """
-    tree = ast.parse((SRC / "hmz" / "flows" / "__init__.py").read_text())
+    tree = ast.parse((SRC / "hmz" / "_legacy_flows" / "__init__.py").read_text())
     typed = {
         node
         for branch in ast.walk(tree)
@@ -340,11 +341,16 @@ def test_the_flow_facade_names_the_runtime_for_types_and_never_at_import() -> No
 
 
 def test_every_module_at_the_top_is_a_layer_the_table_governs() -> None:
-    """One left out is unchecked, and reads from here exactly like one deliberately exempt."""
+    """One left out is unchecked, and reads from here exactly like one deliberately exempt.
+
+    A package whose name starts with one underscore is still a package, and is held to the
+    table like any other: the old flow API waits at `hmz._legacy_flows` until nothing names it.
+    Only the dunder files -- `__init__`, `__main__` and the interpreter's cache -- are not layers.
+    """
     named = {
         f"hmz.{path.stem}"
         for path in (SRC / "hmz").iterdir()
-        if not path.name.startswith("_")
+        if not path.name.startswith("__")
         and (path.suffix == ".py" or (path / "__init__.py").is_file())
     }
     # The command line joins the layers and so may name any of them.

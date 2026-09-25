@@ -19,9 +19,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz._legacy_flows import NotAFlow
 from hmz.coganchor.agents import AgentConfig, Isolated, Needs, Remote, anchored
 from hmz.coganchor.machines import DockerConfig
-from hmz.flows import NotAFlow
 from hmz.runtime.flowing import wanted
 from hmz.runtime.runner import Runner
 from tests.stubs import ShellAgent
@@ -36,7 +36,7 @@ DECLARED = '''
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Isolated, Remote
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -57,7 +57,7 @@ ELSEWHERE = '''
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Needs, Remote
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -76,7 +76,7 @@ CONTAINED = '''
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Isolated, Needs
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -97,7 +97,7 @@ MANAGED = '''
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Needs, Remote
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -116,7 +116,7 @@ IMPOSSIBLE = '''
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Isolated, Needs
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -135,7 +135,7 @@ ANYWHERE_ELSE = '''
 from typing import Annotated, NamedTuple
 
 from hmz.coganchor.agents import AgentBase, Needs, Remote
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 class Agents(NamedTuple):
@@ -152,7 +152,7 @@ def run(agents: Agents, task: str) -> None:
 #: A flow that says nothing about where its one agent works, which is most flows.
 PLAIN = """
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow

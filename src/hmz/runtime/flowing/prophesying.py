@@ -76,7 +76,7 @@ from .prophecy import (
 if TYPE_CHECKING:
     import os
 
-    from hmz.flows.atlas import Kind
+    from hmz._legacy_flows.atlas import Kind
 
 __all__ = ["Prophesied", "is_atlas", "named_as", "prophesied"]
 
@@ -266,7 +266,7 @@ def _dynamic(read: _Read) -> list[Finding]:
         )
         for node in ast.walk(read.tree)
         if isinstance(node, ast.ImportFrom)
-        and node.module == "hmz.flows"
+        and node.module == "hmz._legacy_flows"
         and any(one.name == "load" for one in node.names)
     ]
 

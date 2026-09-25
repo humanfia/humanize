@@ -318,7 +318,7 @@ INSISTS = '''"""A flow whose answers have to be the same tomorrow."""
 from typing import Annotated
 
 from hmz.coganchor.agents import AgentBase, AgentDefaults
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow

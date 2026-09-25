@@ -1,7 +1,8 @@
 """Everything humanize does to a flow: finding one, reading one, driving one, compiling one.
 
 A flow is content -- somebody else's repository, forked and edited -- and the whole of what it
-imports is :mod:`hmz.flows`: the interfaces it drives, the mark that makes it a flow, and the
+imports is :mod:`hmz._legacy_flows`: the interfaces it drives, the mark that makes it a flow,
+and the
 vocabulary a turn is described in. This is the other side of that line. Where flows come from
 and what each is called is [verses.py](verses.py) and [finding.py](finding.py); what a flow
 says it drives, and what it takes for one flow to run another, is [driving.py](driving.py);
@@ -11,8 +12,9 @@ the two readings of a flow that refuse one before it can cost anything are
 run of one is walked by [stepping.py](stepping.py); the skills a flow named that live
 somewhere else are fetched by [skills.py](skills.py).
 
-The arrow points one way. Everything here may name :mod:`hmz.flows`, and nothing in
-:mod:`hmz.flows` names anything here at the top of its file -- what a flow legitimately needs
+The arrow points one way. Everything here may name :mod:`hmz._legacy_flows`, and nothing in
+:mod:`hmz._legacy_flows` names anything here at the top of its file -- what a flow legitimately
+needs
 from this layer, which is `load` and the little that goes with it, is handed through from
 there when the flow asks for it. So a module that moves here moves without a flow anywhere
 noticing, which is the point of the line being where it is.

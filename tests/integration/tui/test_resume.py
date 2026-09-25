@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow(resumable=True)
@@ -51,7 +51,7 @@ PLAIN = '''"""Runs once, and says nothing about being picked up."""
 from pathlib import Path
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow
@@ -67,7 +67,7 @@ from pathlib import Path
 from typing import Any
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow(resumable=True)
@@ -82,7 +82,7 @@ EMPTIES = '''"""Writes down where it got to, and then says the next run starts c
 from typing import Any
 
 from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz._legacy_flows import flow
 
 
 @flow(resumable=True)
