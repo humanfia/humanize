@@ -18,15 +18,13 @@ useful thing an agent can do is try something, measure, and write down what it l
 reason about its own earlier reasoning until the context window is a record of ideas that did
 not work.
 
-`flame_chase` is eighteen lines long and does exactly one thing about that:
+`flame_chase` is a few lines long and does exactly one thing about that:
 
 ```python
-@flow
-def run(agents: tuple[Agent, Agent], task: str) -> None:
-    while True:
-        for agent in agents:
-            agent(task, suppress=True)  # each agent reads the repository, not a history
-            time.sleep(5)
+while True:
+    for chaser in (agents["first_chaser"], agents["second_chaser"]):
+        session = await chaser.spawn(env=envs["workspace"])   # a session that has seen nothing
+        await chaser.run(task, session=session)  # each agent reads the repository, not a history
 ```
 
 Two agents, alternating. Each turn opens a **session** — a conversation with the model — that
@@ -115,21 +113,24 @@ Three parts of that prompt are doing real work.
 
 ```sh
 hmz exec -f flame_chase \
-    -a claude/claude-opus-4-8:high \
-    -a codex/gpt-5.6-sol:high \
+    -a first_chaser=claude/claude-opus-5:high \
+    -a second_chaser=codex/gpt-5.6-sol:high \
+    -b duration=8h,cost=100 \
     "$(cat TASK.md)"
 ```
 
-Two `-a` flags because `flame_chase` drives two agents, taken in the order you write them: the
-first turn goes to Claude Code, the second to Codex, and round it goes.
+Two `-a` flags because `flame_chase` drives two agents, one per role: the first turn goes to
+the `first_chaser`, Claude Code, the second to the `second_chaser`, Codex, and round it goes.
+`-b` is what the run may spend — eight hours or a hundred dollars, whichever comes first — and
+`hmz exec` will not start a loop without one.
 
 The first time you name a flow only the official flowverse holds, humanize fetches the [official
 flowverse](/weaver/flowverses) — a git repository of flows — into `~/.humanize/flowverses/`.
 
 ::: warning `flame_chase` never stops itself
-There is no exit condition in those eighteen lines, because "as few cycles as possible" has no
-end. Stop it with **ctrl+c** at a command line, or **ctrl+c** twice in the interface, when the
-curve flattens.
+There is no exit condition in those lines, because "as few cycles as possible" has no end. The
+budget is what stops it; stop it sooner with **ctrl+c** at a command line, or **ctrl+c** twice
+in the interface, when the curve flattens.
 :::
 
 ## Step 4 — watch the number, not the transcript

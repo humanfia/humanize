@@ -39,16 +39,13 @@ const BOX_H = 34
 const TOP = 16
 const ARC = 30 // the band under the lanes the arc back is drawn in, where there is one
 const METER = 42 // and the one under that, where something other than the flow stops it
-const GAUGE = 64 // which the governed loop's bar chart wants more of than the budget's bar
 const TAIL = 1.1 // columns of time the head parks at the end, while the arc goes back
 
 const cols = computed(() => Math.max(...shape.value.steps.map((s) => s.col + (s.span ?? 1))))
 const colw = computed(() => (WIDE - LABEL - RIGHT) / cols.value)
 const floor = computed(() => TOP + shape.value.lanes.length * LANE_H)
 const under = computed(() => floor.value + (shape.value.loop ? ARC : 6))
-const deep = computed(() =>
-  !shape.value.meter ? 6 : shape.value.meter.kind === 'juice' ? GAUGE : METER,
-)
+const deep = computed(() => (shape.value.meter ? METER : 6))
 const height = computed(() => under.value + deep.value)
 
 const laneAt = (id: string) => shape.value.lanes.findIndex((lane) => lane.id === id)
@@ -251,16 +248,6 @@ const spent = computed(() =>
   Math.min(9.4, (pass.value * cols.value + Math.min(t.value, cols.value)) * 0.42),
 )
 
-//: What four rounds of a governed loop measured, in output tokens an average turn came out
-//: with. The target is 2000, and the point of the picture is that the loop walks onto it.
-const JUICE = [1180, 1590, 2080, 1960, 2030]
-
-/** The floor the bars of a governed loop stand on. */
-const base = computed(() => meterY.value + 34)
-
-/** Where the top of a bar of that many output tokens goes. */
-const tall = (juice: number) => base.value - Math.max(3, (juice - 700) / 60)
-
 const head = computed(() => LABEL + Math.min(t.value, cols.value) * colw.value)
 
 const caption = computed(() => {
@@ -428,49 +415,19 @@ const said = (step: Step) => written.value.get(step.id) ?? [step.label]
 
       <!-- what the run is spending, where that is what stops it -->
       <g v-if="shape.meter" class="meter">
-        <template v-if="shape.meter.kind === 'budget'">
-          <rect :x="LABEL" :y="meterY" :width="WIDE - LABEL - RIGHT" height="7" rx="3.5" class="trough" />
-          <rect
-            :x="LABEL"
-            :y="meterY"
-            :width="((WIDE - LABEL - RIGHT) * spent) / 10"
-            height="7"
-            rx="3.5"
-            class="poured"
-          />
-          <text :x="LABEL - 20" :y="meterY + 7" class="meter-name">budget</text>
-          <text :x="WIDE - RIGHT" :y="meterY + 24" class="meter-said">
-            {{ spent.toFixed(2) }}M of 10M output tokens
-          </text>
-        </template>
-        <template v-else>
-          <!-- The bars stand on a floor and the dashed line is the target, so a round that
-               came out under it is a bar that stops short of it and one over it is a bar that
-               goes past. A line the bars merely sit on would say nothing. -->
-          <line :x1="LABEL" :x2="WIDE - RIGHT" :y1="tall(2000)" :y2="tall(2000)" class="target" />
-          <g v-for="(step, i) in shape.steps" :key="step.id">
-            <rect
-              v-if="state(step) !== 'waiting'"
-              :x="x0(step)"
-              :y="tall(JUICE[i] ?? 2000)"
-              :width="Math.min(46, x1(step) - x0(step))"
-              :height="base - tall(JUICE[i] ?? 2000)"
-              class="juice"
-            />
-            <text
-              v-if="state(step) !== 'waiting'"
-              class="gauge-said"
-              :x="x0(step)"
-              :y="tall(JUICE[i] ?? 2000) - 4"
-            >
-              {{ JUICE[i] ?? 2000 }}
-            </text>
-          </g>
-          <text :x="LABEL - 20" :y="base - 2" class="meter-name">juice</text>
-          <text :x="WIDE - RIGHT" :y="base + 16" class="meter-said">
-            held to 2000 output tokens a turn of the model
-          </text>
-        </template>
+        <rect :x="LABEL" :y="meterY" :width="WIDE - LABEL - RIGHT" height="7" rx="3.5" class="trough" />
+        <rect
+          :x="LABEL"
+          :y="meterY"
+          :width="((WIDE - LABEL - RIGHT) * spent) / 10"
+          height="7"
+          rx="3.5"
+          class="poured"
+        />
+        <text :x="LABEL - 20" :y="meterY + 7" class="meter-name">budget</text>
+        <text :x="WIDE - RIGHT" :y="meterY + 24" class="meter-said">
+          {{ spent.toFixed(2) }}M of -b output_tokens=10m
+        </text>
       </g>
 
       <!-- where the run is -->
@@ -719,18 +676,6 @@ svg {
   opacity: 0.8;
 }
 
-.target {
-  stroke: var(--hmz-accent);
-  stroke-width: 1.2;
-  stroke-dasharray: 4 4;
-  vector-effect: non-scaling-stroke;
-}
-
-.juice {
-  fill: var(--hmz-lane-1);
-  opacity: 0.75;
-}
-
 .meter-name {
   fill: var(--vp-c-text-3);
   font-size: 10px;
@@ -743,13 +688,6 @@ svg {
   font-size: 10px;
   font-family: var(--vp-font-family-mono);
   text-anchor: end;
-}
-
-.gauge-said {
-  fill: var(--vp-c-text-3);
-  font-size: 9px;
-  font-family: var(--vp-font-family-mono);
-  text-anchor: start;
 }
 
 .head {

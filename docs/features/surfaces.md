@@ -9,8 +9,8 @@ is a second orchestration engine. They reach the same workspace stores, flow loa
 What changes is how the question is asked and how long the caller stays attached.
 
 The route starts before a run does: find the nearest flow, fork it when it should become yours,
-let its own pydantic model describe its setup, then enter through whichever surface fits the
-job.
+let what it declares — its roles, its environments, its params model — describe its setup, then
+enter through whichever surface fits the job.
 
 <HmzSurfaces />
 
@@ -32,8 +32,8 @@ That gives a name two different orders:
 Which is why the catalogue can show the original and a local variant beside each other while an
 unqualified name quietly picks the one meant for this project.
 
-Discovery is also a trust boundary. Listing files is cheap, but finding the marked flows and
-the lines they say about themselves means loading their entry points — so trust a flowverse the
+Discovery is also a trust boundary. Listing files is cheap, but finding the flows a module
+defines and the lines they say about themselves means loading their entry points — so trust a flowverse the
 way you trust a package that will run on this machine. Only the flows directory is considered,
 and what is in it is still Python.
 
@@ -53,12 +53,17 @@ This is a source decision, not a runtime capability switch. Forking does not add
 to a backend, make an unsupported hook available or change where an agent can work; the flow's
 declared requirements are checked separately against the agents chosen for the run.
 
-## The model is the setup surface
+## The declaration is the setup surface
 
-A flow that needs settings declares a pydantic model as its third argument. That model is the
-complete vocabulary of the setup: field names, annotations, defaults, descriptions, bounds and
-validators. Optional section metadata lets a large model group related fields without teaching
-the terminal interface what any of them mean.
+What a run needs is what the flow declares: a role per agent, each asking for a CLI, an account,
+a model and an effort; a role per environment the runtime does not fill itself, each asking for a
+machine and a directory; its params; and a budget. The roles are named, so each is asked about by
+the name the flow calls it.
+
+A flow that takes params declares them as a `FlowParams` subclass — a pydantic model. That model
+is the complete vocabulary of the params: field names, annotations, defaults, descriptions,
+bounds and validators. Optional section metadata lets a large model group related fields without
+teaching the terminal interface what any of them mean.
 
 The interface reads those declarations directly, and the description appears beside the field.
 
@@ -72,11 +77,11 @@ The interface reads those declarations directly, and the description appears bes
 When the reader accepts the sheet, the model validates the whole set, including relationships
 between fields, and returns its own refusal when the combination cannot run.
 
-The command line and Python do not get a weaker contract: values read from a setup file or
-handed to the SDK go through the same model. Loading a flow runs its file again, so the earlier
-model class is not trusted as the current one — its fields are read back through the class the
-flow declares now. A remembered setup that no longer fits starts over, and a bad setup
-presented to a run is refused before its first turn.
+The command line and Python do not get a weaker contract: `-p key=value` and values handed to
+the SDK go through the same model, each read as the field's type or as JSON. The earlier model
+class is not trusted as the current one — what was remembered is read back through the class the
+flow declares now. A remembered setup that no longer fits starts over, and a bad setup presented
+to a run is refused before any agent starts.
 
 ## Shared core does not mean identical interfaces
 
@@ -102,6 +107,6 @@ run or session means.
 
 ## Where the detail is
 
-- [Flowverses and forking](/weaver/flowverses) · [Flow settings](/weaver/flow-settings)
+- [Flowverses and forking](/weaver/flowverses) · [Params of its own](/weaver/flow-settings)
 - [Python SDK](/reference/sdk) · [CLI](/reference/cli) · [TUI](/reference/tui) ·
   [Daemon](/reference/daemon)

@@ -20,7 +20,7 @@ whole piece of work start to finish; everything under them is for looking up.
 | | |
 | --- | --- |
 | [Installation](/user/installation) | Python, a backend, and what each one needs |
-| [Concepts](/user/concepts) | The twelve words the rest of this uses |
+| [Concepts](/user/concepts) | The eleven words the rest of this uses |
 | [Security](/user/security) | Read this before pointing an agent at a repository you care about |
 | [Troubleshooting](/user/troubleshooting) | When it goes wrong |
 
@@ -34,8 +34,8 @@ whole piece of work start to finish; everything under them is for looking up.
 | [Many conversations at once](/user/conversations) | One transcript, **tab** between the agents that are working |
 | [Showing the working](/user/details) | `/details`: tool calls and thinking, or only what the agent says |
 | [Watching a run](/user/monitor) | `/monitor`: who is working, how long for, who handed to whom |
-| [The mission board](/user/board) | Lines you and the flow both write on, and neither waits at |
-| [Being away](/user/afk) | `/afk`: whether an agent may stop and ask you something |
+| [The mission board](/user/board) | Named lines beside the run on `/monitor` — and why a flow no longer writes on them |
+| [Being away](/user/afk) | `/afk`: whether you are there to be asked something |
 | [Falling back](/user/fallback) | `/fallback`: where a turn goes when what was taking it cannot |
 | [Completion](/user/completion) | What a half-typed line could become, under the editor |
 | [History](/user/history) | Everything typed here before, on ↑ and ↓ |
@@ -47,10 +47,10 @@ whole piece of work start to finish; everything under them is for looking up.
 
 | | |
 | --- | --- |
-| [Efforts](/user/efforts) | How hard to think — and moving it while the flow runs |
-| [Permissions](/user/permissions) | Four rungs, from `read-only` to `bypass`, or none at all — declared by the flow |
+| [Efforts](/user/efforts) | How hard to think — and moving it while an agent runs |
+| [Permissions](/user/permissions) | What an agent may touch, scope by scope — declared by the flow |
 | [Skills](/user/skills) | What an agent carries: its CLI's own, and the ones the flow brings |
-| [Questions](/user/questions) | An agent stopping mid-turn to ask its user something |
+| [Questions](/user/questions) | An agent stopping mid-turn to ask something, and a flow asking you |
 | [Cost and rate](/user/tally) | What has been spent in tokens and money, how fast, and how hard it is thinking |
 | [Reporting](/user/reporting) | What humanize sends its developers, and how to say no |
 
@@ -59,8 +59,8 @@ whole piece of work start to finish; everything under them is for looking up.
 | | |
 | --- | --- |
 | [Providers](/user/providers) | One CLI, two accounts, at the same time |
-| [Containers](/user/containers) | A container of the agent's own, up on the first turn |
-| [Remote execution](/user/remote-execution) | The agent here; its commands on the build box |
+| [Containers](/user/containers) | A run in a container, a container as a host, or one of an agent's own |
+| [Remote execution](/user/remote-execution) | The agent here; its commands on the build box, via `-e` |
 
 ## Running it, and reading it back
 

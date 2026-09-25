@@ -81,7 +81,7 @@ failed or interrupted — and a closed run is never reopened. It holds the run's
 directory per session it opened, whatever a [resumable](/features/resuming) flow left behind,
 and the traces collected of it. Runs are named so that they sort in the order they were run,
 **to the millisecond**: two started inside one second would otherwise be ordered at random, and
-what a flow is picked up from is the last run of it.
+what `--resume` picks a flow up from is the newest resumable run of it.
 
 ## A local trace is not a report
 

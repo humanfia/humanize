@@ -15,7 +15,7 @@ The word belongs to each backend rather than to humanize, so the values differ.
 ## Try it
 
 ```sh
-hmz exec -f ralph_loop -a claude/claude-opus-4-8:high "fix the build"
+hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b cost=5 "fix the build"
 ```
 
 The `effort` row of the agent's sheet shows `high`, with `↔` beside it for a row that is
@@ -31,7 +31,7 @@ takes the same word:
 ::: code-group
 
 ```sh [command line]
-hmz exec -f ralph_loop -a kimi/kimi-code/k3:swarmmax "fix the build"
+hmz exec -f ralph_loop -a agent=kimi/kimi-code/k3:swarmmax -b cost=5 "fix the build"
 ```
 
 ```python [Python]
@@ -51,7 +51,7 @@ a command line at all.
 `auto` is that nothing, spelled:
 
 ```sh
-hmz exec -f ralph_loop -a cursor-agent/composer-2.5:auto "fix the build"
+hmz exec -f ralph_loop -a agent=cursor-agent/composer-2.5:auto -b cost=5 "fix the build"
 ```
 
 It is not a rung on anybody's ladder. It says humanize tells the CLI nothing about how hard to
@@ -79,7 +79,7 @@ not still works. These are the backends whose ladders need explaining; the whole
   answers with will ever name it. humanize keeps it anyway.
 - **Kimi Code's effort says how wide as well as how hard.** `max` is one agent; `swarmmax` is
   the same thinking at the width of a fleet of subagents. The prefix is exported as
-  `hmz.flows.SWARM`, which is where a flow steering by it reads it.
+  `hmz.coganchor.agents.SWARM`, and a flow reads an agent's effort as `agent.effort`.
 - **pi's `off`** is the model asked not to think at all — the least of the efforts, not the
   absence of a setting.
 - **Codex's models differ from each other.** `gpt-5.6-sol` takes `ultra`; `gpt-5.5` does not,
@@ -89,16 +89,17 @@ not still works. These are the backends whose ladders need explaining; the whole
   thinking-or-not answer `enabled` and `disabled`. Each model is offered the rungs it said it
   takes, and no model takes both halves.
 
-## Change the effort while the flow runs
+## Change the effort while an agent runs
 
-The rest of this page is the weaver's — whoever wrote the flow.
+The rest of this page is for whoever drives agents from Python. A flow's agent runs at the
+effort its `-a` said, which the flow reads as `agent.effort` and has no way of moving.
 
 A config is frozen. A session resumes under the settings it opened with, and a config that
-changed mid-flow would silently split one conversation across two models. The effort is the one
-setting a flow may move as it goes:
+changed mid-run would silently split one conversation across two models. The effort is the one
+setting that may move as it goes:
 
 ```python
-agents.builder.effort = "low"       # every session of this agent, from its next turn
+builder.effort = "low"              # every session of this agent, from its next turn
 session.effort = "max"              # this conversation alone
 session.effort = ""                 # and back to whatever the agent runs at
 ```
@@ -132,8 +133,9 @@ is what an effort moves.
 agent.juice(over=60)
 ```
 
-[`fixed_juice_ralph`](/flows/fixed-juice-ralph) governs on it — a Ralph loop that
-moves the effort a rung a round to hold the agent to a target.
+A loop driving an agent from Python can govern on it — moving the effort a rung a round to
+hold the agent to a target. A flow cannot: the flow API hands a flow an agent's effort to read,
+`agent.effort`, and no way to move it while it runs.
 
 ## See also
 

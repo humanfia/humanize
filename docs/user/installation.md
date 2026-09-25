@@ -191,7 +191,7 @@ from, so the names offered are the ones that endpoint actually serves.
 An agent that uses that stored account is written with `@deepseek`:
 
 ```sh
-hmz exec -f chat -a dsh@deepseek/deepseek-v4-flash:high "hello"
+hmz exec -f chat -a assistant=dsh@deepseek/deepseek-v4-flash:high "hello"
 ```
 
 Alternatively, set the key and optional endpoint in the environment before starting `hmz`:
@@ -206,12 +206,13 @@ Use either official model id at one of its three efforts:
 
 ```sh
 DEEPSEEK_API_KEY=sk-… hmz exec -f ralph_loop \
-    -a dsh/deepseek-v4-flash:high "fix the failing tests"
+    -a agent=dsh/deepseek-v4-flash:high -b cost=5 "fix the failing tests"
 ```
 
 The other official model is `deepseek-v4-pro`. The efforts are `max`, `high` and `off`. The
-current SDK exposes no per-session permission or skill controls, so DeepSeek Harness can only
-fill a place the flow declared `bypass` for, or declared no rung for at all.
+current SDK exposes no per-session permission or skill controls, so a flow's DeepSeek Harness
+agent runs at its nothing-asked mode whatever permission its role declares — wider than asked
+for any role that may not write its workdir.
 
 To run one CLI as **more than one** account at a time, use [providers](/user/providers). It is
 a separate store, made at [`/providers`](/reference/tui#the-accounts-themselves) rather than by

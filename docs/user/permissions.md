@@ -1,215 +1,185 @@
 # Permissions
 
-**This page is the weaver's** — whoever wrote the flow. What an agent may do is declared where
-the flow declares the agent, and nobody running the flow is asked about it: a reviewer that may
-not write is a reviewer whichever CLI fills the place, so it is a thing about the work.
+**This page is the weaver's** — whoever wrote the flow. What an agent may touch is declared
+where the flow declares the agent, and nobody running the flow is asked about it: a reviewer
+that may not write is a reviewer whichever CLI fills the role, so it is a thing about the work.
 
-A flow may declare a rung for a place, out of a four-rung ladder, loosest last, named the way
-these CLIs already name them.
+A flow declares a `Permission` on a role: four scopes, each saying how much of it the agent may
+touch.
 
-| Rung | What it means |
-| --- | --- |
-| `read-only` | It may look at anything and change nothing — no edits, no commands. |
-| `workspace-write` | It may change the workspace it was given, and is stopped at the edge of it. |
-| `auto` | It may reach for anything, and what it asks for is granted. |
-| `bypass` | Nothing is asked and nothing is checked. **The loosest rung there is.** |
+| Scope | What it is | May be |
+| --- | --- | --- |
+| `local` | the environment's workdir the session runs in | `NONE`, `READ`, `ALL` |
+| `user` | the rest of the home directory of the user the agent runs as | `NONE`, `READ`, `ALL` |
+| `system` | everything else on the machine | `NONE`, `READ`, `ALL` |
+| `online` | the network: web search and fetching | `NONE` or `ALL` |
 
-A place may also say nothing, which is not a fifth rung but the absence of one: humanize then
-tells that CLI nothing about what its agent may do, and the agent runs exactly as it would had
-you started it yourself. That is what a place that declares nothing leaves behind, and it is
-looser than every rung in the table — a declaration is a thing said, and nothing said settles
-nothing.
+The scopes nest — `local >= user >= system` — and a wider scope may never be granted more than
+a narrower one inside it. `Permission()` with nothing said is `local=ALL, user=READ,
+system=READ, online=NONE`: an agent that may change its workdir, read around it, and not search
+the web.
+
+**Nothing is ever put to anybody for approval**, whatever the flow declares. Every session runs
+at its CLI's nothing-asked mode — or, where a managed policy refuses that, at the most
+permissive mode short of the model reviewing itself, with every request approved. A flow is
+meant to run with nobody watching; what limits its agent is its `Permission`, and whatever
+[hooks](/weaver/hooks) the flow hangs on it.
 
 ## Declaring one
 
-Write an `AgentDefaults` beside the place, exactly as you write a `Goal` or an `Isolated`:
+Subclass the agent type the role is declared as, and set `_permission` on it:
 
 ```python
-from typing import Annotated, NamedTuple
-
-from hmz.flows import Agent, AgentDefaults, flow
+from hmz.flows import Agent, AgentCollection, Permission, PermissionKind
 
 
-class Agents(NamedTuple):
+class Reviewer(Agent):
+    _permission = Permission(local=PermissionKind.READ)
+
+
+class Agents(AgentCollection):
     builder: Agent
-    reviewer: Annotated[Agent, AgentDefaults(permission="read-only")]
-
-
-@flow
-def run(agents: Agents, task: str) -> None:
-    agents.builder(task)
-    agents.reviewer(f"review what was just done: {task}")
+    reviewer: Reviewer
 ```
 
-The rung reaches every agent handed to that place, over whatever it was set up with, before its
-first turn. Run it with the ordinary line — a CLI, a model and an effort apiece:
+A permission that does not nest, or an `online` of `READ`, is refused where it is written —
+`Permission(...)` raises `ValueError`. Run it with the ordinary line — a CLI, a model and an
+effort for each role:
 
 ```sh
-hmz exec -f ./review.py -a claude/claude-opus-5:max -a codex/gpt-5.6-sol:high "$(cat TASK.md)"
-```
-
-A rung no backend has a word for is caught by
-[`Hmz().flows.check`](/reference/sdk) without running the flow, and again as the flow
-loads:
-
-```console
-review.py:9: error: unknown-permission: 'rdonly' is no rung there is -- what an agent may
-do is one of read-only, workspace-write, auto, bypass, and a flow declaring anything else is
-refused before its first turn
+hmz exec -f ./review -a builder=claude/claude-opus-5:max -a reviewer=codex/gpt-5.6-sol:high \
+    -b cost=20 "$(cat TASK.md)"
 ```
 
 ## A line cannot say it
 
-`permission=` is not a setting of `-a`, and a line that writes one is a usage error naming the
-flow as the place to say it:
+`permission=` is not a setting of `-a`, and a line that writes one is refused before anything
+runs, naming the flow as the place to say it. There is no row for it on the sheet an agent is
+set up on, either. An agent is a CLI, an account and a model at an effort; what that agent is
+allowed to do belongs to the flow driving it.
 
-```console
-$ hmz exec -f ./review.py -a codex/gpt-5.6-sol:high,permission=read-only "$(cat TASK.md)"
-hmz exec: error: bad agent 'permission=read-only': permission is the flow's to say, written
-beside the agent where the flow declares it -- not on the line that runs the flow
+## A flow may only narrow
+
+A flow can narrow an agent it holds — `derive` — and never widen it:
+
+```python
+careful = agents["builder"].derive(
+    permission=Permission(user=PermissionKind.NONE, system=PermissionKind.NONE)
+)
 ```
 
-There is no row for it on the sheet an agent is set up on, either. An agent is a CLI, an
-account, a model at an effort and how quickly it is served; what that agent is allowed to do
-belongs to the flow driving it.
-
-## A declaration only ever tightens
-
-Saying nothing is the loosest thing a place can do, and it settles nothing. What an agent
-already carries is never loosened to reach a declaration, so a flow that says nothing runs its
-agents at exactly what they came with, and a flow you call runs at your rung or tighter --
-never looser. Otherwise a run started at `read-only` would be back at its CLI's own defaults the
-moment it called a flow that mentioned nothing, and calling a flow you did not write would be
-how your `read-only` gets undone. See [Security](/user/security).
-
-A flow that wants its agent asked nothing says `bypass` and means it: a flow watches its agent
-rather than gating it, and a turn that waits on an approval nobody is there to give is a flow
-that has stopped. But that is a thing to write, not a thing you get for free — an unattended run
-whose flow declares no rung will sit at whatever prompt its CLI puts up.
-
-**Tighter is not always more visible.** At a declared `bypass` humanize answers each of Claude
-Code's permission requests itself, so a flow's `PERMISSION_REQUEST` hooks see every one; at
-`auto` Claude decides for itself and those hooks see nothing. Tightening `bypass` to `auto`
-therefore buys restriction and costs visibility, so a flow written around watching what its
-agent asks for says `bypass` and means it. Declaring nothing is not `bypass` either: humanize
-answers nothing on the agent's behalf, so those hooks see only what the CLI itself asks it,
-which on a Claude Code left alone is nothing.
+`careful` is the same agent with sessions that run under the narrower grant; asking for more
+than the role was granted raises `CapabilityNotGranted`. A flow calling another hands on the
+agents it holds, and each must hold **at least** what the called flow's role declares — an
+agent held at `local=READ` handed to a role that needs `local=ALL` is refused with
+`PermissionTooNarrow` before the called flow runs — and the called flow is then held to exactly
+what it declared. So calling a flow you did not write is never how your reviewer comes to write.
 
 ## What each backend actually does
 
-Every backend has a ladder of its own, and none of them has the same four rungs. Each driver
-reaches for whichever of its own settings says the same thing:
+Every backend has a ladder of its own — coganchor names four rungs, `read-only`,
+`workspace-write`, `auto` and `bypass`, in the words these CLIs use — and a flow's `Permission`
+is read onto it:
 
-| Rung | Claude Code | Codex | Kimi Code | pi | opencode, mimocode | ZCode |
-| --- | --- | --- | --- | --- | --- | --- |
-| *(none declared)* | nothing sent | nothing sent | nothing sent | nothing sent | nothing sent | nothing sent |
-| `read-only` | `plan` mode | `read-only` sandbox | plan mode | without `bash`, `edit`, `write` | `edit` and `bash` denied | `plan` mode |
-| `workspace-write` | `acceptEdits` mode | `workspace-write` sandbox | plan mode off | — | every way out of the workspace denied | `edit` mode |
-| `auto` | Claude's own `auto` mode | `workspace-write`, approvals on request | — | — | nothing denied | `build` mode, which asks before a tool with side effects |
-| `bypass` | `manual` mode, humanize answers each request | `danger-full-access` | `yolo` mode | — | — | `yolo` mode |
+| `local` | every backend but dsh and ACP CLIs | dsh, ACP CLIs |
+| --- | --- | --- |
+| `READ` or `NONE` | `read-only` | `bypass` |
+| `ALL` | `bypass` | `bypass` |
 
-These are the six backends whose rungs differ most; the whole set is in
-[Agents › What an agent may do](/reference/agents#what-an-agent-may-do).
+- **`bypass` is each CLI's nothing-asked mode**: `danger-full-access` with approvals `never` on
+  Codex, `yolo` on ZCode, and on Claude Code — whose `--dangerously-skip-permissions` a managed
+  policy may turn off — `manual` mode with humanize answering every request yes.
+- **`read-only` is the CLI's own read-only rung**: Claude Code's `plan`, Codex's read-only
+  sandbox, a tool list with nothing that writes on the rest. It reads outside the workdir too.
+- **`user` and `system` are not fenced — a known widening.** A session that may write its
+  workdir may write anywhere its user can, whatever `user` and `system` say. Two of these CLIs
+  have a sandbox that could fence it, and neither is used: both are bubblewrap, which cannot
+  start on a machine that gives it no user namespace, and a fence here would be a flow that
+  loses its shell wherever it runs in a container.
+- **dsh and ACP CLIs can be held to nothing but `bypass`**, which is wider than asked for any
+  permission below `ALL`.
+- **`online`** switches the CLI's own web tools: on for `ALL`, off for `NONE` where the CLI can
+  be told, and left as the CLI has it where it cannot — cursor-agent, pi, agy and ACP CLIs. A
+  shell command the agent runs reaches the network whatever this says.
 
-**The first row is the same everywhere because it is nothing.** Where the flow declared no rung
-there is no setting to reach for: no mode, no sandbox, no approval policy and no flag that skips
-a prompt. Each of these CLIs then does what it does when you run it yourself, which for most of
-them is to ask you before it writes.
-
-**A dash is the rung above it, run again.** Where a backend cannot tell two rungs apart it says
-so rather than pretending: asking Kimi for `auto` gets you `workspace-write` behaviour, not a
-quiet promotion to `bypass`, and asking pi for anything above `read-only` gets you the same
-agent three times over.
-
-**Codex is the one backend here with a sandbox of its own**, so its rungs are the real thing
-rather than an approximation of one.
-
-**ZCode has a mode for each of these.** `plan` refuses an edit and refuses a command it reads
-as high-risk. `edit` changes the workspace without asking, and stops at a high-risk tool to
-ask — which is answered no at that rung, since an agent allowed its workspace is not allowed
-more for asking. `build`, the mode its own terminal opens in, asks the same question, and
-`auto` is where the answer is yes. `yolo` asks nothing at all. ZCode's own `auto` mode is not
-this one and is nobody's rung — in that mode it refuses every tool, saying the mode is reserved
-and not implemented yet.
+The whole table, backend by backend, is in
+[Agents › The flow API's permission on each CLI](/reference/agents#the-flow-api-s-permission-on-each-cli).
 
 **A Codex whose rules were set by somebody else runs a rung down rather than not at all.** Some
 installations arrive with requirements — an enterprise policy on the account, a
 `requirements.toml` on a machine whose platform packages Codex — and one that forbids
-`danger-full-access` refuses every call asking for it, which would be every turn of an agent a
-flow declared `bypass` for. humanize asks again at `auto` instead: the same freedom, with Codex
-asking before it reaches past the workspace and humanize granting what it asks. It is found out
-once per agent, and the rung you chose is always what is tried first. See
+`danger-full-access` refuses every call asking for it. humanize asks again at `auto` instead:
+the same freedom, with Codex asking before it reaches past the workspace and humanize granting
+what it asks. It is found out once per agent. See
 [Troubleshooting](/user/troubleshooting#codex-this-machine-will-not-run-an-agent-at-bypass-so-it-runs-at-auto).
 
 **Claude Code's `bypass` runs the same on an account somebody else set up.** The flag that
-skips the asking, `--dangerously-skip-permissions`, is one managed settings can turn off — an
-account carrying `disableBypassPermissionsMode` starts the turn at a mode where every edit is
-declined and it ends successfully with the work not done. So humanize does not skip the asking:
-it runs the agent at Claude's `manual` mode and answers each request itself, yes to whatever
-the account leaves decidable, with the organisation's own hard `deny` list still enforced by
-Claude before it asks. `manual` is a mode every account allows, so `bypass` needs nothing
-special from yours.
+skips the asking is one managed settings can turn off, and an account carrying
+`disableBypassPermissionsMode` starts the turn at a mode where every edit is declined and it
+ends successfully with the work not done. So humanize does not skip the asking: it runs the
+agent at Claude's `manual` mode and answers each request itself, yes to whatever the account
+leaves decidable, with the organisation's own hard `deny` list still enforced by Claude before
+it asks.
 
 ## A worked pair
 
 A reviewer that cannot touch the change it is reading, said once in the flow:
 
 ```python
-class Agents(NamedTuple):
+class Reviewer(Agent):
+    _permission = Permission(local=PermissionKind.READ)
+
+
+class Agents(AgentCollection):
     actor: Agent
-    reviewer: Annotated[Agent, AgentDefaults(permission="read-only")]
+    reviewer: Reviewer
 ```
 
-```sh
-hmz exec -f ./rlar.py -a claude/claude-opus-5:max -a codex/gpt-5.6-sol:high "$(cat TASK.md)"
-```
-
-The actor is left as it came and does the work: nothing is declared for it, so it runs as the
-CLI filling it runs. The reviewer sits at `read-only` and can only look — the one thing this flow
-insists on, and the same `read-only` whoever runs it, on whichever CLI they have. Write
-`AgentDefaults(permission="bypass")` beside the actor as well where the pair is meant to run
-with nobody watching.
+The actor runs at the default — its workdir to change, the rest to read — and does the work.
+The reviewer can only look: the one thing this flow insists on, and the same whoever runs it,
+on whichever CLI they have.
 
 ## What it does not bound
 
-A rung bounds the **tools the agent reaches for**. It does not confine the process: an agent at
-`workspace-write` that runs a command which itself writes elsewhere has written elsewhere. For
-a real boundary, put the agent in [a container of its own](/user/containers).
+A permission bounds the **tools the agent reaches for**. It does not confine the process: an
+agent that may write its workdir and runs a command which itself writes elsewhere has written
+elsewhere. Read [Security](/user/security).
 
 ## Where a hook gets a say
 
-A [hook](/weaver/hooks) hung on `PERMISSION_REQUEST` can refuse something and have the agent
-hear it only where a backend asks before it acts *and waits for the answer*. `auto` is that
-rung everywhere it exists. Claude Code runs the moment at a declared `bypass` as well, since
-`bypass` there is `manual` mode with the asking routed to humanize: the hook sees every tool
-that agent reaches for, and can still say no to one. A place that declares no rung routes
-nothing through humanize, so a flow that wants the moment declares the rung it wants it at.
+A [hook](/weaver/hooks) on a permission request can refuse a tool and have the agent hear it —
+which is how a flow narrows one thing rather than a whole scope. The role declares
+`PermissionRequestHookAgentMixin` and the flow hangs the hook with `on_permission_request`:
 
 ```python
-def no_force_push(occasion: Occasion) -> Verdict | None:
-    if "push --force" in occasion.about:
-        return Verdict(refused=True, because="not on this branch")
-    return None
+from hmz.flows import (
+    Agent,
+    PermissionRequestHookAgentMixin,
+    PermissionRequestHookParams,
+    PermissionRequestHookResult,
+)
 
-agent.hooks.on(Moment.PERMISSION_REQUEST, no_force_push)
+
+class Builder(Agent, PermissionRequestHookAgentMixin): ...
+
+
+async def no_force_push(params: PermissionRequestHookParams) -> PermissionRequestHookResult:
+    pushing = "push --force" in str(params.input.get("command", ""))
+    return PermissionRequestHookResult(allow=not pushing, reason="not on this branch")
+
+
+agents["builder"].on_permission_request(no_force_push)
 ```
 
-Claude Code, Codex and ZCode all run that moment; the rest have nothing to hang it on. The
-optional `tool=` filter is **the backend's own name for what it asked about** — `Bash` on
-Claude Code, `commandExecution`, `fileChange` or `permissions` on Codex. A hook meant for more
-than one of them leaves it off and reads `occasion.about`, as the one above does.
-
-A flow built on this says so where it declares its agents, and an agent that cannot run the
-moment is refused before its first turn:
-
-```python
-class Agents(NamedTuple):
-    builder: Annotated[Agent, Moment.PERMISSION_REQUEST]
-    reviewer: Agent
-```
+Its answer overrides the nothing-asked mode the agent runs at. Claude Code, Codex, Kimi Code
+and ZCode serve the moment, and a role that declares it is refused any other CLI before
+anything runs. While such a hook is hung, the CLI is started so that it asks: Codex keeps its
+sandbox and runs with approvals `untrusted`, so every command but a known-safe read is put to
+the hook; Kimi Code and ZCode run at their ask-and-approve mode, which asks about what the CLI
+deems risky; Claude Code's `manual` mode asks already. Whatever the hook does not refuse is
+granted.
 
 ## See also
 
-- [Hooks](/weaver/hooks) — refusing one thing rather than a whole rung
-- [Containers](/user/containers)
+- [Hooks](/weaver/hooks) — refusing one thing rather than a whole scope
 - [Security](/user/security)

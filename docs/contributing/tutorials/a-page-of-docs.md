@@ -49,7 +49,7 @@ $EDITOR docs/user/my-thing.md
 - The first `#` heading is the page title. Do not write a `## Table of Contents` — the
   right-hand outline is generated from `##` and `###`. A page whose `###`s are dozens of error
   messages sets `outline: 2` in its frontmatter instead.
-- Links are written from the site root, without the extension: `/user/afk`, `/weaver/atlas`.
+- Links are written from the site root, without the extension: `/user/afk`, `/weaver/hooks`.
   Assets in `public/` are named from the root without `public`: `![…](/tui.svg)`.
 - Wrap prose at 95 columns, as the rest of the repository does.
 - A guide opens with two or three sentences saying what the thing is and when you would reach

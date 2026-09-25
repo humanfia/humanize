@@ -141,7 +141,6 @@ and the one elsewhere that is built the same way:
 
 ```
 HmzMap.vue          features/            five systems, nineteen reader-facing capability groups
-HmzProphecy.vue     features/prophecy    Python becoming a checked, resumable graph
 HmzSyscalls.vue     features/anchor      a call, the seccomp verdict, and where it lands
 HmzAccounts.vue     features/accounts    the path swap, then the chain and its waits
 HmzTimeline.vue     features/tracing     a trace, with the programs and the clock as switches

@@ -23,9 +23,9 @@ a quickstart apiece: [run a flow](/#run-a-flow), [weave a flow](/#weave-a-flow),
 | | |
 | --- | --- |
 | [SDK](/reference/sdk) | How a tool that is not humanize reaches humanize: `Hmz` straight at the runtime, `Daemons` over a held run |
-| [Flows](/reference/flows) | The directory a flow is, what `@flow` takes, and what the loop it holds may do |
+| [Flows](/reference/flows) | The flow API: what `@flow` declares, the agents, environments and params a flow is handed, and what it may do with each |
 | [Agents](/reference/agents) | Driving a coding agent from Python: an agent is settings, a session is memory |
-| [Machines](/reference/machines) | Where an agent's turns land — here, a container, or a machine already running |
+| [Machines](/reference/machines) | Where an agent's turns land — here, a container, or a machine already running — and how a flow's environments decide it |
 | [Providers](/reference/providers) | Which account an agent runs as, kept apart from the CLI's own |
 | [Remote execution](/reference/remote-execution) | `hmz internal anchor`: an agent on this machine whose work lands on another |
 | [Tracing](/reference/tracing) | The sessions and the programs a run left behind, gathered into one timeline of it |

@@ -5,76 +5,80 @@ pageClass: hmz-feature
 # Picked up where it stopped
 
 A loop meant to run for a week is a loop that will be stopped: somebody presses escape, a
-machine goes down, a turn takes the process with it. humanize has two answers. An ordinary
-flow may preserve the state it explicitly owns; an atlas preserves its completed node visits.
-Starting the flow again is what picks either one up.
+machine goes down, a turn takes the process with it. A flow that says it can be picked up —
+`@flow(..., resumable=True)` — keeps a journal as it goes, and running it again with
+`--resume` carries it on from where it stood.
 
 <HmzResume />
 
-## State in one case, completed visits in the other
-
-The diagram shows an ordinary resumable flow. It starts its Python function again with the
-dict it last wrote, so the flow decides what progress means and where to continue. It also runs
-the current version of that function: saved state is an input to today's code, not a frozen
-copy of yesterday's code.
-
-An [atlas](/features/prophecy) has a stronger coordinate. Every completed visit's answer is
-written beside the identity of the prophecy it belongs to. A later run walks those answers to
-the first unfinished visit and continues there. If the graph has changed, its identity has
-changed and the run starts at the beginning rather than putting an old answer into a new edge.
-
 ## What a flow keeps is its own handful of things
 
-A flow that says so is handed a dict holding what it wrote there last time. Which round it is
-on, which files it has been through, what it has decided so far — deliberately not a second
-copy of the transcript, which the backends already keep and whose sessions the run's own record
-already names.
+A resumable flow's `ctx.state` is a mapping of JSON values: which round it is on, which files it
+has been through, what it has decided so far. Deliberately not a second copy of the transcript,
+which the backends already keep and whose sessions the journal already names. A flow that is not
+resumable has no state at all — `ctx.state` is `None` — so what survives a stop is always
+something a flow said it wanted to survive.
+
+```python
+state = ctx.state
+assert state is not None  # a resumable flow always has one
+state["round"] = (state["round"] if "round" in state else 0) + 1
+```
+
+A picked-up run starts the flow's function again from the top, with the state it last wrote.
+The flow decides what progress means and where to continue, and it runs the current version of
+its code: saved state is an input to today's function, not a frozen copy of yesterday's.
 
 ## Saved as it is written, not when the run ends
 
-Setting a key writes the file again. That is the whole design decision, and it follows from
-what resuming is for: **a run worth picking up is one that was stopped or killed**, and state
-saved only at the end is state such a run has none of.
+Setting a key writes it to the journal there and then. That is the whole design decision, and it
+follows from what resuming is for: **a run worth picking up is one that was stopped or killed**,
+and state saved only at the end is state such a run has none of.
 
-Writing *inside* a value the state holds — appending to a list, filling in a dict of its own —
-is a change no mapping can see, so that is saved again when the run ends.
+What is kept is a copy, as JSON would give it back — a tuple comes back a list — so a fresh run
+and a resumed one read the same thing. Changing a list after it was written changes nothing
+kept: write it again. A value JSON has no shape for is refused where it is written, with
+`StateNotSerializable`, rather than turned into something else the flow will not recognise when
+it reads it back.
 
-Nothing about keeping it may stop a run. A value JSON has no shape for is written as its text;
-a value that cannot be written at all leaves the last save standing rather than ending the run.
-A loop that died because it could not write down where it had got to would be worse than one
-carrying on from a round ago.
+## One journal per run, one entry per call
 
-## Kept in the run that wrote it, keyed by the flow
+The journal is a file of JSON lines, appended to while the run goes: every flow call, what it
+was called with, the state it wrote, the sessions it opened, the temporary directories it made,
+and how it ended. A run of ten thousand calls is not ten thousand writes — only a state write is
+flushed as it is made; the rest is batched within a tenth of a second.
 
-State goes in the record of the run **doing the writing**, not in the one it was picked up
-from: a closed run is never reopened, and a run is what that run did.
+A [flow that calls another](/features/flows) is two calls, each keeping its own state and
+neither writing the other's. When the run is picked up, the flow at the top resumes
+unconditionally, and **a called flow resumes where it is called again with exactly the same
+task, agents, environments and params** — the same flow, asked the same thing of the same
+agents; the fifth identical call picks up the fifth. A call that differs starts afresh, since
+what it kept was an answer to another question. A flow that is not resumable passes resumption
+through to the flows it calls.
 
-It is keyed by the flow, so a [flow that called another](/features/flows) is two flows, each
-keeping its own state side by side in one file and neither writing the other's. The key is the
-name the flow was run under — so a flow run by name and the same file run by path are two names
-and two states.
+## Picking one up
 
-What a run picks up from is the last run of that flow in this workspace, unless one is named. A
-flow that **emptied** what it had written is where the search stops rather than a run to look
-past: clearing it says the next run starts clean, and answering that with the state of the run
-before would be answering the opposite.
+`hmz exec --resume` picks up **the newest resumable run of that flow in this workspace**, on the
+agents, environments and params this command line names. Without `--resume`, every run starts
+fresh — running a flow again is not, by itself, carrying one on.
 
-Whether a flow can be picked up at all is read by running the flow rather than off what a run
-of it recorded. A flow is a directory on disk, and what can happen next is what it says today.
+Temporary copies and scratch directories a resumable run made are kept rather than removed when
+it stops, so the run that picks it up finds them where they were. A run that is not resumable
+removes its own as each flow that made them ends.
 
 ## What does not come back
 
-The conversation. An ordinary flow opens a session rather than reconstructing one; an atlas
-reuses completed visit answers rather than recreating the context in which an agent produced
-them. A stateful loop stopped on its fortieth round says round 41 when it starts again — and
-remembers nothing else about the forty unless the flow wrote it down.
+The conversation. A resumed flow spawns sessions rather than reconstructing them. A stateful
+loop stopped on its fortieth round says round 41 when it starts again — and remembers nothing
+else about the forty unless the flow wrote it down.
 
 Which is the argument for keeping little: the repository is the memory, and the handful of
 things the flow tracks is what has to survive.
 
 ## Where the detail is
 
-- [Picking a run up](/user/resuming) — declaring it, and where the file lives
-- [An atlas](/weaver/atlas#stopping-and-starting) — graph identity and node-level continuation
-- [Tracing](/user/tracing#what-a-run-writes-down) — what else a run writes down
+- [Picking a run up](/user/resuming) — running it again, and where the journal lives
+- [Flows › A flow that can be picked up](/reference/flows#a-flow-that-can-be-picked-up) — the
+  contract in full
+- [Tracing](/user/tracing) — what else a run writes down
 - [Stopping](/user/stopping) — what escape does to a turn

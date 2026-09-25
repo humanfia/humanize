@@ -59,7 +59,7 @@ they are set. `send_default_pii` attaches the address, the machine's name and, i
 have their own switch, and that is off too. The hostname is not sent either.
 
 One default integration is switched off for the same reason. `ArgvIntegration` attaches
-`sys.argv`, and the command `hmz exec -f ralph_loop -a claude/… "$(cat TASK.md)"` puts the
+`sys.argv`, and the command `hmz exec -f ralph_loop -a agent=claude/… -b cost=5 "$(cat TASK.md)"` puts the
 whole task there. It is disabled where the reporter starts. Everything the SDK collects under
 `extra` is dropped again on the way out.
 

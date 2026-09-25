@@ -15,10 +15,10 @@ import { withBase } from 'vitepress'
 ## Run a flow
 
 ::: warning Use a scratch directory
-The flow decides what its agents may do, and a flow written to run unattended declares the rung
-where nothing is asked: an agent under one edits files without asking. Do this in a throwaway
-git repository, and read [Security](/user/security) before you point it at work you care
-about.
+Nothing an agent does is put to you for approval: every flow's agents run with approvals
+bypassed, and what one may touch is what its flow declares — by default, writing its working
+directory. Do this in a throwaway git repository, and read [Security](/user/security) before you
+point it at work you care about.
 :::
 
 You need Python 3.12 or newer and **one coding agent CLI you have already logged into**.
@@ -56,11 +56,11 @@ $ralph_loop Fix the bug in calc.py.
 ```
 
 `$` names a flow, and this directory has never run that one, so `/flow` opens inside it with
-your line held. Two questions answer what runs it: which flow — which the line already named —
-and then what its one agent is: the CLI you are already logged into, which of its models, and
-how hard it should think. The models offered are the ones **your account** may name, asked of
-the CLI itself rather than written into humanize. `save`, the row below the agents, starts the
-flow on the line you typed — as **shift+enter** or **ctrl+j** does from anywhere on the menu.
+your line held. What it asks is what the flow declares: its one role, `agent` — the CLI you are
+already logged into, which of its models, and how hard it should think — and a budget, how long
+the run may take or how much it may spend. The models offered are the ones **your account** may
+name, asked of the CLI itself rather than written into humanize. `save` starts the flow on the
+line you typed — as **shift+enter** or **ctrl+j** does from anywhere on the menu.
 
 You answer that once. What you chose is remembered for this directory, so the next `hmz` here
 opens on it and `Fix the bug in calc.py.` is the whole of what you type.
@@ -80,42 +80,43 @@ the flow menu opens — so if you have come straight here, open `hmz` once first
 ::: code-group
 
 ```sh [Claude Code]
-hmz exec -f ralph_loop -a claude/claude-opus-4-8:high "Fix the bug in calc.py."
+hmz exec -f ralph_loop -a agent=claude/claude-opus-4-8:high -b duration=20m "Fix the bug in calc.py."
 ```
 
 ```sh [Codex]
-hmz exec -f ralph_loop -a codex/gpt-5.6-sol:high "Fix the bug in calc.py."
+hmz exec -f ralph_loop -a agent=codex/gpt-5.6-sol:high -b duration=20m "Fix the bug in calc.py."
 ```
 
 ```sh [Antigravity CLI]
-hmz exec -f ralph_loop -a agy/gemini-3.7-flash-high:high "Fix the bug in calc.py."
+hmz exec -f ralph_loop -a agent=agy/gemini-3.7-flash-high:high -b duration=20m "Fix the bug in calc.py."
 ```
 
 ```sh [Qwen Code]
-hmz exec -f ralph_loop -a qwen/qwen3-coder-plus:high "Fix the bug in calc.py."
+hmz exec -f ralph_loop -a agent=qwen/qwen3-coder-plus:high -b duration=20m "Fix the bug in calc.py."
 ```
 
 ```sh [Kimi Code]
-hmz exec -f ralph_loop -a kimi/kimi-code/k3:high "Fix the bug in calc.py."
+hmz exec -f ralph_loop -a agent=kimi/kimi-code/k3:high -b duration=20m "Fix the bug in calc.py."
 ```
 
 ```sh [Grok Build]
-hmz exec -f ralph_loop -a grok/grok-4.6:high "Fix the bug in calc.py."
+hmz exec -f ralph_loop -a agent=grok/grok-4.6:high -b duration=20m "Fix the bug in calc.py."
 ```
 
 ```sh [ZCode]
-hmz exec -f ralph_loop -a zcode/zai/glm-5.3:high "Fix the bug in calc.py."
+hmz exec -f ralph_loop -a agent=zcode/zai/glm-5.3:high -b duration=20m "Fix the bug in calc.py."
 ```
 
 :::
 
-`-f` names the flow and `-a` names one agent, written `cli/model:effort` — the CLI that runs
-the turn, the model it asks for, and how hard that model should think. A flow that drives
-several takes several, separated by commas or given an `-a` apiece; the fuller spelling, which
-also says [which account](/user/providers) and which of the flow's places an agent fills, is
-`[name=]cli[@account]/model:effort`. A Ralph loop does not stop on its own, which is what it
-is for: **ctrl+c** at the command line when you have seen enough. Every round is written down,
-so stopping loses nothing.
+`-f` names the flow. `-a` names an agent for one of its roles, written
+`role=cli/model:effort` — the role it fills, the CLI that runs the turn, the model it asks for,
+and how hard that model should think; `role=cli@account/model:effort` also says
+[which account](/user/providers). A flow that drives several takes several, separated by commas
+or given an `-a` apiece. `-b` is what the run may spend — a `duration`, a `cost` in dollars, a
+count of `output_tokens` — and `hmz exec` will not start without one. A Ralph loop does not stop
+on its own, which is what it is for: the budget stops it, or **ctrl+c** at the command line when
+you have seen enough. Every round is written down, so stopping loses nothing.
 
 Either way, check the work:
 
@@ -129,11 +130,11 @@ git diff
 +    return a + b
 ```
 
-It made that edit under whatever rung its flow declared. A flow written to run unattended
-declares `bypass`, where **nothing is asked**: there is nobody at a prompt to answer, so an
-agent under one edits files, runs commands and makes commits on its own. A flow that declares
-no rung leaves your CLI exactly as it is when you run it headless yourself. Either way the flow
-decides, which is the one thing to have understood before pointing this at a real repository.
+It made that edit with **nothing asked**: there is nobody at a prompt to answer, so every
+flow's agents run with approvals bypassed, and edit files, run commands and make commits on
+their own. What an agent may touch is the `Permission` its flow declares for its role — its
+working directory, the rest of your home, the machine, the network — and the flow decides it,
+which is the one thing to have understood before pointing this at a real repository.
 
 ::: details The model id is wrong, or your CLI is not above
 A model id is whatever that CLI shipped this week, and which ones you may name depends on the
@@ -152,8 +153,9 @@ read [Concepts](/user/concepts).
 
 ## Weave a flow
 
-A **weaver** is whoever writes a flow. A flow is a directory whose `__init__.py` holds a
-function marked `@flow`, and that function drives the agents. Write one when you want the same
+A **weaver** is whoever writes a flow. A flow is a directory whose `__init__.py` holds an async
+function decorated with `@flow`, which declares the agents it drives, the environments they work
+in and the params it takes — and is handed exactly those. Write one when you want the same
 agents run the same way again and again, rather than typed out afresh each time.
 
 ```sh
@@ -164,15 +166,29 @@ mkdir -p .humanize/flows/twice
 # .humanize/flows/twice/__init__.py
 """Two passes: do the work, then read it back and fix what is wrong."""
 
-from hmz.flows import Agent, flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams
+from hmz.flows import LocalEnv, flow
 
 
-@flow
-def run(agents: tuple[Agent], task: str) -> None:
-    (agent,) = agents
-    session = agent.new()
-    session(task)
-    session("Now review what you just did, and fix anything that is wrong.")
+class Agents(AgentCollection):
+    builder: Agent
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def twice(
+    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
+) -> None:
+    """Does the work, then reads it back and fixes what is wrong."""
+    builder = agents["builder"]
+    session = await builder.spawn(env=envs["workspace"])
+    await builder.run(task, session=session)
+    await builder.run(
+        "Now review what you just did, and fix anything that is wrong.", session=session
+    )
 ```
 
 Run it by name. humanize also offers it in the interface: `/flow` lists the flows it ships,
@@ -180,45 +196,48 @@ every [flowverse](/weaver/flowverses) fetched here, and your own — the ones in
 `.humanize/flows` as `local`, the ones in `~/.humanize/flows` as `user`.
 
 ```sh
-hmz exec -f twice -a claude/claude-opus-4-8:high "add a --dry-run flag to calc.py"
+hmz exec -f twice -a builder=claude/claude-opus-4-8:high -b cost=5 "add a --dry-run flag to calc.py"
 ```
 
-Three rules are the whole contract:
+What it declares is the whole contract:
 
 | | |
 | --- | --- |
-| The `@flow` mark makes it a flow | Not the function's name, which is yours to choose |
-| The annotation on `agents` says how many it drives | `tuple[Agent]`, `tuple[Agent, Agent]` — `tuple[Agent, ...]` is refused |
-| That annotation must be readable at runtime | Import `Agent` normally, **never** under `if TYPE_CHECKING` |
+| `@flow(agents=…, envs=…, params=…)` on an `async def` | The function takes the task, then `agents`, `envs`, `params` and `ctx` by keyword |
+| A role is a key of the collection | `builder: Agent` is filled by `-a builder=…`, and is what a trace and the interface call it |
+| A role's type says what the flow will ask of it | `Agent` alone runs turns; `class Worker(Agent, GoalCommandAgentMixin)` may also run a `/goal` |
+| `LocalEnv` is the directory the run was started in | The runtime fills it, so it takes no `-e` |
 
-The command line cannot know the count any other way, so humanize checks it before the first
-turn — and an annotation nothing can read back is not one it can hold you to.
+A run is checked against the declaration before its first turn — a role left out, a CLI that
+cannot do what its role asks — and the flow is handed agents that can do exactly what it
+declared, whatever the CLI underneath could do.
 
 Whether the second turn remembers the first is the other choice you are making:
 
 ```python
-agent("do the task")     # a session of its own, dropped straight after: nothing carries over
-session = agent.new()    # a session you hold
-session("do the task")   # opens it
-session("keep going")    # resumes it, the first turn still in context
+session = await builder.spawn(env=workspace)  # a conversation you hold
+await builder.run("do the task", session=session)
+await builder.run("keep going", session=session)  # the first turn still in context
+fresh = await builder.spawn(env=workspace)  # another, starting from nothing
 ```
 
-Read a flow for what will not run, before anything runs it:
+Try it before a real agent ever does, on stand-ins that answer from a script:
 
 ```python
-from hmz.sdk import Hmz
+import asyncio
 
-for found in Hmz().flows.check("local/twice"):
-    print(f"{found.severity}: {found.code}: {found.said}")
+from hmz.runtime.flowing.fakes import FakeAgentDriver, run_fake
+
+builder = FakeAgentDriver(reply="done")
+asyncio.run(run_fake("./.humanize/flows/twice", "fix calc.py", agents={"builder": builder}))
+print(builder.prompts)  # ['fix calc.py', 'Now review what you just did, and fix anything …']
 ```
 
-Nothing printed is a flow with nothing wrong with it. `local/` is this project's own flows,
-which is where `.humanize/flows/twice` is offered from. See
-[Checking a flow](/weaver/checking-flows).
+See [Testing a flow](/weaver/testing-flows).
 
 **Next.** The [Weaver Guide](/weaver/) is what a flow may do and how to write one — loops,
-settings, goals, shapes, hooks, worktrees. [Build under
-test](/weaver/tutorials/checked-build) is the shortest useful flow there is, start to finish.
+params, goals, shapes, hooks, worktrees. [Build under
+test](/weaver/tutorials/build-under-test) is the shortest useful flow there is, start to finish.
 
 ## Work on humanize
 
@@ -294,8 +313,8 @@ patch](/contributing/tutorials/first-patch) takes one change from clone to pull 
 </div>
 
 <p class="hmz-warn">
-The flow decides what its agents may do, and a flow written to run unattended declares the rung
-where nothing is asked — an agent under one edits files, runs commands and makes commits
-without asking. Read <a :href="withBase('/user/security')">Security</a> before you point one at
-a repository you care about.
+Nothing an agent does is put to you for approval — it edits files, runs commands and makes
+commits without asking, within the permission its flow declares. Read
+<a :href="withBase('/user/security')">Security</a> before you point one at a repository you care
+about.
 </p>

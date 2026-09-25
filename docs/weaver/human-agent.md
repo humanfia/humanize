@@ -1,125 +1,186 @@
 # The person as an agent
 
-**Person** is the person's side of a conversation inside a flow: it asks for input and returns
-what you type. Add one when the flow needs a human to answer. `Person` is what a flow declares
-the place as; `HumanAgent` is what fills it.
+An **outworlder** is whoever is outside the run — the person at the prompt, or whatever stands
+in for one — taking turns inside a flow as one of its agents. Add one when the flow needs a
+human to answer: asking it something is asking what to say next, and it answers with what was
+typed.
+
+It is not steering. [Steering](/user/steering) is you putting words into an agent's turn while
+it runs; an outworlder takes turns of its own, as an agent of the flow.
 
 ## Try it
 
-```python
-from hmz.flows import HumanAgent
-
-person = HumanAgent()                      # takes only an optional name=, defaulting to "human"
-person("Here is what I did. What next?")   # asks, and answers with what was typed
-```
-
-Saying something to it asks **what to say next**, and it answers with whatever you type.
-
-## In a flow
-
-Declare a `Person` among the agents, and it is handed over like the rest:
+Declare a role typed `Outworlder`, and it is handed over like the rest:
 
 ```python
-from typing import NamedTuple
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    EnvCollection,
+    FlowContext,
+    FlowParams,
+    LocalEnv,
+    Outworlder,
+    flow,
+)
 
-from hmz.flows import Agent, Person, flow
 
-class Chat(NamedTuple):
+class Chat(AgentCollection):
     assistant: Agent
-    human: Person
+    human: Outworlder
 
-@flow
-def run(agents: Chat, task: str) -> None:
-    conversation = agents.assistant.new()
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Chat, envs=Envs, params=FlowParams)
+async def talk(
+    task: str, *, agents: Chat, envs: Envs, params: FlowParams, ctx: FlowContext
+) -> None:
+    """One session, and every line typed between turns is a turn of it."""
+    assistant, human, workspace = agents["assistant"], agents["human"], envs["workspace"]
+    conversation = await assistant.spawn(env=workspace)
+    listening = await human.spawn(env=workspace)
     said = task
     while said:
-        answered = conversation(said, suppress=True)
-        said = agents.human(answered)
+        answered = await assistant.run(said, session=conversation)
+        said = await human.run(answered, session=listening)
 ```
 
-That is [`chat`](/flows/chat), the flow the interface opens on.
+That is the shape of [`chat`](/flows/chat), the flow the interface opens on. An outworlder is
+talked to the way any agent is — a session, then turns in it — and what `run` answers is what
+the person typed.
 
-A `Person` is not one of the agents you name with `-a`, because **nobody is asked what the
-person runs**. The flow above drives two agents, so you start it with one `-a`:
+**Nobody is asked what the person runs**, so a role typed `Outworlder` is filled by humanize
+and never by `-a`. The flow above drives two agents and is started with one:
 
 ```sh
-hmz exec -f chat -a claude/claude-opus-5:high "Read README.md and tell me what this is."
+hmz exec -f talk -a assistant=claude/claude-opus-5:high -b cost=2 \
+    "Read README.md and tell me what this is."
 ```
 
-Run from a command line, nobody is at a prompt, so it answers with nothing: the loop ends and
-the flow does the one thing it was given. That is what you want from `chat` in a script.
+Naming the role on the command line is refused: it is not yours to fill.
+
+## Away
+
+`human.away` is whether anybody is there to answer. A run of `hmz exec` is always away — nobody
+is at a prompt — and so is one where [`/afk`](/user/afk) is on in the interface. An outworlder
+that is away answers at once, without asking anybody:
+
+| Asked for | Answers |
+| --- | --- |
+| text | `""` |
+| an [`output_schema`](/weaver/shapes) every field of which has a default | the schema built from its defaults |
+| an `output_schema` with a field that has none | raises `OutworlderAway` |
+
+So `talk` run from a command line takes one turn, hears `""`, and ends: the flow does the one
+thing it was given. That is what you want from `chat` in a script. A flow that asks the person
+something it cannot go on without, and wants to run unattended too, writes a default for every
+field it asks — the default is what it does when nobody is there to say.
+
+A person at the prompt who walks away mid-question is away too: `/afk` while the question is up
+answers it as nobody.
 
 ## What it is not
 
-A `Person` is not a coding agent. It runs no model and spends nothing.
+An outworlder is not a coding agent. It runs no model and spends nothing, and its session is a
+conversation with a person rather than with a CLI:
 
-Its turns are **not bracketed** by the `begins`/`ends` events that say whose turn it is —
-counting them would put the person in the graph of who handed to whom, and spin a clock at
-them while they thought. So the person appears in neither the handover graph of
-[`/monitor`](/user/monitor) nor the [cost readout](/user/tally), and the conversation with them
-is not one of the ones [tab steps between](/user/conversations).
-
-It runs no [moments](/weaver/hooks) either. A **moment** is a point in a turn of a model, and
-the person takes no such turn.
+- It reaches none of a CLI's [moments](/weaver/hooks). `on_stop` and the rest are there, since
+  every agent has them, and a hook hung on one is never called.
+- It cannot be forked: `fork` raises `UnsupportedOperation`.
+- It carries no skills, so `derive` with `skills=` raises `CapabilityNotGranted`.
+- Its turns are not bracketed by the events that say whose turn it is, so the person appears
+  in neither the handover graph of [`/monitor`](/user/monitor) nor the
+  [cost readout](/user/tally).
 
 ## Asking them for a shape — a questionnaire
 
-Give the person a [`schema`](/weaver/shapes), and they are asked **a question per field**. The
-model is built out of what they typed:
+Give the person an [`output_schema`](/weaver/shapes), and they are asked **a question per
+field**. The model is built out of what they typed:
 
 ```python
 class Settled(BaseModel):
-    approach: Literal["fast", "careful"] = Field(description="Which way should this be built?")
-    tests: bool = Field(description="Write tests for it?")
-    rounds: int = Field(default=3, description="How many rounds may it take?")
+    approach: Literal["fast", "careful"] = Field(
+        default="careful", description="Which way should this be built?"
+    )
+    tests: bool = Field(default=True, description="Write tests for it?")
 
-settled = agents.human("How should I do this?", schema=Settled, suppress=True)
-if settled is not None and settled.tests:
+
+settled = await human.run("How should I do this?", session=listening, output_schema=Settled)
+if settled.tests:
     ...
 ```
 
 A flow settles what only a person can settle **in the model it is going to run on**, once
 rather than by parsing a sentence. Each question takes the road [a coding agent's own
-question](/user/questions) takes, so [`/afk`](/user/afk) answers it the way it answers any
-other: nobody is there, and the questionnaire comes back as `None` under `suppress`. Which
-field becomes which question is a table on [Answers in a
-shape](/weaver/shapes#asking-a-person-a-questionnaire).
-
-## The board: the half that does not wait
-
-Saying something to the person **stops the turn** until they answer. That is right for a
-question and wrong for everything else a run wants from them, so they carry a board as well:
-named lines the flow and the person both write on, drawn on [`/monitor`](/user/monitor), where
-neither waits on the other.
-
-```python
-board = agents.human.board
-board.put("todo", task)                          # either of you writes this one
-board.put("doing", "nothing yet", whose="flow")  # the flow's; they read it
-
-while waiting := [one for one in board.get("todo").splitlines() if one.strip()]:
-    board.put("doing", waiting[0])
-    agents.builder(waiting[0], suppress=True)
-    board.put("todo", "\n".join(waiting[1:]))
-```
-
-A line whose `whose` is one side's is refused to the other where it writes rather than quietly
-ignored. Run where nobody is at a prompt, the board is still a board — the flow writes it and
-reads it, and nothing changes it from outside. See [The mission board](/user/board).
+question](/user/questions) takes. Which field becomes which question is a table on [Answers in
+a shape](/weaver/shapes#asking-a-person-a-questionnaire).
 
 ## When another flow calls yours
 
-When a flow [calls another](/reference/flows#a-flow-that-calls-another-flow), it may hand it
-one fewer agent, because nobody chooses the person. If you have your own, hand it over, so what
-it asks reaches whoever is at the prompt:
+A flow that [calls one](/weaver/calling-flows) with an `Outworlder` role may simply leave the
+role out, and the callee is handed the run's own — whoever is at the prompt, or nobody:
 
 ```python
-load("chat")((assistant, agents.human), task)
+await load(":talk")(
+    task, agents={"assistant": agents["assistant"]}, envs=envs, params=FlowParams()
+)
 ```
+
+Or hand over the one it was handed itself, which is the same person.
+
+## Stand in for the person
+
+Sometimes the caller means to answer for the person: a flow that runs `talk` with a script of
+lines, a supervisor that answers a callee's questions with a model of its own.
+`Outworlder.new()` makes an outworlder the caller answers for, through a hook of its own:
+
+```python
+from hmz.flows import Outworlder, OutworlderRunHookParams, OutworlderRunHookResult
+
+lines = iter(["and the tests", "thanks"])
+
+
+async def typed(params: OutworlderRunHookParams) -> OutworlderRunHookResult:
+    return OutworlderRunHookResult(output=next(lines, ""))
+
+
+stand_in = Outworlder.new()
+stand_in.on_outworlder_run(typed)
+await load(":talk")(
+    task,
+    agents={"assistant": agents["assistant"], "human": stand_in},
+    envs=envs,
+    params=FlowParams(),
+)
+```
+
+Every `run` of the callee's `human` is now a call of `typed`, told the `prompt` and the
+`output_schema` it was asked for, and answering with `output`: text, or an instance of that
+schema. It runs as the flow that hung it, so it may take a turn of an agent of the caller's to
+answer:
+
+```python
+async def answered(params: OutworlderRunHookParams) -> OutworlderRunHookResult:
+    thinking = await supervisor.spawn(env=workspace)
+    if params.output_schema is None:
+        said = await supervisor.run(params.prompt, session=thinking)
+    else:
+        said = await supervisor.run(
+            params.prompt, session=thinking, output_schema=params.output_schema
+        )
+    return OutworlderRunHookResult(output=said)
+```
+
+An `Outworlder.new()` with no hook hung on it is **away**, and answers as any away outworlder
+does. `on_outworlder_run` is only for one made this way: hung on the run's own,
+it raises `CapabilityNotGranted`, since the person at the prompt answers for themselves.
 
 ## See also
 
 - [Questions](/user/questions)
+- [Being away (/afk)](/user/afk)
 - [Answers in a shape](/weaver/shapes)
-- [The mission board](/user/board)
 - [Flows › The person at the prompt](/reference/flows#the-person-at-the-prompt)

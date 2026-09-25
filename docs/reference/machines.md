@@ -1,7 +1,8 @@
 # Machines
 
 Where an agent's turns land. One setting on the agent's config, with three answers — and, for an
-agent a [flow](/reference/flows) drives, the flow says whether it may be given any answer but the first.
+agent a [flow](/reference/flows) drives, one nobody sets: the environment the flow spawned the
+session in is where its turns land.
 
 The agent process always stays on **this** machine, whichever answer you give — keeping its
 credentials, its state directory and its link to its model provider. What moves is the project
@@ -24,87 +25,31 @@ It is **one** setting because it is one question. A machine that is already runn
 machine started for the agent are both answers to "where does this work land", and an agent has
 one answer to that.
 
-## Which agents may be moved at all
+## Where a flow's agents work
 
-Whether that question may be asked of a given agent is the **[flow's](/reference/flows)** to say, and not
-a setting anybody may reach for. A flow is written for one shape of work, and one whose agents
-read this project cannot have one of them reading somebody else's. So a flow declares it beside
-each agent it drives, exactly as it declares [the moments that agent must
-run](/reference/flows#asking-for-an-agent-that-can-do-something):
+A flow never says `machine=`, and nobody says it for one. It declares the
+[environments](/reference/flows#where-each-agent-works) it works in, one role apiece, and opens
+every session in one of them — `await agent.spawn(env=repo)` — and the environment is what
+decides where that session's turns land:
 
-```python
-from typing import Annotated, NamedTuple
+| The environment | Where the session's turns land |
+| --- | --- |
+| a `LocalEnv` role — the directory the run was started in — or `-e repo=local@/srv/project` | this machine, in that directory: no `machine` at all |
+| `-e repo=ssh@build-box/srv/project` | that host, as [a machine that is already running](#a-machine-that-is-already-running): an anchored `ssh://build-box` target whose workspace is `/srv/project` |
 
-from hmz.flows import Agent, Isolated, Remote
+The harness driver makes the agent a session runs as with that answer, so one agent of a flow
+may have sessions on two machines, each working where it was spawned. The flow's own code
+reaches an environment the same way its agent does: `await repo.exec(["make", "test"])` and
+`await repo.read("NOTES.md")` run on that machine, in that directory.
 
-class Agents(NamedTuple):
-    builder: Annotated[Agent, Remote]                  # may be pointed at a machine
-    tester: Annotated[Agent, Isolated("python:3.12")]  # a container of the flow's own
-    reviewer: Agent                                    # here, and nowhere else
-```
-
-### A place that says nothing
-
-Runs here, and **cannot be pointed anywhere**. This is a change: it used to be that anything
-could be given a machine at the prompt. An agent that was configured with one and handed to such
-a place is refused before the first turn, naming the flow that refused it:
-
-```text
-onbox: reviewer runs on this machine -- this flow does not say it works anywhere else, so it cannot be pointed at one
-```
-
-Most places are this one, and a flow that says nothing about where its agents work is a flow
-whose agents work where it does.
-
-### `Remote`
-
-The only kind of place that may be pointed at a machine. *Which* machine is not the flow's
-business — it is settled by whoever chose the agent, as a `machine=` on its config or on the
-`where` row of the interface's own sheet for that agent — and it may be either of the two
-answers below. A `Remote` place
-that nobody pointed anywhere runs here, like any other.
-
-`Remote` is the class itself, written beside the type. It takes no arguments and carries nothing:
-all it says is that this is a place where the question may be asked.
-
-### `Isolated("python:3.12")`
-
-A container of the flow's own, and the one machine **nobody configures** — not the person at the
-prompt, not the command line. The flow names the image, and the rest follows from it:
-
-- the project directory is mounted into the container **at the path it already has here**, so a
-  path is the same path on both sides and the work outlives the container;
-- the agent goes on running **here**, with its own credentials and its own trajectory — what is
-  isolated is the tools and the libraries a command finds, not the work;
-- the work reaches the container through [coganchor](/reference/remote-execution), as a `docker://`
-  target, which is the road every other machine's work takes too;
-- it comes up on the agent's first turn and goes when the agent does, as
-  [any of them does](#when-the-machine-comes-up-and-when-it-goes).
-
-Which is [a container of the agent's own](#a-container-of-the-agent-s-own), settled where the
-flow's declaration is read rather than where the agents are chosen. `hmz.coganchor.agents.isolated`
-is what it comes to, if the same thing is ever wanted by hand:
-
-```python
-from hmz.coganchor.agents import isolated
-
-isolated("python:3.12")              # DockerConfig(image="python:3.12", workspace=None)
-isolated("python:3.12", "/srv/one")  # the same, holding that directory instead
-```
-
-An agent configured with a machine and handed to such a place is refused, since there was nothing
-to answer — and so is one that has already opened a session, which is a conversation that cannot
-be moved after the fact:
-
-```text
-onbox: tester works in a container of this flow's own, so there is nothing to point it at
-/.../flow.py: tester PoleMos600 has already opened a session
-```
+A container is not among them. The flow API's environments are this machine and hosts reached
+with ssh; a run whose work belongs in a container is a run started inside one, or pointed at a
+host that is one.
 
 ## This machine
 
 The default, and nothing to configure. `machine=None`, `agent.anchor` is `None`, turns run as
-ordinary local processes in whatever directory the flow was started in.
+ordinary local processes in the directory the session was opened at.
 
 Nothing below is needed for this.
 
@@ -161,10 +106,8 @@ An image with no Python the target half can use is refused where the machine is 
 than a turn later; where the image keeps one does not matter, since it is looked for off the
 `PATH` as well as on it.
 
-A flow that wants this for one of its own agents writes
-[`Isolated("python:3.12")`](#isolated-python-3-12) beside the place instead of building a config:
-the image is then the flow's, the workspace is the directory the flow is running in, and nobody
-is asked anything.
+This is an agent's own setting, made from Python; the flow API has no environment that is a
+container.
 
 **Requirements:** everything the answer above needs, plus the `docker` command and a daemon to
 reach.
@@ -192,42 +135,17 @@ The same for every kind:
   that was already running is left running; only what was started here is stopped.
 - **The workspace is left behind** either way.
 
-## The whole run on one machine
+## The workspace as your own code reaches it
 
-The setting above is per agent, which is what a flow says when one place needs a machine of its
-own. A run that wants **all** of them in one container says so from outside instead — and
-says it from Python, since it is a thing about the run rather than about any agent named on
-a line:
-
-```python
-from hmz.sdk import Hmz
-
-hmz = Hmz()
-path, agents, task, config, budget, _ = hmz.read(
-    ["-f", "ralph_loop", "-a", "claude/claude-opus-5:max", "get the suite green"]
-)
-hmz.run(path, agents, task, config, budget=budget, container="python:3.12").run()
-```
-
-One container is started as the run starts and taken down as it ends, and every agent is
-pointed at it — over whatever each was configured with, because that is what saying it once
-about all of them means. Two are left alone: a place the **flow** declared `Isolated` keeps the
-container the flow named, since where an agent works is the flow's to say; and the person at
-the prompt, who takes no turn anywhere.
-
-## The workspace as the flow reaches it
-
-An agent under a machine is answered for without being told. The flow driving it is not — it is
-this process, running Python — so a file it opens is this machine's file and a command it runs
-is this machine's command.
-
-For a container that was handed the project directory at the path it already has, the files are
-the same files either way. The commands are not, and that is what `container()` answers:
+An agent under a machine is answered for without being told. Code driving it is not — it is this
+process, running Python — so a file it opens is this machine's file and a command it runs is
+this machine's command. `Mapped` is that workspace as the machine has it, over the connection an
+anchored turn opens:
 
 ```python
-from hmz.flows import container
+from hmz.coganchor.machines import Mapped
 
-held = container()               # Mapped, or None for a run on this machine
+held = Mapped(agent.anchor)      # nothing is connected until something is asked
 held.workspace                   # the project directory, as the machine names it
 held.read_text("pyproject.toml")
 held.write_text("notes.md", "…")
@@ -239,10 +157,10 @@ said = held.run(["python", "-m", "pytest", "-q"])
 said.ok, said.status, said.output
 ```
 
-Every path may be given as the machine names it or relative to the workspace. The connection is
-the one an anchored turn opens, made when the flow first asks and held for the rest of the run.
+Every path may be given as the machine names it or relative to the workspace. A flow has no need
+of it: its environments are the workspace as the flow reaches it, wherever they are.
 
-## What a place comes to
+## What a machine comes to
 
 Each setting says what a machine of it would come to, in capability names — and says it
 **without starting anything**, so a requirement can be refused before the first turn rather
@@ -298,20 +216,18 @@ needs that CLI installed there and sends the account across to it; the first nee
 
 `anchor:afar` is the third, and it is said *alongside* `anchor:supervised` rather than instead
 of it: the turn is supervised, and what the name adds is that the supervisor and the agent
-process are not on this machine. A flow that must keep the agent's own process here — because
-the account is here, or because it reaches a provider only this machine can — refuses a place
-that says it, and is refused before anything starts. Read
-[Remote execution](/reference/remote-execution#where-the-harness-runs).
+process are not on this machine — which matters to anything that must keep the agent's own
+process here, because the account is here or because it reaches a provider only this machine
+can. Read [Remote execution](/reference/remote-execution#where-the-harness-runs).
 
 ## Choosing between them
 
 | You want | Use |
 | --- | --- |
 | The agent to work in this checkout, as you | **this machine** |
-| The work to happen on a bigger box, a GPU host, or a machine with the right toolchain | **already running**, `ssh://` |
+| The work to happen on a bigger box, a GPU host, or a machine with the right toolchain | **already running**, `ssh://` — for a flow, `-e <role>=ssh@<host>/<workdir>` |
 | To keep reconnecting cheap across a long loop of short turns | **already running**, `tcp://` with a listening target |
 | The agent confined to a toolchain that is not yours, without giving up your workspace | **a container of its own** |
-| A flow's own agent confined that way, with nobody asked which image | `Isolated("…")` [beside the place](#isolated-python-3-12) |
 | To confine what the agent may *do* | none of these — see below |
 
 **Isolation here is about environment, not permission.** A container gives the agent a
@@ -378,7 +294,7 @@ from hmz.coganchor.machines import (
     Anchored,
     DockerConfig,    # a container started for the agent
     Docker,
-    Mapped,          # the workspace on that machine, as the flow's own code reaches it
+    Mapped,          # the workspace on that machine, as your own code reaches it
     Ran,             # what one command run there came to: .status, .output, .ok
 )
 ```
@@ -389,13 +305,11 @@ And on the agent side:
 agent.anchor   # AnchorConfig | None -- where its turns land, bringing the machine up if it must
 ```
 
-And what a flow writes beside a place, with the two shorthands that build the settings above:
+And the two shorthands that build the settings above:
 
 ```python
 from hmz.coganchor.agents import (
-    Remote,     # this place may be pointed at a machine
-    Isolated,   # this place is a container of the flow's own: Isolated("python:3.12")
     anchored,   # anchored("ssh://build-box") -> AnchoredConfig, from a target as it is written
-    isolated,   # isolated("python:3.12") -> DockerConfig, which is what Isolated comes to
+    isolated,   # isolated("python:3.12") -> DockerConfig
 )
 ```

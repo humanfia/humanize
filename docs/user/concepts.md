@@ -1,14 +1,15 @@
 # Concepts
 
-Twelve words carry the whole of humanize. They are defined here once, in the order they build
+Eleven words carry the whole of humanize. They are defined here once, in the order they build
 on each other, so nothing else has to redefine them.
 
 ## The one-sentence version
 
 A **flow** — written by a **weaver**, shipped with humanize or held in a **flowverse** — drives
 **agents**, each of which holds **sessions** with a coding-agent **backend**; a session is made
-of **turns**; one run of a flow is an **epic**; an agent's turns land on a **machine** and may
-run as a **provider**; and what the whole thing did is read back as a **trace**.
+of **turns**; one run of a flow is an **epic**; a session works in an **environment**, a
+directory on a machine, and its turns may run as a **provider**; and what the whole thing did is
+read back as a **trace**.
 
 ## Backend
 
@@ -29,14 +30,15 @@ reach you are in [Agents](/reference/agents#what-each-backend-can-do).
 
 ## Agent
 
-**A backend, a model, and an effort — plus, optionally, where its work lands and what to call
-it.** That is the whole definition.
+**A backend, a model, and an effort — plus, optionally, the account it runs as.** That is the
+whole definition, and it is what an `-a` says, after the role the agent fills:
 
 ```
-claude / claude-opus-4-8 : high
-  │           │            └── effort: how hard to think
-  │           └── model
-  └── backend
+reviewer = claude / claude-opus-5 : high
+   │         │           │           └── effort: how hard to think
+   │         │           └── model
+   │         └── backend
+   └── the role it fills in the flow
 ```
 
 An agent holds no conversation. It is *structure*: the settings that every conversation it
@@ -45,8 +47,9 @@ opens will run at. Two consequences surprise people.
 - **Two agents at the same model and effort are two agents.** An actor and the reviewer that
   reads its work are not one thing because they are configured alike. A [flow](#flow) that
   drives both drives two.
-- **An agent has an id.** Either the name you gave it, the name the flow calls it, or one
-  nothing else answers to. That id is what a [trace](#trace) groups its sessions under.
+- **An agent has a role.** A flow declares its agents by role — `actor`, `reviewer` — and
+  names each one it is handed by the role it fills. That is what a [trace](#trace) groups its
+  sessions under, and what the interface asks you about.
 
 **Effort** is the backend's own word, not humanize's, so the values differ. See
 [Agents](/reference/agents#efforts).
@@ -69,21 +72,19 @@ still has the earlier turns in context. Discarding the session is how a flow for
 session starts from nothing. This is the single most important choice a flow makes.
 
 ```python
-agent("do the task")          # a session of its own, dropped straight after: nothing carries over
-session = agent.new()
-session("do the task")        # opens it
-session("keep going")         # resumes it, the first turn still in context
+session = await agent.spawn(env=workspace)
+await agent.run("do the task", session=session)   # opens it
+await agent.run("keep going", session=session)    # resumes it, the first turn still in context
 ```
 
-A session is also **rooted at a directory**, `agent.new(worktree)`. That is what a conversation
-is to these backends: it opens somewhere and every turn of it happens there, defaulting to the
-directory the flow runs in. So one agent can work in several places at once — one session per
-worktree, their turns going together. See
-[Agents](/reference/agents#the-directory-a-session-works-in).
+A session is **opened in an [environment](#environment)** — `spawn(env=…)` — and every turn of
+it happens there: that is what a conversation is to these backends, one rooted at a directory.
+So one agent can work in several places at once — one session per worktree, their turns going
+together. See [Worktrees, copies and scratch](/weaver/worktrees).
 
-A session can also be **branched**, `session.fork()`: a second conversation carrying this one's
-history and going its own way from there, made of the CLI's own fork. That is how a flow tries
-two ways out of an expensive conversation without paying for it twice. See
+A session can also be **branched**, `agent.fork(session, env=…)`: a second conversation carrying
+this one's history and going its own way from there, made of the CLI's own fork. That is how a
+flow tries two ways out of an expensive conversation without paying for it twice. See
 [Branching a conversation](/weaver/branching).
 
 Every session the backend opened is written down under an id, which is how its transcript is
@@ -99,45 +100,50 @@ A turn is the unit that:
 - **can be watched** — everything the agent says arrives as it says it, not at the end;
 - **can be talked to** — a line you say while a turn is running goes *into* that turn rather
   than starting another;
-- **can be hooked** — it passes through named [moments](/reference/agents#hooks); a flow may
-  hang a callable on one and take it down again while the flow is running;
-- **can fail** — a failed turn raises and leaves the session unopened, so the next attempt
-  retries it rather than resuming something that may not exist.
+- **can be hooked** — it passes through named moments; a flow may hang an async function on
+  one with its agent's `on_*` methods, and take it down again while the flow is running. See
+  [Hooks](/weaver/hooks);
+- **can fail** — a failed turn raises, and what it raises says why: an account refused, a model
+  not served, a CLI that died. See [Flows › When something goes
+  wrong](/reference/flows#when-something-goes-wrong).
 
 ## Flow
 
-**A directory whose `__init__.py` has a function marked `@flow` in it, taking the agents and
-the task, beside the skills it brings.** It is the loop: what each agent is asked, in what
-order, and when to stop.
+**An async function marked `@flow`, in a directory beside the skills it brings, that declares
+the agents it drives, the environments they work in and the params it takes.** It is the loop:
+what each agent is asked, in what order, and when to stop.
 
 ```python
-@flow
-def run(agents: tuple[Agent], task: str) -> None:
-    (agent,) = agents
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def ralph_loop(task, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext):
+    agent, workspace = agents["agent"], envs["workspace"]
     while True:
-        agent(task, suppress=True)
+        session = await agent.spawn(env=workspace)
+        await agent.run(task, session=session)
 ```
 
-The annotation on `agents` is load-bearing. Its length is how many agents the flow drives — the
-one thing about a flow that the command line starting it cannot otherwise know — and humanize
-checks it before the first turn rather than hours into a loop. What else it may say is checked
-at the same moment:
+What it declares is load-bearing. Each agent and each environment is a **role**, by name, and
+the type of each role says what it has to be able to do — a goal, being steered, a hook only
+some backends reach, a shell, a git worktree — and nothing more. humanize checks what it is
+given against that before the first turn rather than hours into a loop, and then hands the flow
+exactly what it declared: a flow whose reviewer was not declared able to be steered cannot steer
+it, whichever backend is underneath.
 
 | | |
 | --- | --- |
-| a `NamedTuple` | what each agent is *for*, as well as how many there are |
-| `Annotated[Agent, Moment.…]` | what that agent has to be able to do |
-| `Annotated[Agent, Remote]`, `Annotated[Agent, Isolated(…)]` | where that agent may work |
+| the agents, `AgentCollection` | a role apiece: what each agent is *for*, what it must be able to do, and what it may touch |
+| the environments, `EnvCollection` | a role apiece: where the work happens, and what may be done there |
+| the params, `FlowParams` | what it can be set up with, one field apiece |
 
 A flow is ordinary Python and may branch any way it likes. Nothing asks it what it is doing;
-what a run looks like is read off the turns going past. It may be `async def`, which is how it
-drives [many turns at once](/reference/flows#a-flow-that-waits-for-more-than-one-thing), and it
-may [call another flow](/reference/flows#a-flow-that-calls-another-flow) by name and run it
-with the agents it already has. Starting one is the same either way.
+what a run looks like is read off the turns going past. It drives
+[many turns at once](/reference/flows#a-flow-that-waits-for-more-than-one-thing) by awaiting
+several, and it may [call another flow](/reference/flows#a-flow-that-calls-another-flow) by its
+ref and hand it the agents it already has. Starting one is the same either way.
 
-One file may hold several: `@flow` is the flow it holds under its own name, and each
-`@flow(name="…")` is another, run as `<flow>:<name>`. Three phases of one thing are then one
-thing to write and three to run. Each asks only for the agents it drives.
+One module may hold several: the flow named after its directory is the one a bare name runs,
+and each other is run as `<flow>:<name>`. Three phases of one thing are then one thing to write
+and three to run. Each asks only for the roles it drives.
 
 At the prompt a flow is named by that same name, and a `$` in front of it
 [starts one outright](/reference/tui#starting-a-flow-outright): `$ralph_loop fix the failing
@@ -155,32 +161,6 @@ afternoon, because a loop that keeps stopping in the same place is a flow to edi
 run to babysit. The word is here because the documentation splits on it: the [User
 Guide](/user/) never asks for Python, and the [Weaver Guide](/weaver/) assumes you have run a
 flow before writing one.
-
-## Atlas
-
-**A flow whose body is read rather than run.** Marked `@atlas` rather than `@flow`, written in
-a narrower Python, and compiled before anything happens into a graph — a **prophecy** — of the
-nodes the run will take and the edges between them.
-
-```python
-@atlas
-def run(agents: Agents, task: str) -> None:
-    draft = write(agents.writer, task)
-    verdict = judge(draft)
-    while not verdict.done:
-        draft = write(agents.writer, task)
-```
-
-Each statement is one node. A `@mind` is one turn by one agent and has exactly one way out; a
-`@logic` is a Python function and may have several, which is what a branch hangs off. What
-flows between them is a pydantic model, checked edge by edge before the first turn. An atlas
-called by an atlas is one node of the graph around it.
-
-An atlas is a flow in every other way — found, listed, named and run by the same line. What it
-buys is that its shape is known in advance: it can be printed and diffed, it is checked whole
-before it starts, and a run of one is picked up node by node rather than started again.
-
-See [An atlas](/weaver/atlas).
 
 ## Flowverse
 
@@ -205,7 +185,7 @@ It opens when the flow starts and closes when the flow stops, finished, failed o
 and is never reopened. Its `epic.jsonl` records the flow, the agents and the backend's id for
 every session each of them opened. Beside it are a record apiece for the flows this one
 [called](/reference/flows#a-flow-that-calls-another-flow), a link per file each session was
-logged to, whatever a flow that [can be picked up](/user/resuming) left behind, the programs a
+logged to, the journal a flow that [can be picked up](/user/resuming) keeps, the programs a
 [profiled](/user/tracing#profiling-a-run) run started, and the traces gathered of it
 afterwards.
 
@@ -217,20 +197,22 @@ indistinguishable afterwards, and with it a [trace](#trace) can say `builder` an
 Epics live under `~/.humanize/epics/<workspace>/`, one directory apiece. See
 [Tracing](/reference/tracing#epics).
 
-## Machine
+## Environment
 
-**Where an agent's turns land.** One setting with three answers:
+**A directory on a machine, where a session's turns land and a flow's commands run.** A flow
+declares the environments it works in, one role apiece, and opens each session in one of them.
 
 | | |
 | --- | --- |
-| **This machine** | the default. Nothing to configure. |
-| **One that is already running** | an ssh host, a container, a listening port. The agent process stays here — keeping its credentials and its link to its model provider — and everything it *does* happens there. |
-| **One started for the agent** | a container of an image you name, brought up on the first turn and removed with the agent. |
+| **This directory** | a role typed `LocalEnv`: the directory the run was started in, which humanize fills itself. Most flows work in nothing else. |
+| **Another directory here** | `-e repo=local@/srv/project` |
+| **A directory on another machine** | `-e repo=ssh@gpu-box/home/me/repo`. The agent process stays here — keeping its credentials and its link to its model provider — and everything it *does* happens there. |
 
-**Which agents it may be asked of is the flow's to say.** An agent whose annotation says
-nothing about a machine runs here and cannot be pointed anywhere. `Annotated[Agent, Remote]` is
-one that may be; `Annotated[Agent, Isolated("python:3.12")]` is a container of the flow's own
-that nobody configures. See [Machines](/reference/machines).
+An environment may be given more than its role asks for and never less: a role declared with a
+shell may run commands, one declared with git worktrees may check out more of them, one declared
+with eight GPUs is refused a machine with four. See
+[Flows › Where each agent works](/reference/flows#where-each-agent-works) and
+[Machines](/reference/machines).
 
 ## Provider
 
@@ -268,12 +250,12 @@ epic ──── one run of one flow, written down
   │
 flow ──── the loop, a directory of Python
   │
-  ├── agent "builder"  ── backend + model + effort + machine
-  │     ├── session ── turn, turn, turn …      ─┐
-  │     └── session ── turn                     │  every session's transcript
-  │                                             ├─ is written by the backend,
-  └── agent "reviewer" ── backend + model …     │  and read back as a trace
-        └── session ── turn                    ─┘
+  ├── agent "builder"  ── backend + model + effort + account
+  │     ├── session in env "workspace" ── turn, turn, turn …  ─┐
+  │     └── session in env "workspace" ── turn                 │  every session's transcript
+  │                                                            ├─ is written by the backend,
+  └── agent "reviewer" ── backend + model …                    │  and read back as a trace
+        └── session in env "workspace" ── turn                ─┘
 ```
 
 ## Two distinctions worth getting right
@@ -283,13 +265,14 @@ flow that opens a session per turn is a Ralph loop: the agent starts from the ta
 repository every time. A flow that holds one session across turns is a conversation. Same
 agent, opposite behaviour. The flow decides, not the agent.
 
-**Turn failing vs. agent stopping — what a loop should do.** A turn that failed is ordinary;
-`suppress=True` turns it into an empty answer and the loop goes round again. An agent that has
-been *told to stop* (ctrl+c twice or `/stop` in the interface, or `agent.stop()`) raises
-`Stopped`, which `suppress` deliberately does not catch, because a loop that carried on past it
-would never end.
-It does not catch an `Unrecoverable` either, and for the same reason: a turn that failed for a
-reason no other try could come out differently on is one the next round would meet again.
+**Turn failing vs. run stopping — what a loop should do.** A turn that failed raises a
+`HarnessError` saying why, and a loop that wants to go round again catches it — the leaf it can
+do something about, or `HarnessError` whole. A run that has been *told to stop* (ctrl+c twice or
+`/stop` in the interface) or has spent its budget raises something else — a cancellation, or
+`BudgetExceeded` — which a loop catching `HarnessError` does not catch, because a loop that
+carried on past it would never end. Catch `HarnessUnrecoverable` only knowingly: a turn that
+failed for a reason no other try could come out differently on is one the next round would meet
+again.
 
 ---
 

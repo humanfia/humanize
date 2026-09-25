@@ -1,33 +1,35 @@
-# Settings of its own
+# Params of its own
 
-Declare a pydantic model and the flow grows a settings sheet, a YAML file and a set of
-refusals, with no interface code of your own. Reach for this when a flow needs knobs you want
-remembered between runs rather than typed every morning.
+Declare a `FlowParams` subclass and the flow grows a form at the prompt, a `-p` on the command
+line and a set of refusals, with no interface code of your own. Reach for this when a flow
+needs knobs you want remembered between runs rather than typed every morning.
 
-## Declare the settings model
+## Declare the params
 
-Add a third argument to `run`: a pydantic model that holds the flow's settings.
+`FlowParams` is a [pydantic](https://docs.pydantic.dev/) model. Subclass it, one field per
+param, and hand the class to `@flow`:
 
 ```python
 # .humanize/flows/pair/__init__.py
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
-from hmz.flows import Agent, flow
+from hmz.flows import FlowContext, FlowParams, flow
 
 
-class Config(BaseModel):
+class Params(FlowParams):
     """What this flow takes."""
 
     rounds: int = Field(default=3, ge=1, le=9, description="how many times round")
     mode: Literal["fast", "slow"] = Field(default="fast", description="which way")
 
 
-@flow
-def run(agents: tuple[Agent], task: str, config: Config | None = None) -> None:
-    setting = config or Config()
-    for _ in range(setting.rounds):
+@flow(agents=Agents, envs=Envs, params=Params)
+async def pair(
+    task: str, *, agents: Agents, envs: Envs, params: Params, ctx: FlowContext
+) -> None:
+    for _ in range(params.rounds):
         ...
 ```
 
@@ -35,10 +37,43 @@ That is the whole of it. **The model is what asks.** The fields are the question
 say how each one is answered. `description` is the line shown beside a field. Whatever the
 model refuses is what the flow will not run.
 
-## Set it at the prompt
+`params` is always an instance of your class. Nobody having set anything is `Params()` — the
+defaults — so there is no `None` to fall back from. A flow that takes nothing says
+`params=FlowParams`, and is handed an empty one.
 
-Choosing the flow in `/flow` opens its settings sheet: that model with a cursor on it. Each row
-is one setting — its name, what it is set to, and the line the flow declared it with.
+`FlowParams` forbids what it does not declare: a key your model has no field for is refused
+rather than quietly ignored, because a param typed wrong is a param somebody thinks they set.
+
+## Set them from the command line
+
+```sh
+hmz exec -f pair -a agent=claude/claude-opus-5:max -b cost=10 \
+    -p rounds=9 -p mode=slow "$(cat TASK.md)"
+```
+
+`-p key=value`, as many as you like, or several in one: `-p rounds=9,mode=slow`. A value is
+read as its field's type — `9` is an `int` for `rounds`, `true` a `bool` — and, where that does
+not read it, as JSON, so a list or a mapping is written the way JSON writes one:
+
+```sh
+-p 'tags=["parser","printer"]'
+```
+
+A comma separates two params only where a `key=` follows it, so `-p note=a, b, c` is one param
+whose value has commas in it. What the model refuses stops the run before any agent starts,
+with pydantic's own account of why:
+
+```console
+$ hmz exec -f pair -a agent=claude/claude-opus-5:max -b cost=10 -p rounds=12 "…"
+hmz exec: error: pair:pair: 1 validation error for Params
+rounds
+  Input should be less than or equal to 9 [type=less_than_equal, input_value=12, input_type=int]
+```
+
+## Set them at the prompt
+
+Choosing the flow in `/flow` puts its params up as a form: the model with a cursor on it. Each
+row is one param — its name, what it is set to, and the line the flow declared it with.
 
 ```
    ❯ 1. rounds                       3            how many times round
@@ -47,105 +82,52 @@ is one setting — its name, what it is set to, and the line the flow declared i
 
 | Key | |
 | --- | --- |
-| **↑ ↓** | move between settings |
+| **↑ ↓** | move between params |
 | **← →** | move the one under the cursor along: a switch flips, a choice steps, a number goes up or down by one |
 | letters | write the one under the cursor, for the ones that are written rather than stepped |
-| **enter** | take the lot, and go on to the agents |
+| **enter** | take the lot, and go on |
 | **esc** | back, changing nothing |
 
-A setting that is **written** carries a caret under the cursor, where the next letter would
-land. A setting that is **stepped** does not, so a blank setting does not read as one nothing
-can be typed into.
+What you set is [remembered per flow](/user/settings), with the agents and the environments
+each role was given and the budget, so a flow of twenty params is not twenty questions every
+morning. See [TUI › Setting a flow up](/reference/tui#setting-a-flow-up).
 
-`/flow` walks through this between choosing the flow and landing inside its agents. That is
-the only place it can: only the flow just chosen says what there is to set. The flow and what
-drives it are halves of one question, and each asks only its own.
+## What a run may spend is not a param
 
-## Set it from a file
-
-```yaml
-# setup.yaml
-rounds: 9
-mode: slow
-```
-
-Pass the file to `hmz exec` with `-c`:
-
-```sh
-hmz exec -f pair -c setup.yaml -a claude/claude-opus-5:max "$(cat TASK.md)"
-```
-
-At the prompt there is no file to pass: the same answers are typed on the sheet.
-[`/flow`](/reference/tui#choosing-a-flow), choose `pair`, and
-[what it takes](/reference/tui#setting-a-flow-up) is the page before its agents — answered once
-and [remembered](/user/settings) for every run of it after.
-
-## One key of that file is not yours
-
-`budget:` is reserved. It is the run's [allowance](/features/allowances) — hours, millions of
-output tokens, dollars — rather than a setting of the flow, so it is lifted out of the file
-before your model ever sees it. Declare a field called `budget` and the two would be one name
-for two quantities, which is the one mistake this reserving prevents.
-
-```yaml
-# setup.yaml
-rounds: 9
-mode: slow
-budget:
-  hours: 6      # the run's, not the flow's
-```
-
-What a run of your flow is worth *by default* is said where the flow is marked:
-
-```python
-@flow(budget=Allowance(hours=6, tokens=10.0))
-def run(agents: tuple[Agent], task: str, config: Config | None = None) -> None:
-    ...
-```
-
-Saying nothing is a flow with no opinion, which runs under whatever the workspace was set up
-with. Saying `Allowance()` outright is a flow claiming it is *meant* to run under nothing at
-all, which is what exempts it from being asked to confirm that. Either way the flow does not
-hold itself to it — the run does, at every session edge — so this is a default and never an
-implementation.
-
-## Fall back when `None` arrives
-
-`None` means **nobody set it up**. The flow gets it from `hmz exec` when you do not pass `-c`.
-
-```python
-setting = config or Config()
-```
-
-That falls back to the model's own defaults, so the flow runs the same either way.
+A budget is the run's, not the flow's: `-b` on a command line and the budget row of `/flow` at
+the prompt. A flow declares none, and has no default of its own to fall back on — whoever runs
+it says what it may spend, and `hmz exec` will not start one without being told. A flow that
+wants to know reads `ctx.budget`; one that wants a part of its work held to less says so where
+it [calls a flow](/weaver/calling-flows) or takes a turn, with a `Budget` of its own. See
+[Budgets](/features/budgets).
 
 ## Refuse the combinations you cannot run
 
-Put refusals in the **model**, not in `run`:
+Put refusals in the **model**, not in the flow:
 
 ```python
 from pydantic import model_validator
 
 
-class Config(BaseModel):
+class Params(FlowParams):
     fast: bool = Field(default=False, description="skip the review round")
     careful: bool = Field(default=False, description="review twice")
 
     @model_validator(mode="after")
-    def _settles(self) -> "Config":
+    def _settles(self) -> "Params":
         if self.fast and self.careful:
             raise ValueError("fast and careful do not go together")
         return self
 ```
 
-The flow now refuses a bad combination where it was typed, in the sheet or in the YAML file,
-rather than an hour into the run. Nothing in the interface knows what any of your settings
-mean. The types say how a value moves, and your model says which combinations it will not take.
+The flow now refuses a bad combination where it was typed, on the form or on the command line,
+rather than an hour into the run. Nothing in the interface knows what any of your params mean.
+The types say how a value moves, and your model says which combinations it will not take.
 
-## Group the settings
+## Group the params
 
-A flow with twenty settings is a wall. Each field says which part of the sheet it belongs
-under, and the sheet draws a heading above each group:
+A flow with twenty params is a wall. Each field says which part of the form it belongs under,
+and the form draws a heading above each group:
 
 ```python
     gen_idea: bool = Field(
@@ -165,33 +147,32 @@ under, and the sheet draws a heading above each group:
      4. gen_plan                     on           turn the draft into a plan, against review
 ```
 
-The arrows walk the settings and step over the headings.
+The arrows walk the params and step over the headings.
 
-## Two rules
+## When another flow passes them
 
-**The model has to be readable at runtime.** Import `pydantic` normally, not under `if
-TYPE_CHECKING`. This is the same rule as the `agents` annotation.
+A flow that [calls yours](/weaver/calling-flows) passes an instance of your class:
 
-**The model is read by running the file**, so the class the interface asked with is not the
-same object as the class the run is handed. What is carried across is the *fields*, which
-`Runner` reads back into the model the flow has just declared. A flow handed a config of
-another model is refused before its first turn, as one handed the wrong number of agents is.
+```python
+await load("pair")(task, agents=..., envs=..., params=Params(rounds=9))
+```
+
+That instance is taken as it is. Anything else — an instance of another `FlowParams`, a mapping
+of fields — is validated into your class at the call, and refused with `ParamsError` where it
+does not validate, before your flow has run a line.
 
 ## What you get for free
 
-- A sheet, with the right widget per type.
-- `-c setup.yaml` on `hmz exec`, and the same answers on the sheet at the prompt.
-- An [allowance](/features/allowances) on every run of it, whether or not you declare one, and
-  the budget row of the flow menu to set it from.
+- A form, with the right widget per type.
+- `-p` on `hmz exec`, and the same answers on the form at the prompt.
 - Validation, in your own words, at the moment somebody types it.
-- [Remembered per flow](/user/settings), so twenty settings are not twenty questions every
+- [Remembered per flow](/user/settings), so twenty params are not twenty questions every
   morning.
-- A third argument when another flow [calls yours](/weaver/calling-flows):
-  `load("pair")(agents, task, {"rounds": 9})`.
+- A typed `params` in your own code, which a type checker reads.
 
 ## Try this
 
-`humanize1` takes twenty-three settings, grouped into three phases. Fetch the official
+`humanize1` takes a couple of dozen params, grouped into its phases. Fetch the official
 flowverse, `/flow` it, choose it, and look at what a large one of these is:
 
 ```
@@ -202,5 +183,5 @@ flowverse, `/flow` it, choose it, and look at what a large one of these is:
 
 - [Port a project](/user/tutorials/port-a-project)
 - [Remembered per flow](/user/settings)
-- [Calling flows](/weaver/calling-flows)
-- [Many turns at once](/weaver/async-flows)
+- [A flow that calls a flow](/weaver/calling-flows)
+- [Reference › Flows › Settings of the flow's own](/reference/flows#settings-of-the-flow-s-own)
