@@ -1172,7 +1172,12 @@ async def _released(res: Reversible[Releasable]) -> None:
 
 
 class Recorder(Protocol):
-    """What a way in hears of a run as it goes, to write it down."""
+    """What a way in hears of a run as it goes, to write it down.
+
+    `began`, `named` and `closed` may be left out by a recorder that has no use for them:
+    :func:`run_flow` stands in for the ones missing, so one written before they were asked
+    goes on working.
+    """
 
     def began(self, spent: Callable[[], Usage]) -> None:
         """The run began: `spent()` is what every turn of it has spent so far, from any thread."""
@@ -1201,6 +1206,40 @@ class Recorder(Protocol):
     def closed(self, session: SessionHandle) -> None:
         """A session the run opened has closed, and will spend nothing more."""
         ...
+
+
+#: What a recorder may leave out: the three a recorder was first written without, which one
+#: that has no use for them -- a test counting calls, say -- need not grow.
+_LATER = ("began", "named", "closed")
+
+
+class _Whole:
+    """A recorder written before `began`, `named` and `closed` were asked of one, made whole.
+
+    Put in front of only such a recorder, so that one answering all six is called directly and
+    costs a run nothing to have been given.
+    """
+
+    __slots__ = ("began", "closed", "entered", "left", "named", "spawned")
+
+    def __init__(self, recorder: object) -> None:
+        self.entered = getattr(recorder, "entered", _nothing)
+        self.left = getattr(recorder, "left", _nothing)
+        self.spawned = getattr(recorder, "spawned", _nothing)
+        self.began = getattr(recorder, "began", _nothing)
+        self.named = getattr(recorder, "named", _nothing)
+        self.closed = getattr(recorder, "closed", _nothing)
+
+
+def _nothing(*_: object) -> None:
+    """What a recorder that was not asked something says to it."""
+
+
+def _whole(recorder: Recorder) -> Recorder:
+    """`recorder` as one answering everything a run tells it, whenever it was written."""
+    if all(callable(getattr(recorder, name, None)) for name in _LATER):
+        return recorder
+    return cast("Recorder", _Whole(recorder))
 
 
 @dataclass(frozen=True, slots=True)
@@ -1652,6 +1691,8 @@ async def run_flow(
                 _meets(role, driver, impl)
     said = impl.params_of(params)
     loop = asyncio.get_running_loop()
+    if recorder is not None:
+        recorder = _whole(recorder)
     run = Run(
         person=Source(outworlder, made=False, node=None),
         local=local,

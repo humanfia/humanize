@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import itertools
 import sys
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pydantic
 import pytest
@@ -49,7 +49,7 @@ from hmz.flows import (
     flow,
     load,
 )
-from hmz.runtime.flowing.engine import LiveCall, run_flow, running
+from hmz.runtime.flowing.engine import LiveCall, Recorder, run_flow, running
 from hmz.runtime.flowing.fakes import (
     FakeAgentDriver,
     FakeEnvDriver,
@@ -984,6 +984,41 @@ async def test_a_recorder_hears_every_call_and_session() -> None:
         ("left", "boom", "BoomError"),
         ("closed", True),
         ("left", "recorded", None),
+    ]
+
+
+class HeardFirst:
+    """A recorder written before `began`, `named` and `closed` were asked of one."""
+
+    def __init__(self) -> None:
+        self.said: list[tuple[Any, ...]] = []
+
+    def entered(self, call: LiveCall) -> None:
+        self.said.append(("entered", call.name))
+
+    def left(self, call: LiveCall, error: BaseException | None) -> None:
+        self.said.append(("left", call.name))
+
+    def spawned(
+        self, call: LiveCall, role: str, session: SessionHandle, driver: AgentDriver
+    ) -> None:
+        self.said.append(("spawned", role))
+
+
+async def test_a_recorder_may_leave_out_what_it_was_first_written_without() -> None:
+    @flow(agents=Solo, envs=Place, params=Nothing)
+    async def recorded(
+        task: str, *, agents: Solo, envs: Place, params: Nothing, ctx: FlowContext
+    ) -> None:
+        session = await agents["agent"].spawn(env=envs["env"])
+        await agents["agent"].run("hello", session=session)
+
+    heard = HeardFirst()
+    await run_fake(recorded, "over", recorder=cast("Recorder", heard))
+    assert heard.said == [
+        ("entered", "recorded"),
+        ("spawned", "agent"),
+        ("left", "recorded"),
     ]
 
 
