@@ -31,6 +31,7 @@ from hmz.flows import (
     Outworlder,
     Permission,
     SessionError,
+    TempCloneBusy,
     UnsupportedOperation,
     WorktreeError,
     flow,
@@ -247,6 +248,29 @@ async def test_a_fake_env_copies_and_forgets() -> None:
         "",
         "fatal: not a git repository\n",
     )
+
+
+async def test_a_fake_env_lets_go_of_a_copy_as_it_is_closed_and_keeps_it() -> None:
+    env = FakeEnvDriver({"a.txt": "A"})
+    clone = await env.derive_temp_clone("c", holder="first")
+    await clone.write("b.txt", b"B")
+    with pytest.raises(TempCloneBusy):
+        await env.derive_temp_clone("c", holder="second")
+    await clone.close()
+    again = await env.derive_temp_clone("c", holder="second")
+    assert again.workdir == clone.workdir
+    assert again.files == {"a.txt": b"A", "b.txt": b"B"}
+    with pytest.raises(TempCloneBusy):
+        await env.derive_temp_clone("c", holder="first")
+    await clone.close()
+    with pytest.raises(TempCloneBusy):
+        await env.derive_temp_clone("c", holder="first")
+    await env.close()
+    third = await env.derive_temp_clone("c", holder="third")
+    assert third.workdir == clone.workdir
+    assert env.clones == ["c"]
+    await env.destroy_temp_clone("c")
+    assert (env.clones, list(env.machine)) == ([], ["/work/a.txt"])
 
 
 async def test_a_fake_env_refuses_a_worktree_where_one_is() -> None:

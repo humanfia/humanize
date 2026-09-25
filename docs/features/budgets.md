@@ -69,7 +69,8 @@ that does not count as it goes.
 A graceful per-turn budget is a budget for the run's accounting rather than a way to shorten an
 answer, so a turn meant to be cut off says `graceful=False`. Where several budgets are over one
 turn — its own, its flow's, the run's — each limit is the least any of them leaves, and it is
-hard wherever the budget that sets it is.
+hard wherever the budget that sets it is. A hard deadline holds under a sooner graceful one too:
+the turn runs on past the graceful deadline, and is cut off at the hard one.
 
 **A turn cut off did what it did.** Its edits are on disk and its conversation is open to the
 next turn, so the round after a short round carries the same session on rather than starting

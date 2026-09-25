@@ -61,6 +61,7 @@ class Shape(FlowParams):
     level: int = 0
     gather: bool = False
     calls: int = 0
+    keep: bool = False
 
 
 #: The params each level of a tree is called with, made once so that neither the engine nor
@@ -170,6 +171,20 @@ async def looping_resumable(
     for _ in range(params.calls):
         await resumable_leaf(task, agents=agents, envs=envs, params=below)
     return (time.thread_time() - started) / max(params.calls, 1)
+
+
+@flow(agents=Pair, envs=Envs, params=Shape)
+async def spawning(
+    task: str, *, agents: Pair, envs: Envs, params: Shape, ctx: FlowContext
+) -> None:
+    """Opens a session a round and takes a turn in it, keeping every one or letting go."""
+    agent, env = agents["a"], envs["repo"]
+    kept: list[Any] = []
+    for _ in range(params.calls):
+        session = await agent.spawn(env=env)
+        await agent.run(task, session=session)
+        if params.keep:
+            kept.append(session)
 
 
 async def _fake(flow_: Any, **said: Any) -> Any:
@@ -335,6 +350,31 @@ async def test_a_journaled_call_costs_under_twenty_five_microseconds(
     best = await _best(measured)
     TIMINGS["journaled call (resumable run)"] = _us(best)
     assert best < 25e-6 * 3, f"{_us(best)} per journaled call"
+
+
+async def test_a_session_let_go_of_a_round_costs_little_more_than_one_kept() -> None:
+    """What closing a session as its view goes adds to opening and using it.
+
+    Kept, every session closes as the call ends, which is what closing cost before a
+    session could be let go of; let go of, each closes as the next is opened. Both are timed
+    whole -- the closes included -- and the second is held to a small multiple of the first.
+    """
+    rounds = 5_000
+
+    async def per(*, keep: bool) -> float:
+        async def measured() -> float:
+            started = time.thread_time()
+            await _fake(spawning, params=Shape(calls=rounds, keep=keep))
+            return (time.thread_time() - started) / rounds
+
+        return await _best(measured)
+
+    kept, let_go = await per(keep=True), await per(keep=False)
+    TIMINGS["session a round: spawn + turn + close, let go of / kept"] = (
+        f"{_us(let_go)} / {_us(kept)}  ({let_go / kept:.2f}x)"
+    )
+    assert let_go / kept <= 1.6, f"{let_go / kept:.2f}x a session kept to the end"
+    assert let_go < 30e-6 * 3, f"{_us(let_go)} a round"
 
 
 async def test_calls_scale_linearly() -> None:
