@@ -219,6 +219,9 @@ ignore = [
 # And a watchdog and the session it is watching: it reads what the turn is riding and puts
 # that transport down, which is the session's own inside rather than anybody else's.
 "src/hmz/coganchor/agents/watchdog.py" = ["SLF001"]
+# And a flow call and the views it hands a flow: the engine's half and the half a flow sees,
+# each reaching into the other's slots, which the underscore keeps from flows.
+"src/hmz/runtime/flowing/{engine,viewing}.py" = ["SLF001"]
 # `tightest` and `searching` are one rule apiece over two answers of the same kind, and the
 # two are what a settling reads: `searching(was, said)` names its arguments in the docstring
 # and at every call, and a keyword-only version of a `min` over two values would be a

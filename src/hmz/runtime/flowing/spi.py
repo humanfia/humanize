@@ -449,6 +449,10 @@ class HookBridge:
                 _POLL if deadline is None else min(_POLL, deadline - time.monotonic())
             )
             if wait <= 0 or woke.is_set() or not loop.is_running():
+                if flying.done():
+                    # Done between the look above and this one -- which is also what set
+                    # `woke` -- so the answer is here, and giving up would throw it away.
+                    break
                 flying.cancel()
                 return default
             woke.wait(wait)
