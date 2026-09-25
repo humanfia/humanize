@@ -345,7 +345,7 @@ class FlowImpl:
         if budget is not None and type(budget) is not Budget:
             raise TypeError(f"{self.ref}: budget={budget!r} is not a Budget")
         run = parent.run
-        node = Call(run, parent, self, depth, budget)
+        node = Call(run, parent, self, depth, budget, task)
         full = self._full
         # What follows is `_agent` and `_env` for the case every call in a large flow is: a
         # view the run handed out, of a kind already checked against this role -- written
@@ -801,6 +801,7 @@ class Call:
       parent: The call that made it; for the call at the top of a run, the run's own.
       impl: The flow called; None for the run's own call above the top.
       depth: How many flows deep: 1 for the flow a run was started with.
+      task: What it was called to do.
       since: When it started, on the monotonic clock.
       deadline: When its budget's duration is spent, its own or any above it.
       state: What it keeps, for a resumable flow.
@@ -826,6 +827,7 @@ class Call:
         "seqs",
         "since",
         "state",
+        "task",
         "tokens",
     )
 
@@ -836,6 +838,7 @@ class Call:
         flow: FlowImpl | None,
         depth: int,
         own: Budget | None,
+        task: str = "",
     ) -> None:
         """A call about to start."""
         self.run = run
@@ -843,6 +846,7 @@ class Call:
         self.impl = flow
         self.depth = depth
         self.own = own
+        self.task = task
         self.since = time.monotonic()
         self.deadline = _INF if parent is None else parent.deadline
         self.cost = 0.0
@@ -1103,15 +1107,18 @@ class Call:
         record = self._record
         if record is None:
             parent = self.parent
+            impl = self.impl
             record = self._record = LiveCall(
                 ref=self.ref,
-                name="" if self.impl is None else self.impl.name,
+                name="" if impl is None else impl.name,
                 depth=self.depth,
                 since=self.since,
                 id=self.jid,
                 parent=None
                 if parent is None or parent.impl is None
                 else parent.record(),
+                task=self.task,
+                resumable=impl is not None and impl.resumable,
             )
         return record
 
@@ -1181,6 +1188,10 @@ class Recorder(Protocol):
         """A flow call opened a session of an agent."""
         ...
 
+    def closed(self, session: SessionHandle) -> None:
+        """A session the run opened has closed, and will spend nothing more."""
+        ...
+
 
 @dataclass(frozen=True, slots=True)
 class LiveCall:
@@ -1193,6 +1204,8 @@ class LiveCall:
       since: When it started, on the monotonic clock.
       id: Its id in the run's journal, or 0 for a run that keeps none.
       parent: The call that made it, or None for the one the run was started with.
+      task: What it was called to do.
+      resumable: Whether its flow says it can be picked up again.
     """
 
     ref: str
@@ -1201,6 +1214,8 @@ class LiveCall:
     since: float
     id: int
     parent: LiveCall | None
+    task: str = ""
+    resumable: bool = False
 
 
 def running() -> tuple[LiveCall, ...]:
@@ -1337,8 +1352,26 @@ class Run:
 
     def spawned(
         self, node: Call, role: str, handle: SessionHandle, driver: AgentDriver
+    ) -> bool:
+        """A session was opened: told, and written down if its CLI has named it yet.
+
+        Returns:
+          Whether it is still to be written down: a CLI names a session as its first turn
+          goes, and the journal waits for the name -- see :meth:`named`.
+        """
+        if self.recorder is not None:
+            self.recorder.spawned(node.record(), role, handle, driver)
+        if self.journal is None:
+            return False
+        if handle.id is None:
+            return True
+        self.named(node, role, handle, driver)
+        return False
+
+    def named(
+        self, node: Call, role: str, handle: SessionHandle, driver: AgentDriver
     ) -> None:
-        """A session was opened: written down, and told."""
+        """Writes down a session the call `node` opened, now that its CLI has named it."""
         if self.journal is not None:
             self.journal.note(
                 {
@@ -1350,8 +1383,6 @@ class Run:
                     "session": handle.id,
                 }
             )
-        if self.recorder is not None:
-            self.recorder.spawned(node.record(), role, handle, driver)
 
     async def close(self) -> None:
         """Lets go of everything the run made, however it ended."""
@@ -1608,7 +1639,7 @@ async def run_flow(
         local=local,
         recorder=recorder,
     )
-    top = Call(run, None, None, 0, budget)
+    top = Call(run, None, None, 0, budget, task)
     if budget.duration is not None:
         top.deadline = top.since + budget.duration.total_seconds()
     views: dict[str, AgentView] = {}

@@ -235,8 +235,9 @@ class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
     def left(self, call: LiveCall, error: BaseException | None) -> None: ...
     def spawned(self, call: LiveCall, role: str, session: SessionHandle,
                 driver: AgentDriver) -> None: ...
+    def closed(self, session: SessionHandle) -> None: ...
     @property
-    def sessions(self) -> tuple[SessionHandle, ...]: ...
+    def sessions(self) -> tuple[SessionHandle, ...]: ...  # the ones still open
     def usage(self) -> Usage: ...
 ```
 
@@ -302,8 +303,9 @@ class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
 - `arun` MUST probe every environment it was given before the flow is called, MUST run the
   flow over the drivers with the workspace as every `LocalEnv` role and whoever is outside
   the run as every `Outworlder` role -- nobody, away, where none was given -- MUST write the
-  run down as it goes: each flow call a record under the one that made it, each session in
-  the record of the call that opened it and named for its role, and what the run spent; and
+  run down as it goes: each flow call a record under the one that made it, saying the task it
+  was called with, each session in the record of the call that opened it and named for its
+  role, and what the run spent -- holding no session past its close to count it; and
   MUST close every driver it was given however the run ends. A run stopped from outside, or
   by its budget, MUST be written down as stopped rather than failed.
 - `read_line` MUST read the whole `hmz exec` line, MUST NOT load a flow to answer `--help`,

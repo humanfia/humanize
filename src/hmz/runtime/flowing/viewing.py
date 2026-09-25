@@ -345,7 +345,7 @@ class AgentView:
         opened = Opened(session, self, env, handle)
         line.sessions[id(handle)] = opened
         node.hold(opened)
-        run.spawned(node, self._role, handle, self._driver)
+        session._unnamed = run.spawned(node, self._role, handle, self._driver)
         return session
 
     @overload
@@ -419,6 +419,12 @@ class AgentView:
             node.turning(-1)
             if cut is not None:
                 cut.stop()
+            if taken._unnamed and handle.id is not None:
+                # Named by its CLI as this turn went: written down now, against the call
+                # that opened it.
+                taken._unnamed = False
+                opener: AgentView = taken._agent  # pyright: ignore[reportAssignmentType]
+                opener._node.run.named(opener._node, opener._role, handle, self._driver)
         # A fork is cut by now, and the session it was cut from may go.
         taken._parent = None
         failed = taken._error
@@ -611,6 +617,7 @@ class SessionView:
         "_handle",
         "_line",
         "_parent",
+        "_unnamed",
     )
 
     def __init__(
@@ -628,6 +635,8 @@ class SessionView:
         self._closed = False
         self._error: Exception | None = None
         self._parent: SessionView | None = None
+        #: Whether the run's journal is still waiting on its CLI to name it.
+        self._unnamed = False
 
     def __repr__(self) -> str:
         return f"<session of {self._agent.role} in {self._env.workdir}>"
@@ -749,9 +758,13 @@ class Opened(weakref.ref["SessionView"]):
         except Exception:
             log.exception("closing %r failed", self)
         finally:
-            line = self.agent._line
+            agent = self.agent
+            line = agent._line
             if line is not None:
                 line.sessions.pop(id(handle), None)
+            recorder = agent._node.run.recorder
+            if recorder is not None:
+                recorder.closed(handle)
 
     def _settled(self, task: asyncio.Task[None]) -> None:
         """Its close is over, and the call has nothing of it left to release."""

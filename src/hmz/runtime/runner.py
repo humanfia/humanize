@@ -653,7 +653,11 @@ class Recorder:
     """What writes a run down as the engine runs it: a record per flow call, and each session.
 
     Answers to :class:`hmz.runtime.flowing.engine.Recorder`. Every call is told on the loop
-    the run is on.
+    the run is on; what the run has spent is read from any thread.
+
+    Holds the sessions still open and a total of what the closed ones spent, not every
+    session the run ever opened: a loop that opens a session a round for a week holds as
+    much as one that opened one.
 
     Attributes:
       started: Whether the flow the run was started with has been called, which is what
@@ -662,10 +666,17 @@ class Recorder:
 
     def __init__(self, epic: Epic, opened: Opened | None = None) -> None:
         """Holds the epic to write into, and what to tell of each session opened."""
+        import threading
+
         self._epic = epic
         self._opened = opened
         self._records: dict[int, Epic] = {}
-        self._sessions: list[SessionHandle] = []
+        self._lock = threading.Lock()
+        self._live: dict[int, SessionHandle] = {}
+        # What the sessions closed so far spent: cost, output tokens and seconds.
+        self._cost = 0.0
+        self._tokens = 0
+        self._seconds = 0.0
         self.started = False
 
     def entered(self, call: LiveCall) -> None:
@@ -675,7 +686,9 @@ class Recorder:
             self._records[id(call)] = self._epic
             return
         above = self._records.get(id(call.parent), self._epic)
-        self._records[id(call)] = above.called(call.ref)
+        self._records[id(call)] = above.called(
+            call.ref, call.task, resumable=call.resumable
+        )
 
     def left(self, call: LiveCall, error: BaseException | None) -> None:
         """A flow call ended, which closes its record."""
@@ -697,7 +710,8 @@ class Recorder:
         self, call: LiveCall, role: str, session: SessionHandle, driver: AgentDriver
     ) -> None:
         """A flow call opened a session: named for its role, and written into its record."""
-        self._sessions.append(session)
+        with self._lock:
+            self._live[id(session)] = session
         record = self._records.get(id(call), self._epic)
         agent: AgentBase | None = getattr(session, "agent", None)
         if agent is None:
@@ -715,10 +729,21 @@ class Recorder:
         if self._opened is not None and conversation is not None:
             self._opened(role, agent, conversation)
 
+    def closed(self, session: SessionHandle) -> None:
+        """A session closed: what it spent is added to the run's, and it is let go of."""
+        with self._lock:
+            if self._live.pop(id(session), None) is None:
+                return
+            said = session.usage
+            self._cost += said.cost
+            self._tokens += said.output_tokens
+            self._seconds += said.duration.total_seconds()
+
     @property
     def sessions(self) -> tuple[SessionHandle, ...]:
-        """Every session the run has opened, oldest first."""
-        return tuple(self._sessions)
+        """Every session of the run still open, oldest first."""
+        with self._lock:
+            return tuple(self._live.values())
 
     def usage(self) -> Usage:
         """Everything the run's sessions have spent, up to the moment it is read."""
@@ -726,14 +751,13 @@ class Recorder:
 
         from hmz.flows import Usage
 
-        cost = 0.0
-        tokens = 0
-        seconds = 0.0
-        for session in tuple(self._sessions):
-            said = session.usage
-            cost += said.cost
-            tokens += said.output_tokens
-            seconds += said.duration.total_seconds()
+        with self._lock:
+            cost, tokens, seconds = self._cost, self._tokens, self._seconds
+            for session in self._live.values():
+                said = session.usage
+                cost += said.cost
+                tokens += said.output_tokens
+                seconds += said.duration.total_seconds()
         return Usage(
             duration=datetime.timedelta(seconds=seconds),
             cost=cost,

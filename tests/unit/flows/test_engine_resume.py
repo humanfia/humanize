@@ -322,6 +322,49 @@ async def test_the_journal_holds_every_record_a_run_makes(tmp_path: Path) -> Non
     assert all(one["ok"] for one in ends)
 
 
+async def test_a_session_is_written_down_once_its_cli_has_named_it(
+    tmp_path: Path,
+) -> None:
+    """A CLI names a session as its first turn goes: the record waits for the name."""
+    driver = FakeAgentDriver(names_late=True)
+    journal = tmp_path / "run.jsonl"
+    unnamed: list[bool] = []
+
+    @flow(agents=Solo, envs=Place, params=Step, resumable=True)
+    async def named(
+        task: str, *, agents: Solo, envs: Place, params: Step, ctx: FlowContext
+    ) -> None:
+        agent = agents["agent"]
+        session = await agent.spawn(env=envs["env"])
+        idle = await agent.spawn(env=envs["env"])
+        unnamed.append(driver.sessions[0].id is None)
+        # Twice, and through an agent derived from the one that opened it: written down once.
+        await agent.run(task, session=session)
+        await agent.derive().run(task, session=session)
+        del idle
+
+    await _run(named, journal, resume=False, agents={"agent": driver})
+    used, idle = driver.sessions
+    assert unnamed == [True]
+    assert used.id is not None
+    assert idle.id is None
+    records = _records(journal)
+    (top,) = (one for one in records if one["t"] == "call")
+    sessions = [one for one in records if one["t"] == "session"]
+    # One record, for the session that took a turn, against the call that opened it, and
+    # none for the one that never did: there is no conversation of it to find.
+    assert sessions == [
+        {
+            "t": "session",
+            "id": top["id"],
+            "role": "agent",
+            "harness": "claude",
+            "model": "fake",
+            "session": used.id,
+        }
+    ]
+
+
 async def test_a_state_write_is_on_disk_before_the_call_goes_on(tmp_path: Path) -> None:
     journal = tmp_path / "run.jsonl"
     seen: list[list[dict[str, Any]]] = []
