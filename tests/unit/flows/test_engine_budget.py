@@ -542,3 +542,179 @@ async def test_a_turn_is_hard_where_a_budget_that_binds_it_is(
     driver = FakeAgentDriver()
     await run_fake(calling, agents={"agent": driver}, budget=run)
     assert driver.sessions[0].requests[0].limits.graceful is graceful
+
+
+# ------------------------------------------------------- a hard deadline under a graceful one
+
+
+async def _held(prompt: str, *, session: Any, output_schema: Any) -> str:
+    """A turn that goes on until it is steered or stopped, which nobody steers it."""
+    del prompt, output_schema
+    return await session.until_steered()
+
+
+def _seconds(value: float) -> datetime.timedelta:
+    return datetime.timedelta(seconds=value)
+
+
+class Deadlines(FlowParams):
+    #: The turn's own budget's duration, and whether it is hard; none for 0.
+    turn: float = 0.0
+    turn_hard: bool = True
+    #: The budget of the flow the turn is taken in: its duration, and whether it is hard.
+    own: float = 60.0
+    own_hard: bool = False
+
+
+@flow(agents=Solo, envs=Place, params=Deadlines)
+async def held_turn(
+    task: str, *, agents: Solo, envs: Place, params: Deadlines, ctx: FlowContext
+) -> float:
+    """Takes one turn that nothing ends but a deadline, and says when it was ended."""
+    agent = agents["agent"]
+    session = await agent.spawn(env=envs["env"])
+    started = time.monotonic()
+    turn = (
+        Budget(duration=_seconds(params.turn), graceful=not params.turn_hard)
+        if params.turn
+        else None
+    )
+    try:
+        await agent.run("hold on", session=session, budget=turn)
+    except DurationExceeded:
+        return time.monotonic() - started
+    return -1.0
+
+
+@flow(agents=Solo, envs=Place, params=Deadlines)
+async def under(
+    task: str, *, agents: Solo, envs: Place, params: Deadlines, ctx: FlowContext
+) -> float:
+    """Calls `held_turn` under a budget of its own."""
+    own = Budget(duration=_seconds(params.own), graceful=not params.own_hard)
+    return await held_turn(task, agents=agents, envs=envs, params=params, budget=own)
+
+
+@pytest.mark.parametrize(
+    ("params", "run", "cut"),
+    [
+        (Deadlines(turn=0.3), Budget(duration=_seconds(0.05)), 0.3),
+        (Deadlines(turn=0.3, own=0.05), None, 0.3),
+        (Deadlines(turn=0.1, own=1.0), None, 0.1),
+        (Deadlines(own=0.3, own_hard=True), Budget(duration=_seconds(0.05)), 0.3),
+    ],
+    ids=[
+        "the turn's own hard, the run's graceful sooner",
+        "the turn's own hard, its flow's graceful sooner",
+        "the turn's own hard, its flow's graceful later",
+        "its flow's hard, the run's graceful sooner",
+    ],
+)
+async def test_a_hard_deadline_stops_a_turn_whatever_graceful_one_comes_first(
+    params: Deadlines, run: Budget | None, cut: float
+) -> None:
+    driver = FakeAgentDriver(reply=_held)
+    started = time.monotonic()
+    try:
+        ended = await asyncio.wait_for(
+            run_fake(
+                under,
+                agents={"agent": driver},
+                params=params,
+                budget=run or Budget(cost=math.inf),
+            ),
+            5,
+        )
+    except DurationExceeded:
+        # The graceful deadline over the turn has passed too, so the flow is stopped as
+        # the turn ends -- which is when the hard deadline came.
+        ended = time.monotonic() - started
+    assert cut - 0.02 <= ended < cut + 1, f"ended after {ended:.3f}s, not {cut}s"
+    assert driver.sessions[0].closed
+
+
+async def test_a_turn_hard_for_its_cost_is_told_the_hard_deadline_not_a_graceful_one() -> (
+    None
+):
+    @flow(agents=Solo, envs=Place, params=Depth)
+    async def one_turn(
+        task: str, *, agents: Solo, envs: Place, params: Depth, ctx: FlowContext
+    ) -> None:
+        agent = agents["agent"]
+        session = await agent.spawn(env=envs["env"])
+        await agent.run("x", session=session, budget=Budget(cost=1, graceful=False))
+
+    @flow(agents=Solo, envs=Place, params=Depth)
+    async def calling(
+        task: str, *, agents: Solo, envs: Place, params: Depth, ctx: FlowContext
+    ) -> None:
+        own = Budget(duration=_seconds(30))
+        await one_turn(task, agents=agents, envs=envs, params=params, budget=own)
+
+    driver = FakeAgentDriver()
+    started = time.monotonic()
+    await run_fake(
+        calling,
+        agents={"agent": driver},
+        budget=Budget(duration=_seconds(60), graceful=False),
+    )
+    limits = driver.sessions[0].requests[0].limits
+    assert not limits.graceful
+    assert limits.deadline is not None
+    assert 45 < limits.deadline - started < 61, "told the graceful one as hard"
+
+
+async def test_a_flow_returning_as_its_graceful_deadline_lets_go_returns() -> None:
+    @flow(agents=Solo, envs=Place, params=Depth)
+    async def finishing(
+        task: str, *, agents: Solo, envs: Place, params: Depth, ctx: FlowContext
+    ) -> str:
+        agent = agents["agent"]
+        session = await agent.spawn(env=envs["env"])
+        return await agent.run("slow", session=session)
+
+    @flow(agents=Solo, envs=Place, params=Depth)
+    async def calling(
+        task: str, *, agents: Solo, envs: Place, params: Depth, ctx: FlowContext
+    ) -> list[str]:
+        own = Budget(duration=_seconds(0.05))
+        said = await finishing(
+            task, agents=agents, envs=envs, params=params, budget=own
+        )
+        await asyncio.sleep(0.01)
+        return [said, "and on"]
+
+    async def slow(prompt: str, **_: Any) -> str:
+        await asyncio.sleep(0.15)
+        return prompt
+
+    driver = FakeAgentDriver(reply=slow)
+    assert await run_fake(calling, agents={"agent": driver}) == ["slow", "and on"]
+
+
+async def test_the_timer_a_turn_is_held_to_goes_with_the_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loop = asyncio.get_running_loop()
+    armed: list[asyncio.TimerHandle] = []
+    real = loop.call_later
+
+    def arming(delay: float, callback: Any, *args: Any, **kwargs: Any) -> Any:
+        handle = real(delay, callback, *args, **kwargs)
+        armed.append(handle)
+        return handle
+
+    @flow(agents=Solo, envs=Place, params=Depth)
+    async def many(
+        task: str, *, agents: Solo, envs: Place, params: Depth, ctx: FlowContext
+    ) -> None:
+        agent = agents["agent"]
+        session = await agent.spawn(env=envs["env"])
+        hard = Budget(duration=_seconds(120), graceful=False)
+        for _ in range(params.turns):
+            await agent.run("x", session=session, budget=hard)
+
+    monkeypatch.setattr(loop, "call_later", arming)
+    await run_fake(many, params={"turns": 10_000}, budget=Budget(duration=_seconds(60)))
+    assert len(armed) >= 10_000, "no turn was held to its hard deadline by the engine"
+    assert all(one.cancelled() for one in armed), "a timer outlived its turn"

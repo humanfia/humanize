@@ -171,7 +171,9 @@ Afterwards the driver says what happened: `.prompts` is every prompt any of its 
 given, hooks' additions included, in order; `.sessions` is every session it opened, each a
 `FakeSession` with its own `.prompts`, the `.requests` it was asked for with their limits,
 what it was `.steered` with, the `.tools` its answers reached for, whether it is `.closed`, and
-the session it was `.forked_from`.
+the session it was `.forked_from`. `.live` is how many of its sessions are open now and `.peak`
+the most that were open at once, which is how a test sees a loop let go of the sessions it is
+done with.
 
 `FakeAgentDriver("codex")` is Codex: it serves exactly what Codex serves, so a flow that asks
 for more is refused the way it would be with the real one:
@@ -198,6 +200,9 @@ async def test_the_budget_stops_it() -> None:
         await run_fake(FLOW, "x", agents={"reviewer": reviewer}, budget=Budget(cost=2),
                        local=FakeEnvDriver(run=GREEN))
 ```
+
+A turn held open by its reply — one waiting on `until_steered()` — is cut off at a hard
+deadline, as a real one is, and raises `DurationExceeded`.
 
 ## Script an environment
 
@@ -227,8 +232,10 @@ Afterwards it says what happened: `.files` is what is under the workdir now, `.t
 file as text, `.commands` every command run there, `.machine` every file on the fake machine —
 copies and worktrees included — and `.clones` and `.scratches` the temporary copies and scratch
 directories still there, which is how a test sees them [cleaned
-up](/weaver/worktrees#how-long-they-last). `refs=` is the git refs `derive_worktree` knows, and
-`repo=False` a workdir that is not a repository.
+up](/weaver/worktrees#how-long-they-last). A temporary copy is held by whoever made it until
+the run that made it is over, and a run resumed on the same fake takes it again as it was left.
+`refs=` is the git refs `derive_worktree` knows, and `repo=False` a workdir that is not a
+repository.
 
 ## Script the person
 

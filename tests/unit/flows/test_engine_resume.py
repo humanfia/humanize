@@ -22,6 +22,7 @@ from hmz.flows import (
     Budget,
     Env,
     EnvCollection,
+    FilesEnvMixin,
     FlowContext,
     FlowParams,
     StateNotSerializable,
@@ -245,6 +246,38 @@ async def test_an_environment_is_matched_by_how_it_was_derived(tmp_path: Path) -
     second, after = await _run(cloning, journal, resume=True, params={"n": 2})
     assert first != second
     assert (before["resumed"], after["resumed"]) == (False, True)
+
+
+class Copies(Env, TemporaryClonedDirEnvMixin, FilesEnvMixin): ...
+
+
+class CopyPlace(EnvCollection):
+    env: Copies
+
+
+async def test_a_run_resumed_on_the_same_fake_takes_its_copy_again(
+    tmp_path: Path,
+) -> None:
+    @flow(agents=Solo, envs=CopyPlace, params=Step, resumable=True)
+    async def copying(
+        task: str, *, agents: Solo, envs: CopyPlace, params: Step, ctx: FlowContext
+    ) -> tuple[str, bytes]:
+        clone = await envs["env"].derive_temp_clone("work")
+        if params.fail_at >= 0:
+            await clone.write("notes.txt", b"left off here")
+            raise CrashError(str(clone.workdir))
+        return str(clone.workdir), await clone.read("notes.txt")
+
+    env = FakeEnvDriver({"notes.txt": "fresh"})
+    journal = tmp_path / "run.jsonl"
+    with pytest.raises(CrashError) as crashed:
+        await _run(
+            copying, journal, resume=False, envs={"env": env}, params={"fail_at": 0}
+        )
+    assert env.clones == ["work"]
+    workdir, notes = await _run(copying, journal, resume=True, envs={"env": env})
+    assert (workdir, notes) == (str(crashed.value), b"left off here")
+    assert env.clones == ["work"]
 
 
 # ---------------------------------------------------------------------------- the file

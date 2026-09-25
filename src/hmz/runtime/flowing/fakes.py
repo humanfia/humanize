@@ -20,11 +20,15 @@ granted what it declared -- with the drivers underneath swapped for these::
   others a scripted answer reaches for through its session -- :meth:`FakeSession.tool`,
   :meth:`~FakeSession.ask`, :meth:`~FakeSession.notify`, :meth:`~FakeSession.subagent` --
   so that a flow's hooks are exercised too. A `STOP` hook that blocks keeps the turn going
-  with its reason as the next prompt, as a real one does.
+  with its reason as the next prompt, as a real one does, and a hard deadline cuts off a turn
+  its answer holds open -- one waiting on :meth:`FakeSession.until_steered` -- as a real
+  driver's does.
 - :class:`FakeEnvDriver` is a dictionary of files under a workdir, with worktrees,
   temporary copies and scratch directories as copies of it, and `exec` answered by a
   function or a table, with a few commands -- `true`, `false`, `echo`, `cat`, `ls`, `sleep`
-  and `git rev-parse` -- answered by default.
+  and `git rev-parse` -- answered by default. A temporary copy is its holder's until the
+  run that took it closes, and a run resumed on the same fake takes it again as it was
+  left.
 - :class:`FakeOutworlder` answers as the person outside the run would, or is away.
 - :func:`run_fake` runs a flow with a fake for every role nobody gave one for.
 
@@ -268,6 +272,7 @@ class FakeSession:
         self._turning = False
         self._started = False
         self._interrupted = threading.Event()
+        self._expired = False
         self._steers: deque[str] = deque()
         self._loop: asyncio.AbstractEventLoop | None = None
         self._wake: asyncio.Event | None = None
@@ -295,11 +300,21 @@ class FakeSession:
         if self._turning:
             raise SessionError(f"{self._id} is taking a turn already")
         driver = self.driver
-        self._loop = asyncio.get_running_loop()
+        loop = self._loop = asyncio.get_running_loop()
         self._wake = asyncio.Event()
         self._interrupted.clear()
+        self._expired = False
         self._steers.clear()
         prompt = request.prompt
+        limits = request.limits
+        # A hard deadline stops the turn where it has got to, as a real driver's does.
+        timer = (
+            None
+            if limits.graceful or limits.deadline is None
+            else loop.call_later(
+                max(limits.deadline - time.monotonic(), 0.0), self._expire
+            )
+        )
         self._turning = True
         try:
             if not self._started:
@@ -320,10 +335,21 @@ class FakeSession:
             again = 0
             while True:
                 self.prompts.append(prompt)
-                said = await driver.script.next(
-                    prompt, request.output_schema, driver.harness, session=self
-                )
+                try:
+                    said = await driver.script.next(
+                        prompt, request.output_schema, driver.harness, session=self
+                    )
+                except SessionError as error:
+                    if self._expired:
+                        raise DurationExceeded(
+                            f"{self._id} reached the deadline of its turn"
+                        ) from error
+                    raise
                 if self._interrupted.is_set():
+                    if self._expired:
+                        raise DurationExceeded(
+                            f"{self._id} reached the deadline of its turn"
+                        )
                     raise SessionError(f"{self._id} was interrupted")
                 self._spend(request, sink)
                 text = said if isinstance(said, str) else _as(said, None, "")
@@ -336,6 +362,13 @@ class FakeSession:
                 prompt = stopped.reason
         finally:
             self._turning = False
+            if timer is not None:
+                timer.cancel()
+
+    def _expire(self) -> None:
+        """The turn's hard deadline has come: it stops."""
+        self._expired = True
+        self.interrupt()
 
     def _spend(self, request: TurnRequest, sink: UsageSink) -> None:
         """Spends one answer's worth, or what the limits leave where they are hard."""
@@ -383,6 +416,7 @@ class FakeSession:
         if self.closed:
             return
         self.closed = True
+        self.driver.live -= 1
         self.interrupt()
         await self._fire(HookKind.SESSION_END)
 
@@ -483,6 +517,8 @@ class FakeAgentDriver:
 
     Attributes:
       sessions: Every session it opened, in order.
+      live: How many of them are open now.
+      peak: The most of them that were open at once.
       closed: How many times it was closed.
     """
 
@@ -515,6 +551,8 @@ class FakeAgentDriver:
         self.seconds = seconds
         self.forks = forks
         self.sessions: list[FakeSession] = []
+        self.live = 0
+        self.peak = 0
         self.closed = 0
 
     def __repr__(self) -> str:
@@ -545,6 +583,8 @@ class FakeAgentDriver:
             forked = fork_of
         session = FakeSession(self, placement, permission, skills, hooks, forked)
         self.sessions.append(session)
+        self.live += 1
+        self.peak = max(self.peak, self.live)
         return session
 
     async def close(self) -> None:
@@ -557,12 +597,20 @@ class FakeAgentDriver:
 
 
 class _Disk:
-    """The files of one fake machine, shared by every environment on it."""
+    """The files of one fake machine, shared by every environment on it.
+
+    Its temporary copies are the machine's too, by the workdir copied and the id, as a real
+    machine's are by where they are made -- so that an environment derived again, as a
+    resumed run derives it, finds the copies made from it.
+    """
 
     def __init__(self) -> None:
         self.files: dict[PurePosixPath, bytes] = {}
         self.commands: list[tuple[PurePosixPath, Command]] = []
         self.numbers = itertools.count(1)
+        self.clones: dict[tuple[PurePosixPath, str], FakeEnvDriver] = {}
+        #: Who holds each copy, until the run that took it closes.
+        self.holders: dict[tuple[PurePosixPath, str], object] = {}
 
 
 class FakeEnvDriver:
@@ -584,6 +632,10 @@ class FakeEnvDriver:
       refs: The git refs `derive_worktree` knows.
       repo: Whether the workdir is a git repository, as `git rev-parse` answers.
 
+    Closing one lets go of the holds on the temporary copies taken through it, leaving the
+    copies where they are, as a real driver does: a copy's own as the run that derived it
+    closes it, and every copy's on the machine as the fake they were made from is closed.
+
     Attributes:
       closed: How many times it was closed.
     """
@@ -604,6 +656,7 @@ class FakeEnvDriver:
         refs: Iterable[str] = ("HEAD", "main"),
         repo: bool = True,
         _disk: _Disk | None = None,
+        _clone: tuple[PurePosixPath, str] | None = None,
     ) -> None:
         self.workdir = PurePosixPath(workdir)
         self.backend = EnvBackendKind(backend)
@@ -620,8 +673,9 @@ class FakeEnvDriver:
         self.repo = repo
         self.available = True
         self.closed = 0
+        self._root = _disk is None
         self._disk = _Disk() if _disk is None else _disk
-        self._held: dict[str, tuple[object, FakeEnvDriver]] = {}
+        self._clone = _clone
         self._scratch: dict[str, FakeEnvDriver] = {}
         for path, data in (files or {}).items():
             self._disk.files[self._at(path)] = (
@@ -664,7 +718,13 @@ class FakeEnvDriver:
     def _at(self, path: str | PurePosixPath) -> PurePosixPath:
         return self.workdir / path
 
-    def _there(self, workdir: PurePosixPath, *, copy: bool) -> FakeEnvDriver:
+    def _there(
+        self,
+        workdir: PurePosixPath,
+        *,
+        copy: bool,
+        clone: tuple[PurePosixPath, str] | None = None,
+    ) -> FakeEnvDriver:
         if copy:
             files = self._disk.files
             for path, data in list(files.items()):
@@ -685,6 +745,7 @@ class FakeEnvDriver:
             refs=self.refs,
             repo=self.repo,
             _disk=self._disk,
+            _clone=clone,
         )
 
     def _gone(self, workdir: PurePosixPath) -> None:
@@ -800,21 +861,33 @@ class FakeEnvDriver:
         *,
         holder: object,
     ) -> FakeEnvDriver:
-        held = self._held.get(id)
-        if held is not None:
-            if held[0] != holder:
+        disk = self._disk
+        key = (self.workdir, id)
+        copy = disk.clones.get(key)
+        if copy is None:
+            copy = self._there(
+                PurePosixPath(f"/clones/{next(disk.numbers)}-{id}"),
+                copy=True,
+                clone=key,
+            )
+        elif key in disk.holders:
+            if disk.holders[key] != holder:
                 raise TempCloneBusy(f"the copy {id!r} is somebody else's")
-            return held[1]
-        copy = self._there(
-            PurePosixPath(f"/clones/{next(self._disk.numbers)}-{id}"), copy=True
-        )
-        self._held[id] = (holder, copy)
+            return copy
+        else:
+            # Let go of as the run that took it closed, and taken again as it was left --
+            # which is how a resumed run finds its copies.
+            copy = self._there(copy.workdir, copy=False, clone=key)
+        disk.clones[key] = copy
+        disk.holders[key] = holder
         return copy
 
     async def destroy_temp_clone(self, id: str) -> None:  # noqa: A002 -- the driver's
-        held = self._held.pop(id, None)
-        if held is not None:
-            self._gone(held[1].workdir)
+        key = (self.workdir, id)
+        copy = self._disk.clones.pop(key, None)
+        self._disk.holders.pop(key, None)
+        if copy is not None:
+            self._gone(copy.workdir)
 
     async def derive_scratch(self, id: str) -> FakeEnvDriver:  # noqa: A002 -- the driver's
         scratch = self._scratch.get(id)
@@ -832,7 +905,7 @@ class FakeEnvDriver:
     @property
     def clones(self) -> list[str]:
         """The ids of the temporary copies made here and not yet removed."""
-        return sorted(self._held)
+        return sorted(name for at, name in self._disk.clones if at == self.workdir)
 
     @property
     def scratches(self) -> list[str]:
@@ -841,6 +914,15 @@ class FakeEnvDriver:
 
     async def close(self) -> None:
         self.closed += 1
+        # Holds on copies are let go of, and the copies left where they are, as a real
+        # driver's are -- so that a run resumed on this machine takes them again. A copy is
+        # closed by the run that derived it as it ends; the driver it was derived from, by
+        # whoever made it.
+        disk = self._disk
+        if self._root:
+            disk.holders.clear()
+        elif self._clone is not None and disk.clones.get(self._clone) is self:
+            disk.holders.pop(self._clone, None)
 
 
 # ---------------------------------------------------------------------------- outworlders
