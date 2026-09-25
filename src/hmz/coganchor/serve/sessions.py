@@ -169,6 +169,7 @@ class ExecSession(Session):
         self._stdin: queue.Queue[bytes | None] = queue.Queue()
         self._process: subprocess.Popen[bytes] | None = None
         self._started = threading.Event()
+        self._pumped = threading.Event()
 
     def feed(self, stream: Stream, data: bytes) -> None:
         if stream is Stream.STDIN:
@@ -179,11 +180,25 @@ class ExecSession(Session):
             self._stdin.put(None)
 
     def signal(self, signum: int) -> None:
-        """Forward a signal to the remote process group."""
+        """Forward a signal to the remote process group.
+
+        While the process it started is alive, and after it has exited for as long as the
+        session is still being pumped: what it started in the background is in its group,
+        and then that is what keeps the session going -- holding its output open -- so it is
+        what a signal meant to end the session has to reach.
+
+        Once the process has been reaped its number is free, and a group of that number is
+        ours only while no process has that number again: a group is only ever made with
+        its leader's number, so another group of it means another process holding it.
+        """
         if not self._started.wait(timeout=5.0):
             return
         process = self._process
-        if process is None or process.poll() is not None:
+        if process is None:
+            return
+        if process.poll() is not None and (
+            self._pumped.is_set() or _taken(process.pid)
+        ):
             return
         with suppress(OSError):
             os.killpg(process.pid, signum)
@@ -223,6 +238,7 @@ class ExecSession(Session):
         try:
             self._pump_output(process, master)
         finally:
+            self._pumped.set()
             self._stdin.put(None)
             writer.join(timeout=2.0)
             if master is not None:
@@ -366,6 +382,17 @@ class TunnelSession(Session):
             self._ready.set()
             _close_quietly(sock)
         return {}
+
+
+def _taken(pid: int) -> bool:
+    """Whether a process has this number now, whoever's it is."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True
+    return True
 
 
 def _read_stream(fd: int) -> bytes:

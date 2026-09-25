@@ -420,6 +420,55 @@ def test_a_signal_reaches_the_command_it_names(link: Link) -> None:
 
 
 @pytest.mark.timeout(60)
+def test_a_signal_reaches_a_command_that_closed_its_own_output(link: Link) -> None:
+    """Which leaves nothing to pump while the command itself runs on, as a server does."""
+    ended = threading.Event()
+
+    def over(_result: dict[str, Any] | None, _error: object) -> None:
+        ended.set()
+
+    running = link.client.start_exec(
+        ["sh", "-c", "exec >/dev/null 2>&1; sleep 60"],
+        cwd=VIRTUAL_EXPORT,
+        env={},
+        on_output=lambda stream, data: None,
+        on_exit=over,
+    )
+    assert not ended.wait(timeout=1)
+
+    running.signal(signal.SIGKILL)
+
+    assert ended.wait(timeout=30)
+
+
+@pytest.mark.timeout(60)
+def test_a_signal_reaches_what_outlives_the_command_it_names(link: Link) -> None:
+    """A command that left a child behind holding its output ends only when that child does.
+
+    The shell here exits at once, and the `sleep` it started in the background keeps the
+    session going; a signal sent for the session has to reach the `sleep`, which is in the
+    shell's group, or stopping the session stops nothing.
+    """
+    ended = threading.Event()
+
+    def over(_result: dict[str, Any] | None, _error: object) -> None:
+        ended.set()
+
+    running = link.client.start_exec(
+        ["sh", "-c", "sleep 60 & echo started"],
+        cwd=VIRTUAL_EXPORT,
+        env={},
+        on_output=lambda stream, data: None,
+        on_exit=over,
+    )
+    assert not ended.wait(timeout=1)
+
+    running.signal(signal.SIGKILL)
+
+    assert ended.wait(timeout=30)
+
+
+@pytest.mark.timeout(60)
 def test_a_signal_naming_nothing_is_answered_rather_than_ignored(link: Link) -> None:
     """The client waits on the reply, so a target that said nothing would hang it."""
     assert link.client.call(Op.SIGNAL, target=999_999, sig=signal.SIGTERM) is not None
