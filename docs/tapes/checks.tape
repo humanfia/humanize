@@ -20,11 +20,15 @@ Sleep 500ms
 Type "cat .humanize/flows/twice/__init__.py" Enter
 Sleep 3s
 
-Type `hmz exec -f twice -a claude:high "fix the build"` Enter
+# No budget: refused before any agent starts, since a run with nothing to stop it is not one to
+# start by accident.
+Type `hmz exec -f twice -a builder=claude/claude-opus-4-8:high "fix the build"` Enter
 Sleep 2500ms
 
-Type `hmz exec -f twice -a claude/claude-opus-4-8:high -a codex/gpt-5.6-sol:high "fix the build"` Enter
+# The flow declares a role, `builder`, and nothing fills it.
+Type `hmz exec -f twice -b cost=5 "fix the build"` Enter
 Sleep 3s
 
-Type `hmz exec -f nosuchflow -a claude/claude-opus-4-8:high "fix the build"` Enter
+# And a flow that is not there.
+Type `hmz exec -f nosuchflow -a builder=claude/claude-opus-4-8:high -b cost=5 "fix the build"` Enter
 Sleep 3s

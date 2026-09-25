@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// A loop meant to run for a week is a loop that will be stopped. What a run keeps is written
-// as the flow writes it -- setting a key saves the file -- and it is kept in the epic of the
-// run that wrote it, keyed by the flow that wrote it. Pull the plug and start it again.
+// A loop meant to run for a week is a loop that will be stopped. What a resumable flow keeps
+// is written to the run's journal as the flow writes it -- setting a key is a line there --
+// against the flow call that wrote it. Pull the plug, and pick it up with --resume.
 import { computed, onUnmounted, ref } from 'vue'
 
 interface Epic {
@@ -63,7 +63,12 @@ function reset() {
 onUnmounted(() => window.clearInterval(timer))
 
 const held = computed(() =>
-  JSON.stringify({ nightly: { rounds: round.value, since: 'the first run' } }, null, 2),
+  [
+    { t: 'call', id: 1, parent: 0, ref: 'nightly:nightly' },
+    { t: 'set', id: 1, key: 'rounds', value: round.value },
+  ]
+    .map((one) => JSON.stringify(one))
+    .join('\n'),
 )
 </script>
 
@@ -75,7 +80,7 @@ const held = computed(() =>
       </button>
       <button class="kill" type="button" :disabled="!running" @click="pull">pull the plug</button>
       <button class="go alt" type="button" :disabled="running || now.state !== 'stopped'" @click="again">
-        run it again
+        run it again, --resume
       </button>
       <div class="spacer" />
       <button class="ctl" type="button" @click="reset">start over</button>
@@ -91,7 +96,7 @@ const held = computed(() =>
             <span v-else class="tagline">not started</span>
           </header>
           <p v-if="i > 0" class="picked">
-            picked up at round {{ epic.from + 1 }} — the last run of this flow in this workspace
+            picked up at round {{ epic.from + 1 }} — the newest resumable run of this flow in this workspace
           </p>
           <div class="rounds">
             <span v-for="one in epic.rounds" :key="one" class="round">{{ one }}</span>
@@ -101,7 +106,7 @@ const held = computed(() =>
             <li><code>epic.jsonl</code><em>what the run was, appended as it happened</em></li>
             <li><code>sessions/</code><em>a link apiece to the backend's own transcript</em></li>
             <li v-if="epic.rounds.length">
-              <code>state.json</code><em>what the flow keeps, saved as it is set</em>
+              <code>journal.jsonl</code><em>what the flow keeps, written as it is set</em>
             </li>
             <li v-if="epic.state === 'stopped'"><code>traces/</code><em>collected afterwards, and filed in here</em></li>
           </ul>
@@ -109,16 +114,16 @@ const held = computed(() =>
       </div>
 
       <aside class="state">
-        <header>state.json</header>
+        <header>journal.jsonl</header>
         <pre>{{ held }}</pre>
         <p>
-          Keyed by the flow that wrote it, so a flow that called another is two flows and neither
-          writes the other's. Written when a key is set rather than when the run ends — a run
+          Kept against the flow call that wrote it, so a flow that called another is two calls
+          and neither writes the other's. Written when a key is set rather than when the run ends — a run
           worth picking up is one that was stopped or killed, and state saved only at the end is
           state such a run has none of.
         </p>
         <p class="lost">
-          <strong>What does not come back:</strong> the conversation. A session is opened rather
+          <strong>What does not come back:</strong> the conversation. A session is spawned rather
           than reopened, so the next run starts from the task and the repository — which is why
           what a flow keeps is its own handful of things and never a second copy of the
           transcript.

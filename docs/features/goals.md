@@ -24,42 +24,44 @@ continuing one.
 
 ## Asked for before the first turn, not an hour in
 
-A flow built on a goal says so where it declares its agents, and an agent whose backend has
-none is refused before anything runs. It raises rather than quietly running the objective as an
-ordinary turn, and suppression does not catch it: a missing feature is a flow to correct, not a
-turn to retry. Where agents are chosen at the prompt, only the CLIs that have one are offered.
+A goal is a prompt: `/goal <objective>`, handed to `run` like any other. What makes it a goal is
+the role it is sent through, which has to be declared with `GoalCommandAgentMixin`:
 
-## Turning it off
+```python
+class Worker(Agent, GoalCommandAgentMixin): ...
 
-Goals are on or off per agent, explicitly — no third state and nothing inherited. A flow may
-suggest the initial value where it declares a place, but the value is resolved before the agent
-is built and the flow does not change it afterwards.
+said = await agents["worker"].run(f"/goal {task}", session=session)
+```
 
-An agent with goals off is one whose flow owns every continuation. Beyond the goal itself,
-humanize refuses the tools that would carry work past the turn it is holding: the backend's own
-switch where it has one, a refusal before the CLI is invoked where it has none. Everything else
-is what its [permission](/user/permissions) rung says it may reach for, and neither path
-touches your global configuration of that backend.
+A role declared that way is filled only by a harness that has a goal feature — Claude Code,
+Codex, DeepSeek Harness, Kimi Code, ZCode — and one that has none is refused before anything
+runs. A `/goal` prompt through a role that did not declare the mixin raises
+`CapabilityNotGranted`, whatever the harness underneath could do: a missing declaration is a flow
+to correct, not a turn to retry. Where agents are chosen at the prompt, only the CLIs that have
+one are offered for such a role.
+
+`/loop <interval> <task>` is the same bargain with another mixin, `LoopCommandAgentMixin`, and
+only Claude Code serves it.
 
 ## The same shape, written by hand
 
-A goal written by hand is a refused `Stop` [hook](/features/hooks): the turn is not over until
-the hook lets it be, and the hook is told how many times it has already sent this turn on, so
-one that keeps refusing can decide to stop.
+A goal written by hand is a blocking `on_stop` [hook](/features/hooks): the turn is not over until
+the hook lets it be, and the hook is told how many times it has already sent this turn on
+(`again`), so one that keeps blocking can decide to stop.
 
 The difference is who judges, and what it costs:
 
 | | Decides it is done | Costs |
 | --- | --- | --- |
 | a goal | the **model**, against the objective in its own words | turns you did not ask for, until it says so |
-| a refused stop | **your code**, against whatever it can read | one extra turn per refusal, bounded by the count it is given |
+| a blocked stop | **your code**, against whatever it can read | one extra turn per refusal, bounded by the count it is given |
 
-Reach for the goal when the stopping condition is one the model should judge, and the refused
+Reach for the goal when the stopping condition is one the model should judge, and the blocked
 stop when a Python function can check it — an unticked box in a file, a test that still fails,
 a diff that still touches the wrong directory.
 
 ## Where the detail is
 
-- [Goals](/weaver/goals) — the calls, the marker, and which backends have one
-- [The moments of a turn](/features/hooks) — the refused stop, in full
-- [Agents reference](/reference/agents#goals)
+- [Goals](/weaver/goals) — the prompt, the mixin, and which backends have one
+- [The moments of a turn](/features/hooks) — the blocked stop, in full
+- [Flows reference](/reference/flows#sessions-and-turns) · [Agents reference](/reference/agents#goals)

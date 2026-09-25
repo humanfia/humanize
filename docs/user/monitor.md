@@ -9,7 +9,7 @@ first glance.
 The diagram is the sheet, not a header on one. It takes the height your terminal has, and the
 few lines under it are only what a picture cannot say.
 
-It is also where [the board](/user/board) is, for a flow that talks to you.
+It is also where [the board](/user/board) is, where a run has one.
 
 ## Try it
 
@@ -158,15 +158,14 @@ for one in (actor, reviewer):
 Which flows are running, innermost last:
 
 ```python
-from hmz.flows import running
+from hmz.runtime.flowing import running
 
-running()                       # one Running(flow, since, depth, under) apiece
-[one.flow for one in running()] # ["chat", "rlar"]
+running()                       # one LiveCall(ref, name, depth, since, id, parent) apiece
+[one.name for one in running()] # ["chat", "rlar"]
 ```
 
-Asked from inside a flow this is the branch that flow is on — the flow somebody started, then
-each flow called to get there, and never a call gathered beside it. Asked from anywhere else it
-is every flow of the run, oldest first, each saying how `deep` it is and what it is `under`.
+It is every flow call going now, in every run of this process, each saying how `depth` deep it
+is and which call it is under (`parent`). A call that has ended is not among them.
 
 ## Afterwards
 

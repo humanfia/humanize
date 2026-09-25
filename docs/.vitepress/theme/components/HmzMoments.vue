@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// The moments a turn passes through, and what a Python callable hung on one of them can say
-// back. Hang a hook, run the turn, and read what it was told and what it did about it. The
-// names are the coding agents' own, so a flow written against one reads against their docs.
+// The moments a turn passes through, and what a hook hung on one of them can say back. Hang
+// a hook, run the turn, and read what it was told and what it did about it. Each moment is one
+// `on_*` method of the agent a flow holds; the ones only some harnesses reach need a mixin.
 import { computed, onUnmounted, ref } from 'vue'
 
 interface Moment {
@@ -14,69 +14,78 @@ interface Moment {
 
 const MOMENTS: Moment[] = [
   {
-    name: 'SessionStart',
+    name: 'on_session_start',
     about: 'a session is about to take its first turn',
-    carries: 'agent · session',
+    carries: 'ctx · session',
     refusable: '',
     everywhere: true,
   },
   {
-    name: 'UserPromptSubmit',
+    name: 'on_user_prompt_submit',
     about: 'a prompt is about to go to the agent',
-    carries: 'agent · session · prompt',
-    refusable: 'the turn does not run, and what is added goes into the prompt',
+    carries: 'prompt',
+    refusable: 'the turn does not run; context it adds goes into the prompt',
     everywhere: true,
   },
   {
-    name: 'PreToolUse',
+    name: 'on_pre_tool_use',
     about: 'the agent has reached for a tool',
-    carries: 'tool · about · input',
-    refusable: '',
+    carries: 'tool · input',
+    refusable: 'the tool does not run, where the CLI gates its tools',
     everywhere: true,
   },
   {
-    name: 'SubagentStart',
-    about: 'the agent has started an agent of its own',
-    carries: 'tool · about · under',
-    refusable: '',
-    everywhere: false,
-  },
-  {
-    name: 'SubagentStop',
-    about: 'one of those has come back',
-    carries: 'tool · about · under',
-    refusable: '',
-    everywhere: false,
-  },
-  {
-    name: 'PermissionRequest',
-    about: 'the backend is asking whether a tool may run',
-    carries: 'tool · about · input',
+    name: 'on_permission_request',
+    about: 'the harness is asking whether a tool may run',
+    carries: 'tool · input',
     refusable: 'the tool does not run',
     everywhere: false,
   },
   {
-    name: 'Notification',
-    about: 'the agent has stopped to ask its user something',
-    carries: 'agent · session · about',
+    name: 'on_ask_user',
+    about: 'the agent has stopped mid-turn to ask its user',
+    carries: 'question · options',
+    refusable: '',
+    everywhere: false,
+  },
+  {
+    name: 'on_subagent_start',
+    about: 'the agent has started an agent of its own',
+    carries: 'subagent · task',
+    refusable: '',
+    everywhere: false,
+  },
+  {
+    name: 'on_subagent_stop',
+    about: 'one of those is about to finish',
+    carries: 'subagent · said',
+    refusable: '',
+    everywhere: false,
+  },
+  {
+    name: 'on_notification',
+    about: 'the agent has stopped to tell its user something',
+    carries: 'message',
     refusable: '',
     everywhere: true,
   },
   {
-    name: 'Stop',
-    about: 'a turn has ended',
+    name: 'on_stop',
+    about: 'a turn is about to end',
     carries: 'said · again',
-    refusable: 'the agent is sent on, with what was said as its prompt',
+    refusable: 'the agent is sent on, with the reason as its next prompt',
     everywhere: true,
   },
   {
-    name: 'SessionEnd',
-    about: 'a session has been closed',
-    carries: 'agent · session',
+    name: 'on_session_end',
+    about: 'a session is being closed',
+    carries: 'ctx · session',
     refusable: '',
     everywhere: true,
   },
 ]
+
+const at_ = (name: string) => MOMENTS.findIndex((one) => one.name === name)
 
 interface Hook {
   key: string
@@ -89,24 +98,31 @@ interface Hook {
 const HOOKS: Hook[] = [
   {
     key: 'house',
-    on: 'UserPromptSubmit',
+    on: 'on_user_prompt_submit',
     said: 'add the house rules',
     does: 'adds a line to what the agent is about to be told',
-    verdict: 'adds: “never touch the generated files”',
+    verdict: 'context: “never touch the generated files”',
   },
   {
     key: 'rm',
-    on: 'PermissionRequest',
+    on: 'on_permission_request',
     said: 'refuse anything that removes',
     does: 'reads the command and refuses it',
-    verdict: 'refused: “rm is not yours to run here”',
+    verdict: 'allow=False: “rm is not yours to run here”',
+  },
+  {
+    key: 'answer',
+    on: 'on_ask_user',
+    said: 'answer its questions',
+    does: 'answers the question the agent asked',
+    verdict: 'answer: “no — keep the old column”',
   },
   {
     key: 'unfinished',
-    on: 'Stop',
+    on: 'on_stop',
     said: 'not while TASK.md has boxes',
     does: 'sends the agent on rather than letting the turn end',
-    verdict: 'refused: “TASK.md still has unticked boxes.”',
+    verdict: 'block=True: “TASK.md still has unticked boxes.”',
   },
 ]
 
@@ -134,33 +150,48 @@ interface Beat {
 function script(): Beat[] {
   const made: Beat[] = []
   const walk = (again: number) => {
-    made.push({ moment: 2, said: 'Read src/pay.py', kind: 'told' })
-    made.push({ moment: 3, said: 'Bash · rm -rf build/', kind: 'told' })
-    const rm = hookAt('PermissionRequest')
+    made.push({ moment: at_('on_pre_tool_use'), said: 'Read · src/pay.py', kind: 'told' })
+    made.push({ moment: at_('on_pre_tool_use'), said: 'Bash · rm -rf build/', kind: 'told' })
+    made.push({ moment: at_('on_permission_request'), said: 'Bash · rm -rf build/', kind: 'told' })
+    const rm = hookAt('on_permission_request')
     if (rm) {
-      made.push({ moment: 3, said: rm.verdict, kind: 'said' })
-      made.push({ moment: 3, said: 'the tool does not run; the agent is told why', kind: 'done' })
+      made.push({ moment: at_('on_permission_request'), said: rm.verdict, kind: 'said' })
+      made.push({
+        moment: at_('on_permission_request'),
+        said: 'the tool does not run; the agent is told why',
+        kind: 'done',
+      })
     } else {
-      made.push({ moment: 3, said: 'granted, because nothing was hung here', kind: 'done' })
+      made.push({
+        moment: at_('on_permission_request'),
+        said: 'granted, because nothing was hung here',
+        kind: 'done',
+      })
     }
-    made.push({ moment: 4, said: 'asks: “shall I drop the old column?”', kind: 'told' })
-    made.push({ moment: 5, said: `said: “that is the lot” · again = ${again}`, kind: 'told' })
-    const stop = hookAt('Stop')
+    made.push({ moment: at_('on_ask_user'), said: 'asks: “shall I drop the old column?”', kind: 'told' })
+    const answer = hookAt('on_ask_user')
+    if (answer) {
+      made.push({ moment: at_('on_ask_user'), said: answer.verdict, kind: 'said' })
+    } else {
+      made.push({ moment: at_('on_ask_user'), said: 'unanswered: the agent carries on without one', kind: 'done' })
+    }
+    made.push({ moment: at_('on_stop'), said: `said: “that is the lot” · again = ${again}`, kind: 'told' })
+    const stop = hookAt('on_stop')
     if (stop && again < 1) {
-      made.push({ moment: 5, said: stop.verdict, kind: 'said' })
-      made.push({ moment: 5, said: 'the turn does not end — the agent is sent on', kind: 'done' })
+      made.push({ moment: at_('on_stop'), said: stop.verdict, kind: 'said' })
+      made.push({ moment: at_('on_stop'), said: 'the turn does not end — the agent is sent on', kind: 'done' })
       walk(again + 1)
       return
     }
-    made.push({ moment: 6, said: 'the session is closed', kind: 'done' })
+    made.push({ moment: at_('on_session_end'), said: 'the session is closed', kind: 'done' })
   }
 
-  made.push({ moment: 0, said: 'the first turn of this session', kind: 'told' })
-  made.push({ moment: 1, said: 'prompt: “port the parser”', kind: 'told' })
-  const house = hookAt('UserPromptSubmit')
+  made.push({ moment: at_('on_session_start'), said: 'the first turn of this session', kind: 'told' })
+  made.push({ moment: at_('on_user_prompt_submit'), said: 'prompt: “port the parser”', kind: 'told' })
+  const house = hookAt('on_user_prompt_submit')
   if (house) {
-    made.push({ moment: 1, said: house.verdict, kind: 'said' })
-    made.push({ moment: 1, said: 'the line goes into the prompt', kind: 'done' })
+    made.push({ moment: at_('on_user_prompt_submit'), said: house.verdict, kind: 'said' })
+    made.push({ moment: at_('on_user_prompt_submit'), said: 'the line goes into the prompt', kind: 'done' })
   }
   walk(0)
   return made
@@ -224,7 +255,7 @@ const hooked = computed(() => HOOKS.filter((one) => hung.value.includes(one.key)
         <span class="about">{{ one.about }}</span>
         <span class="carries">{{ one.carries }}</span>
         <span v-if="one.refusable" class="refusable">refusing it: {{ one.refusable }}</span>
-        <span v-if="!one.everywhere" class="only">only where the backend has it</span>
+        <span v-if="!one.everywhere" class="only">only on a role declared with its mixin</span>
       </div>
     </div>
 
@@ -243,9 +274,9 @@ const hooked = computed(() => HOOKS.filter((one) => hung.value.includes(one.key)
     </ol>
 
     <p class="note">
-      A hook is a word in the turn rather than a note about it: the thread the turn runs on waits
-      here, so one that takes a while is a turn that takes a while. One that raises has said
-      nothing — a flow must not fail because something hung off it did.
+      A hook is a word in the turn rather than a note about it: the CLI waits here for the flow's
+      coroutine to answer, so one that takes a while is a turn that takes a while. One that raises
+      fails the turn it arrived in, as the flow's own code raising would.
     </p>
   </div>
 </template>
@@ -325,7 +356,7 @@ const hooked = computed(() => HOOKS.filter((one) => hung.value.includes(one.key)
 
 .track {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   padding: 16px 16px 0;
 }
@@ -420,7 +451,7 @@ const hooked = computed(() => HOOKS.filter((one) => hung.value.includes(one.key)
 
 .log .who {
   flex: none;
-  width: 148px;
+  width: 184px;
   color: var(--vp-c-text-3);
 }
 

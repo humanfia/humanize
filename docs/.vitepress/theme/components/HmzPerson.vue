@@ -105,15 +105,16 @@ const built = computed(() =>
       <section class="asking">
         <template v-if="away">
           <p class="gone">
-            <strong>Answered with nothing.</strong> A flow run from a command line, or an
-            interface told its user is away, answers a question the same way: nobody is there.
-            The backend is told that rather than left waiting — a turn waiting on an answer that
-            is not coming is a flow that has stopped.
+            <strong>Answered for, at once.</strong> A run of <code>hmz exec</code>, or an
+            interface told its user is away with <code>/afk</code>, has nobody there — and an
+            outworlder that is away answers rather than leaving the run waiting on an answer that
+            is not coming.
           </p>
           <p class="gone dim">
-            The flow reads <code>None</code> under suppress and takes that branch. Which is the
-            same branch it takes when a model answers with something that is not the shape it was
-            asked for.
+            Text is answered <code>""</code>; a shape every field of which has a default is
+            answered with those defaults; any other shape raises <code>OutworlderAway</code>.
+            <code>Settled</code> has two fields with no default, so this flow would have to catch
+            it.
           </p>
         </template>
 
@@ -146,7 +147,7 @@ const built = computed(() =>
           </p>
           <p class="from">
             The flow reads a field. It put the same decision to a person that it would have put
-            to a model, in the same shape, with the same branch for an answer that never came.
+            to a model, in the same shape, through the same <code>run</code>.
           </p>
         </template>
       </section>

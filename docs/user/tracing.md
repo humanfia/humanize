@@ -91,14 +91,14 @@ Every run of a flow is one **epic**, which is a directory:
 ~/.humanize/epics/<workspace>/<datetime>-<hex>/
     epic.jsonl                      what happened, a line at a time
     epic.<flow>_<hex>.jsonl         the same, for one flow the run called
-    state.json                      what a flow that can be picked up again left behind
+    the journal                     what a flow that can be picked up did, for --resume
     profile.jsonl                   the programs it ran, for a run that was profiled
     sessions/<session>/…            a link per file the backend logged that session to
     traces/export.trace.json        the trace exporting the run gathers, replaced each time
     traces/<datetime>.trace.json    one gathered by hand afterwards, which keeps every one
 ```
 
-Not all of it every time: `state.json` is there for a flow that [can be picked
+Not all of it every time: the journal is there for a flow that [can be picked
 up](/reference/flows#a-flow-that-can-be-picked-up), `profile.jsonl` for a directory that asked
 to be [profiled](#profiling-a-run), `traces/` from the first time the run is exported, and a
 `epic.<flow>_<hex>.jsonl` for each flow the run [called](#what-a-called-flow-writes-down).
@@ -114,7 +114,7 @@ ls "$run"
 epic.jsonl  sessions  traces
 ```
 
-![ls of one run's directory: epic.jsonl, profile.jsonl, sessions and state.json, and no traces
+![ls of one run's directory: epic.jsonl, profile.jsonl and sessions, and no traces
 yet](/demo/run.png)
 
 `epic.jsonl` is JSON lines, appended and flushed as it goes. A run that died is a run whose

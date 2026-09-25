@@ -16,43 +16,58 @@ for the interface and its limits.
 
 ## A. Flow system
 
-The weaver's half: work expressed as ordinary Python or as an inspectable graph, then composed,
-scheduled, and recovered without hiding which execution model is in use.
+The weaver's half: work expressed as async Python that declares what it drives, then composed,
+scheduled, and recovered, with nothing a role did not declare within reach.
 
-### A1. Expression and compilation
+### A1. Expression and declaration
 
-- A regular flow is unrestricted Python; its next step is whatever its body decides at runtime.
-- An atlas uses a restricted declarative body, compiled into a typed prophecy graph before the
-  first agent turn.
-- Calls, shaped values, branches, loops, and returns become explicit nodes, edges, and exits.
-- Canonical graph identities separate structural changes from formatting and node-body changes.
-- Shipped graphs are checked for drift and rebuilt only from allowlisted prophecy types.
+- A flow is an `async` function; its next step is whatever its body decides at runtime.
+- It declares its agents and environments as typed roles, and its settings as a pydantic
+  model; a role's type is `Agent` or `Env` with the capability mixins it asks for.
+- What a flow is handed is a view of each real agent or machine, granted exactly what its role
+  declared; anything else raises `CapabilityNotGranted`, whatever the harness could do.
+- Each harness has a protocol of its own (`ClaudeCodeAgent`, `CodexAgent`, …) naming everything
+  it serves, for a role that needs that harness and all of it.
 
-**Learn:** [Python becomes a prophecy](/features/prophecy) · **Use:**
-[Writing a flow](/weaver/writing-a-flow), [Atlas](/weaver/atlas) · **Reference:**
-[Flows](/reference/flows#an-atlas)
+| Harness | What it serves beyond `Agent` |
+| --- | --- |
+| `claude` | goal, loop, steering, permission requests, subagent start/stop, asking the user |
+| `codex` | goal, steering, permission requests, subagent start/stop, asking the user |
+| `cursor-agent` | subagent start/stop |
+| `kimi` | goal, steering, permission requests, asking the user |
+| `zcode` | goal, permission requests, asking the user |
+| `grok` | nothing beyond `Agent` |
+| `pi` | steering, asking the user |
+| `dsh` | goal |
+| `opencode`, `mimo`, `qwen`, `agy`, an ACP CLI | nothing beyond `Agent` |
 
-### A2. Static correctness and proving
+**Learn:** [A flow is Python](/features/flows) · **Use:**
+[Writing a flow](/weaver/writing-a-flow) · **Reference:**
+[Flows](/reference/flows#asking-for-an-agent-that-can-do-something)
 
-- Zero-execution checking reads flow structure without importing or running user code.
-- Atlas checks cover edge shapes, bound values, recursion, returns, and loop progress.
-- Ordinary flow checks catch selected liveness and shaped-answer mistakes without claiming to
-  prove arbitrary Python.
-- Nested flows and changed configuration schemas are validated before their work begins.
-- Stand-in agents, adversarial scenarios, and virtual time exercise execution without a real
-  model turn.
+### A2. Requirements and testing
 
-**Learn:** [Python becomes a prophecy](/features/prophecy) · **Use:**
-[Checking flows](/weaver/checking-flows), [Testing flows](/weaver/testing-flows) ·
-**Reference:** [Flows](/reference/flows#checking-a-flow)
+- A run is checked against what the flow declares before any agent starts: every required
+  role filled, each harness serving the role's mixins, each machine meeting its resources, the
+  params valid, a budget given.
+- A called flow is checked the same way at the call, before it runs, with a refusal of its
+  own for each thing missing — a role, a capability, a permission, a resource, a harness.
+- An in-memory fake kit — scripted agents, a dictionary of files for an environment, a
+  stand-in person — runs a flow through the real engine with no model turn and no machine.
 
-### A3. Composition and hot reload
+**Learn:** [A flow is Python](/features/flows) · **Use:**
+[Testing flows](/weaver/testing-flows) · **Reference:**
+[Flows](/reference/flows#testing-a-flow)
 
-- A regular flow may load and call another flow while preserving nested run context; an atlas
-  may contain another atlas as a typed supernode.
-- Remote skill repositories are fetched and cached for the flow that names them.
-- Flow entry points and side modules are read again so later work uses current source.
-- Synchronous and asynchronous flows share the same runner and failure model.
+### A3. Composition and reload
+
+- A flow may load another by ref — beside it, in the same flowverse, or at a git URL pinned to
+  a commit — and call it with agents and environments it holds, narrowed to what the callee
+  declares.
+- A callee's budget is the tighter of its own and what remains of its caller's; what it
+  spends rolls up to every flow above it; what it raises reaches the caller unwrapped.
+- Remote skill repositories are fetched and cached for the role that names them.
+- A flow's module is imported once per run and afresh by the next run once its files change.
 
 **Learn:** [A flow is Python](/features/flows) · **Use:**
 [Calling flows](/weaver/calling-flows), [Skills](/user/skills) · **Reference:**
@@ -60,15 +75,16 @@ scheduled, and recovered without hiding which execution model is in use.
 
 ### A4. Scheduling, state, and resumption
 
-- Flows declare agent roles, capabilities, working locations, and what each agent is allowed
-  -- its permission rung, whether goals are available to it, and whether it may search the web
-  -- rather than backend implementations. Whoever runs the flow names a CLI, an account, a
-  model and an effort, and nothing else.
+- Flows declare agent roles, capabilities, the environments they work in, and what each agent
+  is allowed — a `Permission` over its workdir, the user's home, the machine and the network —
+  rather than backend implementations. Whoever runs the flow names a CLI, an account, a model
+  and an effort per role, and a machine and directory per environment role.
 - Independent sessions may run concurrently; turns sharing one session remain sequential.
-- Resumable regular flows keep an explicit state mapping and resume by running current flow
-  code again; atlases resume the first unfinished node visit under the same prophecy identity.
-- Neither form restores a backend conversation; repositories and explicit flow state carry the
-  work forward.
+- A resumable flow keeps an explicit state mapping in the run's journal and resumes by running
+  current flow code again; its calls pick up where they are called again with the same task,
+  agents, environments and params.
+- Nothing restores a backend conversation; repositories and explicit flow state carry the work
+  forward.
 
 **Learn:** [Many turns at once](/features/concurrency),
 [Picked up where it stopped](/features/resuming) · **Use:**
@@ -102,37 +118,40 @@ capabilities, identities, conversations, and ways of collaborating with a person
 - Steering delivers an acknowledged instruction into a supported turn that is already running.
 - A per-turn budget of output tokens or wall-clock seconds is held to off the live meter, and
   cuts the running turn off where its cut-off setting says.
-- A per-run allowance of hours, millions of output tokens and dollars is held to at every
-  session edge of every backend, and stops every agent of the run at once when it is spent.
+- A run's budget of duration, cost and output tokens — required of every `hmz exec` but
+  `chat` — is held to at every turn of every backend; a called flow runs under the tighter of
+  its own and what remains of its caller's, and a spent budget stays spent.
 - The same interrupt primitive ends a turn by hand, reaching whichever process is holding it.
-- Goals continue across controlled turns, while cloning creates a separate conversation branch.
+- Goals continue across controlled turns, while forking creates a separate conversation
+  branch, into another environment where the harness can.
 - Side questions through /btw read a frozen conversation snapshot without changing the main
   session.
-- Agent questions and the human agent share one answer path; away mode answers nothing rather
-  than blocking the run.
-- The board carries durable lines between a person and a flow without blocking either.
+- Agent questions and the outworlder — the person outside the run, driven as an agent — share
+  one answer path; away, it answers with defaults rather than blocking the run.
 
 **Learn:** [A line typed mid-turn](/features/steering),
 [A turn can be cut off](/features/budgets),
-[Every run has an allowance](/features/allowances),
+[Every run has a budget](/features/allowances),
 [It decides when it is done](/features/goals), [The moments of a turn](/features/hooks),
 [You, as one of the agents](/features/human) · **Use:** [Questions](/user/questions),
-[Side questions (/btw)](/user/btw), [Board](/user/board),
-[Human agent](/weaver/human-agent), [Being away](/user/afk) · **Reference:**
+[Side questions (/btw)](/user/btw), [Human agent](/weaver/human-agent),
+[Being away](/user/afk) · **Reference:**
 [Agents](/reference/agents#turns), [Flows](/reference/flows#the-person-at-the-prompt)
 
-### B3. Tools and skills
+### B3. Skills and hooks
 
-- Each session receives the flow-owned skills its role and scope select, mounted for that
-  session and removed when the scope ends. Which skills exist at all is the flow author's;
-  nobody running the flow adjusts one.
+- Each session receives the skills its role declares, found in the flow's own `skills/` or
+  fetched, and an agent derived with fewer carries fewer. Which skills exist at all is the flow
+  author's; nobody running the flow adjusts one.
 - Backends expose the native skills already installed where their own CLI reads them, as a
   reading: humanize never rewrites, overrides or disables one.
-- On a capable backend, a flow callback becomes a native tool from the next turn until it is
-  withdrawn or the session ends.
+- Hooks put the flow's own code on the moments of a turn — a prompt, a tool, a permission, a
+  question, a turn ending — one method per moment, and only on a role declared for the moments
+  some harnesses alone reach.
 
-**Learn:** [Many backends, one agent](/features/backends) · **Use:**
-[Skills](/user/skills), [Callbacks as tools](/weaver/tools) · **Reference:**
+**Learn:** [The moments of a turn](/features/hooks) · **Use:**
+[Skills](/user/skills), [Hooks](/weaver/hooks),
+[The agent asking the flow](/weaver/tools) · **Reference:**
 [Agents](/reference/agents#the-skills-an-agent-carries),
 [Flows](/reference/flows#the-skills-a-flow-brings)
 
@@ -216,7 +235,9 @@ movement, transport, and machine ownership explicit.
   container when the participants need the same environment.
 - Existing remote targets remain externally owned; managed targets are closed by the scope that
   created them.
-- Workspace placement is declared separately from which backend performs the turn.
+- Where a flow's work lands is an environment role, declared separately from which backend
+  performs the turn: the directory the run was started in, or one `-e` points at on this
+  machine or an ssh host.
 
 **Learn:** [The anchor](/features/anchor) · **Use:** [Containers](/user/containers) ·
 **Reference:** [Machines](/reference/machines)
@@ -243,9 +264,9 @@ separate local traces from optional outbound reporting.
 ### D2. Persistent state and layered logs
 
 - Each run's epic record gains complete journal entries as events happen.
-- Ordinary flow state is written through on assignment, with a final save for nested mutations.
-- Atlas state records completed node visits under the prophecy identity and nesting path.
-- Called flows keep layered journals and state beside the run without overwriting their caller.
+- A resumable run's journal records every flow call, its state writes, its sessions and its
+  temporary directories; a state write is flushed as it is made.
+- Called flows keep their own state against their own call without overwriting their caller.
 - These records are workflow state, not the backend conversation or a terminal transcript.
 
 **Learn:** [Picked up where it stopped](/features/resuming),
@@ -290,11 +311,13 @@ scripted, embedded, or detached work.
 - Fetched, project, and user flows sit in an explicit catalogue: qualified names
   select a source directly, unqualified names prefer the nearest local version.
 - Forking stages a complete copy and refuses to overwrite an existing local flow.
-- A flow's pydantic model drives setup fields, validation, defaults, and grouped presentation.
-- Remembered settings are revalidated against the model the flow declares now.
+- A flow's `FlowParams` model drives `-p`, setup fields, validation, defaults, and grouped
+  presentation.
+- Remembered roles, environments, params and budget are revalidated against what the flow
+  declares now.
 
 **Learn:** [One system, four ways in](/features/surfaces) · **Use:**
-[Flowverses](/weaver/flowverses), [Flow settings](/weaver/flow-settings) · **Reference:**
+[Flowverses](/weaver/flowverses), [Flow params](/weaver/flow-settings) · **Reference:**
 [Flows](/reference/flows#flowverses)
 
 ### E2. Unified entry points

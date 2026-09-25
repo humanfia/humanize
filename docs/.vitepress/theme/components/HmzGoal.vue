@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // Two ways a turn does not end. On the left the backend's own goal feature: the model judges
 // the objective and starts the next turn itself. On the right the same thing written by hand:
-// a refused STOP, decided by code that can read whatever it likes, bounded by how many times
-// it has already refused. Tick the boxes and watch the right-hand loop stop.
+// a blocked STOP, decided by code that can read whatever it likes, bounded by how many times
+// it has already blocked. Tick the boxes and watch the right-hand loop stop.
 import { onUnmounted, ref } from 'vue'
 
 interface Turn {
@@ -137,10 +137,10 @@ onUnmounted(() => {
       <section class="col hand">
         <header>
           <strong>your code decides</strong>
-          <span>a refused STOP</span>
+          <span>a blocked STOP</span>
         </header>
         <p class="lede">
-          The same shape, written by hand and hung on the moment a turn tries to end. Refusing it
+          The same shape, written by hand and hung on the moment a turn tries to end. Blocking it
           sends the agent on, with what the hook said as its next prompt — so the condition can be
           anything Python can read.
         </p>
@@ -163,7 +163,7 @@ onUnmounted(() => {
         <footer class="plain">
           <em>
             The hook is told how many times it has already sent this turn on, so one that keeps
-            refusing can decide to stop. A goal costs turns you did not ask for; a refused STOP
+            refusing can decide to stop. A goal costs turns you did not ask for; a blocked STOP
             costs one extra turn per refusal.
           </em>
         </footer>

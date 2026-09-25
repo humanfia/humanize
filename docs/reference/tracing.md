@@ -95,7 +95,7 @@ Every run of a flow is one **epic**, written as it happens, and an epic is a dir
 ~/.humanize/epics/<workspace>/<datetime>-<hex>/
     epic.jsonl                      what happened, a line at a time
     epic.<flow>_<hex>.jsonl         the same, for one flow the run called
-    state.json                      what a flow that can be picked up again left behind
+    the journal                     what a flow that can be picked up did, for --resume
     profile.jsonl                   the programs it ran, for a run that was profiled
     sessions/<session>/…            a link per file the backend logged that session to
     traces/export.trace.json        the trace exporting the run gathers, replaced each time
@@ -111,7 +111,7 @@ as it goes — a run that died is a run whose epic still says what it got to.
 
 | `event` | Written | Carries |
 | --- | --- | --- |
-| `began` | when the flow starts | `flow`, `task`, `workspace`, whether the flow is `resumable`, the run it was `picked_up` from where there was one, and one entry per agent with its `agent` id, `backend`, `model`, `effort`, `permission`, `provider`, `goals` and whether it was the `person` at the prompt |
+| `began` | when the flow starts | `flow`, `task`, `workspace`, whether the flow is `resumable`, the run it was `picked_up` from where there was one, and one entry per agent with the role it filled, its `backend`, `model`, `effort`, `permission` and `provider` |
 | `opened` | each time an agent opens a session | `agent`, `backend`, `provider`, `session`, the `name` the run gives it and `where` its links are |
 | `called` | when the flow calls another flow | `flow`, `task`, and the `epic` — the record that call was written to |
 | `returned` | when that call returns, however it ended | `flow` and the same `epic` |
@@ -139,14 +139,16 @@ An epic covers one run. It closes when the flow finishes, fails or is interrupte
 epic is never reopened: running the flow again is another run, with sessions of its own, and so
 another epic.
 
-That is what `state.json`, `resumable` and `picked_up` are for. A flow that says
-`@flow(resumable=True)` takes a state dict as its last argument, and what it writes there is
-`state.json` in the epic of the run that wrote it, keyed by the name the flow was run under.
-Running that flow again here carries on from the last run of it that left anything — into an
-epic of its own, whose `began` line says which run it was `picked_up` from, so a week of stops
-and starts reads as the week it was. `/epics` picks a named run up: enter goes into a run and
-offers *resume this run*, which is asked of the flow rather than of the run, a flow being a
-file that may have been rewritten since. See [Picking a run up](/user/resuming) and
+That is what the journal, `resumable` and `picked_up` are for. A flow marked
+`@flow(..., resumable=True)` keeps a journal while it runs — one JSON line per flow call and how
+it ended, per write to a flow's `ctx.state`, per session opened, per temporary copy and scratch
+directory kept — and `hmz exec --resume`, `/resume` or *resume this run* on `/epics` picks the
+run up from it: the flow at the top carries on with what it kept, and each flow it calls picks
+up where it is called again with the same task, agents, environments and params. A run picked
+up is written down as a run of its own whose `began` line says which run it was `picked_up`
+from, so a week of stops and starts reads as the week it was. Whether a run can be picked up
+is asked of the flow rather than of the run, a flow being a file that may have been rewritten
+since. See [Picking a run up](/user/resuming) and
 [a flow that can be picked up](/reference/flows#a-flow-that-can-be-picked-up).
 
 An agent stopped by hand makes the run `stopped` rather than `failed`, whatever the turn under

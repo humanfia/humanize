@@ -13,7 +13,7 @@ whichever way it was asked.
 from hmz.sdk import Hmz
 
 hmz = Hmz()
-hmz.run("chat", [], "say hello").run()
+hmz.exec(["-f", "chat", "-a", "assistant=claude/claude-opus-5:high", "say hello"])
 ```
 
 **Over a daemon.** [`Daemons`](#daemons) is a run held where a terminal closing cannot end it:
@@ -65,9 +65,8 @@ a workspace is what loads the tracer.
 | --- | --- |
 | `backends()` | Every coding agent CLI humanize drives, as `hmz.coganchor.backends.Profile`. |
 | `reports()` | Starts [reporting humanize's own failures](/user/reporting) where that has been answered yes. Returns whether anything is being reported. |
-| `read(argv)` | Reads an `hmz exec` line into `(flow, agents, task, config, container)`. |
-| `runner(flow, agents, config=None, resume=None, container="")` | Loads a flow and hands it the agents it was written for, as `hmz.runtime.runner.Runner`. |
-| `run(flow, agents, task, config=None, resume=None, container="")` | The same, as a [`Run`](#run). |
+| `read(argv)` | Reads an `hmz exec` line into what it says: the flow, an agent and an environment per role, the params, the budget, the task, and whether to pick a run up. Everything [refused before anything runs](/reference/cli#what-is-refused-before-anything-runs) is refused here. |
+| `run(...)` | A [`Run`](#run) of a flow over what a line said — the agents and environments by role, the params and the budget — which is what `exec` makes of one. |
 | `exec(argv)` | The whole of `hmz exec`: reads the line, loads the flow, runs it to its return. |
 
 ## `Run`
@@ -77,28 +76,25 @@ holding.
 
 | | |
 | --- | --- |
-| `agents` | Every agent it drives, the person the flow talks to among them. |
+| `agents` | Every agent it drives, by role. |
 | `running` | Whether the flow is still going. `False` before it is started. |
 | `raised` | Whatever the flow raised, for a run started on a thread and now over. |
 | `run()` | Runs the flow here, until it returns. |
-| `start()` | Runs it on a thread of its own, and returns at once. One run **in a container** at a time per process: the container a run works in is the process's, since a flow that called another is one run working in one place. Runs on this machine have no such limit. The second of two is refused where the container is settled — on the thread, so it arrives in `raised` rather than out of this call; `run()` raises it where it stands. |
+| `start()` | Runs it on a thread of its own, and returns at once. |
 | `wait(timeout=None)` | Waits for it to end. Returns whether it has. |
-| `stop()` | Tells every agent to take no further turn, so the turn running now is closed out and the loop ends rather than handing on. |
+| `stop()` | Stops the flow: the turn running now is cut off, and every flow call of the run raises `FlowCancelled` at its next step rather than handing on. |
 | `close()` | Closes every conversation still open, which is the backend's process going. The last thing there is to do about a run. |
 
 ```python
 from hmz.sdk import Hmz
 
 hmz = Hmz()
-flow, agents, task, config, budget, as_json = hmz.read(
-    ["-f", "ralph_loop", "-a", "claude/claude-opus-5:high", "fix the build"]
-)
-run = hmz.run(flow, agents, task, config, budget=budget, container="python:3.12")
-run.start()
-...
-run.stop()
-run.wait(timeout=60)
+hmz.exec(["-f", "ralph_loop", "-a", "agent=claude/claude-opus-5:high", "-b", "cost=5",
+          "fix the build"])
 ```
+
+A `Run` is what to hold instead where the caller wants the run back while it goes — `start()`,
+then `stop()` or `wait()` — made by `run(...)` from what `read(argv)` read off the same line.
 
 ## Flows
 
@@ -107,18 +103,17 @@ run.wait(timeout=60)
 | | |
 | --- | --- |
 | `all()` | Every flow there is to run, by the name `-f` takes. |
-| `find(named)` | The file one flow is written in. Raises `NotAFlow` for a name nothing answers to. |
+| `find(named)` | The file one flow is written in — or `named` itself where nothing answers to it, so whether a flow is there is whether what comes back is a file. |
 | `about(named)` | The line a flow says about itself. |
-| `places(named)` | Every agent it needs chosen for it, in the order it takes them. |
-| `check(named, static=False)` | Reads it for what will not run, before anything runs it: one finding per thing found, errors and warnings. `static=True` keeps to the reading that executes nothing. |
-| `prophecy(named)` | What an [atlas](/weaver/atlas) compiles to, or `None` for a flow that is not one or does not compile — which `check` says the reasons for. |
-| `foretell(named)` | Writes that prophecy into the flow's own directory, which every run of it walks from then on. |
-| `configures(named)` | What it can be [set up with](/reference/flows#settings-of-the-flow-s-own), or `None`. |
-| `resumes(named)` | Whether it says it can be [picked up](/user/resuming). |
+| the roles | What it declares: an agent role and an environment role apiece — which of them the runtime fills, which may be left out, and what each must be able to do — its [params](/reference/flows#settings-of-the-flow-s-own), and whether it [can be picked up](/user/resuming). What `/flow` asks its questions from. |
 | `fork(named, into=None)` | Copies it into this project's own flows, whole. |
-| `running()` | The branch of flows this is asked from, or every flow of the run from outside one. |
-| `set_up_from(path)` | Reads a flow's YAML setup file. |
+| `running()` | Every flow call of the run going now, each with its depth and the call it is under. |
 | `verses` | [Where flows come from](#flowverses). |
+
+There is no checking a flow without running it any more — no static findings, no atlas and no
+prophecy. A flow is tested by running it on the fake kit, `hmz.runtime.flowing.fakes`, which
+drives it through the same engine with in-memory agents and environments. See [Testing a
+flow](/weaver/testing-flows).
 
 ## Flowverses
 
@@ -200,8 +195,7 @@ happened.
 | `read(epic)` | What one run was: when, which flow, on what, how it went, what it opened. |
 | `sessions(epic)` | Every session it opened. |
 | `opened(epic)` | What each agent opened, by the name the run knew that agent as. |
-| `resumed(flow)` | The last run of one flow here. |
-| `state(epic, flow="")` | What a [resumable](/user/resuming) flow left behind in one run. |
+| `resumed(flow)` | The newest run of one flow here that can be picked up — what `--resume` carries on. |
 | `traced(epic, *, output=None, start=None, end=None)` | Gathers one run into a [trace](/reference/tracing) of that run — its own sessions, by the ids it wrote down, beside the programs it profiled — and answers with where it went and what is in it. It goes beside the run unless an output is named. |
 | `trace(*, sessions=None, agents=None, output=None, start=None, end=None, profile=None)` | The same collector, asked for whatever sessions you name — which is how a session no run ever drove is read back. |
 | `bundled(epic, *, output=None, transcript=None)` | Packages one whole run up as one archive to send somewhere — its own records, every session log the backends wrote for it with the links followed, and a manifest — and answers with where it went and what went in. Credentials are struck out of every byte. See [Exporting a run](/user/export). |
@@ -223,15 +217,14 @@ ways in hold: `status()`, `attach()`, `detach()`, `stop()`, `kill()`.
 ```python
 from hmz.sdk import Daemons, Hmz
 
-LINE = ["-f", "ralph_loop", "-a", "claude/claude-opus-5:high", "fix the build"]
+LINE = ["-f", "ralph_loop", "-a", "agent=claude/claude-opus-5:high", "-b", "cost=5",
+        "fix the build"]
 
 
 def opens(session):
     # Runs in the held process, and returns when the run is over. `session` is what lets go
     # of the terminals reading it; a run nobody is drawing for never needs it.
-    hmz = Hmz()
-    flow, agents, task, config, budget, _ = hmz.read(LINE)
-    hmz.run(flow, agents, task, config, budget=budget).run()
+    Hmz().exec(LINE)
 
 
 held = Daemons().hold(opens)

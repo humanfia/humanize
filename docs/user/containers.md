@@ -4,118 +4,78 @@ A container gives an agent a toolchain and a filesystem that are not yours, with
 your workspace: you name an image, and humanize holds **this project directory at the path it
 already has** inside it. Reach for it when the agent needs a toolchain you have not got.
 
-## Try it
-
-1. The flow says which of its agents works in a container — the
-   [weaver's](/weaver/writing-a-flow) part, with the image beside the place:
-
-```python
-# .humanize/flows/tested/__init__.py
-"""Build here; run the suite in a container that has the right Python."""
-
-from typing import Annotated, NamedTuple
-
-from hmz.flows import Agent, Isolated, flow
-
-
-class Agents(NamedTuple):
-    """The two this drives, and the two places they work."""
-
-    builder: Agent                                    # here, and nowhere else
-    tester: Annotated[Agent, Isolated("python:3.12")]  # a container of the flow's own
-
-
-@flow
-def run(agents: Agents, task: str) -> None:
-    working = agents.builder.new()
-    working(task, suppress=True)
-    for _ in range(5):
-        said = agents.tester("Run `python -m pytest -q` and report exactly what failed.",
-                             suppress=True)
-        if "passed" in said and "failed" not in said:
-            return
-        working(f"The suite says:\n\n{said}\n\nFix it.", suppress=True)
-```
-
-2. Run the flow:
-
-```sh
-hmz exec -f tested -a claude/claude-opus-5:max -a codex/gpt-5.6-sol:high "get the suite green"
-```
-
-3. While it runs, in another terminal:
-
-```sh
-docker ps --filter label=humanize=$(id -u)
-```
-
-You see the container, labelled `humanize=<your uid>`. The tester runs the suite in it, the
-builder fixes what it reports, and everything they produce lands in your workspace.
+**A flow cannot ask for one.** The flow API's environments are a directory on this machine and a
+directory on a host reached with ssh, and nothing in between: a flow says *where* its work
+happens by the [environments](/reference/flows#where-each-agent-works) it declares, and a
+container is not one of them. What there is instead is below — a whole run inside a container,
+a container reached as a host, and a container of an agent's own for agents you build in
+Python.
 
 ## The whole run in one container
 
-That puts **one agent** in a container. When the answer is *all of them*, say it once from
-outside, with no flow to edit — which is a thing to say from Python, there being no line
-that says it:
+The simplest: run humanize itself in the image, with the project mounted where it already is.
+Every environment of the run is then the container's, every command a flow runs is the
+container's command, and every agent's turns land there.
 
-```python
-from hmz.sdk import Hmz
-
-hmz = Hmz()
-path, agents, task, config, budget, _ = hmz.read(
-    ["-f", "ralph_loop", "-a", "claude/claude-opus-5:max", "get the suite green"]
-)
-hmz.run(path, agents, task, config, budget=budget, container="python:3.12").run()
+```sh
+docker run --rm -it -v "$PWD:$PWD" -w "$PWD" my-image-with-hmz \
+    hmz exec -f ralph_loop -a agent=claude/claude-opus-5:max -b cost=20 "get the suite green"
 ```
 
-`read` is the `hmz exec` line itself, so the flow and the agents are written the way they
-are written everywhere else; `container` is the one thing that is not on it. One container
-is started for the run, **every** agent's turns land in it, and it goes when the run ends. One rather than one apiece is the point: the agents are working on one thing, so what
-one of them writes is what the next one reads.
+The image then needs humanize and the CLIs the agents run, and their credentials — which is
+the cost of this way round: the agent processes are in the container too.
 
-The project directory is mounted at the path it already has, so the flow's own `open()` reads
-the same bytes a turn wrote. What a mounted directory does **not** answer for is a command: one
-the flow runs is run by this machine's shell against this machine's tools — the thing a
-container was reached for to avoid. So the flow asks — the weaver's side again:
+## A container reached as a host
 
-```python
-from hmz.flows import container, flow
+A container that runs an ssh server is a host like any other, and an environment of a flow can
+be pointed at it with `-e`:
 
-
-@flow
-def run(agents, task):
-    agents[0](task)
-    if (held := container()) is not None:
-        said = held.run(["python", "-m", "pytest", "-q"])   # in the container
-        held.write_text("last-run.txt", said.output)        # on the container's filesystem
+```sh
+hmz exec -f tested -a builder=claude/claude-opus-5:max -a tester=codex/gpt-5.6-sol:high \
+    -e suite=ssh@test-box/work/myproject -b cost=20 "get the suite green"
 ```
 
-`container()` answers `None` for a run on this machine, where a flow does what it always did.
-What it answers otherwise reads and writes and runs on the far end: `read_text`, `write_text`,
-`listdir`, `exists`, `mkdir`, `remove`, and `run`, which answers a `Ran` with `status`, `output`
-and `ok`. See [Machines › The workspace as the flow reaches it](/reference/machines).
-
-A place the **flow** declared `Isolated` is left where it put it: this is a convenience rather
-than a way round what a flow says. The person at the prompt is left alone too, taking no turn
-anywhere.
-
-## From a flow
-
-**For the weaver.** `Annotated[Agent, Isolated("python:3.12")]` beside the place, as in [Try
-it](#try-it) above, is the usual way for one agent. The image is the flow's, and the workspace
-is the directory the flow is running in; nothing can point that agent anywhere else, including
-you. Opening that flow in `/flow` reads it back on that agent's `where` row as `in a container of
-python:3.12`, with `the flow settled this` beside it — a row to read rather than one to open.
-
-## From Python
-
-**For the weaver, or for anyone building agents by hand.** Use this for an agent you build
-yourself, or for a place the flow declared `Remote`:
+where the flow declares the environment its tester's sessions are spawned in — the
+[weaver's](/weaver/writing-a-flow) part:
 
 ```python
+from hmz.flows import Agent, AgentCollection, Env, EnvCollection, LocalEnv, ShellEnvMixin
+
+
+class Suite(Env, ShellEnvMixin): ...
+
+
+class Agents(AgentCollection):
+    builder: Agent
+    tester: Agent
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv   # this directory, which the builder works in
+    suite: Suite          # wherever -e says, which the tester works in
+```
+
+The agent **process** stays on this machine, keeping its credentials and its link to its model
+provider; what happens on the host is the project it reads and the commands it runs. A flow's
+own `await envs["suite"].exec(["python", "-m", "pytest", "-q"])` runs there too. See
+[Remote execution](/user/remote-execution).
+
+## A container of an agent's own, from Python
+
+**For anyone building agents by hand**, outside a flow. An agent's config takes a machine, and
+one of the machines is a container of an image you name:
+
+```python
+from hmz.coganchor.agents import ClaudeCodeAgent, ClaudeCodeAgentConfig
 from hmz.coganchor.machines import DockerConfig
 
-ClaudeCodeAgentConfig(model=…, effort=…, machine=DockerConfig(image="python:3.12"))
+config = ClaudeCodeAgentConfig(
+    model="claude-opus-5",
+    effort="high",
+    machine=DockerConfig(image="node:22", workspace="/home/me/code/myproject"),
+)
+builder = ClaudeCodeAgent(config, name="builder")
+builder("upgrade the toolchain")
 ```
 
 | Field | Default | |
@@ -128,31 +88,7 @@ than a turn later; where the image keeps one does not matter, since it is looked
 `PATH` as well as on it. An agent told to run `pytest` in an image without it spends a turn
 discovering that, so a good image is one you already build for CI.
 
-Where the flow says a place may be pointed anywhere (`Annotated[Agent, Remote]`), you can
-hand it a container instead:
-
-```python
-from hmz.coganchor.agents import ClaudeCodeAgent, ClaudeCodeAgentConfig
-from hmz.coganchor.machines import DockerConfig
-from hmz.runtime.runner import Runner
-
-config = ClaudeCodeAgentConfig(
-    model="claude-opus-5",
-    effort="high",
-    machine=DockerConfig(image="node:22", workspace="/home/me/code/myproject"),
-)
-
-Runner("movable", [ClaudeCodeAgent(config, name="builder")]).run("upgrade the toolchain")
-```
-
-Both refusals land before the first turn:
-
-```text
-onbox: reviewer runs on this machine -- this flow does not say it works anywhere else, so it cannot be pointed at one
-onbox: tester works in a container of this flow's own, so there is nothing to point it at
-```
-
-## What the container is
+### What the container is
 
 - runs as **your uid and gid**, so files it writes are yours;
 - has `HOME=/tmp`, away from the workspace, so what a command caches is not the project's;
@@ -160,18 +96,17 @@ onbox: tester works in a container of this flow's own, so there is nothing to po
   secret;
 - is labelled `humanize=<your uid>`.
 
-## When it comes up, and when it goes
+### When it comes up, and when it goes
 
 - **On the agent's first turn**, not when the agent is constructed. Configuring an agent pulls
-  no image, so a flow that configures more agents than it drives pulls none for the ones it
-  does not.
+  no image.
 - **Shared by every session that agent opens**, so its sessions find the workspace as the last
   turn left it.
 - **One machine per agent.** Two agents built from the same config get one container each.
 - **Taken down when the agent is collected**, or at exit for one held to the end.
 - **The workspace is left behind** either way.
 
-Cleaning up after a flow that was killed outright:
+Cleaning up after a script that was killed outright:
 
 ```sh
 docker rm -f $(docker ps -q --filter label=humanize=$(id -u))
@@ -179,7 +114,7 @@ docker rm -f $(docker ps -q --filter label=humanize=$(id -u))
 
 The label carries your uid, so this cannot reach past you on a machine several people share.
 
-## The agent is still here
+### The agent is still here
 
 This is the same arrangement as [remote execution](/user/remote-execution), with the far end a
 container instead of a host. The agent **process** stays on this machine, keeping its
@@ -187,58 +122,21 @@ credentials and its link to its model provider, so the container needs no networ
 login. Everything the agent *does* happens in the container.
 
 The work therefore happens in a **mirror** rather than in this directory, and the backend logs
-the agent's turns under a path this project has never heard of. It makes no difference: the run
-wrote down the ids of the sessions it opened, and that is what its trace is gathered by —
-`/epics`, enter to go into the run, then **export it**.
-
-The run itself is still written down here. An [epic](/user/tracing#what-a-run-writes-down)
-belongs to the directory the flow ran in, and is a directory of its own with a `sessions/` in
-it. Each session is named for whose it was, what took its turns, which account it ran as and
-what the backend called it:
-
-```sh
-run=$(ls -dt ~/.humanize/epics/*/*/ | head -1)   # the run that just finished
-ls "$run"sessions
-```
-
-```console
-builder-claude@local-5f6e7d8c-1a2b-3c4d-5e6f-708192a3b4c5
-tester-codex@local-0a1b2c3d-1a2b-3c4d-5e6f-708192a3b4c5
-```
-
-The id is the end of the name, and a leading part of it is enough to name that session to
-[`Hmz().epics.trace(sessions=…)`](/user/tracing) — the tester's is the one that worked in
-the container. `/epics` finds the same directory at the prompt: enter on the run, and the
-path is drawn at the top of what opens.
+the agent's turns under a path this project has never heard of. The agent wrote down the ids of
+the sessions it opened — `builder.opened` — and that is what a trace of them is gathered by:
+[`Hmz().epics.trace(sessions=…)`](/user/tracing).
 
 ## Isolation here is about environment, not permission
 
 A container does **not** stop the agent editing the workspace mounted into it. Narrowing what
 the agent may do at all is [permissions](/user/permissions) — a different thing the flow says,
-and they compose:
-
-```sh
-hmz exec -f tested \
-    -a codex/gpt-5.6-sol:high \
-    "get the suite green on 3.12"
-```
-
-With `AgentDefaults(permission="read-only")` beside that place, the tester is in a container
-*and* cannot write anything:
-
-```sh
-hmz exec -f tested \
-    -a claude/claude-opus-5:max \
-    -a codex/gpt-5.6-sol:high \
-    "get the suite green"
-```
-
-Read [Security](/user/security).
+on the role, and the two compose. Read [Security](/user/security).
 
 ## Requirements
 
-You need `docker` on your `PATH` and a daemon to reach, plus what remote execution needs: Linux
-on x86-64 or aarch64 here, and a `python3` in the image.
+For a container of an agent's own: `docker` on your `PATH` and a daemon to reach, plus what
+remote execution needs — Linux on x86-64 or aarch64 here, and a `python3` in the image. For a
+container reached as a host: an ssh server in it that `ssh` here can reach.
 
 ## See also
 

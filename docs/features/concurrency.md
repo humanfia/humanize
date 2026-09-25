@@ -12,20 +12,30 @@ of them.
 
 ## Two turns at once means two sessions
 
-Two turns awaited on one session run one after the other, exactly as two called on it do. A
-conversation is a conversation, and nothing about awaiting one changes that — which is the rule
-the switch above is there to make concrete.
+Two turns run on one session go one after the other: a second `run` on a session whose turn is
+still going is refused with `SessionError` rather than queued behind it. A conversation is a
+conversation, and nothing about awaiting one changes that — which is the rule the switch above is
+there to make concrete.
+
+```python
+async def fix(path: str) -> str:
+    session = await agent.spawn(env=workspace)
+    return await agent.run(f"Fix the tests in {path}", session=session)
+
+said = await asyncio.gather(*(fix(path) for path in paths))
+```
 
 ## A conversation is rooted at a directory
 
-Where a session works is a setting of the session rather than of the turn, because that is what
-it is to these backends: a conversation is opened at a directory and every turn of it runs
-there. It cannot be moved once the session is open.
+Where a session works is the environment it is spawned in, because that is what it is to these
+backends: a conversation is opened at a directory and every turn of it runs there. It cannot be
+moved once the session is open — a [fork](/weaver/branching) into another environment is another
+session.
 
-Which is exactly what makes one agent working in several places at once a **session apiece** —
-a worktree per task, a checkout per shard, a package per reviewer — with their turns going
-together. And either way it is one agent: one set of settings, one id, one process in the
-[trace](/features/tracing), holding several conversations.
+Which is exactly what makes one agent working in several places at once a **session apiece** — a
+worktree per task, a copy per shard, a subdirectory per package — with their turns going
+together. And either way it is one agent: one role, one CLI and model, holding several
+conversations.
 
 ## A session costs nothing until a turn lands in one
 
@@ -62,45 +72,36 @@ collide on it and fail before the model is ever asked. humanize leaves that data
 CLI put it — a conversation belongs to the CLI you can open it in, not to humanize — so that
 ceiling is opencode's own, and the way past it is opencode's own `OPENCODE_DB`.
 
-## Every call that runs a turn has an awaited twin
+## Every flow is a coroutine
 
-Same arguments, same answers, same shapes, same suppression. The difference is only where the
-waiting happens: the turn runs on a thread of its own and the loop is handed straight back — so
-a flow written as a coroutine can hold as many turns as it likes without any one of them
-stopping the rest. The agents, the settings, the run it writes down and the way it is stopped
-are all as they are for a plain function.
+A flow is an `async def`, and every turn is awaited. The turn itself runs on a thread of its own
+and the loop is handed straight back — so a flow can hold as many turns as it likes without any
+one of them stopping the rest, and a flow that awaits one turn at a time is a flow that runs one
+turn at a time, which is what most of them want.
+
+`asyncio.gather` and `asyncio.TaskGroup` are the whole of the vocabulary. A task group that loses
+one branch cancels the rest — cancelling a turn cuts it off, so the CLI stops spending — and a
+flow may catch what the branches raised with `except*`, since every leaf of a failure is raised
+as the class it is.
 
 ## Whole flows go at once too
 
-`load` gives you a flow to run, and a coroutine flow is awaited by whoever called it — so a
-flow gathers whole flows exactly as it gathers turns, as deep as it likes and as wide.
+`load` gives you a flow to call, and calling it is awaiting it — so a flow gathers whole flows
+exactly as it gathers turns, as deep as it likes and as wide.
 
-- **Each gathered call is a branch of the run in its own right**: its own record in the epic,
-  its own skills, its own settings, its own unwinding when the run is stopped. Neither of two
-  siblings is under the other, and neither can see the other — what is running, asked from
-  inside a flow, is the branch that flow is on.
-- **A run of flows calling flows reads back as the tree it ran as.** A record per call, inside
-  the record of the call that made it, however deep it went.
-- **Give each branch an agent of its own.** A conversation belongs to one agent, so two
-  branches driving one agent are two flows sharing one — and what it opens then belongs to the
-  flow they were both called from rather than to either of them. `clone()` is how a branch gets
-  one to itself.
+- **Each gathered call is a branch of the run in its own right**: its own context, its own
+  budget under what remains of its caller's, its own state if it is resumable, its own sessions
+  and hooks. Neither of two siblings is under the other, and neither can see the other.
+- **A run of flows calling flows is a tree**, and reads back as the tree it ran as.
+- **Each branch is handed an agent of its own.** What a called flow is given for a role is its
+  own view of that agent: the sessions it spawns are its own, the hooks it hangs are heard by
+  nobody else's sessions, and nothing it does touches the caller's. Handing the same agent to
+  ten gathered calls is ten flows each driving it as theirs.
 - **A chain of calls has a bottom**, at 64, so that a recursion with no base case is named
-  where it went wrong rather than becoming a `RecursionError` somewhere else entirely.
-
-## A batch is one agent over many prompts
-
-One session apiece, none of them kept, and the answers come back in the order they were asked
-for.
-
-- **How wide it runs is a question about the machine**, not about this library, so nothing caps
-  it. A batch runs at once whatever it is given, unless the flow says otherwise — and every
-  prompt lands either way.
-- **A batch that is not suppressing raises the first failure once every turn of it has
-  landed.** A turn already running cannot be taken back, and a batch that let the failure out
-  early would leave the rest running with nobody waiting for them.
-- **Being stopped is not a failure**, and is not caught by suppression. A run ended by hand has
-  to read as ended by hand.
+  where it went wrong — `FlowDepthExceeded` — rather than becoming a `RecursionError` somewhere
+  else entirely.
+- **What a branch spends counts against every flow above it**, from whichever thread its turn
+  reported it, and a deadline above it stops every branch under it.
 
 ## Where each of them lands
 
@@ -108,16 +109,13 @@ The same fan-out, aimed anywhere:
 
 | | |
 | --- | --- |
-| **this machine** | every session rooted at the directory the flow runs in |
-| **a worktree apiece** | one agent, several checkouts, all of them going |
-| **a container apiece** | brought up on the first turn and taken down with the agent |
-| **an ssh target** | the agent stays here; its commands land there — [the anchor](/features/anchor) |
+| **this machine** | every session spawned in the workspace the run was started in |
+| **a worktree apiece** | `derive_worktree`: one agent, several checkouts, all of them going |
+| **a copy apiece** | `derive_temp_clone`: a throwaway copy of the workdir, removed when the flow that made it ends |
+| **an ssh target** | an environment `-e` points at another machine: the agent stays here; its commands land there — [the anchor](/features/anchor) |
 
-A machine started for an agent is given the project directory itself rather than a copy, and a
-container runs as the calling user, so the work outlives the machine and the workspace stays
-yours. **What is isolated is the tools a command finds, not the work:** the agent goes on
-running here, with its own credentials and its own trajectory, and only what it does reaches
-the container.
+**What moves is where the commands land, not the agent:** it goes on running here, with its own
+credentials and its own trajectory, and only what it does reaches the other machine.
 
 ## Reading two hundred conversations
 
@@ -129,6 +127,6 @@ is where a fan-out is meant to be read.
 ## Where the detail is
 
 - [Many turns at once](/weaver/async-flows) — writing the coroutine, and gathering
-- [Worktrees](/weaver/worktrees) · [Containers](/user/containers) · [Remote
+- [Worktrees, copies and scratch](/weaver/worktrees) · [Remote
   execution](/user/remote-execution)
 - [Many conversations at once](/user/conversations) — the editor view

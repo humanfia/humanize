@@ -258,8 +258,21 @@ Commands the agent spawns always use the target's network, whatever `--net` says
 
 ## Anchoring a flow
 
-Give an agent's config an anchored [machine](/reference/machines) and its turns land there, without any
-other change to the [flow](/reference/flows):
+A [flow](/reference/flows) is anchored by its environments rather than by its agents. An
+environment role pointed at a host with ssh —
+
+```sh
+hmz exec -f mine -a coder=claude/claude-opus-5:high -e repo=ssh@build-box/srv/project \
+    -b cost=20 "fix the build"
+```
+
+— is an anchored `ssh://build-box` target whose workspace is `/srv/project`, and every session
+the flow spawns in it — `await coder.spawn(env=envs["repo"])` — is an agent whose turns land
+there. Nothing else about the flow changes, and its own `await envs["repo"].exec([...])` runs
+there too. See [Machines › Where a flow's agents work](/reference/machines#where-a-flow-s-agents-work).
+
+Outside a flow, give an agent's config an anchored [machine](/reference/machines) and its turns
+land there:
 
 ```python
 from hmz.coganchor.agents import ClaudeCodeAgentConfig
@@ -276,9 +289,9 @@ config = ClaudeCodeAgentConfig(
 ```
 
 Every option of `hmz internal anchor` is a field of `AnchorConfig` and every field is an option,
-so the two spellings mean exactly the same thing — a flow spawns what an operator would have typed.
+so the two spellings mean exactly the same thing — a turn spawns what an operator would have typed.
 Settings no session could run under are refused where they are *written* rather than where they
-are used, so a flow that misspells a target hears about it as it configures its agents, not
+are used, so a script that misspells a target hears about it as it configures its agents, not
 hours into the loop.
 
 **How often the target is reached depends on the backend.** A turn that runs as its own process

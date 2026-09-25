@@ -25,32 +25,29 @@ reasoning about why each one is right.
 `rlar` — **r**alph **l**oop with **a**ctor and **r**eviewer — separates the two:
 
 ```python
-@flow
-def run(agents: Agents, task: str) -> None:
-    working = agents.actor.new()          # one session, held for the whole run
-    prompt = task
-    while True:
-        worked = working(prompt, suppress=True)
-        if worked:
-            review = agents.reviewer(REVIEW_PROMPT + task, suppress=True, schema=Review)
-            if review is not None and review.done:
-                print(review.notes)
-                return
-            prompt = (review.notes if review else "") or prompt
-        time.sleep(5)
+actor, reviewer, workspace = agents["actor"], agents["reviewer"], envs["workspace"]
+working = await actor.spawn(env=workspace)      # one session, held for the whole run
+prompt = task
+while True:
+    await actor.run(prompt, session=working)
+    reading = await reviewer.spawn(env=workspace)   # a fresh one, every round
+    review = await reviewer.run(REVIEW_PROMPT + task, session=reading, output_schema=Review)
+    if review.done:
+        return review.notes
+    prompt = review.notes or prompt
 ```
 
 Three things are worth stopping on.
 
-- **`agents.actor.new()` is outside the loop.** One session, held across every round. The actor
+- **The actor's `spawn` is outside the loop.** One session, held across every round. The actor
   remembers.
-- **`agents.reviewer(...)` is inside it.** Calling an agent rather than a session opens a fresh
-  conversation: every review starts blank, is handed the task again as if for the first time,
-  and reads the repository with `git diff` and `cat` rather than the actor's account of it.
-- **`schema=Review`.** The reviewer fills in a [pydantic](https://docs.pydantic.dev/) model
-  with two fields — `done`, a boolean, and `notes`, the message the actor hears next. The loop
-  ends on the boolean, so a review that says the words "this is done" in a paragraph cannot end
-  the run by accident. See [Answers in a shape](/weaver/shapes).
+- **The reviewer's is inside it.** A new session is a fresh conversation: every review starts
+  blank, is handed the task again as if for the first time, and reads the repository with
+  `git diff` and `cat` rather than the actor's account of it.
+- **`output_schema=Review`.** The reviewer fills in a [pydantic](https://docs.pydantic.dev/)
+  model with two fields — `done`, a boolean, and `notes`, the message the actor hears next. The
+  loop ends on the boolean, so a review that says the words "this is done" in a paragraph cannot
+  end the run by accident. See [Answers in a shape](/weaver/shapes).
 
 ## Step 1 — get the project
 
@@ -139,18 +136,20 @@ saying it again in the task costs nothing.
 ```sh
 export DEEPSEEK_API_KEY=sk-…
 hmz exec -f rlar \
-    -a dsh/deepseek-v4-pro:high \
-    -a dsh/deepseek-v4-pro:high \
+    -a actor=dsh/deepseek-v4-pro:high \
+    -a reviewer=dsh/deepseek-v4-pro:high \
+    -b duration=3h,cost=30 \
     "$(cat TASK.md)"
 ```
 
-Two `-a` flags: the actor first, then the reviewer, in the order `rlar` declares them. Giving
-both the same model is normal — what makes the reviewer independent is that its conversation
-has never seen the actor's, not that it runs a different model.
+Two `-a` flags, one per role `rlar` declares: `actor` and `reviewer`. Giving both the same model
+is normal — what makes the reviewer independent is that its conversation has never seen the
+actor's, not that it runs a different model. `-b` is what the run may spend; the loop ends
+sooner when the reviewer says it is done.
 
 `rlar` also brings a **skill** with it: `skills/review-notes`, a Markdown file mounted onto
-every session either agent opens, which says how to read a round of work and how to write the
-review the actor is then handed. It lives inside the flow's own directory, so forking the flow
+the sessions of the roles that name it, which says how to read a round of work and how to write
+the review the actor is then handed. It lives inside the flow's own directory, so forking the flow
 and editing that file is how you change the way reviews are written. See
 [Skills](/user/skills).
 
