@@ -373,6 +373,16 @@ def under() -> Path: ...
   made removed, when the call and every call it started are over; a resumable run that keeps a
   journal MUST keep its directories and write them down instead. Removing MUST be shielded from
   cancellation and limited in time. `run_flow` MUST close whatever it opened.
+- A session MUST also be closed as soon as nothing can reach it -- where only a reference cycle
+  holds it, as soon as a collection finds it -- however long its call goes on: the engine MUST
+  hold a `SessionView` only weakly, so that a flow opening a fresh session a round holds a
+  bounded number open however many rounds it runs, on fakes that never let the loop go on too.
+  A session let go of MUST be closed on the run's loop, whichever thread let go of it, and
+  exactly once however that races its call's end; the call's cleanup MUST wait for a close
+  still under way. A hook arriving for a session let go of and not yet closed -- its
+  `SESSION_END` among them -- MUST be handed a stand-in that is over, never the view that went.
+  A fork MUST keep the session it was forked from open until its own first turn, which is
+  where a harness cuts it.
 - A call whose caller has ended MUST raise `FlowCancelled` at its next operation.
 - `running` MUST answer with every call going now, and nothing of a call once it has ended.
 

@@ -15,6 +15,17 @@ member of every protocol and mixin -- without deriving from them: a flow's own `
 Coder(Agent, GoalCommandAgentMixin)` is a type for a type checker, and a view deriving from it
 would carry the protocols' stub bodies, lose its `__slots__`, and make every `isinstance`
 slower for nothing. A view is a handful of pointers, made per flow call.
+
+A session has no `close` in the flow API, so the engine closes it: when the flow call that
+opened it ends -- whoever holds it by then, the caller it was handed up to included -- or as
+soon as nothing can reach its view any more, whichever comes first. The engine holds a
+:class:`SessionView` only weakly, through the :class:`Opened` it keeps of each session, so a
+flow opening a fresh session a round holds a few open however many rounds it runs. Letting go
+of a view -- wherever its last reference goes, or on whichever thread a collection finds it
+-- has the session closed on the run's loop, once, in a task the call's cleanup waits for. A
+hook arriving for a session whose view is gone, as it closes, is handed a stand-in: a view of
+it that is over, which nothing can take a turn in. A fork holds the session it was forked from
+until its first turn, which is where a harness cuts it.
 """
 
 from __future__ import annotations
@@ -26,6 +37,9 @@ from __future__ import annotations
 import asyncio
 import contextvars
 import logging
+import threading
+import time
+import weakref
 from typing import TYPE_CHECKING, Any, ClassVar, Self, overload
 
 import pydantic
@@ -35,6 +49,7 @@ from hmz.flows import (
     AskUserHookParams,
     BashEnvMixin,
     CapabilityNotGranted,
+    DurationExceeded,
     EnvBackendKind,
     FilesEnvMixin,
     GitWorktreeEnvMixin,
@@ -73,6 +88,7 @@ from .spi import HookTable, Limits, TurnRequest, default_result
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
     from pathlib import PurePosixPath
+    from types import FrameType
 
     from hmz.flows import (
         AskUserHookResult,
@@ -121,13 +137,17 @@ CALLING: contextvars.ContextVar[Call | None] = contextvars.ContextVar(
 
 
 class _Line:
-    """What an agent and every agent derived from it share: its hooks and its sessions."""
+    """What an agent and every agent derived from it share: its hooks and its sessions.
+
+    Its sessions are the ones not closed yet, by the `id` of their handles, which is what a
+    hook arrives with.
+    """
 
     __slots__ = ("hooks", "sessions")
 
     def __init__(self) -> None:
         self.hooks = HookTable()
-        self.sessions: dict[int, SessionView] = {}
+        self.sessions: dict[int, Opened] = {}
 
 
 class _Sink:
@@ -147,6 +167,39 @@ class _Sink:
                 node.tokens += output_tokens
                 node.secs += duration
                 node = node.parent
+
+
+class _Cut:
+    """A hard deadline a turn is held to by the engine, its driver being told a sooner one.
+
+    `Limits` carry one deadline, and a turn is told the soonest of those over it. Where that
+    is a graceful one -- which lets the turn run on past it -- and a hard one is due later,
+    the turn is still to stop at the hard one, and it is this that stops it there: it
+    interrupts the session, and the turn raises `DurationExceeded`.
+    """
+
+    __slots__ = ("fired", "timer")
+
+    def __init__(
+        self, loop: asyncio.AbstractEventLoop, handle: SessionHandle, deadline: float
+    ) -> None:
+        self.fired = False
+        self.timer = loop.call_later(
+            max(deadline - time.monotonic(), 0.0), self._fire, handle
+        )
+
+    def _fire(self, handle: SessionHandle) -> None:
+        self.fired = True
+        handle.interrupt()
+
+    def stop(self) -> None:
+        """The turn is over: the timer goes."""
+        self.timer.cancel()
+
+    @staticmethod
+    def exceeded(role: str) -> DurationExceeded:
+        """What the turn it stopped raises."""
+        return DurationExceeded(f"{role}: the turn ran to a hard deadline over it")
 
 
 def _command(prompt: str, word: str) -> bool:
@@ -276,6 +329,8 @@ class AgentView:
         node.check()
         line = self._lined()
         run = node.run
+        if run.dropped:
+            run.drain()
         handle = await self._driver.open(
             env._driver.placement(),
             permission=self._grant.permission,
@@ -284,8 +339,12 @@ class AgentView:
             fork_of=None if fork_of is None else fork_of._handle,
         )
         session = SessionView(self, env, handle)
-        line.sessions[id(handle)] = session
-        node.hold(session)
+        # A harness cuts a fork as the fork's first turn goes, from the session it was
+        # forked from, which is kept open until then however soon the flow lets go of it.
+        session._parent = fork_of
+        opened = Opened(session, self, env, handle)
+        line.sessions[id(handle)] = opened
+        node.hold(opened)
         run.spawned(node, self._role, handle, self._driver)
         return session
 
@@ -329,7 +388,7 @@ class AgentView:
                     f"{self._role}: /loop needs LoopCommandAgentMixin on the role"
                 )
         node = self._node
-        limits = node.limits(budget)
+        limits, hard = node.limits(budget)
         if taken._busy:
             raise SessionError(f"{self._role}: a turn of this session is under way")
         if taken._closed:
@@ -337,6 +396,7 @@ class AgentView:
         handle = taken._handle
         taken._busy = True
         node.turning(1)
+        cut = None if hard is None else _Cut(node.run.loop, handle, hard)
         try:
             said = await handle.turn(
                 TurnRequest(prompt, output_schema, limits), _Sink(node)
@@ -344,15 +404,23 @@ class AgentView:
         except asyncio.CancelledError:
             handle.interrupt()
             raise
-        except BaseException:
+        except BaseException as error:
             failed = taken._error
             if failed is not None:
                 taken._error = None
                 raise failed from None
+            # What an interrupted turn raises; a turn that answered, or failed of itself,
+            # before the deadline's interrupt reached it did so in time.
+            if cut is not None and cut.fired and isinstance(error, SessionError):
+                raise cut.exceeded(self._role) from error
             raise
         finally:
             taken._busy = False
             node.turning(-1)
+            if cut is not None:
+                cut.stop()
+        # A fork is cut by now, and the session it was cut from may go.
+        taken._parent = None
         failed = taken._error
         if failed is not None:
             taken._error = None
@@ -376,6 +444,8 @@ class AgentView:
             )
         taken = self._own(session)
         self._node.check()
+        if taken._closed:
+            raise SessionError(f"{self._role}: the session is over")
         await taken._handle.steer(prompt, queued=queued)
 
     def _brought(self) -> tuple[Skill, ...]:
@@ -427,15 +497,30 @@ class AgentView:
         sessions = line.sessions
 
         async def bound(handle: SessionHandle, fields: dict[str, Any]) -> HookResult:
-            session = sessions.get(id(handle))
+            opened = sessions.get(id(handle))
+            session = None
+            if opened is not None:
+                session = opened()
+                if session is None:
+                    session = opened.standin()
             token = CALLING.set(node)
+            hooked: FrameType | None = None
             try:
-                return await fn(params(ctx=node, session=session, **fields))  # pyright: ignore[reportArgumentType]
+                awaited = fn(params(ctx=node, session=session, **fields))  # pyright: ignore[reportArgumentType]
+                hooked = getattr(awaited, "cr_frame", None)
+                return await awaited
             except Exception as error:
                 # The flow's to raise, not the driver's: the turn it arrived in stops, and
                 # raises it where the flow is waiting on that turn.
                 if session is not None and not session._closed:
+                    # Kept on the session till then, where the frames it came out of --
+                    # this one's `session`, the hook's own `params`, over now -- would hold
+                    # the session in a cycle through it: one let go of meanwhile would stay
+                    # open until a collection found it.
+                    if hooked is not None:
+                        hooked.clear()
                     session._failed(error)
+                    del session
                 else:
                     log.exception("a %s hook raised", kind)
                 return default_result(kind)
@@ -510,9 +595,23 @@ class AgentView:
 
 
 class SessionView:
-    """One session, as the flow that opened it holds it."""
+    """One session, as the flow that opened it holds it.
 
-    __slots__ = ("_agent", "_busy", "_closed", "_env", "_error", "_handle", "_line")
+    The engine keeps it only weakly -- see :class:`Opened` -- so the session closes as soon
+    as the flow lets go of it, if the call that opened it has not ended first.
+    """
+
+    __slots__ = (
+        "__weakref__",
+        "_agent",
+        "_busy",
+        "_closed",
+        "_env",
+        "_error",
+        "_handle",
+        "_line",
+        "_parent",
+    )
 
     def __init__(
         self,
@@ -528,6 +627,7 @@ class SessionView:
         self._busy = False
         self._closed = False
         self._error: Exception | None = None
+        self._parent: SessionView | None = None
 
     def __repr__(self) -> str:
         return f"<session of {self._agent.role} in {self._env.workdir}>"
@@ -555,15 +655,138 @@ class SessionView:
             self._error = error
         self._handle.interrupt()
 
+
+class Opened(weakref.ref["SessionView"]):
+    """A session an agent view opened, as the engine keeps it: what closes it, and when.
+
+    A weak reference to the session's view, since the view is the flow's to hold -- the
+    engine holding it would keep every session a flow ever opened open until its call ends
+    -- and what the call's cleanup and the agent's hooks hold instead, which is why it holds
+    nothing that holds the view. The view going has the session closed on the run's loop,
+    in a task the call's cleanup waits for (:meth:`drop`); the call ending first closes it
+    there and then (:meth:`release`). Whichever comes first closes it, once.
+
+    Attributes:
+      agent: The agent view that opened it, whose call it belongs to.
+      env: The environment view it was opened in.
+      handle: The driver's session.
+      closed: Whether its closing has started.
+      task: The close the view going started, while it is under way.
+    """
+
+    __slots__ = ("agent", "closed", "env", "handle", "task")
+
+    def __new__(
+        cls,
+        view: SessionView,
+        agent: AgentView,
+        env: EnvView,
+        handle: SessionHandle,
+    ) -> Self:
+        """A record of a session, watching its view go."""
+        del agent, env, handle
+        return super().__new__(cls, view, _dropped)
+
+    def __init__(
+        self,
+        view: SessionView,
+        agent: AgentView,
+        env: EnvView,
+        handle: SessionHandle,
+    ) -> None:
+        """A record of a session, watching its view go."""
+        # Not `weakref.ref.__init__`, which only checks the arguments `__new__` took.
+        del view
+        self.agent = agent
+        self.env = env
+        self.handle = handle
+        self.closed = False
+        self.task: asyncio.Task[None] | None = None
+
+    def __repr__(self) -> str:
+        return f"<session of {self.agent.role}: {self.handle!r}>"
+
+    def standin(self) -> SessionView:
+        """The session as a hook arriving after its view went is handed it: one that is over."""
+        view = SessionView(self.agent, self.env, self.handle)
+        view._closed = True
+        return view
+
+    def drop(self) -> None:
+        """Closes a session whose view went, on the run's loop, in a task of its own.
+
+        The task is started eagerly: a close that need not wait -- a fake's, or that of a
+        session whose CLI never started -- is over before this returns, and costs no turn of
+        the loop.
+        """
+        if self.closed:
+            return
+        self.closed = True
+        run = self.agent._node.run
+        task = asyncio.Task(self._shut(), loop=run.loop, eager_start=True)
+        if task.done():
+            self._settled(task)
+            return
+        self.task = task
+        run.closing.add(task)
+        task.add_done_callback(self._settled)
+
     async def release(self) -> None:
-        """Closes the session, which the flow call that opened it does as it ends."""
-        if not self._closed:
-            self._closed = True
-            try:
-                await self._handle.close()
-            finally:
-                if self._line is not None:
-                    self._line.sessions.pop(id(self._handle), None)
+        """Closes the session as the call that opened it ends, or waits out its close."""
+        if not self.closed:
+            self.closed = True
+            await self._shut()
+        elif self.task is not None:
+            await asyncio.shield(self.task)
+
+    async def _shut(self) -> None:
+        view = self()
+        if view is not None:
+            view._closed = True
+        handle = self.handle
+        try:
+            await handle.close()
+        except Exception:
+            log.exception("closing %r failed", self)
+        finally:
+            line = self.agent._line
+            if line is not None:
+                line.sessions.pop(id(handle), None)
+
+    def _settled(self, task: asyncio.Task[None]) -> None:
+        """Its close is over, and the call has nothing of it left to release."""
+        self.task = None
+        node = self.agent._node
+        node.run.closing.discard(task)
+        res = node.res
+        if res is not None:
+            res.pop(id(self), None)
+            if not res:
+                node.res = None
+                node.run.holding.discard(node)
+
+
+def _dropped(opened: Opened) -> None:
+    """A session's view went, so nothing can reach the session: it is to be closed.
+
+    Called by the interpreter as the view goes -- in the middle of whatever statement let go
+    of it, or on whichever thread a collection found it -- so all it does is put the session
+    where the run's loop closes it: among the run's `dropped`, which the loop drains as soon
+    as it gets to it, and the next session opened in the run drains first -- so that a flow
+    that never lets the loop go on, as one on fakes may not, holds few open all the same.
+    """
+    if opened.closed:
+        return
+    run = opened.agent._node.run
+    try:
+        if threading.get_ident() != run.thread:
+            run.loop.call_soon_threadsafe(opened.drop)
+            return
+        run.dropped.append(opened)
+        run.drain_soon()
+    except RuntimeError:
+        # The loop is closed: the run ended with it, closing what it held as it did.
+        return
 
 
 # ------------------------------------------------------------------------- environments
@@ -985,7 +1208,7 @@ class OutworlderView:
             )
         node = self._node
         if node is not None:
-            node.limits(budget)
+            node.limits(budget)  # refuses a turn under a spent budget
         if source.made:
             hook = source.hook
             if hook is None:
@@ -1063,7 +1286,7 @@ class OutworlderView:
 
 #: Every resource a flow call made that goes when it does, by what makes one: a session
 #: closes, a temporary copy or scratch directory is removed.
-type Releasable = SessionView | Made
+type Releasable = Opened | Made
 
 
 class Made:

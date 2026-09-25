@@ -389,9 +389,14 @@ Antigravity and dsh do not fork, and raise `UnsupportedOperation`. A fork is cut
 its first turn, so it is refused then if the session it came from has taken a turn since. See
 [Branching a conversation](/weaver/branching).
 
-**Every session a flow call opened is closed when that call ends**, and every call it started
-has. A turn that is cancelled — a `TaskGroup` sibling failing, a deadline, ctrl+c — interrupts
-the CLI rather than leaving it running.
+**A session is closed when the flow call that opened it ends** — and every call it started has —
+**or as soon as nothing holds it any more**, whichever comes first. There is no `close`: a loop
+that opens a fresh session a round holds one or two open however many rounds it runs, and a
+session kept in a variable, a list or a dict stays open for as long as it is kept. One handed
+back to a caller is closed all the same as the call that opened it ends. A fork keeps the
+session it was forked from open until its own first turn, which is where it is cut. A turn that
+is cancelled — a `TaskGroup` sibling failing, a deadline, ctrl+c — interrupts the CLI rather
+than leaving it running.
 
 ## Where each agent works
 

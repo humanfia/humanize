@@ -275,7 +275,12 @@ class Usage(pydantic.BaseModel):
 
 
 class Session(Protocol):
-    """One conversation of one agent, held in one environment."""
+    """One conversation of one agent, held in one environment.
+
+    A flow does not close one: it is closed when the flow call that opened it ends, or as
+    soon as nothing holds it any more, whichever comes first. Keep it in a variable for as
+    long as there are turns to take in it, and let go of it when there are not.
+    """
 
     @property
     def agent(self) -> Agent:
