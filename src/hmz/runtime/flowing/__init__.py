@@ -7,9 +7,12 @@ that line, and for now it holds two flow APIs.
 
 The new one is written against :mod:`hmz.flows`. What a driver and the engine promise each
 other is [spi.py](spi.py); what `-a`, `-e`, `-p` and `-b` say is [specs.py](specs.py); the
-engine that defines, loads and runs flows is [engine.py](engine.py); and the drivers over
-coding agent CLIs and over machines are [harnesses.py](harnesses.py) and
-[environments.py](environments.py).
+engine that defines, loads and runs flows is [engine.py](engine.py), with what a flow declares
+read in [declaring.py](declaring.py), what it is handed in [viewing.py](viewing.py), what a
+resumable run writes down in [journaling.py](journaling.py) and what a ref names in
+[loading.py](loading.py); the drivers over coding agent CLIs and over machines are
+[harnesses.py](harnesses.py) and [environments.py](environments.py); and in-memory stand-ins
+for all of them, to test a flow with, are [fakes.py](fakes.py).
 
 The old one is written against :mod:`hmz._legacy_flows`, and goes when every way in has moved
 over. Where flows come from and what each is called is [verses.py](verses.py) and
@@ -40,6 +43,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .checking import Capability, Finding, briefed, catalogue, checked
+    from .declaring import AgentRole, Declaration, EnvRole, Grant
     from .driving import (
         Entry,
         NotAFlow,
@@ -56,8 +60,25 @@ if TYPE_CHECKING:
         set_up,
         wanted,
     )
-    from .engine import define_flow, load_flow, new_outworlder, run_flow
+    from .engine import (
+        Call,
+        FlowImpl,
+        LiveCall,
+        Recorder,
+        define_flow,
+        full_view,
+        load_flow,
+        new_outworlder,
+        run_flow,
+    )
     from .environments import local_env, open_env
+    from .fakes import (
+        FakeAgentDriver,
+        FakeEnvDriver,
+        FakeOutworlder,
+        FakeSession,
+        run_fake,
+    )
     from .finding import (
         BUILTIN_AT,
         ENTRY,
@@ -79,6 +100,8 @@ if TYPE_CHECKING:
         within,
     )
     from .harnesses import open_agent
+    from .journaling import FlowStateImpl, Journal
+    from .loading import FlowModule, Remote
     from .prophecy import (
         Edge,
         Node,
@@ -147,6 +170,7 @@ if TYPE_CHECKING:
         holds,
         nearest,
     )
+    from .viewing import AgentView, EnvView, OutworlderView, SessionView
 
 __all__ = [
     "AGENT_CAPABILITIES",
@@ -164,35 +188,55 @@ __all__ = [
     "SILENT",
     "USER",
     "AgentDriver",
+    "AgentRole",
     "AgentSpec",
     "AgentSpecError",
+    "AgentView",
     "BoundHook",
     "BudgetSpecError",
+    "Call",
     "Capability",
+    "Declaration",
     "Edge",
     "Entry",
     "EnvDriver",
+    "EnvRole",
     "EnvSpec",
     "EnvSpecError",
+    "EnvView",
+    "FakeAgentDriver",
+    "FakeEnvDriver",
+    "FakeOutworlder",
+    "FakeSession",
     "Finding",
+    "FlowImpl",
+    "FlowModule",
+    "FlowStateImpl",
     "Flowverse",
+    "Grant",
     "HookBridge",
     "HookTable",
+    "Journal",
     "Limits",
+    "LiveCall",
     "Node",
     "NotAFlow",
     "Offer",
     "Outcome",
     "OutworlderDriver",
+    "OutworlderView",
     "ParamSpecError",
     "Place",
     "Placement",
     "Proof",
     "Prophecy",
     "Prophesied",
+    "Recorder",
+    "Remote",
     "Running",
     "Scenario",
     "SessionHandle",
+    "SessionView",
     "Shape",
     "Shipped",
     "Skill",
@@ -222,6 +266,7 @@ __all__ = [
     "foretold",
     "fork",
     "found",
+    "full_view",
     "held",
     "holds",
     "inside",
@@ -246,6 +291,7 @@ __all__ = [
     "proved",
     "reading",
     "resumes",
+    "run_fake",
     "run_flow",
     "running",
     "set_up",
@@ -263,27 +309,43 @@ _WRITTEN = {
     "AGENT_CAPABILITIES": "hmz.runtime.flowing.spi",
     "ALWAYS_DONE": "hmz.runtime.flowing.proving",
     "AgentDriver": "hmz.runtime.flowing.spi",
+    "AgentRole": "hmz.runtime.flowing.declaring",
     "AgentSpec": "hmz.runtime.flowing.specs",
     "AgentSpecError": "hmz.runtime.flowing.specs",
+    "AgentView": "hmz.runtime.flowing.viewing",
     "BUILTIN_AT": "hmz.runtime.flowing.finding",
     "BoundHook": "hmz.runtime.flowing.spi",
     "BudgetSpecError": "hmz.runtime.flowing.specs",
+    "Call": "hmz.runtime.flowing.engine",
     "Capability": "hmz.runtime.flowing.checking",
+    "Declaration": "hmz.runtime.flowing.declaring",
     "ENTRY": "hmz.runtime.flowing.finding",
     "ENV_CAPABILITIES": "hmz.runtime.flowing.spi",
     "Edge": "hmz.runtime.flowing.prophecy",
     "Entry": "hmz.runtime.flowing.driving",
     "EnvDriver": "hmz.runtime.flowing.spi",
+    "EnvRole": "hmz.runtime.flowing.declaring",
     "EnvSpec": "hmz.runtime.flowing.specs",
     "EnvSpecError": "hmz.runtime.flowing.specs",
+    "EnvView": "hmz.runtime.flowing.viewing",
     "FLOWS": "hmz.runtime.flowing.verses",
+    "FakeAgentDriver": "hmz.runtime.flowing.fakes",
+    "FakeEnvDriver": "hmz.runtime.flowing.fakes",
+    "FakeOutworlder": "hmz.runtime.flowing.fakes",
+    "FakeSession": "hmz.runtime.flowing.fakes",
     "Finding": "hmz.runtime.flowing.checking",
+    "FlowImpl": "hmz.runtime.flowing.engine",
+    "FlowModule": "hmz.runtime.flowing.loading",
+    "FlowStateImpl": "hmz.runtime.flowing.journaling",
     "Flowverse": "hmz.runtime.flowing.verses",
+    "Grant": "hmz.runtime.flowing.declaring",
     "HARNESS_CAPABILITIES": "hmz.runtime.flowing.spi",
     "HookBridge": "hmz.runtime.flowing.spi",
     "HookTable": "hmz.runtime.flowing.spi",
+    "Journal": "hmz.runtime.flowing.journaling",
     "LOCAL": "hmz.runtime.flowing.verses",
     "Limits": "hmz.runtime.flowing.spi",
+    "LiveCall": "hmz.runtime.flowing.engine",
     "MINE": "hmz.runtime.flowing.verses",
     "NEVER_DONE": "hmz.runtime.flowing.proving",
     "Node": "hmz.runtime.flowing.prophecy",
@@ -292,6 +354,7 @@ _WRITTEN = {
     "Offer": "hmz.runtime.flowing.finding",
     "Outcome": "hmz.runtime.flowing.proving",
     "OutworlderDriver": "hmz.runtime.flowing.spi",
+    "OutworlderView": "hmz.runtime.flowing.viewing",
     "PROPHECY": "hmz.runtime.flowing.finding",
     "ParamSpecError": "hmz.runtime.flowing.specs",
     "Place": "hmz.runtime.flowing.driving",
@@ -299,10 +362,13 @@ _WRITTEN = {
     "Proof": "hmz.runtime.flowing.proving",
     "Prophecy": "hmz.runtime.flowing.prophecy",
     "Prophesied": "hmz.runtime.flowing.prophesying",
+    "Recorder": "hmz.runtime.flowing.engine",
+    "Remote": "hmz.runtime.flowing.loading",
     "Running": "hmz.runtime.flowing.driving",
     "SILENT": "hmz.runtime.flowing.proving",
     "Scenario": "hmz.runtime.flowing.proving",
     "SessionHandle": "hmz.runtime.flowing.spi",
+    "SessionView": "hmz.runtime.flowing.viewing",
     "Shape": "hmz.runtime.flowing.prophecy",
     "Shipped": "hmz.runtime.flowing.prophecy",
     "Skill": "hmz.runtime.flowing.spi",
@@ -332,6 +398,7 @@ _WRITTEN = {
     "foretold": "hmz.runtime.flowing.finding",
     "fork": "hmz.runtime.flowing.finding",
     "found": "hmz.runtime.flowing.finding",
+    "full_view": "hmz.runtime.flowing.engine",
     "held": "hmz.runtime.flowing.finding",
     "holds": "hmz.runtime.flowing.verses",
     "inside": "hmz.runtime.flowing.finding",
@@ -356,6 +423,7 @@ _WRITTEN = {
     "proved": "hmz.runtime.flowing.proving",
     "reading": "hmz.runtime.flowing.finding",
     "resumes": "hmz.runtime.flowing.driving",
+    "run_fake": "hmz.runtime.flowing.fakes",
     "run_flow": "hmz.runtime.flowing.engine",
     "running": "hmz.runtime.flowing.driving",
     "set_up": "hmz.runtime.flowing.driving",
