@@ -1649,6 +1649,9 @@ async def test_deepseek_chat_sends_hello_and_draws_the_sdk_reply(
     monkeypatch.setattr(
         "hmz.coganchor.agents.dsh.uuid.uuid4", lambda: SimpleNamespace(hex="chat")
     )
+    # Installed as far as the engine asks too, which looks for it on its own: a machine
+    # without dsh would otherwise refuse the turn before the runtime above is reached.
+    monkeypatch.setattr("hmz.coganchor.backends.program", lambda command: command)
 
     app = Humanize(agents={"assistant": Runs("dsh/deepseek-v4-flash:high")})
     async with app.run_test() as driver:

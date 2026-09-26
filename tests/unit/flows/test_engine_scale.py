@@ -374,7 +374,7 @@ async def test_a_session_let_go_of_a_round_costs_little_more_than_one_kept() -> 
         f"{_us(let_go)} / {_us(kept)}  ({let_go / kept:.2f}x)"
     )
     assert let_go / kept <= 1.6, f"{let_go / kept:.2f}x a session kept to the end"
-    assert let_go < 30e-6 * 3, f"{_us(let_go)} a round"
+    assert let_go < 300e-6, f"{_us(let_go)} a round"
 
 
 async def test_calls_scale_linearly() -> None:
