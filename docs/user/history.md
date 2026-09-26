@@ -1,55 +1,74 @@
 # History
 
-History records everything you type at the prompt. That covers the task that starts a flow, and
-the words you [put into one already running](/user/steering). Both are things you wrote, so
-you reach for history when you want to write either again.
+Press <kbd>↑</kbd> at the prompt to bring back the last line you sent. Keep pressing to go
+further back, and <kbd>↓</kbd> to come forward again. Whatever you were typing is kept: step
+past the newest line and it comes back.
 
-## Try it
+![hmz: three commands sent; then, with "fix the flaky" half typed, up brings back
+/details off, /afk on and /details on in turn, and down walks forward again until "fix the
+flaky" is back at the prompt](/demo/history.gif)
 
-Press **↑** at an empty prompt and the last thing you typed appears. **↑** again walks further
-back, **↓** comes forward. The keys act only off the first and last line, so a prompt of
-several lines still moves with them; over an open [offers list](/user/completion) they move
-within the list instead.
+## What a walk looks like
 
-## What is walked
+Say you have sent two lines here, `/details on` and then `$ralph_loop fix the build`, and have
+now typed `and the tests`:
 
-The history holds what you typed **in this directory**. If you have not typed anything here
-yet, it holds everything you have ever typed anywhere, so a fresh project still has something
-to walk back through.
+| You press | The prompt shows |
+| --- | --- |
+| (nothing yet) | `and the tests` |
+| <kbd>↑</kbd> | `$ralph_loop fix the build` |
+| <kbd>↑</kbd> | `/details on` |
+| <kbd>↑</kbd> | `/details on` (nothing older, so it stays) |
+| <kbd>↓</kbd> | `$ralph_loop fix the build` |
+| <kbd>↓</kbd> | `and the tests`, your own line back |
 
-The interface settles which of the two applies when it starts, and the history cannot change
-under you mid-session. Type one line in a new project, restart, and from then on it is that
-project's own.
+A line you bring back is yours to edit before sending. It opens no
+[completion](/user/completion) list, so the arrows keep walking.
 
-**Commands go down too.** `/flow rlar` is a line you typed, and one you may want back. Only a
-line identical to the one before it is left out. Holding a key down does not fill the walk with
-one thing.
+In a prompt of several lines, <kbd>↑</kbd> walks back only from the first line and <kbd>↓</kbd>
+only from the last; anywhere else they move the cursor, as usual. With a completion list open,
+they move through the list instead.
 
-## Where it lives
+## What goes in
 
-```
-~/.humanize/history.jsonl
-```
+Every line you send: a task that starts a flow, a word to one [already
+running](/user/steering), an answer to a question, a command. A line the same as the one
+before it is kept once. What agents say is never in it, and neither is a task you gave
+`hmz exec`: your shell's history keeps that.
 
-The file holds one line per thing typed, with where it was typed. It is
-`$HUMANIZE_HOME/history.jsonl` where that variable is set. Deleting the file loses the history
-and nothing else.
+## Which lines you walk
 
-It is a record of what **you** typed. Nothing an agent said is in it. Nothing a flow sent on
-its own is in it either.
+The lines you sent **in this directory**. A directory where you have sent nothing yet walks
+everything you have sent anywhere, so a new project still has something to go back through.
+Which of the two applies is settled when `hmz` starts, so send one line in a new project and
+it has its own history from the next start.
 
-## What it is not
-
-- **Not a session log.** For what actually happened, [exporting a run](/user/export) from
-  `/epics` packages the whole of it up, with [a trace](/user/tracing) inside that draws it as
-  one timeline.
-- **Not shared with the flow.** A flow gets the task it was started with. It cannot read the
-  history.
-- **Not on the command line.** `hmz exec` takes its task as an argument. Your shell's own
-  history has it.
+::: details Clearing it
+History is one file, `~/.humanize/history.jsonl` (under `$HUMANIZE_HOME` if you set that).
+Delete it to forget every line you have sent, everywhere. Nothing else is lost.
+:::
 
 ## See also
 
-- [Completion](/user/completion)
-- [What a project remembers](/user/settings), the other thing kept between sessions
-- [CLI › Files](/reference/cli#files)
+- [Completion](/user/completion): finishing a word instead of typing it
+- [What a project remembers](/user/settings): the other thing kept between starts
+- [Exporting a run](/user/export): for what actually happened in a run, not what you typed
+
+<style scoped>
+kbd {
+  display: inline-block;
+  min-width: 1.7em;
+  padding: 0 0.45em;
+  border: 1px solid var(--vp-c-divider);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--vp-c-bg-soft);
+  font-family: var(--vp-font-family-base);
+  font-size: 0.85em;
+  font-weight: 500;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--vp-c-text-1);
+  white-space: nowrap;
+}
+</style>
