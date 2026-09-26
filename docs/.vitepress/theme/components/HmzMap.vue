@@ -1,390 +1,419 @@
 <script setup lang="ts">
-// The feature tree, compressed into its five systems and nineteen capability groups. Each
-// group names the guarantee it owns and leads to the page that explains it best.
+// Everything humanize does, by what the reader is trying to do, each item leading to the page
+// that does it. The areas and items are the sections and rows of `features/capabilities.md`,
+// one for one: add a row there and it is an item here, in the same place.
 import { computed, ref } from 'vue'
 import { withBase } from 'vitepress'
 
-interface CapabilityGroup {
-  code: string
+interface Item {
   name: string
+  line: string
   link: string
-  guarantee: string
-  start?: boolean
+  page: string
 }
 
-interface SystemDomain {
+interface Area {
   code: string
   name: string
-  sub: string
-  groups: CapabilityGroup[]
+  who: string
+  items: Item[]
 }
 
-const SYSTEMS: SystemDomain[] = [
+const AREAS: Area[] = [
   {
     code: 'A',
-    name: 'Flow system',
-    sub: 'declare · test · compose · resume',
-    groups: [
+    name: 'Run it your way',
+    who: 'the agents, the accounts, and how it starts',
+    items: [
       {
-        code: 'A1',
-        name: 'Expression & declaration',
-        link: '/features/flows',
-        start: true,
-        guarantee:
-          'A flow is async Python that declares its agents, environments and params, and is handed exactly those.',
+        name: 'Ready-made loops',
+        line: 'Pick a loop somebody already wrote: a Ralph loop, a reviewer loop, three lanes at once.',
+        link: '/flows/',
+        page: 'Flows',
       },
       {
-        code: 'A2',
-        name: 'Requirements & testing',
-        link: '/weaver/testing-flows',
-        guarantee:
-          'What a run cannot meet is refused before a model call costs anything; fakes run the rest in memory.',
+        name: 'Any coding agent',
+        line: 'Claude Code, Codex, Cursor, Kimi and eight more, most under the login they already have.',
+        link: '/user/providers',
+        page: 'Providers',
       },
       {
-        code: 'A3',
-        name: 'Composition & reload',
-        link: '/features/flows',
-        guarantee:
-          'Flows call flows by ref, narrowed to what each declares; a changed flow is imported afresh by the next run.',
+        name: 'Model and effort',
+        line: 'Choose each agent’s model and how hard it thinks.',
+        link: '/user/efforts',
+        page: 'Efforts',
       },
       {
-        code: 'A4',
-        name: 'Scheduling, state & resumption',
-        link: '/features/resuming',
-        guarantee:
-          'Sessions fan out concurrently; a resumable flow keeps a journal and picks up its calls on --resume.',
+        name: 'Two accounts of one CLI',
+        line: 'A subscription and a gateway of the same CLI, side by side, each with its own login.',
+        link: '/user/providers',
+        page: 'Providers',
+      },
+      {
+        name: 'Fall back',
+        line: 'When an account runs out, another takes the conversation on. When a CLI is gone, the turn moves where you said.',
+        link: '/user/fallback',
+        page: 'Falling back',
+      },
+      {
+        name: 'Skills',
+        line: 'See which skills each agent loads. A flow can bring its own.',
+        link: '/user/skills',
+        page: 'Skills',
+      },
+      {
+        name: 'From a script',
+        line: 'Run a flow from a shell script or a cron job, with no interface.',
+        link: '/user/unattended',
+        page: 'Run it unattended',
+      },
+      {
+        name: 'In CI',
+        line: 'Run a flow on a schedule and open a pull request with what it did.',
+        link: '/user/ci',
+        page: 'humanize in CI',
+      },
+      {
+        name: 'From Python',
+        line: 'Drive humanize from a Python program of your own.',
+        link: '/reference/sdk',
+        page: 'SDK reference',
       },
     ],
   },
   {
     code: 'B',
-    name: 'Agent control plane',
-    sub: 'sessions · skills · recovery · identity',
-    groups: [
+    name: 'While it runs',
+    who: 'watching, steering, and stopping it',
+    items: [
       {
-        code: 'B1',
-        name: 'Backend unification',
-        link: '/features/backends',
-        guarantee:
-          'Different CLIs and app servers expose one session protocol without flattening their capabilities.',
+        name: 'Talk into a turn',
+        line: 'Correct an agent mid-turn without stopping it. On Claude Code, Codex, Kimi and pi.',
+        link: '/user/steering',
+        page: 'Talking to a running turn',
       },
       {
-        code: 'B2',
-        name: 'Turn & session control',
-        link: '/features/steering',
-        start: true,
-        guarantee:
-          'Capability-typed roles steer, fork, and pursue goals only where the role declared it and the harness serves it.',
+        name: 'Side questions',
+        line: 'Ask what a running flow is up to without interrupting it.',
+        link: '/user/btw',
+        page: 'Side questions',
       },
       {
-        code: 'B3',
-        name: 'Skills & hooks',
-        link: '/features/hooks',
-        guarantee:
-          'Each role carries the skills it declares, and hooks let a flow answer the moments of a turn.',
+        name: 'Watch every agent',
+        line: 'See who is working, for how long, and who handed over to whom.',
+        link: '/user/monitor',
+        page: 'Watching a run',
       },
       {
-        code: 'B4',
-        name: 'Failure recovery',
-        link: '/features/accounts',
-        guarantee:
-          'A failed session can recover in place, migrate accounts, or use another CLI without losing intent.',
+        name: 'Answer, or step away',
+        line: 'Answer when an agent or the flow asks you, or say you are away so nothing waits.',
+        link: '/user/questions',
+        page: 'Questions',
       },
       {
-        code: 'B5',
-        name: 'Accounts & credentials',
-        link: '/features/accounts',
-        guarantee:
-          'Credential inputs can be isolated, redirected, and reused without leaking provider state.',
+        name: 'What it costs',
+        line: 'Tokens, money and rate for every agent, while it runs.',
+        link: '/user/tally',
+        page: 'Cost and rate',
+      },
+      {
+        name: 'A budget on every run',
+        line: 'Cap a run’s time, cost or output tokens. The first limit it reaches stops it.',
+        link: '/user/unattended',
+        page: 'Run it unattended',
+      },
+      {
+        name: 'Stop it',
+        line: 'Stop the run from the keyboard, and force it if it will not stop.',
+        link: '/user/stopping',
+        page: 'Stopping',
+      },
+      {
+        name: 'Leave it running',
+        line: 'Close the terminal or lose the connection. Open humanize in the same directory to find the run again.',
+        link: '/reference/daemon',
+        page: 'Daemon reference',
       },
     ],
   },
   {
     code: 'C',
-    name: 'Execution fabric',
-    sub: 'local control · remote work',
-    groups: [
+    name: 'Where the work lands',
+    who: 'your directory, a container, another machine',
+    items: [
       {
-        code: 'C1',
-        name: 'Transparent remote execution',
-        link: '/features/anchor',
-        start: true,
-        guarantee:
-          'A local agent operates a remote machine within documented process and signal boundaries.',
+        name: 'In a container',
+        line: 'Give an agent a toolchain you have not got, with your project at the path it already has.',
+        link: '/user/containers',
+        page: 'Containers',
       },
       {
-        code: 'C2',
-        name: 'Shadow workspace & consistent writes',
-        link: '/features/anchor',
-        guarantee:
-          'Remote workspaces appear immediately and writes land atomically as files arrive on demand.',
+        name: 'On another machine',
+        line: 'The commands run on the build box. The agent and its login stay on your machine.',
+        link: '/user/remote-execution',
+        page: 'Remote execution',
       },
       {
-        code: 'C3',
-        name: 'Portable transport runtime',
-        link: '/features/anchor',
-        guarantee:
-          'Targets need no install: one protocol carries processes, files, environment, and working directory.',
-      },
-      {
-        code: 'C4',
-        name: 'Machine lifecycle',
-        link: '/features/anchor',
-        guarantee:
-          'Machines can be isolated per agent or shared for a run, with explicit lifecycle ownership.',
+        name: 'What an agent may touch',
+        line: 'See what a flow lets each agent do. Nothing is put to you for approval.',
+        link: '/user/permissions',
+        page: 'Permissions',
       },
     ],
   },
   {
     code: 'D',
-    name: 'Run continuity & observability',
-    sub: 'detach · recover · reconstruct · scrub',
-    groups: [
+    name: 'After a run',
+    who: 'picking it up, and reading it back',
+    items: [
       {
-        code: 'D1',
-        name: 'Detached operation',
-        link: '/features/daemon',
-        start: true,
-        guarantee:
-          'Runs outlive terminals: a workspace daemon preserves PTYs, replay, attach, and stop control.',
+        name: 'Pick it up',
+        line: 'Carry a stopped run on from where it stood, if its flow can be picked up.',
+        link: '/user/resuming',
+        page: 'Picking a run up',
       },
       {
-        code: 'D2',
-        name: 'Persistent state & layered logs',
-        link: '/features/resuming',
-        guarantee:
-          'State and nested journals are written through, so a crash leaves a readable recovery record.',
+        name: 'One timeline',
+        line: 'Every agent and sub-agent of a run on one clock in Perfetto, and the programs they ran if you profiled it.',
+        link: '/user/tracing',
+        page: 'Tracing',
       },
       {
-        code: 'D3',
-        name: 'Trace reconstruction',
-        link: '/features/tracing',
-        guarantee:
-          'Sessions, sub-agents, and processes rebuild onto one calibrated, session-bounded timeline.',
+        name: 'Hand it to somebody',
+        line: 'Pack a whole run into one archive somebody else can open.',
+        link: '/user/export',
+        page: 'Exporting a run',
       },
       {
-        code: 'D4',
-        name: 'Telemetry privacy',
-        link: '/features/tracing',
-        guarantee:
-          'Reporting has explicit consent state and is scrubbed before anything leaves the machine.',
+        name: 'Crash reports',
+        line: 'Send crash reports and feedback, or never. You are asked once.',
+        link: '/user/reporting',
+        page: 'Reporting',
       },
     ],
   },
   {
     code: 'E',
-    name: 'Product surfaces',
-    sub: 'discover · configure · invoke',
-    groups: [
+    name: 'Writing a flow',
+    who: 'for the weaver, in Python',
+    items: [
       {
-        code: 'E1',
-        name: 'Discovery, forking & config',
-        link: '/features/surfaces',
-        guarantee:
-          'Flows can be discovered locally, forked atomically, and configured from their schemas.',
+        name: 'A loop in plain Python',
+        line: 'Write the loop as an async function and declare the agents it needs by role.',
+        link: '/weaver/writing-a-flow',
+        page: 'Writing a flow',
       },
       {
-        code: 'E2',
-        name: 'Unified entry points',
-        link: '/features/surfaces',
-        start: true,
-        guarantee:
-          'SDK, CLI, terminal interface, and daemon reach the same underlying flow and run model.',
+        name: 'Params of its own',
+        line: 'Typed settings that the prompt and the command line both fill in.',
+        link: '/weaver/flow-settings',
+        page: 'Params of its own',
+      },
+      {
+        name: 'Many conversations at once',
+        line: 'Fan out across as many conversations as the work needs.',
+        link: '/weaver/async-flows',
+        page: 'Many turns at once',
+      },
+      {
+        name: 'Answers as typed data',
+        line: 'Ask for a pydantic model and read a field, not a paragraph.',
+        link: '/weaver/shapes',
+        page: 'Answers in a shape',
+      },
+      {
+        name: 'The agent decides it is done',
+        line: 'Give an agent a goal and let it keep going until it judges the goal met.',
+        link: '/weaver/goals',
+        page: 'Goals',
+      },
+      {
+        name: 'React to each moment',
+        line: 'Run your own code before a tool, on a prompt, or when a turn stops.',
+        link: '/weaver/hooks',
+        page: 'Hooks',
+      },
+      {
+        name: 'Tools that call the flow',
+        line: 'Let the agent reach the flow mid-turn, and answer with the flow’s own code.',
+        link: '/weaver/tools',
+        page: 'The agent asking the flow',
+      },
+      {
+        name: 'Ask the person',
+        line: 'Put a question to whoever is at the prompt, as one of the flow’s agents.',
+        link: '/weaver/human-agent',
+        page: 'The person as an agent',
+      },
+      {
+        name: 'Cap a single turn',
+        line: 'Stop one turn once it has spent enough time, money or output tokens.',
+        link: '/reference/flows',
+        page: 'Flows reference',
+      },
+      {
+        name: 'Call another flow',
+        line: 'Use another flow as a step, under what is left of your budget.',
+        link: '/weaver/calling-flows',
+        page: 'A flow that calls a flow',
+      },
+      {
+        name: 'Branch a conversation',
+        line: 'Fork a conversation and try more than one way on from the same point.',
+        link: '/weaver/branching',
+        page: 'Branching a conversation',
+      },
+      {
+        name: 'Worktrees and copies',
+        line: 'A worktree per task, a throwaway copy, or an empty scratch directory.',
+        link: '/weaver/worktrees',
+        page: 'Worktrees, copies and scratch',
+      },
+      {
+        name: 'Test without a model',
+        line: 'Run a flow against scripted agents: milliseconds a test, and nothing spent.',
+        link: '/weaver/testing-flows',
+        page: 'Testing a flow',
+      },
+      {
+        name: 'Publish it',
+        line: 'Put flows in a git repository that anybody can add and run by name.',
+        link: '/weaver/flowverses',
+        page: 'Flowverses',
       },
     ],
   },
 ]
 
-const hovered = ref<CapabilityGroup | null>(null)
-const focused = ref<CapabilityGroup | null>(null)
+const hovered = ref<Item | null>(null)
+const focused = ref<Item | null>(null)
 const active = computed(() => focused.value ?? hovered.value)
-const groupCount = SYSTEMS.reduce((count, system) => count + system.groups.length, 0)
-const caption = computed(
-  () =>
-    active.value?.guarantee ??
-    `${SYSTEMS.length} systems, ${groupCount} capability groups. Hover or focus a group for its core guarantee; open it for the closest explanation.`,
-)
+const count = AREAS.reduce((n, area) => n + area.items.length, 0)
+const id = (area: Area, i: number) => `hmz-map-${area.code}${i}`
 </script>
 
 <template>
   <div class="map hmz-panel">
-    <div class="systems">
-      <section
-        v-for="system in SYSTEMS"
-        :key="system.code"
-        class="system"
-        :aria-labelledby="`domain-${system.code}`"
-      >
-        <header>
-          <span class="domain-code">{{ system.code }}</span>
-          <strong :id="`domain-${system.code}`">{{ system.name }}</strong>
-          <span>{{ system.sub }}</span>
-        </header>
+    <section
+      v-for="(area, a) in AREAS"
+      :key="area.code"
+      class="area"
+      :style="{ '--tone': `var(--hmz-lane-${a + 1})` }"
+      :aria-labelledby="`hmz-area-${area.code}`"
+    >
+      <header>
+        <span class="code">{{ area.code }}</span>
+        <strong :id="`hmz-area-${area.code}`">{{ area.name }}</strong>
+        <span class="who">{{ area.who }}</span>
+      </header>
+      <div class="items">
         <a
-          v-for="group in system.groups"
-          :key="group.code"
-          class="chip"
-          :class="{ start: group.start, held: active?.code === group.code }"
-          :href="withBase(group.link)"
-          :aria-label="`${group.code}. ${group.name}`"
-          :aria-describedby="`guarantee-${group.code}`"
-          @mouseenter="hovered = group"
+          v-for="(item, i) in area.items"
+          :key="item.name"
+          class="item"
+          :class="{ held: active === item }"
+          :href="withBase(item.link)"
+          :aria-describedby="id(area, i)"
+          @mouseenter="hovered = item"
           @mouseleave="hovered = null"
-          @focus="focused = group"
+          @focus="focused = item"
           @blur="focused = null"
         >
-          <small>{{ group.code }}</small>
-          <span>{{ group.name }}</span>
-          <i v-if="group.start">start here</i>
-          <span :id="`guarantee-${group.code}`" class="guarantee">
-            {{ group.guarantee }}
-          </span>
+          {{ item.name }}
+          <span :id="id(area, i)" class="line">{{ item.line }}</span>
         </a>
-      </section>
-    </div>
-    <p class="caption">{{ caption }}</p>
+      </div>
+    </section>
+    <p class="caption">
+      <template v-if="active">
+        {{ active.line }} <b>→ {{ active.page }}</b>
+      </template>
+      <template v-else>
+        {{ AREAS.length }} areas, {{ count }} things it does. Point at one to read it; open it for
+        the page that does it.
+      </template>
+    </p>
   </div>
 </template>
 
 <style scoped>
-.systems {
+.area {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
-  padding: 16px 16px 0;
-  position: relative;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 10px 18px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--hmz-panel-border);
+  border-left: 3px solid var(--tone);
 }
 
-.systems::before {
-  content: '';
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  top: 92px;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(
-    90deg,
-    var(--vp-c-brand-1),
-    var(--hmz-accent),
-    var(--hmz-accent-2),
-    var(--vp-c-brand-1)
-  );
-  background-size: 220% 100%;
-  opacity: 0.35;
-  animation: drift 9s linear infinite;
-}
-
-@keyframes drift {
-  to {
-    background-position: 220% 0;
-  }
-}
-
-.system {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-.system header {
+header {
   display: grid;
   grid-template-columns: auto 1fr;
-  grid-template-rows: auto 1fr;
-  column-gap: 7px;
-  min-height: 70px;
-  margin-bottom: 12px;
+  column-gap: 8px;
+  align-content: start;
 }
 
-.system header .domain-code {
+.code {
   grid-row: 1 / 3;
-  align-self: start;
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
-  border: 1px solid var(--vp-c-divider);
+  width: 22px;
+  height: 22px;
   border-radius: 7px;
-  color: var(--vp-c-brand-1);
-  font-size: 10px;
-  line-height: 1;
+  background: var(--tone);
+  color: var(--vp-c-bg);
+  font-size: 11px;
   font-weight: 700;
 }
 
-.system header strong {
-  min-width: 0;
-  font-size: 12.5px;
-  line-height: 1.3;
+header strong {
+  font-size: 14px;
+  line-height: 1.35;
   color: var(--vp-c-text-1);
 }
 
-.system header > span:last-child {
-  font-size: 10.5px;
-  line-height: 1.35;
+.who {
+  font-size: 11.5px;
+  line-height: 1.4;
   color: var(--vp-c-text-3);
 }
 
-.chip {
-  display: block;
-  min-width: 0;
-  padding: 10px 12px;
+.items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-content: start;
+}
+
+.vp-doc .item,
+.item {
+  padding: 4px 11px;
   border: 1px solid var(--vp-c-divider);
-  border-radius: 11px;
+  border-radius: 999px;
   background: var(--vp-c-bg);
   color: var(--vp-c-text-2);
-  font-size: 12px;
-  line-height: 1.35;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.5;
   text-decoration: none;
-  transition: transform 0.2s, border-color 0.2s, background 0.2s, color 0.2s;
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
 }
 
-.chip small {
-  display: block;
-  margin-bottom: 3px;
-  color: var(--vp-c-text-3);
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.chip:hover,
-.chip.held {
-  transform: translateY(-2px);
-  border-color: var(--vp-c-brand-1);
+.vp-doc .item:hover,
+.item:hover,
+.item.held {
+  border-color: var(--tone);
   color: var(--vp-c-text-1);
-  background: var(--vp-c-brand-soft);
+  background: var(--vp-c-default-soft);
+  text-decoration: none;
 }
 
-.chip:focus-visible {
+.item:focus-visible {
   outline: 2px solid var(--vp-c-brand-1);
   outline-offset: 2px;
 }
 
-.chip.start {
-  border-color: var(--hmz-accent);
-}
-
-.chip i {
-  display: block;
-  margin-top: 5px;
-  font-style: normal;
-  font-size: 9.5px;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--hmz-accent);
-}
-
-.caption {
-  margin: 0;
-  padding: 16px;
-  font-size: 13px;
-  line-height: 1.65;
-  color: var(--vp-c-text-2);
-  min-height: 74px;
-}
-
-.guarantee {
+.line {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -396,61 +425,35 @@ const caption = computed(
   border: 0;
 }
 
-@media (max-width: 980px) {
-  .systems {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+.caption {
+  margin: 0;
+  padding: 14px 18px;
+  min-height: 72px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--vp-c-text-2);
+}
+
+.caption b {
+  color: var(--vp-c-brand-1);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .area {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px 14px;
   }
 
-  .systems::before {
+  .caption {
     display: none;
   }
 }
 
-@media (max-width: 660px) {
-  .systems {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .chip .guarantee {
-    position: static;
-    display: block;
-    width: auto;
-    height: auto;
-    padding: 0;
-    margin: 6px 0 0;
-    overflow: visible;
-    clip: auto;
-    white-space: normal;
-    border: 0;
-    color: var(--vp-c-text-3);
-    font-size: 10.5px;
-    line-height: 1.45;
-  }
-}
-
-@media (max-width: 420px) {
-  .systems {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .system header {
-    min-height: 0;
-    margin-bottom: 4px;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .systems::before {
-    animation: none;
-  }
-
-  .chip {
+  .item {
     transition: none;
-  }
-
-  .chip:hover,
-  .chip.held {
-    transform: none;
   }
 }
 </style>

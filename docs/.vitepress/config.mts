@@ -139,52 +139,56 @@ export default defineConfig({
     // The three role guides then open with Tutorials, because a reader who has arrived at
     // their own section wants to be led once before being asked to look something up.
     sidebar: {
-      // The capability map groups the whole system; the pages beneath it take one mechanism
-      // far enough to explain its trade-offs, each around a diagram the reader can push.
+      // Grouped by what the reader is doing when they would want each one, in the order they
+      // meet it: choosing agents, a run under way, where its work lands, reading it back, and
+      // last, writing a flow of your own. Each title says what you get rather than what the
+      // mechanism is called. The capability map is grouped the same five ways.
       '/features/': [
         { text: 'Features', link: '/features/' },
-        { text: 'Capability map', link: '/features/capabilities' },
+        { text: 'Everything it does', link: '/features/capabilities' },
         {
-          text: 'Flow system',
+          text: 'Run it your way',
           collapsed: false,
           items: [
-            { text: 'A flow is Python', link: '/features/flows' },
-            { text: 'Many turns at once', link: '/features/concurrency' },
-            { text: 'Picked up where it stopped', link: '/features/resuming' },
-          ],
-        },
-        {
-          text: 'Agent control plane',
-          collapsed: false,
-          items: [
-            { text: 'Many backends, one agent', link: '/features/backends' },
+            { text: 'Every coding agent you have', link: '/features/backends' },
             { text: 'Two accounts of one CLI', link: '/features/accounts' },
-            { text: 'A line typed mid-turn', link: '/features/steering' },
-            { text: 'A turn can be cut off', link: '/features/budgets' },
-            { text: 'Every run has a budget', link: '/features/allowances' },
-            { text: 'Answers in a shape', link: '/features/shapes' },
-            { text: 'It decides when it is done', link: '/features/goals' },
-            { text: 'The moments of a turn', link: '/features/hooks' },
-            { text: 'You, as one of the agents', link: '/features/human' },
+            { text: 'Prompt, script or Python', link: '/features/surfaces' },
           ],
         },
         {
-          text: 'Execution fabric',
-          collapsed: false,
-          items: [{ text: 'The anchor', link: '/features/anchor' }],
-        },
-        {
-          text: 'Run continuity and observability',
+          text: 'While it runs',
           collapsed: false,
           items: [
-            { text: 'The terminal can leave', link: '/features/daemon' },
-            { text: 'One timeline', link: '/features/tracing' },
+            { text: 'Talk into a running turn', link: '/features/steering' },
+            { text: 'When a flow asks you', link: '/features/human' },
+            { text: 'A budget on every run', link: '/features/allowances' },
+            { text: 'Close the terminal, keep the run', link: '/features/daemon' },
           ],
         },
         {
-          text: 'Product surfaces',
+          text: 'Where the work lands',
           collapsed: false,
-          items: [{ text: 'One system, four ways in', link: '/features/surfaces' }],
+          items: [{ text: 'Work on another machine', link: '/features/anchor' }],
+        },
+        {
+          text: 'After a run',
+          collapsed: false,
+          items: [
+            { text: 'Every agent on one timeline', link: '/features/tracing' },
+            { text: 'Pick up where it stopped', link: '/features/resuming' },
+          ],
+        },
+        {
+          text: 'Writing a flow',
+          collapsed: false,
+          items: [
+            { text: 'A loop in plain Python', link: '/features/flows' },
+            { text: 'Many conversations at once', link: '/features/concurrency' },
+            { text: 'Answers as typed data', link: '/features/shapes' },
+            { text: 'The agent decides it is done', link: '/features/goals' },
+            { text: 'React to each moment of a turn', link: '/features/hooks' },
+            { text: 'Cap a single turn', link: '/features/budgets' },
+          ],
         },
       ],
 

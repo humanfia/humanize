@@ -1,11 +1,24 @@
 <script setup lang="ts">
-// Eight things humanize does, one drawing each. The words are the label on the drawing;
-// the feature page behind each card is where the explanation lives.
+// Eight things humanize gets you, one drawing each. The words say what you get and when you
+// would reach for it; the feature page behind each card is where the rest of it lives.
+import { onMounted, onUnmounted, ref } from 'vue'
 import { withBase } from 'vitepress'
+
+// The drawings are CSS animations, held still while the grid is scrolled off screen.
+const root = ref<HTMLElement | null>(null)
+const seen = ref(true)
+let observer: IntersectionObserver | undefined
+
+onMounted(() => {
+  observer = new IntersectionObserver((entries) => (seen.value = entries[0].isIntersecting))
+  if (root.value) observer.observe(root.value)
+})
+
+onUnmounted(() => observer?.disconnect())
 </script>
 
 <template>
-  <div class="grid">
+  <div ref="root" class="grid" :class="{ still: !seen }">
     <a class="card" :href="withBase('/features/backends')">
       <svg class="viz fan" viewBox="0 0 200 88" aria-hidden="true">
         <path d="M 46 44 C 90 44 100 14 152 14" />
@@ -20,8 +33,29 @@ import { withBase } from 'vitepress'
           <circle cx="158" cy="74" r="5.5" />
         </g>
       </svg>
-      <h3>One flow, many coding agents</h3>
-      <p>agy · claude · codex · cursor · dsh · grok · kimi · mimo · opencode · pi · qwen · zcode</p>
+      <h3>Every coding agent you have</h3>
+      <p>Claude Code on one role, Codex on the next. Most run under the login you already have.</p>
+      <p class="names">
+        agy · claude · codex · cursor-agent · dsh · grok · kimi · mimo · opencode · pi · qwen ·
+        zcode
+      </p>
+    </a>
+
+    <a class="card" :href="withBase('/features/accounts')">
+      <svg class="viz accounts" viewBox="0 0 200 88" aria-hidden="true">
+        <rect class="cli" x="70" y="32" width="60" height="24" rx="7" />
+        <text x="100" y="48">claude</text>
+        <g class="badge one">
+          <rect x="16" y="14" width="66" height="20" rx="10" />
+          <text x="49" y="28">@work</text>
+        </g>
+        <g class="badge two">
+          <rect x="118" y="54" width="72" height="20" rx="10" />
+          <text x="154" y="68">@gateway</text>
+        </g>
+      </svg>
+      <h3>Two accounts of one CLI</h3>
+      <p>Your subscription on one agent and a gateway on the other, in the same run.</p>
     </a>
 
     <a class="card" :href="withBase('/features/steering')">
@@ -32,8 +66,60 @@ import { withBase } from 'vitepress'
         <rect class="caret" x="112" y="56" width="3" height="14" rx="1.5" />
         <path class="into" d="M 100 54 L 100 46" />
       </svg>
-      <h3>Typed mid-turn, into the turn</h3>
-      <p>Not queued behind it. It reaches the agent that is working.</p>
+      <h3>Talk into a running turn</h3>
+      <p>
+        Say “use pathlib” four minutes into a refactor, and that turn hears it. On Claude Code,
+        Codex, Kimi and pi.
+      </p>
+    </a>
+
+    <a class="card" :href="withBase('/features/human')">
+      <svg class="viz human" viewBox="0 0 200 88" aria-hidden="true">
+        <g class="row">
+          <rect x="20" y="18" width="120" height="10" rx="5" />
+          <rect x="20" y="39" width="88" height="10" rx="5" />
+          <rect class="you" x="20" y="60" width="104" height="10" rx="5" />
+        </g>
+        <g class="face">
+          <circle cx="164" cy="58" r="8" />
+          <path d="M 150 76 C 152 64 176 64 178 76" />
+        </g>
+      </svg>
+      <h3>When a flow asks you</h3>
+      <p>A flow can stop and ask you. When you are away, it is told so rather than left waiting.</p>
+    </a>
+
+    <a class="card" :href="withBase('/features/allowances')">
+      <svg class="viz budget" viewBox="0 0 200 88" aria-hidden="true">
+        <text class="what" x="14" y="23">time</text>
+        <text class="what" x="14" y="47">cost</text>
+        <text class="what" x="14" y="71">tokens</text>
+        <rect class="track" x="56" y="15" width="120" height="10" rx="5" />
+        <rect class="track" x="56" y="39" width="120" height="10" rx="5" />
+        <rect class="track" x="56" y="63" width="120" height="10" rx="5" />
+        <rect class="fill time" x="56" y="15" width="120" height="10" rx="5" />
+        <rect class="fill cost" x="56" y="39" width="120" height="10" rx="5" />
+        <rect class="fill tokens" x="56" y="63" width="120" height="10" rx="5" />
+        <rect class="stop" x="180" y="38" width="12" height="12" rx="2" />
+      </svg>
+      <h3>A budget on every run</h3>
+      <p>Six hours or fifty dollars: whichever runs out first stops the run.</p>
+    </a>
+
+    <a class="card" :href="withBase('/features/daemon')">
+      <svg class="viz leave" viewBox="0 0 200 88" aria-hidden="true">
+        <g class="term">
+          <rect class="window" x="14" y="20" width="70" height="48" rx="6" />
+          <path class="top" d="M 14 30 L 84 30" />
+          <rect class="prompt" x="22" y="40" width="34" height="6" rx="3" />
+          <rect class="prompt" x="22" y="52" width="22" height="6" rx="3" />
+        </g>
+        <path class="link" d="M 86 44 L 112 44" />
+        <rect class="track" x="116" y="38" width="70" height="12" rx="6" />
+        <rect class="run" x="116" y="38" width="70" height="12" rx="6" />
+      </svg>
+      <h3>Close the terminal, keep the run</h3>
+      <p>Leave a run going, lose the SSH session, and open it again from the same directory.</p>
     </a>
 
     <a class="card" :href="withBase('/features/tracing')">
@@ -51,59 +137,11 @@ import { withBase } from 'vitepress'
         </g>
         <line class="head" x1="20" y1="10" x2="20" y2="78" />
       </svg>
-      <h3>Trace a run on one timeline</h3>
-      <p>Reconstruct the agents and programs, then inspect them together in Perfetto.</p>
-    </a>
-
-    <a class="card" :href="withBase('/features/anchor')">
-      <svg class="viz away" viewBox="0 0 200 88" aria-hidden="true">
-        <rect class="box" x="16" y="26" width="62" height="36" rx="8" />
-        <rect class="box there" x="122" y="26" width="62" height="36" rx="8" />
-        <path class="link" d="M 78 44 L 122 44" />
-        <circle class="pip" cx="80" cy="44" r="4" />
-        <text x="47" y="48">agent</text>
-        <text x="153" y="48">target</text>
-      </svg>
-      <h3>Its work lands elsewhere</h3>
-      <p>An ssh host or a container of its own. The agent is told nothing.</p>
-    </a>
-
-    <a class="card" :href="withBase('/features/shapes')">
-      <svg class="viz shape" viewBox="0 0 200 88" aria-hidden="true">
-        <g class="prose">
-          <rect x="22" y="22" width="104" height="8" rx="4" />
-          <rect x="22" y="40" width="132" height="8" rx="4" />
-          <rect x="22" y="58" width="74" height="8" rx="4" />
-        </g>
-        <g class="json">
-          <rect class="pane" x="18" y="14" width="164" height="60" rx="8" />
-          <rect class="key" x="32" y="26" width="34" height="8" rx="4" />
-          <rect class="val" x="72" y="26" width="52" height="8" rx="4" />
-          <rect class="key" x="32" y="42" width="26" height="8" rx="4" />
-          <rect class="val" x="64" y="42" width="40" height="8" rx="4" />
-          <rect class="key" x="32" y="58" width="40" height="8" rx="4" />
-          <rect class="val" x="78" y="58" width="30" height="8" rx="4" />
-        </g>
-      </svg>
-      <h3>Answers in a shape</h3>
-      <p>A pydantic model in, a field out — no paragraph to parse.</p>
-    </a>
-
-    <a class="card" :href="withBase('/features/accounts')">
-      <svg class="viz accounts" viewBox="0 0 200 88" aria-hidden="true">
-        <rect class="cli" x="70" y="32" width="60" height="24" rx="7" />
-        <text x="100" y="48">claude</text>
-        <g class="badge one">
-          <rect x="16" y="14" width="66" height="20" rx="10" />
-          <text x="49" y="28">@work</text>
-        </g>
-        <g class="badge two">
-          <rect x="118" y="54" width="72" height="20" rx="10" />
-          <text x="154" y="68">@deepseek</text>
-        </g>
-      </svg>
-      <h3>Two accounts of one CLI</h3>
-      <p>Your subscription and somebody else's endpoint, in one run.</p>
+      <h3>Every agent on one timeline</h3>
+      <p>
+        Every agent and sub-agent of a run, on one clock, in Perfetto. Profile it and the programs
+        they ran are there too.
+      </p>
     </a>
 
     <a class="card" :href="withBase('/features/resuming')">
@@ -113,32 +151,18 @@ import { withBase } from 'vitepress'
         <rect class="seg late" x="116" y="38" width="64" height="12" rx="6" />
         <path class="arc" d="M 100 34 C 100 12 150 12 150 32" />
       </svg>
-      <h3>Picked up where it stopped</h3>
-      <p>A loop stopped on Thursday carries on from its own record.</p>
-    </a>
-
-    <a class="card" :href="withBase('/features/human')">
-      <svg class="viz human" viewBox="0 0 200 88" aria-hidden="true">
-        <g class="row">
-          <rect x="20" y="18" width="120" height="10" rx="5" />
-          <rect x="20" y="39" width="88" height="10" rx="5" />
-          <rect class="you" x="20" y="60" width="104" height="10" rx="5" />
-        </g>
-        <g class="face">
-          <circle cx="164" cy="58" r="8" />
-          <path d="M 150 76 C 152 64 176 64 178 76" />
-        </g>
-      </svg>
-      <h3>You, as one of the agents</h3>
-      <p>A flow asks a person the same way it asks a model.</p>
+      <h3>Pick up where it stopped</h3>
+      <p>Stop a long loop on Thursday. On Monday it carries on from where it stood.</p>
     </a>
   </div>
 </template>
 
 <style scoped>
+/* Sized by the room the cards get rather than by the window: beside a sidebar and an outline
+   the content column is a good deal narrower than the screen. */
 .grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr));
   gap: 16px;
 }
 
@@ -153,10 +177,21 @@ import { withBase } from 'vitepress'
   transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
 }
 
+.vp-doc .card,
+.vp-doc .card:hover {
+  font-weight: inherit;
+  text-decoration: none;
+}
+
 .card:hover {
   transform: translateY(-3px);
   border-color: var(--vp-c-brand-1);
   box-shadow: 0 10px 30px -18px var(--vp-c-brand-1);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--vp-c-brand-1);
+  outline-offset: 2px;
 }
 
 .viz {
@@ -177,14 +212,13 @@ p {
   margin: 6px 0 0;
   font-size: 12.5px;
   line-height: 1.55;
-  color: var(--vp-c-text-3);
+  color: var(--vp-c-text-2);
 }
 
-p code {
-  font-size: 11.5px;
-  padding: 1px 5px;
-  border-radius: 5px;
-  background: var(--vp-c-default-soft);
+p.names {
+  font-family: var(--vp-font-family-mono);
+  font-size: 10.5px;
+  color: var(--vp-c-text-3);
 }
 
 svg text {
@@ -194,7 +228,13 @@ svg text {
   text-anchor: middle;
 }
 
-/* one flow, many coding agents */
+@keyframes crawl {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+
+/* every coding agent you have */
 .fan path {
   fill: none;
   stroke: var(--vp-c-divider);
@@ -238,13 +278,42 @@ svg text {
   }
 }
 
-@keyframes crawl {
-  to {
-    stroke-dashoffset: -16;
+/* two accounts of one CLI */
+.accounts .cli {
+  fill: var(--vp-c-bg);
+  stroke: var(--vp-c-divider);
+}
+
+.accounts .badge rect {
+  fill: var(--vp-c-default-soft);
+  stroke: none;
+}
+
+.accounts .badge text {
+  fill: var(--vp-c-text-2);
+}
+
+.accounts .badge.one {
+  animation: takeover 4.4s ease-in-out infinite;
+}
+
+.accounts .badge.two {
+  animation: takeover 4.4s ease-in-out infinite 2.2s;
+}
+
+@keyframes takeover {
+  0%,
+  45%,
+  100% {
+    opacity: 0.45;
+  }
+  10%,
+  35% {
+    opacity: 1;
   }
 }
 
-/* typed mid-turn */
+/* talk into a running turn */
 .steer .track {
   fill: var(--vp-c-default-soft);
 }
@@ -302,7 +371,190 @@ svg text {
   }
 }
 
-/* every run, a timeline */
+/* when a flow asks you */
+.human .row rect {
+  fill: var(--vp-c-default-soft);
+}
+
+.human .row .you {
+  fill: var(--hmz-lane-6);
+  opacity: 0.55;
+  animation: attend 3.6s ease-in-out infinite;
+}
+
+@keyframes attend {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+.human .face circle {
+  fill: var(--vp-c-brand-1);
+}
+
+.human .face path {
+  fill: none;
+  stroke: var(--vp-c-brand-1);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+/* a budget on every run: three meters, and the first to fill is the one that stops it */
+.budget text.what {
+  text-anchor: start;
+  fill: var(--vp-c-text-3);
+}
+
+.budget .track {
+  fill: var(--vp-c-default-soft);
+}
+
+.budget .fill {
+  transform-origin: left center;
+  transform-box: fill-box;
+  opacity: 0.8;
+  animation: 5s ease-in infinite;
+}
+
+.budget .fill.time {
+  fill: var(--hmz-lane-1);
+  animation-name: meter-time;
+}
+
+.budget .fill.cost {
+  fill: var(--hmz-warm);
+  animation-name: meter-cost;
+}
+
+.budget .fill.tokens {
+  fill: var(--hmz-lane-2);
+  animation-name: meter-tokens;
+}
+
+@keyframes meter-time {
+  0% {
+    transform: scaleX(0.04);
+  }
+  60%,
+  96% {
+    transform: scaleX(0.58);
+  }
+  100% {
+    transform: scaleX(0.04);
+  }
+}
+
+@keyframes meter-cost {
+  0% {
+    transform: scaleX(0.04);
+  }
+  60%,
+  96% {
+    transform: scaleX(1);
+  }
+  100% {
+    transform: scaleX(0.04);
+  }
+}
+
+@keyframes meter-tokens {
+  0% {
+    transform: scaleX(0.04);
+  }
+  60%,
+  96% {
+    transform: scaleX(0.4);
+  }
+  100% {
+    transform: scaleX(0.04);
+  }
+}
+
+.budget .stop {
+  fill: var(--hmz-warm);
+  animation: halt 5s ease-in infinite;
+}
+
+@keyframes halt {
+  0%,
+  58% {
+    opacity: 0;
+  }
+  62%,
+  96% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* close the terminal, keep the run */
+.leave .window {
+  fill: var(--vp-c-bg);
+  stroke: var(--vp-c-divider);
+}
+
+.leave .top {
+  stroke: var(--vp-c-divider);
+}
+
+.leave .prompt {
+  fill: var(--vp-c-default-soft);
+}
+
+.leave .term {
+  animation: away 6s ease-in-out infinite;
+}
+
+.leave .link {
+  stroke: var(--hmz-accent);
+  stroke-width: 1.6;
+  stroke-dasharray: 3 4;
+  animation: crawl 1.6s linear infinite, away 6s ease-in-out infinite;
+}
+
+@keyframes away {
+  0%,
+  25% {
+    opacity: 1;
+  }
+  32%,
+  68% {
+    opacity: 0.12;
+  }
+  75%,
+  100% {
+    opacity: 1;
+  }
+}
+
+.leave .track {
+  fill: var(--vp-c-default-soft);
+}
+
+.leave .run {
+  fill: var(--vp-c-brand-1);
+  opacity: 0.8;
+  transform-origin: left center;
+  transform-box: fill-box;
+  animation: carry 6s linear infinite;
+}
+
+@keyframes carry {
+  from {
+    transform: scaleX(0.08);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* every agent on one timeline */
 .trace .slices rect {
   fill: var(--hmz-lane-1);
   opacity: 0.85;
@@ -359,132 +611,7 @@ svg text {
   }
 }
 
-/* its work lands elsewhere */
-.away .box {
-  fill: var(--vp-c-bg);
-  stroke: var(--vp-c-divider);
-}
-
-.away .box.there {
-  stroke: var(--hmz-accent);
-}
-
-.away .link {
-  stroke: var(--vp-c-divider);
-  stroke-width: 1.6;
-  stroke-dasharray: 4 4;
-  animation: crawl 1.6s linear infinite;
-}
-
-.away .pip {
-  fill: var(--hmz-accent);
-  animation: cross 2.6s ease-in-out infinite;
-}
-
-@keyframes cross {
-  0%,
-  10% {
-    cx: 80px;
-    opacity: 0;
-  }
-  20% {
-    opacity: 1;
-  }
-  80% {
-    cx: 120px;
-    opacity: 1;
-  }
-  100% {
-    cx: 120px;
-    opacity: 0;
-  }
-}
-
-/* answers in a shape */
-.shape .prose rect {
-  fill: var(--vp-c-default-soft);
-  animation: outgoing 5s ease-in-out infinite;
-}
-
-.shape .json {
-  animation: incoming 5s ease-in-out infinite;
-}
-
-.shape .pane {
-  fill: var(--vp-c-bg);
-  stroke: var(--vp-c-brand-1);
-}
-
-.shape .key {
-  fill: var(--vp-c-brand-1);
-}
-
-.shape .val {
-  fill: var(--hmz-accent);
-  opacity: 0.7;
-}
-
-@keyframes outgoing {
-  0%,
-  38% {
-    opacity: 1;
-  }
-  48%,
-  100% {
-    opacity: 0;
-  }
-}
-
-@keyframes incoming {
-  0%,
-  40% {
-    opacity: 0;
-  }
-  52%,
-  92% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-
-/* two accounts of one CLI */
-.accounts .cli {
-  fill: var(--vp-c-bg);
-  stroke: var(--vp-c-divider);
-}
-
-.accounts .badge rect {
-  fill: var(--vp-c-default-soft);
-  stroke: none;
-}
-
-.accounts .badge text {
-  fill: var(--vp-c-text-3);
-}
-
-.accounts .badge.one {
-  animation: takeover 4.4s ease-in-out infinite;
-}
-
-.accounts .badge.two {
-  animation: takeover 4.4s ease-in-out infinite 2.2s;
-}
-
-@keyframes takeover {
-  0%,
-  45%,
-  100% {
-    opacity: 0.45;
-  }
-  10%,
-  35% {
-    opacity: 1;
-  }
-}
-
-/* picked up where it stopped */
+/* pick up where it stopped */
 .resume .seg {
   fill: var(--vp-c-brand-1);
   opacity: 0.8;
@@ -520,54 +647,29 @@ svg text {
   animation: crawl 2s linear infinite;
 }
 
-/* you, as one of the agents */
-.human .row rect {
-  fill: var(--vp-c-default-soft);
+.still .viz,
+.still .viz * {
+  animation-play-state: paused !important;
 }
 
-.human .row .you {
-  fill: var(--hmz-lane-6);
-  opacity: 0.55;
-  animation: attend 3.6s ease-in-out infinite;
-}
-
-@keyframes attend {
-  0%,
-  100% {
-    opacity: 0.35;
-  }
-  50% {
-    opacity: 0.9;
-  }
-}
-
-.human .face circle {
-  fill: var(--vp-c-brand-1);
-}
-
-.human .face path {
-  fill: none;
-  stroke: var(--vp-c-brand-1);
-  stroke-width: 2.4;
-  stroke-linecap: round;
-}
-
-@media (max-width: 1000px) {
-  .grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 520px) {
-  .grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
+/* Held still, each drawing is left at a frame that still says its one thing: the cost meter
+   full and the stop showing, the terminal there and the run bar drawn. */
 @media (prefers-reduced-motion: reduce) {
   .viz *,
   .viz {
     animation: none !important;
+  }
+
+  .budget .fill.time {
+    transform: scaleX(0.58);
+  }
+
+  .budget .fill.tokens {
+    transform: scaleX(0.4);
+  }
+
+  .leave .run {
+    transform: scaleX(0.7);
   }
 }
 </style>
