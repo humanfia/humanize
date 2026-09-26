@@ -8,150 +8,104 @@ import { withBase } from 'vitepress'
 
 # Features
 
-humanize runs **flows**: directories of Python that drive one or more coding agents in a loop
-and write down everything they did. Most backends drive a coding agent you already have under
-its existing login; the bundled DeepSeek Harness is the SDK-backed exception.
-
-This section is what the system is rather than how to operate it: the unusual parts drawn, one
-map over all of them, and a page for each mechanism worth pushing on. Nothing here is a
-command — the guide that runs it is one click from every diagram.
-
-To install it and run something, start on the [home page](/), which has a quickstart for
-[running a flow](/#run-a-flow), [weaving one](/#weave-a-flow) and
-[working on humanize](/#work-on-humanize).
-
-## A run, as it happens
-
-One flow, many agents, one trace. Every turn's tool calls land on the timeline as they are
-made — every agent, every sub-agent and every program those turns ran, on one clock. Hover a
-lane; change how many agents are on it.
+humanize runs **flows**: loops written in Python that drive the coding agents you already have
+(Claude Code, Codex, Kimi and nine more) and keep a record of everything they did. Put a
+different agent on every role, leave the run going for days, and read all of it back on one
+timeline.
 
 <HmzOrchestra />
 
 <p class="hmz-note">
-A simulation of the shape of a run, not a recording.
-<a :href="withBase('/features/tracing')">One timeline</a> is how the real one is built.
+A simulation, not a recording. Each flow's roles and order of turns are its own; the calls are
+invented. Pick a flow to see its shape, and hover a lane or a call.
 </p>
 
-## What it does, one picture each
+## What you get
 
 <HmzFeatures />
 
-## The agent runs here. Its syscalls land there.
+## Your agent here, its work there
 
-A seccomp-filtered ptrace supervisor decides every call the coding agent makes, one at a time.
-No plugin, no configuration, no cooperation — the agent is told none of it.
+Point a run at an ssh host or a container. The agent's edits, commands and tests happen there,
+while the agent, its login and its link to the model stay on your machine. The agent needs no
+plugin and no setting for it.
 
 <HmzAnchor />
 
 <p class="hmz-note">
-How it works, syscall by syscall: <a :href="withBase('/features/anchor')">The anchor</a>. What
-you are deliberately not entitled to:
-<a :href="withBase('/reference/remote-execution')">its reference</a>.
+Pick something the agent does to see where it lands. More in
+<a :href="withBase('/features/anchor')">Work on another machine</a>; to set it up,
+<a :href="withBase('/user/remote-execution')">Remote execution</a>.
 </p>
 
-## How the capabilities fit together
+## The flows you can run
 
-A run crosses five systems: the flow that describes the work, the control plane that drives
-agents, the fabric that decides where work lands, the record that keeps it continuous and
-readable, and the surfaces people start and inspect it through. Hover a group to read the
-guarantee it owns.
+`chat`, one agent talking with you, ships inside humanize. Every other flow comes from the
+official **flowverse**, a git repository of flows, which humanize fetches in the background
+each time you open it.
+
+| Reach for | When you want |
+| --- | --- |
+| [`ralph_loop`](/flows/ralph-loop) | One agent on a long task, a fresh session every round |
+| [`rlar`](/flows/rlar) | An actor, and a reviewer that reads its work and writes its next prompt |
+| [`goal`](/flows/goal) | The model, not your loop, to decide when the work is done |
+| [`parallel_flame_chase`](/flows/parallel-flame-chase) | Three streams of work at once |
+
+Every flow, each with its loop played out: [Flows](/flows/).
+
+## Everything, mapped
 
 <HmzMap />
 
 <p class="hmz-note">
-The complete map adds the boundaries, related guides and reference for every group:
-<a :href="withBase('/features/capabilities')">Capability map</a>.
+Each item with a line on it, and the page that does it:
+<a :href="withBase('/features/capabilities')">Everything it does</a>.
 </p>
 
-## Feature deep dives
+## Every feature page
 
-Each takes one mechanism far enough that its trade-offs make sense, around a diagram you can
-push.
+### Run it your way
 
-### Flow system
-
-| | |
+| Page | Reach for it when |
 | --- | --- |
-| [A flow is Python](/features/flows) | An async function that declares its agents, environments and params by typed roles, and is handed exactly what it declared. |
-| [Many turns at once](/features/concurrency) | Turns are sequential inside one session; concurrency comes from having several conversations to run. |
-| [Picked up where it stopped](/features/resuming) | A resumable flow journals its calls and the state it keeps, and `--resume` picks them up. No conversation is recreated. |
+| [Every coding agent you have](/features/backends) | You want a different CLI, model or effort on each role. |
+| [Two accounts of one CLI](/features/accounts) | Two agents of one CLI must run as two accounts at once. |
+| [Prompt, script or Python](/features/surfaces) | You want to start the same flow from the prompt, a script or your own program. |
 
-### Agent control plane
+### While it runs
 
-| | |
+| Page | Reach for it when |
 | --- | --- |
-| [Many backends, one agent](/features/backends) | Native servers, streaming CLIs and Agent Client Protocol backends meet one session contract. |
-| [Two accounts of one CLI](/features/accounts) | Credentials, model catalogues and failure chains stay isolated while a session changes where it runs. |
-| [A line typed mid-turn](/features/steering) | Acknowledged queues put guidance into the turn that is working rather than behind it. |
-| [A turn can be cut off](/features/budgets) | A per-turn budget of duration, cost or output tokens, read off the live meter, ends the turn that is running. |
-| [Every run has a budget](/features/allowances) | Duration, cost and output tokens, held to at every turn and narrowed for every flow a flow calls, stop the run. |
-| [Answers in a shape](/features/shapes) | A pydantic model is both the question and the contract the answer must satisfy. |
-| [It decides when it is done](/features/goals) | A backend-owned pursuit loop continues until the model settles the objective. |
-| [The moments of a turn](/features/hooks) | One `on_*` method per moment lets a flow react without teaching the backend about the flow. |
-| [You, as one of the agents](/features/human) | Questions and a person-shaped agent — the outworlder — put human decisions on the same run. |
+| [Talk into a running turn](/features/steering) | An agent is heading the wrong way and you do not want to stop it. |
+| [When a flow asks you](/features/human) | A run needs a person's decision, or you are about to walk away. |
+| [A budget on every run](/features/allowances) | A run should stop itself on time, money or tokens. |
+| [Close the terminal, keep the run](/features/daemon) | A run will outlast the terminal you started it in. |
 
-### Execution fabric
+### Where the work lands
 
-| | |
+| Page | Reach for it when |
 | --- | --- |
-| [The anchor](/features/anchor) | A local agent can work against a remote target while paths, processes, networks and ownership keep their meaning. |
+| [Work on another machine](/features/anchor) | The code has to build and run somewhere other than where the agent is signed in. |
 
-### Run continuity and observability
+### After a run
 
-| | |
+| Page | Reach for it when |
 | --- | --- |
-| [The terminal can leave](/features/daemon) | A workspace daemon owns the PTY, so watchers may disconnect and return without owning the run. |
-| [One timeline](/features/tracing) | Agent events, sub-agents and sampled processes are reconstructed on one calibrated clock. |
+| [Every agent on one timeline](/features/tracing) | You want to see what every agent and program did, and when. |
+| [Pick up where it stopped](/features/resuming) | A long run was stopped and should carry on rather than start again. |
 
-### Product surfaces
+### Writing a flow
 
-| | |
+| Page | Reach for it when |
 | --- | --- |
-| [One system, four ways in](/features/surfaces) | Local discovery, schema-driven setup, Python, CLI, TUI and the daemon all reach the same run and session model. |
+| [A loop in plain Python](/features/flows) | The loop you want is not in the flowverse yet. |
+| [Many conversations at once](/features/concurrency) | The work splits into pieces that can run side by side. |
+| [Answers as typed data](/features/shapes) | Your loop has to read a verdict, not a paragraph. |
+| [The agent decides it is done](/features/goals) | Only the model can judge when the work is finished. |
+| [React to each moment of a turn](/features/hooks) | Your code has to step in before a tool runs or when a turn stops. |
+| [Cap a single turn](/features/budgets) | One turn must not run away with the rest of the budget. |
 
-## The flows it comes with
-
-A ralph loop and a stateful one, two agents alternating, an actor with a reviewer between its
-rounds, a loop the model itself decides is over, and isolated lanes under a coordinator. Each
-has a page with its own loop played on it.
-
-<p class="hmz-note">
-Every one of them, with the shape of each: <a :href="withBase('/flows/')">Flows</a>. What a
-weaver writes to add another: <a :href="withBase('/weaver/writing-a-flow')">Writing a flow</a>.
-</p>
-
-## Where to go next
-
-<div class="hmz-paths">
-  <a :href="withBase('/features/capabilities')">
-    <strong>Capability map</strong>
-    <span>Nineteen groups in five systems, and the right page for each.</span>
-  </a>
-  <a :href="withBase('/flows/')">
-    <strong>Flows</strong>
-    <span>What it can run out of the box, each loop drawn and played.</span>
-  </a>
-  <a :href="withBase('/user/')">
-    <strong>User Guide</strong>
-    <span>For the person running flows: the prompt, and reading a run back.</span>
-  </a>
-  <a :href="withBase('/weaver/')">
-    <strong>Weaver Guide</strong>
-    <span>For the weaver writing them: Python, roles, hooks and tests.</span>
-  </a>
-  <a :href="withBase('/contributing/')">
-    <strong>Contributing</strong>
-    <span>For the person working on humanize itself, these docs included.</span>
-  </a>
-  <a :href="withBase('/reference/')">
-    <strong>Reference</strong>
-    <span>Every command, key, flag and Python call.</span>
-  </a>
-</div>
-
-::: warning Before you point one at a repository you care about
-What an agent may do is the flow's to declare, and a flow written to run unattended declares the
-permission where nothing is asked. A flow is trusted Python: loading or running it executes its
-code. Read [Security](/user/security).
+::: warning Before you point a flow at a repository you care about
+Nothing a flow's agents do is put to you for approval: they run with approvals bypassed. A flow
+is Python, and loading one runs its code. Read [Security](/user/security).
 :::
