@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// A run of one flow, played. One lane per agent, one box per turn, and a head that walks the
-// rounds at the speed of about a second each.
+// A run of one flow, simulated and played. One lane per agent, one box per turn, and a head
+// that walks the rounds at about a second each -- or one turn at a time, with the step button.
 //
 // The thing the diagram is for is the distinction the flows differ by and prose keeps losing:
 // which turns opened a session and which took another turn of the one they had. A `new` box
@@ -67,7 +67,10 @@ const pass = ref(0)
 const running = ref(true)
 const onScreen = ref(true)
 const still = ref(false) // reduced motion: drawn once, at rest, finished
-const held = ref<Step | null>(null)
+/** The box the pointer is over, and the one a tap or a key picked: the caption says the first,
+ *  else the second, else the flow's own line. */
+const hovered = ref<Step | null>(null)
+const pinned = ref<Step | null>(null)
 
 const backTo = computed(() => {
   const loop = shape.value.loop
@@ -80,6 +83,31 @@ function restart() {
   // that flow finished rather than that flow never started.
   t.value = still.value ? cols.value + TAIL : 0
   pass.value = still.value ? 1 : 0
+  hovered.value = null
+  pinned.value = null
+}
+
+/** One column on, and paused there: the run a turn at a time. */
+function step() {
+  running.value = false
+  const next = Math.floor(t.value + 1e-6) + 1
+  if (next > cols.value) {
+    t.value = shape.value.loop ? backTo.value : 0
+    pass.value += 1
+  } else {
+    t.value = next
+  }
+}
+
+/** A mouse over a box says what it is. Only a mouse: a tap would leave it said for good, since
+ *  nothing leaves a box a finger has let go of. */
+function hover(event: PointerEvent, one: Step) {
+  if (event.pointerType === 'mouse') hovered.value = one
+}
+
+/** A tap or a key on a box says what it is; the same again puts the caption back. */
+function pin(one: Step) {
+  pinned.value = pinned.value?.id === one.id ? null : one
 }
 
 watch(shape, restart)
@@ -251,7 +279,7 @@ const spent = computed(() =>
 const head = computed(() => LABEL + Math.min(t.value, cols.value) * colw.value)
 
 const caption = computed(() => {
-  const step = held.value
+  const step = hovered.value ?? pinned.value
   if (!step) return shape.value.caption
   const said =
     step.session === 'new'
@@ -297,19 +325,25 @@ const said = (step: Step) => written.value.get(step.id) ?? [step.label]
         </button>
       </div>
       <code v-else class="only">{{ shape.of }}</code>
-      <div class="spacer" />
-      <button
-        v-if="!still"
-        class="toggle"
-        type="button"
-        :aria-label="running ? 'pause' : 'play'"
-        @click="running = !running"
-      >
-        {{ running ? '❙❙' : '▶' }}
-      </button>
+      <div class="controls">
+        <span class="sim" title="drawn from the flow's code, not recorded from a run">simulated</span>
+        <button
+          v-if="!still"
+          class="toggle"
+          type="button"
+          :aria-label="running ? 'pause' : 'play'"
+          @click="running = !running"
+        >
+          {{ running ? '❙❙' : '▶' }}
+        </button>
+        <button class="toggle" type="button" aria-label="one turn on" title="one turn on" @click="step">
+          ▶❙
+        </button>
+      </div>
     </div>
 
-    <svg :viewBox="`0 0 ${WIDE} ${height}`" role="img" :aria-label="`the shape of ${shape.of}`">
+    <div class="stage">
+    <svg :viewBox="`0 0 ${WIDE} ${height}`" role="group" :aria-label="`a simulated run of ${shape.of}`">
       <!-- the lanes -->
       <g class="rails">
         <g v-for="(lane, i) in shape.lanes" :key="lane.id" :style="{ '--tone': toneOf(lane.id) }">
@@ -354,10 +388,16 @@ const said = (step: Step) => written.value.get(step.id) ?? [step.label]
         <g
           v-for="step in shape.steps"
           :key="step.id"
-          :class="[state(step), step.tone ?? 'work', step.session ?? 'new']"
+          :class="[state(step), step.tone ?? 'work', step.session ?? 'new', { pinned: pinned?.id === step.id }]"
           :style="{ '--tone': toneOf(step.lane) }"
-          @mouseenter="held = step"
-          @mouseleave="held = null"
+          tabindex="0"
+          role="button"
+          :aria-label="`${step.label}: what this turn is`"
+          @pointerenter="hover($event, step)"
+          @pointerleave="hovered = null"
+          @click="pin(step)"
+          @keydown.enter.prevent="pin(step)"
+          @keydown.space.prevent="pin(step)"
         >
           <rect
             class="box"
@@ -433,7 +473,9 @@ const said = (step: Step) => written.value.get(step.id) ?? [step.label]
       <!-- where the run is -->
       <line :x1="head" :x2="head" y1="6" :y2="floor - 4" class="head" />
     </svg>
+    </div>
 
+    <p class="swipe">Swipe the drawing sideways for the whole run; tap a box for what it is.</p>
     <p class="caption">{{ caption }}</p>
   </div>
 </template>
@@ -488,8 +530,11 @@ const said = (step: Step) => written.value.get(step.id) ?? [step.label]
   color: var(--vp-c-brand-1);
 }
 
-.spacer {
-  flex: 1;
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .toggle {
@@ -505,6 +550,26 @@ const said = (step: Step) => written.value.get(step.id) ?? [step.label]
 
 .toggle:hover {
   color: var(--vp-c-brand-1);
+}
+
+.swipe {
+  display: none;
+  margin: 0;
+  line-height: 1.5;
+  padding: 6px 16px 0;
+  border-top: 1px solid var(--hmz-panel-border);
+  font-size: 11.5px;
+  color: var(--vp-c-text-3);
+}
+
+.sim {
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--vp-c-default-soft);
+  color: var(--vp-c-text-3);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 svg {
@@ -574,6 +639,22 @@ svg {
 
 .steps g {
   transition: opacity 0.35s;
+  cursor: pointer;
+  outline: none;
+}
+
+.steps g.pinned .box {
+  stroke-width: 2.6;
+}
+
+/* Focus is drawn in the accent and at full strength, whatever state the turn is in. */
+.steps g:focus-visible {
+  opacity: 1;
+}
+
+.steps g:focus-visible .box {
+  stroke: var(--hmz-accent);
+  stroke-width: 3;
 }
 
 .steps g.waiting {
@@ -708,14 +789,31 @@ svg {
 }
 
 @media (max-width: 760px) {
-  /* Narrow enough that the lane column would take half the picture, so the whole thing keeps
-     its size and scrolls instead. */
-  .shape svg {
-    min-width: 700px;
+  /* Narrow enough that the lane column would take half the picture, so the drawing keeps a
+     readable size and scrolls sideways, under a bar and a caption that stay where they are. */
+  .stage {
+    overflow-x: auto;
   }
 
-  .shape {
-    overflow-x: auto;
+  .stage svg {
+    min-width: 640px;
+  }
+
+  /* The controls go under the flow's name, or names, when there is no room beside them. */
+  .bar {
+    flex-wrap: wrap;
+  }
+
+  .tabs {
+    flex-basis: 100%;
+  }
+
+  .swipe {
+    display: block;
+  }
+
+  .swipe + .caption {
+    border-top: none;
   }
 }
 </style>

@@ -4,56 +4,56 @@ pageClass: hmz-feature
 
 # continue_loop
 
-Sends the task once, then keeps nudging `continue` at the session that heard it. The same one
-session as [`stateful_ralph`](/flows/stateful-ralph), told to carry on rather than told what to
-do again — which is what a person at a prompt actually types, and is a different prompt from
-the task however similar it looks.
+Send the task once, then keep saying "continue" to the same session, which is what a person at
+a prompt would type. The agent keeps its whole conversation, and every round it is told to
+carry on rather than told the task again.
 
-```sh
-hmz exec -f continue_loop -a agent=kimi/kimi-code/k3:high -b duration=6h "$(cat TASK.md)"
+::: code-group
+
+```text [at the prompt]
+❯ $continue_loop port the test suite from unittest to pytest
 ```
+
+```sh [hmz exec]
+hmz exec -f continue_loop -a agent=kimi/kimi-code/k3:high \
+    -b duration=6h "$(cat TASK.md)"
+```
+
+:::
 
 <HmzFlowShape flow="continue_loop" />
 
-## Until a turn lands, the task is sent again
+## When to use it
 
-`continue` means something only to a session that heard what it is continuing. So the flow
-sends the task, and only once a turn has actually landed does the prompt become `continue`:
+Like [stateful_ralph](/flows/stateful-ralph), it holds one session, so the agent remembers
+what it tried. The difference is the prompt: `stateful_ralph` repeats the task, which pulls the
+agent back to it every round, while "continue" lets it follow its own plan.
 
-```python
-try:
-    answered = await agent.run(prompt, session=session)
-except HarnessError:
-    failed += 1
-    if failed >= 3:
-        raise
-    answered = ""
-else:
-    failed = 0
-if answered:
-    prompt = "continue"
-```
+"Continue" only makes sense to a session that heard the task. Until a turn has answered, the
+flow sends the task again rather than "continue".
 
-A turn that failed or answered nothing — a backend that fell over before it said anything — is
-sent again: the task until a turn has answered, `continue` after. Three failed turns in a row
-end the run with the last failure.
+## Roles and params
+
+| Role | |
+| --- | --- |
+| `agent` | Takes every round, in the one session the run holds. |
+
+No params. The loop pauses 5 seconds between rounds.
 
 ## What ends it
 
-The run's [budget](/features/allowances) — `-b duration=…,cost=…,output_tokens=…` — held to at
-every turn of the session rather than implemented here. The flow itself takes no params and
-declares no budget of its own, so `hmz exec` refuses to start it without a `-b`. The turn that
-finds it spent raises `BudgetExceeded`, which is how the run ends, and `--resume` carries on
-counting rounds under a fresh `-b`. Three failed turns in a row end it sooner, with the last
-failure.
+- **The [budget](/features/allowances).** However much the agent says it is done, it is told
+  to continue, so this is the usual end.
+- **Three failed turns in a row.** The run ends with the last failure. A turn that answers with
+  nothing is not a failure; it is simply sent again.
 
-## What it keeps
+## Picking it up
 
-`rounds`. That the task has been sent is **not** kept: a run picked up with `--resume` spawns a
-session that has heard nothing, and starts it on the task exactly as the first run did. What the
-agent went on to say is the backend's own log to keep, not this flow's.
+`--resume` carries on the round count. The session is not picked up: the resumed run opens a
+new one, which has heard nothing, so it is sent the task first, exactly as the first run was.
+See [Picking a run up](/user/resuming).
 
 ## See also
 
-- [stateful_ralph](/flows/stateful-ralph) — the same session, re-sent the task rather than nudged
-- [goal](/flows/goal) — the backend's own way of not stopping
+- [stateful_ralph](/flows/stateful-ralph): the same session, sent the task every round
+- [goal](/flows/goal): the backend's own way of not stopping

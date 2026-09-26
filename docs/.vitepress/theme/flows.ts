@@ -1,25 +1,68 @@
-// Every flow humanize can run, and the shape of each one, in one place.
+// Every flow in the catalogue, and the shape of each one, in one place.
 //
-// Two things are written down here, and the second is the reason the first is a module rather
-// than a table in a page: what a flow *is* -- its name, where it comes from, how many agents it
-// wants, the line that starts it -- and what a run of it *looks like*, as a script of turns the
-// diagram plays. The catalogue and the diagrams then cannot disagree, and a flow added to the
-// flowverse is one entry here rather than a page and a drawing that drift apart.
+// Two things are written down here: what a flow *is* -- its name, the roles `-a` fills, what
+// ends it, what `--resume` carries -- which <HmzFlows> draws as the catalogue on /flows/, and
+// what a run of it *looks like*, as a script of turns <HmzFlowShape> plays on each flow's page.
+// Keeping both here means the catalogue and the diagrams cannot disagree.
 //
-// The shapes are read off the flows themselves: `src/hmz/flows/builtin/` for the one humanize
-// keeps in the package, and https://github.com/humanfia/flowverse for the rest. A session marked
-// `new` is one the flow opened for that turn; `held` is the same session taking another. That
-// distinction is the whole of what separates most of these from each other, so it is the thing
-// the diagram draws largest.
-//
-// All of them are offered under the one name, `official`, and all of them are run by a bare
-// name. Which of the two places a flow is kept in is humanize's business rather than anybody
-// else's -- what it changes is whether the flow is there before anything has been fetched,
-// which is the one thing `place` below is for.
+// Everything is read off the flows themselves: `src/hmz/flows/builtin/chat` for `chat`, and
+// https://github.com/humanfia/flowverse for the rest. A session marked `new` is one the flow
+// opened for that turn; `held` is the same session taking another turn. That distinction is
+// most of what separates these flows from each other, so it is what the diagram draws largest.
 
-/** Which of humanize's two places a flow is kept in: the package, or the repository it
- *  fetches. Both are offered under `official`; this is where it lives, not what it is called. */
-export type Place = 'package' | 'flowverse'
+/** What a reader may be trying to get done, which is what the chooser on /flows/ asks. */
+export type Job = 'talk' | 'grind' | 'review' | 'pair' | 'plan' | 'parallel' | 'lean' | 'write'
+
+export interface JobInfo {
+  id: Job
+  /** The chip. */
+  said: string
+  /** The advice shown once it is picked. Inline `code` is written with backticks. */
+  hint: string
+}
+
+export const JOBS: JobInfo[] = [
+  {
+    id: 'talk',
+    said: 'talk to an agent',
+    hint: '`chat` is what `hmz` opens on in a new project: type, and the agent answers. No loop, and no budget needed.',
+  },
+  {
+    id: 'grind',
+    said: 'leave one agent on a task',
+    hint: 'Start with `ralph_loop`: a fresh session every round runs for days without drowning in its own context. `stateful_ralph` and `continue_loop` keep one session, so the agent remembers what it tried. `goal` lets the model decide when it is done.',
+  },
+  {
+    id: 'review',
+    said: 'have the work reviewed',
+    hint: '`rlar` puts a fresh reviewer after every round, and stops when the reviewer says the task is done. `humanize1` agrees on a plan first, then builds it under review.',
+  },
+  {
+    id: 'pair',
+    said: 'put two models on one task',
+    hint: '`flame_chase` hands the tree back and forth between two agents. `rlar` makes the second one a reviewer instead.',
+  },
+  {
+    id: 'plan',
+    said: 'plan before building',
+    hint: '`humanize1` is three flows, run one after another: an idea, a plan both sides agreed on, and a build under review.',
+  },
+  {
+    id: 'parallel',
+    said: 'chase several leads at once',
+    hint: 'Seven agents in three lanes. In `parallel_flame_chase` one lane writes your tree and two work on copies; in `parallel_flame_chase_git_pr` every lane has a clone and main moves only for a measured improvement.',
+  },
+  {
+    id: 'lean',
+    said: 'prove a Lean theorem',
+    hint: '`recursive_lean_prover` splits the theorem into lemmas and proves each one in a worktree of its own.',
+  },
+  {
+    id: 'write',
+    said: 'write a new flow',
+    hint: '`aot` writes a flow from a description, and lands it only after it loads, runs on fakes and passes a review.',
+  },
+]
 
 /** The small drawing that stands for a flow in the catalogue. */
 export type Family =
@@ -34,169 +77,165 @@ export type Family =
   | 'lanes'
 
 export interface Flow {
-  /** The name `-f` takes, which for every flow of humanize's own is a bare one. */
+  /** The name the catalogue lists it under. For every flow but `humanize1` it is also what
+   *  `-f` and `$` take; `humanize1` holds three flows, each run as `humanize1:<phase>`. */
   name: string
+  /** The flows a module of several holds, each run as `<name>:<phase>`. */
+  phases?: string[]
   /** The page under /flows/. */
   link: string
-  /** How many agents it drives, in the words `/flow` uses inside a flow. */
-  agents: string
+  /** The roles `-a` fills, as it names them. */
+  roles: string
   /** One line: what it does. */
   said: string
-  /** What stops it. */
+  /** What ends it, besides the run's budget. */
   ends: string
-  /** What a run picked up carries in, or "" for a flow that keeps nothing. */
+  /** What a run picked up with `--resume` carries in, or "" for one that always starts afresh. */
   keeps: string
-  place: Place
+  jobs: Job[]
   family: Family
-  /** The name flowbench scores it under, where it has one. */
-  bench?: string
 }
 
 export const FLOWS: Flow[] = [
   {
     name: 'chat',
     link: '/flows/chat',
-    agents: 'assistant + you',
-    said: 'One agent, one session, and every line typed between turns is a turn of it.',
-    ends: 'you stop typing',
+    roles: 'assistant',
+    said: 'One agent, one conversation: every line you type back is its next turn.',
+    ends: 'you send nothing back, so under hmz exec after one turn',
     keeps: '',
-    place: 'package',
+    jobs: ['talk'],
     family: 'talk',
   },
   {
     name: 'ralph_loop',
     link: '/flows/ralph-loop',
-    agents: 'agent',
-    said: 'A fresh session every round, so nothing carries over but the repository.',
-    ends: 'three empty rounds in a row, or the run’s budget',
-    keeps: 'rounds',
-    place: 'flowverse',
+    roles: 'agent',
+    said: 'The task again every round, in a fresh session, so only the repository carries over.',
+    ends: '3 rounds in a row that answer nothing',
+    keeps: 'the round count',
+    jobs: ['grind'],
     family: 'fresh',
-    bench: 'ralph_loop',
   },
   {
     name: 'stateful_ralph',
     link: '/flows/stateful-ralph',
-    agents: 'agent',
-    said: 'One session, held for the whole run, re-sent the task every round.',
-    ends: 'three empty rounds in a row, or the run’s budget',
-    keeps: 'rounds',
-    place: 'flowverse',
+    roles: 'agent',
+    said: 'The task again every round, in one session that remembers every round before.',
+    ends: '3 rounds in a row that answer nothing',
+    keeps: 'the round count, not the session',
+    jobs: ['grind'],
     family: 'held',
-    bench: 'stateful_ralph',
   },
   {
     name: 'continue_loop',
     link: '/flows/continue-loop',
-    agents: 'agent',
-    said: 'Sends the task once, then keeps nudging “continue” at the session that heard it.',
-    ends: 'the run’s budget, or three failed turns in a row',
-    keeps: 'rounds',
-    place: 'flowverse',
+    roles: 'agent',
+    said: 'The task once, then “continue” to the same session, round after round.',
+    ends: '3 failed turns in a row',
+    keeps: 'the round count, not the session',
+    jobs: ['grind'],
     family: 'nudge',
-    bench: 'continue_loop',
   },
   {
     name: 'goal',
     link: '/flows/goal',
-    agents: 'worker',
-    said: 'The task, set once as the agent’s own goal: it decides when the work is done.',
-    ends: 'the model saying the objective is met, or the run’s budget',
+    roles: 'worker',
+    said: 'The task set as the agent’s own /goal: the model keeps going until it says the goal is met.',
+    ends: 'the model says the goal is met',
     keeps: '',
-    place: 'flowverse',
+    jobs: ['grind'],
     family: 'goal',
-    bench: 'goal',
   },
   {
     name: 'flame_chase',
     link: '/flows/flame-chase',
-    agents: 'first_chaser · second_chaser',
-    said: 'Two agents take turns on the same task, each reading the repository rather than a history.',
-    ends: 'the run’s budget, which the two spend between them, or three failed turns in a row',
-    keeps: 'turn · rounds',
-    place: 'flowverse',
+    roles: 'first_chaser · second_chaser',
+    said: 'Two agents take turns on the same task, each in a fresh session, passing only the tree.',
+    ends: '3 failed turns in a row',
+    keeps: 'whose turn is next, and the round count',
+    jobs: ['pair'],
     family: 'pair',
-    bench: 'flame_chase',
   },
   {
     name: 'rlar',
     link: '/flows/rlar',
-    agents: 'actor · reviewer',
-    said: 'The actor remembers and the reviewer must not. The review is the actor’s next prompt.',
-    ends: 'the reviewer agreeing the work is done, or the run’s budget',
-    keeps: 'rounds · the review nobody acted on',
-    place: 'flowverse',
+    roles: 'actor · reviewer',
+    said: 'An actor works in one session; a fresh reviewer reads the work and writes its next prompt.',
+    ends: 'the reviewer says the task is done',
+    keeps: 'the last review, and the round count',
+    jobs: ['review', 'pair'],
     family: 'review',
-    bench: 'rlar',
   },
   {
     name: 'humanize1',
+    phases: ['gen-idea', 'gen-plan', 'rlcr'],
     link: '/flows/humanize1',
-    agents: '1, then 2, then 2 + you',
-    said: 'PolyArch/humanize as three flows: an idea, a plan both sides converged on, and a build under review.',
-    ends: 'the reviewer saying the plan is complete, or its max rounds, for the loop of the three',
-    keeps: 'the directory the loop is in, and its round',
-    place: 'flowverse',
+    roles: 'drafter · planner, analyst · builder, reviewer',
+    said: 'PolyArch/humanize as three flows: an idea, a plan both sides agreed on, and a build under review.',
+    ends: 'each phase on its own; rlcr when the reviewer finds nothing left, or after max rounds',
+    keeps: 'rlcr only: its loop and round',
+    jobs: ['review', 'plan'],
     family: 'phases',
-  },
-  {
-    name: 'parallel_flame_chase',
-    link: '/flows/parallel-flame-chase',
-    agents: '7',
-    said: 'One coordinator plans three isolated lanes, then leaves; six actors alternate and coordinate by report.',
-    ends: 'the run’s budget, or you',
-    keeps: 'the plan, the snapshots, whose turn each lane is on',
-    place: 'flowverse',
-    family: 'lanes',
-  },
-  {
-    name: 'parallel_flame_chase_git_pr',
-    link: '/flows/parallel-flame-chase-git-pr',
-    agents: '7',
-    said: 'Three lanes, each with a clone and pull requests; main moves only for a measured improvement.',
-    ends: 'the run’s budget, or you',
-    keeps: 'the central refs, the receipts, the reports',
-    place: 'flowverse',
-    family: 'lanes',
   },
   {
     name: 'ralph_loop_agent_cleanup',
     link: '/flows/agent-cleanup',
-    agents: 'agent · cleaner + you',
-    said: 'ralph_loop, with a cleaner that distills the workspace into one commit every few turns.',
-    ends: 'the run’s budget, or three empty turns in a row',
-    keeps: 'the turns, the epoch, the run’s own directory',
-    place: 'flowverse',
+    roles: 'agent · cleaner',
+    said: 'ralph_loop, plus a cleaner that distills the tree into one commit every few turns.',
+    ends: '3 turns in a row that come to nothing',
+    keeps: 'the turn count and the epochs',
+    jobs: ['grind'],
     family: 'fresh',
   },
   {
     name: 'flame_chase_agent_cleanup',
     link: '/flows/agent-cleanup',
-    agents: 'first_chaser · second_chaser · cleaner + you',
-    said: 'flame_chase, with the same cleaner between the two chasers.',
-    ends: 'the run’s budget, or three empty turns in a row',
-    keeps: 'the turns, the epoch, the run’s own directory',
-    place: 'flowverse',
+    roles: 'first_chaser · second_chaser · cleaner',
+    said: 'flame_chase, with the same cleaner working between the two chasers.',
+    ends: '3 turns in a row that come to nothing',
+    keeps: 'the turn count and the epochs',
+    jobs: ['pair'],
     family: 'pair',
+  },
+  {
+    name: 'parallel_flame_chase',
+    link: '/flows/parallel-flame-chase',
+    roles: 'coordinator · six lane actors',
+    said: 'A coordinator plans three lanes once; lane 1 writes your tree, lanes 2 and 3 work on copies.',
+    ends: 'nothing but the budget, or you',
+    keeps: 'the plan, the copies, the reports, whose turn each lane is on',
+    jobs: ['parallel'],
+    family: 'lanes',
+  },
+  {
+    name: 'parallel_flame_chase_git_pr',
+    link: '/flows/parallel-flame-chase-git-pr',
+    roles: 'orchestrator · six lane actors',
+    said: 'Three lanes, each with a clone and pull requests; main moves only for a measured improvement.',
+    ends: 'nothing but the budget, or you',
+    keeps: 'the central repository, the receipts, the reports',
+    jobs: ['parallel'],
+    family: 'lanes',
   },
   {
     name: 'recursive_lean_prover',
     link: '/flows/recursive-lean-prover',
-    agents: 'worker · reviewer',
-    said: 'A Lean theorem proved by recursive decomposition, each node built by humanize1’s phases in a worktree of its own.',
-    ends: 'the root theorem proved or refused, or the run’s budget',
-    keeps: 'the DAG, the accepted nodes, their worktrees and branches',
-    place: 'flowverse',
+    roles: 'worker · reviewer',
+    said: 'A Lean theorem, split into lemmas that are each planned, proved and formalized in a worktree of their own.',
+    ends: 'the root theorem is proved, or refused',
+    keeps: 'the lemmas proved so far, their branches and the wiki',
+    jobs: ['lean'],
     family: 'phases',
   },
   {
     name: 'aot',
     link: '/flows/aot',
-    agents: 'writer · critic + you',
-    said: 'Writes a flow from a description, and lands it once it has loaded, run on fakes and been read.',
-    ends: 'the flow landed, or its repairs running out',
+    roles: 'writer · critic',
+    said: 'Writes a flow from your description, and lands it once it loads, runs on fakes and passes a critic.',
+    ends: 'the flow lands, or the repairs run out',
     keeps: '',
-    place: 'flowverse',
+    jobs: ['write'],
     family: 'review',
   },
 ]
@@ -248,7 +287,7 @@ export interface Shape {
   steps: Step[]
   /** The arc back: what a round ends on, what it starts again at, and why. */
   loop?: { from: string; to: string; said: string }
-  /** The bar under the diagram, where something other than the flow is what stops it. */
+  /** The bar under the diagram, where the run's budget is what stops it. */
   meter?: { kind: 'budget'; said: string }
   /** One line under the whole thing. */
   caption: string
@@ -260,8 +299,8 @@ export const SHAPES: Record<string, Shape> = {
   chat: {
     of: 'chat',
     lanes: [
-      { id: 'agent', name: 'the agent', note: 'one session throughout' },
-      { id: 'you', name: 'you', note: 'and the one that ends it', tone: 6 },
+      { id: 'agent', name: 'the assistant', note: 'one session throughout' },
+      { id: 'you', name: 'you', note: 'the one who ends it', tone: 6 },
     ],
     steps: [
       {
@@ -279,13 +318,13 @@ export const SHAPES: Record<string, Shape> = {
         col: 1,
         label: 'a turn',
         session: 'new',
-        carry: A('what it said', 'y1'),
+        carry: A('its answer', 'y1'),
       },
       {
         id: 'y1',
         lane: 'you',
         col: 2,
-        label: 'a line typed between turns',
+        label: 'what you type back',
         session: 'none',
         tone: 'ask',
         carry: A('the next turn', 'a1'),
@@ -296,13 +335,13 @@ export const SHAPES: Record<string, Shape> = {
         col: 3,
         label: '…the same session',
         session: 'held',
-        carry: A('what it said', 'y2'),
+        carry: A('its answer', 'y2'),
       },
-      { id: 'y2', lane: 'you', col: 4, label: 'nothing typed', session: 'none', tone: 'stop' },
+      { id: 'y2', lane: 'you', col: 4, label: 'nothing sent back', session: 'none', tone: 'stop' },
     ],
     loop: { from: 'a1', to: 'y1', said: 'for as long as you answer' },
     caption:
-      'Saying something to the person is asking what to say next. Answered with nothing — a command line, nobody at the prompt — the flow does the one thing it was given and stops.',
+      'Each answer comes to you, and what you type back is the next turn. Send nothing back — or run it under hmz exec, where nobody is at the prompt — and the run ends.',
   },
 
   ralph_loop: {
@@ -317,7 +356,7 @@ export const SHAPES: Record<string, Shape> = {
     loop: { from: 'r4', to: 'r1', said: 'nothing carries but the repository' },
     meter: { kind: 'budget', said: 'what the turns spend, against the run’s budget' },
     caption:
-      'Every round starts where the last one did: from the task and from whatever the round before it left in the working directory.',
+      'Every round starts from the task and from whatever the round before it left in the working directory.',
   },
 
   stateful_ralph: {
@@ -332,7 +371,7 @@ export const SHAPES: Record<string, Shape> = {
     loop: { from: 's4', to: 's2', said: 'the same conversation, one round longer' },
     meter: { kind: 'budget', said: 'what the turns spend, against the run’s budget' },
     caption:
-      'What grows here is not only the spend: one session is one conversation, and the context window is the other thing a long run of this runs into.',
+      'One session is one conversation, so the context window grows with every round — the other limit a long run of this reaches.',
   },
 
   continue_loop: {
@@ -347,7 +386,7 @@ export const SHAPES: Record<string, Shape> = {
     loop: { from: 'c4', to: 'c2', said: 'until the run’s budget is spent' },
     meter: { kind: 'budget', said: 'what the turns spend, against the run’s budget' },
     caption:
-      'Until a turn lands, the task is sent again rather than “continue”: a word that means something only to a session that heard what it is continuing.',
+      'Until a turn answers, the task is sent again rather than “continue”: the word means something only to a session that heard the task.',
   },
 
   goal: {
@@ -362,20 +401,20 @@ export const SHAPES: Record<string, Shape> = {
         label: '/goal <task>',
         session: 'new',
         inside: 6,
-        carry: A('the objective, met', 'g2'),
+        carry: A('the goal, met', 'g2'),
       },
       { id: 'g2', lane: 'agent', col: 3, label: 'the model says it is done', session: 'none', tone: 'stop' },
     ],
     meter: { kind: 'budget', said: 'every turn the goal took, against the run’s budget' },
     caption:
-      'The ticks inside the box are turns the backend started itself: a turn that would have ended starts another, until the model says the objective is met.',
+      'The ticks inside the box are turns the backend started itself: a turn that would have ended starts another, until the model says the goal is met.',
   },
 
   flame_chase: {
     of: 'flame_chase',
     lanes: [
-      { id: 'one', name: 'the first agent', note: 'a fresh session a turn' },
-      { id: 'two', name: 'the second', note: 'a fresh session a turn' },
+      { id: 'one', name: 'first_chaser', note: 'a fresh session a turn' },
+      { id: 'two', name: 'second_chaser', note: 'a fresh session a turn' },
     ],
     steps: [
       {
@@ -404,17 +443,17 @@ export const SHAPES: Record<string, Shape> = {
       },
       { id: 'f4', lane: 'two', col: 3, label: 'the task, and the repository', session: 'new' },
     ],
-    loop: { from: 'f4', to: 'f1', said: 'a round is a turn each, and whose turn it is survives a restart' },
+    loop: { from: 'f4', to: 'f1', said: 'a round is a turn each' },
     meter: { kind: 'budget', said: 'the run’s budget, which the two spend between them' },
     caption:
-      'Neither of them is told what the other said. What passes between the two is the working directory, which is the only account of the last turn there is.',
+      'Neither is told what the other said. What passes between them is the working directory.',
   },
 
   rlar: {
     of: 'rlar',
     lanes: [
-      { id: 'actor', name: 'the actor', note: 'it has to remember' },
-      { id: 'reviewer', name: 'the reviewer', note: 'it must not remember' },
+      { id: 'actor', name: 'the actor', note: 'one session, remembers' },
+      { id: 'reviewer', name: 'the reviewer', note: 'fresh every round' },
     ],
     steps: [
       {
@@ -432,7 +471,7 @@ export const SHAPES: Record<string, Shape> = {
         label: 'reads the repository',
         session: 'new',
         tone: 'read',
-        carry: A('the notes, word for word', 'a2'),
+        carry: A('its notes, word for word', 'a2'),
       },
       {
         id: 'a2',
@@ -455,7 +494,7 @@ export const SHAPES: Record<string, Shape> = {
     ],
     loop: { from: 'v2', to: 'a2', said: 'while the review says there is something left' },
     caption:
-      'The reviewer answers two things at once, both read off a pydantic model rather than off a marker at the end of a paragraph: whether the task is finished, and what the actor hears next.',
+      'Every review answers two things: whether the task is done, and what the actor hears next.',
   },
 
   'humanize1-gen-idea': {
@@ -467,15 +506,14 @@ export const SHAPES: Record<string, Shape> = {
         lane: 'drafter',
         col: 0,
         span: 2,
-        label: 'explores the idea, n directions at once',
+        label: 'explores the idea in n directions',
         session: 'new',
         tone: 'plan',
         carry: A('the draft, written to a file', 'i2'),
       },
       { id: 'i2', lane: 'drafter', col: 2, label: '.humanize/ideas/…', session: 'none', tone: 'stop' },
     ],
-    caption:
-      'One phase, one file, nothing kept. Running it again is meant to write another draft, which is why a run of it is never picked up.',
+    caption: 'One turn, one file. Running it again writes another draft.',
   },
 
   'humanize1-gen-plan': {
@@ -486,10 +524,19 @@ export const SHAPES: Record<string, Shape> = {
     ],
     steps: [
       {
+        id: 'n0',
+        lane: 'analyst',
+        col: 0,
+        label: 'checks the draft',
+        session: 'new',
+        tone: 'read',
+        carry: A('the risks', 'p1'),
+      },
+      {
         id: 'p1',
         lane: 'planner',
-        col: 0,
-        label: 'the draft, into a plan',
+        col: 1,
+        label: 'writes the plan',
         session: 'new',
         tone: 'plan',
         carry: A('the plan as it stands', 'n1'),
@@ -497,26 +544,26 @@ export const SHAPES: Record<string, Shape> = {
       {
         id: 'n1',
         lane: 'analyst',
-        col: 1,
-        label: 'reads it against the repository',
+        col: 2,
+        label: 'reviews the plan',
         session: 'new',
         tone: 'read',
-        carry: A('what it does not agree with', 'p2'),
+        carry: A('what it disagrees with', 'p2'),
       },
       {
         id: 'p2',
         lane: 'planner',
-        col: 2,
-        label: '…the same session',
+        col: 3,
+        label: 'revises it',
         session: 'held',
         tone: 'plan',
-        carry: A('the plan, converged', 'p3'),
+        carry: A('the plan, agreed', 'p3'),
       },
-      { id: 'p3', lane: 'planner', col: 3, label: 'docs/plan.md', session: 'none', tone: 'stop' },
+      { id: 'p3', lane: 'planner', col: 4, label: 'docs/plan.md', session: 'none', tone: 'stop' },
     ],
-    loop: { from: 'p2', to: 'n1', said: 'until the two converge, or the round limit is reached' },
+    loop: { from: 'p2', to: 'n1', said: 'up to three rounds, until the two agree' },
     caption:
-      'The side that writes remembers and the side that reads does not — the rule the whole of humanize 1 is built on, here and again in the loop below.',
+      'The side that writes remembers and the side that reads does not — the rule all of humanize1 is built on.',
   },
 
   'humanize1-rlcr': {
@@ -534,7 +581,7 @@ export const SHAPES: Record<string, Shape> = {
         label: 'have you read the plan?',
         session: 'none',
         tone: 'ask',
-        carry: A('answered — skipped when you are away', 'b1'),
+        carry: A('answered, or skipped when you are away', 'b1'),
       },
       {
         id: 'b1',
@@ -542,7 +589,7 @@ export const SHAPES: Record<string, Shape> = {
         col: 1,
         label: 'builds the plan',
         session: 'new',
-        carry: A('believes it is done — the round’s gates', 'v1'),
+        carry: A('believes it is done — the gates run', 'v1'),
       },
       {
         id: 'v1',
@@ -555,21 +602,91 @@ export const SHAPES: Record<string, Shape> = {
       },
       { id: 'b2', lane: 'builder', col: 3, label: '…the same session', session: 'held' },
     ],
-    loop: { from: 'b2', to: 'v1', said: 'a round is the builder believing it is done, up to max' },
+    loop: { from: 'b2', to: 'v1', said: 'a round ends when the builder believes it is done' },
     caption:
-      'A round ends when the builder believes the whole plan is done; the round’s gates run, and what the reviewer says is what it hears next instead of stopping.',
+      'The builder works until it believes the whole plan is done; the round’s checks run, and what the reviewer finds is what the builder hears next.',
+  },
+
+  ralph_loop_agent_cleanup: {
+    of: 'ralph_loop_agent_cleanup',
+    lanes: [
+      { id: 'agent', name: 'the agent', note: 'a fresh session a turn' },
+      { id: 'cleaner', name: 'the cleaner', note: 'a fresh session an epoch', tone: 4 },
+    ],
+    steps: [
+      { id: 't1', lane: 'agent', col: 0, label: 'a turn', session: 'new' },
+      { id: 't2', lane: 'agent', col: 1, label: 'a turn', session: 'new' },
+      {
+        id: 't3',
+        lane: 'agent',
+        col: 2,
+        label: 'a turn',
+        session: 'new',
+        carry: A('the tree, three turns on', 'e1'),
+      },
+      {
+        id: 'e1',
+        lane: 'cleaner',
+        col: 3,
+        span: 2,
+        label: 'distills it into one commit',
+        session: 'new',
+        tone: 'plan',
+      },
+    ],
+    loop: { from: 'e1', to: 't1', said: 'every cleanup_turns turns, an epoch' },
+    meter: { kind: 'budget', said: 'what the turns spend, against the run’s budget' },
+    caption:
+      'Between turns, the cleaner keeps the work under work_paths, deletes what strayed, writes NEXT.md, and the history becomes one commit.',
+  },
+
+  flame_chase_agent_cleanup: {
+    of: 'flame_chase_agent_cleanup',
+    lanes: [
+      { id: 'one', name: 'first_chaser', note: 'a fresh session a turn' },
+      { id: 'two', name: 'second_chaser', note: 'a fresh session a turn' },
+      { id: 'cleaner', name: 'the cleaner', note: 'a fresh session an epoch', tone: 4 },
+    ],
+    steps: [
+      { id: 'f1', lane: 'one', col: 0, label: 'turn 1', session: 'new' },
+      { id: 'f2', lane: 'two', col: 1, label: 'turn 2', session: 'new' },
+      { id: 'f3', lane: 'one', col: 2, label: 'turn 3', session: 'new' },
+      {
+        id: 'e1',
+        lane: 'cleaner',
+        col: 3,
+        label: 'one commit',
+        session: 'new',
+        tone: 'plan',
+      },
+      { id: 'f4', lane: 'two', col: 4, label: 'turn 4', session: 'new' },
+      { id: 'f5', lane: 'one', col: 5, label: 'turn 5', session: 'new' },
+      { id: 'f6', lane: 'two', col: 6, label: 'turn 6', session: 'new' },
+      {
+        id: 'e2',
+        lane: 'cleaner',
+        col: 7,
+        label: 'one commit',
+        session: 'new',
+        tone: 'plan',
+      },
+    ],
+    loop: { from: 'e2', to: 'f1', said: 'the chasers alternate across epochs' },
+    meter: { kind: 'budget', said: 'what the turns spend, against the run’s budget' },
+    caption:
+      'The chasers keep alternating across epochs, so after an odd number of turns the second chaser opens the next stretch.',
   },
 
   parallel_flame_chase: {
     of: 'parallel_flame_chase',
     lanes: [
-      { id: 'co', name: 'the coordinator', note: 'plans once, then gone', tone: 6 },
-      { id: 'l1a', name: 'lane 1 · a', note: 'the source, sole writer', tone: 1 },
-      { id: 'l1b', name: 'lane 1 · b', note: 'the source, sole writer', tone: 1 },
-      { id: 'l2a', name: 'lane 2 · a', note: 'a private snapshot', tone: 2 },
-      { id: 'l2b', name: 'lane 2 · b', note: 'a private snapshot', tone: 2 },
-      { id: 'l3a', name: 'lane 3 · a', note: 'a private snapshot', tone: 3 },
-      { id: 'l3b', name: 'lane 3 · b', note: 'a private snapshot', tone: 3 },
+      { id: 'co', name: 'coordinator', note: 'plans once, then gone', tone: 6 },
+      { id: 'l1a', name: 'lane 1 · a', note: 'your tree, sole writer', tone: 1 },
+      { id: 'l1b', name: 'lane 1 · b', note: 'your tree, sole writer', tone: 1 },
+      { id: 'l2a', name: 'lane 2 · a', note: 'a private copy', tone: 2 },
+      { id: 'l2b', name: 'lane 2 · b', note: 'a private copy', tone: 2 },
+      { id: 'l3a', name: 'lane 3 · a', note: 'a private copy', tone: 3 },
+      { id: 'l3b', name: 'lane 3 · b', note: 'a private copy', tone: 3 },
     ],
     steps: [
       {
@@ -596,21 +713,21 @@ export const SHAPES: Record<string, Shape> = {
         col: 3,
         label: 'a turn',
         session: 'new',
-        carry: A('a reconstructable artifact', 'x3'),
+        carry: A('a report and an artifact', 'x3'),
       },
       { id: 'z1', lane: 'l3a', col: 1, label: 'a turn', session: 'new' },
       { id: 'z2', lane: 'l3b', col: 2, label: 'a turn', session: 'new' },
       { id: 'z3', lane: 'l3b', col: 3, label: 'a turn', session: 'new' },
     ],
-    loop: { from: 'z3', to: 'x1', said: 'each lane alternates a and b, durably across restarts' },
+    loop: { from: 'z3', to: 'x1', said: 'each lane alternates a and b, for as long as the run goes' },
     caption:
-      'Three lanes at once, and one of them owns the tree. What lanes 2 and 3 produce reaches lane 1 as a report and an artifact, never as a write.',
+      'Three lanes at once, and only lane 1 writes your tree. What lanes 2 and 3 find reaches it as a report and an artifact, never as a write.',
   },
 
   parallel_flame_chase_git_pr: {
     of: 'parallel_flame_chase_git_pr',
     lanes: [
-      { id: 'co', name: 'the orchestrator', note: 'plans once', tone: 6 },
+      { id: 'co', name: 'orchestrator', note: 'plans once', tone: 6 },
       { id: 'l1a', name: 'lane 1 · a', note: 'a clone of its own', tone: 1 },
       { id: 'l1b', name: 'lane 1 · b', note: 'a clone of its own', tone: 1 },
       { id: 'l2a', name: 'lane 2 · a', note: 'a clone of its own', tone: 2 },
@@ -652,6 +769,120 @@ export const SHAPES: Record<string, Shape> = {
     ],
     loop: { from: 'z3', to: 'x1', said: 'each lane alternates a and b; main moves only for a measured improvement' },
     caption:
-      'No reviewer: a pull request reaches main when its receipt shows an improvement, and the repository’s own hook checks the tree is the one that was measured.',
+      'No reviewer: a pull request reaches main when its receipt shows an improvement, and the repository refuses any main that is not the tree that was measured.',
+  },
+
+  recursive_lean_prover: {
+    of: 'recursive_lean_prover',
+    lanes: [
+      { id: 'worker', name: 'the worker', note: 'a fresh session a turn' },
+      { id: 'reviewer', name: 'the reviewer', note: 'a fresh session a turn' },
+      { id: 'check', name: 'the comparator', note: 'your script, no model', tone: 6 },
+    ],
+    steps: [
+      {
+        id: 'p',
+        lane: 'worker',
+        col: 0,
+        label: 'one plan',
+        session: 'new',
+        tone: 'plan',
+      },
+      {
+        id: 'n',
+        lane: 'worker',
+        col: 1,
+        label: 'a proof in prose',
+        session: 'new',
+        carry: A('the proof', 'r'),
+      },
+      {
+        id: 'r',
+        lane: 'reviewer',
+        col: 2,
+        label: 'checks every step',
+        session: 'new',
+        tone: 'read',
+        carry: A('valid — formalize it', 'f'),
+      },
+      {
+        id: 'f',
+        lane: 'worker',
+        col: 3,
+        label: 'Lean, in a worktree',
+        session: 'new',
+        carry: A('the candidate', 'c'),
+      },
+      {
+        id: 'c',
+        lane: 'check',
+        col: 4,
+        label: 'comparator passes',
+        session: 'none',
+        tone: 'read',
+        carry: A('the same candidate', 'a'),
+      },
+      {
+        id: 'a',
+        lane: 'reviewer',
+        col: 5,
+        label: 'reruns it: accepted',
+        session: 'new',
+        tone: 'read',
+      },
+    ],
+    loop: { from: 'a', to: 'p', said: 'the next lemma whose dependencies are proved' },
+    meter: { kind: 'budget', said: 'every turn of every lemma, against the run’s budget' },
+    caption:
+      'One lemma of the proof: the Lean is written by humanize1:rlcr, and an accepted lemma goes into the wiki. A lemma that needs splitting gets child lemmas that run this same line, many at once.',
+  },
+
+  aot: {
+    of: 'aot',
+    lanes: [
+      { id: 'writer', name: 'the writer', note: 'one session throughout' },
+      { id: 'gates', name: 'the gates', note: 'humanize, no model', tone: 6 },
+      { id: 'critic', name: 'the critic', note: 'fresh, reads only' },
+    ],
+    steps: [
+      {
+        id: 'w1',
+        lane: 'writer',
+        col: 0,
+        label: 'drafts a spec',
+        session: 'new',
+        tone: 'plan',
+      },
+      {
+        id: 'w2',
+        lane: 'writer',
+        col: 1,
+        label: 'drafts the flow',
+        session: 'held',
+        carry: A('the draft', 'g'),
+      },
+      {
+        id: 'g',
+        lane: 'gates',
+        col: 2,
+        label: 'loads it, runs it on fakes',
+        session: 'none',
+        tone: 'read',
+        carry: A('passed', 'c'),
+      },
+      {
+        id: 'c',
+        lane: 'critic',
+        col: 3,
+        label: 'reads it fresh',
+        session: 'new',
+        tone: 'read',
+        carry: A('approved', 'land'),
+      },
+      { id: 'land', lane: 'gates', col: 4, label: 'lands the flow', session: 'none', tone: 'stop' },
+    ],
+    loop: { from: 'c', to: 'w2', said: 'a refusal goes back word for word, up to repairs rounds' },
+    caption:
+      'A draft lands only once the engine has loaded it, it has ended on its own in three fake worlds, and a critic that never saw it written approves it.',
   },
 }

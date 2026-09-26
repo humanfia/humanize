@@ -4,12 +4,18 @@ pageClass: hmz-feature
 
 # parallel_flame_chase_git_pr
 
-The same three lanes as [`parallel_flame_chase`](/flows/parallel-flame-chase), run the way a
-team runs a repository: **every lane owns a clone and has equal pull-request rights**, and what
-reaches `main` is decided by a measurement rather than by a reviewer. It is the fixed
-configuration that did best in a twelve-hour Git PR Lite experiment, and nothing else.
+Chase three leads at once, the way a team works a repository: **every lane has a clone of its
+own and opens pull requests**, and a pull request reaches `main` only when a measurement shows
+it is better. There is no reviewer. Its setup is fixed to the one that did best in a
+twelve-hour experiment.
 
-```sh
+::: code-group
+
+```text [at the prompt]
+❯ $parallel_flame_chase_git_pr get the solver under 10 s on every benchmark in bench/
+```
+
+```sh [hmz exec]
 hmz exec -f parallel_flame_chase_git_pr \
     -a orchestrator=codex/gpt-5.6-sol:max \
     -a lane_1_actor_a=codex/gpt-5.6-sol:max,lane_1_actor_b=claude/claude-opus-5:max \
@@ -18,71 +24,71 @@ hmz exec -f parallel_flame_chase_git_pr \
     -b duration=12h,cost=500 "$(cat TASK.md)"
 ```
 
+:::
+
 <HmzFlowShape flow="parallel_flame_chase_git_pr" />
 
-## Seven agents, by name
+## When to use it
 
-| | |
+When the task has a number to beat, such as a benchmark, a score or a size, and a command that
+measures it. Nothing here asks a model whether a change is good: the measurement decides. If
+the task has no such number, use [parallel_flame_chase](/flows/parallel-flame-chase), where
+one lane writes your tree and the other two report to it.
+
+## How a change reaches main
+
+1. A lane may keep many drafts, but only one pull request ready at a time. A ready pull request
+   is frozen, and a newer one from the same lane replaces it.
+2. The lane measures it with `pfc evaluate -- <command>`, which runs your evaluator on a clean
+   tree and keeps a receipt of the result that cannot be changed.
+3. The best candidate is merged only if its receipt improves on `main`. The repository itself
+   refuses a `main` that is not exactly the tree that was measured.
+
+What lanes learn from each other is their reports, and the flow's own reports of what was
+merged and what was refused.
+
+## Roles and params
+
+| Role | |
 | --- | --- |
-| `orchestrator` | Plans the three lanes, once |
-| `lane_1_actor_a` · `lane_1_actor_b` | Lane 1, alternating in fresh turns, in a clone of its own |
-| `lane_2_actor_a` · `lane_2_actor_b` | Lane 2, the same |
-| `lane_3_actor_a` · `lane_3_actor_b` | Lane 3, the same |
+| `orchestrator` | Plans the three lanes, once. |
+| `lane_1_actor_a` · `lane_1_actor_b` | Lane 1, taking turns in fresh sessions, in a clone of its own. |
+| `lane_2_actor_a` · `lane_2_actor_b` | Lane 2, the same. |
+| `lane_3_actor_a` · `lane_3_actor_b` | Lane 3, the same. |
+| `human` | You, filled in by humanize. Asked only to confirm copying a very large workspace. |
 
-The eighth role, `human`, is you — the [outworlder](/features/human), filled in by the runtime
-and never by `-a`. There is no reviewer role: nothing here asks a model whether a change is good.
-The lane actors declare `Permission(user=ALL)` — they push to the run's central repository and
-write receipts outside their own clone — every role carries the flow's skill, and none is
-declared with the goal mixin, so any harness can fill any of them.
+Any backend can fill any role. The lane actors may also write outside their clone, which is how
+they push to the run's central repository.
 
-## A pull request is merged by a measurement
+| Param | Default | |
+| --- | --- | --- |
+| `rest_seconds` | `1.0` | Seconds the scheduler rests between passes, 0.05 to 60. |
+| `resume_mode` | `auto` | `auto` picks up a compatible earlier run; `fresh` starts another. |
+| `confirm_large_workspace_copies` | `false` | Ask before making the copies of a very large workspace. Under `hmz exec` nobody answers, so the run does not start. |
+| `workspace_file_warning_threshold` | `5000` | Files that make a workspace very large. |
+| `workspace_copy_warning_threshold_bytes` | `1073741824` | Bytes of copies that make it very large (1 GiB): the lanes' clones, the planning tree and the git objects. |
 
-The runtime keeps a bare central repository and an integration clone of its own. A lane may
-keep many drafts, but only one ready pull request at a time; a ready head is frozen, and a newer
-candidate from the same lane supersedes its older one.
+Five more params are fixed, so that a launch cannot turn the measured setup into a different
+one: `git_pr_enabled` is `true`, and `global_knowledge_enabled`, `experiment_memory_enabled`,
+`token_efficient_enabled` and `main_update_monitor_enabled` are `false`.
 
-`pfc evaluate -- <command>` is how a lane measures: it runs the official evaluator on a clean
-tree, keeps what it wrote outside git, and leaves an immutable receipt. The runtime picks the
-candidate with the best receipt and publishes its exact tested tree only when it improves `main`
-— and the repository's own hook accepts `main` only for a commit with the tested head's tree,
-its receipt, and an allowed-path diff. No model review and no second evaluation run on this
-path, which is what makes it fast and what makes it honest.
+## What ends it
 
-What passes between lanes is **Report Share** — each lane's durable reports — and the system's
-own reports of what was merged and what was rejected. The flow's other mechanisms — global
-knowledge, experiment memory, the token-efficient and main-monitor variants — are switched off
-and cannot be switched back on: they are fixed as literals in its params, so a launch cannot
-turn the measured workflow into a different one by accident.
+**The [budget](/features/allowances), or you.** The lanes go on for as long as the run does, so
+give `-b` a duration. When it runs out, the turns under way finish and are recorded, and the
+run stops.
 
-## What it takes
+## Picking it up
 
-The base flow's params — `rest_seconds` (`1.0`), `resume_mode` (`auto`), the large-workspace
-thresholds (`5000` files, `1073741824` bytes) — each a `-p`. Before it makes its copies it
-measures the source, and warns where the planning tree, the three lane clones, the integration
-clone and the git objects between them come to more than the thresholds;
-`-p confirm_large_workspace_copies=true` makes it ask first instead — and under `hmz exec`,
-where nobody is there to answer, the run does not start.
+`--resume` picks up the central repository, the receipts, the artifacts and the reports, and
+carries on. `-p resume_mode=fresh` starts another run instead. See
+[Picking a run up](/user/resuming).
 
-The [skill](/user/skills) it brings, `parallel-flame-chase-git-pr`, is the lane, pull-request and
-receipt protocol, carried by every session the flow opens.
-
-Like the base flow, its lanes go on for as long as it runs, so the run's
-[budget](/features/allowances) is its end: give `-b` a duration. When it is spent the turns under
-way land and are recorded, and `BudgetExceeded` ends the run — `--resume` carries it on.
-
-## What it keeps
-
-The central repository's refs, the receipts, the artifacts, the report archive and the official
-ledger, for a run picked up with `--resume` — all of it in a scratch directory of the workspace
-under humanize's home, `~/.humanize/envs/<workspace>-<digest>/scratch/parallel_flame_chase_git_pr-<run-id>-…`,
-which a call from a flow that cannot be picked up has removed when it ends. `-p resume_mode=fresh`
-starts another run. The original source is assumed not to change outside the flow while it holds
-the source lock, which it shares with [`parallel_flame_chase`](/flows/parallel-flame-chase): a
-second run over the same source, of either flow, refuses to start.
+Leave your source tree alone while a run holds it. Only one run may hold a source tree at a
+time, whether of this flow or of `parallel_flame_chase`: a second one refuses to start.
 
 ## See also
 
-- [parallel_flame_chase](/flows/parallel-flame-chase) — the same lanes, with one writer and two
-  snapshots
-- [flame_chase](/flows/flame-chase) — one lane of this, and the flow it is named after
-- [Many turns at once](/features/concurrency) — why seven agents are not seven queues
+- [parallel_flame_chase](/flows/parallel-flame-chase): the same lanes, with one writer and two
+  private copies
+- [Many turns at once](/features/concurrency): why the lanes run side by side, not in a queue
