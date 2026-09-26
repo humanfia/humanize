@@ -1,84 +1,161 @@
 # User Guide
 
-One page per thing humanize does, each answering "how do I use this?" — for the person who runs
-flows rather than writes them. Where a page here shows Python, it is to say what the weaver on
-the other side of the feature did; writing a flow yourself is the [Weaver Guide](/weaver/).
-
-Never run one before? Start at the [quickstart](/#run-a-flow). The tutorials below each take a
-whole piece of work start to finish; everything under them is for looking up.
-
-## Tutorials
-
-| | |
-| --- | --- |
-| [Beat a benchmark](/user/tutorials/take-home) | Two agents take turns optimising a kernel |
-| [Port a project](/user/tutorials/port-a-project) | An agent works, a reviewer reads it back |
-| [Build a coding agent](/user/tutorials/build-an-agent) | Idea, plan, then build under review |
+For the person who runs flows. Nothing here asks you to write Python; writing flows is the
+[Weaver Guide](/weaver/).
 
 ## Start here
 
-| | |
-| --- | --- |
-| [Installation](/user/installation) | Python, a backend, and what each one needs |
-| [Concepts](/user/concepts) | The eleven words the rest of this uses |
-| [Security](/user/security) | Read this before pointing an agent at a repository you care about |
-| [Troubleshooting](/user/troubleshooting) | When it goes wrong |
+<div class="u7-path">
 
-## At the prompt
+1. **[Installation](/user/installation)**
+   humanize, and one coding agent CLI signed in.
+2. **[Your first run](/user/first-run)**
+   Choose a flow, give it an agent and a budget, and watch it work.
+3. **[Security](/user/security)**
+   What to check before a flow touches work you care about.
 
-| | |
-| --- | --- |
-| [Starting a flow outright](/reference/tui#starting-a-flow-outright) | `$ralph_loop fix the build`: that flow, on that line, with no menu in between |
-| [Talking to a running turn](/user/steering) | A line typed mid-turn goes *into* it, not after it |
-| [Side questions](/user/btw) | `/btw`: ask about progress without steering the flow |
-| [Many conversations at once](/user/conversations) | One transcript, **tab** between the agents that are working |
-| [Showing the working](/user/details) | `/details`: tool calls and thinking, or only what the agent says |
-| [Watching a run](/user/monitor) | `/monitor`: who is working, how long for, who handed to whom |
-| [The mission board](/user/board) | Named lines beside the run on `/monitor`, which a flow does not write on |
-| [Being away](/user/afk) | `/afk`: whether you are there to be asked something |
-| [Falling back](/user/fallback) | `/fallback`: where a turn goes when what was taking it cannot |
-| [Completion](/user/completion) | What a half-typed line could become, under the editor |
-| [History](/user/history) | Everything typed here before, on ↑ and ↓ |
-| [Exporting a run](/user/export) | **export it**, on a run of `/epics`: the whole run as one archive to send |
-| [What a project remembers](/user/settings) | Reopening finds it set up the way you left it |
-| [Stopping](/user/stopping) | **ctrl+c** twice or **`/stop`** ends the flow; what that does to a turn |
+</div>
 
-## Setting an agent up
+Then take a whole piece of work start to finish:
+[Beat a benchmark](/user/tutorials/take-home),
+[Port a project](/user/tutorials/port-a-project), or
+[Build a coding agent](/user/tutorials/build-an-agent).
 
-| | |
-| --- | --- |
-| [Efforts](/user/efforts) | How hard to think — and moving it while an agent runs |
-| [Permissions](/user/permissions) | What an agent may touch, scope by scope — declared by the flow |
-| [Skills](/user/skills) | What an agent carries: its CLI's own, and the ones the flow brings |
-| [Questions](/user/questions) | An agent stopping mid-turn to ask something, and a flow asking you |
-| [Cost and rate](/user/tally) | What has been spent in tokens and money, how fast, and how hard it is thinking |
-| [Reporting](/user/reporting) | What humanize sends its developers, and how to say no |
+## Everything else
 
-## Where the work lands
+<div class="u7-groups">
+<div>
 
-| | |
-| --- | --- |
-| [Providers](/user/providers) | One CLI, two accounts, at the same time |
-| [Containers](/user/containers) | A run in a container, a container as a host, or one of an agent's own |
-| [Remote execution](/user/remote-execution) | The agent here; its commands on the build box, via `-e` |
+**While it runs**
 
-## Running it, and reading it back
+- [Talking to a running turn](/user/steering)
+- [Side questions (/btw)](/user/btw)
+- [Many conversations at once](/user/conversations)
+- [Showing the working (/details)](/user/details)
+- [Watching a run (/monitor)](/user/monitor)
+- [Being away (/afk)](/user/afk)
+- [Stopping](/user/stopping)
+- [Leaving it running](/user/leaving)
+- [The mission board](/user/board)
 
-| | |
-| --- | --- |
-| [Unattended](/user/unattended) | `hmz exec` from a script, with nobody watching |
-| [humanize in CI](/user/ci) | The same flows on a build machine |
-| [Tracing](/user/tracing) | The whole run as one timeline you can open in Perfetto |
-| [Picking a run up](/user/resuming) | A loop stopped on Thursday, carried on from where it stopped |
+</div>
+<div>
 
-## If you write flows too
+**At the prompt**
 
-Three pages live here and matter either way. [Concepts](/user/concepts) is the vocabulary the
-whole site uses, **weaver** included; [Security](/user/security) is why reading a flow means
-running it; [Skills](/user/skills) is what an agent carries into a turn, and what a flow may
-add. The rest of that job is the [Weaver Guide](/weaver/).
+- [Completion](/user/completion)
+- [History](/user/history)
+- [What a project remembers](/user/settings)
 
----
+**Where the work lands**
 
-Looking for the exhaustive list of flags and keys instead? [CLI](/reference/cli) and
-[TUI](/reference/tui).
+- [Containers](/user/containers)
+- [Remote execution](/user/remote-execution)
+
+</div>
+<div>
+
+**Agents and accounts**
+
+- [Providers](/user/providers)
+- [Efforts](/user/efforts)
+- [Falling back (/fallback)](/user/fallback)
+- [Cost and rate](/user/tally)
+- [Permissions](/user/permissions)
+- [Skills](/user/skills)
+- [Questions](/user/questions)
+
+</div>
+<div>
+
+**After a run**
+
+- [Picking a run up](/user/resuming)
+- [Exporting a run](/user/export)
+- [Tracing](/user/tracing)
+
+**Without the interface**
+
+- [Run it unattended](/user/unattended)
+- [humanize in CI](/user/ci)
+
+</div>
+<div>
+
+**Look-up**
+
+- [Troubleshooting](/user/troubleshooting)
+- [Reporting](/user/reporting)
+- [Glossary](/user/concepts)
+- [CLI reference](/reference/cli)
+- [TUI reference](/reference/tui)
+
+</div>
+</div>
+
+<style scoped>
+.u7-path ol {
+  list-style: none;
+  counter-reset: step;
+  padding-left: 0;
+  display: grid;
+  gap: 12px;
+}
+.u7-path li {
+  counter-increment: step;
+  position: relative;
+  margin: 0;
+  padding: 14px 16px 14px 60px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-2);
+}
+.u7-path li::before {
+  content: counter(step);
+  position: absolute;
+  left: 16px;
+  top: 14px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  color: var(--vp-c-white);
+  background: var(--vp-c-brand-1);
+}
+.u7-path li strong {
+  display: block;
+  font-size: 1.05em;
+}
+.u7-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 4px 24px;
+  margin-top: 16px;
+}
+.u7-groups ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 4px 0 16px;
+}
+.u7-groups li {
+  margin: 2px 0;
+}
+.u7-groups a,
+.u7-path a {
+  text-decoration: none;
+}
+.u7-groups a:hover,
+.u7-path a:hover {
+  text-decoration: underline;
+}
+.u7-groups p {
+  margin: 8px 0 0;
+  font-size: 0.85em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vp-c-text-2);
+}
+</style>

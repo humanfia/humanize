@@ -1,108 +1,134 @@
 # Security
 
-Three things about humanize are load-bearing and surprising. Read them before you point one at
-a repository you care about.
+What to check before you point a flow at work you care about.
 
-## The flow decides what its agents may do to your workspace
+::: danger Nothing an agent does is put to you for approval
+Every flow's agents run with approvals bypassed, whatever flow it is and whether or not you are
+watching. They edit files, run commands and make commits on their own. What holds an agent back
+is what its flow declares, below.
+:::
 
-humanize drives coding agents unattended, as
-[flowbench](https://humanfia.ai/projects/flowbench) does, and the only thing between an agent
-and your workspace is the flow driving it. **Nothing a flow's agent does is put to anybody for
-approval**: every session runs at its CLI's nothing-asked mode. What limits it is the
-[permission](/user/permissions) its flow declares on the role, and the hooks the flow hangs on
-it:
+<div class="u7-checklist">
 
-```python
-from hmz.flows import Agent, Permission, PermissionKind
+- **The work can be undone.** Run in a git repository and tag where you started
+  (`git tag start`): `git diff start` then shows everything the flow changed, committed or
+  not, and `git reset --hard start` takes it back.
+- **You have read what each role may touch.** It is in the flow's code, not in any menu.
+- **You trust every flowverse you added.** Listing a flow runs its code.
+- **You know which account each agent runs as.** It is the `provider` row of the agent, and
+  every turn is billed to it.
 
+</div>
 
-class Builder(Agent): ...                                           # may change its workdir
+## What a flow lets its agents touch
 
+A flow declares a permission on each role it drives. You don't choose it at the prompt, so
+read it in the flow before you run the flow. It has four scopes:
 
-class Reviewer(Agent):
-    _permission = Permission(local=PermissionKind.READ)              # may only read
-```
+| Scope | What it covers | A role that says nothing gets |
+| --- | --- | --- |
+| `local` | the working directory of the session | `ALL`: read and write |
+| `user` | the rest of the home directory the agent runs as | `READ` |
+| `system` | everything else on the machine | `READ` |
+| `online` | the CLI's own web search and fetch | `NONE` |
 
-The default — what a role that says nothing gets — is an agent that edits files, runs commands
-and makes commits in its workdir without asking, and **a flow you did not read declares it by
-saying nothing**. It is the flow's to say and not the line's: what an agent may do is a thing
-about the work, so read a flow before you run it.
+What that comes to in practice:
 
-**`user` and `system` are not fenced.** An agent that may write its workdir may write anywhere
-its user can, whatever the rest of its permission says: the sandboxes that could fence it cannot
-start in most containers, so humanize does not use them. A flow calling another can only narrow
-what it hands on — the called flow gets exactly what it declared, and an agent held narrower
-than a role needs is refused rather than widened.
+- **An agent that may write its working directory may write anything its user can.** `user` and
+  `system` are not enforced once `local` is `ALL`.
+- **A read-only role** (`local` of `READ` or `NONE`) runs in its CLI's read-only mode. It can
+  still read outside its working directory.
+- **`online` of `NONE`** turns off the CLI's web tools where the CLI can be told to. It is
+  ignored by cursor-agent, pi and agy, and a shell command the agent runs reaches the network
+  either way.
+- **DeepSeek Harness** (`dsh`) and CLIs added over the Agent Client Protocol run every role
+  with full access, whatever the flow declares.
 
-[`/afk`](/user/afk) governs whether you are there to answer a *question*. It does not govern
-whether the agent may act — the permission its flow declared does.
+[Permissions](/user/permissions) shows how a flow declares one.
 
-Drive a flow only in a workspace you are willing to have rewritten.
+## Listing a flow runs its Python
 
-## A flow is Python, and reading one means running it
+A flow is a directory of Python, and humanize runs it to find out what it is. Opening `/flow`,
+or naming a flow after `$` at the prompt, runs every flow humanize lists: this project's,
+yours, and every flowverse's.
 
-Choosing a flow is running it: humanize imports the flow's `__init__.py` to find the `@flow`
-in it, whether the flow was chosen at [`/flow`](/reference/tui#choosing-a-flow) or named on an
-`hmz exec -f` line. Listing what a [flowverse](/weaver/flowverses) holds imports **every** file
-in its `flows/`.
+Adding a [flowverse](/weaver/flowverses) therefore trusts that git repository with this
+machine, the way installing a package does. Add the ones you would clone and run. `official` is
+always there: it is humanize's own, at
+[humanfia/flowverse](https://github.com/humanfia/flowverse).
 
-So adding a flowverse trusts that git repository with this machine, exactly as installing a
-package does. Add the ones you would clone and run.
+humanize fetches every flowverse again each time `hmz` opens, so a flow you read last week may
+have changed. To keep one as it is, press <kbd>f</kbd> on it in `/flow`: it is copied into this
+project's `.humanize/flows/`, where nothing fetches it, and runs as `$local/<flow>`.
 
-`official` is always there — `chat` ships with the package, and the rest is
-[humanfia/flowverse](https://github.com/humanfia/flowverse). The interface fetches it, as it
-fetches every flowverse, in the background each time it opens.
+## Where your credentials are
 
-## An `hmz internal anchor` port is equivalent to a shell on that machine
-
-[Remote execution](/user/remote-execution) has three transports. Two of them need no open port
-at all:
-
-| Transport | What it is |
+| An agent runs as | humanize keeps |
 | --- | --- |
-| `ssh://host` | bootstrapped over your own ssh. Nothing listens. |
-| `docker://container` | over `docker exec`. Nothing listens. |
-| `tcp://host:port` | an `hmz internal anchor serve` listening there. |
+| `as local`, the default | nothing. The CLI reads its own login, where it always keeps it. |
+| a login made at `/providers` | the files that CLI wrote when it signed in, under `~/.humanize/providers/<cli>/<name>/` |
+| a key or a gateway made at `/providers` | what you typed, the key and a gateway's URL, in `provider.json` in that same directory |
 
-For the third, `--export` bounds which files a request may *name*. It does **not** confine the
-commands that request can run. Anyone who can reach the port can run anything on that machine
-as the user serving it.
+- Those directories and files are readable by you alone.
+- `/providers` names the variables an account sets and never shows their values. A secret you
+  type is drawn as bullets.
+- A turn run as an account from `/providers` has the keys other accounts would use unset, so a
+  key left in your shell profile cannot take its place.
+- Removing `~/.humanize` removes every account. The CLIs' own logins stay where they are.
 
-- Give `--token` a real secret.
-- humanize refuses outright to listen on anything but loopback without a token.
-- Prefer `ssh://` or `docker://`.
+How an account's credentials reach a turn is in the [Providers
+reference](/reference/providers).
 
-```sh
-hmz internal anchor serve --listen 0.0.0.0:7777 --export /srv/project --token "$SECRET"
-```
+## Other things worth knowing
 
-## What humanize does not hold
+- **Reporting.** humanize reports what goes wrong to its developers only if you said yes when
+  it first asked. A report carries more than a crash; [Reporting](/user/reporting) lists what
+  is sent and what never is.
+- **A remote target served over TCP** is a shell on that machine for anyone who can reach the
+  port. Give it a real token, or prefer `ssh://` and `docker://`. See
+  [Remote execution](/user/remote-execution).
+- **`/afk` is about questions, not actions.** It decides whether a flow may ask you something.
+  It never makes an agent ask before it acts.
 
-- **No API key.** humanize drives the CLI you already logged in. The credential goes from that
-  CLI to its own provider.
-- **No transcript of its own.** The backends write their own logs. An
-  [epic](/user/concepts#epic) records only which sessions belonged to which agent.
-- **No values from a provider.** [`/providers`](/reference/tui#the-accounts-themselves) draws
-  every account under the CLI it is for, with the way it was made by and the names of the
-  variables it sets. It never draws what those variables are. A secret you type at the prompt
-  appears as bullets and never shows again.
+## Reporting a vulnerability
 
-Provider credentials are copies of the CLI's own credential files. humanize keeps them at
-`0600` in a directory at `0700` under `~/.humanize/providers/`. A turn under a provider runs
-with the *other* accounts' variables unset. So an `ANTHROPIC_API_KEY` left in a shell profile
-cannot silently outrank the account the agent was told to run as.
+Open an issue at [humanfia/humanize](https://github.com/humanfia/humanize/issues). Say in the
+title that it is a vulnerability, and leave the details out of the public thread.
 
-While a turn is running, the credential it reads is also held in memory — a directory of that
-turn's own under `/dev/shm`, at `0700`, holding files at `0600`, under a name that cannot be
-guessed. `/dev/shm` is shared between everyone on the machine, so the directory is made rather
-than opened: a name somebody else got in first with is refused and another taken, and nobody
-else can list it or read what is in it. It is unlinked when the turn ends — by the turn itself
-where it exits, and by whoever ended it where it was killed, since a killed process runs no
-teardown of its own. Anything a killed *driver* leaves behind is swept away by the next turn on
-that machine, and `/dev/shm` is empty again after a reboot either way.
-
-## Reporting something
-
-Open an issue at [humanfia/humanize](https://github.com/humanfia/humanize/issues). If it is a
-vulnerability rather than a bug, say so in the title. Leave the details out of the public
-thread.
+<style scoped>
+kbd {
+  display: inline-block;
+  padding: 0 6px;
+  border: 1px solid var(--vp-c-divider);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--vp-c-bg-soft);
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.85em;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.u7-checklist ul {
+  list-style: none;
+  padding-left: 0;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  background: var(--vp-c-bg-soft);
+  padding: 12px 16px;
+}
+.u7-checklist li {
+  position: relative;
+  padding-left: 1.9em;
+  margin: 8px 0;
+}
+.u7-checklist li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.3em;
+  width: 1.05em;
+  height: 1.05em;
+  border: 2px solid var(--vp-c-brand-1);
+  border-radius: 4px;
+}
+</style>
