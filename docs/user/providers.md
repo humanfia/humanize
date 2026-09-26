@@ -1,73 +1,53 @@
+<script setup>
+import SignInWays from '../.vitepress/theme/components/user-places/SignInWays.vue'
+</script>
+
 # Providers
 
-A **[provider](/reference/providers)** is one named set of credentials for one CLI, kept apart
-from the CLI's own. Reach for one when two agents need to run the same CLI as two different
-accounts at once. An agent with no provider runs its CLI exactly as you run it yourself.
-
-A coding agent CLI signs in once. Claude Code keeps its account under `~/.claude`, so every
-Claude Code on this machine runs as whoever is signed in there, and a flow that wants two of
-them on two accounts has two accounts wanting one directory. A provider is the second
-directory.
+An **account**, or [provider](/user/concepts), is one named sign-in for one coding agent CLI,
+kept apart from the CLI's own sign-in and from every other account. You make one at
+`/providers`, then name it after an `@` when you pick an agent. Reach for one when an agent
+should run on another subscription, key or gateway than the one you are signed in with, or
+when two agents of one CLI should run as two accounts in the same run.
 
 ## Try it
 
-Accounts are made at `/providers`, which is a page of the terminal interface: `hmz` in the
-project, then `/providers` at the prompt.
+In `hmz`:
 
-1. **Make one from your existing subscription.** **a** asks which CLI — Claude Code here — and
-   then how to sign in, which is that backend's own list of ways. Choose `login`, call the
-   account `anthropic`, and `claude auth login` runs on this terminal with the paths pointed at
-   that account's own directory. The CLI's own login owns the screen until it is done, and what
-   it writes lands under `~/.humanize/providers/claude/anthropic/`.
+1. Type `/providers`, then press <kbd>a</kbd>.
+2. Choose the CLI. Each row lists the ways that CLI can be signed in:
 
-2. **Make a second from somebody else's endpoint.** **a** again, Claude Code again, and this
-   time `gateway`, which asks where the endpoint is and then for the token. A secret is drawn
-   as bullets and never shown back.
+   ![a at /providers asks which coding agent the account is for, and lists each CLI's ways
+   in beside it, with a CLI of your own last](/demo/account-backends.png)
 
-3. **Read what you made.** One line each, under a heading per CLI: the account, the way it was
-   made by, and the variables it sets. Names, never values.
+3. Choose a way, say `gateway`. Give the account a name, `deepseek`, and answer what the way
+   asks. A secret shows as bullets. A way that is a login hands the terminal to the CLI's own
+   login until it is done.
+4. Name the account after the CLI in `-a`:
 
-![making an account at /providers: a, which backend, how that backend signs in, and what the
-list says about the account afterwards](/demo/accounts.gif)
-
-4. **Run one flow as both accounts at the same time.**
-
-```sh
+```sh{3}
 hmz exec -f flame_chase \
-    -a first_chaser=claude@anthropic/claude-opus-5:max \
+    -a first_chaser=claude/claude-opus-5:max \
     -a second_chaser=claude@deepseek/deepseek-chat:high \
     -b cost=20 "fix the build"
 ```
 
-`flame_chase` hands the same task to two agents in turn, and both run the same Claude Code. The
-first reads the subscription's tokens and refreshes them; the second dials the endpoint with
-the token you typed. Neither can read the other's credential file, and neither can read yours.
+`flame_chase` has two agents take turns on one task. Here both run the same Claude Code: the
+first as you are signed in, the second as `deepseek`.
 
-## Naming one on an agent
+## Choosing one for an agent
 
-An `@` after the CLI names the account an agent's turns run as:
+::: code-group
 
-```
-claude@deepseek/claude-opus-5:max
-```
-
-It is the account and never the model, whatever comes after the slash. A CLI is never spelled
-with an `@` in it, so the CLI and the account are told apart wherever an
-agent is written. An `@` with nothing after it is refused: it was typed to name an account, and
-running as whoever is at this machine is not that.
-
-In Python the account is a field of the config:
-
-```python
-ClaudeCodeAgentConfig(model="claude-opus-5", effort="max", provider="deepseek")
+```text [hmz exec]
+-a builder=claude@work/claude-opus-5:max
+           ^^^^^^ ^^^^ ^^^^^^^^^^^^^ ^^^
+           CLI    account  model     effort
 ```
 
-At the prompt it is the `provider` row of the sheet an agent is set up on, which enter on one of
-a flow's roles in `/flow` opens. It sits under the `cli` row, because an account belongs
-to one backend: what signs in to Claude Code is not what signs in to codex. Opening it lists
-that CLI's own accounts with `as local` first:
+```text [at the prompt]
+/flow, choose the flow, enter on a role, then its provider row:
 
-```
    Select the account its turns run as
 
    ❯ 1. as local                  signed in as you signed it in
@@ -75,308 +55,143 @@ that CLI's own accounts with `as local` first:
      3. work                      login
 
         add                       an account
-
-   a add · enter choose · esc back · s search
 ```
 
-`as local` is always the first row, and it is what every agent ran as before there were any
-accounts. **a**, and the `add` row below the list, make one without leaving the question: the
-same walk `/providers` runs, minus the question the `cli` row has already answered, coming back
-with the new account chosen.
+:::
 
-## What moves, and what does not
+- An agent with no account runs **`as local`**: the CLI signed in the way you signed it in
+  yourself.
+- At the prompt, <kbd>a</kbd> on that list, or its `add` row, makes an account without leaving
+  it. It is the same walk as `/providers`, without the question of which CLI, and the new
+  account comes back chosen.
+- An account belongs to one CLI. What signs in to Claude Code is not what signs in to codex, so
+  the list only offers that CLI's accounts.
 
-**Only the credential files move.** Sessions, settings and skills stay in the CLI's own home. A
-turn under a provider still shows up in a [trace](/user/tracing), still counts towards the
-[cost readout](/user/tally), and still has the skills you installed.
+An agent never quietly runs as you instead. An account that is not there fails every turn of
+that agent, naming it, and a bare `@` is refused before anything runs:
 
+```console
+$ hmz exec -f ralph_loop -b duration=1h \
+    -a agent=claude@gone/claude-opus-5:max "…"
+round 1
+round 1 failed: agent: no claude provider called 'gone'
+…
+stopping: 3 rounds in a row answered with nothing
 ```
-~/.humanize/providers/claude/deepseek/
-├── provider.json      what it was made by, and what a turn under it runs with
-├── home/              the credential files the CLI keeps under its own home
-│   ├── .credentials.json
-│   └── .claude.json
-├── user/              the ones it keeps outside it
-│   └── .claude.json
-└── config/            and the ones it keeps where every program keeps its configuration
-    └── anthropic/
-```
-
-Files are `0600` in a directory at `0700`, and they keep the names the CLI gave them, because
-the CLI writes them: a login run for a provider is the CLI's own login with those paths pointed
-here.
-
-**A credential is read out of memory and written to disk.** These CLIs ask about their token
-hundreds of times in a single turn — pi asks about its `auth.json` six to eight hundred times —
-and change it once in a while. So the file is copied once into memory when the turn first reads
-it, and every read after that is answered there; a write goes straight to the file above, where
-a refreshed token is durable the moment it lands, and the copy is dropped so the next read makes
-a new one. The copy is the turn's own, at `0600` in a directory at `0700` that goes away when the
-turn does.
-
-**A turn under a provider is run with the other accounts' variables unset.** An
-`ANTHROPIC_API_KEY` left in a shell profile is a key the CLI would rather have than the
-credential file it was signed in with, and the turn would be taken as the wrong account with
-nothing looking wrong. So every variable that backend would read an account out of is cleared
-unless *this* provider set it.
 
 ## The ways in
 
-A **way** is one kind of account. **a** at `/providers`, once it has been told which CLI, offers
-that backend's ways as they are on this machine, and this machine is the one to trust.
+A **way** is one kind of sign-in: the CLI's own login, an API key, a gateway, a cloud account.
+Pick a CLI to see what each of its ways asks for.
 
-| CLI | Ways |
+<SignInWays />
+
+A way that runs a command hands it the terminal: its browser or device code owns the screen
+until it is done, and what it writes lands in the account rather than in the CLI's own sign-in.
+A way that only asks keeps your answers as the variables the CLI reads. `env` takes whichever
+variables you type, one `NAME=VALUE` per line.
+
+## Managing accounts
+
+`/providers` lists every account under a heading per CLI: its name, the way it was made by,
+and the names of the variables it sets. It never shows a value.
+
+![/providers listing a claude account and as local, enter opening what can be done with the
+account, and a asking which CLI a new account is for](/demo/accounts.gif)
+
+<kbd>enter</kbd> on an account opens what you can do with it:
+
+| On the menu | What it does |
 | --- | --- |
-| `claude` | `login`, `token`, `key`, `gateway`, `bedrock`, `vertex` |
-| `codex` | `login`, `device`, `key`, `token`, `gateway` |
-| `kimi` | `login`, `model` |
-| `pi` | `login` |
-| `opencode` | `login`, `wellknown`, `zen` |
-| `mimo` | `login`, `key` |
-| `zcode` | `login`, `device`, `key`, `gateway` |
-| all of them | `env` — variables of your own |
+| **correct what it holds** | Asks its way's questions again. Secrets are never shown back, so you type them again. |
+| **sign in again** | Runs its login again. It owns the terminal while it does. |
+| **falls back to** | The account a turn carries on under when this one fails. |
+| **take it away** | The account and its credentials. |
 
-A way with a command of its own is **handed the terminal**: its browser or its device code owns
-the screen until it is done, and what it writes lands in that account's directory rather than
-in the CLI's. A way that is only answers keeps them as the variables the backend reads them
-under. What each way asks for is in [Providers › The ways
-in](/reference/providers#the-ways-in).
+Making an account and signing one in happen at once. Correcting, falling back and taking away
+land when you save the menu: its `save` row, or <kbd>shift+enter</kbd> or <kbd>ctrl+j</kbd>.
 
-## Never the values
+Under a CLI that has accounts, the last row is `as local`: the CLI as you signed it in
+yourself. humanize keeps no credentials for it, so the only thing it offers is **falls back
+to**.
 
-**What is drawn of an account is the names of the variables it sets**, never what they are. A
-secret typed at the prompt is bullets and is never shown back — it is on its way into a
-credential store — and correcting an account starts its secrets blank for the same reason: you
-type one again, or you leave it as it was.
+## One account, several CLIs
 
-::: tip With nobody at a terminal
-Every question the walk asks is a call on `Hmz().accounts`, which is the object the walk itself
-goes through:
+An API key belongs to the vendor, not to the CLI. An Anthropic key works in Claude Code, pi,
+opencode, mimocode and ZCode alike. So when you make an account that other CLIs could run as,
+humanize asks which of them to copy it to:
+
+![after claude/shared is made: pi, opencode, mimo and zcode, each marked not installed here
+yet and switched off](/demo/alike.png)
+
+- CLIs installed here start ticked; <kbd>space</kbd> or <kbd>←</kbd>/<kbd>→</kbd> changes one.
+- A copy takes **the same name**, so `claude/shared` becomes `pi/shared` and
+  `opencode/shared` too, and it replaces a copy already there.
+- Correcting the account asks again, so a rotated key is typed once and written over every
+  copy you tick.
+- Only variables travel. An account made by a login stays with its CLI.
+
+::: tip Before you trust a rotation
+The ticks follow which CLIs are installed, not which ones already hold a copy. A copy on a CLI
+you did not tick keeps the old key. `/providers` shows the copies: the same name under another
+CLI's heading.
+:::
+
+## Which models an account can run
+
+Which models a turn may name depends on the subscription, key or gateway behind it, so a new
+account is asked what it runs as soon as it is made. A gateway account lists what the gateway
+itself serves.
+
+The list is what the `model` row offers at `/flow`. <kbd>r</kbd> there asks again: do it when
+the model you want is missing, or when a failed turn says the list is out of date. Nothing asks
+again on its own.
+
+## When an account fails
+
+Each account can name another account of the same CLI to carry on under: **falls back to**, on
+its menu. A turn that fails on one walks that chain and keeps its conversation.
+
+```text
+claude/subscription ──fails──▶ claude/key ──fails──▶ claude/gateway
+```
+
+`as local` can start a chain, but nothing falls back *to* it. How many times a failed turn is
+tried again first, and moving on to another CLI or another model, are set at
+[`/fallback`](/user/fallback).
+
+## Good to know
+
+- **Only the credentials belong to the account.** Sessions, settings and skills stay the CLI's
+  own, so a turn under an account still shows up in a [trace](/user/tracing), still counts
+  towards the [cost readout](/user/tally), and still has your skills.
+- **Other accounts' variables are unset.** A turn under an account runs without every variable
+  that CLI would read an account from, unless this account set it. An `ANTHROPIC_API_KEY` left
+  in your shell profile cannot quietly win over the account you chose.
+
+::: details From Python
+Every step of the walk is a call on `Hmz().accounts`:
 
 ```python
 from hmz.sdk import Hmz
 
 accounts = Hmz().accounts
-way = accounts.way("claude", "gateway")
-accounts.make("claude", "deepseek", way, {
-    "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
-    "ANTHROPIC_AUTH_TOKEN": token,
+shared = accounts.make("claude", "shared", accounts.way("claude", "key"), {
+    "ANTHROPIC_API_KEY": key,
 })
+
+accounts.serves(shared)                     # ('pi', 'opencode', 'mimo', 'zcode')
+accounts.copies(shared, "pi")               # pi/shared, holding the same key
+accounts.points("claude", "work", "shared")  # work falls back to shared
 ```
 
-`make` writes one down out of what its way was answered with; `sign_in` is what runs the
-backend's own way in for a way that has one, so a script may do either without doing both. See
-[SDK › Accounts](/reference/sdk#accounts).
+`make` writes an account down. For a way that runs a login, `sign_in(account, way)` runs it.
+See [SDK › Accounts](/reference/sdk#accounts).
 :::
-
-## Which models it may name
-
-The models an account can run belong to that account, so it is asked as soon as one is made:
-which models a turn may name depends on which subscription, key or gateway it runs under.
-The answer is kept in `~/.humanize/providers/claude/deepseek/models.json`. Something that will
-not say does not fail the line; the account was made. **r** on the models sheet asks it again,
-and it is where you find out that the model you came for is not in the list.
-
-**A gateway account is asked the gateway.** A coding agent pointed at somebody's endpoint lists
-the models it ships with — it never goes and looks at the other end — so its answer is a list
-your key will refuse, however recently it was taken. Where an account sets the base URL its
-backend routes turns by, `GET {base}/v1/models` under that account's own credentials is what
-gets written down, so the list is the ids that endpoint actually serves:
-
-```
-   claude/nvidia
-     1. azure/anthropic/claude-haiku-4-5
-     2. azure/anthropic/claude-opus-5
-     3. azure/openai/gpt-5.6-sol
-```
-
-The credential goes into that one request and nowhere else — not into `models.json`, not into
-a log, not into the message you get when the endpoint refuses, and not to another host: a
-redirect off the address you gave is refused rather than followed, since the headers would go
-with it. An endpoint that is down, that refuses, or that answers something other than a model
-list leaves the CLI to answer as before — but only for an account that has no list yet. What a
-CLI ships with is not an older version of what a gateway serves, it is a catalogue from
-somewhere else, so it stands in and never goes over ids that endpoint itself gave: a gateway
-that is briefly down when you press **r** does not cost you the list it served last week.
-
-Nothing asks again on its own — asking means starting a coding agent or reaching somebody's
-gateway — so a vendor that moves its catalogue leaves yours naming ids the endpoint now
-refuses. The turn that names one says so, rather than reading as a credential to fix:
-
-```
-403 key not allowed to access model. This key can only access models=['default-models'].
-Tried to access gpt-5.2
-(unlisted: the 3 models this account was last offered (asked 2026-09-10) still name it, so
-that list is the stale part; r on its models asks again)
-```
-
-## Every account there is
-
-`/providers` lists all of them, grouped by CLI, with the way each was made by and the variables
-it sets:
-
-```
-   claude
-   ❯ 1. deepseek                  gateway · ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL
-     2. work                      login
-     3. as local                  the CLI as this machine is already signed in · falls back to work
-
-   codex
-     4. personal                  key
-     5. as local                  the CLI as this machine is already signed in
-```
-
-| Key | |
-| --- | --- |
-| **enter** | What there is to do with the account under the cursor |
-| **a** | Make one: which CLI, then how to sign in, then what that way asks |
-
-**enter** opens a menu of four rather than one letter apiece on the list:
-
-| | | |
-| --- | --- | --- |
-| **correct what it holds** | the answers its way in was made with, asked again | held until saved |
-| **sign in again** | its own way in, run again; it owns the terminal while it does | at once |
-| **falls back to** | which account a turn carries on under when this one fails | held until saved |
-| **take it away** | the account and its credentials | held until saved |
-
-Taking it away is in here rather than on a key of the list: it is read beside what the account
-is and what it holds, which is what you are deciding about. One already marked to go says **keep
-it after all** on that same row — nothing has happened to it yet, so what was said may be taken
-back before the menu is saved.
-
-How many times over a failed turn is taken again is not one of them: that is a thing about the
-place a turn runs at rather than about the credentials it runs with, and
-[`/fallback`](/user/fallback) is the menu it is said on.
-
-Making an account and signing one in happen as they are asked for, because a login owns the
-terminal while its browser or its device code has it, and something that has already happened
-is not a draft. The other two are held with the removals until the menu is saved, as on every
-other menu.
-
-The account this machine is already signed into is `as local`, last under each CLI, and the one
-thing it is offered is where it falls back to. The line under that says why rather than leaving
-rows that do nothing: humanize did not make that account and keeps no credentials for it, so
-there is nothing to correct, nothing to sign in and nothing to take away.
-
-**a** asks which CLI first, because a backend's ways in are its own and the second question is
-only answerable once the first has been. The last row of that list is not a backend at all: [a
-CLI of your own](/reference/agents#a-cli-of-your-own) that speaks ACP, a backend from there on
-in this project and every other. Someone who cannot find their agent in the list finds that out
-while answering the question *which CLI*, which is where it is answered.
-
-![the backends a new account may be for, each with its ways in, and "a CLI of your own" last on
-the list](/demo/account-backends.png)
-
-Nothing here is refused while a flow is running. An agent reads the account it was configured
-with **once**, so one made or taken away now is one the next run sees.
-
-## One account, several CLIs
-
-A vendor's credential is the vendor's rather than the CLI's. An Anthropic key is an Anthropic
-key whether Claude Code, pi, opencode, mimocode or ZCode is holding it, and a subscription
-token is one under whatever name each of them reads it under: `CLAUDE_CODE_OAUTH_TOKEN` on
-Claude Code, `ANTHROPIC_OAUTH_TOKEN` on pi. So an account made for one backend is often one
-several others could be run as, and making the same key four times by hand is four places to
-correct when it is rotated.
-
-That is why it is asked at the moment the account exists. Making one that others could be run
-as asks which of them to write it down for as well, with the backends installed here already
-ticked and the rest listed and off. An account is worth writing down before the CLI that will
-use it is on this machine.
-
-![the question after claude/shared is made: pi, opencode, mimo and zcode, each marked not
-installed here yet and each switched off](/demo/alike.png)
-
-A copy is written down **under the same name** and **over one already there**, spelled as that
-backend reads it: that backend's own way where one asks for exactly those variables, and
-variables of your own where it has none. So `claude/shared` made by `key` is `pi/shared` and
-`opencode/shared` made by `env` — the same key under three names.
-
-Correcting an account asks the same question again, of the account as corrected. So a rotated
-key is a key rotated in several places at once: typed once, into the account it was first made
-on, and written over the copies that are **ticked**.
-
-What is ticked is the backends **installed here**, and it does not read which backends already
-hold a copy. A copy on a CLI that is not on this machine is therefore one still holding the old
-key, and nothing marks it as one. Which is worth a look before a rotation is trusted, a copy
-left behind being an account that is still there and still works: `/providers` is where the
-copies are, the same name under another backend's heading, and ticking one is what writes the
-new key over it.
-
-**What travels is variables.** An account that is a subscription signed into travels nowhere —
-it is the CLI's own credential store in that CLI's own format, and nothing else can read it.
-Neither does one holding a credential the other backend has no name for: every variable has to
-land somewhere, or that backend is not offered the account at all.
-
-From Python it is two calls — what else this account could run, and writing it down there:
-
-```python
-accounts = Hmz().accounts
-
-one = accounts.find("claude", "shared")
-accounts.serves(one)              # ('pi', 'opencode', 'mimo', 'zcode')
-accounts.copies(one, "pi")        # pi/shared, the same key under the name pi reads it under
-```
-
-`serves` answers what an account **could** be copied to rather than what it has been copied to,
-a backend already holding a copy reading the same as one holding none. Full detail in
-[Providers › One account, several CLIs](/reference/providers#one-account-several-clis).
-
-## Failing loudly
-
-`agent.provider` raises `ValueError` the first time a turn needs an account that is not there,
-naming the agent and what it was called. An agent that cannot find the account it was told to
-run as **does not quietly run as yours**:
-
-```console
-$ hmz exec -f ralph_loop -a agent=claude@gone/claude-opus-5:max -b cost=5 "…"
-… no claude provider called 'gone'
-```
-
-In the interface it is the same: an agent given an account that has since been taken away
-fails the first turn it takes, naming the account that is not there.
-
-## When one goes down
-
-An account says one thing about failing, and that one thing is written down beside the account
-rather than on any agent: it is the account that goes down, and whichever agent was running
-under one then is the agent that needs somewhere else to run.
-
-**Tried again first, though not from here.** How many times a failed turn is taken again is a
-thing about the place the turn runs at rather than about the credentials it runs with, so it is
-said against the place, on [`/fallback`](/user/fallback), and never on the account. Nothing is
-retried unless you say so.
-
-**Then the chain.** Each account names the one to carry on under, and that one names the next.
-It is *falls back to* on the menu **enter** opens, which offers that backend's other accounts;
-from Python it is one call apiece:
-
-```python
-accounts.points("claude", "subscription", "key")
-accounts.points("claude", "key", "gateway")
-```
-
-The account this machine is already signed into is one of them — last under each CLI's heading,
-and `""` from Python, a backend and no name at all. It is where the chain of an agent nobody
-gave an account begins:
-
-```python
-accounts.points("claude", "", "subscription")
-```
-
-So a flow you never configured an account for still has somewhere to go. Nothing may fall back
-*to* it: an agent that is to try it is an agent given no account.
-
-A turn walks the chain inside the conversation that was running. The session is the backend's
-own and is named by an id, so the next account picks it up where the last left off, and the
-agent stays where it landed. See [Agents › When an account goes
-down](/reference/agents#when-an-account-goes-down).
 
 ## See also
 
+- [Falling back](/user/fallback): another CLI or model when a place fails
 - [Providers reference](/reference/providers)
-- [TUI › The accounts themselves](/reference/tui#the-accounts-themselves) — the page itself
-- [SDK › Accounts](/reference/sdk#accounts) — the same accounts as one object
-- [Publish a flowverse](/weaver/flowverses)
-- [A container of its own](/user/containers)
+- [TUI › The accounts themselves](/reference/tui#the-accounts-themselves)
+- [SDK › Accounts](/reference/sdk#accounts)

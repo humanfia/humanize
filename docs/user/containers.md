@@ -1,142 +1,87 @@
 # Containers
 
-A container gives an agent a toolchain and a filesystem that are not yours, without giving up
-your workspace: you name an image, and humanize holds **this project directory at the path it
-already has** inside it. Reach for it when the agent needs a toolchain you have not got.
+Put a flow's work in a container when the agents need a toolchain or a filesystem you do not
+have here. There are two ways to do it from the command line: run humanize itself inside the
+container, or run an ssh server in the container and point one of the flow's environments at
+it.
 
-**A flow cannot ask for one.** The flow API's environments are a directory on this machine and a
-directory on a host reached with ssh, and nothing in between: a flow says *where* its work
-happens by the [environments](/reference/flows#where-each-agent-works) it declares, and a
-container is not one of them. What there is instead is below — a whole run inside a container,
-a container reached as a host, and a container of an agent's own for agents you build in
-Python.
+<div class="ct-ways">
+  <div class="ct-way">
+    <p class="ct-name">The whole run in a container</p>
+    <p class="ct-type"><code>docker run … hmz exec …</code></p>
+    <dl>
+      <dt>agents run</dt><dd>in the container</dd>
+      <dt>commands run</dt><dd>in the container</dd>
+      <dt>the image needs</dt><dd>humanize, the agents' CLIs, and their sign-in</dd>
+      <dt>works with</dt><dd>any flow</dd>
+    </dl>
+  </div>
+  <div class="ct-way">
+    <p class="ct-name">A container as an ssh host</p>
+    <p class="ct-type"><code>hmz exec … -e ROLE=ssh@HOST/…</code></p>
+    <dl>
+      <dt>agents run</dt><dd>here, with your sign-in</dd>
+      <dt>commands run</dt><dd>in the container</dd>
+      <dt>the image needs</dt><dd>an ssh server, Python 3.12 or newer, and the project</dd>
+      <dt>works with</dt><dd>a flow with a role for another machine</dd>
+    </dl>
+  </div>
+</div>
 
-## The whole run in one container
+## Try it: the whole run in one container
 
-The simplest: run humanize itself in the image, with the project mounted where it already is.
-Every environment of the run is then the container's, every command a flow runs is the
-container's command, and every agent's turns land there.
+Mount the project at the path it already has, and run `hmz exec` in the image:
 
 ```sh
 docker run --rm -it -v "$PWD:$PWD" -w "$PWD" my-image-with-hmz \
-    hmz exec -f ralph_loop -a agent=claude/claude-opus-5:max -b cost=20 "get the suite green"
+    hmz exec -f ralph_loop -a agent=claude/claude-opus-5:max \
+    -b cost=20 "get the suite green"
 ```
 
-The image then needs humanize and the CLIs the agents run, and their credentials — which is
-the cost of this way round: the agent processes are in the container too.
+Every agent and every command runs in the container. The project is your own directory,
+mounted rather than copied, so the work is still there when the container goes. The price is
+that the agents' CLIs run in there too, so the image has to have them installed and signed in.
 
-## A container reached as a host
+## A container reached as an ssh host
 
-A container that runs an ssh server is a host like any other, and an environment of a flow can
-be pointed at it with `-e`:
+A container running an ssh server is a host like any other. Name it in your ssh config, check
+that `ssh test-box` works, and give it to a flow's environment role with `-e`:
 
-```sh
-hmz exec -f tested -a builder=claude/claude-opus-5:max -a tester=codex/gpt-5.6-sol:high \
-    -e suite=ssh@test-box/work/myproject -b cost=20 "get the suite green"
+::: code-group
+
+```text [~/.ssh/config]
+Host test-box
+    HostName localhost
+    Port 2222
+    User me
 ```
 
-where the flow declares the environment its tester's sessions are spawned in — the
-[weaver's](/weaver/writing-a-flow) part:
-
-```python
-from hmz.flows import Agent, AgentCollection, Env, EnvCollection, LocalEnv, ShellEnvMixin
-
-
-class Suite(Env, ShellEnvMixin): ...
-
-
-class Agents(AgentCollection):
-    builder: Agent
-    tester: Agent
-
-
-class Envs(EnvCollection):
-    workspace: LocalEnv   # this directory, which the builder works in
-    suite: Suite          # wherever -e says, which the tester works in
+```sh{3} [hmz exec]
+hmz exec -f onbox \
+    -a builder=claude/claude-opus-5:max -a reviewer=codex/gpt-5.6-sol:high \
+    -e box=ssh@test-box/home/me/box/myproject \
+    -b cost=20 "get the suite green"
 ```
 
-The agent **process** stays on this machine, keeping its credentials and its link to its model
-provider; what happens on the host is the project it reads and the commands it runs. A flow's
-own `await envs["suite"].exec(["python", "-m", "pytest", "-q"])` runs there too. See
-[Remote execution](/user/remote-execution).
+:::
 
-## A container of an agent's own, from Python
+The agents stay on this machine, with their credentials and their link to the model provider,
+so the container needs neither the CLIs nor a sign-in. What the builder reads, writes and runs
+is in the container. This only works with a flow that has a role for another machine, like
+`box` in `onbox`: [Remote execution](/user/remote-execution) has that flow, covers what `-e`
+takes, and lists the pitfalls, which all apply here.
 
-**For anyone building agents by hand**, outside a flow. An agent's config takes a machine, and
-one of the machines is a container of an image you name:
+## A container of an agent's own
 
-```python
-from hmz.coganchor.agents import ClaudeCodeAgent, ClaudeCodeAgentConfig
-from hmz.coganchor.machines import DockerConfig
+Code that builds agents by hand, outside a flow, can give an agent a container of an image you
+name, brought up on its first turn and taken down with it. It needs Linux and `docker` on this
+machine. That is Python below the flow API: see the [Machines reference](/reference/machines).
 
-config = ClaudeCodeAgentConfig(
-    model="claude-opus-5",
-    effort="high",
-    machine=DockerConfig(image="node:22", workspace="/home/me/code/myproject"),
-)
-builder = ClaudeCodeAgent(config, name="builder")
-builder("upgrade the toolchain")
-```
-
-| Field | Default | |
-| --- | --- | --- |
-| `image` | `python:3.12` | Needs a `python3` for the target half, plus whatever the agent will reach for. |
-| `workspace` | this directory | The directory **itself**, mounted — not a copy — so the work outlives the container. |
-
-An image with no Python the target half can use is refused where the machine is set up, rather
-than a turn later; where the image keeps one does not matter, since it is looked for off the
-`PATH` as well as on it. An agent told to run `pytest` in an image without it spends a turn
-discovering that, so a good image is one you already build for CI.
-
-### What the container is
-
-- runs as **your uid and gid**, so files it writes are yours;
-- has `HOME=/tmp`, away from the workspace, so what a command caches is not the project's;
-- is reached as a `docker://` [target](/user/remote-execution), and needs no port and no
-  secret;
-- is labelled `humanize=<your uid>`.
-
-### When it comes up, and when it goes
-
-- **On the agent's first turn**, not when the agent is constructed. Configuring an agent pulls
-  no image.
-- **Shared by every session that agent opens**, so its sessions find the workspace as the last
-  turn left it.
-- **One machine per agent.** Two agents built from the same config get one container each.
-- **Taken down when the agent is collected**, or at exit for one held to the end.
-- **The workspace is left behind** either way.
-
-Cleaning up after a script that was killed outright:
-
-```sh
-docker rm -f $(docker ps -q --filter label=humanize=$(id -u))
-```
-
-The label carries your uid, so this cannot reach past you on a machine several people share.
-
-### The agent is still here
-
-This is the same arrangement as [remote execution](/user/remote-execution), with the far end a
-container instead of a host. The agent **process** stays on this machine, keeping its
-credentials and its link to its model provider, so the container needs no network access and no
-login. Everything the agent *does* happens in the container.
-
-The work therefore happens in a **mirror** rather than in this directory, and the backend logs
-the agent's turns under a path this project has never heard of. The agent wrote down the ids of
-the sessions it opened — `builder.opened` — and that is what a trace of them is gathered by:
-[`Hmz().epics.trace(sessions=…)`](/user/tracing).
-
-## Isolation here is about environment, not permission
-
-A container does **not** stop the agent editing the workspace mounted into it. Narrowing what
-the agent may do at all is [permissions](/user/permissions) — a different thing the flow says,
-on the role, and the two compose. Read [Security](/user/security).
-
-## Requirements
-
-For a container of an agent's own: `docker` on your `PATH` and a daemon to reach, plus what
-remote execution needs — Linux on x86-64 or aarch64 here, and a `python3` in the image. For a
-container reached as a host: an ssh server in it that `ssh` here can reach.
+::: warning A container is not a permission boundary
+An agent can still rewrite whatever is mounted into its container, your project included.
+Narrowing what an agent may do is [permissions](/user/permissions). Read
+[Security](/user/security).
+:::
 
 ## See also
 
@@ -144,3 +89,60 @@ container reached as a host: an ssh server in it that `ssh` here can reach.
 - [Machines reference](/reference/machines)
 - [Permissions](/user/permissions)
 - [Security](/user/security)
+
+<style scoped>
+.ct-ways {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 22px 0 8px;
+}
+
+.ct-way {
+  padding: 14px 16px 10px;
+  border: 1px solid var(--hmz-panel-border);
+  border-radius: 14px;
+  background: var(--hmz-panel-bg);
+}
+
+.ct-way p {
+  margin: 0;
+}
+
+.ct-name {
+  font-weight: 650;
+  color: var(--vp-c-text-1);
+}
+
+.ct-type {
+  margin-top: 6px !important;
+  overflow-wrap: anywhere;
+}
+
+.ct-way dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 12px 0 4px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.ct-way dt {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--vp-c-text-3);
+  padding-top: 1px;
+}
+
+.ct-way dd {
+  margin: 0;
+  color: var(--vp-c-text-2);
+}
+
+@media (max-width: 640px) {
+  .ct-ways {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+</style>
