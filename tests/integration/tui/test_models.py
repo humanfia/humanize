@@ -17,9 +17,10 @@ from textual.widgets import Label, OptionList
 
 from hmz.coganchor.backends import Model
 from hmz.runtime.kept import Runs
+from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.pick import Agent, Catalogue, Clis
-from tests.integration.tui.test_app import into_agent, keeps, onto, opens, rows
+from tests.integration.tui.test_app import into_agent, keeps, opens, rows
 from tests.stubs import written
 from tests.tui.fixtures import until
 
@@ -45,46 +46,40 @@ DSH_MODELS = (
 HERE = '''
 """One agent, working where the flow is."""
 
-from typing import NamedTuple
-
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
-from tests.stubs import written
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams
+from hmz.flows import LocalEnv, flow
 
 
-class Agents(NamedTuple):
+class Agents(AgentCollection):
     """Just the one."""
 
-    builder: AgentBase
+    builder: Agent
 
 
-@flow
-def run(agents: Agents, task: str) -> None:
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def here(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
+               ctx: FlowContext) -> None:
     pass
 '''
-
-GOALS_OFF = (
-    HERE.replace(
-        "from typing import NamedTuple", "from typing import Annotated, NamedTuple"
-    )
-    .replace(
-        "from hmz.coganchor.agents import AgentBase",
-        "from hmz.coganchor.agents import AgentBase, AgentDefaults",
-    )
-    .replace(
-        "builder: AgentBase",
-        "builder: Annotated[AgentBase, AgentDefaults(goals=False)]",
-    )
-)
 
 
 @pytest.fixture
 def flows(tmp_path: Path) -> Path:
-    """Puts the flow where this project's own would be."""
+    """Puts the flow where this project's own would be, with a budget set for a run of it.
+
+    Set rather than asked, since saving a flow a run of which has none is refused, and none
+    of these tests is about that: the workspace is left set up on `chat`, as it opens.
+    """
     where = tmp_path / ".humanize" / "flows"
     where.mkdir(parents=True)
     written(where, "here", HERE)
-    written(where, "goals_off", GOALS_OFF)
+    kept = Settings(tmp_path)
+    kept.remember("here", {}, budget={"cost": 1.0})
+    kept.remember("chat", {})
     return where
 
 
@@ -125,65 +120,6 @@ def _value(app: Humanize, held: str) -> str:
 def _rows(app: Humanize) -> int:
     """How many models are on the sheet."""
     return len(app.screen.query_one("#choices", OptionList).options)
-
-
-@pytest.mark.timeout(60)
-@unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
-async def test_what_the_flow_said_about_goals_survives_the_sheet_untouched(
-    _installed: unittest.mock.MagicMock,  # noqa: PT019
-    flows: Path,
-) -> None:
-    """It is not a row, so the sheet carries it across rather than answering it.
-
-    Whether goals are available is the flow's to say, and a sheet that reset it to a default
-    because it never showed it would be a sheet quietly overruling the flow.
-    """
-    app = Humanize()
-    async with app.run_test() as driver:
-        await _to_the_agent(app, driver, "goals_off")
-        assert "goals" not in rows(app)
-
-        await onto(app, driver, "effort")
-        await driver.press("right")
-        await driver.pause()
-
-        await keeps(app, driver)
-        await keeps(app, driver)
-
-    assert app._models[0].goals is False
-    assert app.settings.agents("goals_off")[0].goals is False
-
-
-@pytest.mark.timeout(60)
-@unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
-async def test_opening_directly_uses_the_agent_place_goal_suggestion(
-    _installed: unittest.mock.MagicMock,  # noqa: PT019
-    flows: Path,
-) -> None:
-    app = Humanize(flow="goals_off")
-
-    async with app.run_test() as driver:
-        await driver.pause()
-
-    assert app._models == [Runs("claude/claude-nine:high", goals=False)]
-
-
-def test_a_goal_choice_is_written_to_the_agent_config(
-    flows: Path,
-) -> None:
-    from hmz.coganchor.agents import ClaudeCodeAgent, ClaudeCodeAgentConfig
-
-    app = Humanize(
-        flow="goals_off",
-        agents=[Runs("claude/claude-nine:high", goals=False)],
-    )
-    made = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-nine", effort="high"))
-
-    (configured,) = app._as_they_were_set_up([made])
-
-    assert configured is not made
-    assert configured.config.goals is False
-    assert not configured.goals_enabled
 
 
 @pytest.mark.timeout(60)
@@ -253,7 +189,7 @@ async def test_a_name_in_the_catalogue_is_the_one_a_turn_runs_at(
         await keeps(app, driver)
         await keeps(app, driver)
 
-    assert app._models == [Runs("claude/fable:high")]
+    assert app._models == {"builder": Runs("claude/fable:high")}
 
 
 @pytest.mark.timeout(60)
@@ -362,10 +298,13 @@ async def test_an_unconfigured_advisory_backend_does_not_outrun_model_discovery(
     monkeypatch.setattr(hmz.coganchor.models, "ask", note)
 
     app = Humanize()
-    assert app._models == []
+    assert app._models == {}
 
     async with app.run_test() as driver:
-        await until(lambda: app._models == [Runs("claude/claude-nine:high")], driver)
+        await until(
+            lambda: app._models == {"assistant": Runs("claude/claude-nine:high")},
+            driver,
+        )
         await until(lambda: asked == ["claude", "codex", "dsh"], driver)
 
     assert asked[0] == "claude"

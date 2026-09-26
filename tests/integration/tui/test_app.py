@@ -21,6 +21,7 @@ from textual.widgets import Label, OptionList, Static
 
 from hmz.coganchor.agents import DshSession
 from hmz.coganchor.backends import Model
+from hmz.flows import Budget
 from hmz.runtime.epic import epics
 from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
@@ -39,62 +40,21 @@ from hmz.tui.pick import (
     Flows,
     Monitoring,
     Signing,
-    Unbounded,
     Ways,
 )
 from tests.stubs import events as recorded
 from tests.stubs import written
-from tests.tui.fixtures import transcript, until
+from tests.tui.fixtures import ONE, holding, set_up, transcript, until
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from textual.pilot import Pilot
 
-#: A flow that drives one agent for two turns, so a line can be typed while it is running.
-FLOW = """
-from pathlib import Path
+#: A flow of one agent for one turn, which writes down what the turn answered -- so a line
+#: can be typed while it is running.
+FLOW = ONE
 
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
-
-
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    session = agents[0].new()
-    Path("said.txt").write_text(session(task) + "\\n")
-"""
-
-#: A flow that catches its own turn, so that a turn ended by hand can be seen for what it
-#: leaves behind: what the call answered with, and whether the agent was stopped along with it.
-CATCHING = """
-from pathlib import Path
-
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
-
-
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    session = agents[0].new()
-    said = session(task, suppress=True)
-    Path("said.txt").write_text(f"{said!r} {agents[0].stopped}\\n")
-"""
-
-#: The same flow written as a coroutine, which the interface runs exactly as it runs the
-#: other kind: on a thread of its own, with the agents it was handed reaching back here.
-AWAITED = """
-from pathlib import Path
-
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
-
-
-@flow
-async def run(agents: tuple[AgentBase], task: str) -> None:
-    session = agents[0].new()
-    Path("said.txt").write_text(await session.aturn(task) + "\\n")
-"""
 
 #: A `claude` that answers each thing it is told with a turn of its own, as the real one
 #: does, but withholds the first answer until a second thing arrives -- which is what makes
@@ -239,11 +199,6 @@ async def _leaves(app: Humanize, driver: Pilot[None], *answer: str) -> None:
     if isinstance(app.screen, Confirms):
         await driver.press(*answer)
         await driver.pause()
-    # And, where saving is what was answered and the run it saves has nothing at all to stop
-    # it, the second question about that -- which every flow in this suite is asked, none of
-    # them declaring a budget and none of these tests setting one.
-    if isinstance(app.screen, Unbounded):
-        await driver.press("enter")
     await until(lambda: app.screen is not was, driver)
 
 
@@ -294,34 +249,12 @@ async def test_a_line_typed_while_a_flow_runs_reaches_the_agent(
     written(workspace, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
-        app._flow_named, app._models = "flow", [Runs("claude/m:high")]
+        set_up(app, "flow")
         await driver.press(*"start")
         await driver.press("enter")
         # The turn will not end until it has been told something else, so this cannot race.
         await until(
-            lambda: bool(app._agents and any(agent.sessions for agent in app._agents)),
-            driver,
-        )
-        await driver.press(*"and this")
-        await driver.press("enter")
-        await until(lambda: bool((workspace / "said.txt").exists()), driver)
-
-    assert (workspace / "said.txt").read_text().strip() == "start then and this"
-
-
-@pytest.mark.timeout(60)
-async def test_a_flow_that_is_a_coroutine_runs_here_as_any_other_does(
-    workspace: Path,
-) -> None:
-    """A flow written as `async def run` is a flow: started, typed at, and done with here."""
-    written(workspace, "flow", AWAITED)
-    app = Humanize()
-    async with app.run_test() as driver:
-        app._flow_named, app._models = "flow", [Runs("claude/m:high")]
-        await driver.press(*"start")
-        await driver.press("enter")
-        await until(
-            lambda: bool(app._agents and any(agent.sessions for agent in app._agents)),
+            lambda: any(agent.sessions for agent in app._agents),
             driver,
         )
         await driver.press(*"and this")
@@ -340,7 +273,7 @@ async def test_a_line_with_nothing_to_run_it_on_says_so_rather_than_vanishing() 
         await driver.press("enter")
         await driver.pause()
 
-        assert app._models == []  # nothing installed, so nothing was set up to run
+        assert app._models == {}  # nothing installed, so nothing was set up to run
         assert "no coding agent is installed here" in transcript(app)
 
 
@@ -360,7 +293,7 @@ async def test_a_flow_that_is_not_there_is_a_line_to_correct_and_not_the_end() -
     """A flow chosen that will not load is said so, and the interface stays up."""
     app = Humanize()
     async with app.run_test() as driver:
-        app._flow_named, app._models = "nowhere.py", [Runs("claude/m:high")]
+        set_up(app, "nowhere.py")
         await driver.press(*"do it")
         await driver.press("enter")
         await until(lambda: "nowhere.py" in transcript(app), driver)
@@ -373,16 +306,15 @@ async def test_a_flow_that_is_not_there_is_a_line_to_correct_and_not_the_end() -
 async def test_a_flow_that_fails_as_it_is_read_is_a_line_to_correct_and_not_the_end(
     workspace: Path,
 ) -> None:
-    """Reading a flow runs it, so a flow may fail before it has been asked to do anything.
+    """Reading a flow imports it, so a flow may fail before it has been asked to do anything.
 
-    One that opens a file beside it and does not find it raises where the line is read for
-    what its agents should default to -- which is a convenience, and not somewhere an
-    interface may die.
+    One that opens a file beside it and does not find it raises as it is imported -- which
+    is where the run is refused, and not somewhere an interface may die.
     """
     written(workspace, "broken", 'raise FileNotFoundError("no prompt.md beside me")\n')
     app = Humanize()
     async with app.run_test() as driver:
-        app._flow_named, app._models = "broken", [Runs("claude/m:high")]
+        set_up(app, "broken")
         await driver.press(*"do it")
         await driver.press("enter")
         await until(lambda: "prompt.md" in transcript(app), driver)
@@ -404,11 +336,11 @@ async def test_what_the_flow_did_is_on_monitor(workspace: Path) -> None:
     written(workspace, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
-        app._flow_named, app._models = "flow", [Runs("claude/m:high")]
+        set_up(app, "flow")
         await driver.press(*"start")
         await driver.press("enter")
         await until(
-            lambda: bool(app._agents and any(agent.sessions for agent in app._agents)),
+            lambda: any(agent.sessions for agent in app._agents),
             driver,
         )
         await driver.press(*"and this")
@@ -643,11 +575,11 @@ async def test_what_is_running_is_not_swapped_underneath_itself(
     written(workspace, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
-        app._flow_named, app._models = "flow", [Runs("claude/m:high")]
+        set_up(app, "flow")
         await driver.press(*"start")
         await driver.press("enter")
         await until(
-            lambda: bool(app._agents and any(agent.sessions for agent in app._agents)),
+            lambda: any(agent.sessions for agent in app._agents),
             driver,
         )
 
@@ -665,7 +597,7 @@ async def test_what_is_running_is_not_swapped_underneath_itself(
         await until(lambda: not isinstance(app.screen, Flows), driver)
 
         assert app._flow_named == "flow"  # nothing got anywhere
-        assert app._models == [Runs("claude/m:high")]
+        assert app._models == {"coder": Runs("claude/m:high")}
         # And `/monitor` is not refused either: it is read, so nothing conflicts with it.
         app.action_monitor()
         await until(lambda: isinstance(app.screen, Monitoring), driver)
@@ -674,7 +606,7 @@ async def test_what_is_running_is_not_swapped_underneath_itself(
         await driver.press("escape")
         await until(lambda: not isinstance(app.screen, Monitoring), driver)
         app.action_stop_flow()
-        await until(lambda: not app._agents, driver)
+        await until(lambda: app._run is None and app._stopping is None, driver)
 
 
 @pytest.mark.timeout(90)
@@ -682,23 +614,24 @@ async def test_what_is_running_is_not_swapped_underneath_itself(
     "hmz.tui.app.installed",
     return_value={"claude": (Model("m", ("max", "high")),)},
 )
-async def test_an_agent_is_set_up_again_under_the_flow_that_is_running_it(
+async def test_an_agent_set_up_under_a_running_flow_is_what_the_next_run_starts_on(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
     workspace: Path,
 ) -> None:
-    """The whole reason that page is never shut.
+    """That page is never shut, and what is saved there waits for the next run.
 
-    An agent thinking too little is found out halfway through a run, and stopping the flow to
-    fix it is not the answer.
+    A run is handed a driver per role as it starts, and every session of that role opens on
+    it: the agent under way is not swapped under the flow holding it, and saying so is the
+    whole of what saving does to it.
     """
     written(workspace, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
-        app._flow_named, app._models = "flow", [Runs("claude/m:high")]
+        set_up(app, "flow")
         await driver.press(*"start")
         await driver.press("enter")
         await until(
-            lambda: bool(app._agents and any(agent.sessions for agent in app._agents)),
+            lambda: any(agent.sessions for agent in app._agents),
             driver,
         )
         (agent,) = app._agents
@@ -713,22 +646,21 @@ async def test_an_agent_is_set_up_again_under_the_flow_that_is_running_it(
         await driver.pause()
         await keeps(app, driver)
         await keeps(app, driver)
-        await until(lambda: agent.config.effort == "max", driver)
+        await until(lambda: "the next run starts on" in transcript(app), driver)
 
-        # Said, and said about the agent rather than about the flow: what changed is what
-        # this one runs from its next turn on.
-        assert "claude/m:max" in transcript(app)
-        assert app._models == [Runs("claude/m:max")]
+        assert agent.config.effort == "high"  # the running one, as it started
+        assert app._models == {"coder": Runs("claude/m:max")}  # and the next, as saved
+        app.action_stop_flow()
+        await until(lambda: app._run is None and app._stopping is None, driver)
 
 
 @pytest.mark.timeout(90)
 async def test_two_ctrl_c_stop_the_flow_and_not_just_the_turn(workspace: Path) -> None:
-    """Ctrl+c twice ends the loop, rather than letting it hand on to the next agent.
+    """Ctrl+c twice ends the run, rather than only the turn under way.
 
     A flow is a loop, so stopping the turn under way is not stopping anything: the loop
-    would go round again. Every agent is told, and the one that raises `Stopped` takes the
-    loop with it -- which is why `Stopped` is not the failed turn a flow's own `|| true`
-    catches.
+    would go round again. The run is stopped, which interrupts the turn and unwinds every
+    call of the flow from where it stands.
 
     Twice, because a day's work is behind a key that is also pressed by mistake: the first
     press says what the next one does and the second one does it.
@@ -736,20 +668,21 @@ async def test_two_ctrl_c_stop_the_flow_and_not_just_the_turn(workspace: Path) -
     written(workspace, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
-        app._flow_named, app._models = "flow", [Runs("claude/m:high")]
+        set_up(app, "flow")
         await driver.press(*"start")
         await driver.press("enter")
         await until(
-            lambda: bool(app._agents and any(agent.sessions for agent in app._agents)),
+            lambda: any(agent.sessions for agent in app._agents),
             driver,
         )
         await driver.press("ctrl+c")
         await driver.pause()
-        assert app._agents  # one press asks, and asks rather than doing it
+        assert app._run is not None  # one press asks, and asks rather than doing it
         assert "press ctrl+c again" in transcript(app)
 
         await driver.press("ctrl+c")
-        await until(lambda: not app._agents, driver)  # the flow itself is over
+        await until(lambda: app._run is None, driver)  # the flow itself is over
+        await until(lambda: app._stopping is None, driver)  # and has unwound
 
         assert "stopping the flow" in transcript(app)
         # And the run is over with it: an epic is one run of one flow, and this ends one.
@@ -771,23 +704,23 @@ async def test_escape_is_how_the_run_is_read_rather_than_how_it_is_stopped(
     written(workspace, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
-        app._flow_named, app._models = "flow", [Runs("claude/m:high")]
+        set_up(app, "flow")
         await driver.press(*"start")
         await driver.press("enter")
         await until(
-            lambda: bool(app._agents and any(agent.sessions for agent in app._agents)),
+            lambda: any(agent.sessions for agent in app._agents),
             driver,
         )
-        held = app._agents
+        held = app._run
 
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Monitoring), driver)
 
-        assert app._agents is held  # read, and nothing stopped by reading it
+        assert app._run is held  # read, and nothing stopped by reading it
         await driver.press("escape")
         await driver.pause()
         app.action_stop_flow()
-        await until(lambda: not app._agents, driver)
+        await until(lambda: app._run is None and app._stopping is None, driver)
 
 
 @pytest.mark.timeout(90)
@@ -804,8 +737,8 @@ async def test_a_line_to_a_running_flow_is_never_turned_away(workspace: Path) ->
     app = Humanize()
     async with app.run_test() as driver:
         # A flow that is running, with nobody mid-turn: an agent that has launched nothing.
-        app._flow_named, app._models = "flow", [Runs("claude/m:high")]
-        app._agents = [ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high"))]
+        set_up(app, "flow")
+        holding(app, ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high")))
         app._queued = []
         await driver.press(*"and this")
         await driver.press("enter")
@@ -859,7 +792,7 @@ async def test_a_flow_between_two_turns_is_a_flow_that_is_running() -> None:
     async with app.run_test() as driver:
         # A flow that is running, with nobody mid-turn: the flow's own code has the time.
         app._flow_named = "rlcr"
-        app._agents = [ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high"))]
+        holding(app, ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high")))
         app._monitor.began = time.monotonic() - 90
         app._draw()
         await driver.pause()
@@ -873,22 +806,21 @@ async def test_a_flow_between_two_turns_is_a_flow_that_is_running() -> None:
 @pytest.mark.timeout(60)
 async def test_a_flow_that_called_another_names_both_of_them() -> None:
     """A flow may reach for another and run it, and what is running is then both."""
-    from hmz.runtime.flowing.driving import entered, left
+    from hmz.runtime.flowing import LiveCall
 
+    started = LiveCall("chat:chat", "chat", 1, time.monotonic(), 0, None)
+    called = LiveCall("rlar:review", "review", 2, time.monotonic(), 0, started)
     app = Humanize()
     async with app.run_test() as driver:
         app._flow_named = "chat"
-        started = entered("chat")
-        called = entered("official/rlar")
-        try:
+        with unittest.mock.patch.object(
+            type(app.hmz.flows), "running", return_value=(started, called)
+        ):
             app._draw()
             await driver.pause()
             status = str(app.query_one("#status", Static).content)
-        finally:
-            left(called)
-            left(started)
 
-        assert "chat ▸ official/rlar" in status
+        assert "chat ▸ rlar:review" in status
 
         # And back to the one that is set up to run, once nothing is.
         app._draw()
@@ -1168,7 +1100,8 @@ async def test_a_flow_is_opened_to_reach_its_agents_and_esc_comes_back() -> None
 
             await driver.press("enter")
             await until(lambda: sheet._inside, driver)
-            # What the flow drives, and the row the lot is saved from.
+            # The role the person chooses an agent for -- the person being the other, and
+            # nobody's to choose -- what a run may spend, and the row the lot is saved from.
             assert rows(app) == ["0", _BUDGET, _SAVE]
             assert "chat" in str(sheet.query_one("#asked", Label).content)
             assert "esc back to the flows" in str(
@@ -1183,7 +1116,7 @@ async def test_a_flow_is_opened_to_reach_its_agents_and_esc_comes_back() -> None
             await driver.press("escape")
             await until(lambda: not isinstance(app.screen, Flows), driver)
 
-            assert app._models == []
+            assert app._models == {}
 
 
 @pytest.mark.timeout(60)
@@ -1277,11 +1210,14 @@ def asking(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 @pytest.mark.timeout(90)
 async def test_an_agent_that_stops_to_ask_reaches_the_prompt(asking: Path) -> None:
-    """The point of the prompt being here at all: a turn that needs a person can have one."""
-    written(asking, "flow", FLOW)
+    """The point of the prompt being here at all: a turn that needs a person can have one.
+
+    Through the flow, which hangs its agent's question on whoever is outside the run -- as
+    `chat` does -- and so through this prompt.
+    """
     app = Humanize()
     async with app.run_test() as driver:
-        app._flow_named, app._models = "flow", [Runs("claude/m:high")]
+        set_up(app, "chat", {"assistant": Runs("claude/m:high")})
         await driver.press(*"start")
         await driver.press("enter")
         await until(lambda: "Which way?" in transcript(app), driver)
@@ -1291,12 +1227,14 @@ async def test_an_agent_that_stops_to_ask_reaches_the_prompt(asking: Path) -> No
         assert "right" in transcript(app)
         await driver.press(*"right")
         await driver.press("enter")
-        await until((asking / "said.txt").exists, driver)
+        await until(lambda: "updatedInput" in app._last_answer, driver)
 
-    # Which reached the tool as its answer, against the question it was asked.
-    assert json.loads((asking / "said.txt").read_text())["updatedInput"]["answers"] == {
-        "Which way?": "right"
-    }
+        # Which reached the tool as its answer, against the question it was asked.
+        assert json.loads(app._last_answer)["updatedInput"]["answers"] == {
+            "Which way?": "right"
+        }
+        app.action_stop_flow()
+        await until(lambda: app._run is None and app._stopping is None, driver)
 
 
 @pytest.mark.timeout(90)
@@ -1304,10 +1242,9 @@ async def test_away_means_the_agent_is_told_nobody_is_there_rather_than_waiting(
     asking: Path,
 ) -> None:
     """A question nobody is going to answer is a flow that has stopped, so it is refused."""
-    written(asking, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
-        app._flow_named, app._models = "flow", [Runs("claude/m:high")]
+        set_up(app, "chat", {"assistant": Runs("claude/m:high")})
         await driver.press(*"/afk")
         await driver.press("enter")
         assert (
@@ -1316,10 +1253,12 @@ async def test_away_means_the_agent_is_told_nobody_is_there_rather_than_waiting(
 
         await driver.press(*"start")
         await driver.press("enter")
-        await until((asking / "said.txt").exists, driver)
+        await until(lambda: bool(app._last_answer), driver)
+        # And an outworlder that is away answers nothing, so the conversation is over too.
+        await until(lambda: app._run is None, driver)
 
     # Nobody answered, so the tool was declined and the turn carried on from that.
-    assert json.loads((asking / "said.txt").read_text())["behavior"] == "deny"
+    assert json.loads(app._last_answer)["behavior"] == "deny"
 
 
 @pytest.mark.timeout(60)
@@ -1353,24 +1292,12 @@ async def test_a_third_ctrl_c_does_not_wait_for_the_flow_to_unwind() -> None:
     agent fallen over by itself. It is the last thing a key can do about a run.
     """
     from hmz.coganchor.agents import AgentConfig, Event
-    from tests.stubs import ShellAgent, ShellSession
-
-    closed: list[ShellSession] = []
-
-    class Closing(ShellSession):
-        def close(self) -> None:
-            closed.append(self)
-            super().close()
-
-    class Closes(ShellAgent):
-        def new(self, cwd: object = None) -> Closing:
-            del cwd
-            return Closing(self)
+    from tests.stubs import ShellAgent
 
     app = Humanize()
     async with app.run_test() as driver:
-        agent = Closes(AgentConfig(model="m", effort="high"))
-        app._agents = [agent]
+        agent = ShellAgent(AgentConfig(model="m", effort="high"))
+        run = holding(app, agent)
         session = agent.new()
         app._heard(agent, session, Event(kind="begins", text=""))
         await driver.pause()
@@ -1378,23 +1305,23 @@ async def test_a_third_ctrl_c_does_not_wait_for_the_flow_to_unwind() -> None:
         await driver.press("ctrl+c")
         await driver.press("ctrl+c")
         await driver.pause()
-        assert not app._agents  # stopped, and still unwinding
-        assert app._stopping == [agent]
+        assert app._run is None  # stopped, and still unwinding
+        assert app._stopping is run
+        assert run.stopped
         assert (
             session in app._working
         )  # which is a turn nothing has reported the end of
 
-        closed.clear()
         await driver.press("ctrl+c")
         await driver.pause()
 
-        # Closed again, whatever the first close came to: a backend that ignored one is the
-        # reason there is a third press at all. And the run reads as over from here.
-        assert closed == [session]
+        # Closed, whatever the stop came to: a backend that ignored one is the reason there
+        # is a third press at all. And the run reads as over from here.
+        assert run.closed
         assert session not in app._working
         assert "closing 1 conversation" in transcript(app)
         assert app.is_running  # the run, rather than the interface
-        assert not app._stopping  # and nothing left for a fourth press to reach
+        assert app._stopping is None  # and nothing left for a fourth press to reach
 
 
 @pytest.mark.timeout(60)
@@ -1589,7 +1516,7 @@ async def test_it_opens_ready_to_be_talked_to(talking: Path) -> None:
         assert app._flow_named == "chat"
         # The first agent installed, at the first model it runs -- but never at the hardest
         # effort, which is a thing to ask for rather than to spend before anyone has.
-        assert app._models == [Runs("claude/claude-opus-5:high")]
+        assert app._models == {"assistant": Runs("claude/claude-opus-5:high")}
 
 
 @pytest.mark.timeout(60)
@@ -1600,7 +1527,7 @@ async def test_it_opens_saying_so_when_there_is_nothing_to_talk_to() -> None:
         await driver.pause()
 
         assert app._flow_named == "chat"
-        assert app._models == []
+        assert app._models == {}
         assert app.is_running
 
 
@@ -1621,10 +1548,10 @@ async def test_every_line_typed_between_turns_is_a_turn_of_one_conversation(
         await driver.press("enter")
         await until(lambda: "heard second" in transcript(app), driver)
 
-        # One agent and the person, one session: the second turn resumed the first rather
-        # than opening another, so the agent had the first in context.
-        agent, person = app._agents
-        assert person.backend == "human"
+        # One session: the second turn was taken in the first's conversation rather than in
+        # another, so the agent had the first in context.
+        (agent,) = app._agents
+        assert agent.id == "assistant"
         assert agent.opened == [agent.opened[0]]
         # And nothing is left pinned above the prompt: a flow waiting to be told something
         # takes what was typed at once, so it was said rather than held.
@@ -1632,7 +1559,7 @@ async def test_every_line_typed_between_turns_is_a_turn_of_one_conversation(
         assert app._queued == []
 
         app.action_stop_flow()
-        await until(lambda: not app._agents, driver)
+        await until(lambda: app._run is None and app._stopping is None, driver)
 
 
 @unittest.mock.patch(
@@ -1649,7 +1576,7 @@ def test_deepseek_with_a_local_key_can_be_the_chat_default(
 
     app = Humanize()
 
-    assert app._models == [Runs("dsh/deepseek-v4-flash:high")]
+    assert app._models == {"assistant": Runs("dsh/deepseek-v4-flash:high")}
 
 
 @pytest.mark.timeout(60)
@@ -1723,7 +1650,7 @@ async def test_deepseek_chat_sends_hello_and_draws_the_sdk_reply(
         "hmz.coganchor.agents.dsh.uuid.uuid4", lambda: SimpleNamespace(hex="chat")
     )
 
-    app = Humanize(agents=[Runs("dsh/deepseek-v4-flash:high")])
+    app = Humanize(agents={"assistant": Runs("dsh/deepseek-v4-flash:high")})
     async with app.run_test() as driver:
         await driver.press(*"hello")
         await driver.press("enter")
@@ -1734,7 +1661,7 @@ async def test_deepseek_chat_sends_hello_and_draws_the_sdk_reply(
         assert sent.kwargs["notification_subscription"] is subscription
 
         app.action_stop_flow()
-        await until(lambda: not app._agents, driver)
+        await until(lambda: app._run is None and app._stopping is None, driver)
 
 
 @pytest.mark.timeout(90)
@@ -1750,7 +1677,7 @@ async def test_a_flow_waiting_to_be_told_something_can_still_be_stopped(
 
         await driver.press("ctrl+c")
         await driver.press("ctrl+c")
-        await until(lambda: not app._agents, driver)
+        await until(lambda: app._run is None and app._stopping is None, driver)
 
         # And the run is written down as stopped rather than as one that finished.
         (epic,) = epics(talking)
@@ -1779,13 +1706,12 @@ async def test_clearing_the_screen_clears_the_screen_and_nothing_else(
         # The screen, and only the screen: what was set up to run is still set up to run,
         # and what is running is still running.
         assert app._flow_named == "chat"
-        assert app._models == [Runs("claude/claude-opus-5:high")]
-        assert (
-            app._agents
-        )  # the flow the first line started was not stopped with the screen
+        assert app._models == {"assistant": Runs("claude/claude-opus-5:high")}
+        # The flow the first line started was not stopped with the screen.
+        assert app._run is not None
 
         app.action_stop_flow()
-        await until(lambda: not app._agents, driver)
+        await until(lambda: app._run is None and app._stopping is None, driver)
 
 
 @pytest.mark.timeout(60)
@@ -1795,7 +1721,7 @@ async def test_looking_at_the_flows_and_walking_out_changes_nothing(
     """Tab is pressed to see what there is, and seeing must not cost what was set up."""
     app = Humanize()
     async with app.run_test() as driver:
-        was = (app._flow_named, list(app._models))
+        was = (app._flow_named, dict(app._models))
 
         await driver.press(*"/flow")
         await driver.press("enter")
@@ -1971,7 +1897,7 @@ async def test_what_an_agent_runs_is_a_row_of_its_own_and_an_effort_the_arrows_m
         await keeps(app, driver)  # out of the agent, holding it
         await keeps(app, driver)  # and out of the menu, saving the lot
 
-    assert app._models == [Runs("claude/claude-opus-5:high")]
+    assert app._models == {"assistant": Runs("claude/claude-opus-5:high")}
 
 
 @pytest.mark.timeout(60)
@@ -2016,7 +1942,7 @@ async def test_changing_the_cli_lets_go_of_the_model_that_belonged_to_the_last_o
         await keeps(app, driver)
         await keeps(app, driver)
 
-    assert app._models == [Runs("codex/gpt-5.5:high")]
+    assert app._models == {"assistant": Runs("codex/gpt-5.5:high")}
 
 
 @pytest.mark.timeout(60)
@@ -2047,24 +1973,30 @@ async def test_deepseek_is_selectable_from_agents(
     goal = tmp_path / "goal.py"
     goal.write_text(
         """
-from typing import Annotated, NamedTuple
-
-from hmz.coganchor.agents import AgentBase, Goal
-from hmz.flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams
+from hmz.flows import GoalCommandAgentMixin, flow
 
 
-class Agents(NamedTuple):
-    worker: Annotated[AgentBase, Goal]
+class Worker(Agent, GoalCommandAgentMixin): ...
 
 
-@flow
-def run(agents: Agents, task: str) -> None:
+class Agents(AgentCollection):
+    worker: Worker
+
+
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams)
+async def goal(task: str, *, agents: Agents, envs: EnvCollection, params: FlowParams,
+               ctx: FlowContext) -> None:
     pass
 """
     )
-    app = Humanize(flow=str(goal), agents=[Runs("claude/claude-opus-5:max")])
+    app = Humanize(flow=str(goal), agents={"worker": Runs("claude/claude-opus-5:max")})
+    app._budget = Budget(cost=1)
     async with app.run_test() as driver:
-        await into_flows(app, driver)
+        # Opened on the flow by its path, which is a flow of nobody's list: its one role
+        # runs `/goal`, which DeepSeek's harness serves.
+        await driver.press(*f"/flow {goal}")
+        await driver.press("enter")
         await into_agent(app, driver)
 
         await opens(app, driver, "cli")
@@ -2095,7 +2027,7 @@ def run(agents: Agents, task: str) -> None:
         await keeps(app, driver)
         await keeps(app, driver)
 
-    assert app._models == [Runs("dsh/deepseek-v4-pro:max")]
+    assert app._models == {"worker": Runs("dsh/deepseek-v4-pro:max")}
 
 
 @pytest.mark.timeout(60)
@@ -2117,7 +2049,7 @@ async def test_deepseek_has_its_own_ways_after_switching_from_kimi(
 
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     providers.add("kimi", "subscription", way="login")
-    app = Humanize(agents=[Runs("kimi/kimi-code/k3:high")])
+    app = Humanize(agents={"assistant": Runs("kimi/kimi-code/k3:high")})
     async with app.run_test() as driver:
         await into_flows(app, driver)
         await into_agent(app, driver)
@@ -2191,7 +2123,7 @@ async def test_deepseek_has_its_own_ways_after_switching_from_kimi(
     assert made is not None
     assert made.way == "key"
     assert made.env == {"DEEPSEEK_API_KEY": "test-key"}
-    assert app._models == [Runs("dsh/deepseek-v4-flash:max", "", "", "mine")]
+    assert app._models == {"assistant": Runs("dsh/deepseek-v4-flash:max", "mine")}
 
 
 @pytest.mark.timeout(60)
@@ -2212,7 +2144,7 @@ async def test_agents_says_how_to_install_deepseek_when_its_sdk_is_missing(
     _installable: unittest.mock.MagicMock,  # noqa: PT019 -- patch hands it over
     _installed: unittest.mock.MagicMock,  # noqa: PT019 -- patch hands it over
 ) -> None:
-    app = Humanize(agents=[Runs("claude/claude-opus-5:max")])
+    app = Humanize(agents={"assistant": Runs("claude/claude-opus-5:max")})
     async with app.run_test() as driver:
         await into_flows(app, driver)
         await into_agent(app, driver)
@@ -2231,7 +2163,7 @@ async def test_agents_says_how_to_install_deepseek_when_its_sdk_is_missing(
         await drops(app, driver)
         await drops(app, driver)
 
-    assert app._models == [Runs("claude/claude-opus-5:max")]
+    assert app._models == {"assistant": Runs("claude/claude-opus-5:max")}
 
 
 def test_deepseek_install_hint_targets_the_python_running_humanize(
@@ -2239,7 +2171,7 @@ def test_deepseek_install_hint_targets_the_python_running_humanize(
 ) -> None:
     from hmz.tui import pick
 
-    monkeypatch.setattr(pick.sys, "executable", "/opt/hmz/bin/python")
+    monkeypatch.setattr("hmz.tui.pick.sys.executable", "/opt/hmz/bin/python")
 
     assert "uv pip install --python /opt/hmz/bin/python" in pick._installing("dsh")
 
@@ -2402,7 +2334,7 @@ async def test_a_turn_is_said_to_run_hard_and_said_to_run_wide_separately(
         await keeps(app, driver)
 
     # One turn, at one effort, run wide -- which is how Kimi is asked for a fleet.
-    assert app._models == [Runs("kimi/kimi-code/k3:swarmlow")]
+    assert app._models == {"assistant": Runs("kimi/kimi-code/k3:swarmlow")}
 
 
 @pytest.mark.timeout(60)
@@ -2624,9 +2556,7 @@ async def test_two_things_said_get_two_answers_and_not_three(
         await driver.press(*"first")
         await driver.press("enter")
         # The turn will not end until it has been told something else, so this cannot race.
-        await until(
-            lambda: bool(app._agents and any(a.sessions for a in app._agents)), driver
-        )
+        await until(lambda: any(a.sessions for a in app._agents), driver)
         await driver.press(*"second")
         await driver.press("enter")
         await until(lambda: "answer to second" in transcript(app), driver)
@@ -2637,7 +2567,7 @@ async def test_two_things_said_get_two_answers_and_not_three(
         assert shown.count("answer to second") == 1
 
         app.action_stop_flow()
-        await until(lambda: not app._agents, driver)
+        await until(lambda: app._run is None and app._stopping is None, driver)
 
 
 def test_the_offers_say_what_each_command_takes() -> None:
@@ -2711,20 +2641,23 @@ async def test_the_box_at_the_top_says_what_this_is_and_not_what_is_set_up(
 QUESTIONNAIRE = '''
 """Ask the person, in a shape."""
 
-import json
 from pathlib import Path
-from typing import Literal, NamedTuple
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from hmz.coganchor.agents import HumanAgent
-from hmz.flows import flow
+from hmz.flows import AgentCollection, EnvCollection, FlowContext, FlowParams, LocalEnv
+from hmz.flows import Outworlder, flow
 
 
-class Agents(NamedTuple):
+class Agents(AgentCollection):
     """Nobody but the person."""
 
-    human: HumanAgent
+    human: Outworlder
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
 
 
 class Settled(BaseModel):
@@ -2737,10 +2670,13 @@ class Settled(BaseModel):
     rounds: int = Field(default=3, description="How many rounds may it take?")
 
 
-@flow
-def run(agents: Agents, task: str) -> None:
-    settled = agents.human(task, schema=Settled, suppress=True)
-    Path("settled.json").write_text(settled.model_dump_json() if settled else "nothing")
+@flow(agents=Agents, envs=Envs, params=FlowParams, name="flow")
+async def run(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
+              ctx: FlowContext) -> None:
+    human = agents["human"]
+    session = await human.spawn(env=envs["workspace"])
+    settled = await human.run(task, session=session, output_schema=Settled)
+    Path("settled.json").write_text(settled.model_dump_json())
 '''
 
 
@@ -2750,17 +2686,16 @@ async def test_the_person_asked_for_a_shape_is_asked_a_question_at_a_time(
 ) -> None:
     """A flow settles what only a person can settle, in the model it is going to run on.
 
-    The same road an agent's own question takes, so the interface shows each field as a
+    Whoever is outside the run is asked for it, so the interface shows each field as a
     question with what it will take under it, and the next line typed is the answer.
     """
     monkeypatch.chdir(tmp_path)
     written(tmp_path, "flow", QUESTIONNAIRE)
     app = Humanize()
     async with app.run_test() as driver:
-        # As `/flow` sets it: the flow, what each of its agents runs -- which is nothing,
-        # since the only one it drives is the person -- and the places it asks for.
-        app._flow_named, app._models = "flow", []
-        app._wanted = app._places_of("flow")
+        # As `/flow` sets it: the flow, and no agent role -- the only one it has is the
+        # person, and nobody chooses who that is.
+        set_up(app, "flow", {})
         await driver.press(*"how should I do this")
         await driver.press("enter")
 

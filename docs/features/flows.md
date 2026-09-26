@@ -4,67 +4,103 @@ pageClass: hmz-feature
 
 # A flow is Python
 
-A flow is a directory holding Python that takes the agents and the task, and whoever writes one
-is a **weaver**. Most are ordinary functions: a loop, a subprocess call, a file read between
-two turns, a condition on what the last answer said. An **atlas** makes a different bargain:
-its deliberately narrow body is read before it runs and compiled into a typed graph called a
-prophecy.
+A flow is a directory holding Python — an `async` function that takes a task and the agents,
+environments and params it declared — and whoever writes one is a **weaver**. A loop, a command
+run between two turns, a file read, a condition on what the last answer said: it is a function,
+so it may do whatever a function does.
 
-Both are Python, discovered the same way and driven by the same run. A weaver reaches for an
-ordinary flow when the shape should remain free, and for an atlas when it must be checked,
-compared or resumed node by node before any agent starts.
+What makes it more than a function is what it **declares**. Every agent it drives is a role with
+a name and a type, and the type says what the flow will ask of it; every environment its agents
+work in is a role the same way; the settings it takes are a pydantic model. What the flow is
+handed is exactly that, and nothing more.
 
 <HmzLoops />
 
-## What makes a function a flow
+## What a flow declares
 
-A mark on it, and nothing else. Which of a file's functions is the flow is the file's own to
-say rather than a name to guess at, because a flow is read by running its file and a file may
-leave several functions behind.
+One decorator, and three types it names:
 
-What the mark carries is what a command line cannot otherwise know:
+```python
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams
+from hmz.flows import GoalCommandAgentMixin, LocalEnv, ShellEnvMixin, flow
 
-- **How many agents it drives** — the length of the tuple it declares. A run started with the
-  wrong number fails before its first turn rather than partway through a loop.
-- **What it calls each of them.** Declared as a named tuple, a flow says `actor` and `reviewer`
-  rather than "the first one" and "the second one" — and those names are what a
-  [trace](/features/tracing) groups each agent's sessions under.
-- **What it needs of them.** A flow that runs an agent under a [goal](/features/goals) says so
-  beside the place, and an agent whose backend has no goal feature is refused before the first
-  turn.
-- **Where its turns may land.** A place may be pointed at another machine, or fixed to a
-  container of an image the flow itself names and configurable by nobody.
+
+class Worker(Agent, GoalCommandAgentMixin): ...
+
+
+class Workspace(LocalEnv, ShellEnvMixin): ...
+
+
+class Agents(AgentCollection):
+    worker: Worker
+
+
+class Envs(EnvCollection):
+    workspace: Workspace
+
+
+class Params(FlowParams):
+    rounds: int = 3
+
+
+@flow(agents=Agents, envs=Envs, params=Params)
+async def pursue(task: str, *, agents: Agents, envs: Envs, params: Params, ctx: FlowContext):
+    ...
+```
+
+What it carries is what a command line cannot otherwise know:
+
+- **Which agents it drives, and what it calls each.** A role is a key of the collection, so a
+  flow says `actor` and `reviewer` rather than "the first one" — and `-a actor=…` is how a run
+  fills it, and the name a [trace](/features/tracing) groups that agent's sessions under. A role
+  left out of a run is refused before the first turn rather than partway through a loop.
+- **What it needs of each.** A role's type is `Agent` with the mixins it asks for — a
+  [goal](/features/goals), [steering](/features/steering), a [hook](/features/hooks) only some
+  harnesses reach — and a harness that cannot serve one is refused before anything starts. See
+  [the capability map](/features/capabilities).
+- **What each may touch.** A `Permission` on the role — its workdir, the rest of the user's
+  home, the machine, the network — which every session of that agent runs under.
+- **Where each works.** An environment role: the directory the run was started in (a
+  `LocalEnv`, which nobody names), or one on another machine that `-e` points at, with what the
+  flow may do there — run programs, run scripts, read and write files, add worktrees, make
+  throwaway copies.
+- **Settings of its own**, as a `FlowParams` model: `-p rounds=5` on a command line, a form in
+  the interface, an instance from a calling flow.
 - **Whether it can be [picked up](/features/resuming)** where its last run left off.
 - **One file, several flows.** Three phases of one thing are one thing to write and three to
-  run, each asking only for the agents it drives and only for the settings it takes.
+  run, each asking only for the roles it drives and only for the params it takes.
 
-A flow may also declare **settings of its own** as a pydantic model, which become fields on the
-sheet where it is set up and lines in a file a scripted run can hand it.
+## What it is handed is exactly what it declared
 
-## Ordinary flows are loaded as code
+The types a flow imports from `hmz.flows` are protocols: they describe, and they run nothing.
+What the flow is handed at run time is the runtime's own object for each role — a *view* of the
+real agent or machine, holding what that role was granted. A harness that could run a `/goal`
+does not let a flow run one through a role that did not ask for it; a machine that could run a
+bash script does not let a flow run one in an environment declared to run programs only. Either
+raises `CapabilityNotGranted`, so what a flow declares is the whole of what it can do — which is
+what makes a declaration something to read rather than something to hope.
 
-There is no static description of an ordinary flow to run instead, and none is cached. A flow
-rewritten between two runs — by hand, or by an agent that flow is itself driving — runs as it
-is *now*. That is what makes a flow, and the skills it brings, a thing a run can improve.
+## Flows are loaded as code
 
-The static checker can inspect a flow's source without importing it. An atlas goes further: its
-body is the description, so compiling it produces a prophecy without executing that body — but
-its node functions and the rest of its module remain ordinary Python.
+There is no static description of a flow to run instead. A flow rewritten between two runs — by
+hand, or by an agent that flow is itself driving — runs as it is *now*: the next run that
+nobody else is running it in imports it afresh. Within one run a flow's module is imported once
+and kept, so two calls of one flow in one run are the same code.
 
-Its own directory is importable while it runs and only while, since what a flow imports is not
-something the rest of the process should be able to. All of which is why a flowverse is trusted
-the way a repository of code is trusted rather than read as data, and why
-[Security](/user/security) is a page rather than a paragraph.
+Its own directory is importable while it runs, so what it keeps beside its entry point imports
+by a plain name. All of which is why a flowverse is trusted the way a repository of code is
+trusted rather than read as data, and why [Security](/user/security) is a page rather than a
+paragraph.
 
 ## The shapes a loop takes
 
 The diagram above is the whole vocabulary, and each shape is a few lines:
 
 - **A conversation.** The flow waits for the next thing to say, says it, and waits again.
-  Between two turns it is a Python function sitting on a call that has not returned.
+  Between two turns it is a coroutine sitting on an `await` that has not returned.
 - **Ralph.** A session of its own each round: the agent starts from the task and the repository
   with nothing of the last round in context. The repository is the memory.
-- **Stateful ralph.** One session, opened once and held, re-sent the task every round. The
+- **Stateful ralph.** One session, spawned once and held, re-sent the task every round. The
   conversation is what the flow is — and is the one thing a run picked up again cannot have
   back.
 - **An actor and a reviewer.** One works; the other is asked, in a session of its own, for an
@@ -74,31 +110,31 @@ The diagram above is the whole vocabulary, and each shape is a few lines:
 
 ## A flow that calls a flow
 
-A loop worth having is a loop another loop can reach for. A flow may ask for another by the
-same name a command line takes, hand it agents it already holds, and take back whatever it
-answers with — awaited, where the inner flow is a coroutine.
+A loop worth having is a loop another loop can reach for. A flow asks for another by a ref —
+`:review` beside it, `humanize1:gen-plan` in the same flowverse,
+`git+https://github.com/humanfia/flowverse@main#rlar` in somebody else's — and calls what it is
+given with agents and environments it already holds, awaiting whatever it answers with.
 
-A name nothing answers to is refused where it is *asked for* rather than where the answer is
-called, so a flow that asks for the wrong one says so at once instead of an hour into a loop.
-The inner flow's agents are not renamed: they belong to the run that was started, and a name
-changed under them would change what has already been written down. Both ends of the call go
-into the run's own record — a run is what it did as well as what it was started as.
+What it passes must carry at least what the called flow declares — its mixins, its permission,
+its resources, its harness where it names one — or the call is refused before the called flow
+runs. The called flow then sees exactly what *it* declared, however much more the caller had.
+Its budget is the tighter of its own and what remains of the caller's, what it spends counts
+against every flow above it, and whatever it raises reaches the caller as it was raised. A run
+is a tree of these calls, sixty-four deep at most.
 
 ## Everything a flow needs lives inside it
 
 So that it can be copied, forked and edited whole: a flow whose parts are elsewhere has a hole
 in it wherever it lands.
 
-- **Its own skills are the `skills/` directory inside it**, undeclared: they are in it, and
-  looking is what finds them.
-- **A skill maintained elsewhere is named as a git URL** where the flow is declared, cloned
-  under humanize's own home and fetched again the next time a run asks for it — so it keeps up,
-  and goes on working when the network is down.
-- **The flow's own wins a name a repository also uses**, because a fork that edited a skill
-  meant the edited one.
-- **A repository that cannot be fetched at all stops the run where the flow is got ready**, not
-  at the first turn. A flow that works by a skill it has not got is not one to start and find
-  out about an hour in.
+- **Its own skills are the `skills/` directory inside it**, named by a role's `_skills`, and
+  given to every session of that agent.
+- **A skill maintained elsewhere is named as a git URL** with `#<skill>`, cloned under
+  humanize's own home and fetched again the next time a run asks for it — so it keeps up, and
+  goes on working when the network is down.
+- **A skill that is not there stops the call that needs it** before any turn of it, not at the
+  first turn. A flow that works by a skill it has not got is not one to start and find out about
+  an hour in.
 
 ## Where flows come from
 
@@ -118,8 +154,6 @@ thought to add it would be a list that hid what there is to run.
 
 - [Writing a flow](/weaver/writing-a-flow) · [Loops](/weaver/loops) · [Testing a
   flow](/weaver/testing-flows)
-- [An atlas](/weaver/atlas) · [Checking a flow](/weaver/checking-flows) · [Python becomes a
-  prophecy](/features/prophecy)
-- [Settings of its own](/weaver/flow-settings) · [A flow that calls a
+- [Params of its own](/weaver/flow-settings) · [A flow that calls a
   flow](/weaver/calling-flows) · [Flowverses](/weaver/flowverses)
 - [Flows reference](/reference/flows) — the contract, in full

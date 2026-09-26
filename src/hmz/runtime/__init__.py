@@ -3,12 +3,12 @@
     from hmz.runtime import Hmz
 
     hmz = Hmz()
-    hmz.run("chat", [], "say hello").run()
+    hmz.run("chat", "say hello", agents={"assistant": "claude/claude-haiku-4-5:low"}).run()
 
 The layer between what a flow says and the agents that do it. It finds the flow, hands it
-the agents it declared, opens the epic a run is written into as it happens, remembers what
-this workspace was set up with, and reads the whole of it back again -- as a trace, or as
-one archive to send somewhere.
+a driver for every role it declared, opens the epic a run is written into as it happens,
+remembers what this workspace was set up with, and reads the whole of it back again -- as a
+trace, or as one archive to send somewhere.
 
 :class:`Hmz` is the front door: one workspace and everything that can be done in it, composed
 out of the modules beside it in :mod:`hmz.runtime.doing`. A command line names it, and so does
@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from hmz.runtime.doing.fallbacks import Fallbacks
     from hmz.runtime.doing.flows import Flows, Flowverses
     from hmz.runtime.doing.running import Run
+    from hmz.runtime.runner import Refused
 
 __all__ = [
     "Accounts",
@@ -42,6 +43,7 @@ __all__ = [
     "Flows",
     "Flowverses",
     "Hmz",
+    "Refused",
     "Run",
 ]
 
@@ -54,6 +56,7 @@ _WRITTEN = {
     "Flows": "hmz.runtime.doing.flows",
     "Flowverses": "hmz.runtime.doing.flows",
     "Hmz": "hmz.runtime.doing.core",
+    "Refused": "hmz.runtime.runner",
     "Run": "hmz.runtime.doing.running",
 }
 

@@ -65,33 +65,50 @@ starts it.
 
 ## `hmz exec`
 
-Runs a [flow](/reference/flows) in the current directory, on the agents it is given.
+Runs a [flow](/reference/flows) in the current directory, on the agents and environments it is
+given, under a budget.
 
 ```
-hmz exec -f|--flow <flow> -a|--agent <spec>[,<spec>...] [-a ...] [-c|--config <path>] [--json] <task>
-
-<spec> := [<name>=]<cli>[@<provider>]/<model>:<effort>
+hmz exec -f|--flow <ref>
+         [-a|--agents <role>=<harness>[@<provider>]/<model>:<effort>[,...]] [-a ...]
+         [-e|--envs <role>=<backend>@<provider>/<workdir>[,...]] [-e ...]
+         [-p|--params <key>=<value>[,...]] [-p ...]
+         -b|--budget duration=<duration>,cost=<usd>,output_tokens=<count>[,graceful=<bool>] [-b ...]
+         [--resume] [--json] <task>
 ```
 
 | Argument | |
 | --- | --- |
-| `-f`, `--flow <flow>[:<name>]` | **Required.** The flow to drive: the name of one humanize ships, `<where>/<flow>` for one any other place holds — a [flowverse](/reference/flows#flowverses), or `local`/`user` for your own — or the path to a flow anywhere else. A file that holds [several flows](/reference/flows#several-flows-in-one-file) is said which, after a colon. See [where flows live](/reference/flows#where-flows-live). |
-| `-c`, `--config <path>` | A YAML file of what to set the flow up with, one field per line, under the names the flow declared — only for a flow that says it [can be set up](/reference/flows#settings-of-the-flow-s-own). The flow's own model checks it before the first turn. One key of it is reserved: `budget:` is the run's [allowance](/features/allowances), a mapping of `hours`, `tokens` and `dollars`, and is lifted out before the flow's model sees it. |
-| `-a`, `--agent <spec>[,<spec>...]` | **One for each agent the flow drives** — several to an option, separated by commas, and the option repeated as often as suits. Unnamed they fill the flow's places in the order it takes them; `<name>=` fills the place the flow calls that. None at all for a flow whose only side is you, since nobody chooses what the person runs. |
+| `-f`, `--flow <ref>` | **Required.** The flow to run. A bare `<flow>` is the flow named after its directory, else the only visible flow its module holds, and otherwise an error listing the ones it does hold; `<flow>:<sub>` is one of the [several flows a module holds](/reference/flows#several-flows-in-one-file); `<flowverse>/<flow>` pins a flow to the [flowverse](/reference/flows#flowverses) it came from — `local` and `user` for your own; a path is taken outright; and `git+https://…[@<rev>]#<flow>[:<sub>]` is a flow of a repository nobody has added. See [where flows live](/reference/flows#where-flows-live). |
+| `-a`, `--agents <spec>[,<spec>...]` | One agent per **role** the flow declares, by the role's name. See [Writing an agent](#writing-an-agent). |
+| `-e`, `--envs <spec>[,<spec>...]` | One environment per environment role, by the role's name. See [Writing an environment](#writing-an-environment). |
+| `-p`, `--params <key>=<value>[,...]` | The flow's [params](/reference/flows#settings-of-the-flow-s-own), one field apiece. See [Writing params](#writing-params). |
+| `-b`, `--budget <key>=<value>[,...]` | **Required**, for every flow but `chat`. What the run may spend. See [Writing a budget](#writing-a-budget). |
+| `--resume` | Pick up the newest run of this flow in this workspace that [can be picked up](/reference/flows#a-flow-that-can-be-picked-up), rather than starting afresh. |
 | `--json` | Write the run for a program: one JSON object on stdout per thing an agent says, as it says it. See [Watching a run](#watching-a-run). |
 | `<task>` | **Required.** What the flow is to have the agents do, as the text itself. Put `--` before it if it starts with a dash. |
+
+Every flag but `-f` repeats, and every one of them takes a comma-separated list, so
+`-a actor=…,reviewer=…` and `-a actor=… -a reviewer=…` are the same line. A comma separates two
+items only where what follows it is a key and `=`, so a value may hold commas of its own:
+`-p tags=a,b,c` is one param.
+
+**Nobody is at a prompt.** A run of `hmz exec` has its [outworlder](/reference/flows#the-person-at-the-prompt)
+away the whole time: a flow that asks the person something is answered with nothing — `""`, or
+the answer a schema's defaults make, and `OutworlderAway` where the schema has a field with no
+default — and an agent that stops to ask is told nobody answered and carries on.
 
 ### Watching a run
 
 At a terminal, the run is drawn as it happens:
 
 ```console
-$ hmz exec -f rlar -a claude/claude-opus-5:high -a codex/gpt-5.6-sol:high "fix the build"
-● builder is working
+$ hmz exec -f rlar -a actor=claude/claude-opus-5:high -a reviewer=codex/gpt-5.6-sol:high -b cost=20 "fix the build"
+● actor is working
 ● Bash(pytest -q tests/)
 ● I fixed add() and the tests pass.
-✻ input 40.0k · output 1.2k · $0.61 · claude-opus-5 · builder
-✻ Worked for 74s · builder
+✻ input 40.0k · output 1.2k · $0.61 · claude-opus-5 · actor
+✻ Worked for 74s · actor
 ```
 
 The star under a turn says what it cost: the tokens by kind, then what those came to in money
@@ -110,21 +127,21 @@ to **stderr** and what each turn answered to **stdout**, which is where every sc
 against `hmz exec` reads it:
 
 ```sh
-hmz exec -f chat -a claude/claude-opus-5:high "summarise CHANGELOG.md" > summary.txt
+hmz exec -f chat -a assistant=claude/claude-opus-5:high "summarise CHANGELOG.md" > summary.txt
 ```
 
 `--json` writes the run for a program instead — [NDJSON](https://github.com/ndjson/ndjson-spec),
 one object a line, flushed as each is written:
 
 ```console
-$ hmz exec -f chat -a claude/claude-opus-5:high --json "say hello" | jq -c 'select(.kind == "result")'
+$ hmz exec -f chat -a assistant=claude/claude-opus-5:high --json "say hello" | jq -c 'select(.kind == "result")'
 {"at":1789026740.6,"agent":"assistant","cli":"claude","model":"claude-opus-5","session":"1d1ff959","kind":"result","text":"Hello.","whose":"","tokens":{"claude-opus-5":2080},"spent":{"input":2000,"output":80}}
 ```
 
 | Key | |
 | --- | --- |
 | `at` | When it was said, as a Unix timestamp. |
-| `agent` | Which agent said it, by the name the flow gave it. |
+| `agent` | Which agent said it, by the role the flow declared it under. |
 | `cli`, `model` | Which backend and model it was said on. |
 | `session` | The backend's own id for the conversation, or `""` before the backend has named one. |
 | `kind` | `begins` and `ends` bracket a turn; `text` is the agent talking, `reasoning` it thinking aloud, `tool` it using one, `subagent`/`subagent-ends` an agent it started of its own, `asks` it stopping to ask, `failed` a turn that went wrong, `result` the answer it ends on. |
@@ -140,85 +157,175 @@ stray line cannot break the stream.
 ### Writing an agent
 
 ```
-claude/claude-opus-4-8:high
-claude@deepseek/claude-opus-4-8:high
-builder=claude/claude-opus-4-8:high
-claude/claude-opus-4-8:high,codex/gpt-5.6-sol:max
+actor=claude/claude-opus-5:high
+reviewer=claude@deepseek/claude-opus-5:high
+actor=claude/claude-opus-5:high,reviewer=codex/gpt-5.6-sol:max
 ```
 
-One `-a` is one agent or a list of them separated by commas, and every `-a` on the line adds to
-the same list in the order they were written — so a flow of four agents is one option or four,
-whichever reads better.
+`<role>=<harness>[@<provider>]/<model>:<effort>`, one role apiece. The role is the key the flow
+[declares the agent under](/reference/flows#how-many-agents-and-what-they-are-for) — the
+`reviewer` of `class Agents(AgentCollection): reviewer: Agent` — so a line says which agent is
+which, and the order roles are written in means nothing.
 
-- `<cli>` is `agy`, `claude`, `codex`, `cursor-agent`, `dsh`, `grok`, `kimi`, `mimo`,
-  `opencode`, `pi`, `qwen`
-  or `zcode` — or any CLI of your own [added at `/providers`](/reference/agents#a-cli-of-your-own).
+- `<harness>` is `agy`, `claude`, `codex`, `cursor-agent`, `dsh`, `grok`, `kimi`, `mimo`,
+  `opencode`, `pi`, `qwen` or `zcode` — or any CLI of your own
+  [added at `/providers`](/reference/agents#a-cli-of-your-own), by the name it was added under.
   Each is the command that CLI is installed as. Several also answer to the longer name they
   are installed under: `antigravity`, `claude-code`, `cursor-cli`, `deepseek-harness`,
   `grok-build`, `kimi-code`, `qwen-code`, `mimocode`, `mimo-code` and `zcode-cli`.
 - `<model>` and `<effort>` are whatever that CLI is asked for — humanize does not check them
   against a list, so a model your account has and this documentation does not still works.
 - A model may hold slashes of its own — Kimi Code's are `kimi-code/k3`, and pi, opencode,
-  mimocode and ZCode name every model as `provider/id` — so the CLI is read from the front and
-  the effort from after the last colon.
-- An `@` after the CLI names the [provider](/reference/providers) that agent's turns run as — the
-  account, not the model: `claude@deepseek`. A CLI is never spelled with an `@` in it, so the
-  two are told apart wherever an agent is written. An agent that names none runs its CLI as you
-  already run it.
-- A `<name>=` before the CLI says which of the flow's agents this one is — the field name from
-  the [named tuple](/weaver/writing-a-flow#the-contract-in-three-rules) the flow declares, so
-  `builder=claude/claude-opus-4-8:high`. Name every agent on the line or none of them: an agent
-  with no name fills the flow's next place, which cannot be counted while the others are filled
-  by name. A name the flow has not got, one given twice, a place left unnamed, and a name given
-  to a flow that declared a plain `tuple` are each refused before anything runs, saying what the
-  flow does declare.
-- `permission=` and `web_search=` are **not** settings of `-a`. What an agent may do and
-  whether it may read the internet are the flow's, declared beside the agent it drives, and a
-  line that writes one is refused before anything runs, saying where it is said instead. See
-  [Permissions](/user/permissions) and
-  [Writing a flow](/weaver/writing-a-flow#say-what-each-agent-is-allowed).
-- `cli=`, `model=`, `effort=`, `provider=`, `service_tier=` and `config.KEY=` are **gone**. `=`
-  and `,` say which place an agent fills now, so the two spellings cannot both be read, and a
-  line that writes one of those is refused saying so. A latency tier and a backend-native
-  override are still an agent's to carry — they are set where the agent is made, from the
-  [SDK](/reference/sdk) or by the flow, rather than on the line that names one.
+  mimocode and ZCode name every model as `provider/id` — so the harness is read from the front
+  and the effort from after the last colon.
+- An `@` after the harness names the [provider](/reference/providers) that agent's turns run
+  as — the account, not the model: `claude@deepseek`. A harness is never spelled with an `@` in
+  it, so the two are told apart wherever an agent is written. An agent that names none runs its
+  CLI as you already run it.
+- A role given twice, a role the flow does not declare, and a line with no role at all are each
+  refused before anything runs.
+- **A role the runtime fills is not yours to fill.** A role typed as an `Outworlder` is whoever
+  is outside the run — nobody, under `hmz exec` — and naming it with `-a` is a usage error.
+- **What an agent may do is not a setting of `-a`.** Its [permission](/reference/flows#what-each-agent-may-do),
+  the skills it carries and what it must be able to do — a goal, steering, a hook only some
+  harnesses reach — are the flow's, declared on the role's type, and a harness that cannot
+  serve what a role declares is refused before anything runs. `permission=` and `web_search=`
+  written before an agent are refused, saying the flow is where that is said.
 
-**Names beat position.** A line that names its agents is put in the flow's order whatever order
-you wrote them in; a line that names none fills the places in the order the flow takes them.
-Two agents of one spelling are two agents either way, which is what makes a flow of an actor and
-a reviewer at one configuration what it says it is.
+### Writing an environment
+
+```
+repo=ssh@gpu-box/home/me/repo
+repo=ssh@me@gpu-box:2222/~/repo
+data=local@/srv/data
+```
+
+`<role>=<backend>@<provider>/<workdir>`, for each environment role the flow declares. The
+workdir is everything from the first `/` after the `@`, so it is absolute; `ssh@host/~/repo` is
+`repo` under the home directory of whoever ssh logs in as.
+
+- `<backend>` is `local`, this machine, or `ssh`, a host reached with ssh.
+- `<provider>` is the ssh destination — `host`, `user@host`, `host:port` or an alias of your ssh
+  config — and is empty for `local`, whose spec is `local@/path`.
+- A role the runtime fills is not yours to fill. A role typed as a `LocalEnv` is the directory
+  `hmz exec` was started in, and naming it with `-e` is a usage error. Most flows work in
+  nothing else, so most lines have no `-e` at all.
+- An environment whose machine is smaller than the role declares — fewer CPUs or GPUs, less
+  memory — is refused before anything runs, as is one that cannot serve a mixin the role
+  declares.
+
+### Writing params
+
+```
+-p rounds=3
+-p rounds=3,strict=false -p tags=a,b,c
+-p 'limits={"cost": 5, "turns": 9}'
+```
+
+`<key>=<value>`, one field of the flow's `FlowParams` apiece. Each value is read as the field's
+own type — `3` for an `int`, `false` for a `bool` — and, where that does not read it, as JSON,
+so a list or a model is written the way JSON writes one. A key the flow does not declare, a key
+given twice and a value the field refuses are each refused before anything runs, naming the
+field. A field left out keeps its default.
+
+### Writing a budget
+
+```
+-b cost=20
+-b duration=6h,output_tokens=10m
+-b duration=1h30m -b cost=$5,graceful=false
+```
+
+At least one of the three limits, and each key at most once across every `-b` on the line:
+
+| Key | Written as |
+| --- | --- |
+| `duration` | Seconds (`90`, `1.5`); units of weeks, days, hours, minutes and seconds, each at most once (`1h30m`, `2d`, `90s`); ISO 8601 (`PT1H30M`); or `HH:MM:SS`. |
+| `cost` | USD, with or without a `$`. `inf` is no limit. |
+| `output_tokens` | A whole number (`200000`, `200_000`), or thousands and millions (`200k`, `1.5m`). |
+| `graceful` | `true` or `false` (`yes`/`no`, `1`/`0`, `on`/`off`). Whether the turn under way when a limit is reached is let finish before the run stops — the default — or is cut off at once. |
+
+**A line with no `-b` is refused**, before any agent starts: a flow is a loop, and a loop with
+nothing to stop it is a bill nobody agreed to. The one exception is `chat`, which ends when you
+stop talking to it and runs with no limit at all. A flow no longer declares a budget of its own
+for a run to fall back on. See [What a run may spend](/reference/flows#what-a-run-may-spend).
 
 ### What is refused before anything runs
 
-A flow that is not there, has no `run`, does not say how many agents it drives, or drives a
-different number than were given, is a usage error — reported before the first turn rather than
-partway into a loop with a turn's work already behind it:
+Everything that can be known before the first turn is checked before the first turn, and is a
+usage error — reported with nothing started, rather than an hour into a loop with a turn's work
+already behind it:
+
+- a ref that is no ref, or names no flow — a bare one that is ambiguous lists the flows there are;
+- a `-a`, `-e`, `-p` or `-b` that cannot be read;
+- no `-b`, for any flow but `chat`;
+- a role named twice, a role the flow does not declare, a role the runtime fills, and a
+  required role left unfilled — a role the flow declares `NotRequired` may be left out;
+- an agent whose harness cannot serve what its role declares, or a role typed as one harness's
+  own protocol given another harness;
+- an environment short of what its role declares, or one that cannot be reached — every
+  environment the line gives is probed before the flow is called;
+- params the flow's model refuses;
+- a skill a role names that cannot be found or fetched.
+
+Each is one line on stderr, `hmz exec: error: …`, and exit status 2. A line argparse itself
+cannot read — an unknown flag, no `-f` or task, an `-a`, `-e`, `-p` or `-b` that is not one —
+prints argparse's usage line first:
 
 ```console
-$ hmz exec -f rlar -a claude/claude-opus-4-8:high "fix the build"
-hmz exec: error: rlar: the flow drives 2 agents, 1 given
+$ hmz exec -f rlar -a actor=claude/claude-opus-5:high -b cost=20 "fix the build"
+hmz exec: error: rlar needs an agent for 'reviewer'; give each with -a ROLE=CLI/MODEL:EFFORT
+$ hmz exec -f rlar -a actor=opus -b cost=20 "fix the build"
+usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
+                [-p KEY=VALUE[,...]] [-b KEY=VALUE[,...]] [--resume] [--json]
+                task
+hmz exec: error: -a 'actor=opus': expected [NAME=]CLI[@PROVIDER]/MODEL:EFFORT
 ```
 
 Whatever else a flow does as it is imported is the flow's own, and fails as it would anywhere.
 
+### Picking a run up
+
+A flow that says it [can be picked up](/reference/flows#a-flow-that-can-be-picked-up) keeps a
+journal of what it did while it runs: `resume.jsonl`, inside the run's
+[epic](/user/tracing#what-a-run-writes-down), each state write a `{"t":"set",…}` line of it. `--resume` carries on the
+newest run of the same flow in this workspace that got as far as writing one: the flow at the
+top picks up what it kept, and each flow it calls picks up where it is called again with the
+same task, agents, environments and params. The line still says what to run it on — its own
+`-a`, `-e`, `-p` and a fresh `-b` — so an agent that changed is a flow called afresh from there
+down. The run picking one up is an epic of its own, handed a copy of that journal, and says
+which epic it `picked_up` from.
+
+A flow that is not resumable, or one with no such run here, is refused with `--resume`. Without
+it every run starts afresh, whatever an earlier one left behind.
+
+A loop that only its budget ends ends that way: the turn it was in is let finish (unless the
+budget said `graceful=false`), the run stops, `hmz exec: stopped -- …` says which limit it
+reached, and the exit status is 0. A resumable one carries on from there with `--resume` and a
+fresh `-b`.
+
 ### Examples
 
 ```sh
-hmz exec -f ralph_loop -a claude/claude-opus-4-8:high "$(cat TASK.md)"
-hmz exec -f flame_chase -a claude/claude-opus-4-8:max -a codex/gpt-5.6-sol:max "fix the build"
-hmz exec -f rlar -a claude/claude-opus-4-8:high -a claude/claude-opus-4-8:high "$(cat TASK.md)"
-hmz exec -f rlar -a claude/claude-opus-4-8:high,codex/gpt-5.6-sol:high "$(cat TASK.md)"
-hmz exec -f rlar -a actor=claude/claude-opus-4-8:high -a reviewer=codex/gpt-5.6-sol:high "$(cat TASK.md)"
-hmz exec -f flame_chase -a claude@anthropic/claude-opus-5:max -a claude@deepseek/deepseek-chat:high "fix the build"
-hmz exec -f ./flows/mine -a kimi/kimi-code/k3:swarmmax "port this to asyncio"
-hmz exec -f ralph_loop -a pi/openai-codex/gpt-5.5:high "$(cat TASK.md)"
-hmz exec -f ralph_loop -a opencode/opencode/big-pickle:high "$(cat TASK.md)"
-hmz exec -f ralph_loop -a claude/claude-opus-4-8:high -- "--force is not a flag here"
-hmz exec -f humanize1:rlcr -c setup.yaml -a claude/claude-opus-5:max \
-    -a codex/gpt-5.6-sol:xhigh "add undo"
+hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b output_tokens=10m "$(cat TASK.md)"
+hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b output_tokens=10m --resume "$(cat TASK.md)"
+hmz exec -f flame_chase -a first_chaser=claude/claude-opus-5:max,second_chaser=codex/gpt-5.6-sol:max \
+    -b duration=6h,cost=50 "fix the build"
+hmz exec -f rlar -a actor=claude/claude-opus-5:high -a reviewer=codex/gpt-5.6-sol:high \
+    -b cost=20 "$(cat TASK.md)"
+hmz exec -f flame_chase -a first_chaser=claude@anthropic/claude-opus-5:max \
+    -a second_chaser=claude@deepseek/deepseek-chat:high -b cost=20 "fix the build"
+hmz exec -f ./flows/mine -a coder=kimi/kimi-code/k3:swarmmax -b duration=2h "port this to asyncio"
+hmz exec -f mine -a coder=claude/claude-opus-5:high -e trainer=ssh@gpu-box/home/me/repo \
+    -b duration=1d "train it"
+hmz exec -f ralph_loop -a agent=pi/openai-codex/gpt-5.5:high -b cost=5 "$(cat TASK.md)"
+hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b cost=5 -- "--force is not a flag here"
+hmz exec -f humanize1:rlcr -a builder=claude/claude-opus-5:max -a reviewer=codex/gpt-5.6-sol:xhigh \
+    -p max=20 -b duration=12h,cost=100 "add undo"
+hmz exec -f 'git+https://github.com/humanfia/flowverse@main#rlar' \
+    -a actor=claude/claude-opus-5:high,reviewer=codex/gpt-5.6-sol:high -b cost=20 "fix the build"
+hmz exec -f chat -a assistant=claude/claude-opus-5:high "summarise CHANGELOG.md"
 ```
-
-Nobody is at a prompt, so an agent that stops to ask is told nobody answered and carries on.
 
 ## `hmz internal`
 
@@ -241,7 +348,7 @@ them out would simply be untrue about what humanize runs.
 | [`hmz internal anchor`](#hmz-internal-anchor) | A turn whose work lands on another machine, and — under `serve` — the half that lands it. |
 | [`hmz internal cred`](#hmz-internal-cred) | A program run with its credentials answered out of an account's own directory. |
 | [`hmz internal hook`](#hmz-internal-hook) | One moment of a coding agent's hook table, carried to the flow whose moment it is. |
-| [`hmz internal tools`](#hmz-internal-tools) | A coding agent's tool calls, carried to the flow whose callbacks they are. |
+| [`hmz internal tools`](#hmz-internal-tools) | A coding agent's tool calls, carried to the process whose callbacks they are. |
 
 ## `hmz internal anchor`
 
@@ -408,9 +515,11 @@ says so on stderr, where the CLI shows it and carries on.
 hmz internal tools --at <socket>
 ```
 
-Carries the tool protocol between a coding agent and the flow whose
-[callbacks](/weaver/tools) it is: it reads its stdin into the flow's socket and the flow's
-answers back out to its stdout, and does nothing else.
+Carries the tool protocol between a coding agent and the process whose callbacks were put in
+front of it as tools — coganchor's `session.offers([...])`: it reads its stdin into that
+process's socket and the answers back out to its stdout, and does nothing else. The flow API
+has no way to offer a callback as a tool, so a flow never has one spawned for it; a flow
+reaches back into its own code from inside a turn [through hooks](/weaver/tools) instead.
 
 **Not a command anybody types.** A CLI takes a tool by starting a program, so there is a
 program — the same reason `hmz internal cred` exists. humanize spawns it and tells the backend
@@ -419,7 +528,7 @@ rather than as a turn that failed.
 
 | Flag | |
 | --- | --- |
-| `--at PATH` | **Required.** The unix socket the flow is serving its toolbox on. |
+| `--at PATH` | **Required.** The unix socket the toolbox is served on. |
 
 ## Environment variables
 
@@ -471,7 +580,7 @@ A backend home that does not exist is skipped rather than being an error.
 | `~/.humanize/epics/<workspace>/<datetime>-<hex>/epic.jsonl` | every run of a flow | What the run was: the flow, the agents, every session opened and as which account, how it ended. See [Epics](/reference/tracing#epics). |
 | `~/.humanize/epics/<workspace>/<datetime>-<hex>/epic.<flow>_<hex>.jsonl` | the same, per flow that run [called](/reference/flows#a-flow-that-calls-another-flow) | What that call was, written the same way: a called flow opens sessions and calls flows of its own. The run's own record says which file each call is in. |
 | `~/.humanize/epics/<workspace>/<datetime>-<hex>/sessions/<session>/` | the same | A link per file each session was logged to, for reading a run back. humanize reads and writes the logs where the backend keeps them. |
-| `~/.humanize/epics/<workspace>/<datetime>-<hex>/state.json` | a [resumable](/reference/flows) flow | What that flow left behind, which the next run of it picks up. |
+| the run's journal, beside its epic | a run of a flow that [can be picked up](/reference/flows#a-flow-that-can-be-picked-up) | One JSON line per thing the run did that a run picking it up needs: each flow call and how it ended, each write to a flow's state, each session opened, each temporary copy and scratch directory kept. What `--resume` carries on from. |
 | `~/.humanize/epics/<workspace>/<datetime>-<hex>/profile.jsonl` | a run of a workspace that asked to be profiled | The programs the run started, sampled while it ran. |
 | `~/.humanize/epics/<workspace>/<datetime>-<hex>/traces/export.trace.json` | exporting on `/epics` | The trace of that run, gathered as it was exported. One gathered by hand is named for the moment instead. |
 | `~/.humanize/providers/<cli>/<name>/provider.json` | **a** in `/providers` | What a [provider](/reference/providers) was made by, and what a turn under it runs with. `0600`, in a directory at `0700`. |
@@ -487,6 +596,8 @@ A backend home that does not exist is skipped rather than being an error.
 | `~/.humanize/daemons/<project>-<digest>/daemon.log` | the same | Whatever could not be said through a terminal about that run — what the daemon itself could not say, and what went wrong in a process reaching for its socket. |
 | `.humanize/<run>.epic.tar.gz` | **export it**, on a run of `/epics` | One whole run, packaged up to send: its records, its session logs in full, and a manifest. `0600`. |
 | `~/.humanize/flowverses/<name>/` | **a** in `/flowverses` | A [flowverse](/weaver/flowverses), cloned. Every flow in it is offered as `<name>/<flow>`. |
+| `~/.humanize/flowverses/.pinned/<digest>/<commit>/` | a run of a `git+…#<flow>` ref | A repository a flow was [named by URL](/reference/flows#refs) in, checked out at the commit its ref stood at. One clone per commit. |
+| `~/.humanize/envs/<name>-<digest>/` | a flow that derived an environment | What a flow [derives from a workdir](/reference/flows#worktrees-copies-and-scratch-directories) on this machine: `clones/`, `scratch/`, and `worktrees/` added with no directory of their own. On an ssh host, the same under `${HUMANIZE_HOME:-~/.humanize}` there. Removed as the flow that made them ends, unless its run can be picked up. |
 | `~/.humanize/skills/<owner>-<repo>-<digest>/` | a flow that named one | A repository of [skills a flow brings](/reference/flows#the-skills-a-flow-brings), cloned. The digest is of the URL, so two repositories of one name on two hosts are two directories. Fetched again the next time a run asks for it. |
 | `.humanize/flows/*/` | you | This project's own flows, offered as `local/<flow>`. |
 | `~/.humanize/flows/*/` | you | Your flows in every project, offered as `user/<flow>`. |
@@ -498,9 +609,9 @@ into them.
 
 | | |
 | --- | --- |
-| `0` | It did what it was asked. |
+| `0` | It did what it was asked — a run its budget stopped included. |
 | `1` | It could not: the target could not be reached, the listener could not be started, a turn could not be supervised. |
-| `2` | The command line was wrong — argparse's own rejections, a flow that is not there or takes other agents, a malformed listen address, a non-loopback listener with no token. |
+| `2` | The command line was wrong — argparse's own rejections, a flow that is not there, a `-a`, `-e`, `-p` or `-b` that cannot be read or does not meet what the flow declares, no `-b` for a flow that is not `chat`, an environment that cannot be reached, `--resume` with nothing to pick up, a malformed listen address, a non-loopback listener with no token. |
 | `130` | Interrupted. |
 | *the agent's own* | `hmz internal anchor` exits with the status of the program it ran, and `hmz internal cred` with that of the program it supervised. |
 
@@ -518,13 +629,13 @@ humanize from outside:
 from hmz.sdk import Hmz
 
 hmz = Hmz()
-hmz.exec(["-f", "ralph_loop", "-a", "claude/claude-opus-5:high", "fix the build"])
+hmz.exec(["-f", "ralph_loop", "-a", "agent=claude/claude-opus-5:high", "-b", "cost=5", "fix the build"])
 hmz.epics.trace(output="run.trace.json")
 hmz.accounts.all("claude")
 hmz.verses.add("humanfia/flowverse")
 ```
 
-- `hmz.exec(argv)` / `hmz.run(flow, agents, task)` — [Flows](/reference/flows)
+- `hmz.exec(argv)` — [Flows](/reference/flows#running-one)
 - `hmz.epics.trace(...)` — [Tracing](/reference/tracing)
 - `hmz.accounts` — [Providers](/reference/providers)
 - `hmz.verses` — [Flowverses](/weaver/flowverses)
@@ -533,14 +644,15 @@ The layers under it are reachable directly where that is what you want — `Hmz`
 and restates none of them:
 
 ```python
-from hmz.runtime.runner import Runner          # hmz exec
+from hmz.runtime.flowing import run_flow       # a flow, over drivers
+from hmz.runtime.flowing import open_agent, open_env, parse_agents, parse_budget  # -a, -e, -b
 from hmz.runtime.tracing import collect        # the trace /epics gathers
 from hmz.coganchor import connect      # hmz internal anchor
 from hmz.coganchor import check        # hmz internal anchor --check
 from hmz.daemon import running, start  # the run hmz holds apart from the terminal
 ```
 
-- `Runner(flow, agents).run(task)` — [Flows](/reference/flows)
+- `await run_flow(flow, task, agents=…, envs=…, params=…, budget=…)` — [Flows](/reference/flows#running-one)
 - `collect(workspace, *, sessions=…, agents=…, output=…, start=…, end=…, profile=…)` — [Tracing](/reference/tracing)
 - `connect(command, config)` / `check(config)` — [Remote execution](/reference/remote-execution)
 - `running(workspace)` / `start(opens)` — [Daemon](/reference/daemon)

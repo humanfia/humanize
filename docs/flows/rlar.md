@@ -10,7 +10,8 @@ the reviewer noticed is what the actor hears.
 
 ```sh
 hmz exec -f rlar \
-    -a claude/claude-opus-5:high -a claude/claude-opus-5:high "$(cat TASK.md)"
+    -a actor=claude/claude-opus-5:high -a reviewer=codex/gpt-5.6-sol:high \
+    -b duration=6h,cost=60 "$(cat TASK.md)"
 ```
 
 <HmzFlowShape flow="rlar" />
@@ -27,16 +28,19 @@ class Review(BaseModel):
     notes: str   # the review itself, written as a message to the coding agent
 ```
 
-`notes` becomes the actor's next prompt verbatim. `done` is what ends the run — this is the one
-flow here that ends on a judgement rather than on running out. The run's
-[allowance](/features/allowances) is under it as it is under every flow, and it is the ceiling
-rather than the point: what ordinarily stops this one is the reviewer agreeing.
+`notes` becomes the actor's next prompt verbatim. `done` is what ends the run — it ends on a
+judgement rather than on running out, as [`goal`](/flows/goal) and
+[`humanize1`](/flows/humanize1)'s loop do. The run's [budget](/features/allowances) is under it
+as it is under every flow, and it is the ceiling rather than the point: what ordinarily stops
+this one is the reviewer agreeing. A turn that fails, or a review out of shape, is taken again
+the next round; three in a row end the run with the last failure.
 
 The reviewer's prompt tells it to be skeptical, and to treat reward hacking — tests weakened or
 special-cased, work stubbed out or faked — as the thing it is most there to catch. How to read
 a round of work, and how to write the review the actor is then handed, is the flow's own
-[skill](/user/skills): `skills/review-notes`, mounted onto every session either agent opens. A
-weaver who wants the reviews written differently forks the flow, edits that one file, and runs.
+[skill](/user/skills): `skills/review-notes`, which the `reviewer` role names, so every review
+session carries it — the actor's sessions do not. A weaver who wants the reviews written differently forks the flow, edits that one file,
+and runs.
 
 ## Give the two the same model, if you like
 
@@ -46,17 +50,18 @@ work was arrived at. That asymmetry is the flow.
 
 ## What it keeps
 
-`rounds`, and `notes` — the one review nobody has acted on.
+`rounds`, and `notes` — the one review nobody has acted on — in its
+[state](/features/resuming).
 
 It is kept word for word, and this is the only place in these flows where an agent's own prose
 outlives the run. It earns that: it is what the next round is owed, the reviewer wrote it as
 the actor's next prompt, and nothing can write it again.
 
-The actor's session is not picked up with it, so a picked-up round opens on **both** — the
-task, because the actor has never been told it, and under it the review, marked as an earlier
-round's reading of work this session did not do. Marked that way because it may not even be
-this task's: humanize keeps one state per flow per workspace, and neither it nor the flow knows
-what the run that left it was started on.
+The actor's session is not picked up with it, so a round picked up with `--resume` opens on
+**both** — the task, because the actor has never been told it, and under it the review, marked
+as an earlier round's reading of work this session did not do. Marked that way because it may
+not even be this task's: `--resume` picks up the newest resumable run of the flow in this
+workspace, and the flow at the top of a run picks up what it kept whatever it is asked now.
 
 A run the reviewer agreed with keeps nothing at all. What is over is not carried on.
 

@@ -1,8 +1,10 @@
 # Being away — `/afk`
 
-`/afk` tells humanize that nobody is there to answer an agent's questions. Turn it on for long
-or unattended runs, so an agent that asks is told **nobody answered** and carries on instead of
-waiting for a reply that will not come.
+`/afk` tells humanize that nobody is there to answer. Turn it on for long or unattended runs,
+so a question put to you is answered at once instead of waiting for a reply that will not come:
+the run's [outworlder](/weaver/human-agent) — you, as the flow sees you — is **away**. A flow
+asking you something is answered with nothing, and an agent whose question was put to you is
+told **nobody answered** and carries on.
 
 ## Try it
 
@@ -14,9 +16,9 @@ At the prompt, type:
 
 ## What it is not
 
-`/afk` controls whether an agent may ask you a **question**. It does not control whether an
-agent may **act**: that is the rung its flow declared, and a flow written to run unattended
-declares the one where nothing is asked. See [Security](/user/security) and
+`/afk` controls whether you are there to answer a **question**. It does not control whether an
+agent may **act**: that is the permission its flow declared, and nothing an agent does is put to
+anybody for approval whether you are here or not. See [Security](/user/security) and
 [Permissions](/user/permissions).
 
 ## At the prompt
@@ -48,7 +50,8 @@ the answer, rather than a word in the turn. The agent's offer appears with it, b
 not limited to those options — every backend that offers them also takes something else.
 
 A question still up when the flow ends or is stopped ends with it, so stopping a flow is never
-blocked on a question.
+blocked on a question. One still up when you turn `/afk` on is answered by nobody at all, which
+the flow hears as `OutworlderAway`.
 
 ## On a command line
 
@@ -56,7 +59,7 @@ You do not switch anything. `hmz exec` has nobody at a prompt, so it always beha
 on`.
 
 ```sh
-hmz exec -f ralph_loop -a claude/claude-opus-4-8:high "$(cat TASK.md)"
+hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b cost=5 "$(cat TASK.md)"
 ```
 
 This is the whole reason the setting exists. A nine-hour unattended loop that blocked forever
@@ -66,22 +69,18 @@ The question is still shown, in yellow, so that a run read back afterwards says 
 wanted to ask and what it did instead — and it is an `asks` object under
 [`--json`](/user/unattended#read-it-with-a-program), for a job that wants to count them.
 
-## From Python
+## From a flow
 
-`agent.ask` is the hook. Set it and questions reach you. Leave it unset and the backend is told
-nobody answered:
+The flow sees it as `human.away`, on its `Outworlder` role, and an away outworlder answers every
+`run` at once: `""` for text, the answer a schema's defaults make where every field has one,
+and `OutworlderAway` raised where the schema has a field with no default. A flow that has to
+run unattended too asks for shapes whose fields all have defaults, or catches that. See
+[The person as an agent](/weaver/human-agent).
 
-```python
-agent.ask = lambda question: input(f"{question.text} {question.options} ")
-```
-
-```python
-agent.ask = None          # /afk on, in other words
-```
-
-A `Question` has `text` and `options`. Either way, the question also reaches anything
-[watching](/reference/agents#watching-a-turn-as-it-happens) the agent, as an `asks` event. A
-flow can therefore log that its agent wanted to ask, without answering it.
+Underneath, the question an agent stops to ask reaches the flow's `on_ask_user` hook, which is
+what decides whether it is put to you at all. Either way, it also reaches anything
+[watching](/reference/agents#watching-a-turn-as-it-happens) the agent, as an `asks` event, so a
+run can log what its agent wanted to ask without answering it.
 
 ## When to turn it on
 
@@ -96,7 +95,7 @@ flow can therefore log that its agent wanted to ask, without answering it.
 - A flow that drives [the person as an agent](/weaver/human-agent). That side of it is you, and
   `/afk` makes it answer nothing, which ends the conversation.
 - Any flow that asks you for [an answer in a shape](/weaver/shapes). A questionnaire nobody
-  filled in comes back as `None`.
+  filled in comes back as its defaults, or raises `OutworlderAway` where there are none.
 
 ## See also
 

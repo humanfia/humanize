@@ -34,7 +34,7 @@ question, and nothing on a CI box should start uploading because nobody was ther
 | | |
 | --- | --- |
 | the error | its type, its message, and where in humanize it happened |
-| the run | which flow, how long it had been going, and one line per agent: the CLI, the model, the effort, the account **by name**, what it may do, where its work lands, which skills the flow mounted |
+| the run | which flows were going, how deep and for how long, and one line per agent role: the CLI, the model, the effort, the account **by name**, what it may do, which skills it carries |
 | the machine | which coding agents are installed, which accounts exist and how each was signed in, which skills each CLI would load and which flowverses are here — all by name |
 | the friction | what humanize did that you then undid, refused or walked away from, as counts |
 | the versions | humanize, Python, and the kind of machine |
@@ -45,8 +45,8 @@ question, and nothing on a CI box should start uploading because nobody was ther
 - **Nothing an agent said.** No transcript, no session log, no tool output.
 - **No file, no path outside humanize itself, and no directory name.** A stack frame is named
   by where it sits under humanize, or under whatever humanize is installed beside —
-  `hmz/agents/base.py`, `textual/app.py`. A frame in anything else, such as a flow of yours,
-  keeps its line number and nothing else. No path, no file name, no module, no function. A home
+  `hmz/coganchor/agents/base.py`, `textual/app.py`. A frame in anything else, such as a flow of
+  yours, keeps its line number and nothing else. No path, no file name, no module, no function. A home
   directory is replaced wherever it appears, even inside an exception's own message. The
   command line a failed turn ran as is also taken out of the one line Python writes for it. For
   several of these backends that command line holds the prompt.
@@ -59,7 +59,7 @@ they are set. `send_default_pii` attaches the address, the machine's name and, i
 have their own switch, and that is off too. The hostname is not sent either.
 
 One default integration is switched off for the same reason. `ArgvIntegration` attaches
-`sys.argv`, and the command `hmz exec -f ralph_loop -a claude/… "$(cat TASK.md)"` puts the
+`sys.argv`, and the command `hmz exec -f ralph_loop -a agent=claude/… -b cost=5 "$(cat TASK.md)"` puts the
 whole task there. It is disabled where the reporter starts. Everything the SDK collects under
 `extra` is dropped again on the way out.
 
@@ -95,7 +95,7 @@ a report by handing over something that knows. That thing runs only when a repor
 being made, so nothing is gathered on a machine that reports nothing:
 
 ```python
-from hmz import telemetry
+from hmz.runtime import telemetry
 
 telemetry.about("worktrees", lambda: {"held": len(worktrees)})
 telemetry.snag("gave-up", after=3)          # not an error, and not what anybody meant either

@@ -6,8 +6,8 @@ reading one run back agrees with the record the run itself wrote, and that the t
 gathered out of a run afterwards -- a trace of it, an archive of it -- come out of the run's
 own directory rather than out of whatever directory somebody was standing in.
 
-The run is a real one: a flow, driven by a stand-in agent that opens a session and echoes into
-it. Nothing here starts a coding agent.
+The run is a real one: a flow, driven by the engine's fake agent, which opens a session and
+answers into it. Nothing here starts a coding agent.
 """
 
 from __future__ import annotations
@@ -17,31 +17,33 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor.agents import AgentConfig
-from hmz.runtime.runner import Runner
-from hmz.sdk import Epics, Hmz
-from tests.stubs import ShellAgent, written
+from hmz.sdk import Epics, Hmz, fakes
+from tests.stubs import written
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-CONFIG = AgentConfig(model="m", effort="high")
 
 #: A flow that opens one session and says something into it, so that the run has one to point
 #: at -- which is the whole of what an epic is for -- and counts the runs of itself, so that
 #: the run also has something to be picked up from.
 FLOW = '''"""Opens a session, and counts the runs of itself."""
 
-from typing import Any
-
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowParams, LocalEnv, flow
 
 
-@flow(resumable=True)
-def run(agents: tuple[AgentBase], task: str, state: dict[str, Any]) -> None:
-    state["rounds"] = state.get("rounds", 0) + 1
-    agents[0].new()("echo the-session")
+class Agents(AgentCollection):
+    actor: Agent
+
+
+class Envs(EnvCollection):
+    here: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams, resumable=True)
+async def counts(task, *, agents, envs, params, ctx):
+    ctx.state["rounds"] = (ctx.state["rounds"] if "rounds" in ctx.state else 0) + 1
+    session = await agents["actor"].spawn(env=envs["here"])
+    await agents["actor"].run(task, session=session)
 '''
 
 
@@ -50,15 +52,20 @@ def ran(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """One run of one flow in a workspace of its own, and the epic it wrote."""
     monkeypatch.chdir(tmp_path)
     written(tmp_path, "flow", FLOW)
-    Runner(tmp_path / "flow", [ShellAgent(CONFIG, name="actor")]).run("go")
+    Hmz().run(
+        tmp_path / "flow",
+        "go",
+        agents={"actor": fakes.FakeAgentDriver()},
+        budget={"cost": 1},
+    ).run()
     (epic,) = Hmz().epics.all()
     return epic
 
 
 @pytest.fixture
-def named(tmp_path: Path) -> str:
-    """The flow, as it was named when it ran, which is what its state is written under."""
-    return str(tmp_path / "flow")
+def named() -> str:
+    """The flow by its canonical ref, which is what its state is written under."""
+    return "flow:counts"
 
 
 def test_the_runs_are_kept_under_the_directory_this_says_they_are(ran: Path) -> None:
@@ -105,10 +112,11 @@ def test_what_each_agent_opened_is_under_the_name_the_run_knew_it_as(ran: Path) 
 def test_the_last_run_of_a_flow_here_is_what_a_resumable_flow_picks_up(
     ran: Path, named: str
 ) -> None:
-    """Looked for by what the state holds, so a flow called by another is picked up too."""
+    """The newest run of that flow here that wrote its journal."""
     held = Hmz().epics
 
     assert held.resumed(named) == ran
+    assert held.picks_up(ran)
     assert held.resumed("a-flow-nobody-ran") is None
 
 

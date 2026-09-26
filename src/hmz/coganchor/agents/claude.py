@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from collections import Counter
 from dataclasses import dataclass
@@ -14,7 +15,6 @@ from .event import Event, Question, Usage
 from .hooks import EVERYWHERE, SUBAGENTS, WAITING, Moment, about, arriving
 
 if TYPE_CHECKING:
-    import os
     from collections.abc import Iterator
 
 #: The tool Claude reaches for when it wants a person rather than a file. Its input is a list
@@ -55,7 +55,63 @@ _WEB_TOOLS = ("WebSearch", "WebFetch")
 #: call was made under is what pairs the one that started with the result that ends it.
 _FLEET = ("Task", "Agent")
 
+#: What keeps a turn's work inside the turn. Claude sends a subagent or a command to the
+#: background when it likes and ends the turn at once, saying it will wait for them -- and the
+#: `result` that ends it is the turn humanize is holding over, so what the agent went on to
+#: find would land after its flow had read the answer and moved on. Set, the same subagents
+#: run, several to one message as before, and the turn ends when they have.
+_FOREGROUND = {"CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1"}
+
 _ALLOWED_TOOLS_MAX = 32
+
+#: How long a directory spelled as a name may be before Claude cuts it short and tells it
+#: apart from others cut the same way by a hash of the whole.
+_PROJECT_MAX = 200
+
+
+def _project(where: str) -> str:
+    """A directory as Claude names the folder its conversations there are kept in.
+
+    Every character that is not an ASCII letter or digit is a dash -- counted as Claude counts
+    them, in UTF-16 code units, so a character outside the basic plane is two -- and a name
+    longer than :data:`_PROJECT_MAX` is cut there and given the base-36 of a 32-bit string
+    hash of the whole path. Read off Claude Code 2.1.282, where it is the one function that
+    names a project directory.
+
+    Args:
+      where: The directory, absolute.
+
+    Returns:
+      The folder's name.
+    """
+    units = where.encode("utf-16-le")
+    codes = [
+        int.from_bytes(units[at : at + 2], "little") for at in range(0, len(units), 2)
+    ]
+    said = "".join(
+        chr(code) if chr(code).isascii() and chr(code).isalnum() else "-"
+        for code in codes
+    )
+    if len(said) <= _PROJECT_MAX:
+        return said
+    hashed = 0
+    for code in codes:
+        hashed = (hashed * 31 + code) & 0xFFFFFFFF
+    if hashed >= 1 << 31:
+        hashed -= 1 << 32
+    return f"{said[:_PROJECT_MAX]}-{_base36(abs(hashed))}"
+
+
+def _base36(number: int) -> str:
+    """A non-negative number written in base 36, as JavaScript's `toString(36)` writes it."""
+    digits = "0123456789abcdefghijklmnopqrstuvwxyz"
+    said = ""
+    while True:
+        number, digit = divmod(number, 36)
+        said = digits[digit] + said
+        if not number:
+            return said
+
 
 _ALLOWED_TOOL_RULE_MAX_CHARS = 4096
 
@@ -245,6 +301,11 @@ class ClaudeCodeSession(StreamSessionBase):
     #: reads them -- which is why it is declared here rather than in `hmz.coganchor.backends`.
     narrates: ClassVar[bool] = True
 
+    #: Claude keeps a conversation under the directory it was held in, and `--resume` looks
+    #: for it under the directory it is run in. A fork opened elsewhere is carried there first,
+    #: by :meth:`_carry`.
+    forks_elsewhere: ClassVar[bool] = True
+
     def __init__(
         self, agent: AgentBase, cwd: str | os.PathLike[str] | None = None
     ) -> None:
@@ -324,6 +385,10 @@ class ClaudeCodeSession(StreamSessionBase):
         # A fresh id per attempt: an opening turn that failed may still have left Claude
         # holding the id it was given, and retrying under that one would collide forever.
         return ["--session-id", str(uuid.uuid4())]
+
+    def _environment(self) -> dict[str, str]:
+        """What the turn runs with, plus :data:`_FOREGROUND`, which nothing else outranks."""
+        return {**super()._environment(), **_FOREGROUND}
 
     def _command(self) -> list[str]:
         """Builds the ``claude --print`` that reads turns from stdin and says events on stdout.
@@ -1018,6 +1083,53 @@ class ClaudeCodeSession(StreamSessionBase):
             )
             + "\n"
         )
+
+    def _carry(self, cwd: str) -> None:
+        """Copies this conversation to where a Claude run in another directory looks for it.
+
+        Claude keeps a conversation as `projects/<the directory, spelled as a name>/<id>.jsonl`
+        under its home, and `--resume <id> --fork-session` reads it from under the directory
+        it is run in. So a fork opened elsewhere is given a copy there to be cut from; the
+        copy is this conversation as it stands, which is what the fork carries on from.
+
+        Args:
+          cwd: The directory the fork is to work in.
+
+        Raises:
+          NotImplementedError: For an agent whose turns land on another machine, whose Claude
+            keeps its conversations there rather than here.
+          RuntimeError: If this conversation cannot be found where Claude keeps it.
+        """
+        import shutil
+
+        from hmz.coganchor.backends import named
+
+        if self._agent.config.machine is not None:
+            raise NotImplementedError(
+                "claude cannot carry a conversation into another directory on another machine"
+            )
+        profile = named("claude")
+        assert profile is not None  # noqa: S101 -- the backend this driver is for
+        projects = profile.directory(self._environ()) / "projects"
+        # Where this conversation is held first: an earlier fork carried elsewhere left a
+        # copy of it there, as it stood then, which is not where it stands now.
+        held = os.path.abspath(self.cwd)  # noqa: PTH100
+        found = next(
+            (
+                kept
+                for spelled in dict.fromkeys((held, os.path.realpath(held)))
+                if (kept := projects / _project(spelled) / f"{self.id}.jsonl").is_file()
+            ),
+            None,
+        ) or next(projects.glob(f"*/{self.id}.jsonl"), None)
+        if found is None:
+            raise RuntimeError(f"claude: no conversation {self.id} under {projects}")
+        where = os.path.abspath(cwd)  # noqa: PTH100
+        for spelled in dict.fromkeys((where, os.path.realpath(where))):
+            there = projects / _project(spelled)
+            there.mkdir(parents=True, exist_ok=True)
+            if (there / found.name) != found:
+                shutil.copyfile(found, there / found.name)
 
     def _pursue(self, objective: str) -> str:
         """Runs the turn as Claude Code's own ``/goal``, which print mode expands like any other.

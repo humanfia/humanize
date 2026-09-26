@@ -183,11 +183,12 @@ const cli = computed(() => BACKENDS[backend.value])
         </div>
         <div v-else class="rows">
           <div class="got none">
-            <code>None</code>
-            <span class="value">under suppress</span>
+            <code>OutputSchemaError</code>
+            <span class="value">raised</span>
             <p>
               An answer that is not what was asked for is a turn that did not do what it was
-              told, however cleanly the backend exited. Without suppress it raises instead.
+              told, however cleanly the backend exited. <code>run</code> raises rather than
+              answering.
             </p>
           </div>
         </div>

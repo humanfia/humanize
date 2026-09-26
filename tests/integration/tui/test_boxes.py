@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz.tui import Humanize
-from hmz.tui.pick import Confirms, Leaves, Popup, Reports, Unbounded
+from hmz.tui.pick import Confirms, Leaves, Popup, Reports
 from tests.tui.fixtures import until
 
 if TYPE_CHECKING:
@@ -35,7 +35,6 @@ WIDE, TALL = 100, 40
     "opens",
     [
         pytest.param(Confirms, id="confirms"),
-        pytest.param(Unbounded, id="unbounded"),
         pytest.param(partial(Leaves, held=False), id="leaves"),
         pytest.param(Reports, id="reports"),
     ],

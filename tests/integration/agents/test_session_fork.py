@@ -225,7 +225,7 @@ def test_the_run_says_which_conversation_a_child_was_cut_from(
 ) -> None:
     """The backend's log shows a session that opened knowing things and never says whence."""
     agent = OpencodeAgent(OPENCODE, name="builder")
-    epic = Epic("branching", [agent], "go", tmp_path)
+    epic = Epic("branching", "go", tmp_path)
     agent.epic = epic
     session = agent.new()
     session("hello")

@@ -46,8 +46,8 @@ async def test_deepseek_chat_explains_a_missing_api_key_instead_of_staying_blank
 ) -> None:
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     monkeypatch.setenv("DSH_HOME", str(tmp_path / "dsh-home"))
-    app = Humanize(agents=[Runs("dsh/deepseek-v4-flash:high")])
-    assert app._models == [Runs("dsh/deepseek-v4-flash:high")]
+    app = Humanize(agents={"assistant": Runs("dsh/deepseek-v4-flash:high")})
+    assert app._models == {"assistant": Runs("dsh/deepseek-v4-flash:high")}
 
     async with app.run_test() as driver:
         await driver.press(*"hello")

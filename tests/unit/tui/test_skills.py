@@ -275,22 +275,24 @@ def test_a_skill_with_no_front_matter_is_the_directory_it_is_in(homes: Path) -> 
 def test_a_workspace_writes_down_no_skills_of_its_own(tmp_path: Path) -> None:
     """What an agent is does not include them any more, so nothing about them is kept."""
     kept = Settings(tmp_path)
-    kept.remember("rlar", ("actor",), [Runs("claude/m:high")])
+    kept.remember("rlar", {"actor": Runs("claude/m:high")})
 
-    assert Settings(tmp_path).agents("rlar") == [Runs("claude/m:high")]
+    assert Settings(tmp_path).agents("rlar") == {"actor": Runs("claude/m:high")}
     held = Settings(tmp_path)._read()
     agents = held["workspaces"][str(tmp_path.resolve())]["flows"]["rlar"]["agents"]
-    assert "skills" not in agents["actor"]
+    assert agents["actor"] == "claude/m:high"  # the word `-a` takes, and nothing else
 
 
-def test_a_file_that_still_says_skills_is_read_past(tmp_path: Path) -> None:
-    """An agent written down when they were a setting is the agent it always was."""
+def test_a_file_that_still_says_skills_is_read_as_nothing_remembered() -> None:
+    """An agent written down in the shape it had when skills were a setting is not one now.
+
+    What an agent is written down as is the word `-a` takes, and a file holding anything
+    else is one humanize did not write this way: it reads as nothing remembered, which is a
+    flow asked about again rather than one started on half an answer.
+    """
     from hmz.runtime.kept import read_back
 
-    runs = read_back(
-        {"cli": "claude", "model": "m", "effort": "high", "skills": ["writing"]}
+    assert (
+        read_back({"cli": "claude", "model": "m", "effort": "high", "skills": ["a"]})
+        is None
     )
-
-    # Searching the web among them: a file this old was written before there was such a
-    # setting, and every agent of every flow then searched.
-    assert runs == Runs("claude/m:high", web_search=True)

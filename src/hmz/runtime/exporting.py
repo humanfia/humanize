@@ -50,8 +50,8 @@ from typing import TYPE_CHECKING, Any, cast
 from hmz.coganchor import backends
 from hmz.runtime.epic import (
     JOURNAL,
+    RESUME,
     SESSIONS,
-    STATE,
     TRACES,
     read,
     records,
@@ -389,10 +389,10 @@ def _lands(epic: Path, at: str | os.PathLike[str] | None) -> Path:
 def _files(epic: Path) -> Iterator[tuple[str, Path]]:
     """Everything one run wrote down about itself, by the name it goes in the archive under.
 
-    The run's own record first, then a record per flow it called, then what a resumable flow
-    left behind, the profile of the programs it ran, and every trace gathered of it. Each is
-    absent from a run that never wrote one -- a flow that keeps no state, a run nobody
-    profiled -- and an absent one is left out rather than carried as an empty file.
+    The run's own record first, then a record per flow it called, then the journal a
+    resumable flow kept, the profile of the programs it ran, and every trace gathered of it.
+    Each is absent from a run that never wrote one -- a flow that is not resumable, a run
+    nobody profiled -- and an absent one is left out rather than carried as an empty file.
 
     Args:
       epic: The run, by the directory it is written in.
@@ -404,7 +404,7 @@ def _files(epic: Path) -> Iterator[tuple[str, Path]]:
 
     for one in records(epic):
         yield one.name, one
-    for name in (STATE, PROFILE):
+    for name in (RESUME, PROFILE):
         if (epic / name).is_file():
             yield name, epic / name
     with contextlib.suppress(OSError):
@@ -704,20 +704,14 @@ def _manifest(
                 "backend": one.backend,
                 "model": one.model,
                 "effort": one.effort,
-                # Empty where the run said nothing to that CLI about what its agent may
-                # do, which is a value rather than a field that went missing: the rung it
-                # ran at was the CLI's own, and naming one here would be this bundle making
-                # up an answer the run never gave.
-                "permission": one.permission,
                 # By name, and by name only: what an account runs a turn with is the one
                 # thing a bundle must never carry.
                 "provider": one.provider,
-                "goals": one.goals,
-                "person": one.person,
                 "runs": one.spec,
             }
             for one in ran.agents
         ],
+        "envs": list(ran.envs),
         "called": _called(tree(epic)),
         "sessions": list(said),
         "backends": {name: _cli(name) for name in named},

@@ -38,14 +38,24 @@ if TYPE_CHECKING:
 #: A flow, as short as one can be: what is being fetched is the file, not what it does.
 FLOW = '''"""Somebody else's loop, fetched from somewhere else."""
 
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams
+from hmz.flows import LocalEnv, flow
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    (agent,) = agents
-    agent.new()(task)
+class Agents(AgentCollection):
+    worker: Agent
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def run(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
+              ctx: FlowContext) -> None:
+    """Somebody else's loop."""
+    worker = agents["worker"]
+    await worker.run(task, session=await worker.spawn(env=envs["workspace"]))
 '''
 
 
@@ -227,7 +237,7 @@ async def test_a_flow_says_what_it_does_beside_its_name() -> None:
             .prompt
         )
 
-        assert "one agent, one session" in drawn
+        assert "Talks to one agent" in drawn
 
 
 @pytest.mark.timeout(60)
@@ -353,42 +363,39 @@ async def test_the_flow_that_is_picked_is_the_one_that_was_chosen(theirs: Path) 
 
 
 #: A file that is three flows and no `run`, which is what humanize1 is.
-THREE = '''"""Three phases of one thing, which are three things to run."""
+THREE = '''"""Phases of one thing, which are things to run apiece."""
 
-from typing import NamedTuple
-
-from pydantic import BaseModel
-
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams, flow
 
 
-class Drafting(NamedTuple):
+class Drafting(AgentCollection):
     """The one that writes."""
 
-    drafter: AgentBase
+    drafter: Agent
 
 
-class Building(NamedTuple):
+class Building(AgentCollection):
     """The one that builds, and the one that reads it."""
 
-    builder: AgentBase
-    reviewer: AgentBase
+    builder: Agent
+    reviewer: Agent
 
 
-class Wide(BaseModel):
+class Wide(FlowParams):
     """What the first phase takes."""
 
     n: int = 6
 
 
-@flow(name="gen-idea")
-def gen_idea(agents: Drafting, task: str, config: Wide | None = None) -> None:
+@flow(agents=Drafting, envs=EnvCollection, params=Wide, name="gen-idea")
+async def gen_idea(task: str, *, agents: Drafting, envs: EnvCollection, params: Wide,
+                   ctx: FlowContext) -> None:
     """Opens a loose idea into a draft."""
 
 
-@flow(name="rlcr")
-def rlcr(agents: Building, task: str) -> None:
+@flow(agents=Building, envs=EnvCollection, params=FlowParams, name="rlcr")
+async def rlcr(task: str, *, agents: Building, envs: EnvCollection, params: FlowParams,
+               ctx: FlowContext) -> None:
     """Builds it, under review."""
 '''
 

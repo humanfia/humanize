@@ -21,10 +21,10 @@ from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.app import _COMMANDS, Editor
 from hmz.tui.complete import offered
-from hmz.tui.pick import _SAVE, Flows, Unbounded
+from hmz.tui.pick import _BUDGET, _SAVE, Configures, Flows
 from tests.integration.tui.test_app import opens
 from tests.stubs import ShellAgent, written
-from tests.tui.fixtures import transcript, until
+from tests.tui.fixtures import holding, transcript, until
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -37,48 +37,86 @@ _INSTALLED = {"claude": (Model("m", ("high",)),)}
 
 #: A flow of one agent, for the workspace that has set none of them up yet.
 _ONE = """
-from hmz.flows import Agent, flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams, flow
 
 
-@flow
-def run(agents: tuple[Agent], task: str) -> None:
-    agents[0].new()(task)
+class Agents(AgentCollection):
+    worker: Agent
+
+
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams)
+async def loop(task: str, *, agents: Agents, envs: EnvCollection, params: FlowParams,
+               ctx: FlowContext) -> None:
+    pass
 """
 
 #: A flow of two agents, for what happens to a workspace set up for one of them and then
 #: handed a flow that wants both.
 _PAIR = """
-from typing import NamedTuple
-
-from hmz.flows import Agent, flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams, flow
 
 
-class Pair(NamedTuple):
+class Pair(AgentCollection):
     builder: Agent
     reviewer: Agent
 
 
-@flow
-def run(agents: Pair, task: str) -> None:
-    agents.builder.new()(task)
+@flow(agents=Pair, envs=EnvCollection, params=FlowParams)
+async def pair(task: str, *, agents: Pair, envs: EnvCollection, params: FlowParams,
+               ctx: FlowContext) -> None:
+    pass
 """
 
-#: A file holding a flow of its own name and another beside it whose name has a dash in it --
-#: which `humanize1:gen-idea` is, and which a sigil that stopped reading at the dash would put
-#: to the conversation whole instead of running.
+#: A flow that takes params, for a workspace whose kept ones it no longer accepts.
+_SETTABLE = """
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams, flow
+
+
+class Agents(AgentCollection):
+    worker: Agent
+
+
+class Params(FlowParams):
+    rounds: int = 3
+
+
+@flow(agents=Agents, envs=EnvCollection, params=Params)
+async def settable(task: str, *, agents: Agents, envs: EnvCollection, params: Params,
+                   ctx: FlowContext) -> None:
+    pass
+"""
+
+#: A module holding a flow of its own name and another beside it whose name has a dash in it
+#: -- which `humanize1:gen-idea` is, and which a sigil that stopped reading at the dash would
+#: put to the conversation whole instead of running.
 _PHASES = """
-from hmz.flows import Agent, flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams, flow
 
 
-@flow
-def run(agents: tuple[Agent], task: str) -> None:
-    agents[0].new()(task)
+class Agents(AgentCollection):
+    worker: Agent
 
 
-@flow(name="gen-idea")
-def idea(agents: tuple[Agent], task: str) -> None:
-    agents[0].new()(task)
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams)
+async def phases(task: str, *, agents: Agents, envs: EnvCollection, params: FlowParams,
+                 ctx: FlowContext) -> None:
+    pass
+
+
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams, name="gen-idea")
+async def idea(task: str, *, agents: Agents, envs: EnvCollection, params: FlowParams,
+               ctx: FlowContext) -> None:
+    pass
 """
+
+#: What a run of a flow may spend, which every flow but `chat` is given before it is run.
+_SPENDS = {"cost": 1.0}
+
+#: What `chat` is set up with here, which is its one agent role and no budget at all.
+_CHAT = {"assistant": Runs("claude/m:high")}
+
+#: What each flow of one agent role is set up with here.
+_WORKER = {"worker": Runs("claude/m:high")}
 
 
 @pytest.fixture
@@ -91,21 +129,26 @@ def backend(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(hmz.tui.pick, "installed", lambda: dict(_INSTALLED))
 
 
+#: One run that would have been started: the flow, what its roles run, and the task.
+type Started = tuple[str, dict[str, Runs], str]
+
+
 @pytest.fixture
-def started(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
-    """Catches the command line each run would have been started on, and starts none.
+def started(monkeypatch: pytest.MonkeyPatch) -> list[Started]:
+    """Catches each run that would have been started, and starts none.
 
     A run is a backend, a thread and a process; what these are about is which flow got
-    started and on what, which is the line `hmz exec` would have been handed.
+    started and on what, which is what the runtime would have been handed.
     """
-    lines: list[list[str]] = []
+    runs: list[Started] = []
 
-    def caught(_self: Humanize, argv: list[str], resume: object = None) -> None:
-        """What starting a flow comes to here, which is writing down the line."""
-        lines.append(argv)
+    def caught(self: Humanize, task: str, resume: object = None) -> None:
+        """What starting a flow comes to here, which is writing down what it was."""
+        del resume
+        runs.append((self._flow_named, dict(self._models), task))
 
     monkeypatch.setattr(Humanize, "_flow", caught)
-    return lines
+    return runs
 
 
 async def sends(app: Humanize, driver: Pilot[None], line: str) -> None:
@@ -139,33 +182,36 @@ async def saves(app: Humanize, driver: Pilot[None]) -> None:
     """
     sheet = cast("Flows", app.screen)
     await until(lambda: sheet._inside, driver)
+    # A run of it is given a budget, which none of these flows has been yet: set on its row,
+    # as a duration, before the menu is saved.
+    await opens(app, driver, _BUDGET)
+    await until(lambda: isinstance(app.screen, Configures), driver)
+    await driver.press(*"1h")
+    await driver.press("enter")
+    await until(lambda: app.screen is sheet, driver)
     await opens(app, driver, _SAVE)
-    # None of these flows declares a budget and none of these tests sets one, so saving asks
-    # whether a run with nothing at all to stop it is what was meant. It is, here.
-    if isinstance(app.screen, Unbounded):
-        await driver.press("enter")
     await until(lambda: not isinstance(app.screen, Flows), driver)
 
 
 @pytest.mark.timeout(60)
 async def test_a_flow_this_workspace_has_set_up_runs_on_the_line_that_named_it(
-    tmp_path: Path, started: list[list[str]]
+    tmp_path: Path, started: list[Started]
 ) -> None:
     """The whole point: two answers already given are not two answers to give again."""
-    Settings(tmp_path).remember("chat", ("assistant",), [Runs("claude/m:high")])
+    Settings(tmp_path).remember("chat", _CHAT)
     app = Humanize()
     async with app.run_test() as driver:
         await sends(app, driver, "$chat fix the build")
         await until(lambda: bool(started), driver)
 
-        assert started == [["-f", "chat", "-a", "claude/m:high", "fix the build"]]
+        assert started == [("chat", _CHAT, "fix the build")]
         assert not isinstance(app.screen, Flows)  # no menu at all
         assert "$chat fix the build" in transcript(app)
 
 
 @pytest.mark.timeout(90)
 async def test_a_flow_never_set_up_here_opens_the_menu_and_runs_once_it_is_saved(
-    tmp_path: Path, backend: None, started: list[list[str]]
+    tmp_path: Path, backend: None, started: list[Started]
 ) -> None:
     """A flow with no agents chosen for it is a flow that stops on its first turn."""
     written(tmp_path / ".humanize" / "flows", "loop", _ONE)
@@ -181,7 +227,7 @@ async def test_a_flow_never_set_up_here_opens_the_menu_and_runs_once_it_is_saved
         await saves(app, driver)
         await until(lambda: bool(started), driver)
 
-        assert started == [["-f", "local/loop", "-a", "claude/m:high", "fix the build"]]
+        assert started == [("local/loop", _WORKER, "fix the build")]
         assert Settings(tmp_path).flow == "local/loop"  # and it is set up now
 
     # And so the same line a second time is the run, with no menu in the way.
@@ -192,12 +238,12 @@ async def test_a_flow_never_set_up_here_opens_the_menu_and_runs_once_it_is_saved
         await until(lambda: bool(started), driver)
 
         assert not isinstance(again.screen, Flows)
-        assert started == [["-f", "local/loop", "-a", "claude/m:high", "fix the build"]]
+        assert started == [("local/loop", _WORKER, "fix the build")]
 
 
 @pytest.mark.timeout(60)
 async def test_a_flow_that_grew_an_agent_is_asked_about_rather_than_run_short_of_one(
-    tmp_path: Path, backend: None, started: list[list[str]]
+    tmp_path: Path, backend: None, started: list[Started]
 ) -> None:
     """What was remembered is one agent, and the flow drives two: a place with nobody in it.
 
@@ -205,7 +251,9 @@ async def test_a_flow_that_grew_an_agent_is_asked_about_rather_than_run_short_of
     nothing against it rather than the builder's model quietly moved along one.
     """
     written(tmp_path / ".humanize" / "flows", "pair", _PAIR)
-    Settings(tmp_path).remember("local/pair", ("builder",), [Runs("claude/m:high")])
+    Settings(tmp_path).remember(
+        "local/pair", {"builder": Runs("claude/m:high")}, budget=_SPENDS
+    )
     app = Humanize()
     async with app.run_test() as driver:
         await sends(app, driver, "$local/pair fix the build")
@@ -216,15 +264,19 @@ async def test_a_flow_that_grew_an_agent_is_asked_about_rather_than_run_short_of
 
 @pytest.mark.timeout(60)
 async def test_settings_the_flow_no_longer_accepts_are_asked_again_rather_than_dropped(
-    tmp_path: Path, backend: None, started: list[list[str]]
+    tmp_path: Path, backend: None, started: list[Started]
 ) -> None:
-    """A flow that renamed a setting under what was written down for it is one to answer."""
+    """A flow that renamed a param under what was written down for it is one to answer."""
+    written(tmp_path / ".humanize" / "flows", "settable", _SETTABLE)
     Settings(tmp_path).remember(
-        "ralph_loop", ("",), [Runs("claude/m:high")], {"nothing-of-the-sort": 1}
+        "local/settable",
+        _WORKER,
+        params={"nothing-of-the-sort": 1},
+        budget=_SPENDS,
     )
     app = Humanize()
     async with app.run_test() as driver:
-        await sends(app, driver, "$ralph_loop fix the build")
+        await sends(app, driver, "$local/settable fix the build")
         await until(lambda: isinstance(app.screen, Flows), driver)
 
         assert not started
@@ -232,7 +284,7 @@ async def test_settings_the_flow_no_longer_accepts_are_asked_again_rather_than_d
 
 @pytest.mark.timeout(60)
 async def test_walking_out_of_the_menu_starts_nothing_and_says_so(
-    tmp_path: Path, backend: None, started: list[list[str]]
+    tmp_path: Path, backend: None, started: list[Started]
 ) -> None:
     """A line typed to start something must not vanish without a word about it."""
     written(tmp_path / ".humanize" / "flows", "loop", _ONE)
@@ -249,7 +301,7 @@ async def test_walking_out_of_the_menu_starts_nothing_and_says_so(
 
 @pytest.mark.timeout(60)
 async def test_a_flow_that_is_not_there_is_a_line_to_correct_and_not_the_end(
-    started: list[list[str]],
+    started: list[Started],
 ) -> None:
     """Said the way `/nosuchcommand` is: the sigil was meant, the name after it is the typo."""
     app = Humanize()
@@ -272,7 +324,7 @@ async def test_a_flow_that_is_not_there_is_a_line_to_correct_and_not_the_end(
     ],
 )
 async def test_a_line_that_merely_begins_with_a_dollar_is_still_a_line(
-    line: str, started: list[list[str]]
+    line: str, started: list[Started]
 ) -> None:
     """`$` is a sigil on a name, so a `$` with no name after it is eaten by nothing."""
     app = Humanize()
@@ -289,10 +341,10 @@ async def test_a_line_that_merely_begins_with_a_dollar_is_still_a_line(
 
 @pytest.mark.timeout(60)
 async def test_a_prompt_written_under_the_name_is_the_prompt(
-    tmp_path: Path, started: list[list[str]]
+    tmp_path: Path, started: list[Started]
 ) -> None:
     """A long prompt is broken over several lines, and the `$` is still on the first of them."""
-    Settings(tmp_path).remember("chat", ("assistant",), [Runs("claude/m:high")])
+    Settings(tmp_path).remember("chat", _CHAT)
     app = Humanize()
     async with app.run_test() as driver:
         await driver.press(*"$chat")
@@ -301,24 +353,22 @@ async def test_a_prompt_written_under_the_name_is_the_prompt(
         await driver.press("enter")
         await until(lambda: bool(started), driver)
 
-        assert started == [["-f", "chat", "-a", "claude/m:high", "fix the build"]]
+        assert started == [("chat", _CHAT, "fix the build")]
 
 
 @pytest.mark.timeout(60)
 async def test_one_of_the_several_flows_a_file_holds_is_named_dash_and_all(
-    tmp_path: Path, started: list[list[str]]
+    tmp_path: Path, started: list[Started]
 ) -> None:
     """`<file>:<inside>` is a name like any other, and what is inside may be called anything."""
     written(tmp_path / ".humanize" / "flows", "phases", _PHASES)
-    Settings(tmp_path).remember("local/phases:gen-idea", ("",), [Runs("claude/m:high")])
+    Settings(tmp_path).remember("local/phases:gen-idea", _WORKER, budget=_SPENDS)
     app = Humanize()
     async with app.run_test() as driver:
         await sends(app, driver, "$local/phases:gen-idea fix the build")
         await until(lambda: bool(started), driver)
 
-        assert started == [
-            ["-f", "local/phases:gen-idea", "-a", "claude/m:high", "fix the build"]
-        ]
+        assert started == [("local/phases:gen-idea", _WORKER, "fix the build")]
 
 
 @pytest.mark.timeout(60)
@@ -326,7 +376,7 @@ async def test_nothing_is_offered_against_a_dollar_while_an_agent_waits_to_be_an
     tmp_path: Path,
 ) -> None:
     """The next line typed is the answer, whatever it begins with, so enter must send it."""
-    Settings(tmp_path).remember("chat", ("assistant",), [Runs("claude/m:high")])
+    Settings(tmp_path).remember("chat", _CHAT)
     app = Humanize()
     async with app.run_test() as driver:
         app._asking = Question("which way?")
@@ -341,28 +391,28 @@ async def test_nothing_is_offered_against_a_dollar_while_an_agent_waits_to_be_an
 
 @pytest.mark.timeout(60)
 async def test_a_dollar_while_a_flow_runs_is_refused_the_way_choosing_one_is(
-    tmp_path: Path, started: list[list[str]]
+    tmp_path: Path, started: list[Started]
 ) -> None:
     """Choosing a flow is shut while one runs, and this is choosing a flow."""
-    Settings(tmp_path).remember("chat", ("assistant",), [Runs("claude/m:high")])
+    Settings(tmp_path).remember("chat", _CHAT)
     app = Humanize()
     async with app.run_test() as driver:
-        app._agents = [ShellAgent(AgentConfig(model="m", effort="high"))]
+        run = holding(app, ShellAgent(AgentConfig(model="m", effort="high")))
         await sends(app, driver, "$chat fix the build")
         await until(lambda: "a flow is running" in transcript(app), driver)
 
-        assert app._agents  # left exactly as it was
+        assert app._run is run  # left exactly as it was
         assert not started
 
 
 @pytest.mark.timeout(60)
 async def test_a_dollar_naming_a_flow_and_nothing_else_chooses_it_and_waits(
-    tmp_path: Path, started: list[list[str]]
+    tmp_path: Path, started: list[Started]
 ) -> None:
     """With nothing said after the name there is nothing to start on, so nothing starts."""
     kept = Settings(tmp_path)
-    kept.remember("chat", ("assistant",), [Runs("claude/m:high")])
-    kept.remember("ralph_loop", ("",), [Runs("claude/m:high")])
+    kept.remember("chat", _CHAT)
+    kept.remember("ralph_loop", _WORKER, budget=_SPENDS)
     app = Humanize()
     assert app._flow_named == "ralph_loop"  # the one this workspace was last run with
     async with app.run_test() as driver:
@@ -403,3 +453,34 @@ async def test_tab_takes_the_flow_that_is_offered_under_the_sigil() -> None:
         await driver.pause()
 
         assert app.query_one(Editor).text == "$chat "
+
+
+@pytest.mark.timeout(60)
+async def test_an_environment_role_the_flow_no_longer_declares_is_not_handed_to_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A role renamed since is one no row can clear, and must not refuse every later run."""
+    from typing import Any
+
+    from hmz.runtime.doing.core import Hmz
+
+    handed: list[dict[str, Any]] = []
+
+    def caught(self: Hmz, flow: str, task: str, **said: Any) -> None:
+        del self, flow, task
+        handed.append(said)
+        raise RuntimeError("caught")
+
+    monkeypatch.setattr(Hmz, "run", caught)
+    written(tmp_path / ".humanize" / "flows", "loop", _ONE)
+    Settings(tmp_path).remember(
+        "local/loop", _WORKER, envs={"scratch": "local@/tmp"}, budget=_SPENDS
+    )
+    app = Humanize()
+    async with app.run_test() as driver:
+        await sends(app, driver, "$local/loop fix the build")
+        await until(lambda: bool(handed), driver)
+
+    (said,) = handed
+    assert said["envs"] == {}
+    assert said["agents"] == {"worker": "claude/m:high"}

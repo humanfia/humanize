@@ -1,55 +1,83 @@
-# Callbacks as tools
+# The agent asking the flow
 
-A flow drives an agent by saying things to it. This is the other direction: **a function the
-flow wrote, put in front of the agent as a tool**. The agent reaches for it, your code runs —
-in the flow's process, with the flow's variables — and what it answers is what the agent reads
-back.
+A flow drives an agent by saying things to it. This is the other direction: **the agent,
+mid-turn, reaching the flow** — and the flow's own code running, with the flow's own agents and
+environments, to answer it.
 
 Reach for it when the agent needs something only the flow has: another agent, another flow, a
-queue, a database, a decision that is yours to make.
+decision that is yours to make.
+
+::: warning Callbacks as tools are gone
+Earlier versions of the flow API let a flow put its own functions in front of an agent as tools
+— `session.offers([Tool(...)])`, served over MCP. The flow API has no such thing any more: a
+flow cannot add a tool to an agent. What reaches the flow from inside a turn is a
+[hook](/weaver/hooks), and the one that carries a request and waits for an answer is the
+agent's question to its user.
+:::
 
 ## Try it
 
+An agent whose role declares `AskUserHookAgentMixin` may stop mid-turn and ask its user
+something. Hang a hook on that, and the user it asks is your flow:
+
 ```python
 # .humanize/flows/delegating/__init__.py
-"""Build here, and let the builder call the reviewer whenever it wants one."""
+"""Build here, and let the builder ask for a review whenever it wants one."""
 
-from typing import NamedTuple
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    AskUserHookAgentMixin,
+    AskUserHookParams,
+    AskUserHookResult,
+    EnvCollection,
+    FlowContext,
+    FlowParams,
+    LocalEnv,
+    flow,
+)
 
-from pydantic import BaseModel, Field
-
-from hmz.flows import Agent, Tool, flow
-
-
-class Reviewing(BaseModel):
-    """What the builder calls the review tool with."""
-
-    path: str = Field(description="the file to have read")
+ASKING = """When you want a file reviewed, ask your user `review <path>` and wait for the \
+answer: it is the review. Ask for one before you say you are done."""
 
 
-class Agents(NamedTuple):
-    builder: Agent
+class Builder(Agent, AskUserHookAgentMixin):
+    """An agent that may stop mid-turn and ask."""
+
+
+class Agents(AgentCollection):
+    builder: Builder
     reviewer: Agent
 
 
-@flow
-def run(agents: Agents, task: str) -> None:
-    working = agents.builder.new()
-    working.offers(
-        [
-            Tool(
-                name="review",
-                about="have the reviewer read one file and say what is wrong with it",
-                takes=Reviewing,
-                call=lambda said: agents.reviewer(f"Review {said.path}. Be brief."),
-            )
-        ]
-    )
-    working(f"{task}\n\nUse the review tool before you say you are done.")
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def delegating(
+    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
+) -> str:
+    """Build here, and let the builder ask for a review whenever it wants one."""
+    builder, reviewer, workspace = agents["builder"], agents["reviewer"], envs["workspace"]
+
+    async def asked(params: AskUserHookParams) -> AskUserHookResult:
+        if not params.question.startswith("review "):
+            return AskUserHookResult()             # not ours: let it carry on unanswered
+        reading = await reviewer.spawn(env=workspace)
+        said = await reviewer.run(
+            f"Review {params.question.removeprefix('review ')}. Be brief.", session=reading
+        )
+        return AskUserHookResult(answer=said)
+
+    builder.on_ask_user(asked)
+    session = await builder.spawn(env=workspace)
+    return await builder.run(f"{task}\n\n{ASKING}", session=session)
 ```
 
 ```sh
-hmz exec -f delegating -a claude/claude-opus-5:max -a codex/gpt-5.6-sol:high "write the parser"
+hmz exec -f delegating -a builder=claude/claude-opus-5:max \
+    -a reviewer=codex/gpt-5.6-sol:high -b cost=20 "write the parser"
 ```
 
 The builder decides when it wants a review, and the reviewer's turn happens inside the
@@ -57,108 +85,87 @@ builder's — which is a thing no prompt can arrange.
 
 ## An agent that calls a flow
 
-The callback is the flow's own code, so it may do whatever the flow may do, including start
-another flow and wait for it:
+The hook is the flow's own code, run as the flow, so it may do whatever the flow may do,
+including start another flow and wait for it:
 
 ```python
-from hmz.flows import Tool, load
+from hmz.flows import Budget, BudgetExceeded, load
+
+chase = load("flame_chase")
 
 
-class Chasing(BaseModel):
-    task: str = Field(description="what to have the loop do")
-
-
-working.offers(
-    [
-        Tool(
-            name="chase",
-            about="run the flame-chase loop on one task and report what it came to",
-            takes=Chasing,
-            call=lambda said: load("flame_chase")(agents, said.task),
+async def asked(params: AskUserHookParams) -> AskUserHookResult:
+    if not params.question.startswith("chase "):
+        return AskUserHookResult()
+    try:
+        await chase(
+            params.question.removeprefix("chase "),
+            agents={"first_chaser": reviewer, "second_chaser": reviewer},
+            envs={},                      # its workspace is the run's own
+            params=chase.expected_params(),
+            budget=Budget(cost=5.0),      # a loop with no end of its own gets one here
         )
-    ]
-)
+    except BudgetExceeded:
+        pass
+    return AskUserHookResult(answer="done: read the working tree for what it came to")
 ```
 
 That is an agent deciding, mid-turn, that a piece of work wants a loop of its own — and getting
-one. Nothing about it is written into any backend.
+one, under five dollars of the run's budget. Nothing about it is written into any CLI.
 
-## What a `Tool` is
+## What a question is
 
 | | |
 | --- | --- |
-| `name` | what the agent calls it. Name it for what it does; that is what a model reaches by |
-| `about` | what it is for, said to the model. The whole of what it knows about *when* to use it, so write a sentence |
-| `takes` | a pydantic model of the arguments, or `None` for a tool that takes nothing. The model is the whole of what the agent is told — fields, types, which are required, and each `description` |
-| `call` | what to run. Given the model (nothing where `takes` is `None`). What it answers goes back to the agent as text; `None` reads as *done* |
+| `params.question` | what the agent asked, in its own words |
+| `params.options` | the answers it offered, if it offered any — an answer need not be one of them |
+| `params.ctx`, `params.session` | the flow's context, and the session the question arrived in |
+| `AskUserHookResult(answer=…)` | what the agent is told |
+| `AskUserHookResult()` | no answer: the agent carries on without one |
 
-## Where it is said
+The prompt is the whole of what the agent knows about when to ask and how to phrase it, so the
+flow says both — a word to start the question with, as `review ` above, is the simplest way for
+the hook to tell one request from another.
 
-On the **conversation**, because that is where a flow is when it has something to offer:
+**A question waits.** Every other hook that keeps a CLI waiting for fifteen minutes is answered
+as though nothing were hung; a question is exempt, and waits for its answer as long as the
+answer takes — a reviewer's turn, a whole subflow. The turn it arrived in is paused meanwhile,
+and what the hook spends counts against the run like anything else.
 
-```python
-working.offers([...])      # from the next turn on
-working.offers(None)       # and now it is offering none
-```
+**A hook that raises fails the turn.** The builder's `run` raises what the hook raised, as
+though the flow's own code had — which it had. Catch inside the hook what it means to survive.
 
-What is actually in front of the model is the **agent's** list, because a CLI is told about its
-tools where it is started and some of these are started once per agent. Three things follow:
+## Which CLIs ask
 
-- Two conversations of one agent offering a tool of one name are offering one tool.
-- Changing the list between two turns — offering one, taking one back, swapping one for another
-  — restarts the Claude holding the conversation, and the Codex app server that agent holds,
-  and **resumes** the same conversation. A process started without the tool has never heard of
-  it; one started with a tool that is gone can still reach for it.
-- That restart is agent-wide: every live session of the agent starts a new process at its next
-  turn. A conversation closing takes its own offer back, so opening and dropping conversations
-  in a loop restarts a sibling once per drop.
-
-## Which backends take one
-
-```python
-session.takes_tools      # True where the flow's callbacks can reach this backend
-```
-
-| backend | how |
+| CLI | Asks its user |
 | --- | --- |
-| `claude` | `--mcp-config` on its own command line |
-| `codex` | `-c mcp_servers.humanize…` on the app server this agent holds |
-| everything else | no way of being told — `offers` raises `NotImplementedError` |
+| Claude Code | yes |
+| Codex | yes — with its `default_mode_request_user_input` feature switched on while the hook is hung, from the next turn |
+| Kimi Code, ZCode | yes — run at their ask-and-approve rung while the hook is hung, from the next turn |
+| pi | yes |
+| every other | no |
 
-Refused rather than quietly never offered: a tool the model never sees is a flow that quietly
-does not do what it says.
+A role that declares `AskUserHookAgentMixin` is refused, before the first turn, an agent whose
+CLI does not ask; and a role that does not declare it cannot hang the hook at all —
+`on_ask_user` raises `CapabilityNotGranted`. See [Hooks](/weaver/hooks#saying-so-in-the-flow).
 
-Nothing of the person at this machine's configuration is written either way. Their own MCP
-servers stay exactly as they were, and this flow's tool goes away with this flow.
+## The other ways in
 
-## How it actually gets there
+A question is the one moment that carries a request *to* the flow and waits for what comes
+back. The others reach the flow too, each for its own purpose:
 
-The road is the **Model Context Protocol**, that being the one way every one of these CLIs
-takes a tool it was not shipped with. What the backend is handed is a command to run:
+| Hook | What the flow can do from it |
+| --- | --- |
+| `on_pre_tool_use` | see every tool the agent reaches for, and refuse it on a CLI that waits |
+| `on_permission_request` | answer whether a tool may run — the gate, on a CLI that asks |
+| `on_stop` | refuse to let the turn end, and hand the agent its next prompt |
+| `on_notification` | hear what the agent stopped to tell its user |
 
-```
-hmz internal tools --at /tmp/humanize-tools-XXXX/tools.sock
-```
-
-which relays its pipe to a socket in the flow's process. So the function that runs is the one
-the flow wrote, on this interpreter, in this process — a tool server started as a program of
-its own would be a subprocess with none of the flow's variables in it.
-
-Nothing is started until something is offered. An agent whose flow hands it no callbacks has no
-socket, no thread and no bridge, and its turns are the turns they always were.
-
-## When a callback goes wrong
-
-**A callback that raises is the tool failing, not the flow.** The model is told what went
-wrong, in words it can act on, and is free to call it again correctly. A flow must not end
-because a model called one of its tools wrongly.
-
-The callback runs on the thread serving the call, which is **not** the thread the flow is on. A
-callback that touches what the flow is touching answers for that itself — the usual lock.
+See [Hooks](/weaver/hooks) for each of them.
 
 ## See also
 
-- [Agents › Callbacks of the flow's own](/reference/agents#callbacks-of-the-flow-s-own)
-- [Hooks](/weaver/hooks) — the other direction: a word in at a moment of the turn
-- [Calling flows](/weaver/calling-flows) — a flow that calls another by name
-- [The mission board](/user/board) — the other thing that does not stop a turn
+- [Hooks](/weaver/hooks) — every moment a flow can hang one on
+- [A flow that calls a flow](/weaver/calling-flows)
+- [The person as an agent](/weaver/human-agent) — questions the flow puts to a person
+- [Questions](/user/questions) — an agent's question, as whoever is at the prompt sees it

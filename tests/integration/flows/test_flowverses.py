@@ -12,12 +12,14 @@ there cannot be taken away.
 
 from __future__ import annotations
 
+import asyncio
 import subprocess
 import threading
 from typing import TYPE_CHECKING
 
 import pytest
 
+from hmz.flows import FlowNotFound
 from hmz.runtime.flowing import (
     BUILTIN_AT,
     ENTRY,
@@ -28,6 +30,7 @@ from hmz.runtime.flowing import (
     find,
     flowverses,
     found,
+    resolved,
 )
 from hmz.runtime.flowing import verses as store
 from tests.stubs import written
@@ -38,14 +41,21 @@ if TYPE_CHECKING:
 #: A flow, as short as one can be: the file is what is being fetched, not what it does.
 FLOW = '''"""A flow of somebody else's."""
 
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowParams, LocalEnv, flow
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    (agent,) = agents
-    agent.new()(task)
+class Agents(AgentCollection):
+    agent: Agent
+
+
+class Envs(EnvCollection):
+    here: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def run(task, *, agents, envs, params, ctx):
+    session = await agents["agent"].spawn(env=envs["here"])
+    return await agents["agent"].run(task, session=session)
 '''
 
 
@@ -494,22 +504,23 @@ def test_a_flow_of_your_own_still_wins_a_bare_name(
 
 def test_a_flow_from_a_flowverse_runs_by_that_name(theirs: Path) -> None:
     """Which is the whole point of fetching one: `-f theirs/loop` is a flow to run."""
-    from hmz.runtime.flowing import drives
+    from hmz.runtime.flowing.fakes import FakeAgentDriver, run_fake
 
     store.add(str(theirs))
+    flow = resolved("theirs/loop")
 
-    assert drives("theirs/loop") == ("",)  # one agent, and the flow calls it nothing
+    assert [one.name for one in flow.describe().agents] == ["agent"]
+    assert (
+        asyncio.run(run_fake(flow, "hi", agents={"agent": FakeAgentDriver()})) == "ok"
+    )
 
 
 def test_a_flowverse_that_has_not_been_fetched_says_so_rather_than_that_there_is_no_file() -> (
     None
 ):
     """The name is right and the download has not happened, which is a different thing."""
-    from hmz.flows import NotAFlow
-    from hmz.runtime.flowing import drives
-
-    with pytest.raises(NotAFlow, match="has not been fetched yet"):
-        drives(f"{OFFICIAL}/rlar")
+    with pytest.raises(FlowNotFound, match="has not been fetched yet"):
+        resolved(f"{OFFICIAL}/rlar")
 
 
 def test_a_bare_name_says_so_too_when_nothing_has_been_fetched(theirs: Path) -> None:
@@ -518,15 +529,12 @@ def test_a_bare_name_says_so_too_when_nothing_has_been_fetched(theirs: Path) -> 
     `-f rlar` on a machine that has fetched nothing is a name that is right and a download
     that has not happened, which "no flow to read" is the least useful thing to say about.
     """
-    from hmz.flows import NotAFlow
-    from hmz.runtime.flowing import drives
-
     store.add(str(theirs))  # one that is here, so the one that is not is named alone
 
     with pytest.raises(
-        NotAFlow, match=f"the {OFFICIAL} flowverse has not been fetched yet"
+        FlowNotFound, match=f"the {OFFICIAL} flowverse has not been fetched yet"
     ):
-        drives("rlar")
+        resolved("rlar")
 
 
 def test_a_clone_somebody_has_written_into_says_so(theirs: Path) -> None:

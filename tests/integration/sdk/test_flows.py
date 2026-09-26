@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.flows import NotAFlow
+from hmz.flows import FlowNotFound
 from hmz.runtime.flowing import ENTRY, FLOWS, LOCAL, OFFICIAL, USER
 from hmz.sdk import Hmz
 from tests.stubs import written
@@ -29,39 +29,40 @@ if TYPE_CHECKING:
 #: A flow, as short as one can be, that says a line about itself and takes one agent.
 FLOW = '''"""A flow of somebody else's."""
 
-from hmz.flows import Agent, flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowParams, LocalEnv, flow
 
 
-@flow
-def run(agents: tuple[Agent], task: str) -> None:
-    (agent,) = agents
-    agent.new()(task)
+class Agents(AgentCollection):
+    agent: Agent
+
+
+class Envs(EnvCollection):
+    here: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def run(task, *, agents, envs, params, ctx):
+    session = await agents["agent"].spawn(env=envs["here"])
+    await agents["agent"].run(task, session=session)
 '''
 
-#: One that says it can be picked up where the last run of it left off, and takes a setting.
+#: One that says it can be picked up where the last run of it left off, and takes a param.
 KEEPS = '''"""A flow that is picked up."""
 
-from typing import Any
-
-from pydantic import BaseModel
-
-from hmz.flows import Agent, flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowParams, flow
 
 
-class Config(BaseModel):
-    """What it takes."""
+class Agents(AgentCollection):
+    agent: Agent
 
+
+class Params(FlowParams):
     rounds: int = 1
 
 
-@flow(resumable=True)
-def run(
-    agents: tuple[Agent],
-    task: str,
-    config: Config | None = None,
-    state: dict[str, Any] | None = None,
-) -> None:
-    (agent,) = agents
+@flow(agents=Agents, envs=EnvCollection, params=Params, resumable=True)
+async def run(task, *, agents, envs, params, ctx):
+    pass
 '''
 
 
@@ -224,25 +225,23 @@ def test_the_line_a_flow_says_about_itself_is_read_off_the_flow(project: Path) -
     assert Hmz().flows.about("mine") == "A flow of somebody else's."
 
 
-def test_every_agent_a_flow_needs_chosen_is_read_off_how_it_declared_them(
-    project: Path,
-) -> None:
-    places = Hmz().flows.places("mine")
-
-    assert len(places) == 1
-    assert not places[0].person
-
-
-def test_what_a_flow_can_be_set_up_with_is_its_own_model_and_none_for_one_that_takes_none(
-    project: Path,
-) -> None:
+def test_what_a_flow_declares_is_read_off_the_flow(project: Path) -> None:
+    """Its roles -- the ones the runtime fills marked -- its params, and whether it resumes."""
     flows = Hmz().flows
 
-    model = flows.configures("kept")
+    mine = flows.declared("mine")
 
-    assert model is not None
-    assert "rounds" in model.model_fields
-    assert flows.configures("mine") is None
+    assert [(one.name, one.auto) for one in mine.agents] == [("agent", False)]
+    assert [(one.name, one.auto) for one in mine.envs] == [("here", True)]
+    assert "rounds" in flows.declared("kept").params.model_fields
+    assert mine.params.model_fields == {}
+
+
+def test_a_flow_that_is_not_there_is_said_to_be_as_the_flow_api_says_it(
+    project: Path,
+) -> None:
+    with pytest.raises(FlowNotFound):
+        Hmz().flows.declared("definitely-not-a-flow")
 
 
 def test_whether_a_flow_can_be_picked_up_is_what_the_flow_said(project: Path) -> None:
@@ -291,53 +290,3 @@ def test_the_places_flows_come_from_are_reached_from_the_flows_as_well() -> None
     assert [one.name for one in held.flows.verses.all()] == [
         one.name for one in held.verses.all()
     ]
-
-
-# ------------------------------------------------------- what a flow is set up with
-
-
-def test_what_a_flow_is_set_up_with_is_read_out_of_the_file_it_was_written_in(
-    tmp_path: Path,
-) -> None:
-    said = tmp_path / "setup.yml"
-    said.write_text("rounds: 3\nname: mine\n", encoding="utf-8")
-
-    assert Hmz().flows.set_up_from(said) == ({"rounds": 3, "name": "mine"}, None)
-
-
-def test_a_setup_file_that_is_empty_sets_nothing_up(tmp_path: Path) -> None:
-    said = tmp_path / "setup.yml"
-    said.write_text("", encoding="utf-8")
-
-    assert Hmz().flows.set_up_from(said) == (None, None)
-
-
-def test_a_setup_file_that_is_not_a_mapping_is_refused(tmp_path: Path) -> None:
-    said = tmp_path / "setup.yml"
-    said.write_text("- one\n- two\n", encoding="utf-8")
-
-    with pytest.raises(ValueError, match="mapping"):
-        Hmz().flows.set_up_from(said)
-
-
-# ------------------------------------------------------------- reading a flow first
-
-
-def test_a_flow_that_will_run_is_read_and_nothing_is_found(project: Path) -> None:
-    assert Hmz().flows.check("mine") == ()
-
-
-def test_the_reading_that_executes_nothing_is_the_one_that_was_asked_for(
-    project: Path,
-) -> None:
-    """`static` is the whole of what it keeps: pure `ast`, and the flow is never loaded."""
-    assert Hmz().flows.check("mine", static=True) == ()
-
-
-def test_a_flow_that_is_not_an_atlas_compiles_to_no_prophecy(project: Path) -> None:
-    assert Hmz().flows.prophecy("mine") is None
-
-
-def test_a_flow_that_is_not_an_atlas_has_no_prophecy_to_ship(project: Path) -> None:
-    with pytest.raises(NotAFlow, match="not an atlas"):
-        Hmz().flows.foretell("mine")

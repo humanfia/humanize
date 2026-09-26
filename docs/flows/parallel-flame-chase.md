@@ -11,17 +11,20 @@ artifacts rather than writing to your tree.
 
 ```sh
 hmz exec -f parallel_flame_chase \
-    -a codex/gpt-5.6-sol:max \
-    -a claude/claude-opus-5:max -a codex/gpt-5.6-sol:max \
-    -a claude/claude-opus-5:max -a codex/gpt-5.6-sol:max \
-    -a claude/claude-opus-5:max -a codex/gpt-5.6-sol:max "$(cat TASK.md)"
+    -a coordinator=codex/gpt-5.6-sol:max \
+    -a lane_1_actor_a=claude/claude-opus-5:max,lane_1_actor_b=codex/gpt-5.6-sol:max \
+    -a lane_2_actor_a=claude/claude-opus-5:max,lane_2_actor_b=codex/gpt-5.6-sol:max \
+    -a lane_3_actor_a=claude/claude-opus-5:max,lane_3_actor_b=codex/gpt-5.6-sol:max \
+    -b duration=12h,cost=500 "$(cat TASK.md)"
 ```
 
 <HmzFlowShape flow="parallel_flame_chase" />
 
-## Seven agents, in this order
+## Seven agents, by name
 
-`-a` takes them in this order, and the interface asks for them by name:
+Each `-a` names the role it fills, and the interface asks for them by the same names. The
+eighth role, `human`, is you — the [outworlder](/features/human), filled in by the runtime and
+never by `-a`:
 
 | | |
 | --- | --- |
@@ -30,42 +33,59 @@ hmz exec -f parallel_flame_chase \
 | `lane_2_actor_a` · `lane_2_actor_b` | Lane 2, alternating, in a snapshot of its own |
 | `lane_3_actor_a` · `lane_3_actor_b` | Lane 3, alternating, in a snapshot of its own |
 
-All seven run with the backend's [goal feature](/features/goals) turned off —
-`AgentDefaults(goals=False)` beside each — because a lane's turn ends where the lane protocol
-says it ends rather than where a model decides it has met the objective. The flow declares it,
-so it holds for whichever agents the run is given and nothing at the prompt turns it back on.
+Every one of the seven declares full permission — `Permission(local=ALL, user=ALL, system=ALL,
+online=ALL)` — and the flow's skill, so any harness can fill any of them. None is declared with
+the [goal](/features/goals) mixin, because a lane's turn ends where the lane protocol says it
+ends rather than where a model decides it has met the objective. The flow declares it, so it
+holds for whichever agents the run is given: a `/goal` through any of them is refused.
 
 ## One writer, and two that cannot write
 
-A per-source advisory lock permits only one lane 1 owner; lanes 2 and 3 are confined to
+A per-source lock permits only one lane 1 owner — shared with
+[`parallel_flame_chase_git_pr`](/flows/parallel-flame-chase-git-pr), so a run of either refuses a
+source the other holds; lanes 2 and 3 are confined to
 snapshots, and the runtime's control paths reject links and replacements. What they produce
 reaches lane 1 as a **report** and a hashed, reconstructable artifact package, and reports are
 redelivered until the receiving lane completes a valid turn and acknowledges them, so a lane
 that fell over does not lose what it was told.
 
-Durable data lives under `~/.humanize/parallel_flame_chase/<workspace-key>/<run-id>/`. The flow
-coordinates local work only: there is no release, deployment, submission, messaging or purchase
+Durable data lives in a scratch directory of the workspace,
+`~/.humanize/envs/<workspace>-<digest>/scratch/parallel_flame_chase-<run-id>-<digest>/`: kept
+for `--resume` by a run that can be picked up, and removed when the flow is called from one that
+cannot. Lane 1's work in the source stays either way. The flow coordinates local work only: there is no release, deployment, submission, messaging or purchase
 executor in it.
 
 ## What it takes
 
-```yaml
-rest_seconds: 1.0      # what the single-writer scheduler rests between control passes
-resume_mode: auto      # or `fresh`, to deliberately start another run
-```
+Its params, each a `-p`:
+
+| | |
+| --- | --- |
+| `rest_seconds` | what the single-writer scheduler rests between control passes; `1.0`, from `0.05` to `60` |
+| `resume_mode` | `auto`, or `fresh` to deliberately start another run |
+| `confirm_large_workspace_copies` | whether to ask before copying a very large workspace; `false`. With `true`, a run with nobody to answer — `hmz exec` — stops before copying |
+| `workspace_file_warning_threshold` · `workspace_copy_warning_threshold_bytes` | what counts as very large; `5000` files, `1073741824` bytes |
 
 The [skill](/user/skills) it brings, `parallel-flame-chase`, is the actor, report, artifact,
-checkpoint and resume protocol — mounted onto every session the flow opens.
+checkpoint and resume protocol — carried by every session the flow opens.
+
+Its lanes are scheduled again for as long as it runs, so the run's
+[budget](/features/allowances) is the only end there is: give `-b` a duration. When it is spent
+the turns under way land and are recorded, the run is marked stopped, and `BudgetExceeded`
+ends it — `--resume` carries it on under a fresh `-b`.
 
 ## What it keeps
 
-The plan, the snapshots, each lane's A/B alternation and its lane-local failure state. The same
+The plan, the snapshots, each lane's A/B alternation and its lane-local failure state, for a
+run picked up with `--resume`. The same
 substantive task resumes compatible state; a bare `continue` reads `TASK.md` when there is one,
 and replans against a fresh source snapshot where the objective has changed. A different one
 starts a fresh run.
 
 ## See also
 
-- [parallel_flame_chase_mission](/flows/parallel-flame-chase-mission) — the same lanes, audited
+- [parallel_flame_chase_git_pr](/flows/parallel-flame-chase-git-pr) — the same lanes, each
+  with a clone and pull requests
 - [flame_chase](/flows/flame-chase) — one lane of this, and the flow it is named after
-- [Worktrees](/weaver/worktrees) — humanize's own way of giving an agent a tree of its own
+- [Worktrees, copies and scratch](/weaver/worktrees) — humanize's own way of giving an agent a
+  tree of its own

@@ -48,8 +48,12 @@ def home() -> pathlib.Path: ...
   above it MUST reach past it to a driver.
 - `runtime` MUST be what a run is, MUST drive no coding agent itself, and MUST offer the
   whole of what humanize can be asked to do in a workspace as one object.
-- `flows` MUST be the whole of what a flow imports and nothing besides. Everything humanize
-  does *to* a flow MUST be `runtime/flowing` instead.
+- `flows` MUST be the whole of what a flow imports and nothing besides, and MUST be types:
+  the protocols a flow's agents, environments, sessions and context answer to, and the values
+  a flow writes or catches. The objects a flow is handed MUST be the runtime's, answering to
+  those protocols structurally. Everything humanize does *to* a flow MUST be `runtime/flowing`
+  instead. The flows humanize ships MUST be kept in `flows/builtin`, written against `flows`
+  like any other flow and importing nothing else.
 - `cli`, `daemon` and `tui` MUST each be a way of reaching the runtime's one object rather
   than a second copy of what it does. Anything two of them would otherwise each have written
   MUST be written in `runtime` instead, so that a thing which can be done one way can be done
@@ -61,10 +65,10 @@ def home() -> pathlib.Path: ...
 
 - Each layer MUST import only its own subtree, `hmz` itself, and the layers listed for it in
   `tests/integration/layering/test_layering.py`, which MUST hold the table.
-- No two layers MUST name each other, but for one pair: `flows` MAY offer `load` by name out
-  of `runtime/flowing`, fetched when a flow asks for it and never at import. That façade MUST
-  import nothing of what it hands through, and MUST be checked to be one rather than taken on
-  trust.
+- No two layers MUST name each other, but for one pair: `flows` MAY hand `flow`, `load` and
+  `Outworlder.new` to `runtime/flowing`, importing it inside the call and never at import.
+  `flows` MUST import nothing else of humanize, and MUST be checked to do so rather than taken
+  on trust.
 - `cli` MUST reach `runtime` by name. `tui` MUST reach it through `daemon`, and `daemon` MUST
   offer it. `sdk` MUST be named by no layer.
 - `coganchor/serve` — the half that ships to a target of any architecture — MUST name the

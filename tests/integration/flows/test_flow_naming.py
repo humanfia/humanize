@@ -1,489 +1,192 @@
-"""What makes a function a flow, what it is called, and how one of them is asked for.
+"""What a module of flows offers, what each flow in it is called, and how one is asked for.
 
-A flow is a function marked with `@flow`, and nothing else is one -- not a function called
-`run`, which is a name a file is free to use for anything. `@flow` is the flow its file holds
-under the file's own name; `@flow(name=...)` is one of several, called `<file>:<name>`, so
-three phases of one thing are one thing to write and three to run, each asking only for the
-agents it drives and only for the settings it takes.
+A flow is a function marked with `@flow`, and a flow directory is a module of them. The one a
+bare name means is the one named after the directory, else the only one it does not hide; it is
+listed under the directory's own name, and every other flow the module shows is listed as
+`<flow>:<name>` -- which is also how it is asked for. A hidden flow is listed nowhere, and still
+answers to its name.
 """
 
 from __future__ import annotations
 
-import re
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor.agents import AgentConfig
-from hmz.coganchor.agents.codenames import SAID
-from hmz.flows import NotAFlow, flow
-from hmz.runtime.flowing import (
-    ENTRY,
-    about,
-    configures,
-    drives,
-    find,
-    found,
-    held,
-    inside,
-    wanted,
-)
-from hmz.runtime.runner import Runner
-from tests.stubs import ShellAgent, written
+from hmz.flows import FlowNotFound
+from hmz.runtime.flowing import ENTRY, LOCAL, about, find, found, resolved
+from tests.stubs import written
 
-CONFIG = AgentConfig(model="m", effort="high")
+if TYPE_CHECKING:
+    from pathlib import Path
 
-#: A flow that is two flows beside each other, neither of them the directory's own.
-THREE = '''"""Three phases of one thing, which are three things to run."""
-
-from typing import NamedTuple
-
-from pydantic import BaseModel
-
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+#: What every flow here declares, which is nothing: what is checked is what each is called.
+_HEAD = """
+from hmz.flows import AgentCollection, EnvCollection, FlowParams, flow
 
 
-class Drafting(NamedTuple):
-    """The one that writes."""
-
-    drafter: AgentBase
+class Nothing(AgentCollection):
+    pass
 
 
-class Building(NamedTuple):
-    """The one that builds, and the one that reads it."""
+class Nowhere(EnvCollection):
+    pass
+"""
 
-    builder: AgentBase
-    reviewer: AgentBase
+#: A module named `three` whose three phases are three flows, one of them named for it.
+THREE = (
+    '"""Three phases of one thing, which are three things to run."""\n'
+    + _HEAD
+    + '''
 
-
-class Wide(BaseModel):
-    """What the first phase takes."""
-
-    n: int = 6
-
-
-@flow(name="gen-idea")
-def first_pass(agents: Drafting, task: str, config: Wide | None = None) -> None:
+@flow(agents=Nothing, envs=Nowhere, params=FlowParams, name="gen-idea")
+async def first_pass(task, *, agents, envs, params, ctx):
     """Opens a loose idea into a draft."""
-    agents.drafter.new()(f"{task} {(config or Wide()).n}")
+    return "idea"
 
 
-@flow(name="build", about="builds it, under review")
-def start_it(agents: Building, task: str) -> None:
+@flow(agents=Nothing, envs=Nowhere, params=FlowParams, description="builds it")
+async def three(task, *, agents, envs, params, ctx):
     """A docstring the decorator was told to say something else instead of."""
-    agents.builder.new()(task)
+    return "three"
 
 
-def run(agents: Drafting, task: str) -> None:
+@flow(agents=Nothing, envs=Nowhere, params=FlowParams, hidden=True)
+async def engine(task, *, agents, envs, params, ctx):
+    """What the others call, and nobody picks."""
+    return "engine"
+
+
+async def run(task):
     """Called run, marked with nothing, and so not a flow at all."""
 '''
+)
 
-#: A file that is one flow, under a function name that says nothing about it.
-ONE = '''"""Just the one, and it says what it does here."""
+#: A module that is one flow, under a function name that says nothing about it.
+ONE = (
+    '"""Just the one, and it says what it does here."""\n'
+    + _HEAD
+    + """
 
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+@flow(agents=Nothing, envs=Nowhere, params=FlowParams)
+async def whatever_it_is_called(task, *, agents, envs, params, ctx):
+    return "one"
+"""
+)
+
+#: A module of two visible flows, neither named for its directory.
+TWO = (
+    '"""Two, and neither is the directory\'s own."""\n'
+    + _HEAD
+    + '''
+
+@flow(agents=Nothing, envs=Nowhere, params=FlowParams)
+async def left(task, *, agents, envs, params, ctx):
+    """Goes left."""
+    return "left"
 
 
-@flow
-def whatever_it_is_called(agents: tuple[AgentBase], task: str) -> None:
-    (agent,) = agents
-    agent.new()(task)
+@flow(agents=Nothing, envs=Nowhere, params=FlowParams)
+async def right(task, *, agents, envs, params, ctx):
+    """Goes right."""
+    return "right"
 '''
-
-#: And one that is both: the file's own flow, and another beside it.
-BOTH = '''"""One under its own name, and one beside it."""
-
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+)
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    """What the file itself is."""
-    (agent,) = agents
-    agent.new()(task)
+@pytest.fixture
+def mine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """This project's own flows directory, with the project as where things are run from."""
+    monkeypatch.chdir(tmp_path)
+    return tmp_path / ".humanize" / "flows"
 
 
-@flow(name="twice")
-def twice(agents: tuple[AgentBase], task: str) -> None:
-    """The other one."""
-    (agent,) = agents
-    agent.new()(task)
-    agent.new()(task)
-'''
-
-#: A public composition and the internal engine it calls by name.
-AUXILIARY = '''"""One flow to choose and one implementation detail."""
-
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+def _local() -> list[tuple[str, str]]:
+    """What this project's own flows are listed as, and what each says it does."""
+    return [(one.name, one.about) for one in found() if one.whose == LOCAL]
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    (agent,) = agents
-    agent.new()(task)
+def test_a_module_lists_its_own_flow_bare_and_the_rest_by_name(mine: Path) -> None:
+    written(mine, "three", THREE)
 
-
-@flow(name="engine", selectable=False)
-def engine(agents: tuple[AgentBase], task: str) -> None:
-    (agent,) = agents
-    agent.new()(task)
-    agent.new()(task)
-'''
-
-#: A file with a `run` in it and nothing marked, which is what a flow used to be and is not.
-UNMARKED = '''"""A file that says nothing about which of its functions is a flow."""
-
-from hmz.coganchor.agents import AgentBase
-
-
-def run(agents: tuple[AgentBase], task: str) -> None:
-    (agent,) = agents
-    agent.new()(task)
-'''
-
-
-def _written(tmp_path: Path, source: str, name: str = "three") -> str:
-    """Writes a flow out as a flow is -- a directory -- and answers with its path."""
-    return str(written(tmp_path, name, source))
-
-
-def test_a_file_says_which_flows_it_holds_and_what_each_one_does(
-    tmp_path: Path,
-) -> None:
-    """Read off the decorator, which is where a flow says what it is."""
-    said = held(_written(tmp_path, THREE))
-
-    assert [(one.name, one.about) for one in said] == [
-        ("gen-idea", "Opens a loose idea into a draft."),
-        ("build", "builds it, under review"),
-    ]
-
-
-def test_the_name_is_what_the_decorator_was_told_and_not_the_function_s(
-    tmp_path: Path,
-) -> None:
-    """A name written down where a flow is run must not change under whoever renames it."""
-    named = {one.name for one in held(_written(tmp_path, THREE))}
-
-    assert named == {"gen-idea", "build"}  # not `first_pass`, and not `start_it`
-
-
-def test_a_function_called_run_is_not_a_flow_for_being_called_that(
-    tmp_path: Path,
-) -> None:
-    """Which is the whole of the rule: a file says which of its functions is a flow."""
-    where = _written(tmp_path, UNMARKED, "unmarked")
-
-    assert held(where) == []
-    with pytest.raises(NotAFlow, match="nothing in it is marked @flow"):
-        drives(where)
-
-
-def test_a_file_marked_once_is_one_flow_under_its_own_name(tmp_path: Path) -> None:
-    """However the function it marked is spelled, which is nothing to do with the name."""
-    (said,) = held(_written(tmp_path, ONE, "one"))
-
-    assert said.name == ""
-    # Nothing said its own line, so the file's own first line is what it says.
-    assert said.about == "Just the one, and it says what it does here."
-    assert drives(_written(tmp_path, ONE, "one")) == ("",)
-
-
-def test_the_file_s_own_flow_is_listed_first(tmp_path: Path) -> None:
-    """It is the one the file is named after, and a list that put it second would read wrong."""
-    said = held(_written(tmp_path, BOTH, "both"))
-
-    assert [one.name for one in said] == ["", "twice"]
-
-
-def test_each_flow_in_a_file_is_offered_under_its_own_name(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """`<file>:<name>`, which is what makes three of them three things to choose between."""
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    project = tmp_path / "project"
-    written(project / ".humanize/flows", "three", THREE)
-    monkeypatch.chdir(project)
-
-    listed = [(one.name, one.about) for one in found() if one.whose == "local"]
-
-    assert listed == [
+    assert _local() == [
+        ("local/three", "builds it"),
         ("local/three:gen-idea", "Opens a loose idea into a draft."),
-        ("local/three:build", "builds it, under review"),
     ]
 
 
-def test_an_auxiliary_flow_is_callable_but_not_offered(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A composition engine is an API for another flow, not a choice for a person."""
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    project = tmp_path / "project"
-    at = written(project / ".humanize/flows", "composed", AUXILIARY)
-    monkeypatch.chdir(project)
+def test_a_module_of_one_flow_lists_it_under_the_directory(mine: Path) -> None:
+    """Whatever the function is called; and the module's docstring says what it does."""
+    written(mine, "one", ONE)
 
-    assert [(one.name, one.selectable) for one in held(at)] == [
-        ("", True),
-        ("engine", False),
+    assert _local() == [("local/one", "Just the one, and it says what it does here.")]
+    assert resolved("one").name == "whatever_it_is_called"
+
+
+def test_two_flows_neither_named_for_the_module_are_each_listed_by_name(
+    mine: Path,
+) -> None:
+    written(mine, "two", TWO)
+
+    assert _local() == [
+        ("local/two:left", "Goes left."),
+        ("local/two:right", "Goes right."),
     ]
-    assert [one.name for one in found() if one.whose == "local"] == ["local/composed"]
-    assert drives("composed:engine") == ("",)
-    agent = ShellAgent(CONFIG)
-    Runner("composed:engine", [agent]).run("echo internal")
-    assert len(agent.opened) == 2
 
 
-def test_which_one_was_asked_for_is_the_half_after_the_colon(tmp_path: Path) -> None:
-    where = _written(tmp_path, THREE)
+def test_a_bare_name_that_means_no_one_flow_says_which_there_are(mine: Path) -> None:
+    written(mine, "two", TWO)
 
-    assert inside(f"{where}:gen-idea") == "gen-idea"
-    assert inside(where) == ""  # the one a flow holds under its own name
-    # The flow is the other half, and a path is still a path whatever is after it.
-    assert find(f"{where}:gen-idea") == f"{where}/{ENTRY}"
+    with pytest.raises(FlowNotFound, match="left, right"):
+        resolved("two")
+    assert resolved("two:right").name == "right"
 
 
-def test_each_of_them_asks_only_for_its_own_agents_and_settings(
-    tmp_path: Path,
+def test_a_hidden_flow_is_listed_nowhere_and_still_answers_to_its_name(
+    mine: Path,
 ) -> None:
-    """Which is the whole of what splitting one flow into three buys."""
-    where = _written(tmp_path, THREE)
+    written(mine, "three", THREE)
 
-    assert drives(f"{where}:gen-idea") == ("drafter",)
-    assert drives(f"{where}:build") == ("builder", "reviewer")
-    idea = configures(f"{where}:gen-idea")
-    assert idea is not None
-    assert set(idea.model_fields) == {"n"}
-    assert configures(f"{where}:build") is None
+    assert all("engine" not in name for name, _ in _local())
+    assert resolved("three:engine").hidden
 
 
-def test_an_agent_a_flow_never_named_is_left_with_its_codename(tmp_path: Path) -> None:
-    """A flow that said how many it drives and no more has no name to give the one it gets."""
-    where = _written(tmp_path, ONE, "one")
-    agent = ShellAgent(CONFIG)
-    drawn = agent.id
+def test_which_one_was_asked_for_is_the_half_after_the_colon(mine: Path) -> None:
+    written(mine, "three", THREE)
 
-    Runner(where, [agent]).run("echo one")
-
-    assert agent.id == drawn  # the place had no name, so nothing renamed it
-    assert agent.id in SAID or re.fullmatch(  # a designation out of Amphoreus
-        r"[A-Z][a-z]+(?:[A-Z][a-z]+)+[0-9]{3}", agent.id
-    )
+    assert resolved("three:gen-idea").name == "gen-idea"
+    assert resolved("local/three:gen-idea").name == "gen-idea"
+    assert resolved("three").name == "three"
+    assert about("three:gen-idea") == "Opens a loose idea into a draft."
 
 
-def test_the_one_that_was_asked_for_is_the_one_that_runs(tmp_path: Path) -> None:
-    where = _written(tmp_path, THREE)
-    builder, reviewer = ShellAgent(CONFIG), ShellAgent(CONFIG)
+def test_a_function_that_is_not_marked_is_not_a_flow(mine: Path) -> None:
+    written(mine, "three", THREE)
 
-    Runner(f"{where}:build", [builder, reviewer]).run("echo built")
-
-    assert builder.opened  # the phase that was named, and no other
-    assert not reviewer.opened
+    with pytest.raises(FlowNotFound, match="run"):
+        resolved("three:run")
 
 
-def test_a_file_of_several_asked_for_by_its_own_name_says_which_ones_it_holds(
-    tmp_path: Path,
-) -> None:
-    """A colon away from what was meant, so the answer is the list of what to put after it."""
-    where = _written(tmp_path, THREE)
+def test_a_flow_that_is_one_file_is_a_flow_too(mine: Path) -> None:
+    mine.mkdir(parents=True)
+    (mine / "alone.py").write_text(ONE)
 
-    with pytest.raises(NotAFlow, match="three:gen-idea, three:build"):
-        drives(where)
-
-
-def test_a_name_no_flow_in_the_file_answers_to_says_so(tmp_path: Path) -> None:
-    where = _written(tmp_path, THREE)
-
-    with pytest.raises(NotAFlow, match="nothing in it is a flow called 'gen-plan'"):
-        drives(f"{where}:gen-plan")
+    assert _local() == [("local/alone", "Just the one, and it says what it does here.")]
+    assert find("alone") == str((mine / "alone.py").resolve())
+    assert resolved("alone").name == "whatever_it_is_called"
 
 
-def test_a_file_that_holds_one_may_still_be_asked_for_by_name(tmp_path: Path) -> None:
-    """The file's own flow has no name of its own, so a colon on it names nothing."""
-    where = _written(tmp_path, ONE, "one")
+def test_a_directory_wins_a_name_a_file_also_uses(mine: Path) -> None:
+    written(mine, "both", ONE)
+    (mine / "both.py").write_text(TWO)
 
-    assert drives(where) == ("",)
-    with pytest.raises(NotAFlow, match="nothing in it is a flow called 'nope'"):
-        drives(f"{where}:nope")
-
-
-def test_what_a_flow_says_about_itself_is_read_back_by_name(tmp_path: Path) -> None:
-    """Which is what a list of them shows beside each, so it is asked for by the same name."""
-    where = _written(tmp_path, THREE)
-
-    assert about(f"{where}:build") == "builds it, under review"
-    assert about(_written(tmp_path, ONE, "one")) == (
-        "Just the one, and it says what it does here."
-    )
+    assert find("both") == str((mine / "both" / ENTRY).resolve())
+    assert [name for name, _ in _local()] == ["local/both"]
 
 
-def test_the_decorator_leaves_the_function_alone(tmp_path: Path) -> None:
-    """A flow is called the way it always was: what is added is what it says about itself."""
-    del tmp_path
-    said: list[str] = []
+def test_a_flow_is_found_by_its_path_as_well(tmp_path: Path) -> None:
+    """A flow anywhere else is its directory, or its file, typed out."""
+    at = written(tmp_path / "elsewhere", "three", THREE)
 
-    @flow(about="what it does")
-    def two(one: str, other: str = "b") -> str:
-        said.append(one)
-        return one + other
-
-    assert two("a") == "ab"
-    assert said == ["a"]
-    assert two.__name__ == "two"
-
-
-def test_a_flow_a_file_holds_beside_its_own_is_reached_the_same_way(
-    tmp_path: Path,
-) -> None:
-    """A file may be one flow and hold another, which is two names for two things."""
-    where = _written(tmp_path, BOTH, "both")
-
-    assert wanted(where) == wanted(f"{where}:twice")
-    agent = ShellAgent(CONFIG)
-    Runner(f"{where}:twice", [agent]).run("echo twice")
-
-    assert (
-        len(agent.opened) == 2
-    )  # the one that opens two sessions, not the one that opens one
-
-
-def test_a_flow_that_is_one_file_is_a_flow_too(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A flow is a module, and a single `.py` is one: it brings no skills, and runs."""
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    project = tmp_path / "project"
-    (project / ".humanize/flows").mkdir(parents=True)
-    (project / ".humanize/flows/alone.py").write_text(ONE)
-    monkeypatch.chdir(project)
-
-    assert find("alone") == str((project / ".humanize/flows/alone.py").resolve())
-    assert [one.name for one in found() if one.whose == "local"] == ["local/alone"]
-    assert drives("alone") == ("",)
-    agent = ShellAgent(CONFIG)
-    Runner("alone", [agent]).run("echo alone")
-    assert agent.opened
-
-
-def test_a_flow_that_is_one_file_is_found_by_the_path_that_leaves_the_py_off(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Both shapes of a path, since a single-file flow is written down without its extension.
-
-    A path is what is typed for a flow that is nowhere flows are kept, and it is also what
-    every older spelling of one of your own was. Either resolves, or a flow is findable one
-    way and not the other -- which is a flow that is offered and cannot be run.
-    """
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    project = tmp_path / "project"
-    (project / ".humanize/flows").mkdir(parents=True)
-    (project / ".humanize/flows/alone.py").write_text(ONE)
-    monkeypatch.chdir(project)
-    at = str((project / ".humanize/flows/alone.py").resolve())
-
-    assert find(".humanize/flows/alone.py") == at  # the file, pointed at outright
-    assert (
-        find(".humanize/flows/alone") == at
-    )  # and the same path without the extension
-
-
-def test_every_flow_that_is_offered_is_one_that_can_be_run(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """One rule names them and one rule finds them, so a listed name MUST resolve to a file.
-
-    The list and the lookup are the two halves that have to agree: a name that is offered and
-    then found nothing is a row in the picker that fails when it is chosen.
-    """
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    project = tmp_path / "project"
-    written(project / ".humanize/flows", "whole", ONE)  # a flow that is a directory
-    written(tmp_path / "home/.humanize/flows", "mine", ONE)  # and one of yours
-    (project / ".humanize/flows/alone.py").write_text(ONE)  # and one that is a file
-    (project / ".humanize/flows/three.py").write_text(THREE)  # holding three of them
-    monkeypatch.chdir(project)
-
-    listed = found()
-
-    assert {"local/whole", "local/alone", "user/mine", "local/three:build"} <= {
-        one.name for one in listed
-    }
-    assert [one.name for one in listed if not Path(find(one.name)).is_file()] == []
-
-
-def test_a_directory_wins_a_name_a_file_also_uses(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The one that says most about itself: a flow with a `skills/` cannot be a file."""
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    project = tmp_path / "project"
-    written(project / ".humanize/flows", "both", ONE)
-    (project / ".humanize/flows/both.py").write_text(UNMARKED)
-    monkeypatch.chdir(project)
-
-    assert find("both") == str((project / ".humanize/flows/both" / ENTRY).resolve())
-    # And it is offered once rather than twice, under the one name it has.
-    assert [one.name for one in found() if one.whose == "local"] == ["local/both"]
-
-
-#: A flow that reads what it does out of the module beside it, which is how a flow keeps a
-#: prompt, a schedule or a table of its own without putting it in the flow itself.
-BESIDE = '''"""Says what the module beside it says."""
-
-import beside
-
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
-
-
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    (agent,) = agents
-    agent(f"echo {beside.SAYS} > said.txt")
-'''
-
-
-def test_each_flow_reads_the_module_beside_it_rather_than_the_last_flows(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Every flow may have a `beside.py`, and one process may run several of them.
-
-    A module imported by its plain name is cached under that plain name, so the first flow
-    loaded would own it: the second flow's `import beside` would be answered with the first
-    one's, and drawing the menu -- which loads every flow there is -- would settle which.
-    """
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    project = tmp_path / "project"
-    for name in ("alpha", "beta"):
-        at = written(project / ".humanize/flows", name, BESIDE)
-        (at / "beside.py").write_text(f'SAYS = "{name}"\n')
-    monkeypatch.chdir(project)
-
-    held(
-        str(project / ".humanize/flows/alpha")
-    )  # as the menu does, to say what they are
-    Runner("beta", [ShellAgent(CONFIG)]).run("")
-
-    assert (project / "said.txt").read_text().strip() == "beta"
-
-
-def test_a_module_beside_a_flow_rewritten_between_runs_is_read_again(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Which is what a flow that improves itself does: the prompt beside it is where it is."""
-    monkeypatch.setenv("HOME", str(tmp_path / "home"))
-    project = tmp_path / "project"
-    at = written(project / ".humanize/flows", "mine", BESIDE)
-    (at / "beside.py").write_text('SAYS = "first"\n')
-    monkeypatch.chdir(project)
-
-    Runner("mine", [ShellAgent(CONFIG)]).run("")
-    assert (project / "said.txt").read_text().strip() == "first"
-
-    (at / "beside.py").write_text('SAYS = "second"\n')
-    Runner("mine", [ShellAgent(CONFIG)]).run("")
-
-    assert (project / "said.txt").read_text().strip() == "second"
+    assert resolved(str(at)).name == "three"
+    assert resolved(f"{at}:gen-idea").name == "gen-idea"

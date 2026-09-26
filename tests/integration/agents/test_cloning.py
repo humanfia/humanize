@@ -21,7 +21,6 @@ import pytest
 
 from hmz.coganchor.agents import AgentConfig, Event, HumanAgent, Moment
 from hmz.coganchor.agents.skills import Loaded
-from hmz.flows import Agent, Driven
 from tests.stubs import ShellAgent
 
 if TYPE_CHECKING:
@@ -120,22 +119,3 @@ def test_a_clone_is_refused_a_config_its_backend_cannot_express() -> None:
 
     with pytest.raises(ValueError, match="service tier"):
         agent.clone(config=replace(agent.config, service_tier="fast"))
-
-
-def test_what_a_flow_may_ask_of_an_agent_does_not_include_setting_it_up() -> None:
-    """The line between the two is who is entitled to say what an agent is.
-
-    A flow declares `Agent` and is handed one, so what it can reach is what it may ask. The
-    settling is on `Driven`, which is how whoever hands an agent over holds it -- the runner
-    before the first turn, the calling of one flow by another, and the interface when somebody
-    watching a run says this agent is to go on as something else.
-    """
-    asks = {name for name in dir(Agent) if not name.startswith("_")}
-    settles = {name for name in dir(Driven) if not name.startswith("_")} - asks
-
-    assert settles == {"disable_goals", "loads", "reconfigure", "rename", "runs_on"}
-    assert "clone" in asks
-    # And the driver answers to both, which is what makes the split a contract rather than
-    # two names for one thing: a flow reaches half of it, and the run reaches all of it.
-    made = ShellAgent(CONFIG)
-    assert not [name for name in asks | settles if not hasattr(made, name)]

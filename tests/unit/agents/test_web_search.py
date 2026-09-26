@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
-from typing import TYPE_CHECKING
 
 import pytest
 
@@ -31,11 +30,6 @@ from hmz.coganchor.agents import (
     QwenCodeAgent,
     QwenCodeAgentConfig,
 )
-from hmz.flows import NotAFlow
-from hmz.runtime.runner import Runner
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 # : The backends that can be told, and the ones that cannot. Read off `hmz.coganchor.backends` here
 # as : everything else reads it, so a backend that gains a way of being told is a backend this :
@@ -51,23 +45,6 @@ TELLABLE = (
     "mimo",
     "zcode",
 )
-
-#: A flow whose one agent reads this repository and nothing else, which is a thing about the
-#: work: it says so where it declares the place, and nobody outside it may say otherwise.
-SEARCHLESS = '''"""A flow whose answers have to be the same tomorrow."""
-
-from typing import Annotated
-
-from hmz.coganchor.agents import AgentBase, AgentDefaults
-from hmz.flows import flow
-
-
-@flow
-def run(
-    agents: tuple[Annotated[AgentBase, AgentDefaults(web_search=False)]], task: str
-) -> None:
-    agents[0](task)
-'''
 
 
 def test_an_agent_nobody_has_been_asked_about_is_told_neither_way() -> None:
@@ -330,26 +307,6 @@ def test_the_flow_says_it_and_a_line_that_says_it_is_refused() -> None:
         backends.read("web_search=on")
     # And the line that says nothing is the ordinary one: a CLI, a model and an effort.
     assert backends.read("claude/m:high")[1].name == "claude"
-
-
-def test_what_a_flow_declares_reaches_the_agent(tmp_path: Path) -> None:
-    """Settled onto it before the first turn, over whatever it was made with."""
-    where = tmp_path / "quiet.py"
-    where.write_text(SEARCHLESS)
-    agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high"))
-
-    Runner(str(where), [agent])
-
-    assert agent.config.web_search is False
-
-
-def test_a_backend_that_cannot_be_told_cannot_fill_such_a_place(tmp_path: Path) -> None:
-    """Refused where the run is set up, rather than searching on under a flow that says not."""
-    where = tmp_path / "quiet.py"
-    where.write_text(SEARCHLESS)
-
-    with pytest.raises(NotAFlow, match="no way of being told not to search the web"):
-        Runner(str(where), [PiAgent(PiAgentConfig(model="m", effort="high"))])
 
 
 def test_a_backend_that_cannot_be_told_takes_the_silence() -> None:

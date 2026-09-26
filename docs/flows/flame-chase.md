@@ -10,7 +10,8 @@ only account of the last turn there is.
 
 ```sh
 hmz exec -f flame_chase \
-    -a claude/claude-opus-5:max -a codex/gpt-5.6-sol:max "$(cat TASK.md)"
+    -a first_chaser=claude/claude-opus-5:max -a second_chaser=codex/gpt-5.6-sol:max \
+    -b duration=8h,cost=100 "$(cat TASK.md)"
 ```
 
 <HmzFlowShape flow="flame_chase" />
@@ -26,21 +27,25 @@ point: a [trace](/features/tracing) reads the run as two sets of sessions rather
 
 ## What ends it
 
-The run's [allowance](/features/allowances) — hours, millions of output tokens, dollars. The
-**two spend it between them** rather than apiece, and that is now the ordinary case rather than
-this flow's own arithmetic: an allowance is the run's money, and every agent of a run spends out
-of the one reckoning whichever of them was writing. The flow itself takes no settings; it
-declares **ten million output tokens** as what a run of it is worth by default, which `-c
-budget.yaml` with a `budget:` mapping in it, or the **budget** row in `/flow`, overrides.
+The run's [budget](/features/allowances) — `-b duration=…,cost=…,output_tokens=…`. The **two
+spend it between them** rather than apiece, and that is the ordinary case rather than this
+flow's own arithmetic: a budget is the run's, and every agent of a run spends out of the one
+reckoning whichever of them was writing. The flow itself takes no params and declares no budget
+of its own, so `hmz exec` refuses to start it without a `-b`. A spent budget raises
+`BudgetExceeded`, and `--resume` starts with whichever chaser was next.
+
+A turn that fails passes to the other chaser; three failures in a row end the run with the last
+one.
 
 ## What it keeps
 
-`turn` and `rounds`. The turn is the half that has to be kept: a run that always opened at the
+`turn` and `rounds`, in its [state](/features/resuming). The turn is the half that has to be kept: a run that always opened at the
 first agent would hand it the turn the other was owed — two turns in a row, the one thing a flow
 built on alternating must not do.
 
 A round is a turn each, and the turn that *finishes* one counts it, so a round the first agent
-was cut off in is finished, and counted once, by the run that picks that turn up.
+was cut off in is finished, and counted once, by the run that picks that turn up with
+`--resume`.
 
 ## See also
 

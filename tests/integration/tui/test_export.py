@@ -36,13 +36,23 @@ if TYPE_CHECKING:
 #: A flow that opens one session and says one thing, so that there is a run to package up.
 PLAIN = '''"""Runs once, and says what it was told."""
 
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams
+from hmz.flows import LocalEnv, flow
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    agents[0].new()(task)
+class Agents(AgentCollection):
+    worker: Agent
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def plain(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
+                ctx: FlowContext) -> None:
+    worker = agents["worker"]
+    await worker.run(task, session=await worker.spawn(env=envs["workspace"]))
 '''
 
 #: A `claude` that answers whatever it is told and logs the session where Claude Code logs
@@ -82,11 +92,11 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def _ran(task: str) -> None:
     """Runs the flow here the way a command line would, so there is an epic to export."""
-    from hmz.coganchor.agents import driver
-    from hmz.runtime.runner import Runner
+    from hmz.runtime import Hmz
 
-    agent, config = driver("claude")
-    Runner("plain", [agent(config(model="m", effort="high"))]).run(task)
+    Hmz().run(
+        "plain", task, agents={"worker": "claude/m:high"}, budget={"cost": 1}
+    ).run()
 
 
 def _held(at: Path) -> dict[str, str]:

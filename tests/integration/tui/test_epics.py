@@ -23,26 +23,31 @@ from hmz.tui import Humanize
 from hmz.tui.pick import Does, Epics
 from tests.integration.tui.test_app import onto, rows
 from tests.stubs import written
-from tests.tui.fixtures import until
+from tests.tui.fixtures import holding, until
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     from textual.pilot import Pilot
 
-#: A flow that says it can be picked up, and counts the runs of itself in what it is handed.
+#: A flow that says it can be picked up, and counts the runs of itself in what it keeps.
 COUNTS = '''"""Counts the runs of itself."""
 
 from pathlib import Path
-from typing import Any
 
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams, flow
 
 
-@flow(resumable=True)
-def run(agents: tuple[AgentBase], task: str, state: dict[str, Any]) -> None:
-    state["rounds"] = state.get("rounds", 0) + 1
+class Agents(AgentCollection):
+    worker: Agent
+
+
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams, resumable=True)
+async def counts(task: str, *, agents: Agents, envs: EnvCollection, params: FlowParams,
+                 ctx: FlowContext) -> None:
+    state = ctx.state
+    assert state is not None
+    state["rounds"] = (state["rounds"] if "rounds" in state else 0) + 1
     Path("rounds.txt").write_text(str(state["rounds"]))
 '''
 
@@ -51,25 +56,39 @@ PLAIN = '''"""Runs once, and says nothing about being picked up."""
 
 from pathlib import Path
 
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams, flow
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
+class Agents(AgentCollection):
+    worker: Agent
+
+
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams)
+async def plain(task: str, *, agents: Agents, envs: EnvCollection, params: FlowParams,
+                ctx: FlowContext) -> None:
     Path("plain.txt").write_text(task)
 '''
 
 #: One that opens a session and says one thing, so that there is a run with a trace in it.
 SPEAKS = '''"""Takes one turn, and says nothing about being picked up."""
 
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowContext, FlowParams
+from hmz.flows import LocalEnv, flow
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    agents[0].new()(task)
+class Agents(AgentCollection):
+    worker: Agent
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def speaks(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
+                 ctx: FlowContext) -> None:
+    worker = agents["worker"]
+    await worker.run(task, session=await worker.spawn(env=envs["workspace"]))
 '''
 
 #: A `claude` that answers whatever it is told, since what is being tested is the run rather
@@ -132,15 +151,12 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def _ran(flow: str, task: str) -> None:
     """Runs one flow here, the way a command line would, so there is an epic to look at.
 
-    On the fake `claude` this suite puts on PATH rather than on a stand-in of our own: what a
-    run is picked up as is a command line naming what each agent runs, so the agents of a run
-    have to be agents something can name.
+    On the fake `claude` this suite puts on PATH: what a run is picked up as is the specs
+    each of its roles was given, so the agents of a run have to be agents something can name.
     """
-    from hmz.coganchor.agents import driver
-    from hmz.runtime.runner import Runner
+    from hmz.runtime import Hmz
 
-    agent, config = driver("claude")
-    Runner(flow, [agent(config(model="m", effort="high"))]).run(task)
+    Hmz().run(flow, task, agents={"worker": "claude/m:high"}, budget={"cost": 1}).run()
 
 
 async def _open(app: Humanize, driver: Pilot[None]) -> Epics:
@@ -353,7 +369,7 @@ def test_the_trace_from_the_menu_is_of_that_run_and_of_nothing_else(
     from hmz.tui.pick import exported
 
     del workspace
-    epic = Epic("plain", [], "go")
+    epic = Epic("plain", "go")
     epic.write("opened", agent="actor", backend="claude", session="one")
     epic.write("opened", agent="reviewer", backend="claude", session="two")
     collect = unittest.mock.Mock(return_value={"otherData": {}})
@@ -382,8 +398,8 @@ async def test_a_run_of_a_flow_marked_since_can_be_picked_up_too(
     """What can be done with a run is what its flow says now, not what the run recorded.
 
     A flow is a directory on disk: one marked resumable after a run of it is one whose older
-    runs can be carried on, and the run's own record is what it was rather than what there is
-    to do with it today.
+    runs are offered to be carried on -- and that one kept no journal, so the list does not
+    mark it as one that can be, and carrying it on says why (see the test after this).
     """
     _ran("plain", "go")
     (epic,) = epics(workspace)
@@ -399,7 +415,7 @@ async def test_a_run_of_a_flow_marked_since_can_be_picked_up_too(
     app = Humanize()
     async with app.run_test() as driver:
         await _open(app, driver)
-        assert "can be picked up" in str(
+        assert "can be picked up" not in str(
             app.screen.query_one("#choices", OptionList).get_option_at_index(0).prompt
         )
 
@@ -457,7 +473,7 @@ async def test_carrying_one_on_is_refused_while_a_flow_runs_and_not_after(
 
     app = Humanize()
     async with app.run_test() as driver:
-        app._agents = [ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high"))]
+        holding(app, ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high")))
         sheet = await _open(app, driver)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Does), driver)
@@ -470,7 +486,7 @@ async def test_carrying_one_on_is_refused_while_a_flow_runs_and_not_after(
 
         # And the same list, once the flow is over, picks the run up rather than repeating
         # itself about a run that has gone.
-        app._agents = []
+        app._run = None
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Does), driver)
         await onto(app, driver, "resume")

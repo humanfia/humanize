@@ -30,7 +30,8 @@ from hmz.coganchor.agents import (
     McpServer,
     driver,
 )
-from hmz.runtime.runner import flow_and_agents
+from hmz.flows import HarnessKind
+from hmz.runtime.runner import Runner, read_line
 from tests.stubs import ShellAgent, written
 
 if TYPE_CHECKING:
@@ -180,15 +181,23 @@ for line in sys.stdin:
 """
 
 
-#: A flow of one agent, for the line that names which CLI is to fill it.
+#: A flow of one agent, for the line that names which CLI is to fill it: one turn of it.
 _FLOW = """
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowParams, LocalEnv, flow
 
 
-@flow
-def run(agent: AgentBase, task: str) -> None:
-    pass
+class Agents(AgentCollection):
+    builder: Agent
+
+
+class Envs(EnvCollection):
+    here: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def one(task, *, agents, envs, params, ctx):
+    session = await agents["builder"].spawn(env=envs["here"])
+    return [agents["builder"].harness, await agents["builder"].run(task, session=session)]
 """
 
 
@@ -391,20 +400,23 @@ def test_a_line_naming_an_added_cli_is_driven_as_that_cli(
     a step away.
     """
     flow = written(tmp_path / "flows", "one", _FLOW)
-
-    _, agents, *_ = flow_and_agents(
-        ["-f", str(flow), "-a", f"{added}/m:as configured", "the task"]
+    line = read_line(
+        [
+            "-f",
+            str(flow),
+            "-a",
+            f"builder={added}/m:as configured",
+            "-b",
+            "cost=1",
+            "hi",
+        ]
     )
 
-    made = agents[0]
-    assert isinstance(made, AcpAgent)
-    assert made.backend == added
-    assert made.command == ("my-agent", "--acp")
-    held = made.new()
-    try:
-        assert held("hi") == "hi"
-    finally:
-        held.close()
+    (spec,) = line.agents
+    assert (spec.harness, spec.cli) == (HarnessKind.ACP, added)
+    assert Runner(
+        line.flow, agents=line.agents, budget=line.budget, workspace=tmp_path
+    ).run(line.task) == [HarnessKind.ACP, "hi"]
 
 
 def test_an_added_cli_is_called_what_it_runs(

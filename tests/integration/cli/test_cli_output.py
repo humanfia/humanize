@@ -32,11 +32,11 @@ ESCAPES = re.compile(r"\x1b\[")
 #: A flow that drives no agents and prints, which is what a layer under one does too. Under
 #: `--json` there is nowhere for a line like this to land but stderr.
 LOUD = """
-from hmz.flows import flow
+from hmz.flows import AgentCollection, EnvCollection, FlowParams, flow
 
 
-@flow
-def run(agents: tuple[()], task: str) -> None:
+@flow(agents=AgentCollection, envs=EnvCollection, params=FlowParams)
+async def loud(task, *, agents, envs, params, ctx):
     print("a flow said this")
 """
 
@@ -323,7 +323,7 @@ def test_the_exec_line_says_who_is_reading_the_run(
     monkeypatch.chdir(tmp_path)
     flow = str(written(tmp_path, "loud", LOUD))
 
-    assert main(["exec", "-f", flow, "--json", "go"]) == 0
+    assert main(["exec", "-f", flow, "-b", "cost=1", "--json", "go"]) == 0
     said = capsys.readouterr()
 
     # A flow that drives no agents says nothing, so there is nothing to write down -- and
@@ -331,5 +331,5 @@ def test_the_exec_line_says_who_is_reading_the_run(
     assert said.out == ""
     assert "a flow said this" in said.err
 
-    assert main(["exec", "-f", flow, "go"]) == 0
+    assert main(["exec", "-f", flow, "-b", "cost=1", "go"]) == 0
     assert "a flow said this" in capsys.readouterr().out

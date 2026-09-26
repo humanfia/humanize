@@ -156,8 +156,72 @@ for the case where the two machines reach humanize under a name this machine can
 
 ## Anchoring a flow
 
-**For the weaver.** Give an agent's config an anchored machine and its turns land there, with
-no other change to the flow:
+**For the weaver.** A flow is anchored by its **environments**. It declares the directories it
+works in, one role apiece, and spawns every session in one of them; an environment on another
+machine is one whose sessions' turns land there — see [Writing a flow](/weaver/writing-a-flow):
+
+```python
+# .humanize/flows/onbox/__init__.py
+"""Build on the box, review here."""
+
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    Env,
+    EnvCollection,
+    FlowContext,
+    FlowParams,
+    LocalEnv,
+    ShellEnvMixin,
+    flow,
+)
+
+
+class Box(Env, ShellEnvMixin): ...
+
+
+class Agents(AgentCollection):
+    builder: Agent
+    reviewer: Agent
+
+
+class Envs(EnvCollection):
+    box: Box              # wherever -e says: another machine, as often as not
+    workspace: LocalEnv   # this directory
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def onbox(task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext):
+    builder, reviewer = agents["builder"], agents["reviewer"]
+    working = await builder.spawn(env=envs["box"])
+    await builder.run(task, session=working)
+    for _ in range(5):
+        _, diff, _ = await envs["box"].exec(["git", "diff"])
+        reading = await reviewer.spawn(env=envs["workspace"])
+        review = await reviewer.run(f"Say what is wrong with this diff:\n\n{diff}", session=reading)
+        await builder.run(review, session=working)
+```
+
+Whoever runs that flow says where `box` is, with `-e`:
+
+```sh
+hmz exec -f onbox -a builder=claude/claude-opus-5:high -a reviewer=codex/gpt-5.6-sol:high \
+    -e box=ssh@build-box/srv/project -b cost=20 "fix the build"
+```
+
+| `-e box=` | Where the builder's work goes |
+| --- | --- |
+| `ssh@build-box/srv/project` | `/srv/project` on a host you can reach with ssh — `host`, `user@host`, `host:port`, or an alias of your ssh config |
+| `ssh@build-box/~/project` | the same, under the home directory of whoever ssh logs in as |
+| `local@/srv/project` | a directory on this machine |
+
+A role typed as a `LocalEnv` — `workspace` above — is the directory the run started in, and is
+never named on the line. The flow's own `await envs["box"].exec([...])`, `read` and `write` run
+on the box too, so the flow reads what the agent did where the agent did it. At the prompt the
+same answer is a row of the flow's sheet in [`/flow`](/reference/tui#where-each-agent-works),
+typed as `-e` spells it.
+
+**Outside a flow**, give an agent's config an anchored machine and its turns land there:
 
 ```python
 from hmz.coganchor.agents import ClaudeCodeAgentConfig
@@ -174,54 +238,19 @@ config = ClaudeCodeAgentConfig(
 ```
 
 Every option of `hmz internal anchor` is a field of `AnchorConfig`, and every field is an
-option. A flow spawns what an operator would have typed. Settings no session could run under are refused where
-they are *written*, so a flow that misspells a target hears about it as it configures its
-agents rather than hours into the loop.
-
-**The flow says which agents may be moved at all.** A place declared plain `Agent` works here
-and cannot be pointed anywhere. Only `Annotated[Agent, Remote]` may be — see [Writing a
-flow](/weaver/writing-a-flow):
-
-```python
-# .humanize/flows/onbox/__init__.py
-"""Build on the box, review here."""
-
-from typing import Annotated, NamedTuple
-
-from hmz.flows import Agent, Remote, flow
-
-
-class Agents(NamedTuple):
-    builder: Annotated[Agent, Remote]  # may be pointed at a machine
-    reviewer: Agent                    # here, and nowhere else
-
-
-@flow
-def run(agents: Agents, task: str) -> None:
-    working = agents.builder.new()
-    working(task, suppress=True)
-    for _ in range(5):
-        working(agents.reviewer("Read the diff and say what is wrong.", suppress=True),
-                suppress=True)
-```
-
-Whoever runs that flow then picks the machine on the `where` row of the agent's own sheet,
-reached by opening that flow in `/flow`. The row appears only for a `Remote` place. It lists the containers
-running and the hosts in your `~/.ssh/config`, and anything else is typed:
-
-| Typed | Where the work goes |
-| --- | --- |
-| *(nothing)* | this machine |
-| `docker://<container>` | a container that is already running |
-| `ssh://<host>` | a host you can reach |
-| `tcp://<host>:<port>` | a target listening there |
+option. Settings no session could run under are refused where they are *written*, so a script
+that misspells a target hears about it as it configures its agents rather than hours into the
+loop. A `docker://`, `tcp://` or `local:` target is reached this way; a flow's environments are
+this machine and ssh hosts.
 
 ## A session works in a directory the target names
 
 For an anchored agent, `agent.new(cwd)` takes **the target's** path, and it must be inside the
 workspace the anchor names. humanize puts the agent in this machine's mirror of that directory
-and tells the anchor to run the work in the directory itself, so a flow says where the work
-happens in the only names the far end has.
+and tells the anchor to run the work in the directory itself, so whoever drives it says where the
+work happens in the only names the far end has. A flow does the same with its environment:
+`await envs["box"].derive_subdir(subdir="docs")` is `/srv/project/docs` on the box, and a worktree
+derived there is on the box too.
 
 ```text
 /tmp/elsewhere is not inside /srv/project, which is the workspace this agent's turns land in

@@ -5,10 +5,14 @@ Driving a coding agent from Python. An agent is settings; a
 it remembers.
 
 Everything here is importable from `hmz.coganchor.agents`. This is the layer under a flow rather
-than the one a flow is written against: `AgentBase` and `SessionBase` answer to the `Agent` and
-`Session` interfaces [flows](/reference/flows#what-a-flow-drives) declares, and a flow imports those
-from `hmz.flows`. Reach for this page when you are building agents yourself — from a script, from a
-test that stands in for one — rather than weaving a flow.
+than the one a flow is written against. A flow imports `Agent` and `Session` from `hmz.flows` —
+[protocols](/reference/flows#what-a-flow-drives), and nothing more — and is handed views the
+runtime makes of a *harness driver*, one per `-a`; the driver is one of the agents on this page,
+and every session a flow spawns is one of its sessions. What a flow may ask of it is the flow
+API's to say — [what its role declares](/reference/flows#asking-for-an-agent-that-can-do-something)
+and [what it may touch](/reference/flows#what-each-agent-may-do) — and how the driver says that to
+the CLI is below. Reach for this page when you are building agents yourself — from a script, from
+a test that stands in for one — or want to know what a flow's agent is underneath.
 
 ## Making one
 
@@ -215,8 +219,8 @@ Override it for a machine where the default is wrong — a container that suspen
 that queues for an hour:
 
 ```sh
-HUMANIZE_WATCHDOG=3600 hmz exec -f rlar -a claude/claude-opus-5:high "…"
-HUMANIZE_WATCHDOG=0    hmz exec -f rlar -a claude/claude-opus-5:high "…"   # no watchdog
+HUMANIZE_WATCHDOG=3600 hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b cost=5 "…"
+HUMANIZE_WATCHDOG=0    hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b cost=5 "…"   # no watchdog
 ```
 
 ## A CLI of your own
@@ -459,16 +463,14 @@ would silently split one conversation across two models.
 
 Every turn of this backend is a session on `zcode app-server --stdio`, and four things that
 session runs under are decisions humanize made for you. Each is a field, so the other answer
-is sayable, and each is a name a place can declare so a flow asks before its first turn — the
-field's own name under `settings:`, which the catalogue derives from the config class rather
-than minting a second word beside it:
+is sayable where the agent is made:
 
-| Field | Default | Capability | What it decides |
-| --- | --- | --- | --- |
-| `titles` | `True` | `settings:titles` | whether `session/create` asks ZCode to name the session. On is what leaving the field out does, and on means a model request of its own on the lite role before the turn runs. Turn it off for a run that reads no title and would rather not pay for one — a session here is named by the flow that opened it. |
-| `native_search` | `True` | `settings:native_search` | what the runtime is told about ZCode's own file search, which the server asks its client before it will open a session at all. Off takes `find` and `grep` away from an agent inside its workspace. It is the agent's rather than the session's: the server asks once. |
-| `delivery` | `desktop-continuous` | `settings:delivery` | which delivery kind a session's stream is subscribed under. This one arrives as it happens and misses nothing; `web-remote-replayable`, the other ZCode knows, replays for a web client that may have missed some. |
-| `protocol` | `openai-compatible` | `settings:protocol` | which protocol the endpoint a gateway account names speaks — ZCode's own `kind`, one of `anthropic`, `openai` and `openai-compatible`. Read only for an account that names an endpoint. |
+| Field | Default | What it decides |
+| --- | --- | --- |
+| `titles` | `True` | whether `session/create` asks ZCode to name the session. On is what leaving the field out does, and on means a model request of its own on the lite role before the turn runs. Turn it off for a run that reads no title and would rather not pay for one — a session here is named by the flow that opened it. |
+| `native_search` | `True` | what the runtime is told about ZCode's own file search, which the server asks its client before it will open a session at all. Off takes `find` and `grep` away from an agent inside its workspace. It is the agent's rather than the session's: the server asks once. |
+| `delivery` | `desktop-continuous` | which delivery kind a session's stream is subscribed under. This one arrives as it happens and misses nothing; `web-remote-replayable`, the other ZCode knows, replays for a web client that may have missed some. |
+| `protocol` | `openai-compatible` | which protocol the endpoint a gateway account names speaks — ZCode's own `kind`, one of `anthropic`, `openai` and `openai-compatible`. Read only for an account that names an endpoint. |
 
 **Each default is what ZCode 0.16.5 itself does for a client that says nothing**, read off the
 installed CLI rather than guessed at. `titles` was `False` here while there was no officially
@@ -522,31 +524,37 @@ so it gets a name of its own unless you give it one. A trace that read a clone a
 would read a comparison of two efforts as one agent changing its mind.
 
 There is nowhere to say any of it again. `reconfigure`, `runs_on`, `loads`, `rename` and
-`disable_goals` are still there, on the interface *whoever hands an agent to a flow* holds —
-`hmz.flows.Driven` — because somebody does settle them: the runner before the first turn, the
-calling of one flow by another, and the interface when you say a running agent is to go on as
-something else. A flow declares `hmz.flows.Agent` and reaches none of them.
+`disable_goals` are still there for whoever drives these agents from Python. A flow reaches none
+of them: the one way it has of changing an agent is
+[`derive`](/reference/flows#what-each-agent-may-do), which narrows what the agent may touch and
+which of its skills it carries, and never widens either.
 
 ### Whether an agent may search the web
 
 `web_search` is three answers rather than two: off, on, and nothing said. Nothing said is what
-a flow that did not mention it leaves behind, and nothing is then sent in either direction — the
-agent searches or does not exactly as it would had you started that CLI yourself. Off is the
-flow's choice, and one worth having: a run that must read only this repository, one under a
-per-query rate limit somebody is paying for, one whose answers have to be reproducible
-tomorrow. On is a choice too, on a CLI that ships with its own search switched off.
-
-```python
-class Agents(NamedTuple):
-    reader: Annotated[Agent, AgentDefaults(web_search=False)]
-```
-
-The setting itself is on the agent's config, and the flow's declaration is what puts it there
-before the first turn:
+an agent made without it has, and nothing is then sent in either direction — the agent searches
+or does not exactly as it would had you started that CLI yourself. Off is a choice worth having:
+a run that must read only this repository, one under a per-query rate limit somebody is paying
+for, one whose answers have to be reproducible tomorrow. On is a choice too, on a CLI that ships
+with its own search switched off.
 
 ```python
 config = ClaudeCodeAgentConfig(model="claude-opus-5", effort="high", web_search=False)
 ```
+
+A flow says it with the `online` scope of the [permission](/reference/flows#what-each-agent-may-do)
+its role declares — `ALL` is on, `NONE` is off, and `NONE` is the default:
+
+```python
+from hmz.flows import Agent, Permission, PermissionKind
+
+class Researcher(Agent):
+    _permission = Permission(online=PermissionKind.ALL)
+```
+
+Under a flow the answer is always stated where the CLI can be told. Where it cannot — the
+backends in the last row below — the flow's agent is left as its CLI has it, which may be wider
+than `NONE` asked for; a shell command the agent runs reaches the network whatever this says.
 
 An answer stated means the same thing on every backend that can express it, which means it is
 sent in both directions rather than only one. Claude searches the web unless told not to, so off
@@ -566,10 +574,10 @@ already stood.
 | `zcode` | `WebSearch` and `WebFetch` in the session's `toolDenylist` when off |
 | `agy`, `cursor-agent`, `dsh`, `kimi`, `pi` | no way of being told — off is refused |
 
-A backend with no way of being told **refuses it off**, wherever the config arrives — where the
-agent is made, where one already running is set up as something else, and where a flow that
-declared it off is handed one of those to drive. An agent that quietly went on searching would
-be a setting that lies. Nothing said is refused nowhere, for the same reason no rung is: a CLI
+A backend with no way of being told **refuses it off** where the config arrives — where the
+agent is made, and where one already running is set up as something else. An agent that quietly
+went on searching would be a setting that lies. (A flow's agent is the exception written down
+above: the flow API's `online` is a ceiling a harness driver keeps where it can.) Nothing said is refused nowhere, for the same reason no rung is: a CLI
 that cannot be told is a CLI nothing was going to be said to. It composes with
 [what an agent may do](#what-an-agent-may-do) rather than overriding it: a rung that already
 withholds the reaching-out tools goes on withholding them whatever this says.
@@ -609,12 +617,13 @@ agent = CodexAgent(
 )
 ```
 
-A command line names an agent and nothing else about it — `-a '[NAME=]CLI[@PROVIDER]/MODEL:EFFORT'`
-— so the tier and the backend-native settings are not sayable there and are set where the agent
-is made, from the SDK or by the flow:
+A command line names an agent and nothing else about it — `-a 'ROLE=CLI[@PROVIDER]/MODEL:EFFORT'`
+— so the tier and the backend-native settings are not sayable there, and a flow cannot say them
+either. They are set where an agent is made, from Python; an agent `-a` names runs each at what
+that CLI does unasked:
 
 ```sh
-hmz exec -f flow.py:run -a 'builder=codex/gpt-5.6-sol:max' task
+hmz exec -f ./flow.py -a 'builder=codex/gpt-5.6-sol:max' -b cost=5 task
 ```
 
 Codex takes only `model_context_window` and `model_auto_compact_token_limit` as native `-c`
@@ -628,6 +637,19 @@ would be a subflow that tightened its agent and was tightened around.
 `strict_config` is `--strict-config`, which makes the app server refuse a setting it does not
 recognise rather than pass over it — useful for finding out at the first turn that a newer
 Codex has renamed a key, at the cost of also refusing a stale key in the user's own file.
+
+`approvals` is Codex's own approval policy, in place of the one the
+[rung](#what-an-agent-may-do) comes with — `untrusted`, `on-request`, `on-failure` or `never`,
+and `""`, the default, for the rung's own. It is for a caller that wants every command put to it
+first while the sandbox stays where the rung put it: `untrusted` at `bypass` is full access with
+nothing but a known-safe read run unasked, and every request answered by humanize, which grants
+it unless a hook hung on `PERMISSION_REQUEST` refuses. A policy said here is not stepped down
+from on an installation that refuses the rung's sandbox. It is what a flow's Codex agent runs
+with [while a permission hook is hung on it](#the-flow-api-s-permission-on-each-cli).
+
+```python
+CodexAgentConfig(model="gpt-5.6-sol", effort="high", permission="bypass", approvals="untrusted")
+```
 
 Every one of these defaults to what a bare `codex app-server` does, so an agent nobody
 configured starts the command line Codex would have started for itself. The user's
@@ -808,6 +830,21 @@ carrying now, the callbacks it is offering — because that is what the child co
 session.forks           # whether this backend has a fork of its own
 agent.new().fork()      # RuntimeError: nothing has landed, so there is nothing to carry
 ```
+
+The child may be a conversation of **another agent** of the same backend, signed in as the same
+account on the same machine — one set up differently, at another rung or carrying other skills —
+and may work in **another directory**:
+
+```python
+reviewing = session.fork(into=reader, cwd="/work/review-tree")
+```
+
+`into=` of another backend, account or machine is a `ValueError`: none of them can read this
+conversation where it is kept. `cwd=` elsewhere is served only by the backends whose CLI can be
+told where the child works as it is cut, or whose per-directory store can be carried across
+first — Claude Code (its transcript is copied to where `--resume` looks for it), Codex, Kimi Code
+and ZCode — and is `NotImplementedError` on the rest. It is what a flow's
+[`agent.fork(session, env=…)`](/reference/flows#sessions-and-turns) comes to.
 
 On a backend with no fork, `fork` raises `NotImplementedError` rather than answering with a
 second handle on the one conversation. Not to be confused with
@@ -1059,13 +1096,22 @@ that stopped early.
 
 On a backend with no goal feature it raises `NotImplementedError`, whether or not `suppress` is
 set: asking for a feature that is not there is a flow to correct. Which backends have one is
-`type(agent).pursues` — a class attribute rather than a question anybody asks the CLI — and it
-is what a flow's `Goal` annotation is checked against before its first turn.
+`type(agent).pursues` — a class attribute rather than a question anybody asks the CLI.
+
+A flow reaches this by a prompt: `await agent.run("/goal <objective>", session=…)` on an agent
+whose role declares `GoalCommandAgentMixin` is `pursue` underneath, and the harnesses that serve
+the mixin — Claude Code, Codex, Kimi Code, ZCode and DeepSeek Harness — are the ones that have a
+goal. See [Goals](/weaver/goals).
 
 An agent whose goals were switched off raises `RuntimeError` from `pursue` instead, and is
 refused the tools that would carry work past the turn humanize is holding: Codex starts its
 server with its goal tools disabled, and Claude Code is given `--disallowedTools` naming
 `Agent`, `ScheduleWakeup`, `CronCreate`, `CronDelete`, `CronList` and `Workflow`.
+
+Every Claude Code turn, goals or not, is run with `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`.
+Claude may otherwise send a subagent or a command to the background and end the turn at once,
+so the answer a flow reads would come before what that work found. With it set, subagents still
+run, several at once from one message, and the turn ends when they have.
 
 ## Hooks
 
@@ -1094,6 +1140,11 @@ with agent.hooks.on(Moment.STOP, keep_going):
 
 `hung.off()` takes one down by hand; taking down what is already down is not an error. Hooks are
 on the **agent**, so one covers every session it holds, and hanging one mid-run is the point.
+
+A flow does not hang these. It hangs an async function on its agent with one `on_*` method per
+moment — `agent.on_stop(fn)`, `agent.on_permission_request(fn)` — and the harness driver hangs
+the hook here that carries each moment to it, in the flow's own words for the moment and the
+answer. See [Hooks in a flow](/reference/flows#hooks-in-a-flow).
 
 ### The moments
 
@@ -1300,9 +1351,10 @@ answer is not held to them; every backend that offers options takes something el
 they are what the agent expects, and what an interface has to show for the question to read as
 one.
 
-Leave `ask` unset — as a flow run from the command line does — and the backend is told **nobody
+Leave `ask` unset — as a script with nobody at it would — and the backend is told **nobody
 answered** rather than being left waiting. A turn waiting on an answer that is not coming is a
-flow that has stopped.
+flow that has stopped. Under a flow, the question goes to the flow's `on_ask_user` hook where its
+role declares `AskUserHookAgentMixin`, and is otherwise told nobody answered.
 
 Whatever happens, the question also reaches anything [watching](#watching-a-turn-as-it-happens)
 the agent as an `asks` event.
@@ -1364,9 +1416,9 @@ from hmz.runtime.tracing import collect
 collect(agents={a.id: a.opened for a in (actor, reviewer)})
 ```
 
-A [flow](/reference/flows#how-many-agents-and-what-they-are-for) that declares its agents as a
-`NamedTuple` names them for you, and a run started through `Runner` writes all of this into its
-[epic](/reference/tracing#epics) — so this is only needed for agents built and driven by hand.
+A [flow](/reference/flows#how-many-agents-and-what-they-are-for) names its agents by the roles it
+declares, and a run of one writes all of this into its [epic](/reference/tracing#epics) — so this
+is only needed for agents built and driven by hand.
 
 ### The name nobody gave it
 
@@ -1417,9 +1469,9 @@ It is not a coding agent: it runs no model, spends nothing, and its turns are no
 the `begins`/`ends` that say whose turn it is — counting them would put the person in the graph
 of who handed to whom and spin a clock at them while they thought.
 
-In a flow, declare one among the agents and it is handed over like the rest — see
+In a flow the person is an `Outworlder` role, filled by the runtime — see
 [Flows](/reference/flows#the-person-at-the-prompt). Nobody is asked what it runs, so it is not one of
-the agents `-a` names.
+the agents `-a` names; underneath, the run's outworlder asks through one of these.
 
 ### Asking them for a shape, which is a questionnaire
 
@@ -1452,7 +1504,10 @@ put back on the field it was refused for, in the model's own words, a bounded nu
 a questionnaire nobody filled in answers with `None` under `suppress`.
 
 This is the same thing a coding agent's `AskUserQuestion` is, reachable from a flow — and more,
-since the flow states the shape of the whole answer once, in the model it is going to use.
+since the flow states the shape of the whole answer once, in the model it is going to use. A
+flow asks it as `await human.run(question, session=…, output_schema=Settled)`; an outworlder
+that is away answers with the model built from its defaults, and raises `OutworlderAway` for a
+model with a field that has none.
 
 ## Efforts
 
@@ -1711,9 +1766,6 @@ CodexAgent.counts         # frozenset({"input", "output"}) — cached reads are 
 CursorAgent.counts        # frozenset({"input", "output", "cache_read", "cache_write"})
 ```
 
-The catalogue serves each of them as `counts:<kind>`, so a place whose flow steers by one can
-say so with `Needs` and be refused an agent that would answer nought forever.
-
 **A rate is tokens a second over seconds on the clock**, not seconds an agent was talking: a
 flow sleeps between rounds, commits, reads what the last turn wrote, and that time is time the
 tokens were spent over. The window defaults to five minutes — `hmz.coganchor.agents.WINDOW`, the
@@ -1777,8 +1829,7 @@ driver resumes its regular polling without submitting the turn again.
 *model* came out with — one request and the answer to it, of which a turn a flow asks for is
 many. That average is what an effort moves: a model asked to think harder writes more in each
 answer and takes longer over it. So it is the number to steer by when what is being held is
-how hard the thing is thinking rather than how fast a bill is running up, and it is what
-[`fixed_juice_ralph`](/flows/fixed-juice-ralph) governs on. A window with no
+how hard the thing is thinking rather than how fast a bill is running up. A window with no
 turn in it reads as `0.0`: nothing to go on, which a flow tells apart from a turn that said
 nothing.
 
@@ -1816,12 +1867,6 @@ agent can be given the CLI's own behaviour back:
 does not offer them: a flag that is taken and does nothing is worse than one that is refused.
 The skills an agent carries reach a `kimi web` session anyway, through the directories Kimi
 discovers for itself.
-
-A flow that means to set any of this can ask beforehand. Each field is a capability of its own
-in what [`hmz.runtime.flowing.checking.catalogue()`](/reference/flows#checking-a-flow) returns —
-`settings:port`, `settings:open_browser`, `settings:log_level`, `settings:web_title` — read off
-the config class rather than written down beside it, so a place declaring
-`Needs("settings:port")` is refused any backend whose config has nowhere to say it.
 
 ## Cutting a turn off, and what one turn may spend
 
@@ -1900,6 +1945,20 @@ A [goal](#goals) is not a turn: it is the backend's own loop, started by the bac
 followed rather than held, so a budget does not apply to one and `interrupt` does not reach
 one. `agent.stop()` is what ends a goal.
 
+`cut` is `interrupt` for a caller that holds the agent for this one conversation — which is what
+a flow's harness driver does, one agent per session:
+
+```python
+session.cut(why="the flow's budget is spent")
+```
+
+It interrupts, and then, on a backend whose turns an app server or a daemon holds for every
+session of the agent — Codex, Kimi Code, ZCode, DeepSeek Harness — puts that transport down,
+which is what ends the turn now rather than at the next answer. It reaches a goal too, which
+those backends run outside a turn of their own. The conversation is not ended: the next turn
+starts the transport again and resumes it by its id. On an agent holding several conversations
+it ends the turns of all of them, which is why it is not what `interrupt` does.
+
 **A turn cut off still ends on exactly one `result`**, carrying what the agent got as far as
 saying: there is no answer to read it off once the thing saying it has been taken away, so what
 the turn said as it went is what it answers with. That is what the backend said *to humanize* —
@@ -1925,7 +1984,7 @@ against a list fetched from [OpenLLMPrices](https://openllmprices.com/) and kept
 `~/.humanize/prices.json`:
 
 ```python
-from hmz import prices
+from hmz.coganchor import prices
 
 prices.cost(agent.spent(), agent.config.model)   # dollars, or None for an unlisted model
 prices.price("claude-haiku-4-5-20251001")        # Price(model="claude-haiku-4.5", …)
@@ -1937,8 +1996,15 @@ never `0.0`, for a model nobody lists, so a flow steering by money can tell *not
 
 ## What a whole run may spend
 
-A run can be given an **allowance** — hours on the clock, *millions* of output tokens, dollars
-— and when one of them is reached, every agent of the run is stopped. Not the turn: the run.
+A run of a **flow** is held to its [`Budget`](/reference/flows#what-a-run-may-spend) — the
+`-b` it was started with — by the flow runtime rather than by anything on this page: it hands
+each turn the limits every budget above it leaves, which a harness driver holds with the
+per-turn [budget](#cutting-a-turn-off-and-what-one-turn-may-spend) above, `cut` included, and
+refuses the next turn once one is spent.
+
+What follows is coganchor's own, for agents driven by hand. A set of agents can be given an
+**allowance** — hours on the clock, *millions* of output tokens, dollars — and when one of them is
+reached, every agent of the set is stopped. Not the turn: the run.
 
 ```python
 from hmz.coganchor.agents import Allowance, Ledger
@@ -1948,10 +2014,6 @@ ledger = Ledger(allowance, agents)
 for agent in agents:
     agent.allowance = ledger
 ```
-
-Whatever starts a flow does this; a flow never does. `Runner` builds the ledger and hangs it on
-every agent as the run starts, so `hmz exec`, the interface and a flow calling another all land
-on one reckoning.
 
 **Not `Budget`.** That one caps a *turn*, in raw output tokens and seconds, and shortens an
 answer. This one caps a run and ends it. The two are deliberately two types with two
@@ -1987,8 +2049,7 @@ A clone and a stand-in spend the run's allowance, which is the one thing about a
 cross a `clone()`. Tracing is about identity, so two agents are two lines; an allowance is about
 the run's money, and a flow that works only through clones would otherwise read as free.
 
-A flow says what a run of it is worth by default where it is marked — `@flow(budget=...)` — and
-whoever starts the run overrides it. See
+A flow no longer says what a run of it is worth: whoever starts it does, with `-b`. See
 [Every run has an allowance](/features/allowances).
 ## What each backend can do
 
@@ -2000,15 +2061,15 @@ whoever starts the run overrides it. See
 | [`session.fork`](#a-conversation-that-goes-two-ways) | no | `--fork-session` | `thread/fork` | no | no | `--fork-session` | `kimi fork` | `--fork` | `--fork-session` | `run --fork` | `session/fork` |
 | [`PERMISSION_REQUEST`](#not-every-backend-runs-every-moment) | no | yes | yes | no | no | no | no | no | no | no | yes |
 | [`SubagentStart`/`SubagentStop`](#not-every-backend-runs-every-moment) | no | yes | yes | yes | no | no | no | no | no | no | no |
-| [Callbacks as tools](#callbacks-of-the-flow-s-own) | no | `--mcp-config` | `-c mcp_servers…` | no | no | no | no | no | no | no | no |
+| [Callbacks as tools](#callbacks-as-tools) | no | `--mcp-config` | `-c mcp_servers…` | no | no | no | no | no | no | no | no |
 | [What its runtime says the turn did](#what-the-runtime-says-the-turn-did) | no | no | no | no | no | no | yes | yes | yes | `mimo` only, and only its launcher | no |
 | [A refusable `PreToolUse`](#refusing-a-tool) — `anchor:hooked` | no | `--settings` | no | no | no | no | no | no | `QWEN_CODE_SYSTEM_SETTINGS_PATH` | no | no |
 | A turn held to a shape | `--json-schema` | `--json-schema` | `outputSchema` | in the prompt | in the prompt | `--json-schema` | in the prompt | in the prompt | `--json-schema` | in the prompt | in the prompt |
 | Sub-agents in a trace | no | yes | yes | no | no | no | yes | no | no | no | no |
 
-DeepSeek Harness accepts only the `bypass` rung and a flow that declares no rung at all, so a
-flow that declares another cannot be driven by it, and another value is rejected before the
-runtime starts rather than silently ignored. Two things make bypass the only honest rung, and
+DeepSeek Harness accepts only the `bypass` rung and a config that names no rung at all, and
+another value is rejected before the runtime starts rather than silently ignored — which is why a
+flow's agent on it runs at `bypass` whatever its `Permission` says. Two things make bypass the only honest rung, and
 the second is the one worth writing down: its preview SDK exposes neither a per-session
 sandbox/approval control nor exact per-agent skill selection — `initialize` carries the cwd,
 the provider and the model, and no other method the runtime answers could carry one — *and* the
@@ -2155,30 +2216,22 @@ absence of a rung rather than one on it:
 ClaudeCodeAgentConfig(model="claude-opus-5", effort="high", permission="read-only")
 ```
 
-Which rung an agent runs at is the flow's, declared where it declares the place and settled
-onto whatever agent fills it before the first turn:
+Under a flow, which rung an agent runs at is not said with a rung at all. The flow declares a
+[`Permission`](/reference/flows#what-each-agent-may-do) on the role — what it may touch, scope by
+scope — and the harness driver reads it into one of these, as
+[the table below](#the-flow-api-s-permission-on-each-cli) says. There is no `-a` setting for it
+and no row for it on the sheet an agent is set up on: a line that writes `permission=` is
+refused, naming the flow as the place to say it.
 
-```python
-class Agents(NamedTuple):
-    reviewer: Annotated[Agent, AgentDefaults(permission="read-only")]
-```
+A config may name no rung — `permission` left at its default does. humanize then says nothing to
+that CLI about what its agent may do — no mode, no sandbox, no approval policy, no flag that
+skips a prompt — so the turn is the turn that CLI takes when a person runs it headless. Saying
+nothing is looser than every rung there is. A flow's agent never runs this way: a `Permission`
+always says something.
 
-There is no `-a` setting for it and no row for it on the sheet an agent is set up on: a line
-that writes `permission=` is refused, naming the flow as the place to say it.
-
-A place may declare no rung, and that is what one which writes no `AgentDefaults` does.
-humanize then says nothing to that CLI about what its agent may do — no mode, no sandbox, no
-approval policy, no flag that skips a prompt — so the turn is the turn that CLI takes when a
-person runs it headless. Saying nothing is looser than every rung there is, which leaves the
-rule the same rule it always was: a declaration only ever tightens, what an agent already
-carries is never loosened to reach one, so a flow that says nothing runs its agents at what
-they came with, and a called flow runs at its caller's rung or tighter.
-
-`bypass` is the loosest rung, and still the one an unattended flow reaches for: a flow watches
-its agent rather than gating it, and a turn waiting on an approval nobody is there to give is a
-flow that has stopped. It is a thing to write rather than a thing to inherit — a flow that wants
-its agents asked nothing says so beside the place. Anything tighter is the flow author's choice
-in the same way.
+`bypass` is the loosest rung, and the one an unattended flow reaches for: a flow watches its
+agent rather than gating it, and a turn waiting on an approval nobody is there to give is a flow
+that has stopped. It is what a flow's agent whose `local` is `ALL` runs at on every harness.
 
 Every backend has a ladder of its own and none of them has the same four rungs, so each driver
 reaches for whichever of its own settings says the same thing:
@@ -2315,9 +2368,50 @@ hung on [`PERMISSION_REQUEST`](#hooks) can refuse something only where a backend
 before it acts and waits for the answer. `auto` is that rung everywhere it exists; Claude Code,
 Codex and ZCode run the moment there. Claude Code runs it at `bypass` as well, because `bypass`
 there is `manual` mode with the asking routed home — so a hook can refuse a tool an agent
-allowed everything reached for, and the agent hears it. A place that declares no rung routes
-nothing home, so a flow built on the moment declares the rung it wants it at. The rest have
-nothing to hang it on.
+allowed everything reached for, and the agent hears it. Codex does too, given
+[`approvals="untrusted"`](#whether-an-agent-may-search-the-web) over its rung's sandbox. A config
+that names no rung routes nothing home. The rest have nothing to hang it on.
+
+### The flow API's permission on each CLI
+
+A flow's role declares a [`Permission`](/reference/flows#what-each-agent-may-do) — `local`, `user`
+and `system`, each `NONE`, `READ` or `ALL` and nesting in that order, and `online`, `NONE` or
+`ALL` — and whatever it declares, **nothing is ever put to anybody for approval**: every session
+runs at its CLI's nothing-asked mode, or where a managed policy refuses that, at the most
+permissive mode short of the model reviewing itself, with every request approved. What limits a
+flow's agent is its `Permission` and the hooks the flow hangs on it.
+
+| `local` | every harness but `dsh` and ACP CLIs | `dsh`, ACP CLIs |
+| --- | --- | --- |
+| `READ` or `NONE` | `read-only` | `bypass` |
+| `ALL` | `bypass` | `bypass` |
+
+- **`local` `ALL` fences nothing else — a known widening.** `user` and `system` are not held to
+  `READ` or `NONE`: a session that may write its workdir may write anywhere its user can. Two of
+  these CLIs have a sandbox that could fence it — Codex's `workspace-write` and cursor-agent's
+  `--sandbox enabled` — and neither is used: the flow API's own word for Codex's nothing-asked
+  mode is `danger-full-access` with `never`, and both sandboxes are bubblewrap, which cannot
+  start on a machine that gives it no user namespace — a fence here would be a flow that loses
+  its shell wherever it runs in a container.
+- **`local` `READ` is the CLI's own read-only rung** — Claude Code's `plan`, Codex's read-only
+  sandbox, a tool list with nothing that writes on the rest. It reads outside the workdir too,
+  which is wider than a `user` or `system` of `NONE`. `local` `NONE` is the same rung, which
+  reads the workdir.
+- **`dsh` and ACP CLIs can be held to nothing but `bypass`**, which is wider than asked for any
+  permission below `ALL`.
+- **`auto` is never used for Claude Code or cursor-agent**, whose `auto` is the model reviewing
+  its own actions. The one place it is used is Kimi Code and ZCode, and only **while a hook is
+  hung** on `PERMISSION_REQUEST` or `ASK_USER`: there `auto` — Kimi's `yolo`, ZCode's `build` —
+  is the mode where the CLI asks about what it deems risky, and on Kimi the mode where its agent
+  may ask its user anything at all. humanize answers every request yes unless the hook says no.
+- **Codex, while a `PERMISSION_REQUEST` hook is hung**, keeps its rung's sandbox and runs with
+  approval policy `untrusted` — every command but a known-safe read is asked about, and granted
+  unless the hook refuses. An `ASK_USER` hook turns on Codex's
+  `default_mode_request_user_input` feature instead, without which its agent cannot ask its user
+  anything outside plan mode. Either takes hold from the session's next turn.
+- **`online` is the CLI's own web tools**: on for `ALL`, off for `NONE` where the CLI can be
+  told, and left as the CLI has it where it cannot — cursor-agent, pi, agy and ACP CLIs — which
+  may be wider. A shell command the agent runs reaches the network whatever this says.
 
 ## The skills an agent carries
 
@@ -2331,11 +2425,14 @@ from hmz.coganchor.agents.skills import skills
 
 skills("claude")   # what it would load here: yours, and this project's
 
-agent.loaded       # the skills the flow driving it brings, mounted onto every session
-agent.loads(...)   # what the runner calls to say so; a flow cannot call this itself
+agent.loaded       # the skills whoever drives it brings, mounted onto every session
+agent.loads(...)   # how they are said
 ```
 
-Which of the flow's skills **one conversation** carries is that conversation's own answer, and
+Under a flow these are the skills the role names in `_skills`, and a flow narrows them only by
+[`derive(skills=…)`](/reference/flows#the-skills-a-flow-brings) — an agent carrying fewer.
+
+Which of the brought skills **one conversation** carries is that conversation's own answer, and
 may be said again while it runs:
 
 ```python
@@ -2370,19 +2467,24 @@ a headless run has nobody to press that — so a mount would copy skills into a 
 session is not permitted to read, and humanize does not make one. Its road is
 `--skill <path>`, which is not gated and is additive even under `--no-skills`:
 `PiAgentConfig(skill_paths=("/where/the/skill/is",))` hands it one by path, and a flow can ask
-for it beforehand as the `settings:skill_paths` capability.
+for it where the agent is made.
 
 A project's own skill of that name wins: a flow does not write over what the project keeps.
 They go into the workspace on this machine, so an agent [whose turns land
 elsewhere](#where-the-turns-land) is given them only where that machine reads this directory —
 a container that was handed this workspace does; one across a network keeps its own.
 
-## Callbacks of the flow's own
+## Callbacks as tools
 
-A flow drives an agent by saying things to it. **Tools are the other direction**: a function
-the flow wrote, put in front of the agent, so that the agent reaching for it is the flow's own
-code running — in the flow's process, with the flow's variables — and what it answers is what
-the agent reads back.
+Something that drives an agent does it by saying things to it. **Tools are the other
+direction**: a function the driver wrote, put in front of the agent, so that the agent reaching
+for it is the driver's own code running — in its process, with its variables — and what it
+answers is what the agent reads back.
+
+This is coganchor's, for agents driven from Python. **The flow API has no tools**: a flow
+cannot put a function of its own in front of its agent, and reaches back into its own code from
+inside a turn through [hooks](/reference/flows#hooks-in-a-flow) instead — see
+[The agent asking the flow](/weaver/tools).
 
 ```python
 from pydantic import BaseModel, Field
@@ -2407,10 +2509,6 @@ session.offers(
 session("write the parser, and have your work reviewed before you stop")
 ```
 
-Which is what makes an agent able to **call a flow**: a callback whose body is
-`load("rlar")(agents, said.task)` is an agent that starts a loop of its own and waits
-for what it comes to, and nothing about that is written into any backend.
-
 | | |
 | --- | --- |
 | `name` | what the agent calls it |
@@ -2419,19 +2517,19 @@ for what it comes to, and nothing about that is written into any backend.
 | `call` | what to run — given the model, and nothing where `takes` is `None`. What it answers goes back as text; `None` is a tool that did something |
 
 `session.offers(None)` takes them back. It is said on a **conversation**, because that is where
-a flow is when it has something to offer — but a CLI is told about its tools where it is
+whoever drives it is when it has something to offer — but a CLI is told about its tools where it is
 started, and some of these are started once per agent, so what is actually offered is the
 agent's: two conversations offering a tool of one name are offering one tool.
 
 The road between the two is the **Model Context Protocol**, that being the one way every one of
 these CLIs takes a tool it was not shipped with. What a backend is handed is a command to run —
-`hmz internal tools --at <socket>` — which relays its pipe back to the flow's process. Nothing is
-started until something is offered: an agent whose flow hands it no callbacks has no socket, no
-thread and no bridge.
+`hmz internal tools --at <socket>` — which relays its pipe back to the offering process. Nothing
+is started until something is offered: an agent handed no callbacks has no socket, no thread and
+no bridge.
 
-**A callback that raises is the tool failing, not the flow.** The model is told what went
-wrong, in words, and may call it again correctly; a flow must not end because a model called
-one of its tools wrongly.
+**A callback that raises is the tool failing, not the caller.** The model is told what went
+wrong, in words, and may call it again correctly; a run must not end because a model called one
+of its tools wrongly.
 
 `session.takes_tools` is `False` on a backend with no way of being told, and `offers` raises
 `NotImplementedError` there rather than quietly never offering it — see
@@ -2451,11 +2549,12 @@ ClaudeCodeAgentConfig(model=…, effort=…, machine=DockerConfig(image="python:
 for — which is the first turn. Constructing an agent pulls no image and starts no container.
 See [Machines](/reference/machines).
 
-**Which agents may be given one at all is the flow's to say.** An agent handed to a flow whose
-place for it says nothing is refused before its first turn, because a flow is written for one
-shape of work — see [Flows › Where each agent works](/reference/flows#where-each-agent-works). Setting a
-`machine` here is what fills a place the flow declared `Remote`; a place it declared `Isolated`
-is settled by the flow itself and takes no `machine` from anyone.
+**Under a flow, where a session's turns land is the environment it was spawned in.** A flow
+spawns every session in one of its [environments](/reference/flows#where-each-agent-works) —
+`await agent.spawn(env=repo)` — and an environment on a host reached with ssh (`-e
+repo=ssh@gpu-box/home/me/repo`) is what gives that session's agent a `machine`: an anchored
+one, whose turns land on that host in that directory. An environment on this machine gives it
+none. Nobody sets `machine` on a flow's agent by hand.
 
 ## Reaching into a bundled CLI
 
@@ -2586,13 +2685,15 @@ class SessionBase:
     def __call__(prompt: str, *, suppress: bool = False, schema: type[T] = …) -> str | T | None
     def stream(prompt: str, *, schema: type[BaseModel] | None = None) -> Iterator[Event]
     def pursue(objective: str, *, suppress: bool = False) -> str
-    def fork() -> SessionBase    # a second conversation carrying this one's history
+    def fork(*, into: AgentBase | None = None, cwd: Where = None) -> SessionBase
+                                 # a second conversation carrying this one's history
 
     async def aturn(prompt: str, *, suppress: bool = False, schema: type[T] = …) -> str | T | None
     async def apursue(objective: str, *, suppress: bool = False) -> str
 
     def interject(text: str) -> None
     def interrupt(*, why: str) -> None  # end the turn now running, wherever it has got to
+    def cut(*, why: str) -> None        # the same, and the shared transport put down too
     def close() -> None
 
     budget: Budget | None   # what each of its turns may spend, or None for no cap

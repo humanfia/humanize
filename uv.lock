@@ -218,6 +218,7 @@ dependencies = [
     { name = "rich" },
     { name = "sentry-sdk" },
     { name = "textual" },
+    { name = "typing-extensions" },
 ]
 
 [package.optional-dependencies]
@@ -261,6 +262,7 @@ requires-dist = [
     { name = "rich", specifier = ">=15" },
     { name = "sentry-sdk", specifier = ">=2.68.1" },
     { name = "textual", specifier = ">=8.2.8" },
+    { name = "typing-extensions", specifier = ">=4.13" },
     { name = "websockets", marker = "extra == 'kimi'", specifier = ">=15,<18" },
 ]
 provides-extras = ["dsh", "kimi", "all"]

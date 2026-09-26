@@ -1,4 +1,4 @@
-"""Where a flow is, what it is called, and what running its file leaves behind.
+"""Where a flow is, what it is called, and the flow a name comes to.
 
 A flow is named rather than pathed: `hmz exec -f ralph_loop` is a name, and a path is what is
 left for a flow that is nowhere any of them are kept. A name is looked for in the places flows
@@ -11,195 +11,59 @@ Which of them a bare name means is nearest first -- yours, then everybody else's
 of your own may stand in for one of humanize's by taking its name, and `local/chat` is the
 spelling that says which one it is.
 
-Reading a flow means running it. A flow is a Python file, what it holds is whatever marking a
-function with :func:`~hmz.flows.flow` left behind, and the only way to find that out is to run
-the file -- with its own directory importable while it does and only while, and forgotten again
-afterwards, so that the module beside one flow is never answered with the module beside
-another. Run afresh every time, too: a flow rewritten between two runs of it -- by hand, or by
-an agent it is itself driving -- is the flow that runs next.
-
-None of this is a thing a flow names. A flow says what it is with the mark, and humanize does
-the finding: :mod:`hmz.flows` is the whole of what a flow imports, and everything that reads a
-flow is here, written against it.
+Reading a flow means importing it: a flow is a directory whose `__init__.py` defines flows with
+:func:`hmz.flows.flow`, and the only way to find out which is to import it. That is
+:mod:`loading`'s to do, once per module and afresh when its files change, so a flow rewritten
+between two runs of it -- by hand, or by an agent it is itself driving -- is the flow that runs
+next.
 """
 
 from __future__ import annotations
 
-import contextlib
 import os
-import runpy
-import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NamedTuple
-
-import hmz.flows
-from hmz.flows import (
-    _SAID,  # pyright: ignore[reportPrivateUsage]
-    Flow,
-    _first,  # pyright: ignore[reportPrivateUsage]
-)
+from typing import TYPE_CHECKING, NamedTuple
 
 from .verses import LOCAL, MINE, OFFICIAL, flowverses, holds, nearest
 
 if TYPE_CHECKING:
+    from .engine import FlowImpl
     from .verses import Flowverse
 
 __all__ = [
     "BUILTIN_AT",
     "ENTRY",
-    "PROPHECY",
     "Offer",
     "about",
     "at",
+    "builtin",
     "entry",
     "find",
-    "foretold",
     "fork",
     "found",
-    "held",
     "inside",
-    "loaded",
     "offered",
     "offers",
-    "reading",
+    "resolved",
     "within",
 ]
 
-#: Where the flows humanize ships in the package are: a directory of them inside
-#: :mod:`hmz.flows`, which is where a flow lives, rather than beside this file, which is how
-#: one is found. They are the whole of what is there, so there is no `flows/` in it to tell
-#: them from the rest. Offered under `official` along with the repository of the rest of
-#: humanize's flows: which of the two places one of them is kept in is humanize's business
-#: rather than whoever is running it.
-BUILTIN_AT = Path(hmz.flows.__file__).parent / "builtin"
+#: Where the flows humanize ships in the package are: `hmz/flows/builtin`, beside the flow API
+#: they are written against, rather than beside this file, which is how one is found. They are
+#: the whole of what is there, so there is no `flows/` in it to tell them from the rest. Offered
+#: under `official` along with the repository of the rest of humanize's flows: which of the two
+#: places one of them is kept in is humanize's business rather than whoever is running it.
+#: Worked out from where this file is rather than by importing the flow API, which a listing
+#: of places has no need to pay for.
+BUILTIN_AT = Path(__file__).resolve().parents[2] / "flows" / "builtin"
 
 #: What a flow's directory holds the flow itself in. The rest of the directory is what it
 #: imports and the `skills/` it brings, so the entry point is named rather than guessed.
 ENTRY = "__init__.py"
 
-#: And what an atlas's directory may hold the prophecy it was already compiled to in. A
-#: flowverse that ships one ships the graph its flow was checked into, and that graph is
-#: what runs: the compiling is where an atlas is refused, and a repository which has been
-#: through it once has an answer worth carrying rather than working out again.
-PROPHECY = "prophecy.pkl"
-
-#: What a flow's own name is separated from the one inside it by. A flow that holds one flow
-#: is named by itself; one that holds three names each of them after it.
+#: What a flow's own name is separated from the one inside it by. A module that holds one
+#: visible flow is named by itself; one that holds three names the others after it.
 _INSIDE = ":"
-
-
-def loaded(where_: str | os.PathLike[str]) -> dict[str, Any]:
-    """Runs a flow's entry point and answers with what it left behind.
-
-    With its own directory importable while it runs, and only while: a flow is a directory of
-    what it needs, and one that reaches for the module next to it is reaching for something
-    that came with it. The directory the flows are in is importable too, for what a flowverse
-    keeps beside them for all of them. Put back afterwards, since what a flow imports is not
-    something the rest of this process should be able to.
-
-    Run each time rather than cached: a flow rewritten while a run is going is the flow that
-    runs next, which is what lets a flow -- or an agent driving one -- rewrite it and go on.
-
-    Args:
-      where_: The flow: its directory, or the Python file to run outright.
-
-    Returns:
-      Everything running it defined, by name.
-    """
-    where_ = os.path.join(where_, ENTRY) if os.path.isdir(where_) else where_
-    beside = os.path.dirname(os.path.abspath(where_))
-    among = os.path.dirname(beside)
-    sys.path[:0] = [beside, among]
-    try:
-        return runpy.run_path(str(where_))
-    finally:
-        for one in (beside, among):
-            with contextlib.suppress(ValueError):
-                sys.path.remove(one)
-        _forgotten(beside, among)
-
-
-def _forgotten(*under: str) -> None:
-    """Forgets what was imported from beside a flow, so nothing of it outlives the run.
-
-    A flow imports the module next to it by its plain name -- `import prompts` -- and every
-    flow may have one. Left in `sys.modules`, the first flow loaded in a process owns that name
-    for the life of it: the next flow's `import prompts` is answered with the last one's, and a
-    menu drawing the list of flows is enough to settle who won. Taken out, each run of a flow
-    reads what is beside that flow -- which is also what makes a flow edited between two runs
-    of it run as it is now, module beside it and all.
-
-    What is dropped is only what was loaded out of these directories, found by the file each
-    module says it came from. Nothing of humanize's own is: a flow kept inside humanize's own
-    tree would otherwise unload the package that is running it.
-
-    Args:
-      under: The directories, as absolute paths.
-    """
-    roots = tuple(one + os.sep for one in under)
-    for name, module in list(sys.modules.items()):
-        if name.startswith("hmz"):
-            continue
-        at = getattr(module, "__file__", None)
-        if at and os.path.abspath(at).startswith(roots):
-            del sys.modules[name]
-
-
-def held(where_: str | os.PathLike[str]) -> list[Flow]:
-    """Every flow one file holds: its own first, and the rest as it declares them.
-
-    Args:
-      where_: The flow -- its directory, or the file to read outright. It is run to be read,
-        so whatever it does as it is imported happens here.
-
-    Returns:
-      One per function it marked with :func:`flow`, the one it marked with no name first --
-      which is the flow the file holds under its own name. Nothing at all for a file that
-      marks none, or cannot be read: this is asked while a list is being drawn, and a file
-      that will not import is one line of that list rather than the end of it.
-    """
-    try:
-        inside = loaded(where_)
-    except Exception:  # noqa: BLE001 -- a file that will not run holds no flows to list
-        return []
-    return _flows_of(inside)
-
-
-def _flows_of(inside: dict[str, Any]) -> list[Flow]:
-    """Every flow in what running one file left behind.
-
-    Args:
-      inside: What the file defined, by name.
-
-    Returns:
-      One per function the file marked with :func:`flow`, in the order it declared them --
-      which for three phases of one thing is their order -- and the one it marked with no name
-      first, since that is the one the file is named after and a list that put it third would
-      read as the third thing in the file. Nothing at all for a file that marks nothing, which
-      a directory of flows may well have in it: something the flows beside it import, or the
-      file that sets their tests up. A name declared twice is the first of them: a file that
-      holds two flows of one name is a file to correct, and picking one of them at random is
-      not the way to say so.
-    """
-    said: list[Flow] = []
-    for one in inside.values():
-        marked = getattr(one, _SAID, None)
-        if not isinstance(marked, Flow) or any(
-            marked.name == already.name for already in said
-        ):
-            continue
-        # The file's own docstring where the flow it holds says nothing: a file that is one
-        # flow is documented as that flow, and its first line is what it does.
-        if not marked.name and not marked.about:
-            marked = Flow(
-                name="",
-                about=_first(inside.get("__doc__")),
-                skills=marked.skills,
-                resumable=marked.resumable,
-                selectable=marked.selectable,
-            )
-        said.append(marked)
-    return [one for one in said if not one.name] + [one for one in said if one.name]
 
 
 class Offer(NamedTuple):
@@ -325,19 +189,21 @@ def offers(one: Flowverse) -> list[Offer]:
       that moves between the two goes on answering to the name it always had. Yours are named
       the same way as anybody else's -- `local/scheduler`, `user/scheduler` -- so that a flow of
       yours sharing a name with one of humanize's is listed beside it under a name of its own
-      rather than instead of it. A flow that holds several names each of them,
-      `<flow>:<inside>` apiece, and a directory that holds none is not among them -- a directory
-      of flows has directories beside them that are not one.
+      rather than instead of it. The flow a bare ref names -- the one named after its
+      directory, else the only visible one -- is listed by the directory's name, and every
+      other visible flow of the module as `<flow>:<inside>`; hidden flows are not listed, and a
+      directory that holds none is not among them -- a directory of flows has directories
+      beside them that are not one.
 
       Just the ones in the package for `official` before it has been fetched, and nothing at
       all for any other flowverse that has not been, which is not the same answer as one that
       holds nothing, and is why :class:`Flowverse` says which it is.
 
     Note:
-      Reading a flow means running it, so the entry point of every flow in the directories the
-      flowverse holds its flows in is run to find out what it holds -- and nothing outside
-      them, which is what those directories are for. Whoever added it is trusting that
-      repository with this machine; this is where that trust is spent.
+      Reading a flow means importing it, so the entry point of every flow in the directories
+      the flowverse holds its flows in is imported to find out what it holds -- and nothing
+      outside them, which is what those directories are for. Whoever added it is trusting
+      that repository with this machine; this is where that trust is spent.
     """
     from .verses import flows
 
@@ -350,29 +216,51 @@ def offers(one: Flowverse) -> list[Offer]:
 
 
 def _named(at: Path, called: str) -> list[tuple[str, str]]:
-    """What each flow in one file is called, given what the file itself is called.
+    """What each flow in one module is called, given what the module itself is called.
 
     Args:
-      at: The file.
-      called: What the file is called where it was found.
+      at: The module's entry point.
+      called: What the module is called where it was found.
 
     Returns:
-      One `(name, what it says about itself)` pair per flow: the file's own name for the flow
-      it holds under it, and `<called>:<inside>` for each of the rest. Nothing at all for a
-      file that holds no flow -- a directory of flows has files beside them that are not one --
-      but just the file's name for one that could not be read: a file that will not import is
-      still a flow somebody named, and saying so where they pick it is better than leaving it
-      off the list.
+      One `(name, what it says about itself)` pair per visible flow: the module's own name for
+      the one a bare ref names, and `<called>:<inside>` for each of the rest. Nothing at all
+      for a module that defines no flow -- a directory of flows has files beside them that are
+      not one -- but just the module's name for one that could not be imported: a file that
+      will not import is still a flow somebody named, and saying so where they pick it is
+      better than leaving it off the list.
     """
+    from hmz.flows import FlowException
+
+    from .loading import module_of, pick
+
     try:
-        inside = loaded(at)
-    except Exception:  # noqa: BLE001 -- named as a flow, and not readable to be sure it is
+        module = module_of(at, None)
+        flows = module.flows()
+    except (FlowException, OSError):
         return [(called, "")]
-    return [
-        (called if not one.name else f"{called}{_INSIDE}{one.name}", one.about)
-        for one in _flows_of(inside)
-        if one.selectable
-    ]
+    visible = [one for one in flows.values() if not one.hidden]
+    try:
+        bare = pick(module, "", called)
+    except FlowException:
+        bare = None
+    said: list[tuple[str, str]] = []
+    if bare is not None and not bare.hidden:
+        # The module's own docstring where the flow it is named for says nothing: a module
+        # that is one flow is documented as that flow, and its first line is what it does.
+        said.append((called, bare.description or _first(module.module.__doc__)))
+    said.extend(
+        (f"{called}{_INSIDE}{one.name}", one.description or "")
+        for one in sorted(visible, key=lambda one: one.name)
+        if one is not bare
+    )
+    return said
+
+
+def _first(doc: str | None) -> str:
+    """The first line of a docstring, or "" for none."""
+    said = (doc or "").strip().splitlines()
+    return said[0].strip() if said else ""
 
 
 def about(named_: str) -> str:
@@ -384,11 +272,110 @@ def about(named_: str) -> str:
     Returns:
       The line, or "" for a flow that says nothing or cannot be read.
     """
-    at, inside = _split(named_)
-    for one in held(find(at)):
-        if one.name == inside:
-            return one.about
-    return ""
+    from hmz.flows import FlowException
+
+    try:
+        flow = resolved(named_)
+    except (FlowException, OSError):
+        return ""
+    if flow.description or inside(named_) or flow.home is None:
+        return flow.description or ""
+    # The module's own docstring where the flow a bare name means says nothing, as the list
+    # of flows says it: a module that is one flow is documented as that flow.
+    return _first(flow.home.module.__doc__)
+
+
+def resolved(named_: str) -> FlowImpl:
+    """The flow a name comes to, loaded, as a way in runs it.
+
+    Anything :func:`hmz.flows.load` takes where no flow is asking: a name nearest first,
+    `<flowverse>/<flow>`, either with `:<inside>`, a path, or a `git+<url>#<flow>` ref, which
+    is fetched here, on this thread. A flow humanize ships is handed its harness's every
+    capability, with :func:`~hmz.runtime.flowing.engine.full_view`: `chat` talks to whichever
+    agent it is given, and so declares nothing of any, and it is the flows in the package
+    rather than a name that says which flow that is.
+
+    Args:
+      named_: What the flow is called.
+
+    Returns:
+      The flow.
+
+    Raises:
+      FlowRefError: If `named_` is no ref, or is relative to a flow when none is asking.
+      FlowNotFound: If nothing answers to it.
+      FlowDefinitionError: If what it names is written wrong or will not import.
+      FlowLoadConflict: If loading it would replace a module a run going now uses.
+    """
+    from hmz.flows import FlowNotFound
+
+    from .engine import FlowImpl, full_view
+    from .loading import load
+
+    try:
+        found_ = load(named_, {})
+    except FlowNotFound as missing:
+        # Only for a name nothing answers to: one that found its module and then no flow in
+        # it is a flow to correct, whatever has been fetched.
+        if "#" in named_ or os.path.isfile(find(named_)):
+            raise
+        waiting = _unfetched(named_)
+        if not waiting:
+            raise
+        raise FlowNotFound(f"{named_}: {waiting}") from missing
+    if isinstance(found_, FlowImpl):
+        flow = found_
+    else:
+        # Fetched on this thread: a way in asks before anything runs, and has no loop yet.
+        _ = found_.name
+        fetched = found_.flow
+        assert fetched is not None  # noqa: S101 -- asking its name fetched it
+        flow = fetched
+    if builtin(flow):
+        full_view(flow)
+    return flow
+
+
+def _unfetched(named_: str) -> str:
+    """Why a flow that was named is not there, where a flowverse not fetched yet is why.
+
+    A flowverse is offered before it is fetched -- `official` is there from the start -- so
+    "no such flow" would be the answer to a name that is right, given by the one thing that
+    knows it has not been downloaded. A name that said which place it came from is a question
+    about that place alone; a bare one is looked for in every one of them.
+
+    Args:
+      named_: What was asked for, as it was written.
+
+    Returns:
+      The reason, or "" where every flowverse it could have come from has been fetched.
+    """
+    whose, _, rest = _split(named_)[0].partition("/")
+    waiting = [
+        one.name
+        for one in flowverses()
+        if one.url and not one.fetched and (one.name == whose if rest else True)
+    ]
+    if not waiting:
+        return ""
+    which = "flowverse has" if len(waiting) == 1 else "flowverses have"
+    return (
+        f"the {' and '.join(waiting)} {which} not been fetched yet -- open /flowverses "
+        "and press r on it"
+    )
+
+
+def builtin(flow: FlowImpl) -> bool:
+    """Whether a flow is one humanize ships in the package.
+
+    Args:
+      flow: The flow.
+
+    Returns:
+      Whether it was defined under :data:`BUILTIN_AT`.
+    """
+    made = Path(os.path.realpath(flow.fn.__code__.co_filename))
+    return made.is_relative_to(BUILTIN_AT)
 
 
 def _split(named_: str) -> tuple[str, str]:
@@ -449,54 +436,6 @@ def find(named_: str) -> str:
         if os.path.isfile(shape):
             return os.path.realpath(shape)
     return at_
-
-
-def reading(named_: str) -> str:
-    """What to point a reading of one flow at, which is not always what runs it.
-
-    A flow is a directory or a single file, and the two readings of one -- the checking and
-    the compiling -- take the whole of it either way: the directory where there is one, so
-    that what the entry point imports beside it is read too, and the file where there is
-    not. :func:`find` answers with the entry point instead, that being what is run.
-
-    Args:
-      named_: A flow's name, as :func:`find` takes it.
-
-    Returns:
-      The path to read: the flow's own directory, or the file a single-file flow is. A name
-      nothing answers to comes back as :func:`find` left it, so whatever asked hears about
-      it where it looks rather than here.
-    """
-    found_ = find(named_)
-    if os.path.isfile(found_) and os.path.basename(found_) == ENTRY:
-        return os.path.dirname(found_)
-    return found_
-
-
-def foretold(named_: str) -> str:
-    """Where the prophecy one flow ships is, for a flow that ships one.
-
-    An atlas is compiled before it runs, and a flowverse may ship what compiling it came
-    to: `prophecy.pkl`, beside the entry point, holding the graph the atlas was read into.
-    Where there is one it is what runs -- the compiling having already happened, in the
-    repository the flow came from, over the source that repository holds.
-
-    What is beside it still matters. A prophecy names the functions its nodes are, and
-    those are in the flow's own Python: a directory holding a prophecy and no entry point
-    is not a flow, the same way a directory holding neither is not one.
-
-    Args:
-      named_: A flow's name, as :func:`find` takes it.
-
-    Returns:
-      The path to it, and "" for a flow that ships none -- which is every flow that is not
-      an atlas, and most atlases.
-    """
-    from .prophecy import shipped
-
-    beside = at(named_)
-    held = shipped(beside) if beside else None
-    return "" if held is None else str(held.at)
 
 
 def at(named_: str) -> str:

@@ -21,8 +21,8 @@ model:
 
 ```sh
 hmz exec -f flame_chase \
-    -a claude@anthropic/claude-opus-5:max \
-    -a claude@deepseek/deepseek-chat:high "fix the build"
+    -a first_chaser=claude@anthropic/claude-opus-5:max \
+    -a second_chaser=claude@deepseek/deepseek-chat:high -b cost=20 "fix the build"
 ```
 
 Both agents run the same `claude`. The first reads the subscription's tokens and refreshes them;
@@ -347,7 +347,7 @@ It is *falls back to* on the menu **enter** opens, which offers that backend's o
 and one call apiece from Python:
 
 ```python
-from hmz import providers
+from hmz.coganchor import providers
 
 providers.points("claude", "subscription", "key")
 providers.points("claude", "key", "gateway")
@@ -377,7 +377,7 @@ ClaudeCodeAgentConfig(model="claude-opus-5", effort="max", provider="deepseek")
 On a command line, after the CLI and an `@`:
 
 ```sh
-hmz exec -f flame_chase -a claude@deepseek/claude-opus-5:max "fix the build"
+hmz exec -f ralph_loop -a agent=claude@deepseek/claude-opus-5:max -b cost=5 "fix the build"
 ```
 
 The account and never the model, whatever comes after the slash: a CLI is never spelled with an
@@ -466,7 +466,7 @@ account from — unless that provider set it:
 
 ```console
 $ export ANTHROPIC_API_KEY=sk-mine          # what you use by hand
-$ hmz exec -f ralph_loop -a claude@work/claude-opus-5:high "..."
+$ hmz exec -f ralph_loop -a agent=claude@work/claude-opus-5:high -b cost=5 "..."
                                             # the turn runs as `work`, not as that key
 ```
 

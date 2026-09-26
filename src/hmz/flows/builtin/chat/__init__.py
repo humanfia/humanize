@@ -1,58 +1,124 @@
-"""Chat -- one agent, one session, and every line typed between turns is a turn of it.
+"""Chat -- one agent, one session, and every line said back is the next turn of it.
 
-hmz exec -f chat -a claude/MODEL:high "what does this repository do?"
+    hmz exec -f chat -a assistant=claude/MODEL:high "what does this repository do?"
 
 Which is talking to a coding agent, with no loop around it: the flow does what it is told and
 then waits to be told again. It is the flow the terminal interface opens on, so that saying
-something is all it takes to start. A line typed while a turn is running is put into that turn
-rather than becoming another, as it is under any flow.
+something is all it takes to start.
 
-Two agents, then, and the second of them is you: saying something to the person is asking what
-to say next, and what they answer is what they typed. Run from a command line, where nobody is
-at a prompt, they answer with nothing and the flow does the one thing it was given and stops.
+Two agents, then, and the second of them is you: `human` is the outworlder, and saying
+something to it is asking what to say next. Run from a command line, where nobody is at a
+prompt, the outworlder is away and answers with nothing, so the flow does the one thing it was
+given and stops. A question the agent stops to ask its user mid-turn is put to you the same
+way, on a harness that asks.
+
+The agent is whatever harness was chosen, with everything that harness can do: `chat` declares
+a plain `Agent` -- one allowed the web -- because it talks to any of them, and the runtime hands
+the flows humanize ships the harness's full view. It is the one flow that runs with no budget
+of its own -- a conversation ends when you stop talking, and the runtime runs it under
+`Budget(cost=inf)`.
 
 The first turn is the one allowed to fail out loud. A conversation that could not be started
--- an account refused, a model this backend will not run for it -- ends the run with what the
-backend said about it, rather than answering with nothing and exiting as though the one thing
-it was asked for had been done. Every turn after it is forgiving.
+-- an account refused, a model this harness will not run -- ends the run with what the harness
+said about it, rather than answering with nothing and exiting as though the one thing it was
+asked for had been done. A turn after it that fails is said to you, and the conversation goes
+on.
 
-Nothing of it is kept for a next run to pick up. What was said is the conversation, which the
-backend that ran it logs turn by turn, and a session is opened rather than reopened -- so
+Nothing of it is kept for a next run to pick up: a session is opened rather than reopened, so
 starting this again is another conversation rather than the last one carried on.
 """
 
-from typing import NamedTuple
+from __future__ import annotations
 
-from hmz.flows import Agent, Allowance, Person, flow
+import contextlib
+from typing import cast
+
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    AskUserHookAgentMixin,
+    AskUserHookParams,
+    AskUserHookResult,
+    CapabilityNotGranted,
+    EnvCollection,
+    FlowContext,
+    FlowParams,
+    HarnessError,
+    HookFn,
+    LocalEnv,
+    Outworlder,
+    Permission,
+    PermissionKind,
+    Session,
+    flow,
+)
 
 
-class Chat(NamedTuple):
+class Assistant(Agent):
+    """Whichever agent was chosen, allowed the web as a person talking to one would expect."""
+
+    _permission = Permission(online=PermissionKind.ALL)
+
+
+class Agents(AgentCollection):
     """The two sides of a conversation."""
 
-    assistant: Agent
-    human: Person
+    assistant: Assistant
+    human: Outworlder
 
 
-# An allowance of nothing, written out rather than left unsaid: a conversation ends when
-# the person stops typing, and there is no round of it they did not ask for. Written out is
-# also what says so -- a flow that says nothing about its budget is asked to confirm that an
-# unbounded run is what was meant, and a conversation is the one run where that question has
-# an obvious answer and would be asked every time.
-@flow(budget=Allowance())
-def run(agents: Chat, task: str) -> None:
+class Envs(EnvCollection):
+    """Where the conversation happens: the workspace it was started in."""
+
+    workspace: LocalEnv
+
+
+class Params(FlowParams):
+    """Nothing: a conversation is set up by what is said in it."""
+
+
+@flow(agents=Agents, envs=Envs, params=Params)
+async def chat(
+    task: str,
+    *,
+    agents: Agents,
+    envs: Envs,
+    params: Params,  # noqa: ARG001 -- a flow takes its params whether or not it has any
+    ctx: FlowContext,  # noqa: ARG001 -- likewise its context
+) -> None:
+    """Talks to one agent for as long as you keep answering it."""
+    assistant, human = agents["assistant"], agents["human"]
+    here = envs["workspace"]
     # One session, so the turns are a conversation rather than a series of first turns.
-    conversation = agents.assistant.new()
+    conversation = await assistant.spawn(env=here)
+    person = await human.spawn(env=here)
+    with contextlib.suppress(CapabilityNotGranted):
+        # A harness that stops to ask its user a question has it put to the person here;
+        # one that cannot ask has no such hook to hang, and there is nothing to put.
+        cast("AskUserHookAgentMixin", assistant).on_ask_user(_asking(human, person))
     said = task
     opening = True
     while said:
-        # The opening turn is not suppressed. A conversation whose first turn cannot run at
-        # all -- an account the backend refused, a model this one is not entitled to -- is a
-        # run to fail loudly; suppressed, it answers with nothing, which reads below as a
-        # conversation that is over, so the flow would end without a word and exit as though
-        # it had done what it was asked. Once a turn has landed the rest are forgiving, which
-        # is what a conversation is.
-        answered = conversation(said, suppress=not opening)
+        try:
+            answered = await assistant.run(said, session=conversation)
+        except HarnessError as failed:
+            if opening:
+                raise
+            answered = f"That turn could not be taken: {failed}"
         opening = False
         # Saying that to the person is asking what to say next, and what they answer with is
         # what they typed -- or nothing, which is a conversation that is over.
-        said = agents.human(answered)
+        said = await human.run(answered, session=person)
+
+
+def _asking(
+    human: Outworlder, person: Session
+) -> HookFn[AskUserHookParams, AskUserHookResult]:
+    """The hook that puts a question the agent asked to the person it is talking to."""
+
+    async def asked(params: AskUserHookParams) -> AskUserHookResult:
+        offered = f" ({' / '.join(params.options)})" if params.options else ""
+        said = await human.run(f"{params.question}{offered}", session=person)
+        return AskUserHookResult(answer=said or None)
+
+    return asked

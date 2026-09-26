@@ -59,14 +59,12 @@ const MOVED_TO_WEAVER = [
   'flow-settings',
   'async-flows',
   'calling-flows',
-  'atlas',
   'goals',
   'shapes',
   'hooks',
   'tools',
   'human-agent',
   'worktrees',
-  'checking-flows',
   'testing-flows',
   'flowverses',
 ]
@@ -76,6 +74,23 @@ const MOVED_TO_WEAVER = [
 const MOVED_AGAIN: Record<string, string> = {
   'guide/status': 'user/monitor',
   'user/status': 'user/monitor',
+}
+
+// And where a page went with the thing it described, when the flow API was rewritten: an atlas
+// and its prophecy, checking a flow without running it, and two flows the flowverse dropped.
+// Each path it has had sends a reader to what took its place rather than to a 404.
+const GONE: Record<string, string> = {
+  'guide/atlas': 'weaver/writing-a-flow',
+  'weaver/atlas': 'weaver/writing-a-flow',
+  'features/prophecy': 'features/flows',
+  'guide/checking-flows': 'weaver/testing-flows',
+  'weaver/checking-flows': 'weaver/testing-flows',
+  'tutorials/flow-checked-build': 'weaver/tutorials/build-under-test',
+  'weaver/tutorials/checked-build': 'weaver/tutorials/build-under-test',
+  'tutorials/flow-prove': 'weaver/async-flows',
+  'weaver/tutorials/prove': 'weaver/async-flows',
+  'flows/fixed-juice-ralph': 'flows/ralph-loop',
+  'flows/parallel-flame-chase-mission': 'flows/parallel-flame-chase-git-pr',
 }
 
 const MOVED: Record<string, string> = {
@@ -88,9 +103,8 @@ const MOVED: Record<string, string> = {
   'tutorials/take-home': 'user/tutorials/take-home',
   'tutorials/port-a-project': 'user/tutorials/port-a-project',
   'tutorials/build-an-agent': 'user/tutorials/build-an-agent',
-  'tutorials/flow-checked-build': 'weaver/tutorials/checked-build',
-  'tutorials/flow-prove': 'weaver/tutorials/prove',
   ...MOVED_AGAIN,
+  ...GONE,
 }
 
 export default defineConfig({
@@ -152,7 +166,6 @@ export default defineConfig({
           text: 'Flow system',
           collapsed: false,
           items: [
-            { text: 'Python becomes a prophecy', link: '/features/prophecy' },
             { text: 'A flow is Python', link: '/features/flows' },
             { text: 'Many turns at once', link: '/features/concurrency' },
             { text: 'Picked up where it stopped', link: '/features/resuming' },
@@ -166,7 +179,7 @@ export default defineConfig({
             { text: 'Two accounts of one CLI', link: '/features/accounts' },
             { text: 'A line typed mid-turn', link: '/features/steering' },
             { text: 'A turn can be cut off', link: '/features/budgets' },
-            { text: 'Every run has an allowance', link: '/features/allowances' },
+            { text: 'Every run has a budget', link: '/features/allowances' },
             { text: 'Answers in a shape', link: '/features/shapes' },
             { text: 'It decides when it is done', link: '/features/goals' },
             { text: 'The moments of a turn', link: '/features/hooks' },
@@ -194,45 +207,41 @@ export default defineConfig({
       ],
 
       // One page per flow, named the way `-f` takes it. The order is the order they are worth
-      // reading in rather than alphabetical: the three that ship, then the flowverse's, ending
-      // with the two that are seven agents at once.
+      // reading in rather than alphabetical: the one in the package, the loops of one agent,
+      // then the flowverse's larger ones, ending with the two whose lanes run at once.
       '/flows/': [
         { text: 'Flows', link: '/flows/' },
         {
-          text: 'The three that ship',
+          text: 'One agent',
           collapsed: false,
           items: [
             { text: 'chat', link: '/flows/chat' },
             { text: 'ralph_loop', link: '/flows/ralph-loop' },
             { text: 'stateful_ralph', link: '/flows/stateful-ralph' },
-          ],
-        },
-        {
-          text: 'One agent, in the flowverse',
-          collapsed: false,
-          items: [
-            { text: 'official/continue_loop', link: '/flows/continue-loop' },
-            { text: 'official/goal', link: '/flows/goal' },
-            { text: 'official/fixed_juice_ralph', link: '/flows/fixed-juice-ralph' },
+            { text: 'continue_loop', link: '/flows/continue-loop' },
+            { text: 'goal', link: '/flows/goal' },
           ],
         },
         {
           text: 'More than one agent',
           collapsed: false,
           items: [
-            { text: 'official/flame_chase', link: '/flows/flame-chase' },
-            { text: 'official/rlar', link: '/flows/rlar' },
-            { text: 'official/humanize1', link: '/flows/humanize1' },
+            { text: 'flame_chase', link: '/flows/flame-chase' },
+            { text: 'rlar', link: '/flows/rlar' },
+            { text: 'humanize1', link: '/flows/humanize1' },
+            { text: '…_agent_cleanup', link: '/flows/agent-cleanup' },
+            { text: 'recursive_lean_prover', link: '/flows/recursive-lean-prover' },
+            { text: 'aot', link: '/flows/aot' },
           ],
         },
         {
           text: 'Three lanes at once',
           collapsed: false,
           items: [
-            { text: 'official/parallel_flame_chase', link: '/flows/parallel-flame-chase' },
+            { text: 'parallel_flame_chase', link: '/flows/parallel-flame-chase' },
             {
-              text: 'official/parallel_flame_chase_mission',
-              link: '/flows/parallel-flame-chase-mission',
+              text: 'parallel_flame_chase_git_pr',
+              link: '/flows/parallel-flame-chase-git-pr',
             },
           ],
         },
@@ -322,10 +331,7 @@ export default defineConfig({
         {
           text: 'Tutorials',
           collapsed: false,
-          items: [
-            { text: 'Build under test', link: '/weaver/tutorials/checked-build' },
-            { text: 'Four agents on a maths problem', link: '/weaver/tutorials/prove' },
-          ],
+          items: [{ text: 'Build under test', link: '/weaver/tutorials/build-under-test' }],
         },
         {
           text: 'Writing a flow',
@@ -333,10 +339,9 @@ export default defineConfig({
           items: [
             { text: 'Writing a flow', link: '/weaver/writing-a-flow' },
             { text: 'Loops', link: '/weaver/loops' },
-            { text: 'Settings of its own', link: '/weaver/flow-settings' },
+            { text: 'Params of its own', link: '/weaver/flow-settings' },
             { text: 'Many turns at once', link: '/weaver/async-flows' },
             { text: 'A flow that calls a flow', link: '/weaver/calling-flows' },
-            { text: 'An atlas', link: '/weaver/atlas' },
           ],
         },
         {
@@ -346,17 +351,16 @@ export default defineConfig({
             { text: 'Goals', link: '/weaver/goals' },
             { text: 'Answers in a shape', link: '/weaver/shapes' },
             { text: 'Hooks', link: '/weaver/hooks' },
-            { text: 'Callbacks as tools', link: '/weaver/tools' },
+            { text: 'The agent asking the flow', link: '/weaver/tools' },
             { text: 'The person as an agent', link: '/weaver/human-agent' },
             { text: 'Branching a conversation', link: '/weaver/branching' },
-            { text: 'Worktrees', link: '/weaver/worktrees' },
+            { text: 'Worktrees, copies and scratch', link: '/weaver/worktrees' },
           ],
         },
         {
-          text: 'Checking and publishing',
+          text: 'Testing and publishing',
           collapsed: false,
           items: [
-            { text: 'Checking a flow', link: '/weaver/checking-flows' },
             { text: 'Testing a flow', link: '/weaver/testing-flows' },
             { text: 'Flowverses', link: '/weaver/flowverses' },
           ],

@@ -7,39 +7,42 @@ a repository you care about.
 
 humanize drives coding agents unattended, as
 [flowbench](https://humanfia.ai/projects/flowbench) does, and the only thing between an agent
-and your workspace is the flow driving it. A flow declares [what its agents may
-do](/user/permissions) beside the agent it drives — four rungs, the loosest of which turns that
-CLI's own prompts off altogether:
+and your workspace is the flow driving it. **Nothing a flow's agent does is put to anybody for
+approval**: every session runs at its CLI's nothing-asked mode. What limits it is the
+[permission](/user/permissions) its flow declares on the role, and the hooks the flow hangs on
+it:
 
 ```python
-class Agents(NamedTuple):
-    builder: Annotated[Agent, AgentDefaults(permission="bypass")]
-    reviewer: Annotated[Agent, AgentDefaults(permission="read-only")]
+from hmz.flows import Agent, Permission, PermissionKind
+
+
+class Builder(Agent): ...                                           # may change its workdir
+
+
+class Reviewer(Agent):
+    _permission = Permission(local=PermissionKind.READ)              # may only read
 ```
 
-At `bypass` an agent edits files, runs commands and makes commits without asking, and **a flow
-you did not read can declare it**. It is the flow's to say and not the line's: what an agent may
-do is a thing about the work, so read a flow before you run it.
+The default — what a role that says nothing gets — is an agent that edits files, runs commands
+and makes commits in its workdir without asking, and **a flow you did not read declares it by
+saying nothing**. It is the flow's to say and not the line's: what an agent may do is a thing
+about the work, so read a flow before you run it.
 
-A place that declares no rung has humanize tell that CLI nothing — no mode, no sandbox, no
-approval policy, no flag that skips a prompt — so the agent runs exactly as it would had you
-started it headless yourself, prompts and all. That settles nothing, which is the point: an
-agent already on a tighter rung stays on it, and a flow you call runs at your rung or tighter
-rather than at its own. Reach for `read-only` where a flow has a second agent look at a change
-without being able to touch it.
+**`user` and `system` are not fenced.** An agent that may write its workdir may write anywhere
+its user can, whatever the rest of its permission says: the sandboxes that could fence it cannot
+start in most containers, so humanize does not use them. A flow calling another can only narrow
+what it hands on — the called flow gets exactly what it declared, and an agent held narrower
+than a role needs is refused rather than widened.
 
-[`/afk`](/user/afk) governs whether an agent may stop and ask you a *question*. It does not
-govern whether the agent may act — the rung its flow declared does, and where no flow declared
-one, that CLI's own answer does.
+[`/afk`](/user/afk) governs whether you are there to answer a *question*. It does not govern
+whether the agent may act — the permission its flow declared does.
 
-Drive a flow only in a workspace you are willing to have rewritten. That includes [a container
-of the agent's own](/user/containers), which confines the agent to that image but mounts your
-workspace into it.
+Drive a flow only in a workspace you are willing to have rewritten.
 
 ## A flow is Python, and reading one means running it
 
-Choosing a flow is running it: humanize runs the flow's `__init__.py` to find the `@flow` in
-it, whether the flow was chosen at [`/flow`](/reference/tui#choosing-a-flow) or named on an
+Choosing a flow is running it: humanize imports the flow's `__init__.py` to find the `@flow`
+in it, whether the flow was chosen at [`/flow`](/reference/tui#choosing-a-flow) or named on an
 `hmz exec -f` line. Listing what a [flowverse](/weaver/flowverses) holds imports **every** file
 in its `flows/`.
 
@@ -47,8 +50,8 @@ So adding a flowverse trusts that git repository with this machine, exactly as i
 package does. Add the ones you would clone and run.
 
 `official` is always there — `chat` ships with the package, and the rest is
-[humanfia/flowverse](https://github.com/humanfia/flowverse). humanize does not fetch that
-repository until something wants what is in it.
+[humanfia/flowverse](https://github.com/humanfia/flowverse). The interface fetches it, as it
+fetches every flowverse, in the background each time it opens.
 
 ## An `hmz internal anchor` port is equivalent to a shell on that machine
 

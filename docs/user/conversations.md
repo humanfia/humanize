@@ -23,7 +23,7 @@ With ten agents going, these step between the ones thinking right now, not the o
 stopped. An agent between its turns stays readable once you are on it — what you are reading
 stays put until you press one of these keys — but it is not stepped onto.
 
-**Every agent there is can still be read**, from the diagram
+**Every agent that has worked can still be read**, from the diagram
 [`/monitor`](/reference/tui#watching-the-run) draws. **esc** opens it, and enter or a click
 on a box reads that agent whether or not it is working. That is where the one that has stopped,
 or has not started, is picked out by name rather than stepped past.
@@ -73,10 +73,9 @@ older runs are gone from the screen, not from the [trace](/user/tracing).
 Every conversation is a session, and the flow decides how many:
 
 ```python
-agent("do the task")                     # a conversation of its own, dropped straight after
-session = agent.new()                    # one held across turns
-sessions = agent.batch_new(200)          # two hundred that have not started
-held = [agent.new(tree) for tree in trees]   # one per worktree
+session = await agent.spawn(env=workspace)                       # one held across turns
+held = [await agent.spawn(env=tree) for tree in trees]           # one per worktree
+fresh = await asyncio.gather(*(agent.spawn(env=workspace) for _ in range(200)))
 ```
 
 A session costs nothing until a turn lands in one. See [Worktrees](/weaver/worktrees) for the
@@ -86,15 +85,15 @@ single most important choice a flow makes.
 A conversation that has got somewhere can also be **branched**, which is one more of these:
 
 ```python
-careful, quick = session.fork(), session.fork()   # both know what session knows
+careful = await agent.fork(session, env=workspace)   # both know what session knows
+quick = await agent.fork(session, env=workspace)
 ```
 
 Each child is a conversation of its own — its own id, its own spending, its own line in the
 [trace](/user/tracing) saying which conversation it was forked from — and it starts out knowing
 everything the one it came from knew. So an hour of reading a codebase is paid for once and
 tried two ways. The CLI's own fork does the carrying, so a backend that has not got one refuses
-rather than quietly handing back the same conversation twice; `session.forks` says which before
-you ask. See [Branching a conversation](/weaver/branching).
+with `UnsupportedOperation` rather than quietly handing back the same conversation twice. See [Branching a conversation](/weaver/branching).
 
 ## Two things this is not
 

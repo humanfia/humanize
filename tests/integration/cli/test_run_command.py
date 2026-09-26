@@ -1,8 +1,13 @@
-"""The command line: a flow file, the agents it declares, and the task they are given.
+"""The command line: a flow, what each of its roles is given, its params, and its budget.
 
-Nothing here drives a real agent. A flow is handed agents and decides for itself whether to
-launch anything, so a flow that only writes down what it was given exercises the whole path
-from the command line to the entry point without a turn being run.
+    hmz exec -f FLOW -a ROLE=CLI[@PROVIDER]/MODEL:EFFORT -e ROLE=BACKEND@PROVIDER/WORKDIR
+             -p KEY=VALUE -b duration=...,cost=...,output_tokens=... [--resume] [--json] TASK
+
+Most of what is checked here drives no agent. A flow is handed views of its drivers and decides
+for itself whether to open a session, so a flow that only writes down what it was handed
+exercises the whole path from the command line to the flow without a turn being taken -- and
+every refusal is a usage error before any agent has started. Where a turn is taken, it is taken
+by the stand-in `claude` of :mod:`tests.flows.standins`.
 """
 
 from __future__ import annotations
@@ -18,292 +23,182 @@ from typing import Any
 import pytest
 
 from hmz.cli import main
-from hmz.coganchor.agents import PERMISSIONS, UNSAID, AgentConfig
-from hmz.flows import NotAFlow
+from hmz.runtime.doing.running import Run
+from hmz.runtime.epic import epics, read
 from hmz.runtime.flowing import BUILTIN_AT, ENTRY
-from hmz.runtime.runner import Runner
-from tests.stubs import ShellAgent, written
+from tests.flows import standins
+from tests.stubs import written
 
-#: A flow that drives nothing and writes down what it was handed, next to its own file. AGENTS
-#: is filled in per test: what a flow declares there is how many agents it takes.
+#: A flow that takes no turn and writes down what it was handed, beside its own file.
 RECORD = """
 import json
 import os
 from pathlib import Path
+from typing import NotRequired
 
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
-
-
-@flow
-def run(agents: tuple[AGENTS], task: str) -> None:
-    Path(__file__).with_suffix(".json").write_text(
-        json.dumps(
-            {
-                "agents": [
-                    [type(a).__name__, a.config.model, a.config.effort, a.id] for a in agents
-                ],
-                "held": type(agents).__name__,
-                "task": task,
-                "cwd": os.getcwd(),
-            }
-        )
-    )
-"""
-
-#: A flow that writes down which account each of its agents was configured to run as, which
-#: is what an `-a` naming a provider has to reach.
-ACCOUNTS = """
-import json
-from pathlib import Path
-
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
-
-
-@flow
-def run(agents: tuple[AgentBase, AgentBase], task: str) -> None:
-    Path(__file__).with_suffix(".json").write_text(
-        json.dumps([agent.config.provider for agent in agents])
-    )
-"""
-
-#: A flow that declares a rung for the first of its two agents and nothing for the second,
-#: and writes down what each of them ended up running at. RUNG is filled in per test.
-ACCESS = """
-import json
-from pathlib import Path
-from typing import Annotated
-
-from hmz.coganchor.agents import AgentBase, AgentDefaults
-from hmz.flows import flow
-
-
-@flow
-def run(
-    agents: tuple[Annotated[AgentBase, AgentDefaults(permission="RUNG")], AgentBase],
-    task: str,
-) -> None:
-    Path(__file__).with_suffix(".json").write_text(
-        json.dumps([agent.config.permission for agent in agents])
-    )
-"""
-
-#: The same flow, declaring its agents as a named tuple: as many as there are places, and what
-#: each of them is for. It reaches them by name to prove it was handed the type it asked for.
-NAMED = """
-import json
-import os
-from pathlib import Path
-from typing import NamedTuple
-
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
-
-
-class Agents(NamedTuple):
-    builder: AgentBase
-    reviewer: AgentBase
-
-
-@flow
-def run(agents: Agents, task: str) -> None:
-    Path(__file__).with_suffix(".json").write_text(
-        json.dumps(
-            {
-                "agents": [
-                    [type(one).__name__, one.id]
-                    for one in (agents.builder, agents.reviewer)
-                ],
-                "held": type(agents).__name__,
-                "task": task,
-                "cwd": os.getcwd(),
-            }
-        )
-    )
-"""
-
-#: A flow that declares its agents where only a type checker looks, which is nowhere the count
-#: it declares can be read back from.
-UNREADABLE = """
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
-
-from hmz.flows import flow
-
-if TYPE_CHECKING:
-    from hmz.coganchor.agents import AgentBase
-
-
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    pass
-"""
-
-#: The flows humanize ships, each of which shows the line that would start it. A flow is a
-#: directory with an `__init__.py` in it or a file of its own, and these are looked for as
-#: both: a glob for one shape is a list that quietly empties the day a flow takes the other.
-PREBUILT = sorted(
-    (
-        path if path.is_file() else path / "__init__.py"
-        for path in (
-            Path(__file__).resolve().parents[3] / "src/hmz/flows/builtin"
-        ).glob("*")
-        if not path.name.startswith("_")
-        and (path.suffix == ".py" or (path / "__init__.py").is_file())
-    ),
-    key=lambda path: path.parts,
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    Env,
+    EnvCollection,
+    FlowParams,
+    LocalEnv,
+    Outworlder,
+    flow,
 )
 
 
-def _named(flow: Path) -> str:
-    """What a shipped flow is called, which is its directory where the file is an init."""
-    return flow.parent.name if flow.name == "__init__.py" else flow.stem
+class Agents(AgentCollection):
+    builder: Agent
+    reviewer: NotRequired[Agent]
+    human: Outworlder
 
 
-def _flow(tmp_path: Path, source: str) -> str:
-    """Writes a flow file and returns its path, as the command line would be given it."""
-    path = tmp_path / "flow.py"
-    path.write_text(source)
-    return str(path)
+class Envs(EnvCollection):
+    here: LocalEnv
+    there: NotRequired[Env]
 
 
-def _seen(tmp_path: Path) -> dict[str, Any]:
-    """Reads back what the flow written by :data:`RECORD` was handed."""
-    return json.loads((tmp_path / "flow.json").read_text())
+class Params(FlowParams):
+    rounds: int = 1
+    tags: list[str] = []
 
 
-def test_it_drives_the_flow_with_the_agents_the_command_line_names(
-    tmp_path: Path,
-) -> None:
-    """A model may hold slashes of its own, so only the backend and the effort are split off."""
-    flow = _flow(tmp_path, RECORD.replace("AGENTS", "AgentBase, AgentBase"))
-    main(
-        [
-            "exec",
-            "-f",
-            flow,
-            "-a",
-            "claude/claude-opus-4-8:high",
-            "-a",
-            "kimi/kimi-code/k3:swarmmax",
-            "fix the build",
-        ]
+@flow(agents=Agents, envs=Envs, params=Params)
+async def record(task, *, agents, envs, params, ctx):
+    Path(__file__).with_name("seen.json").write_text(
+        json.dumps(
+            {
+                "agents": {
+                    role: [one.harness, one.provider, one.model, one.effort]
+                    for role, one in agents.items()
+                    if role != "human"
+                },
+                "away": agents["human"].away,
+                "envs": {
+                    role: [one.backend, one.provider, str(one.workdir)]
+                    for role, one in envs.items()
+                },
+                "params": params.model_dump(),
+                "budget": ctx.budget.model_dump(mode="json"),
+                "task": task,
+                "cwd": os.getcwd(),
+            }
+        )
     )
+"""
+
+#: A flow whose role asks for what only some harnesses do.
+PICKY = """
+from hmz.flows import (
+    AgentCollection,
+    ClaudeCodeAgent,
+    EnvCollection,
+    FlowParams,
+    Agent,
+    GoalCommandAgentMixin,
+    flow,
+)
+
+
+class Pursues(Agent, GoalCommandAgentMixin): ...
+
+
+class Agents(AgentCollection):
+    claude: ClaudeCodeAgent
+    pursuer: Pursues
+
+
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams)
+async def picky(task, *, agents, envs, params, ctx):
+    pass
+"""
+
+#: A resumable flow, which takes no turn either.
+KEEPS = """
+from hmz.flows import AgentCollection, EnvCollection, FlowParams, flow
+
+
+@flow(agents=AgentCollection, envs=EnvCollection, params=FlowParams, resumable=True)
+async def keeps(task, *, agents, envs, params, ctx):
+    ctx.state["runs"] = (ctx.state["runs"] if "runs" in ctx.state else 0) + 1
+    print(f"run {ctx.state['runs']}")
+"""
+
+#: What every line here names for `builder`, unless it names something else.
+BUILDER = "builder=claude/claude-haiku-4-5:high"
+
+#: What a line gives a run to spend, unless it is a line about budgets.
+BUDGET = ["-b", "cost=1"]
+
+
+def _flow(tmp_path: Path, source: str = RECORD, name: str = "record") -> str:
+    """Writes a flow out as a directory and answers with its path, as a line would name it."""
+    return str(written(tmp_path / "flows", name, source))
+
+
+def _seen(tmp_path: Path, name: str = "record") -> dict[str, Any]:
+    """What the flow written by :data:`RECORD` was handed."""
+    return json.loads((tmp_path / "flows" / name / "seen.json").read_text())
+
+
+def _refused(capsys: pytest.CaptureFixture[str], *argv: str) -> str:
+    """Runs a line that is to be refused, and answers with what it said on the way out."""
+    with pytest.raises(SystemExit) as stopped:
+        main(["exec", *argv])
+    assert stopped.value.code == 2
+    return capsys.readouterr().err
+
+
+@pytest.fixture
+def here(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A project of its own to run in."""
+    at = tmp_path / "project"
+    at.mkdir()
+    monkeypatch.chdir(at)
+    return at
+
+
+def test_it_drives_the_flow_with_what_the_line_names(
+    tmp_path: Path, here: Path
+) -> None:
+    flow = _flow(tmp_path)
+
+    assert (
+        main(
+            [
+                "exec",
+                "-f",
+                flow,
+                "-a",
+                BUILDER,
+                "-p",
+                "rounds=3",
+                "-b",
+                "duration=1h,cost=2.5",
+                "the task",
+            ]
+        )
+        == 0
+    )
+
     seen = _seen(tmp_path)
-    assert [agent[:3] for agent in seen["agents"]] == [
-        ["ClaudeCodeAgent", "claude-opus-4-8", "high"],
-        ["KimiCodeCLIAgent", "kimi-code/k3", "swarmmax"],
-    ]
-    assert seen["task"] == "fix the build"
-    assert seen["held"] == "tuple"  # a flow unpacks what it was promised
+    assert seen["agents"] == {"builder": ["claude", "", "claude-haiku-4-5", "high"]}
+    # Nobody is at a prompt, so whoever is outside the run is away.
+    assert seen["away"] is True
+    # The workspace is where the line was given, and a role nobody named is not there.
+    assert seen["envs"] == {"here": ["local", "", str(here.resolve())]}
+    assert seen["params"] == {"rounds": 3, "tags": []}
+    assert seen["budget"]["cost"] == 2.5
+    assert seen["budget"]["duration"] is not None
+    assert seen["task"] == "the task"
+    assert Path(seen["cwd"]).resolve() == here.resolve()
 
 
 def test_one_option_may_name_several_agents_and_every_option_adds_to_them(
-    tmp_path: Path,
+    tmp_path: Path, here: Path
 ) -> None:
-    """A comma separates agents and the option repeats: the line is one list either way."""
-    flow = _flow(tmp_path, RECORD.replace("AGENTS", "AgentBase, AgentBase, AgentBase"))
-    main(
-        [
-            "exec",
-            "-f",
-            flow,
-            "-a",
-            "claude/m:high,codex/m:high",
-            "-a",
-            "kimi/m:high",
-            "task",
-        ]
-    )
-    assert [agent[0] for agent in _seen(tmp_path)["agents"]] == [
-        "ClaudeCodeAgent",
-        "CodexAgent",
-        "KimiCodeCLIAgent",
-    ]
-
-
-def test_an_agent_may_be_told_which_account_to_run_as(tmp_path: Path) -> None:
-    """One flow, one CLI, two accounts: which is the whole reason a provider has a name."""
-    flow = _flow(tmp_path, ACCOUNTS)
-    main(
-        [
-            "exec",
-            "-f",
-            flow,
-            "-a",
-            "claude@subscription/claude-opus-5:high",
-            "-a",
-            "claude@deepseek/claude-opus-5:high",
-            "task",
-        ]
-    )
-    assert json.loads((tmp_path / "flow.json").read_text()) == [
-        "subscription",
-        "deepseek",
-    ]
-
-
-def test_an_agent_that_names_no_account_runs_as_this_machine_does(
-    tmp_path: Path,
-) -> None:
-    flow = _flow(tmp_path, ACCOUNTS)
-    main(["exec", "-f", flow, "-a", "claude/m:high", "-a", "codex/m:high", "task"])
-    assert json.loads((tmp_path / "flow.json").read_text()) == ["", ""]
-
-
-@pytest.mark.parametrize("permission", PERMISSIONS)
-def test_the_flow_says_what_each_of_its_agents_may_do(
-    tmp_path: Path, permission: str
-) -> None:
-    """The place carries the rung, and a place that said nothing settles nothing.
-
-    So the second agent is left on no rung at all, which is what it was made with and what
-    `-a codex/m:high` asked for: a line that names a CLI, a model and an effort has said
-    nothing about permissions.
-    """
-    flow = _flow(tmp_path, ACCESS.replace("RUNG", permission))
-    main(
-        [
-            "exec",
-            "-f",
-            flow,
-            "-a",
-            "codex/m:high,claude/m:high",
-            "task",
-        ]
-    )
-
-    assert json.loads((tmp_path / "flow.json").read_text()) == [permission, UNSAID]
-
-
-def test_a_named_tuple_says_what_each_agent_is_for_as_well_as_how_many(
-    tmp_path: Path,
-) -> None:
-    """A flow that named its agents is handed the type it asked for, and they answer to it."""
-    from hmz.runtime.flowing import drives
-
-    flow = _flow(tmp_path, NAMED)
-    assert drives(flow) == ("builder", "reviewer")
-
-    main(["exec", "-f", flow, "-a", "claude/m:high", "-a", "codex/m:high", "task"])
-
-    seen = _seen(tmp_path)
-    assert seen["held"] == "Agents"  # the named tuple, not a plain one
-    # And the agents took those names, so a trace groups each one's sessions under a word
-    # rather than under the codename an unnamed agent draws.
-    assert seen["agents"] == [
-        ["ClaudeCodeAgent", "builder"],
-        ["CodexAgent", "reviewer"],
-    ]
-
-
-def test_an_agent_may_name_the_place_it_fills_instead_of_waiting_its_turn(
-    tmp_path: Path,
-) -> None:
-    """Named, an agent fills the place the flow calls that, whatever order the line names."""
-    flow = _flow(tmp_path, NAMED)
+    flow = _flow(tmp_path)
 
     main(
         [
@@ -311,499 +206,296 @@ def test_an_agent_may_name_the_place_it_fills_instead_of_waiting_its_turn(
             "-f",
             flow,
             "-a",
-            "reviewer=codex/m:high,builder=claude/m:high",
+            f"{BUILDER},reviewer=codex@work/gpt-5.5:low",
+            *BUDGET,
+            "task",
+        ]
+    )
+    together = _seen(tmp_path)["agents"]
+    main(
+        [
+            "exec",
+            "-f",
+            flow,
+            "-a",
+            BUILDER,
+            "--agents",
+            "reviewer=codex@work/gpt-5.5:low",
+            *BUDGET,
             "task",
         ]
     )
 
-    # The line named the reviewer first, and the flow still takes its builder first.
-    assert _seen(tmp_path)["agents"] == [
-        ["ClaudeCodeAgent", "builder"],
-        ["CodexAgent", "reviewer"],
-    ]
+    assert _seen(tmp_path)["agents"] == together
+    # And the account is the reviewer's own: after the `@`, before the model.
+    assert together["reviewer"] == ["codex", "work", "gpt-5.5", "low"]
+
+
+def test_an_environment_role_is_given_where_it_is(tmp_path: Path, here: Path) -> None:
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+
+    main(
+        [
+            "exec",
+            "-f",
+            _flow(tmp_path),
+            "-a",
+            BUILDER,
+            "-e",
+            f"there=local@{elsewhere}",
+            *BUDGET,
+            "task",
+        ]
+    )
+
+    assert _seen(tmp_path)["envs"]["there"] == ["local", "", str(elsewhere)]
+
+
+@pytest.mark.parametrize(
+    ("said", "read"),
+    [
+        (["rounds=4"], {"rounds": 4, "tags": []}),
+        (['tags=["a","b"]'], {"rounds": 1, "tags": ["a", "b"]}),
+        (["rounds=2,tags=[]"], {"rounds": 2, "tags": []}),
+    ],
+)
+def test_a_param_is_read_as_the_flow_declared_it(
+    tmp_path: Path, here: Path, said: list[str], read: dict[str, Any]
+) -> None:
+    argv = [one for value in said for one in ("-p", value)]
+
+    main(["exec", "-f", _flow(tmp_path), "-a", BUILDER, *argv, *BUDGET, "task"])
+
+    assert _seen(tmp_path)["params"] == read
 
 
 @pytest.mark.parametrize(
     ("said", "complaint"),
     [
-        (
-            ["-a", "builder=claude/m:high", "-a", "codex/m:high"],
-            "name every agent or none",
-        ),
-        (
-            ["-a", "builder=claude/m:high,typo=codex/m:high"],
-            "drives no agent called typo",
-        ),
-        (
-            ["-a", "builder=claude/m:high,builder=codex/m:high"],
-            "drives one agent called builder, and the line names 2",
-        ),
-        (["-a", "builder=claude/m:high"], "also drives reviewer"),
-        (["-a", "builder=claude/m:high,,reviewer=codex/m:high"], "bad agent ''"),
+        (["-p", "nope=1"], "nope"),
+        (["-p", "rounds=many"], "rounds"),
+        (["-a", "human=claude/m:high"], "filled by the runtime"),
+        (["-e", "here=local@/tmp"], "is the workspace"),
+        (["-a", "nobody=claude/m:high"], "has no agent role 'nobody'"),
+        (["-e", "nowhere=local@/tmp"], "has no environment role 'nowhere'"),
+        (["-e", "there=local@/no/such/directory"], "no directory"),
     ],
 )
-def test_the_places_a_line_names_are_read_against_what_the_flow_declares(
+def test_what_the_flow_does_not_take_is_a_usage_error(
     tmp_path: Path,
+    here: Path,
     capsys: pytest.CaptureFixture[str],
     said: list[str],
     complaint: str,
 ) -> None:
-    """Before the first turn, for the reason a miscount is: which place is which is the work."""
-    flow = _flow(tmp_path, NAMED)
-
-    with pytest.raises(SystemExit) as stopped:
-        main(["exec", "-f", flow, *said, "task"])
-
-    assert stopped.value.code == 2
-    assert complaint in capsys.readouterr().err
-    assert not (tmp_path / "flow.json").exists()  # refused before anything was driven
-
-
-def test_a_flow_that_calls_its_agents_nothing_is_given_them_in_its_own_order(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A plain tuple says how many and no more, so there is no name for a line to fill."""
-    flow = _flow(tmp_path, RECORD.replace("AGENTS", "AgentBase, AgentBase"))
-
-    with pytest.raises(SystemExit) as stopped:
-        main(
-            [
-                "exec",
-                "-f",
-                flow,
-                "-a",
-                "builder=claude/m:high,reviewer=codex/m:high",
-                "task",
-            ]
-        )
-
-    assert stopped.value.code == 2
-    assert "declares a plain tuple and calls the agents it drives nothing" in (
-        capsys.readouterr().err
+    error = _refused(
+        capsys, "-f", _flow(tmp_path), "-a", BUILDER, *said, *BUDGET, "task"
     )
+
+    assert error.startswith("hmz exec: error:")
+    assert complaint in error
+    assert not (tmp_path / "flows" / "record" / "seen.json").exists()
+    assert (
+        epics() == []
+    )  # refused before any agent started, and before a run was written
+
+
+def test_a_required_role_left_out_is_a_usage_error(
+    tmp_path: Path, here: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    error = _refused(capsys, "-f", _flow(tmp_path), *BUDGET, "task")
+
+    assert "needs an agent for 'builder'" in error
+
+
+def test_a_run_is_given_a_budget_or_is_not_started(
+    tmp_path: Path, here: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    error = _refused(capsys, "-f", _flow(tmp_path), "-a", BUILDER, "task")
+
+    assert "is given a budget" in error
+    assert epics() == []
 
 
 @pytest.mark.parametrize(
-    ("said", "reported"),
+    ("agents", "complaint"),
     [
-        ("cli=claude,model=m,effort=high", "cli=claude"),
-        ("model=m", "model=m"),
-        ("effort=high", "effort=high"),
-        ("provider=work", "provider=work"),
-        ("service_tier=fast", "service_tier=fast"),
-        ("config.model_context_window=1000000", "config.model_context_window=1000000"),
-    ],
-)
-def test_the_written_out_form_is_gone_and_a_line_that_writes_it_is_told_so(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], said: str, reported: str
-) -> None:
-    """`=` and `,` name the places now, so the two spellings cannot both be read."""
-    flow = _flow(tmp_path, RECORD.replace("AGENTS", "AgentBase"))
-
-    with pytest.raises(SystemExit) as stopped:
-        main(["exec", "-f", flow, "-a", said, "task"])
-
-    assert stopped.value.code == 2
-    error = capsys.readouterr().err
-    assert f"bad agent {reported!r}" in error
-    assert "is gone: an agent is written CLI[@PROVIDER]/MODEL:EFFORT" in error
-
-
-def test_a_run_is_not_put_in_a_container_from_the_line_that_starts_it(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """Where an agent works is the flow's to say, and `Isolated` is where it says it."""
-    flow = _flow(tmp_path, RECORD.replace("AGENTS", "AgentBase"))
-
-    with pytest.raises(SystemExit) as stopped:
-        main(
-            [
-                "exec",
-                "-f",
-                flow,
-                "--container",
-                "python:3.12",
-                "-a",
-                "claude/m:high",
-                "task",
-            ]
-        )
-
-    assert stopped.value.code == 2
-    assert "unrecognized arguments: --container" in capsys.readouterr().err
-
-
-#: A flow that says one of the agents it drives is the person at the prompt.
-PEOPLED = """
-import json
-import os
-from pathlib import Path
-from typing import NamedTuple
-
-from hmz.coganchor.agents import AgentBase, HumanAgent
-from hmz.flows import flow
-
-
-class Agents(NamedTuple):
-    assistant: AgentBase
-    human: HumanAgent
-
-
-@flow
-def run(agents: Agents, task: str) -> None:
-    agents.human.prompting = ["", "and then this"].pop
-    Path(__file__).with_suffix(".json").write_text(
-        json.dumps(
-            {
-                "agents": [[type(a).__name__, a.id] for a in agents],
-                "held": type(agents).__name__,
-                "said": [agents.human(task), agents.human(task)],
-                "task": task,
-                "cwd": os.getcwd(),
-            }
-        )
-    )
-"""
-
-
-def test_the_person_at_the_prompt_is_an_agent_nobody_is_asked_to_configure(
-    tmp_path: Path,
-) -> None:
-    """A flow says it talks to them; it is handed one, and what they answer with is typed."""
-    from hmz.runtime.flowing import drives
-
-    flow = _flow(tmp_path, PEOPLED)
-    # Two places, one of them the person -- so one agent is asked for and one is given.
-    assert drives(flow) == ("assistant",)
-
-    main(["exec", "-f", flow, "-a", "claude/m:high", "task"])
-
-    seen = _seen(tmp_path)
-    assert seen["agents"] == [["ClaudeCodeAgent", "assistant"], ["HumanAgent", "human"]]
-    # Said to like any other agent, and its answer is what was typed -- then "" for a
-    # conversation that is over, which is what ends a flow that is one.
-    assert seen["said"] == ["and then this", ""]
-
-
-#: A flow whose only side is the person at the prompt: it drives no coding agent at all, so
-#: there is nothing on its line to name.
-ALONE = """
-import json
-from pathlib import Path
-from typing import NamedTuple
-
-from hmz.coganchor.agents import HumanAgent
-from hmz.flows import flow
-
-
-class Agents(NamedTuple):
-    human: HumanAgent
-
-
-@flow
-def run(agents: Agents, task: str) -> None:
-    agents.human.prompting = lambda: "answered"
-    Path(__file__).with_suffix(".json").write_text(
-        json.dumps({"agents": [a.id for a in agents], "said": agents.human(task)})
-    )
-"""
-
-
-def test_a_flow_whose_only_side_is_the_person_names_no_agent_at_all(
-    tmp_path: Path,
-) -> None:
-    """A line that named an agent would be naming what nobody picks.
-
-    Nobody chooses what the person runs, so a flow whose only side is them has everything it
-    needs the moment it is named -- and a line that named no agent is not short of anything.
-    """
-    from hmz.runtime.flowing import drives
-
-    flow = _flow(tmp_path, ALONE)
-    assert drives(flow) == ()
-
-    main(["exec", "-f", flow, "task"])
-
-    seen = _seen(tmp_path)
-    assert seen == {"agents": ["human"], "said": "answered"}
-
-
-def test_a_flow_that_chooses_nobody_is_a_miscount_rather_than_a_place_to_name(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """It calls its agents nothing because there are none, which is what it has to be told."""
-    flow = _flow(tmp_path, ALONE)
-
-    with pytest.raises(SystemExit) as stopped:
-        main(["exec", "-f", flow, "-a", "human=claude/m:high", "task"])
-
-    assert stopped.value.code == 2
-    assert "the flow drives 0 agents, 1 given" in capsys.readouterr().err
-
-
-def test_a_flow_that_does_drive_agents_still_has_to_be_given_them(
-    tmp_path: Path,
-) -> None:
-    """Which is caught against what the flow declares, as every other miscount is."""
-    flow = _flow(tmp_path, RECORD.replace("AGENTS", "AgentBase"))
-
-    with pytest.raises(SystemExit) as exit_code:
-        main(["exec", "-f", flow, "task"])
-
-    assert exit_code.value.code == 2
-
-
-#: A flow that says one of its agents has to be one a hook can say no to, which is what
-#: writing the moment beside the type in the annotation means.
-DEMANDING = """
-import json
-from pathlib import Path
-from typing import Annotated, NamedTuple
-
-from hmz.coganchor.agents import AgentBase, Moment, Verdict
-from hmz.flows import flow
-
-
-class Agents(NamedTuple):
-    builder: Annotated[AgentBase, Moment.PERMISSION_REQUEST]
-    reviewer: AgentBase
-
-
-@flow
-def run(agents: Agents, task: str) -> None:
-    agents.builder.hooks.on(Moment.PERMISSION_REQUEST, lambda _: Verdict(refused=True))
-    Path(__file__).with_suffix(".json").write_text(
-        json.dumps({"agents": [[a.id] for a in agents], "task": task})
-    )
-"""
-
-
-def test_a_flow_says_what_each_agent_has_to_be_able_to_do(tmp_path: Path) -> None:
-    """Beside the type, where the flow declares the place -- and read back before the run."""
-    from hmz.coganchor.agents import Moment
-    from hmz.runtime.flowing import drives, wanted
-
-    flow = _flow(tmp_path, DEMANDING)
-
-    assert drives(flow) == ("builder", "reviewer")
-    assert [place.moments for place in wanted(flow)] == [
-        frozenset({Moment.PERMISSION_REQUEST}),
-        frozenset(),
-    ]
-
-
-def test_an_agent_that_cannot_do_what_its_place_asks_is_refused_before_the_run(
-    tmp_path: Path,
-) -> None:
-    """Before the first turn, for the reason the count is: not hours into a loop."""
-    flow = _flow(tmp_path, DEMANDING)
-
-    with pytest.raises(SystemExit):
-        main(
-            [
-                "exec",
-                "-f",
-                flow,
-                "-a",
-                "opencode/m:high",
-                "-a",
-                "opencode/m:high",
-                "task",
-            ]
-        )
-
-    assert not (tmp_path / "flow.json").exists()  # nothing ran
-
-    # And a backend that does ask before it uses a tool is taken.
-    main(["exec", "-f", flow, "-a", "claude/m:high", "-a", "opencode/m:high", "task"])
-    assert _seen(tmp_path)["agents"] == [["builder"], ["reviewer"]]
-
-
-def test_what_a_place_asks_for_is_said_where_it_is_refused(tmp_path: Path) -> None:
-    from hmz.coganchor.agents import OpencodeAgent
-
-    flow = _flow(tmp_path, DEMANDING)
-    agents = [
-        OpencodeAgent(AgentConfig(model="m", effort="high")),
-        OpencodeAgent(AgentConfig(model="m", effort="high")),
-    ]
-
-    with pytest.raises(NotAFlow, match="builder has to run PermissionRequest"):
-        Runner(flow, agents)
-
-
-def test_a_plain_tuple_says_how_many_agents_and_nothing_more(tmp_path: Path) -> None:
-    from hmz.runtime.flowing import drives
-
-    assert drives(
-        _flow(tmp_path, RECORD.replace("AGENTS", "AgentBase, AgentBase"))
-    ) == (
-        "",
-        "",
-    )
-
-
-def test_two_agents_of_one_spelling_are_two_agents(tmp_path: Path) -> None:
-    """An actor and the reviewer reading its work are one configuration and not one agent."""
-    flow = _flow(tmp_path, RECORD.replace("AGENTS", "AgentBase, AgentBase"))
-    main(["exec", "-f", flow, "-a", "claude/m:high", "-a", "claude/m:high", "task"])
-    ids = {agent[3] for agent in _seen(tmp_path)["agents"]}
-    assert len(ids) == 2
-
-
-def test_the_flow_runs_where_the_command_was_given(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """And not where the flow file happens to live: the work lands in this project."""
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    flow = _flow(tmp_path, RECORD.replace("AGENTS", "AgentBase"))
-    monkeypatch.chdir(workspace)
-    main(["exec", "-f", flow, "-a", "claude/m:high", "task"])
-    assert Path(_seen(tmp_path)["cwd"]).resolve() == workspace.resolve()
-
-
-@pytest.mark.parametrize(
-    ("source", "complaint"),
-    [
-        ("flow = None\n", "nothing in it is marked @flow()"),
         (
-            "from hmz.flows import flow\n\n\n@flow\ndef run(agents, task):\n    pass\n",
-            "tuple",
+            ["claude=codex/gpt-5.5:low", "pursuer=claude/m:high"],
+            "'claude' is claude, and codex was given",
         ),
-        (RECORD.replace("AGENTS", "AgentBase, ..."), "fixed length"),
-        (RECORD.replace("AGENTS", "AgentBase, AgentBase"), "drives 2 agents, 1 given"),
-        (UNREADABLE, "cannot be read here"),
+        (
+            ["claude=claude/m:high", "pursuer=opencode/opencode/big-pickle:high"],
+            "needs GoalCommandAgentMixin",
+        ),
     ],
 )
-def test_a_file_that_is_not_the_flow_asked_for_is_a_usage_error(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], source: str, complaint: str
+def test_an_agent_that_cannot_be_what_its_role_asks_is_refused_before_the_run(
+    tmp_path: Path,
+    here: Path,
+    capsys: pytest.CaptureFixture[str],
+    agents: list[str],
+    complaint: str,
 ) -> None:
-    with pytest.raises(SystemExit) as stopped:
-        main(["exec", "-f", _flow(tmp_path, source), "-a", "claude/m:high", "task"])
-    assert stopped.value.code == 2
-    assert complaint in capsys.readouterr().err
-    assert not (tmp_path / "flow.json").exists()  # refused before anything was driven
+    flow = _flow(tmp_path, PICKY, "picky")
 
+    error = _refused(capsys, "-f", flow, "-a", ",".join(agents), *BUDGET, "task")
 
-def test_a_flow_that_is_not_there_is_a_usage_error(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    with pytest.raises(SystemExit) as stopped:
-        main(
-            ["exec", "-f", str(tmp_path / "nowhere.py"), "-a", "claude/m:high", "task"]
-        )
-    assert stopped.value.code == 2
-    assert "nowhere.py" in capsys.readouterr().err
+    assert complaint in error
 
 
 @pytest.mark.parametrize(
     "spec",
     [
-        "claude/claude-opus-4-8",
-        "claude",
-        "gemini/g:high",
-        "/m:high",
-        "claude/:high",
+        "builder=claude/claude-opus-4-8",
         "builder=claude",
+        "builder=gemini/g:high",
+        "builder=/m:high",
+        "builder=claude/:high",
+        "claude/m:high",
         "builder=",
+        "builder=claude/m:high,builder=claude/m:low",
     ],
 )
-def test_an_agent_that_is_not_cli_model_and_effort_is_a_usage_error(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], spec: str
+def test_an_agent_that_is_not_a_role_a_cli_a_model_and_an_effort_is_a_usage_error(
+    tmp_path: Path, here: Path, capsys: pytest.CaptureFixture[str], spec: str
 ) -> None:
-    flow = _flow(tmp_path, RECORD.replace("AGENTS", "AgentBase"))
-    with pytest.raises(SystemExit) as stopped:
-        main(["exec", "-f", flow, "-a", spec, "task"])
-    assert stopped.value.code == 2
-    assert f"bad agent {spec!r}" in capsys.readouterr().err
+    error = _refused(capsys, "-f", _flow(tmp_path), "-a", spec, *BUDGET, "task")
+
+    assert "-a" in error
+    assert not (tmp_path / "flows" / "record" / "seen.json").exists()
 
 
-@pytest.mark.parametrize("rung", ["auto", ""])
-def test_an_agent_at_no_rung_is_named_with_auto_and_runs(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, rung: str
+@pytest.mark.parametrize("effort", ["auto", ""])
+def test_an_agent_at_no_effort_is_named_with_auto_and_runs(
+    tmp_path: Path, here: Path, effort: str
 ) -> None:
-    """`auto` is the word for no rung, and a spec round-tripped without one says the same.
+    """`auto` is the word for the CLI's own default, and a spec without one says the same."""
+    main(
+        [
+            "exec",
+            "-f",
+            _flow(tmp_path),
+            "-a",
+            f"builder=claude/m:{effort}",
+            *BUDGET,
+            "task",
+        ]
+    )
 
-    A model does not always have rungs -- Cursor runs `composer-2.5` and `gemini-3.1-pro` at
-    one setting and no other -- and before there was a word for it such a model could not be
-    named on this flag at all: the grammar is `MODEL:EFFORT` and there is nothing to write.
-    """
-    workspace = tmp_path / "workspace"
-    workspace.mkdir()
-    flow = _flow(tmp_path, RECORD.replace("AGENTS", "AgentBase"))
-    monkeypatch.chdir(workspace)
-    main(["exec", "-f", flow, "-a", f"claude/m:{rung}", "task"])
-    [[_, model, effort, _]] = _seen(tmp_path)["agents"]
-    assert (model, effort) == ("m", "")
+    assert _seen(tmp_path)["agents"]["builder"] == ["claude", "", "m", ""]
 
 
-@pytest.mark.parametrize(
-    "said", ["permission=read-only", "permission=bypass", "web_search=off"]
-)
-def test_a_line_that_says_what_the_flow_says_is_a_usage_error(
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-    said: str,
+def test_a_flow_that_is_not_there_is_a_usage_error(
+    tmp_path: Path, here: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """And says where it is said instead, which is beside the agent the flow declares."""
-    flow = _flow(tmp_path, RECORD.replace("AGENTS", "AgentBase"))
+    error = _refused(
+        capsys, "-f", str(tmp_path / "nowhere"), "-a", BUILDER, *BUDGET, "task"
+    )
 
-    with pytest.raises(SystemExit) as stopped:
-        main(["exec", "-f", flow, "-a", said, "task"])
+    assert "nowhere" in error
 
-    assert stopped.value.code == 2
-    error = capsys.readouterr().err
-    assert f"bad agent {said!r}" in error
-    assert "is the flow's to say, written beside the agent" in error
-    assert not (tmp_path / "flow.json").exists()
+
+def test_a_directory_that_holds_no_flow_is_a_usage_error(
+    tmp_path: Path, here: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    error = _refused(
+        capsys,
+        "-f",
+        _flow(tmp_path, "HELD = 1\n", "empty"),
+        "-a",
+        BUILDER,
+        *BUDGET,
+        "task",
+    )
+
+    assert "defines no flow" in error
 
 
 def test_a_flow_fails_as_it_would_anywhere_when_it_is_the_flow_that_failed(
-    tmp_path: Path,
+    tmp_path: Path, here: Path
 ) -> None:
-    """A flow whose own setup cannot find a file has not been mistyped on the command line."""
-    flow = _flow(tmp_path, "open('nowhere/prompt.md')\n")
-    with pytest.raises(FileNotFoundError):
-        main(["exec", "-f", flow, "-a", "claude/m:high", "task"])
+    """A flow whose own import cannot find a file has not been mistyped on the command line."""
+    flow = _flow(tmp_path, RECORD.replace("import json\n", "open('nowhere.md')\n", 1))
+
+    with pytest.raises(SystemExit) as stopped:
+        main(["exec", "-f", flow, "-a", BUILDER, *BUDGET, "task"])
+    # Refused with the reason the import gave, before any agent started.
+    assert stopped.value.code == 2
+
+    failing = _flow(
+        tmp_path,
+        RECORD.replace(
+            "    Path(__file__)",
+            "    raise FileNotFoundError(task)\n    Path(__file__)",
+        ),
+        "failing",
+    )
+    with pytest.raises(FileNotFoundError, match="task"):
+        main(["exec", "-f", failing, "-a", BUILDER, *BUDGET, "task"])
+    (epic,) = epics()
+    ran = read(epic)
+    assert ran is not None
+    assert ran.how == "failed"
 
 
-def test_a_flow_for_other_agents_than_these_is_refused_before_it_is_run(
-    tmp_path: Path,
+def test_resume_picks_up_the_newest_run_and_only_of_a_flow_that_can_be(
+    tmp_path: Path, here: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """What the usage error is made of, for a flow driven from Python instead."""
-    flow = _flow(tmp_path, RECORD.replace("AGENTS", "AgentBase, AgentBase"))
-    with pytest.raises(NotAFlow):
-        Runner(flow, [ShellAgent(AgentConfig(model="m", effort="high"))])
+    keeps = _flow(tmp_path, KEEPS, "keeps")
+
+    assert "no run here to pick up" in _refused(
+        capsys, "-f", keeps, *BUDGET, "--resume", "task"
+    )
+    main(["exec", "-f", keeps, *BUDGET, "task"])
+    main(["exec", "-f", keeps, *BUDGET, "--resume", "task"])
+    main(["exec", "-f", keeps, *BUDGET, "task"])
+
+    assert capsys.readouterr().out.split("\n")[:3] == ["run 1", "run 2", "run 1"]
+    assert "does not say it can be picked up" in _refused(
+        capsys, "-f", _flow(tmp_path), "-a", BUILDER, *BUDGET, "--resume", "task"
+    )
 
 
 def test_python_m_hmz_is_the_hmz_command(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, here: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    flow = _flow(tmp_path, RECORD.replace("AGENTS", "AgentBase"))
+    flow = _flow(tmp_path)
     monkeypatch.setattr(
-        sys, "argv", ["hmz", "exec", "-f", flow, "-a", "claude/m:high", "task"]
+        sys, "argv", ["hmz", "exec", "-f", flow, "-a", BUILDER, *BUDGET, "task"]
     )
+
     with pytest.raises(SystemExit) as stopped:
         runpy.run_module("hmz", run_name="__main__")
+
     assert stopped.value.code == 0
     assert _seen(tmp_path)["task"] == "task"
 
 
-@pytest.mark.parametrize("flow", PREBUILT, ids=_named)
 def test_every_example_runs_as_the_command_line_it_shows(
-    flow: Path, monkeypatch: pytest.MonkeyPatch
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Each one shows an `hmz exec` line, and it is one that would start that flow."""
-    shown = re.search(r"^\s*hmz exec (?:.*\\\n)*.*", flow.read_text(), re.MULTILINE)
-    assert shown is not None, "no `hmz exec` command line to be checked against"
+    """Each flow humanize ships shows an `hmz exec` line, and it is one that would start it."""
+    shipped = sorted(
+        path / ENTRY
+        for path in BUILTIN_AT.iterdir()
+        if not path.name.startswith("_") and (path / ENTRY).is_file()
+    )
+    assert shipped
+    ran: list[str] = []
+
+    def nothing(self: Run) -> None:
+        """Every line is checked as far as the flow, and no further."""
+        ran.append(self.flow)
+
+    monkeypatch.setattr(Run, "run", nothing)
     monkeypatch.chdir(Path(__file__).resolve().parents[3])
-
-    def nothing(_self: Runner, _task: str) -> None:
-        """Every line is checked as far as the entry point, and no further."""
-
-    monkeypatch.setattr(Runner, "run", nothing)
-    main(shlex.split(shown[0].replace("\\\n", " "))[1:])
+    for flow in shipped:
+        shown = re.search(r"^\s*hmz exec (?:.*\\\n)*.*", flow.read_text(), re.MULTILINE)
+        assert shown is not None, f"{flow}: no `hmz exec` command line to be checked"
+        assert main(shlex.split(shown[0].replace("\\\n", " "))[1:]) == 0
+    assert len(ran) == len(shipped)
 
 
 def test_a_flow_of_your_own_is_found_where_flows_live(
@@ -825,16 +517,14 @@ def test_a_flow_of_your_own_is_found_where_flows_live(
     home, project = tmp_path / "home", tmp_path / "project"
     for where in (home / ".humanize/flows", project / ".humanize/flows"):
         where.mkdir(parents=True)
-    mine = RECORD.replace("AGENTS", "AgentBase")
-    written(home / ".humanize/flows", "yours", mine)
-    written(project / ".humanize/flows", "theirs", mine)
-    written(project / ".humanize/flows", "chat", mine)  # a name humanize uses
+    written(home / ".humanize/flows", "yours", RECORD)
+    written(project / ".humanize/flows", "theirs", RECORD)
+    written(project / ".humanize/flows", "chat", RECORD)  # a name humanize uses
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.chdir(project)
 
-    listed = found()
+    named = [(one.whose, one.name) for one in found()]
 
-    named = [(one.whose, one.name) for one in listed]
     assert ("local", "local/theirs") in named
     assert ("user", "user/yours") in named
     # Both, under names of their own: one is not offered as if it were the other.
@@ -845,8 +535,6 @@ def test_a_flow_of_your_own_is_found_where_flows_live(
     assert find("yours") == str((home / ".humanize/flows/yours" / ENTRY).resolve())
     # And a flow of humanize's own said outright is not one the project can stand in for.
     assert find("official/chat") == str((BUILTIN_AT / "chat" / ENTRY).resolve())
-    # And it takes what the list calls one, which says which place it came from and so is the
-    # spelling nothing can stand in for.
     assert find("user/yours") == str((home / ".humanize/flows/yours" / ENTRY).resolve())
     assert find("local/chat") == str(
         (project / ".humanize/flows/chat" / ENTRY).resolve()
@@ -854,9 +542,6 @@ def test_a_flow_of_your_own_is_found_where_flows_live(
     # A path is still a path, `~` and all: a flow being written lives wherever it is.
     assert find("~/.humanize/flows/yours") == str(
         (home / ".humanize/flows/yours" / ENTRY).resolve()
-    )
-    assert find(".humanize/flows/theirs") == str(
-        (project / ".humanize/flows/theirs" / ENTRY).resolve()
     )
     assert find("nowhere") == "nowhere"  # a path is taken as given
 
@@ -866,57 +551,52 @@ def test_a_flow_of_your_own_runs_by_name(
 ) -> None:
     """The point of finding it: `-f theirs` starts it, with no path said anywhere."""
     project = tmp_path / "project"
-    (project / ".humanize/flows").mkdir(parents=True)
-    written(
-        project / ".humanize/flows", "theirs", RECORD.replace("AGENTS", "AgentBase")
-    )
+    written(project / ".humanize/flows", "theirs", RECORD)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.chdir(project)
-    driven: list[str] = []
 
-    def record(_self: Runner, task: str) -> None:
-        driven.append(task)
+    assert main(["exec", "-f", "theirs", "-a", BUILDER, *BUDGET, "do it"]) == 0
 
-    monkeypatch.setattr(Runner, "run", record)
-
-    assert main(["exec", "-f", "theirs", "-a", "claude/m:high", "do it"]) == 0
-    assert driven == ["do it"]
+    seen = json.loads((project / ".humanize/flows/theirs/seen.json").read_text())
+    assert seen["task"] == "do it"
 
 
-def test_the_chat_flow_is_one_session_for_as_long_as_it_is_told_things(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.fixture
+def claude(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The stand-in `claude` on PATH, with a home of its own; its log."""
+    log = standins.install(tmp_path / "bin", "claude", standins.CLAUDE)
+    monkeypatch.setenv("PATH", standins.path_with(tmp_path / "bin"))
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude-home"))
+    return log
+
+
+def test_chat_runs_with_no_budget_and_does_the_one_thing_it_was_given(
+    here: Path, claude: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Talking to a coding agent, with no loop around it: the turns are a conversation."""
-    from hmz.coganchor.agents import HumanAgent
-    from hmz.flows.builtin.chat import Chat
-    from hmz.flows.builtin.chat import run as chat
+    """Nobody is at a prompt on a command line, so there is no next thing to wait for."""
+    assert (
+        main(
+            [
+                "exec",
+                "-f",
+                "chat",
+                "-a",
+                "assistant=claude/claude-haiku-4-5:low",
+                "Reply with the single word: hello",
+            ]
+        )
+        == 0
+    )
 
-    agent = ShellAgent(AgentConfig(model="m", effort="high"))
-    said = ["echo third", "echo second"]
-    # The person is an agent like any other, and what they answer with is what they typed.
-    person = HumanAgent()
-    person.prompting = said.pop
-
-    chat(Chat(agent, person), "echo first")
-
-    # One session for all three, so the agent had the earlier turns in context: a second
-    # would have opened a second id. And the run ended when there was nothing left to be
-    # told, rather than looping on nothing.
-    assert len(agent.opened) == 1
-    assert said == []
-
-
-def test_the_chat_flow_run_from_a_command_line_does_the_one_thing_it_was_given(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Nobody is at a prompt there, so there is nothing to wait for and it returns."""
-    from hmz.coganchor.agents import HumanAgent
-    from hmz.flows.builtin.chat import Chat
-    from hmz.flows.builtin.chat import run as chat
-
-    agent = ShellAgent(AgentConfig(model="m", effort="high"))
-
-    # Nothing is hooked up to the person, so they answer with nothing the first time.
-    chat(Chat(agent, HumanAgent()), "echo once")
-
-    assert len(agent.opened) == 1
+    # What the turn answered is on stdout, for a script reading it.
+    assert "hello" in capsys.readouterr().out
+    said = [
+        json.loads(line) for line in claude.read_text().splitlines() if "said" in line
+    ]
+    assert [one["said"] for one in said] == ["Reply with the single word: hello"]
+    (epic,) = epics()
+    ran = read(epic)
+    assert ran is not None
+    assert ran.budget is not None
+    assert ran.budget["cost"] == "Infinity"

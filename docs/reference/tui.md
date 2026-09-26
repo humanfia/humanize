@@ -34,22 +34,21 @@ which is the one it opens on. Which, and how to move between them, is
 [below](#reading-one-agent).
 
 **Above the editor**, one line per agent the flow drives: the name the flow calls it, then what
-it runs as `cli/model:effort`, then the machine its turns land on where that is not this one,
-[what it may do](/user/permissions) where a rung was said about it at all, the
-[account](#which-cli-and-which-account) it runs as where that is not this machine's own, and
-finally what it is holding — `●` or `○` for whether it is working, how many conversations it
-has open, `reading` on the agent whose transcript is on the screen, and `unread` on one that
-has said something since you last looked at it. Under them, what the run has cost so far — one
-figure per kind of token rather than one over the lot of them, then the money and the rate.
-A `+` on a kind means some agent of the run drives a CLI that does not report it at all, so
-that figure is a floor rather than the total; with one agent running nothing is marked. The rate is
-**output tokens** a second, over a recent window only, so a flow that has stopped reads as
-stopped — and the whole readout is worked out again every five seconds and whenever an agent
-does anything, rather than only when a count lands. The money is per model, since two agents at
-one model are one bill; it comes from [OpenLLMPrices](https://openllmprices.com/), fetched once
-as the interface opens and kept under `~/.humanize/prices.json`; a model nobody lists shows its
-tokens with nothing beside them rather than `$0.00`, and a run mixing a priced model with an
-unpriced one marks its total `$1.34+`. See [Cost and rate](/user/tally).
+it runs as `cli/model:effort`, the [account](#which-cli-and-which-account) it runs as where that
+is not this machine's own, and finally what it is holding — `●` or `○` for whether it is
+working, how many conversations it has open, `reading` on the agent whose transcript is on the
+screen, and `unread` on one that has said something since you last looked at it. Under them,
+what the run has cost so far — one figure per kind of token rather than one over the lot of
+them, then the money and the rate. A `+` on a kind means some agent of the run drives a CLI that
+does not report it at all, so that figure is a floor rather than the total; with one agent
+running nothing is marked. The rate is **output tokens** a second, over a recent window only, so
+a flow that has stopped reads as stopped — and the whole readout is worked out again every five
+seconds and whenever an agent does anything, rather than only when a count lands. The money is
+per model, since two agents at one model are one bill; it comes from
+[OpenLLMPrices](https://openllmprices.com/), fetched once as the interface opens and kept under
+`~/.humanize/prices.json`; a model nobody lists shows its tokens with nothing beside them rather
+than `$0.00`, and a run mixing a priced model with an unpriced one marks its total `$1.34+`. See
+[Cost and rate](/user/tally).
 
 **The status line, left:** what is running, if anything is — whose turn it is and how long it
 has been going. Between two turns it names the flow and how long the run has been going, since
@@ -165,16 +164,16 @@ list appears under the editor with a line about each.
 
 | Command | Takes | What it does |
 | --- | --- | --- |
-| `/flow` | `[flow]` | The menu that is [which flow runs](#choosing-a-flow) and, inside the flow you open, [what each of its agents is](#what-each-agent-is). With a name or a path, opens already inside that one — and is refused outright while a flow is running, since that name would be choosing one. Without a name it opens on the flows, or inside the agents of the flow that is going. `save` — the row set below the choices, and **shift+enter** or **ctrl+j** from anywhere on the menu — saves the complete setup; esc is one step back, and then the way to save or discard on the way out. |
+| `/flow` | `[flow]` | The menu that is [which flow runs](#choosing-a-flow) and, inside the flow you open, [what fills each of its roles](#what-each-agent-is), its params and its budget. With a name or a path, opens already inside that one — and is refused outright while a flow is running, since that name would be choosing one. Without a name it opens on the flows, or inside the agents of the flow that is going. `save` — the row set below the choices, and **shift+enter** or **ctrl+j** from anywhere on the menu — saves the complete setup; esc is one step back, and then the way to save or discard on the way out. |
 | `/flowverses` | | [Where flows come from](/weaver/flowverses): what places there are, what one of them holds, and one added, fetched again or taken away. The same menu **v** opens on the flows; a command as well, because there are no flows to press it on while one is running. Not which flow to run — that is `/flow`, where the arrows step between the same places. |
 | `/epics` | | The runs of this directory, newest first: what each was and how it went. **Enter** goes into one, which says where it is written down and offers [exporting it](/user/export) — trace and all — and carrying it on where its flow says it can be picked up. |
-| `/resume` | | Carries [the last run here](#carrying-the-last-one-on-outright) on: that run's own flow, on its own agents, with what it was asked to do, and on what it left behind. The same thing `/epics` offers of the run you go into, without the list — there is only ever one last run. Where there is nothing to carry on from it says which reason that is. |
+| `/resume` | | [Picks up](#carrying-the-last-one-on-outright) the last run here of a flow that can be picked up: that run's own flow, on its own agents and environments, with its params, its budget and what it was asked to do, from where its journal says it got to. The same thing `/epics` offers of the run you go into, without the list. Where there is nothing to pick up it says which reason that is. |
 | `/providers` | | [The accounts](#the-accounts-themselves) an agent may be run as: what there is, and what can happen to one — made, and, on enter, corrected, signed in again, pointed at what it falls back to, or taken away. How often a failed turn is taken again is not here: that is said of a [place](#where-a-turn-goes-when-it-cannot-be-taken) rather than of an account. |
 | `/settings` | | [What humanize remembers](#what-humanize-remembers): two pages, one for what is true of this machine and one for what is remembered about this directory. |
-| `/monitor` | | [The run, drawn](#watching-the-run): a box per agent that has worked, marked as it works and saying how long it has been at it, with the handovers between them as the arrows joining them, whatever each started of its own hanging under it, and [the board](/user/board) below. Enter reads an agent or changes a line. **esc** opens it. |
+| `/monitor` | | [The run, drawn](#watching-the-run): a box per agent that has worked, marked as it works and saying how long it has been at it, with the handovers between them as the arrows joining them, whatever each started of its own hanging under it, and [the board](/user/board) below where the run has one. Enter reads an agent or changes a line. **esc** opens it. |
 | `/btw` | `<question>` | Asks a side question about the running flow from a read-only snapshot of its progress. It runs in a separate session and never steers the flow. |
 | `/details` | `[on\|off]` | Shows or hides everything a turn did on the way to its answer: tool calls, thinking, and whatever a backend printed on its way past. One question — how much of the working to show — so one switch. **Off** to begin with. |
-| `/afk` | `[on\|off]` | Whether an agent may stop and ask you something. See [below](#questions-and-being-away). |
+| `/afk` | `[on\|off]` | Whether you are there to be asked. While it is on, the run's [outworlder](/reference/flows#the-person-at-the-prompt) is away. See [below](#questions-and-being-away). |
 | `/fallback` | | Where a turn goes when what was taking it cannot: an agent that has nowhere left to run, and an account that has gone down. See [below](#where-a-turn-goes-when-it-cannot-be-taken). |
 | `/clear` | | Clears the screen, and nothing else: the transcript being read, not the others, and nothing that is running. |
 | `/stop` | | Stops the flow — the whole flow, not just the turn — which is what **ctrl+c** twice does. It is not asked twice: the key asks because a finger lands on it by mistake, and nothing is typed by mistake, so writing it out and sending it is the deliberation the second press stands in for. With nothing running it says so, which the key never does; a flow already told to stop and not yet gone is said to be stopping rather than told again, and the [third press](/user/stopping) is what is left for that one. |
@@ -197,7 +196,7 @@ morning.
 $ralph_loop fix the failing test
 ```
 
-What happens next depends on whether this directory has run that flow before:
+What happens next depends on whether that flow is set up here:
 
 | | |
 | --- | --- |
@@ -205,13 +204,16 @@ What happens next depends on whether this directory has run that flow before:
 | **Never set up here** | [`/flow`](#choosing-a-flow) opens inside that flow, on what drives it. The line you typed is held; the flow runs on it the moment the menu is saved. Walk out without saving and nothing starts, and it says so. |
 | **No such flow** | A line to correct, the way `/nosuchcommand` is. The interface stays up. |
 
-**Set up here** means a remembered agent for every place the flow declares *now* — under the
-name the flow calls that place, and in the flow's own order — and settings the flow still
-accepts. A flow that has grown, lost or renamed an agent since is one you are asked about
-again, rather than one whose new reviewer quietly inherits the builder's model. So are
-settings that no longer read back through the model the flow declares now: nothing can guess
-what an answer that no longer fits was meant to say. A flow you never set any settings for is
-not one of those — it takes its own defaults, exactly as `hmz exec` does with no `-c`.
+**Set up here** means a remembered agent for every agent role the flow declares *now* and a
+remembered environment for every environment role — under the name the flow declares each role
+by — params the flow still accepts, and a budget. Roles the runtime fills — an `Outworlder`, a
+`LocalEnv` — need nothing remembered, and an environment role declared `NotRequired` and left
+empty is set up as empty. A flow that has grown, lost or renamed a role since is one you are
+asked about again, rather than one whose new reviewer quietly inherits the builder's model. So
+are params that no longer read back through the `FlowParams` the flow declares now: nothing can
+guess what an answer that no longer fits was meant to say. A flow you never set any params for
+is not one of those — it takes its own defaults, exactly as `hmz exec` does with no `-p`. A
+budget is never assumed: a flow with none remembered is asked for one, `chat` excepted.
 
 `$` takes a **name**, not a path: a path holds the slashes, dots and spaces prose does, and one
 taken here would swallow the line after it. `/flow ./flows/mine` is where a flow of your own by
@@ -317,7 +319,7 @@ the transcript they all appear on.
 open. Where you are reading all of them at once there is no one agent you can have meant, so it
 goes to whichever has a turn open, which is the one the screen is showing anyway.
 
-What is kept is bounded, a flow being a thing that runs for days: the last eight conversations,
+What is kept is bounded, a flow being a thing that runs for days: the last sixteen transcripts,
 and the last two thousand lines of each. Older lines and older conversations are gone from the
 screen, not from the [trace](/reference/tracing) — that is what a trace is for.
 
@@ -330,7 +332,7 @@ without anybody touching it.
 The diagram *is* the sheet. It takes the height the terminal has, and what is written under it
 is only what a picture cannot say. The shape of a flow is not written down anywhere: a flow is
 a Python file that may branch any way it likes, so what it did is read off the turns going past
-— and drawn as a box per agent, in the order the flow takes them, with the handovers between
+— and drawn as a box per agent, in the order the flow declares them, with the handovers between
 neighbours as the arrows joining them:
 
 ```
@@ -347,10 +349,6 @@ neighbours as the arrows joining them:
  ❯ │ ○ reviewer · codex#c3d4                     idle 1m04s │
    │ codex/gpt-5.6-sol:high · 5 turns                unread │
    └────────────────────────────────────────────────────────┘
-
-   Board · what you and the flow both write on
-   ◈ todo                      write the parser
-   ◈ doing                     two of five · flow's
 
    Flow:             chat
    Also:             builder → reporter · ×2
@@ -400,12 +398,13 @@ has no transcript — so it is not a row to open, and a box round it would say o
 [the backends that say](/reference/agents#not-every-backend-runs-every-moment) draw one. A
 fleet too long to draw is cut, with a line saying how many were left off.
 
-**The board is under the diagram**, for a flow that talks to you: the named lines you and the
-flow both write on, and neither waits at. `a` puts one up — a name, then what it says — enter
-changes the one under the cursor, and `d` twice takes it off — the one taking-away still on a
-key, because enter on a line opens the words of that line rather than a menu with a row to
-spare, and it lands the moment it is pressed. A line the flow keeps to itself says so instead
-of opening an editor. See [The mission board](/user/board).
+**The board is under the diagram**, where the run has one: named lines kept beside the run,
+which nobody waits at. `a` puts one up — a name, then what it says — enter changes the one under
+the cursor, and `d` twice takes it off — the one taking-away still on a key, because enter on a
+line opens the words of that line rather than a menu with a row to spare, and it lands the
+moment it is pressed. The flow API gives a flow no way to read or write it, and a run of a flow
+written against it has no board at all: none is drawn, and `a` says there is none. See
+[The mission board](/user/board).
 
 **Enter or a click on a box reads that agent** — whether or not it is working. tab is held to
 the ones thinking, so this is the one place an agent that has stopped is reached. The box under
@@ -431,7 +430,7 @@ what the run is running as, and the two are read from the bottom up — the last
 the running total end on the same row:
 
 ```
-                                           assistant · claude-opus-5:high
+                                    assistant · claude/claude-opus-5:high
 ❯ and fix the tests too            input 11.2k · output 1.1k · cache_read 0
 ❯ then push                                           $0.31 · 84 out/s
 ────────────────────────────────────────────────────────────────────────
@@ -491,15 +490,28 @@ throughout, at the cost of that same guarantee.
 
 ## Questions, and being away
 
-An agent may stop mid-turn to ask you something. The question and whatever it offered are
-shown, and the next line you type is the answer rather than a word put into the turn — the
-status line says `enter answer` while that is so.
+Two things can stop and wait on you, and both are shown where you type: the question and
+whatever it offered, with the next line you type the answer rather than a word put into the
+turn — the status line says `enter answer` while that is so.
 
-`/afk` says you are not there. An agent that wants to ask is then told nobody answered and
-carries on, rather than waiting on a reply that is not coming. Asking starts **allowed**: an
-agent that really needs a person gets one unless it has been said that none is there. While it
-is on, the status line says `afk` in front of everything else on it: the one sign that a turn
-went unanswered must not be a flow that finished early.
+- **The flow asks you.** A flow whose roles include an
+  [`Outworlder`](/reference/flows#the-person-at-the-prompt) is talking to you when it runs that
+  role: what it says is the question and what you type is its answer. Asked for an answer in a
+  shape, it is a question per field.
+- **An agent asks you.** An agent that stops mid-turn to ask its user something asks the flow,
+  through the hook the flow hung for it — and a flow that means you to answer, as `chat` does,
+  puts the question to you. An agent whose flow hung no such hook is told nobody answered, and
+  carries on.
+
+`/afk` says you are not there, and while it is on the outworlder is **away**: the flow's
+questions are answered at once with nothing — `""` for text, the answer a shape's defaults make
+where every field has one, and `OutworlderAway` raised in the flow where one has none — and an
+agent's question put to you is told nobody answered and carries on, rather than waiting on a
+reply that is not coming. A question already up when it goes on is answered by nobody at all,
+which the flow hears as `OutworlderAway`. Asking starts **allowed**: a flow that really needs a
+person gets one unless it has been said that none is there. While it is on, the status line says
+`afk` in front of everything else on it: the one sign that a question went unanswered must not
+be a flow that finished early.
 
 A question still up when the flow ends or is stopped ends with it, so stopping a flow is never
 blocked on one.
@@ -607,7 +619,7 @@ place's flows and nothing else.
 
 ❯ 1. chat                    Chat — one agent, one session, and every line typed between…
   2. continue_loop           Continue loop (flowbench: continue_loop) — send the task once,…
-  3. fixed_juice_ralph       Fixed-juice ralph (flowbench: fixed_juice_ralph) — a ralph loop…
+  3. flame_chase             Flame chase (flowbench: flame_chase) — two agents take turns on…
 
   enter open · f copy here · v flowverses · shift+enter/ctrl+j save · esc close · s search
 ```
@@ -649,18 +661,17 @@ not having moved since the last start — leaves what is drawn where it is: re-r
 nothing is every flow on the disk run again to arrive at the list that is already there.
 
 Enter on a flow opens it: what that flow was last set up with here is read back,
-[what the flow itself takes](#setting-a-flow-up) is asked where it takes anything, and what
-drives it is what you land in — which is the next thing to answer. **Esc comes back to the
-flows**, one step, and esc again leaves the menu. The `save` row inside a flow — set below its
-agents, and reachable on **shift+enter** or **ctrl+j** from either half of the menu — validates
-every agent and applies the flow and all its agents together.
+[its params](#setting-a-flow-up) are asked where it declares any, and its roles are what you
+land in — which is the next thing to answer. **Esc comes back to the flows**, one step, and esc
+again leaves the menu. The `save` row inside a flow — set below its roles and its
+[budget](#what-a-run-of-it-may-spend), and reachable on **shift+enter** or **ctrl+j** from
+either half of the menu — checks every role against what the flow declares and applies the
+flow, its roles, its params and its budget together.
 
 **There are no flows to choose from while one is running** — a flow is chosen in order to be
-started, and there is one going. So `/flow` opens inside the agents of the flow that is going,
-and esc there leaves: an agent thinking too little, on the wrong account or allowed too much is
-something you find out halfway through a run. What you save then reaches the agents that are
-running, each of them from its next turn on. A CLI you changed is the one thing that cannot be
-swapped under a flow already holding that agent, and says so.
+started, and there is one going. So `/flow` opens inside the roles of the flow that is going,
+and esc there leaves. A run holds the agents and environments it was started on until it ends,
+so what you save then is what the next run of it starts on.
 
 This menu is the only way in that is typed. A machine being set up or a script reaches the
 same places through [`Hmz().verses`](/reference/sdk) — `add`, `fetch`, `remove` and `holds`,
@@ -725,8 +736,9 @@ the cursor with enter meaning it.
 
 ## What each agent is
 
-Opening a flow in `/flow` lists what it drives, by the name the flow calls each, and enter
-opens one. Everything that agent is is a row of one sheet:
+Opening a flow in `/flow` lists its roles, by the name the flow declares each: its agents, then
+its environments. Enter on an agent role opens it, and everything that agent is is a row of one
+sheet:
 
 ```
   Set up builder
@@ -738,21 +750,22 @@ opens one. Everything that agent is is a row of one sheet:
     2. provider     as local ▸                 the account those turns run as
     3. model        claude-opus-5 ▸            which of that CLI's models it runs
     4. effort       high ↔                     how hard it thinks
-    5. where        this machine ▸             the machine its work lands on
 
        save                                    this agent
 
   enter open · shift+enter/ctrl+j save · esc close
 ```
 
-**An agent is a CLI, an account, a model and an effort, and nothing else.** What it may do,
-which goals it may reach for and whether it may search the web are the flow's — they are
-[declared where the flow declares the agent](/reference/flows) — and the skills it carries are
-its CLI's, installed and switched off where that CLI keeps them. None of them is a row here,
+**An agent is a CLI, an account, a model and an effort, and nothing else** — exactly what an
+`-a` says. What it may touch, which skills it carries and what it must be able to do — a goal,
+steering, a hook only some CLIs reach — are the flow's, [declared on the role's
+type](/reference/flows#asking-for-an-agent-that-can-do-something). None of them is a row here,
 because a row offering to set one would be a second answer to a question already settled.
 
-What the flow said and this sheet does not ask comes back off it unchanged: setting the effort
-does not reset anything the sheet never showed you.
+**Roles the runtime fills are not listed at all.** An `Outworlder` role is you — see
+[Questions, and being away](#questions-and-being-away) — and a `LocalEnv` role is the directory
+the interface was started in; neither is a row. An environment role the flow declares
+`NotRequired` may be left empty.
 
 The rows are in the order of what depends on what. The CLI settles which accounts there are and
 which models that CLI will name; the account settles which of them it may name. **Changing the
@@ -760,13 +773,12 @@ CLI lets go of the model**, which belonged to the CLI before it.
 
 **The arrows step a row that is a rung in an order** — the effort, and swarm mode for a model
 that has one — and **space** takes the next one, round to the first again at the end of the
-range. Those rows wear `↔`; the ones that open a sheet of their own wear `▸`. `where` is a row
-only for an agent [the flow says may be pointed at a machine](#where-each-agent-works); for one
-the flow put in a container it is read rather than opened, and for one that works here it is
-not there at all.
+range. Those rows wear `↔`; the ones that open a sheet of their own wear `▸`. Where each agent's
+turns land is not a row of the agent at all: it is whichever of the flow's
+[environments](#where-each-agent-works) the flow spawns its sessions in.
 
 `save` — the row below them, and **shift+enter** or **ctrl+j** from anywhere on the sheet —
-accepts this agent and returns straight to the flow's agents. It changes only the flow draft;
+accepts this agent and returns straight to the flow's roles. It changes only the flow draft;
 the complete setup is written down when `save` is chosen there. Esc off the agent sheet remains
 a fallback: it asks whether to accept or discard changes.
 
@@ -774,7 +786,8 @@ a fallback: it asks whether to accept or discard changes.
 
 Two rows, in that order, because an [account](/reference/providers) is one backend's — what signs in
 to Claude Code is not what signs in to codex. The CLIs are the ones **installed here**, less any
-the flow ruled out by needing a moment or a goal feature that backend has not got — plus any
+that cannot serve what the role declares — a mixin that CLI has not got, or another CLI where
+the role is typed as one CLI's own protocol — plus any
 supported backend that is only a `pip install` away, which is listed so that it can be found
 rather than looked for, and says so on its row:
 
@@ -801,8 +814,8 @@ it: it asks how to sign in and what that way needs — the same walk
 account chosen. A CLI with no accounts yet says `claude has no accounts here yet` under the
 list, with the `add` row under that.
 
-An agent given an account that has since been taken away is a red line when the flow is started,
-before any turn has run — never a traceback half an hour in.
+An agent given an account that has since been taken away never quietly runs as yours: the first
+turn it takes fails, naming the account that is not there.
 
 ## What each agent runs
 
@@ -834,34 +847,26 @@ the one to reach for. Choosing the one you are on leaves the effort where you ha
 
 ## Where each agent works
 
-The `where` row, and **only for an agent whose place the flow declared `Remote`**. Where an
-agent works is the flow's to say rather than a setting anybody may reach for — a flow written to
-read this project cannot have one of its agents reading somebody else's — so:
+In the flow's environments. Each environment role the flow declares is a row of its own under
+the agents, answered with where that directory is — what an `-e` says:
 
-| What the flow declared | What you are asked |
+| Answered | Where the work goes |
 | --- | --- |
-| `Annotated[Agent, Remote]` | a `where` row: which machine its work lands on |
-| `Annotated[Agent, Isolated("python:3.12")]` | nothing; the flow named the image, and the row reads `in a container of python:3.12` |
-| `Agent` | nothing; it works here, and there is no row |
+| `local@/home/me/repo` | a directory on this machine |
+| `ssh@gpu-box/home/me/repo` | a directory on a host you can reach with ssh |
+| `ssh@gpu-box/~/repo` | the same, under the home directory of whoever ssh logs in as |
 
-The sheet lists what this machine can see — each container that is running, each host with an
-entry in your `~/.ssh/config` — and anything else is a target you type after **s**:
+Enter on the row opens one field, typed as `-e` spells it after `<role>=` — the host `host`,
+`user@host`, `host:port` or an alias of your ssh config — and read as `-e` reads it: one that
+does not read is said in red under the roles rather than taken, and an empty one leaves the role
+unanswered. A role typed as a `LocalEnv` is the directory the interface was started in and is
+not asked; most flows work in nothing else, and have no environment rows at all.
 
-| Typed | Where the work goes |
-| --- | --- |
-| *(nothing)* | this machine |
-| `docker://<container>` | a container that is already running |
-| `ssh://<host>` | a host you can reach |
-| `tcp://<host>:<port>` | a coganchor target listening there |
-
-An agent the flow says may move but that nobody has pointed anywhere still works here: the row
-is offered, not forced. The agent itself runs here whatever you choose — its credentials, its
-state directory and its link to its model provider stay put. What moves is the project it reads
-and the commands it runs. See [Remote execution](/reference/remote-execution).
-
-Two agents of one flow may work on two machines, since it is a setting of the agent. A target
-that cannot be read, and an agent pointed somewhere by a flow that does not say it may be, are
-both red lines when the flow is started, before any turn has run.
+A host that cannot be reached, a directory that is not there, and a machine smaller than the
+role declares — fewer CPUs or GPUs, less memory — are red lines when the flow is started,
+before any turn has run. An agent the flow spawns in an ssh environment runs its turns on that
+host, in that directory; its credentials stay put. See
+[Remote execution](/reference/remote-execution).
 
 ## What each agent carries
 
@@ -871,8 +876,9 @@ them: what a person installed is not something a flow is entitled to rewrite, an
 could adjust here while the CLI's own list said otherwise would be two answers to one
 question.
 
-What a run adds to them is [the skills the flow brings](/reference/flows#the-skills-a-flow-brings),
-mounted onto every session its agents open and taken away again after.
+What a run adds to them is [the skills the flow brings](/reference/flows#the-skills-a-flow-brings) —
+the ones each role names — mounted onto every session of that role's agent and taken away again
+after.
 
 ## The runs that have already happened
 
@@ -884,13 +890,13 @@ and this is what reads it back:
 do and how many sessions it opened, the newer one marked "can be picked up"](/demo/epics.png)
 
 A row is when the run began and the flow that ran; beside it, what that flow was asked to do,
-how many sessions it opened, and `can be picked up` for a run whose flow said it was
-resumable. How it went is there only where it went some way other than finishing — stopped,
-failed, or left unfinished by a machine that went away under it — since a list of runs is
-mostly runs that finished, and a column saying so of nearly all of them is a column taking the
-room the others need. Newest first, because what somebody who opens this came to look at is
-the run that has just happened. **s** searches the flow, what it was asked to do, and the name
-the run is written under.
+how many sessions it opened, and `can be picked up` for a run whose flow says it can be and that
+left a journal to pick up from. How it went is there only where it went some way other than
+finishing — stopped, failed, or left unfinished by a machine that went away under it — since a
+list of runs is mostly runs that finished, and a column saying so of nearly all of them is a
+column taking the room the others need. Newest first, because what somebody who opens this came
+to look at is the run that has just happened. **s** searches the flow, what it was asked to do,
+and the name the run is written under.
 
 The list is read rather than chosen from, so **enter** goes *into* the run under the cursor.
 What opens says where that run is written down — sessions and all, which is what anybody
@@ -901,7 +907,7 @@ export it](/demo/epic-does.png)
 
 | Row | What it does |
 | --- | --- |
-| **resume this run** | Runs that run's own flow again, on what that run left behind — which a flow that says it [can be picked up](/reference/flows#a-flow-that-can-be-picked-up) is handed. It is [`/resume`](#carrying-the-last-one-on-outright) with the run already named, and a run that cannot be carried on is turned down here in the same words. |
+| **resume this run** | Picks that run up — its own flow, on its own agents and environments, with its params and its budget — from where its journal says it got to, which a flow that says it [can be picked up](/reference/flows#a-flow-that-can-be-picked-up) keeps. It is [`/resume`](#carrying-the-last-one-on-outright) with the run already named, and a run that cannot be picked up is turned down here in the same words. |
 | **export it** | Packages **that run** up as one archive to send to somebody else — its own records, every session log the backends wrote for it as their contents rather than as the links the run keeps, a manifest, and a [trace](/user/tracing) of the run gathered on the way in. There is no transcript in this one: what is on your screen is not that run. Where it landed and how big it came out are said under the list, and again in the transcript. See [Exporting a run](/user/export). |
 
 **Exporting gathers the trace.** They were two rows, and one of them wrote a file into the run
@@ -913,17 +919,18 @@ run in fifty times has fifty traces and none of them holds another's work. The t
 the run's own `traces/` as well, rather than in whatever directory you are standing in.
 
 **Carrying on is offered where the flow says so now**, rather than where the run said so then.
-The mark on the row is what that run wrote down as it ran; going into the run asks the flow
-itself, since a flow is a file that may have been rewritten since — and one that will not load
-at all is one there is nothing to carry on from. Where it is not offered the row is not there
-and the reason is said under the one that is. Exporting is offered for every run, whatever its
-flow says: a run that cannot be continued is still a run to read.
+The mark on the row and the row inside the run both ask the flow itself, since a flow is a file
+that may have been rewritten since — and one that will not load at all is one there is nothing
+to carry on from. Where it is not offered the row is not there and the reason is said under the
+one that is. Exporting is offered for every run, whatever its flow says: a run that cannot be
+continued is still a run to read.
 
 What is carried on is the run rather than what the interface happens to be set up on — the
-flow, its agents and what they were asked to do all come off the record of that run, an agent
-swapped under it being a different run wearing its name. And it is a run of its own: a
-[epic](/reference/tracing#epics) is never reopened, so carrying one on writes a new one
-that says which run it came from.
+flow, its agents, its environments, its params, its budget and what they were asked to do all
+come off the record of that run, an agent swapped under it being a different run wearing its
+name. The flow at the top picks up what it kept, and each flow it calls picks up where it is
+called again with the same task, agents, environments and params; what the budget has spent is
+counted again from nothing.
 
 **Reading is not refused while a flow is running. Carrying one on is.** What has already
 happened does not change under you, so the list is worth having open mid-run — but a run
@@ -941,26 +948,30 @@ runs, and a trace of none of them has nothing here to hang on.
 
 ### Carrying the last one on outright
 
-`/resume` is **resume this run** without the list: it carries **the last run in this
-directory** on, which is the one somebody who left a loop running overnight came back for. The
-flow, its agents and what they were asked to do come off that run exactly as they do from
-inside it, and the line it starts on says which run is being picked up — a person who has been
-away is owed which day's work this is.
+`/resume` is **resume this run** without the list: it picks up **the last run here of a flow
+that can be picked up**, whichever flow that was — the one somebody who left a loop running
+overnight came back for. Runs of a flow that neither said nor says it can be picked up — a
+conversation had since — are passed over, and nothing further back is: where the last run of a
+flow that can be picked up cannot be, it says why rather than handing over the one before it.
+`hmz exec --resume` is the nearest thing on a command line: the newest run of the flow its `-f`
+names that left a journal. The flow, its agents, its environments, its params, its budget and
+what they were asked to do come off that run exactly as they do from inside it, and the line it
+starts on says which run is being picked up — a person who has been away is owed which day's
+work this is.
 
-The last run and no other. A run carried on from the day before yesterday, because yesterday's
-died before it wrote anything down, is a day's work thrown away without anybody being told, so
-where the last run is not one to carry on the reason is said instead. These are the same
-reasons in the same words for a run you walked into on `/epics` and took **resume this run**
-on — one question has one answer, whichever way you came to it:
+Where there is nothing to pick up, the reason is said instead. From `<run> cannot be read back`
+down, these are the same reasons in the same words for a run you walked into on `/epics` and
+took **resume this run** on — one question has one answer, whichever way you came to it:
 
 | | |
 | --- | --- |
-| `no flow has been run here` | Nothing has ever run in this directory. |
+| `no flow has been run here` | Nothing has run in this directory at all. |
+| `no run here was of a flow that can be picked up` | Every run here was of a flow that neither said nor says it can be picked up. |
 | `<run> cannot be read back` | Its record is not one — a run that died mid-line left a line rather than an epic. |
 | `<flow> does not say it can be picked up` | Asked of the flow as it is today, not of what the run recorded — and a flow that will not load at all reads as one that says no. |
-| `<run> left nothing behind` | Its flow says it can be picked up, and that run either stopped before it wrote down where it had got to or [emptied what it wrote](/user/resuming#when-it-is-saved) — which is a flow saying the next run here starts clean. Starting from the top under a line saying which run it came from would be a record of something that did not happen, so it says what the next move is: say what to do, and the flow starts. |
+| `<run> left nothing behind` | It was killed before its journal held anything. Say what to do and the flow starts from the top. |
 | `no picking a run up while a flow is running` | A run picked up is a flow started, and there is one going. [ctrl+c twice or `/stop`](/user/stopping) stops it first. |
-| `no picking a run up while the flow is still stopping` | ctrl+c twice has been pressed and the flow has not gone yet. It unwinds in its own time and writes down where it got to as it goes, so a run picked up from a state still moving under it is a round done twice. A flow that will not unwind at all is what the [third press](/user/stopping) is for. |
+| `no picking a run up while the flow is still stopping` | ctrl+c twice has been pressed and the flow has not gone yet. It unwinds in its own time, so a run picked up from a journal still being written is a round done twice. A flow that will not unwind at all is what the [third press](/user/stopping) is for. |
 
 `/resume` takes nothing after it. A line that names a run is said back rather than dropped —
 there is nothing to name here, and an argument quietly ignored is a different run starting
@@ -1107,7 +1118,8 @@ environment that is answering for this run says so under the list rather than be
 the setting, since a menu cannot change it.
 
 **This directory** is what is remembered here: the directory itself, the flow it opens on and
-how many agents that flow was set up with, and a row that forgets the lot — leaving every other
+how many agents that flow was set up with, whether a run here is
+[profiled](/user/tracing#profiling-a-run), and a row that forgets the lot — leaving every other
 directory, and every setting, as it was.
 
 The arrows and space step the row under the cursor, and nothing lands until the `save` row is
@@ -1115,89 +1127,82 @@ chosen, the chord is pressed, or the menu is left and saving is confirmed.
 
 ## Setting a flow up
 
-Some flows take settings of their own — `humanize1` takes twenty-three. A flow says so by
-[declaring a model](/reference/flows#settings-of-the-flow-s-own), and the sheet is that model with a
-cursor on it: one row per setting, its name, what it is set to, and the line the flow declared
-it with.
+Some flows take params of their own — `humanize1:rlcr` takes over twenty. A flow says so by
+[declaring a `FlowParams`](/reference/flows#settings-of-the-flow-s-own), and the sheet is that
+model with a cursor on it: one row per field, its name, what it is set to, and the line the flow
+declared it with.
 
 ```
-   gen-idea  ·  open the idea into a draft
-     1. gen_idea                     on           open the idea into a repo-grounded draft
-     2. n                            6            --n: how many directions explore the idea
-   ❯ 3. idea_output                  docs/d.md▏   --output: where the draft goes
-
-   gen-plan  ·  turn the draft into a plan
-     4. gen_plan                     on           turn the draft into a plan, against review
-     5. gen_plan_mode                discussion   --discussion or --direct: converge, or write it once
+   rlcr  ·  build the plan under review
+     1. plan_file                    docs/plan.md▏  --plan-file: the plan to build
+   ❯ 2. max                          42             --max: rounds before the loop stops
+     3. full_review_round            5              --full-review-round: rounds between checks
 ```
 
-A setting that is written carries a caret under the cursor, where the next letter would land;
+A field that is written carries a caret under the cursor, where the next letter would land;
 one that is stepped does not, and the keys at the bottom say which it is. A blank one would
-otherwise read as a setting nothing can be typed into.
+otherwise read as a field nothing can be typed into.
 
-A flow with many settings groups them: each field says which part of the sheet it belongs
-under, and the sheet draws a heading above each group. The arrows walk the settings and step
+A flow with many params groups them: each field says which part of the sheet it belongs
+under, and the sheet draws a heading above each group. The arrows walk the fields and step
 over the headings.
 
 | Key | What it does |
 | --- | --- |
-| **↑ ↓** | Move between settings |
+| **↑ ↓** | Move between fields |
 | **← →** | Move the one under the cursor along: a switch flips, a choice steps, a number goes up or down by one |
 | letters | Write the one under the cursor, for the ones that are written rather than stepped |
 | **enter** | Take the lot, and hand it back to the menu holding it |
 | **esc** | Back to the menu, changing nothing |
 
-It opens as the flow is chosen — enter on a flow that takes settings puts it up, and answering
-it lands inside that flow's agents — and what it answers is held with the rest of that menu until the
-menu is saved: setting a flow up is a thing about the flow rather than about what runs it. A
-flow that takes no settings is not asked, so the walk is the same either way. There is no
-command for it, here or on a line: choosing the flow again is how you answer it again, and
-what you answered is what the next `hmz` in this directory opens on. A setup file is
-[`hmz exec -c <setup.yaml>`](/reference/cli#hmz-exec), which runs the flow rather than
+It opens as the flow is chosen — enter on a flow that takes params puts it up, and answering it
+lands inside that flow's roles — and what it answers is held with the rest of that menu until
+the menu is saved: setting a flow up is a thing about the flow rather than about what runs it. A
+flow that takes no params is not asked, so the walk is the same either way. There is no command
+for it, here or on a line: choosing the flow again is how you answer it again, and what you
+answered is what the next `hmz` in this directory opens on. On a command line the same fields
+are [`hmz exec -p key=value`](/reference/cli#writing-params), which runs the flow rather than
 opening on it.
 
-Nothing in the interface knows what any of the settings mean. The types say how a value moves,
-and the flow's own model says which combinations it will not take — so a flow that refuses
-`gen_idea` without `gen_plan` refuses it here, in its own words, rather than an hour in.
+Nothing in the interface knows what any of the params mean. The types say how a value moves,
+and the flow's own model says which combinations it will not take — so a flow that refuses a
+combination refuses it here, in its own words, rather than an hour in.
 
 ### What a run of it may spend
 
-A **budget** row sits on the page a flow's agents are on, under them and above the row the menu
-is saved from. Enter on it opens the same three-column sheet the flow's own settings are asked
-on, over `hours`, `tokens` — millions of output tokens — and `dollars`. Each is `0` for no cap
-on that one, and whichever is reached first stops the run.
+A **budget** row sits on the page a flow's roles are on, under them and above the row the menu
+is saved from. Enter on it opens the same sheet the flow's params are asked on, over the four
+things a [`Budget`](/reference/flows#what-a-run-may-spend) holds: `duration`, `cost` in USD,
+`output_tokens`, and `graceful` — whether the turn under way when a limit is reached is let
+finish. Whichever limit is reached first stops the run.
 
-A row rather than a page of the walk, because every flow has an
-[allowance](/features/allowances) and most runs want the one they already have: a page that had
-to be pressed past on the way to the agents is a question asked of somebody who has answered
-it. It is not among the flow's own settings, because it is a setting of the *run* — the flow
-declares at most a default and never holds itself to one — and the flow's own model would
-refuse the fields.
+A row rather than a page of the walk, because most runs want the budget they already have: a
+page that had to be pressed past on the way to the roles is a question asked of somebody who
+has answered it. It is not among the flow's params, because it is a setting of the *run* — the
+flow declares none and never holds itself to one.
 
-The row says what the run is held to without being opened: `stops at 6h, 10M out`, or `nothing
-stops this run`. An allowance nobody can see without opening something is one nobody checks.
+The row says what the run is held to without being opened: `stops at 6h, $50`. A budget nobody
+can see without opening something is one nobody checks.
 
-Saving a menu whose run nothing at all will stop asks once whether that is what was meant.
-Three dimensions and none of them set is a run that goes until somebody notices, for whatever
-days of a model cost; that is a fair thing to ask for and a poor thing to arrive at by not
-answering three questions. A flow that said in its own file that it is meant to run
-unbounded — `@flow(budget=Allowance())`, which `chat` writes — is not asked.
+**Every flow but `chat` needs one.** A budget with no limit in it is not one, so the menu will
+not save a flow whose budget sets none of the three, as `hmz exec` will not run one without a
+`-b`. `chat` ends when you stop talking to it, and runs with no limit at all.
 
 ## What it remembers
 
 Opening the interface again in the same project finds it set up the way you left it: the flow
-that was last run there, for each flow that workspace has run, what each of its agents was
-running, where its turns landed and which account it ran as —
-how the flow itself was set up, and what a run of it may spend.
+that was last run there, for each flow that workspace has run, what each of its agent roles was
+running and which account it ran as, where each environment role was, the params the flow was
+set up with, and what a run of it may spend.
 
 Kept per flow — by the name humanize's own flows have, and by the path yours have, so a flow of
 yours cannot inherit the agents or the settings of the one it shares a name with. Per flow
 rather than per workspace alone, because what an agent runs is only meaningful
-against the flow driving it — a flow's second agent is its reviewer, and the flow before it had
-no second agent at all. Keyed by the name the flow calls each one, so a flow that grows an
-agent in the middle does not silently hand the reviewer's model to the builder. What was set up
-is read back through the flow's own model, so a setting the flow has since dropped or renamed
-is one it starts over from rather than one that quietly comes back.
+against the flow driving it — a flow's `reviewer` is a role of that flow, and the flow before it
+had no reviewer at all. Keyed by the name the flow declares each role by, so a flow that grows a
+role does not silently hand the reviewer's model to the builder. The params are read back
+through the flow's own `FlowParams`, so a field the flow has since dropped or renamed is one it
+starts over from rather than one that quietly comes back.
 
 It lives in `~/.humanize/settings.yaml`. See [CLI reference](/reference/cli#files).
 
@@ -1213,11 +1218,9 @@ the terminal's colours; a name no theme answers to is ignored rather than refuse
 
 ## What it will not do
 
-- **Open twice.** `hmz` with no command is the only way in — with or without `-f`, `-c` and
-  `-a`, which say how it opens rather than opening a second one.
+- **Open twice.** `hmz` with no command is the only way in.
 - **Run two flows at once.** There are no flows to choose from in `/flow` while one is
-  running, and what the flow itself takes is not asked. What each agent is stays open: that is
-  the half worth changing mid-run.
+  running, and what it opens on is the flow that is going.
 - **Guess at a bad line.** A line it cannot carry out is shown and the interface stays up. Only
   `/exit` closes it, and one of its answers closes this terminal and not the run.
 - **Ask the flow anything.** What is drawn beside and under the transcript is kept from the

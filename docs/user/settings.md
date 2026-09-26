@@ -6,10 +6,11 @@ this when you want to see what a directory remembers, change it, or have it forg
 What it remembers:
 
 - the **flow** that was last run there (a flow is a directory of Python);
-- for **each** flow that workspace has run: what each of its **agents** was running (an agent
-  is a CLI the flow runs), where its turns landed, which [account](/user/providers) it ran as
-  and [what it may do](/user/permissions);
-- how the flow itself was [set up](/reference/tui#setting-a-flow-up);
+- for **each** flow that workspace has run: what each of its **agent roles** was running (an
+  agent is a CLI the flow runs) and which [account](/user/providers) it ran as, and where each
+  of its **environment roles** was;
+- how the flow itself was [set up](/reference/tui#setting-a-flow-up), and what a run of it may
+  spend;
 - whether the programs a run here starts are [profiled](#whether-a-run-here-is-profiled) as
   well as traced.
 
@@ -94,22 +95,22 @@ What is sampled, what that costs while the flow runs, and what a trace then make
 ## Changing what it opens on
 
 It is changed where it was set in the first place. [`/flow`](/reference/tui#choosing-a-flow)
-chooses the flow; opening that flow says what each of its agents runs, where its turns land
-and which account it runs as; and a flow with
-[settings of its own](/reference/tui#setting-a-flow-up) asks them as it is chosen. Saving that
+chooses the flow; opening that flow says what each of its agent roles runs and which account
+it runs as, where each of its environment roles is, and what a run of it may spend; and a flow
+with [params of its own](/reference/tui#setting-a-flow-up) asks them as it is chosen. Saving that
 menu is what gets written down, so the next `hmz` in this directory opens on exactly what you
 left — and opening is all it does. The interface comes up ready and the first thing you say is
 still what starts it.
 
 Saving is also where it is all checked, before any of it lands: the flow itself is loaded,
-every agent is validated, and a flow that will not take some combination of its own settings
-says so in its own words. What is wrong is a menu to correct rather than a run that falls over
+every role is checked against what the flow declares, and a flow that will not take some
+combination of its own params says so in its own words. What is wrong is a menu to correct rather than a run that falls over
 half an hour in.
 
 There is no line that answers any of this instead. What a project is set up to run is a thing
-about the project, which is why it is remembered rather than typed again every morning; a setup
-file for a flow that takes settings is [`hmz exec -c <setup.yaml>`](/reference/cli#hmz-exec),
-which runs the flow rather than opening on it.
+about the project, which is why it is remembered rather than typed again every morning; the
+same answers on a line are [`hmz exec`](/reference/cli#hmz-exec)'s `-a`, `-e`, `-p` and `-b`,
+which run the flow rather than opening on it.
 
 `hmz exec` is set up from none of this. What it runs is what the line names, so an unattended
 run inherits nothing of what this project was last set up with, which is the point of it. It
@@ -119,9 +120,9 @@ reads two things from outside the line:
   the workspace's rather than the run's;
 - whether [reporting](/user/reporting) was answered yes.
 
-A flow that says it [can be picked up](/user/resuming) is handed what the last run of it here
-left behind — the run's own doing rather than a setting, so an unattended run of one is the
-next stretch rather than the same stretch again.
+With `--resume`, a flow that says it [can be picked up](/user/resuming) is handed what the last
+run of it here left behind — the run's own doing rather than a setting, so an unattended run of
+one is the next stretch rather than the same stretch again.
 
 ## The first time
 

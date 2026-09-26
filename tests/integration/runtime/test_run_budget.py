@@ -1,10 +1,11 @@
-"""A run of a flow that never stops on its own, stopped by the allowance it was given.
+"""A run of a flow that never stops on its own, stopped by the budget it was given.
 
 End to end and out of process: `hmz exec` on a flow whose loop has no exit of its own, under
-a stand-in CLI, with a budget in the file `-c` names. What is proved is the whole of what the
-allowance is for -- that the process exits rather than looping for a week, that the epic says
-the run was stopped rather than done, and that each of the three dimensions does it on its
-own. A unit test can prove the reckoning; only this can prove the loop actually ends.
+a stand-in CLI, with the budget `-b` says. What is proved is the whole of what a budget is for
+-- that the process exits rather than looping for a week, that the epic says the run was
+stopped rather than done, and that each of the three dimensions does it on its own. The
+engine's own tests prove the reckoning; only this can prove the loop actually ends. And a run
+given no budget at all is not started: `-b` is required, so there is no run nothing will stop.
 """
 
 from __future__ import annotations
@@ -42,16 +43,25 @@ time.sleep({PAUSE})
 #: A flow whose loop has no way out at all. Every exit it could have had is deliberately
 #: absent, so that anything which ends this run is the run's allowance and nothing else.
 FOREVER = """
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowParams, LocalEnv, flow
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
+class Agents(AgentCollection):
+    worker: Agent
+
+
+class Envs(EnvCollection):
+    here: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def forever(task, *, agents, envs, params, ctx):
+    session = await agents["worker"].spawn(env=envs["here"])
     at = 0
     while True:
         at += 1
-        print(f"round {at}: {agents[0](task)}")
+        said = await agents["worker"].run(task, session=session)
+        print(f"round {at}: {said}", flush=True)
 """
 
 
@@ -102,12 +112,12 @@ def _ran(
     model: str = "m",
     timeout: float = 120.0,
 ) -> subprocess.CompletedProcess[str]:
-    """One `hmz exec` of the endless flow, under the budget written in a file.
+    """One `hmz exec` of the endless flow, under the budget `-b` says.
 
     Args:
-      tmp_path: Where the flow and the file go.
+      tmp_path: Where the flow goes.
       said: The environment, out of the `stand_in` fixture.
-      budget: What the file `-c` names says about what the run may spend.
+      budget: What `-b` says the run may spend, or "" for no `-b` at all.
       model: What the stand-in CLI is told to run -- `m`, which the list beside it prices,
         unless a test wants one nobody prices.
       timeout: How long to give it before it is killed, for a run that never ends.
@@ -115,7 +125,6 @@ def _ran(
     Returns:
       What the process did.
     """
-    (tmp_path / "b.yaml").write_text(budget, encoding="utf-8")
     return subprocess.run(
         [
             sys.executable,
@@ -125,9 +134,8 @@ def _ran(
             "-f",
             str(tmp_path / "flows" / "forever"),
             "-a",
-            f"opencode/{model}:high",
-            "-c",
-            str(tmp_path / "b.yaml"),
+            f"worker=opencode/{model}:high",
+            *(["-b", budget] if budget else []),
             "go",
         ],
         capture_output=True,
@@ -157,16 +165,15 @@ def _how(said: dict[str, str]) -> list[str]:
 @pytest.mark.parametrize(
     ("budget", "why"),
     [
-        # An hour a hundredth of a second long, which a loop of twenty-millisecond rounds
-        # reaches in the first of them.
-        ("budget:\n  hours: 0.000003\n", "h spent"),
-        # Two rounds' worth of output tokens, spelled in the millions this is counted in.
-        (f"budget:\n  tokens: {2 * EACH / 1_000_000}\n", "output tokens spent"),
+        # A twentieth of a second, which a loop of fifty-millisecond rounds reaches at once.
+        ("duration=0.05", "duration"),
+        # Two rounds' worth of output tokens.
+        (f"output_tokens={2 * EACH}", "output tokens"),
         # And two rounds' worth of money, at the five dollars a million the list above says.
-        (f"budget:\n  dollars: {2 * EACH * 5 / 1_000_000}\n", "$0.04 spent"),
+        (f"cost={2 * EACH * 5 / 1_000_000}", "cost"),
     ],
 )
-def test_a_loop_with_no_exit_of_its_own_is_stopped_by_its_allowance(
+def test_a_loop_with_no_exit_of_its_own_is_stopped_by_its_budget(
     tmp_path: Path, stand_in: dict[str, str], budget: str, why: str
 ) -> None:
     """The whole of what this is for: a flow that would otherwise run until somebody killed it.
@@ -176,27 +183,24 @@ def test_a_loop_with_no_exit_of_its_own_is_stopped_by_its_allowance(
     """
     ran = _ran(tmp_path, stand_in, budget)
 
-    assert why in ran.stderr + ran.stdout, ran.stderr
+    assert ran.returncode == 0, ran.stderr
+    assert "hmz exec: stopped --" in ran.stderr
+    assert why in ran.stderr, ran.stderr
     # And the run is written down as stopped rather than as having finished what it set out
     # to do, because a run that ran out of money did not do what it was asked.
     assert _how(stand_in) == ["stopped"]
 
 
-@pytest.mark.timeout(300)
-def test_a_run_nothing_will_stop_says_so_and_runs_anyway(
+@pytest.mark.timeout(120)
+def test_a_run_given_no_budget_is_not_started(
     tmp_path: Path, stand_in: dict[str, str]
 ) -> None:
-    """A command line has nobody to ask, and refusing would break every unattended flow.
+    """A line with no `-b` is a line to correct, before any agent has taken a turn."""
+    ran = _ran(tmp_path, stand_in, "")
 
-    So it says it plainly on the stream that is not the answer, and goes. The run here has no
-    exit at all, so it is killed rather than waited on -- which is the point being made.
-    """
-    with pytest.raises(subprocess.TimeoutExpired) as went_on:
-        _ran(tmp_path, stand_in, "{}\n", timeout=10.0)
-
-    said = (went_on.value.stderr or b"").decode(errors="replace")
-
-    assert "nothing will stop this run" in said
+    assert ran.returncode == 2
+    assert "is given a budget" in ran.stderr
+    assert _how(stand_in) == []  # nothing ran at all
 
 
 @pytest.mark.timeout(300)
@@ -205,35 +209,28 @@ def test_a_cap_nothing_can_price_is_said_and_the_run_goes_on_anyway(
 ) -> None:
     """Fifty dollars on a model nobody lists, which is the run a benchmark actually made.
 
-    Bounded in the file and unbounded on the machine: nothing here can read the money, so
-    nothing here can stop the run. A command line has nobody to ask, so it says both things
-    -- which cap cannot be read, and that this leaves nothing holding the run -- and goes.
+    Bounded on the line and unbounded on the machine: nothing here can price the money, so
+    the cap cannot stop the run. A command line has nobody to ask, so it says so -- and goes.
     That it goes is the other half of the claim: a cell in a container must not sit waiting
     on a question, so the rounds have to be on stdout by the time it is killed.
     """
     with pytest.raises(subprocess.TimeoutExpired) as went_on:
-        _ran(
-            tmp_path,
-            stand_in,
-            "budget:\n  dollars: 50\n",
-            model="nobody-lists-this",
-            timeout=10.0,
-        )
+        _ran(tmp_path, stand_in, "cost=50", model="nobody-lists-this", timeout=10.0)
 
     said = (went_on.value.stderr or b"").decode(errors="replace")
 
-    assert "nothing here can read dollars" in said
-    assert "nothing will stop this run" in said
+    assert "nobody lists a price for nobody-lists-this" in said
     assert "round 1" in (went_on.value.stdout or b"").decode(errors="replace")
 
 
 @pytest.mark.timeout(120)
-def test_a_budget_written_as_one_number_stops_the_line_before_anything_runs(
-    tmp_path: Path, stand_in: dict[str, str]
+@pytest.mark.parametrize("budget", ["25", "cost=-1", "tokens=5", "duration=soon"])
+def test_a_budget_that_cannot_be_read_stops_the_line_before_anything_runs(
+    tmp_path: Path, stand_in: dict[str, str], budget: str
 ) -> None:
-    """Which is what every flowverse loop's settings file says today, meaning millions."""
-    ran = _ran(tmp_path, stand_in, "budget: 25\n")
+    """A bare number says nothing about which of the three it meant; the rest are typos."""
+    ran = _ran(tmp_path, stand_in, budget)
 
-    assert ran.returncode != 0
-    assert "rather than one number" in ran.stderr
+    assert ran.returncode == 2
+    assert "-b" in ran.stderr
     assert _how(stand_in) == []  # nothing ran at all

@@ -484,6 +484,20 @@ class SessionBase(ABC):
     #: cannot otherwise tell that turn from one that has wedged.
     narrates: ClassVar[bool] = False
 
+    #: Whether a fork of this backend's conversation may be opened in another directory than
+    #: the one the conversation is in. Only where the CLI is told where the child works as it
+    #: cuts it -- a thread forked with a `cwd` of its own, a `fork --cwd` -- or where a store
+    #: kept per directory can be carried across first, which :meth:`_carry` is for. False for
+    #: every backend that has not been checked to: a fork its CLI looks for in the wrong
+    #: directory is a first turn that fails saying the conversation does not exist.
+    forks_elsewhere: ClassVar[bool] = False
+
+    #: Whether :meth:`cut` puts down what carries a turn, for a backend an interrupt does not
+    #: reach while a turn is under way: one whose turns an app server or a daemon holds for
+    #: every session of the agent, and one whose runtime holds them where nothing reaches in.
+    #: A goal on those is no turn at all, and is reached the same way.
+    cuts_transport: ClassVar[bool] = False
+
     def __init__(
         self, agent: AgentBase, cwd: str | os.PathLike[str] | None = None
     ) -> None:
@@ -2344,7 +2358,12 @@ class SessionBase(ABC):
         profile = named(self._agent.backend)
         return profile is not None and profile.forks
 
-    def fork(self) -> SessionBase:
+    def fork(
+        self,
+        *,
+        into: AgentBase | None = None,
+        cwd: str | os.PathLike[str] | None = None,
+    ) -> SessionBase:
         """A second conversation carrying this one's history, and its own from here on.
 
         Which is what a conversation that has got somewhere is worth: a flow that has spent
@@ -2372,15 +2391,30 @@ class SessionBase(ABC):
         after another turn has been sent here would branch from somewhere else, which is not
         what was asked for, and is refused rather than done quietly.
 
+        The child may belong to another agent of the same backend and account -- one set up
+        differently, at another rung or carrying other skills -- and may work in another
+        directory, where :attr:`forks_elsewhere` says the backend can be told so. Both are
+        what a caller holding an agent per conversation needs to branch one: the history is
+        the account's, so any agent signed in as it can carry it on.
+
+        Args:
+          into: The agent the child is a conversation of, or None for this one's. It must be
+            of this backend, on the account this conversation is kept under, and working on
+            the same machine.
+          cwd: Where the child works, or None for where this conversation does.
+
         Returns:
           The new session, unopened with the backend: it is the fork, and the fork happens
           where its first turn does. Which is what makes two forks of one conversation cost
           nothing until they are used.
 
         Raises:
-          NotImplementedError: If this backend has no fork to reach for. A flow handed back a
-            second handle on the one conversation would be two loops writing into one, so it
-            is refused where it is asked -- and :attr:`forks` is how a flow asks first.
+          NotImplementedError: If this backend has no fork to reach for, or none that can be
+            opened in another directory. A flow handed back a second handle on the one
+            conversation would be two loops writing into one, so it is refused where it is
+            asked -- and :attr:`forks` is how a flow asks first.
+          ValueError: If `into` is of another backend, on another account or on another
+            machine, none of which can read this conversation where it is kept.
           RuntimeError: If no turn has landed here yet, so there is no conversation to carry:
             a session that has got nowhere is one to open rather than one to fork.
         """
@@ -2389,8 +2423,28 @@ class SessionBase(ABC):
                 f"{self._agent.backend} has no way of carrying a conversation "
                 "into a second one"
             )
+        agent = self._agent if into is None else into
+        if agent is not self._agent and (
+            type(agent) is not type(self._agent)
+            or agent.backend != self._agent.backend
+            or agent.config.provider != self._agent.config.provider
+            or agent.config.machine != self._agent.config.machine
+        ):
+            raise ValueError(
+                f"{self._agent.backend}: a conversation is carried on only by an agent of "
+                "the same backend, signed in as the same account, on the same machine"
+            )
+        where = self._cwd
+        elsewhere = cwd is not None and os.path.abspath(cwd) != self.cwd  # noqa: PTH100
+        if elsewhere and not type(self).forks_elsewhere:
+            raise NotImplementedError(
+                f"{self._agent.backend} cannot carry a conversation into another directory"
+            )
         seed = self.id  # raises while nothing has landed, which is nothing to carry
-        made = self._agent._opens_at(self._cwd)
+        if elsewhere and cwd is not None:
+            where = os.fspath(cwd)
+            self._carry(where)
+        made = agent._opens_at(where)
         made._forked_from = seed
         # Where this conversation had got to when the fork was asked for, and a weak hold on
         # the conversation itself: the child checks both as it opens, so that a fork taken
@@ -2408,6 +2462,38 @@ class SessionBase(ABC):
         if self._tools:
             made.offers(self._tools)
         return made
+
+    def _carry(self, cwd: str) -> None:
+        """Puts this conversation where a fork of it opened in another directory will look.
+
+        Nothing by default: a backend whose CLI is told where the child works as it cuts it
+        finds the conversation wherever it is kept. One that keeps its conversations per
+        directory says so here, by copying this one across before the child's first turn.
+
+        Args:
+          cwd: The directory the child is to work in.
+        """
+        del cwd
+
+    def cut(self, *, why: str) -> None:
+        """Cuts the turn under way off, whatever is holding it, for a caller holding it alone.
+
+        :meth:`interrupt`, and then -- on a backend whose turns are held somewhere every
+        session of the agent shares, an app server or a daemon, where an interrupt is heard
+        only at the next answer -- that transport put down, which is what ends the turn now.
+        It also reaches a goal, which such a backend runs outside a turn of its own. The
+        conversation is not ended by it: the next turn starts the transport again and resumes
+        this conversation by its id, as it does after a watchdog.
+
+        For a caller that holds the agent for this one conversation. On one holding several,
+        putting the transport down ends the turns of all of them.
+
+        Args:
+          why: What to say it was cut off for.
+        """
+        self.interrupt(why=why)
+        if type(self).cuts_transport:
+            self._lets_go()
 
     def _at_the_boundary(self) -> None:
         """Refuses a fork whose conversation has moved on since it was asked for.

@@ -10,7 +10,7 @@ src/hmz/
 ├── __init__.py       home() — where humanize keeps what outlives one run
 ├── __main__.py       python -m hmz
 ├── coganchor/        everything humanize knows about driving a coding agent CLI
-├── flows/            the whole of what a flow imports, and nothing else
+├── flows/            the whole of what a flow imports, and nothing else: types
 ├── runtime/          what a run is: driving one, writing it down, reading it back —
 │                     flowing/, which is everything humanize does to a flow, and
 │                     doing/, which is the whole of that as one object
@@ -36,14 +36,14 @@ for the anchor inside it, a program that ships to a target and could be lifted o
 | `coganchor/backends.py` | Names, aliases, efforts, home directories, log globs, credential paths, ways in and skill directories for all twelve backends. Facts, not code — standard library only, and no model id anywhere in it. | `PROFILES`, `named()`, `profiles()`, `read()`, `remember()` |
 | `coganchor/providers/` | Which account an agent runs as, kept apart from which CLI it is: what one is, where its state lives, and the interception a turn is run under. | `Provider`, `add`, `remove`, `find`, `providers`, `chain`, `points`, `ready`, `filled`, `alone`, `copies`, `serves`, `ways`, `where`, `environ`, `env_of`, `ENV`, `LOCAL` |
 | `coganchor/models.py` | What each backend runs, asked of that backend the way it offers being asked, and kept per account. Nothing here is a list: a CLI ships models without asking anybody. | `ask`, `offered`, `asked`, `where` |
-| `coganchor/agents/` | The drivers: one per backend, plus the vocabulary a turn is described in (`Event`, `Question`, `Moment`). `AgentBase` and `SessionBase` answer to the interface `flows/` declares, structurally — this layer never names a flow. | everything in `__init__` |
+| `coganchor/agents/` | The drivers: one per backend, plus the vocabulary a turn is described in (`Event`, `Question`, `Moment`). This layer never names a flow; the flow runtime's harness drivers are written against it. | everything in `__init__` |
 | `coganchor/machines/` | The setting that says which machine, and the machine it brings up. | `MachineConfig`, `MachineBase`, `AnchoredConfig`, `DockerConfig` |
 | `coganchor/` (the anchor in it) | Syscall interposition: a seccomp-filtered ptrace supervisor here, a replaying server there, a wire protocol between. The half that ships to a target — and the only half that does. Where the supervisor itself runs is `elsewhere.py`, and the introduction two machines that cannot dial each other need is `rendezvous.py`; both ship to a target too, since under those arrangements the target is the one running them. | `AnchorConfig`, `connect`, `check` |
-| `flows/` | The whole of what a flow imports and nothing besides: the interfaces it drives, the mark, the marks an atlas is written with, and the vocabulary a turn is described in handed through from the layer it is written in. `builtin/` beside it is the one flow humanize keeps in the package. | `Agent`, `Session`, `Person`, `flow`, `atlas`, `mind`, `logic`, `sub`, `load` |
-| `runtime/flowing/` | Everything humanize does to a flow, and none of it a thing a flow names: where flows come from, finding one by name, running its file to read it, what it says it drives, the two readings that refuse one before it can cost anything, compiling an atlas and walking the prophecy, and fetching the skills it named. | `found`, `find`, `held`, `fork`, `flowverses`, `drives`, `wanted`, `load`, `checked`, `proved`, `prophesied`, `walking`, `brought` |
+| `flows/` | The flow API, and the whole of what a flow imports: **types**. Protocols for the agents, environments, sessions and context a flow is handed, the mixins a role declares what it needs with, the hook params and results, the enums, `Permission`, `Budget`, `Usage` and `FlowParams`, the collections a flow declares its roles in, and the exception tree. Three things in it run — `flow`, `load` and `Outworlder.new` — and each hands its call to `runtime/flowing` from inside the call. | `Agent`, `Env`, `AgentCollection`, `EnvCollection`, `FlowParams`, `FlowContext`, the mixins, `flow`, `load`, `Outworlder` |
+| `runtime/flowing/` | Everything humanize does to a flow, and none of it a thing a flow names. **The engine**: defining a flow, calling one, the views a flow is handed, budgets, the resume journal, refs and the module cache. **The drivers** the engine runs over, behind one SPI: an agent driver per harness over `coganchor`, and an environment driver for this machine and for ssh hosts. The parsers `-a`, `-e`, `-p` and `-b` are read with, the in-memory fake kit a flow is tested on, and where flows come from, finding one by name and the skills a flow brings. | `run_flow`, `load_flow`, `define_flow`, `running`, `open_agent`, `open_env`, `local_env`, `parse_agents`, `parse_envs`, `parse_params`, `parse_budget`, `run_fake`, `found`, `find`, `fork`, `flowverses`, `brought` |
 | `coganchor/fallbacks.py` | The layer between an agent and its accounts: where a turn goes when the place taking it cannot take it at all, and how many times over it is taken again first. A step is written between two places — `CLI[@ACCOUNT]/MODEL` — rather than on the account, which `providers` already answers for. Names `backends` and nothing else. | `Falls`, `falls`, `points`, `retrying`, `tried`, `clear`, `chain`, `spec`, `reads`, `waits`, `POLICIES` |
 | `runtime/epic.py` | One run of one flow as a directory: the journal, the links to each session's log, and what a flow that can be picked up left behind. Written by `runner`, read by `tracing`, `cli` and `tui`. | `Epic`, `epics`, `read`, `opened`, `state`, `resumed` |
-| `runtime/runner.py` | Handing a flow the agents it declared, naming them, and running it under an epic. Also reads the `hmz exec` line, which the interface starts a flow from too. What the flow says it drives is `flows/`'s to answer. | `Runner`, `flow_and_agents`, `read_agent`, `set_up_from` |
+| `runtime/runner.py` | Handing a flow the drivers its roles are filled with, and running it under an epic. Also reads the `hmz exec` line, which the interface starts a flow from too. | `Runner`, `Recorder`, `Refused`, `Line`, `read_line` |
 | `runtime/tracing/` | Reading the backends' logs back — and, for a profiled run, sampling the programs its agents start — and rendering both as one Chrome trace. | `collect`, `profile.Profiler` |
 | `runtime/doing/` | humanize as one object, and the front door `hmz.runtime` hands through. A workspace, what is remembered about it, the flows there are, the agents and accounts they run as, the runs already made and the run being made now. It composes the layers and restates none of them, and it reaches each of them from inside the call that needs it — which is what lets a caller name it without paying for the tracer. | `Hmz`, `Run` |
 | `tui/` | The terminal interface. It reaches the runtime through the daemon holding the run it is drawing. | `Humanize` |
@@ -81,27 +81,40 @@ runtime/
 └── tracing/      collector.py session.py chrome.py profile.py, and readers/ per format
 
 flows/
-├── agent.py      Agent, Session, Person — what a flow drives, as interfaces and nothing else
-├── atlas.py      atlas, mind, logic, sub — the marks an atlas declares its graph with
-├── __init__.py   the mark, and the one import a flow writes
-└── builtin/      chat, the one flow humanize keeps in the package
+├── agents.py     Agent, Session, Outworlder, the agent mixins, a protocol per harness,
+│                 HarnessKind, Permission, Budget, Usage, AgentCollection
+├── envs.py       Env, LocalEnv, the environment mixins, EnvBackendKind, EnvCollection
+├── hooks.py      HookKind, and the params and result of every moment
+├── defining.py   FlowParams, FlowState, FlowContext, Flow, and flow() and load()
+├── errors.py     FlowException, and everything under it
+└── __init__.py   the one import a flow writes
 
 runtime/flowing/
-├── checking.py     the reading that runs nothing, over every file the flow holds
-├── driving.py      what a flow says it drives, read off its own entry point, and load()
-├── finding.py      a flow by name, and what running its file leaves behind
-├── prophecy.py     what an atlas compiles to, and the file a flowverse ships it in
-├── prophesying.py  the compiling: a body held to the narrower Python and read into a graph
-├── proving.py      the second reading: the flow driven by stubs against a clock
-├── skills.py       the skills a flow brings, its own and the ones it named
-├── stepping.py     walking a prophecy, and picking a stopped run up where it left off
-└── verses.py       where flows come from when they come from somewhere else
+├── spi.py            what a driver and the engine promise each other: the capability table,
+│                     Placement, TurnRequest, Limits, HookTable, HookBridge, the driver protocols
+├── specs.py          what -a, -e, -p and -b say
+├── engine.py         FlowImpl, Call, run_flow, define_flow, load_flow: calling a flow, budgets
+├── declaring.py      what a flow declares, resolved once per type into roles and grants
+├── viewing.py        the views a flow is handed, each granted exactly what its role declared
+├── journaling.py     the journal a resumable run keeps, and the state a flow reads back
+├── loading.py        refs, bringing a flow's module in, and fetching another flowverse
+├── harnesses.py      an agent driver per harness, over coganchor
+├── harnessing.py     what a Permission and a hook's answer come to on each CLI
+├── environments.py   the environment drivers: open_env, local_env
+├── environing*.py    the driver both backends share, and this machine and ssh under it
+├── fakes.py          in-memory drivers for every seam, to test a flow on
+├── finding.py        a flow by name, nearest first
+├── skills.py         the skills a flow brings, its own and the ones it named
+└── verses.py         where flows come from when they come from somewhere else
 ```
 
 The line between those two is the point of them. A flow is somebody else's repository, so
-`flows/` is held to what a flow actually writes — the interfaces, the marks, the vocabulary a
-turn is described in — and everything humanize does *to* a flow lives in `runtime/flowing/`,
-where it can be renamed, split or rewritten without a flow anywhere noticing.
+`flows/` is held to what a flow actually writes — protocols a type checker reads, and the few
+values a flow constructs or catches — and everything humanize does *to* a flow lives in
+`runtime/flowing/`, where it can be renamed, split or rewritten without a flow anywhere
+noticing. What a flow is handed at run time is the runtime's own object, shaped however is
+fastest, and answers to the protocols structurally: a view never derives from the class the flow
+declared its role with.
 
 ## The dependency graph
 
@@ -130,11 +143,11 @@ where it can be renamed, split or rewritten without a flow anywhere noticing.
 <HmzStack />
 
 It is a DAG with one exception, and the exception is checked rather than trusted. `flowing`
-names `flows`, because reading a flow means reading the mark and the interfaces it declared its
-agents with; `flows` names `flowing` back for one thing only — `load`, which is a flow running
-another flow, and so a run — and it names it for a type checker and never at import. Writing
-`@flow` therefore costs nothing of the runtime, and `hmz exec` reading a line that names no
-flow costs nothing of it either. Everything else points one way. The diagram above is the same
+names `flows`, because running a flow means reading what it declared and raising what it
+catches; `flows` names `flowing` back for three things only — `flow`, `load` and
+`Outworlder.new`, each of which is a flow asking the runtime for something — and imports it
+inside those calls and never at import. Importing `hmz.flows` therefore costs pydantic and
+nothing of humanize's own. Everything else points one way. The diagram above is the same
 table drawn: hover a layer and it lights up exactly what that layer is allowed to name.
 
 The column in the middle is the one thing worth reading twice. `cli` names the runtime by its
@@ -253,10 +266,10 @@ is a file the wheel ships: a SPEC is for whoever changes humanize, not for whoev
 | `specs/coganchor/machines.md` | What a machine is |
 | `specs/coganchor/providers.md` | Which account an agent runs as, and how a turn is run under it |
 | `specs/coganchor/serve.md` | The half that ships to a target |
-| `specs/flows.md` | The whole of what a flow imports: what it drives, the mark, the atlas marks |
+| `specs/flows.md` | The flow API: what a flow imports, declares and is handed |
 | `specs/runtime/SPEC.md` | What a run is, and what humanize remembers of one |
 | `specs/runtime/doing.md` | humanize as one object: a workspace and everything doable in it |
-| `specs/runtime/flowing.md` | What humanize does to a flow: finding, reading, checking, driving, compiling |
+| `specs/runtime/flowing.md` | What humanize does to a flow: the engine, the drivers, refs, resuming |
 | `specs/runtime/tracing.md` | The collect API and what a trace must hold |
 | `specs/daemon.md` | Holding a run apart from a terminal, and the terminals that read one |
 | `specs/sdk.md` | How a tool that is not humanize reaches humanize |
@@ -301,6 +314,11 @@ command including the one the bundled target half runs, so an import at the top 
 other command pays. Write through `cli/output.py` rather than through `print` where the
 command has a `--json` of its own: `Out.row` is one call for the line a person reads and the
 object a program reads, and holding one open is what keeps a stray print out of the stream.
+
+**A harness.** Once it is a backend, an agent driver for it in
+`runtime/flowing/harnesses.py`, a protocol for it in `flows/agents.py` carrying exactly the
+mixins that driver serves, a `HarnessKind` and a row of `HARNESS_AGENTS` — the one table the
+capability table is read off. `tests/flows/contracts.py` holds its driver to the SPI.
 
 **A flow.** Just a directory: one in a [flowverse](/reference/flows#flowverses)'s own `flows/`
 for one it offers, one in `.humanize/flows/` for one of your own. humanize's own go in

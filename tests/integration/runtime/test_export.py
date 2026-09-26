@@ -11,22 +11,23 @@ bundle now is `/epics` in the interface, on the run under its cursor, and this i
 under that -- held to what a bundle holds and what it must never carry rather than to how
 anything asked for one.
 
-Every run here is driven by the shell-backed stand-in, so the whole file is a real process, a
-temporary home and a tarball: nothing CI has not got. The one check that needs more -- that a
-run taken as a named account carries none of that account's key, which means a supervised turn
-and so a kernel that will hand over a tracee -- is in `tests/system/runtime/test_export.py`.
+Every run here is driven by a stand-in CLI -- `claude`, which keeps its conversations where
+Claude Code does, and `opencode`, which keeps them to itself -- so the whole file is a real
+process, a temporary home and a tarball: nothing CI has not got. The one check that needs
+more -- that a run taken as a named account carries none of that account's key, which means a
+supervised turn and so a kernel that will hand over a tracee -- is in
+`tests/system/runtime/test_export.py`.
 """
 
 from __future__ import annotations
 
 import json
 import tarfile
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from hmz.coganchor import providers
-from hmz.coganchor.agents import AgentConfig
 from hmz.runtime.epic import epics, sessions
 from hmz.runtime.exporting import (
     MANIFEST,
@@ -38,134 +39,140 @@ from hmz.runtime.exporting import (
     sized,
 )
 from hmz.runtime.runner import Runner
-from tests.recording import ONE, ClaudeAgent, claude_home, held, manifest
-from tests.stubs import ShellAgent, written
+from tests.flows import standins
+from tests.recording import AGENT, ONE, TASK, held, manifest, standing_in
+from tests.recording import logged as kept
+from tests.stubs import written
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-CONFIG = AgentConfig(model="m", effort="high")
-
-#: A flow that opens one session per agent, each naming itself as it lands.
+#: A flow that opens one session per agent.
 FLOW = """
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowParams, LocalEnv, flow
 
 
-@flow
-def run(agents: tuple[AgentBase, AgentBase], task: str) -> None:
-    for at, agent in enumerate(agents):
-        agent.new()(f"echo session-{at}")
+class Agents(AgentCollection):
+    actor: Agent
+    reviewer: Agent
+
+
+class Envs(EnvCollection):
+    here: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def flow_(task, *, agents, envs, params, ctx):
+    for role in ("actor", "reviewer"):
+        session = await agents[role].spawn(env=envs["here"])
+        await agents[role].run(task, session=session)
 """
 
-#: A flow that calls another, so that a bundle has a record beside the run's own to carry.
+#: A flow that calls another, so that a bundle has a record beside the run's own to carry;
+#: and calls it twice, so that two calls of one flow are two records and the manifest has to
+#: say which of them a session belongs to.
 CALLS = """
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow, load
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowParams, LocalEnv, flow, load
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    load("under")(agents, task)
+class Agents(AgentCollection):
+    builder: Agent
+
+
+class Envs(EnvCollection):
+    here: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def flow_(task, *, agents, envs, params, ctx):
+    for said in TASKS:
+        await load("under")(said, agents=agents, envs=envs, params=FlowParams())
 """
 
-#: The one it calls, which opens a session of its own -- one run, two records.
-UNDER = """
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+#: The one it calls, which opens a session of its own -- one run, more than one record.
+UNDER = ONE.replace("async def one(", "async def under(")
 
-
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    agents[0].new()("echo the-session")
-"""
-
-#: One that calls the same flow twice, so that two calls of one flow are two records and the
-#: manifest has to say which of them a session belongs to.
-TWICE = """
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow, load
-
-
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    load("each")(agents, "once")
-    load("each")(agents, "again")
-"""
-
-#: The one it calls twice, whose session is named after the call so the two are two.
-EACH = """
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
-
-
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    agents[0].new()(f"echo {task}")
-"""
-
-#: A flow that leaves something behind, so that `state.json` is there to be carried.
+#: A flow that keeps something, so that its journal is there to be carried.
 KEEPS = """
-from typing import Any
-
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowParams, LocalEnv, flow
 
 
-@flow(resumable=True)
-def run(agents: tuple[AgentBase], task: str, state: dict[str, Any]) -> None:
-    state["rounds"] = 3
-    agents[0].new()("echo the-session")
+class Agents(AgentCollection):
+    builder: Agent
+
+
+class Envs(EnvCollection):
+    here: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams, resumable=True)
+async def flow_(task, *, agents, envs, params, ctx):
+    ctx.state["rounds"] = 3
+    session = await agents["builder"].spawn(env=envs["here"])
+    return await agents["builder"].run(task, session=session)
 """
 
 
-class OpencodeAgent(ShellAgent):
-    """A stand-in for one that keeps its sessions to itself and logs nothing."""
+def _ran(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source: str = ONE,
+    task: str = TASK,
+    **agents: str,
+) -> Path:
+    """Runs one flow, written into the test's own directory, on the stand-ins; its epic."""
+    standing_in(tmp_path, monkeypatch)
+    standins.install(tmp_path / "bin", "opencode", standins.OPENCODE)
+    monkeypatch.chdir(tmp_path)
+    written(tmp_path, "flow", source)
+    Runner(
+        tmp_path / "flow", agents=agents or {"builder": AGENT}, budget={"cost": 5}
+    ).run(task)
+    (epic,) = epics()
+    return epic
+
+
+def _log(tmp_path: Path, epic: Path) -> Path:
+    """Where the stand-in kept the one conversation of a run."""
+    (one,) = sessions(epic)
+    return kept(tmp_path / "claude-home", tmp_path.resolve(), one.ident)
 
 
 def test_a_bundle_holds_every_record_the_run_wrote(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A flow that called another is two records, and one run is both of them."""
-    monkeypatch.chdir(tmp_path)
     written(tmp_path / ".humanize" / "flows", "under", UNDER)
-    written(tmp_path, "flow", CALLS)
-    claude_home(tmp_path, monkeypatch)
-
-    Runner(tmp_path / "flow", [ClaudeAgent(CONFIG, name="builder")]).run("go")
-    (epic,) = epics()
+    epic = _ran(tmp_path, monkeypatch, CALLS.replace("TASKS", f"[{TASK!r}]"))
 
     inside = held(bundle(epic, tmp_path / "out.tar.gz")[0])
     assert "epic.jsonl" in inside
-    assert [one for one in inside if one.startswith("epic.under_")], inside
+    assert [one for one in inside if one.startswith("epic.under-under_")], inside
     # And the manifest lists what went in, the run's own record first.
     said = json.loads(inside[MANIFEST])
     assert said["held"][0] == "epic.jsonl"
     assert said["held"][-1] == MANIFEST
     # And the run's own record reads back as the run: every line it wrote, not a summary.
-    assert (
-        '"event": "began"' in inside["epic.jsonl"]
-        or '"event":"began"' in (inside["epic.jsonl"])
-    )
+    assert '"event": "began"' in inside["epic.jsonl"]
 
 
 def test_the_manifest_says_the_call_tree_and_whose_each_session_was(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A flow called twice is two records and two conversations, and the flow name says one."""
-    monkeypatch.chdir(tmp_path)
-    written(tmp_path / ".humanize" / "flows", "each", EACH)
-    written(tmp_path, "flow", TWICE)
-    claude_home(tmp_path, monkeypatch)
-
-    Runner(tmp_path / "flow", [ClaudeAgent(CONFIG, name="builder")]).run("go")
-    (epic,) = epics()
+    written(tmp_path / ".humanize" / "flows", "under", UNDER)
+    epic = _ran(
+        tmp_path,
+        monkeypatch,
+        CALLS.replace(
+            "TASKS",
+            '["Reply with the single word: once", "Reply with the single word: again"]',
+        ),
+    )
 
     said = manifest(bundle(epic, tmp_path / "out.tar.gz")[0])
     # Two calls of one flow, each in a record of its own, each saying which called it.
-    assert [one["task"] for one in said["called"]] == ["once", "again"] or [
-        one["task"] for one in said["called"]
-    ] == ["again", "once"]
+    assert [one["flow"] for one in said["called"]] == ["under:under", "under:under"]
     assert {one["under"] for one in said["called"]} == {"epic.jsonl"}
     assert len({one["record"] for one in said["called"]}) == 2
     # And each session says which of the two it was opened in, not only which flow.
@@ -181,32 +188,24 @@ def test_a_session_log_comes_as_its_contents_and_not_as_a_link(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The whole point: a link into somebody's home is worth nothing on another machine."""
-    monkeypatch.chdir(tmp_path)
-    written(tmp_path, "flow", ONE)
-    claude_home(tmp_path, monkeypatch, '{"type":"user","text":"hello"}')
-
-    Runner(tmp_path / "flow", [ClaudeAgent(CONFIG, name="builder")]).run("go")
-    (epic,) = epics()
+    epic = _ran(tmp_path, monkeypatch, task="Reply with the single word: hello")
     (one,) = sessions(epic)
+    name = f"{one.ident}.jsonl"
 
     at = bundle(epic, tmp_path / "out.tar.gz")[0]
     with tarfile.open(at) as opened:
-        member = opened.getmember(f"{epic.name}/sessions/{one.name}/the-session.jsonl")
+        member = opened.getmember(f"{epic.name}/sessions/{one.name}/{name}")
         assert not member.issym()
         assert not member.islnk()
         assert member.isfile()
-    assert '"text":"hello"' in held(at)[f"sessions/{one.name}/the-session.jsonl"]
+    assert "single word: hello" in held(at)[f"sessions/{one.name}/{name}"]
 
 
 def test_a_backend_that_logs_nothing_says_so_rather_than_carrying_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A CLI that keeps its sessions in a database logs none, and an absence reads as loss."""
-    monkeypatch.chdir(tmp_path)
-    written(tmp_path, "flow", ONE)
-
-    Runner(tmp_path / "flow", [OpencodeAgent(CONFIG, name="builder")]).run("go")
-    (epic,) = epics()
+    epic = _ran(tmp_path, monkeypatch, builder="opencode/opencode/big-pickle:high")
 
     said = manifest(bundle(epic, tmp_path / "out.tar.gz")[0])
     (one,) = said["sessions"]
@@ -224,16 +223,8 @@ def test_what_the_run_says_it_ran_is_not_struck_out(
     A bundle with the model taken out of it because some other account had that name in a
     variable is a bundle saying nothing about what actually ran.
     """
-    monkeypatch.chdir(tmp_path)
-    written(tmp_path, "flow", ONE)
     providers.add("kimi", "elsewhere", "env", {"KIMI_MODEL_NAME": "fixture-model"})
-    claude_home(tmp_path, monkeypatch)
-    agent = ClaudeAgent(
-        AgentConfig(model="fixture-model", effort="high"), name="builder"
-    )
-
-    Runner(tmp_path / "flow", [agent]).run("go")
-    (epic,) = epics()
+    epic = _ran(tmp_path, monkeypatch, builder="claude/fixture-model:high")
 
     said = manifest(bundle(epic, tmp_path / "out.tar.gz")[0])
     assert said["agents"][0]["model"] == "fixture-model"
@@ -244,15 +235,13 @@ def test_the_manifest_is_scrubbed_like_everything_else(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """It holds the task, which is a line somebody typed and may hold anything."""
-    monkeypatch.chdir(tmp_path)
-    written(tmp_path, "flow", ONE)
     providers.add("claude", "work", "key", {"ANTHROPIC_AUTH_TOKEN": "hunter2-hunter2"})
-    claude_home(tmp_path, monkeypatch)
-
-    Runner(tmp_path / "flow", [ClaudeAgent(CONFIG, name="builder")]).run(
-        "push to https://bob:ghp_abcdefghijklmnopqrst@example.com with hunter2-hunter2"
+    epic = _ran(
+        tmp_path,
+        monkeypatch,
+        task="push to https://bob:ghp_abcdefghijklmnopqrst@example.com with "
+        "hunter2-hunter2",
     )
-    (epic,) = epics()
 
     at, handed = bundle(epic, tmp_path / "out.tar.gz")
     said = held(at)[MANIFEST]
@@ -261,17 +250,15 @@ def test_the_manifest_is_scrubbed_like_everything_else(
     assert "bob" not in said
     # And what comes back is what was written, not what was about to be.
     assert "hunter2" not in json.dumps(handed)
+    # Nor anywhere else in it: the session's own log said the task too.
+    assert not any("hunter2" in one for one in held(at).values())
 
 
 def test_where_a_bundle_lands_beside_two_of_them_at_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Two exports of one run must not be two gzip streams into one file."""
-    monkeypatch.chdir(tmp_path)
-    written(tmp_path, "flow", ONE)
-    claude_home(tmp_path, monkeypatch)
-    Runner(tmp_path / "flow", [ClaudeAgent(CONFIG, name="builder")]).run("go")
-    (epic,) = epics()
+    epic = _ran(tmp_path, monkeypatch)
 
     at = bundle(epic)[0]
     assert bundle(epic)[0] == at
@@ -287,11 +274,7 @@ def test_a_directory_to_fill_that_is_not_there_yet_is_still_a_directory(
 
     Answering it with the file would have the next run write over the last.
     """
-    monkeypatch.chdir(tmp_path)
-    written(tmp_path, "flow", ONE)
-    claude_home(tmp_path, monkeypatch)
-    Runner(tmp_path / "flow", [ClaudeAgent(CONFIG, name="builder")]).run("go")
-    (epic,) = epics()
+    epic = _ran(tmp_path, monkeypatch)
 
     at = bundle(epic, f"{tmp_path / 'bundles'}/")[0]
 
@@ -303,54 +286,46 @@ def test_the_manifest_says_which_run_on_what_and_by_whom(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Everything a reader needs to know what they are looking at, and nothing secret."""
-    monkeypatch.chdir(tmp_path)
-    written(tmp_path, "flow", FLOW)
-    claude_home(tmp_path, monkeypatch)
-
-    Runner(
-        tmp_path / "flow",
-        [ClaudeAgent(CONFIG, name="actor"), ClaudeAgent(CONFIG, name="reviewer")],
-    ).run("fix the thing")
-    (epic,) = epics()
+    epic = _ran(
+        tmp_path,
+        monkeypatch,
+        FLOW,
+        task="Reply with the single word: fixed",
+        actor=AGENT,
+        reviewer=AGENT,
+    )
 
     said = manifest(bundle(epic, tmp_path / "out.tar.gz")[0])
     assert said["epic"] == epic.name
-    assert said["run"]["task"] == "fix the thing"
+    assert said["run"]["task"] == "Reply with the single word: fixed"
     assert said["run"]["how"] == "done"
     assert said["workspace"]["at"] == str(tmp_path.resolve())
     assert [one["agent"] for one in said["agents"]] == ["actor", "reviewer"]
-    assert said["agents"][0]["runs"] == "claude/m:high"
+    assert said["agents"][0]["runs"] == "claude/claude-haiku-4-5:low"
     assert "claude" in said["backends"]
     assert MANIFEST in said["held"]
     assert said["humanize"]
     assert said["redacted"]
 
 
-def test_what_a_resumable_flow_left_behind_is_in_it(
+def test_what_a_resumable_flow_kept_is_in_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A run picked up again is picked up from that file, so a report of one needs it."""
-    monkeypatch.chdir(tmp_path)
-    written(tmp_path, "flow", KEEPS)
-    claude_home(tmp_path, monkeypatch)
-
-    Runner(tmp_path / "flow", [ClaudeAgent(CONFIG, name="builder")]).run("go")
-    (epic,) = epics()
+    """A run picked up again is picked up from its journal, so a report of one needs it."""
+    epic = _ran(tmp_path, monkeypatch, KEEPS)
 
     inside = held(bundle(epic, tmp_path / "out.tar.gz")[0])
-    assert json.loads(inside["state.json"])[str(tmp_path / "flow")] == {"rounds": 3}
+    kept_: list[dict[str, Any]] = [
+        json.loads(line) for line in inside["resume.jsonl"].splitlines()
+    ]
+    assert {"t": "set", "id": 1, "key": "rounds", "value": 3} in kept_
 
 
 def test_a_trace_gathered_of_the_run_goes_with_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A trace belongs with the run, and so belongs in the bundle of that run."""
-    monkeypatch.chdir(tmp_path)
-    written(tmp_path, "flow", ONE)
-    claude_home(tmp_path, monkeypatch)
-
-    Runner(tmp_path / "flow", [ClaudeAgent(CONFIG, name="builder")]).run("go")
-    (epic,) = epics()
+    epic = _ran(tmp_path, monkeypatch)
     (epic / "traces").mkdir()
     (epic / "traces" / "a.trace.json").write_text('{"traceEvents": []}', "utf-8")
 
@@ -362,12 +337,7 @@ def test_the_transcript_goes_in_as_it_was_written(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """What the interface hands over is the text, not the rows. There is none from a line."""
-    monkeypatch.chdir(tmp_path)
-    written(tmp_path, "flow", ONE)
-    claude_home(tmp_path, monkeypatch)
-
-    Runner(tmp_path / "flow", [ClaudeAgent(CONFIG, name="builder")]).run("go")
-    (epic,) = epics()
+    epic = _ran(tmp_path, monkeypatch)
 
     with_screen = held(
         bundle(epic, tmp_path / "a.tar.gz", transcript="a long line\n")[0]
@@ -380,12 +350,7 @@ def test_a_bundle_is_readable_by_whoever_made_it_and_nobody_else(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """What is in it is their prompts and their agents' output."""
-    monkeypatch.chdir(tmp_path)
-    written(tmp_path, "flow", ONE)
-    claude_home(tmp_path, monkeypatch)
-
-    Runner(tmp_path / "flow", [ClaudeAgent(CONFIG, name="builder")]).run("go")
-    (epic,) = epics()
+    epic = _ran(tmp_path, monkeypatch)
 
     assert bundle(epic)[0].stat().st_mode & 0o777 == 0o600
 
@@ -394,12 +359,7 @@ def test_a_bundle_carries_nothing_about_whoever_made_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A tar records its writer by default, and a login name is not a thing to hand over."""
-    monkeypatch.chdir(tmp_path)
-    written(tmp_path, "flow", ONE)
-    claude_home(tmp_path, monkeypatch)
-
-    Runner(tmp_path / "flow", [ClaudeAgent(CONFIG, name="builder")]).run("go")
-    (epic,) = epics()
+    epic = _ran(tmp_path, monkeypatch)
 
     with tarfile.open(bundle(epic, tmp_path / "out.tar.gz")[0]) as opened:
         assert {one.uname for one in opened.getmembers()} == {""}
@@ -408,12 +368,7 @@ def test_a_bundle_carries_nothing_about_whoever_made_it(
 
 def test_where_a_bundle_lands(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A file outright, a directory to fill, or `.humanize/` here -- it is a thing to send."""
-    monkeypatch.chdir(tmp_path)
-    written(tmp_path, "flow", ONE)
-    claude_home(tmp_path, monkeypatch)
-
-    Runner(tmp_path / "flow", [ClaudeAgent(CONFIG, name="builder")]).run("go")
-    (epic,) = epics()
+    epic = _ran(tmp_path, monkeypatch)
 
     # Where somebody is standing rather than in humanize's own home the way a trace of a
     # run goes, and named whole: it is a thing to attach to something.
@@ -434,13 +389,8 @@ def test_a_link_whose_log_has_gone_is_left_out_rather_than_carried_empty(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A log rolls over, a home is thrown away: a name with nothing behind it is not a log."""
-    monkeypatch.chdir(tmp_path)
-    written(tmp_path, "flow", ONE)
-    log = claude_home(tmp_path, monkeypatch)
-
-    Runner(tmp_path / "flow", [ClaudeAgent(CONFIG, name="builder")]).run("go")
-    (epic,) = epics()
-    log.unlink()
+    epic = _ran(tmp_path, monkeypatch)
+    _log(tmp_path, epic).unlink()
 
     said = manifest(bundle(epic, tmp_path / "out.tar.gz")[0])
     assert said["sessions"][0]["logs"] == []
@@ -451,15 +401,11 @@ def test_what_each_session_was_logged_to_is_read_through_the_links(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The files themselves, since what a bundle carries is what is behind each link."""
-    monkeypatch.chdir(tmp_path)
-    written(tmp_path, "flow", ONE)
-    log = claude_home(tmp_path, monkeypatch)
-
-    Runner(tmp_path / "flow", [ClaudeAgent(CONFIG, name="builder")]).run("go")
-    (epic,) = epics()
+    epic = _ran(tmp_path, monkeypatch)
     (one,) = sessions(epic)
+    log = _log(tmp_path, epic)
 
-    assert logged(epic) == {one.name: {"the-session.jsonl": log.resolve()}}
+    assert logged(epic) == {one.name: {log.name: log.resolve()}}
 
 
 @pytest.mark.parametrize(

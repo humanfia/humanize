@@ -91,14 +91,14 @@ Every run of a flow is one **epic**, which is a directory:
 ~/.humanize/epics/<workspace>/<datetime>-<hex>/
     epic.jsonl                      what happened, a line at a time
     epic.<flow>_<hex>.jsonl         the same, for one flow the run called
-    state.json                      what a flow that can be picked up again left behind
+    resume.jsonl                    what a flow that can be picked up did, for --resume
     profile.jsonl                   the programs it ran, for a run that was profiled
     sessions/<session>/…            a link per file the backend logged that session to
     traces/export.trace.json        the trace exporting the run gathers, replaced each time
     traces/<datetime>.trace.json    one gathered by hand afterwards, which keeps every one
 ```
 
-Not all of it every time: `state.json` is there for a flow that [can be picked
+Not all of it every time: `resume.jsonl` is there for a flow that [can be picked
 up](/reference/flows#a-flow-that-can-be-picked-up), `profile.jsonl` for a directory that asked
 to be [profiled](#profiling-a-run), `traces/` from the first time the run is exported, and a
 `epic.<flow>_<hex>.jsonl` for each flow the run [called](#what-a-called-flow-writes-down).
@@ -114,28 +114,30 @@ ls "$run"
 epic.jsonl  sessions  traces
 ```
 
-![ls of one run's directory: epic.jsonl, profile.jsonl, sessions and state.json, and no traces
+![ls of one run's directory: epic.jsonl, profile.jsonl and sessions, and no traces
 yet](/demo/run.png)
 
 `epic.jsonl` is JSON lines, appended and flushed as it goes. A run that died is a run whose
 epic still says what it got to:
 
 ```sh
-head -3 "$run"epic.jsonl
+cat "$run"epic.jsonl
 ```
 
 ```console
-{"event":"began","at":"...","flow":"rlar","task":"...","workspace":"...","resumable":false,"agents":[{"agent":"actor",...}]}
+{"event":"began","at":"...","flow":"rlar","task":"...","workspace":"...","resumable":false,"ref":"rlar:rlar","agents":[{"agent":"actor","backend":"claude","model":"claude-opus-5","effort":"high","provider":""},...],"envs":[],"params":{...},"budget":{...}}
 {"event":"opened","at":"...","agent":"actor","backend":"claude","provider":"local","session":"0a1b2c3d-...","name":"actor-claude@local-0a1b2c3d-...","where":"sessions/actor-claude@local-0a1b2c3d-..."}
+{"event":"usage","at":"...","cost":0.61,"output_tokens":1200,"seconds":74.0}
 {"event":"ended","at":"...","how":"done"}
 ```
 
 | `event` | Written | Carries |
 | --- | --- | --- |
-| `began` | when the flow starts | `flow`, `task`, `workspace`, whether the flow can be picked up again and which run this one was picked up from, and one entry per agent with its id, backend, model, effort, account, what it may do, whether it could use goals and whether it was the person at the prompt |
+| `began` | when the flow starts | `flow`, `task`, `workspace`, whether the flow can be picked up again (`resumable`), its canonical `ref`, which run this one was `picked_up` from where it was, one entry per agent role with its `agent`, `backend`, `model`, `effort` and `provider`, the `envs` as `-e` spells each, the `params` and the `budget` |
 | `opened` | each time an agent opens a session | `agent`, `backend`, `provider`, `session`, the name the run gives it and where inside the epic its links are |
-| `called` | when the flow calls another flow | `flow`, `task`, and the `epic` — the record that call was written to |
+| `called` | when the flow calls another flow | `flow` — its canonical ref — `task`, and the `epic` — the record that call was written to |
 | `returned` | when that call returns, however it ended | `flow` and the same `epic` |
+| `usage` | just before `ended` | what the run spent: `cost`, `output_tokens` and `seconds` |
 | `ended` | when the flow stops | `how`: `done`, `failed`, or `stopped` |
 
 Each session's own logs are pointed at from `sessions/<name>/`, under a name that says whose
@@ -154,7 +156,7 @@ else means following them and carrying what is behind them, which is what
 Claude Code's own log](/demo/run-linked.png)
 
 `/epics` is the same list at the prompt: every run of this directory, newest first, with a mark
-on the ones whose flow says it can be picked up. Enter goes **into** the run under the cursor,
+on the ones that can be picked up. Enter goes **into** the run under the cursor,
 which says where it is written down and offers two things: [export it](/user/export), which
 gathers a trace of that run and packs the whole of it up, and resuming it — which is
 [picking a run up](/user/resuming#carrying-an-older-one-on). Exporting is offered for every
@@ -187,7 +189,7 @@ ls "$run"epic.*.jsonl
 ```
 
 ```console
-epic.jsonl  epic.gen-plan_0a1b2c.jsonl
+epic.jsonl  epic.humanize1-gen-plan_0a1b2c.jsonl
 ```
 
 The run's own record says what it called and which file to read it in:

@@ -77,11 +77,10 @@ class Unserved(ValueError):  # noqa: N818  -- what the setting is here, not what
     """Raised for a setting this backend has no way of carrying.
 
     Every shortfall in this layer was a bare `ValueError` with a sentence written where it
-    was found, which is everything a person needs and nothing a caller can act on: the one
-    place a flow's declaration meets a backend -- `hmz.runtime.flowing.driving.runs_at` --
-    could read the sentence and re-raise it, and no more. To drop the one setting that could not be
-    carried and settle the rest, it has to know which one that was, and a sentence is not a
-    name.
+    was found, which is everything a person needs and nothing a caller can act on: whatever
+    settles a config onto a backend could read the sentence and re-raise it, and no more. To
+    drop the one setting that could not be carried and settle the rest, it has to know which
+    one that was, and a sentence is not a name.
 
     So the name travels beside the sentence, and the sentence is unchanged: this is a
     `ValueError` still, raised where the old one was and worded as the old one was, so every
@@ -428,8 +427,8 @@ class Needs:
 
     and an agent whose backend serves none of it, or a machine whose settings do not come to
     it, is refused before the first turn. By name rather than by feature, and by the names
-    everything else here already goes under: `hmz.runtime.flowing.checking.catalogue` is
-    where they are written down, together with which backends serve each.
+    everything else here already goes under: :meth:`hmz.coganchor.backends.Profile.tags`,
+    :mod:`hmz.coganchor.places` and the rungs :func:`rung` spells.
 
     Attributes:
       of_agent: What the backend filling the place has to serve, out of the agent vocabulary
@@ -466,8 +465,7 @@ class Needs:
     wrongly both ways: `Needs("isolated")` was satisfied by every backend there is, a machine
     capability carrying no backends and no backends meaning all of them, and
     `Needs(where=("anchor:hooked",))` was refused by every machine there is, no machine's
-    settings having ever carried one. `hmz.runtime.flowing.checking.catalogue` is where the
-    names are written down, each saying which half asks for it.
+    settings having ever carried one.
 
     Raises:
       TypeError: If `where` was written as one name rather than as a sequence of them.

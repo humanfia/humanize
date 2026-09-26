@@ -20,14 +20,21 @@ if TYPE_CHECKING:
     import pytest
 
 FLOW = """
-from hmz.flows import Agent, flow
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowParams, flow
 
 
-@flow()
-def run(agents: tuple[Agent], task: str) -> None:
-    (one,) = agents
-    print(f"ran {task}")
+class Agents(AgentCollection):
+    one: Agent
+
+
+@flow(agents=Agents, envs=EnvCollection, params=FlowParams)
+async def run(task, *, agents, envs, params, ctx):
+    print(f"ran {task} on {agents['one'].harness}")
+    return task
 """
+
+#: What every line here runs its one agent as, and what it may spend.
+LINE = ["-a", "one=claude/model:high", "-b", "cost=1"]
 
 
 def test_the_workspace_is_the_one_it_was_given(tmp_path: pathlib.Path) -> None:
@@ -95,9 +102,9 @@ def test_a_flow_is_run_and_says_it_ran(
     written.write_text(FLOW, encoding="utf-8")
     held = Hmz()
 
-    held.exec(["-f", str(written), "-a", "claude/model:high", "go"])
+    assert held.exec(["-f", str(written), *LINE, "go"]) == "go"
 
-    assert "ran go" in capsys.readouterr().out
+    assert "ran go on claude" in capsys.readouterr().out
 
 
 def test_a_run_is_started_and_waited_for(
@@ -108,19 +115,19 @@ def test_a_run_is_started_and_waited_for(
     written = tmp_path / "one.py"
     written.write_text(FLOW, encoding="utf-8")
     held = Hmz()
-    flow, agents, task, config, budget, _ = held.read(
-        ["-f", str(written), "-a", "claude/model:high", "go"]
-    )
-    running = held.run(flow, agents, task, config, budget=budget)
+    line = held.read(["-f", str(written), *LINE, "go"])
+    running = held.run(line.flow, line.task, agents=line.agents, budget=line.budget)
 
     assert not running.running
+    assert running.epic is None
     running.start()
 
     assert running.wait(timeout=30)
     assert running.raised is None
-    # The person the flow talks to is among them where it talks to one, and the agents it
-    # was given are the rest.
-    assert len(running.agents) == 1
+    assert running.result == "go"
+    assert running.epic is not None
+    # And it opened nothing: the flow took no turn.
+    assert running.agents == ()
 
 
 def test_the_runs_of_a_workspace_are_the_ones_run_there(
@@ -130,7 +137,7 @@ def test_the_runs_of_a_workspace_are_the_ones_run_there(
     written = tmp_path / "one.py"
     written.write_text(FLOW, encoding="utf-8")
     held = Hmz()
-    held.exec(["-f", str(written), "-a", "claude/model:high", "go"])
+    held.exec(["-f", str(written), *LINE, "go"])
 
     runs = held.epics.all()
 
@@ -148,7 +155,7 @@ def test_a_workspace_that_was_named_is_the_one_the_runs_are_read_from(
     monkeypatch.chdir(tmp_path)
     written = tmp_path / "one.py"
     written.write_text(FLOW, encoding="utf-8")
-    Hmz().exec(["-f", str(written), "-a", "claude/model:high", "go"])
+    Hmz().exec(["-f", str(written), *LINE, "go"])
 
     assert Hmz(tmp_path).epics.all()
     assert Hmz(elsewhere).epics.all() == []
@@ -176,3 +183,12 @@ def test_a_step_between_two_places_is_the_same_store_a_command_line_walks() -> N
     assert [one.spec for one in held.fallbacks.all()] == ["claude/opus"]
     assert held.fallbacks.clear("claude/opus")
     assert held.fallbacks.chain("claude/opus") == ["claude/opus"]
+
+
+def test_the_fakes_a_flow_is_tested_on_are_offered_whole() -> None:
+    """The flowverse tests use them, and a tool outside wants the same kit, not a copy."""
+    from hmz.runtime.flowing import fakes as there
+    from hmz.sdk import fakes
+
+    assert fakes is there
+    assert fakes.FakeAgentDriver is there.FakeAgentDriver

@@ -20,11 +20,10 @@ from typing import TYPE_CHECKING
 import pytest
 
 from hmz.runtime.epic import epics
-from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
 from tests.stubs import events as recorded
 from tests.stubs import written
-from tests.tui.fixtures import transcript, until
+from tests.tui.fixtures import ONE, Holding, set_up, transcript, until
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -32,18 +31,7 @@ if TYPE_CHECKING:
     from textual.pilot import Pilot
 
 #: A flow that drives one agent for one turn, which is enough to have something to stop.
-FLOW = """
-from pathlib import Path
-
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
-
-
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    session = agents[0].new()
-    Path("said.txt").write_text(session(task) + "\\n")
-"""
+FLOW = ONE
 
 #: A `claude` that never answers, so that the turn is still open when the line is typed.
 PATIENT = """
@@ -100,15 +88,12 @@ async def test_a_typed_stop_stops_the_flow_as_the_second_press_does(
     written(workspace, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
-        app._flow_named, app._models = "flow", [Runs("claude/m:high")]
+        set_up(app, "flow")
         await _typed(driver, "start")
-        await until(
-            lambda: bool(app._agents and any(agent.sessions for agent in app._agents)),
-            driver,
-        )
+        await until(lambda: any(agent.sessions for agent in app._agents), driver)
 
         await _typed(driver, "/stop")
-        await until(lambda: not app._agents, driver)
+        await until(lambda: app._run is None and app._stopping is None, driver)
 
         assert "stopping the flow" in transcript(app)
         (epic,) = epics(workspace)
@@ -137,19 +122,15 @@ async def test_a_typed_stop_says_so_where_there_is_nothing_to_stop() -> None:
 
 @pytest.mark.timeout(60)
 async def test_a_flow_already_stopping_is_said_to_be_rather_than_told_again() -> None:
-    """Telling it again would drop the agents the third press has to reach.
+    """Telling it again would lose the run the third press has to reach.
 
-    Stopping hands the agents it holds on to the ones on their way out. Run over an empty
-    list it would hand nothing on and let go of the ones already there, so the press that
-    does not wait for the flow would find no conversation left to close.
+    Stopping hands the run on to the one on its way out. Told again with nothing running it
+    would hand nothing on and let go of the one already there, so the press that does not
+    wait for the flow would find no conversation left to close.
     """
-    from hmz.coganchor.agents import ClaudeCodeAgent, ClaudeCodeAgentConfig
-
     app = Humanize()
     async with app.run_test() as driver:
-        app._stopping = [
-            ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-opus-5", effort="high"))
-        ]
+        app._stopping = Holding()
         held = app._stopping
 
         await _typed(driver, "/stop")
@@ -217,18 +198,15 @@ async def test_the_press_after_a_typed_stop_does_not_close_the_interface(
     written(workspace, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
-        app._flow_named, app._models = "flow", [Runs("claude/m:high")]
+        set_up(app, "flow")
         await _typed(driver, "start")
-        await until(
-            lambda: bool(app._agents and any(agent.sessions for agent in app._agents)),
-            driver,
-        )
+        await until(lambda: any(agent.sessions for agent in app._agents), driver)
         await driver.press("ctrl+c")
         await driver.pause()
         assert app._presses == 1
 
         await _typed(driver, "/stop")
-        await until(lambda: not app._agents and not app._stopping, driver)
+        await until(lambda: app._run is None and app._stopping is None, driver)
 
         await driver.press("ctrl+c")
         await driver.pause()
@@ -245,16 +223,12 @@ async def test_the_keys_name_what_the_press_after_a_typed_stop_does() -> None:
     would offer to leave on a key that closes the conversations still open under their turns.
     Counting from nothing again is what keeps the row true as well as the key.
     """
-    from hmz.coganchor.agents import ClaudeCodeAgent, ClaudeCodeAgentConfig
-
     app = Humanize()
     async with app.run_test() as driver:
         await driver.press("ctrl+c")  # the press that asks, and is then typed past
         await driver.pause()
         assert app._presses == 1
-        app._stopping = [
-            ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-opus-5", effort="high"))
-        ]
+        app._stopping = Holding()
 
         await _typed(driver, "/stop")
         await until(lambda: "already stopping" in transcript(app), driver)

@@ -125,6 +125,23 @@ def test_claude_narrates_a_reach_by_default_and_takes_that_back_when_told_to() -
     assert "--include-partial-messages" not in ClaudeCodeAgent(quiet).new()._command()
 
 
+def test_claude_keeps_what_a_turn_starts_inside_the_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A subagent sent to the background ends the turn before it has found anything.
+
+    So the setting that keeps it in the foreground is on for every session, whatever the
+    environment the flow was started in said about it.
+    """
+    monkeypatch.setenv("CLAUDE_CODE_DISABLE_BACKGROUND_TASKS", "0")
+    session = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high")).new()
+
+    environ = session._environ()
+
+    assert environ is not None
+    assert environ["CLAUDE_CODE_DISABLE_BACKGROUND_TASKS"] == "1"
+
+
 def test_claude_at_no_rung_at_all_is_told_nothing_about_what_its_agent_may_do() -> None:
     """Which is the turn `claude --print` takes for whoever runs it with none of this.
 

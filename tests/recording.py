@@ -1,11 +1,15 @@
-"""One run written down, and what is read back off it -- shared by four test modules.
+"""One run written down, and what is read back off it -- shared by the runtime's test modules.
 
 An epic and an export are one subject read twice: a run opens a session, the session's log is
 linked into the run's directory, and a bundle is that directory with every link followed. Both
-subjects split across tiers -- what a stand-in agent can show, and what only a turn taken as a
+subjects split across tiers -- what a stand-in CLI can show, and what only a turn taken as a
 named account can, which needs a kernel that will hand over a tracee -- so the flow that opens
-one session, the stand-in whose logs humanize knows where to find, and the three readers below
-are wanted by `tests/{integration,system}/runtime/test_{epics,export}.py`.
+one session, the stand-in whose logs humanize knows where to find, and the readers below are
+wanted by `tests/{integration,system}/runtime/test_{epics,export}.py`.
+
+The stand-in is :data:`tests.flows.standins.CLAUDE` -- a `claude` on PATH that speaks the real
+CLI's stream JSON, takes the session id it is handed, and keeps each conversation where Claude
+Code keeps one, which is where humanize links it from.
 
 Written once here rather than four times there because a bundle's layout is the thing these
 read: a copy of `held` in a file CI never runs is one that goes on asserting last year's tar
@@ -19,52 +23,71 @@ nothing a conftest would have added.
 from __future__ import annotations
 
 import json
+import re
 import tarfile
 from typing import TYPE_CHECKING, Any
 
 from hmz.runtime.exporting import MANIFEST
-from tests.stubs import ShellAgent
+from tests.flows import standins
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     import pytest
 
-#: A flow that drives one agent, and says its session is called what the log is named after.
-ONE = """
-from hmz.coganchor.agents import AgentBase
-from hmz.flows import flow
+#: A flow that drives one agent, `builder`, through one session in the workspace.
+ONE = '''"""Opens one session, and says the task in it."""
+
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowParams, LocalEnv, flow
 
 
-@flow
-def run(agents: tuple[AgentBase], task: str) -> None:
-    agents[0].new()("echo the-session")
-"""
+class Agents(AgentCollection):
+    builder: Agent
 
 
-class ClaudeAgent(ShellAgent):
-    """A stand-in for a backend humanize knows where the logs of are."""
+class Envs(EnvCollection):
+    here: LocalEnv
 
 
-def claude_home(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, said: str = "{}"
-) -> Path:
-    """Points Claude Code's home somewhere temporary, with one session already logged.
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def one(task, *, agents, envs, params, ctx):
+    session = await agents["builder"].spawn(env=envs["here"])
+    return await agents["builder"].run(task, session=session)
+'''
+
+#: What the stand-in is driven as, after `builder=`.
+AGENT = "claude/claude-haiku-4-5:low"
+
+#: What is run on it: a turn the stand-in answers with the word.
+TASK = "Reply with the single word: done"
+
+
+def standing_in(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Puts the stand-in `claude` on PATH, with a home and a config directory of its own.
 
     Args:
-      tmp_path: The test's own directory, which the home goes under.
-      monkeypatch: What sets the variable, and puts it back afterwards.
-      said: The one line the logged session holds.
+      tmp_path: The test's own directory, which all of it goes under.
+      monkeypatch: What sets the variables, and puts them back afterwards.
 
     Returns:
-      The log that session was written to.
+      Where it keeps its conversations: `projects/<the directory as a name>/<id>.jsonl`.
     """
-    where = tmp_path / "claude-home"
-    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(where))
-    log = where / "projects" / "-tmp-project" / "the-session.jsonl"
-    log.parent.mkdir(parents=True)
-    log.write_text(f"{said}\n", encoding="utf-8")
-    return log
+    standins.install(tmp_path / "bin", "claude", standins.CLAUDE)
+    monkeypatch.setenv("PATH", standins.path_with(tmp_path / "bin"))
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    config = tmp_path / "claude-home"
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(config))
+    return config
+
+
+def logged(config: Path, workspace: Path, session: str) -> Path:
+    """Where the stand-in keeps one conversation, as Claude Code keeps one."""
+    return (
+        config
+        / "projects"
+        / re.sub(r"[^a-zA-Z0-9]", "-", str(workspace))
+        / (f"{session}.jsonl")
+    )
 
 
 def held(at: Path) -> dict[str, str]:

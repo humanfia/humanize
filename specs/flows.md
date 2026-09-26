@@ -1,271 +1,452 @@
-# `flows`
+# Flows
 
-The whole of what a flow imports: the mark that makes a function a flow, the marks an atlas
-declares its graph with, the interfaces a flow drives, and a hand-through of everything else a
-flow legitimately names. It is not where a flow is found, read, compiled or run.
+Protocol classes here are pure protocols for type checking, with no implementation, and they are only used for type checking. During runtime, the real classes (also derived from these protocols) are passed to the flow function.
 
-## API
+Mixin system is crucial to the flow system. It allows the flow to declare what it needs from the envs and agents, and the runtime will generate envs and agents satisfy those requirements. For example, if we only require an agent, it will not be able to run `/goal` command, even the underlying harness support it; if we require an agent with `GoalAgentMixin`, the underlying harness will be able to run `/goal` command. The same applies to envs.
 
-```python
-# __init__.py -- the mark, and the one door onto what other layers write down
-__all__ = [
-    # the mark and what a flow says about itself
-    "Flow", "flow",
-    # the graph marks, re-exported from `atlas.py`
-    "Atlas", "Kind", "Marked", "Sub", "atlas", "logic", "mind", "sub",
-    # what a flow drives, re-exported from `agent.py`
-    "Agent", "Driven", "Person", "Session",
-    # the vocabulary a turn is described in, handed through from `hmz.coganchor`
-    "EVERYWHERE", "PERMISSIONS", "SWARM", "UNSAID", "WINDOW",
-    "AgentConfig", "AgentDefaults", "Allowance", "Board", "Budget", "Event",
-    "Failed", "Goal", "Hook", "Hooks", "HumanAgent", "Hung", "Isolated", "Item",
-    "Model", "Moment", "Needs", "Occasion", "Profile", "Question", "Refused",
-    "Remote", "Stopped", "Tool", "Unhooked", "Unrecoverable", "Usage", "Verdict",
-    "backends", "home", "models",
-    # handed through from `hmz.runtime.flowing`, fetched only when a flow asks
-    "NotAFlow", "Running", "container", "load", "running",
-]
+## CLI
 
-@dataclass(frozen=True, slots=True)
-class Flow:
-    name: str = ""
-    about: str = ""
-    skills: tuple[str, ...] = ()
-    resumable: bool = False
-    selectable: bool = True
-    budget: Allowance | None = None
+`hmz exec` should support these flags:
 
-def flow[**P, T](
-    call: Callable[P, T] | None = None,
-    /,
-    *,
-    name: str = "",
-    about: str = "",
-    skills: Iterable[str] = (),
-    resumable: bool = False,
-    selectable: bool = True,
-    budget: Allowance | None = None,
-) -> Callable[P, T] | Callable[[Callable[P, T]], Callable[P, T]]: ...
+- `-a|--agents <role>=<harness>@<provider>/<model>:<effort>`: specifying an agent spec;
+- `-e|--envs <role>=<backend>@<provider>/<workdir>`: specifying an env spec;
+- `-p|--params <key>=<value>`: specifying a flow param.
 
-def __getattr__(name: str) -> object: ...
+All of the above supports comma-separated list and multiple flags. (e.g. `-a role1=... -a role2=...` or `-a role1=...,role2=...`)
 
-# agent.py -- what a flow drives, as protocols the drivers answer to structurally
-class Session(Protocol):
-    shapes: ClassVar[bool]
-    takes_tools: ClassVar[bool]
-    steers: ClassVar[bool]
-    narrates: ClassVar[bool]
-    @property
-    def forks(self) -> bool: ...
-    @property
-    def id(self) -> str: ...
-    @property
-    def named(self) -> str | None: ...
-    @property
-    def cwd(self) -> str: ...
-    @property
-    def skills(self) -> tuple[str, ...]: ...
-    @property
-    def tools(self) -> tuple[Tool, ...]: ...
-    effort: str    # property, settable
-    budget: Budget | None    # property, settable
-    def __call__[T: BaseModel](
-        self, prompt: str, *, suppress: bool = False, schema: type[T] | None = None
-    ) -> str | T | None: ...
-    async def aturn[T: BaseModel](
-        self, prompt: str, *, suppress: bool = False, schema: type[T] | None = None
-    ) -> str | T | None: ...
-    def pursue(self, objective: str, *, suppress: bool = False) -> str: ...
-    async def apursue(self, objective: str, *, suppress: bool = False) -> str: ...
-    def stream(
-        self, prompt: str, *, schema: type[BaseModel] | None = None
-    ) -> Iterator[Event]: ...
-    def fork(self) -> Session: ...
-    def close(self) -> None: ...
-    def offers(self, tools: Iterable[Tool] | None) -> None: ...
-    def loads(self, skills: Iterable[str] | None) -> None: ...
-    def interrupt(self, *, why: str) -> None: ...
-    def interject(self, text: str) -> None: ...
-    def steering(self, text: str, ticket: str = "") -> str: ...
-    def took(self, ticket: str) -> str | None: ...
-    def unsteered(self, text: str) -> None: ...
-    def spent(self) -> Usage: ...
-    def rate(self, over: float = WINDOW) -> Usage: ...
-    def juice(self, over: float = WINDOW) -> float: ...
+- `-b|--budget duration=<duration>,cost=<cost>,output_tokens=<output_tokens>`: specifying a flow budget. Also supports multiple flags.
 
-class Agent(Protocol):
-    moments: ClassVar[frozenset[Moment]]
-    pursues: ClassVar[bool]
-    epic: Journal | None
+## Environments
+
+```py
+class EnvBackendKind(StrEnum):
+    LOCAL = auto()
+    SSH = auto()
+
+class Env(Protocol):
     @property
-    def id(self) -> str: ...
+    def available(self) -> bool: ...
+
     @property
-    def backend(self) -> str: ...
+    def backend(self) -> EnvBackendKind: ...
+
     @property
-    def config(self) -> AgentConfig: ...
+    def provider(self) -> str: ...
+
     @property
-    def hooks(self) -> Hooks: ...
+    def role(self) -> str: ...
+
     @property
-    def sessions(self) -> Sequence[Session]: ...
-    @property
-    def opened(self) -> list[str]: ...
-    @property
-    def stopped(self) -> bool: ...
-    @property
-    def goals_enabled(self) -> bool: ...
-    @property
-    def loaded(self) -> tuple[Loaded, ...]: ...
-    effort: str    # property, settable
-    def new(self, cwd: str | os.PathLike[str] | None = None) -> Session: ...
-    def batch_new(
-        self, count: int, cwd: str | os.PathLike[str] | None = None
-    ) -> Sequence[Session]: ...
-    def __call__[T: BaseModel](
-        self,
-        prompt: str,
-        *,
-        suppress: bool = False,
-        schema: type[T] | None = None,
-        cwd: str | os.PathLike[str] | None = None,
-    ) -> str | T | None: ...
-    async def aturn[T: BaseModel](
-        self,
-        prompt: str,
-        *,
-        suppress: bool = False,
-        schema: type[T] | None = None,
-        cwd: str | os.PathLike[str] | None = None,
-    ) -> str | T | None: ...
-    def pursue(
-        self,
-        objective: str,
-        *,
-        suppress: bool = False,
-        cwd: str | os.PathLike[str] | None = None,
-    ) -> str: ...
-    async def apursue(
-        self,
-        objective: str,
-        *,
-        suppress: bool = False,
-        cwd: str | os.PathLike[str] | None = None,
-    ) -> str: ...
-    def batch[T: BaseModel](
-        self,
-        prompts: Sequence[str],
-        *,
-        suppress: bool = False,
-        schema: type[T] | None = None,
-        at_once: int = 0,
-        cwd: str | os.PathLike[str] | None = None,
-    ) -> list[Any]: ...
-    async def abatch[T: BaseModel](
-        self,
-        prompts: Sequence[str],
-        *,
-        suppress: bool = False,
-        schema: type[T] | None = None,
-        at_once: int = 0,
-        cwd: str | os.PathLike[str] | None = None,
-    ) -> list[Any]: ...
-    def clone(
+    def workdir(self) -> pathlib.PurePosixPath: ...
+
+    async def derive_subdir(
         self,
         *,
-        config: AgentConfig | None = None,
-        name: str | None = None,
-        skills: Iterable[Loaded] | None = None,
-    ) -> Agent: ...
-    def watch(
-        self, listener: Callable[[Agent, Session | None, Event], None]
-    ) -> None: ...
-    def stop(self) -> None: ...
-    def asked(self, question: Question) -> str | None: ...
-    def prompted(self) -> str | None: ...
-    def spent(self) -> Usage: ...
-    def rate(self, over: float = WINDOW) -> Usage: ...
-    def juice(self, over: float = WINDOW) -> float: ...
+        subdir: pathlib.PurePosixPath | str,
+    ) -> Env:
+        ...
 
-class Driven(Agent, Protocol):
-    def rename(self, name: str) -> None: ...
-    def runs_on(self, machine: MachineConfig | None) -> None: ...
-    def reconfigure(self, config: AgentConfig) -> None: ...
-    def loads(self, skills: Iterable[Loaded]) -> None: ...
-    def disable_goals(self) -> None: ...
+class LocalEnv(Env, Protocol): ...
+    # Automatically added to the env collection if requested, and the user cannot override it.
 
-class Person(Agent, Protocol):
-    @property
-    def board(self) -> Board: ...
-
-# atlas.py -- the marks an atlas declares its graph with
-type Kind = Literal["mind", "logic", "atlas"]
-
-@dataclass(frozen=True, slots=True)
-class Atlas:
-    name: str = ""
-
-@dataclass(frozen=True, slots=True)
-class Marked:
-    kind: Kind
-    rerun: bool = True
-
-@dataclass(frozen=True, slots=True)
-class Sub:
-    named: str    # calling one raises TypeError
-
-def atlas[**P, T](
-    call: Callable[P, T] | None = None,
-    /,
-    *,
-    name: str = "",
-    about: str = "",
-    skills: Iterable[str] = (),
-    selectable: bool = True,
-) -> Callable[P, T] | Callable[[Callable[P, T]], Callable[P, T]]: ...
-
-def mind[**P, T](
-    call: Callable[P, T] | None = None, /, *, rerun: bool = True
-) -> Callable[P, T] | Callable[[Callable[P, T]], Callable[P, T]]: ...
-
-def logic[**P, T](
-    call: Callable[P, T] | None = None, /, *, rerun: bool = True
-) -> Callable[P, T] | Callable[[Callable[P, T]], Callable[P, T]]: ...
-
-def sub(named: str) -> Sub: ...
+class EnvCollection(TypedDict, extra_items=ReadOnly[Env]):
+    pass
 ```
 
-## Requirements
+There are also various capability mixins for the envs, e.g.
 
-- MUST be the whole of what a flow imports; a flow MUST NOT have to name another `hmz` module.
-- MUST make a function a flow only by marking it, MUST mark rather than wrap, and MUST take the flow's
-  name from the mark and never from the function: unnamed is the flow a module holds under its own
-  name, named is `<flow>:<name>`, and of two marked alike the first wins. `about` MUST default to the
-  first line of the function's docstring, or of the module's for a module that holds one flow.
-- MUST hand a `resumable` flow a dict as its last argument holding what it wrote there last time, MUST
-  NOT hand one to any other flow, and MUST keep a `selectable=False` flow callable by name and out of
-  every listing and picker.
-- MUST treat `budget` as a default whoever starts the run may override rather than a cap the flow
-  enforces, and MUST distinguish three states: unsaid, an `Allowance` with something in it, and
-  `Allowance()` as a flow claiming it means to run under nothing at all.
-- MUST cost no more than reading a directory to import: what is handed through MUST be fetched on
-  attribute access and MUST be the same object its own layer holds, and an unknown name MUST raise
-  `AttributeError`.
-- MUST offer `Agent`, `Driven`, `Session` and `Person` as protocols the drivers answer to structurally
-  without importing this package, and MUST keep off `Agent` and on `Driven` everything whoever hands
-  an agent over settles.
-- `Agent.clone` MUST answer with a second agent taking from this one everything the call does not name
-  and carrying nothing this one accumulated; `Session.fork` MUST answer with a conversation carrying
-  this one's history and costing on its own from there.
-- MUST let a flow read off the class, before any agent is made, which moments a backend runs and
-  whether it shapes, takes tools, steers, narrates, pursues or forks; what a backend cannot do MUST be
-  refused where it is asked rather than faked. One vocabulary MUST name them: `goal`, `steer`,
-  `shape`, `tools`, `fork`, `search`, `swarm`, `resume`, `moment:<name>`; `remote`, `isolated`,
-  `managed`, `linux`, `darwin`; `anchor:<how>`.
-- A turn cut off by `interrupt` MUST still answer once with what the agent got as far as saying;
-  stopping the agent MUST instead prevent its next turn.
-- What a flow declares about a place MUST only ever tighten what the agent already carries, MUST hold
-  for no longer than the call, and declaring nothing MUST leave the agent exactly as it came.
-- `builtin/` MUST hold `chat` and nothing else, and MUST be resolved as part of `official`.
-- An atlas MUST be a flow in every way an ordinary flow is, MUST always be resumable, MUST NOT be
-  handed a state dict, and MUST reach another atlas by `sub` and an ordinary flow by nothing at all.
-- A `mind` MUST have exactly one way out and MUST be handed the agent its call site names; a `logic`
-  MUST be handed no agent and MAY have several ways out; `rerun=False` MUST answer with nothing.
+```py
+class CPUEnvMixin:
+    _cpu_count: ClassVar[int] = 1
+
+class MemoryEnvMixin:
+    _memory: ClassVar[int] = 0
+
+class ShellEnvMixin:
+    async def exec(self, argv: Sequence[str], *, timeout: float = 0) -> tuple[int, str, str]: ...
+
+class BashEnvMixin(ShellEnvMixin):
+    @overload
+    async def exec(self, script: str, *, timeout: float = 0) -> tuple[int, str, str]: ...
+
+class FilesEnvMixin:
+    async def read(self, path: str) -> bytes: ...
+    async def write(self, path: str, data: bytes) -> None: ...
+
+class GPUEnvMixin:
+    _gpu_count: ClassVar[int] = 1
+    _gpu_memory: ClassVar[int] = 0
+
+class GitWorktreeEnvMixin:
+    async def derive_worktree(
+        self,
+        *,
+        ref: str | None = None,
+        dir: pathlib.PurePosixPath | str | None = None,
+    ) -> Self:
+        ...
+
+class TemporaryClonedDirEnvMixin:
+    async def derive_temp_clone(self, id: str) -> Self: ...
+        # Derive an env at a temporary dir with the same content as the current env. The temporary dir will be automatically cleaned up when the flow ends and the flow is not resumable. Same ID refers to the same temporary dir. But if another env holds it, an exception will be raised.
+
+    async def destroy_temp_clone(self, id: str) -> None: ...
+
+class ScratchDirEnvMixin:
+    async def derive_scratch(self, id: str) -> Self: ...
+
+    async def destroy_scratch(self, id: str) -> None: ...
+
+...
+```
+
+Here is an example of a flow's environment collection:
+
+```py
+class MyEnv(Env, CPUEnvMixin, MemoryEnvMixin):
+    _cpu_count = 4
+    _memory = 8 * 1024 * 1024 * 1024
+
+class MyEnvCollection(EnvCollection):
+    my_env: MyEnv
+```
+
+## Agents
+
+```py
+class HarnessKind(StrEnum):
+    CLAUDE = "claude"
+    CODEX = "codex"
+    CURSOR_AGENT = "cursor-agent"
+    ...
+
+class PermissionKind(StrEnum):
+    NONE = auto()
+    READ = auto()
+    ALL = auto()
+
+@dataclass(frozen=True)
+class Permission:
+    local: PermissionKind = PermissionKind.ALL
+    user: PermissionKind = PermissionKind.READ
+    system: PermissionKind = PermissionKind.READ
+    online: PermissionKind = PermissionKind.NONE # Can only be NONE or ALL.
+
+    def __post_init__(self) -> None: ...
+        # Ensure local >= user >= system.
+
+class HookKind(StrEnum):
+    SOME_HOOK = auto() # Just a placeholder for the example.
+    ... # Including ALL possible hooks of all the harnesses.
+
+@dataclass(frozen=True)
+class HookParams:
+    ctx: FlowContext
+    session: Session
+
+@dataclass(frozen=True)
+class SomeHookHookParams(HookParams):
+    ...
+
+@dataclass(frozen=True)
+class HookResult:
+    ...
+
+@dataclass(frozen=True)
+class SomeHookHookResult(HookResult):
+    ...
+
+class HookFn[TParams: HookParams, TResult](Protocol):
+    async def __call__(self, params: TParams) -> TResult: ...
+
+class Budget(pydantic.BaseModel):
+    duration: datetime.timedelta | None = None
+    cost: float | None = None # In USD.
+    output_tokens: int | None = None
+    # Must ensure at least one of the above is not None.
+    # For `chat` flow, we set cost as inf to make it unlimited.
+    graceful: bool = True # If True, the run will try to finish the current turn before stopping. If False, the run will stop immediately.
+
+class Usage(pydantic.BaseModel):
+    duration: datetime.timedelta = datetime.timedelta(0)
+    cost: float = 0.0 # In USD.
+    output_tokens: int = 0
+
+class Session(Protocol):
+    @property
+    def agent(self) -> Agent: ...
+
+    @property
+    def env(self) -> Env: ...
+
+    @property
+    def usage(self) -> Usage: ... # Live updated.
+
+class Agent(Protocol):
+    _permission: ClassVar[Permission]
+    _skills: ClassVar[tuple[str, ...]]
+
+    @property
+    def effort(self) -> str: ...
+
+    @property
+    def harness(self) -> HarnessKind: ...
+
+    @property
+    def model(self) -> str: ...
+
+    @property
+    def role(self) -> str: ...
+
+    @property
+    def provider(self) -> str: ...
+
+    @overload
+    def derive(
+        self,
+        *,
+        permission: Permission | None = None,
+        skills: tuple[str, ...] | None = None,
+    ) -> Self: ...
+
+    async def fork(
+        self,
+        session: Session,
+        *,
+        env: Env,
+    ) -> Session: ...
+
+    @overload
+    def hook(
+        self,
+        kind: Literal[HookKind.SOME_HOOK],
+        fn: HookFn[SomeHookHookParams, SomeHookHookResult] | None,
+    ) -> None: ...
+
+    ... # Should include all the common hooks of all the harnesses.
+
+    @overload
+    async def run(
+        self,
+        prompt: str,
+        *,
+        session: Session,
+        budget: Budget | None = None,
+    ) -> str: ...
+
+    @overload
+    async def run[TOutput: pydantic.BaseModel](
+        self,
+        prompt: str,
+        *,
+        session: Session,
+        output_schema: Type[TOutput],
+        budget: Budget | None = None,
+    ) -> TOutput: ...
+
+    async def spawn(
+        self,
+        *,
+        env: Env,
+    ) -> Session: ...
+
+class Outworlder(Agent, Protocol): ...
+    # Automatically added to the agent collection if requested, and the user cannot override it.
+    # Note that this is not steering: steering is that the user can attach to a session and inject prompts, while this is that the user (or designated agent by the outside flow) can act as an agent in the flow.
+
+    @classmethod
+    def new(cls) -> Self: ...
+        # Create a fake outworlder agent. This is used for the case where the callee wants to run the outworlder, and the caller can pre-configure this to act as an outworlder.
+
+    @property
+    def away(self) -> bool: ...
+        # True if /afk is on or `hmz exec`.
+        # When away, all runs will response default value (e.g. "" for str, and all values by default for pydantic.BaseModel).
+
+    @overload
+    def hook(
+        self,
+        kind: Literal[HookKind.OUTWORLDER_RUN],
+        fn: HookFn[OutworlderRunHookParams, OutworlderRunHookResult] | None,
+    ) -> None: ...
+        # A fake hook to handle the case where the callee wants to run the outworlder. The caller can pre-configure this to act as an outworlder.
+
+class ClaudeCodeAgent(Agent, ..., Protocol):
+    pass
+    # With all supported mixins. This is a useful type for flows to declare that they require exactly a Claude Code agent.
+
+... # And all other harnesses.
+
+class AgentCollection(TypedDict, extra_items=ReadOnly[Agent]):
+    pass
+```
+
+There are also various capability mixins for the agents, e.g.
+
+```py
+class GoalCommandAgentMixin: ...
+    # This will lead to `/goal <goal>` command being available in agent.run(...).
+
+class LoopCommandAgentMixin: ...
+    # This will lead to `/loop <interval> <task>` command being available in agent.run(...).
+
+class SteeringAgentMixin:
+    async def steer(
+        self,
+        prompt: str,
+        *,
+        session: Session,
+        queued: bool = True, # Claude Code & Codex supports interrupting the current turn, or queueing the prompt to be executed after the current turn. (Just like pressing Esc or not after sending msg to a running agent.)
+    ) -> None: ...
+        # Used to steer.
+
+class PermissionRequestHookAgentMixin:
+    @overload
+    def hook(
+        self,
+        kind: Literal[HookKind.PERMISSION_REQUEST],
+        fn: HookFn[PermissionRequestHookParams, PermissionRequestHookResult] | None,
+    ) -> None: ...
+        # Note that this hook can override BYPASS approval policy.
+
+... # And ALL hooks of all the harnesses.
+
+class AskUserHookAgentMixin: # A fake hook to handle the case where the harness want to ask the user something.
+    @overload
+    def hook(
+        self,
+        kind: Literal[HookKind.ASK_USER],
+        fn: HookFn[AskUserHookParams, AskUserHookResult] | None,
+    ) -> None: ...
+```
+
+The flow declares what an agent must be able to do by subclassing it:
+
+```py
+class MyAgent(Agent, GoalCommandAgentMixin, LoopCommandAgentMixin, PermissionRequestHookAgentMixin):
+    _permission = Permission(
+        local=PermissionKind.ALL,
+        user=PermissionKind.READ,
+        system=PermissionKind.NONE,
+        online=PermissionKind.NONE,
+    )
+    _skills = ("review-notes",)
+
+class MyAgentCollection(AgentCollection):
+    my_agent: MyAgent
+```
+
+## Flows
+
+```py
+class FlowParams(pydantic.BaseModel): ...
+
+class FlowState(Protocol):
+    def __getitem__(self, key: str) -> Any: ...
+
+    def __setitem__(self, key: str, value: Any) -> None: ...
+
+    def __delitem__(self, key: str) -> None: ...
+
+    def __contains__(self, key: str) -> bool: ...
+
+class FlowContext(Protocol):
+    @property
+    def budget(self) -> Budget: ...
+
+    @property
+    def flow(self) -> Flow: ...
+
+    @property
+    def resumed(self) -> bool: ...
+
+    @property
+    def state(self) -> FlowState | None: ...
+        # Only available if the flow is resumable.
+
+    @property
+    def usage(self) -> Usage: ...
+
+class Flow(Protocol):
+    @property
+    def description(self) -> str | None: ...
+
+    @property
+    def expected_agents(self) -> type[AgentCollection]: ...
+
+    @property
+    def expected_envs(self) -> type[EnvCollection]: ...
+
+    @property
+    def expected_params(self) -> type[FlowParams]: ...
+
+    @property
+    def resumable(self) -> bool: ...
+
+    async def __call__(
+        self,
+        task: str,
+        *,
+        agents: AgentCollection,
+        envs: EnvCollection,
+        params: FlowParams,
+        budget: Budget | None = None,
+    ) -> Any: ...
+        # The passed agents and envs must be not be more narrow than the flow's declared agents and envs.
+
+def load(ref: str) -> Flow: ...
+```
+
+A flow ref can be either:
+
+- (in a flow only) `:<subflow>`: another flow in the same flow module;
+- (in a flow only) `<flow>:<subflow>`: a flow in the same flowverse;
+- `<pip-style-vcs-url>#<flow>:<subflow>`: a flow in another flowverse.
+
+If the parent flow is resumed, the subflows resumes as well if they are called with exactly the same task agents, envs, and params.
+
+## Defining a flow
+
+```py
+class FlowFn[TAgentCollection: AgentCollection, TEnvCollection: EnvCollection, TFlowParams: FlowParams](Protocol):
+    async def __call__(
+        self,
+        task: str,
+        *,
+        agents: TAgentCollection,
+        envs: TEnvCollection,
+        params: TFlowParams,
+        ctx: FlowContext,
+    ) -> Any: ...
+
+def flow[TAgentCollection: AgentCollection, TEnvCollection: EnvCollection, TFlowParams: FlowParams](
+    *,
+    agents: type[TAgentCollection],
+    envs: type[TEnvCollection],
+    params: type[TFlowParams],
+    name: str | None = None, # By default, the function name is used as the subflow name.
+    description: str | None = None,
+    hidden: bool = False,
+    resumable: bool = False, # A flag to enable /resume.
+) -> Callable[[FlowFn[TAgentCollection, TEnvCollection, TFlowParams]], Flow]: ...
+    # The decorated function name is the flow name.
+```
+
+## Misc
+
+Should have a very fine-grained and hierarchical exception system, so that the flow can catch specific exceptions and handle them, and the flow can also catch all exceptions and handle them.
+
+```py
+class FlowException(Exception): ...
+    # Base class for all flow exceptions.
+
+... # And ALL exceptions of all the harnesses.
+
+... # And ALL exceptions of all the envs.
+
+... # And ALL exceptions of Humanize flow runtime.
+```
+
+Some harnesses mix permission with approval policy. In our design, all approval are BYPASS (e.g. danger-full-access + never for Codex, or bypassPermissions for Claude Code). And we never use any auto review mode (where the model is responsible for reviewing the action). If the managed policy rejects BYPASS, they will be run in the most permissive-possible non-auto mode, and all their action requests will be always approved. For example, if BYPASS is disallowed in Claude Code, it will be run in acceptEdits mode, and all its action requests will be always approved. This is to ensure that the flow can always run without any human intervention, and the harnesses will never be able to reject any action request.
+
+`chat` flow is a special flow. It will always use the harness specific agent (e.g. ClaudeCodeAgent) for the selected harness. Therefore, it will always has all the capabilities of the agent.
