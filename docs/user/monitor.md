@@ -1,181 +1,149 @@
+<script setup>
+import TermScreen from '../.vitepress/theme/components/user-running/TermScreen.vue'
+
+const sheet = [
+  { rule: 'b' },
+  '   [b B]Monitor[/]',
+  '   [m]The run as it is going: a box per agent that has worked, marked as it[/]',
+  '   [m]works, and whatever it started of its own hanging under it.[/]',
+  '',
+  '   [c]▣[/] every agent[m] · 1 of 2 working · 11 turns · 7m11s[/][b] · reading[/]',
+  '   [m]┌──────────────────────────────────────────────────────┐[/]',
+  '   [m]│[/] [c]● actor[/]                                          [c]43s[/] [m]│[/]',
+  '   [m]│[/] [m]claude/claude-opus-5:high · 6 turns[/]                  [m]│[/]',
+  '   [m]└──────────────────────────────────────────────────────┘[/]',
+  '   [m]  ├╴[/][m]◇[/] [m]read the failing tests[/]',
+  '   [m]  └╴[/][c]◆[/] [m]find where charge() retries[/]',
+  '   [c]│   ↓ 5 · ↑ 5[/]',
+  '   [b]┌──────────────────────────────────────────────────────┐[/]',
+  ' [b]❯[/] [b]│[/] ○ reviewer                                [m]idle 1m04s[/] [b]│[/]',
+  '   [b]│[/] [m]codex/gpt-5.6-sol:high · 5 turns[/]              [c]unread[/] [b]│[/]',
+  '   [b]└──────────────────────────────────────────────────────┘[/]',
+  '',
+  '   [m]Flow:             [/]rlar[m]   431s[/]',
+  '',
+  '   [m]Tokens:           [/]claude-opus-5                1.84M     $4.12   [m]38 out/s[/]',
+  '   [m]                  [/]gpt-5.6-sol                 402.1k     $0.61   [m]0 out/s[/]',
+  '   [m]Kinds:            [/]input                        61.3k',
+  '   [m]                  [/]output                       22.8k',
+  '   [m]                  [/]cache_read                   2.14M+',
+  '   [m]                  [/]cache_write                  88.0k+',
+  '   [m]                  + a floor: not every agent here reports that kind[/]',
+  '',
+  '   [m]↑↓ move · enter read · esc close[/]',
+]
+
+const read = [
+  '[dim]● reviewer is working[/]',
+  '',
+  '[g]●[/] {"done": false, "notes": "charge() still retries outside the lock. Move the retry into the locked block and add a test that charges twice at once."}',
+  '',
+  '[dim]✻ Worked for 38s · reviewer[/]',
+  '',
+  { r: '[m]actor · claude/claude-opus-5:high · ● 1[/]' },
+  { r: '[m]reviewer · codex/gpt-5.6-sol:high · ○ 1 · reading[/]', hl: true },
+  { r: '[m]input 61.3k · output 22.8k · cache_read 2.14M+ · cache_write 88.0k+[/]' },
+  { r: '[m]$4.73 · 38 out/s[/]' },
+  { rule: true },
+  { prompt: '' },
+  { rule: true },
+  {
+    l: '[c]·|·[/] actor… [m](43s · ctrl+c twice to stop)[/]',
+    keys: 'tab agent · / commands · shift+enter newline · esc monitor · ctrl+c stop',
+  },
+]
+
+const monitor = [
+  {
+    label: 'esc',
+    lines: sheet,
+    caption:
+      'The cursor is on the reviewer, which has stopped and has something you have not read.',
+  },
+  {
+    label: 'enter',
+    lines: read,
+    art: false,
+    caption:
+      'Enter on its box reads the reviewer, even though it is not working: its own transcript, down to its latest turn. <kbd>tab</kbd> would not have stopped on it.',
+  },
+]
+</script>
+
 # Watching a run — `/monitor`
 
-`/monitor` draws the run in front of you: a box per agent that has worked, marked as it works
-and saying how long it has been at it, with the handovers between them as the arrows joining
-them. Reach for it to see the **shape** of a run and where it has got to — a two-agent loop that
-was supposed to alternate and is in fact one agent doing everything looks different here at the
-first glance.
-
-The diagram is the sheet, not a header on one. It takes the height your terminal has, and the
-few lines under it are only what a picture cannot say.
-
-It is also where [the board](/user/board) is, where a run has one — which a run of a flow
-written against the flow API never does.
+Press <kbd>esc</kbd>, or type `/monitor`, to see the run drawn: a box for each agent that has
+worked, what each one is doing now, and arrows for the work passing between them. It shows at
+a glance whether the run has the shape you expected, and which agent to read next.
 
 ## Try it
 
-Type `/monitor`, or press **esc** with nothing else on the screen.
+Press <kbd>esc</kbd> during an [`rlar`](/flows/rlar) run, then <kbd>enter</kbd> on a box:
 
-```
-   ▣ every agent · 1 of 2 working · 17 turns · 7m11s
+<TermScreen title="hmz · rlar" :frames="monitor" art />
 
-   ┌────────────────────────────────────────────────────────┐
-   │ ● builder · claude#a1b2                            43s │
-   │ claude/claude-opus-5:high · 12 turns                   │
-   └────────────────────────────────────────────────────────┘
-     ├╴◆ Task read the tests
-     └╴◇ Task find the flaky one
-   │   ↓ 6 · ↑ 5
-   ┌────────────────────────────────────────────────────────┐
- ❯ │ ○ reviewer · codex#c3d4                     idle 1m04s │
-   │ codex/gpt-5.6-sol:high · 5 turns                unread │
-   └────────────────────────────────────────────────────────┘
-```
+The drawing stays live while it is open. <kbd>esc</kbd> closes it again.
 
-The first row is the transcript every agent's work appears on — the way back to watching the
-flow rather than one agent of it. Beside it: how many of the boxes are working, how many turns
-they have taken between them, and how long the run has been going.
+## Reading a box
 
-## What a box says
+The left of a box says what the agent is: the name the flow gives it, what it runs as
+`cli/model:effort`, and how many turns it has taken. The right says what it is doing now:
 
-**On the left, what the agent is.** The name the flow calls it, what it runs as
-`cli/model:effort`, and how many turns it has taken.
-
-**On the right, what it is doing.** That column is the one that moves, and it is the one you
-come back to:
-
-| | |
+| Right side | Means |
 | --- | --- |
-| `●` and a clock | working, and how long this turn has been open |
-| `○` and `idle 4m12s` | stopped, and how long since its last turn ended |
-| `reading` | its transcript is the one on the screen behind the sheet |
-| `unread` | it has said something since you last looked at it |
+| `●` and `43s` | Working. The clock is how long this turn has been going. |
+| `○` and `idle 1m04s` | Stopped. The clock is how long since its last turn ended. |
+| `reading` | Its transcript is the one behind the drawing. |
+| `unread` | It has said something since you last read it. |
 
-An agent thinking for eleven minutes and an agent that stopped eleven minutes ago look nothing
-alike here, which is the point: the first is working and the second is where a flow has usually
-gone wrong.
+An agent that has been thinking for eleven minutes and one that stopped eleven minutes ago look
+nothing alike here. The second is usually where a run has gone wrong.
 
-**The arrows carry the handovers** and how often each way went. The one the flow took most
-recently is drawn lit, so where the run just went is the first thing you see. A handover between
-two agents the boxes did not put next to each other is said under the diagram as `Also` rather
-than drawn: a line crossing the page from the first box to the fourth is a line nothing in a
-terminal draws readably.
+**Under a box** hang the subagents that agent started on its own. `◆` is one still going and
+`◇` one that has finished. You cannot read or talk to them.
 
-**Enter on a box reads that agent**, whether or not it is working — `tab` is held to the ones
-working, so this is where the one that has stopped is reached. The box under the cursor is drawn
-in the marker colour, with `❯` beside its name.
+**Between two boxes**, `↓ 5 · ↑ 5` counts the handovers each way. The pair the run moved
+between most recently is lit. Handovers between boxes that are not next to each other are
+listed under the drawing as `Also`.
 
-## What is drawn, and when
+A box appears when its agent takes its first turn, and stays until the next run. A flow may
+declare ten agents and use three, and you see the three. Before any turn, the sheet lists the
+agents that are set up instead.
 
-**A box appears as its agent takes its first turn.** Not before. A flow may declare ten agents
-and reach three of them — it is Python, and it may never take the branch the other seven are on
-— so the diagram is what the run *is doing* rather than a list of what was configured. Each box
-stays for the rest of the run once it is there, and the agents of the last run are still drawn
-after it ends: what they did is still worth reading. Every clock stops where the run stopped.
+## Under the drawing
 
-Before anything has taken a turn the sheet says so, and lists the agents that are set up —
-which is the one thing it says about them that there are no boxes yet to carry.
-
-**An agent one of them started of its own hangs under it.** Claude's `Task`, Codex's collab
-agent, Cursor's task tool — a fleet under a turn is agents, so it is drawn as agents rather
-than as another tool call. `◆` is one still going and `◇` one that has come back; a flow's own
-agents wear `●` and `○` instead, because they are a different kind of thing. A subagent is not
-a row to open: nobody chose what it runs, nothing can be said to it, and it has no transcript of
-its own. A flow that wants a word about one hangs a hook on
-[`SUBAGENT_START`](/reference/agents#not-every-backend-runs-every-moment).
-
-## Under the diagram
-
-Only what the boxes cannot carry, so that the picture is what your eye lands on:
-
-| | |
+| Row | Shows |
 | --- | --- |
-| **Flow** | every flow running — the one that was started and whatever it called, innermost last |
-| **Set** | the flow's own settings, where any were changed from what it declares |
-| **Also** | the handovers no arrow could be drawn for |
-| **Tokens** | what each model has cost, and the output tokens a second it is coming out with |
-| **Kinds** | what the run spent on each kind of token, a `+` marking a figure some agent's CLI does not report and which is therefore a floor |
+| `Flow` | The flow running, and any flow it called, innermost last, each with how long it has run. |
+| `Set` | The flow's settings that differ from its defaults. |
+| `Also` | Handovers the arrows could not show. |
+| `Tokens` | Tokens and money per model, and the output tokens a second each is producing. |
+| `Kinds` | Tokens by kind for the whole run. A `+` marks a figure that is a floor, because some agent's CLI does not report that kind. See [Cost and rate](/user/tally). |
 
-Who is working, what each agent runs and how long it has been at it are on the boxes, and are
-not said twice.
+## The keys
 
-## Where it comes from
+| Key | Does |
+| --- | --- |
+| <kbd>↑</kbd> <kbd>↓</kbd> | Move between the boxes and the top row. |
+| <kbd>enter</kbd>, or a click | Read that agent. The top row reads every agent again. |
+| <kbd>esc</kbd> | Close the drawing. |
 
-Nothing asks the flow what it is doing. A **flow** is Python that may branch any way it likes,
-so there is nothing to ask. What `/monitor` draws is kept from **the turns going past** — the
-same `begins`/`ends` events any [watcher](/reference/agents#watching-a-turn-as-it-happens)
-sees. [`/btw`](/user/btw) answers a question from that same live observation, frozen into a
-snapshot, so asking it neither pauses nor steers the flow.
+`/monitor` can also draw a [board](/user/board), but a run of a flow never has one.
 
-That is also why the person, driven as [an agent](/weaver/human-agent), is not in the graph.
-Their turns are not bracketed by those events. Counting them would put a human in the handover
-graph and spin a clock at them while they thought.
+## Without opening it
 
-## The same readings, elsewhere
+Much of this is on the main screen too:
 
-Little of this waits for `/monitor`. Three parts of the screen carry it while the run goes on.
+- **Above the editor**, one line per agent: what it runs, and `●` or `○` for whether it is
+  working. See [Many conversations at once](/user/conversations).
+- **Under those**, what the run has cost and how fast it is spending. See
+  [Cost and rate](/user/tally).
+- **On the status line**, whose turn it is and how long it has been going.
 
-**Above the editor**, continuously: one line per agent. Each line shows the name the flow calls
-it, what it runs as `cli/model:effort`, the account where that is not this machine's own, and
-how many conversations it holds. `●` is an agent with a turn open, `○` one that has stopped.
-
-**On the status line, left**: whose turn it is and how long it has been going; between turns,
-the flow and how long the run has been going. A flow that [called
-another](/reference/flows#a-flow-that-calls-another-flow) names both, innermost last — `chat ▸
-rlar`.
-
-**Under the agent lines**: what the run has cost and the rate it is costing it at, per model,
-over a recent window — so a flow that has stopped reads as stopped. See [Cost and
-rate](/user/tally).
-
-## From Python
-
-The cost half is on the agents themselves:
-
-```python
-agent.spent()            # Usage(input=…, output=…, cache_read=…)
-agent.rate(over=60)      # tokens a second over the last minute
-agent.juice()            # output tokens an average turn of the model came out with
-```
-
-The graph half is yours to keep, from a watcher:
-
-```python
-handovers: dict[tuple[str, str], int] = {}
-last = None
-
-def looking(agent, session, event):
-    global last
-    if event.kind == "begins":
-        if last is not None and last != agent.id:
-            handovers[(last, agent.id)] = handovers.get((last, agent.id), 0) + 1
-        last = agent.id
-
-for one in (actor, reviewer):
-    one.watch(looking)
-```
-
-Which flows are running, innermost last:
-
-```python
-from hmz.runtime.flowing import running
-
-running()                       # one LiveCall(ref, name, depth, since, id, parent, task, resumable) apiece
-[one.name for one in running()] # ["chat", "rlar"]
-```
-
-It is every flow call going now, in every run of this process, each saying how `depth` deep it
-is and which call it is under (`parent`). A call that has ended is not among them.
-
-## Afterwards
-
-`/monitor` is the run in progress. Once it is over, the same shape — and far more of it — is
-[a trace](/user/tracing), gathered from that run on `/epics`: one process per agent, one track
-per row of its sessions, one slice per thing the agent did.
+After the run, its [trace](/user/tracing) shows the same shape in far more detail.
 
 ## See also
 
-- [Side questions](/user/btw)
-- [Cost and rate](/user/tally)
+- [Side questions (`/btw`)](/user/btw), to ask about the run in words
 - [Many conversations at once](/user/conversations)
 - [Tracing](/user/tracing)
