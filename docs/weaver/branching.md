@@ -1,112 +1,85 @@
+<script setup>
+import ForkHistory from '../.vitepress/theme/components/weaver-compose/ForkHistory.vue'
+</script>
+
 # Branching a conversation
 
-A session can be **forked**: a second conversation carrying this one's history, going its own
-way from the moment it was made. Reach for it when a conversation has got somewhere expensive
-and you want to try more than one way out of it.
+`fork` makes a second conversation that starts out knowing everything the first one knows, and
+goes its own way from there. Reach for it when a conversation has got somewhere expensive, such
+as an hour of reading the code, and you want to try more than one way on from it.
 
 ## Try it
 
-```python
+```python{4-5}
 session = await agent.spawn(env=workspace)
-await agent.run("read src/ and tell me what this service does", session=session)
+await agent.run("read src/ and say what this does", session=session)
 
-careful = await agent.fork(session, env=workspace)
-quick = await agent.fork(session, env=workspace)
-await asyncio.gather(
-    agent.run("now rewrite the retry logic, and mind the timeouts", session=careful),
-    agent.run("now rewrite the retry logic, fastest thing that works", session=quick),
+careful = await agent.fork(session, env=workspace)  # knows it all
+quick = await agent.fork(session, env=workspace)    # so does this
+await asyncio.gather(                               # both at once
+    agent.run("now fix the retry logic, carefully", session=careful),
+    agent.run("now fix the retry logic, quickly", session=quick),
 )
 ```
 
-Both children start out knowing everything `session` knew — the hour of reading is paid for
-once. What either of them is told afterwards is its own: the original is untouched, and the two
-never see each other's turns. They are two sessions, so they may take their turns at once.
+The reading is paid for once. Everything said after the fork belongs to one branch only:
+`session` is untouched, and `careful` and `quick` never see each other's turns. Take turns
+below and watch who knows what:
 
-`fork` is on every agent. It needs no mixin, because it is not something a flow can be refused
-for asking: it is something some CLIs cannot do, and those [say so](#which-clis-can) when they
-are asked.
+<ForkHistory />
 
-## Fork into another directory
+A fork is a session like any other. It has its own `usage`, which starts at nothing. It belongs
+to the same agent, with the same model, permission and [hooks](/weaver/hooks). It is closed the
+way every session is, when the flow call that opened it ends or nothing holds it any more.
 
-The `env` a fork is given is where the child works, and it need not be where the parent did. A
-conversation that has read the repository can carry on in a worktree of its own, so the two
-ways out of it do not write over each other:
+## Take the child's first turn before the parent moves on
 
-```python
-class Workspace(LocalEnv, GitWorktreeEnvMixin): ...
-
-
-trying = await workspace.derive_worktree(ref="main")
-elsewhere = await agent.fork(session, env=trying)
-await agent.run("try the rewrite here, on a clean checkout", session=elsewhere)
-```
-
-Claude Code, Codex, Kimi Code and ZCode carry a conversation into another directory: the child
-is told where it now is, and on Claude Code its transcript is copied to where the CLI resumes
-from. Every other CLI that forks does so only into the directory the conversation is already
-in. No CLI forks onto another machine.
-
-## What the child is
-
-The CLI's own fork does the carrying. There is no transcript replayed into a fresh session and
-no context handed between two processes: the CLI loads the conversation it already has and
-calls what follows a session of its own.
-
-So the child is a conversation in every way a run counts one:
-
-| | |
-| --- | --- |
-| **Its own id** | the CLI's id for the new conversation, not the old one |
-| **Its own spending** | `child.usage` starts at nothing; nothing spent on the parent counts twice |
-| **Its own place** | it is a session of its own in the run's record |
-| **Its own future** | turns of one are not turns of the other |
-
-It belongs to the same agent as the parent — the same CLI, model and grant, and the same
-[hooks](/weaver/hooks) — and is closed like any session: as soon as nothing holds it, or when
-the flow call that opened it ends, whichever comes first.
-
-## Use the child before the parent moves on
-
-A fork is cut where the child takes its first turn, so the branch point is where you called
-`fork` only if the parent has not taken another turn in between:
+A fork is cut at **its own first turn**, not at the call to `fork`. If the parent takes a turn
+in between, the child's first turn is refused rather than quietly branching from a later point:
 
 ```python
 child = await agent.fork(session, env=workspace)
-await agent.run("carry on here", session=session)    # the parent moves on
-await agent.run("and here", session=child)           # SessionError: fork it again
+await agent.run("carry on here", session=session)  # parent moves on
+await agent.run("and here", session=child)  # [!code error] SessionError
 ```
 
-That is refused rather than done, because the alternative is a child branched from somewhere
-nobody chose which reads exactly like the branch that was asked for. Fork again when you want
-the newer boundary. Driving one child does not move the parent, so the two-children pattern
-above is unaffected.
+Fork again when you want the newer point. Turns on a child never move its parent, so the
+two-branch pattern above is safe.
 
-## When there is nothing to fork
+A session that has taken no turn has nothing to carry, and forking it raises `SessionError`.
+`spawn` a fresh one instead.
 
-A conversation that has taken no turn has no history to carry, so forking one raises
-`SessionError`: it is one to open rather than one to fork. `spawn` a second session instead —
-the same agent, a conversation of its own, remembering nothing:
+## Fork into another directory
 
-```python
-first = await agent.spawn(env=workspace)
-second = await agent.spawn(env=workspace)   # independent: neither knows the other
+The `env` you pass to `fork` is where the child works, and it need not be the parent's. A
+conversation that has read the repository can carry on in a
+[worktree](/weaver/worktrees) of its own, so the two branches do not write over each other:
+
+```python{2,5-6}
+# The role may derive worktrees:
+class Workspace(LocalEnv, GitWorktreeEnvMixin): ...
+
+
+trying = await workspace.derive_worktree(ref="main")  # a new checkout
+elsewhere = await agent.fork(session, env=trying)     # it works there
+await agent.run("try the rewrite here", session=elsewhere)
 ```
 
-## Which CLIs can
+Four CLIs can do this, as [the table below](#which-clis-can-fork) shows.
 
-| CLI | Forks | Into another directory |
+## Which CLIs can fork
+
+`fork` is on every agent and needs no mixin. A CLI that cannot make the fork you ask for raises
+`UnsupportedOperation`, at the call.
+
+| CLI, as `-a` names it | Forks | Into another directory |
 | --- | --- | --- |
-| Claude Code | yes | yes |
-| Codex | yes | yes |
-| Kimi Code | yes | yes |
-| ZCode | yes | yes |
-| Grok Build, opencode, MiMo Code, pi, Qwen Code, an ACP CLI | yes | no |
-| cursor-agent, Antigravity, DeepSeek Harness | no | no |
+| `claude`, `codex`, `kimi`, `zcode` | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> |
+| `grok`, `mimo`, `opencode`, `pi`, `qwen`, an ACP CLI | <Badge type="tip" text="yes" /> | <Badge type="warning" text="same directory only" /> |
+| `agy`, `cursor-agent`, `dsh` | <Badge type="danger" text="no" /> | <Badge type="danger" text="no" /> |
 
-A fork a CLI cannot make raises `UnsupportedOperation`, where it is asked for. It is not
-answered with a second handle on the same conversation: two loops each continuing what they
-take to be their own is a run nothing downstream could explain. A flow that wants to fork on
-any CLI catches it, and spawns instead:
+No CLI forks onto another machine. A flow meant to run on any CLI can fall back to a fresh
+session:
 
 ```python
 from hmz.flows import UnsupportedOperation
@@ -114,25 +87,24 @@ from hmz.flows import UnsupportedOperation
 try:
     other = await agent.fork(session, env=workspace)
 except UnsupportedOperation:
-    other = await agent.spawn(env=workspace)
+    other = await agent.spawn(env=workspace)  # starts from nothing
 ```
 
-## Not `derive`
+## Fork or derive?
 
-The two are halves of one idea, which is why they are not one word:
+They sound alike and do opposite things:
 
-| | |
-| --- | --- |
-| `agent.derive(...)` | the same **agent** under a narrower grant, which holds no conversation of its own |
-| `agent.fork(session, env=...)` | another **conversation** of this one agent, which knows what this one knows |
+| | Gives you | Carries the history? |
+| --- | --- | --- |
+| `agent.fork(session, env=…)` | another **conversation** of the same agent | yes |
+| `agent.derive(permission=…)` | the same **agent** under a narrower grant | no: it holds no conversation |
 
-An agent is structure, so deriving one narrows the structure and carries none of the history.
-A session is history, so forking one copies the history and none of the structure. See
-[Concepts › Agent](/user/concepts#agent).
+`derive` is covered in [A flow that calls a
+flow](/weaver/calling-flows#narrow-what-you-hand-on).
 
 ## See also
 
-- [Many conversations at once](/user/conversations)
-- [Many turns at once](/weaver/async-flows), for driving both branches together
+- [Many turns at once](/weaver/async-flows), for driving the branches together
 - [Worktrees, copies and scratch](/weaver/worktrees), for branching the files rather than the
   conversation
+- [Many conversations at once](/user/conversations), for reading the branches at the prompt
