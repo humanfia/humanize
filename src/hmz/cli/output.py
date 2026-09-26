@@ -216,28 +216,6 @@ class Out:
             # is watched by whatever is tailing it.
             self._machine.flush()
 
-    def row(self, said: str, /, **fields: Any) -> None:
-        """One row of a listing, as a line for a person or an object for a program.
-
-        Args:
-          said: The line, already laid out.
-          fields: The same row's facts, for the program.
-        """
-        if self._json:
-            self.record(**fields)
-        else:
-            print(said)
-
-    def note(self, said: str) -> None:
-        """Something only a person needs: a heading, a count, the line to type next.
-
-        Args:
-          said: The line. Nothing at all is written where a program is reading -- an empty
-            list is already the answer, and a hint is not a row of it.
-        """
-        if not self._json:
-            print(said)
-
     def aside(self, said: str) -> None:
         """Something about the run itself rather than about its answer, said on stderr.
 

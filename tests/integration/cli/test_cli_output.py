@@ -112,28 +112,6 @@ def test_forcing_colour_does_not_invent_a_terminal(
     assert terminal(io.StringIO()) is False
 
 
-def test_a_listing_is_a_line_for_a_person_and_an_object_for_a_program(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """One call apiece, so that the two readings cannot drift into two listings."""
-    with Out() as out:
-        out.row("claude/mine  key", cli="claude", name="mine", way="key")
-        out.note("try `/providers`, then a")
-    said = capsys.readouterr().out.splitlines()
-
-    assert said == ["claude/mine  key", "try `/providers`, then a"]
-
-    with Out(as_json=True) as out:
-        out.row("claude/mine  key", cli="claude", name="mine", way="key")
-        # A hint is a thing to say to a person: an empty list is already the answer.
-        out.note("try `/providers`, then a")
-    written_out = capsys.readouterr().out.splitlines()
-
-    assert [json.loads(one) for one in written_out] == [
-        {"cli": "claude", "name": "mine", "way": "key"}
-    ]
-
-
 def test_a_run_written_for_a_program_cannot_have_a_stray_line_put_in_it(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

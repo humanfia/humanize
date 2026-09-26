@@ -261,7 +261,7 @@ def _internal(argv: list[str]) -> int:
 def _line() -> ArgumentParser:
     """The line `hmz` itself takes, which is how the interface is opened.
 
-    It takes nothing at all now: which flow runs and what drives it are chosen at the prompt,
+    It takes nothing at all: which flow runs and what drives it are chosen at the prompt,
     and whether the run is held apart from this terminal is read off the terminal rather than
     asked for -- a run nobody can walk away from is not a thing to want. What is left is a
     parser that names the program and refuses anything else, built here rather than where it
@@ -280,7 +280,7 @@ def _line() -> ArgumentParser:
     )
 
 
-def _tui(argv: list[str]) -> int:
+def _tui() -> int:
     """Opens the terminal interface, as this directory left it.
 
     The line says nothing about what to run: which flow, what drives it and what it is set up
@@ -288,17 +288,13 @@ def _tui(argv: list[str]) -> int:
     Nothing is started either -- the interface opens ready, and what starts it is still the
     first thing said.
 
-    Args:
-      argv: The whole line, which names no command.
-
     Returns:
-      Zero, once the interface has been closed, or two for a line to correct.
+      Zero, once the interface has been closed.
     """
     # Textual reads this once, while it is imported, so the terminal must be prepared before
     # reaching the lazily imported interface below.
     _prepare_textual_terminal()
 
-    _line().parse_args(argv)
     return opens()
 
 
@@ -361,8 +357,7 @@ def apart(session: Held) -> None:
     """Opens the interface inside the process holding the run, and returns when it closes.
 
     What is holding the run is the whole of what it is told. Which flow is open, what drives
-    it and what it is set up with are the interface's own to read back out of this directory,
-    and were only ever arguments here while a line could name them.
+    it and what it is set up with are the interface's own to read back out of this directory.
 
     Args:
       session: What is holding the run, which is what leaving it running lets go of and what
@@ -467,19 +462,7 @@ def main(argv: list[str] | None = None) -> int:
     """
     arguments = sys.argv[1:] if argv is None else argv
     if not arguments:
-        return _tui([])
-    # A line that names no command and starts with a flag is the interface being opened, and
-    # what it may say about opening one is whatever `_line()` takes -- which is asked of the
-    # parser rather than listed again here, so that a flag written as argparse would accept it
-    # is one flag rather than two spellings to keep in step. Two flags on their own are not
-    # that line: `--version` says the version, and `--help` lists the commands, which is what
-    # somebody typing it wants.
-    if arguments[0].startswith("-") and arguments not in (
-        ["--version"],
-        ["--help"],
-        ["-h"],
-    ):
-        return _tui(arguments)
+        return _tui()
     if arguments[0] not in COMMANDS:
         if arguments == ["--version"]:
             # Read from the installed metadata, which costs more to reach than everything
@@ -489,9 +472,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"hmz {version('hmz')}")
             return 0
         # Anything else naming no command it knows: argparse says which was meant and exits,
-        # so nothing below it runs. `--version` is handled above precisely because it is the
-        # one flag this parser no longer carries, and would otherwise fall through to a
-        # command lookup that has nothing to look up.
+        # so nothing below it runs.
 
         # The same line `hmz` itself takes, with the commands added: one help, saying both
         # what may be opened and what may be run, since both are `hmz` and somebody typing

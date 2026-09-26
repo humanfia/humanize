@@ -35,10 +35,6 @@ if TYPE_CHECKING:
 #: is.
 VARINT, SIXTY_FOUR, BYTES, THIRTY_TWO = 0, 1, 2, 5
 
-#: How deep a walk goes before it stops. A message that embeds itself, or bytes
-#: that happen to scan as one, would otherwise be a reader that does not return.
-_DEEP = 8
-
 #: The widest a varint may be before it is one the bytes cannot be holding: the
 #: format's own numbers are 64 bits, so a tenth group of seven is a message that
 #: was cut or was never one.

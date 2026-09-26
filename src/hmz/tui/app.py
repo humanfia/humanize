@@ -690,10 +690,9 @@ class Humanize(App[None]):
         assumed, and it is asked only where there is something to ask about -- with nothing
         running, `/exit` is a window being closed.
 
-        The one way out, letting go of the terminal included. That was a command of its own
-        and is an answer here instead: both were about the same running flow, and a person
-        who has decided to leave should be asked what becomes of it once rather than having
-        to know which of two words asks.
+        The one way out, letting go of the terminal included: a person who has decided to
+        leave is asked what becomes of the running flow once, rather than having to know
+        which of two words asks.
         """
         if self._run is None:
             self.action_quit()
@@ -2342,17 +2341,7 @@ class Humanize(App[None]):
         if hasattr(source.config, "approve_mcps"):
             settings["approve_mcps"] = False
         config = replace(source.config, **settings)
-        try:
-            clone = source.clone(
-                config=config,
-                name=f"btw-{request}",
-                skills=(),
-            )
-        except TypeError:
-            # A third-party AgentBase written before the optional skills argument may still
-            # implement clone(config=, name=). Clear its inherited skills after construction.
-            clone = source.clone(config=config, name=f"btw-{request}")
-            clone.loads(())
+        clone = source.clone(config=config, name=f"btw-{request}", skills=())
         # A watcher prevents command-backed backends from echoing the side answer to the
         # interface's captured stdout. It is intentionally not the primary app watcher.
         clone.watch(_quiet_watch)

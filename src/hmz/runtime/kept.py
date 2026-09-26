@@ -57,8 +57,7 @@ def read_back(said: object) -> Runs | None:
       said: What the file holds for it.
 
     Returns:
-      The agent, or None for an entry written by hand, or by an older humanize, and not the
-      way these are written.
+      The agent, or None for an entry written by hand and not the way these are written.
     """
     if not isinstance(said, str):
         return None

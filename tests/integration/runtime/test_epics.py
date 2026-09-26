@@ -458,36 +458,6 @@ def test_flows_calling_flows_read_back_as_the_tree_they_ran_in(
     assert len(records) == 3
 
 
-def test_a_run_written_before_calls_had_records_still_reads_as_what_it_called(
-    tmp_path: Path,
-) -> None:
-    """An epic is read where it was written, and older runs were written differently."""
-    at = tmp_path / "epic"
-    at.mkdir()
-    lines: tuple[dict[str, Any], ...] = (
-        {"event": "began", "at": "1", "flow": "outer", "task": "go", "agents": []},
-        {"event": "called", "at": "2", "flow": "a", "task": "one"},
-        {"event": "called", "at": "3", "flow": "b", "task": "two"},
-        {"event": "returned", "at": "4", "flow": "b"},
-        {"event": "returned", "at": "5", "flow": "a"},
-        {"event": "called", "at": "6", "flow": "a", "task": "three"},
-        {"event": "ended", "at": "7", "how": "stopped"},
-    )
-    (at / JOURNAL).write_text(
-        "\n".join(json.dumps(one) for one in lines), encoding="utf-8"
-    )
-
-    ran = read(at)
-    assert ran is not None
-    # Three calls and not two: a run that says only which flow is read by taking a return
-    # for the last call of that flow still open, which is what nesting is.
-    assert [(one.flow, one.task, one.ended) for one in ran.called] == [
-        ("a", "one", "5"),
-        ("b", "two", "4"),
-        ("a", "three", ""),
-    ]
-
-
 def test_a_directory_that_holds_no_run_is_not_one(tmp_path: Path) -> None:
     """An epic is what this wrote; anything else under there is somebody else's directory."""
     (tmp_path / "not-a-epic").mkdir()

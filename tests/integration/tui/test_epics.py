@@ -370,8 +370,8 @@ def test_the_trace_from_the_menu_is_of_that_run_and_of_nothing_else(
 
     del workspace
     epic = Epic("plain", "go")
-    epic.write("opened", agent="actor", backend="claude", session="one")
-    epic.write("opened", agent="reviewer", backend="claude", session="two")
+    epic.write("opened", agent="actor", backend="claude", session="one", name="one")
+    epic.write("opened", agent="reviewer", backend="claude", session="two", name="two")
     collect = unittest.mock.Mock(return_value={"otherData": {}})
     monkeypatch.setattr("hmz.runtime.tracing.collector.collect", collect)
     ran = read(epic.path)

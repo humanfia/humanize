@@ -1018,12 +1018,7 @@ def sessions(epic: Path) -> list[Session]:
                     backend=backend,
                     provider=provider,
                     ident=ident,
-                    # Worked out where an older epic did not write one down: a name is what
-                    # this session is called, and an epic written before it had one still
-                    # has sessions.
-                    name=str(
-                        said.get("name") or called(agent, backend, provider, ident)
-                    ),
+                    name=str(said.get("name") or ""),
                     at=str(said.get("at") or ""),
                     flow=flow,
                     parent=str(said.get("parent") or ""),
@@ -1095,9 +1090,7 @@ def _calls(events: Sequence[dict[str, Any]]) -> list[Called]:
 
     Paired by the record each call was written to rather than by the order the lines are in:
     a flow written as a coroutine may have two calls going at once, and their two ends
-    interleave. A run written before calls had records of their own says only which flow, and
-    is paired by taking a return for the last call of that flow still open -- which is what
-    nesting is, and the best a record that says no more can be read as.
+    interleave.
 
     Args:
       events: The lines of one record.
@@ -1123,18 +1116,7 @@ def _calls(events: Sequence[dict[str, Any]]) -> list[Called]:
                 )
             )
         elif said.get("event") == "returned":
-            at = (
-                where.get(record)
-                if record
-                else next(
-                    (
-                        which
-                        for which, one in reversed(list(enumerate(held)))
-                        if one.flow == flow and not one.ended
-                    ),
-                    None,
-                )
-            )
+            at = where.get(record)
             if at is not None:
                 held[at] = held[at]._replace(ended=str(said.get("at") or ""))
     return held
