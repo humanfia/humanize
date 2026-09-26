@@ -8,14 +8,15 @@
 // child to reach past it -- the default theme's own sponsor and team blocks do the same.
 import { onUnmounted, ref } from 'vue'
 
-const LINE = 'pip install git+https://github.com/humanfia/humanize.git'
+// The same line README.md and the quickstart below install with.
+const LINE = 'uv tool install git+https://github.com/humanfia/humanize.git'
 
 // Same-page fragments, so no `withBase`: these resolve against whatever the page is served as,
 // which under `base: '/humanize/'` is the only spelling that stays right.
 const ROLES = [
-  { href: '#run-a-flow', name: 'Run a flow', under: 'point agents at your repository' },
-  { href: '#weave-a-flow', name: 'Weave a flow', under: 'write the Python a flow is' },
-  { href: '#work-on-humanize', name: 'Work on humanize', under: 'hack on humanize itself' },
+  { href: '#run-a-flow', name: 'Run a flow', under: 'point coding agents at a repository' },
+  { href: '#weave-a-flow', name: 'Weave a flow', under: 'write your own, in Python' },
+  { href: '#work-on-humanize', name: 'Contribute', under: 'work on humanize itself' },
 ]
 
 const copied = ref(false)
@@ -41,9 +42,9 @@ onUnmounted(() => clearTimeout(clearing))
       <h1 class="wordmark">humanize</h1>
 
       <p class="define">
-        humanize runs <strong>flows</strong> — directories of Python that drive one or more
-        coding agents in a loop and write down everything they did. Most backends drive a
-        coding agent you already have, under its existing login.
+        humanize runs <strong>flows</strong>: Python programs that drive the coding agents
+        you already use — Claude Code, Codex and ten more — turn after turn, and
+        record everything they did.
       </p>
 
       <button class="line" type="button" :aria-label="`Copy: ${LINE}`" @click="copy">
@@ -59,7 +60,9 @@ onUnmounted(() => clearTimeout(clearing))
         </a>
       </nav>
 
-      <p class="under">Python ≥ 3.12 · reuses the CLI logins you already have</p>
+      <p class="under">
+        Python ≥ 3.12 · 12 coding agents, plus any CLI that speaks ACP · reuses your CLI logins
+      </p>
 
       <a class="cue" href="#how-it-fits-together" aria-label="How it fits together">
         <span class="chev" aria-hidden="true"></span>

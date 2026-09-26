@@ -103,8 +103,8 @@
 /* There is no sidebar here, so the content column is the full 1152px -- which is a fine width
    for a diagram, a table or a block of shell, and much too wide for a line of prose. The same
    measure a feature page holds its prose to, then, and only the prose: the code, the tables and
-   the diagrams keep the room. The one warning at the foot of the page is excluded, because it
-   sits under the full-width card grid and would read as ragged held in from it.
+   the diagrams keep the room. A `.hmz-warn` line is excluded, because one set under the
+   full-width card grid would read as ragged held in from it.
 
    One level deeper than an ordinary page: there `vp-doc` is the class on the wrapper the
    markdown sits directly inside, and on this layout `VPHomeContent` puts it on a container one
@@ -301,5 +301,306 @@
 
   .VPNavScreen.VPNavScreen {
     display: block;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------
+   Small things every page may use. Each is opt-in by its class, except `kbd` and the
+   callouts, which every page already has and which only gain from it.
+   --------------------------------------------------------------------------------------- */
+
+/* A key, drawn as a keycap: <kbd>ctrl+c</kbd>. */
+.vp-doc kbd {
+  display: inline-block;
+  min-width: 1.7em;
+  padding: 0 0.45em;
+  border: 1px solid var(--vp-c-divider);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-1);
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.8em;
+  font-weight: 500;
+  line-height: 1.55;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: 0.08em;
+}
+
+/* Callouts: a bar down the left in the callout's own colour, so a tip and a warning are told
+   apart at a glance. */
+.vp-doc .custom-block.info,
+.vp-doc .custom-block.note,
+.vp-doc .custom-block.tip,
+.vp-doc .custom-block.important,
+.vp-doc .custom-block.warning,
+.vp-doc .custom-block.caution,
+.vp-doc .custom-block.danger {
+  border-left: 3px solid var(--hmz-callout-bar, transparent);
+}
+
+.vp-doc .custom-block.info,
+.vp-doc .custom-block.note {
+  --hmz-callout-bar: var(--vp-c-text-3);
+}
+
+.vp-doc .custom-block.tip {
+  --hmz-callout-bar: var(--vp-c-tip-1);
+}
+
+.vp-doc .custom-block.important {
+  --hmz-callout-bar: var(--vp-c-important-1);
+}
+
+.vp-doc .custom-block.warning {
+  --hmz-callout-bar: var(--vp-c-warning-1);
+}
+
+.vp-doc .custom-block.caution,
+.vp-doc .custom-block.danger {
+  --hmz-callout-bar: var(--vp-c-danger-1);
+}
+
+/* The theme pads a callout 16px above and 8px below, and counts on the last paragraph's 8px
+   margin for the rest; a list or a table inside one is given the same. */
+.vp-doc .custom-block ul,
+.vp-doc .custom-block ol {
+  margin: 8px 0;
+}
+
+.vp-doc .custom-block table {
+  margin: 12px 0 8px;
+}
+
+.vp-doc .custom-block.details > summary {
+  transition: color 0.2s;
+}
+
+.vp-doc .custom-block.details > summary:hover {
+  color: var(--vp-c-brand-1);
+}
+
+.vp-doc .custom-block.details[open] > summary {
+  margin-bottom: 12px;
+}
+
+/* A terminal window around a code block, for a line typed somewhere other than your shell --
+   at humanize's own prompt, say. Always dark, in both themes, as a terminal is:
+
+     <div class="hmz-term" data-title="hmz">
+
+     ```text
+     $ralph_loop Fix the bug in calc.py.
+     ```
+
+     </div>
+
+   It also takes a bare <pre> for a screen written by hand; `.dim`, `.acc`, `.ok` and `.err`
+   colour a span inside one. */
+.hmz-term {
+  --hmz-term-bg: #16171d;
+  --hmz-term-bar: #202129;
+  --hmz-term-text: #e2e4ea;
+  --hmz-term-dim: #8b8e9c;
+  margin: 16px 0;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  border-radius: 10px;
+  background: var(--hmz-term-bg);
+  color: var(--hmz-term-text);
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+.dark .hmz-term {
+  border-color: var(--vp-c-divider);
+  box-shadow: none;
+}
+
+/* The title bar: three dots, and whatever `data-title` says. */
+.hmz-term::before {
+  content: attr(data-title);
+  display: block;
+  box-sizing: border-box;
+  min-height: 32px;
+  padding: 7px 14px 7px 66px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background:
+    radial-gradient(circle at 18px 50%, #ff5f57 5px, transparent 5.5px),
+    radial-gradient(circle at 36px 50%, #febc2e 5px, transparent 5.5px),
+    radial-gradient(circle at 54px 50%, #28c840 5px, transparent 5.5px),
+    var(--hmz-term-bar);
+  color: var(--hmz-term-dim);
+  font-family: var(--vp-font-family-mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.vp-doc .hmz-term div[class*='language-'] {
+  margin: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.vp-doc .hmz-term [class*='language-'] code {
+  color: var(--hmz-term-text);
+}
+
+html:not(.dark) .hmz-term .vp-code span {
+  color: var(--shiki-dark, inherit);
+}
+
+.vp-doc .hmz-term [class*='language-'] > span.lang {
+  display: none;
+}
+
+.hmz-term > pre {
+  margin: 0;
+  padding: 16px 20px;
+  overflow-x: auto;
+  font-family: var(--vp-font-family-mono);
+  font-size: 13.5px;
+  line-height: 1.6;
+  white-space: pre;
+}
+
+.hmz-term .dim {
+  color: var(--hmz-term-dim);
+}
+
+.hmz-term .acc {
+  color: #2dd4bf;
+}
+
+.hmz-term .ok {
+  color: #4ade80;
+}
+
+.hmz-term .err {
+  color: #f87171;
+}
+
+/* A recording of the terminal, with a line under it saying what it shows:
+
+     <figure class="hmz-shot">
+       <img :src="withBase('/demo/tui.gif')" alt="…" />
+       <figcaption>…</figcaption>
+     </figure>
+*/
+.vp-doc .hmz-shot {
+  margin: 20px 0 24px;
+}
+
+.vp-doc .hmz-shot img {
+  display: block;
+  width: 100%;
+  max-width: 760px;
+  height: auto;
+  border: 1px solid var(--hmz-panel-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.vp-doc .hmz-shot figcaption {
+  max-width: 760px;
+  margin-top: 8px;
+  color: var(--vp-c-text-3);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* Numbered steps down a rail. Every `###` directly inside is a step, numbered in order:
+
+     <div class="hmz-steps">
+
+     ### Install
+     …
+
+     ### Run it
+     …
+
+     </div>
+*/
+.vp-doc .hmz-steps {
+  counter-reset: hmz-step;
+  position: relative;
+  margin: 24px 0 8px;
+  padding-left: 46px;
+}
+
+/* The rail the numbers sit on. */
+.vp-doc .hmz-steps::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  bottom: 12px;
+  left: 13px;
+  width: 2px;
+  border-radius: 1px;
+  background: linear-gradient(var(--vp-c-brand-soft), var(--hmz-panel-border));
+}
+
+.vp-doc .hmz-steps > h3 {
+  counter-increment: hmz-step;
+  position: relative;
+  margin-top: 36px;
+}
+
+.vp-doc .hmz-steps > h3:first-child {
+  margin-top: 0;
+}
+
+.vp-doc .hmz-steps > h3::before {
+  content: counter(hmz-step);
+  position: absolute;
+  top: -1px;
+  left: -46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--vp-c-brand-1);
+  border-radius: 999px;
+  background: var(--vp-c-bg);
+  color: var(--vp-c-brand-1);
+  font-family: var(--vp-font-family-mono);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+@media (max-width: 639px) {
+  /* No room for a rail: the number moves in front of the heading, and the code blocks go
+     back to the edge-to-edge the theme draws them at on a phone. */
+  .vp-doc .hmz-steps {
+    padding-left: 0;
+  }
+
+  .vp-doc .hmz-steps::before {
+    display: none;
+  }
+
+  .vp-doc .hmz-steps > h3::before {
+    position: static;
+    display: inline-flex;
+    width: 26px;
+    height: 26px;
+    margin-right: 10px;
+    vertical-align: 1px;
+  }
+}
+
+/* On the page at the site's root, prose inside the steps keeps the measure the rest of that
+   page's prose is held to. */
+.VPHome .vp-doc .hmz-steps > p,
+.VPHome .vp-doc .hmz-steps > ul,
+.VPHome .vp-doc .hmz-steps > ol,
+.VPHome .vp-doc .hmz-steps > .custom-block {
+  max-width: 46rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vp-doc .custom-block.details > summary {
+    transition: none;
   }
 }
