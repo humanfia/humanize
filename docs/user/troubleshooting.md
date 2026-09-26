@@ -1,540 +1,456 @@
 ---
-# Every entry here is one h3, and there are dozens of them: an outline of the errors
-# themselves is a wall of half-sentences, all cut off at the same width. The outline
-# names the places a problem happens in; the page itself lists the errors.
+# Every entry is one h3, and there are dozens: an outline of the messages themselves is a wall
+# of half-sentences cut off at the same width. The outline names where a problem happens; the
+# page lists the messages.
 outline: 2
 ---
 
+<script setup>
+import TroubleFilter from '../.vitepress/theme/components/user-troubleshooting/TroubleFilter.vue'
+</script>
+
 # Troubleshooting
 
-What a problem looks like, and what to do about it — grouped by where you were when it
-happened.
+Find the message you got, or the thing you saw, and what to do about it. The entries are
+grouped by where you meet them. Paste the message into the box to see only the entries that
+match.
+
+<TroubleFilter />
 
 ## Starting a flow
 
-### `… needs an agent for 'reviewer'; give each with -a ROLE=CLI/MODEL:EFFORT`
+`hmz exec` prints these after `hmz exec: error:` and exits with status 2. Nothing has run. At
+the prompt, the same words follow `hmz:`.
 
-The flow declares an agent role nothing on the line filled. Give one `-a` per agent role, by
-the role's name:
+### `rlar needs an agent for 'actor', 'reviewer'; give each with -a ROLE=CLI/MODEL:EFFORT`
+
+The flow has agent roles that nothing on the line fills. Give one `-a` per role, named after
+the role:
 
 ```sh
 hmz exec -f rlar -a actor=claude/claude-opus-5:high -a reviewer=codex/gpt-5.6-sol:high \
     -b cost=20 "fix the build"
 ```
 
-Ask a flow what it declares without running it — every role, whether it is required, and
-whether humanize fills it:
+### `ralph_loop has no agent role 'builder'; its agent roles are 'agent'`
 
-```python
-from hmz.runtime.flowing import load_flow
+The line names a role the flow does not have: a typo, or another flow's role. Use a name from
+the list at the end of the message. `chat` has `assistant`, `ralph_loop` has `agent`, and
+`rlar` has `actor` and `reviewer`.
 
-flow = load_flow("rlar", caller_globals={})
-for role in flow.describe().agents:
-    print(role.name, role.required, role.auto)
-```
+### `…: 'human' is filled by the runtime -- whoever is outside the run -- and is not given with -a`
 
-A role typed as an `Outworlder` — the person — and one typed as a `LocalEnv` — the directory
-the run started in — do **not** need filling. Nobody chooses what the person runs.
-
-### `<flow> has no agent role 'builder'; its agent roles are …`
-
-The line named a role the flow has not got — a typo, or the name another flow gives its agent.
-The flows each name their own: `agent` for `ralph_loop`, `actor` and `reviewer` for `rlar`.
-
-### `'human' is filled by the runtime -- whoever is outside the run -- and is not given with -a`
-
-The line named a role humanize fills itself: an `Outworlder`, which is whoever is outside the
-run, or — as `… is the workspace the run is started in, and is not given with -e` — a
-`LocalEnv`, which is the directory the run was started in. Take it off the line.
+That role is the person outside the run, and humanize fills it. Take it off the line.
+`… is the workspace the run is started in, and is not given with -e` is the same for an
+environment: it is the directory you ran `hmz exec` in.
 
 ### `-a 'claude/claude-opus-5:high': expected <role>=<harness>[@<provider>]/<model>:<effort>`
 
-An agent with no role in front of it. Every agent on a line says which of the flow's roles it
-fills — `-a agent=claude/claude-opus-5:high`.
+The agent has no role in front of it. Say which role it fills:
+`-a agent=claude/claude-opus-5:high`.
 
 ### `-a 'agent=claude:high': expected [NAME=]CLI[@PROVIDER]/MODEL:EFFORT`
 
-An `-a` is missing a part. The CLI, the model and the effort are all three required:
+A part is missing. The CLI, the model and the effort are all required, and `auto` is the effort
+that asks for none:
 
 ```sh
 -a agent=claude/claude-opus-5:high
+-a agent=opencode/anthropic/claude-opus-5:auto   # a model may hold slashes
 ```
 
-The CLI is read from the front and the effort from after the **last** colon. A model with
-slashes in it, such as `kimi/kimi-code/k3:high`, is fine.
+### `ralph_loop: a run is given a budget -- -b duration=...,cost=...,output_tokens=... -- and this one was given none`
 
-### `… a run is given a budget -- -b duration=...,cost=...,output_tokens=... -- and this one was given none`
-
-Every flow but `chat` is run under a budget, and `hmz exec` will not start one without it:
+Every flow except `chat` runs under a budget. Give it one with `-b`:
 
 ```sh
 -b cost=20
 -b duration=6h,output_tokens=10m
 ```
 
-See [Run it unattended](/user/unattended#say-what-the-run-may-spend).
+See [Allowances](/features/allowances) for what each key stops.
 
-### `'worker' needs GoalCommandAgentMixin, which pi does not do`
+### `agent=claude/claude-opus-5:ultra: claude cannot be asked to think at 'ultra'; expected one of ultracode, max, xhigh, high, medium, low`
 
-The role declares something that CLI cannot do — a goal, being steered, a hook only some CLIs
-reach. The flow is written for agents that can; pick a CLI that serves it. Which does what is in
-[Flows › What each harness serves](/reference/flows#what-each-harness-serves).
+That effort is not on the backend's ladder. Pick one from the list, or `auto` for none. A CLI
+you added at [`/providers`](/user/providers) takes any effort.
 
-### `'builder' is claude, and codex was given`
+### `cursor-agent lists no gpt-5.2-medium: this account runs gpt-5.2 as gpt-5.2-low, gpt-5.2-high`
 
-The role is typed as one CLI's own protocol — `ClaudeCodeAgent` and the rest — which asks for
-that CLI and everything it can do. Give it that CLI.
+cursor-agent writes the effort into the model's id, and this account does not offer the model
+at that effort. Pick an effort the message lists.
 
-### `<flow>: no flow is called '<name>', and it is not a path`
+### `…: 'reviewer' needs GoalCommandAgentMixin, which pi does not do`
 
-`-f` named something that is not there. humanize looks for a name in `.humanize/flows`, then
-`~/.humanize/flows`, then among the flows humanize ships and every
-[flowverse](/reference/flows#flowverses) fetched here. A name no place answers to is taken as a
-path. See [where flows live](/reference/flows#where-flows-live).
+The role asks for something that CLI cannot do: pursue a goal, be steered, or answer a hook.
+Give the role a CLI that can. [Reference › Flows](/reference/flows) has the table of which CLI
+does what.
 
-### `the official flowverse has not been fetched yet`
+### `…: 'builder' is claude, and codex was given`
 
-The name is right; the download has not happened. `/flow` fetches whatever has never been
-fetched as it opens. Press `r` on it in [`/flowverses`](/weaver/flowverses) to fetch it again —
-or, from a script with no terminal to press it at, `Hmz().verses.fetch("official")`.
+The role is written for one CLI only. Give it that CLI.
+
+### `nosuchflow: no flow is called 'nosuchflow', and it is not a path`
+
+`-f` names a flow that nothing offers. A name is looked up in this project's `.humanize/flows`,
+then in `~/.humanize/flows`, then among humanize's own flows and every
+[flowverse](/weaver/flowverses) fetched here. Anything else is read as a path.
+
+### `ralph_loop: the official flowverse has not been fetched yet -- open /flowverses and press r on it`
+
+The name is right, but the flowverse has not been downloaded yet. `hmz` fetches flowverses in
+the background every time it starts. To fetch one now, open `/flowverses` and press
+<kbd>r</kbd> on it.
 
 ### `… holds gen-idea, gen-plan, rlcr and none is called 'humanize1'; name one as humanize1:<flow>`
 
-The module holds [several flows](/reference/flows#several-flows-in-one-file), none of them
-named after its directory, and more than one of them visible. Say which one you want with a
-colon: `-f humanize1:gen-plan`.
+The directory holds several flows, and none is named after it. Say which one you mean:
+`-f humanize1:gen-plan`. A name that is not among them gets
+`… holds no flow called '…'; it holds …`, with the list to choose from.
 
-### `… defines no flow`
+### `…: 1 validation error for Params`
 
-Nothing in the module is marked `@flow`. A function is a flow because it is decorated, not
-because of what it is called:
+`-p` gave a key the flow does not take, or a value its type cannot read. The lines after it
+name the key and say what was wrong:
 
-```python
-@flow(agents=Agents, envs=Envs, params=FlowParams)
-async def mine(task, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext):
-    ...
+```
+hmz exec: error: chat:chat: 1 validation error for Params
+foo
+  Extra inputs are not permitted [type=extra_forbidden, input_value=1, input_type=int]
 ```
 
-### ``… a flow is an `async def` function``
+Fix the value, or leave the key off to get its default.
 
-Every flow is a coroutine now: `async def`, taking the task and then `agents`, `envs`, `params`
-and `ctx` as keywords. A plain `def` is refused where it is decorated. See
-[Writing a flow](/weaver/writing-a-flow).
+### `ralph_loop has no run here to pick up: none got as far as writing anything down`
 
-### `Agents.reviewer: 'Reviewer' cannot be resolved: …`
+`--resume` found no run of this flow in this directory that saved anything to pick up from.
+Run it without `--resume`. `… does not say it can be picked up, so there is no run of it to
+resume` means the flow cannot be resumed at all.
 
-A role's type is named only for a type checker:
+### `hmz exec: nobody lists a price for my-model, so cost=5 cannot stop what it spends`
 
-```python
-if TYPE_CHECKING:                     # ← this is the problem
-    from hmz.flows import Agent
-```
-
-Import it at runtime instead. The roles are read where the flow runs, not only where pyright
-looks.
-
-### A params error naming a field
-
-`-p` gave a field the flow's `FlowParams` refuses — a value its type will not read, a key it
-does not declare, or a combination its validators rule out. The message is the model's own. Fix
-the value, or leave the key off for its default.
-
-### The agent starts and immediately fails
-
-Run the backend's own command line by hand first. humanize passes `model` and `effort` through
-untouched. So a model your account cannot run fails the same way it would anywhere:
+A warning, and the run goes ahead. humanize knows no price for that model, so a `cost` cap
+never fills. Cap something it can count as well:
 
 ```sh
-claude --help
-codex --version
+-b cost=5,output_tokens=2m
 ```
 
-### The turn failed and I want to know which of my problems it is
+## At the prompt
 
-Every failed turn now ends with the kind of failure it was and what to do about it, in
-brackets after whatever the CLI said:
+The interface prints most of these in red, after `hmz:`.
 
+### `no coding agent is installed here`
+
+You typed a task, and the flow has no agent to run it on. humanize looks for a coding agent CLI
+on your `PATH` and in the directories installers use, such as `~/.local/bin` and
+`/usr/local/bin`. Check what it can find:
+
+```sh
+command -v agy claude codex cursor-agent grok kimi mimo opencode pi qwen zcode
 ```
+
+Install one from [Installation](/user/installation), then open `hmz` again. If one is
+installed, open `/flow` and give the role a CLI and a model.
+
+### `no such flow: ralph`
+
+A `$` line names a flow by the name it is offered under:
+
+| Flow | Typed as |
+| --- | --- |
+| humanize's own, and the official flowverse's | `$ralph_loop` |
+| this project's, in `.humanize/flows` | `$local/twice` |
+| yours, in `~/.humanize/flows` | `$user/twice` |
+| another flowverse's | `$<flowverse>/name` |
+
+A flowverse not fetched yet offers nothing: open `/flowverses` and press <kbd>r</kbd> on it.
+
+### `no such command: /foo`
+
+Type `/` to see the commands. There are fourteen, listed in
+[Reference › TUI](/reference/tui).
+
+### `a flow is running; no choosing a flow`
+
+A `/flow <name>` or a `$` line while a flow runs. Starting another flow would stop this one, so
+humanize refuses. Stop it first with [`/stop`](/user/stopping), or <kbd>ctrl+c</kbd> twice on
+an empty line. `/flow` on its own still opens, on the roles of the flow that is running.
+`a flow is already running` has the same cause.
+
+### `reviewer is not set up yet`
+
+Said in `/flow` when you save. The role has no CLI and model yet. Open it and choose both.
+`a run of this flow is given a budget: set what it may spend first` is the same for the budget.
+
+### `nothing was set up, so nothing was started`
+
+A `$` line named a flow this directory has never set up, so `/flow` opened on it, and you left
+without saving. Type the line again and save the menu this time.
+
+### `say on or off, not 'yes'`
+
+`/details` and `/afk` switch over when you give them nothing. Given a word, they take only `on`
+or `off`.
+
+### `/btw needs a flow that is running`
+
+[`/btw`](/user/btw) asks the running flow's agents a side question, so it needs a flow that is
+running. `/btw needs a coding agent that supports read-only turns` means the flow has no coding
+agent to ask. `/btw already has 4 questions in progress` means four are still out: wait for one
+to answer.
+
+### A line I typed did not reach the agent
+
+A typed line goes to the agent you are reading. When you are reading all of them, it goes to
+whichever has a turn open. Until that agent takes it, the line stays pinned above the prompt.
+
+- **Between turns**, it waits for the next turn to start.
+- **Several lines** go one at a time, so the later ones wait a turn or two.
+- **When the flow ends**, lines nobody took move into the transcript marked `never sent`.
+
+To send it to another agent, press <kbd>tab</kbd> to read that one first. See
+[Steering](/user/steering).
+
+### The screen is unreadable in my terminal
+
+The interface draws in your terminal's own 16 colours, so the usual cause is a terminal theme
+with too little contrast between two of them. Change the terminal's theme, or run
+`NO_COLOR=1 hmz` for no colour at all, or `TEXTUAL_THEME=textual-dark hmz` for a fixed palette.
+
+### The token count sits still, then jumps
+
+Claude Code, Codex, Kimi Code, ZCode and DeepSeek Harness count as they go. The other backends
+report at the end of each turn, so their count jumps. An agent working on another machine
+reports at the end of each turn too.
+
+If one of those five sits still, it is writing its log somewhere `hmz` is not looking. `hmz`
+looks where its own `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIMI_CODE_HOME` or `DSH_HOME` points,
+and in `~/.zcode` under its own `HOME`. Start `hmz` with the same values the CLI runs with.
+
+## Agents, accounts and models
+
+A failed turn ends with what the CLI said, then the kind of failure in brackets:
+
+```text{2}
 Command '['claude', …]' returned non-zero exit status 1. 429 rate limit exceeded
 (throttled: this account has spent its quota; another one, or a wait, is what answers it)
 ```
 
-The kinds are `throttled`, `refused`, `unlisted`, `retired`, `contended`, `dropped`, `killed`,
-`sandboxed` and `missing`, and each of them gets
-[a different answer](/user/fallback#what-went-wrong) before
-the turn is given up on. A failure with no kind in brackets is one nothing recognised, which is
-tried again exactly as a failed turn always was.
+humanize waits, retries, or moves to the next account or [fallback](/user/fallback) by itself,
+depending on the kind. The entries below say what is left for you to do. A failure with no
+brackets is one humanize did not recognise, and it is retried as that place says.
 
-In a flow, each kind is an exception of its own, and all of them are `HarnessError`:
-`HarnessThrottled`, `HarnessRefused`, `ModelUnavailable` (unlisted and retired),
-`HarnessContended`, `HarnessDropped`, `HarnessKilled`, `HarnessSandboxed` and `HarnessMissing`,
-with `HarnessUnrecoverable` for one no retry could change. A flow catches the one it can do
-something about. See [Flows › When something goes wrong](/reference/flows#when-something-goes-wrong).
+### The agent fails on its first turn
+
+Run the CLI yourself with the same model, under the same account. A model that account cannot
+run fails there the same way. humanize checks the effort before it starts, but only the CLI
+knows which models your account may use.
+
+### `(throttled: this account has spent its quota; another one, or a wait, is what answers it)`
+
+The account hit its rate limit. humanize waits, tries once more, then moves to the next account
+of that CLI. Give it one to move to: add an account at [`/providers`](/user/providers) and set
+what it falls back to.
 
 ### `(refused: that account needs signing in again)`
 
-The credential, not the request: a 401, or a login that has expired. Nothing is tried again
-under it — it would be refused a minute later too — and the turn carries on under the next
-account of that backend. Sign the one it left back in:
+The credential was refused, or the login expired. humanize moves straight on to the next
+account. Sign the account back in, with the CLI's own login for the account this machine uses:
 
 ```sh
 claude auth login
 ```
 
-Or, for an account humanize keeps rather than the one this machine is signed into, open
-[`/providers`](/reference/tui#the-accounts-themselves), put the cursor on it and press enter:
-*sign in again* runs that backend's own way in under this account's paths.
+For an account humanize keeps, open `/providers`, choose the account, and pick
+**sign in again**.
 
 ### `(unlisted: … this account was last offered …)`
 
-The model, not the credential. The account is signed in and was told no about one id — a
-gateway fronting several clouds serves the models its own keys are entitled to, and a
-subscription does not include everything the CLI can name:
+The account is signed in, but it may not use that model. The bracket says whether humanize's
+list of this account's models is out of date:
 
 ```
-403 key not allowed to access model. This key can only access models=['default-models'].
-Tried to access gpt-5.2
 (unlisted: the 3 models this account was last offered (asked 2026-09-10) still name it, so
 that list is the stale part; r on its models asks again)
 ```
 
-The list humanize offered that id out of is the one it kept the last time anybody asked this
-account what it runs, and **nothing asks again on its own** — asking means starting a coding
-agent or reaching somebody's gateway, and neither is a thing to do while a sheet is drawn or a
-turn is failing. So a vendor that moves its catalogue leaves every id in yours refused, and the
-brackets say which of the two it is: a list that still names the refused id is the stale part,
-and a list that never named it is one to read before naming another.
-
-Either way, **r** asks again — in the agent's own setup sheet, on the `model` row — and
-`Hmz().accounts.ask(cli, provider)` is the same question from a script. An account on somebody's
-endpoint is answered by that endpoint rather than by the CLI, so what comes back is what that
-account may actually name.
-
-### `(sandboxed: this machine will not let it sandbox itself; run it without one, or somewhere it can)`
-
-The machine, not the account. A CLI that confines its own tool calls asks the kernel for a
-namespace to confine them in, and an unprivileged container has none to give:
-
-```
-bwrap: setting up uid map: Permission denied
-```
-
-Nothing was refused a credential, so no account of that backend is walked and no go is worth
-taking again. Run the container with the privileges its sandbox needs (`--privileged`, or a
-kernel that permits unprivileged user namespaces), or configure the agent without a sandbox —
-`grok`'s is `sandbox=""`, which is the bare CLI's own answer.
+humanize never asks an account again on its own. In `/flow`, open the agent, open its `model`
+row, and press <kbd>r</kbd> to ask the CLI what this account runs now. Then choose one of
+those.
 
 ### `(retired: the model is gone or was never this account's; another place is what answers it)`
 
-The CLI or its service says there is no such model. No account of that backend answers it, they
-are all offered the same catalogue, so the turn goes straight to the next
-[place](/user/fallback). Ask the backend what it actually runs, and give the agent one of
-those: in the agent's own setup sheet, open the `model` row and press **r**, which asks that
-CLI again as that account and keeps what it said. From a script,
-`Hmz().accounts.ask(cli, provider)` is the same question.
+The CLI says there is no such model. No account of that CLI has it, so the turn goes straight
+to the next [fallback](/user/fallback). Choose another model: press <kbd>r</kbd> on the agent's
+`model` row to see what the CLI runs.
 
 ### `(missing: npm i -g @anthropic-ai/claude-code)`
 
-There was nothing to run. The CLI is not installed, or would not start. The line in brackets is
-the one that installs it; `curl https://cursor.com/install -fsS | bash` for Cursor, `pip
-install 'deepseek-harness-sdk>=0.1.1rc1,<0.1.2' 'python-dotenv>=1.2.3'` for DeepSeek
-Harness. ZCode's is three commands rather than one, because its package installs the desktop
-app and leaves the command line inside it — see
-[ZCode wants a launcher of its own](/user/installation#zcode-wants-a-launcher-of-its-own).
-humanize looks on `PATH` first and then
-where an installer would have put one — see [what you have](/user/installation#check-what-you-have).
+The CLI is not installed where the agent runs, or would not start. The bracket holds the
+command that installs it. See [Installation](/user/installation).
+
+### `(sandboxed: this machine will not let it sandbox itself; run it without one, or somewhere it can)`
+
+The CLI could not start its own sandbox, usually with `bwrap: … Permission denied` just before.
+An unprivileged container is the common cause. Run it where the kernel allows unprivileged user
+namespaces, or give the role another CLI.
 
 ### `(contended: two turns of it are sharing one database)`
 
-opencode keeps its sessions in one SQLite database shared across workspaces, so two turns of it
-at once can lose a race and be told `database is locked` before either has spoken to a
-provider. The turn is taken again three times, a second apart, which nearly always clears it.
-If it does not, run fewer opencode agents at once.
+Two turns of opencode or mimocode wrote to the CLI's one database at once and got
+`database is locked`. humanize retries three times, a second apart, which nearly always clears
+it. If it keeps happening, run fewer of those agents at once.
 
-### `codex: this machine will not run an agent at bypass, so it runs at auto`
+### `(killed: the machine it runs on may be out of memory)`
 
-Not a failure: a note, said once per agent that runs at `bypass` — one whose role may write its
-workdir. This Codex was given requirements by somebody else — an enterprise policy that arrives
-with the account, or a `requirements.toml` on a machine whose platform packages Codex —
-forbidding the `danger-full-access` sandbox that [`bypass`](/user/permissions) is. Codex refuses
-such a call outright, so humanize asks again a rung down, at `auto`: the same freedom, with
-Codex asking before it reaches past the workspace and humanize granting what it asks. What the
-machine allows is its own to say:
+The CLI was killed rather than answering: out of memory, or a crash signal. humanize waits a
+moment, reopens it and tries once more. If it keeps happening, free memory or run fewer agents.
 
-```sh
-cat /etc/codex/requirements.toml
-```
+### `(dropped)`
 
-## In the interface
+The connection to the CLI or its service was lost. humanize reopens it and resumes the same
+conversation. Nothing to do unless it keeps happening.
 
-### `no coding agent is installed here`
+### `the watchdog stopped this turn: claude is idle and has said nothing for 903s`
 
-No backend was found, on your `PATH` or in the directories an installer puts one in. humanize
-drives the CLI you already have; it holds no API key and talks to no model provider itself.
+The CLI was still running but had gone silent, so humanize ended the turn. It fails like any
+other turn and is retried the same way. The words before `has said nothing` say what it saw:
+`is gone` is a crash to look for in the CLI's own log, `is stopped` means something suspended
+it, and `is idle` means it was waiting on something that never answered.
 
-```sh
-command -v claude codex kimi pi opencode mimo zcode
-```
-
-### `a flow is running; no choosing a flow`
-
-A `/flow <name>` or a `$` line while a flow runs. Choosing a flow means running it, which means
-stopping whatever was running — and humanize says so rather than doing it behind your back.
-Press ctrl+c twice first, or type [`/stop`](/user/stopping), which is the same stop asked once.
-`/flow` on its own is not refused: it opens inside the roles of the flow that is going.
-
-### `a flow is already running`
-
-This has the same cause: a flow was to be started while another was still running.
-
-### `say on or off, not 'yes'`
-
-`/details` and `/afk` flip when you give them nothing. When you tell them which, they take
-exactly `on` or `off`.
-
-### `no such command: /foo`
-
-Type `/` to see the list. `hmz internal anchor` is deliberately not a command here: it is not
-a thing to do to a flow that is running. `/epics` is where the runs of this directory are:
-going into one is where it is exported, trace and all.
-
-### A line I typed did not reach the agent
-
-Look at whether it is still [pinned above the
-prompt](/reference/tui#talking-to-a-running-flow). A line sits there, rather than in the
-transcript, until somebody has actually taken it — the next turn if none was open, or the
-running turn saying the words are in front of it. A line to a running flow is never dropped:
-one that nothing ever took is written down as never sent rather than left looking like it went.
-It reaches whichever agent has a turn *open*, not whichever was named last.
-
-Several lines typed in a row go one at a time. The ones behind the first sit pinned for a turn
-or two before their own answer comes back. That is deliberate: handed over together, they would
-be run together and answered once.
-
-If the agent is anchored and is Claude, it hears you **between** turns rather than during one.
-An anchored Claude ends its process with each turn, so that its work reaches the target before
-the turn says it landed. See [Remote execution](/reference/remote-execution#anchoring-a-flow).
-
-### The screen is unreadable in my terminal
-
-The interface uses only your terminal's own 16 colours and never asks what they are. So this is
-usually a theme with too little contrast between two of them. `NO_COLOR=1 hmz` drops to no
-colour at all.
-
-### The token count sits still, then jumps
-
-It should not: the cost readout tails the logs the backends write as they go rather than
-waiting for a turn to end. If it does sit still, the backend's home is somewhere humanize is
-not looking. Check `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIMI_CODE_HOME`. ZCode has no variable
-of its own, so its home is `~/.zcode` under whatever `HOME` says.
-
-## Driving agents from Python
-
-### `RuntimeError: session has not run a turn yet`
-
-`session.id` is the backend's id, and the backend has not named the session yet. Use
-`session.named` instead. It answers `None` if you need it before a turn has landed.
-
-### `NotImplementedError: … cannot be talked to mid-turn`
-
-That backend takes a turn's whole prompt up front. So there is nowhere for a later word to go.
-See [what each backend can do](/reference/agents#what-each-backend-can-do).
-
-### `RuntimeError: no turn is running to be talked to`
-
-You called `interject` on a backend that *can* be talked to, but no process is up to hear it.
-Open the session with a turn first.
-
-### `the watchdog stopped this turn: … has said nothing for …`
-
-The CLI was still running and had stopped saying anything, so the turn was ended rather than
-waited on. It is a failed turn like any other: the conversation is untouched, and the retries
-and fallbacks written down for that place take it against the same session. Nothing has to be
-done unless it keeps happening.
-
-If it keeps happening, the run says which rung it got to and what it saw — `is idle`, `is
-stopped`, `is gone`, `is still working` — on the stream you are watching the agent on. `is
-gone` means the CLI exited without ending the turn, which is a crash to look for in that CLI's
-own log; `is stopped` means something suspended it; `is idle` means it was waiting on
-something that never came back.
-
-### A healthy turn was killed for thinking too long
-
-The default window is a quarter of an hour of **complete** silence — no reasoning, no tool
-call, no line of protocol — which no ordinary turn reaches. If yours does, say so:
+humanize looks at a turn after 15 minutes of complete silence, 6 for DeepSeek Harness, and ends
+it unless the CLI is visibly busy. If your turns really go quiet for longer, give them more
+room, in seconds, or `0` to turn this off:
 
 ```sh
-HUMANIZE_WATCHDOG=3600 hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b cost=5 "…"
+HUMANIZE_WATCHDOG=3600 hmz
 ```
 
-`HUMANIZE_WATCHDOG=0` turns the watchdog off entirely. See
-[when a CLI stops answering](/reference/agents#when-a-cli-stops-answering).
+### `codex: this machine will not run an agent at bypass, so it runs at auto, where what it asks for is granted` {#codex-this-machine-will-not-run-an-agent-at-bypass-so-it-runs-at-auto}
 
-### `NotImplementedError: … cannot be interrupted: …`
+A note, not a failure. This Codex has requirements set by whoever manages it, an enterprise
+policy or the machine's own, and they forbid full access. So the agent runs one
+[permission](/user/permissions) rung down, at `auto`: Codex asks before it reaches past the
+workspace, and humanize says yes. The work goes on.
 
-That backend takes a turn's whole prompt up front and runs it as one command, so there is
-nothing listening to be told to stop. Nothing is wrong: whatever asked goes on to what it does
-about a turn that cannot be asked — the watchdog puts the process down instead.
+## Exporting a run
 
-### `NotImplementedError: … has no goal feature`
+### `… · 0 sessions, 0 slices` {#_0-sessions-0-slices}
 
-`pursue` is the backend's own goal feature, not a prompt asking for one. `suppress=True` does
-not catch this, deliberately. Asking for a feature that is not there is a flow to correct — and
-a flow written against `hmz.flows` never meets it: a `/goal` prompt without
-`GoalCommandAgentMixin` on the role raises `CapabilityNotGranted`, and a role with it is refused
-a CLI that has no goal before anything runs.
+[**export it**](/user/export) in `/epics` wrote the archive, but its trace holds nothing. In
+order of likelihood:
 
-### My flow's loop never ends after I stop it
+1. **The run ended before its first turn.** `/epics` says how many sessions each run opened.
+2. **The agent was cursor-agent.** humanize cannot read its sessions into a trace. The rest of
+   the archive is still there.
+3. **The CLI keeps its logs somewhere else now.** Start `hmz` with the same home variables the
+   run had, such as `CLAUDE_CONFIG_DIR`, `CODEX_HOME` or `KIMI_CODE_HOME`.
 
-Your loop is catching the stop. A run stopped by hand cancels the flow, and a spent budget
-raises `BudgetExceeded`; neither is a `HarnessError`. A bare `except Exception` in your flow
-catches the second, and `except BaseException` the first. Catch what you mean and let the rest
-propagate.
+## Remote machines and containers
 
-### A turn failed and I want the flow's loop to continue
+These come from an agent whose work lands on another machine: an `ssh@` environment given with
+`-e`, a container, or a [remote execution](/user/remote-execution) target.
 
-```python
-from hmz.flows import HarnessError
+### `could not reach build-box over ssh: …` {#the-target-cannot-be-reached}
 
-try:
-    await agent.run(task, session=session)
-except HarnessError:
-    pass   # the round failed; the loop goes round again
-```
+Run `ssh build-box` yourself first. humanize uses your own ssh config, agent and keys, and adds
+nothing. `there is no ssh host build-box: …` means ssh could not resolve the name at all.
+[Reference › Remote execution](/reference/remote-execution) has a check that walks the whole
+path to a target without starting an agent.
 
-Whatever the turn was run through, a failed turn raises a `HarnessError`, so a flow catches
-turns rather than transports. Driving an agent by hand, outside a flow, `agent(task,
-suppress=True)` is the same thing said as a keyword.
+### `humanize: no python 3.12 or newer on this machine; looked for: …`
 
-## Collecting a trace
+The target needs Python 3.12 or newer, and it has none. Install one there. It does not have to
+be on the `PATH`: the message lists every place humanize looked.
 
-### `cannot parse time: …`
+### `could not install humanize on docker://…: … is not running; the container said: …`
 
-`--start` and `--end` take anything [dateparser](https://dateparser.readthedocs.io/)
-understands. Quote it: `--start "3 days ago"`.
+humanize copies itself to a target before the agent starts, and this target refused. What it
+said follows the colon. A container that is `not running` stopped as soon as it started, which
+is what an image with no Python 3.12 or newer does: its last words say where it looked.
 
-### `session id cannot be empty`
+### `humanize intercepts syscalls with a Linux seccomp filter and a ptrace supervisor, and this host is 'darwin'. …`
 
-A `--session` with an empty entry. Usually a trailing comma.
+An agent whose work lands elsewhere can only run on Linux. On a Mac, run humanize inside a
+Linux virtual machine: Docker Desktop, colima and lima each give you one, on Intel and Apple
+silicon alike. The Mac can still be a target for an agent running somewhere else.
 
-### `0 sessions, 0 slices`
+### `humanize has a register map for aarch64, x86_64; this host reports 'riscv64', …`
 
-Nothing matched. In order of likelihood:
+An agent whose work lands elsewhere must run on an x86-64 or aarch64 Linux machine. Run it from
+one of those. The target can be any architecture, this machine included.
 
-1. **The backend's home is elsewhere.** Check `CLAUDE_CONFIG_DIR`, `CODEX_HOME`,
-   `KIMI_CODE_HOME`. A home that does not exist is skipped silently.
-2. **The run being traced opened nothing.** A trace is of a run and holds that run's own
-   sessions. So a run that died before its first turn is a trace of nothing. `/epics` says how
-   many sessions each run opened, and `--epic` names another.
-3. **You are tracing the wrong directory.** Runs are kept per workspace. Without a
-   `<workspace>`, the last run of *this* one is what is traced.
-4. **Nothing here was ever run by a flow.** Then there is no run to trace, and `/epics` has
-   nothing to offer. A trace of loose sessions is `Hmz().epics.trace()`, or
-   `Hmz().epics.trace(sessions=["<id>"])` for named ones — there is no way in that asks for one.
-5. **The time window excludes it.** Drop the `start` and `end` you passed.
+### `the target speaks protocol …, this humanize speaks …`
 
-### Two agents show up as one
+The two ends are different versions of humanize, usually a target that was left listening
+before you upgraded. Start it again with the humanize you have now.
 
-They ran at the same configuration, and nothing said they were two. A trace reads that off
-the run it is a trace of, which is the [epic](/reference/tracing#epics) `/epics` gathered it
-from. So a trace asked for by `Hmz().epics.trace(sessions=…)` is of no run and has nothing to
-read it off. If you drive agents by hand, pass `agents={a.id: a.opened for a in …}`. See [what counts as one
-agent](/reference/tracing#what-counts-as-one-agent).
+### `unsupported target '…'; expected ssh://HOST, docker://CONTAINER, tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]`
 
-## Remote execution
-
-### `humanize has a register map for aarch64, x86_64; this host reports …`
-
-The half that runs *beside the agent* needs an architecture-specific register map, and there
-is one for those two. The **target** may be any architecture, so a machine this refuses can
-still be anchored *to* from one that it does not.
-
-### `humanize intercepts syscalls with a Linux seccomp filter and a ptrace supervisor …`
-
-Said on a Mac, or on anything else that is not Linux. Run the agent inside a Linux virtual
-machine — Docker Desktop, colima and lima each give you one, on Intel Macs and on Apple
-silicon alike. Serving a target from a Mac needs none of this and is unaffected.
-
-### `unsupported target '…'`
-
-```
-expected ssh://HOST, docker://CONTAINER, tcp://HOST:PORT or local[:PATH]
-```
-
-Those four, and nothing else. See [Targets](/reference/remote-execution#targets).
+humanize cannot read the target. Write it in one of the forms the message lists. `peer://` is
+one humanize writes for itself; you do not type it.
 
 ### `refusing to listen on a non-loopback address without --token`
 
-An open port is equivalent to a shell on that machine. Give `--token` a real secret, or prefer
-`ssh://` or `docker://`. Those need no open port at all.
+A target listening on the network is a shell on that machine for anyone who reaches it. Give
+`--token` a real secret, or use `ssh://` or `docker://`, which open no port at all.
 
-### The target cannot be reached
+### `… already contains files and is not an humanize mirror. …`
 
-Ask it what it is. This runs nothing there:
-
-```sh
-hmz internal anchor --check --target ssh://build-box
-```
-
-It bootstraps the target half, opens the channel and reads the workspace back — the whole path,
-without starting an agent. `--log-level debug` says more, on stderr, the one stream a session
-never speaks the protocol on.
-
-### The target refuses the mirror directory
-
-The mirror is authoritative: anything in it the target does not have is deleted. So humanize
-refuses a mirror directory holding unrelated files, or one last used against a different
-target. Point `--shadow` somewhere empty, or pass `--force` if you are sure.
-
-### `the target speaks protocol …`
-
-The two halves are different versions. The bundle is cached on the target by digest. A stale
-one is replaced by a new connection. So this usually means two different humanize installations
-are both driving that target.
-
-### The agent can no longer reach its model provider
-
-`--net remote` sends the agent's *own* connections to the target. Leave it at `local`, the
-default, or keep the provider local with `--net-allow api.anthropic.com:443`.
+The agent works in a local mirror of the target, and humanize replaces a mirror's contents with
+the target's. So it will not take a directory holding other files, or one mirroring another
+target (`… mirrors ssh://a, not ssh://b. …`). Use an empty directory, or pass `--force` if you
+mean it.
 
 ### A command ran against stale files
 
-Only file *contents* cross. A permission change made through an already-open descriptor never
-reaches the target. Ownership, device nodes and extended attributes never leave the mirror. The
-full list is [What is not guaranteed](/reference/remote-execution#what-is-not-guaranteed).
-
-## Containers
+Only file contents reach the target. A permission change made through a file that is already
+open does not, and ownership, device nodes and extended attributes never do. The full list is
+in [Reference › Remote execution](/reference/remote-execution).
 
 ### `could not start a container of python:3.12: …`
 
-Whatever docker said is attached. The usual causes are no daemon to reach, an image that is not
+Docker's own words follow. The usual causes are no Docker daemon to reach, an image that is not
 pulled, and an image with no shell in it.
-
-### `could not install humanize in …: container … is not running`
-
-The container stopped as soon as it was started, which is what an image holding no Python the
-target half can use does. What it said on the way out is attached: the places an interpreter was
-looked for. Any Python 3.12 or newer answers, on the image's `PATH` or at one of those paths.
 
 ### `no directory to give the container`
 
-The workspace is not there. humanize refuses it rather than mounting it into being. Docker
-would create it for you, owned by root, inside directories you own.
+The workspace directory does not exist. Create it first. humanize refuses rather than letting
+Docker create it, owned by root.
 
-### Containers left behind after a flow was killed
+### Containers left behind after a run was killed
 
-They are labelled with the uid that started them:
+Every container humanize starts is labelled with your uid, so this removes yours and nobody
+else's:
 
 ```sh
 docker rm -f $(docker ps -q --filter label=humanize=$(id -u))
 ```
 
-That cannot reach past you on a machine several people share.
+## Writing a flow
+
+For whoever wrote the flow. See [Writing a flow](/weaver/writing-a-flow).
+
+### `… defines no flow`
+
+Nothing in the module is decorated with `@flow`. A function is a flow because it is decorated,
+not because of its name.
+
+### ``… a flow is an `async def` function``
+
+The function under `@flow` is a plain `def`. Make it `async def`.
+
+### `Agents.reviewer: 'Reviewer' cannot be resolved: …`
+
+The role's type is imported only under `if TYPE_CHECKING:`. humanize reads the roles when the
+flow runs, so import the type at runtime.
 
 ## Still stuck
 
-- `--log-level debug` on `hmz internal anchor`, both ends.
-- The SPECs under `specs/` say what it is *supposed* to do, normatively.
-  `specs/coganchor/SPEC.md` is the one worth reading when a remote session behaves strangely.
-- [Architecture](/contributing/architecture) says which layer to look in.
+- Turn on [`/details`](/user/details) to see everything the agents do, and press <kbd>esc</kbd>
+  for [`/monitor`](/user/monitor) to see which one is doing what.
+- [Export the run](/user/export) from `/epics` and attach the archive to an issue, with the
+  output of `hmz --version`. Credentials are struck out, but your task and the agents'
+  transcripts are in it.
 - Ask in [issues](https://github.com/humanfia/humanize/issues).
