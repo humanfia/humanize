@@ -1,111 +1,151 @@
+<script setup>
+import TermScreen from '../.vitepress/theme/components/user-running/TermScreen.vue'
+
+const b = 'builder · claude/claude-opus-5:high · ● 1'
+const t = 'tester · codex/gpt-5.6-sol:high · ● 1'
+const below = [
+  { r: '[m]input 58.3k · output 12.9k · cache_read 1.20M+ · cache_write 51.7k+[/]' },
+  { r: '[m]$3.02 · 64 out/s[/]' },
+  { rule: true },
+  { prompt: '' },
+  { rule: true },
+  {
+    l: '[c]·|·[/] builder, tester… [m](72s · ctrl+c twice to stop)[/]',
+    keys: 'tab agent · / commands · shift+enter newline · esc monitor · ctrl+c stop',
+  },
+]
+const said = {
+  builder: [
+    '',
+    '[dim]● builder is working[/]',
+    '',
+    '[g]●[/] The parser takes nested lists now. Running the fixtures next.',
+  ],
+  tester: [
+    '',
+    '[dim]● tester is working[/]',
+    '',
+    '[g]●[/] Two new cases for empty input; both fail on main, as expected.',
+  ],
+}
+
+const reading = [
+  {
+    label: 'reading every agent',
+    lines: [
+      '[dim]── builder[/]',
+      ...said.builder.slice(0, 2),
+      '',
+      '[dim]── tester[/]',
+      ...said.tester.slice(0, 2),
+      '',
+      '[dim]── builder[/]',
+      ...said.builder.slice(2),
+      '',
+      '[dim]── tester[/]',
+      ...said.tester.slice(2),
+      '',
+      { r: `[m]${b}[/]` },
+      { r: `[m]${t}[/]` },
+      ...below,
+    ],
+    caption:
+      'Where the screen opens: every agent\'s work in the order it happens, with a <code>── name</code> line wherever the speaker changes.',
+  },
+  {
+    label: 'reading builder',
+    lines: [
+      { t: '[dim]─ reading builder ─[/]', hl: true },
+      ...said.builder,
+      '',
+      { r: `[m]${b} · reading[/]`, hl: true },
+      { r: `[m]${t} · unread[/]` },
+      ...below,
+    ],
+    caption:
+      'One agent\'s own transcript, drawn from the top. <code>unread</code> marks the other agent: it has said something you have not seen.',
+  },
+  {
+    label: 'reading tester',
+    lines: [
+      { t: '[dim]─ reading tester ─[/]', hl: true },
+      ...said.tester,
+      '',
+      { r: `[m]${b}[/]` },
+      { r: `[m]${t} · reading[/]`, hl: true },
+      ...below,
+    ],
+    caption: 'The next agent that is working. One more <kbd>tab</kbd> goes back to every agent.',
+  },
+]
+</script>
+
 # Many conversations at once
 
-When a flow drives several agents, each agent holds as many conversations as it likes. A Ralph
-loop opens one conversation each turn, and a fan-out holds one per worktree. There is a
-transcript **per agent**, all of its conversations running down it, and one more where **every
-agent's work appears together** — which is the one the interface opens on.
+When a flow drives several agents, each one gets a transcript of its own, and there is one
+more where all their work appears together. The screen opens on that one. Press
+<kbd>tab</kbd> to read one agent at a time.
 
 ## Try it
 
-Open a flow where more than one agent is working. You are watching all of them: each part says
-which agent it is from as that changes. Press **tab** and the screen becomes the first working
-agent's own transcript, drawn from the top. Press it again for the next, and again to come back
-round to all of them.
+A project flow runs a `builder` and a `tester` side by side. Press the keys to step through
+the transcripts, as <kbd>tab</kbd> does:
+
+<TermScreen title="hmz · local/pair" :frames="reading" :keys="['shift+tab', 'tab']" />
 
 ## The keys
 
-| | |
+| Key | Reads |
 | --- | --- |
-| **tab** | The next agent that is working, and round to the one they all appear on. |
-| **shift+tab** | The one before it. Both wrap. |
+| <kbd>tab</kbd> | The next agent that is working, then round to every agent again. |
+| <kbd>shift+tab</kbd> | The one before. |
+| <kbd>esc</kbd>, then <kbd>enter</kbd> on a box | Any agent, working or not, picked on [`/monitor`](/user/monitor). |
 
-With ten agents going, these step between the ones thinking right now, not the ones that have
-stopped. An agent between its turns stays readable once you are on it — what you are reading
-stays put until you press one of these keys — but it is not stepped onto.
+<kbd>tab</kbd> steps only between agents that are working, so with ten agents it skips the ones
+that are idle. Once you are reading an agent, you stay on it after its turn ends, until you
+press a key. To reach one that has stopped, or has not started yet, use `/monitor`.
 
-**Every agent that has worked can still be read**, from the diagram
-[`/monitor`](/reference/tui#watching-the-run) draws. **esc** opens it, and enter or a click
-on a box reads that agent whether or not it is working. That is where the one that has stopped,
-or has not started, is picked out by name rather than stepped past.
+## What the lines above the editor say
+
+Each line is one agent: the name the flow gives it, what it runs as `cli/model:effort`, and
+then what it is holding.
+
+| Mark | Means |
+| --- | --- |
+| `● 1` | It has a turn open, in one conversation. |
+| `○ 2` | It is between turns, and holds two conversations. |
+| `reading` | Its transcript is the one on the screen. |
+| `unread` | It has said something since you last read it. |
+
+Nothing is marked `unread` while you read every agent, since everything is on that screen.
 
 ## What "the agent you are reading" decides
 
-- What the transcript shows: that agent's own, drawn from the top under a line saying so.
-- Where [a line you type](/user/steering) goes — of that agent's conversations, the one with a
-  turn open.
-- What the line above the editor marks as `reading`.
+- **The transcript**, drawn from the top with a line saying whose it is.
+- **Where a line you type goes.** See [Talking to a running turn](/user/steering).
+- **Which agent answers [`/btw`](/user/btw).**
+- **What `/clear` clears**: only that transcript.
 
-A word you put into a turn is kept against the agent that took it, wherever you were looking
-when it went: it is part of that conversation, so it reads back as part of it.
+## One agent, many conversations
 
-```
-   builder · claude/claude-opus-5:max · ● 2 · reading
-   reviewer · codex/gpt-5.6-sol:high · ○ 1 · unread
-```
-
-`●` marks an agent with a turn open, and `○` marks one that has stopped. **`unread`** marks an
-agent that has said something since you last looked at it. That way a flow of ten agents is not
-nine that nobody knows to look at. Nothing is marked unread while you are reading all of them
-at once — what an agent said is on that screen too, and you have just read it there.
-
-## One agent is one screen, however many conversations it opens
-
-A Ralph loop opens a conversation a turn. All of them run down that agent's one transcript,
-and nothing is redrawn when the next one opens — a screen wiped every turn would take with it
-the turn you were reading, the line you typed and whatever went wrong. Which conversation a
-turn is in is said where the turn begins, for an agent holding more than one:
+An agent can hold many conversations. A Ralph loop opens a fresh one every round, and a
+fan-out holds several at once. They all run down that agent's one transcript, and the screen
+is never wiped when a new one opens. When an agent holds more than one, each turn says which:
 
 ```
-● claude#a1b2 is working · conversation 3 of 3
+● worker is working · conversation 2 of 3
 ```
 
-Stepping onto *another agent* is the one thing that draws from the top, because what that agent
-has done is that agent's, and a screen that only ever appended would be every agent's lines
-shuffled into one another. Only `/clear` clears, and it clears the one you are reading rather
-than reaching into ones you were not looking at.
+::: details How much the screen keeps
+The last 16 transcripts, and the last 2,000 lines of each. Anything older is gone from the
+screen but not from the run's [trace](/user/tracing).
+:::
 
-What is kept is bounded, because a machine runs one flow after another. You keep **the last
-sixteen transcripts, and the last two thousand lines of each**. Older lines and the agents of
-older runs are gone from the screen, not from the [trace](/user/tracing).
-
-## Where the conversations come from
-
-Every conversation is a session, and the flow decides how many:
-
-```python
-session = await agent.spawn(env=workspace)                       # one held across turns
-held = [await agent.spawn(env=tree) for tree in trees]           # one per worktree
-fresh = await asyncio.gather(*(agent.spawn(env=workspace) for _ in range(200)))
-```
-
-A session costs nothing until a turn lands in one. See [Worktrees](/weaver/worktrees) for the
-several-directories case, and [Concepts › Session](/user/concepts#session) for why this is the
-single most important choice a flow makes.
-
-A conversation that has got somewhere can also be **branched**, which is one more of these:
-
-```python
-careful = await agent.fork(session, env=workspace)   # both know what session knows
-quick = await agent.fork(session, env=workspace)
-```
-
-Each child is a conversation of its own — its own id, its own spending, its own line in the
-[trace](/user/tracing) saying which conversation it was forked from — and it starts out knowing
-everything the one it came from knew. So an hour of reading a codebase is paid for once and
-tried two ways. The CLI's own fork does the carrying, so a backend that has not got one refuses
-with `UnsupportedOperation` rather than quietly handing back the same conversation twice. See [Branching a conversation](/weaver/branching).
-
-## Two things this is not
-
-**Not the person.** A flow that talks to you talks to you here, so the conversation with [the
-person](/weaver/human-agent) is not one of the ones these keys move between.
-
-**Not one conversation each.** Two agents at one model and effort are two agents, each with its
-own conversations and its own transcript. A fan-out is one agent and many conversations, which
-is one transcript.
+How many conversations each agent holds is up to the flow. See
+[Many turns at once](/weaver/async-flows) and [Branching a conversation](/weaver/branching).
 
 ## See also
 
+- [Watching a run](/user/monitor)
 - [Talking to a running turn](/user/steering)
-- [Exporting a run](/user/export), which packages up every session a run opened
-- [Worktrees](/weaver/worktrees)
+- [Exporting a run](/user/export), which packages every conversation a run opened
