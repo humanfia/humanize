@@ -1,15 +1,13 @@
 # Your first patch
 
-**Half an hour**, most of it spent on the first `uv sync` and the test suite. You will clone
-humanize, change one small thing, put it through both gates, and open a pull request that CI
-agrees with.
+**Half an hour**, most of it the first `uv sync` and the test run. You will clone humanize,
+change one small thing, pass the checks, and open a pull request CI agrees with.
 
 ::: tip Before you start
-`git` and [`uv`](https://docs.astral.sh/uv/). Nothing else — `uv sync` builds the environment,
-Python included.
+`git` and [`uv`](https://docs.astral.sh/uv/). Nothing else: `uv sync` brings Python with it.
 :::
 
-## Clone it, and install the hooks
+## 1. Clone it and install the hooks
 
 ```sh
 git clone https://github.com/humanfia/humanize.git
@@ -18,172 +16,131 @@ uv sync
 uv run pre-commit install
 ```
 
-`uv sync` builds `.venv` from `uv.lock`, so the `ruff` and `pyright` you run are the ones CI
-runs. `pre-commit install` writes the hook that checks a commit before it is made — once, and
-every commit after it is checked.
+From now on every commit is checked before it is made. Run tools through `uv run`, not `uvx`,
+so you get the versions `uv.lock` pins.
 
-Run everything through `uv run` rather than `uvx`: `uvx` fetches whatever is newest, and the
-lockfile exists so that nothing here is whatever is newest.
+## 2. Find something small
 
-## Find something small
-
-A good first patch is one screen of diff you can defend:
+A good first patch is one screen of diff:
 
 - an error message that says what went wrong but not what to do about it;
 - a docstring that no longer describes its function;
 - a `--help` line that is out of date;
 - a test for a branch that has none.
 
-[Architecture](/contributing/architecture) is the map: one directory per layer under
-`src/hmz/`, each named after what it holds. Working backwards from a command instead,
-[CLI](/reference/cli) names the module behind each one.
-
+[Architecture](/contributing/architecture) shows which directory under `src/hmz/` holds what.
 Branch, then make the change:
 
 ```sh
 git switch -c fix/say-what-to-do
 ```
 
-## What the change is held to
-
-- **`pyright` in strict mode**, over `src` and `tests`. `# type: ignore` is switched off — a
-  suppression names a pyright rule, or it does not exist.
-- **`ruff` with `select = ["ALL"]`**, less the rules this codebase has a written reason to be
-  without. Every exemption in `pyproject.toml` carries that reason beside it, and adding one
-  means writing the next.
-- **Google-style docstrings**, and type annotations everywhere.
-- **Popular, well-maintained libraries** in preference to a custom implementation of the same
-  thing.
-
-And two rules that catch people out:
-
-**Do not modify a SPEC.** Most packages have one under `specs/`, whose tree mirrors
-`src/hmz/`, and it is normative: where these docs say what humanize *does*, a SPEC says what it
-*must* do, in MUST/MUST NOT terms. It is the contract and the code is what moves. If the
-contract itself is wrong, propose that separately — `AGENTS.md` says not to change one unless
-you were asked to.
-
-**Each package depends only downwards.** `tests/integration/layering/test_layering.py`
-holds the table of what each layer may import, and fails on an import that climbs, on two layers that name each other, and
-on a top-level module missing from the table. [Architecture](/contributing/architecture) draws
-the same table.
-
-## Gate one: everything that answers in seconds
-
-```sh
-uv run pre-commit run --all-files
-```
-
-```
-check for added large files..............................................Passed
-check for case conflicts.................................................Passed
-check for merge conflicts................................................Passed
-check toml...............................................................Passed
-check yaml...............................................................Passed
-fix end of files.........................................................Passed
-mixed line ending........................................................Passed
-trim trailing whitespace.................................................Passed
-uv lock --check..........................................................Passed
-ruff check...............................................................Passed
-ruff format..............................................................Passed
-pyright (strict).........................................................Passed
-```
-
-Three of those behave in a way worth knowing about:
-
-- **`ruff check` runs with `--fix`.** A run that fixes something reports `Failed` and `files
-  were modified by this hook`. Read what it did, `git add` it, and run the gate again.
-- **`ruff format` runs after the linter**, because a `--fix` can emit code the formatter then
-  wants to reflow — lint-then-format settles in one pass where the other order takes two.
-- **`pyright` checks the whole project**, not the files you touched. A type checker reads what
-  a file imports, so checking only what changed checks the wrong half of the change.
-
-`ruff` and `pyright` come from this project's own environment rather than one pre-commit
-builds, since `uv.lock` already pins them. Bump one with `uv lock --upgrade-package ruff`
-rather than by editing a second pin.
-
-## Gate two: the tests
-
-```sh
-uv run pytest
-```
-
-The slow gate — minutes, not seconds. `-ra` is set in `pyproject.toml`, so the summary names
-everything that was skipped, and a test that quietly stops running says so.
-
-That runs two of the three [tiers](/contributing/): `tests/unit/`, which imports
-`hmz` and asserts and touches nothing else, and `tests/integration/`, where everything on the far
-side is something this repository wrote — a [stand-in CLI](/reference/flows#testing-a-flow) on
-`PATH`, a fake app server, a loopback socket, the mock LLM service. Both want a checkout and
-nothing more, which is why they are a gate and why CI can run them.
-
-Where you put a new test is what it is: `tests/unit`, `tests/integration` or `tests/system`,
-each of which marks everything beneath it, so there is no decorator to remember and
-`tests/test_tiers.py` goes red if a marker and a directory ever disagree. [Where a test
-lives](/contributing/#where-a-test-lives) has what each tree may touch.
-
-While you are still writing the change, the first tier alone is the loop worth having:
+## 3. Test it while you write
 
 ```sh
 uv run pytest tests/unit
 ```
 
-The third tier, `tests/system/`, is the one CI leaves out, by naming the directory rather than
-by deselecting it. Your own `uv run pytest` still collects it, and each test there says for
-itself what it could not find — a machine that cannot trace, an image that was never pulled, a
-`node` that is not installed. The ones that would spend real tokens are skipped until you ask:
+Seconds, and the loop worth having. If your change needs a new test, file it by what is on
+the other side of it: `tests/unit/` when it calls `hmz` and nothing else,
+`tests/integration/` when it talks to something this repository wrote, `tests/system/` when it
+needs the real thing. [Where a test goes](/contributing/#where-a-test-goes) has the table.
 
+## 4. Run the checks
+
+```sh
+uv run pre-commit run --all-files
 ```
+
+::: code-group
+
+```text [All passed]
+check for added large files.............................Passed
+check for case conflicts................................Passed
+check for merge conflicts...............................Passed
+check toml..............................................Passed
+check yaml..............................................Passed
+fix end of files........................................Passed
+mixed line ending.......................................Passed
+trim trailing whitespace................................Passed
+uv lock --check.........................................Passed
+ruff check..............................................Passed
+ruff format.............................................Passed
+pyright (strict)........................................Passed
+```
+
+```text [ruff fixed something]
+ruff check..............................................Failed
+- hook id: ruff-check
+- files were modified by this hook
+
+Found 1 error (1 fixed, 0 remaining).
+```
+
+:::
+
+**`ruff check` fixes what it can**, and a run that fixed something reports `Failed`. Read what
+it changed, `git add` it, and run the checks again. `pyright` checks the whole project, so an
+error can show up in a file you did not touch but that imports one you did.
+
+Then the tests, all three tiers:
+
+```sh
+uv run pytest
+```
+
+Minutes. The summary names every test that skipped and why. Tests that need something your
+machine lacks, like docker or a real `node`, skip. So do the ones that drive a real coding
+agent CLI, until you ask for them:
+
+```text
 SKIPPED [1] tests/system/agents/test_steering.py:30: needs --run-agents (drives real agents, costs tokens)
 ```
 
+Your first patch rarely needs them. When a change touches what the system tier drives for
+real, a backend's driver or the anchor say, run it by hand:
+
 ```sh
-uv run pytest --run-agents
+uv run pytest tests/system --run-agents
 ```
 
-That drives the coding agent CLIs actually installed on your machine, signed in as you signed
-them in, and spends real tokens doing it. CI never runs it — it passes `--ignore=tests/system`,
-so on a runner that tier is not even collected. Run it yourself when the change is a driver
-under `coganchor/agents/`, an anchor, or the daemon, and leave it alone otherwise.
+::: warning This spends real tokens
+It drives the coding agent CLIs installed on your machine, signed in as you.
+:::
 
-## Commit it
-
-[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/), which `AGENTS.md`
-requires:
+## 5. Commit it
 
 ```sh
 git add -A
-git commit -m "fix(agents): a suppressed failed turn leaves its reason on stderr"
+git commit -m "fix(agents): say what to do when a turn is refused"
 ```
 
-`feat`, `fix`, `docs`, `refactor`, `test`, `chore` and `ci` are the types in use here; the
-scope is the package or the documentation section; a `!` before the colon is a breaking change.
-**A change and its tests go in one commit** — one that passes on its own is one that can be
-reverted on its own.
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/): `feat`, `fix`, `docs`,
+`refactor`, `test`, `chore` or `ci`, then the package or docs section as the scope. A `!`
+before the colon marks a breaking change. The change and its tests go in one commit.
 
-## Open the pull request
+## 6. Open the pull request
 
 ```sh
 git push -u origin fix/say-what-to-do
 gh pr create --fill
 ```
 
-Without push access here, `gh repo fork --remote` first and push to the fork; `gh pr create`
+Without push access, run `gh repo fork --remote` first and push to your fork. `gh pr create`
 opens the pull request across it either way.
 
 Two workflows then run:
 
 | | |
 | --- | --- |
-| `ci.yml` | `uv lock --check`, `uv sync --frozen`, those same hooks over every file with `--show-diff-on-failure`, and `uv build` — then the unit and integration tiers on Python 3.12, 3.13 and 3.14, on Linux and macOS |
-| `build-docs.yml` | Only if the change touches `docs/`: `pnpm build`, then `pnpm check:anchors` |
+| `ci.yml` | `uv lock --check`, the same hooks over every file, `uv build`, and a start with no extras installed. Then `uv run pytest --ignore=tests/system`, on Python 3.12 on Linux |
+| `build-docs.yml` | Only when `docs/` changed: `pnpm build`, then `pnpm check:anchors` |
 
-`--show-diff-on-failure` is why a formatting failure in CI prints the patch that would fix it.
+When a hook fails in CI, the log prints the diff that would fix it.
 
 ## What you have now
 
-A branch that passes both gates locally, and a pull request that says what it changed and why.
-If the change wants explaining as well as making,
-[Add a page to these docs](/contributing/tutorials/a-page-of-docs) is the other half of it. If
-the next one is bigger than a screen, [Architecture](/contributing/architecture) is the shape
-it has to fit.
+A branch that passes the checks, and a pull request that says what it changed and why. If the
+change needs explaining too, [Add a page to these docs](/contributing/tutorials/a-page-of-docs)
+is the other half of it. For a change bigger than a screen,
+[Architecture](/contributing/architecture) shows where it goes.
