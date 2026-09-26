@@ -113,22 +113,22 @@ export default defineConfig({
   themeConfig: {
     logo: '/logo.svg',
 
-    // Six sections. Features is what there is, drawn rather than described; flows is what
-    // there is to run; then a guide per role -- the person running flows, and the weaver
-    // writing them -- then contributing, for the person working on humanize itself; and
-    // reference, which spells all of it out. The home page sits above the six and sends a
-    // reader to whichever of the three roles is theirs.
+    // Six sections, in the order a reader comes to need them. The home page's quickstart ends
+    // on a first run, and what that reader wants next is the guide to running flows, then the
+    // flows there are to run; after that, writing one of their own. Features explains how it
+    // all works, for whoever wants to know why; reference spells every part of it out; and
+    // contributing is for the few working on humanize itself.
     nav: [
-      { text: 'Features', link: '/features/', activeMatch: '/features/' },
-      { text: 'Flows', link: '/flows/', activeMatch: '/flows/' },
       { text: 'User Guide', link: '/user/', activeMatch: '/user/' },
+      { text: 'Flows', link: '/flows/', activeMatch: '/flows/' },
       { text: 'Weaver Guide', link: '/weaver/', activeMatch: '/weaver/' },
+      { text: 'Features', link: '/features/', activeMatch: '/features/' },
+      { text: 'Reference', link: '/reference/', activeMatch: '/reference/' },
       {
         text: 'Contributing',
         link: '/contributing/',
         activeMatch: '/contributing/',
       },
-      { text: 'Reference', link: '/reference/', activeMatch: '/reference/' },
     ],
 
     // Every sidebar opens with its own section as a link rather than with an entry inside a

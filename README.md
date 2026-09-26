@@ -6,11 +6,15 @@ Orchestrate, execute, and observe agent flows.
 
 ## Install
 
+Needs Python 3.12 or newer, [uv](https://docs.astral.sh/uv/), and a coding agent CLI you are
+signed in to, such as Claude Code or Codex.
+
 ```sh
 uv tool install git+https://github.com/humanfia/humanize.git
 ```
 
-Two backends want a package of their own: `[dsh]` for DeepSeek Harness, `[kimi]` for Kimi Code, `[all]` for both.
+Two backends need a package of their own: `[dsh]` for DeepSeek Harness, `[kimi]` for Kimi
+Code, `[all]` for both.
 
 ```sh
 uv tool install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'
@@ -18,17 +22,27 @@ uv tool install 'hmz[all] @ git+https://github.com/humanfia/humanize.git'
 
 ## Usage
 
-To launch the TUI:
+Open the terminal interface in a repository:
 
 ```sh
 hmz
 ```
 
-Check the [documentation](https://docs.humanfia.ai/humanize/) for more usage guides.
+Or run a flow from your shell:
+
+```sh
+hmz exec -f chat -a assistant=claude/claude-opus-5:high "What does this repository do?"
+```
+
+Agents run with approvals bypassed, so start in a scratch repository. The
+[documentation](https://docs.humanfia.ai/humanize/) opens with a quickstart.
 
 ## Contributing
 
-Feel free to request features in the [wishlist](https://github.com/humanfia/humanize/issues/26), report bugs in the [issues](https://github.com/humanfia/humanize/issues), or submit PRs.
+Request features in the [wishlist](https://github.com/humanfia/humanize/issues/26), report bugs
+in the [issues](https://github.com/humanfia/humanize/issues), or open a pull request. See
+[Contributing](https://docs.humanfia.ai/humanize/contributing/) for how to set up and check a
+change.
 
 ## License
 
