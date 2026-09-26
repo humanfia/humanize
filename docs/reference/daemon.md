@@ -1,153 +1,182 @@
+---
+pageClass: hmz-ref
+---
+
+<script setup>
+import '../.vitepress/theme/components/ref-cli/ref.css'
+</script>
+
 # Daemon reference
 
-A run of a flow outlives the terminal it was started from. A flow is a loop and a turn thinks
-for minutes, so `hmz` holds the [interface](/reference/tui) in a process of its own — one per
-directory — and the terminal you are sitting at reads it. Closing that terminal is not a thing
-that happens to the run: it goes on taking its turns, and `hmz` in the same directory opens it
-again from the top.
+`hmz` holds the [interface](/reference/tui), and the run inside it, in a process of its own:
+one per directory. Your terminal reads that process. Closing the terminal lets go of it; the
+run goes on taking turns, and `hmz` in the same directory opens it again from the top.
 
-That is [`screen`](https://www.gnu.org/software/screen/) underneath, done rather than shelled
-out to: a fork so the shell is not waiting, `setsid` so the terminal that started it is no
-longer its own — which is what keeps a hangup from reaching it — a second fork so it can never
-take another, and its own pseudoterminal so there is a screen to draw on when nobody is reading.
+```text
+ your terminal ──┐                  ┌── daemon, one per directory ──┐
+ another one   ──┼── daemon.sock ──▶│  pseudoterminal               │
+ (ssh, tmux…)  ──┘  keys in,        │     ▲                         │
+                    screen out      │  the interface ── the flow    │
+                                    └───────────────────────────────┘
+```
 
-Nothing of the interface knows about any of it. It draws on a terminal, and whether that
-terminal is your ssh session or one of these is not something it is told.
-
-It is the other way round for everything the interface *does* rather than draws. A run of this
-directory happens in the held process, so that process is where humanize itself is reached
-from: `hmz.daemon` hands through [`Hmz`](/reference/sdk), and the interface asks it. A name
-rather than a message — the interface is already inside the process holding the run, and the
-socket is for the terminals outside it.
+For what this means day to day, see [The terminal can leave](/features/daemon).
 
 ## From the prompt
 
 | | |
 | --- | --- |
-| `hmz` | Reads whichever run is being held in this directory, and starts one where none is. |
-| `/exit` | Asks what is to become of a flow that is running: stop it and leave, or leave it running and let go of this terminal. With nothing running it is a window being closed. |
-| `ctrl+c` twice | Stops the flow, as it always did. It is not what lets go of a terminal. |
-| `ctrl+q` | The same question `/exit` puts, rather than leaving outright. |
+| `hmz` | Reads the run held in this directory, or starts one where none is. |
+| `/exit`, <kbd>ctrl+q</kbd> | With a flow running, asks: **stop it, then leave**, or **leave it running**, which lets go of this terminal. The terminal left prints `detached`. With nothing running, leaves. |
+| <kbd>ctrl+c</kbd> twice | Stops the flow. It never lets go of the terminal. |
 
-## From outside the interface
-
-[`hmz`](/reference/cli#hmz) in a directory is the whole of it at a terminal: it reads whichever
-run is being held here, and starts one where none is. There is nothing else to type, because
-there is nothing else a person sitting at one of these wants — reading it is what they came for,
-and letting go of it is one of the answers `/exit` puts once they are in.
-
-Everything else there is to ask of a held run — what is being held on this machine, what one of
-them is doing, letting go of every terminal on it, stopping it — is [asked in Python](#python).
-Those are things a program does to a run it is looking after, and a program is not sitting at a
-terminal to be shown a screen.
-
-## What kind of terminal it draws for
-
-A held run holds one pseudoterminal for its whole life, and takes its kind from the terminal it
-was started on — the `TERM` of the shell that first ran `hmz` here. A terminal of another kind
-that reads it later is drawn for in that first one's language. [`status()`](#python) says which,
-under `term`; stopping the held run and opening `hmz` again on a terminal of the kind you
-want is how it changes.
-
-Its size is not like that: every terminal that arrives says how big it is, and the run is laid
-out again for it.
+Several terminals may read one run at once. Each says how big it is as it arrives, and the
+screen is laid out again for it.
 
 ## When a run is not held
 
-The interface is opened in this process — exactly as it always was — where there is nowhere to
-hand a run over to. Nothing on the line asks for it: what holding a run apart buys is being able
-to close the terminal and still have the run, which is not something worth giving up one run at
-a time.
+The interface opens in the terminal's own process, with nothing held, when:
 
-- **Output going to a file, or input coming from a pipe.** A held run is read by a terminal
-  proxying to it, so there has to be one on both ends — which is also why a suite driving the
-  interface itself gets it in this process.
-- **`HUMANIZE_DAEMON` set to `off`, `0` or `no`** in the environment, which is what this
-  repository's own test suite sets: the machine saying once that runs here are not held, rather
-  than every line saying it again. `hmz.daemon.start` asks for a run to be held outright, and
-  holds one whatever the variable says.
-- Anything at all that stops one being held — a machine that will not fork, a home directory
-  that cannot be written, a socket that will not bind. It is said on stderr and then done
-  without. What is lost is being able to walk away from the run, which is not a reason to
-  refuse to open.
+| Case | |
+| --- | --- |
+| stdin or stdout is not a terminal | Output to a file, input from a pipe, a test driving the interface. |
+| `HUMANIZE_DAEMON` is `off`, `0` or `no` | This repository's test suite sets it. `hmz.daemon.start` holds a run whatever it says. |
+| The run cannot be held | No fork, no writable home, no socket. Said on stderr, then done without. |
 
-In that case `/exit` does not offer leaving it running at all: closing the terminal is what
-closes the run, so the second answer is staying here instead. An answer that cannot be carried
-out is not one to offer.
+Then `/exit` offers **stay here** in place of **leave it running**: closing that terminal
+closes the run.
 
 ## One per directory
 
-Two runs of one project in one directory would be two flows writing over each other's
-[epic](/reference/tracing#epics), so there is one daemon per workspace and `hmz` reads the one
-that is there. The line says nothing about what to run — which flow, what drives it and what it
-is set up with are [chosen at the prompt](/reference/tui#setting-a-flow-up) and remembered — so a
-terminal arriving at a run already being held brings no second answer to how that run is set up,
-and there is nothing for the one already running to lose to.
+One daemon per workspace, so two runs never write over one epic. The directory is named for the
+project and a digest of its whole path, so two checkouts of one repository are two workspaces.
+The command line says nothing about what to run, so a terminal arriving at a held run brings no
+second setup to it.
+
+## The terminal it draws for {#what-kind-of-terminal-it-draws-for}
+
+A held run keeps one pseudoterminal for its whole life, with the `TERM` of the shell that first
+ran `hmz` there. A terminal of another kind that reads it later is drawn for in that first
+one's language; [`status()`](#daemon) says which, under `term`. To change it, stop the held run
+and run `hmz` again from the terminal you want.
+
+<span id="what-a-terminal-is-put-back-to"></span>When a terminal stops reading, however it
+stops, it puts itself back: out of the alternate screen, cursor shown, mouse and focus
+reporting off, bracketed paste off, keyboard protocol popped, line wrapping on.
 
 ## What is on disk
 
-| Path | |
-| --- | --- |
-| `~/.humanize/daemons/<project>-<digest>/daemon.sock` | The socket a terminal reaches the run through. `0600`. |
-| `~/.humanize/daemons/<project>-<digest>/daemon.json` | The process holding it, the workspace, and when it started. |
-| `~/.humanize/daemons/<project>-<digest>/daemon.log` | Whatever could not be said through a terminal about this run: what the daemon itself could not say, and what went wrong in a process reaching for its socket. |
+`~/.humanize/daemons/<project>-<digest>/`, under
+[`HUMANIZE_HOME`](/reference/cli#environment-variables):
 
-The directory is named for the project and then for the whole path it is at, since two checkouts
-of one repository are two workspaces. A note whose process has gone reads as nothing being held:
-a socket file outlives the process that bound it, and a stale one would be a terminal that hangs
-rather than one that says nothing is running.
+| File | |
+| --- | --- |
+| `daemon.sock` | The socket terminals reach the run through. `0600`. |
+| `daemon.json` | `pid`, `workspace`, `started` (UTC) and `term`. |
+| `daemon.lock` | Held by the daemon while it runs. The kernel drops it when the process goes, however it goes. |
+| `daemon.log` | What could not be said through a terminal: the daemon's own failures, and a process that could not reach the socket. |
+
+A `daemon.json` whose process has gone reads as nothing held: a stale socket file would be a
+terminal that hangs rather than one that says nothing is running.
+
+## How it is held
+
+`start` forks so the caller is not kept waiting, calls `setsid` so the terminal that started it
+is no longer its controlling terminal (a hangup cannot reach it), forks again so it can never
+take one, and opens a pseudoterminal for the interface to draw on when nobody is reading. That
+is what `screen` does underneath, done in-process.
+
+The interface knows nothing of it: it draws on a terminal. Everything it *does* runs in the
+held process, which is why [`Hmz`](/reference/sdk) is reached from there: `hmz.daemon` hands it
+through, and the interface asks it directly. The socket is only for the terminals outside.
 
 ## Python
 
+<span id="from-outside-the-interface"></span>From a tool, reach held runs through
+[`hmz.sdk.Daemons`](/reference/sdk):
+
 ```python
-from hmz.daemon import Daemon, Hmz, Session, daemons, running, start
+from hmz.sdk import Daemons
+
+held = Daemons().here()          # this directory's run, or None
+for one in Daemons().all():      # every run held on this machine
+    print(one.workspace, one.status()["flows"])
 ```
 
-| | |
+| `Daemons` | |
 | --- | --- |
-| `running(workspace=None)` | The daemon holding a run in one workspace, or `None`. |
-| `daemons()` | Every run being held on this machine, oldest first. |
-| `start(opens, workspace=None, *, columns=0, rows=0, seconds=10.0)` | Puts a run where a terminal closing cannot end it, and comes back once it is listening. `opens` is called in the detached process with the held run, and returns when the run is over. |
+| `here(workspace=None)` | The [`Daemon`](#daemon) holding a run in that workspace, or `None`. |
+| `all()` | Every run held on this machine, oldest first. |
+| `hold(opens, workspace=None, *, columns=0, rows=0)` | Holds a run and returns its `Daemon` once it is listening. `opens` is called in the held process with the [`Held`](#held) run, and returns when the run is over. Raises `OSError` where one is already held there, or it did not come up. |
 
-`Daemon` is `at`, `workspace`, `pid` and `started`, with:
+The same, one layer down:
+
+```python
+from hmz.daemon import Daemon, Held, Hmz, Session, daemons, running, start
+```
+
+| `hmz.daemon` | |
+| --- | --- |
+| `running(workspace=None)` | As `Daemons().here()`. |
+| `daemons()` | As `Daemons().all()`. |
+| `start(opens, workspace=None, *, columns=0, rows=0, seconds=10.0)` | As `Daemons().hold()`, waiting `seconds` for the socket. `columns` and `rows` are the size to draw for until a terminal arrives; `0` is this terminal's. |
+
+### `Daemon`
+
+One held run. Attributes `at` (its directory), `workspace`, `pid` and `started`.
 
 | | |
 | --- | --- |
 | `alive` | Whether the process holding it is still there. |
-| `attach()` | Reads it from this terminal, until it ends or lets go. |
-| `status()` | What it says about itself: how many terminals are reading, which flows are running, and what is written down beside its socket. |
-| `detach()` | Lets go of every terminal reading it. |
-| `stop(seconds=20.0)` | Asks the run to stop, as closing the interface does, and waits for it to go. |
-| `kill(seconds=20.0)` | Ends the process holding it, whatever it was doing. |
+| `attach()` | Reads it from this terminal until it ends or lets go. `0`, or `1` where there was nothing to read. |
+| `status()` | What it says about itself (below). A run that will not answer, starting up or wedged, is answered for from `daemon.json`. |
+| `detach()` | Lets go of every terminal reading it, leaving the run running. How many. |
+| `stop(*, seconds=20.0)` | Asks the run to stop, as closing the interface does, and waits. Whether it has gone. |
+| `kill(*, seconds=20.0)` | `SIGTERM`, then `SIGKILL`, whatever the run was doing; removes the socket and `daemon.json`. Whether it has gone. |
+| `asked(said)` | Sends one control request (below) and returns the answer, or `{}` where none came in 5 s. |
 
-`start` knows nothing about how a run is opened: it is handed something that opens one and
-returns when it is over. That is what keeps what draws and what holds apart, and what makes the
-interface running under a daemon identical to the interface running under none. What it hands
-back to the opener is a `Held`, which is [`Session`](#session) plus the three hooks the process
-holding a run registers:
+`status()` answers with these keys. A run that did not answer gives only the ones marked †,
+from `daemon.json`, with `attached` `0` and `flows` and `calls` empty.
+
+| Key | |
+| --- | --- |
+| `ok` | `true`: the run answered. |
+| `pid`, `workspace`, `started`, `term` † | As in `daemon.json`. |
+| `attached` † | How many terminals are reading. |
+| `flows` † | The refs of the flows running, outermost first. |
+| `calls` † | The same as objects: `ref`, `name`, `depth`, `seconds` running, `id`, and `parent`, the index of the call that made it. |
+| `flow` | The flow the interface is running or set up to run. |
+| `budget`, `usage` | What the run may spend and has spent, as JSON (`Infinity` for no cost limit). `null` with nothing running. |
+
+### Control requests
+
+A request is `{"do": …}` over the socket; `Daemon.asked` sends one.
+
+| `do` | Answer |
+| --- | --- |
+| `status` | `{"ok": true, …}`, as above. |
+| `detach` | `{"ok": true, "let go": <count>}` |
+| `stop` | `{"ok": true}`, then the interface stops its flow and closes. `{"ok": false, "why": "this run cannot be stopped from outside it"}` where nothing registered a stop. |
+| anything else | `{"ok": false, "why": "no such request: '<do>'"}` |
+
+### `Held`
+
+What `opens` is handed: the run being held. It is a [`Session`](#session), plus the three hooks
+the held process registers.
 
 | | |
 | --- | --- |
-| `redrawn(hook)` | What to call when a terminal arrives, which is to draw the whole screen again. It is called on a thread of its own. |
-| `stopping(hook)` | What to call when somebody asks the run to stop from outside it. |
-| `says(hook)` | What to add to the answer when somebody asks what is running here. Which flows are running is not among the things it has to say: the daemon is the process they are running in and asks the runtime itself. |
+| `redrawn(hook)` | Called on a thread of its own when a terminal arrives, to draw the whole screen again. |
+| `stopping(hook)` | Called when a `stop` request arrives. |
+| `says(hook)` | Returns a dict merged into `status()`. The flows running are added by the daemon itself. |
 
-## Session
+### `Session`
 
-What is holding a run, as whatever is drawing it sees one — a `Protocol` rather than `Held`
-itself, so that a run held apart from a terminal and a run in the process you typed `hmz` in
-are one interface: one is handed one of these and the other is handed none, and `/exit` offers
-to leave the run going only where it was handed one.
+What whatever is drawing sees of the run holding it: a `Protocol`, so a held run and one opened
+in the terminal's own process are one interface. The interface is handed one only where the run
+is held, which is where `/exit` offers **leave it running**.
 
 | | |
 | --- | --- |
-| `attached` | How many terminals are reading this run right now. |
-| `detach()` | Lets go of every terminal reading it, leaving the run running. Returns how many were let go of. |
-
-## What a terminal is put back to
-
-A run that has let go says so and goes on running, so nothing on the other end is ever going to
-write the sequences that leave the alternate screen and show the cursor again. The terminal
-reading it writes them itself, whichever way the reading ended — out of the alternate screen,
-cursor shown, mouse reporting off, bracketed paste off, keyboard protocol popped, wrapping back
-on. A terminal left in a full-screen program's modes is a shell nobody can use.
+| `attached` | How many terminals are reading now. |
+| `detach()` | Lets go of every terminal, leaving the run running. How many. |

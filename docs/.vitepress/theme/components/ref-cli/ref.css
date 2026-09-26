@@ -1,0 +1,25 @@
+/* The command-line reference pages (`pageClass: hmz-ref`): keys drawn as keys, and screen
+   mocks drawn as a screen. Scoped to that class so nothing here reaches a page that did not
+   ask for it. */
+
+.hmz-ref .vp-doc kbd {
+  display: inline-block;
+  padding: 0 6px;
+  border: 1px solid var(--vp-c-divider);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--vp-c-bg-soft);
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.85em;
+  line-height: 1.6;
+  color: var(--vp-c-text-1);
+  white-space: nowrap;
+}
+
+/* A ```text block on these pages is a picture of the terminal, not code to copy: set tight
+   enough that box-drawing characters meet, and small enough that a 72-column screen fits the
+   content column without scrolling. */
+.hmz-ref .vp-doc div.language-text pre code {
+  font-size: 12.5px;
+  line-height: 1.45;
+}
