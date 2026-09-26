@@ -1,203 +1,92 @@
 # Questions
 
-An agent can stop mid-turn to ask a question: which approach to take, which file to change,
-whether it understood you. A flow can ask you the other way, treating the person at the prompt
-as one of its agents. Reach for this whenever a run needs an answer only a person should give.
+An agent can stop in the middle of a turn to ask you something, and a flow can ask you
+directly. Either way the question appears in the transcript, and the next line you type is the
+answer.
 
 ## Try it
 
-The interface opens on [`chat`](/flows/chat) — you and one agent, taking turns:
+Start the interface, which opens on [`chat`](/flows/chat) with one agent, and ask for a
+question:
 
 ```sh
 hmz
 ```
 
-Say something, and when the agent stops mid-turn to ask you something back, the next line you
-type is the answer to it.
+```text{3-4}
+❯ Before you change anything, ask me whether to keep the old API.
 
-## At the prompt
+● Should I keep the /v1 endpoints working beside /v2?
+   type an answer, or /afk to stop being asked
 
-The question is shown with whatever it offered. The next line you type is **the answer**, not a
-word put into the turn; the status line reads `enter answer` while that is so.
+────────────────────────────────────────────────────────────────────────────────
+❯ yes, until the next release
+────────────────────────────────────────────────────────────────────────────────
+  enter answer · / commands · shift+enter newline · esc monitor · ctrl+c clear
+```
 
-You are not held to the options. Every backend that offers options also takes something else —
-the options are what the agent expects, and what an interface shows so the question reads as
-one.
+The `●` line, yellow on screen, is the agent's question. While it is up, the status line
+offers <kbd>enter</kbd> **answer**: what you type goes back as the answer rather than into the
+turn.
 
-If the flow ends or is stopped while a question is still up, the question ends with it.
-Stopping a flow is never blocked on a question.
+## Answering
 
-## Whose question it is
+- **Any answer goes.** If the agent offered choices, they are listed with the question, but you
+  can type something else.
+- **Nothing times out.** The agent waits for as long as you take.
+- **Stopping wins.** A question still up when the flow ends or is stopped ends with it.
 
-An agent's question goes **to the flow** first. A flow that means you to answer its agents —
-`chat` does — puts the question to you; a flow that answers them itself, or does not listen,
-does not. An agent whose flow hung nothing to hear its questions is told nobody answered, and
-carries on.
+## Which agents ask
 
-A flow's own question — its person taking a turn — always comes to you, when you are there.
+An agent asks only if its CLI can, and only if the flow passes its questions on to you. `chat`
+passes every one on.
+
+| `claude` | `codex` | `kimi` | `pi` | `zcode` | every other |
+| --- | --- | --- | --- | --- | --- |
+| <Badge type="tip" text="asks" /> | <Badge type="tip" text="asks" /> | <Badge type="tip" text="asks" /> | <Badge type="tip" text="asks" /> | <Badge type="tip" text="asks" /> | <Badge type="info" text="never stops to ask" /> |
+
+A flow may also answer an agent's question itself, without asking you. When it does neither,
+the agent is told nobody answered, and carries on.
+
+## When the flow asks you
+
+A flow can put a question to you directly. `chat` does it after every answer, by waiting for
+what you say next. A flow that needs several answers asks for them one at a time:
+
+```text
+● Which way should this be built?
+      · fast
+      · careful
+   type an answer, or /afk to stop being asked
+```
+
+| The question reads | Type |
+| --- | --- |
+| a list of choices under it | one of them |
+| `yes` and `no` under it | `yes` or `no` |
+| `(a number)` | a number |
+| `(several, separated by commas)` | a list on one line: `api, cli, docs` |
+| ``-- or `-` for 3`` | `-` to keep the flow's default |
+
+If an answer is not one the flow can take, the question comes back with what was wrong.
 
 ## When nobody is there
 
-`hmz exec` has nobody at a prompt. [`/afk`](/user/afk) says the same thing on purpose:
+`/afk on` tells humanize you are away, and the status line starts with `afk` until you turn it
+off. `hmz exec` always runs this way, since nobody is at a prompt.
 
-```
-/afk on
-```
-
-In both cases the person is **away**: a question the flow asks is answered at once with
-nothing — `""` for text, the answer a shape's defaults make where every field has one — and a
-flow that asks for a shape with a field that has no default gets `OutworlderAway` raised, which
-it had better handle. An agent's question put to you is told nobody answered, and the agent
-carries on. A turn waiting on an answer that is not coming is a flow that has stopped, so this
-is the default everywhere except an interface with `/afk` off. Asking starts **allowed**: a flow
-that really needs a person gets one unless it has been said that none is there.
-
-While it is on, the status line says `afk` in front of everything else on it — the whole point
-of the switch is that nothing stops to tell you, so the mode itself has to be visible.
-
-## From a flow
-
-The rest of this page is the weaver's — whoever wrote the flow.
-
-### The person as an agent
-
-A role typed `Outworlder` is the person at the prompt — see [the person as an
-agent](/weaver/human-agent). Nobody fills it with `-a`; humanize does. Running it is asking
-what to say next, and what it answers is what you typed:
-
-```python
-from hmz.flows import (
-    Agent,
-    AgentCollection,
-    AskUserHookAgentMixin,
-    AskUserHookParams,
-    AskUserHookResult,
-    EnvCollection,
-    FlowContext,
-    FlowParams,
-    LocalEnv,
-    Outworlder,
-    flow,
-)
-
-
-class Assistant(Agent, AskUserHookAgentMixin): ...
-
-
-class Agents(AgentCollection):
-    assistant: Assistant
-    human: Outworlder
-
-
-class Envs(EnvCollection):
-    workspace: LocalEnv
-
-
-@flow(agents=Agents, envs=Envs, params=FlowParams)
-async def talk(task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext):
-    """One agent, one session, and every line you type between turns is a turn of it."""
-    assistant, human = agents["assistant"], agents["human"]
-    you = await human.spawn(env=envs["workspace"])
-
-    async def ask_the_person(params: AskUserHookParams) -> AskUserHookResult:
-        said = await human.run(f"{params.question} {params.options}", session=you)
-        return AskUserHookResult(answer=said or None)
-
-    assistant.on_ask_user(ask_the_person)
-    conversation = await assistant.spawn(env=envs["workspace"])
-    said = task
-    while said:
-        answered = await assistant.run(said, session=conversation)
-        said = await human.run(answered, session=you)
-```
-
-That is what [`chat`](/flows/chat) does. One `-a` drives it, because nobody is asked what the
-person runs:
-
-```sh
-hmz exec -f ./talk -a assistant=claude/claude-opus-5:high -b cost=5 "Read README.md and tell me what this is."
-```
-
-On a command line nobody is at a prompt, so `human.run(...)` answers `""`, `said` is falsy, and
-the flow does the one thing it was given.
-
-### An agent's question, answered by the flow
-
-`on_ask_user` is what an agent stopping mid-turn reaches — on a role declared with
-`AskUserHookAgentMixin`, which Claude Code, Codex, Kimi Code, ZCode and pi serve. The hook is
-told the `question` and the `options` it offered, and answers with an `AskUserHookResult`:
-`answer=` a string, or `None` for "nobody answered". It may answer however the flow likes — put
-it to the person, as above, ask another agent, or look it up. A question waits for its hook as
-long as the hook takes; nothing times it out.
-
-### Asking the person for a shape
-
-With an `output_schema`, the same run is a questionnaire. The person is not shown a JSON Schema.
-They are asked **a question per field**, and the model is built out of what they typed:
-
-```python
-from typing import Literal
-
-from pydantic import BaseModel, Field
-
-
-class Settled(BaseModel):
-    """What has to be agreed before anything is built."""
-
-    approach: Literal["fast", "careful"] = Field(description="Which way should this be built?")
-    tests: bool = Field(description="Write tests for it?")
-    rounds: int = Field(default=3, description="How many rounds may it take?")
-
-
-settled = await human.run("How should I do this?", session=you, output_schema=Settled)
-working = await builder.spawn(env=workspace)
-for _ in range(settled.rounds):
-    await builder.run(
-        f"{task}\n\nBuild this the {settled.approach} way."
-        f"{' Write tests.' if settled.tests else ''}",
-        session=working,
-    )
-```
-
-| In the model | What they are asked |
+| | While you are away |
 | --- | --- |
-| `description=` | the question itself, or the field's name where it has none |
-| `Literal[…]` | those words, as the answers it offers |
-| `bool` | `yes` and `no` |
-| a default | "or `-` for 3" — and a dash takes it |
-| `list[str]` | one line, separated by commas |
+| An agent's question | shown, and the agent is told nobody answered; it carries on |
+| A flow's question | answered with nothing, or with the flow's defaults; `chat` ends there |
+| A flow's question that has no default | the flow fails with `nobody is there to answer …`, unless it handles that |
+| A question already up | answered by nobody, at once |
 
-So a flow settles what only a person can settle in the model it is going to run on, once,
-rather than by parsing a sentence. `Settled` has two fields with no default, so a run with
-nobody there raises `OutworlderAway` at that line — a flow meant to run unattended too gives
-every field a default, or catches it.
-
-The person is not:
-
-- a coding agent — it runs no model and spends nothing;
-- in [`/monitor`](/user/monitor)'s handover graph or the cost readout — its turns are not
-  bracketed by the events that say whose turn it is;
-- one of the conversations **tab** steps between;
-- able to run [moments](/weaver/hooks) — a moment is a point in a turn of a model.
-
-### The moment, for a hook
-
-`on_notification` hangs a hook on the agent stopping to tell its user something. It cannot
-answer — a notification is heard, not answered — but it can log, notify or wake something up:
-
-```python
-async def ring(params: NotificationHookParams) -> NotificationHookResult:
-    ring_a_bell(params.message)
-    return NotificationHookResult()
-
-
-agents["assistant"].on_notification(ring)
-```
+Under `hmz exec`, an agent's question is still printed, in yellow, and with `--json` it is an
+object of kind `asks`, so a script can count them. See [Being away](/user/afk).
 
 ## See also
 
-- [Side questions](/user/btw)
-- [Being away](/user/afk)
-- [Answers in a shape](/weaver/shapes)
-- [The person as an agent](/weaver/human-agent)
-- [Hooks](/weaver/hooks)
+- [Being away](/user/afk): the `/afk` switch
+- [Side questions](/user/btw): asking an agent something without stopping it
+- [The person as an agent](/weaver/human-agent): how a flow asks you, for whoever writes one
