@@ -7,13 +7,9 @@ environments, to answer it.
 Reach for it when the agent needs something only the flow has: another agent, another flow, a
 decision that is yours to make.
 
-::: warning Callbacks as tools are gone
-Earlier versions of the flow API let a flow put its own functions in front of an agent as tools
-— `session.offers([Tool(...)])`, served over MCP. The flow API has no such thing any more: a
-flow cannot add a tool to an agent. What reaches the flow from inside a turn is a
+A flow cannot add a tool to an agent. What reaches the flow from inside a turn is a
 [hook](/weaver/hooks), and the one that carries a request and waits for an answer is the
 agent's question to its user.
-:::
 
 ## Try it
 

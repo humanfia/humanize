@@ -5,20 +5,16 @@ until an answer comes back. That is right for a question and wrong for everythin
 needs from you — what there is to do next, how far through it is, the thing you thought of
 while it was running.
 
-The board was the other shape: a handful of named lines, kept beside the run and shown on
-[`/monitor`](/user/monitor), that the flow and you both wrote on and **neither waited at**.
-
-::: warning The flow API has no board
-A flow written against `hmz.flows` has no way to read or write the board: the
-[outworlder](/weaver/human-agent) it talks to you through takes turns, and a turn is a question.
-So a run of such a flow has nothing of the flow's on the board, and nothing you put there reaches
-the flow. What is below is what is left: the board on `/monitor`, and the same board from Python
-for a person-shaped agent you drive yourself.
-:::
+The board is the other shape: a handful of named lines, kept beside the run and shown on
+[`/monitor`](/user/monitor), that are written on and **waited at by nobody**. A flow written
+against `hmz.flows` has no way to read or write it: the [outworlder](/weaver/human-agent) it
+talks to you through takes turns, and a turn is a question. So nothing of a flow's is on the
+board, and nothing you put there reaches the flow. What a flow does read is below, and then the
+board itself: on `/monitor`, and from Python for a person-shaped agent you drive yourself.
 
 ## A queue a flow does read
 
-What the board was for is still a small thing to build, and the flow API's own way is a file.
+It is a small thing to build, and the flow API's own way is a file.
 A flow whose [environment](/reference/flows#where-each-agent-works) it may read reads a list
 between rounds — `TODO.md`, one thing a line — and you add a line to it while the loop is working
 through the first; the next round picks it up, and nothing was interrupted and nothing waited.

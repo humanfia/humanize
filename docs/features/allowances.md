@@ -45,8 +45,7 @@ such a model never bites. Put a duration or a token limit beside it.
 
 ## It is not a flow's to implement
 
-It used to be, and then it was a default a flow declared. Neither any more: a flow has no budget
-of its own to offer, and whoever runs it says what the run may spend. What a flow sees of it is
+A flow has no budget of its own to offer: whoever runs it says what the run may spend. What a flow sees of it is
 `ctx.budget` — what this call may still spend, every budget above it taken together — and
 `ctx.usage`, what it and every call under it have spent so far.
 

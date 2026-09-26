@@ -54,9 +54,8 @@ set:
 ```
 
 A turn told to wait half a minute and a turn that has hung look the same from the outside, and
-that line is the only thing that tells them apart. It used to be drawn as a tool call, which
-meant that asking not to see every file read was also asking not to be told why the run had
-gone quiet.
+that line is the only thing that tells them apart. It is not drawn as a tool call, so asking not
+to see every file read is not also asking not to be told why the run has gone quiet.
 
 ## It is a screen setting, not an agent setting
 

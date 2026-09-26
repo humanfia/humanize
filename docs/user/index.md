@@ -34,7 +34,7 @@ whole piece of work start to finish; everything under them is for looking up.
 | [Many conversations at once](/user/conversations) | One transcript, **tab** between the agents that are working |
 | [Showing the working](/user/details) | `/details`: tool calls and thinking, or only what the agent says |
 | [Watching a run](/user/monitor) | `/monitor`: who is working, how long for, who handed to whom |
-| [The mission board](/user/board) | Named lines beside the run on `/monitor` — and why a flow no longer writes on them |
+| [The mission board](/user/board) | Named lines beside the run on `/monitor`, which a flow does not write on |
 | [Being away](/user/afk) | `/afk`: whether you are there to be asked something |
 | [Falling back](/user/fallback) | `/fallback`: where a turn goes when what was taking it cannot |
 | [Completion](/user/completion) | What a half-typed line could become, under the editor |

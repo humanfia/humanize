@@ -76,23 +76,6 @@ const MOVED_AGAIN: Record<string, string> = {
   'user/status': 'user/monitor',
 }
 
-// And where a page went with the thing it described, when the flow API was rewritten: an atlas
-// and its prophecy, checking a flow without running it, and two flows the flowverse dropped.
-// Each path it has had sends a reader to what took its place rather than to a 404.
-const GONE: Record<string, string> = {
-  'guide/atlas': 'weaver/writing-a-flow',
-  'weaver/atlas': 'weaver/writing-a-flow',
-  'features/prophecy': 'features/flows',
-  'guide/checking-flows': 'weaver/testing-flows',
-  'weaver/checking-flows': 'weaver/testing-flows',
-  'tutorials/flow-checked-build': 'weaver/tutorials/build-under-test',
-  'weaver/tutorials/checked-build': 'weaver/tutorials/build-under-test',
-  'tutorials/flow-prove': 'weaver/async-flows',
-  'weaver/tutorials/prove': 'weaver/async-flows',
-  'flows/fixed-juice-ralph': 'flows/ralph-loop',
-  'flows/parallel-flame-chase-mission': 'flows/parallel-flame-chase-git-pr',
-}
-
 const MOVED: Record<string, string> = {
   ...Object.fromEntries(MOVED_TO_USER.map((page) => [`guide/${page}`, `user/${page}`])),
   ...Object.fromEntries(MOVED_TO_WEAVER.map((page) => [`guide/${page}`, `weaver/${page}`])),
@@ -104,7 +87,6 @@ const MOVED: Record<string, string> = {
   'tutorials/port-a-project': 'user/tutorials/port-a-project',
   'tutorials/build-an-agent': 'user/tutorials/build-an-agent',
   ...MOVED_AGAIN,
-  ...GONE,
 }
 
 export default defineConfig({

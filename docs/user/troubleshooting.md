@@ -50,8 +50,7 @@ run, or — as `… is the workspace the run is started in, and is not given wit
 ### `-a 'claude/claude-opus-5:high': expected <role>=<harness>[@<provider>]/<model>:<effort>`
 
 An agent with no role in front of it. Every agent on a line says which of the flow's roles it
-fills — `-a agent=claude/claude-opus-5:high` — since agents are no longer taken in the order a
-flow takes them.
+fills — `-a agent=claude/claude-opus-5:high`.
 
 ### `-a 'agent=claude:high': expected [NAME=]CLI[@PROVIDER]/MODEL:EFFORT`
 

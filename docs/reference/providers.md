@@ -304,12 +304,6 @@ which is what makes this a way of rotating a key everywhere at once rather than 
 to: a backend already holding a copy reads the same as one holding none. The copies themselves
 are accounts of their own, listed under that backend's heading and under that same name.
 
-An account written down before [retrying](/user/fallback) became a thing about the place says
-so under its own menu on `/providers`: the tries it still holds are no longer read, and the
-line names `/fallback` as where that is said now. What it held — the number, the policy and the
-timeout — is there to be written down again against a place. Only the model is missing, that
-being the part an account never had, which is why nothing could carry these over by itself.
-
 At the prompt it is asked at the moment the account exists rather than left to be found out:
 making an account that several backends could be run as asks which of them to write it down
 for, with the ones installed here already ticked. Correcting one asks the same, of the account

@@ -246,8 +246,8 @@ At least one of the three limits, and each key at most once across every `-b` on
 
 **A line with no `-b` is refused**, before any agent starts: a flow is a loop, and a loop with
 nothing to stop it is a bill nobody agreed to. The one exception is `chat`, which ends when you
-stop talking to it and runs with no limit at all. A flow no longer declares a budget of its own
-for a run to fall back on. See [What a run may spend](/reference/flows#what-a-run-may-spend).
+stop talking to it and runs with no limit at all. A flow declares no budget of its own for a run
+to fall back on. See [What a run may spend](/reference/flows#what-a-run-may-spend).
 
 ### What is refused before anything runs
 

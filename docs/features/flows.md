@@ -82,9 +82,8 @@ what makes a declaration something to read rather than something to hope.
 
 ## Flows are loaded as code
 
-There is no static description of a flow to run instead. A flow rewritten between two runs — by
-hand, or by an agent that flow is itself driving — runs as it is *now*: the next run that
-nobody else is running it in imports it afresh. Within one run a flow's module is imported once
+A flow rewritten between two runs — by hand, or by an agent that flow is itself driving — runs
+as it is *now*: the next run that nobody else is running it in imports it afresh. Within one run a flow's module is imported once
 and kept, so two calls of one flow in one run are the same code.
 
 Its own directory is importable while it runs, so what it keeps beside its entry point imports

@@ -62,9 +62,9 @@ are being led. There are seven — three, two and two — and adding an eighth m
 one of the seven should go.
 
 That split is the [Diátaxis](https://diataxis.fr/) one, and the reason the docs are arranged
-this way: everything used to be in **Guide**, which made a reader with a job read a tutorial,
-a reader learning read a feature page, and the person running a flow read the page written for
-whoever wrote it.
+this way: one section for everything makes a reader with a job read a tutorial, a reader
+learning read a feature page, and the person running a flow read the page written for whoever
+wrote it.
 
 ## Writing a page
 
@@ -109,7 +109,6 @@ better at that job.
 └── components/
     ├── HmzHero.vue           what humanize is, held to the height of the window
     ├── HmzArch.vue           flows, humanize, the agent CLIs, and where the work lands
-    ├── HmzInstall.vue        the one line, and a button that copies it
     ├── HmzOrchestra.vue      a run simulated lane by lane, landing on a trace strip
     ├── HmzFeatures.vue       eight features, one small drawing each
     └── HmzAnchor.vue         pick a syscall, watch which side of the anchor answers it

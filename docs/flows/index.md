@@ -75,7 +75,7 @@ stops it. `hmz exec` refuses to start a run without one:
 -b duration=6h,cost=50,output_tokens=10m
 ```
 
-The budget is humanize's rather than any flow's, and no flow declares a default any more. It is
+The budget is humanize's rather than any flow's, and no flow declares a default. It is
 held to at every turn of every session of every agent, whatever backend, so a loop needs no
 stopping condition of its own and none of them can opt out of one somebody set. It is also
 **per run**: a run picked up with `--resume` gets the budget its own command line gives it, which

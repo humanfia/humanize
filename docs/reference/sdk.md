@@ -124,8 +124,7 @@ then `stop()` or `wait()` — made by `run(...)` from what `read(argv)` read off
 | `running()` | Every flow call of the run going now, each with its depth and the call it is under. |
 | `verses` | [Where flows come from](#flowverses). |
 
-There is no checking a flow without running it any more — no static findings, no atlas and no
-prophecy. A flow is tested by running it on the fake kit, `hmz.runtime.flowing.fakes`, which
+A flow is tested by running it on the fake kit, `hmz.runtime.flowing.fakes`, which
 drives it through the same engine with in-memory agents and environments. See [Testing a
 flow](/weaver/testing-flows).
 

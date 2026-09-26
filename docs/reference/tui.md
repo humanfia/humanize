@@ -655,8 +655,7 @@ same reason read the other way round.
 that lists flows reads them once and holds what it read, since reading a flow means running it
 — so a download landing underneath would leave the list from before it, and a flow that arrived
 in the fetch would be one the menu does not offer while a flow whose file changed would be one
-it will not load. Both used to come right only on a restart, which was the fetch working and
-nothing showing it. A fetch that brings nothing down — which most of them are, the repository
+it will not load, the fetch working and nothing showing it. A fetch that brings nothing down — which most of them are, the repository
 not having moved since the last start — leaves what is drawn where it is: re-reading for
 nothing is every flow on the disk run again to arrive at the list that is already there.
 
@@ -1021,10 +1020,6 @@ you run it, which is what an agent nobody gave an account runs as, and where tha
 chain begins. Where it falls back to is the one of the four it takes; correcting it, signing it
 in and taking it away are not offered at all, and the menu says why under the row that is left:
 humanize did not make that account and keeps no credentials for it.
-
-An account written down before retrying became a thing about a place still holds the tries
-somebody set on it, and this menu says under the list that they are no longer read: tries
-that have quietly stopped happening are worse than tries nobody ever set.
 
 Taking one away, saying where it falls back to and correcting what one holds are **held
 until the menu is saved**. Making one and signing one in are not: both own the terminal while they run,

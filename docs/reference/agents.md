@@ -2040,7 +2040,7 @@ A clone and a stand-in spend the run's allowance, which is the one thing about a
 cross a `clone()`. Tracing is about identity, so two agents are two lines; an allowance is about
 the run's money, and a flow that works only through clones would otherwise read as free.
 
-A flow no longer says what a run of it is worth: whoever starts it does, with `-b`. See
+A flow does not say what a run of it is worth: whoever starts it does, with `-b`. See
 [Every run has an allowance](/features/allowances).
 ## What each backend can do
 

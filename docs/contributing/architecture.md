@@ -176,7 +176,7 @@ Four edges are worth explaining:
 - **`cli` reaches `coganchor` directly**, for `hmz internal anchor`. That command is the only
   line the target half is ever started by, and it must cost nothing else of humanize on the
   way.
-- **`daemon → doing`**, which is the one edge out of what used to be a leaf. A daemon still
+- **`daemon → doing`**, which is the one edge out of what is otherwise a leaf. A daemon
   knows nothing about how a run is *opened* — it is handed a callable, which is what makes the
   interface under one identical to the interface under none — but it is the process the run
   happens in, so what is running there is a question it answers out of the runtime rather than
@@ -187,7 +187,7 @@ of the agents it drove, so naming the run from an agent would be a circle. What 
 of one — somewhere to write down a session it opened — is a `Journal` protocol declared in
 `coganchor/agents/base.py`, which `Epic` happens to satisfy.
 
-Inside `coganchor` the arrows are no longer in the table, because it is one layer: the drivers
+Inside `coganchor` the arrows are not in the table, because it is one layer: the drivers
 name the facts, the accounts and the machines freely, exactly as the insides of `flows/` and
 `tui/` do. The one line held inside it is `coganchor/serve/`, which may name the wire and
 nothing else — see below.
@@ -312,8 +312,8 @@ is listed: there is no third table for things that run but are not shown. Import
 *inside* the function, not at the top of the module — `cli/__init__.py` is loaded by every
 command including the one the bundled target half runs, so an import at the top is a cost every
 other command pays. Write through `cli/output.py` rather than through `print` where the
-command has a `--json` of its own: `Out.row` is one call for the line a person reads and the
-object a program reads, and holding one open is what keeps a stray print out of the stream.
+command has a `--json` of its own: `Out.record` puts one object on the stream a program reads,
+and holding one open is what keeps a stray print out of the stream.
 
 **A harness.** Once it is a backend, an agent driver for it in
 `runtime/flowing/harnesses.py`, a protocol for it in `flows/agents.py` carrying exactly the

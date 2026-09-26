@@ -136,8 +136,8 @@ holding a run registers:
 
 What is holding a run, as whatever is drawing it sees one — a `Protocol` rather than `Held`
 itself, so that a run held apart from a terminal and a run in the process you typed `hmz` in
-are one interface: one is handed one of these and the other is handed none, and `/detach` says
-so rather than doing nothing.
+are one interface: one is handed one of these and the other is handed none, and `/exit` offers
+to leave the run going only where it was handed one.
 
 | | |
 | --- | --- |

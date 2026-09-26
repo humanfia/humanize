@@ -247,9 +247,7 @@ back before the menu is saved.
 
 How many times over a failed turn is taken again is not one of them: that is a thing about the
 place a turn runs at rather than about the credentials it runs with, and
-[`/fallback`](/user/fallback) is the menu it is said on. An account written down before it moved
-there says so under the list — the tries it still holds are no longer read, and the line names
-where they are said now.
+[`/fallback`](/user/fallback) is the menu it is said on.
 
 Making an account and signing one in happen as they are asked for, because a login owns the
 terminal while its browser or its device code has it, and something that has already happened
