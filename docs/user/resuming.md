@@ -1,196 +1,123 @@
 # Picking a run up
 
-A loop that runs for a week will be stopped and started: a machine goes down, somebody presses
-by hand, or a turn takes the process with it. A **flow** is a file on disk, and the weaver who
-wrote it may say it can be picked up where its last run left off.
+A flow that can be picked up carries on from where its last run stopped: after
+<kbd>ctrl+c</kbd>, a spent budget, or a machine that went down. Most of the official loops can,
+`ralph_loop` and `rlar` among them, and each flow's page says whether it can.
 
 ## Try it
 
-Run a resumable flow, stop it, and run it again with `--resume`:
+::: code-group
 
-```sh
-hmz exec -f nightly -a fixer=claude/claude-opus-5:high -b duration=2h "keep the tests green"
-# ctrl+c, a reboot, a spent budget …
-hmz exec -f nightly -a fixer=claude/claude-opus-5:high -b duration=2h --resume "keep the tests green"
+```text [At the prompt]
+/resume
 ```
 
-The second run finds what the first kept, and carries on from the round it had reached. Without
-`--resume` every run starts afresh, whatever an earlier one left behind. In the interface,
-[`/resume`](#picking-one-up-from-the-interface) is that second line typed at the prompt.
+```sh [hmz exec]
+hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b duration=2h \
+    --resume "$(cat TASK.md)"
+```
 
-## Saying so
+:::
 
-**For the weaver.** To make a flow resumable, mark it `resumable=True`. Its context then has a
-**state**: a mapping the flow keeps what the loop itself knows in — which round it is on, which
-files it has been through, what it has decided so far. It is not a second copy of the
-transcript — the backends keep that, and the run's **[epic](/user/tracing#what-a-run-writes-down)**
-already says which sessions it opened.
+At the prompt, `/resume` first says which run it carries on:
 
-```python
-"""A Ralph loop that knows which round it is on."""
+```console
+carrying on from 20260910T021407.882Z-a3f19c: ralph_loop on what that run left behind
+```
 
-from hmz.flows import (
-    Agent,
-    AgentCollection,
-    EnvCollection,
-    FlowContext,
-    FlowParams,
-    LocalEnv,
-    flow,
-)
+A Ralph loop picks up its count of rounds and goes on from the next one.
 
+## At the prompt: `/resume`
 
-class Agents(AgentCollection):
-    fixer: Agent
+`/resume` carries on the last run in this directory of a flow that can be picked up. It passes
+over runs of flows that cannot, such as a `chat` you had in between. It runs that run's flow
+again with that run's agents, environments, params, budget and task, whatever the prompt is set
+up with now. It takes nothing after it.
 
+When it cannot carry a run on, it says why:
 
-class Envs(EnvCollection):
-    workspace: LocalEnv
+| It says | Means |
+| --- | --- |
+| `no flow has been run here` | Nothing has run in this directory. |
+| `no run here was of a flow that can be picked up` | Every run here was of a flow that cannot be. |
+| `<flow> does not say it can be picked up` | The flow has been changed since that run and no longer can be. |
+| `<run> left nothing behind` | The run was killed before it saved anything. Say what to do, and the flow starts from the top. |
+| `<run> cannot be read back` | The run's record is damaged. |
+| `no picking a run up while a flow is running` | [Stop](/user/stopping) the running flow first. |
+| `no picking a run up while the flow is still stopping` | The flow is closing out its turn. Wait for it to finish. |
 
+## An older run: `/epics`
 
+To carry on a run other than the last, type `/epics`. Runs you can pick up are marked **can be
+picked up**:
+
+![The /epics list: two runs, newest first, the newer marked "can be picked
+up"](/demo/epics.png)
+
+Press <kbd>enter</kbd> on one and choose **resume this run**:
+
+![Inside one run from /epics: when it ran and which flow, where it is kept, how it ended, and
+two rows, resume this run and export it](/demo/epic-does.png)
+
+The row is there only when the flow, as it is today, can be picked up. The same reasons as
+above are given when it cannot.
+
+## From a script: `--resume`
+
+`--resume` carries on the newest run of that flow in this directory that can be picked up. The
+line still says what to run it on, with its own `-a`, `-e`, `-p` and a fresh `-b`. Without
+`--resume`, every run starts from the top.
+
+When there is nothing to carry on, the line is refused with exit status 2:
+
+```console
+$ hmz exec -f goal … --resume "…"
+hmz exec: error: goal does not say it can be picked up, so there is no run of it to resume
+$ hmz exec -f ralph_loop … --resume "…"
+hmz exec: error: ralph_loop has no run here to pick up: none got as far as writing anything down
+```
+
+## What carries over
+
+| | Picked up? |
+| --- | --- |
+| What the flow kept, such as the round it had reached | Yes. The flow saves as it goes, so a run that was killed keeps it too. |
+| Flows it called | Where they are called again the same way: the same flow, task, agents, environments and params. From the first call that differs, flows start afresh. |
+| Temporary copies and scratch directories | Yes, where they were. |
+| What the budget had spent | No. `--resume` runs under the new line's `-b`. `/resume` runs under the old run's budget, counted from zero. |
+
+The flow at the top always picks up, so changing `-a` or `-p` on a `--resume` line does not
+start it over. Leaving `--resume` off does.
+
+Carrying on is a new run: [`/epics`](/user/tracing#what-a-run-writes-down) lists it separately,
+with its own sessions and its own trace. A week of stops and starts reads as a run per stretch.
+
+## Make a flow resumable
+
+A flow can be picked up when its weaver says so with `resumable=True`. It then gets a
+**state**, a mapping it keeps what the loop knows in, saved as each key is set:
+
+```python{1,7}
 @flow(agents=Agents, envs=Envs, params=FlowParams, resumable=True)
-async def nightly(task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext):
+async def nightly(
+    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
+):
     fixer, state = agents["fixer"], ctx.state
-    assert state is not None  # a resumable flow always has one
     while True:
-        state["round"] = (state["round"] if "round" in state else 0) + 1   # saved as it is set
+        state["round"] = (state["round"] if "round" in state else 0) + 1
         session = await fixer.spawn(env=envs["workspace"])
         await fixer.run(f"{task}\n\nRound {state['round']}.", session=session)
 ```
 
-`ctx.state` is `None` for a flow that is not resumable, and `ctx.resumed` says whether this call
-picked an earlier one up. A flow that says nothing runs from the top every time. See
-[Writing a flow](/weaver/writing-a-flow).
+- Store only what JSON can hold. Anything else raises `StateNotSerializable` where it is set.
+- Changing a value inside the state, such as appending to a list, is not saved. Set the key
+  again: `state["seen"] = [*state["seen"], path]`.
+- `ctx.resumed` says whether this call picked up an earlier one.
 
-## Where it lives
-
-A resumable run keeps a **journal** inside its epic, `resume.jsonl`: one JSON line per thing a
-run picking it up needs — each flow call and how it ended, each write to a flow's state (a
-`{"t":"set",…}` line, and `{"t":"del",…}` for a key taken out), each session opened once its CLI
-has named it, each temporary copy and scratch directory kept. It is appended to as the run goes,
-so a run that was killed rather than stopped still says what it got to. There is no separate
-state file: what a run kept is read back off those lines, which is what
-`Hmz().epics.state(epic)` does from Python.
-
-State is kept **per call**, so a flow that calls [another
-one](/reference/flows#a-flow-that-calls-another-flow) is two flows, each keeping its own state
-and neither writing the other's.
-
-## When it is saved
-
-**As the flow writes it.** Setting a key or deleting one is written down there and then. A run
-worth picking up is one that was stopped or killed, and state written only at the end is state
-such a run has none of.
-
-Writing *inside* a value the state holds is a change no mapping can see: appending to a list it
-holds changes nothing kept. Set the key again — `state["seen"] = [*state["seen"], path]`.
-
-Keep to what JSON holds. A value it cannot hold is refused where it is written, with
-`StateNotSerializable`, and what is read back is what JSON gives back — a tuple comes back a
-list — so that a fresh run and one picked up read the same.
-
-## What is picked up
-
-The flow at the top **picks up unconditionally**: it is the run you asked for, with the state it
-kept. Under it, each flow it calls picks up **only where it is called again the same way** —
-the same flow, the same task, the same agents, environments and params. The first such call
-picks up the first one of the earlier run, the second the second, and so on; a call that differs
-starts afresh from there down. So a loop whose rounds each called a review flow picks up the
-reviews of the rounds it had done, and a round with a different task is a new round.
-
-Temporary copies and scratch directories a resumable run made are kept rather than removed as
-the flow that made them ends, so the run picking it up finds them where they were.
-
-What the budget has spent is not picked up. On a command line a run picked up is held to the
-`-b` of the line that picked it up; in the interface, to the budget the run it picks up was
-given, counted again from nothing.
-
-## Running it again
-
-`--resume` carries on **the newest run of that flow in this directory that can be picked up**.
-Runs are kept under the workspace they ran in, so another checkout carries on from its own last
-run there. The line still says what to run it on — its own `-a`, `-e`, `-p` and `-b`. The flow
-at the top picks up whatever the line says, its state and all; it is the flows it calls that
-must match — a call whose agents, environments, params or task changed is started afresh. So
-changing `-p` on a `--resume` line does not start the run over; leaving `--resume` off does.
-
-## Picking one up from the interface
-
-**`/resume`** picks up the last run here of a flow that can be picked up, whichever flow that
-was: that run's own flow, on its own agents and environments, with its params, its budget and
-what it was asked to do. Runs since of a flow that cannot be picked up — a conversation had in
-between — are passed over. Which one that was comes back on the line that starts it —
-
-```
-carrying on from 20260910T021407.882Z-a3f19c: nightly on what that run left behind
-```
-
-— because the person typing it has usually been away, and which day's work resumed is the thing
-they need to know first. Where there is nothing to pick up it says which reason that is:
-
-| | |
-| --- | --- |
-| `no flow has been run here` | Nothing has run in this directory at all. |
-| `no run here was of a flow that can be picked up` | Every run here was of a flow that neither said nor says it can be picked up. |
-| `<run> cannot be read back` | Its record is not one: a run that died mid-line left a line rather than an epic. |
-| `<flow> does not say it can be picked up` | Asked of the flow as it stands today, not of what the run recorded. The last run here was of a flow that said so then and does not now — and a run further back is not handed over instead. |
-| `<run> left nothing behind` | It was killed before its journal held anything. Say what to do and the flow starts from the top. |
-| `no picking a run up while a flow is running` | A run picked up is a flow started, and one is going. [ctrl+c twice or `/stop`](/user/stopping) stops it first. |
-| `no picking a run up while the flow is still stopping` | ctrl+c twice was pressed and the flow has not gone yet — it is closing out the turn it was in, and its journal is still being written. |
-
-`/resume` takes nothing after it: a line that names a run is said back rather than dropped.
-To carry on any other run, open the list and go into that run — which is the next section.
-
-## Carrying an older one on
-
-`/epics` is every run of a flow in this directory, newest first: when it happened, which flow it
-was, what it was asked to do, how many sessions it opened, and a mark on the runs whose flow
-says it can be picked up and that left a journal to pick up from. Enter goes **into** the run
-under the cursor — which says where that run is written down, and offers what there is to do
-with it:
-
-![the /epics list with the run that can be picked up marked, and what opens inside one run:
-its directory, over resuming it and exporting it](/demo/epics.gif)
-
-| | |
-| --- | --- |
-| **resume this run** | Pick this run up, from where its journal says it got to |
-| **export it** | The whole run as one archive, its [trace](/user/tracing) and its session logs in it — see [Exporting a run](/user/export) |
-
-**It is `/resume` with the run already named.** The reasons that run cannot be picked up are
-said here in the same words, so the table above holds inside a run as well as at the prompt,
-from `<run> cannot be read back` down.
-
-The mark in the list and that first row both ask the **flow** rather than the run — the mark
-asks as well that the run left a journal. The weaver may have rewritten the flow since, so what
-can happen next is what it says today:
-
-- A flow that has since dropped `resumable=True` has neither the mark nor the row, whatever the
-  run wrote down at the time; where the row is gone, the reason stands under the list.
-- A flow that will not load at all reads as one that says no — a flow that cannot be read
-  cannot be run.
-
-Exporting is offered for every run, whatever its flow says. Carrying one on is refused while a
-flow is running, on the sheet rather than on the way out; [stopping](/user/stopping) is what
-stops a flow.
-
-## What carrying on runs
-
-The flow, its agents, its environments, its params, its budget and what it was asked to do all
-come off the run rather than off whatever the interface happens to be set up on — an agent
-swapped under it would be a different run wearing its name. The person at the prompt is not an
-agent anybody chose, so a flow that talks to one talks to whoever is there now.
-
-## An epic is never reopened
-
-What carries on is written into an epic of its own, and its `began` line says which run it was
-`picked_up` from. A week of stops and starts therefore reads as a run per stretch — its own
-sessions, its own trace, its own end — rather than one enormous epic claiming to have begun on
-Monday.
+See [Loops](/weaver/loops) and the [flow API reference](/reference/flows).
 
 ## See also
 
-- [Tracing](/user/tracing) — what else a run writes down, and reading one back
-- [Stopping](/user/stopping) — what makes a run worth picking up
-- [Flows › A flow that can be picked up](/reference/flows#a-flow-that-can-be-picked-up)
-- [TUI › Commands](/reference/tui#commands)
+- [Stopping](/user/stopping): what makes a run worth picking up
+- [Tracing a run](/user/tracing): the runs `/epics` lists, and what each one did
+- [Run it unattended](/user/unattended)
