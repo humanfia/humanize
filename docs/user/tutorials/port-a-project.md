@@ -11,8 +11,8 @@ landed after every round. At the end you have:
 | the reviewer's sign-off, which is what ended the run | printed as the run ends |
 
 ::: tip Before you start
-Do the [quickstart on the home page](/#run-a-flow) first. Any backend works. The DeepSeek
-Harness tab below needs only an API key.
+Do the [quickstart on the home page](/#run-a-flow) first. Any backend works, DeepSeek Harness
+included, which needs only an API key and an extra you add in step 3.
 :::
 
 ## Step 1: get the project
@@ -91,22 +91,38 @@ pass by weakening it.
 ## Step 3: run it
 
 The flow is [`rlar`](/flows/rlar), a Ralph loop with an actor and a reviewer. The **actor**
-keeps one conversation for the whole run, so it remembers every decision it made. After each of
-its turns, the **reviewer** opens a fresh one, reads the repository with `git diff` and the
-tests, and answers two things: `done`, true or false, and `notes`. The notes become the actor's
-next prompt, word for word.
+keeps one conversation for the whole run, so it remembers every decision it made. Each time it
+finishes a turn, the **reviewer** opens a fresh one, reads the repository with `git diff` and
+the tests, and answers two things: `done`, true or false, and `notes`. The notes become the
+actor's next prompt, word for word.
 
 <HmzFlowShape flow="rlar" />
 
 Pick the tab for the backends you have:
 
+:::: details Using DeepSeek Harness? Add humanize's `[dsh]` extra first
+Run the line for the way you installed humanize:
+
+::: code-group
+
+```sh [pip]
+pip install 'hmz[dsh] @ git+https://github.com/humanfia/humanize.git'
+```
+
+```sh [pipx]
+pipx install --force 'hmz[dsh] @ git+https://github.com/humanfia/humanize.git'
+```
+
+```sh [uv tool]
+uv tool install 'hmz[dsh] @ git+https://github.com/humanfia/humanize.git'
+```
+
+:::
+::::
+
 ::: code-group
 
 ```sh [DeepSeek Harness]
-# once: add the backend's extra to humanize
-uv tool install \
-    'hmz[dsh] @ git+https://github.com/humanfia/humanize.git'
-
 export DEEPSEEK_API_KEY=sk-…
 hmz exec -f rlar \
     -a actor=dsh/deepseek-v4-pro:high \
@@ -135,9 +151,7 @@ hmz exec -f rlar \
 
 There is one `-a` per role. The same model in both is fine: the reviewer is independent because
 its conversation has never seen the actor's, not because it runs a different model. `-b` caps
-the run, and the reviewer usually ends it sooner. The DeepSeek Harness tab's first line is for
-a humanize installed with `uv tool`; [Installation](/user/installation) has the `pip` and
-`pipx` forms.
+the run, and the reviewer usually ends it sooner.
 
 ```console
 ● actor is working
@@ -225,11 +239,8 @@ wc -l golang_x_mod/*.py tests/*.py
 
 ::: tip Checkpoint
 389 passing cases, from 635 lines of C# and 266 of xunit, with all twenty-five stubs
-implemented. The C# tests should be exactly as you cloned them, so this prints nothing:
-
-```sh
-git diff --stat origin/HEAD -- ../tests/
-```
+implemented. Before you trust the number, open `tests/test_module.py` beside
+`../tests/Golang.Org.X.Mod.Tests/ModuleTests.cs`: the tables should hold the same rows.
 :::
 
 ## Where next
@@ -240,9 +251,9 @@ git diff --stat origin/HEAD -- ../tests/
 - **Give the reviewer a different model.** Its job is to disagree, and two models that fail
   differently disagree more usefully than one model twice.
 - **Change what "done" means.** Press <kbd>f</kbd> on `rlar` in `/flow` to copy it into this
-  project. `-f rlar` then runs your copy. The reviewer's instruction is the `description` of
-  the `done` field, so adding "and `ruff check` passes" there changes what ends the run. See
-  [Answers in a shape](/weaver/shapes).
+  project. `-f rlar` then runs your copy. The run ends on the reviewer's `done`, and the
+  field's `description` says when it may be true, so adding "and `ruff check` passes" there
+  changes what ends the run. See [Answers in a shape](/weaver/shapes).
 - **Change how reviews are written.** The reviewer carries a [skill](/user/skills),
   `skills/review-notes/SKILL.md` in the flow's directory, which your copy lets you edit.
   DeepSeek Harness loads no skills, so on it the reviewer works from the prompt alone.

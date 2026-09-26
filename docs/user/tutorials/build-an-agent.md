@@ -22,11 +22,13 @@ included.
 mkdir -p ~/tmp/flashagent && cd ~/tmp/flashagent
 git init -q
 echo "# flash-agent" > README.md
+printf '.humanize/\ndocs/plan.md\n' > .gitignore
 git add -A && git commit -qm "init"
 ```
 
 It has to be a git repository, because phase 3 reads every review against the commit the plan
-was fixed in.
+was fixed in. The `.gitignore` keeps the flows' own files and the plan out of the commits,
+which phase 3 insists on.
 
 ## Step 2: open the idea
 
@@ -43,6 +45,26 @@ small and the tool schemas short."
 ```
 
 Then run phase 1:
+
+:::: details Using DeepSeek Harness? Add humanize's `[dsh]` extra first
+Run the line for the way you installed humanize:
+
+::: code-group
+
+```sh [pip]
+pip install 'hmz[dsh] @ git+https://github.com/humanfia/humanize.git'
+```
+
+```sh [pipx]
+pipx install --force 'hmz[dsh] @ git+https://github.com/humanfia/humanize.git'
+```
+
+```sh [uv tool]
+uv tool install 'hmz[dsh] @ git+https://github.com/humanfia/humanize.git'
+```
+
+:::
+::::
 
 ::: code-group
 
@@ -66,9 +88,6 @@ hmz exec -f humanize1:gen-idea \
 ```
 
 :::
-
-The DeepSeek Harness tabs need humanize's `[dsh]` extra, which
-[Installation](/user/installation) adds.
 
 One agent, the **drafter**. It picks six different directions the idea could go, explores each
 against this repository and this machine, and writes up one as the primary with the others as
@@ -94,8 +113,7 @@ A small terminal coding agent for deepseek-v4-flash. …
 - Import checks confirm `openai`, `httpx`, and `requests` are all MISSING in this
   environment, while `urllib.request` is present in Python 3.12.13 stdlib — stdlib is
   both necessary and sufficient for a zero-dependency client.
-- `git ls-files` shows only `README.md`, so there is no existing HTTP/API layer to
-  reconcile with.
+…
 ```
 
 Look at the "Objective Evidence" lines. Every direction has to be justified by something the
@@ -110,6 +128,8 @@ from 2 to 10.
 :::
 
 ## Step 3: argue it into a plan
+
+In the same terminal as step 2, so `$IDEA` and your key are still set:
 
 ::: code-group
 
@@ -217,10 +237,11 @@ hmz exec -f humanize1:rlcr \
 The plan is the task here. `"build it"` is only the name the run goes by.
 
 The **builder** works until it believes the plan is done and tries to stop. Instead of
-stopping, it gets a code review: the **reviewer** reads the round's work and lists findings
-marked `[P0]` to `[P9]`, and those are what the builder hears next. Every fifth round the
-reviewer is asked a different question: does what has been built still match the plan? The loop
-ends when the reviewer has nothing left, or after 42 rounds (`-p max=` changes that).
+stopping, it hears the **reviewer**'s reading of the round against the plan. Every fifth round
+the reviewer is asked a different question: does what has been built still match the plan at
+all? Once the reviewer calls the plan complete, it reviews the code itself, and the builder
+fixes whatever it marks `[P0]` to `[P9]`. The loop ends when a code review finds nothing, or
+after 42 rounds (`-p max=` changes that).
 
 The flow guards the builder while it works, keeping the plan fixed and the loop's own files out
 of its hands. That is why the builder must be Claude Code, Codex, Kimi Code or ZCode, and any
@@ -311,8 +332,8 @@ implemented. That is the two planning phases earning their time.
 - **Stop between phases and edit the file.** The draft and the plan are both meant to be read,
   and a text editor is the refinement step.
 - **Build from a plan you wrote.** Phase 3 needs a plan, not the first two phases:
-  `-p plan_file=…` names it. Every param of the three is on the [`humanize1`](/flows/humanize1)
-  page.
+  `-p plan_file=…` names it. The [`humanize1`](/flows/humanize1) page has more of the
+  phases' params.
 - **Read it back.** `/epics` in `hmz` lists the three runs, one per phase. **Export it** on any
   of them gives you its trace. See [Tracing](/user/tracing).
 - **Write a flow of your own.** You have now run three that somebody else wrote. Whoever writes

@@ -176,8 +176,8 @@ Speedup over baseline:  83.46553672316384
 ```
 
 ::: tip Checkpoint
-The number falls turn by turn. If `test_kernel_correctness` fails, you have probably caught a
-turn halfway through a rewrite, so measure again a minute later.
+The number falls turn by turn. If no number comes out, you have probably caught a turn halfway
+through a rewrite, so measure again a minute later.
 :::
 
 Now read what the agents wrote for each other:
@@ -241,7 +241,7 @@ It was stopped, driving 2 agents through 12 sessions.
 ```
 
 Choose **export it**. The line under the list says where the archive went. The trace is also at
-`traces/export.trace.json` inside the directory named at the top of that screen. Drag it into
+`traces/export.trace.json` inside the directory named under the screen's title. Drag it into
 [ui.perfetto.dev](https://ui.perfetto.dev):
 
 ```
