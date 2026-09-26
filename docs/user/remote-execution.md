@@ -1,167 +1,69 @@
 # Remote execution
 
-Remote execution runs an agent on **this** machine while everything it does happens on a
-**target**. Reach for it when the work must happen on another machine but the agent and its
-model credentials stay where you are. The agent needs no plugin, no configuration and no
-cooperation: it is told none of this and takes part in none of it.
+Point one of a flow's environments at another machine with `-e`, and every agent the flow
+opens there runs **here** while its work happens **there**. Reach for it when the build, the
+tests or the GPUs are on another machine, and the agent's CLI and your sign-in are on this one.
 
-The agent does not have to stay here — [moving it](#moving-the-agent-itself) is one flag — but
-this is what it does by default, and the rest of this page assumes it.
-
-```
-     this machine                              the target
-┌────────────────────┐                   ┌────────────────────┐
-│  claude / codex …  │                   │                    │
-│        ↓ syscalls  │                   │  hmz internal      │
-│  ┌──────────────┐  │   one channel     │    anchor serve    │
-│  │  supervisor  │──┼──────────────────▶│         ↓          │
-│  └──────────────┘  │  ssh / docker /   │  files, processes, │
-│   local mirror     │  tcp / a pipe     │  the network       │
-└────────────────────┘                   └────────────────────┘
-     credentials,                             the work
-   the model provider
-```
-
-The workspace the agent works in is a **local mirror** of the target's copy, read and written
-at local speed and kept in step. It lives at the workspace's own path by default, so the paths
-the agent sees are the target's own.
+<div class="re-split">
+  <div class="re-side">
+    <span class="re-where">this machine</span>
+    <ul>
+      <li>the agent's CLI, installed and signed in</li>
+      <li>its account and its link to the model provider</li>
+      <li>its sessions, which is what a trace is read from</li>
+    </ul>
+  </div>
+  <div class="re-link" aria-hidden="true"><span>ssh</span></div>
+  <div class="re-side re-there">
+    <span class="re-where">build-box</span>
+    <ul>
+      <li>the project the agent reads and writes, at the host's own paths</li>
+      <li>every command it runs: builds, tests, <code>git</code></li>
+      <li>the network those commands reach</li>
+    </ul>
+  </div>
+</div>
 
 ## Try it
 
-Ask the target what it is before you run anything against it:
+First check that `ssh build-box` works from here, and that the project is on the host at the
+path you are about to name. humanize uses your own ssh config, agent and keys.
 
-```sh
-hmz internal anchor --check --target ssh://build-box
+Then say where the flow's role is, on the command line or at the prompt:
+
+::: code-group
+
+```sh{3} [hmz exec]
+hmz exec -f onbox \
+    -a builder=claude/claude-opus-5:high -a reviewer=codex/gpt-5.6-sol:high \
+    -e box=ssh@build-box/home/me/build/myproject \
+    -b cost=20 "fix the build"
 ```
 
-```console
-target      ssh://build-box
-hostname    build-box
-python      3.12.3 (pid 41207)
-export      /home/me/code/myproject -> /home/me/code/myproject
-workspace   /home/me/code/myproject (184 entries)
+```text [at the prompt]
+/flow, choose local/onbox. Its environment roles are rows under its agents:
+
+   ❯ 1. builder                  claude/claude-opus-5:high
+     2. reviewer                 codex/gpt-5.6-sol:high
+     3. box                      not said yet
+
+enter on box asks "Where box is". Type it as -e spells it after the =:
+
+     ssh@build-box/home/me/build/myproject
 ```
 
-Then run an agent against it:
-
-```sh
-hmz internal anchor --target ssh://build-box claude
-```
-
-The agent runs here while its commands run on the build box. Inside the workspace it sees the
-target: the same file names, contents, sizes, modes and timestamps, at the same paths. A
-failure answers with the target's own error, not a local approximation of it. Where the target
-spells a path two ways — a Mac reaches `/tmp` and `/var` through `/private`, and ignores case —
-either spelling reaches the same file.
-
-Everything after the agent's name is the agent's own:
-
-```sh
-hmz internal anchor --target ssh://gpu-01 codex exec "run the test suite"
-```
-
-## Targets
-
-| `--target` | |
-| --- | --- |
-| `ssh://HOST[:PORT]` | Bootstraps the target half over ssh and speaks to it on that connection's pipes. Uses your ssh config, agent and keys. **Nothing listens.** |
-| `docker://CONTAINER` | Runs the target half inside a running container over `docker exec`. No port and no secret. |
-| `tcp://HOST:PORT` | Connects to a target [left listening](/reference/remote-execution#serving-a-target). Cheap to reconnect, which matters for a loop of short turns. |
-| `peer://TICKET@HOST:PORT` | Meets a serving half at a rendezvous rather than dialling it. humanize writes this one for itself when it has put the harness on another machine; you do not type it. |
-| `local[:DIR]` | Another directory on this machine, standing in for a remote one. Used for development and by the test suite. |
-
-humanize ships the target half as a zipapp and caches it there by digest. It needs no
-installation. The two halves refuse to run against each other if their versions disagree.
-
-::: details It cannot connect
-Run `ssh build-box` yourself first. `hmz internal anchor` uses your own ssh config, agent and
-keys, and it adds nothing. Then check that there is a Python 3.12 or newer there; it need not be on the
-`PATH`, since humanize looks where a Mac and a Homebrew keep one too. See
-[Troubleshooting](/user/troubleshooting#the-target-cannot-be-reached).
 :::
 
-## What crosses, and what does not
+`onbox` is a project flow with two places: `workspace`, the directory you started in, and
+`box`, which you name. The builder works on the box and the reviewer reads here. The flow's own
+steps on `box`, such as a `git diff`, run on the box too. At the prompt, your answer is saved
+with the flow's setup, like its agents.
 
-**Reaches the target**
-
-- File contents are pushed in full before any command runs, and again when the session ends.
-- Structural changes — create, remove, rename, link, chmod — are replayed there *first*, so the
-  target's own error is what the agent sees.
-- Commands run in the target's copy of the working directory, including work helpers such as
-  ripgrep that are bundled with the agent itself.
-- Whatever those commands reach on the network.
-
-**Stays here**
-
-- The agent's own runtime executables and re-execs. For any CLI installed by npm that includes
-  the interpreter its `#!/usr/bin/env` line names, wherever on `PATH` it is found; for Codex, the
-  native CLI and its code-mode host besides.
-- Its state directory, and anything the agent runs from inside it. humanize knows the twelve
-  known CLIs by name — `agy`, `claude`, `codex`, `cursor-agent`, `dsh`, `grok`, `kimi`, `mimo`,
-  `opencode`, `pi`, `qwen`, `zcode` — and its own `~/.humanize`. Any other agent that keeps
-  state inside the workspace has to be named with `--local-path`.
-- Anything named `--local-path` or `--local-exec`.
-- The agent's own network connections, so it can still reach its model provider. `--net remote`
-  sends them to the target instead. `--net-allow HOST[:PORT]` keeps named hosts local anyway.
-
-Name what must stay here with `--local-path` or `--local-exec`:
-
-```sh
-hmz internal anchor --target ssh://build-box \
-    --local-path /home/me/code/myproject/.venv \
-    --local-exec /usr/bin/rg \
-    claude
-```
-
-Commands the agent spawns **always** use the target's network, whatever `--net` says.
-
-Before you rely on this for anything expensive, read [Remote execution › What is not
-guaranteed](/reference/remote-execution#what-is-not-guaranteed). The short version: what a
-command changes on the target becomes visible to the agent once the command exits, and a
-command that ran while the agent was writing the same file may have run against what was there
-before.
-
-## Moving the agent itself
-
-Everything above puts the agent here and its work over there, which means every path the agent
-names is a round trip. `--harness` moves the agent and its supervisor instead.
-
-```sh
-# the agent runs on the build box, and its work never leaves it
-hmz internal anchor --harness same --target ssh://build-box --workspace /srv/project claude
-
-# the agent runs on one machine and its work lands on another
-hmz internal anchor --harness ssh://runner --target ssh://build-box     --workspace /srv/project claude
-```
-
-Either way this machine spawns one command and reads its three streams, exactly as before, and
-the agent exits with its own status.
-
-**What you get.** A turn stops paying a round trip per file the agent opens — with the harness
-beside its work, none of them cross a wire. The mirror it works in is kept between turns under
-a name derived from what it mirrors, so the second turn against a workspace starts warm.
-
-**What you give up.** The credentials go with the harness. Under the default, the account, the
-state directory and the connection to the model provider are on this machine and nothing about
-them reaches the target; a harness elsewhere is a harness holding them there. **A machine you
-would not trust with the account is a machine to reach with the harness here.**
-
-::: details The two machines cannot reach each other
-They do not have to. humanize holds a rendezvous: it tells each half what it looks like from
-outside, starts the two at each other so each one's outbound attempt opens the hole the other's
-arrives through, and — where that cannot work — splices the two connections it is already
-holding and carries the bytes itself. Nothing is configured for this. `--broker HOST` is there
-for the case where the two machines reach humanize under a name this machine cannot guess.
-:::
-
-## Anchoring a flow
-
-**For the weaver.** A flow is anchored by its **environments**. It declares the directories it
-works in, one role apiece, and spawns every session in one of them; an environment on another
-machine is one whose sessions' turns land there — see [Writing a flow](/weaver/writing-a-flow):
+::: details The flow, to try this yourself
+Save it as `.humanize/flows/onbox/__init__.py` in your project. What each line means is the
+[Weaver Guide's](/weaver/writing-a-flow) to explain.
 
 ```python
-# .humanize/flows/onbox/__init__.py
 """Build on the box, review here."""
 
 from hmz.flows import (
@@ -186,8 +88,8 @@ class Agents(AgentCollection):
 
 
 class Envs(EnvCollection):
-    box: Box              # wherever -e says: another machine, as often as not
-    workspace: LocalEnv   # this directory
+    workspace: LocalEnv  # the directory the run starts in
+    box: Box             # wherever -e says
 
 
 @flow(agents=Agents, envs=Envs, params=FlowParams)
@@ -195,125 +97,158 @@ async def onbox(task: str, *, agents: Agents, envs: Envs, params: FlowParams, ct
     builder, reviewer = agents["builder"], agents["reviewer"]
     working = await builder.spawn(env=envs["box"])
     await builder.run(task, session=working)
-    for _ in range(5):
+    for _ in range(3):
         _, diff, _ = await envs["box"].exec(["git", "diff"])
         reading = await reviewer.spawn(env=envs["workspace"])
         review = await reviewer.run(f"Say what is wrong with this diff:\n\n{diff}", session=reading)
         await builder.run(review, session=working)
 ```
 
-Whoever runs that flow says where `box` is, with `-e`:
-
-```sh
-hmz exec -f onbox -a builder=claude/claude-opus-5:high -a reviewer=codex/gpt-5.6-sol:high \
-    -e box=ssh@build-box/srv/project -b cost=20 "fix the build"
-```
-
-| `-e box=` | Where the builder's work goes |
-| --- | --- |
-| `ssh@build-box/srv/project` | `/srv/project` on a host you can reach with ssh — `host`, `user@host`, `host:port`, or an alias of your ssh config |
-| `ssh@build-box/~/project` | the same, under the home directory of whoever ssh logs in as |
-| `local@/srv/project` | a directory on this machine |
-
-A role typed as a `LocalEnv` — `workspace` above — is the directory the run started in, and is
-never named on the line. The flow's own `await envs["box"].exec([...])`, `read` and `write` run
-on the box too, so the flow reads what the agent did where the agent did it. At the prompt the
-same answer is a row of the flow's sheet in [`/flow`](/reference/tui#where-each-agent-works),
-typed as `-e` spells it.
-
-**Outside a flow**, give an agent's config an anchored machine and its turns land there:
-
-```python
-from hmz.coganchor.agents import ClaudeCodeAgentConfig
-from hmz.coganchor import AnchorConfig
-from hmz.coganchor.machines import AnchoredConfig
-
-config = ClaudeCodeAgentConfig(
-    model="claude-opus-4-8",
-    effort="high",
-    machine=AnchoredConfig(
-        anchor=AnchorConfig(target="ssh://build-box", workspace="/srv/project")
-    ),
-)
-```
-
-Every option of `hmz internal anchor` is a field of `AnchorConfig`, and every field is an
-option. Settings no session could run under are refused where they are *written*, so a script
-that misspells a target hears about it as it configures its agents rather than hours into the
-loop. A `docker://`, `tcp://` or `local:` target is reached this way; a flow's environments are
-this machine and ssh hosts.
-
-## A session works in a directory the target names
-
-For an anchored agent, `agent.new(cwd)` takes **the target's** path, and it must be inside the
-workspace the anchor names. humanize puts the agent in this machine's mirror of that directory
-and tells the anchor to run the work in the directory itself, so whoever drives it says where the
-work happens in the only names the far end has. A flow does the same with its environment:
-`await envs["box"].derive_subdir(subdir="docs")` is `/srv/project/docs` on the box, and a worktree
-derived there is on the box too.
-
-```text
-/tmp/elsewhere is not inside /srv/project, which is the workspace this agent's turns land in
-```
-
-The same paths are flags on `hmz internal anchor`. Where the project lives at a different path
-there, name both:
-
-```sh
-hmz internal anchor --target ssh://build-box \
-    --workspace /home/me/code/myproject \
-    --remote-path /srv/build/myproject \
-    claude
-```
-
-| Flag | |
-| --- | --- |
-| `--workspace` | the project directory as the agent should see it |
-| `--remote-path` | where that workspace really lives on the target |
-| `--shadow` | the local mirror directory; it defaults to the workspace path, so the paths the agent sees are the target's own |
-| `--chdir` | where inside the workspace the agent starts, as the target names it |
-
-## Serving a target
-
-Where there is no ssh and no container, run the target half on the far machine:
-
-```sh
-hmz internal anchor serve --listen 0.0.0.0:7777 --export /srv/project --token "$SECRET"
-```
-
-It needs only a POSIX system and a recent `python3`. No root, no compiler, nothing installed.
-
-Then connect from here:
-
-```sh
-hmz internal anchor --target tcp://build-box:7777 --workspace /srv/project --token "$SECRET" claude
-```
-
-A `tcp://` target is **cheap to reconnect**, which matters for a loop of short turns. A backend
-whose turn runs as its own process reaches the target once per turn, and a socket costs less to
-open than an ssh session.
-
-::: danger An open port is a shell on that machine
-`--export` bounds which files a request may **name**. It does not confine the commands that
-request can run. Give `--token` a real secret; listening on anything but loopback without one
-is refused outright. Prefer `ssh://` or `docker://`, which need no port at all. See
-[Security](/user/security).
 :::
 
-## Requirements
+## What `-e` takes
 
-Linux on x86-64 or aarch64 **here**. A POSIX system with a recent `python3` **there** — Linux
-or macOS, on any architecture. No root, no compiler, no kernel module, nothing installed on the
-far end.
+| `-e box=` | Where the role's work happens |
+| --- | --- |
+| `ssh@build-box/home/me/build/myproject` | that directory on a host `ssh` reaches: `host`, `user@host`, `host:port`, or an alias from your ssh config |
+| `ssh@build-box/~/build/myproject` | the same, under the home directory of whoever ssh logs in as |
+| `local@/srv/project` | a directory on this machine |
 
-macOS ships no `python3` on the `PATH` a remote command is given, so humanize looks where a Mac
-keeps one — Homebrew's, or the framework the installer from python.org writes — and says what it
-looked for if it finds none.
+**Only a role the flow declares for it.** The workspace is always the directory you started
+in, and naming it with `-e` is refused. The flows humanize and the official flowverse ship all
+work in the workspace alone, so none of them takes an `-e`. A flow written for another machine
+declares a role like `box`: see
+[Flows › Where each agent works](/reference/flows#where-each-agent-works).
+
+::: warning The path is taken on this machine too
+The agent works in a copy of the host's directory that humanize keeps here **at the same
+path**. That path has to be one you can create on this machine, and must be free here:
+absent, empty, or humanize's copy of that same host from an earlier run. A directory with other
+files in it is refused rather than overwritten, so `ssh@build-box/home/me/code/myproject`
+fails when your own checkout is at `/home/me/code/myproject` on this machine.
+:::
+
+## What it needs
+
+| Where | What it needs |
+| --- | --- |
+| **This machine** | Linux on x86-64 or aarch64, and the agent's CLI installed and signed in |
+| **The host** | Linux or macOS on any architecture, Python 3.12 or newer, `ssh` access, and the project already at that path. You install nothing else there: humanize brings what it needs. |
+| **The flow** | a role for the host, besides its workspace |
+
+A Mac gives a remote command no `python3` on its `PATH`, so humanize also looks where Homebrew
+and the python.org installer put one, and says what it looked for if it finds none.
+
+## When it refuses
+
+Most of these stop `hmz exec` before anything runs, as `hmz exec: error: …`, with exit
+status 2.
+
+- `onbox needs an environment for 'box'; give each with -e ROLE=BACKEND@PROVIDER/WORKDIR`\
+  Say where `box` is, with `-e` or at `/flow`.
+- `ralph_loop has no environment role 'box'; its environment roles are none`\
+  That flow only works in the directory you start it in.
+- `onbox: 'workspace' is the workspace the run is started in, and is not given with -e`\
+  Start `hmz` in that directory instead.
+- `there is no ssh host build-box: …`\
+  Nothing resolves the name. Check your ssh config.
+- `could not reach build-box over ssh: …`\
+  Run `ssh build-box` yourself and fix what it says.
+- `could not reach build-box over ssh: … no python 3.12 or newer on this machine; …`\
+  The host has no Python 3.12 or newer that humanize can find. Install one there.
+- `the workdir /home/me/build/myproject is not there`\
+  Put the project on the host at that path.
+- `… 'box' needs 8 GPUs, and the environment given has 0`\
+  The flow asks more of the host than it has. Pick another host.
+- `… already contains files and is not an humanize mirror …`\
+  The same path on this machine holds other files. See the warning above.
+- `… mirrors ssh://old-box, not ssh://build-box …`\
+  That path here holds humanize's copy of another host. Use another path.
+
+::: details Good to know
+- **Network.** The agent's own connection to its model provider stays here. The commands it
+  runs use the host's network.
+- **Timing.** What a command changes on the host is visible to the agent once that command has
+  exited. See [What is not guaranteed](/reference/remote-execution#what-is-not-guaranteed).
+- **Other ways to reach a machine.** A port left listening, a running container, or the agent
+  itself moved to the host are below the flow API: see the
+  [Remote execution reference](/reference/remote-execution).
+:::
 
 ## See also
 
-- [Containers](/user/containers) — the same arrangement, with a container as the target
-- [Remote execution reference](/reference/remote-execution) — what is and is not guaranteed
-- [CLI › `hmz internal anchor`](/reference/cli#hmz-internal-anchor)
-- [Troubleshooting](/user/troubleshooting#the-target-cannot-be-reached)
+- [Containers](/user/containers): a container reached the same way
+- [Remote execution reference](/reference/remote-execution)
+- [Troubleshooting](/user/troubleshooting)
 - [humanize in CI](/user/ci)
+
+<style scoped>
+.re-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+  margin: 22px 0 8px;
+}
+
+.re-side {
+  padding: 12px 16px 6px;
+  border: 1px solid var(--hmz-panel-border);
+  border-radius: 14px;
+  background: var(--hmz-panel-bg);
+}
+
+.re-there {
+  border-color: var(--hmz-accent);
+}
+
+.re-where {
+  font-family: var(--vp-font-family-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--vp-c-text-3);
+}
+
+.re-there .re-where {
+  color: var(--hmz-accent);
+}
+
+.re-side ul {
+  margin: 6px 0 8px;
+  padding-left: 18px;
+}
+
+.re-side li {
+  margin: 2px 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.re-link {
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+}
+
+.re-link span {
+  position: relative;
+  padding: 2px 10px;
+  border: 1px dashed var(--vp-c-divider);
+  border-radius: 999px;
+  background: var(--vp-c-bg);
+  font-family: var(--vp-font-family-mono);
+  font-size: 12px;
+  color: var(--vp-c-text-2);
+}
+
+@media (max-width: 640px) {
+  .re-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .re-link {
+    justify-content: center;
+    padding: 6px 0;
+  }
+}
+</style>
