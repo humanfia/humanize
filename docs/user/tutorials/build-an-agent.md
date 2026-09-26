@@ -1,79 +1,105 @@
 # Build a coding agent
 
-**An afternoon.** You will take one loose sentence — "a small terminal coding agent for
-`deepseek-v4-flash`" — through [`humanize1`](https://github.com/humanfia/flowverse)'s
-three phases, and end with a repository that did not exist when you started.
+**An afternoon.** You take one loose sentence, "a small terminal coding agent for
+`deepseek-v4-flash`", through the three phases of [`humanize1`](/flows/humanize1). Each phase
+is a flow of its own, and each hands the next a file you can read and edit:
 
-The three phases are three separate flows. That is the point of them: each is set up on its
-own, stops on its own, and hands the next one a file rather than a conversation.
+| Phase | You end with |
+| --- | --- |
+| 1&nbsp;·&nbsp;idea | a draft: the idea opened into several directions, each checked against the repository |
+| 2&nbsp;·&nbsp;plan | `docs/plan.md`: a plan two agents argued over, with acceptance criteria |
+| 3&nbsp;·&nbsp;build | a working coding agent, built round by round under review, with its tests |
 
 ::: tip Before you start
-Finish the [quickstart on the home page](/#run-a-flow). The third phase needs a builder that
-can run permission hooks, which today means Claude Code or Codex; the first two run on
-anything,
-including DeepSeek Harness.
+Do the [quickstart on the home page](/#run-a-flow) first. Phase 3's builder must be Claude
+Code, Codex, Kimi Code or ZCode. Every other role runs on any backend, DeepSeek Harness
+included.
 :::
 
-## The shape of work this is for
-
-The other two tutorials point an agent at code that already exists. This one starts from
-nothing, and starting from nothing is where agents go wrong in a particular way: they build the
-first thing that matches the words in your sentence, and you find out an hour later that it was
-not the thing you meant.
-
-`humanize1` is humanize's rebuild of [the humanize Claude Code
-plugin](https://github.com/humanfia/humanize-plugin), and its answer is to spend two phases
-before any code is written:
-
-| | | |
-| --- | --- | --- |
-| **`gen-idea`** | 1 agent | Opens a loose idea into a repo-grounded draft, by exploring several directions at once and picking one |
-| **`gen-plan`** | 2 agents | Turns that draft into a plan, with a second agent arguing against it until they converge |
-| **`rlcr`** | 2 agents + you | Builds the plan under review, round after round, until the reviewer has nothing left |
-
-What passes between them is a file — the draft, then the plan. So you can open an idea on one
-model, plan it on another, build it on a third, and read and edit both files in between.
-
-## Step 1 — make a repository
+## Step 1: make a repository
 
 ```sh
 mkdir -p ~/tmp/flashagent && cd ~/tmp/flashagent
 git init -q
 echo "# flash-agent" > README.md
-git add -A && git commit -qm "nothing yet"
+printf '.humanize/\ndocs/plan.md\n' > .gitignore
+git add -A && git commit -qm "init"
 ```
 
-`rlcr` needs a git repository, because it anchors the work to the commit the plan was fixed in
-and reads every review against what came after.
+It has to be a git repository, because phase 3 reads every review against the commit the plan
+was fixed in. The `.gitignore` keeps the flows' own files and the plan out of the commits,
+which phase 3 insists on.
 
-## Step 2 — open the idea
+## Step 2: open the idea
+
+Keep the sentence in a shell variable, since phase 2 is given it too:
 
 ```sh
-export DEEPSEEK_API_KEY=sk-…
-hmz exec -f humanize1:gen-idea \
-    -a drafter=dsh/deepseek-v4-pro:high -b cost=5 \
-    "A small terminal coding agent for deepseek-v4-flash. One Python package, one entry point, no framework. It talks to the DeepSeek API with the OpenAI-compatible chat completions endpoint, holds a message list, and offers the model three tools: read a file, write a file, run a shell command. It loops until the model answers without asking for a tool. It is meant for a fast, cheap model, so it must keep the context small and the tool schemas short."
+IDEA="A small terminal coding agent for deepseek-v4-flash. One Python
+package, one entry point, no framework. It talks to the DeepSeek API
+with the OpenAI-compatible chat completions endpoint, holds a message
+list, and offers the model three tools: read a file, write a file, run
+a shell command. It loops until the model answers without asking for a
+tool. It is meant for a fast, cheap model, so it must keep the context
+small and the tool schemas short."
 ```
 
-One agent, because there is only one job here. It generates several distinct directions the
-idea could be taken in — six by default — explores each against the actual repository, and
-writes up one as the primary with the rest recorded as alternatives.
+Then run phase 1:
 
-The draft lands in `.humanize/ideas/`:
+:::: details Using DeepSeek Harness? Add humanize's `[dsh]` extra first
+Run the line for the way you installed humanize:
+
+::: code-group
+
+```sh [pip]
+pip install 'hmz[dsh] @ git+https://github.com/humanfia/humanize.git'
+```
+
+```sh [pipx]
+pipx install --force 'hmz[dsh] @ git+https://github.com/humanfia/humanize.git'
+```
+
+```sh [uv tool]
+uv tool install 'hmz[dsh] @ git+https://github.com/humanfia/humanize.git'
+```
+
+:::
+::::
+
+::: code-group
+
+```sh [DeepSeek Harness]
+export DEEPSEEK_API_KEY=sk-…
+hmz exec -f humanize1:gen-idea \
+    -a drafter=dsh/deepseek-v4-pro:high \
+    -b cost=5 "$IDEA"
+```
+
+```sh [Claude Code]
+hmz exec -f humanize1:gen-idea \
+    -a drafter=claude/claude-opus-5:high \
+    -b cost=5 "$IDEA"
+```
+
+```sh [Codex]
+hmz exec -f humanize1:gen-idea \
+    -a drafter=codex/gpt-5.6-sol:high \
+    -b cost=5 "$IDEA"
+```
+
+:::
+
+One agent, the **drafter**. It picks six different directions the idea could go, explores each
+against this repository and this machine, and writes up one as the primary with the others as
+alternatives. The draft lands in `.humanize/ideas/`:
 
 ```sh
 ls .humanize/ideas/
-```
-
-```console
-a-small-terminal-coding-agent-for-20260817-020714.md
-```
-
-```sh
 head -20 .humanize/ideas/*.md
 ```
 
 ```console
+a-small-terminal-coding-agent-for-20260817-020714.md
 # Stdlib OpenAI-Compatible DeepSeek Chat Client
 
 ## Original Idea
@@ -87,42 +113,55 @@ A small terminal coding agent for deepseek-v4-flash. …
 - Import checks confirm `openai`, `httpx`, and `requests` are all MISSING in this
   environment, while `urllib.request` is present in Python 3.12.13 stdlib — stdlib is
   both necessary and sufficient for a zero-dependency client.
-- `git ls-files` shows only `README.md`, so there is no existing HTTP/API layer to
-  reconcile with.
+…
 ```
 
-Read the "Objective Evidence" lines. Each direction had to be justified against something the
-agent checked in this repository or this environment, not against what usually makes a good
-design. That is what "repo-grounded" means, and it is the difference between a draft and a
-plausible essay.
+Look at the "Objective Evidence" lines. Every direction has to be justified by something the
+agent checked here, not by what usually makes a good design.
 
-::: tip Change how wide it explores
-`--n` is a field of the flow's params, so `-p n=3` narrows it and `-p n=10` widens it. In the
-interface, the same fields are on the sheet `/flow` puts up as the flow is chosen. See
-[Params of its own](/weaver/flow-settings).
+::: tip Checkpoint: read the draft
+It is a file, and editing it is expected. If it picked the wrong primary direction, promote one
+of the alternatives yourself. That is far cheaper here than after the plan is written.
+
+To explore more or fewer directions, add `-p n=3` or `-p n=10`. `n` is 6 unless given, and goes
+from 2 to 10.
 :::
 
-**Read the draft before going on.** It is a file, and editing it is expected. If it picked the
-wrong primary direction, promote one of the alternatives yourself — that is much cheaper here
-than after the plan is written.
+## Step 3: argue it into a plan
 
-## Step 3 — argue it into a plan
+In the same terminal as step 2, so `$IDEA` and your key are still set:
 
-```sh
+::: code-group
+
+```sh [DeepSeek Harness]
 hmz exec -f humanize1:gen-plan \
     -a planner=dsh/deepseek-v4-pro:high \
     -a analyst=dsh/deepseek-v4-pro:high \
-    -b cost=10 \
-    "A small terminal coding agent for deepseek-v4-flash. …"
+    -b cost=10 "$IDEA"
 ```
 
-Two agents this time: **the planner**, which writes, and **the analyst**, which reads what the
-planner wrote and says what is wrong with it. They go round until the analyst has nothing
-required left — up to three rounds — and the task you pass is what those rounds are judged
-against. The planner holds one session for the whole of the planning, so it remembers how the
-plan got to where it is; the analyst arrives fresh.
+```sh [Claude Code + Codex]
+hmz exec -f humanize1:gen-plan \
+    -a planner=claude/claude-opus-5:high \
+    -a analyst=codex/gpt-5.6-sol:high \
+    -b cost=10 "$IDEA"
+```
 
-This phase takes a while, and what it produces is long:
+```sh [Claude Code only]
+hmz exec -f humanize1:gen-plan \
+    -a planner=claude/claude-opus-5:high \
+    -a analyst=claude/claude-opus-5:high \
+    -b cost=10 "$IDEA"
+```
+
+:::
+
+It plans from the newest draft in `.humanize/ideas/`. Two agents this time. The **planner**
+writes the plan and keeps one conversation throughout, so it remembers how the plan got where
+it is. The **analyst** comes fresh to each reading and says what is wrong. They go up to three
+rounds, until the analyst has nothing required left.
+
+This phase takes a while, and what it writes is long:
 
 ```sh
 wc -l docs/plan.md
@@ -132,8 +171,8 @@ wc -l docs/plan.md
 478 docs/plan.md
 ```
 
-The plan is not prose. It is an issue map, a numbered list of acceptance criteria, and a set of
-decisions with their alternatives recorded:
+It is not prose. It is an issue map, numbered acceptance criteria, and decisions with their
+alternatives recorded:
 
 ```console
 | ID | Finding | Dimension | Severity | Resolution in this plan |
@@ -147,20 +186,29 @@ decisions with their alternatives recorded:
   candidate default `disabled` … |
 ```
 
-Neither of those came from your sentence. They came from an analyst reading a draft and going
-to look at what the DeepSeek API actually returns.
+Neither finding came from your sentence. They came from an analyst reading the draft and
+checking what the DeepSeek API actually returns.
 
-**Read `docs/plan.md` now.** This is the last cheap moment. From here the plan is fixed: the
-third phase treats it as the contract and will not let the builder edit it.
-
-::: details Skipping the argument
-`-p mode=direct` writes the plan once with no convergence rounds. Faster, and worse — the
-round trip is where the analyst finds the things the planner assumed.
+::: tip Checkpoint: read `docs/plan.md` now
+This is the last cheap moment. From here the plan is the contract: phase 3 builds against it
+and does not let the builder edit it.
 :::
 
-## Step 4 — build it under review
+::: details It stopped on "`PENDING` still stands on DEC-…"
+The plan is written, but it has decisions only you can make, and nobody was at a prompt to ask.
+Open `docs/plan.md`, answer each `Decision Status` under `## Pending User Decisions`, and go on
+to step 4.
+:::
 
-```sh
+::: details It stopped on "output file already exists"
+`gen-plan` never overwrites a plan. To plan again, delete `docs/plan.md` first.
+:::
+
+## Step 4: build it under review
+
+::: code-group
+
+```sh [Claude Code + Codex]
 hmz exec -f humanize1:rlcr \
     -a builder=claude/claude-opus-5:high \
     -a reviewer=codex/gpt-5.6-sol:high \
@@ -168,65 +216,68 @@ hmz exec -f humanize1:rlcr \
     "build it"
 ```
 
-Two `-a` flags — **the builder** and **the reviewer**. The flow also has a third role, `human`,
-the person at the prompt, and that one is not named on the command line: humanize fills it, and
-with nobody there it answers with nothing and the run carries on.
+```sh [Claude Code only]
+hmz exec -f humanize1:rlcr \
+    -a builder=claude/claude-opus-5:high \
+    -a reviewer=claude/claude-opus-5:high \
+    -b duration=12h,cost=100 \
+    "build it"
+```
 
-The task string is not put to any agent. `docs/plan.md` is what the loop runs on; `"build it"`
-is only what the run is called wherever you watch it.
+```sh [Codex only]
+hmz exec -f humanize1:rlcr \
+    -a builder=codex/gpt-5.6-sol:high \
+    -a reviewer=codex/gpt-5.6-sol:high \
+    -b duration=12h,cost=100 \
+    "build it"
+```
 
-The builder must be a CLI that serves a permission-request hook — Claude Code, Codex, Kimi
-Code or ZCode — because this phase hangs one on it, and a builder on any other is refused before
-anything runs. The hook is what keeps the plan fixed and the loop's own state out of the
-builder's hands. Any backend can review. See [Hooks](/weaver/hooks).
+:::
 
-### The loop
+The plan is the task here. `"build it"` is only the name the run goes by.
 
-The builder is not asked "is it finished?" after every step. It is left to work until it
-believes the plan is done, the loop's gates are run over what it did, and what the reviewer says
-of the round is what the builder hears next — the same shape as the original Claude Code plugin,
-which blocks Claude's exit and puts the round to Codex there.
+The **builder** works until it believes the plan is done and tries to stop. Instead of
+stopping, it hears the **reviewer**'s reading of the round against the plan. Every fifth round
+the reviewer is asked a different question: does what has been built still match the plan at
+all? Once the reviewer calls the plan complete, it reviews the code itself, and the builder
+fixes whatever it marks `[P0]` to `[P9]`. The loop ends when a code review finds nothing, or
+after 42 rounds (`-p max=` changes that).
 
-### What a round looks like
+The flow guards the builder while it works, keeping the plan fixed and the loop's own files out
+of its hands. That is why the builder must be Claude Code, Codex, Kimi Code or ZCode, and any
+other backend is refused before anything runs:
 
-The builder works, tries to stop, gets a code review instead. The reviewer is asked for
-`[P0-9]` findings, and the loop reads those rather than looking for a verdict in a paragraph.
-Every fifth round, the reviewer is asked a different question — whether what has been built
-still matches the plan at all. The loop stops after 42 rounds unless you set `max` otherwise.
+```console
+hmz exec: error: humanize1:rlcr: 'builder' needs PermissionRequestHookAgentMixin, which dsh does not do
+```
 
-The loop keeps its own state where the plugin keeps it, so you can watch it from another
-terminal:
+The flow has a third role, `human`, which is you. It is never given with `-a`. Under `hmz exec`
+nobody is at a prompt, so the flow asks you nothing and carries on.
+
+::: tip Checkpoint
+The loop keeps a summary per round. Watch them appear from another terminal:
 
 ```sh
-ls .humanize/rlcr/*/
+ls -1 .humanize/rlcr/*/
 ```
 
 ```console
-goal-tracker.md  plan.md  round-0-contract.md  round-0-prompt.md  round-0-summary.md  state.md
+goal-tracker.md
+plan.md
+round-0-contract.md
+round-0-prompt.md
+round-0-summary.md
+state.md
 ```
 
-```sh
-head -8 .humanize/rlcr/*/state.md
-```
+Check the work against the plan's acceptance criteria, since those are what the reviewer checks
+it against.
+:::
 
-```console
----
-current_round: 0
-max_iterations: 42
-codex_model: gpt-5.6-sol
-codex_effort: high
-codex_timeout: 5400
-push_every_round: false
-full_review_round: 5
-```
+## Step 5: see what it built
 
-One `round-N-summary.md` per round, and the round the builder is on. The plan's acceptance
-criteria are what to check the work against, because they are what the reviewer checks it
-against.
-
-## Step 5 — see what it built
-
-Every round commits, so you can look at the work a round at a time:
+Every round commits, so you can read the work a round at a time. In the run this page was
+written from, which was still going at this point:
 
 ```sh
 git log --oneline
@@ -238,24 +289,7 @@ e21d3a7 Implement end-to-end flash_agent DeepSeek coding agent (Round 0)
 f0e8d2d init
 ```
 
-That is round zero building the whole thing and round one closing what the reviewer marked
-`P1`. The numbers below are from that point; the loop was still going.
-
-```sh
-wc -l flash_agent/*.py tests/*.py
-```
-
-```console
-  451 flash_agent/client.py
-   98 flash_agent/cli.py
-   95 flash_agent/context.py
-   39 flash_agent/__init__.py
-   94 flash_agent/loop.py
-   10 flash_agent/__main__.py
-  193 flash_agent/tools.py
-   …
- 1882 total
-```
+Round 0 built the whole thing, and round 1 closed what the reviewer marked `P1`.
 
 ```sh
 python -m pytest -q
@@ -266,64 +300,42 @@ python -m pytest -q
 72 passed in 0.35s
 ```
 
-By the end of round one that was 118 tests, which is what a reviewer that will not say `done`
-does to a suite.
+By the end of round 1 that was 118 tests, which is what a reviewer that will not say "done"
+does to a suite. Your names and numbers will differ.
 
-Now use it — the thing at the end runs:
+Now use what it built:
 
 ```sh
 mkdir -p /tmp/flashtry && printf 'def add(a, b):\n    return a - b\n' > /tmp/flashtry/calc.py
 python -m flash_agent --workdir /tmp/flashtry --allow-shell \
     "Read calc.py, fix the bug in it, and say what you changed."
-```
-
-```console
-Fixed. **What changed:** In `add()`, changed `return a - b` to `return a + b`. The
-function was subtracting instead of adding.
-```
-
-```sh
 cat /tmp/flashtry/calc.py
 ```
 
 ```console
+Fixed. **What changed:** In `add()`, changed `return a - b` to
+`return a + b`. The function was subtracting instead of adding.
 def add(a, b):
     return a + b
 ```
 
-A coding agent, built from one sentence, that just fixed a bug in a file.
+A coding agent, built from one sentence, has just fixed a bug.
 
-Look at `--allow-shell` in that command. You never asked for it. It came out of the draft's
-fifth direction — "guarded shell execution" — became a decision in the plan, and turned into an
-environment gate the builder implemented. That is the two planning phases earning their time.
+Look at `--allow-shell`. You never asked for it. It started as the draft's fifth direction,
+"guarded shell execution", became a decision in the plan, and ended as a gate the builder
+implemented. That is the two planning phases earning their time.
 
-## Step 6 — read the whole thing back
+## Where next
 
-```sh
-hmz
-```
-
-Three runs happened here, one per phase, and each is its own **epic** — a directory under
-`~/.humanize/epics/`. `/epics` lists all three, newest first, and **enter** goes into one, where
-*export it* gathers a trace of that run's sessions and no other's into `traces/` inside it and
-packs the run around it. So the three phases are three traces, each gathered from the run it is
-of.
-
-The `rlcr` trace is the interesting one. The builder is a single long track, and the reviewer
-is a row of short ones — and the gaps between them are where the hook fired.
-
-## What to change
-
-- **Run the phases on different models.** They are three flows precisely so you can. Plan on
-  the strongest model you have, build on a cheaper one, review on a third.
-- **Stop between phases and edit the file.** The draft and the plan are both files, and both
-  are meant to be read. The plugin this is a rebuild of has a `refine-plan` command; here you
-  have a text editor, which is the same thing.
-- **Point `rlcr` at a plan you wrote yourself.** `-p plan_file=…` names it.
-  Nothing about the third phase requires the first two — it requires a plan.
-
-## Next
-
-You have now run three flows somebody else wrote. Whoever writes one is a **weaver**, and the
-[Weaver Guide](/weaver/) teaches that — starting with [Build under
-test](/weaver/tutorials/build-under-test).
+- **Run the phases on different models.** Plan on the strongest model you have, build on a
+  cheaper one, review on a third.
+- **Stop between phases and edit the file.** The draft and the plan are both meant to be read,
+  and a text editor is the refinement step.
+- **Build from a plan you wrote.** Phase 3 needs a plan, not the first two phases:
+  `-p plan_file=…` names it. The [`humanize1`](/flows/humanize1) page has more of the
+  phases' params.
+- **Read it back.** `/epics` in `hmz` lists the three runs, one per phase. **Export it** on any
+  of them gives you its trace. See [Tracing](/user/tracing).
+- **Write a flow of your own.** You have now run three that somebody else wrote. Whoever writes
+  one is a **weaver**, and the [Weaver Guide](/weaver/) starts with [Build under
+  test](/weaver/tutorials/build-under-test).
