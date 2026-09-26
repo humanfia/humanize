@@ -31,6 +31,8 @@ run.wait()
 ```
 
 ```python [held by a daemon]
+import asyncio
+
 from hmz.sdk import Daemons, Hmz
 
 
@@ -39,7 +41,10 @@ def opens(held):
     run = Hmz().run("ralph_loop", "fix the build",
                     agents={"agent": "claude/claude-opus-5:high"}, budget={"cost": 5})
     held.stopping(run.stop)      # what Daemon.stop() from outside does
-    run.run()
+    try:
+        run.run()
+    except asyncio.CancelledError:
+        pass                     # stopped from outside, as meant
 
 
 daemon = Daemons().hold(opens)   # returns once the daemon is listening
@@ -87,7 +92,7 @@ class Hmz:
 
 | Parameter | |
 | --- | --- |
-| `workspace` | The project directory, or `None` for the current directory. Kept as given: one nobody named follows a flow that changes directory. |
+| `workspace` | The project directory, or `None` for the current directory. Kept as given, `~` unexpanded: one nobody named follows a flow that changes directory. |
 
 Nothing is loaded until it is asked for.
 
@@ -187,6 +192,7 @@ Reads an `hmz exec` line, without loading the flow. A line argparse will not acc
 | `as_json: bool` | `--json`. |
 
 ```python
+hmz = Hmz()
 line = hmz.read(["-f", "ralph_loop", "-a", "agent=claude/claude-opus-5:high",
                  "-b", "duration=6h,cost=50", "fix the build"])
 run = hmz.run(line.flow, line.task, agents=line.agents, envs=line.envs,
@@ -238,7 +244,7 @@ here and `start()` on a thread.
 | `start() -> None` | Runs it on a thread of its own and returns at once. `RuntimeError` if it has already been started. |
 | `wait(timeout: float \| None = None) -> bool` | Waits for it to end. Returns whether it has. |
 | `stop() -> None` | Interrupts the turn under way and unwinds the flow: every call raises where it stands, and every session and temporary directory is closed or removed, in its own time. From any thread. |
-| `close() -> None` | Stops the flow and ends every conversation still open, without waiting. The flow gets back a turn that failed. |
+| `close() -> None` | `stop()`, and then interrupts every session and stops every agent at once, without waiting for the flow to unwind. The flow still sees `CancelledError`. |
 | `unreadable() -> str` | Which cap of the budget nothing the run drives can read, in words, or `""`: a cost cap over a model nobody prices. `hmz exec` prints it before the run. |
 | `watch(listener) -> None` | Has everything every session says reach `listener(agent, conversation, event)`, from whichever thread a CLI is read on. |
 | `opened(callback) -> None` | Has each session told to `callback(role, agent, conversation)` as it opens, before its first turn. |
@@ -387,7 +393,7 @@ at all. A place is written `CLI[@ACCOUNT]/MODEL`.
 | Member | |
 | --- | --- |
 | `default: str` | The wait a failed turn is retried with unless set: `exponential-jitter`. |
-| `policies() -> tuple[Policy, ...]` | The waits there are: `none`, `constant`, `linear`, `exponential`, `exponential-jitter`. |
+| `policies() -> tuple[Policy, ...]` | The waits there are: `none`, `constant`, `linear`, `exponential`, `exponential-jitter`, `fibonacci`. |
 | `named(policy) -> Policy \| None` | One of them. |
 | `spec(backend, model, provider="") -> str` | A place, spelled: `spec("codex", "gpt-5.6-sol", "work")` is `codex@work/gpt-5.6-sol`. |
 | `reads(said) -> str` | A place as it is written down, or `""` for a spelling no place answers to. |

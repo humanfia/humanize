@@ -16,7 +16,7 @@ wrote. It is a Chrome JSON trace, so [ui.perfetto.dev](https://ui.perfetto.dev) 
 ```python [Python]
 from hmz.sdk import Hmz
 
-runs = Hmz().epics                      # or Hmz("~/code/other").epics
+runs = Hmz().epics                      # or Hmz("/home/you/code/other").epics
 last = runs.all()[-1]                   # the newest run of this workspace
 where, document = runs.traced(last)     # into the run's own traces/
 print(document["otherData"])            # what it holds
@@ -125,7 +125,7 @@ says what it got to. Every line has `event` and `at`.
 | --- | --- | --- |
 | `began` | when the flow starts | `flow` as it was named, its canonical `ref`, `task`, `workspace`, `resumable`, `picked_up` (the epic it was picked up from, where there was one), `agents` (one per role: `agent`, `backend`, `model`, `effort`, `provider`), `envs` as `-e` spells each, `params` and `budget` |
 | `opened` | each time an agent opens a session | `agent`, `backend`, `provider`, `session` (the backend's id), `name`, and `where` its links are |
-| `called` | when the flow calls another flow | `flow` as it was asked for, `task`, and `epic`: the record that call is written to |
+| `called` | when the flow calls another flow | `flow`, the callee's canonical ref; `task`; and `epic`, the record that call is written to |
 | `returned` | when that call returns, however it ended | `flow` and the same `epic` |
 | `usage` | as the run stops | what every session spent: `cost`, `output_tokens`, `seconds` |
 | `ended` | when the flow stops | `how`: `done`, `failed` or `stopped` |
@@ -172,15 +172,17 @@ for epic in runs.all():                        # this workspace, oldest first
 ## Records of called flows
 
 A flow may [call another](/reference/flows#a-flow-that-calls-another-flow), and each call
-gets a record of its own beside the run's: `epic.<flow>_<hex>.jsonl`, the flow as it was
-asked for with anything but letters, digits, `.`, `_`, `@` and `-` flattened to `-`. A call
-of `phases:plan` is `epic.phases-plan_ed763a.jsonl`. The record of whatever called it says
-`called` and `returned`, with that filename in `epic`. One flow called twice is two records,
-each with its own sessions.
+gets a record of its own beside the run's: `epic.<flow>_<hex>.jsonl`, the callee's canonical
+ref with anything but letters, digits, `.`, `_`, `@` and `-` flattened to `-`. A call of
+`phases:plan`, however it was loaded, is `epic.phases-plan_ed763a.jsonl`. The record of
+whatever called it says `called` and `returned`, with that filename in `epic`. One flow called
+twice is two records, each with its own sessions.
 
-- A called flow's record holds the same events as the run's. Its `began` also carries
-  `under`, the record that called it. Its `ended` says how *the call* ended: a call that
-  raised is `failed` inside a run that may still be `done`.
+- A called flow's record is shorter than the run's. Its `began` carries `flow`, `task`,
+  `workspace`, `resumable` and `under`, the record that called it. Then come the `opened`,
+  `called` and `returned` of what happened inside the call, and `ended`, which says how *the
+  call* ended: a call that raised is `failed` inside a run that may still be `done`. `usage`
+  is written only into the run's own `epic.jsonl`.
 - **Records nest.** A call made inside a called flow is written under *that* flow's record, so
   a recursion reads back as the tree it ran as. Two calls that ran at once are two records
   whose `began` and `ended` overlap.
@@ -263,15 +265,15 @@ as an afternoon at `claude`:
 
 ```python
 Hmz().epics.trace()                                    # every session of this workspace
-Hmz("~/code/other").epics.trace()                      # every session of another
+Hmz("/home/you/code/other").epics.trace()             # every session of another
 Hmz().epics.trace(sessions="0a1b2c3d,5f6e")            # two sessions, wherever they ran
-Hmz("~/code/other").epics.trace(sessions="0a1b2c3d")   # that session, only if it ran there
+Hmz("/home/you/code/other").epics.trace(sessions="0a1b2c3d")   # only if it ran there
 ```
 
 - **Naming sessions alone**, on an `Hmz()` given no workspace, collects them wherever they
   were recorded.
-- **Naming a workspace with them**, as `Hmz("~/code/other")`, keeps only the named sessions
-  recorded there.
+- **Naming a workspace with them**, as `Hmz("/home/you/code/other")`, keeps only the named
+  sessions recorded there. A workspace is taken as given: `~` is not expanded.
 - **Naming no sessions** collects the workspace, whichever run opened what is in it.
 
 A session is named by its whole id, by the key the trace shows it under, or by a leading part

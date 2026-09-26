@@ -130,8 +130,11 @@ Raises `FlowDefinitionError` as the decorator runs, for:
 - `agents` or `envs` that is not an `AgentCollection` or `EnvCollection` subclass, or `params`
   that is not a `FlowParams` subclass;
 - a name no ref could spell:
-  ``'a b' is not a flow name: letters, digits, `_`, `.` and `-` ``;
-- two flows of one name in one module.
+  ``'a b' is not a flow name: letters, digits, `_`, `.` and `-` ``.
+
+Two flows given one `name` in one module are refused with `FlowDefinitionError` when the
+module is loaded. Two functions of one Python name are not two flows: the second replaces the
+first.
 
 The collections' annotations are read the first time the flow is called or described, not
 when the decorator runs. So `from __future__ import annotations`, string annotations and
@@ -209,7 +212,7 @@ class Agents(AgentCollection):
 - **`NotRequired`** is a role whoever runs the flow may leave out. `"second_opinion" in
   agents` says whether it was given.
 - **A required role left out** is refused before anything starts: `MissingRole` from a
-  calling flow or `run_fake`, and from `hmz exec`
+  calling flow, and from `hmz exec`
   `rlar needs an agent for 'reviewer'; give each with -a ROLE=CLI/MODEL:EFFORT`.
 - **A role typed `Outworlder`** is [the person at the prompt](#the-person-at-the-prompt).
   The runtime fills it, and `-a` naming it is refused.
@@ -549,8 +552,9 @@ was. `env` is where the new one works: another workdir only on Claude Code, Code
 and ZCode, the same workdir on every other harness that forks, and never another machine.
 cursor-agent, Antigravity and dsh do not fork. Either refusal raises `UnsupportedOperation`.
 
-A fork is cut where it takes its first turn, so it is refused then if the session it came from
-has taken a turn since. See [Branching a conversation](/weaver/branching).
+A session is forked from a turn it has taken: forking one that has taken none raises
+`SessionError`. A fork is cut where it takes its first turn, so it is refused then if the
+session it came from has taken a turn since. See [Branching a conversation](/weaver/branching).
 
 ```python
 tried = await coder.fork(session, env=workspace)
@@ -1272,7 +1276,7 @@ hmz exec: error: humanize1: ~/.humanize/flowverses/official/flows/humanize1 hold
 ```
 
 - A module's flows are those defined inside its directory; a flow it imports from elsewhere is
-  not one of them. Two of one name raise `FlowDefinitionError`.
+  not one of them. Two given one `name` raise `FlowDefinitionError` as the module is loaded.
 - The lists show the flow a bare name means under the directory's name, and every other
   visible flow as `<module>:<name>`. A `hidden=True` flow is in no list and still loads as
   `<module>:<name>`.
@@ -1658,7 +1662,7 @@ FakeAgentDriver(
 | `model`, `effort`, `provider` | What it says it runs. |
 | `capabilities` | The mixins it serves, where not its harness's own. |
 | `cost`, `output_tokens`, `seconds` | What each answer is reported to spend. Nothing actually waits. |
-| `forks` | Whether it can fork a session. |
+| `forks` | Whether it can fork a session. Unlike a real harness, it also forks a session that has taken no turn. |
 | `names_late` | Its sessions have no id until their first turn starts, as a real CLI's do. |
 
 | Attribute | |
@@ -1686,7 +1690,7 @@ a `STOP` hook that blocks keeps the turn going. A reply reaches the other moment
 | Method | Fires |
 | --- | --- |
 | `await tool(name, input=None) -> bool` | `PRE_TOOL_USE`, then `PERMISSION_REQUEST` where served. Answers whether the tool would run. |
-| `await ask(question, options=()) -> str \| None` | `ASK_USER`, where served. Answers the hook's answer. |
+| `await ask(question, options=()) -> str \| None` | `ASK_USER`. Answers the hook's answer. Raises `UnsupportedOperation` where the harness does not serve `AskUserHookAgentMixin`. |
 | `await notify(message)` | `NOTIFICATION`. |
 | `await subagent(name, task="", said="") -> str` | `SUBAGENT_START` and `SUBAGENT_STOP`, where served. |
 | `await until_steered() -> str` | Nothing: waits for a `steer`, and answers with it. |
