@@ -229,12 +229,22 @@ export default defineConfig({
         },
       ],
 
-      // For the person who runs flows: the interface, the agents they point at it, where the
-      // work lands, and how to read a run back. Where one of these pages has a Python half --
-      // the flow on the other side of the board, of a question, of a container -- it is there
-      // to say what the weaver did, and links on rather than teaching it here.
+      // For the person who runs flows, in the order they need it: installing, a first run and
+      // what to check before real work, then the tutorials, then the rest grouped by when a
+      // reader reaches for it -- while a run goes, at the prompt, setting agents up, where the
+      // work lands, after a run, without the interface -- and look-up last, the glossary
+      // included.
       '/user/': [
         { text: 'User Guide', link: '/user/' },
+        {
+          text: 'Start here',
+          collapsed: false,
+          items: [
+            { text: 'Installation', link: '/user/installation' },
+            { text: 'Your first run', link: '/user/first-run' },
+            { text: 'Security', link: '/user/security' },
+          ],
+        },
         {
           text: 'Tutorials',
           collapsed: false,
@@ -245,17 +255,7 @@ export default defineConfig({
           ],
         },
         {
-          text: 'Start here',
-          collapsed: false,
-          items: [
-            { text: 'Installation', link: '/user/installation' },
-            { text: 'Concepts', link: '/user/concepts' },
-            { text: 'Security', link: '/user/security' },
-            { text: 'Troubleshooting', link: '/user/troubleshooting' },
-          ],
-        },
-        {
-          text: 'At the prompt',
+          text: 'While it runs',
           collapsed: false,
           items: [
             { text: 'Talking to a running turn', link: '/user/steering' },
@@ -263,45 +263,66 @@ export default defineConfig({
             { text: 'Many conversations at once', link: '/user/conversations' },
             { text: 'Showing the working (/details)', link: '/user/details' },
             { text: 'Watching a run (/monitor)', link: '/user/monitor' },
-            { text: 'The mission board', link: '/user/board' },
             { text: 'Being away (/afk)', link: '/user/afk' },
-            { text: 'Falling back', link: '/user/fallback' },
-            { text: 'Completion', link: '/user/completion' },
-            { text: 'History', link: '/user/history' },
-            { text: 'Exporting a run', link: '/user/export' },
-            { text: 'What a project remembers', link: '/user/settings' },
             { text: 'Stopping', link: '/user/stopping' },
+            { text: 'Leaving it running', link: '/user/leaving' },
+            { text: 'The mission board', link: '/user/board' },
           ],
         },
         {
-          text: 'Setting an agent up',
+          text: 'At the prompt',
           collapsed: false,
           items: [
+            { text: 'Completion', link: '/user/completion' },
+            { text: 'History', link: '/user/history' },
+            { text: 'What a project remembers', link: '/user/settings' },
+          ],
+        },
+        {
+          text: 'Agents and accounts',
+          collapsed: false,
+          items: [
+            { text: 'Providers', link: '/user/providers' },
             { text: 'Efforts', link: '/user/efforts' },
+            { text: 'Falling back', link: '/user/fallback' },
+            { text: 'Cost and rate', link: '/user/tally' },
             { text: 'Permissions', link: '/user/permissions' },
             { text: 'Skills', link: '/user/skills' },
             { text: 'Questions', link: '/user/questions' },
-            { text: 'Cost and rate', link: '/user/tally' },
-            { text: 'Reporting', link: '/user/reporting' },
           ],
         },
         {
           text: 'Where the work lands',
           collapsed: false,
           items: [
-            { text: 'Providers', link: '/user/providers' },
             { text: 'Containers', link: '/user/containers' },
             { text: 'Remote execution', link: '/user/remote-execution' },
           ],
         },
         {
-          text: 'Running it, and reading it back',
+          text: 'After a run',
+          collapsed: false,
+          items: [
+            { text: 'Picking a run up', link: '/user/resuming' },
+            { text: 'Exporting a run', link: '/user/export' },
+            { text: 'Tracing', link: '/user/tracing' },
+          ],
+        },
+        {
+          text: 'Without the interface',
           collapsed: false,
           items: [
             { text: 'Run it unattended', link: '/user/unattended' },
             { text: 'humanize in CI', link: '/user/ci' },
-            { text: 'Tracing', link: '/user/tracing' },
-            { text: 'Picking a run up', link: '/user/resuming' },
+          ],
+        },
+        {
+          text: 'Look-up',
+          collapsed: false,
+          items: [
+            { text: 'Troubleshooting', link: '/user/troubleshooting' },
+            { text: 'Reporting', link: '/user/reporting' },
+            { text: 'Glossary', link: '/user/concepts' },
           ],
         },
       ],
