@@ -4,110 +4,191 @@ pageClass: hmz-feature
 
 # Every run has a budget
 
-A run is given a **budget** — how long it may take, how much it may cost, how many output
-tokens its agents may write — and when one of them is spent, the run stops. `hmz exec` will not
-start without one:
+Every run is given a **budget**: how long it may take, how much it may cost, how many output
+tokens its agents may write. Whichever limit is reached first stops the run. A run will not
+start without one, except [`chat`](/flows/chat), a conversation that ends when you stop typing.
 
-```sh
-hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high \
-    -b duration=6h,cost=50,output_tokens=10m "$(cat TASK.md)"
-```
+<div class="limits">
+  <div class="limit">
+    <strong>duration</strong>
+    <span class="counts">wall clock, from the start of the run</span>
+    <p>The one that stops a loop whose every turn is failing. A turn that cannot run spends no
+    tokens and no money, but it still spends time.</p>
+  </div>
+  <div class="limit">
+    <strong>output tokens</strong>
+    <span class="counts">what the agents write</span>
+    <p>The work itself. What a turn reads is mostly the conversation so far, sent again and
+    served from a cache; what the agents write is what you are paying for.</p>
+  </div>
+  <div class="limit">
+    <strong>cost</strong>
+    <span class="counts">US dollars, priced from what each CLI reports</span>
+    <p>What you actually pay. A model nobody lists a price for counts as free, so set a
+    duration or token limit beside it.</p>
+  </div>
+</div>
 
-Whichever limit is reached first is the one that stops it, and a budget names at least one. A
-command line that names none is a usage error before any agent starts; the one exception is
-[`chat`](/flows/chat), a conversation that ends when you stop typing, which runs under
-`Budget(cost=inf)`.
+You give it when you start the run: with `-b` on a [command line](/reference/cli), or in the
+flow menu, which asks for it with the rest of the run and remembers it for that flow.
 
-| `-b` | What it limits | Written as |
-| --- | --- | --- |
-| `duration` | wall clock, from when the run starts | `90s`, `1h30m`, `2d`, `PT1H30M`, `01:30:00`, or seconds |
-| `cost` | USD | `50`, `$50`, `inf` |
-| `output_tokens` | tokens the agents write | `200000`, `200k`, `1.5m` |
-| `graceful` | whether the turn under way may finish when a limit is reached | `true` (the default) or `false` |
+## Graceful, or not
 
-`-b` repeats and takes a comma list, as every flag of `hmz exec` does: `-b duration=6h -b cost=50`
-is the same budget as `-b duration=6h,cost=50`.
+A budget is **graceful** unless you say otherwise.
 
-## Why these three
+| | When a limit is reached mid-turn |
+| --- | --- |
+| **Graceful** (the default) | The turn that spent the last of it runs to its end and answers. Its edits are on disk and its conversation is open. The next turn is refused, and the run stops there. |
+| **Not graceful** | The turn is cut off where it stands, and the CLI stops spending. Use it where overrunning is worse than stopping mid-sentence. |
 
-**Duration** is the only one that moves whether or not anything is being spent. That is what
-makes it the one that stops a loop whose every turn is failing: a turn that could not run spends
-no tokens and costs no money, so a refused account would go round on the same failure for as
-long as it was left.
+A run stopped by its budget ends with a budget error, and exits with status 0.
 
-**Output tokens** are what the work is. The input of a turn is the conversation so far, sent
-again at every request and mostly served from a cache; what the agent writes is what a run is
-paying for.
+## Budgets nest
 
-**Cost** is what you actually pay, priced from what each turn's CLI reports. It is the one that
-cannot always be read: a model nobody lists a price for is counted at nothing, so a cost limit on
-such a model never bites. Put a duration or a token limit beside it.
+A flow can call another flow with a budget of its own. The called flow runs under **the tighter
+of its own budget and what its caller has left**. A review held to $2 inside a run with $1 left
+gets $1.
 
-## It is not a flow's to implement
+<div class="nest" role="img" aria-label="A run with a $50 budget contains a review flow called with $2, which contains its turns">
+  <div class="box run">
+    <span class="tag">the run · $50 · 6 h</span>
+    <div class="inner">
+      <div class="box call">
+        <span class="tag">review · called with $2</span>
+        <div class="turns"><span>turn</span><span>turn</span><span>turn</span></div>
+      </div>
+      <div class="box call">
+        <span class="tag">review · called with $2</span>
+        <div class="turns"><span>turn</span><span>turn</span></div>
+      </div>
+    </div>
+  </div>
+</div>
 
-A flow has no budget of its own to offer: whoever runs it says what the run may spend. What a flow sees of it is
-`ctx.budget` — what this call may still spend, every budget above it taken together — and
-`ctx.usage`, what it and every call under it have spent so far.
+- **Cost and tokens roll up.** What a turn spends counts against its own call and every call
+  above it. Ten reviews spend ten reviews' worth of the run's budget.
+- **Duration is a deadline.** It counts from when each call started, and is not added up over
+  its children. Ten reviews run at once under a one-hour deadline have one hour between them,
+  not ten.
+- **A spent budget stays spent.** Every later turn under it, in that flow and in every flow it
+  calls, is refused.
 
-It is held to by the runtime, at every turn of every session of every agent, whatever harness is
-behind it. No driver cooperates and none can opt out; a hook is the *flow's* seam, and a budget
-the person set must not be defeatable by a flow hanging one.
+A single turn can have a budget of its own, too. See [A turn can be cut off](/features/budgets).
 
-## A flow that calls a flow
+## humanize holds it, not the flow
 
-A called flow may be given a budget of its own:
-
-```python
-verdict = await review(task, agents=..., envs=..., params=..., budget=Budget(cost=2))
-```
-
-and runs under **the tighter of its own and what remains of its caller's**. So a flow can hold a
-step to two dollars, and a run that has one dollar left holds it to one.
-
-- **Cost and output tokens roll up.** What a turn spends counts against the call it was taken in
-  and every call above it, from whichever thread the CLI reported it on. A fan-out of ten
-  reviews spends ten reviews' worth of the run's budget.
-- **Duration is a deadline.** A call's `duration` is counted from when that call started and is
-  not summed over its children: ten reviews gathered at once under a one-hour deadline have an
-  hour between them, not ten.
-- **A spent budget stays spent.** Once a call's budget runs out, every later turn under it —
-  its own, and those of every flow it calls — is refused rather than spending more.
-
-`run` takes a `budget=` too, for one turn on top of the call's: see
-[A turn can be cut off](/features/budgets).
-
-## What "stopped" means
-
-The next turn under a spent budget raises the leaf of `BudgetExceeded` for the limit that ran
-out — `DurationExceeded` (which is also a `TimeoutError`), `CostExceeded`,
-`OutputTokensExceeded` — and a flow that does not catch it ends with it, as the run does.
-
-**What happens to the turn under way is `graceful`'s to say.** A graceful budget — the default —
-lets the turn that spends the last of it run to its end and answer with what it said: its edits
-are on disk and its conversation is open, so it is a round that ended rather than a round that
-failed. The turn after it is refused. A deadline that passes while turns are running waits for
-them to finish, then stops the call.
-
-A budget with `graceful=false` cuts the turn off the moment a limit is reached — the CLI stops
-spending — and that turn raises instead of answering. Which is what a budget has to be where a
-turn that overruns is worse than a turn that stops mid-sentence.
-
-A call whose deadline passes is stopped where it stands — everything under it, awaited or
-gathered — and raises `DurationExceeded` there. A run cancelled from outside is still a cancel,
-not a spent budget.
+The budget is whoever started the run's to set, and humanize holds every turn of every agent to
+it. A flow cannot opt out, and a hook cannot talk a spent budget into another turn. A flow can
+read what it may still spend, and what it has spent so far.
 
 ## Per run, not across runs
 
-The budget is this run's. A run [picked up](/features/resuming) with `--resume` is a new run
-with the budget its own command line gave it; what it kept is left exactly where it was, which
-is what makes a run stopped by its budget a run to pick up rather than one that is over.
+The budget belongs to this run. A run you [pick up again](/features/resuming) is a new run, with
+the budget its own command line gives it. So a run stopped by its budget is one to pick up, not
+one that is over.
 
-## Setting one
+## Where the detail is
 
-From a command line, `-b`, as above. From the interface, `/flow` asks for the budget with the
-rest of the run — its roles, its environments, its params — and remembers it per flow, so a flow
-run every morning is not a budget to type every morning.
+- [A turn can be cut off](/features/budgets): a limit on one turn rather than on the run
+- [Cost and rate](/user/tally): what the readings are made of
+- [Stopping](/user/stopping): ending a run by hand
+- [CLI reference](/reference/cli): how `-b` is written
 
-See [A turn can be cut off](/features/budgets) for the limit on one turn rather than on the run,
-[Cost and rate](/user/tally) for what the readings are made of, and
-[Stopping](/user/stopping) for ending a run by hand.
+<style>
+.limits {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0 24px;
+}
+
+.limits .limit {
+  padding: 14px 16px;
+  border: 1px solid var(--vp-c-divider);
+  border-top: 3px solid var(--hmz-accent);
+  border-radius: 12px;
+  background: var(--vp-c-bg-soft);
+}
+
+.limits .limit:nth-child(2) {
+  border-top-color: var(--hmz-lane-3);
+}
+
+.limits .limit:nth-child(3) {
+  border-top-color: var(--hmz-warm);
+}
+
+.limits strong {
+  display: block;
+  font-family: var(--vp-font-family-mono);
+  font-size: 15px;
+}
+
+.limits .counts {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--vp-c-text-3);
+}
+
+.limits p {
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--vp-c-text-2);
+}
+
+.nest {
+  margin: 18px 0 20px;
+  font-size: 12px;
+}
+
+.nest .box {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  padding: 10px 12px 12px;
+}
+
+.nest .run {
+  border-color: var(--hmz-accent);
+  background: var(--vp-c-bg-soft);
+}
+
+.nest .call {
+  flex: 1 1 200px;
+  border-style: dashed;
+  border-color: var(--hmz-lane-3);
+  background: var(--vp-c-bg);
+}
+
+.nest .tag {
+  display: block;
+  margin-bottom: 8px;
+  font-family: var(--vp-font-family-mono);
+  color: var(--vp-c-text-1);
+}
+
+.nest .inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.nest .turns {
+  display: flex;
+  gap: 6px;
+}
+
+.nest .turns span {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--vp-c-default-soft);
+  color: var(--vp-c-text-2);
+}
+
+@media (max-width: 720px) {
+  .limits {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+</style>

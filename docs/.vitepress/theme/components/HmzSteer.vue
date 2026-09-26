@@ -1,20 +1,24 @@
 <script setup lang="ts">
-// Type something while the turn is running. On one side the words reach the turn that is
-// already going; on the other they wait for it to end and start another. The queue rule, the
-// pin and the "never quietly counted as said" ending are the ones `user/steering` describes.
+// A line typed while a turn is running, shown on two kinds of backend at once. On the left,
+// the ones whose sessions set `steers` (Claude Code, Codex, Kimi Code and pi,
+// `src/hmz/coganchor/agents/`): the line goes into the turn already running. On the right,
+// every other backend: `interject` refuses, the interface says so, and the line waits for the
+// next turn to start (`_hand_over`, `_unreached` and `_at_turn_start` in `src/hmz/tui/app.py`).
+// Either way lines leave the queue one at a time and stay pinned until the agent has one.
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 interface Line {
   id: number
   text: string
-  state: 'pinned' | 'held' | 'taken' | 'late'
-  said: number
+  state: 'held' | 'pinned' | 'taken'
+  at: number
+  late: boolean
 }
 
 interface Said {
   id: number
   text: string
-  kind: 'tool' | 'you' | 'say' | 'edge'
+  kind: 'tool' | 'you' | 'say' | 'edge' | 'warn'
 }
 
 const STEPS: { at: number; text: string; kind: 'tool' | 'say' }[] = [
@@ -22,13 +26,13 @@ const STEPS: { at: number; text: string; kind: 'tool' | 'say' }[] = [
   { at: 0.24, text: 'Grep "def charge"', kind: 'tool' },
   { at: 0.42, text: 'Edit src/pay.py', kind: 'tool' },
   { at: 0.62, text: 'Bash pytest -q', kind: 'tool' },
-  { at: 0.88, text: 'says: the retry path was the one', kind: 'say' },
+  { at: 0.88, text: 'the retry path was the one', kind: 'say' },
 ]
 
-const SUGGESTED = ['actually, use pathlib', 'and fix the tests too', 'stop touching the CLI']
+const SUGGESTED = ['actually, use pathlib', 'and fix the tests too', 'leave the CLI alone']
 
 const TURN = 11 // seconds a turn takes here
-const GAP = 2.6 // and the pause between two of them
+const GAP = 2.6 // and the pause before the next one starts
 
 const clock = ref(0)
 const typed = ref('')
@@ -41,7 +45,7 @@ let frame = 0
 let last = 0
 let idle = false
 let counter = 0
-let epic = 0
+let round = 0
 let step = 0
 
 const progress = computed(() => Math.min(1, clock.value / TURN))
@@ -61,15 +65,13 @@ function submit() {
 }
 
 function hand(text: string) {
+  // Handed to the agent only when nothing typed before it is still waiting: one at a time.
+  const free = open.value && lines.value.every((one) => one.state === 'taken')
   lines.value = [
     ...lines.value,
-    {
-      id: (counter += 1),
-      text,
-      state: open.value ? 'pinned' : 'held',
-      said: clock.value,
-    },
+    { id: (counter += 1), text, state: free ? 'pinned' : 'held', at: clock.value, late: false },
   ]
+  if (open.value) say('after', 'cannot be talked to mid-turn: held for the next turn', 'warn')
 }
 
 function tick(now: number) {
@@ -79,46 +81,42 @@ function tick(now: number) {
   if (!running.value || idle) return
   clock.value += dt
 
-  // The turn says what it is doing as it does it, on both sides: the difference is not what
-  // the agent does, it is when your line reaches it.
+  // The agent works the same on both sides. What differs is when your line reaches it.
   while (step < STEPS.length && progress.value >= STEPS[step].at) {
     say('into', STEPS[step].text, STEPS[step].kind)
     say('after', STEPS[step].text, STEPS[step].kind)
     step += 1
   }
 
-  // One at a time, in order: the next line goes only once the turn has said it has the one
-  // before it, which here is a moment after it was typed.
-  const waiting = lines.value.find((one) => one.state === 'pinned' || one.state === 'held')
-  if (waiting) {
-    if (waiting.state === 'held' && open.value) {
+  // One line at a time: the next goes only once the agent has said it has this one.
+  const waiting = lines.value.find((one) => one.state !== 'taken')
+  if (waiting && open.value) {
+    if (waiting.state === 'held') {
       waiting.state = 'pinned'
-      waiting.said = clock.value
-    } else if (waiting.state === 'pinned' && open.value && clock.value - waiting.said > 0.9) {
+      waiting.at = clock.value
+    } else if (clock.value - waiting.at > 0.9) {
       waiting.state = 'taken'
       say('into', waiting.text, 'you')
-      say('into', 'takes it into account', 'edge')
+      say('into', 'takes it into the turn it is running', 'edge')
     }
   }
 
   if (clock.value >= TURN + GAP) {
-    // The turn ended. Whatever was still waiting on the other side is a turn of its own now.
-    const stale = lines.value.filter((one) => one.state === 'taken' || one.state === 'late')
-    for (const one of stale) {
-      if (one.state === 'taken') {
-        one.state = 'late'
-        say('after', one.text, 'you')
-        say('after', `a turn of its own, ${Math.round(TURN - one.said)}s late`, 'edge')
-      }
-    }
-    clock.value = 0
-    step = 0
-    epic += 1
-    if (epic % 2 === 0) {
+    // The next turn starts, and takes what was waiting for it on the right.
+    const due = lines.value.filter((one) => !one.late)
+    round += 1
+    if (round % 2 === 0) {
       into.value = []
       after.value = []
-      lines.value = []
     }
+    for (const one of due) {
+      one.late = true
+      say('after', one.text, 'you')
+      say('after', `goes into the next turn, ${Math.max(1, Math.round(TURN + GAP - one.at))}s later`, 'edge')
+    }
+    lines.value = lines.value.filter((one) => !(one.late && one.state === 'taken'))
+    clock.value = 0
+    step = 0
   }
 }
 
@@ -127,10 +125,18 @@ let observer: IntersectionObserver | undefined
 
 onMounted(() => {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    // Held still at a moment worth reading: a line typed mid-turn, taken on one side and
+    // held on the other.
     running.value = false
     clock.value = TURN * 0.5
-    say('into', 'Read src/pay.py', 'tool')
-    say('after', 'Read src/pay.py', 'tool')
+    for (const one of STEPS.slice(0, 3)) {
+      say('into', one.text, one.kind)
+      say('after', one.text, one.kind)
+    }
+    lines.value = [{ id: (counter += 1), text: SUGGESTED[0], state: 'taken', at: clock.value, late: false }]
+    say('into', SUGGESTED[0], 'you')
+    say('into', 'takes it into the turn it is running', 'edge')
+    say('after', 'cannot be talked to mid-turn: held for the next turn', 'warn')
     return
   }
   observer = new IntersectionObserver((entries) => (idle = !entries[0].isIntersecting), {
@@ -146,7 +152,8 @@ onUnmounted(() => {
   observer?.disconnect()
 })
 
-const pinned = computed(() => lines.value.filter((one) => one.state !== 'late'))
+const pinned = computed(() => lines.value.filter((one) => one.state !== 'taken'))
+const heldRight = computed(() => lines.value.filter((one) => !one.late))
 </script>
 
 <template>
@@ -159,7 +166,13 @@ const pinned = computed(() => lines.value.filter((one) => one.state !== 'late'))
       <div class="track">
         <span class="fill" :style="{ width: `${progress * 100}%` }" />
       </div>
-      <button class="toggle" type="button" @click="running = !running">
+      <span class="sim">simulation</span>
+      <button
+        class="toggle"
+        type="button"
+        :aria-label="running ? 'pause' : 'play'"
+        @click="running = !running"
+      >
         {{ running ? '❙❙' : '▶' }}
       </button>
     </div>
@@ -167,12 +180,12 @@ const pinned = computed(() => lines.value.filter((one) => one.state !== 'late'))
     <div class="lanes">
       <section class="lane">
         <header>
-          <strong>into the turn</strong>
-          <span>humanize</span>
+          <strong>into the running turn</strong>
+          <span>Claude Code · Codex · Kimi Code · pi</span>
         </header>
         <ul>
           <li v-for="one in into" :key="one.id" :class="one.kind">
-            <span class="mark">{{ one.kind === 'you' ? '❯' : one.kind === 'edge' ? '·' : '▸' }}</span>
+            <span class="mark">{{ one.kind === 'you' ? '❯' : one.kind === 'edge' ? '↳' : '▸' }}</span>
             {{ one.text }}
           </li>
         </ul>
@@ -180,29 +193,29 @@ const pinned = computed(() => lines.value.filter((one) => one.state !== 'late'))
 
       <section class="lane plain">
         <header>
-          <strong>queued behind it</strong>
-          <span>a prompt per turn</span>
+          <strong>held for the next turn</strong>
+          <span>every other backend</span>
         </header>
         <ul>
           <li v-for="one in after" :key="one.id" :class="one.kind">
-            <span class="mark">{{ one.kind === 'you' ? '❯' : one.kind === 'edge' ? '·' : '▸' }}</span>
+            <span class="mark">{{
+              one.kind === 'you' ? '❯' : one.kind === 'edge' ? '↳' : one.kind === 'warn' ? '!' : '▸'
+            }}</span>
             {{ one.text }}
           </li>
         </ul>
-        <p v-if="pinned.length" class="waiting">
-          <span v-for="one in pinned" :key="one.id">❯ {{ one.text }}</span>
-          <em>waiting for the turn to end</em>
+        <p v-if="heldRight.length" class="waiting">
+          <span v-for="one in heldRight" :key="one.id">❯ {{ one.text }}</span>
         </p>
       </section>
     </div>
 
     <div class="editor">
-      <div class="pins">
+      <div class="pins" aria-live="polite">
         <p v-for="one in pinned" :key="one.id" class="pin" :class="one.state">
           <span>❯</span> {{ one.text }}
           <em v-if="one.state === 'pinned'">· with claude#3a15</em>
-          <em v-else-if="one.state === 'held'">· held for the next turn</em>
-          <em v-else>· the words are in front of it</em>
+          <em v-else>· waiting for a turn</em>
         </p>
       </div>
       <form @submit.prevent="submit">
@@ -210,7 +223,7 @@ const pinned = computed(() => lines.value.filter((one) => one.state !== 'late'))
         <input
           v-model="typed"
           type="text"
-          placeholder="say something to the turn that is running…"
+          placeholder="type to the turn that is running…"
           aria-label="a line typed mid-turn"
         />
         <button type="submit">enter</button>
@@ -223,10 +236,8 @@ const pinned = computed(() => lines.value.filter((one) => one.state !== 'late'))
     </div>
 
     <p class="note">
-      There is no separate mode and no separate key: the editor means both things at once. A
-      line joins one queue and leaves it a line at a time — the next goes only once the turn has
-      said it has the one before it. A turn that ends without ever saying so puts the line back
-      into the transcript <strong>as never sent</strong>.
+      No mode and no special key: type while the agent works. Lines go one at a time, and each
+      stays pinned above the prompt until the agent says it has it.
     </p>
   </div>
 </template>
@@ -276,6 +287,13 @@ const pinned = computed(() => lines.value.filter((one) => one.state !== 'late'))
   background: linear-gradient(90deg, var(--vp-c-brand-1), var(--hmz-accent));
 }
 
+.sim {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vp-c-text-3);
+}
+
 .toggle {
   min-width: 34px;
   padding: 3px 9px;
@@ -303,8 +321,8 @@ const pinned = computed(() => lines.value.filter((one) => one.state !== 'late'))
 
 .lane header {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 1px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--vp-c-divider);
   background: var(--vp-c-bg-soft);
@@ -316,7 +334,7 @@ const pinned = computed(() => lines.value.filter((one) => one.state !== 'late'))
 }
 
 .lane.plain header strong {
-  color: var(--vp-c-text-3);
+  color: var(--hmz-warm);
 }
 
 .lane header span {
@@ -328,20 +346,22 @@ const pinned = computed(() => lines.value.filter((one) => one.state !== 'late'))
   list-style: none;
   margin: 0;
   padding: 10px 12px;
-  min-height: 168px;
+  min-height: 176px;
   font-family: var(--vp-font-family-mono);
   font-size: 11.5px;
-  line-height: 1.9;
+  line-height: 1.8;
   color: var(--vp-c-text-2);
 }
 
 .lane li {
   display: flex;
   gap: 8px;
+  margin: 0;
   animation: land 0.35s ease;
 }
 
 .lane li .mark {
+  flex: none;
   color: var(--vp-c-text-3);
 }
 
@@ -353,6 +373,10 @@ const pinned = computed(() => lines.value.filter((one) => one.state !== 'late'))
 .lane li.edge {
   color: var(--vp-c-text-3);
   font-style: italic;
+}
+
+.lane li.warn {
+  color: var(--hmz-warm);
 }
 
 .lane li.say {
@@ -376,13 +400,6 @@ const pinned = computed(() => lines.value.filter((one) => one.state !== 'late'))
   font-family: var(--vp-font-family-mono);
   font-size: 11.5px;
   color: var(--hmz-warm);
-}
-
-.waiting em {
-  font-style: normal;
-  font-family: var(--vp-font-family-base);
-  font-size: 11px;
-  color: var(--vp-c-text-3);
 }
 
 .editor {
@@ -410,7 +427,7 @@ const pinned = computed(() => lines.value.filter((one) => one.state !== 'late'))
 
 .pin em {
   font-style: normal;
-  opacity: 0.7;
+  opacity: 0.75;
 }
 
 form {
@@ -430,6 +447,7 @@ form {
 
 form input {
   flex: 1;
+  min-width: 0;
   border: 0;
   background: transparent;
   color: var(--vp-c-text-1);
@@ -460,7 +478,7 @@ form button {
   border: 1px dashed var(--vp-c-divider);
   border-radius: 999px;
   background: transparent;
-  color: var(--vp-c-text-3);
+  color: var(--vp-c-text-2);
   font-size: 11.5px;
   cursor: pointer;
 }
@@ -482,6 +500,16 @@ form button {
 @media (max-width: 720px) {
   .lanes {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lane ul {
+    min-height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lane li {
+    animation: none;
   }
 }
 </style>

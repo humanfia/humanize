@@ -1,266 +1,187 @@
 <script setup lang="ts">
-// How one syscall gets to where it is going. The filter is drawn the way
-// `coganchor/linux/seccomp.py` builds it -- SECCOMP_RET_TRACE for the cold, path-bearing
-// calls and SECCOMP_RET_ALLOW for everything else, so the hot ones never pay a ptrace stop --
-// and the routing is `coganchor/policy.py`: paths, programs and redirects, three questions.
+// Where each thing an anchored agent does lands. The routing is `src/hmz/coganchor/policy.py`
+// and `supervisor.py`: files in the workspace are read and written through a local mirror of
+// the target and pushed to it whole; creating, removing, renaming and mode changes are replayed
+// there first; programs the agent spawns, and their connections, run on the target; the
+// agent's own runtime, state directory, redirected credentials and connections stay here.
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 
-type Verdict = 'allow' | 'trace'
-type Route = 'fast' | 'target' | 'here'
+type Where = 'target' | 'here'
+type Spot = 'files' | 'commands' | 'network' | 'login' | 'provider'
 
-interface Call {
-  call: string
+interface Act {
+  does: string
   by: string
-  verdict: Verdict
-  route: Route
-  lands: string
+  where: Where
+  spot: Spot
   note: string
 }
 
-const CALLS: Call[] = [
+const ACTS: Act[] = [
   {
-    call: 'read(7)',
+    does: 'reads src/pay.py',
     by: 'the agent',
-    verdict: 'allow',
-    route: 'fast',
-    lands: 'the kernel on this machine',
-    note: 'It names no path, so the filter never asks the supervisor about it. A descriptor already decided is a descriptor the answer is known for — and this is the call a turn makes a million times.',
+    where: 'target',
+    spot: 'files',
+    note: 'Read from a local copy of the target’s workspace that is kept in step with it: the same names, contents, sizes, modes and timestamps, at the same paths. Reads go at local speed.',
   },
   {
-    call: 'openat("kernel.cu")',
+    does: 'edits src/pay.py',
     by: 'the agent',
-    verdict: 'trace',
-    route: 'target',
-    lands: 'the workspace',
-    note: 'Read out of the local mirror at local speed. The mirror and the target are kept in step, and inside the workspace the agent sees the target: the same names, contents, sizes, modes and timestamps, at the same paths.',
+    where: 'target',
+    spot: 'files',
+    note: 'Written locally, then sent to the target whole: before any command runs there, and again when the session ends. The target never holds half an edit.',
   },
   {
-    call: 'write("kernel.cu")',
+    does: 'deletes build/',
     by: 'the agent',
-    verdict: 'trace',
-    route: 'target',
-    lands: 'the target',
-    note: 'A file the agent modified is pushed in full before any command runs on the target, and again when the session ends. A whole file, both ways: there are no partial transfers to reason about.',
+    where: 'target',
+    spot: 'files',
+    note: 'Creating, removing, renaming and changing permissions happen on the target first, so any error the agent sees is the target’s own.',
   },
   {
-    call: 'renameat2(…)',
+    does: 'runs pytest',
     by: 'the agent',
-    verdict: 'trace',
-    route: 'target',
-    lands: 'the target',
-    note: "Creating, removing, renaming, linking and changing permissions are replayed on the target first, so what the agent sees is the target's own error rather than a local approximation of one.",
+    where: 'target',
+    spot: 'commands',
+    note: 'Runs on the target, in its copy of the workspace, and behaves like an ordinary local child: the same output and exit status. Signals travel both ways.',
   },
   {
-    call: 'execve("pytest")',
-    by: 'the agent',
-    verdict: 'trace',
-    route: 'target',
-    lands: 'the target',
-    note: "It runs in the target's copy of the working directory, and behaves like an ordinary local child: the same descriptors, the same output, the same exit status. Signals travel both ways.",
-  },
-  {
-    call: 'connect("pypi.org")',
+    does: 'fetches from pypi.org',
     by: 'pytest',
-    verdict: 'trace',
-    route: 'target',
-    lands: 'the target',
-    note: 'The filter is inherited by every descendant and every thread, so a command the agent spawned is supervised too — and reaches the network from the target.',
+    where: 'target',
+    spot: 'network',
+    note: 'Everything the agent starts, and everything those start in turn, reaches the network from the target.',
   },
   {
-    call: 'connect(the provider)',
+    does: 'calls its model provider',
     by: 'the agent',
-    verdict: 'trace',
-    route: 'here',
-    lands: 'this machine',
-    note: "The agent's own connections stay here, so the credentials it runs on never leave this machine. It is the one program below the supervisor whose network is not the target's.",
+    where: 'here',
+    spot: 'provider',
+    note: 'The agent’s own connections stay on this machine, so it reaches its provider the way it always does.',
   },
   {
-    call: 'openat("~/.claude/…")',
+    does: 'reads its sign-in',
     by: 'the agent',
-    verdict: 'trace',
-    route: 'here',
-    lands: 'this machine',
-    note: 'Its state directory is local, and so is anything a path is answered with: an agent running as somebody else’s account reads those credentials from here, and a refreshed token lands here.',
+    where: 'here',
+    spot: 'login',
+    note: 'Its state directory and credentials never leave this machine. An agent running as another account reads that account’s credentials here too.',
   },
 ]
 
-const WIRE: Record<Route, string> = {
-  fast: 'M 196 150 C 250 150 262 150 326 150 C 402 150 420 76 470 76',
-  target:
-    'M 196 150 C 250 150 262 150 326 150 C 404 150 424 214 500 214 L 676 214 C 728 214 740 196 782 196',
-  here: 'M 196 150 C 250 150 262 150 326 150 C 404 150 424 214 500 214 L 676 214 C 722 214 720 288 738 288',
+const SPOTS: Record<Where, { spot: Spot; said: string }[]> = {
+  target: [
+    { spot: 'files', said: 'workspace files' },
+    { spot: 'commands', said: 'commands' },
+    { spot: 'network', said: 'their network' },
+  ],
+  here: [
+    { spot: 'login', said: 'its sign-in and state' },
+    { spot: 'provider', said: 'its model provider' },
+  ],
 }
 
-const picked = ref(1)
-const running = ref(true)
-const call = computed(() => CALLS[picked.value])
+const picked = ref(0)
+const touring = ref(true)
+const act = computed(() => ACTS[picked.value])
 
-// The ratio is the point of the filter, so it is counted rather than asserted: the hot calls
-// stream past while the trapped ones arrive at a walking pace.
-const allowed = ref(1_284_910)
-const trapped = ref(5_102)
-
-const wire = ref<SVGPathElement | null>(null)
-const at = ref({ x: 196, y: 150, shown: false })
-
-let frame = 0
-let travelled = 0
-let last = 0
-let counted = 0
-let idle = false
-
-function tick(now: number) {
-  frame = requestAnimationFrame(tick)
-  const dt = Math.min((now - last) / 1000, 0.1)
-  last = now
-  if (!running.value || idle) return
-  travelled = (travelled + dt * 0.46) % 1.3
-  counted += dt
-  if (counted > 0.08) {
-    allowed.value += Math.round(counted * 21_000)
-    trapped.value += Math.round(counted * 21)
-    counted = 0
-  }
-  place()
-}
-
-function place() {
-  const path = wire.value
-  if (!path) return
-  const t = Math.min(travelled, 1)
-  const point = path.getPointAtLength(t * path.getTotalLength())
-  at.value = { x: point.x, y: point.y, shown: travelled <= 1.02 }
-}
-
-function pick(i: number) {
-  picked.value = i
-  travelled = 0
-  requestAnimationFrame(place)
-}
-
+let timer: ReturnType<typeof setInterval> | undefined
+const seen = ref(true)
 const root = ref<HTMLElement | null>(null)
 let observer: IntersectionObserver | undefined
 
+function pick(i: number) {
+  picked.value = i
+  touring.value = false
+}
+
 onMounted(() => {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    running.value = false
-    travelled = 0.62
-    requestAnimationFrame(place)
+    touring.value = false
+    picked.value = 3
     return
   }
-  observer = new IntersectionObserver((entries) => (idle = !entries[0].isIntersecting), {
-    rootMargin: '120px',
-  })
+  observer = new IntersectionObserver((entries) => (seen.value = entries[0].isIntersecting))
   if (root.value) observer.observe(root.value)
-  last = performance.now()
-  frame = requestAnimationFrame(tick)
+  timer = setInterval(() => {
+    if (touring.value && seen.value) picked.value = (picked.value + 1) % ACTS.length
+  }, 3200)
 })
 
 onUnmounted(() => {
-  cancelAnimationFrame(frame)
+  if (timer) clearInterval(timer)
   observer?.disconnect()
 })
-
-const said = (n: number) => n.toLocaleString('en-US')
-const lit = (route: Route | 'super') =>
-  route === 'super'
-    ? call.value.verdict === 'trace'
-      ? 'lit'
-      : ''
-    : call.value.route === route
-      ? 'lit'
-      : ''
 </script>
 
 <template>
-  <div ref="root" class="calls hmz-panel">
+  <div ref="root" class="anchor hmz-panel" :class="{ idle: !seen }">
     <div class="bar">
-      <span class="tally">
-        <b>{{ said(allowed) }}</b> allowed
-      </span>
-      <span class="tally trap">
-        <b>{{ said(trapped) }}</b> trapped
-      </span>
-      <span class="hint">one ptrace stop each, and only for these</span>
-      <div class="spacer" />
-      <button class="toggle" type="button" @click="running = !running">
-        {{ running ? '❙❙' : '▶' }}
+      <span class="what">Pick something the agent does</span>
+      <span class="sim">simulation</span>
+      <button
+        class="toggle"
+        type="button"
+        :aria-label="touring ? 'stop the tour' : 'tour every action'"
+        @click="touring = !touring"
+      >
+        {{ touring ? '❙❙' : '▶' }}
       </button>
     </div>
 
-    <svg viewBox="0 0 1000 330" role="img" aria-label="one syscall, from the agent to wherever it is answered">
-      <defs>
-        <linearGradient id="hmz-syscall-wire" x1="0" x2="1">
-          <stop offset="0" stop-color="var(--vp-c-brand-3)" />
-          <stop offset="1" stop-color="var(--hmz-accent)" />
-        </linearGradient>
-      </defs>
+    <div class="map" :class="act.where">
+      <div class="node agent">
+        <strong>the agent</strong>
+        <span>runs here, unchanged, and is told none of this</span>
+        <code class="doing">{{ act.by === 'the agent' ? act.does : `${act.by} ${act.does}` }}</code>
+      </div>
+      <div class="wire" aria-hidden="true"><i /></div>
+      <div class="node anchor-node">
+        <strong>the anchor</strong>
+        <span>decides where each thing it does lands</span>
+      </div>
+      <div class="wire split" aria-hidden="true"><i /></div>
+      <div class="dests">
+        <div class="dest target" :class="{ lit: act.where === 'target' }">
+          <strong>the target</strong>
+          <div class="spots">
+            <span
+              v-for="one in SPOTS.target"
+              :key="one.spot"
+              :class="{ lit: act.spot === one.spot }"
+            >{{ one.said }}</span>
+          </div>
+        </div>
+        <div class="dest here" :class="{ lit: act.where === 'here' }">
+          <strong>this machine</strong>
+          <div class="spots">
+            <span
+              v-for="one in SPOTS.here"
+              :key="one.spot"
+              :class="{ lit: act.spot === one.spot }"
+            >{{ one.said }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
 
-      <path :d="WIRE.fast" class="wire" :class="{ on: call.route === 'fast' }" />
-      <path :d="WIRE.target" class="wire" :class="{ on: call.route === 'target' }" />
-      <path :d="WIRE.here" class="wire warm" :class="{ on: call.route === 'here' }" />
-      <path ref="wire" :d="WIRE[call.route]" class="hidden" />
-
-      <rect x="24" y="118" width="172" height="64" rx="10" class="box" />
-      <text x="110" y="144" class="title mid">the agent</text>
-      <text x="110" y="162" class="sub mid">unchanged, and told none of it</text>
-
-      <rect x="252" y="106" width="148" height="88" rx="10" class="box strong" />
-      <text x="326" y="132" class="title mid">seccomp filter</text>
-      <text x="326" y="150" class="sub mid">classic BPF · 35 traps</text>
-      <text x="326" y="166" class="sub mid">installed before execve</text>
-      <text x="326" y="182" class="sub mid">inherited by every child</text>
-
-      <g :class="lit('fast')">
-        <rect x="470" y="44" width="250" height="62" rx="10" class="box" />
-        <text x="595" y="70" class="title mid">straight to the kernel</text>
-        <text x="595" y="88" class="sub mid">SECCOMP_RET_ALLOW · no stop, no cost</text>
-      </g>
-
-      <g :class="lit('super')">
-        <rect x="470" y="176" width="206" height="76" rx="10" class="box strong" />
-        <text x="573" y="202" class="title mid">the supervisor</text>
-        <text x="573" y="220" class="sub mid">SECCOMP_RET_TRACE · one stop</text>
-        <text x="573" y="238" class="sub mid">paths · programs · redirects</text>
-      </g>
-
-      <g :class="lit('target')">
-        <rect x="782" y="168" width="194" height="58" rx="10" class="box" />
-        <text x="879" y="192" class="title mid">the target</text>
-        <text x="879" y="210" class="sub mid">replayed, and its own errors come back</text>
-      </g>
-
-      <g :class="lit('here')">
-        <rect x="738" y="262" width="238" height="52" rx="10" class="box" />
-        <text x="857" y="284" class="title mid">answered here</text>
-        <text x="857" y="301" class="sub mid">state · credentials · the provider</text>
-      </g>
-
-      <text x="404" y="112" class="tag">allow</text>
-      <text x="410" y="246" class="tag trap">trace</text>
-
-      <g v-show="at.shown" class="packet" :transform="`translate(${at.x} ${at.y})`">
-        <rect :x="-Math.max(52, call.call.length * 3.6)" y="-13" :width="Math.max(104, call.call.length * 7.2)" height="26" rx="13" />
-        <text y="4">{{ call.call }}</text>
-      </g>
-    </svg>
-
-    <div class="picker">
+    <div class="picker" role="group" aria-label="what the agent does">
       <button
-        v-for="(one, i) in CALLS"
-        :key="one.call"
+        v-for="(one, i) in ACTS"
+        :key="one.does"
         type="button"
-        :class="{ on: picked === i, hot: one.verdict === 'allow', local: one.route === 'here' }"
+        :aria-pressed="picked === i"
+        :class="{ on: picked === i, here: one.where === 'here' }"
         @click="pick(i)"
       >
-        <code>{{ one.call }}</code>
+        <code>{{ one.does }}</code>
         <span>{{ one.by }}</span>
       </button>
     </div>
 
-    <p class="note">
-      <strong>{{ call.verdict === 'allow' ? 'never asked' : call.lands }}</strong>
-      {{ call.note }}
+    <p class="note" aria-live="polite">
+      <strong>{{ act.where === 'target' ? 'On the target.' : 'On this machine.' }}</strong>
+      {{ act.note }}
     </p>
   </div>
 </template>
@@ -269,30 +190,24 @@ const lit = (route: Route | 'super') =>
 .bar {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   padding: 10px 16px;
   border-bottom: 1px solid var(--hmz-panel-border);
   background: var(--vp-c-bg);
   font-size: 12px;
-  color: var(--vp-c-text-3);
 }
 
-.tally b {
-  font-family: var(--vp-font-family-mono);
-  color: var(--vp-c-brand-1);
-  font-variant-numeric: tabular-nums;
-}
-
-.tally.trap b {
-  color: var(--hmz-warm);
-}
-
-.hint {
-  color: var(--vp-c-text-3);
-}
-
-.spacer {
+.what {
   flex: 1;
+  font-weight: 650;
+  color: var(--vp-c-text-1);
+}
+
+.sim {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vp-c-text-3);
 }
 
 .toggle {
@@ -306,111 +221,141 @@ const lit = (route: Route | 'super') =>
   cursor: pointer;
 }
 
-.toggle:hover {
-  color: var(--vp-c-brand-1);
+.map {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px minmax(0, 0.9fr) 44px minmax(0, 1.3fr);
+  align-items: center;
+  padding: 22px 16px 16px;
+  background: radial-gradient(60% 90% at 12% 50%, var(--vp-c-brand-soft), transparent 70%);
 }
 
-svg {
-  display: block;
-  width: 100%;
-  height: auto;
-  background:
-    radial-gradient(56% 80% at 14% 50%, var(--vp-c-brand-soft), transparent 70%),
-    radial-gradient(50% 80% at 88% 60%, rgba(20, 184, 166, 0.1), transparent 70%);
+.node,
+.dest {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  background: var(--vp-c-bg);
 }
 
-.box {
-  fill: var(--vp-c-bg-soft);
-  stroke: var(--hmz-panel-border);
-  transition: stroke 0.3s, filter 0.3s, opacity 0.3s;
+.node strong,
+.dest strong {
+  font-size: 13.5px;
+  color: var(--vp-c-text-1);
 }
 
-.box.strong {
-  fill: var(--vp-c-bg-elv);
-  stroke: var(--vp-c-brand-3);
+.node span {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--vp-c-text-3);
 }
 
-g:not(.lit) > .box {
-  opacity: 0.5;
+.anchor-node {
+  border-color: var(--vp-c-brand-1);
+  background: var(--vp-c-bg-elv);
 }
 
-g.lit > .box {
-  stroke: var(--hmz-accent);
-  filter: drop-shadow(0 0 9px var(--vp-c-brand-soft));
-}
-
-.title {
-  fill: var(--vp-c-text-1);
-  font-size: 13px;
-  font-weight: 650;
-}
-
-.sub {
-  fill: var(--vp-c-text-3);
-  font-size: 10.5px;
-}
-
-.mid {
-  text-anchor: middle;
-}
-
-.tag {
-  fill: var(--vp-c-text-3);
-  font-size: 10px;
-  font-family: var(--vp-font-family-mono);
-  letter-spacing: 0.08em;
-}
-
-.tag.trap {
-  fill: var(--hmz-warm);
+.doing {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--vp-c-bg);
+  background: var(--vp-c-text-1);
 }
 
 .wire {
-  fill: none;
-  stroke: var(--vp-c-divider);
-  stroke-width: 2;
-  stroke-dasharray: 3 7;
-  transition: stroke 0.3s, stroke-width 0.3s;
+  position: relative;
+  height: 2px;
+  margin: 0 4px;
+  background: var(--vp-c-divider);
+  overflow: hidden;
 }
 
-.wire.on {
-  stroke: url(#hmz-syscall-wire);
-  stroke-width: 2.5;
-  animation: crawl 1.1s linear infinite;
+.wire i {
+  position: absolute;
+  inset: 0 0 0 -12px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--hmz-accent) 0 6px,
+    transparent 6px 12px
+  );
+  animation: crawl 0.8s linear infinite;
 }
 
-.wire.warm.on {
-  stroke: var(--hmz-warm);
-}
-
-.hidden {
-  fill: none;
-  stroke: none;
+.map.here .wire i {
+  background: repeating-linear-gradient(90deg, var(--hmz-warm) 0 6px, transparent 6px 12px);
 }
 
 @keyframes crawl {
+  from {
+    transform: translateX(-12px);
+  }
   to {
-    stroke-dashoffset: -20;
+    transform: translateX(0);
   }
 }
 
-.packet rect {
-  fill: var(--vp-c-text-1);
+.dests {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.packet text {
-  fill: var(--vp-c-bg);
-  font-size: 11px;
-  font-weight: 650;
-  text-anchor: middle;
-  font-family: var(--vp-font-family-mono);
+.dest {
+  opacity: 0.55;
+  transition: opacity 0.3s, border-color 0.3s, box-shadow 0.3s;
+}
+
+.dest.lit {
+  opacity: 1;
+}
+
+.dest.target.lit {
+  border-color: var(--hmz-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--hmz-accent) 18%, transparent);
+}
+
+.dest.here.lit {
+  border-color: var(--hmz-warm);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--hmz-warm) 18%, transparent);
+}
+
+.spots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.spots span {
+  padding: 2px 9px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--vp-c-text-2);
+  transition: background 0.3s, color 0.3s, border-color 0.3s;
+}
+
+.target .spots span.lit {
+  border-color: var(--hmz-accent);
+  background: color-mix(in srgb, var(--hmz-accent) 16%, transparent);
+  color: var(--vp-c-text-1);
+}
+
+.here .spots span.lit {
+  border-color: var(--hmz-warm);
+  background: color-mix(in srgb, var(--hmz-warm) 16%, transparent);
+  color: var(--vp-c-text-1);
 }
 
 .picker {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
-  padding: 14px 16px 0;
+  padding: 4px 16px 0;
 }
 
 .picker button {
@@ -423,24 +368,22 @@ g.lit > .box {
   background: var(--vp-c-bg);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.2s, background 0.2s, transform 0.2s;
+  transition: border-color 0.2s, background 0.2s;
 }
 
 .picker button:hover {
-  transform: translateY(-1px);
   border-color: var(--vp-c-brand-1);
 }
 
 .picker button code {
   font-size: 11.5px;
   color: var(--vp-c-text-1);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  background: none;
+  padding: 0;
 }
 
 .picker button span {
-  font-size: 10px;
+  font-size: 10.5px;
   color: var(--vp-c-text-3);
 }
 
@@ -449,31 +392,21 @@ g.lit > .box {
   background: var(--vp-c-brand-soft);
 }
 
-.picker button.on.local {
+.picker button.on.here {
   border-color: var(--hmz-warm);
-}
-
-.picker button.hot code {
-  color: var(--vp-c-text-3);
 }
 
 .note {
   margin: 0;
   padding: 12px 16px 15px;
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: 13.5px;
+  line-height: 1.6;
   color: var(--vp-c-text-2);
 }
 
 .note strong {
-  margin-right: 8px;
+  margin-right: 4px;
   color: var(--vp-c-text-1);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .wire.on {
-    animation: none;
-  }
 }
 
 @media (max-width: 900px) {
@@ -482,13 +415,53 @@ g.lit > .box {
   }
 }
 
-@media (max-width: 560px) {
-  .hint {
-    display: none;
+@media (max-width: 640px) {
+  .map {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px 12px 12px;
   }
 
-  .picker button span {
-    display: none;
+  .wire {
+    width: 2px;
+    height: 22px;
+    margin: 0 auto;
+  }
+
+  .wire i {
+    inset: -12px 0 0 0;
+    background: repeating-linear-gradient(
+      180deg,
+      var(--hmz-accent) 0 6px,
+      transparent 6px 12px
+    );
+    animation-name: fall;
+  }
+
+  .map.here .wire i {
+    background: repeating-linear-gradient(180deg, var(--hmz-warm) 0 6px, transparent 6px 12px);
+  }
+
+  .picker {
+    padding: 4px 12px 0;
+  }
+}
+
+@keyframes fall {
+  from {
+    transform: translateY(-12px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.idle .wire i {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wire i {
+    animation: none;
   }
 }
 </style>

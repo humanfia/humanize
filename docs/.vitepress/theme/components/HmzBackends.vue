@@ -1,244 +1,186 @@
 <script setup lang="ts">
-// Thirteen ways of running a coding agent, and what each of them can actually be asked for.
-// The rows are `hmz/backends.py` and the classes in `hmz/agents/`: which session base a
-// backend derives from is what decides whether it can be talked to mid-turn, `shapes` is
-// whether it can be held to a schema, and a `_pursue` of its own is whether it has a goal.
-// `trace` means `hmz/tracing/collector.py` has a reader for the backend's logs; it does not
-// mean only that the backend writes logs or that humanize can tally them while it runs.
+// Every backend against what a flow may ask of it. Each column is read off the code:
+//   steer   `steers` on the session class in `src/hmz/coganchor/agents/<cli>.py`
+//   goal    a `_pursue` of the session's own
+//   shape   `shapes` on the session class
+//   fork    `forks` on the profile in `src/hmz/coganchor/backends.py`
+//   search  `searches` on the profile
+//   trace   a reader in `_READERS`, `src/hmz/runtime/tracing/collector.py`
+//   skills  a non-empty `mounts` on the profile
+//   fast    `fast` among the agent class's `service_tiers`
+// The ladders are the `_CLAUDE`, `_CODEX`, … tuples in `backends.py`, and `spend` is whether
+// the driver calls `_spends` as each request lands or only states the turn's cost at its end.
 import { computed, ref } from 'vue'
 
-type Driven = 'held' | 'server' | 'command' | 'sdk' | 'protocol'
+type Cap = 'steer' | 'goal' | 'shape' | 'fork' | 'search' | 'trace' | 'skills' | 'fast'
+type Spend = 'live' | 'end' | 'none'
 
 interface Backend {
   name: string
   called: string
-  driven: Driven
   efforts: string[]
-  swarms?: boolean
-  steer: string
-  shape: string
-  goal: boolean
-  trace: boolean
-  skills: string
+  has: Cap[]
+  partly?: Cap[]
+  spend: Spend
+  extra?: string
   note: string
 }
 
-const DRIVEN: Record<Driven, string> = {
-  held: 'one process, held open across its turns and spoken to a line at a time',
-  server: 'the app server it serves its own client from, started when a turn first needs one',
-  command: 'its command line, one run per turn',
-  sdk: 'its Python SDK, which ships inside humanize',
-  protocol: 'the Agent Client Protocol, and nothing else is assumed',
-}
+const CAPS: { key: Cap; said: string; head: string }[] = [
+  { key: 'steer', said: 'takes a line mid-turn', head: 'steered mid-turn' },
+  { key: 'goal', said: 'keeps a goal of its own', head: 'its own goal' },
+  { key: 'shape', said: 'is held to a shape', head: 'held to a shape' },
+  { key: 'fork', said: 'forks a conversation', head: 'forks' },
+  { key: 'search', said: 'can be kept off the web', head: 'web search switch' },
+  { key: 'trace', said: 'is read back as a trace', head: 'trace' },
+  { key: 'skills', said: 'carries a flow’s skills', head: 'skills from a flow' },
+  { key: 'fast', said: 'has a faster tier', head: 'fast tier' },
+]
 
 const BACKENDS: Backend[] = [
   {
     name: 'claude',
     called: 'Claude Code',
-    driven: 'held',
     efforts: ['ultracode', 'max', 'xhigh', 'high', 'medium', 'low'],
-    steer: 'answered inside the same turn',
-    shape: 'held to it',
-    goal: true,
-    trace: true,
-    skills: 'its own, and the project’s',
-    note: '“ultracode” is “xhigh” with the turn opted into orchestrating a fleet of its own. It is real, undocumented, and no listing the CLI answers with will ever name it — so humanize writes it down.',
+    has: ['steer', 'goal', 'shape', 'fork', 'search', 'trace', 'skills', 'fast'],
+    spend: 'live',
+    note: '“ultracode” is “xhigh” with the turn orchestrating a fleet of its own: a rung Claude Code takes and never lists.',
   },
   {
     name: 'codex',
     called: 'Codex',
-    driven: 'server',
     efforts: ['ultra', 'max', 'xhigh', 'high', 'medium', 'low'],
-    steer: 'a steer on the running turn',
-    shape: 'held to it',
-    goal: true,
-    trace: true,
-    skills: 'four places, the shared one included',
-    note: 'Its models differ from each other: one takes “ultra” and the one beside it does not, so the ladder is narrowed per model by what the backend itself says when it is asked what it runs.',
+    has: ['steer', 'goal', 'shape', 'fork', 'search', 'trace', 'skills', 'fast'],
+    spend: 'live',
+    note: 'Its models take different rungs, “ultra” on some and not on others, so each model offers only the rungs it takes.',
   },
   {
     name: 'cursor-agent',
     called: 'Cursor Agent',
-    driven: 'command',
-    efforts: ['high', 'medium', 'low'],
-    steer: 'no',
-    shape: 'asked in the prompt',
-    goal: false,
-    trace: false,
-    skills: 'its own, and the project’s',
-    note: 'It has no flag for a rung: its models are parameterized, so how hard it thinks and how quickly it is served are written into the model itself — “composer-2.5[effort=high,fast=false]”. A model already spelled with a bracket is passed exactly as it was written.',
+    efforts: ['max', 'xhigh', 'extra-high', 'high', 'medium', 'low', 'minimal', 'none'],
+    has: ['skills', 'fast'],
+    spend: 'end',
+    note: 'The effort is part of the model’s own name, as in gpt-5.2-high, and some models take no rung at all: “auto” is the one to pick for those. A flow cannot keep it off the web.',
   },
   {
     name: 'dsh',
     called: 'DeepSeek Harness',
-    driven: 'sdk',
-    efforts: ['max', 'high', 'off'],
-    steer: 'no',
-    shape: 'asked in the prompt',
-    goal: true,
-    trace: true,
-    skills: 'none',
-    note: 'The one backend that is installed into humanize rather than found on your PATH — the “dsh” extra brings its SDK and the runtime its turns are taken on.',
-  },
-  {
-    name: 'kimi',
-    called: 'Kimi Code',
-    driven: 'server',
-    efforts: ['max', 'high', 'medium', 'low'],
-    swarms: true,
-    steer: 'queued, then steered in',
-    shape: 'asked in the prompt',
-    goal: true,
-    trace: true,
-    skills: 'its own, the shared one, the project’s',
-    note: 'Its effort says how wide as well as how hard: “max” is one agent and “swarmmax” is the same thinking at the width of a fleet, so width is chosen beside the effort rather than among the rungs. The “kimi” extra brings the websocket client its app server is read over, on top of the CLI.',
-  },
-  {
-    name: 'pi',
-    called: 'pi',
-    driven: 'held',
-    efforts: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'off'],
-    steer: 'a steer on the run it is making',
-    shape: 'asked in the prompt',
-    goal: false,
-    trace: false,
-    skills: 'its own, and the shared one',
-    note: '“off” is the model asked not to think at all. That is an effort like any other here: the least of them, not the absence of a setting.',
+    efforts: ['max', 'high', 'low', 'off'],
+    has: ['goal', 'search', 'trace'],
+    spend: 'live',
+    extra: 'dsh',
+    note: 'Runs on your own DeepSeek key or gateway rather than a subscription login. “off” asks the model not to reason. It takes none of the skills a flow brings.',
   },
   {
     name: 'grok',
     called: 'Grok Build',
-    driven: 'held',
     efforts: ['xhigh', 'high', 'medium', 'low'],
-    steer: 'no',
-    shape: 'held to it',
-    goal: false,
-    trace: false,
-    skills: 'eight places, two of them other harnesses’',
-    note: 'The process is `grok agent stdio`, speaking the protocol its own editor clients speak. A rung that takes tools away and a turn held to a shape have no flag on it and are one run of `grok -p` each, resuming the same conversation. The ladder is written as it enumerates them when it refuses one, because a rung it refuses is a turn that never starts.',
+    has: ['shape', 'fork', 'search', 'trace', 'skills'],
+    spend: 'end',
+    note: 'The four rungs are the ones Grok Build itself names when it refuses a fifth.',
+  },
+  {
+    name: 'kimi',
+    called: 'Kimi Code',
+    efforts: ['max', 'high', 'medium', 'low'],
+    has: ['steer', 'goal', 'fork', 'search', 'trace', 'skills'],
+    spend: 'live',
+    extra: 'kimi',
+    note: '“swarm” in front of a rung, as in swarmmax, is the same thinking run as a fleet of agents rather than one. The fleet is a width, chosen beside the effort.',
+  },
+  {
+    name: 'pi',
+    called: 'pi',
+    efforts: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'off'],
+    has: ['steer', 'fork', 'trace'],
+    spend: 'live',
+    note: '“off” asks the model not to think at all. It takes none of the skills a flow brings, and a flow cannot keep it off the web.',
   },
   {
     name: 'qwen',
     called: 'Qwen Code',
-    driven: 'command',
-    efforts: ['max', 'xhigh', 'high', 'medium', 'low'],
-    steer: 'no',
-    shape: 'held to it',
-    goal: false,
-    trace: false,
-    skills: 'four places',
-    note: 'It has no flag for an effort — they are a setting of its own settings file, so a turn is pointed at one of humanize’s instead of anybody’s being rewritten.',
+    efforts: ['max', 'xhigh', 'high', 'medium', 'low', 'none'],
+    has: ['shape', 'fork', 'search', 'trace', 'skills'],
+    spend: 'end',
+    note: '“none” asks the model not to reason. It is the rung a model with no reasoning setting runs at.',
   },
   {
     name: 'agy',
     called: 'Antigravity',
-    driven: 'command',
     efforts: ['high', 'medium', 'low'],
-    steer: 'no',
-    shape: 'held to it',
-    goal: false,
-    trace: false,
-    skills: 'its own',
-    note: 'A conversation here is rows of a database whose payloads are protobuf, so there is no log to read a run’s cost out of as it is spent, and none to gather afterwards.',
+    has: ['shape', 'trace', 'skills'],
+    spend: 'end',
+    note: 'Some of its models have no variants and take no rung: “auto” is the one to pick for those. A flow cannot keep it off the web.',
   },
   {
     name: 'opencode',
     called: 'opencode',
-    driven: 'command',
     efforts: ['xhigh', 'high', 'medium', 'low', 'minimal'],
-    steer: 'no',
-    shape: 'asked in the prompt',
-    goal: false,
-    trace: false,
-    skills: 'three places',
-    note: 'Its effort is the model variant rather than a thinking level of its own, and a provider with no variants takes the flag and ignores it.',
+    has: ['fork', 'search', 'trace', 'skills'],
+    spend: 'live',
+    note: 'Its effort picks the model’s variant. A provider with no variants takes the rung and ignores it.',
   },
   {
     name: 'mimo',
     called: 'mimocode',
-    driven: 'command',
     efforts: ['xhigh', 'high', 'medium', 'low', 'minimal'],
-    steer: 'no',
-    shape: 'asked in the prompt',
-    goal: false,
-    trace: false,
-    skills: 'five places',
-    note: 'A fork of opencode, and one directory more: it reads Codex’s skills as well as Claude Code’s.',
+    has: ['fork', 'search', 'trace', 'skills'],
+    spend: 'live',
+    note: 'A fork of opencode, with models of its own. Its effort picks the model’s variant, as opencode’s does.',
   },
   {
     name: 'zcode',
     called: 'ZCode',
-    driven: 'server',
-    efforts: ['max', 'high', 'low', 'enabled', 'nothink', 'disabled'],
-    steer: 'no',
-    shape: 'asked in the prompt',
-    goal: true,
-    trace: false,
-    skills: 'four places, the shared one included',
-    note: 'Its ladder is two vocabularies at once, because its models have two: the ones that take a thinking budget answer “max”, “high”, “low” and “nothink”, and the ones that only take thinking or not answer “enabled” or “disabled”. A model narrows it to its own half.',
+    efforts: ['max', 'xhigh', 'high', 'medium', 'low', 'enabled', 'nothink', 'disabled'],
+    has: ['goal', 'fork', 'search', 'trace', 'skills'],
+    spend: 'live',
+    note: 'Its models take different rungs. Some take a thinking budget up to “max”, one takes “nothink”, and some take only “enabled” or “disabled”.',
   },
   {
-    name: 'yours',
-    called: 'anything speaking ACP',
-    driven: 'protocol',
+    name: 'your own',
+    called: 'any CLI speaking ACP',
     efforts: ['as configured'],
-    steer: 'no',
-    shape: 'asked in the prompt',
-    goal: false,
-    trace: false,
-    skills: 'none',
-    note: 'The protocol says nothing about which models an agent runs or how hard it may be asked to think — both are the agent’s own — so one rung is offered and none is sent.',
+    has: [],
+    partly: ['fork'],
+    spend: 'none',
+    note: 'Anything that speaks the Agent Client Protocol, added in the providers menu. It runs the model and effort you configured it with, and humanize sends neither. It forks only if it serves the protocol’s fork call.',
   },
 ]
 
-interface Want {
-  key: string
-  said: string
-  holds: (one: Backend) => boolean
+const SPEND: Record<Spend, string> = {
+  live: 'as each request lands, so a limit on tokens or cost can stop a turn midway',
+  end: 'only once the turn is over, so a limit on tokens or cost can only stop it then',
+  none: 'never: only a limit on time can stop one of its turns',
 }
 
-const WANTS: Want[] = [
-  { key: 'steer', said: 'takes a word mid-turn', holds: (one) => one.steer !== 'no' },
-  { key: 'shape', said: 'held to a shape', holds: (one) => one.shape === 'held to it' },
-  { key: 'goal', said: 'has a goal of its own', holds: (one) => one.goal },
-  { key: 'trace', said: 'can be read back into a trace', holds: (one) => one.trace },
-  { key: 'swarm', said: 'runs a turn as a fleet', holds: (one) => Boolean(one.swarms) },
-]
-
-const wanted = ref<string[]>([])
+const wanted = ref<Cap[]>([])
 const opened = ref('claude')
 
-function want(key: string) {
+function want(key: Cap) {
   wanted.value = wanted.value.includes(key)
     ? wanted.value.filter((one) => one !== key)
     : [...wanted.value, key]
 }
 
-const asked = computed(() => WANTS.filter((one) => wanted.value.includes(one.key)))
-const fits = (one: Backend) => asked.value.every((each) => each.holds(one))
-const open = computed(() => BACKENDS.find((one) => one.name === opened.value) ?? BACKENDS[0])
+const mark = (one: Backend, cap: Cap) =>
+  one.has.includes(cap) ? 'yes' : one.partly?.includes(cap) ? 'partly' : 'no'
+const fits = (one: Backend) => wanted.value.every((cap) => mark(one, cap) !== 'no')
 const counted = computed(() => BACKENDS.filter(fits).length)
+const open = computed(() => BACKENDS.find((one) => one.name === opened.value) ?? BACKENDS[0])
 
-function backendLabel(one: Backend) {
-  return [
-    one.name,
-    `driven through ${DRIVEN[one.driven]}`,
-    `hardest effort ${one.efforts[0]}`,
-    `mid-turn ${one.steer}`,
-    `shape ${one.shape}`,
-    `goal ${one.goal ? 'yes' : 'no'}`,
-    `trace ${one.trace ? 'read back' : 'no reader'}`,
-  ].join(', ')
+function rowLabel(one: Backend) {
+  const yes = CAPS.filter((cap) => mark(one, cap.key) !== 'no').map((cap) => cap.head)
+  return `${one.name}, ${one.called}: ${yes.length ? yes.join(', ') : 'none of these'}`
 }
 </script>
 
 <template>
   <div class="backends hmz-panel">
     <div class="bar">
-      <span class="what">what a flow may ask an agent for</span>
-      <div class="wants" role="group" aria-label="filter backends by capability">
+      <span class="what">What does your role need?</span>
+      <div class="wants" role="group" aria-label="filter backends by what they can do">
         <button
-          v-for="one in WANTS"
+          v-for="one in CAPS"
           :key="one.key"
           type="button"
           :aria-pressed="wanted.includes(one.key)"
@@ -249,19 +191,21 @@ function backendLabel(one: Backend) {
         </button>
       </div>
       <span class="count" aria-live="polite">
-        {{ counted }} of {{ BACKENDS.length }}
+        <b>{{ counted }}</b> of {{ BACKENDS.length }} fit
       </span>
     </div>
 
-    <div class="table">
-      <div class="head">
-        <span>backend</span>
-        <span>driven through</span>
-        <span>hardest effort</span>
-        <span>mid-turn</span>
-        <span>a shape</span>
-        <span>a goal</span>
-        <span>trace</span>
+    <div class="grid">
+      <div class="head" aria-hidden="true">
+        <span class="corner">backend</span>
+        <span
+          v-for="one in CAPS"
+          :key="one.key"
+          class="cap"
+          :class="{ on: wanted.includes(one.key) }"
+        >
+          <span>{{ one.head }}</span>
+        </span>
       </div>
       <button
         v-for="one in BACKENDS"
@@ -269,58 +213,46 @@ function backendLabel(one: Backend) {
         type="button"
         class="row"
         :class="{ dim: !fits(one), on: opened === one.name }"
-        :aria-label="backendLabel(one)"
+        :aria-label="rowLabel(one)"
         :aria-pressed="opened === one.name"
-        aria-controls="backend-detail"
+        aria-controls="hmz-backend-detail"
         @click="opened = one.name"
       >
         <span class="name">
           <code>{{ one.name }}</code>
           <em>{{ one.called }}</em>
         </span>
-        <span class="how">{{
-          one.driven === 'held'
-            ? 'one process, held open'
-            : one.driven === 'server'
-              ? 'its own app server'
-              : one.driven === 'command'
-                ? 'its command line, per turn'
-                : one.driven === 'sdk'
-                  ? 'its Python SDK'
-                  : 'the protocol'
-        }}</span>
-        <span class="rung">{{ one.efforts[0] }}<em v-if="one.swarms"> · swarm…</em></span>
-        <span :class="{ yes: one.steer !== 'no', no: one.steer === 'no' }">{{ one.steer }}</span>
-        <span :class="{ yes: one.shape === 'held to it' }">{{ one.shape }}</span>
-        <span :class="one.goal ? 'yes' : 'no'">{{ one.goal ? 'yes' : 'no' }}</span>
-        <span :class="one.trace ? 'yes' : 'no'">{{ one.trace ? 'read back' : 'no reader' }}</span>
+        <span
+          v-for="cap in CAPS"
+          :key="cap.key"
+          class="dot"
+          :class="[mark(one, cap.key), { on: wanted.includes(cap.key) }]"
+          aria-hidden="true"
+          :title="`${cap.head}: ${mark(one, cap.key) === 'partly' ? 'if the CLI serves it' : mark(one, cap.key)}`"
+        >
+          {{ mark(one, cap.key) === 'yes' ? '●' : mark(one, cap.key) === 'partly' ? '◐' : '·' }}
+        </span>
       </button>
     </div>
 
-    <div id="backend-detail" class="open" role="status" aria-live="polite">
+    <div id="hmz-backend-detail" class="detail" aria-live="polite">
       <div class="ladder">
-        <span class="lab">{{ open.name }} · its own ladder, hardest first</span>
+        <span class="lab"><code>{{ open.name }}</code> · its efforts, hardest first</span>
         <div class="rungs">
-          <span v-for="(one, i) in open.efforts" :key="one" :style="{ '--i': i }">
+          <span v-for="(one, i) in open.efforts" :key="`${open.name}-${one}`" :style="{ '--i': i }">
             {{ one }}
           </span>
         </div>
-        <p class="cut">
-          A model narrows this to the rungs that model takes, in the ladder's own order, and it
-          is the backend that says which — asked, not written down.
+        <p class="auto">
+          <code>auto</code> is on every backend: humanize says nothing about effort, and the
+          model runs at its CLI’s own default.
         </p>
       </div>
       <div class="said">
-        <p class="driven"><strong>driven through</strong> {{ DRIVEN[open.driven] }}</p>
-        <p class="trace">
-          <strong>trace read-back</strong>
-          {{
-            open.trace
-              ? 'humanize can collect this backend’s session log into a Chrome trace'
-              : 'no trace reader yet — it may still write logs or report usage while it runs'
-          }}
+        <p><strong>Spend is known</strong> {{ SPEND[open.spend] }}.</p>
+        <p v-if="open.extra">
+          <strong>Needs</strong> humanize installed with its <code>{{ open.extra }}</code> extra.
         </p>
-        <p class="skills"><strong>skills it would load</strong> {{ open.skills }}</p>
         <p class="note">{{ open.note }}</p>
       </div>
     </div>
@@ -331,20 +263,25 @@ function backendLabel(one: Backend) {
 .bar {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px 14px;
   flex-wrap: wrap;
-  padding: 10px 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--hmz-panel-border);
   background: var(--vp-c-bg);
   font-size: 12px;
-  color: var(--vp-c-text-3);
+  color: var(--vp-c-text-2);
+}
+
+.what {
+  font-weight: 650;
+  color: var(--vp-c-text-1);
 }
 
 .wants {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  flex: 1;
+  flex: 1 1 320px;
 }
 
 .wants button {
@@ -352,9 +289,14 @@ function backendLabel(one: Backend) {
   border: 1px dashed var(--vp-c-divider);
   border-radius: 999px;
   background: transparent;
-  color: var(--vp-c-text-3);
-  font-size: 11px;
+  color: var(--vp-c-text-2);
+  font-size: 11.5px;
   cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.wants button:hover {
+  border-color: var(--vp-c-brand-1);
 }
 
 .wants button.on {
@@ -366,40 +308,65 @@ function backendLabel(one: Backend) {
 
 .count {
   font-family: var(--vp-font-family-mono);
-  color: var(--vp-c-text-2);
+  white-space: nowrap;
 }
 
-.table {
-  padding: 8px 10px 0;
-  overflow-x: auto;
+.count b {
+  color: var(--vp-c-brand-1);
+}
+
+.grid {
+  padding: 6px 10px 0;
 }
 
 .head,
 .row {
   display: grid;
-  grid-template-columns:
-    124px minmax(116px, 1.1fr) 76px minmax(104px, 1.2fr)
-    minmax(94px, 1fr) 44px minmax(72px, 0.9fr);
-  gap: 8px;
+  grid-template-columns: minmax(96px, 1fr) repeat(8, minmax(24px, 52px));
   align-items: center;
-  min-width: 660px;
-  padding: 7px 10px;
-  text-align: left;
+  column-gap: 2px;
 }
 
 .head {
+  align-items: end;
+  padding: 0 8px 6px;
+  border-bottom: 1px solid var(--vp-c-divider);
+}
+
+.corner {
   font-size: 10px;
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--vp-c-text-3);
-  border-bottom: 1px solid var(--vp-c-divider);
+}
+
+.cap {
+  display: flex;
+  justify-content: center;
+  height: 104px;
+}
+
+.cap span {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--vp-c-text-3);
+  white-space: nowrap;
+}
+
+.cap.on span {
+  color: var(--vp-c-brand-1);
+  font-weight: 650;
 }
 
 .row {
+  width: 100%;
+  padding: 5px 8px;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 9px;
   background: transparent;
-  font-size: 12px;
+  text-align: left;
   color: var(--vp-c-text-2);
   cursor: pointer;
   transition: opacity 0.2s, background 0.2s, border-color 0.2s;
@@ -415,47 +382,59 @@ function backendLabel(one: Backend) {
 }
 
 .row.dim {
-  opacity: 0.72;
+  opacity: 0.32;
 }
 
 .name {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .name code {
   font-size: 12.5px;
-  color: var(--vp-c-text-1);
   font-weight: 650;
+  color: var(--vp-c-text-1);
+  background: none;
+  padding: 0;
 }
 
 .name em {
   font-style: normal;
   font-size: 10.5px;
   color: var(--vp-c-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.rung {
-  font-family: var(--vp-font-family-mono);
-  color: var(--vp-c-text-1);
+.dot {
+  text-align: center;
+  font-size: 13px;
+  line-height: 1;
 }
 
-.rung em {
-  font-style: normal;
-  color: var(--hmz-accent-2);
-}
-
-.row .yes {
+.dot.yes {
   color: var(--hmz-accent);
 }
 
-.row .no {
+.dot.partly {
+  color: var(--hmz-warm);
+}
+
+.dot.no {
+  font-size: 16px;
   color: var(--vp-c-text-3);
 }
 
-.open {
+.dot.on.yes,
+.dot.on.partly {
+  text-shadow: 0 0 8px var(--hmz-accent);
+}
+
+.detail {
   display: grid;
-  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
   gap: 18px;
   margin: 12px 16px 16px;
   padding: 14px 16px;
@@ -466,9 +445,15 @@ function backendLabel(one: Backend) {
 
 .lab {
   font-size: 11px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--vp-c-text-3);
+}
+
+.lab code {
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--vp-c-text-1);
 }
 
 .rungs {
@@ -479,15 +464,15 @@ function backendLabel(one: Backend) {
 }
 
 .rungs span {
-  padding: 4px 10px;
+  padding: 3px 10px;
   border-radius: 7px;
   font-family: var(--vp-font-family-mono);
   font-size: 11.5px;
   color: var(--vp-c-text-1);
   background: linear-gradient(
     90deg,
-    var(--vp-c-brand-soft) calc(100% - var(--i) * 14%),
-    transparent calc(100% - var(--i) * 14%)
+    var(--vp-c-brand-soft) calc(100% - var(--i) * 11%),
+    transparent calc(100% - var(--i) * 11%)
   );
   animation: rung 0.4s ease backwards;
   animation-delay: calc(var(--i) * 40ms);
@@ -500,7 +485,7 @@ function backendLabel(one: Backend) {
   }
 }
 
-.cut {
+.auto {
   margin: 10px 0 0;
   font-size: 11.5px;
   line-height: 1.55;
@@ -508,24 +493,46 @@ function backendLabel(one: Backend) {
 }
 
 .said p {
-  margin: 0 0 8px;
-  font-size: 12.5px;
+  margin: 0 0 10px;
+  font-size: 13px;
   line-height: 1.6;
   color: var(--vp-c-text-2);
 }
 
 .said strong {
   color: var(--vp-c-text-1);
-  margin-right: 8px;
+  margin-right: 4px;
 }
 
 .said .note {
-  color: var(--vp-c-text-3);
+  color: var(--vp-c-text-2);
 }
 
 @media (max-width: 780px) {
-  .open {
+  .detail {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .grid {
+    padding: 6px 4px 0;
+  }
+
+  .head,
+  .row {
+    grid-template-columns: minmax(84px, 1fr) repeat(8, 24px);
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .name em {
+    display: none;
+  }
+
+  .detail {
+    margin: 12px 10px 14px;
+    padding: 12px;
   }
 }
 
