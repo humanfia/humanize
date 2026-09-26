@@ -1,65 +1,67 @@
+<script setup>
+import { withBase } from 'vitepress'
+</script>
+
 # Weaver Guide
 
-A **weaver** is whoever — or whatever — writes a flow: the directory of Python that says which
-agents are driven, what each is asked, in what order, and when to stop. This section is
-everything that role needs. The [User Guide](/user/) is for whoever runs what a weaver made.
+A **weaver** writes flows: the Python that says which agents are driven, what each is asked, in
+what order, and when to stop. You have run a flow; this is where you write one. If you have
+not, start with the [User Guide](/user/).
 
-If you have not run humanize at all yet, the front page has a quickstart per role: [run a
-flow](/#run-a-flow) is the basics of running one, and [weave a flow](/#weave-a-flow) is the
-shortest flow there is.
+## Start here
 
-## Tutorials
+Four pages, in order. The first has a flow of your own running in five minutes; the rest grow
+it.
 
-A whole flow written from scratch, run, and tested.
+<div class="hmz-paths">
+  <a :href="withBase('/weaver/writing-a-flow')">
+    <strong>1 · Your first flow</strong>
+    <span>A directory, a decorator, one role. Write it, run it.</span>
+  </a>
+  <a :href="withBase('/weaver/tutorials/build-under-test')">
+    <strong>2 · Build under test</strong>
+    <span>A tutorial: one agent writes, pytest judges, a second agent reviews.</span>
+  </a>
+  <a :href="withBase('/weaver/loops')">
+    <strong>3 · Loops</strong>
+    <span>What the next turn remembers, and what ends the loop.</span>
+  </a>
+  <a :href="withBase('/weaver/flow-settings')">
+    <strong>4 · Params of its own</strong>
+    <span>A pydantic model that becomes <code>-p</code> and a form at the prompt.</span>
+  </a>
+</div>
+
+## Growing a flow
 
 | | |
 | --- | --- |
-| [Build under test](/weaver/tutorials/build-under-test) | The shortest useful flow there is: a writer, `pytest` between turns, a reviewer — and a test of it that spends nothing |
-
-## Writing a flow
-
-| | |
-| --- | --- |
-| [Writing a flow](/weaver/writing-a-flow) | An `async def`, the roles it drives, the directory it works in |
-| [Loops](/weaver/loops) | Ralph, stateful ralph, and the shapes a loop takes |
-| [Params of its own](/weaver/flow-settings) | A `FlowParams` model that becomes `-p` and a form at the prompt |
 | [Many turns at once](/weaver/async-flows) | `gather`, `TaskGroup`, and a session apiece |
-| [A flow that calls a flow](/weaver/calling-flows) | Refs, what the called flow is handed, its budget, and picking it up |
+| [A flow that calls a flow](/weaver/calling-flows) | Build on a flow somebody else wrote |
+| [Branching a conversation](/weaver/branching) | Two ways out of one conversation, paid for once |
+| [Worktrees, copies and scratch](/weaver/worktrees) | One agent working in several directories at once |
 
 ## What an agent can be asked
 
 | | |
 | --- | --- |
-| [Goals](/weaver/goals) | The CLI's own goal feature: it decides when it is done |
+| [Goals](/weaver/goals) | The CLI's own goal: it decides when it is done |
 | [Answers in a shape](/weaver/shapes) | A turn that answers with a pydantic model instead of prose |
-| [Hooks](/weaver/hooks) | Async functions hung on the moments of a session |
+| [Hooks](/weaver/hooks) | Your code, run at the moments of a session |
 | [The agent asking the flow](/weaver/tools) | A question mid-turn, answered by the flow's own code |
-| [The person as an agent](/weaver/human-agent) | You, driven by a flow like any other agent — or somebody standing in for you |
-| [Branching a conversation](/weaver/branching) | Two ways out of one conversation, paid for once |
-| [Worktrees, copies and scratch](/weaver/worktrees) | One agent working in several directories at once |
+| [The person as an agent](/weaver/human-agent) | You, driven by a flow like any other agent |
 
-## Testing and publishing
+What an agent may touch and what it carries are declared by the flow too:
+[Permissions](/user/permissions) and [Skills](/user/skills) are written for you.
+
+## When it is ready
 
 | | |
 | --- | --- |
-| [Testing a flow](/weaver/testing-flows) | The fake kit: the flow, run exactly as it runs, on agents that answer from a script |
+| [Testing a flow](/weaver/testing-flows) | The flow run on scripted agents: milliseconds, and nothing spent |
 | [Flowverses](/weaver/flowverses) | A git repository of flows, offered by name and callable by ref |
-
-## From the User Guide
-
-A flow declares what the agents it drives may do, so five pages written for whoever runs one
-are pages a weaver writes against.
-
-| | |
-| --- | --- |
-| [Concepts](/user/concepts) | The vocabulary the rest of this uses |
-| [Security](/user/security) | A flow is Python, and reading one means running it |
-| [Skills](/user/skills) | What an agent carries: its CLI's own, and the ones the flow brings |
-| [Permissions](/user/permissions) | What each role may touch — yours to declare |
-| [Efforts](/user/efforts) | How hard to think |
 
 ---
 
-The official flowverse is the shortest way to see what a flow of your own could be: reading one
-is [Flows](/flows/). For the contract in full — every argument, every refusal, every return —
-[Reference › Flows](/reference/flows).
+Real flows to read are in [Flows](/flows/). Every argument, refusal and return of the flow API
+is in [Reference › Flows](/reference/flows).

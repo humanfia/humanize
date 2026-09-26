@@ -1,10 +1,15 @@
-# Writing a flow
+# Your first flow
 
-A **flow** is a directory whose `__init__.py` holds an `async` function marked `@flow`, and
-that function drives the agents. A weaver writes one when the same agents should be run the
-same way again and again, rather than typed out afresh each time.
+A **flow** is a Python function that drives coding agents: which agents, what each is asked,
+in what order, and when to stop. Write one when you would otherwise type the same instructions
+to an agent again and again. In five minutes you will have one of your own running.
 
-## Write the flow
+You need a flow run behind you — the [User Guide](/user/) starts there — and a git repository
+you don't mind an agent editing.
+
+## Write it
+
+A flow is a directory under `.humanize/flows/` in your project, named after the flow:
 
 ```sh
 mkdir -p .humanize/flows/twice
@@ -12,8 +17,6 @@ mkdir -p .humanize/flows/twice
 
 ```python
 # .humanize/flows/twice/__init__.py
-"""Two passes: do the work, then read it back and fix what is wrong."""
-
 from hmz.flows import (
     Agent,
     AgentCollection,
@@ -26,308 +29,146 @@ from hmz.flows import (
 
 
 class Agents(AgentCollection):
-    builder: Agent
+    builder: Agent  # [!code highlight]
 
 
 class Envs(EnvCollection):
-    workspace: LocalEnv
+    workspace: LocalEnv  # [!code highlight]
 
 
-@flow(agents=Agents, envs=Envs, params=FlowParams)
+@flow(agents=Agents, envs=Envs, params=FlowParams)  # [!code highlight]
 async def twice(
     task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
 ) -> None:
-    """Two passes: do the work, then read it back and fix what is wrong."""
+    """Do the work, then read it back and fix what is wrong."""
     builder = agents["builder"]
-    session = await builder.spawn(env=envs["workspace"])
-    await builder.run(task, session=session)
-    await builder.run(
+    session = await builder.spawn(env=envs["workspace"])  # [!code highlight]
+    await builder.run(task, session=session)  # [!code highlight]
+    await builder.run(  # [!code highlight]
         "Now review what you just did, and fix anything that is wrong.",
         session=session,
     )
 ```
 
-Three classes and a function. `Agents` says the flow drives one agent, which it calls
-`builder`. `Envs` says that agent works in `workspace`, the directory the run was started in.
-`FlowParams` says the flow takes no [params](/weaver/flow-settings). The function is what
-happens.
+| Line | What it says |
+| --- | --- |
+| `builder: Agent` | The flow drives one agent, in the **role** `builder`. Whoever runs it says which CLI and model fill that role. |
+| `workspace: LocalEnv` | The agent works in the directory the run starts in. Nobody has to name it. |
+| `@flow(…)` | This `async def` is a flow, and these are what it takes. `params=FlowParams` means no [params](/weaver/flow-settings) of its own. |
+| `builder.spawn(…)` | Opens a **session**: one conversation of one agent, in one place. |
+| `builder.run(…)` | Takes a **turn** in that session and waits for it to end. The second turn remembers the first, because it is the same session. |
 
-## Run the flow
+The docstring's first line is what `/flow` shows beside the flow's name.
 
-```sh
+## Run it
+
+::: code-group
+
+```text [At the prompt]
+$local/twice add a subtract function to calc.py
+```
+
+```sh [Claude Code]
 hmz exec -f twice -a builder=claude/claude-opus-5:high -b cost=5 \
-    "add a --dry-run flag to calc.py"
+    "add a subtract function to calc.py"
 ```
 
-`-a` names the agent **by its role**: `builder=` and then the CLI, the model and the effort,
-with `@<account>` after the CLI where it should run as one of [your
-accounts](/user/providers). `-b` is what the run may spend — `cost=` in dollars,
-`duration=` on the clock, `output_tokens=` written — and **`hmz exec` will not start a flow
-without one**. `workspace` has no `-e`: a role typed `LocalEnv` is the directory you are in,
-and humanize fills it itself.
-
-`/flow` offers it in the interface too, beside the flows humanize ships and everything in every
-[**flowverse**](/weaver/flowverses) fetched here. A flowverse is a place flows live, and your
-own two directories are places like any other: `.humanize/flows` here is `local`,
-`~/.humanize/flows` is `user`. **←** and **→** step between the places, and opening a flow
-asks what each of its roles runs, by the name the flow gave it.
-
-## The contract, in four rules
-
-**1. An `async def`, marked `@flow(agents=…, envs=…, params=…)`.** It is called with the task
-and four keywords — `agents`, `envs`, `params` and `ctx`. A plain `def`, or a function that
-cannot be called that way, is refused as the flow is defined, with `FlowDefinitionError`; so
-is a name no ref could name — letters, digits, `_`, `.` and `-`.
-
-**2. The agents are a `TypedDict` of roles.** Subclass `AgentCollection`, one key per agent,
-each typed `Agent` or a class of your own that [asks for more](#ask-for-what-the-agent-must-do).
-The environments are the same shape, subclassing `EnvCollection`.
-
-```python
-from typing import NotRequired
-
-
-class Agents(AgentCollection):
-    builder: Agent
-    reviewer: NotRequired[Agent]     # may be left out; the flow asks `"reviewer" in agents`
+```sh [Codex]
+hmz exec -f twice -a builder=codex/gpt-5.6-sol:high -b cost=5 \
+    "add a subtract function to calc.py"
 ```
 
-A required role left unfilled is refused before anything starts:
-
-```console
-$ hmz exec -f twice -b cost=5 "add a --dry-run flag to calc.py"
-hmz exec: error: twice:twice: no agent was given for 'builder'
+```sh [Kimi Code]
+hmz exec -f twice -a builder=kimi/kimi-code/k3:high -b cost=5 \
+    "add a subtract function to calc.py"
 ```
 
-**3. The params are a `FlowParams` subclass**, or `FlowParams` itself for a flow that takes
-none. See [Params of its own](/weaver/flow-settings).
-
-**4. The collections must resolve when the flow runs.** Their annotations are read the first
-time the flow is called, against the module's own namespace — so `from __future__ import
-annotations` is fine, and so is a collection declared inside a function. What is not is a type
-imported only under `if TYPE_CHECKING`:
-
-::: warning The most common first mistake
-```python
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:                     # [!code error]
-    from hmz.flows import Agent       # [!code error]
+```sh [DeepSeek Harness]
+hmz exec -f twice -a builder=dsh/deepseek-v4-flash:high -b cost=5 \
+    "add a subtract function to calc.py"
 ```
-```console
-hmz exec: error: Agents.builder: 'Agent' cannot be resolved: name 'Agent' is not defined
-```
-Import what the collections name at runtime.
+
 :::
 
-The function's name is the flow's name, which is what a ref names it by after the colon:
-`twice:twice`, or just `twice`, since it is the flow named after its directory. `@flow` takes
-four more keywords, all optional:
+At the prompt your project's flows are offered as `local/<name>`. The first time, the flow's
+menu opens and asks what `builder` runs and what the run may spend; after that, the line alone
+starts it. On the command line, `-a` fills the role by its name, and `-b` is the run's
+[budget](/features/allowances), which `hmz exec` will not start without. Use a model your
+account can name — `/flow` lists them.
 
-| | |
+The agent takes two turns in one conversation, and the run ends when the function returns:
+
+```text
+● builder is working
+● Read(calc.py)
+● Edit(calc.py)
+● Added subtract(a, b) beside add(a, b).
+✻ Worked for 31s · builder
+● builder is working
+● Read(calc.py)
+● Edit(calc.py)
+● Reviewed it: subtract is right, but add subtracted too, so I fixed add.
+✻ Worked for 14s · builder
+```
+
+::: details If it is refused
+| `hmz exec: error: …` | Why |
 | --- | --- |
-| `name=` | what it is called instead of the function's name |
-| `description=` | the line shown beside it where flows are listed, instead of the first line of its docstring |
-| `hidden=True` | left out of the lists a person picks from, and still run and loaded by its ref |
-| `resumable=True` | a run of it can be [picked up](/user/resuming) where it stopped, and it is handed a `ctx.state` to keep things in |
+| `twice needs an agent for 'builder'; give each with -a ROLE=CLI/MODEL:EFFORT` | No `-a builder=…` on the line. |
+| `twice: a run is given a budget -- -b duration=...,cost=...,output_tokens=... -- and this one was given none` | No `-b`. |
+| `twice: no flow is called 'twice', and it is not a path` | You are not in the project that holds `.humanize/flows/twice/`. |
+| `importing the flow at … failed: …` | Python could not import the file: a typo, or a name used and never imported. |
+:::
 
-## Ask for what the agent must do
+## Grow it
 
-A role typed plain `Agent` can take turns and nothing more. Everything only some CLIs can do
-is asked for by subclassing — mixing in what the role needs:
+Everything else is added to a flow like this one, a piece at a time:
 
-```python
-from hmz.flows import Agent, GoalCommandAgentMixin, SteeringAgentMixin
-
-
-class Worker(Agent, GoalCommandAgentMixin, SteeringAgentMixin):
-    """An agent that can pursue a goal and be spoken to mid-turn."""
-
-
-class Agents(AgentCollection):
-    worker: Worker
-```
-
-That buys two things. An agent handed to `worker` that cannot do both is refused before the
-flow starts, naming what it lacks. And the flow gets **exactly** what it declared: a `/goal`
-prompt, a `steer`, a hook of a mixin it did not declare raise `CapabilityNotGranted`, whatever
-the CLI underneath could have done. A type checker says the same thing before anything runs.
-Which CLI serves which mixin is [on Flows](/reference/flows#what-each-harness-serves); a role
-typed as one CLI's own protocol, `ClaudeCodeAgent` and the rest, asks for that CLI and
-everything it can do.
-
-## Say what each agent is allowed
-
-Whoever runs your flow names a CLI, an account, a model and an effort. What the agent may
-*touch* is yours, written on the role's class as a `Permission`, scope by scope:
-
-```python
-from hmz.flows import Agent, Permission, PermissionKind
-
-
-class Reviewer(Agent):
-    """Reads the change, and writes nothing."""
-
-    _permission = Permission(local=PermissionKind.READ)
-```
-
-| Scope | What it covers | Unless you say |
+| To | Add | Read |
 | --- | --- | --- |
-| `local` | the environment's workdir the session runs in | `ALL` |
-| `user` | the rest of the home directory of the user the agent runs as | `READ` |
-| `system` | everything else on the machine | `READ` |
-| `online` | the CLI's own web tools — `NONE` or `ALL`, never `READ` | `NONE` |
+| hold the agent to your test suite, and have a second agent review | a shell on the workspace, a reviewer role, a loop | [Build under test](/weaver/tutorials/build-under-test) — the next page |
+| start every round from nothing, or keep one conversation going | where `spawn` sits in the loop | [Loops](/weaver/loops) |
+| take settings from `-p` and a form at the prompt | a `FlowParams` subclass | [Params of its own](/weaver/flow-settings) |
+| get an answer your code can branch on | `output_schema=` a pydantic model | [Answers in a shape](/weaver/shapes) |
+| keep an agent from writing | a `Permission` on its role | [Permissions](/user/permissions) |
+| hand an agent skills | `_skills` on its role | [Skills](/user/skills) |
+| use a CLI's own `/goal`, or speak into a turn | a mixin on the role | [Goals](/weaver/goals) |
+| have several turns going at once | `asyncio.gather` | [Many turns at once](/weaver/async-flows) |
+| build on a flow somebody else wrote | `load(…)` | [A flow that calls a flow](/weaver/calling-flows) |
+| let whoever runs it say where the work lands, even another machine | a role typed `Env` instead of `LocalEnv`, given with `-e` | [Remote execution](/user/remote-execution) |
 
-Scopes nest, so a wider one may not be granted more than a narrower one: `local >= user >=
-system`, and a `Permission` that says otherwise is refused as it is written. Nothing an agent
-does is put to anybody for approval — every CLI runs in its nothing-asked mode — so what holds
-an agent back is this and the [hooks](/weaver/hooks) the flow hangs on it. How each scope
-reaches each CLI, including what it cannot fence, is [on
-Flows](/reference/flows#what-each-agent-may-do).
+::: warning Agents run with approvals bypassed
+Nobody is asked before an agent edits a file or runs a command. What it may touch is what its
+role's `Permission` says, and unless you say otherwise that is writing the directory it works
+in.
+:::
 
-`_skills` beside it names the skills the role's sessions carry: one in the flow's own `skills/`
-by name, or one elsewhere as a git URL with `#<skill>`. See [Skills](/user/skills).
+## Where flows are found
 
-## Choose what the next turn remembers
+A name is looked for nearest first, so a flow of yours can stand in for one of humanize's by
+taking its name:
 
-A **session** is one conversation of one agent, in one environment. Every turn taken in it
-remembers the turns before:
+| Put it in | Run it with | At the prompt |
+| --- | --- | --- |
+| `.humanize/flows/twice/` in the project | `-f twice` | `$local/twice` |
+| `~/.humanize/flows/twice/` | `-f twice`, when the project has none of that name | `$user/twice` |
+| the flows humanize ships, and the [flowverses](/weaver/flowverses) you have added | `-f ralph_loop`, `-f theirs/review` | `$ralph_loop`, `$theirs/review` |
+| anywhere else | `-f ./path/to/twice` | |
 
-```python
-session = await builder.spawn(env=workspace)
-await builder.run("do the task", session=session)   # opens the conversation
-await builder.run("keep going", session=session)    # the first turn still in context
-```
+`-f local/twice` and `-f user/twice` say which one outright. A flow can also be a single file,
+`.humanize/flows/twice.py`. A file or directory whose name starts with `_` is not a flow: it is
+somewhere to keep code the flows beside it import.
 
-A fresh `spawn` is a conversation that remembers nothing:
-
-```python
-for _ in range(3):
-    fresh = await builder.spawn(env=workspace)
-    await builder.run(task, session=fresh)          # reads the repository, not a history
-```
-
-The second shape arrives with no idea what the round before it did, and has to find out from
-the repository. Sometimes that is exactly what you want, which is what a [Ralph
-loop](/weaver/loops) is. A session holds one turn at a time; a second `run` on it while one is
-under way raises `SessionError`, and [two at once](/weaver/async-flows) means two sessions.
-
-## Make the loop survive a bad turn
-
-A turn that fails raises the `HarnessError` it came to — `HarnessThrottled` for a provider
-refusing for too many requests, `HarnessKilled` for a CLI that died mid-turn, and the rest of
-[the tree](/reference/flows#when-something-goes-wrong). In a loop meant to run for hours, that
-would end the run on the first hiccup, so catch it where the loop goes round:
-
-```python
-from hmz.flows import HarnessError
-
-while True:
-    fresh = await agent.spawn(env=workspace)
-    try:
-        await agent.run(task, session=fresh)
-    except HarnessError:
-        continue                                    # the loop goes round again
-```
-
-It catches a turn that failed and **nothing else**. A spent [budget](/features/budgets) raises
-`BudgetExceeded`, and a run stopped from outside is a cancellation; neither is a
-`HarnessError`, so neither is swallowed — otherwise the loop would carry on past them and never
-end. Catch `FlowException` to catch everything the flow API can raise.
-
-## Give the loop a finish line
-
-A `while True` is only useful if something ends it. Ask the environment: a role whose type
-carries `ShellEnvMixin` may run programs in it, and one with `FilesEnvMixin` may read and write
-its files.
-
-```python
-from hmz.flows import FilesEnvMixin, LocalEnv, ShellEnvMixin
-
-
-class Workspace(LocalEnv, ShellEnvMixin, FilesEnvMixin):
-    """The directory the run was started in: programs run there, files read from it."""
-
-
-class Envs(EnvCollection):
-    workspace: Workspace
-
-
-async def green(workspace: Workspace) -> bool:
-    code, _, _ = await workspace.exec(["python", "-m", "pytest", "-q"])
-    return code == 0
-
-
-@flow(agents=Agents, envs=Envs, params=FlowParams)
-async def until_green(
-    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
-) -> None:
-    builder, workspace = agents["builder"], envs["workspace"]
-    for _ in range(20):
-        fresh = await builder.spawn(env=workspace)
-        await builder.run(task, session=fresh)
-        if await green(workspace) and b"- [ ]" not in await workspace.read("TASK.md"):
-            return
-```
-
-`exec` answers with the exit status, stdout and stderr. It takes an argv; a string to hand to
-`bash` needs `BashEnvMixin` instead. Going through the environment rather than `subprocess`
-is what lets the same flow run against a directory on another machine, named with `-e`, with
-no change to its code. A flow is still just Python, so it may branch, sleep, compute and give
-up however it likes.
-
-## Say what the flow is
-
-The first line of the function's docstring is what is shown beside the flow's name where flows
-are listed, unless `@flow(description=…)` says otherwise:
-
-```python
-    """Two passes: do the work, then read it back and fix what is wrong."""
-```
-
-## Where a flow lives, and what it is called
-
-| Lives at | Called |
+::: details The rest of `@flow`
+| Keyword | |
 | --- | --- |
-| `.humanize/flows/twice/__init__.py` | `twice` in this project, or `local/twice` |
-| `~/.humanize/flows/twice/__init__.py` | `twice` in every project, or `user/twice` |
-| a [flowverse](/weaver/flowverses) | `<flowverse>/twice` |
-| anywhere else | its path: `-f ./flows/twice` |
+| `name=` | Call it this instead of the function's name. |
+| `description=` | Show this beside it instead of the docstring's first line. |
+| `hidden=True` | Leave it out of the lists at the prompt. It still runs by name. |
+| `resumable=True` | A stopped run can be picked up where it was. See [Loops](/weaver/loops). |
 
-A name is looked for **nearest first**, so a flow of yours may stand in for one of humanize's
-by taking its name. A file whose name starts with `_` is not a flow.
+A flow's name is letters, digits, `_`, `.` and `-`. One directory can hold several flows, run
+as `<directory>:<name>` — see [A flow that calls a flow](/weaver/calling-flows).
+:::
 
-A bare name means the flow **named after its directory** — `twice` above — else the one
-visible flow the directory holds, else nothing: humanize will not choose between several, and
-says which there are. One directory may [hold several
-flows](/reference/flows#several-flows-in-one-file), each run as `<flow>:<name>`.
-
-## Check your work
-
-Run it on the fake kit before you run it on a model. `hmz.runtime.flowing.fakes` has agents
-that answer from a script and environments that are a dictionary of files, and runs the flow
-exactly as `hmz exec` would — granted what it declared, refused what it did not — in
-milliseconds and for nothing:
-
-```python
-from hmz.runtime.flowing.fakes import FakeAgentDriver, run_fake
-
-
-async def test_it_asks_twice() -> None:
-    builder = FakeAgentDriver()
-    await run_fake(".humanize/flows/twice", "add a flag", agents={"builder": builder})
-    assert builder.prompts[0] == "add a flag"
-    assert len(builder.prompts) == 2
-```
-
-See [Testing a flow](/weaver/testing-flows).
-
-## See also
-
-- [Loops](/weaver/loops)
-- [Params of its own](/weaver/flow-settings)
-- [Read the run back](/user/tracing)
-- [Flowverses](/weaver/flowverses)
-- [Stopping](/user/stopping)
-- [Reference › Flows](/reference/flows)
-- [Port a project](/user/tutorials/port-a-project)
+**Next:** [test it without spending tokens](/weaver/testing-flows).

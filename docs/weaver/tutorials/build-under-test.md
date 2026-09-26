@@ -1,61 +1,22 @@
 # Build under test
 
-**Thirty minutes.** You will write a flow of about seventy lines. One agent writes code, the
-flow runs `pytest` between its turns, and a second agent reviews whatever passed. The loop ends
-when the reviewer is satisfied, not when the writer says it is finished. Then you will test the
-flow without spending a token.
+**Thirty minutes.** You will grow [your first flow](/weaver/writing-a-flow) into one worth
+keeping. One agent writes code, the flow runs `pytest` after every turn, and a second agent
+reviews whatever passed. The loop ends when the reviewer is satisfied, not when the writer says
+it is finished.
 
-It is a [weaver's](/weaver/) first flow, and it uses the things every flow is made of: roles,
-an environment, a session, a schema, and a loop.
-
-::: tip Before you start
-Finish the [quickstart](/#run-a-flow) on the home page: humanize installed, one backend
-working, one flow run. [Weave a flow](/#weave-a-flow) beside it is the short version of what
-this tutorial builds in full. The backend here is DeepSeek Harness, which needs only an API
-key.
-:::
-
-## What a flow actually is
-
-A flow is a directory with an `__init__.py` in it, and that file has an `async` function marked
-`@flow`, which says what it needs:
-
-```python
-from hmz.flows import (
-    Agent,
-    AgentCollection,
-    EnvCollection,
-    FlowContext,
-    FlowParams,
-    LocalEnv,
-    flow,
-)
-
-
-class Agents(AgentCollection):
-    agent: Agent
-
-
-class Envs(EnvCollection):
-    workspace: LocalEnv
-
-
-@flow(agents=Agents, envs=Envs, params=FlowParams)
-async def once(
-    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
-) -> None:
-    session = await agents["agent"].spawn(env=envs["workspace"])
-    await agents["agent"].run(task, session=session)
+```text
+          ┌──────────── review notes ────────────┐
+          ▼                                      │
+   builder's turn ──▶ pytest ──green──▶ reviewer's turn ──good──▶ done
+          ▲             │
+          └──── red ────┘
 ```
 
-That is a complete flow. `agents` is what the person running it named on the command line,
-one `-a role=…` per role; `envs` is where they work — `workspace`, typed `LocalEnv`, is the
-directory the run was started in, which nobody has to name; `task` is the last argument they
-typed.
-
-Flows are looked for nearest first: `.humanize/flows/` in the project you are in,
-`~/.humanize/flows/` for your own, then the ones humanize ships and every
-[flowverse](/weaver/flowverses) you have added. This one goes in the project.
+::: tip Before you start
+You have run `twice` from [Your first flow](/weaver/writing-a-flow), one backend is signed in,
+and `python -m pytest` works on your machine.
+:::
 
 ## Step 1 — make a project to work in
 
@@ -110,8 +71,8 @@ PY
 python -m pytest -q
 ```
 
-```console
-..........                                                               [100%]
+```text
+..........                                   [100%]
 10 passed in 0.29s
 ```
 
@@ -121,25 +82,229 @@ Ten green tests — the baseline the flow will hold the agent to.
 git add -A && git commit -qm "roman numerals, one way"
 ```
 
-## Step 2 — say who the agents are, and where they work
+## Step 2 — a builder and a reviewer
+
+Start from the shape of `twice`, with two roles instead of one:
 
 ```sh
 mkdir -p .humanize/flows/build_under_test
 ```
 
-Open `.humanize/flows/build_under_test/__init__.py` and start with the two roles and the one
-environment:
-
 ```python
+# .humanize/flows/build_under_test/__init__.py
 from hmz.flows import (
     Agent,
     AgentCollection,
     EnvCollection,
+    FlowContext,
+    FlowParams,
+    LocalEnv,
+    flow,
+)
+
+REVIEW = """You are reviewing a coding agent's work in the directory you are running in. \
+Read what it actually wrote, with `git diff`, `git status` and the files themselves, and \
+judge whether the task below is done and the code is worth keeping. Be sceptical: a test \
+weakened, a case special-cased, or a function stubbed to make the suite pass is the thing \
+you are most here to catch.
+
+Task:
+"""
+
+
+class Agents(AgentCollection):
+    builder: Agent  # [!code highlight]
+    reviewer: Agent  # [!code highlight]
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def build_under_test(
+    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
+) -> None:
+    """One agent writes, pytest judges, a reviewer reads what passed."""
+    builder, reviewer, workspace = agents["builder"], agents["reviewer"], envs["workspace"]
+    working = await builder.spawn(env=workspace)
+    await builder.run(task, session=working)
+    reading = await reviewer.spawn(env=workspace)  # [!code highlight]
+    print(await reviewer.run(REVIEW + task, session=reading))
+```
+
+This already runs: the builder takes a turn, then the reviewer reads the result. The reviewer
+gets a session of its own, so it reads the repository rather than the builder's account of it.
+The flow is named after its directory, which is what makes `-f build_under_test` mean this one.
+
+## Step 3 — keep the reviewer from writing
+
+A reviewer that fixes what it finds has stopped reviewing. What a role may touch is the flow's
+to declare, as a `Permission` on the role's class:
+
+```python
+from hmz.flows import (
+    ...
+    LocalEnv,
+    Permission,  # [!code ++]
+    PermissionKind,  # [!code ++]
+    flow,
+)
+
+
+class Reviewer(Agent):  # [!code ++]
+    """Reads what the builder wrote, and writes nothing."""  # [!code ++]
+
+    _permission = Permission(local=PermissionKind.READ)  # [!code ++]
+
+
+class Agents(AgentCollection):
+    builder: Agent
+    reviewer: Agent  # [!code --]
+    reviewer: Reviewer  # [!code ++]
+```
+
+`local=PermissionKind.READ` means it may read the directory it works in and write none of it,
+whichever CLI fills the role. [Permissions](/user/permissions) has the other scopes.
+
+## Step 4 — run the tests yourself
+
+Asking the agent whether the tests pass gets you its opinion. Running them gets you an exit
+code. A flow may run programs in a workspace whose type carries `ShellEnvMixin`:
+
+```python
+from hmz.flows import (
+    ...
+    PermissionKind,
+    ShellEnvMixin,  # [!code ++]
+    flow,
+)
+
+
+class Workspace(LocalEnv, ShellEnvMixin):  # [!code ++]
+    """The project the run was started in, where the flow runs the tests."""  # [!code ++]
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv  # [!code --]
+    workspace: Workspace  # [!code ++]
+
+
+TAIL = 4000  # [!code ++]
+
+
+async def suite(workspace: Workspace) -> tuple[bool, str]:  # [!code ++]
+    """Runs the tests: whether they passed, and the end of what they said."""  # [!code ++]
+    code, out, err = await workspace.exec(["python", "-m", "pytest", "-q"])  # [!code ++]
+    return code == 0, (out + err)[-TAIL:]  # [!code ++]
+```
+
+`exec` runs one program in the workspace and answers with its exit status, stdout and stderr.
+`TAIL` keeps the end of pytest's output, which is the part that says what failed.
+
+## Step 5 — ask the reviewer for a verdict
+
+A review in prose leaves your code hunting paragraphs for "looks good to me". Give the turn an
+`output_schema` — a pydantic model — and it answers with an instance of it instead:
+
+```python
+from pydantic import BaseModel, ConfigDict, Field  # [!code ++]
+
+from hmz.flows import (
+    ...
+)
+
+
+class Review(BaseModel):  # [!code ++]
+    """What one round's review comes to."""  # [!code ++]
+
+    model_config = ConfigDict(extra="forbid")  # [!code ++]
+
+    good: bool = Field(  # [!code ++]
+        description="True only if the task is done and the code is worth keeping: no "  # [!code ++]
+        "duplication left behind, no dead code, names that say what they hold, and no test "  # [!code ++]
+        "weakened or special-cased to pass. False if anything is left to do or to tidy."  # [!code ++]
+    )  # [!code ++]
+    notes: str = Field(  # [!code ++]
+        description="The review, written as a message to the coding agent: what is done, "  # [!code ++]
+        "what to change, and where. It is passed on word for word."  # [!code ++]
+    )  # [!code ++]
+```
+
+The `description` strings are handed to the CLI as part of the shape it must answer in, so
+they are the instruction. Edit them when you want stricter reviews. See [Answers in a
+shape](/weaver/shapes).
+
+## Step 6 — loop until the reviewer is satisfied
+
+Now the function itself:
+
+```python
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def build_under_test(
+    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
+) -> None:  # [!code --]
+) -> str:  # [!code ++]
+    """One agent writes, pytest judges, a reviewer reads what passed."""
+    builder, reviewer, workspace = agents["builder"], agents["reviewer"], envs["workspace"]
+    working = await builder.spawn(env=workspace)
+    await builder.run(task, session=working)  # [!code --]
+    reading = await reviewer.spawn(env=workspace)  # [!code --]
+    print(await reviewer.run(REVIEW + task, session=reading))  # [!code --]
+    prompt = task  # [!code ++]
+    while True:  # [!code ++]
+        await builder.run(prompt, session=working)  # [!code ++]
+        passed, said = await suite(workspace)  # [!code ++]
+        if not passed:  # [!code ++]
+            prompt = f"`python -m pytest -q` fails. Read this and fix it.\n\n{said}"  # [!code ++]
+            continue  # [!code ++]
+        reading = await reviewer.spawn(env=workspace)  # [!code ++]
+        review = await reviewer.run(REVIEW + task, session=reading, output_schema=Review)  # [!code ++]
+        if review.good:  # [!code ++]
+            print(review.notes)  # [!code ++]
+            return review.notes  # [!code ++]
+        prompt = review.notes  # [!code ++]
+```
+
+Four decisions are in those lines:
+
+- **The builder's `spawn` is outside the loop,** so it keeps one conversation and remembers
+  every round. **The reviewer's is inside,** so every review starts fresh.
+- **A red suite never reaches the reviewer.** pytest's own words become the builder's next
+  prompt.
+- **The loop ends on `review.good`,** a field the reviewer filled in, not a phrase in a
+  paragraph. The flow prints the review it ended on and returns it.
+- **If the reviewer is never satisfied, the budget ends the run.** Every run is given one, and
+  the turn that finds it spent stops the flow.
+
+::: details The whole file
+```python
+# .humanize/flows/build_under_test/__init__.py
+from pydantic import BaseModel, ConfigDict, Field
+
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    EnvCollection,
+    FlowContext,
+    FlowParams,
     LocalEnv,
     Permission,
     PermissionKind,
     ShellEnvMixin,
+    flow,
 )
+
+REVIEW = """You are reviewing a coding agent's work in the directory you are running in. \
+Read what it actually wrote, with `git diff`, `git status` and the files themselves, and \
+judge whether the task below is done and the code is worth keeping. Be sceptical: a test \
+weakened, a case special-cased, or a function stubbed to make the suite pass is the thing \
+you are most here to catch.
+
+Task:
+"""
+
+TAIL = 4000
 
 
 class Reviewer(Agent):
@@ -149,8 +314,6 @@ class Reviewer(Agent):
 
 
 class Agents(AgentCollection):
-    """The two this drives: one that writes, and one that reads what it wrote."""
-
     builder: Agent
     reviewer: Reviewer
 
@@ -161,29 +324,10 @@ class Workspace(LocalEnv, ShellEnvMixin):
 
 class Envs(EnvCollection):
     workspace: Workspace
-```
-
-The role names are what everything else uses: `-a builder=…` on the command line, `/flow`
-asking what *the reviewer* runs, a [trace](/user/tracing) grouping that agent's sessions under
-`reviewer`.
-
-The two classes of your own say what each role needs. `Reviewer` is an agent that may read the
-project and not write it — the CLI's own read-only mode, whichever CLI fills the role.
-`Workspace` is the project directory with `ShellEnvMixin`, which is what lets the flow run
-programs in it; without it, `exec` would raise `CapabilityNotGranted`. A flow gets exactly what
-it declares.
-
-## Step 3 — say what the reviewer has to answer
-
-A reviewer that replies in prose leaves the flow reading paragraphs for a phrase like "looks
-good to me". Ask for a shape instead:
-
-```python
-from pydantic import BaseModel, ConfigDict, Field
 
 
 class Review(BaseModel):
-    """What one round's review comes to: whether it is over, and what the builder is told."""
+    """What one round's review comes to."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -194,160 +338,115 @@ class Review(BaseModel):
     )
     notes: str = Field(
         description="The review, written as a message to the coding agent: what is done, "
-        "what to change, and where. It is passed on word for word and is all the agent will "
-        "hear from you."
+        "what to change, and where. It is passed on word for word."
     )
-```
-
-Those `description` strings are not comments. They are handed to the CLI as the shape it must
-answer in, so they *are* the instruction — edit them when you want stricter reviews. See
-[Answers in a shape](/weaver/shapes).
-
-## Step 4 — run the tests yourself
-
-The flow can run anything in its workspace between turns:
-
-```python
-#: How much of a failing suite the builder is shown. The end of pytest's output is the part
-#: that says what failed; the front of it is a list of dots.
-TAIL = 4000
 
 
 async def suite(workspace: Workspace) -> tuple[bool, str]:
-    """Runs the tests. Answers with whether they passed and the end of what they said."""
+    """Runs the tests: whether they passed, and the end of what they said."""
     code, out, err = await workspace.exec(["python", "-m", "pytest", "-q"])
     return code == 0, (out + err)[-TAIL:]
-```
-
-You could ask the agent to run the tests and tell you how it went. Running them yourself rests
-the flow's decisions on an exit code, and an exit code cannot be optimistic. Running them
-through the workspace rather than `subprocess` is what lets the same flow run against a project
-on another machine, unchanged.
-
-## Step 5 — write the loop
-
-```python
-from hmz.flows import FlowContext, FlowParams, HarnessError, flow
-
-REVIEW = """You are reviewing a coding agent's work in the directory you are running in. \
-`python -m pytest -q` passes -- that is not in question. Read what it actually wrote, with \
-`git diff`, `git status` and the files themselves, and judge whether the task below is done \
-and the code is worth keeping. Be sceptical: a test weakened, a case special-cased, or a \
-function stubbed to make the suite green is the thing you are most here to catch.
-
-Task:
-"""
 
 
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def build_under_test(
     task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
 ) -> str:
-    """Build under test: one agent writes, pytest judges, a reviewer reads what passed."""
+    """One agent writes, pytest judges, a reviewer reads what passed."""
     builder, reviewer, workspace = agents["builder"], agents["reviewer"], envs["workspace"]
     working = await builder.spawn(env=workspace)
     prompt = task
     while True:
-        # A turn that failed: take the round again rather than test a working tree the
-        # builder never got to write to.
-        try:
-            await builder.run(prompt, session=working)
-        except HarnessError:
-            continue
+        await builder.run(prompt, session=working)
         passed, said = await suite(workspace)
         if not passed:
             prompt = f"`python -m pytest -q` fails. Read this and fix it.\n\n{said}"
             continue
         reading = await reviewer.spawn(env=workspace)
-        try:
-            review = await reviewer.run(REVIEW + task, session=reading, output_schema=Review)
-        except HarnessError:
-            continue
+        review = await reviewer.run(REVIEW + task, session=reading, output_schema=Review)
         if review.good:
             print(review.notes)
             return review.notes
-        prompt = review.notes or prompt
-```
-
-Five decisions are packed into those lines.
-
-**`builder.spawn` sits outside the loop,** so the builder keeps one session and remembers every
-round. **`reviewer.spawn` sits inside it,** which opens a fresh conversation each time: the
-reviewer reads the repository, never the builder's account of it.
-
-**A red suite never reaches the reviewer.** It becomes the builder's next prompt instead.
-
-**A failed turn is caught and the round taken again,** so one rate limit does not end a loop
-meant to run for hours. `except HarnessError` catches a turn that failed and nothing else: a
-spent budget or a stop goes straight through it, which is what ends the loop when nothing else
-does.
-
-**The loop ends on `review.good`,** a boolean the reviewer filled in — not on a phrase in a
-paragraph. It prints the review it ended on, and returns it for whatever called the flow.
-
-**It is named after its directory,** `build_under_test` in `build_under_test/`, which is what
-makes `-f build_under_test` mean this flow.
-
-::: details The whole file
-Everything above, in order: the imports, `Reviewer`, `Agents`, `Workspace`, `Envs`, `Review`,
-`TAIL`, `suite`, `REVIEW` and the flow. Put a module docstring at the top.
-
-```python
-"""Build under test: one agent writes, pytest judges, a reviewer reads what passed."""
-
-from pydantic import BaseModel, ConfigDict, Field
-
-from hmz.flows import (
-    Agent,
-    AgentCollection,
-    EnvCollection,
-    FlowContext,
-    FlowParams,
-    HarnessError,
-    LocalEnv,
-    Permission,
-    PermissionKind,
-    ShellEnvMixin,
-    flow,
-)
+        prompt = review.notes
 ```
 :::
 
-## Step 6 — run it
+## Step 7 — run it
 
 ```sh
-export DEEPSEEK_API_KEY=sk-…
+task="Add from_roman(s: str) -> int to roman.py, the exact inverse of \
+to_roman, refusing anything that is not a canonical numeral. Add tests \
+for it in test_roman.py, including a round-trip over 1..3999."
+```
+
+Each role takes its own agent, so the reviewer can think harder than the builder, or be
+another CLI altogether:
+
+::: code-group
+
+```sh [Claude Code]
+hmz exec -f build_under_test \
+    -a builder=claude/claude-opus-5:high \
+    -a reviewer=claude/claude-opus-5:max \
+    -b cost=5,duration=1h "$task"
+```
+
+```sh [Codex]
+hmz exec -f build_under_test \
+    -a builder=codex/gpt-5.6-sol:high \
+    -a reviewer=codex/gpt-5.6-sol:xhigh \
+    -b cost=5,duration=1h "$task"
+```
+
+```sh [DeepSeek Harness]
 hmz exec -f build_under_test \
     -a builder=dsh/deepseek-v4-flash:high \
     -a reviewer=dsh/deepseek-v4-pro:high \
-    -b cost=5,duration=1h \
-    "Add from_roman(s: str) -> int to roman.py, the exact inverse of to_roman, refusing anything that is not a canonical numeral. Add tests for it in test_roman.py, including a round-trip over 1..3999."
+    -b cost=5,duration=1h "$task"
 ```
 
-`-f build_under_test` finds the flow by name, because `.humanize/flows/` is the first place
-humanize looks. A cheap fast model builds and a stronger one reviews, which is the right way
-round: reviewing is the harder judgement, and it is one turn per round. `-b` is what the run may
-spend — five dollars or an hour, whichever comes first — and is not optional: a loop with no
-exit of its own needs something that stops it.
-
-The run ends by itself, printing the review it ended on:
-
-```console
-Done and worth keeping. from_roman is a genuine inverse: greedy descent over VALUES
-followed by `to_roman(n) != s` rejection accepts exactly the canonical numerals, and
-the round-trip over 1..3999 plus the non-canonical refusal cases in test_roman.py
-cover the contract. No existing test was weakened, no special-casing, and no dead
-code or duplication. Nothing to change.
+```sh [Two CLIs]
+hmz exec -f build_under_test \
+    -a builder=codex/gpt-5.6-sol:high \
+    -a reviewer=claude/claude-opus-5:max \
+    -b cost=5,duration=1h "$task"
 ```
 
-## Step 7 — check the work
+```text [At the prompt]
+$local/build_under_test Add from_roman(s: str) -> int to roman.py, the exact inverse of to_roman, refusing anything that is not a canonical numeral. Add tests for it in test_roman.py, including a round-trip over 1..3999.
+```
+
+:::
+
+`-b cost=5,duration=1h` lets the run spend five dollars or an hour, whichever comes first. It
+ends by itself, printing the review it ended on. Abridged, a run that passes on its first round
+reads:
+
+```text
+● builder is working
+● Read(roman.py)
+● Edit(roman.py)
+● Edit(test_roman.py)
+● Added from_roman, a round-trip test over 1..3999, and cases it refuses.
+✻ Worked for 96s · builder
+● reviewer is working
+● Read(roman.py)
+● Read(test_roman.py)
+✻ Worked for 38s · reviewer
+Done and worth keeping. from_roman is a genuine inverse: greedy descent
+over VALUES, then `to_roman(n) != s`, accepts exactly the canonical
+numerals. The round-trip over 1..3999 and the refusal cases cover the
+contract. No existing test was weakened, and nothing is left to tidy.
+```
+
+## Step 8 — check the work
 
 ```sh
 python -m pytest -q
 ```
 
-```console
-..............................                                           [100%]
+```text
+..............................               [100%]
 30 passed in 0.23s
 ```
 
@@ -370,82 +469,26 @@ def from_roman(s: str) -> int:
             n += value
             rest = rest[len(sign):]
 
-    if rest or not 1 <= n <= 3999 or to_roman(n) != s:
+    if rest or not 1 <= n <= 3999 or to_roman(n) != s:  # [!code highlight]
         raise ValueError(f"not a canonical Roman numeral: {s!r}")
     return n
 ```
 
-Note `to_roman(n) != s` on the last line. Greedy descent alone would accept `IIII` and `VV`;
-round-tripping through the existing function is what makes "canonical" mean something — the
-kind of thing the reviewer's turn is for.
-
-## Step 8 — test the flow without a model
-
-That run cost real money, and the next change to the flow should not have to. The [fake
-kit](/weaver/testing-flows) runs the same flow on agents that answer from a script and a
-workspace that answers `pytest` from a table:
-
-```python
-# tests/test_build_under_test.py
-from pathlib import Path
-
-from hmz.runtime.flowing.fakes import FakeAgentDriver, FakeEnvDriver, run_fake
-
-FLOW = str(Path(__file__).parent.parent / ".humanize" / "flows" / "build_under_test")
-
-
-async def test_a_red_suite_goes_back_to_the_builder() -> None:
-    suites = iter([(1, "", "FAILED test_roman.py::test_from_roman"), (0, "30 passed", "")])
-    workspace = FakeEnvDriver(run=lambda command, env: next(suites))
-    builder = FakeAgentDriver()
-    reviewer = FakeAgentDriver(reply={"good": True, "notes": "Done and worth keeping."})
-
-    said = await run_fake(
-        FLOW,
-        "add from_roman",
-        agents={"builder": builder, "reviewer": reviewer},
-        local=workspace,
-    )
-
-    assert said == "Done and worth keeping."
-    assert builder.prompts[0] == "add from_roman"
-    assert "FAILED test_roman.py::test_from_roman" in builder.prompts[1]
-    assert len(reviewer.prompts) == 1
-```
-
-```sh
-uv add --dev pytest pytest-asyncio
-uv run pytest -q -o asyncio_mode=auto
-```
-
-```console
-.                                                                        [100%]
-1 passed in 0.09s
-```
-
-A red suite went back to the builder with pytest's own words, a green one went to the
-reviewer, and the reviewer's `good` ended the run — every decision the flow makes, checked in a
-tenth of a second.
+Note `to_roman(n) != s`. Greedy descent alone would accept `IIII` and `VV`; checking the round
+trip is what makes "canonical" mean something — the kind of thing the reviewer is there for.
 
 ## What to change
 
 **Swap `pytest` for what your project uses.** `suite()` is one `exec`. Point it at `npm test`,
-`cargo test`, `go test ./...`, or a script that runs all three — as a string, with
+`cargo test` or `go test ./...`. To hand it a shell line as a string instead, put
 `BashEnvMixin` on the workspace in place of `ShellEnvMixin`.
 
-**Gate on more than tests.** Add a linter to `suite()` and hand the agent both outputs. Holding
-an agent to a command is stronger than asking it in a prompt.
+**Gate on more than tests.** Add a linter to `suite()` and hand the builder both outputs.
 
-**Give the flow params of its own.** A `FlowParams` subclass turns into `-p` on the command
-line and a form at the prompt — a `rounds: int = 12` is a round limit in two lines. See
-[Params of its own](/weaver/flow-settings).
+**Give it a round limit.** A `rounds: int = 12` param is two lines, and whoever runs the flow
+sets it with `-p rounds=20`. See [Params of its own](/weaver/flow-settings).
 
-**Make it one you can pick up.** `resumable=True`, and the review the builder is owed kept in
-`ctx.state`, is a loop a stopped machine does not throw away. See [Picking a run
-up](/user/resuming).
+**Survive a turn that fails.** A failed turn raises, and ends the run. [Loops](/weaver/loops)
+shows how the flowverse's own loops catch it and carry on.
 
-## Next
-
-The flow drives two agents one turn at a time. [Many turns at once](/weaver/async-flows) has
-several going together, and [A flow that calls a flow](/weaver/calling-flows) builds this one
-into something larger.
+**Next:** [test it without spending tokens](/weaver/testing-flows).
