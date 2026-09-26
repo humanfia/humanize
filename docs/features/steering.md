@@ -4,96 +4,100 @@ pageClass: hmz-feature
 
 # A line typed mid-turn
 
-A line typed while a turn is running goes **into** that turn — not after it, and not as a turn
-of its own. The agent takes the words into account rather than being restarted with them: the
-difference between saying "actually, use pathlib" four minutes into a refactor and saying it
-after.
+Type while an agent is working, and your line goes **into the turn it is running**. The agent
+takes your words into account and carries on, rather than starting over. That is the difference
+between saying "actually, use pathlib" four minutes into a refactor and saying it after.
 
 <HmzSteer />
 
-## Landing is not hearing
+## Which backends take it
 
-Every backend that can be talked to answers a word put in twice over: once to say it has been
-taken, and again, later, to say it is in front of the model. Only the second is the agent
-having heard, and humanize counts the second.
+<div class="steer-split">
+  <div class="side yes">
+    <strong>Into the running turn</strong>
+    <p>
+      <Badge type="tip" text="Claude Code" /> <Badge type="tip" text="Codex" />
+      <Badge type="tip" text="Kimi Code" /> <Badge type="tip" text="pi" />
+    </p>
+    <span>The agent takes your line while it works.</span>
+  </div>
+  <div class="side later">
+    <strong>Into the next turn</strong>
+    <p><Badge type="warning" text="every other backend" /></p>
+    <span>They are handed a turn's whole prompt at the start, so the line waits, and goes into
+    whichever turn starts next. The prompt says so when it happens.</span>
+  </div>
+</div>
 
-Until it arrives the line is **pinned** against the agent it went to rather than written into
-the transcript, which is what happened. A turn that ends without ever saying the words were in
-front of it puts the line back **as never sent**.
+An agent working on [another machine](/features/anchor) takes a line the same way.
 
-## One queue, a line at a time
+## It goes to the agent you are reading
 
-Everything typed joins one queue and leaves it a line at a time: a turn takes one waiting line
-rather than the whole queue, and the next goes only once the turn has said it has the one
-before. Three lines in a row are three things said, and three answers. If no turn is open the
-line waits for the next one rather than being dropped.
+A flow drives several agents, and a line said to one you are not looking at would be said to
+somebody else. So your line goes to the agent on your screen. When you are reading all of them
+at once, it goes to whichever one has a turn open. See
+[Many conversations at once](/user/conversations).
 
-## It reaches the agent you are reading
+## One line at a time
 
-Not whichever agent happens to be working. A flow drives several, and a line said to the one
-that is not on the screen is a line said to somebody else — so it goes where you are looking.
-See [Many turns at once](/features/concurrency) for what that means here.
+Everything you type joins one queue. The next line goes only once the agent has said it has the
+one before, so three lines typed in a row are three things said, and get three answers.
 
-## Why some backends can take one and some cannot
+Until the agent has it, your line stays pinned above the prompt, marked with the agent it was
+handed to. It reaches the transcript only once the agent has it. If no turn is open, the line waits for the
+next one: a line typed at a running flow is never dropped.
 
-A session that is one process, held open across its turns and spoken to a line at a time, has
-something there to talk to. A session that is one run of a command line per turn has ended by
-the time there is anything to say to it — so on those backends it cannot be done at all, rather
-than done late. Between the two sit the backends driven through the app server they serve their
-own client from: the turn stays open, and the word is steered into the run already going.
+## From a flow
 
-A session held open is not by itself somewhere to say something, though: ZCode's app server
-keeps the turn open and still refuses a second prompt. What its own terminal steers over is a
-channel that terminal holds, not anything the protocol offers the rest of us.
-
-One subtlety decides whether this works or corrupts the transcript. A backend that answers each
-thing it is told with a turn of its own has to be read until it has answered **everything**
-said in the turn, the words put in mid-turn included. Reading only as far as the first answer
-loses what was put in and leaves the rest for the next turn to take as its own.
-
-| Backend | What a mid-turn line does |
-| --- | --- |
-| **Claude Code** | Answered inside the same turn. The turn is over once the agent has answered everything it was told, not when it first stops. |
-| **Codex** | A steer on the turn its app server is running. |
-| **Kimi Code** | Queued, then steered into the turn already running. |
-| **pi** | A steer on the run it is making, taken into it rather than answered after it. |
-| **ZCode** | Nothing: a second prompt is refused while one is running. |
-| **opencode**, **mimocode**, and every other backend given a turn's whole prompt up front | Nothing: there is nothing there to hear it. |
-
-Which of the two a backend is is written on it rather than found out. A flow that means to steer
-says so where it declares the role — `SteeringAgentMixin` — and a harness that cannot be steered
-is refused for that role before anything runs, rather than refusing a word from a turn the flow
-is already an hour into.
-
-## The anchored exception
-
-An [anchored](/features/anchor) Claude ends its process with each turn, so what the agent wrote
-reaches the target before the turn says it landed. It hears you during a turn as any Claude
-does; between two turns there is nothing there to hear. An anchored Codex holds one app server
-for the life of the agent and can be steered throughout, at the cost of that guarantee.
-
-## The same road, from a flow
-
-A flow says a word into a running turn with `steer`, on a role declared to take one:
-
-```python
-class Builder(Agent, SteeringAgentMixin): ...
-
-
-turn = asyncio.create_task(builder.run(task, session=session))
-...
-await builder.steer("actually, use pathlib", session=session)
-said = await turn
-```
-
-`queued=True`, the default, is the line typed and left: the agent takes it when it next looks,
-and carries on. `queued=False` is pressing escape first: the turn is interrupted and goes on from
-the words put in. Either is a word *in* the turn, so a session with no turn under way refuses it
-with `SessionError`, and a role declared without the mixin raises `CapabilityNotGranted`.
+A flow can say something into a running turn too, on a role declared to take one. It can leave
+the line for the agent to pick up as it works, or interrupt the turn and have it carry on from
+the new words. A role that asks for this is refused a backend that cannot do it before the run
+starts. See [Sessions and turns](/reference/flows#sessions-and-turns).
 
 ## Where the detail is
 
-- [Talking to a running turn](/user/steering) — the keys, the pin, and the Python
-- [Flows reference](/reference/flows#sessions-and-turns) — `steer`, in full
-- [Many conversations at once](/user/conversations) — which agent a line reaches
-- [Stopping](/user/stopping) — when a steer is not enough
+- [Talking to a running turn](/user/steering): the pin, and what each backend does
+- [Many conversations at once](/user/conversations): which agent a line reaches
+- [Stopping](/user/stopping): when a line is not enough
+
+<style>
+.steer-split {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0 20px;
+}
+
+.steer-split .side {
+  padding: 14px 16px;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  background: var(--vp-c-bg-soft);
+}
+
+.steer-split .side.yes {
+  border-color: var(--hmz-accent);
+}
+
+.steer-split .side strong {
+  display: block;
+  font-size: 14px;
+}
+
+.steer-split .side p {
+  margin: 8px 0;
+  line-height: 2;
+}
+
+.steer-split .side span {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--vp-c-text-2);
+}
+
+@media (max-width: 640px) {
+  .steer-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+</style>

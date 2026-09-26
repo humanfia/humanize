@@ -4,130 +4,135 @@ pageClass: hmz-feature
 
 # Many backends, one agent
 
-Most humanize backends do not talk to a model provider. They drive a supported coding agent
-under its existing login, through a built-in adapter or the Agent Client Protocol, so no
-provider API key is needed for them.
-
-The exception ships inside it: DeepSeek Harness arrives as an SDK-backed agent and uses its
-own DeepSeek provider credentials because it has no subscription login to reuse.
+humanize drives twelve coding agent CLIs, and any other CLI that speaks the Agent Client
+Protocol. Each one runs under a login you already have, so most need no API key. A flow names
+its **roles**, and you pick the backend that plays each one. If the backend cannot do what the
+role needs, the run is refused before it starts, not an hour in.
 
 <HmzBackends />
 
+Two of them need an extra when you install humanize: DeepSeek Harness (`dsh`) and Kimi Code
+(`kimi`). See [Installation](/user/installation).
+
 ## An agent is four things
 
-A backend, a model, an effort, and the [account](/features/accounts) its turns run as. Two
-agents of one spelling are two agents, so a flow of an actor and a reviewer at one
-configuration is what it says it is.
+<div class="anatomy" role="img" aria-label="claude@work/claude-opus-5:high: the backend claude, the account work, the model claude-opus-5, the effort high">
+  <span class="part cli"><code>claude</code><em>backend</em></span>
+  <span class="part acct"><code>@work</code><em>account</em></span>
+  <span class="part model"><code>/claude-opus-5</code><em>model</em></span>
+  <span class="part effort"><code>:high</code><em>effort</em></span>
+</div>
 
-## What it runs is discovered for the account
+- The **backend** is the CLI.
+- The **account** is who its turns run as. Leave it out, and the agent runs as whoever the CLI
+  is signed in as on this machine. See [Two accounts of one CLI](/features/accounts).
+- The **model** is any model that account can run.
+- The **effort** is a rung of that backend's ladder.
 
-A model id is not usually a fact that keeps. Coding agents add models, and which of them an
-account may name is the account's business. Wherever a backend can report its catalogue,
-humanize asks it under that account and keeps the answer:
+Two agents spelled the same are still two agents. A flow's actor and its reviewer can share one
+spelling and still keep separate conversations.
 
-- **It is asked as the account whose it would be** — under that account's own credential paths and
-  variables, and without the ones its backend would otherwise take an account from. Which is
-  exactly how a turn of that account is run. Two accounts of one CLI are two catalogues.
-- **An account on somebody's endpoint is asked the endpoint**, not the CLI. A coding agent
-  handed a base URL answers with the models *it* ships — it has nothing that goes and looks at
-  the other end — so that answer is wrong the moment it is given, and refreshing it changes
-  nothing. `GET {base}/v1/models` under the account's own credentials is what a turn could
-  actually name: for a gateway that routes to several clouds, that means route-prefixed ids
-  like `azure/anthropic/claude-haiku-4-5` rather than the vendor's own spelling.
-- **Kept with the account**, so taking the account away takes its catalogue with it.
-- **Never asked at a prompt.** Asking is a coding agent starting up, or a request to somebody's
-  endpoint, and neither is a thing to do while a list is being drawn; reading what was kept
-  costs one file read and reaches nothing.
-- **An account is asked as soon as it is made**, that being the first moment there is anything
-  to ask. A backend that would not answer leaves the account made — an account whose models are
-  not known yet is one to ask again, not one that failed.
+## The models on offer are the account's {#what-it-runs-is-discovered-for-the-account}
 
-The endpoint is asked only where the account sets the variable that backend routes its turns
-by, and only where its ids are ids that CLI could name. `pi`, `opencode`, `mimocode` and
-`zcode` name a model `provider/id` out of several endpoints at once, so one endpoint's ids
-would be a list they cannot use, and their own answer is already the account's. Where the
-variable is unset, where the endpoint will not answer, or where what comes back is not a list
-of models, the CLI is asked exactly as before: an endpoint that is down is one to ask again,
-not a reason to have no catalogue.
+Which models you can run depends on the subscription, key or gateway, so humanize asks rather
+than guesses:
 
-DeepSeek Harness and Qwen Code cannot list their models dynamically. Their adapters provide
-small advisory catalogues instead: the official DeepSeek adapter's current models, and the
-models Qwen Code ships pointed at. Those lists make initial setup possible; they are not proof
-of what an account or compatible endpoint will accept — which is why an account of either that
-names an endpoint is asked the endpoint instead.
+- **It asks as the account.** Two accounts of one CLI can offer two different lists.
+- **An account on a gateway is asked the gateway.** Its list is what that endpoint serves,
+  under the ids it serves them by. pi, opencode, mimocode and Cursor Agent are asked
+  themselves.
+- **It asks once, when you make the account,** and keeps the answer with the account. Opening
+  a menu never starts a CLI or reaches the network. The list is refreshed when you ask it
+  again, on [Providers](/user/providers).
 
-To a catalogue that *was* discovered, nothing is added. Claude Code may report a custom alias
-without proving the account can run it, so the alias is preserved exactly as that account
-supplied it rather than another model entry being manufactured.
+DeepSeek Harness and Qwen Code cannot list their models. Until an endpoint of theirs is asked,
+you are offered the short list each one ships pointed at.
 
-## The efforts are a vocabulary, so they are written down
+## Efforts are the backend's own words {#the-efforts-are-a-vocabulary-so-they-are-written-down}
 
-An effort is the backend's own word for how hard to think, and a ladder keeps in a way a
-catalogue does not: `xhigh` means the same thing next release. So the ladders are written down,
-hardest first, and a model narrows its backend's ladder to the rungs that model takes — in the
-ladder's own order, and to the whole of it where the backend said nothing about that model.
+Each backend has a ladder, hardest first, and each model offers only the rungs it takes. Pick a
+backend above to see its ladder.
 
-Three of them are worth knowing about:
+| You write | What happens |
+| --- | --- |
+| a rung on the ladder | The model thinks that hard. |
+| `auto` | humanize says nothing about effort, and the model runs at its CLI's default. |
+| a rung that is not on the ladder | The agent is refused before the run starts. A CLI of your own is the exception: it takes any word, and runs as you configured it. |
 
-- **A rung a backend takes but does not document is written down as one.** Claude Code's
-  `ultracode` is `xhigh` with the turn opted into orchestrating a fleet of its own. No listing
-  the CLI answers with will ever name it, so a model asked about would otherwise lose it.
-- **Width is not depth.** Kimi Code's `max` is one agent and `swarmmax` is the same thinking at
-  the width of a fleet — a second thing to say about a turn rather than a harder version of the
-  first, so it is chosen beside the effort rather than among the rungs.
-- **One ladder can hold two vocabularies.** ZCode's models do not agree on what an effort is:
-  the ones that take a thinking budget answer `max`, `high`, `low` and `nothink`, and the ones
-  that only take thinking-or-not answer `enabled` and `disabled`. Both are rungs of the one
-  ladder, and a model narrows it to the half that model speaks.
+Two of them are worth knowing by name. Claude Code's `ultracode` is `xhigh` with the turn
+orchestrating a fleet of its own. Kimi Code's `swarm` prefix, as in `swarmmax`, runs the same
+thinking across a fleet of agents instead of one. See [Efforts](/user/efforts) for choosing
+one.
 
-## Driven through whatever each one actually offers
+## Your skills, and a flow's
 
-A backend is driven through its command line where that can express what an agent is configured
-with, and through the app server it serves its own client from where it cannot. A model, an
-effort, a mode or a goal that has no flag is a setting of a session there — and asking the
-model for it in the prompt is not the same feature. A turn that has to stay open to be [talked
-to](/features/steering) is such a case: a command line run per turn has ended by the time
-there is anything to say to it.
+The skills you installed are read where each CLI reads them. humanize never rewrites or
+switches off any of them.
 
-Where a server is needed it is started only when a turn first needs one, so a flow that needs
-none starts none, and one server serves more than one session of its agent. Where the backend
-takes one turn at a time, that is one server per agent and calls on it are serialized: two
-turns interleaved on one stream would each take the other's answers. Codex and ZCode run the
-turns of separate conversations at the same time, so their drivers sort the one stream instead
-of reading it in turn — an answer goes to whoever made the call it is numbered for, and a
-session's events go to the turn running on that session, so the second session of an agent
-does not wait out the whole of the first. On Codex a conversation belongs to the server that
-opened it, and a session is opened on a server no turn is running on: an agent runs one server
-for a flow that takes its turns in sequence, however many sessions it opens and drops, and one
-apiece for a fleet that works its sessions at once.
+A flow can bring skills of its own. They are put where the backend reads them for the length
+of a session, then taken away. pi, DeepSeek Harness and a CLI of your own take none of a flow's
+skills; their turns run without them. See [Skills](/user/skills).
 
-## Skills are read where that CLI reads them
+## Adding a CLI of your own {#adding-a-cli-of-your-own}
 
-Nothing is asked of the CLI. Starting one costs seconds, so the skills are found where that CLI
-looks for them — its own home, the shared directory more than one of them has agreed to read,
-the project's own — and each is named as the CLI names it.
+Anything that speaks the Agent Client Protocol becomes a backend the moment you add it. It is
+named by the command that starts it. Its model and effort are whatever you configured it with,
+so humanize offers one rung, `as configured`, and sends nothing.
 
-**This is a reading and nothing else.** What you installed is yours: humanize does not rewrite,
-override or switch off any of it, and offers no way to. What a *flow* brings is different — its
-own skills are mounted into the directory that backend reads for the length of a session, and
-taken away with it. A backend that reads none is a turn run without them rather than a run that
-will not start.
-
-## Adding a CLI of your own
-
-Anything speaking the Agent Client Protocol is a backend from the moment it is written down,
-and what is written down is the command that starts it: it is called what it runs, as every
-backend here is. The protocol has words for which model such an agent runs and how hard it may
-be asked to think, and none of them is sent — each is a setting whoever installed that CLI has
-already made — so one rung is offered and the agent runs as it was set up to.
-
-A backend in every sense from then on: an `-a` names it, and a [`/fallback`](/user/fallback)
-step points at it or away from it like any other place. One class drives all of them, so the
-name it was added under is part of *which* agent it is rather than a setting — which is why it
-comes across a step while the settings one CLI reads do not.
+From then on it is a backend like any other. A role can name it, and a [fallback](/user/fallback)
+step can point to it or away from it.
 
 ## Where the detail is
 
-- [Efforts](/user/efforts) · [Permissions](/user/permissions) · [Skills](/user/skills)
-- [Providers reference](/reference/providers) — adding a CLI, and every way into each one
-- [Agents reference](/reference/agents) — turns, sessions, and what each backend can do
+- [Efforts](/user/efforts) · [Permissions](/user/permissions) · [Skills](/user/skills) ·
+  [Providers](/user/providers)
+- [Providers reference](/reference/providers): every way into each backend, and adding a CLI
+- [Agents reference](/reference/agents): what each backend does, exactly
+
+<style>
+.anatomy {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 18px 0 20px;
+  font-size: 15px;
+}
+
+.anatomy .part {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.anatomy .part code {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 15px;
+  color: var(--vp-c-text-1);
+}
+
+.anatomy .part em {
+  font-style: normal;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vp-c-text-3);
+}
+
+.anatomy .cli code {
+  background: color-mix(in srgb, var(--hmz-lane-1) 20%, transparent);
+}
+
+.anatomy .acct code {
+  background: color-mix(in srgb, var(--hmz-lane-2) 20%, transparent);
+}
+
+.anatomy .model code {
+  background: color-mix(in srgb, var(--hmz-lane-3) 20%, transparent);
+}
+
+.anatomy .effort code {
+  background: color-mix(in srgb, var(--hmz-lane-4) 22%, transparent);
+}
+</style>
