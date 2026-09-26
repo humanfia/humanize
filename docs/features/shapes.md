@@ -2,95 +2,71 @@
 pageClass: hmz-feature
 ---
 
+<script setup>
+import { withBase } from 'vitepress'
+</script>
+
 # Answers in a shape
 
-A turn given a pydantic model answers with **that model** instead of with prose. A flow then
-reads a field — `done`, `notes`, `approach` — rather than searching a paragraph for a phrase
-and hoping the wording holds next time.
-
-```python
-class Review(BaseModel):
-    done: bool = Field(description="True only if there is nothing left to do or to fix.")
-    notes: str = Field(description="What to say to the agent, passed on word for word.")
-
-
-review = await reviewer.run(REVIEW + task, session=session, output_schema=Review)
-if review.done:
-    return
-```
+A flow can ask an agent for an answer with named, typed fields instead of a paragraph: `done`
+and `notes`, or `approach` and `tests`. The flow then decides on a field, rather than on
+whether some phrase turned up in the prose. The shape is written once, in the flow, and the
+same shape can be put to a model or to you.
 
 <HmzShape />
 
-## The model is the question
+## What a shape is good for
 
-The model is the whole of what the backend is asked. Its fields, their types, which of them are
-required, and the line each was declared with are already in it, so nothing about the shape is
-said twice in the prompt.
+Two or three fields usually make a whole decision. Each kind of field does one job in a loop:
 
-That also means the schema is **not** in what the hooks and the watchers are shown. What they
-see is the flow's own words: a schema in the transcript is the plumbing showing through.
+| A field that is | Does this in the loop |
+| --- | --- |
+| **yes or no** | decides: is it finished, does it pass, go round again or stop |
+| **one of a few words** | picks a branch, such as `fast` or `careful`, and never a third |
+| **text** | carries: a reviewer's notes become the builder's next prompt, word for word |
+| **a number** | bounds: how many rounds, how many files |
 
-And it is asked afresh for every turn of the model a call takes. A [hook](/features/hooks) that
-sends the agent on says what to say next, and a shape that was only on the first prompt is one
-the last turn was never asked for.
+A shape with thirty fields is a form, and an agent busy filling in a form is not doing the
+work.
 
-## Two roads, one answer
+## When the answer does not fit
 
-A backend with a setting for this is held to it there — a flag of its command line, a setting
-of the turn. A backend with none is asked in the prompt instead. Each backend records which of
-the two it is, so a flow never has to know.
-
-**Either way the answer is read back through the model** — as the whole answer, then each
-fenced block in it, then the span from its first brace to its last, since a backend asked in the
-prompt may talk around the object. The road only decides who refuses a bad answer first.
-
-## An answer that is not the shape is a turn that did not do what it was told
-
-However cleanly the backend exited. So a turn asked for a shape that came back as something
-else raises `OutputSchemaError` rather than answering — which is also a `ValueError`, so a flow
-that already catches one catches the other.
-
-The branch a flow writes for that is "take this round again", and it is almost always the right
-one:
-
-```python
-try:
-    review = await reviewer.run(prompt, session=session, output_schema=Review)
-except OutputSchemaError:
-    continue  # the round is taken again
-```
-
-## Why a loop wants one
-
-A flow that has to decide something is a flow that has to read an answer. Is this finished?
-Does this plan belong to this repository? Which of these two ways should it be built?
-
-- **Booleans decide**, and steer the loop.
-- **Strings carry**, and become the next prompt word for word.
-- **A model with thirty fields is a form**, and a turn that fills in a form is a turn that did
-  not do the work. Two or three fields is usually the whole of a decision.
+An answer that is not in the shape fails the turn, however cleanly the agent finished. The
+flow never gets half an answer to act on. It gets a failed turn, and the usual response is to
+take that round again.
 
 ## The same decision, put to a person
 
-Given a shape, [the person at the prompt](/features/human) is not shown a JSON Schema. They are
-asked a question per field — the description is the question, a `Literal` becomes the words it
-offers, a `bool` becomes yes and no — and the model is built out of what they typed.
+Give [the person at the prompt](/features/human) the same shape and they get one short
+question per field: the field's description is the question, `yes` and `no` for a switch, the
+words on offer for a choice. Their answers come back as the same fields a model would have
+filled in, so the flow reads them the same way.
 
-Which is the point of stating the shape once: the same decision goes to a model or to a person,
-in the same shape, through the same `run`. A person who is away answers with the model's
-defaults where every field has one, and raises `OutworlderAway` where one does not — so a shape
-meant for a run nobody is watching gives its fields defaults.
+## Which CLIs hold the shape themselves
 
-## One more thing a shape moves
+Some CLIs take the shape as a setting of their own and keep the model to it. The rest are asked
+for it in the prompt, and the answer is checked when it comes back. The flow gets the same
+fields either way. The difference is that a model that was only asked is freer to miss, so on
+those CLIs a loop's retry does more work.
 
-On a backend that takes the schema as an argument of the process rather than of the turn,
-asking a session for a shape it was not started with ends that process and starts one that
-**resumes** the conversation. The conversation is not restarted; only the process is. It is the
-same thing [moving an effort](/user/efforts) does.
+| | CLIs |
+| --- | --- |
+| **Held by the CLI** | <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" /> <Badge type="tip" text="agy" /> <Badge type="tip" text="grok" /> <Badge type="tip" text="qwen" /> |
+| **Asked in the prompt** | <Badge type="info" text="cursor-agent" /> <Badge type="info" text="dsh" /> <Badge type="info" text="kimi" /> <Badge type="info" text="mimo" /> <Badge type="info" text="opencode" /> <Badge type="info" text="pi" /> <Badge type="info" text="zcode" />, and any CLI you add at [`/providers`](/user/providers) |
 
-## Where the detail is
+## Go further
 
-- [Answers in a shape](/weaver/shapes) — writing the model, and the failing branch
-- [Flows reference](/reference/flows#sessions-and-turns) — `run` and its `output_schema`
-- [Agents reference](/reference/agents#answering-in-a-shape) — the backends underneath
-- [You, as one of the agents](/features/human) — the same shape, asked of a person
+<div class="hmz-paths by-three">
+  <a :href="withBase('/weaver/shapes')">
+    <strong>Ask for one</strong>
+    <span>Writing the shape in a flow, and the branch for a turn that misses it.</span>
+  </a>
+  <a :href="withBase('/features/human')">
+    <strong>Put it to a person</strong>
+    <span>The same shape as a short questionnaire at the prompt.</span>
+  </a>
+  <a :href="withBase('/reference/flows')">
+    <strong>Flows reference</strong>
+    <span>Every argument of a turn, and every error it can raise.</span>
+  </a>
+</div>
