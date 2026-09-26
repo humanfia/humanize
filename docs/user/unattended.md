@@ -1,264 +1,237 @@
+<script setup>
+import SpecReader from '../.vitepress/theme/components/user-after/SpecReader.vue'
+</script>
+
 # Run it unattended
 
-`hmz exec` runs a flow with nobody at a prompt — which is what a script, a cron entry or a CI
-job wants. Reach for it once a run is the same run every time.
+`hmz exec` runs a flow with nobody at the prompt: from a script, a cron entry or a CI job. One
+line names everything the run needs, and the line answers the same questions the `/flow` sheet
+asks at the prompt.
 
-## The shape of the line
+## Try it
 
 ```sh
-hmz exec -f <flow> -a <role>=<agent>[,...] [-e <role>=<env>] [-p <key>=<value>] \
-    -b <budget> [--resume] [--json] "<task>"
+hmz exec -f ralph_loop \
+    -a agent=claude/claude-opus-5:high \
+    -b duration=2h,cost=10 \
+    "$(cat TASK.md)"
 ```
 
-| | |
+| Part | What it says |
 | --- | --- |
-| `-f` | the flow, by name or by path |
-| `-a` | an agent for each agent role the flow declares, by the role's name |
-| `-e` | an environment for each environment role the flow declares that humanize does not fill itself — usually none |
-| `-p` | the flow's params, one field apiece — only where you want other than its defaults |
-| `-b` | what the run may spend. **Required**, for every flow but `chat` |
-| the last argument | the task, as the text itself |
+| `-f ralph_loop` | The flow, by the name `/flow` offers it under, or a path. |
+| `-a agent=claude/claude-opus-5:high` | An agent for each role the flow declares. [Ralph loop](/flows/ralph-loop) has one, `agent`. |
+| `-b duration=2h,cost=10` | What the run may spend. Whichever limit is reached first stops it. |
+| `"$(cat TASK.md)"` | The task, as text. |
 
-Every flag but `-f` repeats and takes a comma-separated list, so a flow of four agents is one
-`-a` or four, whichever reads better in the line you are writing.
+`ralph_loop` comes from the official flowverse, which `hmz` fetches each time it starts. On a
+machine that has never run `hmz`, name the flow by its repository instead, as
+[in CI](/user/ci#name-the-flow-by-its-repository).
 
-```sh
-hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b output_tokens=10m "$(cat TASK.md)"
-```
+The run is drawn in your terminal as it happens, and the command returns when the flow does.
 
-## Write an agent
+::: warning Nobody approves anything
+A flow's agents run with approvals bypassed: nothing asks before an agent edits a file or runs
+a command. What each agent may touch is set by the flow. See [Permissions](/user/permissions).
+:::
 
-An agent is a CLI, an account, a model and an effort, and there is one way to write one:
-
-```
-<role>=<cli>[@<provider>]/<model>:<effort>
-```
+## Name an agent for each role
 
 ```
-agent=claude/claude-opus-5:high
-actor=claude@deepseek/claude-opus-5:high
-reviewer=codex/gpt-5.6-sol:max
+<role>=<cli>[@<account>]/<model>:<effort>
 ```
 
-The role in front says **which of the flow's agents this one is**, by the name the flow declares
-it under — `actor` and `reviewer` for [rlar](/flows/rlar), `agent` for
-[ralph_loop](/flows/ralph-loop). `@` names the [account](/user/providers) the turns run as — the
-account, not the model.
+- **role** is the name the flow gives the agent: `agent` for [ralph_loop](/flows/ralph-loop),
+  `actor` and `reviewer` for [rlar](/flows/rlar). Each flow's page lists its roles.
+- **cli** is one of `agy`, `claude`, `codex`, `cursor-agent`, `dsh`, `grok`, `kimi`, `mimo`,
+  `opencode`, `pi`, `qwen`, `zcode`, or a CLI you added at [`/providers`](/user/providers).
+- **@account** runs the turns as an [account](/user/providers) you made. Leave it off to run
+  the CLI as this machine is signed in.
+- **model** goes to the CLI as written. humanize does not check it against a list.
+- **effort** must be on that CLI's [ladder](/user/efforts); a CLI you added takes any word.
+  `auto` asks for none.
 
-```console
-$ hmz exec -f rlar -a actor=claude/claude-opus-5:max -b cost=20 "fix the build"
-hmz exec: error: rlar needs an agent for 'reviewer'; give each with -a ROLE=CLI/MODEL:EFFORT
-```
+The CLI is read up to the first `/` and the effort after the last `:`, so a model with slashes
+in it needs no quoting. Several agents go in one `-a`, comma-separated, or in one `-a` each.
+Type one below, or pick an example:
 
-Read an agent from both ends: the CLI comes first, and the effort comes after the **last**
-colon. That is why a model with slashes in it works:
+<SpecReader />
 
-```sh
-hmz exec -f ralph_loop -a agent=kimi/kimi-code/k3:swarmmax -b cost=5 "$(cat TASK.md)"
-hmz exec -f ralph_loop -a agent=pi/openai-codex/gpt-5.5:high -b cost=5 "$(cat TASK.md)"
-hmz exec -f ralph_loop -a agent=opencode/opencode/big-pickle:high -b cost=5 "$(cat TASK.md)"
-hmz exec -f ralph_loop -a agent=zcode/zai/glm-5.3:high -b cost=5 "$(cat TASK.md)"
-```
+You never name the person or the working directory. humanize fills those roles itself.
 
-`<model>` and `<effort>` are whatever the CLI is asked for. humanize does **not** check them
-against a list, so a model your account has still works even when this documentation does not
-mention it.
+## Set the budget {#say-what-the-run-may-spend}
 
-**You never write the person or the directory.** A role the flow types as an `Outworlder` is
-whoever is outside the run — nobody, here — and a role typed as a `LocalEnv` is the directory
-you ran `hmz exec` in. Both are filled by humanize, and naming either on the line is refused.
+A loop runs until something stops it, so every flow but `chat` needs a `-b`:
 
-## Say what the run may spend
-
-A loop runs until something stops it, so `hmz exec` will not start one without a `-b`:
-
-```sh
-hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b duration=6h,cost=50 "$(cat TASK.md)"
-```
-
-| | |
+| Key | Written as |
 | --- | --- |
 | `duration` | wall clock: `90s`, `1h30m`, `2d`, or ISO `PT6H` |
-| `cost` | USD: `50`, `$50` |
-| `output_tokens` | what the agents may write: `200k`, `10m` |
-| `graceful` | `false` cuts the turn under way off the moment a limit is reached; the default lets it finish |
+| `cost` | US dollars: `50` or `$50` |
+| `output_tokens` | tokens the agents may write: `200k`, `10m` |
+| `graceful` | `false` cuts off the turn under way when a limit is reached. By default it finishes. |
 
-At least one limit, and whichever is reached first stops the run. A flow calling another shares
-it: what the callee spends counts against the caller too. See [Every run has a
+Give at least one limit. When one is reached, the run stops, `hmz exec: stopped -- …` names the
+limit on stderr, and the exit status is still 0: for a loop, that is the ordinary way to end.
+A flow that calls another shares the budget with it. See [Every run has a
 budget](/features/allowances).
 
-## Narrow what an agent may do
+::: tip A cost limit needs a priced model
+`cost` can only stop a model humanize has a price for. For any other, `hmz exec` says so before
+the first turn, `hmz exec: nobody lists a price for <model>, so cost=10 cannot stop what it
+spends`, and runs anyway. Add a `duration` or `output_tokens` limit.
+:::
 
-The flow says it, on the role's type — not the line that runs it:
+## Watch it
 
-```python
-from hmz.flows import Agent, Permission, PermissionKind
-
-class Reviewer(Agent):
-    _permission = Permission(local=PermissionKind.READ)
-```
-
-```sh
-hmz exec -f ./review -a reviewer=codex/gpt-5.6-sol:high -b cost=5 \
-    "review this repository and write the findings to REVIEW.md"
-```
-
-Nothing a flow's agent does is ever put to anybody for approval, so a flow runs with nobody
-watching whatever it declares: a role that may write its directory runs at its CLI's
-nothing-asked mode, and one that may only read runs at its CLI's read-only one. See
-[Permissions](/user/permissions).
-
-## Run with nobody at a prompt
-
-Nobody at a prompt has one consequence: **nobody answers**. There is nothing to switch. It is
-[`/afk`](/user/afk) always.
-
-- A flow that talks to [the person](/weaver/human-agent) — such as `chat` — is answered with
-  nothing: `""`, or the answer a shape's defaults make. `chat` does the one thing it was given,
-  once.
-- A flow that asks the person for [an answer in a shape](/weaver/shapes) with a field that has
-  no default gets `OutworlderAway` raised, and the weaver who wrote it had better have handled
-  that.
-- An agent that stops mid-turn to ask a question is told nobody answered and carries on, unless
-  the flow answers it itself.
-
-## Watch it while it runs
-
-At a terminal, the run is drawn as it happens — which agent is working, what it says, the
-tools it runs, and what each turn cost when it lands. A turn thinks for minutes and says
-nothing for most of them, so a clock sits at the foot of the screen while it does:
+At a terminal, each agent's work is drawn as it happens, with a clock at the foot while a turn
+thinks:
 
 ```console
 $ hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b cost=5 "$(cat TASK.md)"
+round 1
 ● agent is working
 ● Bash(pytest -q tests/)
 ● I fixed add() and the tests pass.
 ✻ input 40.0k · output 1.2k · $0.61 · claude-opus-5 · agent
 ✻ Worked for 74s · agent
+round 2
+● agent is working
+⠹ agent is working · 12s
 ```
 
-Redirect it and the escape sequences go: the same lines, plain. What each turn **answered**
-goes to stdout and the run itself to stderr, so a script reads one without the other:
+Redirect it and the same lines come out plain. The run goes to **stderr**. What each turn
+answered, and whatever the flow prints, goes to **stdout**, so a script can take one without
+the other:
 
 ```sh
-hmz exec -f chat -a assistant=claude/claude-opus-5:high "summarise CHANGELOG.md" > summary.txt
-hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b cost=5 "$(cat TASK.md)" 2> run.log
+hmz exec -f chat -a assistant=claude/claude-opus-5:high \
+    "summarise CHANGELOG.md" > summary.txt
+hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b cost=5 \
+    "$(cat TASK.md)" 2> run.log
 ```
 
-`NO_COLOR` turns colour off outright; `FORCE_COLOR` turns it on for a log that renders it.
+`NO_COLOR` turns colour off. `FORCE_COLOR=1` turns it on for a log viewer that renders it.
 
-## Read it with a program
+## Check the line before you schedule it
 
-`--json` writes the run as [NDJSON](https://github.com/ndjson/ndjson-spec) — one object per
-thing an agent says, on stdout, flushed as it is said:
+`hmz exec` checks everything it can before the first turn: a line it can't read, a missing
+role or budget, an effort off the CLI's ladder, a flow that isn't there. Each is refused in a
+second, with exit status 2, before any agent starts. So try the line by hand once:
+
+![hmz exec refusing a run with no budget, a flow whose role was left unfilled, and a flow
+that is not there](/demo/checks.gif)
+
+## Script on the exit status
+
+| Status | Means |
+| --- | --- |
+| `0` | The flow returned, or its budget stopped it. |
+| `1` | The run failed: the flow raised an error it did not handle. The traceback on stderr says which. |
+| `2` | Refused before any agent started. The line after `hmz exec: error:` says why. |
+| `130` | Interrupted with <kbd>ctrl+c</kbd>. |
 
 ```sh
-hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b cost=5 --json "$(cat TASK.md)" \
-    | jq -c 'select(.kind == "result")'
+if ! hmz exec -f goal -a worker=claude/claude-opus-5:max -b duration=4h "$(cat TASK.md)"; then
+    echo "the loop did not finish" >&2
+    exit 1
+fi
 ```
 
-Every object carries the agent, the backend and model, the conversation, the kind of thing it
-was, the words, what the turn cost and when — the keys are in the
-[CLI reference](/reference/cli#watching-a-run). While `--json` is on, nothing else reaches
-stdout: whatever the flow prints goes to stderr, so one stray line cannot break the stream.
+## When nobody answers
 
-## See what is checked first
+With nobody at a prompt, the run behaves as if you were [away](/user/afk) the whole time:
 
-Run these on purpose. Each is refused before a single turn:
+- A flow that talks to you is answered with nothing, so `chat` does the one thing it was given
+  and returns.
+- An agent that stops to ask a question is told nobody answered, and carries on.
+- A flow that needs an answer it has no default for fails, and says so.
 
-```console
-$ hmz exec -f rlar -a actor=claude/claude-opus-5:max -b cost=20 "fix the build"
-hmz exec: error: rlar needs an agent for 'reviewer'; give each with -a ROLE=CLI/MODEL:EFFORT
+## Stop it, and pick it up again
 
-$ hmz exec -f ralph_loop -a claude/claude-opus-5:high -b cost=5 "fix the build"
-usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
-                [-p KEY=VALUE[,...]] [-b KEY=VALUE[,...]] [--resume] [--json]
-                task
-hmz exec: error: -a 'claude/claude-opus-5:high': expected <role>=<harness>[@<provider>]/<model>:<effort>
+<kbd>ctrl+c</kbd> stops the run: the turn under way ends, its work stays where it got to, and
+the command exits `130`. [`/epics`](/user/tracing#what-a-run-writes-down) lists the run as
+stopped.
 
-$ hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high "fix the build"
-hmz exec: error: ralph_loop: a run is given a budget -- -b duration=...,cost=...,output_tokens=... -- and this one was given none
-```
-
-Everything that can be known before the first turn is checked before the first turn: a missing
-role, an agent whose CLI cannot do what its role declares, params the flow's model refuses, a
-budget that limits nothing. An hour into a loop is the wrong place to find out you miscounted.
-
-![hmz exec refusing a malformed agent, a missing role, and a flow that is not
-there](/demo/checks.gif)
-
-## Pass a task that starts with a dash
-
-`--` ends the flags, so a task that starts with a dash is read as the task:
+A flow that can be [picked up](/user/resuming), such as `ralph_loop`, carries on from there
+when you run the same line with `--resume`:
 
 ```sh
-hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b cost=5 -- "--force is not a flag here"
+hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b duration=2h \
+    --resume "$(cat TASK.md)"
 ```
 
-## Run a flow with params
+## Pass params and environments
 
-For a flow that [takes params of its own](/weaver/flow-settings), write each one you want other
-than its default with `-p`:
+A flow with [params of its own](/weaver/flow-settings) takes each one you want to change with
+`-p`. The flow checks the whole set before the first turn:
 
 ```sh
 hmz exec -f humanize1:rlcr -p max=9,plan_file=docs/plan.md \
-    -a builder=claude/claude-opus-5:max -a reviewer=codex/gpt-5.6-sol:xhigh \
+    -a builder=claude/claude-opus-5:max \
+    -a reviewer=codex/gpt-5.6-sol:xhigh \
     -b duration=12h,cost=100 "add undo"
 ```
 
-Each value is read as its field's type — and as JSON where that is what reads it, for a list or
-a mapping — and the flow's own model checks the lot **before the first turn**, so a combination
-the flow will not run is refused where you wrote it.
+A flow that works on another machine takes it with `-e`, as `role=local@/abs/path` or
+`role=ssh@[user@]host[:port]/path`. Most flows have no such role. See [Remote
+execution](/user/remote-execution).
 
-## Read the exit status
+## Read it with a program
 
-| | |
-| --- | --- |
-| `0` | it did what it was asked, or spent its budget — said as `hmz exec: stopped -- …` |
-| `1` | it could not — no such provider, target unreachable, a turn that could not be supervised |
-| `2` | the command line was wrong |
-| `130` | interrupted |
-
-You can script on these statuses:
+`--json` writes the run to stdout as [NDJSON](https://github.com/ndjson/ndjson-spec): one
+object per thing an agent says, flushed as it is said. Nothing else reaches stdout, so the
+stream always parses:
 
 ```sh
-hmz exec -f goal -a worker=claude/claude-opus-5:max -b duration=4h "$(cat TASK.md)" || {
-    echo "the loop did not finish" >&2
-    exit 1
+hmz exec -f chat -a assistant=claude/claude-opus-5:high --json "say hello" \
+    | jq -c 'select(.kind == "result")'
+```
+
+Each object is one line in the stream, spread out here:
+
+```json
+{
+  "at": 1789026740.6,
+  "agent": "assistant",
+  "cli": "claude",
+  "model": "claude-opus-5",
+  "session": "1d1ff959",
+  "kind": "result",
+  "text": "Hello.",
+  "whose": "",
+  "tokens": {"claude-opus-5": 2080},
+  "spent": {"input": 2000, "output": 80}
 }
 ```
 
-## Stop a run
+Every object carries every key. `kind` is one of:
 
-Stop it with **ctrl+c**. The interrupt reaches the whole process group, so the agent's own
-process takes it too. The turn under way dies with it, what it was doing is left where it got
-to, and the command exits `130`.
+| `kind` | The agent… |
+| --- | --- |
+| `begins`, `ends` | starts and finishes a turn |
+| `text`, `reasoning` | says something, or thinks aloud |
+| `tool` | uses a tool |
+| `subagent`, `subagent-ends` | starts an agent of its own, which later finishes |
+| `asks` | stops to ask a question |
+| `took` | has a line steered into the turn in front of it, and says which |
+| `notice` | is waiting out a rate limit, moved to another account, or cut off (humanize says this, not the agent) |
+| `failed` | failed the turn |
+| `result` | gives the answer the turn ends on. Only this one carries `tokens` (by model) and `spent` (by kind of token). |
 
-The [epic](/user/tracing#what-a-run-writes-down) records that run as **`stopped`**, as it
-does a run [told to stop by hand](/user/stopping) with ctrl+c twice or `/stop` in the interface,
-and a run its budget stopped: a run interrupted from outside is stopped, whatever the turn under
-way made of it.
+The full list of keys is in the [CLI reference](/reference/cli).
 
-A flow that says it [can be picked up](/user/resuming) carries on from what that run left
-behind: the same line with `--resume` picks up the newest run of that flow here, or
-type `/resume` in the interface.
+::: details A task that starts with a dash
+Put `--` before it, so it is read as the task rather than a flag:
 
-## Checking a line before it goes into cron
-
-There is no line that opens the interface on a setup: `hmz` with no command opens on whatever
-that directory was [last set up to run](/reference/tui#what-it-remembers), and the flow, its
-roles, its params and its budget are chosen at the prompt. So a line bound for cron is checked
-by running it — everything knowable before the first turn is refused before the first turn,
-which is why the refusals above cost two seconds rather than forty minutes.
-
-For a run that is always the same run, set it up once at the prompt and leave it: `hmz` in that
-directory opens on it every morning, and the line stays in cron for the nights nobody is there.
+```sh
+hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b cost=5 \
+    -- "--force is not a flag here"
+```
+:::
 
 ## See also
 
-- [Permissions](/user/permissions)
-- [Params of its own](/weaver/flow-settings)
-- [Tracing](/user/tracing) — what a run writes down, and reading it back
-- [Stopping](/user/stopping)
-- [Picking a run up](/user/resuming) — carrying a stopped loop on where it left off
-- [humanize in CI](/user/ci)
+- [humanize in CI](/user/ci): the same line in a scheduled job
+- [Picking a run up](/user/resuming)
+- [Tracing a run](/user/tracing): what the run did, as a timeline
+- [CLI reference](/reference/cli): every flag of `hmz exec`

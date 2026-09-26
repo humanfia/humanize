@@ -1,161 +1,15 @@
 # humanize in CI
 
-Run a flow on a schedule, open a pull request with what it did, and keep a trace you can read
-afterwards — an agent working through a task while nobody is watching. Only the YAML below is
-specific to GitHub Actions.
+Run a flow from a scheduled job, open a pull request with what it changed, and keep a trace of
+what each agent did. The workflow below is GitHub Actions; everything else on this page works
+on any CI that can run a shell.
 
-## What changes when nobody is watching
+## Try it
 
-| | |
-| --- | --- |
-| **Questions** | An agent that asks is told nobody answered and carries on. There is nothing to switch — see [Being away](/user/afk). |
-| **The person** | A flow's `Outworlder` is away: it answers `""`, or the defaults of the shape it was asked for, so a conversation flow does the one thing it was given and returns. |
-| **Settings** | `hmz exec` reads nothing and remembers nothing. The line is the whole configuration. |
-| **Stopping** | Nobody is there to stop it — which is why `hmz exec` will not start a flow without a `-b` saying what the run may spend. |
-| **The log** | A job log is not a terminal, so the run is written to stderr with no escape sequences in it. Set `FORCE_COLOR: "1"` on the job for colour a log viewer renders; `NO_COLOR` turns it off whatever else is set. |
+Commit a `TASK.md` saying what the loop should work on and the [`ci/trace.py`](#keep-a-trace)
+script below, add the secret your agent's CLI signs in with, and add this workflow:
 
-## Watch the run from the job
-
-The job log gets the run as it happens: which agent is working, what it said, the tools it
-ran, and what each turn cost. Nothing has to be switched on.
-
-For a step that reads the run rather than displays it, `--json` writes
-[NDJSON](https://github.com/ndjson/ndjson-spec) on stdout — one object per thing an agent
-says, flushed as it is said, and nothing else in the stream:
-
-```sh
-hmz exec -f nightly -a agent=claude@ci/claude-opus-5:high -b duration=45m,cost=10 --json "$(cat TASK.md)" \
-    | tee run.ndjson \
-    | jq -r 'select(.kind == "tool") | .text'
-```
-
-```sh
-# what the whole run cost, in tokens
-jq -s 'map(.spent.input // 0) | add' run.ndjson
-```
-
-The keys are in the [CLI reference](/reference/cli#watching-a-run). Without `--json`, what
-each turn answered is on stdout and the run itself on stderr, so `> answer.txt` gets the
-answers alone.
-
-## Bound the run
-
-A Ralph loop is a loop, and a CI job has a bill. The run's budget is the bound that is
-humanize's rather than the flow's — `-b duration=45m,cost=10`, whichever is reached first, and
-the line will not run without one. What is the flow's is when the work is done, and how many
-rounds it is worth — this part is the [weaver's](/weaver/writing-a-flow):
-
-```python
-# .humanize/flows/nightly/__init__.py
-"""One pass over TASK.md, a fresh session a round, until nothing on it is left unticked."""
-
-from hmz.flows import (
-    Agent,
-    AgentCollection,
-    EnvCollection,
-    FilesEnvMixin,
-    FlowContext,
-    FlowParams,
-    HarnessError,
-    LocalEnv,
-    flow,
-)
-
-
-class Workspace(LocalEnv, FilesEnvMixin): ...
-
-
-class Agents(AgentCollection):
-    agent: Agent
-
-
-class Envs(EnvCollection):
-    workspace: Workspace
-
-
-class Params(FlowParams):
-    rounds: int = 12
-
-
-@flow(agents=Agents, envs=Envs, params=Params)
-async def nightly(task: str, *, agents: Agents, envs: Envs, params: Params, ctx: FlowContext):
-    agent, workspace = agents["agent"], envs["workspace"]
-    for _ in range(params.rounds):                                # rounds
-        session = await agent.spawn(env=workspace)
-        try:
-            await agent.run(task, session=session)
-        except HarnessError:
-            continue                                              # a failed round, and round again
-        if b"- [ ]" not in await workspace.read("TASK.md"):       # the finish line
-            return
-```
-
-And give the job a `timeout-minutes` as the outermost bound.
-
-## Get a credential into the runner
-
-humanize holds no API key. It drives the CLI you already logged in, so the question is how that
-CLI is signed in on a machine nobody is sitting at. Use a [provider](/user/providers) — and make
-it from Python, since the way accounts are made is a walk at the prompt and a runner has no
-prompt to walk:
-
-```python
-# ci/account.py
-import os
-
-from hmz.sdk import Hmz
-
-accounts = Hmz().accounts
-accounts.make(
-    "claude",
-    "ci",
-    accounts.way("claude", "token"),
-    {"CLAUDE_CODE_OAUTH_TOKEN": os.environ["CLAUDE_TOKEN"]},
-)
-```
-
-`accounts.way(cli, name)` is the way in that backend offers under that name, and
-`accounts.ways(cli)` is all of them — each says which variables it has to be told, so a runner
-answers them out of its secrets rather than out of a terminal. Codex is the same script with
-`("codex", "ci", accounts.way("codex", "key"), {"OPENAI_API_KEY": os.environ["OPENAI_API_KEY"]})`.
-Writing the account down is all it does: a way with a login command of its own would want a
-browser, and a token or a key is exactly the way in that does not.
-
-Then name the account on the agent, with `@` in front of it:
-
-```sh
-hmz exec -f nightly -a agent=claude@ci/claude-opus-5:high -b duration=45m,cost=10 "$(cat TASK.md)"
-```
-
-::: tip Why a provider rather than an exported variable
-A turn under a provider is run with every **other** account's variables unset. An
-`ANTHROPIC_API_KEY` in the environment is a key the CLI would rather have than the one you
-meant, and the turn would be taken as the wrong account with nothing looking wrong.
-:::
-
-## Narrow what it may do
-
-What an agent may touch is declared by the flow, not by the line that runs it, so narrowing it
-on a runner means writing it into the flow the runner runs:
-
-```python
-# .humanize/flows/nightly/__init__.py
-from hmz.flows import Agent, Permission, PermissionKind
-
-
-class Worker(Agent):
-    _permission = Permission(user=PermissionKind.NONE, system=PermissionKind.NONE)
-```
-
-and typing the role `agent: Worker`. The line that runs it is the same line either way — an
-agent is a CLI, an account, a model and an effort, and nothing on it says what the agent may
-do. Nothing is ever put to anybody for approval, so the flow runs with nobody watching whatever
-it declares; a permission bounds what the agent's tools reach, not what a command it runs does.
-See [Permissions](/user/permissions).
-
-## Write the workflow
-
-```yaml
+```yaml{30-38}
 # .github/workflows/nightly.yml
 name: nightly
 
@@ -174,147 +28,196 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
 
-      - uses: astral-sh/setup-uv@v9.0.0
-
-      - name: Install the coding agent CLI
-        run: npm install -g @anthropic-ai/claude-code
-
-      # A backend behind an extra wants it named here -- `uv pip install --system
-      # 'hmz[all] @ git+https://github.com/humanfia/humanize.git'` for DeepSeek Harness or
-      # Kimi Code. `claude` is a CLI and wants neither.
-      - name: Install humanize
-        run: uv pip install --system git+https://github.com/humanfia/humanize.git
-
-      - name: Sign the CLI in as an account of its own
-        env:
-          CLAUDE_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: python ci/account.py
+      # For Kimi Code or DeepSeek Harness, install 'hmz[all] @ git+https://…' instead.
+      - name: Install the agent's CLI and humanize
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          uv venv --python 3.12 "$RUNNER_TEMP/hmz"
+          uv pip install --python "$RUNNER_TEMP/hmz/bin/python" \
+            git+https://github.com/humanfia/humanize.git
+          echo "$RUNNER_TEMP/hmz/bin" >> "$GITHUB_PATH"
 
       - name: Run the loop
-        # The hmz exec line, kept in the repository: see below.
-        run: bash ci/nightly.sh
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          hmz exec \
+            -f 'git+https://github.com/humanfia/flowverse@main#ralph_loop' \
+            -a agent=claude/claude-opus-5:high \
+            -b duration=45m,cost=10 \
+            "$(cat TASK.md)"
 
-      - name: Collect the trace
+      - name: Trace the run
         if: always()
-        run: python ci/trace.py
+        continue-on-error: true
+        run: python ci/trace.py "$RUNNER_TEMP/trace.json"
 
       - uses: actions/upload-artifact@v5
         if: always()
+        continue-on-error: true
         with:
           name: trace
-          path: trace.json
+          path: ${{ runner.temp }}/trace.json
 
       - uses: peter-evans/create-pull-request@v7
         with:
           branch: nightly/${{ github.run_id }}
           title: "nightly: what the loop did"
-          body: "Ran `nightly` for up to 45 minutes. The trace is on the run's artifacts."
 ```
 
-## Read what happened
+The highlighted step is the run itself: the same `hmz exec` line you would type at a terminal,
+explained in [Run it unattended](/user/unattended). The rest of this page goes through the
+steps around it.
 
-Gathering the trace with `if: always()` is the point of the whole exercise: it is on the
-artifacts whether the run finished, failed, or hit the timeout.
+::: warning The agents run unsupervised, with the job's access
+A flow's agents run with approvals bypassed, and on a runner they can reach whatever the job
+can: its token, its secrets, the network. Give the job only the `permissions` and secrets it
+needs. See [Permissions](/user/permissions).
+:::
 
-At a terminal a trace is gathered from [`/epics`](/reference/tui#the-runs-that-have-already-happened),
-which is a list nobody is there to read on a runner. The same thing from Python is four lines:
+## Sign the agent's CLI in
+
+humanize holds no credentials. An agent with no `@account` runs its CLI as the runner has
+signed it in, so sign it in the way that CLI supports without a browser:
+
+::: code-group
+
+```yaml [Claude Code]
+# a token from `claude setup-token`, stored as a repository secret
+- name: Run the loop
+  env:
+    CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+  run: hmz exec -f … -a agent=claude/claude-opus-5:high …
+```
+
+```yaml [Codex]
+# install @openai/codex rather than claude-code, then hand Codex's own login an API key
+- name: Sign Codex in
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  run: printenv OPENAI_API_KEY | codex login --with-api-key
+- name: Run the loop
+  run: hmz exec -f … -a agent=codex/gpt-5.6-sol:high …
+```
+
+:::
+
+A CLI that is not signed in is not caught before the run: each turn fails, and a loop such as
+Ralph loop goes on past failed turns and can still exit 0. Run the job by hand once and read
+its log before you leave it to the schedule.
+
+To run agents as named [accounts](/user/providers) on the runner instead, make them from
+Python with `Hmz().accounts` before the run. See the [SDK reference](/reference/sdk).
+
+## Name the flow by its repository
+
+A fresh runner has fetched no flowverse, so a bare `-f ralph_loop` is refused there. Name the
+flow by its repository instead, as the workflow does:
+
+```sh
+-f 'git+https://github.com/humanfia/flowverse@main#ralph_loop'
+```
+
+Replace `main` with a commit to pin the flow, so a change upstream cannot change what runs at
+night. A flow of your own needs none of this: commit it to `.humanize/flows/` and name it with
+`-f <name>`.
+
+::: tip The line is the whole setup
+`hmz exec` does not open on what the interface was set up with in this directory. It still uses
+what the machine holds: the flowverses it has fetched, its [accounts](/user/providers), its
+[fallbacks](/user/fallback) and any CLI added at `/providers`, and it reads whether
+[reporting](/user/reporting) was answered yes and whether this directory's runs are
+[profiled](/user/tracing#profiling-a-run). A fresh runner holds none of these.
+:::
+
+## Bound the run twice
+
+`-b duration=45m,cost=10` is humanize's limit: whichever is reached first stops the run, and
+the step still exits 0. A [Ralph loop](/flows/ralph-loop) usually ends this way.
+`timeout-minutes` is GitHub's. Keep it well above the duration: the installs count against it,
+and the turn under way when the budget runs out is let finish unless the budget says
+`graceful=false`.
+
+## Read the job log
+
+The job log shows the run as it happens: which agent is working, what it says, the tools it
+runs, and what each turn cost. A job log is not a terminal, so the lines come out plain. Set
+`FORCE_COLOR: "1"` on the step for colour a log viewer renders.
+
+For a step that reads the run rather than shows it, add `--json`:
+
+```yaml
+- name: Run the loop
+  shell: bash # adds pipefail: the step fails when hmz exec does
+  run: |
+    hmz exec … --json "$(cat TASK.md)" \
+      | tee "$RUNNER_TEMP/run.ndjson" \
+      | jq -r 'select(.kind == "tool") | .text'
+```
+
+```sh
+# output tokens across the whole run
+jq -s 'map(.spent.output // 0) | add' "$RUNNER_TEMP/run.ndjson"
+```
+
+The objects are described in [Run it unattended › Read it with a
+program](/user/unattended#read-it-with-a-program).
+
+## Keep a trace
+
+At a terminal you get a trace from [`/epics`](/user/tracing). A runner has no prompt, so the
+workflow calls the same thing from Python:
 
 ```python
 # ci/trace.py
+"""Trace the run that just happened, and say how it ended."""
+
+import sys
+
 from hmz.sdk import Hmz
 
-hmz = Hmz()
-runs = hmz.epics.all()          # every run of this directory, oldest first
-if runs:
-    hmz.epics.traced(runs[-1], output="trace.json")
+epics = Hmz().epics
+if runs := epics.all():  # every run in this directory, oldest first
+    run = runs[-1]
+    epics.traced(run, output=sys.argv[1])
+    ran = epics.read(run)
+    print("the run ended:", ran.how if ran and ran.how else "unfinished")
 ```
 
-`output` is what puts it in the checkout. Left alone, a trace goes with the run it is a trace
-of — `traces/` inside `~/.humanize/epics/<workspace>/<run>/`, which is outside the checkout and
-named after a run the YAML has never heard of.
-
-`traced` takes **one run**, which is why the last one is picked out rather than the directory
-handed over whole: a runner that has been round this loop fifty times has fifty runs in that
-directory, and a trace holding all of them is a trace of nothing anybody asked about.
-
-Download it and drag it into [ui.perfetto.dev](https://ui.perfetto.dev): one process per agent,
-one track per row of its sessions, one slice per thing it did, with the prompts and the tool
-output attached. See [Tracing](/user/tracing).
-
-The [epic](/user/tracing#what-a-run-writes-down) says how it ended — a run is a directory, and
-its record is `epic.jsonl` inside it:
-
-```sh
-tail -1 ~/.humanize/epics/*/*/epic.jsonl
-```
-
-```console
-{"event":"ended","at":"...","how":"done"}
-```
-
-`done`, `failed`, or `stopped`. Assert on it if you want the job to go red when the loop gave
-up rather than finished.
+The workflow runs it with the Python humanize was installed with, and writes the trace outside
+the checkout so the pull request does not pick it up. Download the `trace` artifact and drop it
+into [ui.perfetto.dev](https://ui.perfetto.dev): a process per agent, a slice per thing it
+did. See [Tracing a run](/user/tracing).
 
 ## Act on the exit status
 
-```sh
-bash ci/nightly.sh || {
-    echo "::error::the loop did not finish"
-    exit 1
-}
-```
-
-| | |
+| Status | Means |
 | --- | --- |
-| `0` | it did what it was asked |
-| `1` | it could not — no such provider, target unreachable |
-| `2` | the command line was wrong |
-| `130` | interrupted |
+| `0` | The flow returned, or its budget stopped it. |
+| `1` | The run failed: the flow raised an error it did not handle. |
+| `2` | Refused before any agent started: an `-a` it can't read, a role left unfilled, no `-b`, a flow that isn't there. |
+| `130` | Interrupted. |
 
-A wrong `-a`, a role left unfilled or a missing `-b` is a `2` **before any agent runs**: a
-scheduled job fails in two seconds rather than in forty minutes.
+A `2` fails the job in seconds rather than after forty minutes. The pull request step runs only
+when the loop succeeded, so a failed run opens nothing.
 
-## Make the run cheap to reproduce
+::: tip Keep the line in the repository
+Put the `hmz exec` line in a script, such as `ci/nightly.sh`, and call that from the workflow.
+Then you can run exactly what CI runs on your own machine, and a change to the line is reviewed
+like any other change.
+:::
 
-Keep the line in the repository, not in the workflow:
-
-```sh
-# ci/nightly.sh
-hmz exec -f nightly -a agent=claude@ci/claude-opus-5:high -p rounds=12 -b duration=45m,cost=10 "$(cat TASK.md)"
-```
-
-Now the same line runs on your own machine, and the file in the repository is what both of
-them run. At a terminal the same answers are given on the sheet
-[`/flow` puts up as the flow is chosen](/reference/tui#setting-a-flow-up), and what you answer
-there is what the next `hmz` in that directory opens on. The script is the version that can be
-reviewed in a pull request, which is why it is the one CI runs.
-
-## Things that bite
-
-**A flow that needs a feature the runner's backend has not got.** The weaver says so on the
-role's type — `class Worker(Agent, GoalCommandAgentMixin)` — and an agent whose CLI cannot serve
-it is refused up front. See [Port a project](/user/tutorials/port-a-project).
-
-**A flowverse that has not been fetched.** `-f` says so rather than saying there is no such
-file — for a name qualified by a place and for a bare one alike, humanize's own flows being
-bare. Fetch it in the job, or vendor the flow into `.humanize/flows/`.
-
-**Nothing in the working tree.** A loop that made no change should not open an empty pull
-request:
-
-```sh
-git diff --quiet && { echo "nothing changed"; exit 0; }
-```
-
-**A flow whose environment is another machine.** Its trajectories are in a mirror rather than
-in the checkout, and they still trace: the run wrote down the ids. See
-[Remote execution](/user/remote-execution).
+::: details `--resume` on a fresh runner
+The runs a flow picks up from are kept on the machine that ran them, so on a runner that starts
+empty every night, `--resume` has nothing to pick up and the line is refused with status 2.
+Leave it off in CI.
+:::
 
 ## See also
 
-- [Being away](/user/afk)
+- [Run it unattended](/user/unattended)
+- [Tracing a run](/user/tracing)
 - [Providers](/user/providers)
 - [Permissions](/user/permissions)
-- [Tracing](/user/tracing)
-- [Port a project](/user/tutorials/port-a-project)
