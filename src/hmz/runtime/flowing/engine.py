@@ -716,6 +716,9 @@ class _Clock:
     that it is waiting on -- awaited, gathered, or in a task group -- and is turned back
     into `DurationExceeded` where it leaves the call, as `asyncio.timeout` does. A graceful
     budget lets the turns under way under the call finish first.
+
+    Named by `ref`, which is the call's own but for a run's, whose call is no flow's: that
+    one's deadline is said as the flow the run was started with.
     """
 
     __slots__ = (
@@ -726,13 +729,21 @@ class _Clock:
         "handle",
         "inflight",
         "node",
+        "ref",
         "task",
     )
 
     def __init__(
-        self, node: Call, task: asyncio.Task[Any], delay: float, *, graceful: bool
+        self,
+        node: Call,
+        task: asyncio.Task[Any],
+        delay: float,
+        *,
+        graceful: bool,
+        ref: str,
     ) -> None:
         self.node = node
+        self.ref = ref
         self.task = task
         self.cancelling = task.cancelling()
         self.graceful = graceful
@@ -770,7 +781,7 @@ class _Clock:
         self.handle = None
         if not self.node.ended:
             self.fired = True
-            self.task.cancel(f"{self.node.ref}: its budget's duration is spent")
+            self.task.cancel(f"{self.ref}: its budget's duration is spent")
 
     def settle(self) -> DurationExceeded | None:
         """What a `CancelledError` leaving the call is: the deadline's, or somebody else's."""
@@ -779,7 +790,7 @@ class _Clock:
         self.fired = False
         if self.task.uncancel() > self.cancelling:
             return None
-        return DurationExceeded(f"{self.node.ref}: its budget's duration is spent")
+        return DurationExceeded(f"{self.ref}: its budget's duration is spent")
 
     def stop(self) -> None:
         """The call is over: the timer goes, and a cancel it sent that nobody saw is taken back."""
@@ -1099,7 +1110,11 @@ class Call:
         task = asyncio.current_task()
         if task is not None:
             self.clock = _Clock(
-                self, task, deadline - time.monotonic(), graceful=own.graceful
+                self,
+                task,
+                deadline - time.monotonic(),
+                graceful=own.graceful,
+                ref=self.ref,
             )
 
     def record(self) -> LiveCall:
@@ -1742,6 +1757,7 @@ async def run_flow(
                 running_task,
                 top.deadline - time.monotonic(),
                 graceful=budget.graceful,
+                ref=impl.ref,
             )
         token = CALLING.set(top)
         try:

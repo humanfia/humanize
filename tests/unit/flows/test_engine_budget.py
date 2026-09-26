@@ -411,6 +411,22 @@ async def test_a_hard_deadline_interrupts_the_turn_under_way() -> None:
     assert driver.sessions[0].closed
 
 
+async def test_a_run_its_deadline_stops_says_which_flow_it_was() -> None:
+    """The run's own call is no flow's, so its deadline is said as the flow it was started with."""
+
+    @flow(agents=Solo, envs=Place, params=Depth)
+    async def sleeping(
+        task: str, *, agents: Solo, envs: Place, params: Depth, ctx: FlowContext
+    ) -> None:
+        await asyncio.sleep(30)
+
+    with pytest.raises(DurationExceeded) as raised:
+        await run_fake(
+            sleeping, budget=Budget(duration=datetime.timedelta(seconds=0.05))
+        )
+    assert str(raised.value) == f"{__name__}:sleeping: its budget's duration is spent"
+
+
 async def test_a_spent_deadline_refuses_the_next_turn() -> None:
     @flow(agents=Solo, envs=Place, params=Depth)
     async def late(
