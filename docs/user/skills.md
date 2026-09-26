@@ -1,157 +1,82 @@
 # Skills
 
-Skills come in two kinds, and the difference between them is who they belong to. Neither kind
-is a setting of an agent: what a person installed is that CLI's own, and what a flow brings is
-the flow's. Use this page to see which skills an agent loads, and — if the flow is yours — to
-change what it brings.
+An agent in a flow carries two sets of skills: the ones you installed for its CLI, and the ones
+the flow brings. Neither is a setting of the agent, and humanize never changes what you
+installed.
 
-| | |
-| --- | --- |
-| **the CLI's own** | installed on this machine, the way that CLI installs one. humanize reads the list and changes nothing |
-| **the flow's own** | in the flow's `skills/`, mounted onto every session its agents open and taken away again after |
+| | Yours | The flow's |
+| --- | --- | --- |
+| **Where they live** | where that CLI keeps skills, for you and for this project | in the flow's own `skills/` directory, or a git repository it names |
+| **Which agents carry them** | every agent of that CLI | the roles the flow gives them to |
+| **Turned on and off** | the way that CLI turns one off | by the flow alone |
 
 ## Try it
 
-There is nothing to try in the interface, and that is the point: the skills a CLI finds are
-that CLI's own. To see what one agent will be carrying, ask the CLI where it keeps them, or
-ask humanize from Python:
+See what a Claude Code agent will carry of yours and of this project:
 
-```python
-from hmz.coganchor.agents.skills import skills
-
-for one in skills("claude"):
-    print(one.name, one.whose)
+```sh
+ls ~/.claude/skills .claude/skills
 ```
 
-There is nothing to switch here, either kind. To change what a **flow** brings, change the
-flow: press `f` on it in `/flow` to copy it into `.humanize/flows/`, skills and all. From then
-on that name means your copy, and what it brings is yours to edit as its author.
+Now run a flow that brings a skill, such as [`rlar`](/flows/rlar) with Claude Code as its
+reviewer, and list `.claude/skills` again while the reviewer works. `review-notes` is there, the
+flow's own, until the reviewer's session ends.
 
-## The CLI's own skills
+## Your skills, CLI by CLI
 
-A skill you installed loads for every agent of that CLI. It switches off where that CLI
-switches one off, and it is not a setting of any agent. Where each CLI keeps them is written
-down in `hmz.coganchor.backends`:
+A skill you installed loads for every agent of that CLI, in every flow. These are the places
+each CLI reads:
 
 | Backend | Yours | This project's |
 | --- | --- | --- |
-| `agy` | `~/.gemini/antigravity-cli/skills/*/SKILL.md` | `.agents/skills/*/SKILL.md` |
-| `claude` | `~/.claude/skills/*/SKILL.md` | `.claude/skills/*/SKILL.md` |
-| `codex` | `~/.codex/skills/*/SKILL.md`, `~/.agents/skills/*/SKILL.md` | `.agents/skills/*/SKILL.md`, `.codex/skills/*/SKILL.md` |
-| `cursor-agent` | `~/.cursor/skills/*/SKILL.md`, `~/.config/cursor/skills/*/SKILL.md` | `.cursor/skills/*/SKILL.md` |
-| `grok` | `~/.grok/skills/*/SKILL.md`, `~/.agents/skills/*/SKILL.md`, `~/.claude/…`, `~/.cursor/…` | `.grok/skills/*/SKILL.md`, `.agents/…`, `.claude/…`, `.cursor/…` |
-| `kimi` | `~/.kimi-code/skills/*/SKILL.md`, `~/.agents/skills/*/SKILL.md` | `.kimi-code/skills/*/SKILL.md`, `.agents/skills/*/SKILL.md` |
-| `mimo` | `~/.config/mimocode/skill(s)/*/SKILL.md`, `~/.agents/…`, `~/.claude/…`, `~/.codex/…` | `.mimocode/skill(s)/*/SKILL.md`, `.agents/…`, `.claude/…`, `.codex/…` |
-| `opencode` | `~/.config/opencode/skill(s)/*/SKILL.md`, `~/.agents/…`, `~/.claude/…` | `.opencode/skill(s)/*/SKILL.md`, `.agents/…`, `.claude/…` |
-| `pi` | `~/.pi/agent/skills/*/SKILL.md`, `~/.agents/skills/*/SKILL.md` | — read only for a project you approved |
-| `qwen` | `~/.qwen/skills/*/SKILL.md`, `~/.agents/skills/*/SKILL.md` | `.qwen/skills/*/SKILL.md`, `.agents/skills/*/SKILL.md` |
-| `zcode` | `~/.zcode/skills/*/SKILL.md`, `~/.agents/skills/*/SKILL.md` | `.zcode/skills/*/SKILL.md`, `.agents/skills/*/SKILL.md` |
+| `agy` | `~/.gemini/antigravity-cli/skills/` | `.agents/skills/` |
+| `claude` | `~/.claude/skills/` | `.claude/skills/` |
+| `codex` | `~/.codex/skills/`, `~/.agents/skills/` | `.agents/skills/`, `.codex/skills/` |
+| `cursor-agent` | `~/.cursor/skills/`, `~/.config/cursor/skills/` | `.cursor/skills/` |
+| `grok` | `~/.grok/skills/`, `~/.agents/skills/`, `~/.claude/skills/`, `~/.cursor/skills/` | `.grok/skills/`, `.agents/skills/`, `.claude/skills/`, `.cursor/skills/` |
+| `kimi` | `~/.kimi-code/skills/`, `~/.agents/skills/` | `.kimi-code/skills/`, `.agents/skills/` |
+| `mimo` | `~/.config/mimocode/skill(s)/`, `~/.agents/skills/`, `~/.claude/skills/`, `~/.codex/skills/` | `.mimocode/skill(s)/`, `.agents/skills/`, `.claude/skills/`, `.codex/skills/` |
+| `opencode` | `~/.config/opencode/skill(s)/`, `~/.agents/skills/`, `~/.claude/skills/` | `.opencode/skill(s)/`, `.agents/skills/`, `.claude/skills/` |
+| `pi` | `~/.pi/agent/skills/`, `~/.agents/skills/` | <Badge type="warning" text="only in a project you trusted in pi" /> |
+| `qwen` | `~/.qwen/skills/`, `~/.agents/skills/` | `.qwen/skills/`, `.agents/skills/` |
+| `zcode` | `~/.zcode/skills/`, `~/.agents/skills/` | `.zcode/skills/`, `.agents/skills/` |
+| `dsh` | <Badge type="danger" text="none" /> | <Badge type="danger" text="none" /> |
 
-Each backend's own home moves where that backend's variable moves it: `CODEX_HOME`,
-`KIMI_CODE_HOME`, `GROK_HOME` and the rest. opencode and mimocode keep their skills beside
-their configuration rather than their data, so theirs move with `XDG_CONFIG_HOME`. Antigravity
-CLI and ZCode have no variable of their own, so what moves their home is the home itself.
-DeepSeek Harness keeps
-none: its command line reads skill directories, and the SDK humanize drives does not.
+Each directory holds one skill per subdirectory, as `<name>/SKILL.md`. A CLI's home moves with
+its own variable, such as `CODEX_HOME`, `KIMI_CODE_HOME` or `GROK_HOME`, and opencode's and
+MiMo Code's move with `XDG_CONFIG_HOME`.
 
-The same list from Python:
+DeepSeek Harness loads no skills at all when humanize drives it. pi reads a project's own
+skills only in a project you have trusted in pi, and humanize does not trust one for you.
 
-```python
-from hmz.coganchor.agents.skills import skills
+## The flow's skills
 
-skills("claude")   # what it would load here: yours, and this project's
-```
+A flow brings skills for some of its roles. For as long as a session of that role is open,
+each of them is copied into your workspace, where that CLI reads a project's own skills:
 
-humanize asks nothing of the CLI to find out, because asking would mean starting it. It writes
-nothing either. What a person has installed is not something a flow is entitled to rewrite, and
-a list that could be adjusted here while the CLI's own list said otherwise would be two answers
-to one question.
-
-## The flow's own skills
-
-The rest of this page is the weaver's — whoever wrote the flow.
-
-A flow is a directory. The `skills/` inside it is what that flow works by, in the same layout
-every one of these CLIs already reads a skill in:
-
-```
-rlar/
-├── __init__.py
-└── skills/
-    └── review-notes/
-        └── SKILL.md
-```
-
-A role says which of them its agent carries, by name, in `_skills` on the role's type:
-
-```python
-from hmz.flows import Agent
-
-
-class Reviewer(Agent):
-    _skills = ("review-notes",)
-```
-
-The agent filling that role gets those skills in every session it opens. They are **mounted**:
-copied where that backend reads a project's own skills for as long as the session lives, then
-taken away again after. Nothing is installed, and nothing of yours is touched. A name the flow's
-`skills/` does not hold is refused before anything runs. See
-[Flows › The skills a flow brings](/reference/flows#the-skills-a-flow-brings).
-
-A role may also name skills that live in somebody else's repository:
-
-```python
-class Reviewer(Agent):
-    _skills = ("https://github.com/humanfia/flowverse#review-notes",)
-```
-
-The value is a git URL anything can clone. The part after the `#` names which of that
-repository's `skills/*` is wanted, and without one, all of them are. It is cloned under
-`~/.humanize/skills/` and fetched again the next time a run asks for it, so a skill somebody
-else maintains is one that keeps up.
-
-### Where they are mounted
-
-| Backend | Where |
+| Backend | Copied into |
 | --- | --- |
-| `claude` | `.claude/skills/` in the workspace |
-| `cursor-agent` | `.cursor/skills/` in the workspace |
-| `agy`, `codex`, `grok`, `kimi`, `mimo`, `opencode`, `qwen`, `zcode` | `.agents/skills/`, the directory more than one of these agreed to read |
-| `dsh`, `pi` | — none: they carry what their CLI installs, and nothing else |
+| `claude` | `.claude/skills/` |
+| `cursor-agent` | `.cursor/skills/` |
+| `agy`, `codex`, `grok`, `kimi`, `mimo`, `opencode`, `qwen`, `zcode` | `.agents/skills/` |
+| `dsh`, `pi` | <Badge type="danger" text="none" /> they carry only what you installed |
 
-The two given none read no such directory the way humanize drives them. DeepSeek Harness's
-SDK reads none at all; pi reads the
-workspace's only for a project somebody has approved. A skill copied there would be one no turn
-of that flow would ever load, which is worse than none.
+When the last session using a skill ends, the copy goes, along with any directory that was made
+to hold it. Nothing of yours is overwritten: if your project already has a skill of that name,
+that one is what the agent loads. An agent whose turns run on
+[another machine](/user/remote-execution) gets them there.
 
-A project's own skill of that name wins, and a flow does not write over what the project keeps.
-Two sessions of one flow working in one directory share the mount until the last of them is
-done with it, and a flow called by another flow follows the same rule: whatever is already
-there under that name is what both of them read.
+A flow may also name skills from a git repository. Those are cloned into `~/.humanize/skills/`
+and fetched again each time a run needs them, so they keep up with the repository.
 
-Skills are mounted where the session works. An agent [whose turns land
-elsewhere](/user/remote-execution) is given them where that machine reads its directory;
-otherwise it works with the skills its CLI installs.
+## Changing what a flow brings
 
-### Which of them a conversation carries
-
-Every session an agent opens carries all of its role's skills. A flow that wants a conversation
-carrying fewer derives an agent that carries fewer, and opens that conversation with it:
-
-```python
-writing = agents["builder"].derive(skills=("writing-tests",))
-session = await writing.spawn(env=workspace)   # carries writing-tests, and nothing else
-```
-
-`derive` only narrows: a skill the role did not name is refused with `CapabilityNotGranted`.
-Two conversations of one role may carry different sets at once, one opened by each agent.
-
-This is the flow's own code saying which of the flow's own skills one of its conversations
-carries, which is why it is allowed: the flow brought them. The ones the CLI installed are
-still that CLI's own, and nothing anywhere switches one of those on or off.
+Copy the flow into your project: press <kbd>f</kbd> on it in `/flow`. The copy lands in
+`.humanize/flows/`, skills and all, and is yours to edit: its `skills/`, and which roles carry
+them, as [Writing a flow](/weaver/writing-a-flow) shows.
 
 ## See also
 
+- [Permissions](/user/permissions): the other thing a role brings with it
 - [Flows › The skills a flow brings](/reference/flows#the-skills-a-flow-brings)
-- [Permissions](/user/permissions) — what an agent may do, declared the same way: by the flow
 - [Agents › The skills an agent carries](/reference/agents#the-skills-an-agent-carries)
