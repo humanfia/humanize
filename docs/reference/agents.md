@@ -1108,6 +1108,11 @@ refused the tools that would carry work past the turn humanize is holding: Codex
 server with its goal tools disabled, and Claude Code is given `--disallowedTools` naming
 `Agent`, `ScheduleWakeup`, `CronCreate`, `CronDelete`, `CronList` and `Workflow`.
 
+Every Claude Code turn, goals or not, is run with `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`.
+Claude may otherwise send a subagent or a command to the background and end the turn at once,
+so the answer a flow reads would come before what that work found. With it set, subagents still
+run, several at once from one message, and the turn ends when they have.
+
 ## Hooks
 
 A turn passes through a handful of **moments**, and a hook is a Python callable hung on one of

@@ -55,6 +55,13 @@ _WEB_TOOLS = ("WebSearch", "WebFetch")
 #: call was made under is what pairs the one that started with the result that ends it.
 _FLEET = ("Task", "Agent")
 
+#: What keeps a turn's work inside the turn. Claude sends a subagent or a command to the
+#: background when it likes and ends the turn at once, saying it will wait for them -- and the
+#: `result` that ends it is the turn humanize is holding over, so what the agent went on to
+#: find would land after its flow had read the answer and moved on. Set, the same subagents
+#: run, several to one message as before, and the turn ends when they have.
+_FOREGROUND = {"CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1"}
+
 _ALLOWED_TOOLS_MAX = 32
 
 #: How long a directory spelled as a name may be before Claude cuts it short and tells it
@@ -378,6 +385,10 @@ class ClaudeCodeSession(StreamSessionBase):
         # A fresh id per attempt: an opening turn that failed may still have left Claude
         # holding the id it was given, and retrying under that one would collide forever.
         return ["--session-id", str(uuid.uuid4())]
+
+    def _environment(self) -> dict[str, str]:
+        """What the turn runs with, plus :data:`_FOREGROUND`, which nothing else outranks."""
+        return {**super()._environment(), **_FOREGROUND}
 
     def _command(self) -> list[str]:
         """Builds the ``claude --print`` that reads turns from stdin and says events on stdout.
