@@ -1,65 +1,71 @@
 # Add a page to these docs
 
-**Twenty minutes.** You will run this site locally, write a page, put it in the sidebar, and
-prove that every link on it resolves — which is exactly what CI asks of a pull request.
+**Twenty minutes.** You will run this site locally, write a page, put it in the sidebar, prove
+every link on it resolves, and look at it the way a reader will.
 
 ::: tip Before you start
-Node and [pnpm](https://pnpm.io/), and nothing Python: the site is
-[VitePress](https://vitepress.dev/) under `docs/` and builds without humanize installed. CI
-uses Node 24 and pnpm 10; `packageManager` in `docs/package.json` pins the pnpm version
-corepack fetches.
+Node and [pnpm](https://pnpm.io/). Nothing Python: the site builds without humanize
+installed. `corepack enable` gives you the pnpm version `docs/package.json` pins.
 :::
 
-## Run the site
+## 1. Run the site
 
 ```sh
 cd docs
 pnpm install
-pnpm dev        # http://localhost:5173/
+pnpm dev        # http://localhost:5173/humanize/
 ```
 
 Leave it running. It reloads on save, the sidebar included.
 
-## Decide which section it belongs in
+## 2. Pick the section
 
-Six of them, and the split is the [Diátaxis](https://diataxis.fr/) one: a page that is two
-kinds is two pages.
+A page answers one kind of question, and the question picks the section:
 
-| | |
+| The reader wants | Section |
 | --- | --- |
-| [Features](/features/) | Understanding. What a mechanism is and why it works the way it does, built around a diagram — no commands and no code. |
-| [Flows](/flows/) | What there is to run. One page per flow, named the way `-f` takes it, opening with its `hmz exec` line and the shape of its loop. |
-| [User Guide](/user/) | Doing, for the person running flows. One page per thing humanize does, each opening with a `## Try it` short enough to paste. |
-| [Weaver Guide](/weaver/) | Doing, for the **weaver** — whoever writes the flow. Everything here is Python, and the reader has run one before writing one. |
-| [Contributing](/contributing/) | Working on humanize itself: the layers, the gates, and the docs. This page is one. |
-| [Reference](/reference/) | Looking up. Complete and dry — every flag, key, argument and return. |
+| to understand how something works | [Features](/features/) |
+| to pick a flow to run | [Flows](/flows/) |
+| to do something with `hmz` | [User Guide](/user/) |
+| to write a flow | [Weaver Guide](/weaver/) |
+| to change humanize itself | [Contributing](/contributing/) |
+| to look up a flag, key or signature | [Reference](/reference/) |
 
-The three guide sections each open with a **Tutorials** group, because a reader who has found
-their own section wants to be led once before being asked to look anything up. A tutorial is
-taken start to finish with every command written out; a guide answers one question for somebody
-who already knows what they want. [Working on these docs](/contributing/docs#the-layout) states
-the split in full.
+[Working on these docs](/contributing/docs#where-a-page-goes) says what a page in each looks
+like.
 
-## Write it
+## 3. Write it
+
+A User Guide page opens with what the thing is and a `## Try it`:
+
+````md
+# My thing
+
+What it is and when you would reach for it, in two or three sentences.
+
+## Try it
 
 ```sh
-$EDITOR docs/user/my-thing.md
+# the shortest thing that shows it working
 ```
 
-- The first `#` heading is the page title. Do not write a `## Table of Contents` — the
-  right-hand outline is generated from `##` and `###`. A page whose `###`s are dozens of error
-  messages sets `outline: 2` in its frontmatter instead.
-- Links are written from the site root, without the extension: `/user/afk`, `/weaver/hooks`.
-  Assets in `public/` are named from the root without `public`: `![…](/tui.svg)`.
-- Wrap prose at 95 columns, as the rest of the repository does.
-- A guide opens with two or three sentences saying what the thing is and when you would reach
-  for it, then a `## Try it`. A tutorial opens with how long it takes and what the reader has
-  at the end.
+## Then the rest of it
+````
 
-## Put it in the sidebar
+Save it as `docs/user/my-thing.md`. As you write:
 
-**A page that is not in `sidebar` does not appear.** Open `.vitepress/config.mts`, find the
-sidebar keyed by the section's path, and add the entry to the group it belongs in:
+- Lead with doing. The first screen gives the reader a result.
+- Link from the site root without the extension: `/user/afk`. Name assets in `public/` from
+  the root: `/demo/tui.gif`.
+- Show something beyond prose: a code group, a table, a highlighted line, a demo.
+- Wrap prose at 95 columns.
+
+[The writing rules](/contributing/docs#the-writing-rules) are the full list.
+
+## 4. Put it in the sidebar
+
+A page that is not in `sidebar` does not appear. Open `.vitepress/config.mts`, find the sidebar
+for the section's path, and add the entry to the group it belongs in:
 
 ```ts
 '/user/': [
@@ -70,59 +76,63 @@ sidebar keyed by the section's path, and add the entry to the group it belongs i
     collapsed: false,
     items: [
       // ...
-      { text: 'My thing', link: '/user/my-thing' },
+      { text: 'My thing', link: '/user/my-thing' }, // [!code ++]
     ],
   },
 ],
 ```
 
-`link` is the route rather than the file: no `docs/`, no `.md`. The `nav` above it is the six
-sections themselves and does not change.
+`link` is the route, not the file: no `docs/`, no `.md`.
 
-## Build it
+## 5. Build it
 
 ```sh
 pnpm build          # fails on a dead internal link
 pnpm check:anchors  # fails on a dead #fragment
-pnpm preview        # serve what it built
 ```
 
-The two checks catch different things. VitePress resolves every internal link and fails the
-build on one that goes nowhere; it then stops, so a `#fragment` written the way GitHub would
-slugify it passes the build and silently drops the reader at the top of the page.
-`check:anchors` reads the ids the site really built and says which link missed:
+`pnpm build` fails on a link to a page that does not exist. It passes a link whose
+`#fragment` is wrong, which is what `check:anchors` catches:
 
-```
+::: code-group
+
+```text [A dead fragment]
 user/my-thing.md: /user/tracing#whats-collected -- no such heading -- did you mean #what-s-collected
 
 1 dead fragment(s).
 ```
 
-A happy run prints one line:
-
-```
+```text [All good]
 every #fragment resolves
 ```
 
-Renaming a `##` on a page that already exists moves its `#fragment`, and this is what finds
-whatever pointed at the old one. Check before you rename, not after.
+:::
 
-## Commit it
+Renaming a `##` heading moves its `#fragment`, and this finds every link that pointed at the
+old one.
+
+## 6. Look at it
+
+```sh
+pnpm preview    # http://localhost:4173/humanize/
+```
+
+Open your page in light and dark, and at phone width. To screenshot all three,
+[Look at it](/contributing/docs#look-at-it) has the Playwright command.
+
+## 7. Commit it
 
 ```sh
 git add docs
 git commit -m "docs(user): what my thing is and when to reach for it"
 ```
 
-[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/), with the section as the
-scope. `.github/workflows/build-docs.yml` then runs `pnpm install --frozen-lockfile` and
-exactly the two checks above on every pull request that touches `docs/`, and deploys to GitHub
-Pages on a push to `main` — so a dead link is a red pull request rather than a 404 somebody
-finds a month later.
+[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/), with the section as
+the scope. On the pull request, CI runs `pnpm build` and `pnpm check:anchors` again. A push to
+`main` deploys the site.
 
 ## What you have now
 
-A page in the section it belongs to, in the sidebar, with every link and every fragment on it
-checked. [Working on these docs](/contributing/docs) is the rest of the site: the theme
-components each diagram lives in, how the terminal demos are recorded, and why `base` is what
-it is.
+A page in the right section, in the sidebar, with every link and fragment on it checked.
+[Working on these docs](/contributing/docs) has the rest: the components, the terminal demos,
+and the screenshot check.
