@@ -1,25 +1,46 @@
 <script setup lang="ts">
-// Four bands, and what passes downward between them. The rough shape of the system, for the
-// page at the site's root -- `HmzMap` on the features landing is the detailed one, and this
+// Four bands, and what passes downward between them: the rough shape of the system, for the
+// page at the site's root. `HmzMap` on the features landing is the detailed one, and this
 // deliberately is not that.
 //
-// Everything drawn here is checked against the code: the flow names are `theme/flows.ts`, which
-// is itself read off `hmz/flows/builtin/` and humanfia/flowverse -- the two places humanize's
-// own flows are kept -- and the backend row is the `PROFILES` tuple in `hmz/backends.py` --
-// eleven command lines, plus DeepSeek Harness, which is a Python SDK that ships inside
-// humanize rather than a CLI you install, and so is drawn apart from them.
+// Held to the code:
+// - The flows are grouped by where they come from. `chat` is the one flow in the package
+//   (`hmz/flows/builtin/`); the rest are the official flowverse (humanfia/flowverse), which
+//   the terminal interface fetches in the background each time it starts; and a project's
+//   `.humanize/flows` and `~/.humanize/flows` are offered as `local` and `user`.
+// - The backends are `PROFILES` in `hmz/coganchor/backends.py`, in the order `hmz exec --help`
+//   lists them. `dsh` is the one driven through a Python SDK rather than a CLI, signed in with
+//   a DeepSeek API key rather than a login; it and `kimi` are the two with an extra of their
+//   own in `pyproject.toml`, and `[kimi]` adds a client, not the CLI. A CLI that speaks the
+//   Agent Client Protocol is added at `/providers`.
+// - The ways in are the three a reader types or imports: `hmz`, `hmz exec` and `hmz.sdk`.
 //
-// What each band is responsible for is written out rather than hidden behind a hover: hovering
-// only lifts the band it is over. Nothing here is said only by a moving thing.
+// Every chip that has a page links to it. Hovering only lifts the band it is over; nothing
+// here is said only by a moving thing.
 import { withBase } from 'vitepress'
+
+interface Chip {
+  text: string
+  href?: string
+  /** A small tag after the text. */
+  tag?: string
+  /** Drawn dashed: not one of the list, but something that joins it. */
+  apart?: boolean
+}
+
+interface Group {
+  /** What the chips in this group have in common, said above them. */
+  label?: string
+  chips: Chip[]
+}
 
 interface Band {
   name: string
   owns: string
   tone: string
-  chips: string[]
-  /** The odd one out, drawn dashed: in this diagram, the backend that is not a CLI. */
-  apart?: string
+  groups: Group[]
+  /** A line under the chips. */
+  foot?: string
   /** What this band hands the one below it. */
   down?: string
 }
@@ -27,62 +48,100 @@ interface Band {
 const BANDS: Band[] = [
   {
     name: 'Flows',
-    owns: 'what the work is: which agents are driven, what each is asked, and when to stop',
+    owns: 'what the work is: which agents take turns, what each is asked, and when it stops',
     tone: 'var(--hmz-lane-3)',
-    chips: [
-      'chat',
-      'ralph_loop',
-      'stateful_ralph',
-      'rlar',
-      'flame_chase',
-      'and yours',
+    groups: [
+      { label: 'in humanize', chips: [{ text: 'chat', href: '/flows/chat' }] },
+      {
+        label: 'the official flowverse, fetched each time hmz starts',
+        chips: [
+          { text: 'ralph_loop', href: '/flows/ralph-loop' },
+          { text: 'stateful_ralph', href: '/flows/stateful-ralph' },
+          { text: 'rlar', href: '/flows/rlar' },
+          { text: 'flame_chase', href: '/flows/flame-chase' },
+          { text: 'and more', href: '/flows/', apart: true },
+        ],
+      },
+      {
+        label: 'yours',
+        chips: [
+          { text: '.humanize/flows', href: '/weaver/writing-a-flow', tag: 'local' },
+          { text: '~/.humanize/flows', href: '/weaver/writing-a-flow', tag: 'user' },
+        ],
+      },
     ],
-    down: 'a flow, and one agent for every agent it drives',
+    down: 'a flow, an agent for each of its roles, and a budget',
   },
   {
     name: 'humanize',
-    owns: 'the runner: it takes the turns, keeps the sessions, and writes the whole run down',
+    owns:
+      'runs the flow: takes every turn, holds every conversation, keeps to the budget, ' +
+      'and records the run',
     tone: 'var(--hmz-lane-1)',
-    chips: [
-      'the runner',
-      'sessions and turns',
-      'agents',
-      'providers and accounts',
-      'machines',
-      'the epic',
-      'the trace',
+    groups: [
+      {
+        label: 'ways in',
+        chips: [
+          { text: 'hmz', href: '/reference/tui', tag: 'the interface' },
+          { text: 'hmz exec', href: '/reference/cli' },
+          { text: 'hmz.sdk', href: '/reference/sdk' },
+        ],
+      },
+      {
+        label: 'what it looks after',
+        chips: [
+          { text: 'accounts and fallback', href: '/features/accounts' },
+          { text: 'budgets', href: '/features/allowances' },
+          { text: 'a trace of every run', href: '/user/tracing' },
+          { text: 'resuming', href: '/user/resuming' },
+        ],
+      },
     ],
-    down: 'a turn: a prompt, an effort, and the session to put it on',
+    down: 'a turn: a prompt, on one conversation, at a model and an effort',
   },
   {
-    name: 'Agent CLIs',
-    owns: 'the model, reached through a coding agent you already have and are already logged into',
+    name: 'Coding agents',
+    owns:
+      'the model, reached through a coding agent, most of them under the login they ' +
+      'already have',
     tone: 'var(--hmz-lane-2)',
-    chips: [
-      'claude',
-      'codex',
-      'cursor-agent',
-      'kimi',
-      'pi',
-      'grok',
-      'qwen',
-      'agy',
-      'opencode',
-      'mimo',
-      'zcode',
+    groups: [
+      {
+        chips: [
+          { text: 'agy' },
+          { text: 'claude' },
+          { text: 'codex' },
+          { text: 'cursor-agent' },
+          { text: 'dsh', tag: 'SDK' },
+          { text: 'grok' },
+          { text: 'kimi', tag: '+ extra' },
+          { text: 'mimo' },
+          { text: 'opencode' },
+          { text: 'pi' },
+          { text: 'qwen' },
+          { text: 'zcode' },
+          { text: 'any ACP CLI', href: '/user/providers', tag: '/providers', apart: true },
+        ],
+      },
     ],
-    apart: 'DeepSeek Harness',
-    down: 'edits, commands, and every syscall the agent makes',
+    foot:
+      'dsh is DeepSeek Harness, a Python SDK installed with hmz[dsh] and signed in with an ' +
+      'API key; kimi needs hmz[kimi] beside the Kimi Code CLI; hmz[all] brings both',
+    down: 'edits, commands and commits, with approvals bypassed',
   },
   {
     name: 'Environment',
-    owns: 'where the work actually lands, and what it is allowed to touch there',
+    owns: 'where the work lands, and what the flow lets each agent touch there',
     tone: 'var(--hmz-lane-4)',
-    chips: [
-      'this machine',
-      'a container of its own',
-      'a remote target through hmz internal anchor',
-      'worktrees',
+    groups: [
+      {
+        chips: [
+          { text: 'this directory', href: '/user/permissions' },
+          { text: 'another machine, over ssh', href: '/user/remote-execution' },
+          { text: 'a git worktree', href: '/weaver/worktrees' },
+          { text: 'a container', href: '/user/containers' },
+        ],
+      },
     ],
   },
 ]
@@ -97,13 +156,20 @@ const BANDS: Band[] = [
             <h3>{{ band.name }}</h3>
             <p>{{ band.owns }}</p>
           </header>
-          <ul class="chips">
-            <li v-for="chip in band.chips" :key="chip">{{ chip }}</li>
-            <li v-if="band.apart" class="apart">
-              {{ band.apart }}
-              <span>a Python SDK that ships inside humanize — not a CLI you install</span>
-            </li>
-          </ul>
+          <div class="groups">
+            <div v-for="(group, at) in band.groups" :key="at" class="group">
+              <span v-if="group.label" class="label">{{ group.label }}</span>
+              <ul class="chips">
+                <li v-for="chip in group.chips" :key="chip.text" :class="{ apart: chip.apart }">
+                  <a v-if="chip.href" :href="withBase(chip.href)">
+                    {{ chip.text }}<small v-if="chip.tag">{{ chip.tag }}</small>
+                  </a>
+                  <span v-else>{{ chip.text }}<small v-if="chip.tag">{{ chip.tag }}</small></span>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <p v-if="band.foot" class="foot">{{ band.foot }}</p>
         </section>
 
         <p v-if="band.down" class="down">
@@ -116,8 +182,7 @@ const BANDS: Band[] = [
     <p class="hmz-note">
       The rough shape. Every capability, grouped and linked to its explanation, is on
       <a :href="withBase('/features/')">Features</a>; every backend against what a flow may ask
-      of it is <a :href="withBase('/features/backends')">Many backends, one agent</a>, which
-      also covers anything that speaks the Agent Client Protocol.
+      of it is <a :href="withBase('/features/backends')">Many backends, one agent</a>.
     </p>
   </div>
 </template>
@@ -170,42 +235,97 @@ header p {
   line-height: 1.55;
 }
 
+.groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 26px;
+  margin-top: 13px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.label {
+  color: var(--vp-c-text-3);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
-  margin: 13px 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .chips li {
   margin: 0;
-  padding: 5px 10px;
   border: 1px solid var(--hmz-panel-border);
   border-radius: 8px;
   background: var(--vp-c-bg);
-  color: var(--vp-c-text-2);
   font-family: var(--vp-font-family-mono);
   font-size: 12px;
   line-height: 1.4;
 }
 
-/* The backend that is not a command line, drawn as the exception it is. */
-.chips .apart {
+.chips li > a,
+.chips li > span {
   display: inline-flex;
   align-items: baseline;
-  flex-wrap: wrap;
-  gap: 3px 8px;
-  border-style: dashed;
+  gap: 6px;
+  padding: 5px 10px;
+  color: var(--vp-c-text-2);
+}
+
+/* A chip that is a link is still a chip: not underlined, and lifted only on hover. */
+.vp-doc .chips li > a {
+  font-weight: inherit;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.chips li:has(> a) {
+  transition:
+    border-color 0.2s,
+    transform 0.2s;
+}
+
+.chips li:has(> a):hover {
   border-color: var(--tone);
+  transform: translateY(-1px);
+}
+
+.vp-doc .chips li > a:hover {
   color: var(--vp-c-text-1);
 }
 
-.chips .apart span {
+.chips small {
   color: var(--vp-c-text-3);
   font-family: var(--vp-font-family-base);
-  font-size: 11.5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+/* What joins the list rather than being one of it. */
+.chips .apart {
+  border-style: dashed;
+  border-color: var(--tone);
+}
+
+.foot {
+  margin: 10px 0 0;
+  color: var(--vp-c-text-3);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 /* What passes from one band to the next, on the arrow that carries it. */
@@ -251,8 +371,14 @@ header p {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .band {
+  .band,
+  .chips li:has(> a),
+  .vp-doc .chips li > a {
     transition: none;
+  }
+
+  .chips li:has(> a):hover {
+    transform: none;
   }
 }
 </style>
