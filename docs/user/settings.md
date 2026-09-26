@@ -1,144 +1,117 @@
 # What a project remembers
 
-Opening the interface again in the same project finds it set up the way you left it. Reach for
-this when you want to see what a directory remembers, change it, or have it forget.
-
-What it remembers:
-
-- the **flow** that was last run there (a flow is a directory of Python);
-- for **each** flow that workspace has run: what each of its **agent roles** was running (an
-  agent is a CLI the flow runs) and which [account](/user/providers) it ran as, and where each
-  of its **environment roles** was;
-- how the flow itself was [set up](/reference/tui#setting-a-flow-up), and what a run of it may
-  spend;
-- whether the programs a run here starts are [profiled](#whether-a-run-here-is-profiled) as
-  well as traced.
-
-Beside those, in the same file, is the one setting that is not a workspace's at all:
-`enable_sentry`. It is the answer to the [reporting](/user/reporting) question, which is asked
-once and true wherever humanize is run from.
+Run `hmz` in a directory you have used before and it opens on the flow you last saved there,
+with the agents you gave it. `/settings` shows what this directory remembers, and is where you
+make it forget.
 
 ## Try it
 
-Read what this directory remembers from Python:
-
-```python
-from hmz.runtime.settings import Settings
-
-Settings().profiling            # whether a run in this directory is profiled
-Settings().profiles(on=True)    # written down for it, from now on
 ```
-
-## Why it is kept per flow
-
-What an agent runs only means something against the flow driving it. A flow's second agent is
-its reviewer. The flow before it had no second agent at all.
-
-So it is keyed three ways:
-
-| Keyed by | So that |
-| --- | --- |
-| the workspace | two projects are two setups |
-| the flow — by name for humanize's own, **by path** for yours | a flow of yours cannot inherit the agents of the one it shares a name with |
-| the name the flow calls each agent | a flow that grows an agent in the middle does not silently hand the reviewer's model to the builder |
-
-What was set up is read back **through the flow's own model**. A setting the flow has since
-dropped or renamed is one it starts over from, rather than one that quietly comes back.
-
-## Where it lives
-
+/settings
 ```
-~/.humanize/settings.yaml
-```
-
-`$HUMANIZE_HOME/settings.yaml` where that is set. Delete the file and every project starts over
-from its defaults. The reporting question is asked again, and that answer lives in the same
-file.
-
-Two related files, for completeness:
-
-| | |
-| --- | --- |
-| `~/.humanize/models/<cli>.json` | what each CLI said it runs, as you run it — refreshed with **r** on the models sheet |
-| `~/.humanize/providers/<cli>/<name>/models.json` | the same, as that [account](/user/providers) |
-
-## Reading it, and forgetting it
-
-`/settings` is the menu over this file, in two pages:
-
-| Page | |
-| --- | --- |
-| **Everywhere** | whether humanize [reports what goes wrong](/user/reporting), and a row that says what a report carries and what it never does |
-| **This directory** | the directory itself, the flow it opens on with how many agents that flow was set up with, whether a run here is [profiled](#whether-a-run-here-is-profiled), and a row that forgets the lot |
-
-Nothing lands until you leave the menu and confirm saving, as on every other menu. Forgetting
-one directory leaves every other directory, and every setting, exactly as it was.
-
-## Whether a run here is profiled
-
-A workspace remembers one more thing: whether the programs its runs start are sampled as well
-as [traced](/user/tracing). This is the **profile** row on the second page of `/settings`, and
-it is off until somebody turns it on.
 
 ![/settings opening on what is true of this machine, then tab to this directory: workspace,
 flow, profile and forget](/demo/profiling.gif)
 
-It is the workspace's rather than the machine's. What a run costs in processes is a thing about
-the project being worked on. A repository whose tests take an hour is a different question from
-one whose tests take a minute. The switch is read where a run starts, so turning it on holds
-from the next run rather than the one under way. A run started in that directory by `hmz exec`
-is profiled too — it says nothing about what runs, only about whether what runs is watched.
+The menu has two pages. <kbd>tab</kbd> and <kbd>shift+tab</kbd> turn between them.
 
-What is sampled, what that costs while the flow runs, and what a trace then makes of it are
-[Tracing › Profiling a run](/user/tracing#profiling-a-run).
+| Page | Row | What it is |
+| --- | --- | --- |
+| **Everywhere** | reports | whether humanize [reports what goes wrong](/user/reporting) to its developers, for every project on this machine |
+| | sent | what a report carries and what it never does. <kbd>enter</kbd> reads it out. |
+| **This directory** | workspace | the directory these settings belong to |
+| | flow | the flow it opens on, and how many agents that flow was set up with |
+| | profile | whether a run here [profiles](#whether-a-run-here-is-profiled) the programs it starts |
+| | forget | forget everything this directory remembers |
 
-## Changing what it opens on
+<kbd>←</kbd> <kbd>→</kbd> or <kbd>space</kbd> flip the row under the cursor. Nothing changes
+until you save: choose the **save** row, or press <kbd>shift+enter</kbd> or <kbd>ctrl+j</kbd>
+anywhere in the menu. Leave with <kbd>esc</kbd> and unsaved changes, and it asks **save** or
+**discard**; <kbd>esc</kbd> on that question takes you back into the menu.
 
-It is changed where it was set in the first place. [`/flow`](/reference/tui#choosing-a-flow)
-chooses the flow; opening that flow says what each of its agent roles runs and which account
-it runs as, where each of its environment roles is, and what a run of it may spend; and a flow
-with [params of its own](/reference/tui#setting-a-flow-up) asks them as it is chosen. Saving that
-menu is what gets written down, so the next `hmz` in this directory opens on exactly what you
-left — and opening is all it does. The interface comes up ready and the first thing you say is
-still what starts it.
+**forget** clears this directory only. Every other directory, and the reporting answer, stay
+as they were. The next `hmz` here opens as it did the first time.
 
-Saving is also where it is all checked, before any of it lands: the flow itself is loaded,
-every role is checked against what the flow declares, and a flow that will not take some
-combination of its own params says so in its own words. What is wrong is a menu to correct rather than a run that falls over
-half an hour in.
+## What a directory remembers
 
-There is no line that answers any of this instead. What a project is set up to run is a thing
-about the project, which is why it is remembered rather than typed again every morning; the
-same answers on a line are [`hmz exec`](/reference/cli#hmz-exec)'s `-a`, `-e`, `-p` and `-b`,
-which run the flow rather than opening on it.
+- **The flow** it last ran.
+- **For each flow it has run:**
+  - what each agent role runs: the CLI, the [account](/user/providers), the model and the
+    effort;
+  - where each environment role works;
+  - how the flow itself was [set up](/reference/tui), and what a run of it may spend.
+- **Whether its runs are profiled.**
 
-`hmz exec` is set up from none of this. What it runs is what the line names, so an unattended
-run inherits nothing of what this project was last set up with, which is the point of it. It
-reads two things from outside the line:
+Each flow's setup is kept under the name the flow is offered by: `ralph_loop` for one humanize
+ships, `local/twice` for a project flow, `user/twice` for a personal one. Within a flow, each
+agent is kept under its role name. A flow that gains a new role does not hand an existing
+role's model to it.
 
-- whether the runs of this directory are [profiled](#whether-a-run-here-is-profiled), which is
-  the workspace's rather than the run's;
-- whether [reporting](/user/reporting) was answered yes.
+When the flow changes, what was saved is checked against it again. A setting the flow has
+since dropped or renamed is asked for again, rather than carried over.
 
-With `--resume`, a flow that says it [can be picked up](/user/resuming) is handed what the last
-run of it here left behind — the run's own doing rather than a setting, so an unattended run of
-one is the next stretch rather than the same stretch again.
+## Changing it
+
+Change it where you set it: in [`/flow`](/reference/tui). Choose the flow, set each agent and
+environment and what a run may spend, and save. That save is what the next `hmz` here opens
+on. It only opens there: nothing runs until you send the first line.
+
+Saving checks the lot before any of it is kept. The flow is loaded, every role is checked
+against what the flow declares, and a flow that refuses a combination of its own settings says
+why. You fix it in the menu, not half an hour into a run.
+
+## Whether a run here is profiled
+
+The **profile** row on the second page adds the programs a run starts (the tests, the builds,
+the greps) and how long each took to the run's [trace](/user/tracing), on the same timeline as
+the agents. It is off until you turn it on, and it belongs to the directory: a repository
+whose tests take an hour is a different question from one whose tests take a minute.
+
+It takes effect from the next run, not the one under way. An `hmz exec` run in this
+directory is profiled too. What is recorded, and how to read it, is
+[Tracing](/user/tracing).
+
+## `hmz exec` starts from none of this
+
+What an `hmz exec` line runs is what the line says: `-f`, `-a`, `-e`, `-p` and `-b`. An
+unattended run inherits nothing from how this directory was last set up. It reads only two
+things from here:
+
+- whether runs in this directory are profiled;
+- whether you said yes to [reporting](/user/reporting).
 
 ## The first time
 
-With nothing remembered, the interface opens on the [`chat`](/flows/chat) flow. It opens on the
-first backend installed here that has said what it runs, at the first model it named and at
-`high`. The first model is that CLI's own idea of what it runs by default. `high` is
-deliberately not the hardest setting: it is the one to reach for rather than the one to spend
-before anybody has asked for anything.
+With nothing remembered, `hmz` opens on the [`chat`](/flows/chat) flow, with the first
+installed CLI that can run without further setup, at the first model that CLI lists, at effort
+`high` where the model offers it.
 
-DeepSeek Harness is used as this implicit fallback only when its local account can resolve a
-nonempty API key. Without one it is still in the agent picker, where it can be selected and an
-account configured; an explicit or remembered DeepSeek choice is not replaced.
+::: details Where it is kept
+Everything above is one file, `~/.humanize/settings.yaml` (under `$HUMANIZE_HOME` if you set
+that). Deleting it makes every directory start over, and asks the reporting question again.
+:::
 
 ## See also
 
-- [History](/user/history) — the other thing kept between sessions
-- [Tracing](/user/tracing) — the trace a profiled run is drawn into
-- [TUI › What it remembers](/reference/tui#what-it-remembers)
-- [CLI › Files](/reference/cli#files)
+- [History](/user/history): the other thing kept between starts
+- [Tracing](/user/tracing): what a profiled run is drawn into
+- [TUI reference](/reference/tui): the `/settings` and `/flow` menus, row by row
+
+<style scoped>
+kbd {
+  display: inline-block;
+  min-width: 1.7em;
+  padding: 0 0.45em;
+  border: 1px solid var(--vp-c-divider);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--vp-c-bg-soft);
+  font-family: var(--vp-font-family-base);
+  font-size: 0.85em;
+  font-weight: 500;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--vp-c-text-1);
+  white-space: nowrap;
+}
+</style>

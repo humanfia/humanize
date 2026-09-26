@@ -1,135 +1,131 @@
+<script setup>
+import CtrlC from '../.vitepress/theme/components/user-prompt/CtrlC.vue'
+import Term from '../.vitepress/theme/components/user-prompt/Term.vue'
+</script>
+
 # Stopping
 
-A flow ends when its function returns. Most interesting flows never return, and a Ralph loop is
-a `while True`, so you end them from outside — or its budget does. You reach for stopping when a flow is running and
-you want it to end now.
+Press <kbd>ctrl+c</kbd> twice, or send `/stop`. The whole flow stops, not just the turn it is
+in. Most flows are loops that never end on their own, so this, or a budget, is how they end.
 
-## Try it
+<CtrlC />
 
-Press **ctrl+c** twice in the interface while a flow is running. Twice, because a day's work is
-behind a key that is also pressed by mistake: the first press says `press ctrl+c again to stop
-the flow`, and the second one does it.
+## The ways to stop
 
-Or type **`/stop`** and send it, which is the same stop asked once.
+| | Where | How |
+| --- | --- | --- |
+| <kbd>ctrl+c</kbd> <kbd>ctrl+c</kbd> | at the prompt | Two presses within 3 seconds. The first only warns. |
+| `/stop` | at the prompt | Sent once. You typed it out on purpose, so it is not asked twice. |
+| <kbd>ctrl+c</kbd> | on an `hmz exec` line | One press. |
+| a budget | `-b` on `hmz exec`, or what a run may spend in `/flow` | Nothing to press: the run stops itself when the budget is spent. See [Allowances](/features/allowances). |
 
-## The three ways to stop
+## What the next <kbd>ctrl+c</kbd> does
 
-| | |
+The key does the nearest thing there is to take back, and the last entry on the status line
+under the prompt always says what that is:
+
+| The status line ends with | The next press |
 | --- | --- |
-| **ctrl+c** twice, in the interface | Stops the flow — the whole flow, not just the turn. Clears what is half-typed first, if anything is. |
-| **`/stop`**, at the prompt | The same, asked once. |
-| **ctrl+c**, on a `hmz exec` command line | The same. |
+| `ctrl+c clear` | Clears what you have typed. Nothing else happens. |
+| `ctrl+c stop` | Warns: `— press ctrl+c again to stop the flow —` |
+| `ctrl+c again to stop` | Stops the flow. |
+| `ctrl+c close them` | Closes the agents still in a turn, without waiting for the flow to wind down. |
+| `ctrl+c exit` | Warns: `— press ctrl+c again to leave —` |
+| `ctrl+c again to exit` | Quits `hmz`. |
 
-**`/stop` is not asked twice.** The key is, because a finger lands on it by mistake; nothing is
-typed by mistake, so writing the command out and sending it is the deliberation the second
-press stands in for. It says so where there is nothing to stop, which the key never does —
-with nothing running the key is the one that leaves, and what it says is about leaving.
+A press more than 3 seconds after the last one starts over from the top, and so does a press
+after a `/stop`.
 
-It also leaves no half-made gesture behind it. A ctrl+c pressed before a `/stop` and one
-pressed after it are not two presses of one gesture: the command came between them, so the
-press after it starts again from the beginning — the third press below while the flow is still
-unwinding, and otherwise the first of a fresh one.
+<kbd>esc</kbd> never stops anything. It opens [`/monitor`](/user/monitor).
 
-**A third press does not wait for it.** A flow told to stop unwinds in its own time — a loop
-sleeps off its round, a server is given its seconds — and the press after the one that stopped
-it closes every conversation still open under whatever turn it is in. That is the backend's
-process going, and nothing is left reading as a run in progress. It is the last thing a key can do about a
-run.
+## What a stop does
 
-**esc does not stop anything.** It is pressed to dismiss whatever is on the screen everywhere
-else in the interface, so it is not the key that ends a day's work: it opens
-[`/monitor`](/reference/tui#watching-the-run) instead. With nothing running at all, two
-presses of **ctrl+c** leave the interface.
+- **The turn is cut off where it is.** The agent's CLI stops, along with anything it had
+  started. A file the agent was halfway through writing stays halfway written.
+- **The flow winds down in its own time.** A loop finishes its round and what it opened is
+  closed. Until it is done, the status line ends with `ctrl+c close them`, and one more press
+  closes the agents without waiting.
+- **The run is recorded as stopped**, not as finished. [`/epics`](/user/tracing) lists it that
+  way.
 
-## What a stop does to the turn under way
+## Leaving `hmz`
 
-The turn is **cut off** — the CLI is interrupted and stops spending — and the flow is
-cancelled where it is waiting: every flow call of the run, however deep, unwinds from the `await`
-it was at, and one that tries anything more raises `FlowCancelled`.
+`/exit`, or <kbd>ctrl+q</kbd>, leaves. With nothing running, it just closes. With a flow
+running, it asks first:
 
-A stop leaves the turn where it got to. It does not wait for the turn, because a stop that
-waited would not read as a stop. A model can think for minutes, and a key that took four of
-them to have an effect is a key nobody trusts.
+<Term title="/exit">
 
-A file the agent had half-written stays half-written. What ends is the agent's part in it,
-which includes the CLI process the turn was running in and whatever that process had started:
-a stop that left the agent still writing would not be a stop.
+<pre><span class="p b">A flow is running.</span>
 
-To end one turn without ending the run, a flow gives that turn a
-[budget](/features/budgets) of its own — `await agent.run(prompt, session=…,
-budget=Budget(duration=timedelta(minutes=10), graceful=False))` — or cancels the task awaiting
-it, which interrupts the CLI.
+<span class="p">❯</span> <span class="d">1.</span> <span class="p">stop it, then leave</span>
+  <span class="d">2.</span> <span class="p">leave it running</span>          <span class="m">`hmz` opens it again</span>
 
-To have a run stop itself rather than wait for a key, it has a [budget](/features/allowances):
-a duration, a cost, a count of output tokens — `-b`, which every run but `chat` must have. A run
-that reaches the end of it raises the `BudgetExceeded` leaf for what ran out — turns left where
-they got to, state kept, and the run worth picking up.
+<span class="d">enter choose · esc stay</span></pre>
+
+</Term>
+
+**leave it running** lets the flow carry on without your terminal. Run `hmz` again in the same
+directory to get back to it. When humanize cannot hold the run apart from the terminal
+(input or output is not a terminal, or `HUMANIZE_DAEMON=off` is set), the second answer is
+**stay here** instead.
 
 ## After a stop
 
-A stop is what makes a run worth picking up. Where the flow says it [can be picked
-up](/user/resuming), **`/resume`** at the prompt — or the same `hmz exec` line with
-`--resume` — carries the run on from where it stopped: its own flow, its own agents, its own
-task, and whatever it had written down by the time the key was pressed. Nothing carries on by itself: stopped means stopped, and the run that
-carries on is a run somebody asked for.
+**Pick the run up** with `/resume`, or with the same `hmz exec` line plus `--resume`. This
+works for a flow that says it can be picked up. It carries on with the same flow, agents and
+task, from where the stop left it. See [Picking a run up](/user/resuming).
 
-Wait for it to go, though. A flow told to stop unwinds in its own time and writes down where it
-got to as it goes, so `/resume` in that window is refused with `no picking a run up while the
-flow is still stopping` — picked up from a journal still being written, the next run would
-do a round the stopped one had already recorded. A flow that will not unwind at all is what the
-third press is for: it leaves nothing reading as a run in progress, and `/resume` is answerable
-again. A second `/stop` in that window is no help either — it says the flow is already stopping
-rather than telling it again.
+**Wait for the flow to finish stopping first.** Until then, `/resume` answers:
 
-## What stopping is not
-
-**Not `/clear`.** That clears the screen and nothing else. It clears the conversation being
-read, not the others, and nothing that is running.
-
-**Not choosing another flow.** Naming one while a flow is running — `/flow <name>` or a `$`
-line — is refused with `a flow is running; no choosing a flow`, and `/flow` on its own opens
-inside the roles of the flow that is going rather than on the flows. A run holds the agents and
-environments it was started on until it ends, so what is saved there is what the next run
-starts on. Stop it first, then choose. Looking at `/flow` and leaving without saving changes
-nothing.
-
-**Not a question ending.** A question still up when the flow ends or is stopped ends with it.
-Stopping is never blocked on one.
-
-## Why catching a failed turn does not catch a stop
-
-The other side of that key press is the loop a [weaver wrote](/weaver/writing-a-flow), which has
-to let it out. A failed turn raises a `HarnessError`, and a loop that goes round again catches
-that:
-
-```python
-while True:
-    session = await agent.spawn(env=workspace)
-    try:
-        await agent.run(task, session=session)   # ← a stop comes out of here, and the flow unwinds
-    except HarnessError:
-        continue                                # a turn that failed; the loop goes round again
+```
+hmz: no picking a run up while the flow is still stopping: it is closing out the turn it was in
 ```
 
-A stop is a cancellation — `asyncio.CancelledError`, which is not an `Exception` at all — so
-nothing that catches a failed turn catches it by accident, and neither does a bare
-`except Exception`. A spent budget is `BudgetExceeded`, which is not a `HarnessError` either.
-Let both propagate. The [epic](/user/tracing#what-a-run-writes-down) then records the run as
-**stopped by hand** rather than as one that finished — the difference between "it decided it was
-done" and "somebody stopped it", and the only place that distinction is written down.
+A third <kbd>ctrl+c</kbd> ends the wait.
 
-There is one `HarnessError` a loop should think twice about catching, for the same reason.
-`HarnessUnrecoverable` is a turn that failed for a reason no other try could come out
-differently on — a conversation longer than the model's context window, a session id the backend
-will not answer under. A `while True` that swallowed one would go round on the same failure until
-the budget ran out.
+**Choose another flow once this one has stopped.** While a flow runs, `/flow <name>` and a
+`$name` line are refused with `hmz: a flow is running; no choosing a flow`. `/flow` on its own
+opens the agents of the running flow instead. What you save there is what the next run
+starts with; the running one keeps what it started with.
 
-A hook runs as the flow the agent belongs to, and what it raises fails the turn it arrived in —
-so a hook that catches nothing lets a stop out as the flow's own code does.
+## What does not stop a flow
+
+| | What it does instead |
+| --- | --- |
+| <kbd>esc</kbd> | Opens [`/monitor`](/user/monitor). |
+| `/clear` | Clears the transcript you are reading. The flow keeps running. |
+| a question the flow asked you | Ends with the flow when it stops. It never holds a stop up. |
+| a second `/stop` | Says `hmz: the flow is already stopping: …`. A <kbd>ctrl+c</kbd> is what hurries it. |
+
+::: details If you write flows
+A stop reaches your flow as a cancellation, not as a failed turn. Code that catches failed
+turns does not catch it, and it should not be caught: let it through, so the run is recorded
+as stopped. To cap one turn rather than the whole run, give that turn a
+[budget of its own](/features/budgets). [Loops](/weaver/loops) shows a loop written this way.
+:::
 
 ## See also
 
-- [Picking a run up](/user/resuming) — carrying on from where a stop left it
-- [Talking to a running turn](/user/steering) — when a steer is enough
+- [Picking a run up](/user/resuming): carrying on from where a stop left it
+- [Talking to a running turn](/user/steering): when a word in its ear is enough
 - [Being away](/user/afk)
-- [Flows › Stopping](/reference/flows#stopping)
+- [TUI reference](/reference/tui): every key and command
+
+<style scoped>
+kbd {
+  display: inline-block;
+  min-width: 1.7em;
+  padding: 0 0.45em;
+  border: 1px solid var(--vp-c-divider);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--vp-c-bg-soft);
+  font-family: var(--vp-font-family-base);
+  font-size: 0.85em;
+  font-weight: 500;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--vp-c-text-1);
+  white-space: nowrap;
+}
+</style>
