@@ -307,23 +307,29 @@ export default defineConfig({
       ],
 
       // For the weaver: the person who writes the flow. Everything here is Python, and the
-      // reader is expected to have run one before writing one.
+      // reader is expected to have run one before writing one. The order is the order they
+      // need it in: a flow of their own running first, then what grows it, then what an agent
+      // can be asked, and testing and publishing once there is something worth either.
       '/weaver/': [
         { text: 'Weaver Guide', link: '/weaver/' },
         {
-          text: 'Tutorials',
-          collapsed: false,
-          items: [{ text: 'Build under test', link: '/weaver/tutorials/build-under-test' }],
-        },
-        {
-          text: 'Writing a flow',
+          text: 'Start here',
           collapsed: false,
           items: [
-            { text: 'Writing a flow', link: '/weaver/writing-a-flow' },
+            { text: 'Your first flow', link: '/weaver/writing-a-flow' },
+            { text: 'Build under test', link: '/weaver/tutorials/build-under-test' },
             { text: 'Loops', link: '/weaver/loops' },
             { text: 'Params of its own', link: '/weaver/flow-settings' },
+          ],
+        },
+        {
+          text: 'Growing a flow',
+          collapsed: false,
+          items: [
             { text: 'Many turns at once', link: '/weaver/async-flows' },
             { text: 'A flow that calls a flow', link: '/weaver/calling-flows' },
+            { text: 'Branching a conversation', link: '/weaver/branching' },
+            { text: 'Worktrees, copies and scratch', link: '/weaver/worktrees' },
           ],
         },
         {
@@ -335,12 +341,10 @@ export default defineConfig({
             { text: 'Hooks', link: '/weaver/hooks' },
             { text: 'The agent asking the flow', link: '/weaver/tools' },
             { text: 'The person as an agent', link: '/weaver/human-agent' },
-            { text: 'Branching a conversation', link: '/weaver/branching' },
-            { text: 'Worktrees, copies and scratch', link: '/weaver/worktrees' },
           ],
         },
         {
-          text: 'Testing and publishing',
+          text: 'When it is ready',
           collapsed: false,
           items: [
             { text: 'Testing a flow', link: '/weaver/testing-flows' },

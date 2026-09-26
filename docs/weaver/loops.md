@@ -1,10 +1,13 @@
 # Loops
 
-A **Ralph loop** keeps one agent working until you stop it, starting fresh from the task and
-the repository every turn. Reach for it when you want a task worked through with nothing
-carrying over from one turn to the next.
+A loop gives an agent the task again and again until something ends it. Writing one comes down
+to three choices: what the next turn remembers, what ends the loop, and what a failed turn does
+to it.
 
-## What a Ralph loop is
+## What the next turn remembers
+
+A **Ralph loop** starts every round from nothing: a new session — a new conversation — for
+every turn, so the agent works from the task and the repository alone.
 
 ```python
 while True:
@@ -12,25 +15,30 @@ while True:
     await agent.run(task, session=session)
 ```
 
-That is the whole of it. `spawn` opens a **session** — a conversation the agent holds — and
-each round opens a new one, so nothing of the last turn carries over.
-
-The opposite is `stateful_ralph`, which holds one session for the whole run:
+Move one line and it is the opposite loop, one conversation that remembers every round:
 
 ```python
-session = await agent.spawn(env=workspace)
+session = await agent.spawn(env=workspace)  # [!code ++]
 while True:
+    session = await agent.spawn(env=workspace)  # [!code --]
     await agent.run(task, session=session)
 ```
 
-The agent is the same; the behaviour is opposite. **The flow decides, not the agent** — the
-most important choice a weaver makes. See [Concepts › Session](/user/concepts#session).
+| | `spawn` inside the loop | `spawn` before it |
+| --- | --- | --- |
+| The official flow | [`ralph_loop`](/flows/ralph-loop) | [`stateful_ralph`](/flows/stateful-ralph) |
+| Each turn starts from | the task and the repository | everything said and done so far |
+| Reach for it when | earlier attempts would mislead the next one | each round builds on what the last one learned |
 
-The whole flow, as the flowverse keeps it, is not much longer. Its one agent is the role
-`agent`, it works in `workspace`, the directory the run was started in, and it [can be picked
-up](/user/resuming), so it keeps the round it reached in `ctx.state`:
+The agent is the same either way. The flow decides what it remembers.
+
+## The real `ralph_loop`
+
+This is `ralph_loop` as the official flowverse ships it, less its module docstring:
 
 ```python
+import asyncio
+
 from hmz.flows import (
     Agent,
     AgentCollection,
@@ -42,6 +50,9 @@ from hmz.flows import (
     flow,
 )
 
+STALLED = 3
+PAUSE = 5.0
+
 
 class Agents(AgentCollection):
     agent: Agent
@@ -51,35 +62,59 @@ class Envs(EnvCollection):
     workspace: LocalEnv
 
 
-@flow(agents=Agents, envs=Envs, params=FlowParams, resumable=True)
+@flow(agents=Agents, envs=Envs, params=FlowParams, resumable=True)  # [!code highlight]
 async def ralph_loop(
     task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
 ) -> None:
-    """A fresh session every turn, so nothing carries over."""
-    agent, workspace, state = agents["agent"], envs["workspace"], ctx.state
-    assert state is not None  # a resumable flow always has one
+    """The task again and again, a fresh session every round."""
+    state = ctx.state
+    assert state is not None
+    agent = agents["agent"]
+    stalled = 0
     while True:
-        state["rounds"] = (state["rounds"] if "rounds" in state else 0) + 1
-        session = await agent.spawn(env=workspace)
+        state["rounds"] = rounds = (state["rounds"] if "rounds" in state else 0) + 1  # [!code highlight]
+        print(f"round {rounds}")
+        session = await agent.spawn(env=envs["workspace"])
         try:
-            await agent.run(task, session=session)
-        except HarnessError:
-            continue                        # a turn that failed: go round again
+            answered = await agent.run(task, session=session)
+        except HarnessError as error:  # [!code highlight]
+            print(f"round {rounds} failed: {error}")
+            answered = ""
+        stalled = 0 if answered else stalled + 1  # [!code highlight]
+        if stalled >= STALLED:  # [!code highlight]
+            print(f"stopping: {stalled} rounds in a row answered with nothing")
+            return
+        await asyncio.sleep(PAUSE)
 ```
 
-There is no way out of the `while True`, and that is deliberate: the run's
-[budget](/features/budgets) is what stops it. A turn taken once it is spent raises
-`BudgetExceeded`, which is not a `HarnessError`, so the `except` above lets it through and the
-loop ends there.
+Besides a pause of `PAUSE` seconds between rounds, four things surround the two lines of the
+loop:
 
-## Write a task the loop can finish
+1. **It keeps its place.** `resumable=True` hands the flow `ctx.state`, a dictionary that is
+   saved as it is written. Stop the run, pick it up with `hmz exec --resume` or `/resume`, and
+   it counts on from the round it reached. See [Picking a run up](/user/resuming).
+2. **A failed turn is a round answered with nothing.** `HarnessError` is what a turn raises
+   when the CLI could not take it: it died mid-turn, the provider throttled it, the connection
+   broke. Catching it keeps one bad turn from ending a run meant to go on for hours.
+3. **Three empty rounds in a row end it.** `run` answers with what the agent said, and an agent
+   with nothing left to say, or a CLI failing every time, is a loop with nothing more to do.
+4. **Otherwise, the budget ends it.** Every run is given [a budget](/features/allowances). The
+   turn that finds it spent raises `BudgetExceeded`, which is not a `HarnessError`, so it goes
+   straight past the `except` and ends the run.
 
-A Ralph loop wants a task with a finish line it can check for itself.
+::: warning Catch `HarnessError`, not `Exception`
+`except HarnessError` lets a spent budget and a stop go through. `except Exception` does not:
+once the run's `cost` is spent, every turn raises `BudgetExceeded` again, and a loop that
+catches it spins on without end.
+:::
+
+## Give it a finish line
+
+A loop can end on a check of your own. Keep the task in a file with boxes to tick, and stop
+when they are ticked and the tests pass:
 
 ```sh
 cat > TASK.md <<'EOF'
-# Task
-
 Make `calc.py` a real calculator:
 
 - [ ] add, subtract, multiply, divide
@@ -87,169 +122,71 @@ Make `calc.py` a real calculator:
 - [ ] a test file `test_calc.py` covering all four
 - [ ] `python -m pytest -q` passes
 
-Tick each box in this file as you finish it. Stop when all four are ticked.
+Tick each box in this file as you finish it.
 EOF
-git add -A && git commit -qm "the task"
 ```
 
-## Choose the flow
-
-In `hmz`:
-
-```
-/flow
-```
-
-The flows appear one place at a time, one list each. **←** and **→** step between the places,
-**s** narrows by name, and enter takes `ralph_loop`. Or say it outright:
-
-```
-/flow ralph_loop
-```
-
-Opening it asks what its one role, `agent`, runs — a CLI, a model, an effort — and what the
-run may spend. `workspace` is not asked about: it is this directory.
-
-There are **no flows to choose from while a flow is running**: `/flow` opens inside the agents
-of the one that is going, and `/flow ralph_loop` is refused outright. Looking and leaving
-without choosing changes nothing.
-
-::: details What these three flows are
-| Flow | Roles | |
-| --- | --- | --- |
-| `chat` | `assistant`, and you as `human` | one session; every line you type is a turn of it. What the interface opens on. |
-| `ralph_loop` | `agent` | a fresh session every turn |
-| `stateful_ralph` | `agent` | one session, re-sent the task every turn |
-
-Both loops say they [can be picked up](/user/resuming). They keep which round they are on, so
-carrying one on in this directory says round 41 rather than round 1.
-:::
-
-From a command line it is the same three answers, as flags:
-
-```sh
-hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b duration=6h,cost=50 \
-    "Work through TASK.md."
-```
-
-## Start the loop
-
-Say what you want done:
-
-```
-Work through TASK.md.
-```
-
-It keeps going until you stop it, or until what you let it spend is spent.
-
-## Watch the run
-
-```
-/monitor
-```
-
-It shows three things: who is working, every handover between agents with how often it
-happened, and what each model has cost. On a one-agent flow the graph is dull. On
-[two agents taking turns](/user/tutorials/take-home) it is the shape of the run.
-
-Above the editor, continuously, is the agent with a turn open, by the role the flow gave it,
-and what its model has cost over a recent window — so a flow that has stopped reads as
-stopped. **tab** steps between the agents that are working, which matters on a flow that
-drives several. See [Cost and rate](/user/tally).
-
-## Steer the loop without restarting
-
-A Ralph loop re-reads the repository every turn, so **the fastest way to steer it is to edit
-the task file**. In another terminal:
-
-```sh
-echo '- [ ] and a --help flag' >> TASK.md
-```
-
-The next turn starts from a file that says so. Nothing had to be told.
-
-You can also type at it; that goes into the turn that is running. See [Talking to a running
-turn](/user/steering).
-
-## Stop the loop
-
-**ctrl+c**, twice.
-
-The loop never ends by itself; it is a `while True`. A stop cancels the flow where it is
-waiting — the turn under way is interrupted, and the `CancelledError` goes up through the
-flow's own code. `except HarnessError` deliberately does not catch it, and neither should any
-`except` you write around a turn: a loop that carried on past a stop would never end. See
-[Stopping](/user/stopping).
-
-It also stops without you. Every run has a [budget](/features/budgets) — `-b` on a command
-line, the budget row of `/flow` at the prompt — and `hmz exec` refuses to start a flow without
-one. A flow says nothing about it: the loop above has no default of its own, and what it may
-spend is whoever runs it to say.
-
-Stopping is not losing your place. `ralph_loop` [can be picked up](/user/resuming): `hmz exec
---resume` with the same flow, or `/resume` at the prompt, goes on from the round it reached.
-`/epics` is where every run of it is.
-
-## Other shapes
-
-The two loops above are the two ends of one question — what the next turn remembers — and the
-flowverse keeps the shapes between them:
-
-| Flow | Each round | |
-| --- | --- | --- |
-| [`ralph_loop`](/flows/ralph-loop) | a fresh session | nothing carries over but the repository |
-| [`stateful_ralph`](/flows/stateful-ralph) | the same session, the task again | everything carries over |
-| [`continue_loop`](/flows/continue-loop) | the same session, `continue` | the task is sent once, and nudged after |
-| [`flame_chase`](/flows/flame-chase) | two agents, `first_chaser` and `second_chaser`, in turn | each reads what the other left |
-| [`goal`](/flows/goal) | the task as the agent's own [goal](/weaver/goals) | the model says when it is done |
-
-`flame_chase` is the smallest loop over two agents, and the whole of it is whose turn it is:
+A workspace whose type carries `ShellEnvMixin` may run programs, and one with `FilesEnvMixin`
+may read and write files:
 
 ```python
-chasers = [agents["first_chaser"], agents["second_chaser"]]
-at = state["turn"] if "turn" in state else 0
+from hmz.flows import FilesEnvMixin, LocalEnv, ShellEnvMixin
+
+
+class Workspace(LocalEnv, ShellEnvMixin, FilesEnvMixin):
+    """The directory the run was started in."""
+
+
+class Envs(EnvCollection):
+    workspace: Workspace
+
+
+async def finished(workspace: Workspace) -> bool:
+    code, _, _ = await workspace.exec(["python", "-m", "pytest", "-q"])
+    return code == 0 and b"- [ ]" not in await workspace.read("TASK.md")
+```
+
+```python
+    while True:
+        session = await agent.spawn(env=workspace)
+        await agent.run(task, session=session)
+        if await finished(workspace):  # [!code ++]
+            return  # [!code ++]
+```
+
+Run it on `"Work through TASK.md."` and the task file is also how you steer it: add a box while
+it runs, and the next round starts from a file that says so.
+
+## Two agents, taking turns
+
+[`flame_chase`](/flows/flame-chase) is the smallest loop over two agents. The heart of it is
+whose turn it is, kept in `ctx.state` so a resumed run goes on with the right one:
+
+```python
+chasers = (agents["first_chaser"], agents["second_chaser"])
+at = (state["turn"] if "turn" in state else 0) % len(chasers)
 while True:
-    session = await chasers[at].spawn(env=workspace)
+    session = await chasers[at].spawn(env=envs["workspace"])
     await chasers[at].run(task, session=session)
-    at = (at + 1) % 2
-    state["turn"] = at                 # two turns in a row is the one thing it must not do
+    at = (at + 1) % len(chasers)
+    state["turn"] = at
 ```
 
-## Try this
+The official flowverse has the other shapes:
 
-**Hold the conversation instead of dropping it.** `/flow stateful_ralph`, same task. Compare
-how often it re-reads files it has already read.
+| Flow | Each round |
+| --- | --- |
+| [`ralph_loop`](/flows/ralph-loop) | a fresh session, the task again |
+| [`stateful_ralph`](/flows/stateful-ralph) | the same session, the task again |
+| [`continue_loop`](/flows/continue-loop) | the same session, the task once and then `continue` |
+| [`flame_chase`](/flows/flame-chase) | two agents in turn, a fresh session each |
+| [`goal`](/flows/goal) | no loop of its own: the task becomes the CLI's own [goal](/weaver/goals) |
 
-**Move the effort.** Open the flow in `/flow`, choose the agent, find the `effort` row,
-and press **←/→** or **space**. A Ralph loop of `low` turns is a different animal from one of
-`max` turns. See [Efforts](/user/efforts).
+To start from one of them, fork it into `.humanize/flows/` and change the copy. See
+[Flowverses](/weaver/flowverses).
 
-**Make it read-only.** What an agent is allowed to touch is the flow's to say, declared on the
-role — so this one is a fork rather than something you type. Press **f** on `ralph_loop` in
-`/flow`, which copies the whole flow into `.humanize/flows/ralph_loop/`, and give its one role a
-type of its own:
+## Running one
 
-```python
-# .humanize/flows/ralph_loop/__init__.py
-from hmz.flows import Permission, PermissionKind
-
-
-class Reader(Agent):
-    _permission = Permission(local=PermissionKind.READ)
-
-
-class Agents(AgentCollection):
-    agent: Reader
-```
-
-`local/ralph_loop` now looks at the repository and changes nothing, whichever CLI fills the
-role, which is how you use a loop to *review* rather than to build. See
-[Permissions](/user/permissions).
-
-## See also
-
-- [Concepts › Session](/user/concepts#session)
-- [Stopping](/user/stopping)
-- [Cost and rate](/user/tally)
-- [Efforts](/user/efforts)
-- [Beat a benchmark](/user/tutorials/take-home)
+A loop runs like any other flow. [Watching it](/user/monitor), [typing into a
+turn](/user/steering), [stopping it](/user/stopping) and [picking it up](/user/resuming) are in
+the User Guide.
