@@ -1,28 +1,14 @@
 # Many turns at once
 
-Every flow is an `async def`, so every flow can have as many turns going at once as it likes.
-Reach for it when you need two hundred files fixed at the same time, or when a flow has to wait
-for more than one thing.
+A flow is an `async def` and `agent.run` is a coroutine, so turns you start together run
+together: two hundred files fixed at once, or an actor and a reviewer side by side. The one
+rule is that **two turns at once need two sessions**.
 
-## A turn is something to await
+## Try it
 
-`run` is a coroutine. A flow that awaits one turn after another is a flow that takes one turn
-at a time, which is what most of them want:
+One agent, a session per file, at most eight going at a time:
 
-```python
-await agent.run(task, session=session)
-await agent.run("now review it", session=session)
-```
-
-To have more than one going, start several and wait for all of them — `asyncio.gather`, or a
-`TaskGroup`. Nothing about how the flow is started changes: `hmz exec` and the interface run
-it on a loop of the run's own, and the run is over when the flow returns.
-
-## Fan one agent out
-
-One agent, one session per file, all of them going at once:
-
-```python
+```python{34,38,42}
 # .humanize/flows/fanout/__init__.py
 import asyncio
 
@@ -49,23 +35,20 @@ class Envs(EnvCollection):
     workspace: Workspace
 
 
-#: How many turns this flow has going at once, however many files there are.
-WIDE = 8
-
-
 @flow(agents=Agents, envs=Envs, params=FlowParams)
 async def fanout(
     task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
 ) -> list[str]:
-    """One agent, one session per file, eight of them going at once."""
+    """One agent, a session per file, eight at a time."""
     agent, workspace = agents["agent"], envs["workspace"]
     _, listed, _ = await workspace.exec(["git", "ls-files", "src/*.py"])
-    gate = asyncio.Semaphore(WIDE)
+    gate = asyncio.Semaphore(8)  # at most eight turns at once
 
     async def one(path: str) -> str:
         async with gate:
-            session = await agent.spawn(env=workspace)
-            return await agent.run(f"{task}\n\nThe file is {path}.", session=session)
+            session = await agent.spawn(env=workspace)  # one per file
+            prompt = f"{task}\n\nThe file is {path}."
+            return await agent.run(prompt, session=session)
 
     return await asyncio.gather(*(one(path) for path in listed.split()))
 ```
@@ -75,35 +58,55 @@ hmz exec -f fanout -a agent=claude/claude-opus-5:high -b cost=40 \
     "add type annotations to this module"
 ```
 
-The answers come back in the order the files were listed. **How wide** a fan-out runs is a
-question about the machine and the account rather than about this library, so nothing caps it:
-`gather` starts everything it is given. The semaphore is where a flow says otherwise, and every
-file lands either way — the rest wait behind the ones running.
+`gather` answers in the order the files were listed. Nothing in humanize caps how many turns
+go at once, so the semaphore is yours to set: without it, every file starts at the same moment.
+How wide is worth going depends on the CLI and the machine; see [the concurrency
+page](/features/concurrency).
 
-## Handle a turn that fails
+## One session, one turn at a time
 
-`gather` raises the first failure and leaves the others running with nobody waiting for them.
-Two better shapes, depending on what a failure means.
-
-**Where one failed turn is one file to take again**, collect the failures instead of raising
-them:
+A second `run` on a session whose turn is still going is refused with `SessionError`. It is not
+queued and not interleaved:
 
 ```python
+# One session: the second run raises SessionError.
+await asyncio.gather(agent.run(a, session=s), agent.run(b, session=s))  # [!code error]
+
+# Two sessions: both go at once.
+await asyncio.gather(agent.run(a, session=s1), agent.run(b, session=s2))
+```
+
+To add a word to a turn that is already running, `steer` it instead. That needs a role that
+declared `SteeringAgentMixin`, which Claude Code, Codex, Kimi Code and pi serve. See
+[Steering](/user/steering).
+
+## When a turn fails
+
+Plain `gather` raises the first failure and leaves the other turns running with nobody waiting
+for them. Pick the shape that matches what a failure means to you:
+
+| Shape | The other turns | What you get back |
+| --- | --- | --- |
+| `gather(...)` | keep running, unwatched | the first failure, raised |
+| `gather(..., return_exceptions=True)` | run to the end | every answer, with failures in place |
+| `asyncio.TaskGroup` | cancelled at once, and each CLI stops | an `ExceptionGroup` of the failures |
+
+::: code-group
+
+```python [Collect the failures]
 from hmz.flows import HarnessError
 
-said = await asyncio.gather(*(one(path) for path in paths), return_exceptions=True)
-failed = [
-    path for path, answer in zip(paths, said, strict=True) if isinstance(answer, HarnessError)
+said = await asyncio.gather(
+    *(one(path) for path in paths), return_exceptions=True
+)
+failed = [  # the files to take again
+    path
+    for path, answer in zip(paths, said, strict=True)
+    if isinstance(answer, HarnessError)
 ]
 ```
 
-Anything that is not a `HarnessError` — a spent [budget](/features/budgets), a bug in the
-flow — is still in `said` as the exception it was; raise it rather than read past it.
-
-**Where one failed turn means the rest are pointless**, a `TaskGroup` cancels the others the
-moment one fails, and `except*` takes the failures out by kind:
-
-```python
+```python [Stop at the first failure]
 said: list[str] = []
 try:
     async with asyncio.TaskGroup() as group:
@@ -113,13 +116,14 @@ except* HarnessError as failed:
     print(f"{len(failed.exceptions)} turns failed")
 ```
 
-Cancelling a task that is taking a turn interrupts the turn: the CLI stops where it is, rather
-than going on spending for nobody.
+:::
 
-## Gather turns that differ
+With `return_exceptions=True`, anything that is not a `HarnessError` also lands in the list: a
+spent [budget](/features/allowances), or a bug in your flow. Raise it rather than read past it.
 
-When the turns differ — two agents, or one agent in several places — gather the calls
-themselves:
+## Different turns at once
+
+Two agents, or one agent with different prompts, gather the same way:
 
 ```python
 acting = await agents["actor"].spawn(env=workspace)
@@ -130,81 +134,61 @@ acted, reviewed = await asyncio.gather(
 )
 ```
 
-## Gather whole flows
+## One agent in several places
 
-[`load`](/weaver/calling-flows) answers with a flow, and calling one is a coroutine — so whole
-flows gather the same way turns do:
+Sessions that all write to one directory can trip over each other. `derive_worktree` checks out
+a fresh git worktree and hands it back as an environment of its own; the role asks for it with
+`GitWorktreeEnvMixin`. Spawn a session in each:
+
+```python{1,5}
+class Workspace(LocalEnv, GitWorktreeEnvMixin): ...
+
+
+async def one(name: str) -> str:
+    tree = await workspace.derive_worktree(ref="main")  # own checkout
+    session = await agent.spawn(env=tree)
+    prompt = f"{task}\n\nYou work on the {name} part."
+    return await agent.run(prompt, session=session)
+
+
+names = ("parser", "printer", "cli")
+said = await asyncio.gather(*(one(name) for name in names))
+```
+
+It is still **one agent**: one CLI, one model, one role in the trace, with several
+conversations working in different places. See [Worktrees, copies and
+scratch](/weaver/worktrees).
+
+## Whole flows at once
+
+`load` finds a flow by its ref and hands it back ready to await. `"fanout"` is the flow from
+[Try it](#try-it), found by its directory (see [A flow that calls a
+flow](/weaver/calling-flows)). Whole flows gather the same way turns do:
 
 ```python
 from hmz.flows import load
 
-part = load(":fanout")
+part = load("fanout")
 await asyncio.gather(
     part("the parser", agents=agents, envs=envs, params=FlowParams()),
     part("the printer", agents=agents, envs=envs, params=FlowParams()),
 )
 ```
 
-Each gathered call is **a branch of the run in its own right**: its own `ctx`, its own budget
-under what is left of yours, its own [state](/user/resuming) where it keeps one, and its own
-line in the running tree the interface draws. The call a flow is in is a context variable, so
-two branches gathered side by side are two calls under the one that gathered them, never one
-inside the other.
+Each call is a **branch of the run**, with its own `ctx`, its own budget under what is left of
+yours, and its own line in the running tree. Both may be handed the same agent: the sessions
+one branch opens and the [hooks](/weaver/hooks) it hangs are its own, and the other never sees
+them.
 
-Both branches may be handed the same agent. Each is given a view of its own, granted what that
-flow declared: the sessions one opens and the hooks one hangs are that branch's, and the other
-never sees them.
+## At the prompt
 
-## Run one agent in several places
-
-A worktree per task, a checkout per shard: **a session apiece**, each in its own environment,
-and their turns going together. The workspace's role asks for worktrees:
-
-```python
-class Workspace(LocalEnv, GitWorktreeEnvMixin): ...
-
-
-async def one(name: str) -> str:
-    tree = await workspace.derive_worktree(ref="main")
-    session = await agent.spawn(env=tree)
-    return await agent.run(f"{task}\n\nYou are working on the {name} part.", session=session)
-
-
-said = await asyncio.gather(*(one(name) for name in ("parser", "printer", "cli")))
-```
-
-The agent is still **one agent**: one CLI, one model, one role in the trace. What differs is
-where each conversation works. See [Worktrees, copies and scratch](/weaver/worktrees).
-
-## The one rule that trips people
-
-**A session takes one turn at a time.** A conversation is a conversation: a second `run` on a
-session while its first is under way is refused with `SessionError`, rather than queued behind
-it or interleaved with it.
-
-```python
-await asyncio.gather(agent.run("a", session=s), agent.run("b", session=s))    # SessionError
-await asyncio.gather(agent.run("a", session=s1), agent.run("b", session=s2))  # two at once
-```
-
-Two turns at once means two **sessions**. A word for a turn already running is
-[`steer`](/user/steering), on an agent whose role declared `SteeringAgentMixin`.
-
-## Reading a fan-out at the prompt
-
-Above the editor you see one agent, with how many of its conversations are working. **tab**
-and **shift+tab** step between the conversations that are working — not all two hundred, only
-the ones thinking right now. The screen keeps the last eight conversations and the last two
-thousand lines of each. The rest is in the [trace](/user/tracing). See [Many conversations at
-once](/user/conversations).
+A fan-out shows as one agent with a count of its working conversations. <kbd>tab</kbd> and
+<kbd>shift</kbd>+<kbd>tab</kbd> step between the agents that are working. See [Many
+conversations at once](/user/conversations).
 
 ## See also
 
-- [Many conversations at once](/user/conversations) for the editor view of every conversation
-  that is working.
-- [Worktrees, copies and scratch](/weaver/worktrees) for giving each conversation a directory
-  of its own.
+- [Branching a conversation](/weaver/branching), for two sessions that share a history
+- [Worktrees, copies and scratch](/weaver/worktrees), for a directory per conversation
 - [A flow that calls a flow](/weaver/calling-flows)
-- The [trace](/user/tracing) keeps everything a run writes down.
-- [Reference › Flows › A flow that waits for more than one
-  thing](/reference/flows#a-flow-that-waits-for-more-than-one-thing)
+- [Reference › Flows](/reference/flows)
