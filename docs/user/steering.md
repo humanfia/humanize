@@ -1,126 +1,165 @@
+<script setup>
+import TermScreen from '../.vitepress/theme/components/user-running/TermScreen.vue'
+
+const working = [
+  '[dim]── actor[/]',
+  '',
+  '[dim]● actor is working[/]',
+  '',
+  "[g]●[/] Starting with the retry in charge(), then I'll run the suite.",
+]
+const agents = [
+  { r: '[m]actor · claude/claude-opus-5:high · ● 1[/]' },
+  { r: '[m]reviewer · codex/gpt-5.6-sol:high · ○ 1[/]' },
+  { r: '[m]input 41.2k · output 18.9k · cache_read 1.71M+ · cache_write 72.4k+[/]' },
+]
+const spent = '[m]$4.12 · 38 out/s[/]'
+const status = '[c]·|·[/] actor… [m](43s · ctrl+c twice to stop)[/]'
+const keys = 'tab agent · / commands · shift+enter newline · esc monitor · ctrl+c stop'
+
+const steer = [
+  {
+    label: '1 · type',
+    lines: [
+      ...working,
+      '',
+      ...agents,
+      { r: spent },
+      { rule: true },
+      { prompt: 'and fix the tests too' },
+      { rule: true },
+      {
+        l: status,
+        keys: 'enter say · tab agent · / commands · shift+enter newline · esc monitor · ctrl+c clear',
+      },
+    ],
+    caption:
+      'The actor is in the middle of a turn. Type as you would to start one.',
+  },
+  {
+    label: '2 · pinned',
+    lines: [
+      ...working,
+      '',
+      ...agents,
+      { l: '[m]❯ and fix the tests too · with actor[/]', r: spent, hl: true },
+      { rule: true },
+      { prompt: '' },
+      { rule: true },
+      { l: status, keys },
+    ],
+    caption:
+      'Sent. The line is pinned above the editor, saying which agent has it, until that agent says the words are in front of it.',
+  },
+  {
+    label: '3 · taken',
+    lines: [
+      ...working,
+      '',
+      { t: '[dim]❯[/] and fix the tests too', hl: true },
+      '',
+      '[g]●[/] Will do. Two of the tests still assert three retries; updating them too.',
+      '',
+      ...agents,
+      { r: spent },
+      { rule: true },
+      { prompt: '' },
+      { rule: true },
+      { l: status, keys },
+    ],
+    caption:
+      'Taken. The line moves into the transcript, and the same turn carries on with it in mind.',
+  },
+]
+
+const refused = [
+  {
+    label: 'cursor-agent',
+    lines: [
+      '[dim]── actor[/]',
+      '',
+      '[dim]● actor is working[/]',
+      '[r]hmz: CursorSession cannot be talked to mid-turn[/]',
+      '',
+      { r: '[m]actor · cursor-agent/composer-2.5:auto · ● 1[/]' },
+      { r: '[m]reviewer · codex/gpt-5.6-sol:high · ○ 1[/]' },
+      { r: '[m]input 22.8k · output 6.3k · cache_read 402.1k+ · cache_write 18.0k+[/]' },
+      { l: '[m]❯ and fix the tests too[/]', r: '[m]$0.91 · 52 out/s[/]', hl: true },
+      { rule: true },
+      { prompt: '' },
+      { rule: true },
+      { l: status, keys },
+    ],
+  },
+]
+</script>
+
 # Talking to a running turn
 
-A line you type while a turn is running goes **into** that turn instead of starting another.
-The agent takes the line into account rather than being restarted with it. That is the
-difference between saying "actually, use pathlib" four minutes into a refactor and saying it
-after the refactor has finished.
+While an agent is working, type a line and press <kbd>enter</kbd>. The line goes into the turn
+that is running, and the agent takes it into account without starting over. There is no mode
+to switch into and no key to hold.
 
 ## Try it
 
-While a turn is running, type a line at the prompt and press enter. There is no separate mode
-and no separate key. Your line stays pinned against the agent it went to:
+Say something to the [`rlar`](/flows/rlar) actor four minutes into its turn. Step through what
+the screen does:
 
-```
-❯ and fix the tests too · with claude#3a15
-```
+<TermScreen title="hmz · rlar" :frames="steer" />
 
-It comes off the pin only when that agent's own turn says the words are in front of it.
+You do not need to wait for a turn to end, and a line typed between turns is never dropped. It
+stays on the pin and goes into the next turn to start.
 
-## At the prompt
+## Where your line goes
 
-If no turn is open, the line is **held for the next one**. A line to a running flow is never
-dropped. A held line is pinned onto the editor rather than written into the transcript, dimmed,
-behind the same `❯`:
+To the agent you are reading. <kbd>tab</kbd> changes which one that is; see
+[Many conversations at once](/user/conversations).
 
-```
-                                    assistant · claude/claude-opus-5:high
-❯ and fix the tests too            input 11.2k · output 1.1k · cache_read 0
-❯ then push                                                    84 out/s
-────────────────────────────────────────────────────────────────────────
-❯ █
-```
-
-The line has not been said to anybody yet; the transcript is what happened. When something
-takes the line, it comes off the pin and into the transcript, in front of the turn that took
-it.
-
-### Handed to a backend is not the same as taken
-
-A turn that ends without ever saying the words are in front of it puts the line back into the
-transcript **as never sent**. A line typed at an agent that was not listening is never quietly
-counted as said.
-
-### One at a time, in order
-
-Everything you type joins one queue and leaves it a line at a time. The next line goes only
-once the turn has said it has the one before it, and a turn takes one waiting line rather than
-the whole queue. Three `hi` in a row are three things said, and they come back as three
-answers.
-
-### It reaches the agent you are reading
-
-Your line reaches the agent you are reading, not whichever happens to be working: a flow drives
-several, and a line said to the one that is not on the screen is a line said to somebody else.
-Of that agent's conversations it goes to the one with a turn open. Reading all of them at once
-there is no one agent you can have meant, so it goes to whichever has a turn open — which is
-the one the screen is showing anyway. See [Many conversations at once](/user/conversations).
-
-## What each backend does with it
-
-Four of them take a word mid-turn — Claude Code, Codex, Kimi Code and pi. The rest were handed
-the whole prompt up front and have nowhere to put a second one, so what they do with a line is
-answer it as the turn after. **`type(session).steers` says which before anything is said**, so
-code driving an agent asks beforehand rather than catching a `NotImplementedError` out of a
-turn already an hour in; a flow declares `SteeringAgentMixin` on the role instead, and a CLI
-that cannot steer is refused before anything runs.
-
-| Backend | What a mid-turn line does |
+| You are reading | Your line goes |
 | --- | --- |
-| **Claude Code** | Answered within the same turn. The turn is over once the agent has answered everything it was told, not when it first stops. |
-| **Codex** | A steer on the turn its app server is running. |
-| **Kimi Code** | Queued, then steered into the turn already running. |
-| **pi** | A steer on the run it is making, taken into it rather than answered after it. |
-| **Antigravity CLI** | Nothing: its native protocol hands back no receipt for a word, and a word that cannot be named again cannot be told apart from one that never landed. |
-| **Cursor** | Nothing: one run of the CLI per turn, given the whole of its prompt on the command line that starts it. |
-| **DeepSeek Harness** | Nothing: `session/prompt` on its SDK is a `followup`, which leaves the word in the `next-turn` inbox to be answered on its own once this turn is over rather than putting it into this one. |
-| **Grok Build** | Nothing: a second `session/prompt` is a second turn, answered on its own once this one is over. |
-| **Qwen Code** | Nothing: Qwen cannot yet acknowledge delivery, and a word nothing acknowledged cannot be told apart from one that never landed. |
-| **opencode**, **mimocode** | Nothing: a run per turn has ended by the time there is anything to say to it. |
-| **ZCode** | Nothing: its app server refuses a second prompt while one is running, and the channel its own terminal steers with is that terminal's. |
-| **A CLI of your own** over [ACP](/reference/agents#a-cli-of-your-own) | Nothing: steering is an extension each agent spells its own way, so a client guessing at one would be talking to itself. |
+| an agent with a turn open | into that turn |
+| every agent, which is where the screen opens | into whichever turn is open |
+| an agent between turns, or nothing is working | onto the pin, then into the next turn to start |
 
-**DeepSeek Harness is the near miss, and the one worth planning around.** Its runtime has a
-`steer` that does reach the turn under way; it is simply not on the surface of the SDK humanize
-drives it through, where the only thing to send is the `followup` that becomes the next turn. So
-a word said to a `dsh` agent while it works is a word answered after it has stopped — which is
-the thing you were trying not to do.
+Lines go **one at a time, in order**. The next one goes only after the agent has taken the one
+before it, so three lines typed in a row are three things said, each answered in turn.
 
-An [anchored](/user/remote-execution) Claude ends its process with each turn so its work
-reaches the target before the turn says it landed. It hears you during a turn as any Claude
-does; between two turns there is nothing there to hear, so `interject` raises `RuntimeError`
-until the next turn opens. An anchored Codex keeps one app server for the life of the agent and
-can be steered throughout, at the cost of that same guarantee.
+## Which agents take a line mid-turn
 
-A turn is steered on the server it is running on, not on whichever one the agent holds when you
-type. The two are the same unless something moved underneath — another account, or a change to
-the [callbacks](/weaver/tools) the agent offers, either of which starts a fresh server — and a
-line sent to a server that never ran the turn would be a line the turn never hears.
-
-## From Python
-
-`session.interject` sends a line from Python:
-
-```python
-session.interject("actually, use pathlib")
-```
-
-- On a backend that takes a turn's whole prompt up front, this raises `NotImplementedError`.
-  `type(session).steers` is `False` for it, and is what to ask instead of finding out this way.
-- On a backend that can be talked to, it raises `RuntimeError` when nothing is running to hear
-  it.
-
-Two related hooks, both set by whatever is driving the agent:
-
-| | |
+| Your line goes into | Backends |
 | --- | --- |
-| `agent.waiting` | Asked as each turn starts for anything said to this agent while no turn was open. What it returns goes into that turn. |
-| `agent.prompting` | Asked between turns for the next thing to say, so a flow can be a conversation rather than a loop. `None` once there will be nothing more. |
+| <Badge type="tip" text="this turn" /> | Claude Code, Codex, Kimi Code, pi |
+| <Badge type="warning" text="next turn" /> | Antigravity, Cursor, DeepSeek Harness, Grok Build, MiMo Code, opencode, Qwen Code, ZCode, and any CLI you add at `/providers` |
 
-`waiting` is how the pin in the interface works; what a flow is told next comes to it through
-its [outworlder](/weaver/human-agent) instead.
+The backends in the second row cannot be talked to while they work. Your line is refused with a
+red `hmz:` line and goes back on the pin, where the next turn to start takes it:
+
+<TermScreen title="hmz · rlar" :frames="refused" />
+
+An agent working on [another machine](/user/remote-execution) takes a line during a turn the
+same way it would locally. Between its turns, your line waits on the pin like any other.
+
+::: details If a turn ends before it takes your line
+The screen says `put to actor, which ended its turn without saying it had it`, and your line
+goes into the transcript. It may or may not have reached the agent, so say it again if it
+matters.
+
+If the flow ends first, pinned lines go into the transcript too. A line still waiting is marked
+`never sent`. A line an agent had but never confirmed is marked
+`put to the agent, never taken back`: it may have reached the agent.
+:::
+
+## When a line is not enough
+
+- To ask how the run is going without steering it, use [`/btw`](/user/btw).
+- To end the run, type `/stop` or press <kbd>ctrl+c</kbd> twice. See
+  [Stopping](/user/stopping).
+
+A flow can put words into its own agents' turns as well. See
+[Writing a flow](/weaver/writing-a-flow).
 
 ## See also
 
-- [Many conversations at once](/user/conversations) — which agent a line reaches
-- [Stopping](/user/stopping) — when a steer is not enough
-- [The person as an agent](/weaver/human-agent)
+- [A line typed mid-turn](/features/steering), which shows how it works
+- [Many conversations at once](/user/conversations)
+- [Questions](/user/questions), for when the agent asks you instead
