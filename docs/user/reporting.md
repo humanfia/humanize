@@ -1,115 +1,170 @@
 # Reporting
 
-humanize is early, so a crash on somebody else's machine is a crash nobody here sees. An
-interaction that reads as obvious to its author can read as nonsense to the person who meets
-it, and that is not a crash either. humanize can report both, and it asks you once whether it
-should.
+humanize can send its developers a report when it crashes, and a count when something it did
+was undone or refused. It asks you once, the first time you open `hmz`, and sends nothing until
+you say yes.
 
-## Try it
-
-Start the interface. On its first run it asks:
-
-```
+```text{9}
    Report what goes wrong to humanize?
 
-   humanize is early, and a crash nobody sees is a bug nobody fixes. Sent: the error
-   and where in humanize it happened; which flow was running, and what each of its
-   agents was set up to run; … Never sent: nothing you typed: no task, no prompt, no
-   line at the prompt; nothing an agent said …
+   A crash nobody sees is a bug nobody fixes. Sent: the error
+   and where in humanize it happened; which flow was running,
+   and what each of its agents was set up to run; … Never:
+   nothing you typed: no task, no prompt, no line at the
+   prompt; … /settings changes it later.
 
- ❯ 1. yes, report them     what broke, and what was running when it did
-   2. no, send nothing     nothing about this machine leaves it
+ ❯ 1. yes
+   2. no
+
+   enter choose · esc ask again next time
 ```
 
-**The answer that helps is the one it opens on.** Esc leaves the question unanswered, and
-humanize asks again next time: silence is neither a yes nor a no, and a machine that has not
-answered sends nothing. `/settings` changes the answer afterwards.
+## What is sent, and what never is
 
-Only the interface asks, because only the interface has somebody to ask. `hmz exec` reports if
-the answer is already yes, and is silent otherwise. A headless run must not stop for a
-question, and nothing on a CI box should start uploading because nobody was there to say no.
+<div class="report-lists">
+<div class="report-list sent">
+<p class="report-head"><span aria-hidden="true">↑</span> Sent, once you say yes</p>
+<ul>
+<li><strong>The error, and where in humanize it happened.</strong> Its type, its message, and
+each frame of the stack named by its place inside humanize or a library, such as
+<code>hmz/coganchor/agents/base.py</code>. A frame in your own code keeps its line number and
+nothing else.</li>
+<li><strong>Which flow was running, and what each agent was set up to run.</strong> The flow's
+name, how deep it was called and for how long; for each agent role, the CLI, the model, the
+effort, the account <em>by name</em>, what it may do, and its skills by name.</li>
+<li><strong>Which coding agents are installed, and which accounts exist</strong>, by name, and
+how each account was signed in.</li>
+<li><strong>Which skills and flowverses are in play</strong>, by name.</li>
+<li><strong>What humanize did that you then undid, refused or walked away from</strong>, as
+<a href="#the-friction-it-counts">named events with counts</a>.</li>
+<li><strong>The versions of humanize and Python, and the kind of machine.</strong></li>
+</ul>
+</div>
+<div class="report-list kept">
+<p class="report-head"><span aria-hidden="true">✕</span> Never sent</p>
+<ul>
+<li><strong>Nothing you typed.</strong> No task, no prompt, no line at the prompt.</li>
+<li><strong>Nothing an agent said.</strong> Nothing out of any transcript or session log.</li>
+<li><strong>No file, no path outside humanize itself, and no directory name.</strong></li>
+<li><strong>No key, no token and no account credential</strong>, not even the names of the
+variables an account sets.</li>
+</ul>
+</div>
+</div>
 
-## What is sent
+The machine's side, the installed agents, accounts, skills and flowverses, is described by
+`hmz` itself. A report from `hmz exec` carries the error and the run without it.
 
-| | |
+## Changing your answer
+
+| Where | What happens |
 | --- | --- |
-| the error | its type, its message, and where in humanize it happened |
-| the run | which flows were going, how deep and for how long, and one line per agent role: the CLI, the model, the effort, the account **by name**, what it may do, which skills it carries |
-| the machine | which coding agents are installed, which accounts exist and how each was signed in, which skills each CLI would load and which flowverses are here — all by name |
-| the friction | what humanize did that you then undid, refused or walked away from, as counts |
-| the versions | humanize, Python, and the kind of machine |
+| `hmz`, the first time | It asks. <kbd>esc</kbd> leaves the question unanswered, and it asks again next time. |
+| `hmz`, after that | It does what you answered. [`/settings`](/user/settings) changes it: **report what goes wrong to humanize**, on the first page. |
+| `hmz exec` | It never asks. It reports only if you answered yes. |
+| a script using `hmz.sdk` | Nothing is reported unless the script calls `Hmz().reports()`, and then only if you answered yes. |
+| any of them, under `HUMANIZE_SENTRY` | `on` or `off` answers for that one process and writes nothing down. `/settings` says so while it is set. |
 
-## What is never sent
+```sh
+HUMANIZE_SENTRY=off hmz          # this run reports nothing, whatever you answered
+```
 
-- **Nothing you typed.** No task, no prompt, no line at the prompt.
-- **Nothing an agent said.** No transcript, no session log, no tool output.
-- **No file, no path outside humanize itself, and no directory name.** A stack frame is named
-  by where it sits under humanize, or under whatever humanize is installed beside —
-  `hmz/coganchor/agents/base.py`, `textual/app.py`. A frame in anything else, such as a flow of
-  yours, keeps its line number and nothing else. No path, no file name, no module, no function. A home
-  directory is replaced wherever it appears, even inside an exception's own message. The
-  command line a failed turn ran as is also taken out of the one line Python writes for it. For
-  several of these backends that command line holds the prompt.
-- **No key, no token, no credential.** Not even the names of the variables an account sets.
+A machine nobody has asked sends nothing. Leaving the question unanswered is not a yes.
 
-The Sentry quickstart turns on three switches that are off here, and the module says why where
-they are set. `send_default_pii` attaches the address, the machine's name and, in this SDK,
-**the variables of every frame** — which is where the task, the prompt and the answer live.
-`enable_logs` is off because what humanize logs is paths and commands. Stack-frame variables
-have their own switch, and that is off too. The hostname is not sent either.
+## The friction it counts
 
-One default integration is switched off for the same reason. `ArgvIntegration` attaches
-`sys.argv`, and the command `hmz exec -f ralph_loop -a agent=claude/… -b cost=5 "$(cat TASK.md)"` puts the
-whole task there. It is disabled where the reporter starts. Everything the SDK collects under
-`extra` is dropped again on the way out.
+Some things worth knowing are not errors: each of these is somebody finding that humanize does
+not work the way they expected. Each is sent as its name and the few counts or names in the
+last column, with the same description of the run as a crash. None records a word of what was
+typed.
+
+| Name | When | Carries |
+| --- | --- | --- |
+| `unknown-command` | a `/` line that is not a command | how long the name was |
+| `unknown-flow` | a `$` line that names no flow | how long the name was |
+| `nothing-started` | a task typed with no coding agent to run it | why |
+| `changes-dropped` | a menu answered, then its changes thrown away | which menu |
+| `save-refused` | a menu that would not save, a role or a budget still unset | how many roles were unset |
+| `key-does-nothing` | a key pressed in `/providers` on this machine's own account, where it does nothing | which menu, and what was asked |
+| `line-refused` | a typed line the agent refused | how long its refusal was |
+| `lines-never-sent` | typed lines still waiting when the flow ended | how many |
+| `skill-name-taken` | a skill a flow brought, where the CLI already loads another of that name | nothing more |
+| `native-credential-stays-here` | an account whose files could not all go with a turn to another machine | nothing more |
+| `watcher-raised` | something watching an agent failed on one of its events | the CLI, the kind of event, the type of error |
+
+## How the promise is kept
+
+Reports go to humanize's own [Sentry](https://sentry.io) project. The reporter is set up so
+that the list above stays true:
+
+- `send_default_pii` is off: no IP address, no user, no machine name.
+- `include_local_variables` is off, and each frame's variables are dropped again before
+  sending. That is where the task, the prompt and the answer would be.
+- The lines of source around each frame are dropped.
+- `enable_logs` is off, and breadcrumbs are dropped: no log line leaves the machine.
+- `server_name` is empty: no hostname.
+- `ArgvIntegration` is off, and everything under `extra` is dropped: no command line, which for
+  `hmz exec` holds the task.
+- The list of installed packages, `user` and `request` are dropped.
+- In the error's message and every other string sent, your home directory becomes `~`, a
+  password in a URL and anything shaped like a key become `…`, the command line of a failed
+  command becomes `A command`, and anything over 500 characters is cut.
 
 ## Sending a run on purpose
 
-None of the above is a way of getting a run to us. When something goes wrong and the shape of
-the failure is not enough, [exporting a run](/user/export) packages the whole of it up as one archive —
-every record, every session log in full, and a manifest saying what each backend was — for you
-to attach to an issue. It is the other half of this page: what a report never takes, an export
-carries, because you chose to send it. Credentials are struck out of it all the same.
+A report never carries your run. When you want somebody to see what happened, [export the
+run](/user/export) from `/epics` and attach the archive to an issue. That archive is the
+opposite of a report: it holds your task and every transcript, because you chose to send it.
+Credentials are still struck out of it.
 
-## The friction it notices
+<style scoped>
+.report-lists {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
 
-Not everything worth reporting is an error. humanize counts these cases, because each one is
-somebody finding that it does not work the way they expected:
+.report-list {
+  padding: 14px 18px 4px;
+  border: 1px solid var(--hmz-panel-border);
+  border-top: 3px solid var(--report-tone);
+  border-radius: 12px;
+  background: var(--hmz-panel-bg);
+}
 
-| | |
-| --- | --- |
-| `unknown-command` | a `/line` that is not one |
-| `nothing-started` | a task typed, and nothing ran |
-| `changes-dropped` | a menu answered and then thrown away |
-| `save-refused` | a save asked for and refused |
-| `key-does-nothing` | a key that is offered and does nothing where it was pressed |
-| `line-refused`, `lines-never-sent` | something said to an agent that never arrived |
+.report-list.sent {
+  --report-tone: var(--vp-c-brand-1);
+}
 
-Each one carries counts and names — which sheet, which key, how many. It never records a word
-of what was typed.
+.report-list.kept {
+  --report-tone: var(--vp-c-danger-1);
+}
 
-## From Python
+.report-head {
+  margin: 0 0 6px;
+  font-weight: 600;
+  color: var(--report-tone);
+}
 
-This section is the weaver's, and any layer of humanize itself. A flow says what should go with
-a report by handing over something that knows. That thing runs only when a report is actually
-being made, so nothing is gathered on a machine that reports nothing:
+.report-head span {
+  display: inline-block;
+  width: 1.2em;
+}
 
-```python
-from hmz.runtime import telemetry
+.report-list ul {
+  padding-left: 1.1em;
+  font-size: 14px;
+  line-height: 1.6;
+}
 
-telemetry.about("worktrees", lambda: {"held": len(worktrees)})
-telemetry.snag("gave-up", after=3)          # not an error, and not what anybody meant either
-telemetry.crash(why, doing="my own tool")   # reported, and raised on as it was
-```
+.report-list li + li {
+  margin-top: 8px;
+}
 
-`telemetry.enabled()` is the answer: `True`, `False`, or `None` for a machine nobody has asked.
-`telemetry.SENT` and `telemetry.KEPT` are the two lists this page is written from.
-
-## Turning it off
-
-```sh
-HUMANIZE_SENTRY=off hmz          # this run only, whatever is written down
-```
-
-`/settings` is the written-down answer, on its first page, beside the list of what a report
-carries. The environment wins for one run, and the menu says so when it is set.
+@media (max-width: 640px) {
+  .report-lists {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+</style>
