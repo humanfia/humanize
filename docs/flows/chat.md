@@ -4,25 +4,60 @@ pageClass: hmz-feature
 
 # chat
 
-One agent, one session, and every line typed between turns is a turn of it — a coding agent
-with no loop around it, doing what it is told and then waiting to be told again. It is what the
-terminal interface opens on, so that saying something is all it takes to start.
+Talk to one coding agent, with no loop around it: it answers, and what you type back is its
+next turn. It is the one flow that needs no budget, and the one `hmz` opens on in a new
+project, so there typing a line is all it takes to start. Once you have run another flow,
+`$chat` brings you back.
 
-```sh
+::: code-group
+
+```text [at the prompt]
+❯ $chat what does this repository do?
+```
+
+```sh [hmz exec]
 hmz exec -f chat -a assistant=claude/claude-opus-5:high "what does this repository do?"
 ```
 
-The one flow `hmz exec` runs without a `-b`: a conversation ends when you stop talking, so it
-runs under `Budget(cost=inf)`.
+:::
 
 <HmzFlowShape flow="chat" />
 
-## Two agents, and the second is you
+Under `hmz exec` nobody is at the prompt to answer, so a run is a single turn: one question
+answered, or one task done.
 
-`chat` drives an `assistant` and a `human` — the [outworlder](/features/human), whoever is outside
-the run, filled in by the runtime and never by `-a` — in `workspace`, a `LocalEnv`: the directory
-it was started in, which no `-e` names either. Saying something to the person is asking what to
-say next, and what they answer with is what they typed:
+## Roles and params
+
+| Role | |
+| --- | --- |
+| `assistant` | The agent you talk to. It may also search and read the web. |
+| `human` | You. humanize fills this role; it takes no `-a`. |
+
+No params.
+
+## While you talk
+
+- **Type while it works.** The line goes to the agent, into the turn under way where its
+  backend allows. See [Talking to a running turn](/user/steering).
+- **Answer its questions.** When the agent stops to ask you something, the question comes to
+  your prompt. This works on `claude`, `codex`, `kimi`, `pi` and `zcode`.
+- **Keep several going.** See [Many conversations at once](/user/conversations).
+
+## What ends it
+
+- **Nothing comes back from you.** At the prompt, that is `/stop`, or [`/afk`](/user/afk),
+  which answers for you with nothing. Under `hmz exec`, it is the end of the first turn.
+- **The first turn fails.** If the conversation cannot start at all, say because the backend
+  refused the account or will not run the model, the run ends with what the backend said. After
+  the first turn, a failed turn is reported to you and the conversation goes on.
+
+## Picking it up
+
+`chat` keeps nothing for `--resume`: running it again starts a new conversation. To read an old
+one, [export the run](/user/export) from `/epics` and open its [trace](/user/tracing).
+
+::: details The whole loop, for the curious
+This is the heart of the flow, as humanize ships it:
 
 ```python
 conversation = await assistant.spawn(env=workspace)
@@ -33,36 +68,10 @@ while said:
     said = await human.run(answered, session=person)
 ```
 
-Which is why the same flow works with nobody at a prompt: an outworlder that is away answers
-`""`, the loop ends, and `chat` has done the one thing it was given. `/afk` and a shell script are
-the same thing to it, and that is deliberate.
-
-**The first turn is the one that fails out loud.** A conversation that could not be started at
-all — an account the backend refused, a model it will not run for that account — ends the run
-with what the backend said about it. Every turn after the first is forgiving: a turn that fails
-is said to you, and by then there is a conversation to carry on.
-
-## Every capability the harness has
-
-`chat` declares a plain `Agent` — allowed the web, `Permission(online=PermissionKind.ALL)`, as a
-person talking to one would expect — because it talks to whichever harness it is given; and it is
-the one flow the runtime hands the harness's **full** view, so everything that harness can do is
-there: a `/goal` typed at it on a harness with one, a question the agent stops to ask put to you
-on a harness that asks. Every other flow gets exactly what it declared.
-
-A line typed **while a turn is running** goes into that turn rather than becoming another one —
-true under any flow, and [Steering](/features/steering) is how.
-
-## What it keeps
-
-Nothing. What was said is the conversation, logged turn by turn by the backend that ran it, and
-a session is spawned rather than reopened — so starting this again is another conversation
-rather than the last one carried on. To read one back, [export the run](/user/export) from
-`/epics` and open the [trace](/user/tracing) inside it.
+[Writing a flow](/weaver/writing-a-flow) starts from a loop like this one.
+:::
 
 ## See also
 
-- [Many conversations at once](/user/conversations) — the interface holds several of these
-- [The person as an agent](/weaver/human-agent) — what the outworlder is, and what it does
-  unattended
-- [ralph_loop](/flows/ralph-loop) — the same one agent, with a loop around it
+- [ralph_loop](/flows/ralph-loop): one agent, with a loop around it
+- [goal](/flows/goal): one agent that keeps going until it says it is done

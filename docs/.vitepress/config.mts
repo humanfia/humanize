@@ -189,10 +189,10 @@ export default defineConfig({
       ],
 
       // One page per flow, named the way `-f` takes it. The order is the order they are worth
-      // reading in rather than alphabetical: the one in the package, the loops of one agent,
-      // then the flowverse's larger ones, ending with the two whose lanes run at once.
+      // reading in rather than alphabetical: the loops of one agent, then those of two or
+      // more, the two whose lanes run at once, and last the two built for one job each.
       '/flows/': [
-        { text: 'Flows', link: '/flows/' },
+        { text: 'Choosing a flow', link: '/flows/' },
         {
           text: 'One agent',
           collapsed: false,
@@ -205,15 +205,13 @@ export default defineConfig({
           ],
         },
         {
-          text: 'More than one agent',
+          text: 'Two or more agents',
           collapsed: false,
           items: [
             { text: 'flame_chase', link: '/flows/flame-chase' },
             { text: 'rlar', link: '/flows/rlar' },
             { text: 'humanize1', link: '/flows/humanize1' },
             { text: '…_agent_cleanup', link: '/flows/agent-cleanup' },
-            { text: 'recursive_lean_prover', link: '/flows/recursive-lean-prover' },
-            { text: 'aot', link: '/flows/aot' },
           ],
         },
         {
@@ -225,6 +223,14 @@ export default defineConfig({
               text: 'parallel_flame_chase_git_pr',
               link: '/flows/parallel-flame-chase-git-pr',
             },
+          ],
+        },
+        {
+          text: 'For one job',
+          collapsed: false,
+          items: [
+            { text: 'recursive_lean_prover', link: '/flows/recursive-lean-prover' },
+            { text: 'aot', link: '/flows/aot' },
           ],
         },
       ],

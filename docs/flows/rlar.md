@@ -4,69 +4,72 @@ pageClass: hmz-feature
 
 # rlar
 
-An actor works in one session and a fresh reviewer reads its work. The actor must remember and
-the reviewer must not — and the review **is** the actor's next prompt, word for word, so what
-the reviewer noticed is what the actor hears.
+Have every round of work reviewed, and stop when the reviewer agrees it is done. An actor works
+in one session that remembers; a fresh reviewer reads the repository after each round, and its
+review is the actor's next prompt, word for word.
 
-```sh
+::: code-group
+
+```text [at the prompt]
+❯ $rlar add undo and redo to the editor
+```
+
+```sh [hmz exec]
 hmz exec -f rlar \
     -a actor=claude/claude-opus-5:high -a reviewer=codex/gpt-5.6-sol:high \
     -b duration=6h,cost=60 "$(cat TASK.md)"
 ```
 
+:::
+
 <HmzFlowShape flow="rlar" />
 
-## The reviewer answers two things at once
+## When to use it
 
-Both are read off the [shape](/features/shapes) the reviewer is held to rather than off a
-marker at the end of a paragraph, so a review that says the work is done and a review that says
-the words "it is done" are not the same thing:
+When "is it done?" should not be answered by the agent that did the work. Every review comes
+from a session that has just started: it reads the repository itself and knows nothing of how
+the work was arrived at. Give both roles the same model if you like; that asymmetry is still
+the point.
 
-```python
-class Review(BaseModel):
-    done: bool   # True only if everything asked for is implemented, works, and nothing was faked
-    notes: str   # the review itself, written as a message to the coding agent
-```
+Each review answers in a fixed [shape](/features/shapes), so the flow reads a field rather than
+hunting for a phrase:
 
-`notes` becomes the actor's next prompt verbatim. `done` is what ends the run — it ends on a
-judgement rather than on running out, as [`goal`](/flows/goal) and
-[`humanize1`](/flows/humanize1)'s loop do. The run's [budget](/features/allowances) is under it
-as it is under every flow, and it is the ceiling rather than the point: what ordinarily stops
-this one is the reviewer agreeing. A turn that fails, or a review out of shape, is taken again
-the next round; three in a row end the run with the last failure.
+| Field | What the reviewer says |
+| --- | --- |
+| `done` | `true` only if everything asked for is implemented, works, and nothing was faked, stubbed or special-cased to pass |
+| `notes` | The review itself, written to the actor: what is wrong or missing and what to do next, citing files and lines |
 
-The reviewer's prompt tells it to be skeptical, and to treat reward hacking — tests weakened or
-special-cased, work stubbed out or faked — as the thing it is most there to catch. How to read
-a round of work, and how to write the review the actor is then handed, is the flow's own
-[skill](/user/skills): `skills/review-notes`, which the `reviewer` role names, so every review
-session carries it — the actor's sessions do not. A weaver who wants the reviews written differently forks the flow, edits that one file,
-and runs.
+The reviewer is told to be skeptical, and to treat reward hacking, such as weakened tests or
+stubbed-out work, as the thing it is there to catch. How it reads a round and writes its notes
+is the flow's own [skill](/user/skills), `review-notes`, carried by every review session.
 
-## Give the two the same model, if you like
+## Roles and params
 
-They are still two agents. The actor holds one session across the rounds; every review is a
-session that has just started, reads the repository itself, and is told nothing about how the
-work was arrived at. That asymmetry is the flow.
+| Role | |
+| --- | --- |
+| `actor` | Does the work, in one session held for the whole run. |
+| `reviewer` | Reads the repository after each round, in a fresh session every time. |
 
-## What it keeps
+No params. The loop pauses 5 seconds between rounds.
 
-`rounds`, and `notes` — the one review nobody has acted on — in its
-[state](/features/resuming).
+## What ends it
 
-It is kept word for word, and this is the only place in these flows where an agent's own prose
-outlives the run. It earns that: it is what the next round is owed, the reviewer wrote it as
-the actor's next prompt, and nothing can write it again.
+- **The reviewer says `done`.** Its notes are the last thing the run prints.
+- **The [budget](/features/allowances).** The ceiling, not the usual end.
+- **Three failures in a row.** A failed turn, or a review that does not fit the shape, is taken
+  again next round; the third in a row ends the run with that failure.
 
-The actor's session is not picked up with it, so a round picked up with `--resume` opens on
-**both** — the task, because the actor has never been told it, and under it the review, marked
-as an earlier round's reading of work this session did not do. Marked that way because it may
-not even be this task's: `--resume` picks up the newest resumable run of the flow in this
-workspace, and the flow at the top of a run picks up what it kept whatever it is asked now.
+## Picking it up
 
-A run the reviewer agreed with keeps nothing at all. What is over is not carried on.
+`--resume` carries on the round count and the last review nobody has acted on. The actor's
+session is not picked up, so the resumed actor is sent both: the task, and under it that
+review, marked as a reading of work this session did not do.
+
+That review may even be of another task: `--resume` picks up the newest run of `rlar` in this
+directory, whatever it was asked. A run the reviewer agreed with keeps nothing. See
+[Picking a run up](/user/resuming).
 
 ## See also
 
-- [Answers in a shape](/features/shapes) — how the reviewer is held to that model
-- [flame_chase](/flows/flame-chase) — two agents both working, rather than one reviewing
-- [humanize1](/flows/humanize1) — the same idea, with the review hung on a hook
+- [humanize1](/flows/humanize1): the same actor-and-reviewer idea, with a plan agreed first
+- [flame_chase](/flows/flame-chase): two agents both working, rather than one reviewing

@@ -4,60 +4,70 @@ pageClass: hmz-feature
 
 # ralph_loop
 
-A fresh session every round, so nothing carries over but the repository: the agent starts from
-the task each time, and what the round before it did is whatever it left in the working
-directory. The oldest trick in unattended agent work, and still the one that survives the
-longest runs — a loop that cannot poison itself with its own context.
+Leave one agent on a long task. Every round is a fresh session that starts from the task and
+the repository, so a run can go on for days without drowning in its own context.
 
-```sh
-hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b duration=6h,cost=50 "$(cat TASK.md)"
+::: code-group
+
+```text [at the prompt]
+❯ $ralph_loop make every test in tests/ pass
 ```
 
-One role, `agent`, working in the directory the run was started in — the `workspace`, which
-nobody names with `-e`.
+```sh [hmz exec]
+hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high \
+    -b duration=6h,cost=50 "$(cat TASK.md)"
+```
+
+:::
 
 <HmzFlowShape flow="ralph_loop" />
 
-## Why it holds up
+## When to use it
 
-A session that runs for a day accumulates every wrong turn it took. A round that starts clean
-reads the repository as it is — the tests the last round broke, the file it left half-written —
-with no memory of the reasoning that got it there.
+A round that starts clean reads the repository as it is, the test the last round broke and the
+file it left half-written, with none of the reasoning that got it there. The price is that an
+agent that forgets may redo work, or undo a decision it made an hour ago. Have it write its
+decisions into the repository, and every round reads them back.
 
-The cost is real: an agent that forgets will re-derive things, and sometimes undo a decision it
-made an hour ago because nothing in the tree records that it was a decision. Write the
-decisions into the repository, and the loop reads them back.
-[`stateful_ralph`](/flows/stateful-ralph) is the same loop with the opposite trade.
+- The agent has to remember what it tried: [stateful_ralph](/flows/stateful-ralph).
+- The model should decide when it is done: [goal](/flows/goal).
+- The tree fills up with clutter over a long run:
+  [ralph_loop_agent_cleanup](/flows/agent-cleanup).
+
+## Roles and params
+
+| Role | |
+| --- | --- |
+| `agent` | Takes every round, each in a fresh session. |
+
+No params. The loop pauses 5 seconds between rounds.
 
 ## What ends it
 
-The run's [budget](/features/allowances) — `-b duration=…,cost=…,output_tokens=…` — which is
-humanize's rather than this flow's: it is held to at every turn of every session, so a round
-taken once it is spent raises rather than answering and the loop needs no exit of its own. The
-flow itself takes no params at all, and declares no budget of its own: `hmz exec` refuses to
-start it without a `-b`.
+- **The [budget](/features/allowances).** Whichever limit of `-b` runs out first.
+- **Three rounds in a row that answer nothing.** A round whose turn fails counts as one that
+  answered nothing, so a backend that refuses the account, or will not run the model, stops the
+  run within three rounds instead of burning the budget's whole duration:
 
-## What it keeps
+```text
+round 41
+round 41 failed: <what the backend said>
+round 42
+round 42 failed: <what the backend said>
+round 43
+round 43 failed: <what the backend said>
+stopping: 3 rounds in a row answered with nothing
+```
 
-`rounds`, in its [state](/features/resuming). A loop left going for days will be stopped — esc,
-a machine that goes down, a turn that takes the process with it — so running it again with
-`--resume` goes on from the round it reached rather than back at one.
+## Picking it up
 
-A run stopped by its budget is one to **pick up**, not one that is over. The budget is that
-run's and the next run is given one of its own, so what was kept is left exactly where it is
-rather than cleared. See [Picking a run up](/user/resuming).
+`--resume` carries on the round count: a run stopped on round 40 starts again at round 41.
+Everything else the loop knows is in the repository, where it always was.
 
-## What else ends it
-
-**Three rounds in a row that came to nothing.** A loop whose every turn fails or comes back
-empty — an account the backend refused, a model that account may not run — spends nothing, so
-it would go round on the same failure for as long as its budget's duration let it; three stalled
-rounds end it sooner. What it kept
-is left alone here too: a loop that stalled is one to fix and carry on from, not one that is
-over.
+A run stopped by its budget or by a stall is not over. Fix what stopped it, then run the same
+line again with `--resume` and a fresh `-b`. See [Picking a run up](/user/resuming).
 
 ## See also
 
-- [stateful_ralph](/flows/stateful-ralph) — one session instead, re-sent the task each round
-- [goal](/flows/goal) — this loop's task, set as the agent's own goal
-- [Loops](/weaver/loops) — writing one of these yourself
+- [stateful_ralph](/flows/stateful-ralph): one session instead, sent the task every round
+- [Loops](/weaver/loops): writing a loop like this one yourself
