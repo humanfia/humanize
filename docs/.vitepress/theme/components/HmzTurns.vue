@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// Turns are only sequential inside one session. Move the slider: the same twelve prompts,
-// scheduled across as many conversations as you allow, and the wall clock is what changes.
-// The one rule that trips people is the switch: two turns on one session are two turns, one
-// after the other, however they are awaited.
+// Turns wait for each other only inside one session. Move the slider: the same twelve
+// prompts, spread across as many conversations as you allow, and the wall clock is what
+// changes. The switch is the rule people read past: two turns on one session run one after
+// the other, however they are awaited. A simulation -- the minutes are made up.
 import { computed, ref } from 'vue'
 
 // Fixed, so the picture is the same every time it is read: a turn is not the same length as
@@ -12,49 +12,19 @@ const FILES = [
   'parser.py',
   'printer.py',
   'cli.py',
-  'pay.py',
+  'billing.py',
   'retry.py',
   'store.py',
-  'verses.py',
-  'skills.py',
-  'runner.py',
-  'epic.py',
-  'kept.py',
+  'search.py',
+  'auth.py',
+  'jobs.py',
+  'cache.py',
+  'email.py',
   'models.py',
-]
-
-interface Where {
-  key: string
-  said: string
-  about: string
-}
-
-const WHERE: Where[] = [
-  {
-    key: 'here',
-    said: 'this machine',
-    about: 'Every session is rooted at the directory the flow runs in, which is where they all worked before there was anywhere else to put one.',
-  },
-  {
-    key: 'worktrees',
-    said: 'a worktree apiece',
-    about: 'A conversation is rooted at a directory and every turn of it runs there — so a worktree per task is a session per task, and one agent works in all of them at once.',
-  },
-  {
-    key: 'containers',
-    said: 'a container apiece',
-    about: 'What is isolated is the tools a command finds, not the work: the agent goes on running here, with its own credentials and its own trajectory, and only what it does reaches the container.',
-  },
-  {
-    key: 'target',
-    said: 'an ssh target',
-    about: 'The agent stays here and its commands land there — one build box, as many conversations as you like against it.',
-  },
 ]
 
 const width = ref(4)
 const shared = ref(false)
-const where = ref(0)
 
 interface Block {
   file: string
@@ -94,16 +64,17 @@ const height = computed(() => lanes.value * 22 + 8)
       </label>
       <label class="sw">
         <input v-model="shared" type="checkbox" />
-        all of them on one session
+        all on one session
       </label>
       <div class="spacer" />
-      <span class="clock">
-        <b>{{ makespan.toFixed(1) }}</b> minutes of wall clock ·
-        <em>{{ serial.toFixed(1) }} of model time</em>
-      </span>
+      <span class="sim">simulation</span>
     </div>
 
     <div class="chart">
+      <p class="clock">
+        <b>{{ makespan.toFixed(1) }}</b> minutes of wall clock
+        <em>for {{ serial.toFixed(1) }} minutes of turns</em>
+      </p>
       <svg :viewBox="`0 0 1000 ${height}`" role="img" aria-label="twelve prompts, scheduled">
         <rect
           v-for="(one, i) in schedule"
@@ -123,7 +94,7 @@ const height = computed(() => lanes.value * 22 + 8)
           :y="one.lane * 22 + 16"
           class="who"
         >
-          {{ (one.t1 - one.t0) * scale > 62 ? one.file : '' }}
+          {{ (one.t1 - one.t0) * scale > 80 ? one.file : '' }}
         </text>
         <line
           :x1="makespan * scale"
@@ -135,35 +106,21 @@ const height = computed(() => lanes.value * 22 + 8)
       </svg>
       <p class="axis">
         <span>0</span>
-        <span class="end">{{ serial.toFixed(0) }} minutes, if they went one after another</span>
+        <span class="end">{{ serial.toFixed(0) }} min, one after another</span>
       </p>
     </div>
 
-    <div class="where">
-      <div class="chips">
-        <button
-          v-for="(one, i) in WHERE"
-          :key="one.key"
-          type="button"
-          :class="{ on: where === i }"
-          @click="where = i"
-        >
-          {{ one.said }}
-        </button>
-      </div>
-      <p class="about">{{ WHERE[where].about }}</p>
-    </div>
-
-    <p class="note" :class="{ warn: shared }">
+    <p class="note" :class="{ warn: shared }" aria-live="polite">
       <template v-if="shared">
-        One session, and the width does nothing. A conversation is a conversation: two turns
-        awaited on it run one after the other, exactly as two called on it do. Two turns at once
-        means two <strong>sessions</strong>.
+        One session, so the slider does nothing. A conversation takes one turn at a time, and
+        asking it for a second while the first is going is an error, so the flow waits for
+        each turn before sending the next. Two turns at once need two
+        <strong>sessions</strong>.
       </template>
       <template v-else>
-        One agent — one set of settings, one id, one place in the trace — holding
-        {{ lanes }} conversation{{ lanes === 1 ? '' : 's' }}. A session costs nothing until a
-        turn lands in one, so ten thousand of them up front is a list, not a bill.
+        One agent holding {{ lanes }} conversation{{ lanes === 1 ? '' : 's' }}, each fixing
+        its own file. The agent is one role, one CLI and one model, however many
+        conversations it holds.
       </template>
     </p>
   </div>
@@ -173,13 +130,13 @@ const height = computed(() => lanes.value * 22 + 8)
 .bar {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 10px 18px;
   flex-wrap: wrap;
   padding: 10px 16px;
   border-bottom: 1px solid var(--hmz-panel-border);
   background: var(--vp-c-bg);
   font-size: 12px;
-  color: var(--vp-c-text-3);
+  color: var(--vp-c-text-2);
 }
 
 .slider,
@@ -195,6 +152,10 @@ const height = computed(() => lanes.value * 22 + 8)
   accent-color: var(--vp-c-brand-1);
 }
 
+.slider input:disabled {
+  opacity: 0.35;
+}
+
 .sw input {
   accent-color: var(--vp-c-brand-1);
 }
@@ -206,17 +167,34 @@ const height = computed(() => lanes.value * 22 + 8)
   font-variant-numeric: tabular-nums;
 }
 
-.clock em {
-  font-style: normal;
-  color: var(--vp-c-text-3);
-}
-
 .spacer {
   flex: 1;
 }
 
+.sim {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vp-c-text-3);
+}
+
 .chart {
-  padding: 14px 16px 0;
+  padding: 12px 16px 0;
+}
+
+.clock {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--vp-c-text-2);
+}
+
+.clock b {
+  font-size: 15px;
+}
+
+.clock em {
+  font-style: normal;
+  color: var(--vp-c-text-3);
 }
 
 svg {
@@ -233,7 +211,7 @@ svg {
 
 .who {
   fill: var(--vp-c-bg);
-  font-size: 9.5px;
+  font-size: 12px;
   font-family: var(--vp-font-family-mono);
   pointer-events: none;
 }
@@ -254,45 +232,6 @@ svg {
   color: var(--vp-c-text-3);
 }
 
-.where {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 14px 16px 0;
-  flex-wrap: wrap;
-}
-
-.chips {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.chips button {
-  padding: 4px 11px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--vp-c-text-3);
-  font-size: 11.5px;
-  cursor: pointer;
-}
-
-.chips button.on {
-  border-color: var(--vp-c-brand-1);
-  background: var(--vp-c-brand-soft);
-  color: var(--vp-c-brand-1);
-}
-
-.where .about {
-  flex: 1;
-  min-width: 260px;
-  margin: 0;
-  font-size: 12.5px;
-  line-height: 1.6;
-  color: var(--vp-c-text-3);
-}
-
 .note {
   margin: 0;
   padding: 14px 16px 16px;
@@ -301,9 +240,14 @@ svg {
   color: var(--vp-c-text-2);
 }
 
-@media (max-width: 640px) {
-  .clock {
-    width: 100%;
+.note.warn strong {
+  color: var(--hmz-warm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .block,
+  .edge {
+    transition: none;
   }
 }
 </style>
