@@ -4,47 +4,62 @@ pageClass: hmz-feature
 
 # goal
 
-The task, set once as the agent's own [goal](/features/goals): a turn that would have ended
-starts another instead, until the model itself says the objective is met.
+Hand the task to the agent as its own [goal](/features/goals): the model keeps working, turn
+after turn, until it says the goal is met. One call, one session, and the model decides when
+it is done.
 
-```sh
-hmz exec -f goal -a worker=claude/claude-opus-5:max -b duration=4h,cost=40 "$(cat TASK.md)"
+<Badge type="warning" text="worker: claude · codex · dsh · kimi · zcode" />
+
+::: code-group
+
+```text [at the prompt]
+❯ $goal get the benchmark under 200 ms without changing its output
 ```
+
+```sh [hmz exec]
+hmz exec -f goal -a worker=claude/claude-opus-5:max \
+    -b duration=4h,cost=40 "$(cat TASK.md)"
+```
+
+:::
 
 <HmzFlowShape flow="goal" />
 
-## Two things decide, and only one of them is your code
+## When to use it
 
-The ticks inside one box above are turns the *backend* started. `/goal <task>` hands the
-objective to the backend's own goal feature; what comes back is one `run`, with as many turns of
-the model inside it as it thought the objective needed.
+In [ralph_loop](/flows/ralph-loop), a loop that cannot read the work decides when a round is
+over. Here the model that has just done the work decides, every turn. The catch is that it is
+judging its own work; [rlar](/flows/rlar) asks a separate reviewer instead.
 
-That is why you reach for this rather than [`ralph_loop`](/flows/ralph-loop): "is this done?"
-is asked by something that has just read the work, every turn, rather than by a `while True`
-that cannot tell. The cost is that it is asked by the same thing that did the work, which
-[`rlar`](/flows/rlar) fixes by asking somebody else.
-
-The `worker` role is declared with `GoalCommandAgentMixin`, so a harness without a goal feature
-cannot fill it, and is refused before the first turn rather than an hour in.
+The flow sends `/goal <task>` to a backend that has a goal feature of its own. Only `claude`,
+`codex`, `dsh`, `kimi` and `zcode` do, and any other backend is refused before the first turn.
 [Which backends have one](/weaver/goals).
+
+## Roles and params
+
+| Role | |
+| --- | --- |
+| `worker` | Pursues the goal, in one session. |
+
+No params.
 
 ## What ends it
 
-The model saying the objective is met — and, under that, the run's
-[budget](/features/allowances): `-b duration=…,cost=…,output_tokens=…`. It counts **every turn of
-the model the goal took**, not one per call: the backend started them, and the driver counted
-them all as they were reported. A budget with `graceful=false` cuts the goal off where it stands
-once it is spent; a graceful one lets it finish and refuses what comes after. The flow itself
-takes no params and declares no budget of its own, so `hmz exec` refuses to start it without a
-`-b`.
+- **The model says the goal is met.**
+- **The [budget](/features/allowances).** It counts every turn the goal took, not one per call.
 
-## What it keeps
+::: warning The whole goal is one turn
+A budget lets the turn under way finish by default, and here that turn is the whole goal. If
+the budget is a hard ceiling, pass `-b graceful=false`, which cuts the goal off the moment a
+limit is reached.
+:::
 
-Nothing. The goal is pursued in one session, and a run is one goal: running it again starts from
-the task and the repository exactly as the first run did.
+## Picking it up
+
+`goal` keeps nothing for `--resume`: running it again starts from the task and the repository,
+as the first run did.
 
 ## See also
 
-- [It decides when it is done](/features/goals) — what a goal is
-- [ralph_loop](/flows/ralph-loop) — the same task, with your code deciding a turn is over
-- [rlar](/flows/rlar) — somebody other than the worker deciding
+- [It decides when it is done](/features/goals): what a goal is
+- [rlar](/flows/rlar): a reviewer, rather than the worker, decides

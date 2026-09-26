@@ -4,51 +4,56 @@ pageClass: hmz-feature
 
 # flame_chase
 
-Two agents take turns on the same task, in one working directory, each starting from the
-repository rather than from a history. Neither is told what the other said; the tree is the
-only account of the last turn there is.
+Put two agents on one task and let them take turns. Each turn is a fresh session that starts
+from the task and the repository; neither agent is told what the other said, so the working
+tree is all that passes between them.
 
-```sh
+::: code-group
+
+```text [at the prompt]
+❯ $flame_chase make the importer handle every file in samples/
+```
+
+```sh [hmz exec]
 hmz exec -f flame_chase \
     -a first_chaser=claude/claude-opus-5:max -a second_chaser=codex/gpt-5.6-sol:max \
     -b duration=8h,cost=100 "$(cat TASK.md)"
 ```
 
+:::
+
 <HmzFlowShape flow="flame_chase" />
 
-## Why two
+## When to use it
 
-Two different models fail differently. A loop over one agent compounds that agent's blind spot;
-a loop that alternates gives every round to somebody who did not write what they are looking
-at.
+Two different models fail differently. A loop over one agent compounds that agent's blind
+spots; a loop that alternates hands every turn to an agent that did not write what it is
+looking at. Give both roles the same model and they are still two agents, which a
+[trace](/user/tracing) shows as two sets of sessions.
 
-Give the two the same model and effort and they are still two agents, which is sometimes the
-point: a [trace](/features/tracing) reads the run as two sets of sessions rather than one.
+If one of the two should judge rather than work, use [rlar](/flows/rlar).
+
+## Roles and params
+
+| Role | |
+| --- | --- |
+| `first_chaser` | Takes the odd turns, each in a fresh session. |
+| `second_chaser` | Takes the even turns, each in a fresh session. |
+
+No params. The loop pauses 5 seconds between turns.
 
 ## What ends it
 
-The run's [budget](/features/allowances) — `-b duration=…,cost=…,output_tokens=…`. The **two
-spend it between them** rather than apiece, and that is the ordinary case rather than this
-flow's own arithmetic: a budget is the run's, and every agent of a run spends out of the one
-reckoning whichever of them was writing. The flow itself takes no params and declares no budget
-of its own, so `hmz exec` refuses to start it without a `-b`. A spent budget raises
-`BudgetExceeded`, and `--resume` starts with whichever chaser was next.
+- **The [budget](/features/allowances).** The two spend one budget between them, not one each.
+- **Three failed turns in a row.** The run ends with the last failure. A turn that fails passes
+  to the other chaser, so three in a row means both have failed.
 
-A turn that fails passes to the other chaser; three failures in a row end the run with the last
-one.
+## Picking it up
 
-## What it keeps
-
-`turn` and `rounds`, in its [state](/features/resuming). The turn is the half that has to be kept: a run that always opened at the
-first agent would hand it the turn the other was owed — two turns in a row, the one thing a flow
-built on alternating must not do.
-
-A round is a turn each, and the turn that *finishes* one counts it, so a round the first agent
-was cut off in is finished, and counted once, by the run that picks that turn up with
-`--resume`.
+`--resume` carries on with whichever chaser was next, so neither takes two turns in a row, and
+it keeps counting rounds: a round is one turn each. See [Picking a run up](/user/resuming).
 
 ## See also
 
-- [rlar](/flows/rlar) — two agents, but one of them reviews rather than works
-- [parallel_flame_chase](/flows/parallel-flame-chase) — three of these at once, in isolation
-- [Many backends, one agent](/features/backends) — what you can put on either side of it
+- [flame_chase_agent_cleanup](/flows/agent-cleanup): this loop, with a cleaner between turns
+- [parallel_flame_chase](/flows/parallel-flame-chase): three of these at once, in three lanes

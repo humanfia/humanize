@@ -1,42 +1,63 @@
 <script setup lang="ts">
-// Every flow there is, as a card apiece, with the shape of it drawn small and moving.
+// The catalogue on /flows/, and the chooser on top of it: pick what you want done, and the
+// cards narrow to the flows that do it, with a line saying which to start with.
 //
-// The list is `theme/flows.ts` -- the same one the diagrams are played from -- so a flow can
-// only be here by being a flow, and the drawing beside its name is the drawing of its own loop
-// rather than a decoration picked to look busy.
-import { computed, ref } from 'vue'
+// The list is `theme/flows.ts`, the same one the diagrams on each flow's page are played from,
+// and the small drawing on each card is that flow's own loop. The drawings are CSS animations:
+// they hold still under reduced motion, and pause while the grid is scrolled off screen.
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { withBase } from 'vitepress'
 
-import { FLOWS, type Place } from '../flows'
+import { FLOWS, JOBS, type Job } from '../flows'
 
-// All of these are humanize's own and all of them are said by a bare name; what the filter
-// separates is which of the two places one is kept in, which is the one thing that shows --
-// the package is there before anything has been fetched, and the repository is not.
-const WHERE: { id: Place | 'all'; said: string; note: string }[] = [
-  { id: 'all', said: 'every flow', note: 'fourteen, and humanize 1 is three of them' },
-  { id: 'package', said: 'in the package', note: 'chat, which is there before anything is fetched' },
-  { id: 'flowverse', said: 'the official flowverse', note: 'humanfia/flowverse, fetched as /flow first opens' },
-]
+const job = ref<Job | 'all'>('all')
+const shown = computed(() =>
+  job.value === 'all' ? FLOWS : FLOWS.filter((one) => one.jobs.includes(job.value as Job)),
+)
 
-const place = ref<Place | 'all'>('all')
-const shown = computed(() => FLOWS.filter((one) => place.value === 'all' || one.place === place.value))
-const note = computed(() => WHERE.find((one) => one.id === place.value)?.note ?? '')
+/** The advice for the picked job, cut at its backticks so the names can be set as code. */
+const hint = computed(() => {
+  const said = JOBS.find((one) => one.id === job.value)?.hint ?? ''
+  return said.split('`').map((text, n) => ({ text, code: n % 2 === 1 }))
+})
+
+const root = ref<HTMLElement | null>(null)
+const idle = ref(false)
+let watcher: IntersectionObserver | undefined
+
+onMounted(() => {
+  watcher = new IntersectionObserver((seen) => (idle.value = !seen[0].isIntersecting))
+  if (root.value) watcher.observe(root.value)
+})
+
+onUnmounted(() => watcher?.disconnect())
 </script>
 
 <template>
-  <div class="flows">
-    <div class="filters">
+  <div ref="root" class="flows" :class="{ idle }">
+    <div class="ask" role="group" aria-label="What do you want to do?">
+      <span class="q">What do you want to do?</span>
+      <button type="button" :class="{ on: job === 'all' }" :aria-pressed="job === 'all'" @click="job = 'all'">
+        show every flow
+      </button>
       <button
-        v-for="one in WHERE"
+        v-for="one in JOBS"
         :key="one.id"
         type="button"
-        :class="{ on: place === one.id }"
-        @click="place = one.id"
+        :class="{ on: job === one.id }"
+        :aria-pressed="job === one.id"
+        @click="job = one.id"
       >
         {{ one.said }}
       </button>
-      <span class="note">{{ note }}</span>
     </div>
+
+    <p v-show="job !== 'all'" class="hint" aria-live="polite">
+      <template v-for="(part, n) in hint" :key="n">
+        <code v-if="part.code">{{ part.text }}</code>
+        <template v-else>{{ part.text }}</template>
+      </template>
+    </p>
 
     <div class="grid">
       <a v-for="flow in shown" :key="flow.name" class="card" :href="withBase(flow.link)">
@@ -103,33 +124,41 @@ const note = computed(() => WHERE.find((one) => one.id === place.value)?.note ??
         </svg>
 
         <div class="head">
-          <span class="place" :class="flow.place">{{
-            flow.place === 'package' ? 'in the package' : 'the official flowverse'
-          }}</span>
-          <code>{{ flow.name }}</code>
+          <code>{{ flow.phases ? `${flow.name}:<phase>` : flow.name }}</code>
+          <span v-if="flow.phases" class="runs">{{ flow.phases.join(' · ') }}</span>
         </div>
         <p class="said">{{ flow.said }}</p>
         <dl>
-          <div><dt>agents</dt><dd>{{ flow.agents }}</dd></div>
-          <div><dt>ends on</dt><dd>{{ flow.ends }}</dd></div>
-          <div><dt>picked up with</dt><dd>{{ flow.keeps || 'nothing — it keeps none' }}</dd></div>
-          <div v-if="flow.bench"><dt>scored as</dt><dd>flowbench <code>{{ flow.bench }}</code></dd></div>
+          <div><dt>-a</dt><dd>{{ flow.roles }}</dd></div>
+          <div><dt>ends</dt><dd>{{ flow.ends }}</dd></div>
+          <div><dt>--resume</dt><dd>{{ flow.keeps || 'starts afresh' }}</dd></div>
         </dl>
       </a>
     </div>
+
+    <p class="foot">
+      Every run also stops when its budget is spent. Only <code>chat</code> may run without one.
+    </p>
   </div>
 </template>
 
 <style scoped>
-.filters {
+.ask {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 
-.filters button {
+.ask .q {
+  flex-basis: 100%;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+}
+
+.ask button {
   padding: 5px 13px;
   border: 1px solid var(--vp-c-divider);
   border-radius: 20px;
@@ -140,26 +169,36 @@ const note = computed(() => WHERE.find((one) => one.id === place.value)?.note ??
   transition: color 0.2s, border-color 0.2s, background 0.2s;
 }
 
-.filters button:hover {
+.ask button:hover {
   color: var(--vp-c-brand-1);
   border-color: var(--vp-c-brand-1);
 }
 
-.filters button.on {
+.ask button.on {
   border-color: var(--vp-c-brand-1);
   background: var(--vp-c-brand-soft);
   color: var(--vp-c-brand-1);
   font-weight: 600;
 }
 
-.filters .note {
-  font-size: 12px;
-  color: var(--vp-c-text-3);
+.hint {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--vp-c-brand-1);
+  border-radius: 0 10px 10px 0;
+  background: var(--vp-c-brand-soft);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--vp-c-text-1);
+}
+
+.hint code {
+  font-size: 12.5px;
 }
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 14px;
 }
 
@@ -187,32 +226,24 @@ const note = computed(() => WHERE.find((one) => one.id === place.value)?.note ??
   margin-bottom: 10px;
 }
 
-/* The name gets a line of its own: `parallel_flame_chase_git_pr` is wider than a
-   third of the column, and a badge beside it would break it a word earlier still. */
-.head {
-  display: block;
-}
-
+/* The name gets a line of its own: `parallel_flame_chase_git_pr` is wider than half a card. */
 .head code {
   display: block;
-  margin-top: 4px;
-  font-size: 12.5px;
+  padding: 0;
+  background: none;
+  font-size: 13px;
   font-weight: 700;
   line-height: 1.35;
   color: var(--vp-c-brand-1);
   overflow-wrap: anywhere;
 }
 
-.place {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+.head .runs {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
   color: var(--vp-c-text-3);
-}
-
-.place.flowverse {
-  color: var(--vp-c-brand-1);
 }
 
 .said {
@@ -227,6 +258,7 @@ dl {
   padding-top: 10px;
   border-top: 1px solid var(--vp-c-divider);
   font-size: 11.5px;
+  line-height: 1.45;
 }
 
 dl div {
@@ -237,18 +269,22 @@ dl div {
 
 dt {
   flex: none;
-  width: 84px;
+  width: 62px;
+  font-family: var(--vp-font-family-mono);
+  font-size: 10.5px;
   color: var(--vp-c-text-3);
 }
 
 dd {
+  flex: 1;
   margin: 0;
   color: var(--vp-c-text-2);
 }
 
-dd code {
-  font-size: 11px;
-  color: var(--vp-c-text-1);
+.foot {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: var(--vp-c-text-3);
 }
 
 /* --------------------------------------------------------------------------------------
@@ -526,16 +562,9 @@ dd code {
   }
 }
 
-@media (max-width: 1000px) {
-  .grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 620px) {
-  .grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
+/* Off screen, the drawings wait where they are rather than play to nobody. */
+.idle .glyph * {
+  animation-play-state: paused !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
