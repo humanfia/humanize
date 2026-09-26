@@ -1,185 +1,193 @@
 # Permissions
 
-**This page is the weaver's** — whoever wrote the flow. What an agent may touch is declared
-where the flow declares the agent, and nobody running the flow is asked about it: a reviewer
-that may not write is a reviewer whichever CLI fills the role, so it is a thing about the work.
+What an agent may touch is decided by the flow, one role at a time. You choose the CLI and the
+model that fill a role; what that role may touch comes with the flow, and neither `-a` nor the
+agent sheet has a setting for it.
 
-A flow declares a `Permission` on a role: four scopes, each saying how much of it the agent may
-touch.
+::: danger Nothing is put to anybody for approval
+Every agent of every flow runs with approvals bypassed. No command or edit waits for a yes,
+from you or from the model. What limits an agent is the grant on this page. Read
+[Security](/user/security) before you run a flow you did not write.
+:::
 
-| Scope | What it is | May be |
+## What a role gets
+
+A grant has four scopes, each `NONE`, `READ` or `ALL` (read and write). Here is what a role
+gets when its flow says nothing:
+
+<div class="perm-scopes" role="img" aria-label="The default grant: local ALL inside user READ inside system READ, and online NONE beside them">
+  <div class="perm-box perm-system">
+    <p><code>system</code> <b class="perm-read">READ</b><span>everything else on the machine</span></p>
+    <div class="perm-box perm-user">
+      <p><code>user</code> <b class="perm-read">READ</b><span>the rest of your home directory</span></p>
+      <div class="perm-box perm-local">
+        <p><code>local</code> <b class="perm-all">ALL</b><span>the workdir the session runs in</span></p>
+      </div>
+    </div>
+  </div>
+  <div class="perm-box perm-online">
+    <p><code>online</code> <b class="perm-none">NONE</b><span>web search and fetching</span></p>
+  </div>
+</div>
+
+So by default an agent changes its workdir, reads around it, and does not search the web. An
+outer scope never gets more than the one inside it, and `online` is either `NONE` or `ALL`.
+
+## What the official flows declare
+
+Most roles run at that default. These are the ones that do not:
+
+| Flow | Role | Grant |
 | --- | --- | --- |
-| `local` | the environment's workdir the session runs in | `NONE`, `READ`, `ALL` |
-| `user` | the rest of the home directory of the user the agent runs as | `NONE`, `READ`, `ALL` |
-| `system` | everything else on the machine | `NONE`, `READ`, `ALL` |
-| `online` | the network: web search and fetching | `NONE` or `ALL` |
+| [`chat`](/flows/chat) | `assistant` | the default, with `online=ALL` |
+| [`aot`](/flows/aot) | `critic` | `local=READ`: it reads the draft and never writes |
+| [`parallel_flame_chase`](/flows/parallel-flame-chase) | every agent | `ALL` in every scope, `online` included |
+| [`parallel_flame_chase_git_pr`](/flows/parallel-flame-chase-git-pr) | the lane agents | the default, with `user=ALL` |
+| [`recursive_lean_prover`](/flows/recursive-lean-prover) | `worker`, `reviewer` | `local=ALL`, `user=ALL`, `system=READ`, `online=ALL` |
 
-The scopes nest — `local >= user >= system` — and a wider scope may never be granted more than
-a narrower one inside it. `Permission()` with nothing said is `local=ALL, user=READ,
-system=READ, online=NONE`: an agent that may change its workdir, read around it, and not search
-the web.
+A flow's own page says what its roles are granted.
 
-**Nothing is ever put to anybody for approval**, whatever the flow declares. Every session runs
-at its CLI's nothing-asked mode — or, where a managed policy refuses that, at the most
-permissive mode short of the model reviewing itself, with every request approved. A flow is
-meant to run with nobody watching; what limits its agent is its `Permission`, and whatever
-[hooks](/weaver/hooks) the flow hangs on it.
+## How each CLI holds to it
 
-## Declaring one
+A grant is carried out by the CLI that fills the role, and not every CLI can be held to every
+part of it:
 
-Subclass the agent type the role is declared as, and set `_permission` on it:
-
-```python
-from hmz.flows import Agent, AgentCollection, Permission, PermissionKind
-
-
-class Reviewer(Agent):
-    _permission = Permission(local=PermissionKind.READ)
-
-
-class Agents(AgentCollection):
-    builder: Agent
-    reviewer: Reviewer
-```
-
-A permission that does not nest, or an `online` of `READ`, is refused where it is written —
-`Permission(...)` raises `ValueError`. Run it with the ordinary line — a CLI, a model and an
-effort for each role:
-
-```sh
-hmz exec -f ./review -a builder=claude/claude-opus-5:max -a reviewer=codex/gpt-5.6-sol:high \
-    -b cost=20 "$(cat TASK.md)"
-```
-
-## A line cannot say it
-
-`permission=` is not a setting of `-a`: what is written before `=` names a role, so it is
-read as one and refused like any role the flow does not declare. There is no row for it on the sheet an agent is
-set up on, either. An agent is a CLI, an account and a model at an effort; what that agent is
-allowed to do belongs to the flow driving it.
-
-## A flow may only narrow
-
-A flow can narrow an agent it holds — `derive` — and never widen it:
-
-```python
-careful = agents["builder"].derive(
-    permission=Permission(user=PermissionKind.NONE, system=PermissionKind.NONE)
-)
-```
-
-`careful` is the same agent with sessions that run under the narrower grant; asking for more
-than the role was granted raises `CapabilityNotGranted`. A flow calling another hands on the
-agents it holds, and each must hold **at least** what the called flow's role declares — an
-agent held at `local=READ` handed to a role that needs `local=ALL` is refused with
-`PermissionTooNarrow` before the called flow runs — and the called flow is then held to exactly
-what it declared. So calling a flow you did not write is never how your reviewer comes to write.
-
-## What each backend actually does
-
-Every backend has a ladder of its own — coganchor names four rungs, `read-only`,
-`workspace-write`, `auto` and `bypass`, in the words these CLIs use — and a flow's `Permission`
-is read onto it:
-
-| `local` | every backend but dsh and ACP CLIs | dsh, ACP CLIs |
+| Backend | `local` of `READ` or `NONE` | `online` of `NONE` |
 | --- | --- | --- |
-| `READ` or `NONE` | `read-only` | `bypass` |
-| `ALL` | `bypass` | `bypass` |
+| `claude`, `codex`, `grok`, `kimi`, `mimo`, `opencode`, `qwen`, `zcode` | <Badge type="tip" text="read-only" /> | <Badge type="tip" text="web tools off" /> |
+| `agy`, `cursor-agent`, `pi` | <Badge type="tip" text="read-only" /> | <Badge type="warning" text="as the CLI has it" /> |
+| `dsh` | <Badge type="danger" text="full access" /> | <Badge type="tip" text="web tools off" /> |
+| a CLI added at `/providers` | <Badge type="danger" text="full access" /> | <Badge type="warning" text="as the CLI has it" /> |
 
-- **`bypass` is each CLI's nothing-asked mode**: `danger-full-access` with approvals `never` on
-  Codex, `yolo` on ZCode, and on Claude Code — whose `--dangerously-skip-permissions` a managed
-  policy may turn off — `manual` mode with humanize answering every request yes.
-- **`read-only` is the CLI's own read-only rung**: Claude Code's `plan`, Codex's read-only
-  sandbox, a tool list with nothing that writes on the rest. It reads outside the workdir too.
-- **`user` and `system` are not fenced — a known widening.** A session that may write its
-  workdir may write anywhere its user can, whatever `user` and `system` say. Two of these CLIs
-  have a sandbox that could fence it, and neither is used: both are bubblewrap, which cannot
-  start on a machine that gives it no user namespace, and a fence here would be a flow that
-  loses its shell wherever it runs in a container.
-- **dsh and ACP CLIs can be held to nothing but `bypass`**, which is wider than asked for any
-  permission below `ALL`.
-- **`online`** switches the CLI's own web tools: on for `ALL`, off for `NONE` where the CLI can
-  be told, and left as the CLI has it where it cannot — cursor-agent, pi, agy and ACP CLIs. A
-  shell command the agent runs reaches the network whatever this says.
+A read-only agent can still read outside its workdir, and `local=NONE` runs the same as `READ`.
 
-The whole table, backend by backend, is in
-[Agents › The flow API's permission on each CLI](/reference/agents#the-flow-api-s-permission-on-each-cli).
+::: warning Two things no CLI fences
+- **`user` and `system` are not enforced.** An agent that may write its workdir may write
+  anywhere your user can, whatever those two scopes say.
+- **`online` only switches the CLI's own web tools.** A shell command the agent runs reaches
+  the network either way.
 
-**A Codex whose rules were set by somebody else runs a rung down rather than not at all.** Some
-installations arrive with requirements — an enterprise policy on the account, a
-`requirements.toml` on a machine whose platform packages Codex — and one that forbids
-`danger-full-access` refuses every call asking for it. humanize asks again at `auto` instead:
-the same freedom, with Codex asking before it reaches past the workspace and humanize granting
-what it asks. It is found out once per agent. See
-[Troubleshooting](/user/troubleshooting#codex-this-machine-will-not-run-an-agent-at-bypass-so-it-runs-at-auto).
+For a real fence, run the flow in a [container](/user/containers).
+:::
 
-**Claude Code's `bypass` runs the same on an account somebody else set up.** The flag that
-skips the asking is one managed settings can turn off, and an account carrying
-`disableBypassPermissionsMode` starts the turn at a mode where every edit is declined and it
-ends successfully with the work not done. So humanize does not skip the asking: it runs the
-agent at Claude's `manual` mode and answers each request itself, yes to whatever the account
-leaves decidable, with the organisation's own hard `deny` list still enforced by Claude before
-it asks.
+## Roles that check each tool
 
-## A worked pair
+Some roles let the flow look at each tool call and refuse the ones it does not want: the
+builder of [`humanize1:rlcr`](/flows/humanize1) and the worker of
+[`recursive_lean_prover`](/flows/recursive-lean-prover) are two. Only these CLIs can fill such
+a role:
 
-A reviewer that cannot touch the change it is reading, said once in the flow:
+| `claude` | `codex` | `kimi` | `zcode` | every other |
+| --- | --- | --- | --- | --- |
+| <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> | <Badge type="danger" text="refused" /> |
 
-```python
-class Reviewer(Agent):
-    _permission = Permission(local=PermissionKind.READ)
+The agent sheet does not offer the others, and `hmz exec` refuses them before anything runs:
 
-
-class Agents(AgentCollection):
-    actor: Agent
-    reviewer: Reviewer
+```
+hmz exec: error: humanize1:rlcr: 'builder' needs PermissionRequestHookAgentMixin, which grok does not do
 ```
 
-The actor runs at the default — its workdir to change, the rest to read — and does the work.
-The reviewer can only look: the one thing this flow insists on, and the same whoever runs it,
-on whichever CLI they have.
+## On a machine somebody else manages
 
-## What it does not bound
+**Codex, where the organisation or the platform forbids full access.** The agent runs one step
+down, and says so once:
 
-A permission bounds the **tools the agent reaches for**. It does not confine the process: an
-agent that may write its workdir and runs a command which itself writes elsewhere has written
-elsewhere. Read [Security](/user/security).
-
-## Where a hook gets a say
-
-A [hook](/weaver/hooks) on a permission request can refuse a tool and have the agent hear it —
-which is how a flow narrows one thing rather than a whole scope. The role declares
-`PermissionRequestHookAgentMixin` and the flow hangs the hook with `on_permission_request`:
-
-```python
-from hmz.flows import (
-    Agent,
-    PermissionRequestHookAgentMixin,
-    PermissionRequestHookParams,
-    PermissionRequestHookResult,
-)
-
-
-class Builder(Agent, PermissionRequestHookAgentMixin): ...
-
-
-async def no_force_push(params: PermissionRequestHookParams) -> PermissionRequestHookResult:
-    pushing = "push --force" in str(params.input.get("command", ""))
-    return PermissionRequestHookResult(allow=not pushing, reason="not on this branch")
-
-
-agents["builder"].on_permission_request(no_force_push)
+```
+codex: this machine will not run an agent at bypass, so it runs at auto
 ```
 
-Its answer overrides the nothing-asked mode the agent runs at. Claude Code, Codex, Kimi Code
-and ZCode serve the moment, and a role that declares it is refused any other CLI before
-anything runs. While such a hook is hung, the CLI is started so that it asks: Codex keeps its
-sandbox and runs with approvals `untrusted`, so every command but a known-safe read is put to
-the hook; Kimi Code and ZCode run at their ask-and-approve mode, which asks about what the CLI
-deems risky; Claude Code's `manual` mode asks already. Whatever the hook does not refuse is
-granted.
+It keeps the same freedom: Codex asks before it reaches past the workspace, and humanize says
+yes. See [Troubleshooting](/user/troubleshooting).
+
+**Claude Code, on an account whose managed settings turn off bypass mode.** Agents run as
+usual. humanize approves each request itself, and the organisation's own `deny` rules still
+apply.
+
+## Changing what a role may touch
+
+Copy the flow into your project: press <kbd>f</kbd> on it in `/flow`. Then change the role's
+grant in the copy, as [Writing a flow](/weaver/writing-a-flow) shows.
 
 ## See also
 
-- [Hooks](/weaver/hooks) — refusing one thing rather than a whole scope
 - [Security](/user/security)
+- [Skills](/user/skills): the other thing a role brings with it
+- [Agents › What an agent may do](/reference/agents#what-an-agent-may-do): the whole reference
+
+<style>
+.perm-scopes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(9rem, 12rem);
+  gap: 12px;
+  margin: 20px 0 24px;
+}
+
+.perm-box {
+  border: 1px solid var(--hmz-panel-border);
+  border-radius: 14px;
+  padding: 10px 12px 12px;
+  background: var(--hmz-panel-bg);
+}
+
+.perm-box p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  margin: 0 0 10px;
+  line-height: 1.4;
+}
+
+.perm-box p span {
+  flex-basis: 100%;
+  font-size: 12.5px;
+  color: var(--vp-c-text-2);
+}
+
+.perm-user {
+  background: var(--vp-c-bg);
+}
+
+.perm-local {
+  border-color: var(--hmz-accent);
+  background: var(--vp-c-bg-soft);
+}
+
+.perm-local p,
+.perm-online p {
+  margin-bottom: 0;
+}
+
+.perm-online {
+  align-self: start;
+  border-style: dashed;
+}
+
+.perm-scopes b {
+  padding: 0 7px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+}
+
+.perm-all {
+  background: var(--vp-c-tip-soft);
+  color: var(--vp-c-tip-1);
+}
+
+.perm-read {
+  background: var(--vp-c-warning-soft);
+  color: var(--vp-c-warning-1);
+}
+
+.perm-none {
+  background: var(--vp-c-default-soft);
+  color: var(--vp-c-text-2);
+}
+
+@media (max-width: 560px) {
+  .perm-scopes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+</style>
