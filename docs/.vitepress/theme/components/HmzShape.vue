@@ -1,7 +1,8 @@
 <script setup lang="ts">
-// A turn given a shape answers in it. The model is the whole of what the backend is asked --
-// its fields, their types, which are required, the line each was declared with -- and the
-// answer is read back through it whichever of the two roads the backend took.
+// A turn asked for a shape answers in it, or fails. Pick the shape, pick the CLI, and say
+// whether the answer fits: the flow gets the fields back, or a failed turn. Which CLIs hold
+// the shape themselves is each backend's `shapes` in `hmz/coganchor/agents/`; the rest, CLIs
+// added at /providers among them, are asked for it in the prompt.
 import { computed, ref } from 'vue'
 
 interface Field {
@@ -15,7 +16,6 @@ interface Field {
 interface Shape {
   key: string
   name: string
-  about: string
   fields: Field[]
   branch: string
 }
@@ -24,51 +24,49 @@ const SHAPES: Shape[] = [
   {
     key: 'review',
     name: 'Review',
-    about: 'what one round of a loop comes to',
-    branch: 'the loop takes another round, with notes as the next prompt',
+    branch: 'done is false, so the loop takes another round with notes as its prompt',
     fields: [
       {
         name: 'done',
         type: 'bool',
         about: 'True only if there is nothing left to do or to fix.',
         answer: 'false',
-        reads: 'a bool, not a paragraph to search',
+        reads: 'decides: go round again',
       },
       {
         name: 'notes',
         type: 'str',
         about: 'What to say to the agent, passed on word for word.',
         answer: '"name the case that fails, then fix it"',
-        reads: 'the next prompt, word for word',
+        reads: 'carries: the next prompt, word for word',
       },
     ],
   },
   {
     key: 'plan',
     name: 'Settled',
-    about: 'a decision a flow has to make before it acts',
-    branch: 'the flow builds it the careful way, with tests, for up to three rounds',
+    branch: 'the flow builds it the careful way, with tests, in up to three rounds',
     fields: [
       {
         name: 'approach',
         type: 'Literal["fast", "careful"]',
         about: 'Which way should this be built?',
         answer: '"careful"',
-        reads: 'one of two words, and never a third',
+        reads: 'picks a branch, and never a third one',
       },
       {
         name: 'tests',
         type: 'bool',
         about: 'Write tests for it?',
         answer: 'true',
-        reads: 'yes or no',
+        reads: 'decides: yes or no',
       },
       {
         name: 'rounds',
         type: 'int = 3',
         about: 'How many rounds may it take?',
         answer: '3',
-        reads: 'a number, defaulted where nothing said',
+        reads: 'bounds the loop',
       },
     ],
   },
@@ -77,26 +75,27 @@ const SHAPES: Shape[] = [
 interface Backend {
   name: string
   held: boolean
-  how: string
 }
 
 const BACKENDS: Backend[] = [
-  { name: 'claude', held: true, how: '--json-schema · it validates the answer itself' },
-  { name: 'codex', held: true, how: "the turn's own outputSchema" },
-  { name: 'agy', held: true, how: '--json-schema on the run' },
-  { name: 'grok', held: true, how: '--json-schema on the run' },
-  { name: 'qwen', held: true, how: '--json-schema on the run' },
-  { name: 'dsh', held: false, how: 'asked in the prompt, and what it says is read back' },
-  { name: 'kimi', held: false, how: 'asked in the prompt, and what it says is read back' },
-  { name: 'pi', held: false, how: 'asked in the prompt, and what it says is read back' },
-  { name: 'opencode', held: false, how: 'asked in the prompt, and what it says is read back' },
-  { name: 'mimo', held: false, how: 'asked in the prompt, and what it says is read back' },
-  { name: 'zcode', held: false, how: 'asked in the prompt, and what it says is read back' },
+  { name: 'claude', held: true },
+  { name: 'codex', held: true },
+  { name: 'agy', held: true },
+  { name: 'grok', held: true },
+  { name: 'qwen', held: true },
+  { name: 'cursor-agent', held: false },
+  { name: 'dsh', held: false },
+  { name: 'kimi', held: false },
+  { name: 'mimo', held: false },
+  { name: 'opencode', held: false },
+  { name: 'pi', held: false },
+  { name: 'zcode', held: false },
+  { name: 'a CLI you added', held: false },
 ]
 
 const shape = ref(0)
 const backend = ref(0)
-const obeys = ref(true)
+const fits = ref(true)
 
 const picked = computed(() => SHAPES[shape.value])
 const cli = computed(() => BACKENDS[backend.value])
@@ -111,22 +110,23 @@ const cli = computed(() => BACKENDS[backend.value])
           :key="one.key"
           type="button"
           :class="{ on: shape === i }"
+          :aria-pressed="shape === i"
           @click="shape = i"
         >
           {{ one.name }}
         </button>
       </div>
-      <span class="about">{{ picked.about }}</span>
       <div class="spacer" />
       <label class="sw">
-        <input v-model="obeys" type="checkbox" />
-        it answers in the shape
+        <input v-model="fits" type="checkbox" />
+        the answer fits the shape
       </label>
+      <span class="sim">simulation</span>
     </div>
 
     <div class="flowline">
       <section class="card model">
-        <header>the model is the question</header>
+        <header>1 · the flow asks for</header>
         <div class="rows">
           <div v-for="one in picked.fields" :key="one.name" class="field">
             <code>{{ one.name }}</code>
@@ -134,47 +134,50 @@ const cli = computed(() => BACKENDS[backend.value])
             <p>{{ one.about }}</p>
           </div>
         </div>
-        <footer>nothing about the shape is said twice in the prompt</footer>
+        <footer>Each field's description is what the agent is asked.</footer>
       </section>
 
-      <div class="arrow">
+      <div class="arrow" aria-hidden="true">
         <span />
-        <em>{{ cli.held ? 'held to it' : 'asked for it' }}</em>
       </div>
 
       <section class="card asked">
-        <header>how this one is held</header>
-        <div class="chips">
+        <header>2 · the CLI answering</header>
+        <div class="chips" role="group" aria-label="which CLI">
           <button
             v-for="(one, i) in BACKENDS"
             :key="one.name"
             type="button"
             :class="{ on: backend === i, held: one.held }"
+            :aria-pressed="backend === i"
             @click="backend = i"
           >
             {{ one.name }}
           </button>
         </div>
         <p class="how">
-          <strong>{{ cli.name }}</strong> — {{ cli.how }}
+          <span class="road" :class="{ held: cli.held }">{{
+            cli.held ? 'holds the shape itself' : 'asked in the prompt'
+          }}</span>
+          <template v-if="cli.held">
+            <strong>{{ cli.name }}</strong> takes the shape as a setting of its own and keeps the
+            model to it.
+          </template>
+          <template v-else>
+            <strong>{{ cli.name }}</strong> has no setting for it, so the shape goes into the
+            prompt and the answer is checked when it comes back.
+          </template>
         </p>
-        <footer>
-          {{
-            cli.held
-              ? 'a setting of the turn, so the backend itself refuses an answer of another shape'
-              : 'no setting for it, so the shape goes in the prompt — and either way the answer is read back through the model'
-          }}
-        </footer>
+        <footer>Either way, the flow gets the same thing back.</footer>
       </section>
 
-      <div class="arrow">
+      <div class="arrow" aria-hidden="true">
         <span />
-        <em>read back</em>
       </div>
 
-      <section class="card answer" :class="{ bad: !obeys }">
-        <header>what the flow gets</header>
-        <div v-if="obeys" class="rows">
+      <section class="card answer" :class="{ bad: !fits }">
+        <header>3 · what the flow gets</header>
+        <div v-if="fits" class="rows">
           <div v-for="one in picked.fields" :key="one.name" class="got">
             <code>{{ one.name }}</code>
             <span class="value">{{ one.answer }}</span>
@@ -183,21 +186,16 @@ const cli = computed(() => BACKENDS[backend.value])
         </div>
         <div v-else class="rows">
           <div class="got none">
+            <strong class="failed">the turn fails</strong>
             <code>OutputSchemaError</code>
-            <span class="value">raised</span>
             <p>
-              An answer that is not what was asked for is a turn that did not do what it was
-              told, however cleanly the backend exited. <code>run</code> raises rather than
-              answering.
+              An answer that is not the shape is a turn that did not do what it was told, however
+              cleanly the agent finished. The flow never gets half an answer.
             </p>
           </div>
         </div>
         <footer>
-          {{
-            obeys
-              ? picked.branch
-              : 'the flow takes this round again — which is almost always the right branch to write'
-          }}
+          {{ fits ? picked.branch : 'the usual branch: take this round again' }}
         </footer>
       </section>
     </div>
@@ -205,10 +203,14 @@ const cli = computed(() => BACKENDS[backend.value])
 </template>
 
 <style scoped>
+.shape {
+  container-type: inline-size;
+}
+
 .bar {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px 14px;
   flex-wrap: wrap;
   padding: 10px 16px;
   border-bottom: 1px solid var(--hmz-panel-border);
@@ -248,7 +250,8 @@ const cli = computed(() => BACKENDS[backend.value])
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: var(--vp-c-text-2);
+  color: var(--vp-c-text-1);
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -256,12 +259,21 @@ const cli = computed(() => BACKENDS[backend.value])
   accent-color: var(--vp-c-brand-1);
 }
 
+.sim {
+  padding: 1px 8px;
+  border: 1px dashed var(--vp-c-divider);
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vp-c-text-3);
+}
+
 .flowline {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 76px minmax(0, 1fr) 76px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 36px minmax(0, 1fr) 36px minmax(0, 1fr);
   align-items: stretch;
   padding: 16px;
-  gap: 0;
 }
 
 .card {
@@ -271,6 +283,7 @@ const cli = computed(() => BACKENDS[backend.value])
   border-radius: 12px;
   background: var(--vp-c-bg);
   overflow: hidden;
+  transition: border-color 0.25s;
 }
 
 .card header {
@@ -288,9 +301,9 @@ const cli = computed(() => BACKENDS[backend.value])
   margin-top: auto;
   padding: 9px 12px;
   border-top: 1px solid var(--vp-c-divider);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.55;
-  color: var(--vp-c-text-3);
+  color: var(--vp-c-text-2);
 }
 
 .rows {
@@ -320,6 +333,7 @@ const cli = computed(() => BACKENDS[backend.value])
   font-size: 11px;
   font-family: var(--vp-font-family-mono);
   color: var(--vp-c-text-3);
+  overflow-wrap: anywhere;
 }
 
 .got .value {
@@ -327,46 +341,54 @@ const cli = computed(() => BACKENDS[backend.value])
   font-size: 12px;
   font-family: var(--vp-font-family-mono);
   color: var(--hmz-accent);
+  overflow-wrap: anywhere;
 }
 
 .field p,
 .got p {
   margin: 3px 0 0;
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.5;
-  color: var(--vp-c-text-3);
-}
-
-.answer.bad code {
-  color: var(--hmz-warm);
+  color: var(--vp-c-text-2);
 }
 
 .answer.bad {
   border-color: var(--hmz-warm);
 }
 
+.answer.bad code {
+  display: block;
+  margin-top: 4px;
+  color: var(--hmz-warm);
+}
+
+.failed {
+  font-size: 14px;
+  color: var(--hmz-warm);
+}
+
 .arrow {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
 }
 
 .arrow span {
-  width: 68%;
+  position: relative;
+  width: 70%;
   height: 2px;
   border-radius: 2px;
-  background: linear-gradient(90deg, var(--vp-c-divider), var(--vp-c-brand-1));
+  background: var(--vp-c-brand-1);
 }
 
-.arrow em {
-  font-style: normal;
-  font-size: 10px;
-  text-align: center;
-  line-height: 1.3;
-  color: var(--vp-c-text-3);
-  padding: 0 4px;
+.arrow span::after {
+  content: '';
+  position: absolute;
+  right: -2px;
+  top: -4px;
+  border: 5px solid transparent;
+  border-left-color: var(--vp-c-brand-1);
+  border-right: 0;
 }
 
 .chips {
@@ -378,10 +400,10 @@ const cli = computed(() => BACKENDS[backend.value])
 
 .chips button {
   padding: 3px 10px;
-  border: 1px solid var(--vp-c-divider);
+  border: 1px dashed var(--vp-c-divider);
   border-radius: 999px;
   background: transparent;
-  color: var(--vp-c-text-3);
+  color: var(--vp-c-text-2);
   font-size: 11px;
   font-family: var(--vp-font-family-mono);
   cursor: pointer;
@@ -389,18 +411,19 @@ const cli = computed(() => BACKENDS[backend.value])
 
 .chips button.held {
   border-style: solid;
-  color: var(--vp-c-text-2);
+  border-color: var(--hmz-accent);
 }
 
 .chips button.on {
   border-color: var(--vp-c-brand-1);
   background: var(--vp-c-brand-soft);
   color: var(--vp-c-brand-1);
+  font-weight: 650;
 }
 
 .how {
-  margin: 10px 12px 0;
-  font-size: 12px;
+  margin: 12px 12px 12px;
+  font-size: 12.5px;
   line-height: 1.6;
   color: var(--vp-c-text-2);
 }
@@ -410,21 +433,51 @@ const cli = computed(() => BACKENDS[backend.value])
   color: var(--vp-c-text-1);
 }
 
-@media (max-width: 880px) {
+.road {
+  display: block;
+  width: fit-content;
+  margin-bottom: 6px;
+  padding: 1px 9px;
+  border: 1px dashed var(--vp-c-divider);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--vp-c-text-2);
+}
+
+.road.held {
+  border-style: solid;
+  border-color: var(--hmz-accent);
+  color: var(--hmz-accent);
+}
+
+@container (max-width: 760px) {
   .flowline {
     grid-template-columns: minmax(0, 1fr);
-    gap: 10px;
   }
 
   .arrow {
-    flex-direction: row;
-    gap: 10px;
-    height: 22px;
+    height: 26px;
   }
 
   .arrow span {
-    width: 40%;
-    background: linear-gradient(90deg, var(--vp-c-divider), var(--vp-c-brand-1));
+    width: 2px;
+    height: 70%;
+  }
+
+  .arrow span::after {
+    right: -4px;
+    top: auto;
+    bottom: -2px;
+    border: 5px solid transparent;
+    border-top-color: var(--vp-c-brand-1);
+    border-bottom: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
   }
 }
 </style>
