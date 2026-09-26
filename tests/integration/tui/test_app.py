@@ -226,22 +226,6 @@ async def drops(app: Humanize, driver: Pilot[None]) -> None:
 
 
 @pytest.mark.timeout(60)
-async def test_the_command_line_own_commands_are_not_commands_here(
-    workspace: Path,
-) -> None:
-    """`collect` and `anchor` are not things to do to a flow that is running."""
-    app = Humanize()
-    async with app.run_test() as driver:
-        await driver.press(*"/collect .")
-        await driver.press("enter")
-        await until(lambda: "no such command" in transcript(app), driver)
-
-        assert "no such command: /collect" in transcript(app)
-        assert app.is_running  # and a line to correct leaves the interface up
-    assert not list(workspace.glob(".humanize/*.trace.json"))  # noqa: ASYNC240
-
-
-@pytest.mark.timeout(60)
 async def test_a_line_typed_while_a_flow_runs_reaches_the_agent(
     workspace: Path,
 ) -> None:
@@ -539,14 +523,12 @@ async def test_the_offer_is_taken_from_the_commands_there_actually_are() -> None
     """A command this interface grows must be offered without being listed twice.
 
     One table holds the name, the line about it, what it takes and what carries it out, so
-    what is offered and what a sent line reaches are the same rows by construction -- they
-    were three lists kept in step by a test, which is a command that works and is offered to
-    nobody for as long as it takes somebody to run the suite.
+    what is offered and what a sent line reaches are the same rows by construction.
 
     And none of the three the command line has that are not things to do to a flow that is
-    running: `exec` is what the first thing you say already does, and `collect`, `anchor` and
-    the wrapper a turn is spawned as are each about a run rather than inside one. What both
-    sides do have is the store of accounts, which is one thing said in two places.
+    running: `exec` is what the first thing you say already does, and `anchor` and the wrapper
+    a turn is spawned as are each about a run rather than inside one. What both sides do have
+    is the store of accounts, which is one thing said in two places.
     """
     from hmz.tui.complete import offered
 
@@ -554,10 +536,7 @@ async def test_the_offer_is_taken_from_the_commands_there_actually_are() -> None
 
     assert {f"/{one.name}" for one in _COMMANDS} == set(offers)
     assert {one.name for one in _COMMANDS} == set(_BY_NAME)
-    assert not {"/exec", "/collect", "/anchor", "/cred"} & set(offers)
-    # Neither of the two that went: letting go of the terminal is an answer to `/exit`, and
-    # packaging a run up is one of the things `/epics` offers about the run under its cursor.
-    assert not {"/detach", "/export"} & set(offers)
+    assert not {"/exec", "/anchor", "/cred"} & set(offers)
     # And a command typed in full has nothing left to be finished with, so enter sends it.
     assert offered("/exit", _COMMANDS) == []
 

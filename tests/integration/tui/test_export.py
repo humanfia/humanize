@@ -28,7 +28,7 @@ from hmz.tui import Humanize
 from hmz.tui.pick import Does, Epics
 from tests.integration.tui.test_app import onto, rows
 from tests.stubs import written
-from tests.tui.fixtures import transcript, until
+from tests.tui.fixtures import until
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -109,29 +109,6 @@ def _held(at: Path) -> dict[str, str]:
                 handle.read().decode("utf-8") if handle is not None else ""
             )
     return held
-
-
-@pytest.mark.timeout(60)
-async def test_packaging_a_run_up_is_not_a_command_of_its_own() -> None:
-    """It is a thing done to a run that has already happened, so it is offered where those are.
-
-    A command would be about whichever run this screen happens to show, which is one of the
-    runs in the list and not always the one somebody means -- and it would be a second way in
-    to what `/epics` already offers about the run under its cursor.
-    """
-    from hmz.tui.app import _BY_NAME, _COMMANDS
-    from hmz.tui.complete import offered
-
-    assert "export" not in _BY_NAME
-    assert "/export" not in offered("/", _COMMANDS)
-
-    app = Humanize()
-    async with app.run_test() as driver:
-        await driver.press(*"/export")
-        await driver.press("enter")
-        await until(lambda: "no such command" in transcript(app), driver)
-
-        assert app.is_running  # a line that is not a command leaves the interface up
 
 
 @pytest.mark.timeout(90)

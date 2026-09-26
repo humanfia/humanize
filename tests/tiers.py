@@ -198,8 +198,8 @@ def tier(path: Path) -> str | None:
       path: The file a test was collected from.
 
     Returns:
-      The tier it lives in, or None for a file outside all three -- which today is the
-      migration backlog, and afterwards is only `tests/test_tiers.py` itself.
+      The tier it lives in, or None for a file outside all three -- which is only
+      `tests/test_tiers.py` itself.
     """
     for name, root in _ROOTS.items():
         if path.is_relative_to(root):

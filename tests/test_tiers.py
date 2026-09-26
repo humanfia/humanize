@@ -28,8 +28,7 @@ collection, and a gate that ran only when its own tier was selected would not be
 `-m unit` it would be deselected, and a system test misfiled into `tests/integration` would sail
 through the run that was meant to catch it. So the rule below is "the tree a test is in is the
 marker it carries" rather than "every test carries a tier": a test outside all three trees
-carries none. Today that is the migration backlog -- the files not yet moved -- and when the
-last of them has moved it is this file alone.
+carries none, and that is this file alone.
 """
 
 from __future__ import annotations

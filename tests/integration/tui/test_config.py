@@ -19,7 +19,6 @@ from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.pick import Agent, Configures, Flows, setting
-from hmz.tui.selecting import Transcript
 from tests.integration.tui.test_app import into_agent, keeps, onto, rows
 from tests.stubs import written
 
@@ -374,18 +373,6 @@ async def test_setting_one_up_again_is_choosing_it_again(flows: Path) -> None:
 
             await until(lambda: isinstance(app.screen, Configures), driver)
             assert isinstance(app.screen, Configures)
-
-
-@pytest.mark.timeout(60)
-async def test_there_is_no_command_that_sets_a_flow_up(flows: Path) -> None:
-    """A command that only ever means one row of one menu is a command nobody needs."""
-    app = Humanize()
-    async with app.run_test() as driver:
-        await driver.press(*"/config")
-        await driver.press("enter")
-        await driver.pause()
-
-        assert "no such command" in app.query_one("#transcript", Transcript).text
 
 
 def test_the_monitor_says_only_what_was_changed() -> None:

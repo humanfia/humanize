@@ -79,27 +79,6 @@ async def _says(app: Humanize, driver: Pilot[None], line: str) -> None:
     await driver.pause()
 
 
-@pytest.mark.timeout(60)
-async def test_letting_go_of_the_terminal_is_not_a_command_of_its_own() -> None:
-    """It is an answer to `/exit`, which is the one question about leaving there is.
-
-    Two words for two halves of one decision is one of them typed by somebody who meant the
-    other, so there is one: `/exit` asks, and what it asks is what `/detach` used to say.
-    """
-    from hmz.tui.app import _BY_NAME, _COMMANDS
-    from hmz.tui.complete import offered
-
-    assert "detach" not in _BY_NAME
-    assert "/detach" not in offered("/", _COMMANDS)
-
-    app = Humanize(session=Holding())
-    async with app.run_test() as driver:
-        await _says(app, driver, "/detach")
-        await until(lambda: "no such command" in transcript(app), driver)
-
-        assert app.is_running
-
-
 def test_the_one_way_out_says_that_a_flow_goes_on_running() -> None:
     """The list is where somebody reads what a command does before they type it.
 

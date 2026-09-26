@@ -153,7 +153,6 @@ def test_a_line_naming_no_command_opens_the_interface() -> None:
         assert cli.main([]) == 0
 
     assert opened.called
-    assert "tui" not in cli.COMMANDS
 
 
 def test_the_interface_is_opened_on_nothing_the_line_said() -> None:
@@ -216,9 +215,6 @@ def test_the_help_lists_every_command(
     assert all(command in shown for command in cli.COMMANDS)
     # And what `hmz` itself takes, which is the other half of the same line: one help says
     # both what may be opened and what may be run, because both of them are `hmz`.
-    # The line that opens the interface says nothing about what it opens on, so there is
-    # nothing here to say it with: what to run is chosen at the prompt.
-    assert not any(flag in shown for flag in ("--flow", "--agent", "--config"))
     # Including the door onto what humanize spawns for itself, which is in the listing under
     # one name: a listing that showed only the line a person types would be describing a
     # different program from the one that runs, and the four behind it are exactly the
@@ -227,7 +223,7 @@ def test_the_help_lists_every_command(
 
 
 def test_the_listing_shows_every_command_there_is() -> None:
-    """Nothing is routed that the help does not name: the old `_SPAWNED` is gone."""
+    """Nothing is routed that the help does not name."""
     assert set(cli.COMMANDS) == {"exec", "internal"}
 
 

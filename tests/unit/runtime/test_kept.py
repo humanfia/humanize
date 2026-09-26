@@ -42,7 +42,7 @@ def test_an_agent_written_down_comes_back_as_itself(runs: Runs) -> None:
     "held",
     [
         None,
-        {"cli": "claude", "model": "m", "effort": "high"},  # an older humanize's
+        {"cli": "claude", "model": "m", "effort": "high"},  # a mapping, not a line
         "claude",
         "claude/m",
         "/m:high",
@@ -103,7 +103,7 @@ def test_choosing_the_agents_again_leaves_the_rest_alone_and_empty_erases(
 def test_what_humanize_did_not_write_reads_as_nothing_remembered(
     tmp_path: Path,
 ) -> None:
-    """An older humanize wrote an agent as a mapping of its fields; that is not one now."""
+    """An agent written as a mapping of its fields is not one; neither is a numeric env."""
     import yaml
 
     from hmz import home
