@@ -4,152 +4,82 @@ pageClass: hmz-feature
 
 # The anchor
 
-An agent runs on this machine, unchanged. Everything it *does* — reading and writing project
-files, running commands, reaching the network from those commands — happens on another machine.
-The agent is told none of this and cooperates in none of it: there is no plugin, no
-configuration, no flag, and nothing in its own settings that says where it is.
+An agent runs on this machine, unchanged. Everything it *does* happens on another machine:
+reading and writing the project's files, running commands, and reaching the network from those
+commands. The agent is told none of this. There is no plugin, no configuration and no flag in
+its own settings that says where it is.
 
 <HmzSyscalls />
 
-## The one idea
+In one line: **the work is over there, and the account is over here.** Your login, your keys
+and the agent's connection to its model provider never reach the machine the work lands on.
 
-A coding agent is a program, and a program's contact with the world is a few dozen system
-calls. Take those, one at a time, and you have taken everything it does without touching
-anything it is.
+## Files: a local copy, kept in step
 
-So the agent is forked and told to be traced, a filter is installed on it, and it is replaced
-by the CLI. From then on every call it makes that names a path, spawns a process or opens a
-socket stops on its way into the kernel, and a supervisor beside it decides what happens: this
-one is replayed on the target, that one is answered here, the argument of this third one is
-rewritten before it goes through.
+The agent reads and writes a local copy of the target's workspace, at local speed, and humanize
+keeps the two in step.
 
-## Why it is not slow
+- **An edited file reaches the target whole**, before any command runs there, and again when
+  the session ends. The target never holds half an edit.
+- **Creating, removing, renaming and changing permissions happen on the target first**, so any
+  error the agent sees is the target's own.
+- **The local copy belongs to the target.** Anything in it that the target does not have is
+  deleted. humanize refuses to use a directory that holds unrelated files, or that was last
+  used for another target, unless told to.
 
-A filter that trapped everything would be a filter you could feel. This one is a flat
-classic-BPF program — one comparison per trapped call, and there are thirty-five of them —
-installed once in the forked child between `PTRACE_TRACEME` and `execve`, and inherited by
-every descendant process and thread.
+## Commands: run on the target
 
-It answers `SECCOMP_RET_TRACE` for the cold, path-bearing calls the supervisor cares about and
-`SECCOMP_RET_ALLOW` for everything else, so a `read` on a descriptor already decided, a
-`futex`, a `clock_gettime` — the calls a turn makes hundreds of thousands of times — never pay
-a ptrace stop at all. The counter above the diagram is the whole argument: the ratio between
-its two columns is why this is a way of working rather than a demonstration.
+A command the agent starts runs on the target, but behaves like an ordinary local program: the
+same output and exit status. Several can run at once, and a long-running one can be talked to
+while it runs. Signals travel both ways: stopping a command stops the real one on the target.
 
-## Three questions, answered separately
+## What stays on this machine
 
-Every trapped call is one of three questions, and the router answers them independently.
+- the agent's own program, and the runtime it runs on
+- its state directory, and anything it runs from inside it
+- the credentials of the [account](/features/accounts) it runs as, including a token it
+  refreshes mid-turn
+- any variable named as the agent's own, so a key it was given for its model provider is not
+  handed to every command it runs
+- the agent's own network connections, unless you ask otherwise
 
-| | |
-| --- | --- |
-| **Paths** | A directory on this machine — the mirror — stands for a path on the target. By default the two are spelled identically, so the agent genuinely believes it is working on the target. |
-| **Programs** | Everything the agent spawns runs on the target, except the agent's own runtime: its launcher, interpreter, native binary, runtime helpers and re-execs stay here. |
-| **Redirects** | A path the agent names may be answered with another one, which is how a turn runs as a chosen [account](/features/accounts) rather than whichever one this machine is signed into. |
+## Before you rely on it
 
-## The mirror, and why writes are whole files
+::: danger Serving is not a sandbox
+The program that serves a target limits which files a request may name, not what the commands
+it runs may do. **A listening port is as good as a shell on that machine.** Prefer targets
+reached over SSH or Docker, which open no port at all.
+:::
 
-The agent reads and writes a local mirror at local speed — the target's own file names,
-contents, sizes, modes and timestamps — and coganchor keeps the two in step.
+- **One writer.** Nobody else may edit the target's workspace while an agent works on it.
+- **Only file contents cross.** Ownership, device nodes and extended attributes stay in the
+  local copy, and so does a permission change made through a file that is already open.
+- **Losing the connection does not stop the agent.** Work that needs the target fails, files
+  already copied still read, and the agent exits with its own status.
+- **A request that gets no answer is given up here, not there.** It may still take effect on
+  the target after the agent was told it failed.
+- **Nothing crosses between the two.** Renaming or linking between the workspace and a path on
+  this machine fails, and `sudo` does not work for the agent here. Commands run on the target,
+  where `sudo` works as usual.
+- **Names are looked up here** and dialled from the target, so split-horizon DNS can disagree.
 
-- **A file the agent modifies is pushed in full** before any command runs on the target, and
-  again when the session ends. A file crosses whole, in both directions: no partial writes to
-  reason about, and no moment where the target holds half an edit.
-- **Structural changes go the other way first.** Creating, removing, renaming, linking and
-  changing permissions are replayed on the target *before* the mirror is touched, so what the
-  agent gets back is the target's own error rather than a local approximation of one.
-- **The mirror is authoritative.** Anything in it the target does not have is deleted, and
-  coganchor refuses a mirror directory holding unrelated files, or one last used against a
-  different target, unless told to go ahead.
+::: details The agent itself can run elsewhere too
+By default the agent runs here, and every file it opens is a round trip. It can instead run
+beside its work, where opening a file costs nothing extra, or on a third machine, with humanize
+introducing the two even when neither can reach the other. Either way the account and the
+connection to the model provider go with the agent. See
+[Remote execution reference](/reference/remote-execution).
+:::
 
-A command the agent spawns behaves like an ordinary local child: the same descriptors, output
-and exit status. Its parent is released as soon as it starts, so commands run concurrently and
-a long-lived one can be talked to while it runs. Signals travel both ways — one aimed at a
-running command reaches the real process on the target, and a command killed there kills its
-local counterpart.
+## What it needs
 
-## What never leaves this machine
-
-- the agent's own runtime executables and re-execs — for any CLI installed by npm, the
-  interpreter its `#!/usr/bin/env` line names, wherever on `PATH` it is found, and for Codex
-  the native CLI and its code-mode host besides
-- its state directory, and anything the agent runs from inside it — the known CLIs are known by
-  name, and any other agent keeping state inside the workspace has to be named
-- anything a path is answered with, and the paths that answer it: an agent run as somebody
-  else's account reads those credentials from here, and a refreshed token lands here
-- any variable named as the agent's own, so a credential it was given to reach its model
-  provider is not handed to every command it runs on the target
-- the agent's own network connections, unless asked otherwise, so it can still reach that
-  provider
-
-That last pair is the arrangement in one line: **the work is over there and the account is over
-here.**
-
-## Where the harness runs
-
-The harness — the agent process and the supervisor tracing it — is on this machine by default,
-and everything above assumes it. It does not have to be, and there are three answers.
-
-| | |
-| --- | --- |
-| **Here** | The default. The account, the state directory and the link to the model provider stay on this machine, and every path the agent names is a round trip. |
-| **Beside its work** | The harness is put on the machine the work lands on. A file the agent opens is that machine's disk rather than a wire; what crosses to here is the agent's three streams and nothing else. |
-| **On a machine of its own** | The harness on one, the work on another, and humanize on neither. |
-
-The third needs two machines that have no way to reach each other to be talking, so humanize
-introduces them. Each half dials a **rendezvous** here with a ticket; each is told what it looks
-like from outside, which is the one thing a machine behind a NAT cannot learn by asking itself;
-both are started at each other at once, so that each side's outbound attempt opens the hole the
-other's arrives through. Where that cannot work — two symmetric NATs, a firewall that drops what
-it did not see leave, no route at all — humanize splices the two connections it is already
-holding and carries the bytes itself.
-
-Nothing above the anchor is told which of the three happened. The line is the same line, and
-the status is the agent's own status.
-
-## The turn is also where the session ends
-
-An anchored session ends its process with each turn rather than holding one open across them.
-That is not an implementation detail: coganchor pushes what the agent wrote when the session
-ends, so a process held open past the turn would leave that turn's work here while the turn
-said it had landed. Such a session resumes rather than reopens on the turn after, and between
-two turns there is nothing there to be [talked to](/features/steering).
-
-## What it is deliberately not
-
-Each of these is a decision, and each looks like a defect if you meet it cold.
-
-- **Serving is not a sandbox.** An export bounds which files a request may name. It does not
-  confine the commands that request can run, and does not stop a symlink out of the tree from
-  being followed. **A listening port is equivalent to a shell on that machine.**
-- **It fails open.** coganchor is a redirector rather than a sandbox, so an architecture the
-  filter does not recognise goes through untouched — which keeps an unexpected personality
-  working instead of killing the agent, and is why a 32-bit process below the agent runs
-  against the mirror with nothing replayed.
-- **Mirrored directories are the mirror's**, carrying this machine's permissions and the time
-  the mirror was made.
-- **Only file contents are pushed.** A permission change made through an already-open
-  descriptor never reaches the target, and ownership, device nodes and extended attributes
-  never leave the mirror.
-- **A request that goes unanswered is abandoned here, not there.** It may still take effect on
-  the target after the agent has been told it failed.
-- **Losing the connection does not stop the agent.** Work needing the target fails,
-  already-mirrored files still read, and the agent exits with its own status.
-- **One writer.** The target's workspace must not be edited by anybody else at the same time.
-- **No crossing.** Renaming or linking between the workspace and a path kept here fails, and
-  `sudo` does not work below the agent on this machine — commands run on the target, where it
-  is unaffected.
-- **Names resolve here** and are dialled from the target, so split-horizon DNS can disagree.
-
-## What it needs installed
-
-Running an agent under it needs Linux on x86-64 or aarch64 and a recent Python. **Serving
-needs only a POSIX system and a Python of the same vintage** — no root, no compiler, no kernel
-module, nothing installed. The same program is both ends, and the two refuse to run against
-each other if their versions disagree.
+- **The machine the agent runs on:** Linux on x86-64 or aarch64.
+- **The machine the work lands on:** any POSIX system with Python 3.12 or newer. No root, no
+  compiler, nothing to install.
 
 ## Where the detail is
 
-- [Remote execution](/user/remote-execution) — how to point an agent at one
-- [Remote execution reference](/reference/remote-execution) — what you are entitled to, exactly
-- [Security](/user/security) — read this first
-- [Two accounts of one CLI](/features/accounts) — the same technique, aimed at credentials
+- [Remote execution](/user/remote-execution): pointing an agent at another machine
+- [Remote execution reference](/reference/remote-execution): exactly what you can rely on
+- [Security](/user/security): read this first
+- [Two accounts of one CLI](/features/accounts): the accounts that stay on this machine
