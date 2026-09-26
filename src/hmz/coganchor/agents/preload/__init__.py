@@ -11,7 +11,7 @@ Which is near-syscall fidelity without a supervisor, and only where a runtime wi
 shipped as a compiled binary -- claude and opencode are Bun executables, and codex, grok and agy are
 native, agy being Go -- has no Node to load anything into.
 :attr:`hmz.coganchor.backends.Profile.preloads` is where it is written down which CLIs take a
-preload and through which variable, and `anchor:preloaded` is the name a flow asks for it under.
+preload and through which variable.
 Four backends of twelve is the honest ceiling, which is why this supplements the hooks a CLI offers
 rather than replacing them.
 

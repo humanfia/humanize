@@ -229,12 +229,7 @@ def spelled(model: str, effort: str, *, fast: bool, listed: tuple[str, ...]) -> 
         return wanted
     kin = [one for one in listed if one.startswith(f"{model}-")]
     runs = ", ".join(kin) if kin else "itself alone, at whatever Cursor gives it"
-    raise Unserved(
-        f"{_COMMAND} lists no {wanted}: this account runs {model} as {runs}",
-        "model",
-        "effort",
-        "service_tier",
-    )
+    raise Unserved(f"{_COMMAND} lists no {wanted}: this account runs {model} as {runs}")
 
 
 class CursorSession(CommandSessionBase):

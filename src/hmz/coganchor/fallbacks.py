@@ -360,10 +360,6 @@ def reads(said: str) -> str:
     needed it. A model may hold slashes of its own -- Kimi Code's and opencode's are `provider/id`
     -- and a CLI never does, so the first slash is the one that separates them.
 
-    An effort after a colon is dropped rather than refused: a step written down before effort
-    left this spelling is a step somebody still means, and how hard an agent thinks is that
-    agent's rather than the place's.
-
     Args:
       said: What was written.
 
@@ -377,34 +373,10 @@ def reads(said: str) -> str:
     if at and not account.strip():
         return ""
     profile = backends.named(backend.strip())
-    model = _bare(profile, model.strip())
+    model = model.strip()
     if profile is None or not model:
         return ""
     return spec(profile.name, model, account.strip())
-
-
-def _bare(profile: backends.Profile | None, model: str) -> str:
-    """One model with the effort a step used to be written with taken off it.
-
-    Args:
-      profile: The CLI it is a model of, or None for one nothing answers to.
-      model: The model as it was written, which may carry `:EFFORT` behind it.
-
-    Returns:
-      The model alone. A colon that is part of the model's own name is left where it is: only
-      a rung this backend actually lists is read as one.
-
-      Which is a narrower question than `Profile.takes`, and deliberately not that one: a CLI
-      known only by the protocol it speaks lists one rung and can be asked for any word, so a
-      check that this backend *would take* the word would read the tail of every model such a
-      CLI names as a rung and cut it off.
-    """
-    before, colon, rung = model.rpartition(":")
-    if not colon or profile is None:
-        return model
-    if rung in profile.efforts or rung in profile.beyond:
-        return before
-    return model
 
 
 def falls() -> list[Falls]:

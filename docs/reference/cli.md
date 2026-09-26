@@ -189,8 +189,7 @@ which, and the order roles are written in means nothing.
 - **What an agent may do is not a setting of `-a`.** Its [permission](/reference/flows#what-each-agent-may-do),
   the skills it carries and what it must be able to do — a goal, steering, a hook only some
   harnesses reach — are the flow's, declared on the role's type, and a harness that cannot
-  serve what a role declares is refused before anything runs. `permission=` and `web_search=`
-  written before an agent are refused, saying the flow is where that is said.
+  serve what a role declares is refused before anything runs.
 
 ### Writing an environment
 

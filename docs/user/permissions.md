@@ -53,8 +53,8 @@ hmz exec -f ./review -a builder=claude/claude-opus-5:max -a reviewer=codex/gpt-5
 
 ## A line cannot say it
 
-`permission=` is not a setting of `-a`, and a line that writes one is refused before anything
-runs, naming the flow as the place to say it. There is no row for it on the sheet an agent is
+`permission=` is not a setting of `-a`: what is written before `=` names a role, so it is
+read as one and refused like any role the flow does not declare. There is no row for it on the sheet an agent is
 set up on, either. An agent is a CLI, an account and a model at an effort; what that agent is
 allowed to do belongs to the flow driving it.
 

@@ -516,11 +516,7 @@ class OpencodeAgentConfig(AgentConfig):
             ]:
                 raise Unserved(
                     "permission_table=False withholds the only table this backend hears "
-                    f"{' and '.join(said[field] for field in unsayable)} in",
-                    # Both at once where both were narrowed, because dropping either on its
-                    # own leaves the table just as withheld and the other just as unsayable:
-                    # this is one refusal about a pair, not two that happened to coincide.
-                    *unsayable,
+                    f"{' and '.join(said[field] for field in unsayable)} in"
                 )
 
 

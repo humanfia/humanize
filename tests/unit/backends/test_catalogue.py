@@ -1,8 +1,8 @@
 """The facts about each backend, held to what its driver actually does.
 
 Honesty tests: every backend set here is exactly what the live driver classes declare or what
-the facts in `hmz.coganchor.backends` say -- which backends steer a turn already running, which
-names a backend's own facts come to, what each counts and which rungs each takes. A fact that
+the facts in `hmz.coganchor.backends` say -- which backends steer a turn already running, what
+each counts and which rungs each takes. A fact that
 drifted from the driver is a capability humanize would offer and nothing serves. What a
 capability does once it has been asked for is covered where it is driven -- steering a real CLI
 in `tests/system/agents` -- and not here.
@@ -15,7 +15,7 @@ import sys
 from typing import TYPE_CHECKING
 
 from hmz.coganchor.agents import DRIVEN, KINDS, PERMISSIONS
-from hmz.coganchor.backends import PROFILES, Bundled, Hooked, Profile
+from hmz.coganchor.backends import PROFILES
 
 if TYPE_CHECKING:
     from hmz.coganchor.agents.base import SessionBase
@@ -53,40 +53,6 @@ def test_a_backend_that_steers_a_running_turn_says_so_and_one_that_cannot_says_s
     # is what `steers` being False is a promise about.
     for name, one in sessions.items():
         assert one.steers is (name in _STEERING), name
-
-
-def test_the_names_a_backend_serves_are_derived_from_its_own_facts() -> None:
-    """`tags` says the vocabulary's word for a fact rather than storing the word too."""
-    bare = Profile(
-        name="bare", aliases=("bare",), home_var="", home_dir="", logs=(), efforts=()
-    )
-    assert bare.tags() == {"resume"}  # every CLI here resumes unless it says otherwise
-    full = Profile(
-        name="full",
-        aliases=("full",),
-        home_var="",
-        home_dir="",
-        logs=(),
-        efforts=(),
-        swarms=True,
-        searches=True,
-        forks=True,
-        resumes=False,
-        hooks=Hooked(seam="flag", name="--settings"),
-        preloads="NODE_OPTIONS",
-        bundles=(Bundled(path="dist/*/cli.js", says=r"spawnSync\("),),
-    )
-    # `bundles` is set on this profile and names nothing: what a fingerprint says is that a
-    # patch could be found in what the CLI shipped, which the bytes on this machine decide
-    # rather than the table -- so it is read back where a turn takes that road, not promised
-    # here where a flow could ask for it and be given nothing.
-    assert full.tags() == {
-        "swarm",
-        "search",
-        "fork",
-        "anchor:hooked",
-        "anchor:preloaded",
-    }
 
 
 def test_each_layer_names_exactly_the_backends_it_reaches() -> None:

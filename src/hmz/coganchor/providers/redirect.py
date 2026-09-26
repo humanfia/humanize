@@ -39,12 +39,6 @@ __all__ = ["Swaps", "command", "read", "run", "swept"]
 #: `AT_FDCWD`, the directory descriptor that means "wherever the process is".
 _AT_FDCWD = -100
 
-#: Where a rewritten path is written in the tracee: below the red zone, in stack the process
-#: has not reached yet, one whole path per slot so that a syscall naming two of them can be
-#: given both. The exec that would use this space discards it, and every other syscall here
-#: reads its arguments out before returning, so nothing outlives the call it was planted for.
-_SCRATCH = 4096
-
 
 @dataclass(frozen=True, slots=True)
 class Swaps:

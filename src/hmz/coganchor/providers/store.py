@@ -12,7 +12,6 @@ ones are there, and what is in each".
 
 from __future__ import annotations
 
-import contextlib
 import datetime
 import json
 import os
@@ -199,36 +198,13 @@ class Provider:
         }
 
 
-#: A backend this used to be called something else, and what that was. An account is kept in
-#: a directory named for the backend it is of, so a backend renamed leaves its accounts under
-#: a name nothing answers to any more -- and a directory nothing answers to is read as no
-#: accounts at all, which is a turn quietly taken as whoever is at this machine rather than as
-#: the account somebody signed in. Cursor Agent was `cursor` until it was called the command
-#: it is installed as, which is what every backend here is called.
-_RENAMED = {"cursor": "cursor-agent"}
-
-
 def under() -> Path:
     """Where every provider is kept, which is one directory under humanize's own home.
-
-    Asked for the tree rather than for the path: an account of a backend that has since been
-    renamed is moved here, once, to the name that backend has now. Done where the tree is
-    reached for because that is the one place every read and every write of it goes through,
-    and an account is no use in a place only half of them look.
 
     Returns:
       The directory, whether or not anything is in it.
     """
-    at = home() / "providers"
-    for was, now in _RENAMED.items():
-        before = at / was
-        # Never over the top of one that is already there: an account made under the name the
-        # backend has now is the one somebody made on purpose, and the older tree is left
-        # where it is rather than merged on top of it.
-        if before.is_dir() and not (at / now).exists():
-            with contextlib.suppress(OSError):
-                before.rename(at / now)
-    return at
+    return home() / "providers"
 
 
 def where(cli: str, name: str) -> Path:
@@ -424,7 +400,11 @@ def _alone(cli: str) -> Provider:
         cli=cli,
         name=LOCAL,
         way="",
-        fallback=str(held.get("fallback") or ""),
+        # A name, and never anything else: a fallback edited by hand into a number or a mark
+        # names nobody, so it is the end of its own chain until somebody says otherwise.
+        fallback=str(held.get("fallback") or "")
+        if isinstance(held.get("fallback"), str)
+        else "",
     )
 
 
@@ -690,7 +670,7 @@ def _read(cli: str, at: Path) -> Provider | None:
         if isinstance(args, list)
         else (),
         made=str(held.get("made") or ""),
-        # A name, and never a mark: an account written down when a fallback was a yes or a no
+        # A name, and never anything else: a fallback edited by hand into a number or a mark
         # names nobody, so it is the end of its own chain until somebody says otherwise.
         fallback=str(held.get("fallback") or "")
         if isinstance(held.get("fallback"), str)

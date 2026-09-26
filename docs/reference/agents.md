@@ -388,9 +388,7 @@ always done because each is something humanize reads back afterwards:
   counts nothing from it at all while the interface is still told this backend's reckoning is
   one it can show. It is for a run whose cost nobody asks this path for.
 
-Both are optional-interface fields, so a flow that has to have one asks for it where it
-declares the place under the name its field is surfaced by, `settings:compaction` and
-`settings:session_compression`. `goals` is read here too: on this backend it is what mounts
+`goals` is read here too: on this backend it is what mounts
 the goal service, the `create_goal` tool and the round driver, so an agent told to have none
 composes none. Each of the three is read again on every turn, so an agent reconfigured
 mid-session gets a runtime built the new way and keeps its conversation.
@@ -435,8 +433,7 @@ humanize's home; `context_files` and `extensions` (both `True`) are whether it d
 `AGENTS.md`/`CLAUDE.md` and the extensions installed here; `offline` (`False`) is `--offline`,
 its startup network work switched off; `append_system_prompt` (`()`) adds text — or the
 contents of a file named by path — to pi's own system prompt, once per entry; and `skill_paths`
-(`()`) hands it a skill file or directory by path. A flow asks for any of these before it is
-handed an agent, each under the `settings:<field>` name its own config class gives it. Kimi
+(`()`) hands it a skill file or directory by path. Kimi
 takes `port`, `open_browser`, `log_level` and `web_title`, the command line of the `kimi web`
 daemon its turns are submitted to — see
 [the daemon Kimi is driven through](#the-daemon-kimi-is-driven-through). DeepSeek Harness takes
@@ -700,10 +697,6 @@ agent = OpencodeAgent(
     )
 )
 ```
-
-Each is a capability a flow may ask for before an agent is chosen, under the name the
-catalogue gives every backend-only setting: `settings:cli_agent`, `settings:thinking`,
-`settings:pure`, `settings:unattended`, `settings:permission_table`.
 
 `thinking` buys the words and not the figure: what a turn spent on reasoning tokens is in
 every step's own totals whether or not it was asked to say the thinking, so
@@ -1222,7 +1215,7 @@ everywhere. A CLI says what it reached for and then reaches for it, so a refusal
 stream a turn is read from would be describing a tool that had already run.
 
 On the backends whose CLI takes a hook table meant for a single run — the ones
-[`anchor:hooked`](#what-each-backend-can-do) names — humanize puts the moment in that table
+[the table below](#what-each-backend-can-do) names — humanize puts the moment in that table
 instead, pointed at `hmz internal hook`, a relay that carries the call to a socket this process is
 serving and the verdict back again. The CLI stops and waits for it, and a refusal means the
 tool does not run:
@@ -1325,8 +1318,7 @@ that re-execs *itself* is still the CLI, which is what qwen does, so the layer f
 
 The rest of the backends ship with a runtime compiled in — `claude` and `opencode` are Bun
 executables, `codex` and `grok` are native, `agy` is a compiled Deno — and there is nothing to
-load a file into. `backends.named(<backend>).preloads` is the variable each takes one through,
-and `anchor:preloaded` is the name a flow asks for the capability under.
+load a file into. `backends.named(<backend>).preloads` is the variable each takes one through.
 
 What the CLI reads and writes of its *own* install is not reported either — a bundle loading
 itself is not a turn doing anything — and neither is a call made on a file descriptor rather
@@ -1661,8 +1653,7 @@ that lands on another machine is given none — the path would name a directory 
 
 That cache is the one thing on a pi command line humanize decided rather than read off pi, so
 it has a way out: `PiAgentConfig(compiled=False)` leaves the variable exactly as it was found
-and the turn starts as a bare `pi` would. A flow can ask for it beforehand — it is the
-`settings:compiled` capability. Everything else pi is started with is either the transport or
+and the turn starts as a bare `pi` would. Everything else pi is started with is either the transport or
 an answer to something the flow said: `--mode rpc`, because a turn is a line written to a process that is
 already up and steering and moving the effort are commands there rather than flags;
 `--session-id`, because `--continue` resumes whichever session in the directory is newest and a
@@ -2063,7 +2054,7 @@ A flow no longer says what a run of it is worth: whoever starts it does, with `-
 | [`SubagentStart`/`SubagentStop`](#not-every-backend-runs-every-moment) | no | yes | yes | yes | no | no | no | no | no | no | no |
 | [Callbacks as tools](#callbacks-as-tools) | no | `--mcp-config` | `-c mcp_servers…` | no | no | no | no | no | no | no | no |
 | [What its runtime says the turn did](#what-the-runtime-says-the-turn-did) | no | no | no | no | no | no | yes | yes | yes | `mimo` only, and only its launcher | no |
-| [A refusable `PreToolUse`](#refusing-a-tool) — `anchor:hooked` | no | `--settings` | no | no | no | no | no | no | `QWEN_CODE_SYSTEM_SETTINGS_PATH` | no | no |
+| [A refusable `PreToolUse`](#refusing-a-tool) | no | `--settings` | no | no | no | no | no | no | `QWEN_CODE_SYSTEM_SETTINGS_PATH` | no | no |
 | A turn held to a shape | `--json-schema` | `--json-schema` | `outputSchema` | in the prompt | in the prompt | `--json-schema` | in the prompt | in the prompt | `--json-schema` | in the prompt | in the prompt |
 | Sub-agents in a trace | no | yes | yes | no | no | no | yes | no | no | no | no |
 

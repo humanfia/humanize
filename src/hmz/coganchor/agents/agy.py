@@ -721,11 +721,7 @@ class AntigravityCLIAgent(AgentBase):
         if _settled(config).disable_slash_commands and config.permission == "read-only":
             raise Unserved(
                 f"{_COMMAND} cannot run at read-only with disable_slash_commands: "
-                f"its plan mode has no effect while expansion is off",
-                # The rung rather than the switch: `disable_slash_commands` is a setting of
-                # this backend's own config, which nothing outside it declares and nothing
-                # outside it may drop. The rung is the half a place can have asked for.
-                "permission",
+                f"its plan mode has no effect while expansion is off"
             )
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> AntigravityCLISession:

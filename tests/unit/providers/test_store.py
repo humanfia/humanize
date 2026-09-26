@@ -71,43 +71,6 @@ def test_a_provider_is_kept_under_the_name_its_backend_is_called_here() -> None:
     assert json.loads((provider.at / "provider.json").read_text())["cli"] == "claude"
 
 
-def test_an_account_of_a_backend_that_was_renamed_is_still_that_backends() -> None:
-    """Cursor Agent is called `cursor-agent` now, and was `cursor` when somebody signed in.
-
-    A directory named for a backend nothing answers to reads as no accounts at all, which is
-    a turn quietly taken as whoever is at this machine. So the tree is moved to the name the
-    backend has now, and the account is the account it always was.
-    """
-    was = home() / "providers" / "cursor" / "mine"
-    was.mkdir(parents=True)
-    (was / "provider.json").write_text(
-        json.dumps({"cli": "cursor-agent", "name": "mine", "way": "key"})
-    )
-
-    found = providers.find("cursor-agent", "mine")
-
-    assert found is not None
-    assert found.at == home() / "providers" / "cursor-agent" / "mine"
-    assert [(one.cli, one.name) for one in providers.providers()] == [
-        ("cursor-agent", "mine")
-    ]
-    assert not (home() / "providers" / "cursor").exists()
-
-
-def test_an_account_made_under_the_name_it_has_now_is_not_written_over() -> None:
-    """The one somebody made on purpose wins, and the older tree is left where it is."""
-    providers.add("cursor-agent", "mine", env={"CURSOR_API_KEY": "the-one-that-stands"})
-    stale = home() / "providers" / "cursor" / "mine"
-    stale.mkdir(parents=True)
-    (stale / "provider.json").write_text(json.dumps({"cli": "cursor-agent"}))
-
-    found = providers.find("cursor-agent", "mine")
-
-    assert found is not None
-    assert found.env["CURSOR_API_KEY"] == "the-one-that-stands"
-    assert stale.exists()
-
-
 def test_every_provider_is_listed_by_backend_and_then_by_name() -> None:
     for cli, name in (("kimi", "second"), ("claude", "second"), ("codex", "only")):
         providers.add(cli, name)

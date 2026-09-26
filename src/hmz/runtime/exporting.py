@@ -762,7 +762,7 @@ def _cli(name: str) -> dict[str, Any]:
     profile = backends.named(name)
     if profile is None:
         return {"command": name, "executable": "", "version": "", "sha256": ""}
-    command = profile.runs()
+    command = profile.name
     # Where a backend may be installed is backends' to know: shutil.which alone
     # calls a CLI under ~/.local/bin not installed, and the manifest would say so.
     found = backends.program(command)

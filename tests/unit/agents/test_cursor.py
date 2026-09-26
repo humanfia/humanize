@@ -24,13 +24,12 @@ def test_the_cli_is_named_by_what_it_is_installed_as() -> None:
     profile = backends.named("cursor-agent")
     assert profile is not None
     assert profile.name == "cursor-agent"
-    assert profile.runs() == "cursor-agent"
     # And the product's own name is not a spelling of it: nothing on a PATH is `cursor`, so
     # a line that says it is a line to correct rather than one to guess at.
     assert backends.named("cursor") is None
     # The word the driver spawns is that same word. It is written in two places, as every
     # other driver's is, and this is what holds the two together.
-    assert profile.runs() == _COMMAND
+    assert profile.name == _COMMAND
 
 
 def test_how_hard_it_thinks_is_written_into_the_models_own_id() -> None:

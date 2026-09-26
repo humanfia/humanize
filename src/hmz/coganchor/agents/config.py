@@ -12,8 +12,6 @@ from typing import TYPE_CHECKING, ClassVar
 from hmz.coganchor.backends import AUTO
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-
     # Named for the type only: a flow that runs its agents here is the common one, and it
     # should not pay to import the half of coganchor that runs a session, nor the docker
     # client behind a container.
@@ -26,18 +24,9 @@ __all__ = [
     "SERVICE_TIERS",
     "UNSAID",
     "AgentConfig",
-    "AgentDefaults",
     "Budget",
-    "Goal",
-    "Isolated",
-    "Needs",
-    "Remote",
     "Unserved",
     "anchored",
-    "isolated",
-    "rung",
-    "searching",
-    "tightest",
 ]
 
 #: What an agent may do without being asked, loosest last. Named the way these CLIs name them
@@ -68,87 +57,12 @@ PERMISSIONS = ("read-only", "workspace-write", "auto", "bypass")
 #: so a place declaring nothing goes on settling nothing.
 UNSAID = ""
 
-#: Every answer a config may be written with: the ladder, and the silence above it. Loosest
-#: last, which is what :func:`tightest` reads it in.
+#: Every answer a config may be written with: the ladder, and the silence above it.
 _SAYABLE = (*PERMISSIONS, UNSAID)
 
 
 class Unserved(ValueError):  # noqa: N818  -- what the setting is here, not what went wrong
-    """Raised for a setting this backend has no way of carrying.
-
-    Every shortfall in this layer was a bare `ValueError` with a sentence written where it
-    was found, which is everything a person needs and nothing a caller can act on: whatever
-    settles a config onto a backend could read the sentence and re-raise it, and no more. To
-    drop the one setting that could not be carried and settle the rest, it has to know which
-    one that was, and a sentence is not a name.
-
-    So the name travels beside the sentence, and the sentence is unchanged: this is a
-    `ValueError` still, raised where the old one was and worded as the old one was, so every
-    `except ValueError` that caught the shortfall before catches it now and every message
-    still reads exactly as it read.
-
-    Attributes:
-      settings: The :class:`AgentConfig` fields this backend could not carry, by name. Almost
-        always one -- a tier it cannot send, a rung it has no word for, a web search it
-        cannot switch off. More than one where a config refuses a pair rather than either
-        half of it: opencode withholding its permission table hears neither a narrowing rung
-        nor a no about the web, and names both, because dropping one of them leaves the other
-        just as unsayable.
-    """
-
-    def __init__(self, said: str, *settings: str) -> None:
-        """Says what could not be carried, and which settings it was.
-
-        Args:
-          said: The sentence, exactly as a bare `ValueError` said it here before.
-          settings: The `AgentConfig` field names, one or more.
-        """
-        super().__init__(said)
-        self.settings = frozenset(settings)
-
-
-def rung(permission: str) -> str:
-    """The capability name for one rung, which is how a flow asks for it before its turn.
-
-    Not every backend can be held to every rung. ACP's only word about permission is a
-    request a client answers one tool call at a time, and nobody is at a prompt here; the dsh
-    runtime bundles no confining executor. Both of them therefore refuse anything below
-    `bypass` where the agent is made -- which is the right place for it, but it is also hours
-    after somebody chose that backend for a flow that wanted `read-only`. So the ladder has
-    words in the capability vocabulary too, one per rung, and
-    :attr:`hmz.coganchor.agents.base.AgentBase.rungs` is what each backend answers with.
-
-    Spelled here rather than wherever a name happens to be wanted, so that the driver that
-    refuses a rung, the catalogue that lists it and the flow that asks for it are saying one
-    word: `rung:` and the rung, in the wording :data:`PERMISSIONS` already uses.
-
-    Args:
-      permission: The rung, as :data:`PERMISSIONS` spells it.
-
-    Returns:
-      The capability name. :data:`UNSAID` has none and is not meant to: it is not a rung but
-      the absence of one, every backend can be told nothing, and a capability every backend
-      serves is not a thing to ask about.
-    """
-    return f"rung:{permission}"
-
-
-def tightest(was: str, said: str) -> str:
-    """The narrower of two rungs, where a rung is narrower than the silence above them all.
-
-    Args:
-      was: What the agent already carries.
-      said: What the place declares.
-
-    Returns:
-      Whichever of them withholds more, and the silence only where both are silent.
-    """
-    return min(was, said, key=_SAYABLE.index)
-
-
-def searching(was: bool | None, said: bool | None) -> bool | None:
-    """The same, for whether the web may be read: off beats on, and on beats unsaid."""
-    return min(was, said, key=(False, True, None).index)
+    """Raised for a setting this backend has no way of carrying."""
 
 
 #: How quickly a provider is asked to serve one agent, independent of how hard its model
@@ -284,227 +198,6 @@ class Budget:
         return ""
 
 
-class Goal:
-    """What a flow writes beside an agent it runs under the backend's own goal feature.
-
-    `pursue` is the agent keeping itself going toward an objective it decides for itself is
-    met, and four backends have it. A flow built on that is not a flow any agent can drive,
-    so it says which of its agents has to have one, by writing this where it declares them::
-
-        class Agents(NamedTuple):
-            worker: Annotated[AgentBase, Goal]
-
-    and an agent whose backend has no goal feature is refused before the first turn rather
-    than raising in the middle of one, which is where a loop would otherwise find out.
-    """
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class AgentDefaults:
-    """What a flow writes beside an agent to say what it runs that one at.
-
-    What an agent may do, whether it keeps itself going, and whether it reads the internet
-    are three things about the work rather than three things about the agent: a reviewer that
-    may not write is a reviewer whichever CLI fills the place, and a run whose answers have to
-    be reproducible tomorrow is one nobody may quietly switch searching back on for. So the
-    flow says them, where it declares the place::
-
-        class Agents(NamedTuple):
-            builder: AgentBase
-            reviewer: Annotated[
-                AgentBase, AgentDefaults(permission="read-only", web_search=False)
-            ]
-
-    and a place that writes nothing settles nothing, which leaves whoever fills it exactly as
-    they came.
-
-    Attributes:
-      permission: What the agent may do without being asked, as one of :data:`PERMISSIONS`,
-        and :data:`UNSAID` -- the default -- for a place that never raised the subject. A
-        place declaring a rung declares it of the work; one with nothing to declare has no
-        business tightening whoever fills it, and no business loosening them either.
-      goals: Whether the backend's own goal feature is available to it.
-      web_search: Whether it may search the web, and None -- the default -- for a place that
-        never raised that subject either. Three answers rather than two, because asking for
-        the web is as much a declaration as refusing it, and neither is the same as not
-        asking.
-      insist: Whether a backend that cannot carry one of these refuses the run, which is what
-        a place says nothing about and what every place did before there was a word for it.
-        A declaration is meant to hold, and a backend that quietly went on searching would be
-        a declaration that lies -- so the strict reading is the default and stays the default,
-        and a flow that wants it need write nothing.
-
-        `insist=False` is the other honest answer, and it is not "ignore it". It is: settle
-        what this backend can be told, drop the one setting it cannot, and say out loud which
-        place, which setting, and what the agent will actually do instead. Nothing is left
-        carrying an answer the agent will not keep. What it buys is a flow that declares of
-        the work rather than of the roster -- a benchmark written to run one task across every
-        CLI there is declares `web_search=False` because that is what the comparison needs,
-        and three backends with no way of being told should cost it three noisier cells
-        rather than three cells that never ran::
-
-            reviewer: Annotated[
-                AgentBase, AgentDefaults(web_search=False, insist=False)
-            ]
-
-        It covers only the settings that would otherwise lie about themselves -- this rung,
-        this answer about the web, and the tier and the effort a config reaches a backend
-        already carrying. Deliberately not the features a flow calls: a place that wanted
-        `steer` and got an agent without it is a place whose loop breaks at the first
-        `interject`, and there is nothing kind about moving that failure from before the
-        first turn to five hours in.
-
-    Raises:
-      ValueError: If the rung is not one there is, said as the flow is read rather than
-        reached down in a driver as a key that is not there.
-    """
-
-    permission: str = UNSAID
-    goals: bool = True
-    web_search: bool | None = None
-    insist: bool = True
-
-    def __post_init__(self) -> None:
-        if self.permission not in _SAYABLE:
-            raise ValueError(
-                f"permission must be one of {', '.join(PERMISSIONS)}, "
-                f"not {self.permission!r}"
-            )
-
-
-class Remote:
-    """What a flow writes beside an agent that may be pointed at another machine.
-
-    Where an agent's turns land is not a setting anybody may reach for: a flow is written for
-    one shape of work, and one whose agents read this project cannot have one of them reading
-    somebody else's. So a flow says which of its agents may be sent elsewhere, by writing this
-    where it declares them::
-
-        class Agents(NamedTuple):
-            builder: Annotated[AgentBase, Remote]
-            reviewer: AgentBase
-
-    and only that one may be given a machine. The others run here, whatever anybody chooses.
-    """
-
-
-@dataclass(frozen=True, slots=True)
-class Isolated:
-    """What a flow writes beside an agent that is to work in a container of its own.
-
-    A machine nobody configures: the flow says the image, humanize starts the container, the
-    project directory is mounted into it at the path it already has, and the agent -- which
-    goes on running here, with its own credentials and its own trajectory -- reaches it
-    through coganchor. What is isolated is the tools and the libraries a command finds, not
-    the work::
-
-        class Agents(NamedTuple):
-            tester: Annotated[AgentBase, Isolated("python:3.12")]
-
-    Attributes:
-      image: The image to run, which needs a `python3` for coganchor's target half and
-        whatever else the flow expects the agent to reach for.
-    """
-
-    image: str = "python:3.12"
-
-
-@dataclass(frozen=True, slots=True, init=False)
-class Needs:
-    """What a flow writes beside an agent to say what filling the place takes.
-
-    Most of what a flow builds on, every backend here serves and every machine holds. Some of
-    it only some of them do -- a turn that can be talked to while it is still running, a turn
-    held to a shape rather than asked to keep to one, a moment only some CLIs reach, a place
-    whose tools are an image's rather than this machine's -- and a flow built on one of those
-    is not a flow any agent can drive on any machine. Finding that out from the call that
-    reached for it is finding it out hours in, so the flow says what the place takes where it
-    declares the place::
-
-        class Agents(NamedTuple):
-            builder: Annotated[AgentBase, Needs("goal", "steer")]
-            tester: Annotated[AgentBase, Remote, Needs(where=("remote", "isolated"))]
-
-    and an agent whose backend serves none of it, or a machine whose settings do not come to
-    it, is refused before the first turn. By name rather than by feature, and by the names
-    everything else here already goes under: :meth:`hmz.coganchor.backends.Profile.tags`,
-    :mod:`hmz.coganchor.places` and the rungs :func:`rung` spells.
-
-    Attributes:
-      of_agent: What the backend filling the place has to serve, out of the agent vocabulary
-        -- `goal`, `pursue`, `steer`, `shape`, `tools`, `fork`, `search`, `swarm`, `resume`,
-        `narrate`, `tier:fast`, each rung it can be held to as `rung:<its own name>`, each
-        kind of token as `counts:<its own name>`, a moment only some backends reach as
-        `moment:<its own name>`, and a setting only some of their configs carry as
-        `settings:<its own field>` -- Cursor's `settings:trust`, Codex's `settings:features`,
-        ZCode's `settings:delivery`. One word apiece: a setting is asked for under the name
-        derived from its field and under no second one, so that a field renamed leaves no name
-        behind promising what nothing serves. What every backend here serves counts as served,
-        so a place that names one of those is filled by anything rather than by nothing. Read
-        off the driver class and off the facts written down about the CLI, neither of which
-        needs an agent to have run, so a flow that cannot be driven by what it was given says
-        so before it opens anything.
-
-        `anchor:hooked` and `anchor:preloaded` are asked here and not under `where`. They are
-        the two roads humanize reaches a turn down from *inside* the process it started -- a
-        hook table written for one run, a variable the runtime reads before it starts -- and
-        both are the CLI's own to take, declared by
-        :meth:`hmz.coganchor.backends.Profile.tags`. An agent pointed at another machine loses
-        them, since none of that reaches a process somewhere else, and it is refused rather
-        than quietly given the weaker thing.
-      where: What the machine its turns land on has to come to, out of the place vocabulary
-        -- `remote`, `isolated`, `managed`, `linux`, `darwin`, and the road an anchor reaches
-        it by, `anchor:native-cli` or `anchor:supervised`. Read off that machine's own
-        settings, :attr:`~hmz.coganchor.machines.MachineConfig.capabilities`, so that a place which
-        will not do is refused before an image has been pulled; a place asked for nothing in
-        particular may be filled by an agent that was pointed nowhere, whose machine comes to
-        nothing at all.
-
-    Each name belongs to exactly one of the two, and one written in the other half is
-    refused where the place is filled rather than answered wrongly. It used to be answered
-    wrongly both ways: `Needs("isolated")` was satisfied by every backend there is, a machine
-    capability carrying no backends and no backends meaning all of them, and
-    `Needs(where=("anchor:hooked",))` was refused by every machine there is, no machine's
-    settings having ever carried one.
-
-    Raises:
-      TypeError: If `where` was written as one name rather than as a sequence of them.
-        `Needs(where="remote")` is five capabilities spelled a letter each, and it is the one
-        slip here a type checker cannot see -- a string being a sequence of strings -- so it
-        is said as the flow is read rather than reached down in a refusal that names letters.
-    """
-
-    of_agent: frozenset[str]
-    where: frozenset[str]
-
-    def __init__(self, *of_agent: str, where: Sequence[str] = ()) -> None:
-        """Initializes what a place takes, as the flow wrote it.
-
-        Written out rather than generated, because what the flow writes is two different
-        kinds of thing: what the agent has to serve reads as a list of words and is taken as
-        one, and what the machine has to come to is said apart from it so that neither is
-        ever read as the other.
-
-        Args:
-          *of_agent: What the backend filling the place has to serve.
-          where: What the machine its turns land on has to come to.
-
-        Raises:
-          TypeError: If `where` was written as one name rather than as a sequence of them.
-        """
-        # A string is a sequence of strings, so this one slip is the one that would not be
-        # caught anywhere: `where="remote"` is five capabilities spelled a letter each, and
-        # the refusal it earns names letters. Everything else written wrong here is a type
-        # error where the flow wrote it.
-        if isinstance(where, str):
-            raise TypeError(
-                f"where must be a sequence of names rather than one name: "
-                f"Needs(where=({where!r},))"
-            )
-        object.__setattr__(self, "of_agent", frozenset(of_agent))
-        object.__setattr__(self, "where", frozenset(where))
-
-
 @dataclass(frozen=True, kw_only=True)
 class AgentConfig:
     """The settings every session of an agent runs at.
@@ -529,12 +222,12 @@ class AgentConfig:
         about: a rung is an answer, and an answer nobody gave is not humanize's to invent on
         their behalf. What such a run does is what the same CLI does for whoever types it at a
         shell, out of the settings they already have -- which is the one behaviour a person
-        can check for themselves. Every rung is the flow's choice, written as an
-        :class:`AgentDefaults` beside the place it declares and settled onto the agent before
-        its first turn; a flow driving an agent unattended writes `bypass` and means it,
-        because it watches its agent rather than gating it and a turn waiting on an approval
-        nobody is there to give is a flow that has stopped. That is a different thing from a
-        flow which never raised the question, and it is said differently.
+        can check for themselves. Every rung is the flow's choice, settled onto the agent from
+        the :class:`~hmz.flows.Permission` it runs under; a flow driving an agent unattended
+        writes `bypass` and means it, because it watches its agent rather than gating it and a
+        turn waiting on an approval nobody is there to give is a flow that has stopped. That is
+        a different thing from a flow which never raised the question, and it is said
+        differently.
       provider: Which account this agent's turns run as, by the name a provider of its CLI was
         made under, or "" for the CLI as whoever is at this machine already runs it. It is a
         setting of the agent rather than of the flow because it is the agent that signs in:
@@ -542,16 +235,14 @@ class AgentConfig:
         accounts running at once, each refreshing its own token and neither able to read the
         other's -- which is what a provider is for.
       goals: Whether backend goals are available to this agent. This is always an explicit
-        on/off setting with no inherited state, and it is the flow's to say: an
-        `AgentDefaults` beside the place says it, and a place run under a `Goal` has them on
-        and cannot be talked out of it.
+        on/off setting with no inherited state, and it is the flow's to say.
       web_search: Whether this agent may search the web, and None -- which is what it comes
         at -- for one nobody has said either way about. Neither half of the switch goes on the
         command line then, so the CLI reads the internet, or does not, exactly as whoever
         installed it has it set up; the reason is the rung's reason, that a run nobody
         configured is one humanize is not the one answering for. On and off are both the
-        flow's choice, written as an `AgentDefaults` beside the place -- on for work that
-        wants the internet, off for a run that must read only this repository, one under a
+        flow's choice, read off the `online` of the permission it runs under -- on for work
+        that wants the internet, off for a run that must read only this repository, one under a
         rate limit somebody is paying per query on, one whose answers have to be reproducible
         tomorrow. Either is said the same way on every backend that can be told, in both
         directions rather than only one: a CLI whose own web search is off until it is asked
@@ -646,24 +337,3 @@ def anchored(target: str) -> MachineConfig | None:
     from hmz.coganchor.machines import AnchoredConfig
 
     return AnchoredConfig(anchor=AnchorConfig(target=target))
-
-
-def isolated(image: str, workspace: str | None = None) -> MachineConfig:
-    """A container of the agent's own, holding the project directory it is to work in.
-
-    What :class:`Isolated` comes to, built where a flow's declaration is read rather than by
-    whoever is choosing agents: an isolated agent is one nobody configures, so nothing above
-    this is asked which image or which directory.
-
-    Args:
-      image: The image to run.
-      workspace: The directory to mount, defaulting to the one the flow is running in. It is
-        mounted rather than copied, at the path it already has, so the work outlives the
-        container.
-
-    Returns:
-      The machine to configure such an agent with.
-    """
-    from hmz.coganchor.machines import DockerConfig
-
-    return DockerConfig(image=image, workspace=workspace)

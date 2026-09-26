@@ -86,21 +86,6 @@ reach. The flow is written for agents that can; pick a CLI that serves it. Which
 The role is typed as one CLI's own protocol — `ClaudeCodeAgent` and the rest — which asks for
 that CLI and everything it can do. Give it that CLI.
 
-### `permission is the flow's to say`
-
-What an agent may touch, and whether it may search the web, are not settings of `-a`: the flow
-declares them on the role, so that they mean the same thing whichever CLI fills it. Take the key
-off the line and write it into the flow:
-
-```python
-from hmz.flows import Agent, Permission, PermissionKind
-
-class Reviewer(Agent):
-    _permission = Permission(local=PermissionKind.READ)
-```
-
-See [Permissions](/user/permissions).
-
 ### `<flow>: no flow is called '<name>', and it is not a path`
 
 `-f` named something that is not there. humanize looks for a name in `.humanize/flows`, then

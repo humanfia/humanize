@@ -504,10 +504,8 @@ def test_the_backends_that_take_a_table_for_one_run_say_so() -> None:
 
     assert taken["claude"] == backends.Hooked(seam="flag", name="--settings")
     assert taken["qwen"].seam == "env"
-    for name in taken:
-        assert "anchor:hooked" in _profile(name).tags()
     # And a CLI with no such seam is not listed as having one.
-    assert "anchor:hooked" not in _profile("opencode").tags()
+    assert "opencode" not in taken
 
 
 def test_the_variable_qwen_is_pointed_through_is_written_down_once() -> None:

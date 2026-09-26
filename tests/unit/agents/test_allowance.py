@@ -23,8 +23,6 @@ from hmz.coganchor.agents import (
     PiAgentConfig,
     Usage,
     blinded,
-    unreadable,
-    unwatched,
 )
 
 #: A model nobody lists, which is what leaves a run's bill unreadable. What is priced comes
@@ -197,72 +195,12 @@ def test_what_ran_out_is_held_once_it_has(priced: str) -> None:
     assert ledger.over() == "0.001M output tokens"
 
 
-@pytest.mark.parametrize(
-    ("effective", "declared", "asked"),
-    [
-        # A flow with no opinion, left with no cap: nobody has said anything, so ask.
-        (Allowance(), None, True),
-        # A flow that wrote `Allowance()` in its own file: it has said so, so do not.
-        (Allowance(), Allowance(), False),
-        # A flow that declared a cap and had it overridden away. It said what a run of it is
-        # worth; it did not say a run of it under nothing is what it is for -- so ask, or a
-        # flow declaring six hours would be the one flow nobody is warned about zeroing.
-        (Allowance(), Allowance(hours=6), True),
-        # And anything that caps something is not the question at all.
-        (Allowance(hours=1), None, False),
-    ],
-)
-def test_who_is_asked_about_a_run_nothing_will_stop(
-    effective: Allowance, declared: Allowance | None, asked: bool
-) -> None:
-    """The claim is read off the flow rather than off whether it said anything."""
-    assert unwatched(effective, declared) is asked
-
-
-@pytest.mark.parametrize(
-    ("effective", "blind", "asked"),
-    [
-        # The run a benchmark of sixteen cells actually made: a dollar a cell, on a model
-        # nobody prices. Bounded on paper, and nothing in the run can reach the paper.
-        (Allowance(dollars=1), frozenset({"dollars"}), True),
-        # The same dollar on a model somebody does price, which is a cap that will bite.
-        (Allowance(dollars=1), frozenset[str](), False),
-        # And the same dollar beside a clock: the money cannot be read and the hours can, so
-        # something still stops the run. That is the one the benchmark survived on.
-        (Allowance(hours=0.2, dollars=1), frozenset({"dollars"}), False),
-        # Tokens the same way, for a backend that reports nothing of what it writes.
-        (Allowance(tokens=1), frozenset({"tokens"}), True),
-        (Allowance(tokens=1, dollars=1), frozenset({"tokens"}), False),
-    ],
-)
-def test_a_cap_nothing_can_read_counts_as_no_cap(
-    effective: Allowance, blind: frozenset[str], asked: bool
-) -> None:
-    """A cap that will never bite reads exactly like one that has not bitten yet.
-
-    So what `unwatched` answers is asked of what the run can read as well as of what was
-    written down: a person who set a dollar on a model nobody prices has a run with no limit
-    on it, and a `bounded` answering True would be the last word anybody had on it.
-    """
-    assert unwatched(effective, None, blind) is asked
-
-
-def test_a_flow_that_runs_under_nothing_is_not_asked_about_a_cap_nobody_reads() -> None:
-    """The exemption is the flow's claim, and a cap going unread does not withdraw it.
-
-    A flow that wrote `Allowance()` in its own file said an unbounded run is what it is for,
-    and a run of it under a cap nothing can read is the run it said it was.
-    """
-    assert not unwatched(Allowance(dollars=1), Allowance(), {"dollars"})
-
-
 def test_what_can_be_read_is_known_before_the_first_turn(priced: str) -> None:
     """Which is the moment worth saying it at: somebody is still being asked then.
 
     Whether anybody prices a model is a fact about the model and whether a backend reports
     what it writes is a fact about the backend, so both are settled as soon as the agents are
-    known -- the menu that has just been answered with them knows before there is a run at
-    all, let alone a meter to read one off.
+    known -- before there is a run at all, let alone a meter to read one off.
     """
     money, tokens = Allowance(dollars=1), Allowance(tokens=1)
 
@@ -288,18 +226,6 @@ def test_a_cap_nobody_set_is_not_called_unreadable_before_the_run_either() -> No
     # But a model named as nothing is on nobody's price list either, and the way to be wrong
     # about that is to say so rather than to assume a bill will turn up.
     assert blinded(Allowance(dollars=1), [""], counting=True) == frozenset({"dollars"})
-
-
-def test_a_cap_nothing_can_read_is_said_however_it_was_handed_in() -> None:
-    """Taken as it is given, a generator would be drained by the first field looked for.
-
-    And the whole of what this is for is saying that a cap will never bite, so answering ""
-    for a run whose caps nothing can read is the one wrong answer it has.
-    """
-    written = unreadable(name for name in ("tokens", "dollars"))
-
-    assert "tokens" in written
-    assert "dollars" in written
 
 
 def test_an_unbounded_run_reads_no_meter_at_all() -> None:

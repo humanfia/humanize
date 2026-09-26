@@ -2444,7 +2444,7 @@ class SessionBase(ABC):
         if elsewhere and cwd is not None:
             where = os.fspath(cwd)
             self._carry(where)
-        made = agent._opens_at(where)
+        made = agent.new(where)
         made._forked_from = seed
         # Where this conversation had got to when the fork was asked for, and a weak hold on
         # the conversation itself: the child checks both as it opens, so that a fork taken
@@ -3430,10 +3430,8 @@ class AgentBase(ABC):
     #:
     #: Declared as well as enforced because the two answer different people. The refusal is
     #: owed to whoever built the agent, and arrives when they build it. This is owed to
-    #: whoever is *choosing* one -- the picker ruling out a CLI for a place it could not fill,
-    #: and a flow writing `Needs("rung:read-only")` where it declares the place -- and both of
-    #: those ask before there is an agent to refuse. :func:`hmz.coganchor.agents.config.rung`
-    #: is the word each of these goes under in the catalogue.
+    #: whoever is *choosing* one -- the picker ruling out a CLI for a place it could not fill
+    #: -- which asks before there is an agent to refuse.
     #:
     #: What this says is which rungs a backend will *take*, and not how finely it tells them
     #: apart once taken: a CLI with no sandbox of its own runs `workspace-write` and `auto`
@@ -3656,16 +3654,13 @@ class AgentBase(ABC):
             exactly as its CLI lets it, which is the thing this refusal exists to be honest
             about rather than the thing it forbids. Reading the silence as a no would refuse
             every backend that cannot be told the moment a config stopped answering for one.
-
-            Each names the field it is about, so that the one caller entitled to be lenient
-            about it can drop that field and settle the rest. It is a `ValueError` still.
         """
         self._thinks(config.effort)
         # Read off :attr:`rungs` rather than written out in each driver that narrows it. The
         # tuple is already the answer given to whoever is *choosing* a backend -- the picker
-        # ruling one out for a place, a flow writing `Needs("rung:read-only")` -- and a
-        # refusal spelled separately would be the same table twice, free to disagree with
-        # itself the moment a driver learned a rung and updated only one of them.
+        # ruling one out for a place -- and a refusal spelled separately would be the same
+        # table twice, free to disagree with itself the moment a driver learned a rung and
+        # updated only one of them.
         #
         # `UNSAID` is not among them and is not meant to be: it is not a rung but the absence
         # of one, and every backend can be told nothing. So it passes here whatever a driver
@@ -3675,20 +3670,17 @@ class AgentBase(ABC):
             raise Unserved(
                 f"{type(self).__name__} cannot be held to {config.permission!r}; "
                 f"expected {', '.join(type(self).rungs)}, or left unsaid for the agent as "
-                "whoever installed the CLI configured it",
-                "permission",
+                "whoever installed the CLI configured it"
             )
         if config.service_tier not in self.service_tiers:
             raise Unserved(
                 f"{type(self).__name__} does not support service tier "
-                f"{config.service_tier!r}; expected {', '.join(self.service_tiers)}",
-                "service_tier",
+                f"{config.service_tier!r}; expected {', '.join(self.service_tiers)}"
             )
         if config.web_search is False and not self._tellable():
             raise Unserved(
                 f"{type(self).__name__} has no way of being told not to search the web; "
-                "web_search must be on for it",
-                "web_search",
+                "web_search must be on for it"
             )
 
     def _thinks(self, effort: str) -> None:
@@ -3732,8 +3724,7 @@ class AgentBase(ABC):
             return
         raise Unserved(
             f"{profile.name} cannot be asked to think at {effort!r}; expected one of "
-            f"{', '.join(profile.efforts)}",
-            "effort",
+            f"{', '.join(profile.efforts)}"
         )
 
     def _tellable(self) -> bool:
@@ -4712,7 +4703,7 @@ class AgentBase(ABC):
         Returns:
           What the agent answered, stripped, or the model it was asked for.
         """
-        opened = self._opens_at(cwd)
+        opened = self.new(cwd)
         if schema is None:
             return opened(prompt, suppress=suppress)
         return opened(prompt, suppress=suppress, schema=schema)
@@ -4735,7 +4726,7 @@ class AgentBase(ABC):
         Returns:
           What the agent answered once it stopped, stripped.
         """
-        return self._opens_at(cwd).pursue(objective, suppress=suppress)
+        return self.new(cwd).pursue(objective, suppress=suppress)
 
     @overload
     async def aturn(
@@ -4780,7 +4771,7 @@ class AgentBase(ABC):
         Returns:
           What :meth:`__call__` would have answered with.
         """
-        opened = self._opens_at(cwd)
+        opened = self.new(cwd)
         if schema is None:
             return await opened.aturn(prompt, suppress=suppress)
         return await opened.aturn(prompt, suppress=suppress, schema=schema)
@@ -4802,7 +4793,7 @@ class AgentBase(ABC):
         Returns:
           What :meth:`pursue` would have answered with.
         """
-        return await self._opens_at(cwd).apursue(objective, suppress=suppress)
+        return await self.new(cwd).apursue(objective, suppress=suppress)
 
     def batch_new(
         self, count: int, cwd: str | os.PathLike[str] | None = None
@@ -4822,7 +4813,7 @@ class AgentBase(ABC):
         Returns:
           The sessions, in the order they were opened, which is the order the agent has them.
         """
-        return [self._opens_at(cwd) for _ in range(max(count, 0))]
+        return [self.new(cwd) for _ in range(max(count, 0))]
 
     @overload
     def batch(
@@ -4970,21 +4961,6 @@ class AgentBase(ABC):
             if isinstance(said, BaseException):
                 raise said
         return list(answered)
-
-    def _opens_at(self, cwd: str | os.PathLike[str] | None) -> SessionBase:
-        """Opens a session at a directory, or wherever the flow is where none was named.
-
-        Asked for without the argument where there is none to give, so that an agent written
-        before there was anywhere else to work -- a stand-in in somebody's suite, whose `new`
-        takes only itself -- goes on being an agent.
-
-        Args:
-          cwd: The directory the conversation works in, or None.
-
-        Returns:
-          The session.
-        """
-        return self.new() if cwd is None else self.new(cwd)
 
     @abstractmethod
     def new(self, cwd: str | os.PathLike[str] | None = None) -> SessionBase:

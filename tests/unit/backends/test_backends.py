@@ -31,7 +31,7 @@ def test_every_backend_is_called_the_command_it_is_installed_as() -> None:
     for name in DRIVEN:
         profile = backends.named(name)
         assert profile is not None, name
-        assert profile.runs() == name
+        assert profile.name == name
 
 
 def test_what_coganchor_keeps_on_this_machine_is_kept_under_the_same_names() -> None:
@@ -45,7 +45,7 @@ def test_what_coganchor_keeps_on_this_machine_is_kept_under_the_same_names() -> 
     from hmz.coganchor import statepaths
 
     assert {one.name for one in statepaths.PROFILES} == {
-        one.runs() for one in backends.PROFILES
+        one.name for one in backends.PROFILES
     }
 
 
@@ -116,21 +116,6 @@ def test_one_spec_is_one_agent_however_many_a_line_names() -> None:
         backends.read("claude/m:high,codex/m:high")
 
 
-def test_the_written_out_form_is_gone_and_says_what_to_write_instead() -> None:
-    """`=` and `,` name the place an agent fills now, so the two spellings cannot coexist."""
-    for said in (
-        "cli=claude",
-        "model=m",
-        "effort=high",
-        "provider=work",
-        "service_tier=fast",
-        "config.model_context_window=1000000",
-        "config.allowed_tools=Bash(git diff *)",
-    ):
-        with pytest.raises(ValueError, match=r"is gone: an agent is written"):
-            backends.read(said)
-
-
 def test_an_agent_may_name_the_account_it_runs_as() -> None:
     """Two agents of one CLI are two accounts when the line says so."""
     _, profile, model, effort, provider = backends.read(
@@ -147,15 +132,6 @@ def test_an_agent_may_name_the_account_it_runs_as() -> None:
     assert (profile.name, model, provider) == ("kimi", "kimi-code/k3", "mine")
     with pytest.raises(ValueError, match="expected an account after @"):
         backends.read("claude@/m:high")
-
-
-@pytest.mark.parametrize(
-    "said", ["permission=read-only", "permission=bypass", "web_search=off"]
-)
-def test_what_the_flow_says_is_not_a_line_to_say_it_on(said: str) -> None:
-    """What an agent may do and whether it reads the internet are the flow's, and only its."""
-    with pytest.raises(ValueError, match="is the flow's to say"):
-        backends.read(said)
 
 
 def test_a_backend_nobody_has_heard_of_is_a_line_to_correct() -> None:

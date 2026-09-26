@@ -152,18 +152,6 @@ def test_a_place_is_read_by_whichever_spelling_of_its_cli() -> None:
     assert fallbacks.reads("claude@/m") == ""
 
 
-def test_an_effort_written_down_before_it_left_this_spelling_is_read_past() -> None:
-    """A step somebody still means, and how hard an agent thinks is not part of a place."""
-    assert fallbacks.reads("claude/claude-opus-5:high") == "claude/claude-opus-5"
-    # And a colon that is part of a model's own name is left exactly where it is: only a
-    # rung that backend actually lists is read as one.
-    assert fallbacks.reads("claude/qwen3:8b") == "claude/qwen3:8b"
-    # Which is the question here even for a CLI of your own, whose one listed rung is the
-    # word for there being no ladder and which therefore refuses no rung at all: read as
-    # "would this backend take the word", every such model would lose its own tail.
-    assert fallbacks.reads("shell/qwen3:8b") == "shell/qwen3:8b"
-
-
 def test_an_agent_says_which_place_it_runs_at() -> None:
     """The account it was configured with, which is what somebody wrote the step against."""
     assert ShellAgent(CONFIG).spec == "shell/m"

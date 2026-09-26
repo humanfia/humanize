@@ -115,9 +115,9 @@ def test_the_written_down_fingerprint_still_names_the_installed_bundle(
     """
     from pathlib import Path
 
-    where = program(profile.runs())
+    where = program(profile.name)
     if where is None:
-        pytest.skip(f"{profile.runs()} is not installed on this machine")
+        pytest.skip(f"{profile.name} is not installed on this machine")
     found = located(profile, Path(where))
     assert found is not None, _drifted(profile, Path(where))
     assert found.bundle.exists()
@@ -141,9 +141,9 @@ def test_a_copy_of_the_installed_bundle_is_re_embedded_and_still_starts(
     """
     from pathlib import Path
 
-    where = program(profile.runs())
+    where = program(profile.name)
     if where is None:
-        pytest.skip(f"{profile.runs()} is not installed on this machine")
+        pytest.skip(f"{profile.name} is not installed on this machine")
     copy = patched(profile, Path(where), probe=True)
     # Not `_drifted`: `patched` also answers None for a directory it could not make, a copy that
     # would not fit, and a copy that would not start, and sending somebody to edit a fingerprint

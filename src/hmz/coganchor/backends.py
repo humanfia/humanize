@@ -482,10 +482,6 @@ AS_CONFIGURED = "as configured"
 def permitted(permission: str) -> str:
     """What an agent may do as a line names it, the way :func:`written` names an effort.
 
-    Named apart from `allowance.allowed`, which is about whether one tool call gets through:
-    a line showing what an agent is set up to be allowed and a gate deciding one command are
-    two different questions, and one file reads both.
-
     Args:
       permission: The rung, as one of `hmz.coganchor.agents.PERMISSIONS`, or "" for an agent
         nobody has been asked about.
@@ -509,12 +505,7 @@ class Profile:
     """One coding agent CLI, as everything outside its driver needs to know it.
 
     Attributes:
-      name: What this backend is called here, which is the command it is installed as unless
-        `command` says otherwise.
-      command: What it is actually installed as, where that is not what it is called. Empty
-        for every backend written down here, each of them being called the command it is
-        installed as; it is kept for a CLI whose two names ever part company again, and for
-        one added from outside under a name of somebody else's choosing.
+      name: What this backend is called here, which is the command it is installed as.
       aliases: What a command line may call it, this name included. A backend is named twice
         where both spellings are what people call it, and neither is ambiguous.
       home_var: The environment variable that moves its home directory.
@@ -662,7 +653,6 @@ class Profile:
     home_dir: str
     logs: tuple[str, ...]
     efforts: tuple[str, ...]
-    command: str = ""
     home_in: str = ""
     skills: tuple[str, ...] = ()
     shared: tuple[str, ...] = ()
@@ -688,18 +678,6 @@ class Profile:
     signs: tuple[Sign, ...] = ()
     journal: tuple[str, ...] = ()
     installs: str = ""
-
-    def runs(self) -> str:
-        """The command that starts this backend, which is its name unless it says otherwise.
-
-        Read here rather than written down twice: everything that looks for a backend, asks
-        one what it runs, or starts a turn of one asks this, so a CLI installed under a name
-        that is not what it is called is one thing to say and not four.
-
-        Returns:
-          The command, as `PATH` would name it.
-        """
-        return self.command or self.name
 
     def takes(self, effort: str) -> bool:
         """Whether this backend has a word for a rung by that name.
@@ -735,44 +713,6 @@ class Profile:
         if not self.efforts or self.efforts == (_UNSAID,):
             return True
         return rung in self.efforts or rung in self.beyond
-
-    def tags(self) -> frozenset[str]:
-        """What this backend serves, by the names a flow and a compiler ask for it under.
-
-        Derived rather than stored: every one of these is already written down above as the
-        fact it is, and a second field carrying the same fact under the vocabulary's spelling
-        is a second place for it to be wrong. So the fact stays written once, here, and the
-        word for it is read off the fact -- which is what keeps this module the only place any
-        of it is said.
-
-        Only what is true of the CLI. Whether a turn can be held to a shape, given a tool,
-        talked to mid-flight or run under the backend's own goal feature is true of the driver
-        that speaks to it rather than of the CLI itself, so those are declared on the driver
-        classes and read off them, and are not here.
-
-        Returns:
-          The names, out of the agent vocabulary -- `swarm`, `search`, `fork`, `resume` -- and
-          out of the anchors, for a CLI that can be reached through one: `anchor:hooked` for
-          one that takes a hook table of its own, and `anchor:preloaded` for one whose
-          runtime takes a preload.
-
-          `bundles` names no capability, though `hmz.coganchor.agents.patching` reads it. What a
-          fingerprint says is that a patch *could* be found in what this CLI shipped, which
-          is not the same as a turn being reached that way: the bytes on this machine decide
-          it, and they are read back rather than written down -- the way a machine's platform
-          is read off the handshake rather than promised by its settings. Until a turn takes
-          that road, a name here would be a promise a flow could ask for and be given
-          nothing.
-        """
-        held = {
-            "swarm": self.swarms,
-            "search": self.searches,
-            "fork": self.forks,
-            "resume": self.resumes,
-            "anchor:hooked": self.hooks is not None,
-            "anchor:preloaded": bool(self.preloads),
-        }
-        return frozenset(name for name, serves in held.items() if serves)
 
     def directory(self, environment: Mapping[str, str] | None = None) -> Path:
         """Where this backend keeps its state and its logs, wherever it has been moved to.
@@ -2119,12 +2059,6 @@ def speaking() -> dict[str, tuple[str, ...]]:
       One entry per CLI, by the name it was added under, holding the command to run. Nothing
       at all where none has been added or where what was written cannot be read back -- a
       file nobody can read is a list to fill rather than a reason to refuse to start.
-
-      Read as it was written, including an entry whose name is not what its command is
-      called. `remember` will not write one of those any more -- a backend answers to the
-      command it registers -- but a list written before it said so is a list of CLIs that
-      work, and a machine where every added backend stopped resolving would be a worse thing
-      than the name being wrong. They are corrected by being added again.
     """
     import json
 
@@ -2620,21 +2554,6 @@ def _runnable(path: Path) -> bool:
     return path.is_file() and os.access(path, os.X_OK)
 
 
-#: What an agent line used to be able to say and no longer may: what the agent is allowed to
-#: do, and whether it may read the internet. Both are things about the work rather than about
-#: the agent -- a reviewer that may not write is a reviewer whichever CLI fills the place --
-#: so the flow says them where it declares the place, and a line that says one is a line to
-#: correct rather than a setting quietly ignored. Goals were never sayable here at all.
-_DECLARED = ("permission", "web_search")
-
-#: What an agent used to be sayable as instead, one `key=value` to a comma. `=` and `,` are
-#: how a line names the place each agent fills now -- `reviewer=claude/MODEL:high` -- so
-#: the two spellings cannot both be read, and the short one is the one every agent is written
-#: in. A latency tier and a backend-native override are still an agent's to carry: they are
-#: set where the agent is made, from the SDK or by the flow, rather than on the line naming it.
-_WRITTEN_OUT = ("cli", "model", "effort", "provider", "service_tier")
-
-
 def read(spec: str) -> tuple[str, Profile, str, str, str]:
     """Reads one `-a` into the place it fills, the backend to drive, what at, and as whom.
 
@@ -2654,33 +2573,18 @@ def read(spec: str) -> tuple[str, Profile, str, str, str]:
       machine already runs its CLI.
 
     Raises:
-      ValueError: If it is not that, names no backend there is, says one of the things the
-        flow says, or writes out a part of an agent that used to be sayable that way. What it
-        says is what a command line reports after the agent it could not read.
+      ValueError: If it is not that or names no backend there is. What it says is what a
+        command line reports after the agent it could not read.
     """
     name, written, rest = spec.partition("=")
     name, spec = (name.strip(), rest) if written else ("", spec)
-    # Said before anything else the name could be wrong about, because these two are not
-    # misspelled places: a line that wrote one meant it, and what it meant is a thing about
-    # the work rather than about the agent -- so it is refused by name, pointing at the flow.
-    if name in _DECLARED:
-        raise ValueError(
-            f"{name} is the flow's to say, written beside the agent where the flow "
-            "declares it -- not on the line that runs the flow"
-        )
-    if name in _WRITTEN_OUT or name.startswith("config."):
-        raise ValueError(
-            f"{name}= is gone: an agent is written CLI[@PROVIDER]/MODEL:EFFORT, and `=` "
-            "names the place it fills, as in reviewer=claude/MODEL:EFFORT"
-        )
     if written and not name.isidentifier():
         raise ValueError(
             f"{name!r} is not a place a flow could declare: what is written before `=` is a "
             "field of the tuple of agents the flow declares, so it is a Python identifier"
         )
     # After the name and before anything else: a comma here is a list nobody split, and
-    # reading one would quietly make a model out of every agent after the first. The
-    # written-out form held commas too, which is why it is answered first.
+    # reading one would quietly make a model out of every agent after the first.
     if "," in spec:
         raise ValueError(
             "expected one agent: a `,` separates several, each read on its own"

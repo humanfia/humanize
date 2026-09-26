@@ -101,9 +101,9 @@ def _is_here(backend: str) -> bool:
     if (added := speaking().get(backend)) is not None:
         return bool(added) and program(added[0]) is not None
     # And one humanize drives is started by the command it is installed as, which is its own
-    # name unless its profile says otherwise.
+    # name.
     profile = named(backend)
-    return program(profile.runs() if profile is not None else backend) is not None
+    return program(profile.name if profile is not None else backend) is not None
 
 
 def ready_to_open(backend: str, where: Path) -> bool:

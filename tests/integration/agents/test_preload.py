@@ -182,18 +182,16 @@ def test_the_file_a_runtime_is_told_to_load_is_found_through_the_package() -> No
 def test_the_backends_whose_runtime_takes_one_say_so_where_facts_are_written_down() -> (
     None
 ):
-    """Which is what `anchor:preloaded` is read off, and the only place it is said."""
+    """The four whose CLI is a plain Node script, and the ones that read none of this."""
     for name in ("kimi", "qwen", "mimo", "pi"):
         profile = named(name)
         assert profile is not None
         assert profile.preloads == "NODE_OPTIONS"
-        assert "anchor:preloaded" in profile.tags()
     # And the ones with a runtime compiled into them, which read none of this.
     for name in ("claude", "opencode", "codex", "grok"):
         profile = named(name)
         assert profile is not None
         assert profile.preloads == ""
-        assert "anchor:preloaded" not in profile.tags()
 
 
 class _Anchored(ShellAgent):

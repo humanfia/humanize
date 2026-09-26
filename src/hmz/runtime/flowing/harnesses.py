@@ -409,7 +409,7 @@ class HarnessDriver:
             return
         from hmz.coganchor import backends
 
-        command = self._profile.runs() if self._profile is not None else self._spec.cli
+        command = self._profile.name if self._profile is not None else self._spec.cli
         if backends.program(command) is None:
             raise HarnessNotInstalled(
                 f"{command} is not installed here: {backends.installing(self._spec.cli)}"

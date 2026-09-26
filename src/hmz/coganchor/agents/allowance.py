@@ -7,12 +7,10 @@ factor of a million: ``Budget(output=2)`` is two output tokens and :class:`Allow
 its tokens in millions, so a field called `output` on both would be a run stopped after two
 tokens or one that ran a million times too long, and neither reads wrong at a glance.
 
-Every flow runs under one of these whether or not the flow says anything about it. A flow
-MUST NOT hold itself to a budget of its own: a cap a flow implements is a cap that only that
-flow has, that reads only the tokens that flow happened to count, that no other flow's author
-thought to copy, and that a person cannot set from the menu they set everything else from.
-So it is held to here, off the meters every backend already feeds, at the edges of every
-session of every agent of the run -- which is one place rather than one per flow.
+This is coganchor's own, for agents driven by hand: a run of a flow is held to its budget by
+the flow runtime instead. It is held to here, off the meters every backend already feeds, at
+the edges of every session of every agent of the run -- which is one place rather than one per
+driver.
 
 The reckoning is polled rather than pushed. A run is read when a session starts work, when it
 stops working and when it closes, which is a handful of readings a minute and costs one
@@ -25,9 +23,8 @@ from __future__ import annotations
 import threading
 import time
 import weakref
-from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from hmz.coganchor import prices
 
@@ -37,31 +34,16 @@ if TYPE_CHECKING:
     from .base import AgentBase
 
 __all__ = [
-    "DEFAULT",
-    "FIELDS",
-    "KEY",
     "MILLION",
     "Allowance",
     "Ledger",
     "Reading",
-    "allowed",
     "blinded",
-    "unreadable",
-    "unwatched",
-    "written",
 ]
 
 #: What :attr:`Allowance.tokens` is counted in. Millions, because a run is a day of turns and
 #: a number with six zeros on it is one nobody can type without counting the zeros twice.
 MILLION = 1_000_000.0
-
-#: Which dimensions are named in :attr:`Reading.blind` and in what a person is told about
-#: them. The word is the field's own, so that a message naming one is a message naming
-#: something the person set.
-_UNREADABLE = {
-    "tokens": "no agent of this run reports what it writes",
-    "dollars": "no agent of this run is running a model anybody prices",
-}
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -124,8 +106,7 @@ class Allowance:
         end of it.
 
         What was written down rather than what will be reached: a cap on a dimension nothing
-        in the run can read is bounded here and will never bite. Whether anything is actually
-        going to stop the run is :func:`unwatched`, which is handed both.
+        in the run can read is bounded here and will never bite.
         """
         return self.hours > 0 or self.tokens > 0 or self.dollars > 0
 
@@ -284,9 +265,7 @@ class Ledger:
             # nothing, and a bill short of one of those is short exactly as one short of a
             # model nobody lists at all.
             floor=bool(billed) and len(billed) < len(enrolled),
-            # Through `blinded`, which is the same question asked of the same agents before
-            # the run started: a reading calling a cap readable that the menu had just called
-            # blind would be two answers to one question.
+            # Through `blinded`, the one place the question is worked out.
             blind=blinded(
                 self._allowance,
                 [one.config.model for one in enrolled],
@@ -351,97 +330,6 @@ class Ledger:
             agent.stop()
 
 
-#: What a flow runs under when neither it nor the person running it said anything: no cap at
-#: all. A shipped non-zero default would cut off `chat`, and every flow written before there
-#: was such a thing, in the middle of its first run -- which is a cap nobody chose taking work
-#: away. What catches an unbounded run instead is being asked about it: :func:`unwatched`.
-DEFAULT = Allowance()
-
-#: What an allowance written down is filed under, in a YAML file of a flow's settings and in
-#: what a workspace remembers. One word, and it is the word the person set it under.
-KEY = "budget"
-
-#: The three fields, as a file spells them. Named here rather than read off the dataclass so
-#: that a file naming a fourth is refused with the three there are.
-FIELDS = ("hours", "tokens", "dollars")
-
-
-def written(said: object, where_: str = "") -> Allowance:
-    """Reads a run's allowance out of what a file or a settings entry says.
-
-    Refuses a bare number outright, and says both things it could have meant. Every flowverse
-    loop used to take `budget: 25` meaning twenty-five million output tokens for that flow,
-    and the same line now would have to mean one of three quantities. Read as any of them it
-    would be a run held to something nobody asked for, so it is refused and named.
-
-    Args:
-      said: What was written: an allowance already, or a mapping of the three fields.
-      where_: The file it was written in, for saying which one to correct.
-
-    Returns:
-      The allowance.
-
-    Raises:
-      ValueError: If it is not a mapping of the fields there are, or if any of them is not a
-        non-negative number.
-    """
-    if isinstance(said, Allowance):
-        return said
-    at = f"{where_}: " if where_ else ""
-    if not isinstance(said, Mapping):
-        # One number could be any of the three, and a run held to the wrong one stops a
-        # thousand times too early or never. So it is refused, with all three said.
-        raise ValueError(  # noqa: TRY004 -- a file to correct, not a caller's type error
-            f"{at}{KEY} is {', '.join(FIELDS)} rather than one number -- "
-            f"`{KEY}: {{tokens: 25}}` for 25 million output tokens, "
-            f"`{KEY}: {{hours: 25}}` for a day of it, `{KEY}: {{dollars: 25}}` for the money"
-        )
-    held = cast("Mapping[str, object]", said)
-    if unknown := [name for name in held if name not in FIELDS]:
-        raise ValueError(
-            f"{at}{KEY} takes {', '.join(FIELDS)}, not {', '.join(sorted(unknown))}"
-        )
-    read: dict[str, float] = {}
-    for name in FIELDS:
-        if (value := held.get(name)) is None:
-            continue
-        # `bool` first, because a `True` is an `int` in Python and `hours: true` is a file to
-        # correct rather than a run of one hour.
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise ValueError(  # noqa: TRY004 -- a file to correct, not a caller's type error
-                f"{at}{KEY}.{name} is a number, not {value!r}"
-            )
-        read[name] = float(value)
-    try:
-        return Allowance(**read)
-    except ValueError as why:
-        raise ValueError(f"{at}{KEY}: {why}") from why
-
-
-def allowed(
-    given: Allowance | Mapping[str, object] | None, declared: Allowance | None
-) -> Allowance:
-    """What a run is actually held to, out of what was asked for and what the flow said.
-
-    The one place the three sources are ranked, so that a run started from a command line, a
-    run started from the menu and a run started from another flow all land on one answer:
-    whoever started it wins, else the flow's own default, else nothing at all.
-
-    Args:
-      given: What the line, the file or the menu said, or None for neither.
-      declared: What the flow said where it was marked, or None for a flow with no opinion.
-
-    Returns:
-      The allowance the run is held to.
-
-    Raises:
-      ValueError: If what was given cannot be read as one.
-    """
-    if given is not None:
-        return written(given)
-    return declared if declared is not None else DEFAULT
-
-
 def blinded(
     allowance: Allowance, models: Iterable[str], *, counting: bool
 ) -> frozenset[str]:
@@ -450,9 +338,8 @@ def blinded(
     The one place that is worked out, and worked out from what is known before a turn has
     been taken rather than from a meter: whether anybody prices a model is a fact about the
     model, and whether a backend reports what it writes is a fact about the backend. Both are
-    settled the moment the agents are chosen -- which is where somebody can still be asked
-    whether the run they are starting is the run they meant, and :meth:`Ledger.reads` is the
-    same question asked again of a run that is already going.
+    settled the moment the agents are chosen, and :meth:`Ledger.reads` asks it of a run that
+    is already going.
 
     Args:
       allowance: What the run is to be held to. Only a dimension it actually caps is named:
@@ -467,7 +354,7 @@ def blinded(
         worth nobody's trust here is a caller quietly claiming a cap can be read.
 
     Returns:
-      The dimensions, as :attr:`Reading.blind` names them and :func:`unreadable` says them.
+      The dimensions, as :attr:`Reading.blind` names them.
     """
     named = list(models)
     if not named:
@@ -480,65 +367,3 @@ def blinded(
     ):
         blind.add("dollars")
     return frozenset(blind)
-
-
-def unreadable(blind: Iterable[str]) -> str:
-    """What to tell somebody about a cap nothing in their run can read.
-
-    Said rather than left silent, because a cap that will never bite reads exactly like a cap
-    that has not bitten yet: a person who set a fifty-dollar limit on a model nobody prices
-    has a run with no limit on it and no way of knowing.
-
-    Args:
-      blind: The dimensions nothing can read, as :attr:`Reading.blind` names them.
-
-    Returns:
-      One line about them, or "" where every cap that was set can be read.
-    """
-    # Read into a set once. Taken as it is given, a generator would be drained by the first
-    # field and every later one would look in nothing -- which would answer "" for a run whose
-    # caps nothing can read, and saying that is the whole of what this is for.
-    wanted = set(blind)
-    said = [f"{name} ({_UNREADABLE[name]})" for name in FIELDS if name in wanted]
-    return f"nothing here can read {' or '.join(said)}" if said else ""
-
-
-def unwatched(
-    effective: Allowance, declared: Allowance | None, blind: Iterable[str] = ()
-) -> bool:
-    """Whether a run under this allowance would have nothing at all to stop it.
-
-    The one place the question is asked, so that the menu asking somebody to confirm and the
-    command line saying so on its way past are asking the same thing. A flow is exempt by
-    declaring `@flow(budget=Allowance())` -- saying in its own file that it is meant to run
-    unbounded, which is what `chat` is -- rather than by being named in a table here, in the
-    menu and in the command line, where three copies of one list is three places to forget.
-
-    A cap nothing in the run can read is no cap. :attr:`Allowance.bounded` reads the three
-    numbers and answers what was written down, which is the other question: fifty dollars on a
-    model nobody prices is written down as a cap and is a run with no limit on it, and the two
-    are the same allowance. So what can be read is handed in with it, and a run whose every
-    cap is unreadable is the run that was given none.
-
-    Args:
-      effective: What the run will actually be held to.
-      declared: What the flow itself said, or None for a flow with no opinion. Only an
-        `Allowance()` written out is the claim: a flow that declared a cap and had it
-        overridden away has said nothing about running under none.
-      blind: Which of those caps nothing in the run can read, as :attr:`Reading.blind` names
-        them, :func:`blinded` answers before there is a run to read one off and
-        :func:`unreadable` says them. Empty for a caller holding an allowance and no run to
-        hold it over, which claims nothing either way.
-
-    Returns:
-      Whether nothing will stop this run and nobody has said that is what they meant.
-    """
-    # Read into a set once, for the reason `unreadable` does: taken as it is given, a
-    # generator would be drained by the first dimension and every later one would look in
-    # nothing -- which here is a run called watched because its caps were counted twice.
-    unseen = set(blind)
-    stops = any(getattr(effective, one) > 0 and one not in unseen for one in FIELDS)
-    # `declared is None` is a flow with no opinion, and a declaration that caps something is
-    # a flow whose opinion this run has overridden -- neither is a flow saying an unbounded run
-    # is what it is for. Only `Allowance()` written out says that, and only it is exempt.
-    return not stops and (declared is None or declared.bounded)

@@ -291,7 +291,7 @@ def _asking(
         # Started as a turn of it is started, which is by name where PATH names one and by
         # the path it is installed at where it does not: a backend found somewhere this
         # machine's PATH does not name is still a backend to ask.
-        command = profile.runs()
+        command = profile.name
         argv = [elsewhere(command) or command, *args]
         # Under the provider's own credential paths, which is the whole of what makes the
         # answer that account's rather than this machine's.

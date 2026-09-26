@@ -1835,9 +1835,9 @@ def test_codex_refuses_a_feature_that_says_what_the_agent_may_reach_for(
 ) -> None:
     """A subflow that tightened its agent must not be tightened around.
 
-    `AgentDefaults` replaces `web_search` and `permission` on the agent handed down and
+    A flow's permission replaces `web_search` and `permission` on the agent handed down and
     carries a backend's own settings through untouched, so a feature that switched the
-    browser back on would be a declared place quietly given more than it declared.
+    browser back on would be an agent quietly given more than it was declared.
     """
     with pytest.raises(ValueError, match="what the agent may reach for"):
         CodexAgentConfig(
