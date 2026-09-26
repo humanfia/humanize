@@ -1,122 +1,135 @@
 # Goals
 
-A session can be given a **goal** instead of a prompt. The agent decides for itself when it has
-met the objective, and until it does, a turn that would have ended starts another. Reach for a
-goal when the stopping condition is something the model should judge, not something you can put
-in a single prompt.
+Give an agent a **goal** instead of a prompt, and it keeps working until it judges the
+objective met. Your flow waits on one `run`, and the CLI takes as many turns as the objective
+needs. Reach for a goal when "is it done?" is something the model should judge.
 
 ## Try it
 
-```python
-await worker.run("/goal the suite passes and nothing has been stubbed out", session=session)
+The official [`goal`](/flows/goal) flow does exactly this. Run it on a task file:
+
+```sh
+hmz exec -f goal -a worker=claude/claude-opus-5:max -b cost=20 \
+    "$(cat TASK.md)"
 ```
 
-A prompt that starts `/goal` is not sent as a prompt. It goes to the CLI's own goal feature —
-the one its `/goal` command reaches — with everything after the word as the objective. The CLI
-starts the extra turns itself; `run` follows the goal across all of them and answers with the
-last. What they spend counts against the run's [budget](/features/budgets) like any other turn.
-
-A goal that goes quiet has stopped because the goal itself said so. A flow that loops over it
-runs the objective again; it does not nudge an agent that stopped early:
+This is all of it:
 
 ```python
-while True:
-    session = await worker.spawn(env=workspace)
-    await worker.run(f"/goal {task}", session=session)
-```
-
-## Ask for an agent that has one
-
-A goal is something only some CLIs can do, so a flow that sets one says so on the role, by
-mixing `GoalCommandAgentMixin` into its type:
-
-```python
-from hmz.flows import Agent, AgentCollection, GoalCommandAgentMixin
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    EnvCollection,
+    FlowContext,
+    FlowParams,
+    GoalCommandAgentMixin,
+    LocalEnv,
+    flow,
+)
 
 
-class Worker(Agent, GoalCommandAgentMixin):
-    """The one it drives, which has to have a goal of its own."""
+class Worker(Agent, GoalCommandAgentMixin): ...  # [!code highlight]
 
 
 class Agents(AgentCollection):
     worker: Worker
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def goal(
+    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
+) -> None:
+    worker = agents["worker"]
+    session = await worker.spawn(env=envs["workspace"])
+    await worker.run(f"/goal {task}", session=session)  # [!code highlight]
 ```
 
-That does two things. An agent handed to `worker` whose CLI has no goal feature is refused
-before the first turn rather than an hour into a loop:
+Two lines make it a goal:
 
-```console
-$ hmz exec -f pursuing -a worker=pi/openai-codex/gpt-5.5:high -b cost=5 "fix the build"
-hmz exec: error: pursuing:pursuing: 'worker' needs GoalCommandAgentMixin, which pi does not serve
-```
+- **`/goal <objective>` as the prompt.** The objective goes to the CLI's own goal feature.
+  `run` returns once the agent says the objective is met, with what it said last.
+- **`GoalCommandAgentMixin` on the role.** Only a CLI that has a goal feature can fill it.
 
-And a role that did **not** declare it cannot set one, whichever CLI fills it: a `/goal` prompt
-on a plain `Agent` raises `CapabilityNotGranted`, even on Claude Code. A flow gets exactly what
-it declared, so a flow that never asked for goals is a flow that cannot start one by accident.
-
-Opening that flow in `/flow` offers only the CLIs that have one, so there is no wrong choice to
-make.
+Every turn the goal takes counts against the run's [budget](/features/allowances), so `-b` is
+what bounds a goal that never settles.
 
 ## Which CLIs have one
 
-| CLI | `/goal` | `/loop` |
-| --- | --- | --- |
-| Claude Code | yes | yes |
-| Codex | yes | no |
-| Kimi Code | yes | no |
-| ZCode | yes | no |
-| DeepSeek Harness | yes | no |
-| cursor-agent, opencode, MiMo Code, Qwen Code, Grok Build, pi, Antigravity, an ACP CLI | no | no |
+| CLI (`-a`) | `/goal` | `/loop` |
+| --- | :---: | :---: |
+| `claude` · Claude Code | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> |
+| `codex` · Codex | <Badge type="tip" text="yes" /> | <Badge type="info" text="no" /> |
+| `kimi` · Kimi Code | <Badge type="tip" text="yes" /> | <Badge type="info" text="no" /> |
+| `zcode` · ZCode | <Badge type="tip" text="yes" /> | <Badge type="info" text="no" /> |
+| `dsh` · DeepSeek Harness | <Badge type="tip" text="yes" /> | <Badge type="info" text="no" /> |
+| `agy`, `cursor-agent`, `grok`, `mimo`, `opencode`, `pi`, `qwen`, an ACP CLI | <Badge type="info" text="no" /> | <Badge type="info" text="no" /> |
 
-The whole table of what each CLI serves is [on Flows](/reference/flows#what-each-harness-serves).
+Every CLI and every capability is in one table [on
+Flows](/reference/flows#what-each-harness-serves).
+
+## The role says it needs one
+
+The mixin is how the flow says so, and humanize holds the flow to it both ways.
+
+**A CLI without a goal feature is refused before the first turn**, not an hour into a loop:
+
+```console
+$ hmz exec -f goal -a worker=pi/openai-codex/gpt-5.5:high -b cost=5 \
+    "fix the build"
+hmz exec: error: goal: 'worker' needs GoalCommandAgentMixin, which pi does not do
+```
+
+At the prompt, `/flow` offers only the CLIs that have one for that role.
+
+**A role without the mixin cannot set a goal.** A `/goal` prompt on a plain `Agent` raises
+`CapabilityNotGranted`, even on Claude Code. A flow that never declared goals cannot start one
+by accident.
 
 ## A recurring task: `/loop`
 
-`LoopCommandAgentMixin` is the same bargain for Claude Code's own `/loop <interval> <task>`: a
-role that declares it may send one, and the prompt goes to the CLI as it is, which runs the
-task again on the interval for as long as the turn lasts. Only Claude Code serves it. Without
-the mixin, a `/loop` prompt raises `CapabilityNotGranted`.
+`/loop <interval> <task>` is Claude Code's own recurring task. A role that sends one declares
+`LoopCommandAgentMixin`, so only Claude Code can fill it, and the prompt goes to the CLI as
+written. Without the mixin, a `/loop` prompt raises `CapabilityNotGranted`.
 
-## A goal by hand: blocking `STOP`
+## When your code should decide instead
 
-A goal written by hand is a `STOP` [hook](/weaver/hooks) that blocks: the turn is not over
-until the hook lets it be. Hang one on a CLI with no goal feature, or when the condition is
-something a function can check rather than something the model should judge:
+A goal lets the model judge. When a function can judge, such as an unticked box or a failing
+test, hang an `on_stop` [hook](/weaver/hooks) instead. That is an async function humanize calls
+each time a turn is about to end. Answer `block=True` with a `reason`, and the agent keeps
+going with that reason as its next prompt:
 
 ```python
 from hmz.flows import StopHookParams, StopHookResult
 
 
 async def unfinished(params: StopHookParams) -> StopHookResult:
-    if params.again < 5 and b"- [ ]" in await workspace.read("TASK.md"):
-        return StopHookResult(block=True, reason="TASK.md still has unticked boxes.")
-    return StopHookResult()
+    # the workspace's role declares FilesEnvMixin, so the flow can read it
+    if params.again < 5 and b"- [ ]" in await workspace.read("TASK.md"):  # [!code highlight]
+        return StopHookResult(
+            block=True, reason="TASK.md still has unticked boxes."
+        )
+    return StopHookResult()  # an empty result lets the turn end
 
 
 worker.on_stop(unfinished)
 await worker.run(task, session=session)
 ```
 
-`params.again` counts how many times this turn has already been kept going, so a hook that
-keeps blocking can use it to decide when to stop. `on_stop` is on every agent: it needs no
-mixin, and every CLI reaches it.
+`params.again` counts how many times this turn has already been kept going, so the hook can
+give up. `on_stop` is on every agent, so it needs no mixin and works on every CLI.
 
-| | Decides it is done | Costs |
-| --- | --- | --- |
-| `/goal` | the **model**, against the objective in its own words | turns you did not ask for, until it says so |
-| a blocking `STOP` hook | **your code**, against whatever it can read | one extra turn per block, bounded by `again` |
-
-## The flow that is this
-
-[`goal`](/flows/goal) sets the task once as the agent's own goal, in a role called `worker`:
-
-```sh
-hmz exec -f goal -a worker=claude/claude-opus-5:max -b cost=20 "$(cat TASK.md)"
-```
+| | Decides it is done | Costs | Works on |
+| --- | --- | --- | --- |
+| `/goal` | the **model**, against the objective | turns until the model says so | 5 CLIs |
+| a blocking `on_stop` | **your code**, against whatever it can read | one more turn per block, bounded by `again` | every CLI |
 
 ## See also
 
-- [Hooks](/weaver/hooks)
-- [It decides when it is done](/features/goals)
+- [It decides when it is done](/features/goals): the goal, drawn beside the stop hook
+- [Hooks](/weaver/hooks): every moment a flow can hang one on
 - [Flows › Asking for an agent that can do
   something](/reference/flows#asking-for-an-agent-that-can-do-something)
