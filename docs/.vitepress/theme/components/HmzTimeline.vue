@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// What a trace hands Perfetto: a process per agent, a track per row of its
-// sessions, a slice per thing it did -- and, for a profiled run, the programs those turns
-// ran drawn the same way underneath. The two switches are the two things that are easy to
-// get wrong: leaving the programs out, and timing them against the wrong clock.
+// What a trace hands Perfetto: a process per agent, named by its role, a track per row of its
+// sessions, a slice per thing it did -- two CLIs on one clock. For a run in a profiled
+// directory, the programs those turns ran are drawn the same way underneath, which is what
+// the switch shows. A simulation: the run is made up, the shape of the document is not.
 import { computed, ref } from 'vue'
 
 type Kind = 'tool' | 'think' | 'say' | 'prog'
@@ -17,6 +17,7 @@ interface Slice {
 
 interface Row {
   head: string
+  cli: string
   sub: string
   lane: number
   slices: Slice[]
@@ -27,26 +28,28 @@ const SPAN = 36
 
 const AGENTS: Row[] = [
   {
-    head: 'actor · claude-opus-5 · max',
+    head: 'actor',
+    cli: 'claude',
     sub: 'main',
     lane: 1,
     slices: [
       { t0: 0, t1: 1.6, label: 'thinking', kind: 'think', args: 'reasoning · 412 tokens' },
-      { t0: 1.6, t1: 2.4, label: 'Read', kind: 'tool', args: 'src/pay.py · 214 lines' },
+      { t0: 1.6, t1: 2.4, label: 'Read', kind: 'tool', args: 'src/billing.py · 214 lines' },
       { t0: 2.4, t1: 3.1, label: 'Grep', kind: 'tool', args: 'pattern: def charge' },
       { t0: 3.1, t1: 5.2, label: 'thinking', kind: 'think', args: 'reasoning · 1,180 tokens' },
-      { t0: 5.2, t1: 6.0, label: 'Edit', kind: 'tool', args: 'src/pay.py · 1 hunk' },
+      { t0: 5.2, t1: 6.0, label: 'Edit', kind: 'tool', args: 'src/billing.py · 1 hunk' },
       { t0: 6.0, t1: 14.8, label: 'Bash', kind: 'tool', args: 'pytest -q · exit 1 · 8.8s' },
       { t0: 14.8, t1: 16.0, label: 'thinking', kind: 'think', args: 'reasoning · 903 tokens' },
       { t0: 16.0, t1: 17.2, label: 'Task', kind: 'tool', args: 'explore · where is the retry?' },
       { t0: 17.2, t1: 19.0, label: 'says', kind: 'say', args: 'the failure is in the retry path' },
-      { t0: 22.0, t1: 23.4, label: 'Read', kind: 'tool', args: 'tests/test_pay.py' },
+      { t0: 22.0, t1: 23.4, label: 'Read', kind: 'tool', args: 'tests/test_billing.py' },
       { t0: 23.4, t1: 27.0, label: 'Bash', kind: 'tool', args: 'ruff check --fix · exit 0' },
       { t0: 27.0, t1: 28.2, label: 'says', kind: 'say', args: 'green, and the diff is small' },
     ],
   },
   {
     head: '',
+    cli: '',
     sub: 'subagent · explore',
     lane: 1,
     slices: [
@@ -56,7 +59,8 @@ const AGENTS: Row[] = [
     ],
   },
   {
-    head: 'reviewer · gpt-5.6-sol · high',
+    head: 'reviewer',
+    cli: 'codex',
     sub: 'main',
     lane: 2,
     slices: [
@@ -71,34 +75,39 @@ const AGENTS: Row[] = [
 const PROGRAMS: Row[] = [
   {
     head: 'pytest · 48219',
+    cli: '',
     sub: 'main',
     lane: 4,
     program: true,
-    slices: [{ t0: 6.05, t1: 14.72, label: 'pytest -q', kind: 'prog', args: 'started by the Bash above' }],
+    slices: [{ t0: 6.05, t1: 14.72, label: 'pytest -q', kind: 'prog', args: 'started by the actor’s Bash' }],
   },
   {
     head: '',
-    sub: 'worker-1',
+    cli: '',
+    sub: 'thread 48221',
     lane: 4,
     program: true,
-    slices: [{ t0: 6.6, t1: 11.9, label: 'python', kind: 'prog', args: 'one of pytest’s own threads' }],
+    slices: [{ t0: 6.6, t1: 11.9, label: 'python', kind: 'prog', args: 'one of pytest’s workers' }],
   },
   {
     head: '',
-    sub: 'worker-2',
+    cli: '',
+    sub: 'thread 48222',
     lane: 4,
     program: true,
-    slices: [{ t0: 6.6, t1: 13.9, label: 'python', kind: 'prog', args: 'the one the run waited on' }],
+    slices: [{ t0: 6.6, t1: 13.9, label: 'python', kind: 'prog', args: 'the worker the run waited on' }],
   },
   {
     head: 'rg · 48602',
+    cli: '',
     sub: 'main',
     lane: 3,
     program: true,
-    slices: [{ t0: 17.5, t1: 17.9, label: 'rg', kind: 'prog', args: 'the sub-agent’s Glob' }],
+    slices: [{ t0: 16.5, t1: 16.9, label: 'rg', kind: 'prog', args: 'the sub-agent’s Glob' }],
   },
   {
     head: 'ruff · 48533',
+    cli: '',
     sub: 'main',
     lane: 5,
     program: true,
@@ -109,101 +118,82 @@ const PROGRAMS: Row[] = [
 ]
 
 const profiled = ref(true)
-const corrected = ref(true)
-const hovered = ref<{ slice: Slice; row: Row } | null>(null)
-
-// What the operating system reports a start as is worked out from an estimate of when the
-// machine booted, which is half a second out on an ordinary one. The number is the offset the
-// profile measures away again.
-const SKEW = 0.52
+const hovered = ref<Slice | null>(null)
 
 const rows = computed(() => (profiled.value ? [...AGENTS, ...PROGRAMS] : AGENTS))
-const shift = (row: Row) => (row.program && !corrected.value ? SKEW : 0)
 
 // Drawn as rows rather than as one scaled drawing, so that a label on the left is beside the
 // track it names at every width -- a viewBox would scale the rows out from under them.
 const across = (t: number) => `${(t / SPAN) * 100}%`
 
+function show(slice: Slice) {
+  hovered.value = slice
+}
+
 const caption = computed(() => {
   if (hovered.value) {
-    const { slice, row } = hovered.value
-    return `${slice.label} · ${(slice.t1 - slice.t0).toFixed(2)}s · ${slice.args} · ${row.sub}`
+    const slice = hovered.value
+    return `${slice.label} · ${(slice.t1 - slice.t0).toFixed(2)}s · ${slice.args}`
   }
   const n = rows.value.reduce((sum, row) => sum + row.slices.length, 0)
-  const tracks = rows.value.length
-  return `${tracks} tracks · ${n} slices · hover one`
+  return `${rows.value.length} tracks · ${n} slices · point at one`
 })
 </script>
 
 <template>
   <div class="trace hmz-panel">
     <div class="bar">
-      <span class="what">one run, as one document</span>
+      <span class="what">one run · two CLIs · one timeline</span>
       <div class="spacer" />
       <label class="sw">
         <input v-model="profiled" type="checkbox" />
-        the programs the turns ran
+        profiled: the programs the turns ran
       </label>
-      <label class="sw" :class="{ off: !profiled }">
-        <input v-model="corrected" type="checkbox" :disabled="!profiled" />
-        timed against the trace's own clock
-      </label>
+      <span class="sim">simulation</span>
     </div>
 
-    <div class="board">
+    <div class="board" @mouseleave="hovered = null">
       <div v-for="(row, i) in rows" :key="i" class="row" :class="{ program: row.program }">
         <div class="label">
-          <strong v-if="row.head">{{ row.head }}</strong>
+          <strong v-if="row.head">
+            {{ row.head }}<em v-if="row.cli"> · {{ row.cli }}</em>
+          </strong>
           <span>{{ row.sub }}</span>
         </div>
         <div class="track">
-          <!-- Where it really started, kept on screen while the drift is on: half a second is
-               eight pixels here, and eight pixels of shift with nothing to measure it against
-               is a difference nobody can see. -->
-          <span
-            v-for="(slice, j) in shift(row) ? row.slices : []"
-            :key="`g${j}`"
-            class="ghost"
-            :style="{ left: across(slice.t0), width: across(slice.t1 - slice.t0) }"
-          />
-          <span
+          <button
             v-for="(slice, j) in row.slices"
             :key="j"
+            type="button"
             class="slice"
-            :class="[slice.kind, { drifted: row.program && !corrected }]"
+            :class="slice.kind"
+            :aria-label="`${slice.label}, ${slice.args}`"
             :style="{
-              left: across(slice.t0 + shift(row)),
+              left: across(slice.t0),
               width: across(slice.t1 - slice.t0),
               '--tone': `var(--hmz-lane-${row.lane})`,
             }"
-            @mouseenter="hovered = { slice, row }"
-            @mouseleave="hovered = null"
+            @mouseenter="show(slice)"
+            @focus="show(slice)"
+            @click="show(slice)"
           >
-            {{ slice.t1 - slice.t0 >= 1.7 ? slice.label : '' }}
-          </span>
+            {{ slice.t1 - slice.t0 >= 2.8 ? slice.label : '' }}
+          </button>
         </div>
       </div>
     </div>
 
-    <p class="caption">{{ caption }}</p>
+    <p class="caption" aria-live="polite">{{ caption }}</p>
 
-    <p class="verdict" :class="{ warn: profiled && !corrected }">
+    <p class="verdict">
       <template v-if="!profiled">
-        Without the programs, the long <code>Bash</code> is a rectangle that says only that
+        Without the programs, the long <code>Bash</code> is a bar that says only that
         something took eight seconds. A turn is mostly other programs, and a timeline that stops
         at the tool call stops exactly where the time went.
       </template>
-      <template v-else-if="!corrected">
-        Half a second out, and <code>pytest</code> now starts after the tool call that ran it and
-        outlives it. That is what the operating system's own answer looks like on a timeline
-        where a tool call is timed to the millisecond — so the offset is measured from the
-        profile instead, off the smallest gap anywhere between when a program was reported to
-        have started and when it was first seen.
-      </template>
       <template v-else>
-        Every program sits inside the tool call that started it, because both are timed against
-        one clock. Now the eight seconds have a shape: two workers, one of which the run waited
-        on.
+        Every program sits under the tool call that started it, thread by thread. Now the eight
+        seconds have a shape: two workers, and the run waited on the slower one.
       </template>
     </p>
   </div>
@@ -213,7 +203,7 @@ const caption = computed(() => {
 .bar {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px 16px;
   flex-wrap: wrap;
   padding: 10px 16px;
   border-bottom: 1px solid var(--hmz-panel-border);
@@ -222,8 +212,20 @@ const caption = computed(() => {
   color: var(--vp-c-text-3);
 }
 
+.what {
+  font-weight: 650;
+  color: var(--vp-c-text-2);
+}
+
 .spacer {
   flex: 1;
+}
+
+.sim {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vp-c-text-3);
 }
 
 .sw {
@@ -232,11 +234,6 @@ const caption = computed(() => {
   gap: 7px;
   cursor: pointer;
   color: var(--vp-c-text-2);
-}
-
-.sw.off {
-  opacity: 0.4;
-  cursor: default;
 }
 
 .sw input {
@@ -256,7 +253,7 @@ const caption = computed(() => {
 
 .label {
   flex: none;
-  width: 214px;
+  width: 150px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -269,6 +266,12 @@ const caption = computed(() => {
   font-weight: 650;
 }
 
+.label em {
+  font-style: normal;
+  font-weight: 500;
+  color: var(--vp-c-text-3);
+}
+
 .label span {
   font-size: 10.5px;
   font-family: var(--vp-font-family-mono);
@@ -279,7 +282,7 @@ const caption = computed(() => {
   color: var(--hmz-warm);
 }
 
-/* One line every four seconds, so the drift is read against something. */
+/* One line every four seconds, so a slice is read against something. */
 .track {
   position: relative;
   flex: 1;
@@ -294,6 +297,7 @@ const caption = computed(() => {
   height: 16px;
   transform: translateY(-50%);
   min-width: 3px;
+  border: 0;
   border-radius: 3px;
   padding: 0 5px;
   display: flex;
@@ -305,8 +309,8 @@ const caption = computed(() => {
   font-size: 10px;
   font-family: var(--vp-font-family-mono);
   opacity: 0.86;
-  cursor: default;
-  transition: opacity 0.2s, left 0.4s ease;
+  cursor: pointer;
+  transition: opacity 0.2s;
 }
 
 .slice.think {
@@ -318,30 +322,20 @@ const caption = computed(() => {
   opacity: 0.72;
 }
 
-.slice.drifted {
-  box-shadow: 0 0 0 1.5px var(--hmz-warm);
-}
-
-.ghost {
-  position: absolute;
-  top: 50%;
-  height: 18px;
-  transform: translateY(-50%);
-  border: 1px dashed var(--hmz-warm);
-  border-radius: 3px;
-  opacity: 0.55;
-}
-
-.slice:hover {
+.slice:hover,
+.slice:focus-visible {
   opacity: 1;
+  outline: 2px solid var(--vp-c-brand-1);
+  outline-offset: 1px;
 }
 
 .caption {
   margin: 0;
   padding: 10px 16px 0;
+  min-height: 2.6em;
   font-size: 12px;
   font-family: var(--vp-font-family-mono);
-  color: var(--vp-c-text-3);
+  color: var(--vp-c-text-2);
 }
 
 .verdict {
@@ -349,10 +343,6 @@ const caption = computed(() => {
   padding: 10px 16px 16px;
   font-size: 13px;
   line-height: 1.65;
-  color: var(--vp-c-text-2);
-}
-
-.verdict.warn {
   color: var(--vp-c-text-2);
 }
 
@@ -365,11 +355,25 @@ const caption = computed(() => {
 
 @media (max-width: 760px) {
   .label {
-    width: 128px;
+    width: 104px;
   }
 
   .label strong {
     font-size: 10.5px;
+  }
+}
+
+/* Too narrow for a word inside a slice: the caption says what one is. */
+@media (max-width: 480px) {
+  .slice,
+  .slice.think {
+    color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slice {
+    transition: none;
   }
 }
 </style>

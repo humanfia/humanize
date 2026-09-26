@@ -4,111 +4,65 @@ pageClass: hmz-feature
 
 # One timeline
 
-A run leaves several trajectories, in several formats, under several home directories, plus a
-record of its own. Collecting turns all of it into **one Chrome trace** — and, for a profiled
-run, the programs those turns actually ran, drawn the same way underneath.
-
-You open it in [Perfetto](https://ui.perfetto.dev). Nothing is uploaded; it is a file.
+Any run can become one trace: every agent, every session and every tool call on one timeline,
+whichever CLIs did the work. You open it in [Perfetto](https://ui.perfetto.dev). It is a file
+on your machine, and nothing is uploaded.
 
 <HmzTimeline />
 
-## Three words, and they carry over
+<p class="hmz-note">
+Point at or tap a slice to see what it carries. Switch the programs off to see a run from a
+directory that is not profiled.
+</p>
+
+## Reading one
 
 | In the trace | Is |
 | --- | --- |
-| a **process** | one agent and everything it drove — or, for a profiled run, one program it ran |
-| a **track** | one row of that agent's sessions: the ones somebody started, and the sub-agents a turn reached for. Sessions of one agent that never run at the same time share a track; root sessions and sub-agents stay apart. For a program, a track is one of its threads. |
-| a **slice** | one action — a tool call, a message, or waiting for reasoning — carrying as much as the backend wrote down: the prompt, the reasoning, the tool input, the tool output |
+| a **process** | one agent, named by its role in the flow, with every session it opened. In a profiled run, also one program an agent ran. |
+| a **track** | one row of that agent's sessions. Sub-agents a turn reached for get rows of their own. For a program, one of its threads. |
+| a **slice** | one action: a message, a tool call, or time spent reasoning. It carries as much as the CLI wrote down: the prompt, the reasoning, the tool's input and output. |
 
-## Why the backends' own logs are not enough
+## Every agent under its own name
 
-A backend logs a session under an id and never says whose it was. To anything reading the logs
-alone, two agents at one configuration are one agent, and two accounts of one CLI are one
-account.
+A CLI logs a session under an id and never says whose it was, so two agents on the same CLI and
+model look like one. The run writes down which agent each session belonged to, which CLI took
+its turns and which account they ran as. So a trace shows `actor` and `reviewer`, not a
+directory of ids.
 
-So the run writes down what only the run knows: which flow, on what, by which agents, and for
-each session — whose it was, what took its turns, which account those turns ran as, and what
-the backend called it. A session is also given a name of its own holding all four, because an
-id alone says nothing and a directory of forty of them is one nobody can read.
+It also holds only that run's sessions. A directory you have run in fifty times has fifty runs,
+and none of their traces holds another's work.
 
-That record is **not** a second copy of the transcript. The backend's own log stays the
-turn-by-turn record, and each session's logs are pointed at from inside the run by a link
-apiece — for reading rather than for running, so nothing here can be why a log is written twice
-or read from the wrong place. The links are made again when the run ends, which is when a
-sub-agent's transcript is finally there.
+## The programs underneath
 
-## A trace of a run holds that run's sessions
+A turn is mostly other programs: the tests, the build, the searches. A CLI's log records the
+tool call, not what it ran. Turn profiling on for a directory, and every run there draws each
+program an agent starts under the tool call that started it, thread by thread.
 
-Which sessions belong to a trace is answered by the **ids the run wrote down**, not by the
-directory it ran in: a directory is run in over and over, and a trace holding every other run's
-work is a trace of nothing anybody asked about. That also puts a flow that worked in a
-[machine's mirror](/features/anchor) in its own trace. A run that opened no sessions is a trace
-of nothing, and a session no flow ever drove is still a session to read back — just not part of
-any run, so it has to be asked for outright and is never written inside one.
-
-## The programs are the point
-
-A turn is mostly other programs — the tests, the build, the greps — and none of them appears in
-a backend's log, which records the tool call rather than the process. A timeline with the turns
-on it and not what they ran stops exactly where the time went.
-
-So a profiled run samples the programs its agents start while they run, and each one is drawn
-beside the turn that started it. Three rules hold it:
-
-- **It samples rather than intercepts.** Nothing goes between an agent and what it runs.
-- **Nothing here can stop a run.** A machine whose processes cannot be read, a process that
-  went while it was being read, a profile that cannot be written — each leaves the run as it
-  was.
-- **What it saw is appended as each program goes** rather than held to the end. A run that died
-  is a run whose profile has to say what it got to.
-
-## Half a second is a mile
-
-A program's start time, as the operating system reports it, is worked out from an estimate of
-when the machine booted — about half a second out on an ordinary machine. On a timeline where a
-tool call is timed to the millisecond, that is enough to put `pytest` outside the `Bash` that
-ran it, as the second switch above shows.
-
-So the offset is not taken from the operating system at all. It is measured from the profile: a
-program is seen within one sample of starting, so the smallest gap anywhere between what was
-reported and when it was first seen is as close to the truth as sampling can get. Every slice
-in the document is then timed against that one clock.
-
-## What a run is, on disk
-
-One run is one directory, opening when the flow starts and closing however it stops — finished,
-failed or interrupted — and a closed run is never reopened. It holds the run's own record, a
-directory per session it opened, whatever a [resumable](/features/resuming) flow left behind,
-and the traces collected of it. Runs are named so that they sort in the order they were run,
-**to the millisecond**: two started inside one second would otherwise be ordered at random, and
-what `--resume` picks a flow up from is the newest resumable run of it.
-
-## A local trace is not a report
-
-Collecting a trace reads local run records and backend logs into another local file. Opening it
-in Perfetto does not send it to humanize, and the trace may contain prompts, answers and tool
-output because it is the record its owner asked to inspect.
-
-Reporting failures is a separate, opt-in path with three states — nobody has answered, yes and
-no — of which the unanswered one sends nothing. What goes is names, counts and configuration
-rather than transcripts or trace files, with command lines, credentials, external paths, frame
-context and logging breadcrumbs filtered out. The full promise, and the switch that controls
-it, is in [Reporting](/user/reporting).
+Profiling watches from the side. It never gets between an agent and what it runs, and nothing
+it fails at can stop a run.
 
 ## Which backends can be read back
 
-Four backends have a reader today, and so are what a trace is made of: Claude Code, Codex,
-DeepSeek Harness and Kimi Code. A reader is one per backend, because a backend is driven one
-way and logs another. Several more write a log humanize reads *as a run happens*, which is
-where the running cost and rate come from. And a backend that keeps its conversation in a
-database — rows rather than files, with protobuf payloads — has nothing to read either way: no
-slices afterwards, no tally while it runs. Which is which is on [Many backends, one
-agent](/features/backends).
+Every backend humanize ships with, except one:
+
+<Badge type="tip" text="agy" /> <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" />
+<Badge type="tip" text="dsh" /> <Badge type="tip" text="grok" /> <Badge type="tip" text="kimi" />
+<Badge type="tip" text="mimo" /> <Badge type="tip" text="opencode" /> <Badge type="tip" text="pi" />
+<Badge type="tip" text="qwen" /> <Badge type="tip" text="zcode" />
+<Badge type="warning" text="cursor-agent: nothing to read" />
+
+Cursor Agent keeps its chats in a store of its own rather than a log per session, so a trace
+has nothing to gather from it. The same goes for an ACP CLI you add yourself.
+
+## It stays on your machine
+
+A trace can hold prompts, answers and tool output, because it is the record you asked to read.
+Opening it in Perfetto sends nothing anywhere. Reporting humanize's own failures is a separate
+thing, off until you say yes. See [Reporting](/user/reporting).
 
 ## Where the detail is
 
-- [Tracing](/user/tracing) — collecting one, and what to look for in your first
-- [Tracing reference](/reference/tracing) — the epic format, the trace format, what a slice
-  carries
-- [Reporting](/user/reporting) — what may leave the machine, and only after consent
-- [Many turns at once](/features/concurrency) — why a fan-out is one process and many tracks
+- [Tracing](/user/tracing): making one, and what to look for in your first
+- [Exporting a run](/user/export): the run as one archive, with its trace in it
+- [Tracing reference](/reference/tracing): what a run writes down, and every field of a slice

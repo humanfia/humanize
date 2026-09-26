@@ -1,135 +1,168 @@
 <script setup lang="ts">
-// A loop meant to run for a week is a loop that will be stopped. What a resumable flow keeps
-// is written to the run's journal as the flow writes it -- setting a key is a line there --
-// against the flow call that wrote it. Pull the plug, and pick it up with --resume.
-import { computed, onUnmounted, ref } from 'vue'
+// A loop meant to run for a week is a loop that will be stopped. Run one, pull the plug, and
+// pick it up: the round it kept comes back, and so do the copies it made; the conversation
+// does not, because a picked-up run opens new sessions. A simulation of a loop that keeps
+// one session a run, which is where losing the conversation shows most.
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
-interface Epic {
-  name: string
+type State = 'idle' | 'running' | 'stopped'
+
+interface Run {
   rounds: number[]
   from: number
-  state: 'running' | 'stopped' | 'idle'
+  state: State
+  session: string
+  why: string
 }
 
-const NAMES = [
-  '20260817T014455.212Z-9f21ab',
-  '20260818T221305.884Z-4c07de',
-  '20260819T060102.019Z-71b3aa',
-]
+// Three runs fill the panel; the fourth starts the list again rather than scroll it.
+const SHOWN = 3
+const BUDGET = 10
 
-const epics = ref<Epic[]>([
-  { name: NAMES[0], rounds: [], from: 0, state: 'idle' },
-])
+// How many runs there have been since the story began, which is what names each one's
+// session: every run opens a new one, and none is ever named twice.
+let made = 0
+
+const runs = ref<Run[]>([fresh(0)])
 const round = ref(0)
-const running = ref(false)
 
 let timer = 0
+let idle = false
 
-const now = computed(() => epics.value[epics.value.length - 1])
-
-function start() {
-  const epic = now.value
-  if (epic.state === 'stopped') return
-  epic.state = 'running'
-  running.value = true
-  window.clearInterval(timer)
-  timer = window.setInterval(() => {
-    round.value += 1
-    epic.rounds.push(round.value)
-    if (epic.rounds.length > 14) pull()
-  }, 900)
+function fresh(from: number): Run {
+  const session = `session ${String.fromCharCode(65 + (made % 26))}`
+  made += 1
+  return { rounds: [], from, state: 'idle', session, why: '' }
 }
 
-function pull() {
+const now = computed(() => runs.value[runs.value.length - 1])
+const running = computed(() => now.value.state === 'running')
+const stopped = computed(() => now.value.state === 'stopped')
+
+function tick() {
+  if (idle) return
+  const run = now.value
+  round.value += 1
+  run.rounds.push(round.value)
+  if (run.rounds.length >= BUDGET) stop('its budget ran out')
+}
+
+function start() {
+  if (now.value.state !== 'idle') return
+  now.value.state = 'running'
   window.clearInterval(timer)
-  running.value = false
+  timer = window.setInterval(tick, 900)
+}
+
+function stop(why: string) {
+  window.clearInterval(timer)
   now.value.state = 'stopped'
+  now.value.why = why
 }
 
 function again() {
-  if (epics.value.length >= NAMES.length) reset()
-  const epic = { name: NAMES[epics.value.length], rounds: [], from: round.value, state: 'idle' as const }
-  epics.value = [...epics.value, epic]
+  if (!stopped.value) return
+  const next = fresh(round.value)
+  runs.value = runs.value.length >= SHOWN ? [next] : [...runs.value, next]
   start()
 }
 
 function reset() {
   window.clearInterval(timer)
-  running.value = false
   round.value = 0
-  epics.value = [{ name: NAMES[0], rounds: [], from: 0, state: 'idle' }]
+  made = 0
+  runs.value = [fresh(0)]
 }
 
-onUnmounted(() => window.clearInterval(timer))
+const root = ref<HTMLElement | null>(null)
+let observer: IntersectionObserver | undefined
 
-const held = computed(() =>
-  [
-    { t: 'call', id: 1, parent: 0, ref: 'nightly:nightly' },
-    { t: 'set', id: 1, key: 'rounds', value: round.value },
-  ]
-    .map((one) => JSON.stringify(one))
-    .join('\n'),
-)
+onMounted(() => {
+  observer = new IntersectionObserver((entries) => (idle = !entries[0].isIntersecting), {
+    rootMargin: '120px',
+  })
+  if (root.value) observer.observe(root.value)
+})
+
+onUnmounted(() => {
+  window.clearInterval(timer)
+  observer?.disconnect()
+})
+
+const said = computed(() => {
+  const run = now.value
+  if (run.state === 'idle') return 'Nothing has run yet. Start it.'
+  if (run.state === 'running' && run.from)
+    return `Picked up at round ${run.from + 1}, in a new session that remembers none of rounds 1–${run.from}.`
+  if (run.state === 'running') return 'Running. Every round it counts is saved the moment it is counted.'
+  return `Stopped at round ${round.value}: ${run.why}. Pick it up and round ${round.value + 1} is next.`
+})
 </script>
 
 <template>
-  <div class="resume hmz-panel">
+  <div ref="root" class="resume hmz-panel">
     <div class="bar">
-      <button class="go" type="button" :disabled="running || now.state === 'stopped'" @click="start">
+      <button class="go" type="button" :disabled="now.state !== 'idle'" @click="start">
         run it
       </button>
-      <button class="kill" type="button" :disabled="!running" @click="pull">pull the plug</button>
-      <button class="go alt" type="button" :disabled="running || now.state !== 'stopped'" @click="again">
-        run it again, --resume
+      <button class="kill" type="button" :disabled="!running" @click="stop('you pulled the plug')">
+        pull the plug
+      </button>
+      <button class="go alt" type="button" :disabled="!stopped" @click="again">
+        pick it up
       </button>
       <div class="spacer" />
+      <span class="sim">simulation</span>
       <button class="ctl" type="button" @click="reset">start over</button>
     </div>
 
     <div class="body">
       <div class="runs">
-        <div v-for="(epic, i) in epics" :key="epic.name" class="run" :class="epic.state">
+        <div v-for="(run, i) in runs" :key="`${run.session}-${run.from}`" class="run" :class="run.state">
           <header>
-            <code>{{ epic.name }}</code>
-            <span v-if="epic.state === 'stopped'" class="tagline stopped">stopped where it stood</span>
-            <span v-else-if="epic.state === 'running'" class="tagline live">running</span>
-            <span v-else class="tagline">not started</span>
+            <strong>{{ i === 0 && !run.from ? 'the first run' : 'a run picking it up' }}</strong>
+            <span v-if="run.state === 'stopped'" class="tag stopped">stopped · {{ run.why }}</span>
+            <span v-else-if="run.state === 'running'" class="tag live">running</span>
+            <span v-else class="tag">not started</span>
           </header>
-          <p v-if="i > 0" class="picked">
-            picked up at round {{ epic.from + 1 }} — the newest resumable run of this flow in this workspace
-          </p>
-          <div class="rounds">
-            <span v-for="one in epic.rounds" :key="one" class="round">{{ one }}</span>
-            <span v-if="!epic.rounds.length" class="none">no rounds yet</span>
+          <div class="session">
+            <span class="name">{{ run.session }}</span>
+            <span class="rounds">
+              <span v-for="one in run.rounds" :key="one" class="round">{{ one }}</span>
+              <span v-if="!run.rounds.length" class="none">no rounds yet</span>
+            </span>
           </div>
-          <ul class="tree">
-            <li><code>epic.jsonl</code><em>what the run was, appended as it happened</em></li>
-            <li><code>sessions/</code><em>a link apiece to the backend's own transcript</em></li>
-            <li v-if="epic.rounds.length">
-              <code>journal.jsonl</code><em>what the flow keeps, written as it is set</em>
-            </li>
-            <li v-if="epic.state === 'stopped'"><code>traces/</code><em>collected afterwards, and filed in here</em></li>
-          </ul>
         </div>
       </div>
 
-      <aside class="state">
-        <header>journal.jsonl</header>
-        <pre>{{ held }}</pre>
-        <p>
-          Kept against the flow call that wrote it, so a flow that called another is two calls
-          and neither writes the other's. Written when a key is set rather than when the run ends — a run
-          worth picking up is one that was stopped or killed, and state saved only at the end is
-          state such a run has none of.
-        </p>
-        <p class="lost">
-          <strong>What does not come back:</strong> the conversation. A session is spawned rather
-          than reopened, so the next run starts from the task and the repository — which is why
-          what a flow keeps is its own handful of things and never a second copy of the
-          transcript.
-        </p>
+      <aside class="kept" aria-label="what the next run starts from">
+        <header>what a run picking it up starts from</header>
+        <ul>
+          <li class="yes">
+            <span class="mark">✓</span>
+            <span class="what">what the flow kept</span>
+            <code>round: {{ round }}</code>
+          </li>
+          <li class="yes">
+            <span class="mark">✓</span>
+            <span class="what">copies and scratch directories it made</span>
+            <span class="how">still there</span>
+          </li>
+          <li class="yes">
+            <span class="mark">✓</span>
+            <span class="what">your repository</span>
+            <span class="how">as the agent left it</span>
+          </li>
+          <li class="no">
+            <span class="mark">✗</span>
+            <span class="what">the conversation</span>
+            <span class="how">a new session</span>
+          </li>
+        </ul>
       </aside>
     </div>
+
+    <p class="said" aria-live="polite">{{ said }}</p>
   </div>
 </template>
 
@@ -137,7 +170,8 @@ const held = computed(() =>
 .bar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px 10px;
+  flex-wrap: wrap;
   padding: 10px 16px;
   border-bottom: 1px solid var(--hmz-panel-border);
   background: var(--vp-c-bg);
@@ -184,11 +218,18 @@ button:disabled {
   flex: 1;
 }
 
+.sim {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vp-c-text-3);
+}
+
 .body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 300px);
   gap: 16px;
-  padding: 14px 16px 16px;
+  padding: 14px 16px 0;
 }
 
 .run {
@@ -215,35 +256,46 @@ button:disabled {
   flex-wrap: wrap;
 }
 
-.run code {
-  font-size: 12px;
+.run strong {
+  font-size: 12.5px;
   color: var(--vp-c-text-1);
 }
 
-.tagline {
+.tag {
   font-size: 11px;
   color: var(--vp-c-text-3);
 }
 
-.tagline.live {
+.tag.live {
   color: var(--hmz-accent);
 }
 
-.tagline.stopped {
+.tag.stopped {
   color: var(--hmz-warm);
 }
 
-.picked {
-  margin: 6px 0 0;
-  font-size: 11.5px;
-  color: var(--hmz-accent);
+.session {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 9px;
+}
+
+.name {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--vp-c-default-soft);
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--vp-c-text-2);
 }
 
 .rounds {
   display: flex;
   gap: 5px;
   flex-wrap: wrap;
-  margin: 9px 0;
   min-height: 22px;
 }
 
@@ -270,71 +322,86 @@ button:disabled {
 
 .none {
   font-size: 11.5px;
+  line-height: 22px;
   color: var(--vp-c-text-3);
 }
 
-.tree {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.tree li {
-  display: flex;
-  gap: 10px;
-  font-size: 11.5px;
-  line-height: 1.8;
-}
-
-.tree code {
-  min-width: 104px;
-  color: var(--vp-c-text-2);
-}
-
-.tree em {
-  font-style: normal;
-  color: var(--vp-c-text-3);
-}
-
-.state {
+.kept {
+  align-self: start;
   border: 1px solid var(--vp-c-divider);
   border-radius: 12px;
   background: var(--vp-c-bg);
   overflow: hidden;
 }
 
-.state header {
+.kept header {
   padding: 8px 12px;
   border-bottom: 1px solid var(--vp-c-divider);
   background: var(--vp-c-bg-soft);
-  font-size: 11px;
+  font-size: 10.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--vp-c-text-3);
 }
 
-.state pre {
+.kept ul {
+  list-style: none;
   margin: 0;
-  padding: 12px;
+  padding: 6px 12px 8px;
+}
+
+.kept li {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 5px 0;
   font-size: 12px;
-  line-height: 1.6;
+  line-height: 1.4;
+}
+
+.kept li + li {
+  border-top: 1px solid var(--vp-c-divider);
+}
+
+.mark {
+  font-weight: 700;
+}
+
+.yes .mark {
   color: var(--hmz-accent);
-  background: transparent;
 }
 
-.state p {
-  margin: 0;
-  padding: 0 12px 12px;
-  font-size: 11.5px;
-  line-height: 1.6;
+.no .mark,
+.no .how {
+  color: var(--hmz-warm);
+}
+
+.what {
+  color: var(--vp-c-text-1);
+}
+
+.how {
+  font-size: 11px;
   color: var(--vp-c-text-3);
+  text-align: right;
 }
 
-.state .lost strong {
+.kept code {
+  font-size: 11px;
+  color: var(--hmz-accent);
+}
+
+.said {
+  margin: 0;
+  padding: 6px 16px 16px;
+  font-size: 13px;
+  line-height: 1.6;
   color: var(--vp-c-text-2);
 }
 
-@media (max-width: 820px) {
+@media (max-width: 760px) {
   .body {
     grid-template-columns: minmax(0, 1fr);
   }
