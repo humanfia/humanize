@@ -112,6 +112,7 @@ def met(broker: Broker, meeting: Meeting) -> dict[str, socket.socket]:
 
 def talk(held: dict[str, socket.socket]) -> None:
     """Sends a word each way and reads it at the other end, then puts both sockets down."""
+    _bounded(held)
     try:
         for saying, hearing in ((ANCHOR, SERVE), (SERVE, ANCHOR)):
             held[saying].sendall(f"from the {saying}\n".encode())
@@ -119,6 +120,13 @@ def talk(held: dict[str, socket.socket]) -> None:
     finally:
         for one in held.values():
             one.close()
+
+
+def _bounded(*pairs: dict[str, socket.socket]) -> None:
+    """Has every read of these fail after a while rather than wait on a silent peer forever."""
+    for held in pairs:
+        for one in held.values():
+            one.settimeout(PATIENCE)
 
 
 @punches
@@ -217,6 +225,7 @@ def test_two_meetings_at_one_broker_do_not_meet_each_other(broker: Broker) -> No
     one, other = Meeting(ticket(), *broker.address), Meeting(ticket(), *broker.address)
 
     held, also = met(broker, one), met(broker, other)
+    _bounded(held, also)
 
     try:
         held[ANCHOR].sendall(b"for the first\n")
@@ -227,6 +236,21 @@ def test_two_meetings_at_one_broker_do_not_meet_each_other(broker: Broker) -> No
         for pair in (held, also):
             for one_end in pair.values():
                 one_end.close()
+
+
+def test_both_halves_are_told_one_way_of_joining_however_late_one_answers() -> None:
+    """A half the other gave up waiting for is relayed too, rather than told to go direct.
+
+    The half that waited out its patience has been told the session is carried; the late one,
+    finding both verdicts in, would otherwise be told it is direct -- and a pair that
+    disagrees about how it is joined is a pair one of whose ends waits on nothing.
+    """
+    pair = _Pair("late")
+
+    first = pair.settle(ANCHOR, direct=True, patience=0.05)
+    second = pair.settle(SERVE, direct=True, patience=0.05)
+
+    assert (first, second) == (False, False)
 
 
 @punches
