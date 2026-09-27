@@ -1041,13 +1041,11 @@ def test_fallback(cell: Cell) -> None:
     assert any(f"carrying on as {good}" in one for one in ran.said("notice")), (
         f"nothing said the turn moved to {good}\n{ran}"
     )
-    # Answered by the place it moved to. Not held to the word: what a model makes of being
-    # told to say one is the model's -- grok-4.7 has answered "I won't output a forced exact
-    # token" -- and every other row holds a turn to what it was asked.
-    answered = [
-        one for one in ran.events if one["kind"] == "result" and one["cli"] == cell.cli
-    ]
-    assert answered, f"no turn of {good} answered\n{ran}"
+    # Answered there -- the stream goes on naming the agent as the one it was asked of. Not
+    # held to the word: what a model makes of being told to say one is the model's --
+    # grok-4.7 has answered "I won't output a forced exact token" -- and every other row
+    # holds a turn to what it was asked.
+    assert ran.answer.strip(), f"no turn of {good} answered\n{ran}"
 
 
 # ------------------------------------------------------------ what a run leaves behind
