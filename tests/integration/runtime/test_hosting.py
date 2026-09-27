@@ -103,6 +103,36 @@ async def steers(task, *, agents, envs, params, ctx):
     Path("result.json").write_text(json.dumps({"said": said, "asked": asked}))
 """
 
+#: A person asked what to do, and then an agent's turn -- the order a flow that plans with
+#: somebody before it works goes in.
+HANDS = """
+import json
+from pathlib import Path
+
+from hmz.flows import (
+    Agent, AgentCollection, EnvCollection, FlowParams, LocalEnv, Outworlder, flow,
+)
+
+
+class Agents(AgentCollection):
+    coder: Agent
+    planner: Outworlder
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams, name="hands")
+async def hands(task, *, agents, envs, params, ctx):
+    here = envs["workspace"]
+    session = await agents["coder"].spawn(env=here)
+    person = await agents["planner"].spawn(env=here)
+    plan = await agents["planner"].run("which way?", session=person)
+    said = await agents["coder"].run(task, session=session)
+    Path("result.json").write_text(json.dumps({"plan": plan, "said": said}))
+"""
+
 #: The turn the stand-in takes: open until `go` is there, then answering `done`.
 TURN = "while [ ! -f go ]; do sleep 0.05; done; echo done"
 
@@ -213,6 +243,7 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     where.mkdir()
     written(where, "asks", ASKS)
     written(where, "steers", STEERS)
+    written(where, "hands", HANDS)
     monkeypatch.chdir(where)
     return where
 
@@ -411,6 +442,40 @@ def test_a_line_said_before_any_turn_is_folded_into_the_turn_that_starts(
     said = alice.told("said", text="# and keep going")
     assert (said["key"], said["by"]) == ("coder/1", "alice")
     alice.told("waiting", queued=[], given=[])
+
+
+@pytest.mark.timeout(60)
+def test_a_line_said_to_an_agent_while_a_person_is_asked_goes_into_its_next_turn(
+    host: Host, workspace: Path
+) -> None:
+    """Answering what the person was asked does not take the agent's next turn from it.
+
+    The answer is what to say next, and a line said to the run at large waits for a turn of
+    its own after it. One said to the agent by name is for the next turn it takes.
+    """
+    alice, bob = Told(host, "alice"), Told(host, "bob")
+    alice.asks(do="claim", role="planner")
+    said = alice.asks(
+        do="start",
+        flow="hands",
+        task="echo done",
+        agents={"coder": _driver()},
+        budget={"cost": 1},
+    )
+    assert said["ok"], said
+    planning = alice.asked("planner")
+    assert planning["mode"] == "listen"
+
+    assert bob.asks(do="say", text="# and keep going", to="coder")["ok"]
+    assert alice.asks(do="answer", question=planning["question"], text="left")["ok"]
+
+    begins = alice.told("event", kind="begins")
+    assert begins["text"] == "echo done\n\n# and keep going"
+    folded = alice.told("said", text="# and keep going")
+    assert (folded["key"], folded["by"]) == ("coder/1", "bob")
+    assert _result(workspace) == {"plan": "left", "said": "done"}
+    alice.told("ended", how="done")
+    assert not [one for one in alice.records() if one["type"] == "dropped"]
 
 
 @pytest.mark.timeout(60)

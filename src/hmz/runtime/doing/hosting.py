@@ -1159,19 +1159,18 @@ class Host:
         """What a turn starting folds into its prompt: the oldest line for it, or none.
 
         None where the run asking is no longer the one going -- a stopping run's agents take
-        nothing meant for the run that replaced it -- and none where the person has just
-        answered what to say next, which this turn is already about.
+        nothing meant for the run that replaced it. And where the person has just answered
+        what to say next, which this turn is already about, none said to the run at large:
+        each of those waits to be a turn of its own. A line said to this agent or this
+        conversation by name is still for the next turn it takes, which is this one.
         """
         with self._lock:
             if current is not self._current:
                 return []
-            if self._handed:
-                self._handed = False
-                return []
             key = current.numbered.get(session, agent.id)
-            line = next(
-                (one for one in self._queue if one.to in ("", agent.id, key)), None
-            )
+            wanted = (agent.id, key) if self._handed else ("", agent.id, key)
+            self._handed = False
+            line = next((one for one in self._queue if one.to in wanted), None)
             if line is None:
                 return []
             self._queue.remove(line)
