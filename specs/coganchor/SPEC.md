@@ -332,6 +332,7 @@ class Target:
     host: str = ""
     port: int = 0
     path: str = ""
+    options: tuple[tuple[str, str], ...] = ()  # ssh://HOST?KEYWORD=VALUE&...; `F` the config
     @classmethod
     def parse(cls, spec: str) -> Target: ...
     def describe(self) -> str: ...
@@ -370,6 +371,7 @@ def serve_line(
 def python_command(
     args: list[str], bundle: str = "", setting: Sequence[tuple[str, str]] = ()
 ) -> list[str]: ...
+def ssh_flags(options: Sequence[tuple[str, str]]) -> tuple[str, ...]: ...
 def bundled() -> tuple[Path, str]: ...
 def build_bundle(destination: Path | None = None) -> Path: ...
 
@@ -442,6 +444,9 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
   still take effect there.
 - A native session MUST refuse a CLI the target has not got before it has put anything on that
   machine, saying what is missing and the line that installs it there.
+- What an ssh target is told besides its host MUST reach every `ssh` to it ahead of humanize's
+  own options and MUST survive its spelling being read back, and two targets at one host told
+  different things MUST NOT share a connection.
 - What a provider sets MUST reach the turn as its environment and MUST NOT be written into a command
   line; what it hushes MUST be taken off on the target; a credential the CLI reads out of the user's
   own home MUST NOT be projected, and a turn with nothing else to carry the account MUST be refused.

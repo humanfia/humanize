@@ -9,7 +9,8 @@ it back afterwards. It drives no coding agent itself. Its subpackages have specs
 
 ```python
 # __init__.py -- each name costs only the module it is written in, fetched when it is named
-__all__ = ["Accounts", "Epics", "Fallbacks", "Flows", "Flowverses", "Hmz", "Refused", "Run"]
+__all__ = ["Accounts", "Environments", "Epics", "Fallbacks", "Flows", "Flowverses", "Hmz",
+           "Refused", "Run"]
 # doing.md, and `Refused` from runner.py
 
 # settings.py -- what humanize remembers, per workspace and per machine

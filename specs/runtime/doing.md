@@ -1,8 +1,8 @@
 # `runtime/doing`
 
 Everything that can be asked of one workspace, composed out of the layers under it: the flows
-there are, the accounts they run as, where a turn goes when the place taking it cannot, the
-runs already made and the run being made now. It is no rule of its own, and `Hmz` is the front
+there are, the accounts they run as, the machines their environments may be put on, where a turn
+goes when the place taking it cannot, the runs already made and the run being made now. It is no rule of its own, and `Hmz` is the front
 door `hmz.runtime` offers.
 
 ## API
@@ -24,6 +24,8 @@ class Hmz:
     def verses(self) -> Flowverses: ...
     @property
     def accounts(self) -> Accounts: ...
+    @property
+    def environments(self) -> Environments: ...
     @property
     def fallbacks(self) -> Fallbacks: ...
     @property
@@ -179,6 +181,40 @@ class Accounts:
         self, cli: str, provider: str = "", seconds: float | None = None
     ) -> tuple[Model, ...]: ...
 
+# environments.py -- the machines an environment may be put on. The store is
+# `hmz.coganchor.machines.store`, read off an ssh config by `hmz.coganchor.machines.sshconfig`;
+# ../coganchor/machines.md carries the contract.
+@dataclass(frozen=True, slots=True)
+class Checked:
+    reached: bool
+    said: str = ""  # why not
+    home: str = ""
+    cpus: float = 0.0
+    memory: int = 0
+    gpus: tuple[str, ...] = ()
+    gpu_memory: int = 0
+    runtimes: tuple[str, ...] = ()  # a docker daemon's, its default first
+    version: str = ""
+    short: tuple[str, ...] = ()  # what it was written down as handing out and has not got
+class Environments:
+    def all(self, backend: str = "") -> list[EnvProvider]: ...
+    def find(self, backend: str, name: str) -> EnvProvider | None: ...
+    def where(self, backend: str, name: str) -> Path: ...
+    def new(self, backend: str, name: str, **fields: Any) -> EnvProvider: ...
+    def add(self, provider: EnvProvider) -> EnvProvider: ...
+    def write(self, provider: EnvProvider) -> EnvProvider: ...
+    def remove(self, backend: str, name: str) -> bool: ...
+    def hosts(self, config: str | os.PathLike[str] | None = None) -> list[SSHHost]: ...
+    def import_ssh(
+        self,
+        config: str | os.PathLike[str] | None = None,
+        names: Iterable[str] | None = None,
+        *,
+        update: bool = False,
+    ) -> list[SSHProvider]: ...
+    def resolve(self, provider: SSHProvider) -> SSHHost: ...
+    def check(self, provider: EnvProvider, seconds: float = 30.0) -> Checked: ...
+
 # fallbacks.py -- where a turn goes when the place taking it cannot. The file is
 # `hmz.coganchor.fallbacks`, whose contract ../coganchor/SPEC.md carries.
 class Fallbacks:
@@ -221,6 +257,10 @@ class Fallbacks:
   flow as it is now; a flow that cannot be loaded MUST raise what the flow API says of it.
 - Where a flowverse came from MUST be answered here, with whatever was signed into a URL taken
   out of it, and asking a backend what it runs as one account MUST be reached through this.
+- Checking an environment provider MUST ask an ssh host what a run asks it on the way in, down
+  the same road, and a docker daemon its own `docker info`; it MUST NOT wait longer than it was
+  given, MUST NOT ask anybody for a password, and MUST answer a provider that said nothing with
+  why rather than raise.
 - A trace of one run MUST be gathered here rather than by whoever asked for it, by the ids the
   run wrote down rather than the directory it ran in, MUST land with the run unless a path was
   named, and one asked for without a workspace MUST stay without one.

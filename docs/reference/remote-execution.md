@@ -68,7 +68,7 @@ Two settings decide how a turn is reached: `native`, and `harness`.
 
 | `--target` | Reached by | Needs |
 | --- | --- | --- |
-| `ssh://[USER@]HOST[:PORT]` | Ships the target half over ssh and speaks to it on that connection's pipes. Uses your ssh config, agent and keys. | ssh access, Python ≥ 3.12 there |
+| `ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&…]` | Ships the target half over ssh and speaks to it on that connection's pipes. Uses your ssh config, agent and keys. Each `KEYWORD=VALUE` (URL-quoted) is passed first as `-o KEYWORD=VALUE`, and `F=FILE` as `-F FILE`: `ssh://me@gpu:2222?IdentityFile=~/.ssh/gpu&ProxyJump=bastion`. A saved [environment provider](/reference/machines#environment-providers) is reached by this spelling. | ssh access, Python ≥ 3.12 there |
 | `docker://CONTAINER` | Runs the target half in a running container over `docker exec -i`, as whoever the container runs as. | `docker` here, Python ≥ 3.12 in the container |
 | `tcp://HOST:PORT` | Dials a target [left listening](#serving-a-target). Cheap to reconnect. | a served target, and its `--token` |
 | `peer://TICKET@HOST:PORT` | Meets a serving half at a [rendezvous](#being-introduced). humanize writes this one for a harness it places; you do not type it. | — |
@@ -81,7 +81,8 @@ is installed. It is started with the first Python ≥ 3.12 it finds: `python3`, 
 other if their protocol versions differ.
 
 One `ssh` connection to a host is shared by the commands after it, and stays open for 120
-seconds after the last one. Set `HUMANIZE_SSH_REUSE=0` for an sshd that refuses multiplexing.
+seconds after the last one. Two targets at one host told different options get one each. Set
+`HUMANIZE_SSH_REUSE=0` for an sshd that refuses multiplexing.
 
 ## `AnchorConfig`
 

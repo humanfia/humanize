@@ -71,13 +71,113 @@ session's turns land.
 | a `LocalEnv` role, or `-e repo=local@/srv/project` | this machine, in that directory: `machine=None` |
 | `-e repo=ssh@build-box/srv/project` | an `AnchoredConfig` whose anchor has `target="ssh://build-box"` and `workspace="/srv/project"` |
 | `-e repo=ssh@build-box/~/project` | the same, with `~` resolved to the login's home once the host is reached |
+| `-e repo=ssh@gpu/srv/project`, `gpu` a saved [environment provider](#environment-providers) | an `AnchoredConfig` whose target carries everything `gpu` says: `ssh://me@10.0.0.2:2222?IdentityFile=~/.ssh/gpu` |
+| `-e repo=ssh@gpu` | the same, in the workdir `gpu` was saved with |
 
 One agent can have sessions on two machines, each working where it was spawned. The flow's own
 code reaches an environment the same way: `await repo.exec(["make", "test"])` and
 `await repo.read("NOTES.md")` run on that machine, in that directory.
 
-There is no container environment. A run whose work belongs in a container is started inside
-one, or pointed at a container reached as an ssh host.
+There is no container environment yet. A run whose work belongs in a container is started
+inside one, or pointed at a container reached as an ssh host. Docker daemons can already be
+saved as [environment providers](#environment-providers) and checked.
+
+## Environment providers {#environment-providers}
+
+A machine an environment may be put on, saved under a name so that `-e` can name it: an ssh
+host with everything `ssh` needs to be told to reach it, or a docker daemon with what it may
+hand out. Each is a directory of its own, `~/.humanize/env-providers/<backend>/<name>/`, holding
+`provider.json`; every level is yours alone (`0700`, the file `0600`). A name is letters,
+digits, `.`, `-` and `_`, starting with a letter or a digit.
+
+::: code-group
+
+```python [ssh, typed]
+from hmz.sdk import Hmz
+
+envs = Hmz().environments
+envs.add(envs.new(
+    "ssh", "gpu",
+    host="10.0.0.2", user="me", port=2222,
+    identity_file="~/.ssh/gpu", proxy_jump="me@bastion",
+    options={"ServerAliveInterval": "15"},
+    workdir="~/project",
+))
+```
+
+```python [ssh, from your ssh config]
+from hmz.sdk import Hmz
+
+envs = Hmz().environments
+for host in envs.hosts():           # what `ssh -G` makes of each Host
+    print(host.alias, host.user, host.host, host.port)
+envs.import_ssh()                   # one provider per Host, named after it
+envs.import_ssh("~/work/ssh_config", ["gpu"], update=True)
+```
+
+```python [docker]
+from hmz.sdk import Hmz
+
+envs = Hmz().environments
+envs.add(envs.new(
+    "docker", "gpu-docker",
+    endpoint="ssh:gpu",             # the daemon on the host saved as `gpu`
+    image="python:3.12", runtime="nvidia",
+    cpus=32, memory=256 << 30, gpus=["0", "1"],
+))
+print(envs.check(envs.find("docker", "gpu-docker")))
+```
+
+:::
+
+### An ssh host
+
+| Field | |
+| --- | --- |
+| `host` | The machine: a host name or an address. With `alias` too, what the alias is pointed at instead (`HostName`). |
+| `user`, `port` | Who to log in as, and the port. Unset, your ssh config's or ssh's own. |
+| `identity_file` | The key, by path. humanize never reads what is in it. |
+| `proxy_jump` | The host or hosts it is reached through (`ProxyJump`). |
+| `options` | Anything else, each passed as `-o KEYWORD=VALUE`. A setting with a field of its own is refused here. |
+| `alias`, `config` | Set by an import: the `Host` it came from, and the config file where that is not your own. |
+| `workdir` | Where `-e role=ssh@<name>` works when the line names no workdir. |
+
+Every field that is set is passed to `ssh`, **ahead of** humanize's own options and of your ssh
+config, so what the provider says wins. An imported provider keeps the alias rather than what
+it resolved to: `ssh` resolves it through the config every time, so editing the config edits the
+provider. `import_ssh` follows `Include` and skips patterns (`Host *`, `web-?`, `!x`); a provider
+already saved under a name is left alone unless `update=True`, which keeps its workdir.
+
+Two providers at one host told different things get a connection each: the ssh control socket
+is named for what the provider says as well as for the host, port and login.
+
+### A docker daemon
+
+| Field | |
+| --- | --- |
+| `endpoint` | `local` (whatever `docker` here reaches), `unix:///path.sock`, `tcp://host:port`, `ssh://[user@]host[:port]`, `ssh:<name>` for the daemon on a saved ssh host, or `context:<name>` for a docker context. |
+| `tls_dir` | For `tcp://`: the directory holding `ca.pem`, `cert.pem` and `key.pem`. |
+| `image`, `runtime`, `run_args` | The image a container starts from when the flow names none, the runtime (`nvidia`), and anything else `docker run` is told. |
+| `cpus`, `memory`, `gpus`, `gpu_memory`, `max_containers` | What it may hand out: CPUs, bytes, GPU device ids, bytes per GPU, containers at once. `0` or empty is all it has. |
+
+`provider.daemon()` is the one place an endpoint becomes a `docker` command line:
+`daemon.command(["info"])` is `["docker", "--host", "unix:///var/run/docker.sock", "info"]`.
+For `ssh:<name>`, docker dials the host with its own `ssh`, which it can only tell the login, the
+port and the host. The rest of what the saved host says goes in an `ssh` of its own, kept with
+that provider and put first on the `PATH` of the `docker` that dials it.
+
+### Checking one
+
+`envs.check(provider, seconds=30)` asks it what it has and never raises:
+
+| | ssh host | docker daemon |
+| --- | --- | --- |
+| **Asks** | what a run asks when it first reaches the host, down the same road, with `BatchMode=yes` | `docker info` |
+| **Answers** | `home`, `cpus`, `memory`, `gpus`, `gpu_memory` | `cpus`, `memory`, `gpus` (by CDI device), `runtimes` (default first), `version` |
+| **Also** | | `short`: what it was saved as handing out and has not got |
+
+`reached` is `False` with `said` saying why where it did not answer in time, wanted a
+password, or was not there.
 
 ## `AnchoredConfig`
 
@@ -320,6 +420,7 @@ from hmz.coganchor.machines import (
     MachineConfig, MachineBase, AnchoredConfig, Anchored,
     DockerConfig, Docker, Mapped, Ran,
 )
+from hmz.coganchor.machines.store import SSHProvider, DockerProvider, daemon_of
 from hmz.coganchor.agents import anchored
 ```
 
@@ -332,4 +433,6 @@ from hmz.coganchor.agents import anchored
 | `Mapped` | The machine's workspace, as your own code reaches it. |
 | `Ran` | What one command there came to: `.argv`, `.status`, `.output`, `.ok`. |
 | `anchored(target)` | An `AnchoredConfig` from a target spelling, or `None` for `""`. |
+| `SSHProvider`, `DockerProvider` | A saved [environment provider](#environment-providers). `Hmz().environments` is how to reach them. |
+| `daemon_of(endpoint, tls_dir="")` | How `docker` reaches the daemon an endpoint names: `.args`, `.env`, `.command(argv)`. |
 | `agent.anchor` | `AnchorConfig \| None`: where the agent's turns land, bringing the machine up if it must. |

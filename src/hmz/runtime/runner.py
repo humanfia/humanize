@@ -140,7 +140,9 @@ def read_line(argv: list[str]) -> Line:
         default=[],
         metavar="ROLE=SPEC[,...]",
         help="where an environment role is: ROLE=local@/abs/path or "
-        "ROLE=ssh@[user@]host[:port]/abs/path (ssh@host/~/path under the login's home). "
+        "ROLE=ssh@[user@]host[:port]/abs/path (ssh@host/~/path under the login's home), "
+        "HOST the name of a saved ssh environment provider or one ssh resolves; "
+        "ROLE=ssh@NAME alone for a saved one's own workdir. "
         "A role the runtime fills -- the workspace -- is never named",
     )
     parser.add_argument(

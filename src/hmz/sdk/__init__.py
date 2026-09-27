@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from hmz.daemon import Daemon, Held, Session
     from hmz.runtime import (
         Accounts,
+        Environments,
         Epics,
         Fallbacks,
         Flows,
@@ -56,6 +57,7 @@ __all__ = [
     "Accounts",
     "Daemon",
     "Daemons",
+    "Environments",
     "Epics",
     "Fallbacks",
     "Flows",
@@ -77,6 +79,7 @@ _WRITTEN = {
     "Accounts": "hmz.runtime",
     "Daemon": "hmz.daemon",
     "Daemons": "hmz.sdk.daemons",
+    "Environments": "hmz.runtime",
     "Epics": "hmz.runtime",
     "Fallbacks": "hmz.runtime",
     "Flows": "hmz.runtime",

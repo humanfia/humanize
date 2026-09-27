@@ -70,7 +70,7 @@ prompt](#nobody-is-at-the-prompt).
 ```
 hmz exec -f|--flow <ref>
          [-a|--agents <role>=<cli>[@<provider>]/<model>:<effort>[,...]] [-a ...]
-         [-e|--envs <role>=<backend>@<provider>/<workdir>[,...]] [-e ...]
+         [-e|--envs <role>=<backend>@<provider>[/<workdir>][,...]] [-e ...]
          [-p|--params <key>=<value>[,...]] [-p ...]
          -b|--budget <key>=<value>[,...] [-b ...]
          [--resume] [--json] [--] <task>
@@ -198,16 +198,17 @@ before anything runs.
 ```
 repo=ssh@gpu-box/home/me/repo
 repo=ssh@me@gpu-box:2222/~/repo
+repo=ssh@gpu
 data=local@/srv/data
 ```
 
-`<role>=<backend>@<provider>/<workdir>`, one per environment role the flow declares.
+`<role>=<backend>@<provider>[/<workdir>]`, one per environment role the flow declares.
 
 | Part | |
 | --- | --- |
 | `<backend>` | `local` (this machine) or `ssh` (a host reached with ssh). |
-| `<provider>` | For `ssh`, the destination: `host`, `user@host`, `host:port` or an alias from your ssh config. Empty for `local`: `local@/path`. |
-| `<workdir>` | Everything from the first `/` after the `@`. Absolute; `ssh@host/~/repo` is `repo` under the ssh login's home. |
+| `<provider>` | For `ssh`, the name of an [environment provider](/reference/machines#environment-providers) you saved, reached with everything it says (login, port, key, jump host, options). Any other name is the destination as `ssh` takes it: `host`, `user@host`, `host:port` or an alias from your ssh config. Empty for `local`: `local@/path`. |
+| `<workdir>` | Everything from the first `/` after the `@`. Absolute; `ssh@host/~/repo` is `repo` under the ssh login's home. Left off, as in `ssh@gpu`, it is the workdir that provider was saved with; a provider saved without one, or a plain host, needs it. |
 
 A role typed as a `LocalEnv` is the directory `hmz exec` was started in, and is never given
 with `-e`. Most flows declare nothing else, so most lines have no `-e`. Every environment given

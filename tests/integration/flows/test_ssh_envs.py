@@ -16,11 +16,13 @@ import asyncio
 import os
 import subprocess
 from pathlib import Path, PurePosixPath
+from typing import cast
 
 import psutil
 import pytest
 
-from hmz.coganchor.machines import AnchoredConfig
+from hmz.coganchor.machines import AnchoredConfig, store
+from hmz.coganchor.machines.store import SSHProvider
 from hmz.flows import (
     EnvBackendKind,
     EnvCommandTimeout,
@@ -367,3 +369,114 @@ async def test_a_dropped_connection_is_made_again(
         assert driver.available
     finally:
         await driver.close()
+
+
+# ------------------------------------------------------------ a provider written down
+
+
+#: A flow whose one role is a machine it runs a command on, which writes a file there.
+_WRITES = """
+from hmz.flows import AgentCollection, Env, EnvCollection, FlowParams, ShellEnvMixin, flow
+
+
+class Box(Env, ShellEnvMixin): ...
+
+
+class Envs(EnvCollection):
+    box: Box
+
+
+@flow(agents=AgentCollection, envs=Envs, params=FlowParams)
+async def writes(task, *, agents, envs, params, ctx):
+    status, _, err = await envs["box"].exec(["sh", "-c", f"echo {task} > made.txt"])
+    assert status == 0, err
+"""
+
+
+def _stored(host: str, name: str = "stored", **fields: object) -> SSHProvider:
+    """A provider for the host of the test's own, told everything a provider can say."""
+    said: dict[str, object] = {
+        "host": host,
+        "user": "me",
+        "port": 2222,
+        "identity_file": "/keys/the key",
+        "proxy_jump": "jump@bastion",
+        "options": {"LogLevel": "ERROR"},
+        **fields,
+    }
+    return cast("SSHProvider", store.add(store.new("ssh", name, **said)))
+
+
+@pytest.mark.timeout(120)
+async def test_a_stored_provider_is_reached_with_exactly_what_it_says(
+    far: Path, host: str, tmp_path: Path
+) -> None:
+    _stored(host)
+    driver = _open("stored", tmp_path)
+    try:
+        await probe(driver)
+        assert await driver.exec(["echo", "there"], timeout=30) == (0, "there\n", "")
+    finally:
+        await driver.close()
+
+    reached = _reached(tmp_path)
+    assert reached
+    for line in reached:
+        assert line.startswith(
+            '-o IdentityFile="/keys/the key" -o ProxyJump=jump@bastion -o LogLevel=ERROR '
+            "-T -o BatchMode=no -o ServerAliveInterval=30 "
+        ), line
+        assert f" -p 2222 me@{host} " in line, line
+
+
+def test_two_providers_at_one_host_do_not_ride_one_connection(host: str) -> None:
+    from hmz.coganchor.transport import Road, Target
+
+    told = (
+        _stored(host),
+        _stored(host, "other", identity_file="/keys/another"),
+        SSHProvider(name="plain", host=host, user="me", port=2222),
+    )
+
+    paths = {
+        flag
+        for provider in told
+        for flag in Road.to(Target.parse(provider.target())).prefix
+        if flag.startswith("ControlPath=")
+    }
+
+    assert len(paths) in (0, len(told)), (
+        paths
+    )  # none where reuse is off, else one apiece
+
+
+@pytest.mark.timeout(180)
+def test_a_flow_runs_on_a_stored_provider_an_e_names(
+    far: Path, host: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz.cli import main
+    from tests.stubs import written
+
+    _stored(host)
+    workdir = tmp_path / "there"
+    workdir.mkdir()
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.chdir(project)
+    flow = written(tmp_path / "flows", "writes", _WRITES)
+
+    main(
+        [
+            "exec",
+            "-f",
+            str(flow),
+            "-e",
+            f"box=ssh@stored{workdir}",
+            "-b",
+            "cost=1",
+            "hello",
+        ]
+    )
+
+    assert (workdir / "made.txt").read_text() == "hello\n"
+    assert any(f"-p 2222 me@{host}" in line for line in _reached(tmp_path))

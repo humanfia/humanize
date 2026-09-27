@@ -31,6 +31,7 @@ import psutil
 import pytest
 
 from hmz import home
+from hmz.runtime import Hmz
 from hmz.runtime.flowing.environing import MachineEnvDriver, home_of
 from hmz.runtime.flowing.environing_ssh import SSHMachine
 from hmz.runtime.flowing.environments import open_env, probe
@@ -210,3 +211,111 @@ async def test_a_home_relative_workdir_over_real_ssh(ssh_host: str) -> None:
         assert gone[0] == 1, "a scratch directory outlived its removal"
     finally:
         await driver.close()
+
+
+# ------------------------------------------------------------ a provider written down
+
+
+@pytest.fixture
+def ssh_config(ssh_host: str, tmp_path: Path) -> Path:
+    """An ssh config naming the host, which is never the user's own.
+
+    The sshd of the test's own already has one. `localhost` gets one of its own, pointing an
+    alias at it and saying nothing else, so that what reaches it is ssh's defaults.
+    """
+    own = tmp_path / "sshd" / "ssh_config"
+    if ssh_host == _ALIAS:
+        return own
+    written = tmp_path / "ssh_config"
+    written.write_text(f"Host {_ALIAS}\n  HostName localhost\n")
+    return written
+
+
+#: A flow whose one role is a machine it runs a command on, which writes a file there.
+_WRITES = """
+from hmz.flows import AgentCollection, Env, EnvCollection, FlowParams, ShellEnvMixin, flow
+
+
+class Box(Env, ShellEnvMixin): ...
+
+
+class Envs(EnvCollection):
+    box: Box
+
+
+@flow(agents=AgentCollection, envs=Envs, params=FlowParams)
+async def writes(task, *, agents, envs, params, ctx):
+    status, _, err = await envs["box"].exec(["sh", "-c", f"echo {task} > made.txt"])
+    assert status == 0, err
+"""
+
+
+@pytest.mark.timeout(120)
+def test_an_ssh_config_is_imported_and_what_it_names_is_checked(
+    ssh_config: Path,
+) -> None:
+    envs = Hmz().environments
+
+    (resolved,) = envs.hosts(ssh_config)
+    (imported,) = envs.import_ssh(ssh_config)
+    checked = envs.check(imported, seconds=60)
+
+    assert resolved.alias == _ALIAS
+    assert resolved.host in ("127.0.0.1", "localhost")
+    assert imported == envs.find("ssh", _ALIAS)
+    assert (imported.alias, imported.config) == (_ALIAS, str(ssh_config))
+    assert envs.resolve(imported).port == resolved.port
+    assert checked.reached, checked.said
+    assert checked.home == str(Path.home())
+    assert checked.cpus == len(os.sched_getaffinity(0))
+    assert abs(checked.memory - psutil.virtual_memory().total) < 1 << 20
+
+
+@pytest.mark.timeout(300)
+def test_a_flow_runs_end_to_end_on_a_provider_imported_from_a_config(
+    ssh_config: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz.cli import main
+    from tests.stubs import written
+
+    Hmz().environments.import_ssh(ssh_config)
+    workdir = tmp_path / "there"
+    workdir.mkdir()
+    project = tmp_path / "project"
+    project.mkdir()
+    monkeypatch.chdir(project)
+    flow = written(tmp_path / "flows", "writes", _WRITES)
+
+    main(
+        [
+            "exec",
+            "-f",
+            str(flow),
+            "-e",
+            f"box=ssh@{_ALIAS}{workdir}",
+            "-b",
+            "cost=1",
+            "hello",
+        ]
+    )
+
+    assert (workdir / "made.txt").read_text() == "hello\n"
+
+
+@pytest.mark.timeout(180)
+def test_a_docker_daemon_behind_an_imported_host_is_dialled_through_it(
+    ssh_config: Path,
+) -> None:
+    """Docker's own ssh, told what the provider says by the `ssh` kept with it."""
+    if shutil.which("docker") is None:
+        pytest.skip("needs docker on the far side, which is this machine")
+    envs = Hmz().environments
+    envs.import_ssh(ssh_config)
+    here = envs.check(envs.new("docker", "here"))
+    if not here.reached:
+        pytest.skip(f"needs a docker daemon: {here.said}")
+
+    far = envs.check(envs.new("docker", "far", endpoint=f"ssh:{_ALIAS}"), seconds=90)
+
+    assert far.reached, far.said
+    assert (far.version, far.cpus, far.memory) == (here.version, here.cpus, here.memory)

@@ -161,7 +161,12 @@ def afar(config: AnchorConfig, argv: Sequence[str]) -> list[str]:
 
 def _one_machine(here: Target, work: Target) -> bool:
     """Whether the harness and the work are on the same machine, and so need no introduction."""
-    return (here.scheme, here.host, here.port) == (work.scheme, work.host, work.port)
+    return (here.scheme, here.host, here.port, here.options) == (
+        work.scheme,
+        work.host,
+        work.port,
+        work.options,
+    )
 
 
 def _named(config: AnchorConfig, work: Target) -> str:

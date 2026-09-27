@@ -110,8 +110,9 @@ async def onbox(task: str, *, agents: Agents, envs: Envs, params: FlowParams, ct
 
 | `-e box=` | Where the role's work happens |
 | --- | --- |
-| `ssh@build-box/home/me/build/myproject` | that directory on a host `ssh` reaches: `host`, `user@host`, `host:port`, or an alias from your ssh config |
+| `ssh@build-box/home/me/build/myproject` | that directory on a host `ssh` reaches: a host you [saved under a name](#save-a-host-under-a-name), `host`, `user@host`, `host:port`, or an alias from your ssh config |
 | `ssh@build-box/~/build/myproject` | the same, under the home directory of whoever ssh logs in as |
+| `ssh@build-box` | the workdir the host saved as `build-box` was saved with |
 | `local@/srv/project` | a directory on this machine |
 
 **Only a role the flow declares for it.** The workspace is always the directory you started
@@ -127,6 +128,25 @@ absent, empty, or humanize's copy of that same host from an earlier run. A direc
 files in it is refused rather than overwritten, so `ssh@build-box/home/me/code/myproject`
 fails when your own checkout is at `/home/me/code/myproject` on this machine.
 :::
+
+## Save a host under a name
+
+A host that needs more than a name — a login, a port, a key, a jump host — can be saved once
+and named from then on. Or import the hosts your ssh config already names: each keeps pointing
+at its `Host`, so the config stays the one place it is written.
+
+```python
+from hmz.sdk import Hmz
+
+envs = Hmz().environments
+envs.import_ssh()                    # every Host in ~/.ssh/config, patterns skipped
+envs.add(envs.new("ssh", "gpu", host="10.0.0.2", user="me", port=2222,
+                  identity_file="~/.ssh/gpu", workdir="~/myproject"))
+print(envs.check(envs.find("ssh", "gpu")))   # reached, and its CPUs, memory and GPUs
+```
+
+Then `-e box=ssh@gpu` runs in `~/myproject` on it. What each field means is in
+[Machines › Environment providers](/reference/machines#environment-providers).
 
 ## What it needs
 
