@@ -155,7 +155,7 @@ Once one has answered, the line above the prompt names the agent it would start:
 ─────────────────────────────────────────────────────────
 ❯
 ─────────────────────────────────────────────────────────
- ◉ chat · ~/src/demo      esc monitor · ctrl+c exit
+ ◉ chat · ~/src/demo      ← monitor · ctrl+c exit
 ```
 
 If that line still reads only `assistant`, no CLI has answered: humanize found none, or the one

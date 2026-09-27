@@ -1,37 +1,57 @@
 <script setup>
 import TermScreen from '../.vitepress/theme/components/user-running/TermScreen.vue'
 
-const sheet = [
-  { rule: 'b' },
-  '   [b B]Monitor[/]',
-  '   [m]The run as it is going: a box per agent that has worked, marked as it[/]',
-  '   [m]works, and whatever it started of its own hanging under it.[/]',
-  '',
-  '   [c]▣[/] every agent[m] · 1 of 2 working · 11 turns · 7m11s[/][b] · reading[/]',
-  '   [m]┌──────────────────────────────────────────────────────┐[/]',
-  '   [m]│[/] [c]● actor[/]                                          [c]43s[/] [m]│[/]',
-  '   [m]│[/] [m]claude/claude-opus-5:high · 6 turns[/]                  [m]│[/]',
-  '   [m]└──────────────────────────────────────────────────────┘[/]',
+const graph = (top, actor, reviewer) => [
+  top,
+  ...actor,
   '   [m]  ├╴[/][m]◇[/] [m]read the failing tests[/]',
   '   [m]  └╴[/][c]◆[/] [m]find where charge() retries[/]',
   '   [c]│   ↓ 5 · ↑ 5[/]',
-  '   [b]┌──────────────────────────────────────────────────────┐[/]',
-  ' [b]❯[/] [b]│[/] ○ reviewer                                [m]idle 1m04s[/] [b]│[/]',
-  '   [b]│[/] [m]codex/gpt-5.6-sol:high · 5 turns[/]              [c]unread[/] [b]│[/]',
-  '   [b]└──────────────────────────────────────────────────────┘[/]',
+  ...reviewer,
   '',
-  '   [m]Flow:             [/]rlar[m]   431s[/]',
+  '[m]Flow:             [/]rlar[m]   431s[/]',
   '',
-  '   [m]Tokens:           [/]claude-opus-5                1.84M     $4.12   [m]38 out/s[/]',
-  '   [m]                  [/]gpt-5.6-sol                 402.1k     $0.61   [m]0 out/s[/]',
-  '   [m]Kinds:            [/]input                        61.3k',
-  '   [m]                  [/]output                       22.8k',
-  '   [m]                  [/]cache_read                   2.14M+',
-  '   [m]                  [/]cache_write                  88.0k+',
-  '   [m]                  + a floor: not every agent here reports that kind[/]',
-  '',
-  '   [m]↑↓ move · enter read · esc close[/]',
+  '[m]Tokens:           [/]claude-opus-5                1.84M     $4.12   [m]38 out/s[/]',
+  '[m]                  [/]gpt-5.6-sol                 402.1k     $0.61   [m]0 out/s[/]',
+  '[m]Kinds:            [/]input                        61.3k',
+  '[m]                  [/]output                       22.8k',
+  '[m]                  [/]cache_read                   2.14M+',
+  '[m]                  + a floor: not every agent here reports that kind[/]',
+  { rule: true },
+  { prompt: '' },
+  { rule: true },
+  {
+    l: '[c]▣[/] monitor[m] · a node per agent[/]',
+    keys: '↑↓ node · enter read · → back · ctrl+t by session · / commands',
+  },
 ]
+
+const box = (here, name, clock, runs, tail) => [
+  `   ${here ? '[b]' : '[m]'}┌──────────────────────────────────────────────────────┐[/]`,
+  `${here ? ' [b]❯[/]' : '   '} ${here ? '[b]' : '[m]'}│[/] ${name}${clock} ${here ? '[b]' : '[m]'}│[/]`,
+  `   ${here ? '[b]' : '[m]'}│[/] [m]${runs}[/]${tail} ${here ? '[b]' : '[m]'}│[/]`,
+  `   ${here ? '[b]' : '[m]'}└──────────────────────────────────────────────────────┘[/]`,
+]
+
+const actor = (here) =>
+  box(
+    here,
+    '[c]● actor[/]',
+    '                                          [c]43s[/]',
+    'claude/claude-opus-5:high · 6 turns',
+    '                  ',
+  )
+const reviewer = (here) =>
+  box(
+    here,
+    '○ reviewer',
+    '                                [m]idle 1m04s[/]',
+    'codex/gpt-5.6-sol:high · 5 turns',
+    '              [c]unread[/]',
+  )
+
+const all = (here) =>
+  `${here ? ' [b]❯[/]' : '   '} [c]▣[/] all agents[m] · 1 of 2 working · 11 turns · 7m11s[/][b] · reading[/]`
 
 const read = [
   '[dim]● reviewer is working[/]',
@@ -49,14 +69,20 @@ const read = [
   { rule: true },
   {
     l: '[c]·|·[/] actor… [m](43s · ctrl+c twice to stop)[/]',
-    keys: 'tab agent · / commands · shift+enter newline · esc monitor · ctrl+c stop',
+    keys: 'tab agent · / commands · shift+enter newline · ← monitor · ctrl+c stop',
   },
 ]
 
 const monitor = [
   {
-    label: 'esc',
-    lines: sheet,
+    label: '←',
+    lines: graph(all(true), actor(false), reviewer(false)),
+    caption:
+      'The monitor opens on <code>all agents</code>: <kbd>enter</kbd> here reads every agent at once.',
+  },
+  {
+    label: '↓ ↓',
+    lines: graph(all(false), actor(false), reviewer(true)),
     caption:
       'The cursor is on the reviewer, which has stopped and has something you have not read.',
   },
@@ -65,24 +91,37 @@ const monitor = [
     lines: read,
     art: false,
     caption:
-      'Enter on its box reads the reviewer, even though it is not working: its own transcript, down to its latest turn. <kbd>tab</kbd> would not have stopped on it.',
+      'Enter on its box reads the reviewer, even though it is not working. <kbd>tab</kbd> would not have stopped on it. <kbd>←</kbd> goes back up.',
   },
 ]
 </script>
 
-# Watching a run — `/monitor`
+# Watching a run — the monitor
 
-Press <kbd>esc</kbd>, or type `/monitor`, to see the run drawn: a box for each agent that has
-worked, what each one is doing now, and arrows for the work passing between them. It shows at
-a glance whether the run has the shape you expected, and which agent to read next.
+The monitor is the run drawn across the whole screen: a box for each agent that has worked, what
+each one is doing now, and arrows for the work passing between them. It shows at a glance whether
+the run has the shape you expected, and which agent to read next.
+
+It is one of the interface's two screens. The other is the log, where you read transcripts. The
+monitor is the parent: you pick a log to read from it, and you come back up to it.
 
 ## Try it
 
-Press <kbd>esc</kbd> during an [`rlar`](/flows/rlar) run, then <kbd>enter</kbd> on a box:
+During an [`rlar`](/flows/rlar) run, press <kbd>←</kbd> with nothing typed. Then walk to a box and
+press <kbd>enter</kbd>:
 
 <TermScreen title="hmz · rlar" :frames="monitor" art />
 
-The drawing stays live while it is open. <kbd>esc</kbd> closes it again.
+The drawing stays live. <kbd>→</kbd> with nothing typed goes back to the log you were reading.
+
+## The first node
+
+`▣ all agents` is always first, and the cursor starts on it. <kbd>enter</kbd> on it reads the log
+every agent's work appears on, which is where a run is watched from. Its row also says how many
+boxes are working, the run's turns, and how long it has run.
+
+Under it, a run that talks to you has a `◉` node for each outworlder: the role that is you. Enter
+on it reads what the flow says to you.
 
 ## Reading a box
 
@@ -93,7 +132,7 @@ The left of a box says what the agent is: the name the flow gives it, what it ru
 | --- | --- |
 | `●` and `43s` | Working. The clock is how long this turn has been going. |
 | `○` and `idle 1m04s` | Stopped. The clock is how long since its last turn ended. |
-| `reading` | Its transcript is the one behind the drawing. |
+| `reading` | Its log is the one you were reading. |
 | `unread` | It has said something since you last read it. |
 
 An agent that has been thinking for eleven minutes and one that stopped eleven minutes ago look
@@ -106,9 +145,17 @@ nothing alike here. The second is usually where a run has gone wrong.
 between most recently is lit. Handovers between boxes that are not next to each other are
 listed under the drawing as `Also`.
 
-A box appears when its agent takes its first turn, and stays until the next run. A flow may
-declare ten agents and use three, and you see the three. Before any turn, the sheet lists the
-agents that are set up instead.
+A box appears when its agent takes its first turn, and stays until the next run, working or not.
+A flow may declare ten agents and use three, and you see the three. Before any turn, the monitor
+lists the agents that are set up instead.
+
+## A box per session
+
+<kbd>ctrl+t</kbd> draws a box per session instead of per agent, and back again. A loop that
+opens a new session each round is one agent and many sessions: `actor · session 1`,
+`actor · session 2`, with the handovers between them. A session that has ended stays, and can
+still be read. The status line says which you are looking at: `a node per agent` or
+`a node per session`, and the monitor opens again the way you left it.
 
 ## Under the drawing
 
@@ -118,21 +165,32 @@ agents that are set up instead.
 | `Set` | The flow's settings that differ from its defaults. |
 | `Also` | Handovers the arrows could not show. |
 | `Tokens` | Tokens and money per model, and the output tokens a second each is producing. |
-| `Kinds` | Tokens by kind for the whole run. A `+` marks a figure that is a floor, because some agent's CLI does not report that kind. See [Cost and rate](/user/tally). |
+| `Kinds` | Tokens by kind for the whole run. A `+` marks a floor, because some agent's CLI does not report that kind. See [Cost and rate](/user/tally). |
+
+## The prompt
+
+The prompt under the drawing is the same one as the log's. Every command works here, and a line
+you type goes where it would have gone from the log. What a command answers appears under the
+drawing, above the prompt.
 
 ## The keys
 
 | Key | Does |
 | --- | --- |
-| <kbd>↑</kbd> <kbd>↓</kbd> | Move between the boxes and the top row. |
-| <kbd>enter</kbd>, or a click | Read that agent. The top row reads every agent again. |
-| <kbd>esc</kbd> | Close the drawing. |
+| <kbd>↑</kbd> <kbd>↓</kbd> | With nothing typed: move between the nodes. |
+| <kbd>enter</kbd>, or a click | With nothing typed: read that node's log. On a line of the board, change it. |
+| <kbd>→</kbd> | With nothing typed: back to the log you were reading. |
+| <kbd>ctrl+t</kbd> | A box per agent, or per session. |
+| <kbd>←</kbd> | On the log, with nothing typed: up to the monitor. |
 
-`/monitor` can also draw a [board](/user/board), but a run of a flow never has one.
+Once you type, the arrows and <kbd>enter</kbd> are the prompt's again. <kbd>esc</kbd> does not
+open the monitor, and there is no command for it.
+
+The monitor can also draw a [board](/user/board), but a run of a flow never has one.
 
 ## Without opening it
 
-Much of this is on the main screen too:
+Much of this is on the log too:
 
 - **Above the editor**, one line per agent: what it runs, and `●` or `○` for whether it is
   working. See [Many conversations at once](/user/conversations).

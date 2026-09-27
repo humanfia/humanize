@@ -169,7 +169,7 @@ it says it, and the status line shows who is working and for how long:
 ─────────────────────────────────────────────────────────
 ❯
 ─────────────────────────────────────────────────────────
- ·/· agent… (42s · ctrl+c twice to stop)  esc monitor · ctrl+c stop
+ ·/· agent… (42s · ctrl+c twice to stop)  ← monitor · ctrl+c stop
 ```
 
 While it runs:
@@ -177,7 +177,7 @@ While it runs:
 | To | Do | More |
 | --- | --- | --- |
 | tell the agent something | type a line and press <kbd>enter</kbd>; it goes into the turn that is running | [Talking to a running turn](/user/steering) |
-| see who is working, and who handed to whom | <kbd>esc</kbd>, or `/monitor` | [Watching a run](/user/monitor) |
+| see who is working, and who handed to whom | <kbd>←</kbd> with nothing typed | [Watching a run](/user/monitor) |
 | stop the flow | <kbd>ctrl+c</kbd> twice, or `/stop` | [Stopping](/user/stopping) |
 | walk away and keep it going | close the terminal, or `/exit` | [Leaving it running](/user/leaving) |
 

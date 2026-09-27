@@ -15,7 +15,7 @@ const agents = [
 ]
 const spent = '[m]$4.12 · 38 out/s[/]'
 const status = '[c]·|·[/] actor… [m](43s · ctrl+c twice to stop)[/]'
-const keys = 'tab agent · / commands · shift+enter newline · esc monitor · ctrl+c stop'
+const keys = 'tab agent · / commands · shift+enter newline · ← monitor · ctrl+c stop'
 
 const steer = [
   {
@@ -30,7 +30,7 @@ const steer = [
       { rule: true },
       {
         l: status,
-        keys: 'enter say · tab agent · / commands · shift+enter newline · esc monitor · ctrl+c clear',
+        keys: 'enter say · tab agent · / commands · shift+enter newline · ← monitor · ctrl+c clear',
       },
     ],
     caption:

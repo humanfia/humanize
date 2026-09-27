@@ -32,7 +32,7 @@ Then take a whole piece of work start to finish:
 - [Side questions (/btw)](/user/btw)
 - [Many conversations at once](/user/conversations)
 - [Showing the working (/details)](/user/details)
-- [Watching a run (/monitor)](/user/monitor)
+- [Watching a run (the monitor)](/user/monitor)
 - [Being away (/afk)](/user/afk)
 - [Stopping](/user/stopping)
 - [Leaving it running](/user/leaving)

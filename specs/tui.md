@@ -52,7 +52,7 @@ or say what it is running.
   open and holding it for the next turn otherwise, and keep it against the agent that took it.
 - MUST name what is running as the flow started and whatever it called, innermost last.
 - MUST offer exactly these commands, each doing what it says: `/flow`, `/btw`, `/flowverses`,
-  `/providers`, `/fallback`, `/epics`, `/resume`, `/settings`, `/monitor`, `/clear`, `/details`,
+  `/providers`, `/fallback`, `/epics`, `/resume`, `/settings`, `/clear`, `/details`,
   `/afk`, `/stop`, `/exit`. `/btw` MUST be answered from a snapshot, not by asking the flow.
 - MUST carry the last run of this directory of a flow that can be picked up on for `/resume` —
   its flow, roles, params, budget and task, picking up its journal, saying which — say why there
@@ -86,15 +86,23 @@ or say what it is running.
 - MUST offer per run where it is written down, carrying it on where its flow says so, and
   exporting it; an export MUST carry a trace of that run's own sessions and no transcript, say
   where it landed and how big it is, and replace that run's last export rather than pile up.
-- MUST draw the run on `/monitor` as a box per agent in the flow's order with the handovers
-  between them — only agents that have taken a turn, marked as working or as having something
-  unread — never refused while a flow runs, redrawn as the run moves, every clock stopping where
-  the run stopped, and any box readable from there whether or not it is working.
+- MUST make the monitor the parent screen and the log its child: a full-screen graph of the run
+  over the log's own prompt, where every command works, with a graph status line in place of the
+  log's; reached by `←` on an empty prompt and never by `esc` or a command, and left by `→` on an
+  empty prompt for the log last read.
+- MUST draw the run on the monitor as a box per agent in the flow's order, or per session after
+  `ctrl+t`, with the handovers between them — only nodes that have taken a turn, marked as working
+  or as having something unread — never refused while a flow runs, redrawn as the run moves, every
+  clock stopping where the run stopped.
+- MUST lead the monitor with a node for every agent's log, selected when it opens, then a node per
+  outworlder, and read any node — working or ended — with enter or a click, the arrows moving
+  between nodes while nothing is typed.
 - MUST report spend per model, by kind of token and never as one total over the kinds, in an
   order that does not change, money beside tokens where known and tokens alone where not, marking
   a figure that is only a floor, and the rate as output tokens a second.
-- MUST draw the board a flow and a person share under the diagram, applying changes at once while
-  the flow runs and refusing, where the key was pressed, to edit a line the flow owns.
+- MUST draw the board a flow and a person share under the diagram, its lines nodes like any
+  other, applying changes at once while the flow runs, taking a line away when it is saved empty,
+  and refusing, where enter was pressed, to edit a line the flow owns.
 - MUST make `/settings` two pages, this machine and this directory, and forget this one alone.
 - MUST ask once, at a first start and only with somebody there, whether humanize may report its
   own failures — what would be sent and what never would — unanswered if it is walked away from.
@@ -115,12 +123,14 @@ or say what it is running.
 | `enter` | editor, sheets | send the line or take the offer; open the row under the cursor |
 | `shift+enter`, `ctrl+j` | editor, menus | break the line; save the menu |
 | `tab`, `shift+tab` | app, sheets | round the shared transcript and working agents; turn pages |
-| `esc` | app, sheets | open `/monitor`; one step back, out of a search first |
+| `esc` | sheets | one step back, out of a search first |
+| `←`, `→` | log, monitor | on an empty prompt: up to the monitor; back to the log last read |
+| `↑`, `↓`, `enter` | monitor | on an empty prompt: the node before or after; read it |
+| `ctrl+t` | monitor | a node per agent or per session |
 | `ctrl+c` | app | take back the nearest thing; twice stops the flow |
 | `ctrl+q` | app | what `/exit` does |
 | `←`, `→` | sheets | step an adjustable row's value, or step between lists |
 | `space` | sheets | the next value, coming round at the end |
 | `s`, `a` | lists | search; add one |
 | `r` | flowverses, models | fetch or ask again |
-| `d` | board | take a line away |
 | `f`, `v` | flows | copy the flow here; where flows come from |

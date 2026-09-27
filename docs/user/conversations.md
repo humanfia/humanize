@@ -11,7 +11,7 @@ const below = [
   { rule: true },
   {
     l: '[c]·|·[/] builder, tester… [m](72s · ctrl+c twice to stop)[/]',
-    keys: 'tab agent · / commands · shift+enter newline · esc monitor · ctrl+c stop',
+    keys: 'tab agent · / commands · shift+enter newline · ← monitor · ctrl+c stop',
   },
 ]
 const said = {
@@ -99,11 +99,11 @@ the transcripts, as <kbd>tab</kbd> does:
 | --- | --- |
 | <kbd>tab</kbd> | The next agent that is working, then round to every agent again. |
 | <kbd>shift+tab</kbd> | The one before. |
-| <kbd>esc</kbd>, then <kbd>enter</kbd> on a box | Any agent, working or not, picked on [`/monitor`](/user/monitor). |
+| <kbd>←</kbd>, then <kbd>enter</kbd> on a box | Any agent, working or not, picked on [the monitor](/user/monitor). |
 
 <kbd>tab</kbd> steps only between agents that are working, so with ten agents it skips the ones
 that are idle. Once you are reading an agent, you stay on it after its turn ends, until you
-press a key. To reach one that has stopped, or has not started yet, use `/monitor`.
+press a key. To reach one that has stopped, or has not started yet, use the monitor.
 
 ## What the lines above the editor say
 

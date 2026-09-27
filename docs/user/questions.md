@@ -22,7 +22,7 @@ hmz
 ────────────────────────────────────────────────────────────────────────────────
 ❯ yes, until the next release
 ────────────────────────────────────────────────────────────────────────────────
-  enter answer · / commands · shift+enter newline · esc monitor · ctrl+c clear
+  enter answer · / commands · shift+enter newline · ← monitor · ctrl+c clear
 ```
 
 The `●` line, yellow on screen, is the agent's question. While it is up, the status line

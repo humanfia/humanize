@@ -102,7 +102,7 @@ A trace reads each CLI's own logs, so it holds the sessions of every built-in CL
 | CLI | In a trace |
 | --- | --- |
 | Claude Code, Codex, Antigravity, DeepSeek Harness, Grok Build, Kimi Code, pi, Qwen Code, opencode, mimocode, ZCode | <Badge type="tip" text="yes" /> |
-| Cursor Agent | <Badge type="warning" text="no" /> Watch it live on [`/monitor`](/user/monitor) instead. |
+| Cursor Agent | <Badge type="warning" text="no" /> Watch it live on [the monitor](/user/monitor) instead. |
 
 ::: details `0 sessions, 0 slices`
 The run opened no session before it ended, its agents ran on Cursor Agent, or the CLI's logs
@@ -130,5 +130,5 @@ See [SDK reference](/reference/sdk) and the [Tracing reference](/reference/traci
 
 - [Exporting a run](/user/export): the whole run as one archive, to send to someone else
 - [Picking a run up](/user/resuming)
-- [`/monitor`](/user/monitor): the same shape, live, while the run goes
+- [The monitor](/user/monitor): the same shape, live, while the run goes
 - [Tracing reference](/reference/tracing)

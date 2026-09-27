@@ -35,7 +35,7 @@ above the editor. Under `hmz exec`, each turn ends with a line of what that turn
 | `$1.34` | what those tokens come to at list price, in US dollars |
 | `91 out/s` | output tokens a second, over the last five minutes |
 
-Press <kbd>esc</kbd> for [`/monitor`](/user/monitor), which splits the same figures by model.
+Press <kbd>←</kbd> for [the monitor](/user/monitor), which splits the same figures by model.
 
 ## The `+`, and a missing `$`
 

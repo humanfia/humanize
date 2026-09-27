@@ -448,8 +448,8 @@ flow runs, so import the type at runtime.
 
 ## Still stuck
 
-- Turn on [`/details`](/user/details) to see everything the agents do, and press <kbd>esc</kbd>
-  for [`/monitor`](/user/monitor) to see which one is doing what.
+- Turn on [`/details`](/user/details) to see everything the agents do, and press <kbd>←</kbd>
+  for [the monitor](/user/monitor) to see which one is doing what.
 - [Export the run](/user/export) from `/epics` and attach the archive to an issue, with the
   output of `hmz --version`. Credentials are struck out, but your task and the agents'
   transcripts are in it.

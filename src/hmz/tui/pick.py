@@ -27,10 +27,8 @@ every CLI in one list is a list that grows each time any of them ships a model. 
 the line with the arrows on it, exactly as Claude Code's is, and beside it the things that
 really are side questions about the same agent.
 
-`/monitor` is the last of them, and is not a question at all: it is the run itself, drawn. The
-diagram is the sheet rather than a header on one -- a box per agent that has worked, marked as
-it works, the handovers between them as the arrows joining them, and under it only the few
-things a diagram cannot say.
+The run itself, drawn, is not a sheet: it is the monitor, a screen of its own in
+:mod:`hmz.tui.monitoring`.
 """
 
 from __future__ import annotations
@@ -38,7 +36,6 @@ from __future__ import annotations
 import contextlib
 import shlex
 import sys
-import time
 from pathlib import Path
 from typing import (
     TYPE_CHECKING,
@@ -64,7 +61,7 @@ from textual.widgets import Label, OptionList
 from textual.widgets.option_list import Option
 
 from hmz.coganchor import backends
-from hmz.coganchor.agents import ANYONE, FLOW, SWARM, USER, driver
+from hmz.coganchor.agents import SWARM, driver
 from hmz.coganchor.prices import money
 from hmz.flows import Budget
 from hmz.runtime import telemetry
@@ -72,7 +69,7 @@ from hmz.runtime.kept import Runs
 from hmz.runtime.telemetry import KEPT, SAYS, SENT
 
 from .discover import installed, ready_to_open
-from .monitor import Counted, Shape, lasting, short, thousands
+from .monitor import lasting, thousands
 from .selecting import Choices
 
 if TYPE_CHECKING:
@@ -81,7 +78,7 @@ if TYPE_CHECKING:
     from pydantic.fields import FieldInfo
     from textual.app import App, ComposeResult
 
-    from hmz.coganchor.agents import AgentBase, Board
+    from hmz.coganchor.agents import AgentBase
     from hmz.coganchor.backends import Model, Way
 
     # Under another name, because `Falls` here is the sheet one account's chain is chosen on
@@ -93,7 +90,6 @@ if TYPE_CHECKING:
     from hmz.runtime.epic import Ran
     from hmz.runtime.flowing import AgentRole, EnvRole, Flowverse, Offer
 
-    from .monitor import Monitor, Under
 
 __all__ = [
     "DETACHES",
@@ -116,8 +112,6 @@ __all__ = [
     "Does",
     "Doing",
     "Drafts",
-    "Drawn",
-    "Entry",
     "Epics",
     "Failing",
     "Fallbacks",
@@ -126,7 +120,6 @@ __all__ = [
     "Held",
     "Holds",
     "Leaves",
-    "Monitoring",
     "Picks",
     "Popup",
     "Providers",
@@ -237,7 +230,7 @@ _LABEL = 26
 #: them.
 _FIELD = 18
 
-#: How often `/monitor` is redrawn, in seconds. It is read while a flow is running, which is
+#: How often the monitor is redrawn, in seconds. It is read while a flow is running, which is
 #: the whole point of it: a sheet that froze what it said the moment it opened would be a
 #: snapshot of a run, and the run is what is being watched. Twice a second because the clocks
 #: on it count in seconds, and a second hand that stutters reads as a run that has stalled.
@@ -298,7 +291,7 @@ def reads(
     """One line per agent role a flow declares: what it runs, and what it is holding.
 
     In one place because it is read in two -- above the prompt while a flow runs, and under
-    the diagram on `/monitor` before any agent has worked -- and an agent that read as two
+    the monitor before any agent has worked -- and an agent that read as two
     different things in them would be two. What it is holding is only asked for above the
     prompt, that being where a conversation is read and said to; the sheet asks for the same
     line without it, and it says nothing there.
@@ -330,7 +323,7 @@ def reads(
 
 
 _SHEET = """
-Backends, Configures, Flows, Models, Monitoring, Providers, RunsAs, Signing,
+Backends, Configures, Flows, Models, Providers, RunsAs, Signing,
 Ways {
     align: center middle; background: $background; }
 #sheet { width: 100%; height: auto; padding: 0; }
@@ -443,11 +436,6 @@ def _letter(key: str) -> bool:
 #: The most rows of choices a sheet shows however tall the terminal is: a list longer than
 #: this is one that is walked rather than read.
 _MOST = 14
-#: And the most `/monitor` shows, which comes to as much of the terminal as there is under
-#: the heading. The rows there are not choices -- they are the run, drawn -- so the rule that
-#: keeps a list short is the wrong rule for them: a run of six agents cut off at the fourth is
-#: a picture of the run with the end of it missing.
-_TALLEST = 100
 #: The fewest it shortens to before giving up. A terminal with no room for three rows has no
 #: room for the sheet either, and a list shortened to nothing is not a list.
 _LEAST = 3
@@ -3625,36 +3613,10 @@ def named_as(ref: str) -> str:
     return where if name == where else ref
 
 
-def _flowing(started: str) -> list[str]:
-    """Which flow is running, and inside which, for the row that names one.
-
-    A flow may reach for another by name and run it, so the flow a run is in is not always
-    the flow that was started -- and a sheet that named only the one somebody chose would be
-    a sheet that stopped being true the moment a flow called another.
-
-    Args:
-      started: The flow that was chosen, which is what this says with nothing running.
-
-    Returns:
-      One line apiece, the one that was started first and whatever it called under it, each
-      with how long it has been going; and just the one that is set up to run where nothing
-      is running.
-    """
-    now = _hmz().flows.running()
-    if not now:
-        return [escape(started)]
-    return [
-        f"{'  ' * (one.depth - 1)}{'▸ ' if one.depth > 1 else ''}"
-        f"{escape(named_as(one.ref))}"
-        f"   [$text-muted]{time.monotonic() - one.since:.0f}s[/]"
-        for one in now
-    ]
-
-
 def setting(config: BaseModel | None) -> list[str]:
     """What a flow was set up with, one line per setting that is not at its default.
 
-    Read in two places -- `/monitor` and the box a run opens with -- and only the settings
+    Read in two places -- the monitor and the box a run opens with -- and only the settings
     that were changed: a flow with forty of them says nothing by listing the thirty-nine
     nobody touched, and the one that was touched is the thing worth reading.
 
@@ -7471,960 +7433,11 @@ class Epics(Sheet[Doing]):
         self.dismiss(Doing(ran.at, said, tuple(self._told)))
 
 
-#: What the diagram draws one agent's box with, and what it joins two of them by. Light
-#: box-drawing, which is what a terminal has for a box that is a label rather than a frame.
-_BOX = ("┌", "┐", "└", "┘", "─", "│")
-
-#: What says a handover went down the diagram and what says it came back up it, and what
-#: stands between two agents the flow never handed between directly.
-_DOWN, _UP, _NEITHER = "↓", "↑", "┆"
-
-#: How wide one agent's box is drawn, at most, and how narrow it is allowed to get. Wide
-#: enough for what an agent runs beside how long it has been running it, and narrow enough
-#: that the diagram still reads in a terminal somebody has left half the width of.
-_WIDEST = 72
-_NARROWEST = 24
-
-#: What stands in front of the clock on an agent that is not working, so that the two halves
-#: of a box are never read as the same kind of thing: one says how long a turn has been going
-#: and the other how long ago the last one stopped.
-_IDLED = "idle"
-
-#: What an agent one of them started of its own is drawn with: no box of its own, a corner
-#: hanging off the one above it, and a mark that is not the one a flow's agents wear. It is
-#: not an agent of the flow -- nobody chose what it runs, nothing can be said to it, and it
-#: has no transcript to read -- so it is drawn as a thing the agent above it is doing, and a
-#: box would say it was another agent to attach to.
-_UNDER, _LAST_UNDER = "├╴", "└╴"
-_FLEET_WORKING, _FLEET_DONE = "◆", "◇"
-
-#: How many of a fleet are drawn under one agent before the rest are counted rather than
-#: listed. A turn that started forty is a turn nobody wants forty rows about.
-_FLEET_SHOWN = 4
-
-#: The transcript every agent's work appears on, which is what the first row of the diagram
-#: attaches to and what this sheet answers with where that row is taken. Written down once,
-#: here, and read from `hmz.tui.app` rather than said again there: the sheet answers with
-#: what the interface reads, and two names for it are two that could come apart.
+#: The transcript every agent's work appears on, which is what the first node of the monitor
+#: reads and what the log opens on. Written down once, here, and read from `hmz.tui.app` and
+#: `hmz.tui.monitoring` rather than said again there: two names for it are two that could come
+#: apart.
 #:
 #: Nobody's, since it is not an agent's: an agent id is what every other transcript is kept
 #: under, and no agent is called this.
 EVERY = ""
-
-#: What a row of the board is put up under, so that a row about a line and a row about an
-#: agent are told apart by their ids alone: an id is a name somebody chose, and a character
-#: no name has is the one thing no agent can be called by accident.
-_ON_BOARD = "\x00"
-
-#: What the board's own heading is put up under, which is a row nothing lands on. Not one of
-#: the ids a line is put up under either: a heading that read as a line would be a row
-#: something could be pressed on.
-_BOARDED = "\x01"
-
-#: What the row saying nothing has worked yet is put up under, which is a row nothing lands
-#: on either: the diagram is empty until a first turn starts, and one line says more about a
-#: run that has not begun than a blank page does.
-_NOTHING = "\x02"
-
-#: The mark against a line of the board. One mark, one kind of thing: whose a line is is said
-#: in words beside it and in the colour it is drawn, which is what a reader actually reads --
-#: a second glyph would be a second thing to learn for the same fact.
-_ON_IT = "◈"
-
-
-class Drawn(NamedTuple):
-    """One agent of a run, as the diagram on `/monitor` draws it.
-
-    Attributes:
-      who: The agent id, which is what attaching to it names and what the graph counts it
-        under.
-      named: What the flow calls it, or "" for a flow that names none of its agents.
-      runs: What it runs, as the line that says what each agent is says it.
-      working: Whether it has a turn open right now.
-      reading: Whether its transcript is the one on the screen behind this sheet.
-      unread: Whether it has said something since it was last looked at, which is the one
-        thing on a box that says pressing enter on it is worth doing now.
-    """
-
-    who: str
-    named: str = ""
-    runs: str = ""
-    working: bool = False
-    reading: bool = False
-    unread: bool = False
-
-
-class _Said(NamedTuple):
-    """One line inside a box: what it says on the left, and what it says on the right.
-
-    Two halves rather than one line, because they are two kinds of fact read at two speeds:
-    what an agent *is* stands still on the left, and what it is *doing now* moves on the
-    right -- so the right is what a reader watching a run keeps coming back to, and it is
-    kept in one column down the page for them to come back to.
-
-    Attributes:
-      colour: What to draw the left half in.
-      said: The left half, in plain words.
-      tail: The right half, in plain words, or "" for a line that has no right half.
-      tailing: What to draw the right half in.
-    """
-
-    colour: str
-    said: str
-    tail: str = ""
-    tailing: str = "$text-muted"
-
-
-def _marked(*, here: bool) -> str:
-    """The three columns in front of a row, holding the marker where the cursor is.
-
-    Three, which is what every sheet indents by: the marker sits in the indent rather than
-    pushing the row along, so the diagram does not shuffle sideways as the cursor walks it.
-
-    Args:
-      here: Whether the cursor is on this row.
-
-    Returns:
-      The gutter, as markup.
-    """
-    return f" [$primary]{_HERE}[/] " if here else _INDENT
-
-
-def _boxed(said: Sequence[_Said], width: int, *, here: bool = False) -> list[str]:
-    """One agent, drawn as a box the width of the diagram.
-
-    Args:
-      said: The lines to put in it, each as the colour to draw it in and the plain words to
-        draw. Plain, so that what will not fit can be cut before any markup is put round it:
-        a bracket an agent's name happens to hold is a bracket, and an escape of one is
-        characters that are not columns.
-      width: How wide to draw it, borders included.
-      here: Whether the cursor is on this box, which is said in the colour of its sides. The
-        rows of this list are pictures rather than lines of text, and a highlight that
-        recoloured the row would be one the markup inside the picture painted straight over.
-
-    Returns:
-      The box, a line at a time, each exactly as wide as the last.
-    """
-    left, right, under_left, under_right, across, side = _BOX
-    edge = "$primary" if here else "$text-muted"
-    room = width - 4
-    lines = [f"[{edge}]{left}{across * (width - 2)}{right}[/]"]
-    for one in said:
-        # The right half first and whole: it is the shorter of the two and the one that
-        # moves, so the left is what gives where there is not room for both.
-        tail = _fits(one.tail, room)
-        head = _fits(one.said, room - len(tail) - (1 if tail else 0))
-        pad = " " * max(0, room - len(head) - len(tail))
-        lines.append(
-            f"[{edge}]{side}[/] [{one.colour}]{escape(head)}[/]{pad}"
-            + (f"[{one.tailing}]{escape(tail)}[/]" if tail else "")
-            + f" [{edge}]{side}[/]"
-        )
-    lines.append(f"[{edge}]{under_left}{across * (width - 2)}{under_right}[/]")
-    return lines
-
-
-def _fits(said: str, room: int) -> str:
-    """One line of a box, cut to the room there is for it rather than running past its side.
-
-    Args:
-      said: The words, as they are.
-      room: How many columns there are between the two sides of the box.
-
-    Returns:
-      Them, or as much of them as fits with an ellipsis where the rest was, and nothing at
-      all where there is no room for anything -- a box drawn in a terminal nobody could read
-      it in still has two sides that line up.
-    """
-    if room <= 0:
-        return ""
-    return said if len(said) <= room else said[: room - 1] + "…"
-
-
-def _joins(down: int, up: int, *, live: bool = False) -> list[str]:
-    """The arrows between two boxes, saying which way the flow went, how often, and last.
-
-    Args:
-      down: How many times the agent above handed to the one below.
-      up: How many times it came back the other way.
-      live: Whether the handover the flow took most recently went along this arrow, which is
-        drawn lit. With six boxes on the page, where the run just went is the first thing a
-        reader looks for, and a picture that is not moving says it nowhere else.
-
-    Returns:
-      The one line between the two boxes.
-    """
-    ways = _DOT.join(
-        said
-        for said, often in ((f"{_DOWN} {down}", down), (f"{_UP} {up}", up))
-        if often
-    )
-    # A spine down the left, so the boxes read as one run rather than as a stack of cards:
-    # solid where the flow has gone between these two, dotted where it never has.
-    spine = _BOX[5] if ways else _NEITHER
-    return [f"[{'$secondary' if live else '$text-muted'}]{spine}   {ways}[/]"]
-
-
-def diagram(
-    drawn: Sequence[Drawn], shape: Shape, width: int, here: str = ""
-) -> list[list[str]]:
-    """The agents of a run and the handovers between them, as one box apiece.
-
-    The shape of a flow is not written anywhere: a flow is a Python file that may branch any
-    way it likes, so what it did is read off the turns going past. Drawn down the page in the
-    order the flow takes its agents, with the handovers between neighbours as the arrows that
-    join them -- which is the shape of nearly every flow there is, since a flow is written as
-    one agent after another. The rest are said under it rather than drawn as lines crossing
-    the page, there being no way to draw those in a terminal that reads as anything.
-
-    Each box says what its agent is on the left and what it is doing on the right: how long
-    the turn it has open has been open, or how long it has been since it last worked. That is
-    the half a reader comes back to, and the half nothing else on the screen carries -- the
-    lines above the prompt say what an agent is, and the status line says only whose turn it
-    is now.
-
-    Args:
-      drawn: The agents, in the order the flow takes them.
-      shape: The run as a graph, which says who is working, who handed to whom, and how long
-        each of them has been at it.
-      width: How much room there is across.
-      here: The agent whose box the cursor is on, or "" for a cursor that is somewhere else.
-
-    Returns:
-      One block of lines per agent, in the same order: the arrows above it and then its box,
-      so that a list of blocks is the diagram from top to bottom.
-    """
-    across = max(_NARROWEST, min(_WIDEST, width - len(_INDENT) - 5))
-    blocks: list[list[str]] = []
-    for at, one in enumerate(drawn):
-        before = drawn[at - 1].who if at else ""
-        arrows = (
-            []
-            if at == 0
-            else _joins(
-                shape.handovers.get((before, one.who), 0),
-                shape.handovers.get((one.who, before), 0),
-                live=shape.latest in {(before, one.who), (one.who, before)},
-            )
-        )
-        taken = shape.turns.get(one.who, 0)
-        clock = lasting(shape.since.get(one.who, 0.0))
-        tail, tailing = (
-            ("reading", "$primary")
-            if one.reading
-            else ("unread", "$secondary")
-            if one.unread
-            else ("", "$text-muted")
-        )
-        block = (
-            arrows
-            + _boxed(
-                [
-                    _Said(
-                        "$secondary" if one.working else "$foreground",
-                        f"{_WORKING if one.working else _IDLE} "
-                        # The id is left off where the flow's name for the agent is the id:
-                        # `planner · planner` is one word said twice, and said twice
-                        # differently at that, `short` cutting the longer of the two.
-                        + _DOT.join(
-                            part
-                            for part in (
-                                one.named,
-                                "" if one.who == one.named else short(one.who),
-                            )
-                            if part
-                        ),
-                        clock if one.working else f"{_IDLED} {clock}",
-                        "$secondary" if one.working else "$text-muted",
-                    ),
-                    _Said(
-                        "$text-muted",
-                        _DOT.join(
-                            part
-                            for part in (
-                                one.runs,
-                                f"{taken} turn{'' if taken == 1 else 's'}"
-                                if taken
-                                else "",
-                            )
-                            if part
-                        ),
-                        tail,
-                        tailing,
-                    ),
-                ],
-                across,
-                here=one.who == here,
-            )
-            + fleet(shape.under.get(one.who, ()), across)
-        )
-        # The marker goes beside the agent's name rather than against the top of its box: the
-        # name is the line being read, and a marker on a border reads as part of the border.
-        named = len(arrows) + 1
-        blocks.append(
-            [
-                _marked(here=one.who == here and line == named) + said
-                for line, said in enumerate(block)
-            ]
-        )
-    return blocks
-
-
-def fleet(under: Sequence[Under], width: int) -> list[str]:
-    """The agents one agent started of its own, hanging off the bottom of its box.
-
-    Drawn rather than listed elsewhere because that is where they are: a subagent is a thing
-    the agent above it is doing, so it belongs under that agent and nowhere else. And drawn
-    without a box of its own, for the reason it has no transcript: a box is what a flow's own
-    agents wear, and one round a subagent would say it was another agent to attach to.
-
-    Args:
-      under: The fleet, oldest first.
-      width: How wide the boxes are, so these sit under them rather than beside them.
-
-    Returns:
-      One line per subagent, and nothing at all for an agent that has started none. A fleet
-      too long to draw is cut, with a line saying how many were left off: a turn that started
-      forty is a turn nobody wants forty rows about.
-    """
-    if not under:
-        return []
-    shown = list(under[:_FLEET_SHOWN])
-    rest = len(under) - len(shown)
-    room = max(width - 6, 12)
-    lines: list[str] = []
-    for at, one in enumerate(shown):
-        last = at == len(shown) - 1 and not rest
-        mark = _FLEET_WORKING if one.working else _FLEET_DONE
-        colour = "$secondary" if one.working else "$text-muted"
-        lines.append(
-            f"[$text-muted]{'  ' + (_LAST_UNDER if last else _UNDER)}[/]"
-            f"[{colour}]{mark}[/] [$text-muted]{escape(_fits(one.about, room))}[/]"
-        )
-    if rest:
-        lines.append(f"[$text-muted]  {_LAST_UNDER}{_FLEET_DONE} and {rest} more[/]")
-    return lines
-
-
-def elsewhere(drawn: Sequence[Drawn], shape: Shape) -> list[str]:
-    """The handovers the diagram has no arrow for, said rather than drawn.
-
-    Which are the ones between agents the boxes did not put next to each other: a line
-    crossing the page from the first box to the fourth is a line nothing in a terminal draws
-    readably, so it is a row under the diagram instead.
-
-    Args:
-      drawn: The agents, in the order the flow takes them.
-      shape: The run as a graph.
-
-    Returns:
-      One line per handover the boxes have no arrow for, which is nothing at all for the
-      flows that are one agent after another.
-    """
-    order = {one.who: at for at, one in enumerate(drawn)}
-    return [
-        f"{escape(short(sender))} → {escape(short(taker))}{_DOT}×{often}"
-        for (sender, taker), often in sorted(shape.handovers.items())
-        if abs(order.get(sender, -1) - order.get(taker, -1)) != 1
-        or sender not in order
-        or taker not in order
-    ]
-
-
-def _kinds(counted: Sequence[Counted]) -> list[str]:
-    """What a run spent its tokens on, kind by kind, as the rows under the diagram say it.
-
-    Args:
-      counted: One entry per kind, as the monitor reckons them.
-
-    Returns:
-      A row per kind, and a last row saying what a `+` means where anything wears one. The
-      mark rather than a column of its own: it is on the figure it is about, and a legend
-      nobody has to read unless a figure has one.
-    """
-    if not counted:
-        return ["[$text-muted]nothing spent yet[/]"]
-    rows = [
-        f"{escape(one.kind):<26}{thousands(one.tokens):>8}{'' if one.whole else '+'}"
-        for one in counted
-    ]
-    if not all(one.whole for one in counted):
-        rows.append("[$text-muted]+ a floor: not every agent here reports that kind[/]")
-    return rows
-
-
-class Entry(Sheet[tuple[str, str]]):
-    """One line of the board, typed: what it is called, and then what it says.
-
-    Typed rather than picked, because it is words: a line of a board is what somebody wants
-    said, and a list has nothing to offer them. Two questions in one sheet, since a line
-    nobody named is not a line and a name with nothing under it is a line that says nothing.
-    """
-
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        Binding("enter", "onward", "next", priority=True),
-    ]
-
-    def __init__(self, key: str, value: str, board: Board) -> None:
-        """Initializes the writing.
-
-        Args:
-          key: The line being changed, or "" for one being put up now -- which is what makes
-            this ask for a name first.
-          value: What it says now, which is what is offered to change.
-          board: The board it goes on, so a name already taken can be said about here rather
-            than found on the way out.
-        """
-        super().__init__()
-        self._key = key
-        self._value = value
-        self._board = board
-        #: Which of the two is being typed: a line already there is named, so it opens on
-        #: what it says.
-        self._naming = not key
-        self._typed = key if self._naming else value
-        self._said = ""
-
-    def _ask(self) -> None:
-        """Says what a line of the board is, and takes what is typed from here on."""
-        self.query_one("#asked", Label).update(
-            "A line of the board" if self._naming else f"{escape(self._key)}"
-        )
-        self.query_one("#about", Label).update(
-            "What you and the flow both write on. Neither of you waits on the other."
-        )
-        self._fill()
-        self.query_one("#choices", OptionList).focus()
-
-    def _fill(self) -> None:
-        """Puts up what has been typed, which is the whole of what this sheet shows."""
-        listing = self.query_one("#choices", OptionList)
-        asked = "what to call it" if self._naming else "what it says"
-        listing.set_options(
-            [
-                Option(
-                    f"{_INDENT}[$text-muted]{asked}[/]  "
-                    f"[$secondary]{escape(self._typed)}[/][reverse] [/reverse]",
-                    id="=typed",
-                )
-            ]
-        )
-        listing.highlighted = 0
-        self._drawn = 0
-        self.query_one("#tuning", Label).update(
-            f"[$text-muted]{self._said}[/]" if self._said else ""
-        )
-        self._footed(
-            Key("type", "write"),
-            Key("backspace", "rub out"),
-            Key("enter", "on to what it says" if self._naming else "write it down"),
-            Key("esc", "back"),
-        )
-
-    def on_key(self, event: events.Key) -> None:
-        """Takes every printable key as what is being typed, which is what this sheet is.
-
-        Not a search that has to be asked for, as it is on a sheet of choices: there is
-        nothing here to choose between, so the letters have nowhere else to go.
-
-        Args:
-          event: The key.
-        """
-        if event.key == "backspace":
-            self._typed = self._typed[:-1]
-        elif event.is_printable and event.character:
-            self._typed += event.character
-        else:
-            return
-        event.prevent_default()
-        event.stop()
-        self._said = ""
-        self._fill()
-
-    def action_onward(self) -> None:
-        """Takes the name and asks what it says, or writes the line down."""
-        if not self._naming:
-            self.dismiss((self._key, self._typed))
-            return
-        named = self._typed.strip()
-        if not named:
-            self._said = "a line of the board is named"
-            self._fill()
-            return
-        held = self._board.held(named)
-        if held is not None and held.whose == FLOW:
-            self._said = f"{escape(named)} is the flow's to change, not yours"
-            self._fill()
-            return
-        self._key, self._naming = named, False
-        self._typed = held.value if held is not None else self._value
-        self._said = ""
-        self.query_one("#asked", Label).update(escape(self._key))
-        self._fill()
-
-    @on(OptionList.OptionSelected)
-    def _took(self, _event: OptionList.OptionSelected) -> None:
-        """A click on the one row means what enter means, there being one thing to do."""
-        self.action_onward()
-
-
-class _Row(NamedTuple):
-    """One row of `/monitor`: what it is about, what it draws, and whether it is landed on.
-
-    A row here is a picture rather than a line of text -- a box with the arrows above it, a
-    line of the board -- so it is built as markup and kept as markup: the markup is what is
-    compared against the last redraw, and what is put back in place of it where they differ.
-
-    Attributes:
-      who: The agent this is about, or the board line, or one of the ids nothing lands on.
-      said: The row, as markup.
-      landing: Whether the cursor stops on it. A heading is not something to press enter on.
-    """
-
-    who: str
-    said: str
-    landing: bool = True
-
-
-class Monitoring(Sheet[str]):
-    """The run, drawn: a box per agent that has worked, and what each of them is doing.
-
-    The diagram is the sheet rather than a header on one. What somebody opens this for is the
-    shape of the run and where it has got to -- which agent is thinking, how long it has been
-    thinking, which way the work went last -- and all of that is in the picture. So the
-    picture takes the height, and what is written under it is only what a picture cannot say:
-    the flows running, what this one was set up with, the handovers no arrow could be drawn
-    for, and what has been spent.
-
-    Which is where the column that used to sit beside the transcript went. What a flow is
-    doing is worth a look now and then and not worth a fifth of the screen the whole time:
-    the transcript is what is being read, and the column was taking width off it to say
-    something that mostly had not changed since the last glance.
-
-    It is also where an agent is picked out to be read. tab steps between the ones working,
-    which is what somebody wants while several are thinking; this is the whole flow drawn at
-    once, so it is where the one that has stopped is reached. Enter or a click on a box
-    answers with that agent, and the first row is the transcript every agent's work appears
-    on, which is the way back to watching the flow.
-
-    And it is where the board is, for a flow that talks to the person: the lines they and the
-    flow both write on, under the diagram, changed here and read by the flow whenever it
-    likes. It belongs beside how far through the run is rather than on a sheet of its own --
-    a board somebody has to go and open is a board nobody reads.
-
-    Redrawn while it is open, since what it is about moves without anybody touching it.
-    """
-
-    #: The list here is the diagram, so it takes the terminal rather than the fourteen rows a
-    #: list of choices is held to: a six-agent run cut off at the fourth is a picture of the
-    #: run with the end of it missing.
-    TALLEST: ClassVar[int] = _TALLEST
-
-    LETTERS: ClassVar = frozenset({"adding", "drop"})
-
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        Binding("a", "adding", "add a line", priority=True),
-        Binding("d", "drop", "take a line away", priority=True),
-    ]
-
-    def __init__(
-        self,
-        flow: str,
-        named: tuple[str, ...],
-        models: list[Runs],
-        monitor: Monitor,
-        config: BaseModel | None = None,
-        drawn: Callable[[], Sequence[Drawn]] = tuple,
-        reading: str = EVERY,
-        board: Callable[[], Board | None] = lambda: None,
-    ) -> None:
-        """Watches one run.
-
-        Args:
-          flow: The flow being run.
-          named: What that flow calls each agent it drives, "" apiece where it names none.
-          models: What each of its agents runs, and where its turns land.
-          monitor: The run itself, read again each time this is redrawn.
-          config: What the flow was set up with, for a flow that takes any setting up.
-          drawn: Asked, each time this is redrawn, for the agents there are to read, in the
-            order the flow takes them. Asked rather than given, because the answer moves
-            while the sheet is open: an agent appears as its first turn starts, which is what
-            makes this a picture of the run growing.
-          reading: Which transcript is on the screen behind this, so the diagram can say so.
-          board: Asked for what the flow and whoever is at the prompt both write on, or for
-            None on a run whose flow does not talk to the person. Asked rather than given, as
-            the boxes are: a run may start while this is open. It is here rather than on a
-            sheet of its own because it is about the run -- what there is to do next belongs
-            beside how far through the run is, and a board somebody has to go and open is a
-            board nobody reads.
-        """
-        super().__init__()
-        self._flow = flow
-        self._named = named
-        self._models = models
-        self._monitor = monitor
-        self._config = config
-        #: Asked for the boxes each time this is redrawn. Not `_drawn`, which every sheet
-        #: uses for the row the marker is on.
-        self._boxing = drawn
-        self._boxes: list[Drawn] = list(drawn())
-        self._reading = reading
-        self._boarding = board
-        #: What is worth saying under the list, which is where this sheet reports itself.
-        self._said = ""
-        #: Which row the cursor is on, by agent: the rows are put up again twice a second,
-        #: and a row number would move under it as the flow opens and drops agents.
-        self._was = reading
-        #: The rows as they were last drawn, by id and as markup. A clock in a box moves
-        #: every second, so something changes on nearly every redraw -- and a list cleared
-        #: and rebuilt that often is one that loses the click somebody is making on it and
-        #: jumps back to the top under anybody scrolling. So the rows that changed are put
-        #: back where they were, and the list is only built again when the run grows a box.
-        self._ids: list[str] = []
-        self._shown: list[str] = []
-
-    def _ask(self) -> None:
-        """Says what this is, draws the run, and keeps drawing it."""
-        self.query_one("#asked", Label).update("Monitor")
-        self.query_one("#about", Label).update(
-            "The run as it is going: a box per agent that has worked, marked as it works, "
-            "and whatever it started of its own hanging under it."
-        )
-        self._fill()
-        self.query_one("#choices", OptionList).focus()
-        self.set_interval(_LIVE, self._fill)
-
-    def _fill(self) -> None:
-        """Draws the run as it stands, keeping the cursor where it was.
-
-        Drawn again rather than adjusted, because everything in it moves: an agent starts a
-        turn, a handover happens, a clock ticks. The cursor is held by agent rather than by
-        row so that it stays on the same box while that happens.
-        """
-        listing = self.query_one("#choices", OptionList)
-        at = listing.highlighted
-        if at is not None and 0 <= at < listing.option_count:
-            self._was = str(listing.get_option_at_index(at).id or "")
-        # Asked again rather than held: an agent takes its first turn while this is open, and
-        # a list settled when the sheet opened would be a run that stopped growing at a glance.
-        self._boxes = list(self._boxing())
-        shape = self._monitor.shape()
-        rows = [self._every(shape), *self._agents(shape), *self._lines()]
-        ids = [one.who for one in rows]
-        said = [one.said for one in rows]
-        if ids != self._ids:
-            self._ids, self._shown = ids, said
-            listing.clear_options()
-            listing.add_options(
-                [Option(one.said, id=one.who, disabled=not one.landing) for one in rows]
-            )
-            listing.highlighted = next(
-                (one for one, who in enumerate(ids) if who == self._was), 0
-            )
-        elif said != self._shown:
-            # The same rows saying something else, which is what a clock ticking comes to.
-            # Put back one at a time so that the list itself never moves: a picture somebody
-            # is watching must not scroll out from under them twice a second.
-            for one, (was, now) in enumerate(zip(self._shown, said, strict=True)):
-                if was != now:
-                    listing.replace_option_prompt_at_index(one, now)
-            self._shown = said
-        # Said every time either way: what the run has come to moves whether or not the shape
-        # of it does, and a line of text redrawn under the list is nothing to click on.
-        self._says(shape)
-        # And fitted every time: what is under the diagram grows without the diagram growing
-        # -- a handover no arrow could be drawn for, a model nothing had been spent on yet --
-        # and a list left at its old height would push the keys off the bottom of the screen.
-        self.shortens()
-
-    def _every(self, shape: Shape) -> _Row:
-        """The row above the diagram: the run in one line, and the way back to all of it.
-
-        Args:
-          shape: The run as a graph, taken at the same moment the boxes were.
-
-        Returns:
-          The transcript every agent's work appears on, with how far the run has got beside
-          it -- how many of the boxes below are working, how many turns they have taken
-          between them, and how long it has all been going.
-        """
-        working = sum(1 for one in self._boxes if one.working)
-        over = (self._monitor.until or time.monotonic()) - self._monitor.began
-        turns = sum(shape.turns.values())
-        return _Row(
-            EVERY,
-            f"{_marked(here=self._was == EVERY)}"
-            f"[{'$secondary' if working else '$text-muted'}]▣[/] every agent"
-            f"{_DOT}[$text-muted]{working} of {len(self._boxes)} working"
-            f"{_DOT}{turns} turn{'' if turns == 1 else 's'}"
-            f"{_DOT}{lasting(over)}[/]"
-            + (f"{_DOT}[$primary]reading[/]" if self._reading == EVERY else ""),
-        )
-
-    def _agents(self, shape: Shape) -> list[_Row]:
-        """The diagram itself, one row per agent that has worked.
-
-        Args:
-          shape: The run as a graph, taken at the same moment the boxes were.
-
-        Returns:
-          A row apiece, each holding the arrows above that agent's box, the box, and whatever
-          it started of its own hanging under it -- and one row saying so where none has
-          worked yet, since a sheet about a run that has not begun is a blank page otherwise.
-        """
-        if not self._boxes:
-            return [
-                _Row(
-                    _NOTHING,
-                    f"{_INDENT}  [$text-muted]no agent has taken a turn yet; a box appears "
-                    f"as each one does[/]",
-                    landing=False,
-                )
-            ]
-        return [
-            _Row(one.who, "\n".join(block))
-            for one, block in zip(
-                self._boxes,
-                diagram(self._boxes, shape, self.size.width, self._was),
-                strict=True,
-            )
-        ]
-
-    def _says(self, shape: Shape) -> None:
-        """Puts what the diagram cannot say under it, which is not much, and that is the point.
-
-        Which flows are running, what this one was set up with, the handovers no arrow could
-        be drawn for, and what has been spent. Who is working, how long each has been at it,
-        what each of them runs and how many turns it has taken are all in the boxes, and
-        saying them again here would be two places to keep in step and one more thing between
-        the diagram and the eye. What the agents are is said only while none of them has
-        worked, there being no boxes yet to read it off.
-
-        Args:
-          shape: The run as a graph, taken at the same moment the boxes were.
-        """
-        spending = self._monitor.spending()
-        counted = self._monitor.reckoning()
-        # Grouped as Claude Code groups its own: what is set up, what has happened that the
-        # picture has no room for, what it has cost, a blank line between one and the next.
-        groups: list[list[tuple[str, list[str]]]] = [
-            [
-                ("Flow", _flowing(self._flow)),
-                (
-                    "Agents",
-                    (reads(self._named, self._models) or ["none installed"])
-                    if not self._boxes
-                    else [],
-                ),
-                # Only what was changed: a flow of forty settings says nothing by listing
-                # the ones nobody touched, and this is read to see what this run is.
-                ("Set", [escape(one) for one in setting(self._config)]),
-            ],
-            [
-                # Only the ones the boxes have no arrow for: the rest are drawn above.
-                ("Also", elsewhere(self._boxes, shape)),
-            ],
-            [
-                (
-                    "Tokens",
-                    [
-                        f"{escape(spend.model):<26}{thousands(spend.tokens):>8}"
-                        # Blank rather than nought for a model nobody prices: a run whose
-                        # bill is not known has still cost something, and `$0.00` would say
-                        # it had not.
-                        f"{money(spend.dollars) if spend.dollars is not None else '':>10}"
-                        # Output alone: the input of a turn is the conversation so far, sent
-                        # again at every request, so a rate counting it says how long the
-                        # transcript has got rather than how fast the model is writing.
-                        f"   [$text-muted]{spend.rate:.0f} out/s[/]"
-                        for spend in spending
-                    ]
-                    or ["[$text-muted]nothing spent yet[/]"],
-                ),
-                # Under the models rather than beside them, because it is a different
-                # question: what a model cost is per model, and what a run spent its tokens
-                # *on* is the run's, a cached read being the same thing whichever model made
-                # it. A `+` is a figure some agent of this run does not report and which is
-                # therefore a floor -- one drawn as though it were the total would be a claim
-                # about the run that nothing here can make.
-                ("Kinds", _kinds(counted)),
-            ],
-        ]
-        lines: list[str] = []
-        for group in groups:
-            written = False
-            for field, values in group:
-                for at, value in enumerate(values):
-                    # The field is named against the first of its values and the rest are
-                    # left to line up under it, which is how a list reads as one field.
-                    # No indent of its own: what is under the diagram is drawn in the block
-                    # the sheet already indents, and a second one would step it in past the
-                    # boxes it is about.
-                    head = f"{field}:" if at == 0 else ""
-                    lines.append(f"[$text-muted]{head:<{_FIELD}}[/]{value}")
-                    written = True
-            if written:  # a group with nothing in it is not a blank line to read past
-                lines.append("")
-        if self._said:
-            lines.append(f"[$text-muted]{self._said}[/]")
-        self.query_one("#tuning", Label).update("\n".join(lines))
-        if self._boarding() is None:
-            self._footed(Key("↑↓", "move"), Key("enter", "read"), Key("esc", "close"))
-        else:
-            self._footed(
-                Key("↑↓", "move"),
-                Key("enter", "read or change"),
-                Key("a", "add"),
-                Key("d", "twice takes one away"),
-                Key("esc", "close"),
-            )
-
-    def _lines(self) -> list[_Row]:
-        """The board, as the rows under the diagram.
-
-        Returns:
-          A heading and one row per line, or nothing at all for a run whose flow does not
-          talk to the person -- there being no board on one nobody can write to.
-        """
-        board = self._boarding()
-        if board is None:
-            return []
-        held = board.items()
-        rows = [
-            # A row of air between the diagram and the board: they are two things about the
-            # run rather than one list, and a heading pressed against a box reads as part of
-            # the diagram.
-            _Row(f"{_BOARDED}{_NOTHING}", "", landing=False),
-            _Row(
-                _BOARDED,
-                f"{_INDENT}[$primary]Board[/]"
-                f"{_DOT}[$text-muted]what you and the flow both write on[/]",
-                landing=False,
-            ),
-        ]
-        room = max(
-            _NARROWEST, min(_WIDEST, self.size.width - len(_INDENT) - 5) - _LABEL - 6
-        )
-        # Cut and padded before anything is put round it, for the reason a box's lines are:
-        # a bracket a name happens to hold is a bracket, and an escape of one is characters
-        # that are not columns.
-        rows += [
-            _Row(
-                f"{_ON_BOARD}{one.key}",
-                f"{_marked(here=self._was == f'{_ON_BOARD}{one.key}')}"
-                f"[{'$text-muted' if one.whose == FLOW else '$secondary'}]"
-                f"{_ON_IT}[/] {escape(named)}{' ' * max(0, _LABEL - len(named))}"
-                f"[$text-muted]{escape(_fits(one.value or one.about, room))}[/]"
-                + (
-                    f"{_DOT}[$text-muted]{one.whose}'s[/]"
-                    if one.whose != ANYONE
-                    else ""
-                ),
-            )
-            for one in held
-            if (named := _fits(one.key, _LABEL))
-        ]
-        # And the way to put one up, set below the lines as it is below the choices of a
-        # menu: a board with nothing on it used to say which key filled it, in a line that
-        # went away the moment it was filled -- a key taught once and then withdrawn.
-        rows.append(
-            _Row(_ADD, self._apart(_ON_APART[_ADD], "a line", here=self._was == _ADD))
-        )
-        return rows
-
-    def action_adding(self) -> None:
-        """Puts a line on the board, which is what somebody with more to say does."""
-        if self._boarding() is None:
-            self._said = "this run keeps no board"
-            self._fill()
-            return
-        self._writes("")
-
-    def action_drop(self) -> None:
-        """Takes the line under the cursor off the board, once d has been pressed twice.
-
-        The one taking-away still asked for on a key, because it is the one that is not a
-        walk into what the thing is: enter on a line of the board opens what that line says,
-        which is words being typed rather than a menu with room for a row about the line. So
-        the press stays, and it stays asked for twice -- it lands the moment it is pressed,
-        with no save to change one's mind before and a flow that may read the board on its
-        very next line.
-        """
-        named = self.under()
-        board = self._boarding()
-        if board is None:
-            return  # no board here, so the key is not offered and says nothing
-        if not named.startswith(_ON_BOARD):
-            # A box, or the row that puts a line up. Said rather than done silently: the row
-            # of keys is still offering `d`, and a key that did nothing is one pressed again.
-            self._said = "only a line of the board is taken off it"
-            self._fill()
-            return
-        key = named.removeprefix(_ON_BOARD)
-        held = board.held(key)
-        if held is None:
-            return
-        if held.whose == FLOW:
-            self._said = f"{escape(key)} is the flow's to change, not yours"
-            self._fill()
-            return
-        if not self._armed(named):
-            self._said = f"press d again to take {escape(key)} off the board"
-            self._fill()
-            return
-        board.drop(key, by=USER)
-        self._said = f"{escape(key)} is off the board"
-        self._ids = []  # so the row goes at once rather than at the next redraw
-        self._fill()
-
-    @on(OptionList.OptionSelected)
-    def _took(self, event: OptionList.OptionSelected) -> None:
-        """Reads an agent, or changes a line of the board: whichever row this was."""
-        named = str(event.option.id or EVERY)
-        if named == _ADD:
-            self._writes("")
-            return
-        if not named.startswith(_ON_BOARD):
-            self.dismiss(named)
-            return
-        key = named.removeprefix(_ON_BOARD)
-        board = self._boarding()
-        held = board.held(key) if board is not None else None
-        if held is not None and held.whose == FLOW:
-            self._said = f"{escape(key)} is the flow's to change, not yours"
-            self._fill()
-            return
-        self._writes(key)
-
-    @work
-    async def _writes(self, key: str) -> None:
-        """Asks what a line is to say, and writes it down.
-
-        Args:
-          key: Which line, or "" for one being put up now.
-        """
-        board = self._boarding()
-        if board is None:
-            return
-        showing = cast(
-            "App[None]",
-            self.app,  # pyright: ignore[reportUnknownMemberType]
-        )
-        held = board.held(key) if key else None
-        said = await showing.push_screen_wait(
-            Entry(key, held.value if held is not None else "", board)
-        )
-        if said is None:
-            return  # walked out of it, which changes nothing
-        named, value = said
-        try:
-            board.put(named, value, by=USER)
-        except (PermissionError, ValueError) as why:
-            self._said = bad(escape(str(why)))
-        else:
-            self._said = f"{escape(named)} is on the board"
-        self._ids = []  # the rows have moved, so they are put up again
-        self._fill()

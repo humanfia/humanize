@@ -310,16 +310,32 @@ class Monitor:
     until: float | None = None
     #: The agent whose turn ended last, which is who the next one was handed from.
     _last: str | None = None
+    #: The same graph kept a session at a time rather than an agent at a time, which is what
+    #: the monitor draws with a node per session: who worked, who handed to whom and how long
+    #: each has been at it, with `<role>/<n>` where the agent was. Made when the first turn
+    #: that names its session starts, and holding nothing but the graph -- what was spent is
+    #: the run's, and counted once, above.
+    _sessions: Monitor | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
-    def begins(self, agent: str, model: str, now: float | None = None) -> None:
+    def begins(
+        self,
+        agent: str,
+        model: str,
+        now: float | None = None,
+        session: str | None = None,
+    ) -> None:
         """Notes that an agent has started a turn.
 
         Args:
           agent: Whose turn it is.
           model: The model that agent runs at.
           now: When, defaulting to this moment. Given only so a test can say.
+          session: Which of its sessions the turn is in, as `<role>/<n>`, or None where
+            nobody said -- which is a turn counted against the agent alone.
         """
+        if session is not None:
+            self._by_session().begins(session, model, now)
         with self._lock:
             self.models[agent] = model
             # The clock starts on the first turn an agent has open and not on the second: an
@@ -333,13 +349,18 @@ class Monitor:
                 self.handovers[self._last, agent] += 1
                 self.handed = (self._last, agent)
 
-    def ends(self, agent: str, now: float | None = None) -> None:
+    def ends(
+        self, agent: str, now: float | None = None, session: str | None = None
+    ) -> None:
         """Notes that an agent's turn is over, and that it is the one to hand on from.
 
         Args:
           agent: Whose turn ended.
           now: When, defaulting to this moment. Given only so a test can say.
+          session: Which of its sessions the turn was in, as `begins` was told it.
         """
+        if session is not None:
+            self._by_session().ends(session, now)
         with self._lock:
             if self.working[agent] <= 1:
                 del self.working[agent]
@@ -349,18 +370,25 @@ class Monitor:
                 self.working[agent] -= 1
             self._last = agent
 
-    def started(self, agent: str, whose: str, about: str) -> None:
+    def started(
+        self, agent: str, whose: str, about: str, session: str | None = None
+    ) -> None:
         """Notes that an agent has started an agent of its own.
 
         Args:
           agent: Whose fleet it is.
           whose: The backend's own id for the one that started.
           about: What it was asked to do.
+          session: Which of its sessions started it, so it hangs under that one too.
         """
+        if session is not None:
+            self._by_session().started(session, whose, about)
         with self._lock:
             self.fleets.setdefault(agent, {})[whose] = Under(whose, about)
 
-    def finished(self, agent: str, whose: str, about: str = "") -> None:
+    def finished(
+        self, agent: str, whose: str, about: str = "", session: str | None = None
+    ) -> None:
         """Notes that one of those has come back.
 
         Kept rather than forgotten: a fleet that vanished as it landed would be a turn nobody
@@ -372,7 +400,10 @@ class Monitor:
           agent: Whose fleet it is.
           whose: The backend's own id for the one that ended.
           about: What it was asked to do, for one nothing saw start.
+          session: Which of its sessions it was started from.
         """
+        if session is not None:
+            self._by_session().finished(session, whose, about)
         with self._lock:
             held = self.fleets.setdefault(agent, {})
             was = held.get(whose)
@@ -385,6 +416,21 @@ class Monitor:
         with self._lock:
             self.until = time.monotonic()
             self.figured = None  # so the last rate shown is the one it ended on
+            sessions = self._sessions
+        if sessions is not None:
+            sessions.stops()
+
+    def _by_session(self) -> Monitor:
+        """The graph kept a session at a time, made the first time a turn names a session.
+
+        Returns:
+          It, begun when this run began, so a session that has not worked yet counts its
+          wait from the same moment an agent's does.
+        """
+        with self._lock:
+            if self._sessions is None:
+                self._sessions = Monitor(began=self.began)
+            return self._sessions
 
     def spend(
         self,
@@ -711,17 +757,24 @@ class Monitor:
         with self._lock:
             return sorted(self.working)
 
-    def shape(self) -> Shape:
+    def shape(self, *, sessions: bool = False) -> Shape:
         """The run as a graph: who has worked, who is working, who handed to whom.
 
         Taken under the lock and copied out of it, so that whatever draws it is drawing one
         moment of the run rather than three moments of three counters.
 
+        Args:
+          sessions: Whether a node is a session, keyed `<role>/<n>`, rather than an agent.
+
         Returns:
-          The graph, which is what the diagram on `/monitor` is drawn from.
+          The graph, which is what the monitor is drawn from.
         """
         # A run that is over is read at its own end, as the rate is: a diagram whose clocks
         # went on counting after the last turn would say the flow was still doing something.
+        if sessions:
+            with self._lock:
+                held = self._sessions
+            return Shape({}, frozenset(), {}) if held is None else held.shape()
         moment = time.monotonic() if self.until is None else self.until
         with self._lock:
             return Shape(

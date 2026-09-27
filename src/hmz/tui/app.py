@@ -2,8 +2,8 @@
 
 Laid out the way Claude Code is, and no wider: a transcript the width of the terminal, an
 editor under it between two rules, and a status line under that. Nothing sits beside them --
-how the run is going is on `/monitor`, and `/flow` both chooses the loop and, inside the one
-it opens, sets what each of its agents runs.
+how the run is going is the monitor, the screen `←` goes up to, and `/flow` both chooses the
+loop and, inside the one it opens, sets what each of its agents runs.
 
 The transcript is a tab per agent, and one more where all of them appear together. A flow
 drives several agents and each of them holds as many conversations as it likes; every agent's
@@ -40,7 +40,7 @@ import threading
 import time
 import traceback
 import weakref
-from collections import deque
+from collections import Counter, deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, Protocol, cast
@@ -70,6 +70,7 @@ from .complete import Command, hinted, offered
 from .discover import installable, installed
 from .history import History
 from .monitor import Monitor, short, thousands
+from .monitoring import OUTWORLDER, Drawn, Monitoring
 from .pick import (
     DETACHES,
     RESUMES,
@@ -78,14 +79,12 @@ from .pick import (
     Adjusts,
     Chosen,
     Declared,
-    Drawn,
     Epics,
     Fallbacks,
     Flows,
     Flowverses,
     Held,
     Leaves,
-    Monitoring,
     Providers,
     Reports,
     Runs,
@@ -623,11 +622,10 @@ class Humanize(App[None]):
         # `/exit` asks. It is not taken away -- a key somebody's fingers know is a key they
         # will press -- but it means what `/exit` means.
         Binding("ctrl+q", "exit", "exit", show=False, priority=True),
-        # How the run is going, which is where the flow is drawn. Not what stops a flow: a
-        # key pressed to dismiss whatever is on the screen must not be the key that ends a
-        # day's work, and esc is pressed to dismiss things everywhere else in this
-        # interface. The editor takes it first while it is offering something.
-        Binding("escape", "monitor", "monitor", show=False),
+        # Up to the monitor, the screen the log is read from, as Claude Code goes up a level
+        # with the same key. Only off an empty prompt, which `check_action` says: anywhere
+        # else it is the editor's, moving back along what is being typed.
+        Binding("left", "monitor", "monitor", show=False, priority=True),
         # Round the transcripts: the one every agent is on, then whichever are working.
         # Priority, since tab and shift+tab are the screen's own way of moving the focus
         # about, and there is nowhere here for the focus to go.
@@ -656,6 +654,14 @@ class Humanize(App[None]):
         Returns:
           Whether to run it.
         """
+        if action == "monitor":
+            # From the log alone, and only with nothing typed or offered: the monitor is up
+            # already over anything else, and a sheet has its own use for the arrows.
+            return (
+                len(self.screen_stack) == 1
+                and not self.query_one(Editor).text
+                and not self.query_one("#offers", OptionList).has_class("offering")
+            )
         # Every other one of ours is either the editor's, which a sheet has taken the focus
         # from, or means the same thing wherever it is pressed.
         if action not in ("attach_next", "attach_previous"):
@@ -764,7 +770,7 @@ class Humanize(App[None]):
         is not what ctrl+c means anywhere else and a first press that left would be a run
         somebody ended while reaching to clear a line.
         """
-        editor = self.query_one(Editor)
+        editor = self._prompt()
         if editor.text:
             editor.text = ""
             self._presses = 0
@@ -787,6 +793,16 @@ class Humanize(App[None]):
         else:
             self.show("[dim]— press ctrl+c again to leave —[/dim]")
         self._draw()
+
+    def _prompt(self) -> Editor:
+        """The prompt on the screen: the monitor's while it is up, the log's otherwise.
+
+        Returns:
+          The editor being typed at. The log's where a sheet is up over either, as it was
+          before the sheet opened.
+        """
+        held = self.screen.query(Editor)
+        return held.first() if held else self.query_one(Editor)
 
     def _interrupts(self) -> None:
         """The first two presses at a flow that is running: say so, then stop it."""
@@ -996,6 +1012,17 @@ class Humanize(App[None]):
         #: into: one written to a conversation between turns is answered on its own, outside
         #: the flow. Weakly held, for the reason the transcript is.
         self._working: weakref.WeakSet[SessionBase] = weakref.WeakSet()
+        #: The key each session of the run is drawn and read under, `<role>/<n>`, and how
+        #: many each role has opened. Weakly held, for the reason the conversations are; the
+        #: count is what keeps a number once its session has gone.
+        self._sessions_seen: weakref.WeakKeyDictionary[SessionBase, str] = (
+            weakref.WeakKeyDictionary()
+        )
+        self._sessions_opened: Counter[str] = Counter()
+        self._numbering = threading.Lock()
+        #: Whether the monitor draws a node per session rather than per agent, as `ctrl+t`
+        #: last left it.
+        self._by_session = False
         #: Said while no turn was open, for whichever turn starts next to take. Written from
         #: the event loop and drained from whichever thread a flow runs on, so it is held
         #: under a lock: `a running flow never drops a line` is only true if nothing races.
@@ -1056,9 +1083,10 @@ class Humanize(App[None]):
     def compose(self) -> ComposeResult:
         """The transcript, the offers, the editor, the status. The width is the transcript's.
 
-        Nothing sits beside it. What the flow is doing is on `/monitor`, which is opened when
-        it is wanted: a column saying so the whole time costs a fifth of every line of every
-        transcript, to say something that has usually not changed since it was last looked at.
+        Nothing sits beside it. What the flow is doing is on the monitor, which is gone up to
+        when it is wanted: a column saying so the whole time costs a fifth of every line of
+        every transcript, to say something that has usually not changed since it was last
+        looked at.
         """
         yield Transcript(id="transcript")
         yield Choices(id="offers")
@@ -1373,6 +1401,11 @@ class Humanize(App[None]):
         """
         body = text if style == "" else f"[{style}]{escape(text)}[/{style}]"
         self._into(None, body)
+        # And under the graph, where the monitor is what is on the screen: a command typed
+        # there answers there, rather than on a log nobody is looking at.
+        for up in self.screen_stack:
+            if isinstance(up, Monitoring):
+                up.says(body)
 
     def _into(self, whose: str | None, content: object, *, shrink: bool = True) -> None:
         """Keeps something on the transcripts it belongs on, and draws it if one is read.
@@ -1538,6 +1571,10 @@ class Humanize(App[None]):
           stepped: Whether somebody asked for this, rather than what was being read having
             gone with the flow that held it.
         """
+        if "/" in whose or whose.startswith(OUTWORLDER):
+            # A session, or an outworlder: read on the log of the role it is of, and on the
+            # one every agent is on for the person, until each is a log of its own.
+            whose = _EVERY if whose.startswith(OUTWORLDER) else whose.partition("/")[0]
         if whose == self._attached:
             return  # already the one on the screen, so nothing has happened
         self._attached = whose
@@ -1612,8 +1649,8 @@ class Humanize(App[None]):
 
         The ones working rather than every agent the flow drives: with ten agents going,
         what somebody is stepping between is the ones thinking. Every agent there is can
-        still be read, from the diagram on `/monitor`, which is where an agent that has
-        stopped is picked out by name rather than stepped past.
+        still be read, from the monitor, which is where an agent that has stopped is picked
+        out by name rather than stepped past.
 
         Returns:
           The transcripts to step round, the one they are all on first -- so that there is
@@ -1637,13 +1674,20 @@ class Humanize(App[None]):
 
     @on(TextArea.Changed)
     @on(TextArea.SelectionChanged)
-    def _offer(self) -> None:
+    def _offer(self, event: TextArea.Changed | TextArea.SelectionChanged) -> None:
         """Offers whatever the line being typed could be finished with.
 
         Reconsidered when the cursor moves as well as when the text does: an offer made at
         the end of a line does not still stand once the cursor is back in the middle of it.
+        Over whichever prompt it was typed at -- the log's or the monitor's, each of which
+        has its offers above it.
+
+        Args:
+          event: What changed, which says which prompt it was.
         """
-        editor = self.query_one(Editor)
+        editor = event.text_area
+        if not isinstance(editor, Editor):
+            return
         typed = editor.text
         # At the end of what is being typed, and being typed rather than walked to.
         at_end = editor.cursor_location == editor.document.end and not editor.walking
@@ -1656,7 +1700,7 @@ class Humanize(App[None]):
         # since what it takes after its name is written there and is what is wanted just
         # then. Shown and not offered -- `offering` is what says a key is the list's.
         hint = hinted(typed, _COMMANDS) if at_end and not offers else ""
-        listing = self.query_one("#offers", OptionList)
+        listing = editor.screen.query_one("#offers", OptionList)
         listing.clear_options()
         listing.set_class(bool(offers), "offering")
         listing.set_class(bool(hint), "hinting")
@@ -1954,7 +1998,8 @@ class Humanize(App[None]):
             keys.append("tab agent")
         keys.append("/ commands")
         keys.append("shift+enter newline")
-        keys.append("esc monitor")
+        if not self.query_one(Editor).text:
+            keys.append("← monitor")
         if self.query_one(Editor).text:
             keys.append("ctrl+c clear")
         elif self._counting():
@@ -2022,30 +2067,66 @@ class Humanize(App[None]):
             return True
         return False
 
-    @work
-    async def action_monitor(self) -> None:
-        """Opens the run, drawn, which is what esc is.
+    def action_monitor(self) -> None:
+        """Goes up to the monitor, the run drawn, which is what `←` off an empty prompt is.
 
-        Readable while a flow runs, unlike the two that choose something: it changes nothing
-        about the run, so there is nothing for it to conflict with. The one thing it answers
-        with is which transcript to read, the diagram being where an agent is picked out by
-        name -- working or not, which is what tab is held to.
+        Never refused while a flow runs: it changes nothing about the run, so there is nothing
+        for it to conflict with. It answers with the view to read -- a node picked out by
+        name, working or not, which is what tab is held to -- or with nothing for `→`, which
+        comes back to the one that was being read.
         """
-        reading = await self.push_screen_wait(
+        if any(isinstance(up, Monitoring) for up in self.screen_stack):
+            return  # up already, under whatever is over it
+        self.push_screen(
             Monitoring(
-                self._flow_named,
-                self._named_by,
-                self._in_order(),
-                self._monitor,
-                self._params,
+                monitor=lambda: self._monitor,
                 drawn=self._boxes,
-                reading=self._attached,
+                setup=lambda: (
+                    self._flow_named,
+                    self._named_by,
+                    self._in_order(),
+                    self._params,
+                ),
+                reading=lambda: self._attached,
                 board=self._board,
+                outworlders=self._outworlders,
+                sessions=self._by_session,
+                turned=self._turns_monitor,
+            ),
+            self._back_from_monitor,
+        )
+
+    def _turns_monitor(self, sessions: bool) -> None:  # noqa: FBT001 -- what it was turned to
+        """Remembers whether the monitor draws a node per session, for the next time it opens.
+
+        Args:
+          sessions: Whether it does.
+        """
+        self._by_session = sessions
+
+    def _back_from_monitor(self, key: str | None) -> None:
+        """Reads what was picked on the monitor, or the log that was being read.
+
+        Args:
+          key: The view picked, or None for the one that was up before.
+        """
+        if key is not None:
+            self._now_reading(key)
+        self._draw()
+
+    def _outworlders(self) -> list[str]:
+        """The roles of the run that are the person, each a node of the monitor of its own.
+
+        Returns:
+          Their names, in the order the flow took them.
+        """
+        from hmz.coganchor.agents import HumanAgent
+
+        return list(
+            dict.fromkeys(
+                one.id for one in self._driven() if isinstance(one, HumanAgent)
             )
         )
-        if reading is not None:
-            self._now_reading(reading)
-            self._draw()
 
     def _board(self) -> Board | None:
         """The board this run has, or None for one whose flow does not talk to the person.
@@ -2065,24 +2146,51 @@ class Humanize(App[None]):
             None,
         )
 
-    def _boxes(self) -> list[Drawn]:
-        """The roles that have worked, as the diagram draws them, in the flow's own order.
+    def _boxes(self, sessions: bool = False) -> list[Drawn]:  # noqa: FBT001, FBT002
+        """The nodes that have worked, as the monitor draws them, in the flow's own order.
 
         The ones that have worked rather than the ones the flow declares. A flow may declare
         ten roles and reach three of them, and seven boxes that have never done anything are
-        seven rows saying nothing -- the diagram is what the run *is doing*. Each appears as
+        seven rows saying nothing -- the monitor is what the run *is doing*. Each appears as
         its first turn starts and stays for the rest of the run, which is what makes this a
         picture of the run growing rather than a list of what was configured.
 
+        Args:
+          sessions: Whether a node is one session of a role rather than the role, keyed
+            `<role>/<n>` in the order each role's sessions were opened.
+
         Returns:
-          One per role that has taken a turn, in the order the flow declares them, and
-          nothing at all before the first turn of a run -- which is a sheet about what is set
-          up rather than about what it is doing.
+          One per node that has taken a turn, in the order the flow declares its roles, and
+          nothing at all before the first turn of a run -- which is a monitor about what is
+          set up rather than about what it is doing.
         """
-        shape = self._monitor.shape()
+        shape = self._monitor.shape(sessions=sessions)
         named = self._named_by
         seen = list(dict.fromkeys(agent.id for agent in self._driven()))
         seen.sort(key=lambda who: named.index(who) if who in named else len(named))
+        if sessions:
+            return [
+                Drawn(
+                    who=key,
+                    named=f"{role}{_DOT}session {at}",
+                    runs=self._models[role].spec if role in self._models else "",
+                    working=key in shape.working,
+                    # A session read on its own where it has a log of its own, and on its
+                    # role's where it does not: that is the log reading it opens.
+                    reading=self._attached in (key, role),
+                    unread=self._unread(key if key in self._kept else role),
+                )
+                for key in sorted(
+                    shape.turns,
+                    key=lambda key: (
+                        seen.index(key.partition("/")[0])
+                        if key.partition("/")[0] in seen
+                        else len(seen),
+                        int(key.partition("/")[2] or 0),
+                    ),
+                )
+                for role, _, at in [key.partition("/")]
+            ]
         drawn: list[Drawn] = []
         for who in seen:
             working = any(
@@ -2103,6 +2211,29 @@ class Humanize(App[None]):
                 )
             )
         return drawn
+
+    def _numbered(self, agent: AgentBase, session: SessionBase | None) -> str | None:
+        """The key one session is read and drawn under: its role, and which of them it is.
+
+        Counted from one in the order each role's sessions were first seen, and held for the
+        rest of the run: an agent holds its sessions weakly, so one that has ended may be
+        gone from it, and a node renumbered under a reader is a node that changed agents.
+
+        Args:
+          agent: Whose session it is.
+          session: The session, or None for something the agent said rather than one of them.
+
+        Returns:
+          `<role>/<n>`, or None where no session was named.
+        """
+        if session is None:
+            return None
+        with self._numbering:
+            if (key := self._sessions_seen.get(session)) is None:
+                self._sessions_opened[agent.id] += 1
+                key = f"{agent.id}/{self._sessions_opened[agent.id]}"
+                self._sessions_seen[session] = key
+            return key
 
     @on(Editor.Sent)
     def _sent(self, event: Editor.Sent) -> None:
@@ -3241,6 +3372,9 @@ class Humanize(App[None]):
         if self._attached != _EVERY:
             self._now_reading(_EVERY, stepped=False)
         self._monitor = Monitor()
+        with self._numbering:
+            self._sessions_seen.clear()
+            self._sessions_opened.clear()
         # What the run costs is read from the logs the agents keep, which they write as they
         # go: a backend only says what a turn cost once the turn is over, and a turn is long.
         self._tally = Tally([], self._monitor)
@@ -3372,7 +3506,7 @@ class Humanize(App[None]):
     ) -> None:
         """Shows what a turn said, on the transcript of the agent that said it.
 
-        And takes what it cost into what `/monitor` shows, which is per agent: an agent is
+        And takes what it cost into what the monitor shows, which is per agent: an agent is
         what is read, and the bill is the agent's too.
 
         What is shown of a turn is what the turn was for unless `/details` says otherwise:
@@ -3435,8 +3569,9 @@ class Humanize(App[None]):
             self._on_screen(self._took, agent.id, event.text)
             return
         whose = agent.id
+        numbered = self._numbered(agent, session)
         if event.kind == "begins":
-            self._monitor.begins(agent.id, agent.config.model)
+            self._monitor.begins(agent.id, agent.config.model, session=numbered)
             self._began[agent.id] = time.monotonic()
             if session is not None:
                 # Which is what makes it a conversation a typed line may go into: one written
@@ -3455,7 +3590,7 @@ class Humanize(App[None]):
                 packs=False,
             )
         elif event.kind == "ends":
-            self._monitor.ends(agent.id)
+            self._monitor.ends(agent.id, session=numbered)
             if session is not None:
                 self._working.discard(session)
             # Whatever it was holding is not on its way anywhere now: the turn it was put
@@ -3472,13 +3607,17 @@ class Humanize(App[None]):
             )
         elif event.kind in ("subagent", "subagent-ends"):
             # An agent this one started of its own. Counted whether or not the details are
-            # being shown, since `/monitor` draws the fleet under the agent that started it
+            # being shown, since the monitor draws the fleet under the agent that started it
             # and a fleet nobody counted would be an agent working with nothing under it.
             named, _, about = event.text.partition(" ")
             if event.kind == "subagent":
-                self._monitor.started(agent.id, event.whose, about or named)
+                self._monitor.started(
+                    agent.id, event.whose, about or named, session=numbered
+                )
             else:
-                self._monitor.finished(agent.id, event.whose, about or named)
+                self._monitor.finished(
+                    agent.id, event.whose, about or named, session=numbered
+                )
             if self._details:
                 self._on_screen(
                     self._part,
@@ -4052,11 +4191,6 @@ _COMMANDS: tuple[Command, ...] = (
         "settings",
         "What humanize remembers, here and everywhere",
         lambda app, _: app.action_settings(),
-    ),
-    Command(
-        "monitor",
-        "Watch the run: the flow drawn, and the board",
-        lambda app, _: app.action_monitor(),
     ),
     Command("clear", "Clear the screen", lambda app, _: app.action_clear()),
     Command(
