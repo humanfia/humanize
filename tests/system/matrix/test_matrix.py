@@ -368,12 +368,7 @@ def test_interrupt(cell: Cell) -> None:
     assert _says(got["after"], "AFTER"), got
 
 
-@feature(
-    xfail={
-        "kimi": "a stopped run whose kimi turn is in a shell command ends only when the"
-        " command does: the cut is said at once and the turn is cut off about 95s later",
-    }
-)
+@feature()
 def test_stop(cell: Cell) -> None:
     """A run stopped from outside, as `/stop` and ctrl-c stop one, ends and says so."""
     running = cell.start(_one(cell), SLOW)

@@ -1711,6 +1711,10 @@ How a turn is followed:
   to start.
 - Session settings are set once rather than before every turn. A goal is set going each time it
   is asked for.
+- A turn cut off has its prompt aborted (`POST …/prompts/<id>:abort`) before the daemon is put
+  down, which is how Kimi takes down a command the turn is in: it starts each one in a session
+  of its own, out of reach of the daemon's process group. Putting the daemon down takes the
+  whole process tree with it, and a turn cut off asks no daemon started after it went.
 
 ### pi
 
