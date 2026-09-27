@@ -14,7 +14,7 @@ which those would take away.
 from __future__ import annotations
 
 import json
-import os
+import time
 from typing import TYPE_CHECKING, Any, cast
 
 import pytest
@@ -57,6 +57,10 @@ MADE = "matrix-made"
 MODEL = "nvidia/deepseek-ai/deepseek-v4-flash"
 
 
+#: How long a real CLI or a real machine is given to answer what the page asks it.
+PATIENCE = 180.0
+
+
 async def _pastes(app: Humanize, driver: Pilot[None], held: str, said: str) -> None:
     """Pastes a value onto one row of a form and keeps it, as pasting a secret in does."""
     await onto(app, driver, held)
@@ -66,7 +70,22 @@ async def _pastes(app: Humanize, driver: Pilot[None], held: str, said: str) -> N
     await driver.pause()
 
 
-@feature(once=True, timeout=300)
+async def _says(app: Humanize, driver: Pilot[None], *said: str) -> str:
+    """Waits for the line under the page to say one of some things, and answers it.
+
+    Longer than `until` waits, and loud rather than silent when it runs out: what is being
+    waited for is a real CLI or a real machine answering, not the interface redrawing.
+    """
+    deadline = time.monotonic() + PATIENCE
+    while time.monotonic() < deadline:
+        now = _under(app)
+        if any(one in now for one in said):
+            return now
+        await driver.pause(0.2)
+    raise AssertionError(f"the page never said any of {said}: it says {_under(app)!r}")
+
+
+@feature(once=True, group="dsh", timeout=600)
 async def test_settings_accounts(asking: None) -> None:
     """An account added on the one form of `/settings accounts` is one a real turn runs as.
 
@@ -106,12 +125,11 @@ async def test_settings_accounts(asking: None) -> None:
             await _answers(app, driver)
 
             await until(lambda: isinstance(app.screen, Providers), driver)
-            sheet = cast("Providers", app.screen)
             await until(lambda: accounts.find("dsh", MADE) is not None, driver)
             # Asked what it runs, for real, and it said.
-            await until(lambda: not sheet._asking, driver)
-            said = _under(app)
-            assert "did not say what it runs" not in said, said
+            said = await _says(app, driver, "says it runs", "did not say what it runs")
+            assert "dsh says it runs" in said, said
+            assert f"models as {MADE}" in said, said
 
         made = accounts.find("dsh", MADE)
         assert made is not None
@@ -125,7 +143,7 @@ async def test_settings_accounts(asking: None) -> None:
     assert accounts.find("dsh", MADE) is None
 
 
-@feature(once=True, timeout=300)
+@feature(once=True, timeout=600)
 async def test_settings_environments(
     ssh_box: Box, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -142,13 +160,7 @@ async def test_settings_environments(
 
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     (tmp_path / "home").mkdir()
-    told = str(ssh_box.config.parent / "bin")
-    monkeypatch.setenv(
-        "PATH",
-        os.pathsep.join(
-            one for one in os.environ["PATH"].split(os.pathsep) if one != told
-        ),
-    )
+    ssh_box.unlisted(monkeypatch)
     config = str(ssh_box.config)
     app = Humanize()
     async with app.run_test() as driver:
@@ -172,15 +184,17 @@ async def test_settings_environments(
         await onto(app, driver, _CHECKS)
         await driver.press("enter")
         await until(lambda: app.screen is sheet, driver)
-        await until(lambda: "answers" in _under(app), driver)
-        assert "home /root" in _under(app), _under(app)
+        host = f"ssh/{ssh_box.alias}"
+        said = await _says(app, driver, f"{host} answers", f"{host} could not")
+        assert f"{host} answers: home /root" in said, said
 
         await _opens(app, driver, _DOCKS, Docking)
         name = cast("Docking", app.screen)._typed_in["name"]
         await _done(app, driver)
         await until(lambda: app.screen is sheet, driver)
-        await until(lambda: "answers" in _under(app), driver)
-        assert "docker " in _under(app), _under(app)
+        docked = f"docker/{name}"
+        said = await _says(app, driver, f"{docked} answers", f"{docked} could not")
+        assert f"{docked} answers: docker " in said, said
 
     envs = Hmz().environments
     host = envs.find("ssh", ssh_box.alias)

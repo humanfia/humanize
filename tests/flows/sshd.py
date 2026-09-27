@@ -231,6 +231,20 @@ class Box:
         """
         return _run(self.container, script)
 
+    def unlisted(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Takes the `ssh` that knows this host off `PATH`, for the rest of the test.
+
+        What reaches it then is only what something saved says: a provider imported from
+        :attr:`config`, say, rather than the `ssh` this fixture put first.
+        """
+        told = str(self.config.parent / "bin")
+        monkeypatch.setenv(
+            "PATH",
+            os.pathsep.join(
+                one for one in os.environ["PATH"].split(os.pathsep) if one != told
+            ),
+        )
+
 
 def _run(container: str, script: str) -> str:
     """Runs a shell script in a container host, and answers its stdout."""
@@ -437,6 +451,10 @@ def docker_box(tmp_path: Path) -> Iterator[Docked]:
     container = started.stdout.strip()
     try:
         port = _docker("port", container, "22/tcp").stdout.strip().rpartition(":")[2]
+        if not port.isdigit():
+            # Gone already: a daemon that will not run in a container takes it with it.
+            said = _docker("logs", container).stderr.strip()[-400:]
+            pytest.skip(f"a docker host would not stay up: {said or 'it is gone'}")
         docked = Docked(container, int(port), key, at / "known_hosts")
         deadline = time.monotonic() + 90
         while not _reached(docked):

@@ -75,6 +75,7 @@ __all__ = [
     "mixin",
     "mounts",
     "read_only",
+    "spent",
 ]
 
 #: Every CLI humanize drives, in the order humanize lists them: the grid's columns.
@@ -173,6 +174,15 @@ class Unsettled:
     reason: str
 
 
+def _known(bug: str | Unsettled | None) -> pytest.MarkDecorator | None:
+    """The mark a known bug is, or None for none: strict, but for an :class:`Unsettled` one."""
+    if bug is None:
+        return None
+    if isinstance(bug, Unsettled):
+        return pytest.mark.xfail(strict=False, reason=bug.reason, run=True)
+    return pytest.mark.xfail(strict=True, reason=bug, run=True)
+
+
 def _summary(doc: str | None) -> str:
     return (doc or "").strip().splitlines()[0] if doc else ""
 
@@ -183,6 +193,7 @@ def feature[F: Callable[..., object]](
     xfail: Mapping[str, str | Unsettled] | None = None,
     timeout: float = 900,
     once: bool = False,
+    group: str = ANY,
 ) -> Callable[[F], F]:
     """Makes one test function a row of the matrix: the same scenario, for every CLI.
 
@@ -194,17 +205,26 @@ def feature[F: Callable[..., object]](
         cannot is skipped as unsupported, saying why, before anything starts.
       limits: Documented limitations of particular CLIs, by name: the same skip, for what no
         table in humanize says -- with where it is documented in the reason.
-      xfail: Known humanize bugs, by CLI, each with the bug it is. Strict, so a fix turns the
-        cell red until the mark comes off -- but for an :class:`Unsettled` one.
+      xfail: Known humanize bugs, by CLI -- by :data:`ANY` for a row run once -- each with the
+        bug it is. Strict, so a fix turns the cell red until the mark comes off -- but for an
+        :class:`Unsettled` one.
       timeout: The most one cell of it may take, in seconds.
       once: Whether the row is about no one CLI, and is run once, in the column :data:`ANY`,
         rather than once per CLI. Such a function takes no `cell`: there is no CLI to hand
         it, and it settles whatever it needs for itself.
+      group: For a row run once that takes turns of one CLI all the same, that CLI: its cell
+        is then run on the worker running that CLI's column, one after another with them,
+        as every turn of one CLI is (see `tests/conftest.py`).
 
     Returns:
       What marks the function: parametrized over every CLI, gated behind `--run-agents`,
       grouped by CLI for xdist, and selectable with `-m matrix`.
+
+    Raises:
+      ValueError: For a row run once that is told what a CLI needs, which is about CLIs.
     """
+    if once and (needs or limits):
+        raise ValueError("a row run once is about no CLI, so it needs nothing of one")
 
     def decorate(test: F) -> F:
         name = test.__name__.removeprefix("test_")
@@ -213,7 +233,9 @@ def feature[F: Callable[..., object]](
         order = len(FEATURES)
         FEATURES[name] = _summary(test.__doc__)
         if once:
-            marked = pytest.mark.xdist_group(ANY)(test)
+            marked = pytest.mark.xdist_group(group)(test)
+            if (known := _known((xfail or {}).get(ANY))) is not None:
+                marked = known(marked)
             marked = pytest.mark.matrix(name, order, ANY)(marked)
             marked = pytest.mark.agent(marked)
             return pytest.mark.timeout(timeout)(marked)
@@ -224,15 +246,8 @@ def feature[F: Callable[..., object]](
             why = why or (limits or {}).get(cli, "")
             if why:
                 marks.append(pytest.mark.skip(reason=f"unsupported: {why}"))
-            elif (known := (xfail or {}).get(cli)) is not None:
-                loose = isinstance(known, Unsettled)
-                marks.append(
-                    pytest.mark.xfail(
-                        strict=not loose,
-                        reason=known.reason if isinstance(known, Unsettled) else known,
-                        run=True,
-                    )
-                )
+            elif (known := _known((xfail or {}).get(cli))) is not None:
+                marks.append(known)
             cells.append(pytest.param(cli, id=cli, marks=marks))
         marked = pytest.mark.parametrize("cli", cells)(test)
         marked = pytest.mark.matrix(name, order)(marked)
@@ -531,24 +546,30 @@ class Cell:
             yield dataclasses.replace(found, provider=name)
 
     def spent(self) -> dict[str, float]:
-        """What every run of this cell spent, in dollars and output tokens, for the grid.
+        """What every run of this cell spent, in dollars and output tokens, for the grid."""
+        return spent(self.workspace)
 
-        Read off each run's record of what it used. What the cell *checks* is read through
-        the SDK; this is the bill, and a bill it cannot read is a bill of nothing.
-        """
-        from hmz.runtime.epic import JOURNAL
 
-        cost = tokens = 0.0
-        with contextlib.suppress(Exception):
-            for epic in self.hmz.epics.all():
-                record = epic / JOURNAL
-                if not record.is_file():
+def spent(workspace: Path) -> dict[str, float]:
+    """What every run in a workspace spent, in dollars and output tokens, for the grid.
+
+    Read off each run's record of what it used. What a cell *checks* is read through the SDK;
+    this is the bill, and a bill it cannot read is a bill of nothing.
+    """
+    from hmz.runtime.epic import JOURNAL
+    from hmz.sdk import Hmz
+
+    cost = tokens = 0.0
+    with contextlib.suppress(Exception):
+        for epic in Hmz(workspace).epics.all():
+            record = epic / JOURNAL
+            if not record.is_file():
+                continue
+            for line in record.read_text(encoding="utf-8").splitlines():
+                if '"usage"' not in line:
                     continue
-                for line in record.read_text(encoding="utf-8").splitlines():
-                    if '"usage"' not in line:
-                        continue
-                    said = cast("dict[str, Any]", json.loads(line))
-                    if said.get("event") == "usage":
-                        cost += float(said.get("cost") or 0)
-                        tokens += float(said.get("output_tokens") or 0)
-        return {"cost": cost, "output_tokens": tokens}
+                said = cast("dict[str, Any]", json.loads(line))
+                if said.get("event") == "usage":
+                    cost += float(said.get("cost") or 0)
+                    tokens += float(said.get("output_tokens") or 0)
+    return {"cost": cost, "output_tokens": tokens}

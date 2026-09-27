@@ -56,7 +56,7 @@ from tests.matrix.cells import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Generator, Sequence
 
     from hmz.coganchor.agents import AgentBase, SessionBase
     from hmz.coganchor.agents.event import Event
@@ -1197,13 +1197,7 @@ def test_ssh_provider(
     envs = cell.hmz.environments
     (imported,) = envs.import_ssh(config=ssh_box.config, names=[ssh_box.alias])
     envs.write(dataclasses.replace(imported, workdir=str(there)))
-    told = str(ssh_box.config.parent / "bin")
-    monkeypatch.setenv(
-        "PATH",
-        os.pathsep.join(
-            one for one in os.environ["PATH"].split(os.pathsep) if one != told
-        ),
-    )
+    ssh_box.unlisted(monkeypatch)
 
     ran = cell.exec(
         cell.flow("remote", REMOTE),
@@ -1294,16 +1288,14 @@ def _contained(cell: Cell, ran: Exec) -> dict[str, Any]:
 
 
 @feature(timeout=900)
-def test_docker_env(cell: Cell) -> None:
+def test_docker_env(cell: Cell, daemon: None) -> None:
     """An agent given a container of an image with no sshd works inside it.
 
     `-e box=docker@local/<dir>`: docker's default here, no provider saved. The command runs in
     the container, and says so three ways only a container can: its hostname, `/.dockerenv`,
     and the image's Debian rather than this machine's Ubuntu.
     """
-    from tests.machines.fixtures import IMAGE
-
-    _needs_image(IMAGE)
+    del daemon
     there = cell.root / "box"
     there.mkdir()
 
@@ -1344,9 +1336,26 @@ def test_docker_env_remote(cell: Cell, docker_box: Docked) -> None:
     assert not Path(there).exists(), f"{there} is on this machine too: proves nothing"
 
 
-#: One GPU handed to one cell at a time, on this machine: its daemon may have fewer GPUs
-#: than the matrix has CLIs running at once, and a role refused a GPU is refused its run.
-_GPU_LOCK = Path(tempfile.gettempdir()) / "hmz-matrix-gpu.lock"
+#: Where the cells asking for a GPU take turns, one lock file per GPU: the daemon here has
+#: fewer GPUs than the matrix has CLIs running at once, and a role refused a GPU is refused
+#: its run -- which would be a cell failing for the machine's sake.
+_GPU_LOCKS = Path(tempfile.gettempdir()) / "hmz-matrix-gpu"
+
+
+@contextlib.contextmanager
+def _a_gpu(gpus: int) -> Generator[None]:
+    """Holds one of this machine's GPUs for this cell, waiting for one to come free."""
+    _GPU_LOCKS.mkdir(exist_ok=True)
+    while True:
+        for at in range(gpus):
+            with (_GPU_LOCKS / f"{at}.lock").open("a") as held:
+                try:
+                    fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    continue
+                yield
+                return
+        time.sleep(1.0)
 
 
 def _gpus() -> tuple[str, ...]:
@@ -1367,32 +1376,40 @@ def _gpus() -> tuple[str, ...]:
     return gpus_listed(listed)
 
 
-@feature(timeout=900)
-def test_docker_gpu(cell: Cell) -> None:
+#: What `BOXED` declares its container as, and what `test_docker_gpu` declares instead.
+_BOX = (
+    "class Box(Env, ShellEnvMixin, FilesEnvMixin, ImageEnvMixin):\n"
+    '    _image = "python:3.12-slim"\n'
+)
+_GPU_BOX = (
+    "class Box(Env, ShellEnvMixin, FilesEnvMixin, ImageEnvMixin, GPUEnvMixin):\n"
+    '    _image = "python:3.12-slim"\n'
+    "    _gpu_count = 1\n"
+)
+
+
+@feature(timeout=1800)
+def test_docker_gpu(cell: Cell, daemon: None) -> None:
     """An environment declaring one GPU is a container seeing exactly one, the agent too.
 
     The GPU is the capability here, and the CLI only the one reaching for it: the agent runs
-    `nvidia-smi -L` in its container, and one line comes back.
+    `nvidia-smi -L` in its container, and one line comes back. Cells take this machine's GPUs
+    in turn, so the cell may wait for one; hence the longer ceiling.
     """
-    from tests.machines.fixtures import IMAGE
-
-    _needs_image(IMAGE)
-    if not _gpus():
+    del daemon
+    gpus = _gpus()
+    if not gpus:
         pytest.skip(
             "environment: docker's default here lists no NVIDIA GPU by CDI name"
         )
     there = cell.root / "box"
     there.mkdir()
-    source = BOXED.replace(
-        "class Box(Env, ShellEnvMixin, FilesEnvMixin, ImageEnvMixin):\n"
-        '    _image = "python:3.12-slim"\n',
-        "class Box(Env, ShellEnvMixin, FilesEnvMixin, ImageEnvMixin, GPUEnvMixin):\n"
-        '    _image = "python:3.12-slim"\n'
-        "    _gpu_count = 1\n",
-    ).replace("    FlowParams,\n", "    FlowParams,\n    GPUEnvMixin,\n")
+    assert _BOX in BOXED, "BOXED no longer declares its box as this row rewrites it"
+    source = BOXED.replace(_BOX, _GPU_BOX).replace(
+        "    FlowParams,\n", "    FlowParams,\n    GPUEnvMixin,\n"
+    )
 
-    with _GPU_LOCK.open("a") as held:
-        fcntl.flock(held, fcntl.LOCK_EX)
+    with _a_gpu(len(gpus)):
         ran = cell.exec(
             cell.flow("gpuboxed", source),
             "Use your shell tool to run exactly this one command in your working "
@@ -1404,21 +1421,6 @@ def test_docker_gpu(cell: Cell) -> None:
     listed = (there / "gpus.txt").read_text().strip().splitlines()
     assert len(listed) == 1, f"the agent's container sees {listed}\n{ran}"
     assert listed[0].startswith("GPU "), listed
-
-
-def _needs_image(image: str) -> None:
-    """Skips the cell where docker's default here cannot run a container of `image`."""
-    try:
-        held = subprocess.run(
-            ["docker", "image", "inspect", image],
-            capture_output=True,
-            timeout=60,
-            check=False,
-        )
-    except OSError as missing:
-        pytest.skip(f"environment: needs the docker command: {missing}")
-    if held.returncode:
-        pytest.skip(f"environment: needs a docker daemon here holding {image}")
 
 
 # ---------------------------------------------------------- where a run keeps its sessions
@@ -1582,27 +1584,33 @@ class _Attached:
     def __init__(self, workspace: Path, name: str, *argv: str) -> None:
         self.heard: list[dict[str, Any]] = []
         self._replies: queue.Queue[dict[str, Any]] = queue.Queue()
-        self.running = subprocess.Popen(
-            [sys.executable, "-m", "hmz", "attach", "--json", *argv],
-            cwd=workspace,
-            env={**os.environ, "HUMANIZE_NAME": name},
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        threading.Thread(target=self._reads, daemon=True).start()
+        # Its stderr into a file rather than a pipe, so that nothing but the one thread
+        # below reads its stdout, and a pipe nobody reads never holds it up.
+        self._err = workspace.parent / f"attach-{name}.err"
+        with self._err.open("w") as err:
+            self.running = subprocess.Popen(
+                [sys.executable, "-m", "hmz", "attach", "--json", *argv],
+                cwd=workspace,
+                env={**os.environ, "HUMANIZE_NAME": name},
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=err,
+                text=True,
+            )
+        self._reading = threading.Thread(target=self._reads, daemon=True)
+        self._reading.start()
 
     def _reads(self) -> None:
         assert self.running.stdout is not None
-        for line in self.running.stdout:
-            with contextlib.suppress(ValueError):
-                said = cast("dict[str, Any]", json.loads(line))
-                (
-                    self._replies.put
-                    if said.get("type") == "reply"
-                    else self.heard.append
-                )(said)
+        with contextlib.suppress(OSError, ValueError):
+            for line in self.running.stdout:
+                with contextlib.suppress(ValueError):
+                    said = cast("dict[str, Any]", json.loads(line))
+                    (
+                        self._replies.put
+                        if said.get("type") == "reply"
+                        else self.heard.append
+                    )(said)
 
     def asks(self, **said: Any) -> dict[str, Any]:
         """One request, and its reply."""
@@ -1612,13 +1620,18 @@ class _Attached:
         return self._replies.get(timeout=60)
 
     def close(self) -> str:
-        """Lets go, however it stands, and answers what it said on stderr."""
+        """Lets go, however it stands, having read all it said, and answers its stderr."""
         with contextlib.suppress(subprocess.TimeoutExpired):
             self.running.wait(30)
         if self.running.poll() is None:
             self.running.kill()
-        _, err = self.running.communicate()
-        return err
+            self.running.wait()
+        # Its stdout ends with it, so the reader has had the last line once it is done.
+        self._reading.join(30)
+        if self.running.stdin is not None:
+            with contextlib.suppress(OSError):
+                self.running.stdin.close()
+        return self._err.read_text(errors="replace")
 
 
 @feature(timeout=900)
@@ -1757,15 +1770,18 @@ def _tui(name: str) -> str:
     return f"HUMANIZE_NAME={name} {shlex.join([sys.executable, '-m', 'hmz'])}"
 
 
-@feature(once=True, timeout=900)
-def test_frontends_tui(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@feature(once=True, group="claude", timeout=900)
+def test_frontends_tui(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, billed: list[Path]
+) -> None:
     """Two interfaces on one run with an agent in it: each person answers their own part.
 
     `HUMANIZE_NAME=alice hmz` and `HUMANIZE_NAME=bob hmz`, each in a terminal of its own on
     one workspace. Each claims one of the run's outworlders from its view and answers it; the
     other is told whose it is. Bob's word, typed on the view every agent is on, goes into the
     agent's turn under way, and alice reads it as his. The agent is Claude, at the place its
-    column runs at: the interface is the same whichever CLI is behind it.
+    column runs at: the interface is the same whichever CLI is behind it -- and it runs among
+    that column's cells, as every turn of one CLI does.
     """
     from hmz import daemon
     from hmz.runtime import Hmz
@@ -1776,15 +1792,18 @@ def test_frontends_tui(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
     if shutil.which("tmux") is None:
         pytest.skip("environment: drives tmux, which is not installed here")
+    workspace = tmp_path / "project"
+    workspace.mkdir()
+    billed.append(workspace)
+    # Before the place is settled, which takes a turn: in the workspace, not in whatever
+    # directory the test runner was started in.
+    monkeypatch.chdir(workspace)
     place = places.settled("claude")
     if isinstance(place, str):
         pytest.skip(
             f"environment: claude takes a turn nowhere on this machine -- {place}"
         )
-    workspace = tmp_path / "project"
-    workspace.mkdir()
     written(workspace / ".humanize" / "flows", "fronted", FRONTED)
-    monkeypatch.chdir(workspace)
     # Every pane reads as a pipe would, and holds its runs apart, as a person's would.
     monkeypatch.delenv("FORCE_COLOR", raising=False)
     monkeypatch.setenv("NO_COLOR", "1")
