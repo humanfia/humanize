@@ -122,9 +122,10 @@ class AnchorConfig:
     """Where an agent's work lands, and what of it stays on this machine.
 
     Attributes:
-      target: The machine the work lands on, as `ssh://HOST`, `docker://CONTAINER`,
-        `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT` or `local[:DIR]`, where a local target
-        stands in for a remote one.
+      target: The machine the work lands on, as `ssh://HOST`, `docker://CONTAINER` -- or
+        `docker://CONTAINER@ENDPOINT` for a container held by a daemon other than docker's
+        default here -- `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT` or `local[:DIR]`, where a
+        local target stands in for a remote one.
       harness: Where the agent process and the supervisor tracing it run: `local` for this
         machine, `same` for whichever machine `target` names, or a target spelling of their
         own. The three arrangements anchoring has, said in one setting --
@@ -378,7 +379,9 @@ class AnchorConfig:
 
         target = Target.parse(self.target)
         workspace = os.path.abspath(self.workspace or os.getcwd())
-        real = self.remote_path or target.path
+        # A `local:` target's path is the directory standing in for the far side; any other
+        # target's path is something else of its own -- a ticket, a container's daemon.
+        real = self.remote_path or (target.path if target.scheme == "local" else "")
         return target, workspace, f"{workspace}:{real}" if real else workspace
 
 

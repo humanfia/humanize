@@ -45,7 +45,7 @@ def parser() -> ArgumentParser:
         "--target",
         default=os.environ.get("HUMANIZE_TARGET", "local"),
         metavar="URL",
-        help="ssh://HOST, docker://CONTAINER, tcp://HOST:PORT, or local[:DIR] "
+        help="ssh://HOST, docker://CONTAINER[@ENDPOINT], tcp://HOST:PORT, or local[:DIR] "
         "(default: $HUMANIZE_TARGET)",
     )
     built.add_argument(

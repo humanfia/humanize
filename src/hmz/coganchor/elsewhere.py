@@ -160,11 +160,17 @@ def afar(config: AnchorConfig, argv: Sequence[str]) -> list[str]:
 
 
 def _one_machine(here: Target, work: Target) -> bool:
-    """Whether the harness and the work are on the same machine, and so need no introduction."""
-    return (here.scheme, here.host, here.port, here.options) == (
+    """Whether the harness and the work are on the same machine, and so need no introduction.
+
+    The path too, which for a container is the daemon holding it: two containers of one name
+    on two daemons are two machines. And an ssh target's options, which may send one host name
+    somewhere else entirely.
+    """
+    return (here.scheme, here.host, here.port, here.path, here.options) == (
         work.scheme,
         work.host,
         work.port,
+        work.path,
         work.options,
     )
 

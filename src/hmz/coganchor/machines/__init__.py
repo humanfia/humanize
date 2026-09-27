@@ -9,10 +9,11 @@ from __future__ import annotations
 
 from .anchored import Anchored, AnchoredConfig
 from .base import MachineBase, MachineConfig
-from .docker import Docker, DockerConfig
+from .docker import Allocation, Docker, DockerConfig, allocations
 from .mapped import Mapped, Ran
 
 __all__ = [
+    "Allocation",
     "Anchored",
     "AnchoredConfig",
     "Docker",
@@ -21,4 +22,5 @@ __all__ = [
     "MachineConfig",
     "Mapped",
     "Ran",
+    "allocations",
 ]

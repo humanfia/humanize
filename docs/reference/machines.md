@@ -48,6 +48,24 @@ config = ClaudeCodeAgentConfig(
 )
 ```
 
+```python [A container on a GPU box]
+from hmz.coganchor.agents import ClaudeCodeAgentConfig
+from hmz.coganchor.machines import DockerConfig
+
+config = ClaudeCodeAgentConfig(
+    model="claude-opus-5",
+    effort="high",
+    machine=DockerConfig(
+        image="ghcr.io/me/cuda-dev:latest",
+        endpoint="ssh://me@gpu-box",
+        workspace="/srv/project",   # a path on gpu-box
+        cpus=8,
+        memory=32 << 30,
+        gpus=("0",),
+    ),
+)
+```
+
 :::
 
 | | This machine | Already running | A container |
@@ -58,7 +76,7 @@ config = ClaudeCodeAgentConfig(
 | **Taken down** | — | never: it is somebody else's | when the agent is collected |
 | **`agent.anchor`** | `None` | the anchor as written | a `docker://` anchor |
 | **[Capabilities](#capabilities)** | none | `remote`, plus the anchor's | `remote`, `isolated`, `managed`, `linux`, plus the anchor's |
-| **Needs** | nothing | [the anchor's needs](/reference/remote-execution#requirements) | the same, plus `docker` and a daemon |
+| **Needs** | nothing | [the anchor's needs](/reference/remote-execution#requirements) | the same, plus `docker` here and a daemon it can reach |
 
 ## Where a flow's agents work
 
@@ -78,9 +96,10 @@ One agent can have sessions on two machines, each working where it was spawned. 
 code reaches an environment the same way: `await repo.exec(["make", "test"])` and
 `await repo.read("NOTES.md")` run on that machine, in that directory.
 
-There is no container environment yet. A run whose work belongs in a container is started
-inside one, or pointed at a container reached as an ssh host. Docker daemons can already be
-saved as [environment providers](#environment-providers) and checked.
+No environment brings up a container of its own yet. A run whose work belongs in a container
+is started inside one, or pointed at a container reached as an ssh host; an agent configured by
+hand can have one, [below](#dockerconfig). Docker daemons can already be saved as
+[environment providers](#environment-providers) and checked.
 
 ## Environment providers {#environment-providers}
 
@@ -205,46 +224,123 @@ anchored("")   # None: this machine
 
 A container of the image you name, holding the project directory at the path it already has,
 and running as you. The work it leaves is yours, in your own workspace. Everything else is the
-image's.
+image's. The daemon may be this machine's or another's, and the container may be given a share
+of that daemon's CPUs, memory and GPUs.
 
 | Field | Default | |
 | --- | --- | --- |
-| `image` | `python:3.12` | The image to run. It needs `/bin/sh` and Python ≥ 3.12 for the target half, plus whatever the agent will reach for. |
-| `workspace` | the current directory | The project directory. The directory **itself** is mounted, not a copy, so the work outlives the container. It must exist. |
+| `image` | `python:3.12` | The image to run. It needs `/bin/sh` and Python ≥ 3.12 for the target half, plus whatever the agent will reach for. No sshd: turns reach it through `docker exec`. |
+| `workspace` | the current directory | The project directory, as the daemon's host names it. The directory **itself** is mounted, not a copy, so the work outlives the container. It must exist there. |
+| `endpoint` | `local` | The daemon to run it on. See [Endpoints](#endpoints). |
+| `name` | `humanize-<random>` | The container's name. A name somebody else's container already has is refused, and their container is left alone. A config with a `name` brings up one container at a time, so give it to one agent. |
+| `cpus` | no limit | How many CPUs it may use, e.g. `1.5`. |
+| `memory` | no limit | How many bytes of memory it may use. |
+| `shm_size` | docker's | How large its `/dev/shm` is, in bytes. |
+| `gpus` | `()`: none | The GPUs it is given, by the ids `nvidia-smi` lists, or `"all"`. |
+| `runtime` | the daemon's | The OCI runtime to run it under, e.g. `runc` or `nvidia`. |
+| `network` | the daemon's | The network to put it on. |
+| `env` | `{}` | Variables to set in it. |
+| `labels` | `{}` | Labels to put on it, e.g. which provider it was allocated from. `humanize`, `humanize.cpus`, `humanize.memory` and `humanize.gpus` are humanize's own and are not taken from here. |
+
+A setting docker would refuse, such as `cpus=0` or an endpoint it cannot read, is refused when
+the `DockerConfig` is built.
 
 What `start()` runs, one argument per line:
 
-```text{3-4,6}
-docker run --detach
+```text{4-6,9-10}
+docker [endpoint] run --detach
+    --cidfile <mirror>/container
     --name humanize-<random>
     --label humanize=<your uid>
+    --label humanize.cpus=… --label humanize.memory=… --label humanize.gpus=…
     --user <your uid>:<your gid>
     --workdir <workspace>
     --env HOME=/tmp
-    --volume <workspace>:<workspace>
+    --env NVIDIA_VISIBLE_DEVICES=void
+    --mount type=bind,source=<workspace>,target=<workspace>
+    --cpus … --memory … --shm-size … --runtime … --network …
+    --device nvidia.com/gpu=<id>
     <image>
     /bin/sh -c '<exec the first Python ≥ 3.12 it finds>' humanize
     -c 'import time; time.sleep(2**31)'
 ```
 
+Only what the setting names is passed: no `--cpus` without `cpus`, no GPU flag without `gpus`.
+
 | | Why |
 | --- | --- |
-| `--user` uid:gid | Files it writes are yours. |
+| `--user` uid:gid | Files it writes are yours. `0:0` on a rootless daemon, whose root is you. On a daemon elsewhere, whoever owns the workspace there. |
 | `HOME=/tmp` | No account in the image has your uid, and caches stay out of the workspace. |
-| `--label humanize=<uid>` | Lets you clean up after a killed flow without reaching past your own containers. |
+| `NVIDIA_VISIBLE_DEVICES=void` | Unless GPUs are handed out by `--gpus`, which sets it itself. A daemon whose default runtime is NVIDIA's gives an image asking for every GPU every GPU; this makes it none beyond the ones named. |
+| `--mount` | A workspace missing on the daemon's host is refused, not created there owned by root. |
+| `--label`s | Whose it is, for cleaning up, and what it holds, for [`allocations`](#what-a-daemon-has-given-out). |
+| `--cidfile` | What `stop()` removes is the container docker says it made, by its id, and nothing else. |
 | the idle Python | Keeps the container up, in the interpreter the target half will use. It tries `python3`, then `python3.14` down to `python3.12`, then well-known install paths, on `PATH` or off it. An image with none is refused as the machine starts, not a turn later. |
 
 The container is reached as a `docker://humanize-<random>`
-[target](/reference/remote-execution#targets): no port and no secret. The mirror the agent
-works in is a temporary directory here, removed with the container. After starting, the machine
-is [observed](#capabilities), so a container that is not Linux or cannot see the workspace
-fails to start.
+[target](/reference/remote-execution#targets), or `docker://humanize-<random>@<endpoint>` on
+any daemon but the default: no port and no secret. The mirror the agent works in is a temporary
+directory here, removed with the container. After starting, the machine is
+[observed](#capabilities), so a container that is not Linux or cannot see the workspace fails
+to start.
+
+### Endpoints
+
+| `endpoint` | The daemon | Needs |
+| --- | --- | --- |
+| `local` | docker's default here, as `DOCKER_HOST`, `DOCKER_CONTEXT` and the current context leave it | a daemon here |
+| `unix:///PATH` | the one listening on that socket, e.g. a rootless one | the socket |
+| `tcp://HOST:PORT` | one listening on a port, in plain TCP | a daemon told to listen there |
+| `tcp://HOST:PORT?tls=DIR` | the same, over TLS verified with `DIR/ca.pem`, `DIR/cert.pem` and `DIR/key.pem` | the certificates |
+| `ssh://[USER@]HOST[:PORT]` | the one on that host, through docker's own ssh transport | ssh access to the host as your `ssh` config has it, and `docker` there. The container needs no sshd. |
+| `context:NAME` | the one a docker context names | the context, in `DOCKER_CONFIG` or `~/.docker` |
+
+Every `docker` command for the container, from `run` to the `exec` each turn rides and the
+final `rm`, is sent to that daemon. Any endpoint but `local` is said on the command line, with
+`DOCKER_HOST`, `DOCKER_CONTEXT` and the TLS variables taken off, so nothing in the environment
+can send one of them elsewhere.
+
+`unix://` daemons, and `local` unless `DOCKER_HOST` sends it elsewhere, are taken to be this
+machine's: the workspace is checked here, and the container runs as you, or as its own root on
+a rootless daemon, which is you on the host. Any other is taken to be elsewhere. There the
+workspace is a path on *that* host: it is asked for by a throwaway container of the same image
+given the same directory, which is refused when the host has no such directory, and the
+container runs as whoever owns it there.
+
+### GPUs
+
+`gpus=("0",)` gives the container GPU 0 and no other; `gpus="all"` gives it every one.
+Where the daemon lists its devices by [CDI](https://github.com/cncf-tags/container-device-interface)
+name and lists every one asked for, each is passed as `--device nvidia.com/gpu=<id>`. Otherwise
+`--gpus "device=<ids>"` or `--gpus all` is, which needs the NVIDIA container toolkit. With
+`gpus=()` the container sees no GPU, even from an image, like CUDA's own, that asks for all of
+them.
+
+### What a daemon has given out
+
+`allocations(endpoint="local", labels=None)` lists humanize's running containers on one daemon,
+whoever started them, with what each was given:
+
+```python
+from hmz.coganchor.machines import allocations
+
+for held in allocations("ssh://me@gpu-box", {"humanize.provider": "gpu-box"}):
+    held.name, held.cpus, held.memory, held.gpus, held.labels
+# ("humanize-4f2a", 8.0, 34359738368, ("0",), {...})
+```
+
+`cpus` and `memory` are `None` for a container given no limit, and `gpus` is `()` for one given
+none. `labels` narrows the list to containers carrying every label given. A daemon that cannot
+be asked raises `OSError` rather than reading as one with nothing on it.
 
 ::: tip Cleaning up after a flow that was killed outright
 ```sh
 docker rm -f $(docker ps -q --filter label=humanize=$(id -u))
 ```
 The label carries your uid, so this cannot reach another user's containers on a shared machine.
+Add `--host` or `--context` for a daemon elsewhere, but there the uid is the one on the machine
+that started each container, and several machines sharing that daemon can have users with the
+same one: check what it lists before removing it.
 :::
 
 ## When the machine comes up, and when it goes
@@ -357,6 +453,7 @@ such as `the machine at docker://humanize-4f2a cannot serve linux: it says it is
 | The work on a bigger box, a GPU host, or a machine with the right toolchain | **already running**, `ssh://`. In a flow: `-e <role>=ssh@<host>/<workdir>` |
 | Cheap reconnects across a long loop of short turns | **already running**, `tcp://` to a [target left listening](/reference/remote-execution#serving-a-target) |
 | A toolchain that is not yours, without giving up your workspace | **a container of its own** |
+| A share of a GPU box's CPUs, memory and GPUs, in an image of your choosing | **a container of its own**, with `endpoint`, `cpus`, `memory` and `gpus` |
 | To limit what the agent may *do* | none of these |
 
 ::: warning Isolation here is about environment, not permission
@@ -418,7 +515,7 @@ The contract is `specs/coganchor/machines.md`.
 ```python
 from hmz.coganchor.machines import (
     MachineConfig, MachineBase, AnchoredConfig, Anchored,
-    DockerConfig, Docker, Mapped, Ran,
+    DockerConfig, Docker, Allocation, allocations, Mapped, Ran,
 )
 from hmz.coganchor.machines.store import SSHProvider, DockerProvider, daemon_of
 from hmz.coganchor.agents import anchored
@@ -429,7 +526,8 @@ from hmz.coganchor.agents import anchored
 | `MachineConfig` | The setting: `.capabilities`, `.create() -> MachineBase`. |
 | `MachineBase` | The machine: `.start() -> AnchorConfig`, `.stop()`, `.capabilities`, `.observe(anchor)`. |
 | `AnchoredConfig`, `Anchored` | A machine that is already running. |
-| `DockerConfig`, `Docker` | A container started for the agent. |
+| `DockerConfig`, `Docker` | A container started for the agent, on a daemon here or elsewhere. |
+| `allocations(endpoint, labels)` | humanize's running containers on a daemon, each an `Allocation`: `.name`, `.cpus`, `.memory`, `.gpus`, `.labels`. |
 | `Mapped` | The machine's workspace, as your own code reaches it. |
 | `Ran` | What one command there came to: `.argv`, `.status`, `.output`, `.ok`. |
 | `anchored(target)` | An `AnchoredConfig` from a target spelling, or `None` for `""`. |

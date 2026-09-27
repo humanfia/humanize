@@ -387,10 +387,21 @@ one of those. The target can be any architecture, this machine included.
 The two ends are different versions of humanize, usually a target that was left listening
 before you upgraded. Start it again with the humanize you have now.
 
-### `unsupported target '…'; expected ssh://HOST, docker://CONTAINER, tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]`
+### `unsupported target '…'; expected ssh://HOST, docker://CONTAINER[@ENDPOINT], tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]`
 
 humanize cannot read the target. Write it in one of the forms the message lists. `peer://` is
 one humanize writes for itself; you do not type it.
+
+### `unsupported docker endpoint '…'; expected local, unix:///PATH, tcp://HOST:PORT[?tls=DIR], ssh://[USER@]HOST[:PORT] or context:NAME`
+
+The daemon after a container's `@`, or in a `DockerConfig`'s `endpoint`, is not one humanize can
+read. A socket path and a `?tls=` directory must be absolute. See
+[Endpoints](/reference/machines#endpoints).
+
+### `no directory to give the container on …`
+
+A container on a daemon elsewhere is given the workspace at the path it has on *that* host, and
+that host has no such directory. Make it there, or name one it has.
 
 ### `refusing to listen on a non-loopback address without --token`
 

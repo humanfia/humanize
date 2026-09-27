@@ -327,17 +327,31 @@ def rewrite_path_prefix(
 
 # transport.py -- reaching the target, and putting the serving half there
 @dataclass(frozen=True, slots=True)
+class Endpoint:              # the docker daemon a container is held by
+    host: str = ""
+    context: str = ""
+    certs: str = ""
+    @classmethod
+    def parse(cls, spec: str) -> Endpoint: ...
+    def __str__(self) -> str: ...
+    @property
+    def here(self) -> bool: ...  # docker's default here, or a `unix://` socket
+    def docker(self, *argv: str) -> list[str]: ...
+
+@dataclass(frozen=True, slots=True)
 class Target:
     scheme: str
     host: str = ""
     port: int = 0
-    path: str = ""
+    path: str = ""           # a `local:` directory, a meeting's ticket, a container's daemon
     options: tuple[tuple[str, str], ...] = ()  # ssh://HOST?KEYWORD=VALUE&...; `F` the config
     @classmethod
     def parse(cls, spec: str) -> Target: ...
     def describe(self) -> str: ...
     @property
     def meeting(self) -> Meeting: ...
+    @property
+    def endpoint(self) -> Endpoint: ...
 
 @dataclass(frozen=True, slots=True)
 class Road:
@@ -357,6 +371,7 @@ class Road:
         self, argv: Sequence[str], *, setting: Sequence[tuple[str, str]] = ()
     ) -> list[str]: ...
     def installed(self) -> str: ...
+    def forget(self) -> None: ...   # for a machine made again under the same target
 
 @dataclass(slots=True)
 class Transport:
@@ -424,6 +439,13 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
 - Supervising a turn MUST require Linux on x86-64 or aarch64, refusing any other at start-up with
   where it can run instead, and MUST ask that only of the harness's machine — where the account
   goes too. `check` MUST answer what a target is without running anything on it.
+- A target MUST be `ssh://[USER@]HOST[:PORT]`, `docker://CONTAINER[@ENDPOINT]`,
+  `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT` or `local[:DIR]`, and an endpoint `local`,
+  `unix:///PATH`, `tcp://HOST:PORT[?tls=DIR]`, `ssh://[USER@]HOST[:PORT]` or `context:NAME`; a
+  container naming none, or `local`, MUST be held by docker's default as this process's
+  environment leaves it. Every `docker` on a container's road MUST name any other endpoint on
+  its own command line and MUST be run without the variables that would take it elsewhere, and
+  nothing MUST be needed inside the container but `/bin/sh` and a Python of at least 3.12.
 - A supervised agent MUST start in the workspace, or the directory in it the session opened at,
   named as the target names it, and MUST see the target inside it: the same names, contents, sizes,
   modes and timestamps at the same paths, with failures answered by the target's own error.
