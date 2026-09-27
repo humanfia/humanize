@@ -776,8 +776,10 @@ class _AppServer:
             import psutil
 
             kin: list[psutil.Process] = []
-            with contextlib.suppress(psutil.Error):
-                kin = psutil.Process(self._proc.pid).children(recursive=True)
+            if self._proc.poll() is None:
+                # Only while it is ours: the pid of one already gone and reaped is anybody's.
+                with contextlib.suppress(psutil.Error):
+                    kin = psutil.Process(self._proc.pid).children(recursive=True)
             with contextlib.suppress(ProcessLookupError):
                 os.killpg(self._proc.pid, signal.SIGTERM)
             with contextlib.suppress(subprocess.TimeoutExpired):
@@ -966,7 +968,9 @@ class KimiCodeCLISession(SessionBase):
         # Named by its own words: Kimi mints a fresh id for a steered prompt, so the id it
         # answers with is not the one it took, and the words are what both ends have.
         self.steering(text, ticket=text)
-        server = self._agent.server
+        # The turn's own daemon, never one started for this: a word for a turn whose daemon
+        # has been put down is a word with no turn to go into.
+        server = running.server or self._agent.server
         queued = server.call(
             "POST",
             f"/sessions/{running.session}/prompts",
@@ -1195,7 +1199,7 @@ class KimiCodeCLISession(SessionBase):
         running = self._running
         if running.server is None or running.session is None or not running.prompt:
             return
-        with contextlib.suppress(subprocess.CalledProcessError):
+        with contextlib.suppress(subprocess.CalledProcessError, ValueError):
             running.server.call(
                 "POST",
                 f"/sessions/{running.session}/prompts/{running.prompt}:abort",
