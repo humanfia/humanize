@@ -376,7 +376,15 @@ async def interrupted(task, *, agents, envs, params, ctx):
 '''
 
 
-@feature()
+@feature(
+    xfail={
+        "pi": Unsettled(
+            "after a turn is cut off mid-command, pi's next turn answers with the cut"
+            " turn's reply ('SLEPT') instead of its own: the fix in #123 (U11b) holds on"
+            " most runs and not all -- seen once in three since, with after='SLEPT'"
+        )
+    }
+)
 def test_interrupt(cell: Cell) -> None:
     """A turn the flow cancels stops at once, and its session takes the next turn."""
     got = cell.run(
@@ -1030,10 +1038,16 @@ def test_fallback(cell: Cell) -> None:
         agents=[f"worker={added}/m:{backends.written(place.effort)}"],
     )
 
-    assert _says(ran.answer, word), ran
     assert any(f"carrying on as {good}" in one for one in ran.said("notice")), (
         f"nothing said the turn moved to {good}\n{ran}"
     )
+    # Answered by the place it moved to. Not held to the word: what a model makes of being
+    # told to say one is the model's -- grok-4.7 has answered "I won't output a forced exact
+    # token" -- and every other row holds a turn to what it was asked.
+    answered = [
+        one for one in ran.events if one["kind"] == "result" and one["cli"] == cell.cli
+    ]
+    assert answered, f"no turn of {good} answered\n{ran}"
 
 
 # ------------------------------------------------------------ what a run leaves behind
