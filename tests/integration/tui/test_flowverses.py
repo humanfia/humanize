@@ -25,7 +25,7 @@ from hmz.coganchor.backends import Model
 from hmz.runtime.flowing import ENTRY, OFFICIAL
 from hmz.runtime.flowing import verses as store
 from hmz.tui import Humanize
-from hmz.tui.pick import Agent, Configures, Flows
+from hmz.tui.pick import _FORK, _SEARCH, Agent, Configures, Flows
 from tests.integration.tui.test_app import into_agent, onto
 from tests.stubs import written
 from tests.tui.fixtures import until
@@ -188,7 +188,8 @@ async def test_a_search_steps_to_the_places_it_found_something_in() -> None:
     async with app.run_test() as driver:
         sheet = await _open(app, driver)
 
-        await driver.press("s")
+        await onto(app, driver, _SEARCH)
+        await driver.press("enter")
         await driver.press(*"cha")
         await until(lambda: _rows(sheet) == ["chat"], driver)
 
@@ -476,7 +477,7 @@ async def test_each_of_them_is_set_up_with_its_own_settings(
 async def test_a_flow_is_copied_here_to_be_changed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """`f` on one is the way to change a flow at all, since a fetched one is fetched over.
+    """Copying one here is the way to change a flow at all, a fetched one being fetched over.
 
     A flow is a directory, so a copy of one is a flow: what it imports and the skills it
     brings come across with it, under the name it already had -- and your own flows are
@@ -487,8 +488,13 @@ async def test_a_flow_is_copied_here_to_be_changed(
     async with app.run_test() as driver:
         sheet = await _open(app, driver)
         await onto(app, driver, "official\x1fchat")
+        # The row below the flows copies the one the cursor was last on, and says which.
+        await onto(app, driver, _FORK)
+        assert "copy chat here" in str(
+            sheet.query_one("#choices", OptionList).get_option(f"={_FORK}").prompt
+        )
 
-        await driver.press("f")
+        await driver.press("enter")
         await until(lambda: "copied to" in _under(sheet), driver)
 
         assert "chat now means it" in _under(sheet)
@@ -513,12 +519,14 @@ async def test_copying_one_twice_says_the_copy_is_already_there(
     async with app.run_test() as driver:
         sheet = await _open(app, driver)
         await onto(app, driver, "official\x1fchat")
-        await driver.press("f")
+        await onto(app, driver, _FORK)
+        await driver.press("enter")
         await until(lambda: "copied to" in _under(sheet), driver)
 
         await _steps(app, driver, OFFICIAL)
         await onto(app, driver, "official\x1fchat")
-        await driver.press("f")
+        await onto(app, driver, _FORK)
+        await driver.press("enter")
         await until(lambda: "already a flow of your own" in _under(sheet), driver)
 
 

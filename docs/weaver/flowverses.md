@@ -156,22 +156,21 @@ so a flow that acts on import acts for somebody who was only looking.
 
 ## Adding one
 
-The `/flowverses` command, or <kbd>v</kbd> in `/flow`, lists every place flows come from:
+The `/flowverses` command, or the `where flows come from` row in `/flow`, lists every place flows come from:
 
 ![/flowverses: every place flows come from, then enter on one to read what it
 holds](/demo/flowverses.gif)
 
-| Key | |
+| Row | |
 | --- | --- |
-| <kbd>a</kbd> | Add one: a URL or an `owner/repo`, and a name to keep it under. Leave the name blank for the repository's own |
-| <kbd>enter</kbd> | What the flowverse under the cursor holds. The last row takes the whole flowverse away |
-| <kbd>r</kbd> | Fetch the one under the cursor again, or for the first time |
+| `add` | Add one: a URL or an `owner/repo`, and a name to keep it under, then `fetch`. Leave the name blank for the repository's own |
+| a flowverse | What it holds. Below its flows, `fetch it again` fetches it again or for the first time, and the last row takes the whole flowverse away |
 
 `official`, `local` and `user` are always listed, and none of them can be taken away.
 
 Opening `hmz` fetches every flowverse again in the background, so an added one follows what
 its repository says, and edits made inside the clone do not keep. To change somebody else's
-flow, press <kbd>f</kbd> on it in `/flow`: that copies it into `.humanize/flows/`, where your
+flow, walk to it in `/flow` and choose `copy <flow> here`: that copies it into `.humanize/flows/`, where your
 edits are yours to keep.
 
 From a script, [`Hmz().verses`](/reference/sdk#flowverses) does the same, with nothing open:
@@ -216,8 +215,8 @@ humanize's by taking its name: `.humanize/flows/chat/` is what `-f chat` runs in
 [humanfia/flowverse](https://github.com/humanfia/flowverse). To hold a run to one version of a
 flow, name it by commit: `-f 'git+https://github.com/humanfia/flowverse@<sha>#rlar'`.
 
-If a flowverse has not been fetched yet, the error says so: open `/flowverses` and press
-<kbd>r</kbd> on it. `hmz exec` fetches nothing, so a fresh CI runner calls
+If a flowverse has not been fetched yet, the error says so: open `/flowverses`, open it, and
+choose `fetch it again`. `hmz exec` fetches nothing, so a fresh CI runner calls
 `Hmz().verses.fetch("official")` first.
 
 ## Calling it from another flow

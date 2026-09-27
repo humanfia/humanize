@@ -1472,8 +1472,8 @@ whichever of its two places each is kept in; `official/rlar` also works. `local`
 are directories rather than repositories: nothing fetches them, and `add`, `fetch` and
 `remove` all refuse them.
 
-`/flowverses` is where they are managed: <kbd>a</kbd> adds one, <kbd>r</kbd> fetches the one
-under the cursor, and <kbd>enter</kbd> says what one holds.
+`/flowverses` is where they are managed: the `add` row adds one, and <kbd>enter</kbd> says
+what one holds, with `fetch it again` and `take … away` below its flows.
 [`Hmz().verses`](/reference/sdk#flowverses) is the same store from Python.
 
 ::: warning A flowverse is code
@@ -1500,7 +1500,7 @@ whatever it declares, since it talks to any harness; and it **runs with no budge
 
 Everything else humanize offers is in
 [humanfia/flowverse](https://github.com/humanfia/flowverse), fetched in the background each
-time `hmz` starts, or with <kbd>r</kbd> at `/flowverses`. [Flows](/flows/) draws the shape of
+time `hmz` starts, or with `fetch it again` at `/flowverses`. [Flows](/flows/) draws the shape of
 each.
 
 | Flow | Agent roles | Roles need | Resumable |

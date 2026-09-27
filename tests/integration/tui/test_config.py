@@ -18,8 +18,8 @@ from hmz.coganchor.backends import Model
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
-from hmz.tui.pick import Agent, Configures, Flows, setting
-from tests.integration.tui.test_app import into_agent, keeps, onto, rows
+from hmz.tui.pick import _DONE, Agent, Configures, Flows, setting
+from tests.integration.tui.test_app import changes, into_agent, keeps, onto, rows
 from tests.stubs import written
 
 if TYPE_CHECKING:
@@ -158,6 +158,13 @@ def _rows(app: Humanize) -> str:
     return "\n".join(str(option.prompt) for option in listing.options)
 
 
+async def _sets(app: Humanize, driver: Pilot[None]) -> None:
+    """Answers the sheet a flow is set up on, from the row below its settings."""
+    await onto(app, driver, _DONE)
+    await driver.press("enter")
+    await driver.pause()
+
+
 async def _set_up(app: Humanize, driver: Pilot[None], flow: str = "settable") -> None:
     """Opens the flow menu, chooses one of this project's flows, and lands where it is set up.
 
@@ -204,7 +211,7 @@ async def test_setting_up_comes_between_the_flow_and_its_agents(flows: Path) -> 
             # And it is held rather than applied: the menu is what applies it, when it is
             # saved on the way out. Answering it lands on the agents, which is the next
             # thing to answer about the flow that was just chosen.
-            await driver.press("enter")
+            await _sets(app, driver)
             await until(lambda: isinstance(app.screen, Flows), driver)
             sheet = app.screen
             assert isinstance(sheet, Flows)
@@ -234,7 +241,7 @@ async def test_a_flow_that_takes_no_setting_up_is_not_asked_about(flows: Path) -
 
 @pytest.mark.timeout(60)
 async def test_the_arrows_move_a_setting_and_letters_write_one(flows: Path) -> None:
-    """A switch and a literal step; a number and a word are typed, which is what they are."""
+    """A switch and a literal step; a number and a word are typed, once enter begins them."""
     app = Humanize()
     with unittest.mock.patch(
         "hmz.tui.app.installed",
@@ -246,20 +253,21 @@ async def test_the_arrows_move_a_setting_and_letters_write_one(flows: Path) -> N
             sheet = app.screen
             assert isinstance(sheet, Configures)
 
-            await driver.press("right")  # loud: off -> on
+            # Nothing changes before enter has begun on a row.
+            await driver.press("down", "down", "down", *"here")
             await driver.pause()
+            assert sheet._typed_in["named"] == ""
+
+            await changes(app, driver, "loud", "right")  # off -> on
             assert sheet._typed_in["loud"] == "on"
 
-            await driver.press("down", "right")  # rounds: 3 -> 4
-            await driver.pause()
+            await changes(app, driver, "rounds", "right")  # 3 -> 4
             assert sheet._typed_in["rounds"] == "4"
 
-            await driver.press("down", "right")  # mode: fast -> slow
-            await driver.pause()
+            await changes(app, driver, "mode", "right")  # fast -> slow
             assert sheet._typed_in["mode"] == "slow"
 
-            await driver.press("down", *"here")  # named, which is written
-            await driver.pause()
+            await changes(app, driver, "named", *"here")  # which is written
             assert sheet._typed_in["named"] == "here"
 
 
@@ -277,10 +285,9 @@ async def test_what_the_flow_refuses_is_said_where_it_was_typed(flows: Path) -> 
             sheet = app.screen
             assert isinstance(sheet, Configures)
 
-            await driver.press("right")  # loud on
-            await driver.press("down", "down", "right")  # mode slow
-            await driver.press("enter")
-            await driver.pause()
+            await changes(app, driver, "loud", "right")  # on
+            await changes(app, driver, "mode", "right")  # slow
+            await _sets(app, driver)
 
             assert isinstance(app.screen, Configures)  # still here, not moved on
             assert "loud and slow" in str(sheet.query_one("#tuning", Label).content)
@@ -300,9 +307,8 @@ async def test_a_setting_outside_its_bounds_is_said_too(flows: Path) -> None:
             sheet = app.screen
             assert isinstance(sheet, Configures)
 
-            await driver.press("down", "backspace", *"99")
-            await driver.press("enter")
-            await driver.pause()
+            await changes(app, driver, "rounds", "backspace", *"99")
+            await _sets(app, driver)
 
             assert isinstance(app.screen, Configures)
             assert "rounds" in str(sheet.query_one("#tuning", Label).content)
@@ -339,8 +345,8 @@ async def test_how_it_was_set_up_is_kept_and_read_back(
         async with app.run_test() as driver:
             await _set_up(app, driver)
             await until(lambda: isinstance(app.screen, Configures), driver)
-            await driver.press("right")  # loud on
-            await driver.press("enter")
+            await changes(app, driver, "loud", "right")  # on
+            await _sets(app, driver)
             await until(lambda: isinstance(app.screen, Flows), driver)
             await keeps(app, driver)
             await until(lambda: app._params is not None, driver)
@@ -363,7 +369,7 @@ async def test_setting_one_up_again_is_choosing_it_again(flows: Path) -> None:
         async with app.run_test() as driver:
             await _set_up(app, driver)
             await until(lambda: isinstance(app.screen, Configures), driver)
-            await driver.press("enter")
+            await _sets(app, driver)
             await until(lambda: isinstance(app.screen, Flows), driver)
             await keeps(app, driver)
             await until(lambda: not isinstance(app.screen, Flows), driver)
@@ -432,7 +438,7 @@ async def test_the_settings_are_drawn_in_the_sections_the_flow_grouped_them_into
             # down from the first is the third setting, not the heading above it.
             await driver.press("down", "down")
             await driver.pause()
-            assert sheet._under == "mode"
+            assert sheet.under() == "mode"
 
 
 @pytest.mark.timeout(60)
@@ -449,13 +455,13 @@ async def test_a_flow_that_groups_nothing_is_one_list(flows: Path) -> None:
             sheet = app.screen
             assert isinstance(sheet, Configures)
 
-            listing = sheet.query_one("#choices", OptionList)
-            assert listing.option_count == 2  # the two settings, and nothing else
-            assert sheet._under == "loud"
+            # The two settings, and the row that sets them, and nothing else.
+            assert rows(app) == ["loud", "rounds", _DONE]
+            assert sheet.under() == "loud"
 
             await driver.press("down")
             await driver.pause()
-            assert sheet._under == "rounds"
+            assert sheet.under() == "rounds"
 
 
 @pytest.mark.timeout(60)
@@ -474,7 +480,7 @@ async def test_the_agents_are_not_where_the_flow_itself_is_set_up(flows: Path) -
         async with app.run_test() as driver:
             await _set_up(app, driver)
             await until(lambda: isinstance(app.screen, Configures), driver)
-            await driver.press("enter")
+            await _sets(app, driver)
             await until(lambda: isinstance(app.screen, Flows), driver)
             await keeps(app, driver)
             await until(lambda: not isinstance(app.screen, Flows), driver)
@@ -500,8 +506,8 @@ async def test_walking_past_how_the_flow_is_set_up_leaves_it_alone(flows: Path) 
         async with app.run_test() as driver:
             await _set_up(app, driver)
             await until(lambda: isinstance(app.screen, Configures), driver)
-            await driver.press("right")  # loud on
-            await driver.press("enter")
+            await changes(app, driver, "loud", "right")  # on
+            await _sets(app, driver)
             await until(lambda: isinstance(app.screen, Flows), driver)
             await keeps(app, driver)
             await until(lambda: not isinstance(app.screen, Flows), driver)
@@ -521,7 +527,7 @@ async def test_walking_past_how_the_flow_is_set_up_leaves_it_alone(flows: Path) 
 async def test_a_setting_that_is_written_carries_a_caret_under_the_cursor(
     flows: Path,
 ) -> None:
-    """A blank one otherwise reads as a setting nothing can be typed into."""
+    """A blank one otherwise reads as a setting nothing can be typed into, once begun on."""
     app = Humanize()
     with unittest.mock.patch(
         "hmz.tui.app.installed",
@@ -535,13 +541,20 @@ async def test_a_setting_that_is_written_carries_a_caret_under_the_cursor(
 
             # The cursor starts on a switch, which is stepped rather than written.
             assert "reverse" not in _under(app)
-            assert "←/→" in str(sheet.query_one("#keys", Label).content)
-
-            await driver.press("down", "down", "down")  # `named`, which is written
+            await driver.press("enter")
             await driver.pause()
-            assert sheet._under == "named"
+            assert "reverse" not in _under(app)
+            assert "←/→" in str(sheet.query_one("#keys", Label).content)
+            await driver.press("escape")
+            await driver.pause()
+
+            await onto(app, driver, "named")  # which is written
+            assert sheet.under() == "named"
+            assert "reverse" not in _under(app)  # not until it is begun on
+            await driver.press("enter")
+            await driver.pause()
             assert "reverse" in _under(app)
-            assert "type set" in str(sheet.query_one("#keys", Label).content)
+            assert "←/→" not in str(sheet.query_one("#keys", Label).content)
 
             # And it stays where the next letter would land as the value grows.
             await driver.press(*"here")

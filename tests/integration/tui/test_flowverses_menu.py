@@ -23,8 +23,18 @@ from textual.widgets import Label, OptionList
 from hmz.runtime.flowing import LOCAL, OFFICIAL, USER, flowverses
 from hmz.runtime.flowing import verses as store
 from hmz.tui import Humanize
-from hmz.tui.pick import _ADD, _TAKES_AWAY, Fetches, Flows, Flowverses, Holds
-from tests.integration.tui.test_app import onto, rows
+from hmz.tui.pick import (
+    _ADD,
+    _AGAIN,
+    _DONE,
+    _TAKES_AWAY,
+    _VERSES,
+    Fetches,
+    Flows,
+    Flowverses,
+    Holds,
+)
+from tests.integration.tui.test_app import changes, onto, rows
 from tests.stubs import written
 from tests.tui.fixtures import until
 
@@ -74,6 +84,26 @@ def theirs(tmp_path: Path) -> Path:
     _git("add", "-A", at=where)
     _git("commit", "-m", "one flow", at=where)
     return where
+
+
+async def _fetches(app: Humanize, driver: Pilot[None], named: str) -> None:
+    """Opens what one flowverse holds, and fetches it again from the row that does."""
+    await onto(app, driver, named)
+    await driver.press("enter")
+    await until(lambda: isinstance(app.screen, Holds), driver)
+    await onto(app, driver, _AGAIN)
+    await driver.press("enter")
+    await until(lambda: isinstance(app.screen, Flowverses), driver)
+
+
+async def _adding(app: Humanize, driver: Pilot[None]) -> Fetches:
+    """Opens the form a flowverse is added from, off the row below the list."""
+    await onto(app, driver, _ADD)
+    await driver.press("enter")
+    await until(lambda: isinstance(app.screen, Fetches), driver)
+    sheet = app.screen
+    assert isinstance(sheet, Fetches)
+    return sheet
 
 
 async def _open(app: Humanize, driver: Pilot[None]) -> Flowverses:
@@ -142,8 +172,8 @@ async def test_what_one_holds_is_read_when_it_is_asked_for(theirs: Path) -> None
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Holds), driver)
 
-        # The flows, and past them the one row that is not a reading.
-        assert rows(app) == ["theirs/loop", _TAKES_AWAY]
+        # The flows, and past them the two rows that are not a reading.
+        assert rows(app) == ["theirs/loop", _AGAIN, _TAKES_AWAY]
         assert "Somebody else's loop" in str(
             app.screen.query_one("#choices", OptionList).get_option_at_index(0).prompt
         )
@@ -165,8 +195,8 @@ async def test_one_that_has_not_been_fetched_says_so_where_its_flows_would_be() 
         await until(lambda: isinstance(app.screen, Holds), driver)
 
         # What it holds meanwhile is the half of it humanize keeps in the package, which is
-        # there whatever has been downloaded.
-        assert rows(app) == ["chat"]
+        # there whatever has been downloaded -- and the row that fetches the rest.
+        assert rows(app) == ["chat", _AGAIN]
 
 
 @pytest.mark.timeout(60)
@@ -178,9 +208,8 @@ async def test_one_is_fetched_from_here(
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _open(app, driver)
-        await onto(app, driver, OFFICIAL)
 
-        await driver.press("r")
+        await _fetches(app, driver, OFFICIAL)
         await until(lambda: "is fetched" in _under(sheet), driver)
 
         one = store.named(OFFICIAL)
@@ -197,9 +226,8 @@ async def test_a_fetch_that_failed_is_said_under_the_list(
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _open(app, driver)
-        await onto(app, driver, OFFICIAL)
 
-        await driver.press("r")
+        await _fetches(app, driver, OFFICIAL)
         await until(lambda: "does not exist" in _under(sheet), driver)
 
         assert isinstance(app.screen, Flowverses)  # still here, still asking
@@ -212,9 +240,8 @@ async def test_there_is_nothing_to_fetch_for_the_flows_of_your_own() -> None:
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _open(app, driver)
-        await onto(app, driver, LOCAL)
 
-        await driver.press("r")
+        await _fetches(app, driver, LOCAL)
         await until(lambda: "nothing to fetch" in _under(sheet), driver)
 
 
@@ -225,9 +252,9 @@ async def test_one_is_added_from_here(theirs: Path) -> None:
     async with app.run_test() as driver:
         sheet = await _open(app, driver)
 
-        await driver.press("a")
-        await until(lambda: isinstance(app.screen, Fetches), driver)
-        await driver.press(*str(theirs))
+        await _adding(app, driver)
+        await changes(app, driver, "repository", *str(theirs))
+        await onto(app, driver, _DONE)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flowverses), driver)
         await until(lambda: "theirs" in rows(app), driver)
@@ -243,10 +270,9 @@ async def test_a_flowverse_with_no_repository_named_is_refused_where_it_was_type
     app = Humanize()
     async with app.run_test() as driver:
         await _open(app, driver)
-        await driver.press("a")
-        await until(lambda: isinstance(app.screen, Fetches), driver)
-        sheet = app.screen
+        sheet = await _adding(app, driver)
 
+        await onto(app, driver, _DONE)
         await driver.press("enter")
         await driver.pause()
 
@@ -260,13 +286,11 @@ async def test_a_name_that_is_not_one_is_refused_before_anything_is_cloned() -> 
     app = Humanize()
     async with app.run_test() as driver:
         await _open(app, driver)
-        await driver.press("a")
-        await until(lambda: isinstance(app.screen, Fetches), driver)
-        sheet = app.screen
+        sheet = await _adding(app, driver)
 
-        await driver.press(*"somewhere")
-        await driver.press("down")
-        await driver.press(*"../..")
+        await changes(app, driver, "repository", *"somewhere")
+        await changes(app, driver, "name", *"../..")
+        await onto(app, driver, _DONE)
         await driver.press("enter")
         await driver.pause()
 
@@ -309,7 +333,7 @@ async def test_one_that_was_added_is_taken_away_from_inside_what_it_holds(
 async def test_the_key_that_used_to_take_one_away_takes_nothing_away(
     theirs: Path,
 ) -> None:
-    """Asking twice was for a key that acted on the spot, and there is no such key here now."""
+    """No letter is a key of a menu, so the one that used to take one away does nothing."""
     store.add(str(theirs))
     app = Humanize()
     async with app.run_test() as driver:
@@ -377,7 +401,7 @@ async def test_what_happened_while_it_was_open_is_said_in_the_transcript(
 
 @pytest.mark.timeout(60)
 async def test_the_places_are_walked_to_from_the_flows(theirs: Path) -> None:
-    """`v` on the flows opens them, and esc comes back to the list it was opened from.
+    """A row below the flows opens them, and esc comes back to the list it was opened from.
 
     Which is where somebody is when they want them: a flow that is not in the list is a place
     that has not been added yet, and a menu reached only by a command they must already know
@@ -393,7 +417,8 @@ async def test_the_places_are_walked_to_from_the_flows(theirs: Path) -> None:
         menu = app.screen
         assert isinstance(menu, Flows)
 
-        await driver.press("v")
+        await onto(app, driver, _VERSES)
+        await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flowverses), driver)
         assert rows(app) == [OFFICIAL, "theirs", LOCAL, USER, _ADD]
 
@@ -413,7 +438,7 @@ async def test_the_places_are_walked_to_from_the_flows(theirs: Path) -> None:
         await driver.press("escape")
         await until(lambda: app.screen is menu, driver)
 
-        assert not menu._inside  # back on the flows, which is where `v` was pressed
+        assert not menu._inside  # back on the flows, which is where it was opened from
         assert "theirs is no longer here" in str(
             menu.query_one("#tuning", Label).content
         )
@@ -438,7 +463,8 @@ async def test_the_places_do_not_open_over_a_fetch_the_flows_started() -> None:
         menu._fetching = OFFICIAL  # as catching up on fetches leaves it while it runs
         menu._fill()
 
-        await driver.press("v")
+        await onto(app, driver, _VERSES)
+        await driver.press("enter")
         await until(
             lambda: (
                 "open once it is done" in str(menu.query_one("#tuning", Label).content)

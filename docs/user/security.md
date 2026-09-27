@@ -58,7 +58,7 @@ always there: it is humanize's own, at
 [humanfia/flowverse](https://github.com/humanfia/flowverse).
 
 humanize fetches every flowverse again each time `hmz` opens, so a flow you read last week may
-have changed. To keep one as it is, press <kbd>f</kbd> on it in `/flow`: it is copied into this
+have changed. To keep one as it is, walk to it in `/flow` and choose `copy <flow> here`: it is copied into this
 project's `.humanize/flows/`, where nothing fetches it, and runs as `$local/<flow>`.
 
 ## Where your credentials are

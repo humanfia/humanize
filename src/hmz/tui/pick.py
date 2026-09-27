@@ -189,10 +189,11 @@ _EMPTY = "[ ]"
 _OPENS, _CYCLES = "▸", "↔"
 
 #: What the rows set below the choices are put up under. A numbered row is one of the things
-#: the list is asking about; these are what to do about the list itself -- save what it is
-#: holding, add one more of what it is of, be rid of what the sheet is about -- so they are
-#: set apart, and a sheet that reads which row the cursor is on has to be able to tell them
-#: from the answers.
+#: the list is asking about; these are what to do about the list itself -- search it, save
+#: what it is holding, add one more of what it is of, be rid of what the sheet is about -- so
+#: they are set apart, and a sheet that reads which row the cursor is on has to be able to
+#: tell them from the answers. Every one of them is a row rather than a letter: a menu has
+#: four keys and no more, so whatever a letter used to do is a row the arrows walk to.
 #:
 #: Each carries a byte no name has in it, because the rows above them are put up under names
 #: somebody chose: a flowverse may be called `add` and an account may be called `save`, and
@@ -200,6 +201,15 @@ _OPENS, _CYCLES = "▸", "↔"
 _APART_MARK = "\x1e"
 _SAVE = f"{_APART_MARK}save"
 _ADD = f"{_APART_MARK}add"
+_SEARCH = f"{_APART_MARK}search"
+#: Asking again what a list is of: fetching a flowverse again, asking a CLI what it runs.
+_AGAIN = f"{_APART_MARK}again"
+#: Copying the flow the cursor was last on into this project, and opening where flows come
+#: from: the two things the list of flows offers beside picking one.
+_FORK = f"{_APART_MARK}fork"
+_VERSES = f"{_APART_MARK}verses"
+#: Answering a form with everything written into it, which each form names for itself.
+_DONE = f"{_APART_MARK}done"
 
 #: And what the row that sets what a run may spend answers with. Set apart for the reason
 #: saving is: the rows of the flow menu's second page are the agents it drives, and what the
@@ -212,10 +222,12 @@ _BUDGET = f"{_APART_MARK}budget"
 #: same row, and one spelling is one thing for the sheet that opened them to read back.
 _TAKES_AWAY = f"{_APART_MARK}take-away"
 
-#: All three together, for the sheets that keep which row the cursor was on: a row set apart
-#: is not one of the things being kept track of, and one taken for one would move the cursor
-#: off it the moment it was walked to.
-_APART = frozenset({_SAVE, _ADD, _TAKES_AWAY, _BUDGET})
+#: All of them together, for the sheets that keep which row the cursor was on: a row set
+#: apart is not one of the things being kept track of, and one taken for one would move the
+#: cursor off it the moment it was walked to.
+_APART = frozenset(
+    {_SAVE, _ADD, _SEARCH, _AGAIN, _FORK, _VERSES, _DONE, _TAKES_AWAY, _BUDGET}
+)
 
 #: And what each of them is called, which is both the word on the row and what the row of
 #: keys says enter does while the cursor is on it: they are not answers to the question the
@@ -224,6 +236,11 @@ _APART = frozenset({_SAVE, _ADD, _TAKES_AWAY, _BUDGET})
 _ON_APART = {
     _SAVE: "save",
     _ADD: "add",
+    _SEARCH: "search",
+    _AGAIN: "refresh",
+    _FORK: "copy",
+    _VERSES: "open",
+    _DONE: "done",
     _TAKES_AWAY: "take it away",
     _BUDGET: "set",
 }
@@ -375,34 +392,20 @@ OptionList { border: none; background: $background; scrollbar-size: 0 0; padding
 """
 
 
-#: What a menu's own keys are, said at the bottom of every sheet that has tabs.
-_TURNS = "tab/shift+tab switch"
+#: The arrows across, as the row of keys says them. A menu has four keys and no more -- the
+#: arrows up and down walk the rows, these turn the pages or step between the lists a page is
+#: made of, enter opens the row under the cursor or begins changing it, and esc steps back --
+#: so nothing about working one has to be known before it is opened. Across is also what
+#: changes a row while it is being changed, which is the one time the pages stay put.
+_ACROSS = "←/→"
 
-#: And what steps between the lists one page is made of, said beside them for the same
-#: reason: a key that is not written where it works is a key somebody has to already know.
-_STEPS = "←/→ switch"
-
-#: The one chord in the interface, spelled once here because it is said in several places
-#: and as two keys because only one of them always arrives.
-#:
-#: It is what saves a menu, and what breaks the line in the one row that takes a list of
-#: them. Both are the same problem: enter already means something -- it opens the row under
-#: the cursor, or it takes the form -- and every letter on these sheets is a key of its own,
-#: so there is no bare key left for either. So it is shift+enter, which is what a person
-#: reaches for, and `ctrl+j` beside it: a terminal reports shift+enter as itself only where
-#: it speaks a keyboard protocol that has a way to say so, and sends a bare carriage return
-#: where it does not -- which is enter, and would do the thing being avoided. `ctrl+j` is a
-#: line feed and arrives from every terminal there is, which is why the editor is bound to
-#: both as well.
-#:
-#: Written once as the keys a terminal sends, those being what a keypress is compared
-#: against; the words the row of keys says them in are a reading of the same thing.
+#: The one chord left on any sheet, which breaks the line in the one row that takes a list of
+#: them while it is being written: enter keeps what was written, so a line break needs a key
+#: of its own. Two spellings because only one of them always arrives -- a terminal reports
+#: shift+enter as itself only where it speaks a keyboard protocol that has a way to say so,
+#: and `ctrl+j` is a line feed that arrives from every terminal there is.
 _CHORD_KEYS = ("shift+enter", "ctrl+j")
 _CHORD = "/".join(_CHORD_KEYS)
-
-#: And what changes a row that is adjusted where it stands, said as one key rather than as
-#: two entries saying the same word twice.
-_CHANGES = "←/→ or space"
 
 
 class Key(NamedTuple):
@@ -433,11 +436,6 @@ def _said(*keys: Key) -> str:
       The row, as plain words.
     """
     return _DOT.join(f"{one.key} {one.does}" for one in keys)
-
-
-def _letter(key: str) -> bool:
-    """Whether one key is a letter, which is what a running search takes for itself."""
-    return len(key) == 1 and key.isalpha()
 
 
 #: The most rows of choices a sheet shows however tall the terminal is: a list longer than
@@ -476,23 +474,35 @@ class Sheet[T](ModalScreen[T | None]):
     What answering it comes to is the sheet's own: a flow is a name, an agent is what it runs
     and where, and walking out without answering is None wherever it is asked.
 
-    A sheet of several pages says so: the titles are across the top and tab and shift+tab turn
-    between them, which is the one pair of keys a terminal has for exactly that. Pages are what
-    two views of one question are, either of which may be read first: turning between them is
-    orientation. What is reached by picking something is not a page and is not a tab -- it is
-    opened with enter on the thing it is about and left on esc, because a tab between a list
-    and the thing picked out of it reads as a view that was there all along, which hides that
-    anything was picked at all.
+    A sheet of several pages says so: the titles are across the top and the arrows across turn
+    between them. Pages are what two views of one question are, either of which may be read
+    first: turning between them is orientation. What is reached by picking something is not a
+    page and is not a tab -- it is opened with enter on the thing it is about and left on esc,
+    because a tab between a list and the thing picked out of it reads as a view that was there
+    all along, which hides that anything was picked at all.
 
-    One key here is a chord and the rest are not: a sheet asks one thing and its keys are
-    its own, so a key that needed a modifier held down would be a key somebody had to already
-    know. The exception is saving, which has no bare key left to be -- enter opens the row
-    under the cursor and every letter is taken -- and which is a row of the sheet as well, so
-    that the chord is the shortcut rather than the only way through. See :data:`_CHORD`.
+    Four keys and no more: the arrows up and down walk the rows, the arrows across turn the
+    pages, enter opens the row under the cursor and esc steps back. Everything else a sheet
+    does is a row of it -- searching, adding, saving -- so that nothing has to be known before
+    it is found. A row that is changed where it stands rather than opened is changed the same
+    way everywhere: enter begins, the arrows across or typing change it, enter keeps what it
+    now says and esc puts back what it said before.
     """
 
     CSS = _SHEET
-    BINDINGS: ClassVar = [("escape", "back", "back")]
+    # All of them priority, so that they are taken in the order they were pressed: a key the
+    # list under the cursor took for itself would be handled after one the sheet took, and
+    # enter then an arrow pressed quickly would turn the page before the row was begun on.
+    BINDINGS: ClassVar = [
+        Binding("escape", "back", "back", show=False, priority=True),
+        Binding("up", "walk(-1)", "up", show=False, priority=True),
+        Binding("down", "walk(1)", "down", show=False, priority=True),
+        Binding("enter", "enter", "open", show=False, priority=True),
+        # Refused where they do nothing -- see :meth:`check_action` -- so that a sheet with no
+        # pages and nothing being changed lets them fall through.
+        Binding("left", "across(-1)", "back one", show=False, priority=True),
+        Binding("right", "across(1)", "on one", show=False, priority=True),
+    ]
 
     #: The parallel pages this sheet is, in the order they are turned between: nothing at all
     #: for a sheet that is one page, and for one whose deeper view is opened rather than
@@ -511,10 +521,15 @@ class Sheet[T](ModalScreen[T | None]):
     #: longer than a screen, and a list you walk to the end of to find one thing is one you
     #: read rather than use -- so there is somewhere for the letters to go.
     _typed: str = ""
-    #: Whether the letters are going there now. Asked for rather than assumed: every other
-    #: key on these sheets is a letter, and a sheet where typing always searched is a sheet
-    #: with no letters left to press.
+    #: Whether the letters are going there now. Asked for rather than assumed, from the row
+    #: that says `search`: a sheet where typing always searched would be one where a stray
+    #: letter quietly emptied the list.
     _searching = False
+    #: Which row is being changed, by its id, or "" while none is. Changing one is begun on
+    #: purpose, with enter, so that walking past a row can never change it.
+    _editing = ""
+    #: What the sheet held before that row was begun on, which esc puts back.
+    _before: object = None
     #: Which page is open, counting the tabs.
     _tab = 0
     #: How many rows of choices there is room for, or None before it has been worked out.
@@ -535,8 +550,20 @@ class Sheet[T](ModalScreen[T | None]):
     _walking = False
 
     #: What this sheet has put on letter keys, by action. They are the sheet's keys only
-    #: while nothing is being typed into a search -- see :meth:`check_action`.
+    #: while nothing is being typed into a search -- see :meth:`check_action`. No menu has
+    #: any; what is drawn of a run rather than asked has.
     LETTERS: ClassVar[frozenset[str]] = frozenset()
+
+    #: Whether this sheet's list is long enough to be searched, which gives it the row that
+    #: starts one.
+    SEARCHES: ClassVar[bool] = False
+
+    #: Whether the arrows across step between lists of this one page, for a sheet that has
+    #: them instead of pages.
+    ASIDE: ClassVar[bool] = False
+
+    #: What the row that answers a form is called, for a sheet that is one.
+    DONE: ClassVar[str] = "done"
 
     #: The keys this sheet last said it had, as :meth:`_footed` drew them.
     _keyed: tuple[Key, ...] = ()
@@ -556,13 +583,163 @@ class Sheet[T](ModalScreen[T | None]):
         """
         return tuple(True for _ in self.TABS)
 
-    def action_next_tab(self) -> None:
-        """Opens the next page there is to open."""
-        self._turn_page(1)
+    def _turns(self) -> bool:
+        """Whether this sheet has more than one page open to turn between."""
+        return sum(self.turnable()) > 1
 
-    def action_prev_tab(self) -> None:
-        """Opens the one before it."""
-        self._turn_page(-1)
+    def check_action(
+        self,
+        action: str,
+        parameters: tuple[object, ...],  # noqa: ARG002 -- the same key, whatever it carries
+    ) -> bool | None:
+        """Whether one of this sheet's own keys is live now.
+
+        The arrows across only where they do something: while a row is being changed, on a
+        sheet of pages, and on a sheet whose one page is several lists. Anywhere else they are
+        refused, so that they fall through to whatever is under the sheet rather than being
+        swallowed by it. And a key that is a letter is the sheet's only while nothing is being
+        typed into a search.
+
+        Args:
+          action: What the key would do.
+          parameters: What it would do it with.
+
+        Returns:
+          Whether to run it. A binding refused here is one the key falls through.
+        """
+        if action == "across":
+            if self._editing:
+                return self.steps(self._editing)
+            return self._turns() or self.ASIDE
+        if action in ("walk", "enter"):
+            return bool(self.query("#choices"))
+        return not (self._searching and action in self.LETTERS)
+
+    def action_walk(self, by: int) -> None:
+        """Walks the cursor a row up or down, unless the row it is on is being changed.
+
+        Args:
+          by: One row down, or one up.
+        """
+        listing = self.query_one("#choices", OptionList)
+        if by < 0:
+            listing.action_cursor_up()
+        else:
+            listing.action_cursor_down()
+
+    def action_enter(self) -> None:
+        """Opens the row under the cursor, or begins or keeps changing it -- see :meth:`pressed`."""
+        self.query_one("#choices", OptionList).action_select()
+
+    def action_across(self, by: int) -> None:
+        """Changes the row being changed, or turns the page, or steps to the next list.
+
+        Args:
+          by: One on, or one back.
+        """
+        if self._editing:
+            self.step(self._editing, by)
+            self._fill()
+        elif self._turns():
+            self._turn_page(by)
+        else:
+            self.aside(by)
+
+    def aside(self, by: int) -> None:
+        """Steps to another of the lists this page is made of, for a sheet that has them.
+
+        Args:
+          by: One on, or one back.
+        """
+
+    def editable(self, row: str) -> bool:
+        """Whether a row is changed where it stands rather than opened, which each sheet says.
+
+        Args:
+          row: The row, by id.
+
+        Returns:
+          True for one that enter begins changing.
+        """
+        del row
+        return False
+
+    def steps(self, row: str) -> bool:
+        """Whether the arrows across change a row, rather than only typing does.
+
+        Args:
+          row: The row, by id.
+
+        Returns:
+          True for a switch, a rung, or anything else that moves along.
+        """
+        return self.editable(row)
+
+    def step(self, row: str, by: int) -> None:
+        """Moves a row being changed one along, which each sheet says for itself.
+
+        Args:
+          row: The row, by id.
+          by: One on, or one back.
+        """
+
+    def writes(self, row: str, event: events.Key) -> bool:
+        """Types one key into a row being changed, for a row that is written.
+
+        Args:
+          row: The row, by id.
+          event: The key.
+
+        Returns:
+          Whether it was taken.
+        """
+        del row, event
+        return False
+
+    def held(self) -> object:
+        """Everything a row of this sheet can be changed to, as esc would put it back.
+
+        Returns:
+          Something :meth:`put_back` takes back, and that compares equal while nothing moved.
+        """
+        return None
+
+    def put_back(self, was: object) -> None:
+        """Puts back what :meth:`held` answered, which is esc while a row is being changed.
+
+        Args:
+          was: What it answered.
+        """
+
+    def edited(self) -> None:
+        """Says a row was changed and kept, which a menu holding changes takes note of."""
+
+    def pressed(self) -> bool:
+        """Takes enter where it begins or ends changing a row, or starts a search.
+
+        Asked by the list before it picks the row under the cursor, whether enter was pressed
+        or the row was clicked: enter on a row that is changed where it stands begins changing
+        it and does not pick it, and enter while one is being changed keeps what it now says.
+
+        Returns:
+          True where that is what enter was, and the row is not to be picked.
+        """
+        if self._editing:
+            self._editing = ""
+            if self.held() != self._before:
+                self.edited()
+            self._fill()
+            return True
+        row = self.under()
+        if row == _SEARCH:
+            if not self._searching:
+                self.action_search()
+            return True
+        if self.editable(row):
+            self._editing, self._before = row, self.held()
+            self._fill()
+            return True
+        return False
 
     def _turn_page(self, by: int) -> None:
         """Turns to the next page that may be opened, wrapping round at either end.
@@ -597,7 +774,7 @@ class Sheet[T](ModalScreen[T | None]):
         if not self.TABS:
             return ""
         able = self.turnable()
-        said = _DOT.join(
+        return _DOT.join(
             f"[b $primary]{escape(one)}[/]"
             if at == self._tab
             else f"[$text-muted]{escape(one)}[/]"
@@ -605,9 +782,6 @@ class Sheet[T](ModalScreen[T | None]):
             else f"[$text-muted][s]{escape(one)}[/s][/]"
             for at, one in enumerate(self.TABS)
         )
-        if sum(able) > 1:
-            said += f"   [$text-muted]{_TURNS}[/]"
-        return said
 
     def action_search(self) -> None:
         """Starts narrowing the list by what is typed, until esc says to stop."""
@@ -643,18 +817,28 @@ class Sheet[T](ModalScreen[T | None]):
                 return True
         return False
 
-    def searching(self) -> str:
-        """What the row of keys says about the search, for a sheet that has one.
+    def _seeking(self, *, here: bool) -> Option:
+        """The row a search is started from, which says what has been typed once one is.
+
+        With the block the next letter lands on, so that a search nothing has been typed into
+        yet still looks like one.
+
+        Args:
+          here: Whether the cursor is on it.
 
         Returns:
-          The key that starts one where none is running, and what has been typed so far where
-          one is -- with the block the next letter lands on, so that a search nothing has
-          been typed into yet still looks like one. What esc does about it is said by
-          :meth:`_footed`, esc being a key of the sheet as well.
+          The row.
         """
-        if not self._searching:
-            return f"{_DOT}s search"
-        return f"{_DOT}[$secondary]{escape(self._typed)}[/][reverse] [/reverse]"
+        mark = f"{_INDENT}[$primary]{_HERE}[/] " if here else f"{_INDENT}  "
+        typed = (
+            f"   [$secondary]{escape(self._typed)}[/][reverse] [/reverse]"
+            if self._searching
+            else ""
+        )
+        return Option(
+            f"\n{mark}{' ' * (self._counting + 2)}[$primary]search…[/]{typed}",
+            id=f"={_SEARCH}",
+        )
 
     def _footed(self, *keys: Key) -> None:
         """Puts the row of keys under the list, which is where this sheet's keys are said.
@@ -664,46 +848,69 @@ class Sheet[T](ModalScreen[T | None]):
         about the sheet and again at the bottom is a key said twice, and a sheet that built
         its own row had no way of knowing it had done that.
 
-        While a search is running the row says what the keys do *then*. The letters reach the
-        search rather than the keys they otherwise are -- which is what makes a list
-        narrowable at all -- so they are not offered, and esc comes out of the search before
-        it leaves the sheet, so it says the one it is about to do.
+        The row says what the keys do *now*. While a row is being changed that is changing
+        it and nothing else. Otherwise enter is what the row under the cursor is, the arrows
+        across turn the pages where there are pages, and esc comes out of a running search
+        before it leaves the sheet.
 
         Args:
           keys: This sheet's keys, in the order they are reached for.
         """
-        # What enter does on a row set below the choices is what that row says, and any key
-        # that does the same thing is not said beside it: the chord and the save row are one
-        # thing reached two ways, and a row of keys saying `save` twice has said it once too
-        # often.
-        said = _ON_APART.get(self.apart()) if self.query("#choices") else None
-        if said:
+        if self._editing:
             keys = (
-                Key("enter", said),
-                *(one for one in keys if one.key != "enter" and one.does != said),
+                # The one chord, which only a row being written that takes a list has.
+                *(one for one in keys if one.key == _CHORD),
+                *((Key(_ACROSS, "change"),) if self.steps(self._editing) else ()),
+                Key("enter", "keep"),
+                Key("esc", "undo"),
             )
-        if self._searching:
-            keys = (
-                *(one for one in keys if not _letter(one.key) and one.key != "esc"),
-                Key("esc", "leave search"),
+        else:
+            under = self.under() if self.query("#choices") else ""
+            apart = under if under in _APART else ""
+            said = (
+                self.DONE
+                if apart == _DONE
+                else _ON_APART.get(apart)
+                or ("change" if under and self.editable(under) else None)
             )
+            if said:
+                keys = (
+                    Key("enter", said),
+                    *(one for one in keys if one.key != "enter"),
+                )
+            if self._turns() and all(one.key != _ACROSS for one in keys):
+                keys = (
+                    *(one for one in keys if one.key != "esc"),
+                    Key(_ACROSS, "page"),
+                    *(one for one in keys if one.key == "esc"),
+                )
+            if self._searching:
+                keys = (
+                    *(one for one in keys if one.key != "esc"),
+                    Key("esc", "leave search"),
+                )
         # Kept as well as drawn, so that `no key twice on one sheet` is a thing a test can
         # read off the sheet rather than pick back out of a line of markup.
         self._keyed = keys
-        self.query_one("#keys", Label).update(
-            _said(*keys) + (self.searching() if "search" in self.LETTERS else "")
-        )
+        self.query_one("#keys", Label).update(_said(*keys))
 
     def on_key(self, event: events.Key) -> None:
-        """Takes a letter as narrowing the list, once a search has been asked for.
+        """Takes a key as writing the row being changed, or as narrowing the list.
 
-        Only then: every other key on these sheets is a letter of its own, and a list where
-        typing always searched would be a list with no keys left. The arrows walk it and enter
-        takes what is under the cursor, either way.
+        Narrowing only once a search has been asked for, and writing only once a row has been
+        begun on: a list where typing always did either is one where a stray letter changes
+        something nobody meant to. The arrows walk it and enter takes what is under the
+        cursor, either way.
 
         Args:
           event: The key.
         """
+        if self._editing:
+            if self.writes(self._editing, event):
+                event.prevent_default()
+                event.stop()
+                self._fill()
+            return
         if not self._searching:
             return
         if event.key == "backspace":
@@ -785,13 +992,21 @@ class Sheet[T](ModalScreen[T | None]):
         listing.styles.max_height = room
 
     def action_back(self) -> None:
-        """Comes out of the search, or leaves once there is no search to come out of.
+        """Puts back the row being changed, or comes out of the search, or leaves.
 
-        A search is the one place esc has something to step back to: leaving from there would
-        throw away the walk in as well as the wrong letters.
+        A row being changed and a search are the two places esc has something to step back
+        to: leaving from either would throw away the walk in as well as the wrong letters.
         """
+        if self._editing:
+            self.put_back(self._before)
+            self._editing = ""
+            self._fill()
+            return
         if self._searching:
             self._searching, self._typed = False, ""
+            if self.under() == _SEARCH:
+                # Back on the rows, which the search is not one of.
+                self.query_one("#choices", OptionList).highlighted = 0
             self._drawn = 0
             self._fill()
             return
@@ -878,11 +1093,9 @@ class Sheet[T](ModalScreen[T | None]):
     def _adding(self, about: str, *, here: bool) -> Option:
         """The row one more of whatever the list is of is added from.
 
-        A row as well as a letter, for the reason saving is one: a key advertised at the
-        bottom of the screen is a key somebody has to read the bottom of the screen to find,
-        and every list here was already teaching its own letter in a line under it that only
-        appeared while the list was empty. So adding is a thing on the list, where the arrows
-        reach it, and the letter is the shortcut to it.
+        A row rather than a letter, for the reason saving is one: a key advertised at the
+        bottom of the screen is a key somebody has to read the bottom of the screen to find.
+        So adding is a thing on the list, where the arrows reach it.
 
         Args:
           about: What gets added, in a word or two.
@@ -912,27 +1125,6 @@ class Sheet[T](ModalScreen[T | None]):
         # the same thing, or it is a stray keypress taking something else away.
         self._arming = ""
         self._fill()
-
-    def check_action(
-        self,
-        action: str,
-        parameters: tuple[object, ...],  # noqa: ARG002 -- the same key, whatever it carries
-    ) -> bool | None:
-        """Whether one of this sheet's own keys is live, which a search turns most of them off.
-
-        A key that is a letter is the sheet's only while nothing is being typed: the whole
-        point of asking for a search is that the letters go into it. Everything else -- esc,
-        the arrows, enter, the tabs -- means what it means either way.
-
-        Args:
-          action: What the key would do.
-          parameters: What it would do it with.
-
-        Returns:
-          Whether to run it. A binding refused here is one the key falls through, so the
-          letter reaches the search rather than being swallowed.
-        """
-        return not (self._searching and action in self.LETTERS)
 
     def under(self) -> str:
         """What the cursor is on, by the id the row was put up under.
@@ -1047,17 +1239,9 @@ class Drafts[T](Sheet[T]):
     read on the second page is what the first page is holding rather than what is written
     down. Nothing lands until the menu is left and saving is confirmed -- and esc on a menu
     holding changes asks, because walking out of one is a decision rather than a step back.
+    Saving is a row of the menu and the answer to that question, and nothing else: a key that
+    saved from anywhere would be one more key to know.
     """
-
-    BINDINGS: ClassVar = [
-        # Saving, on a key as well as on the row below the choices: a menu that holds
-        # everything until it is left needs a way of landing it that is not the key its rows
-        # are picked with, and there is no bare key left to be. Both spellings, because only
-        # one of them always arrives -- see :data:`_CHORD`. Priority, or the list under the
-        # cursor would take the line feed as picking the row it is on.
-        Binding("shift+enter", "save", "save", priority=True),
-        Binding("ctrl+j", "save", "save", priority=True),
-    ]
 
     #: Whether anything has been changed since it opened, which is the whole of what esc has
     #: to ask about.
@@ -1067,13 +1251,13 @@ class Drafts[T](Sheet[T]):
         """Says that something has been changed, so that esc asks before throwing it away."""
         self._changed = True
 
+    def edited(self) -> None:
+        """Takes a row changed and kept as a change the menu is holding."""
+        self.changed()
+
     def applied(self) -> None:
         """Answers with everything held, which each menu says for itself."""
         raise NotImplementedError
-
-    def action_save(self) -> None:
-        """Lands everything the menu is holding, wherever in it the key was pressed."""
-        self.applied()
 
     def _saves(self, about: str, *, here: bool) -> Option:
         """The row the menu is saved from, set below the choices rather than among them.
@@ -1595,8 +1779,8 @@ class Flows(Drafts[Chosen]):
     places and the list holding only the one being read. All of them run together under
     headings was one list nobody could see the end of, and one where walking to a flow meant
     walking past every flow that came before it. Stepping between the places is about which
-    list of flows is being read; what can happen to a flowverse is the menu `v` opens, which
-    is a question about the places rather than about which flow to run.
+    list of flows is being read; what can happen to a flowverse is the menu the row below the
+    flows opens, which is a question about the places rather than about which flow to run.
 
     Choosing a flow asks what that flow itself takes -- its params -- where it takes anything,
     and then opens its roles: a row per agent role somebody chooses an agent for, a row per
@@ -1608,21 +1792,10 @@ class Flows(Drafts[Chosen]):
     of it, and it lands together from the save row or when saving is confirmed on the way out.
     """
 
-    LETTERS: ClassVar = frozenset({"search", "fork", "verses"})
-
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        # The places the flows come from: the list walks up and down, so across is what is
-        # left for stepping between the lists there are. Priority, or the list under the
-        # cursor would take them as moving between columns it has none of.
-        Binding("left", "before", "the place before", priority=True),
-        Binding("right", "after", "the place after", priority=True),
-        # Letters rather than chords, and priority so they are the keys rather than the
-        # search: a search is asked for, and while one is running these fall through to it.
-        Binding("s", "search", "search", priority=True),
-        Binding("f", "fork", "copy it here to change", priority=True),
-        Binding("v", "verses", "where flows come from", priority=True),
-    ]
+    # The places the flows come from: the list walks up and down, so across is what is left
+    # for stepping between the lists there are.
+    ASIDE: ClassVar = True
+    SEARCHES: ClassVar = True
 
     def __init__(
         self,
@@ -1687,6 +1860,8 @@ class Flows(Drafts[Chosen]):
         #: a place with nothing in it is a row with no flow on it at all, so a row number is
         #: not a flow. Kept whole so that it still says which list it was a row of.
         self._was = ""
+        #: Which of the rows below the flows the cursor is on, or "" for one of the flows.
+        self._below = ""
         #: Which place's flows are being read, the arrows stepping between them. "" until the
         #: flows are first drawn: which place the flow in force came from is a thing only the
         #: list of every flow there is can say, and reading that list is importing every flow.
@@ -1706,15 +1881,6 @@ class Flows(Drafts[Chosen]):
         #: Whether what is open is the roles of the flow rather than the flows.
         self._inside = self._only
 
-    def searching(self) -> str:
-        """What the keys say about the search, which is nothing inside a flow.
-
-        A search narrows a list of flows. The agents of one are a row apiece and all of them
-        are on the screen, so a key that narrowed them would narrow nothing -- and a key
-        offered where it does nothing is worse than one not offered at all.
-        """
-        return "" if self._inside else super().searching()
-
     def check_action(
         self,
         action: str,
@@ -1722,9 +1888,8 @@ class Flows(Drafts[Chosen]):
     ) -> bool | None:
         """Whether one of this sheet's keys is live, which the agents of a flow narrow.
 
-        Neither the search nor the two keys about a flow: inside one there is nothing to
-        narrow, no flow under the cursor to copy, and the places are about which list of
-        flows is being read.
+        Not the arrows across inside a flow: the places are about which list of flows is
+        being read, and the agents of one come from nowhere but that flow.
 
         Args:
           action: What the key would do.
@@ -1733,7 +1898,7 @@ class Flows(Drafts[Chosen]):
         Returns:
           Whether to run it.
         """
-        if self._inside and action in ("search", "fork", "verses"):
+        if self._inside and action == "across":
             return False
         return super().check_action(action, parameters)
 
@@ -1759,7 +1924,10 @@ class Flows(Drafts[Chosen]):
             return
         named = str(listing.get_option_at_index(at).id or "")
         if _HALVES in named:
-            self._was = named
+            self._was, self._below = named, ""
+        elif named.removeprefix("=") in (_SEARCH, _FORK, _VERSES):
+            # Below the flows, where the flow last walked off is the one copying copies.
+            self._below = named.removeprefix("=")
 
     def _fitted(self, runs: Mapping[str, Runs]) -> dict[str, Runs]:
         """One agent per agent role the flow declares, whatever there was to fill it with.
@@ -1891,7 +2059,7 @@ class Flows(Drafts[Chosen]):
         """
         self._inside = inside
         self._typed, self._searching = "", False
-        self._arming, self._said = "", ""
+        self._arming, self._said, self._below = "", "", ""
         self.query_one("#choices", OptionList).highlighted = 0
         self._drawn = 0
         self._fill()
@@ -1988,7 +2156,7 @@ class Flows(Drafts[Chosen]):
         )
 
     def _where_line(self, wheres: list[str]) -> str:
-        """The places flows come from, with the one being read marked and the keys said.
+        """The places flows come from, with the one being read marked.
 
         Args:
           wheres: The places, in the order the arrows step through them.
@@ -1997,29 +2165,18 @@ class Flows(Drafts[Chosen]):
           The strip, as markup. Every place, so that the one being read is read as one of
           however many there are: a flowverse nobody can see is a flowverse nobody steps to.
         """
-        said = _DOT.join(
+        return _DOT.join(
             f"[b $primary]{escape(one)}[/]"
             if one == self._where
             else f"[$text-muted]{escape(one)}[/]"
             for one in wheres
         )
-        if len(wheres) > 1:
-            said += f"   [$text-muted]{_STEPS}[/]"
-        return said
 
     def _verse(self, named: str) -> Flowverse | None:
         """The flowverse of that name, or None for a name none of them answers to."""
         return _hmz().verses.find(named)
 
-    def action_before(self) -> None:
-        """Reads the place before this one."""
-        self._steps(-1)
-
-    def action_after(self) -> None:
-        """Reads the one after it."""
-        self._steps(1)
-
-    def _steps(self, by: int) -> None:
+    def aside(self, by: int) -> None:
         """Turns to another of the places flows come from, wrapping round at either end.
 
         Args:
@@ -2038,7 +2195,12 @@ class Flows(Drafts[Chosen]):
         self._fill()
 
     def _flows_page(self) -> None:
-        """Puts up the flows of the place being read, and nothing from any other place."""
+        """Puts up the flows of the place being read, and nothing from any other place.
+
+        And below them what else there is to do from here, a row apiece: search every place
+        for a flow, copy the flow the cursor was last on into this project, and open where
+        flows come from.
+        """
         listing = self.query_one("#choices", OptionList)
         self._follows(listing)
         mine = [
@@ -2065,7 +2227,7 @@ class Flows(Drafts[Chosen]):
                     at,
                     one.name,
                     _briefly(one.about, self.size.width),
-                    here=held[at] == self._was,
+                    here=not self._below and held[at] == self._was,
                     inforce=one.name == self._flow,
                 ),
                 id=held[at],
@@ -2078,8 +2240,40 @@ class Flows(Drafts[Chosen]):
                     f"{_INDENT}  [$text-muted]{self._empty(self._where)}[/]", id=held[0]
                 )
             ]
+        named = self._was.partition(_HALVES)[2]
+        below = [_SEARCH, *((_FORK,) if named else ()), _VERSES]
+        if self._below not in below:
+            self._below = ""
+        rows.append(self._seeking(here=self._below == _SEARCH))
+        if named:
+            rows.append(
+                Option(
+                    self._apart(
+                        f"copy {named.rpartition('/')[2]} here",
+                        "yours to change",
+                        here=self._below == _FORK,
+                    ),
+                    id=f"={_FORK}",
+                )
+            )
+        rows.append(
+            Option(
+                self._apart(
+                    "where flows come from",
+                    "flowverses",
+                    here=self._below == _VERSES,
+                ),
+                id=f"={_VERSES}",
+            )
+        )
         listing.set_options(rows)
-        listing.highlighted = held.index(self._was) if self._was in held else None
+        listing.highlighted = (
+            len(rows) - len(below) + below.index(self._below)
+            if self._below
+            else held.index(self._was)
+            if self._was in held
+            else None
+        )
         self._drawn = listing.highlighted
         said = self._nothing()
         self.query_one("#tuning", Label).update(
@@ -2087,9 +2281,7 @@ class Flows(Drafts[Chosen]):
         )
         self._footed(
             Key("enter", "open"),
-            Key("f", "copy here"),
-            Key("v", "flowverses"),
-            Key(_CHORD, "save"),
+            *((Key(_ACROSS, "place"),) if len(self._stepping()) > 1 else ()),
             Key("esc", "close"),
         )
 
@@ -2097,7 +2289,7 @@ class Flows(Drafts[Chosen]):
         """What a place with no flows in it says on the row where its flows would be."""
         verse = self._verse(whose)
         if verse is not None and not verse.fetched:
-            return "not fetched yet; v opens the flowverses, where r fetches it"
+            return "not fetched yet; where flows come from, below, fetches it"
         return "nothing in it yet"
 
     def _nothing(self) -> str:
@@ -2186,12 +2378,9 @@ class Flows(Drafts[Chosen]):
         # Esc is out of the menu only where there is no list of flows to step back to,
         # which is while a flow is running: the row says what the key does here.
         back = Key("esc", "close" if self._only else "back to the flows")
-        if at == count + 1:
-            self._footed(Key("enter", "save"), back)
-        else:
-            # What enter says is read off the row it is on -- `open` over a role and `set`
-            # over the budget, which `Sheet._footed` rewrites from the row set apart.
-            self._footed(Key("enter", "open"), Key(_CHORD, "save"), back)
+        # What enter says is read off the row it is on -- `open` over a role, `set` over the
+        # budget and `save` over saving, which `Sheet._footed` rewrites from the row set apart.
+        self._footed(Key("enter", "open"), back)
 
     def _noagents(self) -> str:
         """Why there is no role to set up, which is not always the same reason."""
@@ -2307,8 +2496,8 @@ class Flows(Drafts[Chosen]):
             self.changed()
         self._fill()
 
-    def action_fork(self) -> None:
-        """Copies the flow under the cursor into this project's own, to be changed.
+    def _forks(self) -> None:
+        """Copies the flow the cursor was last on into this project's own, to be changed.
 
         A flow is a directory, so a copy of one is a flow of yours: the entry point, what it
         imports and the skills it brings all come across, under the name it already had --
@@ -2316,7 +2505,7 @@ class Flows(Drafts[Chosen]):
 
         Which is the way to change a flow at all. A flowverse is somebody else's repository,
         fetched again over whatever was written into it, so an edit made there is an edit
-        that goes away; a copy here is yours, and is what `f` is for.
+        that goes away; a copy here is yours, and is what the row that copies is for.
         """
         from hmz.runtime.flowing import LOCAL
 
@@ -2335,7 +2524,7 @@ class Flows(Drafts[Chosen]):
             return
         # The list is something else now: there is a flow of yours that was not there, and
         # the name it took means it from here on.
-        self._offers, self._was = None, ""
+        self._offers, self._was, self._below = None, "", ""
         self._where = LOCAL
         mine = escape(named.rpartition("/")[2])
         self._said = (
@@ -2344,10 +2533,10 @@ class Flows(Drafts[Chosen]):
         self._fill()
 
     @work
-    async def action_verses(self) -> None:
+    async def _verses(self) -> None:
         """Opens where flows come from, which is a question about the places.
 
-        A menu of its own rather than three more keys here, and reached from here rather than
+        A menu of its own rather than three more rows here, and reached from here rather than
         from a command alone: adding a repository, fetching one again and taking one away are
         done to the list of places rather than to the flow under the cursor. Its own menu for
         a second reason as well -- each of those runs git as it is asked for, and something
@@ -2386,7 +2575,12 @@ class Flows(Drafts[Chosen]):
           event: What was chosen.
         """
         if not self._inside:
-            _, _, name = str(event.option.id or "").partition(_HALVES)
+            below = str(event.option.id or "").removeprefix("=")
+            if below == _FORK:
+                self._forks()
+            elif below == _VERSES:
+                self._verses()
+            _, _, name = below.partition(_HALVES)
             if name:
                 self._chose(name)
             return
@@ -2558,15 +2752,11 @@ class Holds(Sheet[str]):
     Taking the flowverse away is the last row, past the flows and out of their numbering. It
     is here because this is where a flowverse is opened, and what one *is* is what it holds:
     somebody deciding to be rid of one has just read the thing they are deciding about, which
-    a key on the list of names could not have shown them.
+    a key on the list of names could not have shown them. Fetching it again is a row above
+    that, for the same reason: it is done to this one flowverse, and this is where it is open.
     """
 
-    LETTERS: ClassVar = frozenset({"search"})
-
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        Binding("s", "search", "search", priority=True),
-    ]
+    SEARCHES: ClassVar = True
 
     def __init__(self, one: Flowverse) -> None:
         """Reads one flowverse's flows.
@@ -2617,8 +2807,8 @@ class Holds(Sheet[str]):
         listing = self.query_one("#choices", OptionList)
         shown = [one for one in self._flows() if self.fits(one.name, one.about)]
         self._counting = len(str(max(len(shown), 1)))
-        away = self._takes()
-        at = min(listing.highlighted or 0, max(len(shown) - 1 + (1 if away else 0), 0))
+        below = [_SEARCH, _AGAIN, *((_TAKES_AWAY,) if self._takes() else ())]
+        at = min(listing.highlighted or 0, len(shown) + len(below) - 1)
         rows = [
             Option(
                 self._row(
@@ -2632,19 +2822,30 @@ class Holds(Sheet[str]):
             )
             for seen, one in enumerate(shown)
         ]
-        if away:
+        rows.append(self._seeking(here=at == len(shown)))
+        rows.append(
+            Option(
+                self._apart(
+                    "fetch it again" if self._verse.fetched else "fetch it",
+                    "from where it came from",
+                    here=at == len(shown) + 1,
+                ),
+                id=f"={_AGAIN}",
+            )
+        )
+        if self._takes():
             rows.append(
                 Option(
                     self._apart(
                         f"take {self._verse.name} away",
                         "flows and all, at once",
-                        here=at == len(shown),
+                        here=at == len(shown) + 2,
                     ),
                     id=_TAKES_AWAY,
                 )
             )
         listing.set_options(rows)
-        listing.highlighted = at if rows else None
+        listing.highlighted = at
         self._drawn = listing.highlighted
         said = self._nothing(shown)
         self.query_one("#tuning", Label).update(
@@ -2672,7 +2873,7 @@ class Holds(Sheet[str]):
             if self._typed:
                 said.append("no flow of that name in it")
             elif not self._verse.fetched:
-                said.append("not fetched yet; r on the list before this fetches it")
+                said.append("not fetched yet; the row below fetches it")
             else:
                 said.append("nothing in it: a flowverse keeps its flows in flows/")
         if not self._takes():
@@ -2681,44 +2882,39 @@ class Holds(Sheet[str]):
 
     @on(OptionList.OptionSelected)
     def _took(self, event: OptionList.OptionSelected) -> None:
-        """Answers with the flowverse going, for the one row here that is not a reading.
+        """Answers with the flowverse fetched again or going, the rows that are not a reading.
 
         Args:
           event: What was chosen.
         """
-        if str(event.option.id or "") == _TAKES_AWAY:
+        held = str(event.option.id or "").removeprefix("=")
+        if held in (_AGAIN, _TAKES_AWAY):
             # Answered rather than done here: what happens to the list of places is the list
             # of places', which is also where what became of it is said.
-            self.dismiss(_TAKES_AWAY)
+            self.dismiss(held)
 
 
 class Flowverses(Sheet[list[str]]):
     """The places flows come from: what there is, what one holds, and what can happen to one.
 
-    Walked to from the menu a flow is chosen at, on `v`, and opened by `/flowverses` -- which
+    Walked to from the menu a flow is chosen at, on the row below the flows, and opened by
+    `/flowverses` -- which
     is the way in while a flow is running, the flows not being offered then. Its own sheet
     rather than a deeper view of that menu: adding a repository and fetching one again each
     run git as they are asked for, and something that has already been cloned is not a draft
     the flow menu could hold until it is saved.
 
-    Taking one away is not a key here either: enter opens what a flowverse holds, and being
-    rid of one is said in there, among everything else about it.
+    Taking one away and fetching one again are not rows here: enter opens what a flowverse
+    holds, and both are said in there, among everything else about it.
 
-    Its own sheet rather than three more keys on the flows for the same reason it is a walk
+    Its own sheet rather than three more rows on the flows for the same reason it is a walk
     away from them: what happens here happens to the list of places rather than to the flow
-    under the cursor, and a sheet that asks `which flow` with three keys on it about something
+    under the cursor, and a sheet that asks `which flow` with three rows on it about something
     else is a sheet asking two questions. Stepping between the places stays with the flows,
     that being about which list of flows is being read.
     """
 
-    LETTERS: ClassVar = frozenset({"search", "adding", "refresh"})
-
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        Binding("s", "search", "search", priority=True),
-        Binding("a", "adding", "add one", priority=True),
-        Binding("r", "refresh", "fetch it again", priority=True),
-    ]
+    SEARCHES: ClassVar = True
 
     def __init__(self) -> None:
         """Reads every flowverse there is."""
@@ -2762,19 +2958,21 @@ class Flowverses(Sheet[list[str]]):
         """Puts the flowverses up, marked where the cursor is."""
         listing = self.query_one("#choices", OptionList)
         self._follows(listing)
-        # Where the cursor is now, before the rows are built again: the row below them is
-        # about the list rather than one of it, so a cursor sitting on it is not on any
+        # Where the cursor is now, before the rows are built again: the rows below them are
+        # about the list rather than one of it, so a cursor sitting on one is not on any
         # flowverse -- and a redraw that put it back on one would walk it off as it arrived.
-        adding = self.under() == _ADD
+        below = [_SEARCH, _ADD]
+        apart = self.under() if self.under() in below else ""
         shown = [one for one in self._found if self.fits(one.name, one.url)]
         self._counting = len(str(max(len(shown), 1)))
         if all(one.name != self._was for one in shown):
             self._was = shown[0].name if shown else ""
         at = (
-            len(shown)
-            if adding
+            len(shown) + below.index(apart)
+            if apart
             else next(
-                (seen for seen, one in enumerate(shown) if one.name == self._was), 0
+                (seen for seen, one in enumerate(shown) if one.name == self._was),
+                len(shown),
             )
         )
         listing.set_options(
@@ -2784,14 +2982,17 @@ class Flowverses(Sheet[list[str]]):
                         seen,
                         one.name,
                         self._about(one),
-                        here=not adding and one.name == self._was,
+                        here=not apart and one.name == self._was,
                         inforce=False,
                     ),
                     id=f"={one.name}",
                 )
                 for seen, one in enumerate(shown)
             ]
-            + [self._adding("a flowverse", here=at == len(shown))]
+            + [
+                self._seeking(here=at == len(shown)),
+                self._adding("a flowverse", here=at == len(shown) + 1),
+            ]
         )
         listing.highlighted = at
         self._drawn = listing.highlighted
@@ -2799,12 +3000,7 @@ class Flowverses(Sheet[list[str]]):
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
-        self._footed(
-            Key("enter", "what it holds"),
-            Key("a", "add"),
-            Key("r", "fetch again"),
-            Key("esc", "close"),
-        )
+        self._footed(Key("enter", "what it holds"), Key("esc", "close"))
 
     def _follows(self, listing: OptionList) -> None:
         """Takes which flowverse the cursor is on off the list, by name.
@@ -2819,17 +3015,6 @@ class Flowverses(Sheet[list[str]]):
             if named and named not in _APART:
                 self._was = named
 
-    def _under(self) -> Flowverse | None:
-        """The flowverse the cursor is on, or None where it is not on one.
-
-        Which is a list narrowed to nothing, and the row below the list: `_was` is only ever
-        set off a row that is a flowverse, so a cursor on the row below them is a cursor that
-        would otherwise be read as still on whatever it was walked off.
-        """
-        if self.under() in _APART:
-            return None
-        return next((one for one in self._found if one.name == self._was), None)
-
     @on(OptionList.OptionSelected)
     def _took(self, event: OptionList.OptionSelected) -> None:
         """Opens what the flowverse under the cursor holds.
@@ -2839,7 +3024,7 @@ class Flowverses(Sheet[list[str]]):
         """
         named = str(event.option.id or "").removeprefix("=")
         if named == _ADD:
-            self.action_adding()
+            self._adds()
             return
         one = next((each for each in self._found if each.name == named), None)
         if one is not None:
@@ -2855,10 +3040,13 @@ class Flowverses(Sheet[list[str]]):
         said = await showing.push_screen_wait(Holds(one))
         if said == _TAKES_AWAY:
             self._removes(one)
+        elif said == _AGAIN:
+            await self._refetches(one)
+            return
         self._fill()
 
     @work
-    async def action_adding(self) -> None:
+    async def _adds(self) -> None:
         """Asks where a flowverse is and what to call it here, and clones it."""
         if self.opening():
             return
@@ -2875,27 +3063,22 @@ class Flowverses(Sheet[list[str]]):
         url, name = said
         await self._fetches(name or url, lambda: _added(url, name))
 
-    @work
-    async def action_refresh(self) -> None:
-        """Fetches the flowverse under the cursor again, or for the first time."""
-        one = self._under()
-        if one is None:
-            # The row below the list, or a search that narrowed them all away: there is no
-            # flowverse here. Said rather than done silently, and said rather than done to
-            # whichever one the cursor was on before it was walked off.
-            self._said = "no flowverse under the cursor to fetch"
-            self._fill()
-            return
+    async def _refetches(self, one: Flowverse) -> None:
+        """Fetches one flowverse again, or for the first time, as its own sheet asked.
+
+        Args:
+          one: The flowverse.
+        """
         if not one.url:
             from hmz.runtime.flowing.verses import MINE
 
             # The other way to have no URL is a directory under the flowverses home that is
             # not a clone, which is what a clone killed partway leaves behind: there is
-            # nothing to fetch it from, and `d` is what it wants rather than `r`.
+            # nothing to fetch it from, and taking it away is what it wants.
             said = (
                 f"is read from {MINE[one.name]}"
                 if one.name in MINE
-                else "is not a clone of anything; d twice takes it away"
+                else "is not a clone of anything; take it away instead"
             )
             self._said = bad(f"{escape(one.name)} {said}; there is nothing to fetch")
             self._fill()
@@ -2966,37 +3149,6 @@ class Flowverses(Sheet[list[str]]):
         self.dismiss(self._told or None)
 
 
-def _written(
-    at: int, counting: int, named: str, about: str, shown: str, *, here: bool
-) -> str:
-    """One row that is written into rather than picked between.
-
-    Args:
-      at: Which one it is, counting from zero.
-      counting: How wide the numbering is, so every row starts in the same column.
-      named: What the answer is kept under.
-      about: What is being asked, said quietly beside it.
-      shown: What has been typed, as it is to be shown.
-      here: Whether the cursor is on it.
-
-    Returns:
-      The row, as markup.
-    """
-    mark = f"{_INDENT}[$primary]{_HERE}[/] " if here else f"{_INDENT}  "
-    number = f"{at + 1:>{counting}}."
-    # A block where the next letter goes, as the settings of a flow draw one: every row here
-    # is written into, so every one of them has somewhere the next letter lands.
-    caret = "[reverse] [/reverse]" if here else ""
-    # Padded on what is shown rather than on what is written: markup is not columns.
-    label = escape(named) + " " * max(1, _SETTING - len(named))
-    room = _VALUE - len(shown) - 1
-    return (
-        f"{mark}[$text-muted]{number}[/] {label}"
-        f"[$secondary]{escape(shown)}[/]{caret}{' ' * max(1, room)}"
-        f"[$text-muted]{escape(about)}[/]"
-    )
-
-
 def _briefly(said: str, width: int) -> str:
     """One flow's line about itself, clipped to the room the row has for it.
 
@@ -3012,24 +3164,55 @@ def _briefly(said: str, width: int) -> str:
     return said if len(said) <= room else f"{said[: room - 1].rstrip()}…"
 
 
-class Fetches(Sheet[tuple[str, str]]):
-    """Where a flowverse is, and what it is to be called here.
+def _written(
+    at: int,
+    counting: int,
+    named: str,
+    about: str,
+    shown: str,
+    *,
+    here: bool,
+    writing: bool = False,
+) -> str:
+    """One row that is written into rather than picked between.
 
-    A form rather than a list, as signing in to an account is: there is nothing to pick, both
-    rows being written where they stand.
+    Args:
+      at: Which one it is, counting from zero.
+      counting: How wide the numbering is, so every row starts in the same column.
+      named: What the answer is kept under.
+      about: What is being asked, said quietly beside it.
+      shown: What has been typed, as it is to be shown.
+      here: Whether the cursor is on it.
+      writing: Whether it is being written into now.
+
+    Returns:
+      The row, as markup.
+    """
+    mark = f"{_INDENT}[$primary]{_HERE}[/] " if here else f"{_INDENT}  "
+    number = f"{at + 1:>{counting}}."
+    # A block where the next letter goes, as the settings of a flow draw one, on the row being
+    # written into and on no other: a caret is what says the letters are going somewhere.
+    caret = "[reverse] [/reverse]" if writing else ""
+    # Padded on what is shown rather than on what is written: markup is not columns.
+    label = escape(named) + " " * max(1, _SETTING - len(named))
+    room = _VALUE - len(shown) - 1
+    return (
+        f"{mark}[$text-muted]{number}[/] {label}"
+        f"[$secondary]{escape(shown)}[/]{caret}{' ' * max(1, room)}"
+        f"[$text-muted]{escape(about)}[/]"
+    )
+
+
+class Form[T](Sheet[T]):
+    """A sheet written into rather than picked from: a row per question, and one that answers.
+
+    Each question is begun on with enter, written into, and kept with enter or put back with
+    esc, as every row changed where it stands is. The form is answered from the row below the
+    questions, which says what answering it does.
     """
 
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        Binding("enter", "done", "done", priority=True),
-    ]
-
-    #: What to ask for, and what the answer means. The name is second because it is the one
-    #: with an answer already: a flowverse is called what its repository is called.
-    _ASKS = (
-        ("repository", "a URL, or owner/repo for one on GitHub"),
-        ("name", "what to call it here, blank for the repository's own name"),
-    )
+    #: What to ask for, and what the answer means, in the order they are asked.
+    _ASKS: ClassVar[tuple[tuple[str, str], ...]] = ()
 
     def __init__(self) -> None:
         """Initializes the asking."""
@@ -3039,8 +3222,126 @@ class Fetches(Sheet[tuple[str, str]]):
         #: What was still missing, once the form has been offered.
         self._wrong = ""
 
+    def _fill(self) -> None:
+        """Puts the questions up, and the row that answers the form below them."""
+        listing = self.query_one("#choices", OptionList)
+        at = min(listing.highlighted or 0, len(self._ASKS))
+        listing.set_options(
+            [
+                Option(
+                    _written(
+                        seen,
+                        self._counting,
+                        held,
+                        about,
+                        self._typed_in.get(held, ""),
+                        here=seen == at,
+                        writing=self._editing == held,
+                    ),
+                    id=f"={held}",
+                )
+                for seen, (held, about) in enumerate(self._ASKS)
+            ]
+            + [
+                Option(
+                    self._apart(self.DONE, here=at == len(self._ASKS)), id=f"={_DONE}"
+                )
+            ]
+        )
+        listing.highlighted = at
+        self._drawn = at
+        self.query_one("#tuning", Label).update(
+            f"[$error]{escape(self._wrong)}[/]" if self._wrong else ""
+        )
+        self._footed(Key("esc", "back"))
+
+    def editable(self, row: str) -> bool:
+        """Every question is written into.
+
+        Args:
+          row: The row, by id.
+
+        Returns:
+          True for a question, and False for the row that answers the form.
+        """
+        return row in dict(self._ASKS)
+
+    def steps(self, row: str) -> bool:
+        """None of them moves along: every one of them is typed.
+
+        Args:
+          row: The row, by id.
+
+        Returns:
+          False.
+        """
+        del row
+        return False
+
+    def writes(self, row: str, event: events.Key) -> bool:
+        """Takes a letter as answering the question being written.
+
+        Args:
+          row: The question, by id.
+          event: The key.
+
+        Returns:
+          Whether it was taken.
+        """
+        if event.key == "backspace":
+            self._typed_in[row] = self._typed_in.get(row, "")[:-1]
+        elif event.is_printable and event.character:
+            self._typed_in[row] = self._typed_in.get(row, "") + event.character
+        else:
+            return False
+        self._wrong = ""
+        return True
+
+    def held(self) -> object:
+        """Everything written so far, which esc on a question puts back."""
+        return dict(self._typed_in)
+
+    def put_back(self, was: object) -> None:
+        """Puts back what was written before the question was begun on.
+
+        Args:
+          was: What :meth:`held` answered.
+        """
+        self._typed_in = dict(cast("dict[str, str]", was))
+
+    @on(OptionList.OptionSelected)
+    def _took(self, event: OptionList.OptionSelected) -> None:
+        """Answers the form, from the row below the questions.
+
+        Args:
+          event: What was chosen.
+        """
+        if str(event.option.id or "").removeprefix("=") == _DONE:
+            self.action_done()
+
+    def action_done(self) -> None:
+        """Answers with what was written, which each form says for itself."""
+        raise NotImplementedError
+
+
+class Fetches(Form[tuple[str, str]]):
+    """Where a flowverse is, and what it is to be called here.
+
+    A form rather than a list, as signing in to an account is: there is nothing to pick, both
+    rows being written where they stand.
+    """
+
+    DONE = "fetch"
+
+    #: What to ask for, and what the answer means. The name is second because it is the one
+    #: with an answer already: a flowverse is called what its repository is called.
+    _ASKS = (
+        ("repository", "a URL, or owner/repo for one on GitHub"),
+        ("name", "what to call it here, blank for the repository's own name"),
+    )
+
     def _ask(self) -> None:
-        """Says what a flowverse is, and what the keys do while it is being named."""
+        """Says what a flowverse is."""
         self.query_one("#asked", Label).update("Add a flowverse")
         self.query_one("#about", Label).update(
             "A git repository with a flows/ directory in it: one .py file per flow, and "
@@ -3049,60 +3350,6 @@ class Fetches(Sheet[tuple[str, str]]):
         )
         self._fill()
         self.query_one("#choices", OptionList).focus()
-
-    def _fill(self) -> None:
-        """Puts the two rows up, with the caret in the one under the cursor."""
-        listing = self.query_one("#choices", OptionList)
-        at = self._at
-        listing.set_options(
-            Option(
-                _written(
-                    seen,
-                    self._counting,
-                    held,
-                    about,
-                    self._typed_in.get(held, ""),
-                    here=seen == at,
-                ),
-                id=f"={held}",
-            )
-            for seen, (held, about) in enumerate(self._ASKS)
-        )
-        listing.highlighted = at
-        self._drawn = at
-        self.query_one("#tuning", Label).update(
-            f"[$error]{escape(self._wrong)}[/]" if self._wrong else ""
-        )
-        self._footed(
-            Key("type", "answer"),
-            Key("backspace", "rub out"),
-            Key("enter", "fetch"),
-            Key("esc", "back"),
-        )
-
-    @property
-    def _at(self) -> int:
-        """Which row the cursor is on, counting from zero."""
-        listing = self.query_one("#choices", OptionList)
-        return min(listing.highlighted or 0, len(self._ASKS) - 1)
-
-    def on_key(self, event: events.Key) -> None:
-        """Takes a letter as answering the row under the cursor.
-
-        Args:
-          event: The key.
-        """
-        held = self._ASKS[self._at][0]
-        if event.key == "backspace":
-            self._typed_in[held] = self._typed_in.get(held, "")[:-1]
-        elif event.is_printable and event.character:
-            self._typed_in[held] = self._typed_in.get(held, "") + event.character
-        else:
-            return
-        event.prevent_default()
-        event.stop()
-        self._wrong = ""
-        self._fill()
 
     def action_done(self) -> None:
         """Answers with where it is and what to call it, once there is somewhere to fetch."""
@@ -3122,7 +3369,7 @@ class Fetches(Sheet[tuple[str, str]]):
         self.dismiss((url, name))
 
 
-class Speaks(Sheet[str]):
+class Speaks(Form[str]):
     """A CLI of your own that speaks the Agent Client Protocol, and what starts it.
 
     A form rather than a list, as adding a flowverse is: there is nothing to pick, the one row
@@ -3132,25 +3379,14 @@ class Speaks(Sheet[str]):
     what this is called here is what the command is called.
     """
 
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        Binding("enter", "done", "done", priority=True),
-    ]
+    DONE = "add"
 
     #: What to ask for, and what the answer means. The one thing nothing else can say: what
     #: it is called here is the command's own name, which this already holds.
     _ASKS = (("command", "what starts it, as you would type it: my-agent --acp"),)
 
-    def __init__(self) -> None:
-        """Initializes the asking."""
-        super().__init__()
-        self._counting = len(str(len(self._ASKS)))
-        self._typed_in: dict[str, str] = {}
-        #: What was still missing, once the form has been offered.
-        self._wrong = ""
-
     def _ask(self) -> None:
-        """Says what one of these is, and what the keys do while it is being named."""
+        """Says what one of these is."""
         self.query_one("#asked", Label).update("Add a CLI that speaks ACP")
         self.query_one("#about", Label).update(
             "Any coding agent that speaks the Agent Client Protocol, driven over the stdin "
@@ -3159,60 +3395,6 @@ class Speaks(Sheet[str]):
         )
         self._fill()
         self.query_one("#choices", OptionList).focus()
-
-    def _fill(self) -> None:
-        """Puts the row up, with the caret in it."""
-        listing = self.query_one("#choices", OptionList)
-        at = self._at
-        listing.set_options(
-            Option(
-                _written(
-                    seen,
-                    self._counting,
-                    held,
-                    about,
-                    self._typed_in.get(held, ""),
-                    here=seen == at,
-                ),
-                id=f"={held}",
-            )
-            for seen, (held, about) in enumerate(self._ASKS)
-        )
-        listing.highlighted = at
-        self._drawn = at
-        self.query_one("#tuning", Label).update(
-            f"[$error]{escape(self._wrong)}[/]" if self._wrong else ""
-        )
-        self._footed(
-            Key("type", "answer"),
-            Key("backspace", "rub out"),
-            Key("enter", "add"),
-            Key("esc", "back"),
-        )
-
-    @property
-    def _at(self) -> int:
-        """Which row the cursor is on, counting from zero."""
-        listing = self.query_one("#choices", OptionList)
-        return min(listing.highlighted or 0, len(self._ASKS) - 1)
-
-    def on_key(self, event: events.Key) -> None:
-        """Takes a letter as answering the row under the cursor.
-
-        Args:
-          event: The key.
-        """
-        held = self._ASKS[self._at][0]
-        if event.key == "backspace":
-            self._typed_in[held] = self._typed_in.get(held, "")[:-1]
-        elif event.is_printable and event.character:
-            self._typed_in[held] = self._typed_in.get(held, "") + event.character
-        else:
-            return
-        event.prevent_default()
-        event.stop()
-        self._wrong = ""
-        self._fill()
 
     def action_done(self) -> None:
         """Answers with the command, once there is something to start."""
@@ -3245,12 +3427,7 @@ class Falls(Sheet[str]):
     a turn cannot be carried on under credentials for another.
     """
 
-    LETTERS: ClassVar = frozenset({"search"})
-
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        Binding("s", "search", "search", priority=True),
-    ]
+    SEARCHES: ClassVar = True
 
     def __init__(self, cli: str, name: str, current: str = "") -> None:
         """Initializes the choosing.
@@ -3298,30 +3475,39 @@ class Falls(Sheet[str]):
         rows.extend((one.name, one.name, _sets(one)) for one in self._accounts())
         shown = [row for row in rows if self.fits(row[1], row[2])]
         self._counting = len(str(max(len(shown), 1)))
-        at = min(listing.highlighted or 0, max(len(shown) - 1, 0))
+        at = min(listing.highlighted or 0, len(shown))
         listing.set_options(
-            Option(
-                self._row(
-                    seen, label, about, here=seen == at, inforce=name == self._current
-                ),
-                id=f"={name}",
-            )
-            for seen, (name, label, about) in enumerate(shown)
+            [
+                Option(
+                    self._row(
+                        seen,
+                        label,
+                        about,
+                        here=seen == at,
+                        inforce=name == self._current,
+                    ),
+                    id=f"={name}",
+                )
+                for seen, (name, label, about) in enumerate(shown)
+            ]
+            + [self._seeking(here=at == len(shown))]
         )
-        listing.highlighted = at if shown else None
+        listing.highlighted = at
         self._drawn = at
         self.query_one("#tuning", Label).update(
             ""
             if self._accounts()
             else f"[$text-muted]{escape(self._cli)} has no other account to fall back "
-            "to; a on the menu behind this makes one[/]"
+            "to; the add row on the menu behind this makes one[/]"
         )
         self._footed(Key("enter", "choose"), Key("esc", "back"))
 
     @on(OptionList.OptionSelected)
     def _took(self, event: OptionList.OptionSelected) -> None:
         """Answers with the account that was picked, or "" for the end of the line."""
-        self.dismiss(str(event.option.id).removeprefix("="))
+        held = str(event.option.id).removeprefix("=")
+        if held not in _APART:
+            self.dismiss(held)
 
 
 #: How many times over a turn may be tried again, and how long the retrying may be given.
@@ -3336,7 +3522,7 @@ _POLICY = "policy"
 _HOW_LONG = "for"
 
 
-class Retries(Sheet[tuple[int, str, float]]):
+class Retries(Drafts[tuple[int, str, float]]):
     """How a turn at one place is tried again before it falls back to another.
 
     A turn fails for two kinds of reason and only one of them is worth another try: a prompt
@@ -3348,16 +3534,7 @@ class Retries(Sheet[tuple[int, str, float]]):
     how every other setting in an order is answered here.
     """
 
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        Binding("left", "easier", "back one", priority=True),
-        Binding("right", "harder", "on one", priority=True),
-        # And the same step forward on space, which is what a row adjusted where it stands
-        # is cycled on everywhere here: an arrow says which way, and space says `the next
-        # one` without anybody having to know which way that is.
-        Binding("space", "harder", "on one", priority=True),
-        Binding("enter", "done", "done", priority=True),
-    ]
+    DONE = "set"
 
     def __init__(self, named: str, tries: int, policy: str, timeout: float) -> None:
         """Initializes the sheet on what the place says now.
@@ -3406,23 +3583,33 @@ class Retries(Sheet[tuple[int, str, float]]):
         ]
 
     def _fill(self) -> None:
-        """Puts the three rows up, with the cursor where it was."""
+        """Puts the three rows up, with the cursor where it was, and the row that sets them."""
         listing = self.query_one("#choices", OptionList)
         rows = self._rows()
         self._counting = len(str(len(rows)))
-        at = min(listing.highlighted or 0, len(rows) - 1)
+        at = min(listing.highlighted or 0, len(rows))
         listing.set_options(
-            Option(
-                self._row(
-                    seen,
-                    name,
-                    f"{value} {_CYCLES}   {about}",
-                    here=seen == at,
-                    inforce=False,
-                ),
-                id=f"={name}",
-            )
-            for seen, (name, value, about) in enumerate(rows)
+            [
+                Option(
+                    self._row(
+                        seen,
+                        name,
+                        f"{value} {_CYCLES}   {about}",
+                        here=seen == at,
+                        inforce=False,
+                    ),
+                    id=f"={name}",
+                )
+                for seen, (name, value, about) in enumerate(rows)
+            ]
+            + [
+                Option(
+                    self._apart(
+                        self.DONE, "how it is tried again", here=at == len(rows)
+                    ),
+                    id=f"={_DONE}",
+                )
+            ]
         )
         listing.highlighted = at
         self._drawn = at
@@ -3431,39 +3618,57 @@ class Retries(Sheet[tuple[int, str, float]]):
             if not self._retries
             else ""
         )
-        self._footed(
-            Key(_CHANGES, "change"), Key("enter", "accept"), Key("esc", "back")
-        )
+        self._footed(Key("esc", "back"))
 
-    def action_easier(self) -> None:
-        """Steps the row under the cursor back one."""
-        self._step(-1)
-
-    def action_harder(self) -> None:
-        """Steps it on one."""
-        self._step(1)
-
-    def _step(self, by: int) -> None:
-        """Moves whichever row the cursor is on, wrapping round at either end.
+    def editable(self, row: str) -> bool:
+        """All three rows are stepped where they stand.
 
         Args:
+          row: The row, by id.
+
+        Returns:
+          True for the three of them.
+        """
+        return row in (_HOW_MANY, _POLICY, _HOW_LONG)
+
+    def held(self) -> object:
+        """What the three rows say now."""
+        return (self._retries, self._policy, self._timeout)
+
+    def put_back(self, was: object) -> None:
+        """Puts the three rows back as they were.
+
+        Args:
+          was: What :meth:`held` answered.
+        """
+        self._retries, self._policy, self._timeout = cast("tuple[int, str, float]", was)
+
+    def step(self, row: str, by: int) -> None:
+        """Moves one row along, wrapping round at either end.
+
+        Args:
+          row: The row, by id.
           by: One rung on or back.
         """
-        listing = self.query_one("#choices", OptionList)
-        at = listing.highlighted or 0
-        held = self._rows()[at][0] if 0 <= at < len(self._rows()) else ""
-        if held == _HOW_MANY:
+        if row == _HOW_MANY:
             self._retries = _stepped(_TRIES, self._retries, by)
-        elif held == _POLICY:
+        elif row == _POLICY:
             names = [one.name for one in _hmz().fallbacks.policies()]
             self._policy = _stepped(names, self._policy, by)
-        elif held == _HOW_LONG:
+        elif row == _HOW_LONG:
             self._timeout = _stepped(_FOR, self._timeout, by)
-        else:
-            return
-        self._fill()
 
-    def action_done(self) -> None:
+    @on(OptionList.OptionSelected)
+    def _took(self, event: OptionList.OptionSelected) -> None:
+        """Answers from the row below the three.
+
+        Args:
+          event: What was chosen.
+        """
+        if str(event.option.id or "").removeprefix("=") == _DONE:
+            self.applied()
+
+    def applied(self) -> None:
         """Answers with what the place is to say from here on."""
         self.dismiss((self._retries, self._policy, self._timeout))
 
@@ -3675,7 +3880,7 @@ def setting(config: BaseModel | None) -> list[str]:
     ]
 
 
-class Configures(Sheet["BaseModel"]):
+class Configures(Drafts["BaseModel"]):
     """How the flow is set up, asked once between choosing it and choosing its agents.
 
     A flow says what it can be set up with by declaring a model, and this is that model with
@@ -3689,19 +3894,7 @@ class Configures(Sheet["BaseModel"]):
     the int and the literal the flow declared, and says what is wrong with anything else.
     """
 
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        ("left", "prev", "previous value"),
-        ("right", "next", "next value"),
-        # And space, which cycles the row under the cursor as it does on every sheet here
-        # that has a row adjusted where it stands. Refused on a setting that is written
-        # rather than stepped -- see :meth:`check_action` -- where it is a space being typed.
-        Binding("space", "next", "next value", priority=True),
-        # Enter is the whole sheet rather than the row under the cursor: a setting is
-        # adjusted where it stands, so there is nothing here to pick. Priority, or the
-        # list under the cursor would take it as choosing a row.
-        Binding("enter", "done", "done", priority=True),
-    ]
+    DONE = "set"
 
     def __init__(
         self,
@@ -3744,10 +3937,11 @@ class Configures(Sheet["BaseModel"]):
         self._wrong = ""
         #: Which setting the cursor was last on, counting settings rather than rows: the
         #: headings between them are rows nothing can land on, so a row number is not one.
+        #: One past the last for the row that sets them all.
         self._was = 0
 
     def _ask(self) -> None:
-        """Says what is being set up, and what the keys do while it is."""
+        """Says what is being set up."""
         self.query_one("#asked", Label).update(self._asked or f"Set up {self._flow}")
         self.query_one("#about", Label).update(
             self._about
@@ -3777,31 +3971,26 @@ class Configures(Sheet["BaseModel"]):
                         Option(f"{_INDENT}[$primary]{escape(group)}[/]", disabled=True)
                     )
             rows.append(Option(self._line(seen, name, here=seen == at), id=name))
+        rows.append(
+            Option(
+                self._apart(self.DONE, "all of them", here=at == len(self._fields)),
+                id=f"={_DONE}",
+            )
+        )
         listing.set_options(rows)
-        listing.highlighted = self._row_of(at) if self._fields else None
+        listing.highlighted = self._row_of(at)
         self._drawn = listing.highlighted
         self.query_one("#tuning", Label).update(
             f"[$error]{escape(self._wrong)}[/]" if self._wrong else ""
         )
-        # What the keys do on the setting under the cursor, and not what they do elsewhere:
-        # typing at a switch does nothing, and a number is both stepped and written into.
-        held = self._fields[at][0] if self._fields else ""
-        self._footed(
-            *((Key(_CHANGES, "change"),) if held and self._moves(held) else ()),
-            *(
-                ()
-                if held and self._steps(held)
-                else (Key("type", "set"), Key("backspace", "rub out"))
-            ),
-            Key("enter", "accept"),
-            Key("esc", "back"),
-        )
+        self._footed(Key("esc", "back"))
 
     def _row_of(self, at: int) -> int:
         """Which row of the list one setting is on, once the headings are counted.
 
         Args:
-          at: Which setting it is, counting from zero.
+          at: Which setting it is, counting from zero, or one past the last for the row that
+            sets them all.
 
         Returns:
           The row.
@@ -3826,14 +4015,17 @@ class Configures(Sheet["BaseModel"]):
           row: Where the cursor is, or None for a list nothing is highlighted in.
 
         Returns:
-          The setting, counting from zero, and the nearest one where the cursor is on a
-          heading -- which is where it lands when the list is first put up.
+          The setting, counting from zero, one past the last for the row that sets them all,
+          and the nearest one where the cursor is on a heading -- which is where it lands
+          when the list is first put up.
         """
         listing = self.query_one("#choices", OptionList)
         if row is not None and 0 <= row < listing.option_count:
             named = listing.get_option_at_index(row).id
-            if named is not None:
-                return next(
+            if named == f"={_DONE}":
+                self._was = len(self._fields)
+            elif named is not None:
+                self._was = next(
                     (
                         seen
                         for seen, (one, _) in enumerate(self._fields)
@@ -3846,10 +4038,10 @@ class Configures(Sheet["BaseModel"]):
     def _line(self, at: int, name: str, *, here: bool) -> str:
         """One setting: what it is called, what it is set to, and what it is for.
 
-        A setting that is written carries a caret under the cursor, where the next letter
-        would land. Without it a blank one reads as a setting nothing can be typed into --
-        which is the one thing about this list that has to be visible, since a switch and a
-        word look the same until you try to type at one.
+        A setting being written carries a caret, where the next letter would land. Without it
+        a blank one reads as a setting nothing can be typed into -- which is the one thing
+        about this list that has to be visible, since a switch and a word look the same until
+        you try to type at one.
 
         Args:
           at: Which one it is, counting from zero.
@@ -3865,7 +4057,11 @@ class Configures(Sheet["BaseModel"]):
         about = dict(self._fields)[name].description or ""
         # A block where the next letter goes, drawn by reversing what is already there --
         # the one thing a list in the terminal's own colours can show without naming one.
-        caret = "[reverse] [/reverse]" if here and not self._steps(name) else ""
+        caret = (
+            "[reverse] [/reverse]"
+            if self._editing == name and not self._steps(name)
+            else ""
+        )
         # And the mark that says which rows move where they stand, which is the other half of
         # the same thing the caret is: a switch and a word look the same until you try one. A
         # number wears both, being a row that is written into *and* stepped along.
@@ -3879,15 +4075,6 @@ class Configures(Sheet["BaseModel"]):
             f"[$secondary]{escape(value)}[/]{caret}[$text-muted]{cycles}[/]"
             f"{' ' * max(1, room)}[$text-muted]{escape(about)}[/]"
         )
-
-    @property
-    def _under(self) -> str:
-        """The setting the cursor is on, or "" for a model that declares none."""
-        if not self._fields:
-            return ""
-        listing = self.query_one("#choices", OptionList)
-        self._was = self._at(listing.highlighted)
-        return self._fields[self._was][0]
 
     def _steps(self, name: str) -> tuple[str, ...]:
         """What a setting steps through, where it is one of a fixed few.
@@ -3911,89 +4098,108 @@ class Configures(Sheet["BaseModel"]):
         return ()
 
     def _moves(self, name: str) -> bool:
-        """Whether the arrows and space move this setting where it stands.
+        """Whether the arrows move this setting where it stands.
 
         Args:
           name: The field.
 
         Returns:
           True for one of a fixed few values, which they cycle through, and for a number,
-          which they count up and down. False for one that is only ever written, where a
-          space is a space being typed -- see :meth:`check_action`.
+          which they count up and down. False for one that is only ever written.
         """
         if self._steps(name):
             return True
         return dict(self._fields)[name].annotation in (int, float)
 
-    def _move(self, by: int) -> None:
-        """Moves the setting under the cursor along, however that setting moves.
+    def editable(self, row: str) -> bool:
+        """Every setting is changed where it stands.
 
         Args:
+          row: The row, by id.
+
+        Returns:
+          True for a setting, and False for the row that sets them all.
+        """
+        return row in dict(self._fields)
+
+    def steps(self, row: str) -> bool:
+        """Whether the arrows move a setting, which a word that is written they do not.
+
+        Args:
+          row: The setting.
+
+        Returns:
+          True for a switch, a literal and a number.
+        """
+        return row in dict(self._fields) and self._moves(row)
+
+    def held(self) -> object:
+        """Every setting as it is written now."""
+        return dict(self._typed_in)
+
+    def put_back(self, was: object) -> None:
+        """Puts every setting back as it was written before.
+
+        Args:
+          was: What :meth:`held` answered.
+        """
+        self._typed_in = dict(cast("dict[str, str]", was))
+
+    def step(self, row: str, by: int) -> None:
+        """Moves one setting along, however that setting moves.
+
+        Args:
+          row: The setting.
           by: One step forward or back.
         """
-        name = self._under
-        if not name:
-            return
-        if steps := self._steps(name):
-            at = (
-                steps.index(self._typed_in[name])
-                if self._typed_in[name] in steps
-                else 0
-            )
-            self._typed_in[name] = steps[(at + by) % len(steps)]
-        elif dict(self._fields)[name].annotation in (int, float):
+        if steps := self._steps(row):
+            at = steps.index(self._typed_in[row]) if self._typed_in[row] in steps else 0
+            self._typed_in[row] = steps[(at + by) % len(steps)]
+        elif dict(self._fields)[row].annotation in (int, float):
             try:
-                now = float(self._typed_in[name] or 0)
+                now = float(self._typed_in[row] or 0)
             except ValueError:
                 now = 0
             moved = now + by
-            self._typed_in[name] = str(
-                int(moved) if dict(self._fields)[name].annotation is int else moved
+            self._typed_in[row] = str(
+                int(moved) if dict(self._fields)[row].annotation is int else moved
             )
         else:
             return  # a setting that is written is not one an arrow has a step for
         self._wrong = ""
-        self._fill()
 
-    def check_action(
-        self,
-        action: str,
-        parameters: tuple[object, ...],
-    ) -> bool | None:
-        """Whether a key is live, which on a setting that is written turns the stepping off.
-
-        Space is one of the keys that steps a setting along, as it is everywhere here, and a
-        setting that is written rather than stepped is one where a space is a space being
-        typed. Refused rather than ignored, so that the key falls through to the writing.
+    def writes(self, row: str, event: events.Key) -> bool:
+        """Takes a letter as writing the setting being changed.
 
         Args:
-          action: What the key would do.
-          parameters: What it would do it with.
+          row: The setting.
+          event: The key.
 
         Returns:
-          Whether to run it.
+          Whether it was taken: never on a switch or a literal, which are stepped.
         """
-        # Asked of the row under the cursor, which means reading the list -- so only for the
-        # two keys it is about, and only once there is a list to read.
-        if action in ("next", "prev") and self.query("#choices"):
-            held = self._under
-            if not (held and self._moves(held)):
-                return False
-        return super().check_action(action, parameters)
+        if self._steps(row):
+            return False
+        if event.key == "backspace":
+            self._typed_in[row] = self._typed_in[row][:-1]
+        elif event.is_printable and event.character:
+            self._typed_in[row] += event.character
+        else:
+            return False
+        self._wrong = ""
+        return True
 
-    def action_next(self) -> None:
-        """Moves the setting under the cursor one value on."""
-        self._move(1)
+    @on(OptionList.OptionSelected)
+    def _took(self, event: OptionList.OptionSelected) -> None:
+        """Sets them all, from the row below them.
 
-    def action_prev(self) -> None:
-        """Moves the setting under the cursor one value back."""
-        self._move(-1)
+        Args:
+          event: What was chosen.
+        """
+        if str(event.option.id or "").removeprefix("=") == _DONE:
+            self.applied()
 
-    def action_back(self) -> None:
-        """Leaves without setting anything, which leaves the flow as it was."""
-        self.dismiss(None)
-
-    def action_done(self) -> None:
+    def applied(self) -> None:
         """Reads every setting back into the model, and answers with it if it takes them.
 
         What the model refuses is shown where it was typed rather than raised at the flow:
@@ -4010,29 +4216,6 @@ class Configures(Sheet["BaseModel"]):
             self._wrong = f"{where}: {first['msg']}" if where else str(first["msg"])
             self._fill()
 
-    def on_key(self, event: events.Key) -> None:
-        """Takes a letter as writing the setting under the cursor.
-
-        There is nothing to search here -- every setting is on screen at once -- so the keys
-        that narrow a list elsewhere are the ones that write a value.
-
-        Args:
-          event: The key.
-        """
-        name = self._under
-        if not name or self._steps(name):
-            return  # a switch and a literal are stepped rather than written
-        if event.key == "backspace":
-            self._typed_in[name] = self._typed_in[name][:-1]
-        elif event.is_printable and event.character:
-            self._typed_in[name] += event.character
-        else:
-            return
-        event.prevent_default()
-        event.stop()
-        self._wrong = ""
-        self._fill()
-
 
 class Picks(Sheet[str]):
     """A question that is only a list of named things, answered by picking one of them.
@@ -4048,22 +4231,15 @@ class Picks(Sheet[str]):
     asked = ""
     about = ""
 
-    #: This sheet's own keys, said before the ones every sheet of this shape has. Nothing at
-    #: all for a sheet that only picks, which is most of them.
-    keys: ClassVar[tuple[Key, ...]] = ()
-
     #: What the row below the choices adds, in a word or two, for a list that is added to as
     #: well as picked from -- and "" for one that is only picked from, which has no such row.
     adds = ""
 
-    LETTERS: ClassVar = frozenset({"search"})
+    #: What the row that asks again what the list is of says, for a list that is read off
+    #: something that can be asked again -- and "" for one that cannot.
+    again = ""
 
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        # A list is read before it is searched, so searching is asked for: every letter here
-        # is otherwise a key, and a list where typing always searched would have none.
-        Binding("s", "search", "search", priority=True),
-    ]
+    SEARCHES: ClassVar = True
 
     def __init__(self, current: str = "") -> None:
         """Initializes the choosing.
@@ -4102,6 +4278,9 @@ class Picks(Sheet[str]):
     def added(self) -> None:
         """Adds one more, for a list that is added to as well as picked from."""
 
+    def asked_again(self) -> None:
+        """Asks again what the list is of, for a list that can be."""
+
     def _fill(self) -> None:
         """Puts the rows up, with the marker beside the one the cursor is on."""
         listing = self.query_one("#choices", OptionList)
@@ -4110,8 +4289,12 @@ class Picks(Sheet[str]):
             self._rows = self.rows()
         shown = [row for row in self._rows if self.fits(row[1], row[2])]
         self._counting = len(str(max(len(shown), 1)))
-        most = len(shown) if self.adds else max(len(shown) - 1, 0)
-        at = min(listing.highlighted or 0, most)
+        below = [
+            *((_SEARCH,) if self.SEARCHES else ()),
+            *((_ADD,) if self.adds else ()),
+            *((_AGAIN,) if self.again else ()),
+        ]
+        at = min(listing.highlighted or 0, max(len(shown) + len(below) - 1, 0))
         rows = [
             Option(
                 self._row(
@@ -4123,8 +4306,15 @@ class Picks(Sheet[str]):
             )
             for seen, (answer, label, about) in enumerate(shown)
         ]
-        if self.adds:
-            rows.append(self._adding(self.adds, here=at == len(shown)))
+        for one in below:
+            here = at == len(rows)
+            rows.append(
+                self._seeking(here=here)
+                if one == _SEARCH
+                else self._adding(self.adds, here=here)
+                if one == _ADD
+                else Option(self._apart(self.again, here=here), id=f"={_AGAIN}")
+            )
         listing.set_options(rows)
         listing.highlighted = at if rows else None
         self._drawn = at
@@ -4132,11 +4322,11 @@ class Picks(Sheet[str]):
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
-        self._footed(*self.keys, Key("enter", "choose"), Key("esc", "back"))
+        self._footed(Key("enter", "choose"), Key("esc", "back"))
 
     @on(OptionList.OptionSelected)
     def _took(self, event: OptionList.OptionSelected) -> None:
-        """Answers with what was picked, or adds one for the row below the choices.
+        """Answers with what was picked, or does what a row below the choices does.
 
         Args:
           event: What was chosen.
@@ -4144,6 +4334,11 @@ class Picks(Sheet[str]):
         held = str(event.option.id).removeprefix("=")
         if held == _ADD:
             self.added()
+            return
+        if held == _AGAIN:
+            self.asked_again()
+            return
+        if held == _SEARCH:  # started a search rather than answered
             return
         self.dismiss(held)
 
@@ -4237,20 +4432,11 @@ class Alike(Sheet[tuple[str, ...]]):
     A form of switches rather than a list to pick from: it asks about all of them at once.
     The ones installed here start on, since those are the ones an agent could be run on
     tomorrow; the rest are listed and off, an account being worth writing down before the CLI
-    that will use it is on this machine.
+    that will use it is on this machine. The row below them copies it to the ones on, and esc
+    copies it to none.
     """
 
-    LETTERS: ClassVar = frozenset()
-
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        # Enter is the whole form rather than the row under the cursor, as it is on every
-        # other sheet here that is written into rather than picked from.
-        Binding("enter", "done", "done", priority=True),
-        Binding("space", "flip", "turn one on or off", priority=True),
-        Binding("left", "off", "off", priority=True),
-        Binding("right", "on", "on", priority=True),
-    ]
+    DONE = "copy"
 
     def __init__(self, one: Provider, among: Sequence[str]) -> None:
         """Asks about one account.
@@ -4279,73 +4465,85 @@ class Alike(Sheet[tuple[str, ...]]):
         self.query_one("#choices", OptionList).focus()
 
     def _fill(self) -> None:
-        """Puts the backends up, each with its switch."""
+        """Puts the backends up, each with its switch, and the row that copies to them."""
         listing = self.query_one("#choices", OptionList)
         self._counting = len(str(max(len(self._among), 1)))
-        at = min(listing.highlighted or 0, max(len(self._among) - 1, 0))
+        at = min(listing.highlighted or 0, len(self._among))
         here = installed()
         listing.set_options(
-            Option(
-                self._row(
-                    seen,
-                    cli,
-                    "installed here" if cli in here else "not installed here yet",
-                    here=seen == at,
-                    inforce=False,
-                    box=_TICKED if cli in self._on else _EMPTY,
-                ),
-                id=f"={cli}",
-            )
-            for seen, cli in enumerate(self._among)
+            [
+                Option(
+                    self._row(
+                        seen,
+                        cli,
+                        "installed here" if cli in here else "not installed here yet",
+                        here=seen == at,
+                        inforce=False,
+                        box=_TICKED if cli in self._on else _EMPTY,
+                    ),
+                    id=f"={cli}",
+                )
+                for seen, cli in enumerate(self._among)
+            ]
+            + [
+                Option(
+                    self._apart(
+                        self.DONE, "to the ones on", here=at == len(self._among)
+                    ),
+                    id=f"={_DONE}",
+                )
+            ]
         )
-        listing.highlighted = at if self._among else None
+        listing.highlighted = at
         self._drawn = at
         self.query_one("#tuning", Label).update("")
-        self._footed(
-            Key(_CHANGES, "change"),
-            Key("enter", "copy to the ones on"),
-            Key("esc", "copy to none"),
-        )
+        self._footed(Key("esc", "copy to none"))
 
-    def action_flip(self) -> None:
-        """Turns the one under the cursor round."""
-        self._steps()
-
-    def action_on(self) -> None:
-        """Turns it on."""
-        self._steps(onto=True)
-
-    def action_off(self) -> None:
-        """Turns it off."""
-        self._steps(onto=False)
-
-    def _steps(self, *, onto: bool | None = None) -> None:
-        """Sets the switch under the cursor.
+    def editable(self, row: str) -> bool:
+        """Every backend is a switch, turned where it stands.
 
         Args:
-          onto: What to set it to, or None to turn it round.
+          row: The row, by id.
+
+        Returns:
+          True for a backend.
         """
-        listing = self.query_one("#choices", OptionList)
-        at = listing.highlighted
-        if at is None or not 0 <= at < len(self._among):
-            return
-        cli = self._among[at]
-        wanted = (cli not in self._on) if onto is None else onto
-        if wanted:
-            self._on.add(cli)
+        return row in self._among
+
+    def held(self) -> object:
+        """Which of them are on now."""
+        return frozenset(self._on)
+
+    def put_back(self, was: object) -> None:
+        """Puts the switches back as they were.
+
+        Args:
+          was: What :meth:`held` answered.
+        """
+        self._on = set(cast("frozenset[str]", was))
+
+    def step(self, row: str, by: int) -> None:
+        """Turns one switch round, whichever way the arrow points.
+
+        Args:
+          row: The backend.
+          by: Which way, which a switch of two has no use for.
+        """
+        del by
+        if row in self._on:
+            self._on.discard(row)
         else:
-            self._on.discard(cli)
-        self._fill()
+            self._on.add(row)
 
     @on(OptionList.OptionSelected)
     def _took(self, event: OptionList.OptionSelected) -> None:
-        """Answers with everything switched on, enter being the whole form.
+        """Answers with everything switched on, from the row below them.
 
         Args:
-          event: What was chosen, which is unread: the row is not what this asks about.
+          event: What was chosen.
         """
-        del event
-        self.action_done()
+        if str(event.option.id or "").removeprefix("=") == _DONE:
+            self.action_done()
 
     def action_done(self) -> None:
         """Answers with the backends to copy this account to, in the order they were shown."""
@@ -4561,6 +4759,9 @@ class Ways(Picks):
     one of them, answered.
     """
 
+    #: A few rows, read rather than narrowed.
+    SEARCHES: ClassVar = False
+
     asked = "Select how to sign in"
     about = (
         "What this account is. A way with a command of its own is handed the terminal once "
@@ -4612,6 +4813,10 @@ _CALLED = ""
 _TYPED = " "
 _TYPED_ABOUT = "the variables, as NAME=VALUE, one per line"
 
+#: What each question's row is put up under, in front of what it is kept under: the name is
+#: kept under "", and a row being written is held by an id that has to say it is one.
+_ASKED = "?"
+
 
 class Signing(Sheet[Signs]):
     """What a way in has to be told before an account can be made out of it.
@@ -4623,12 +4828,7 @@ class Signing(Sheet[Signs]):
     it is on its way into a credential store, and a screen is somewhere it can be read off.
     """
 
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        # Enter is the whole form rather than the row under the cursor: there is nothing here
-        # to pick, every row being written where it stands.
-        Binding("enter", "done", "done", priority=True),
-    ]
+    DONE = "accept"
 
     def __init__(
         self,
@@ -4698,41 +4898,42 @@ class Signing(Sheet[Signs]):
         self.query_one("#choices", OptionList).focus()
 
     def _fill(self) -> None:
-        """Puts the questions up, with the caret in the one under the cursor."""
+        """Puts the questions up, and the row that answers the form below them."""
         listing = self.query_one("#choices", OptionList)
-        at = self._at
+        at = min(listing.highlighted or 0, len(self._fields))
         listing.set_options(
-            Option(
-                self._line(seen, held, about, secret=secret, here=seen == at),
-                id=f"={held}",
-            )
-            for seen, (held, about, secret) in enumerate(self._fields)
+            [
+                Option(
+                    self._line(seen, held, about, secret=secret, here=seen == at),
+                    # Marked, because the name is kept under "" and a row being changed is
+                    # held by an id that says it is one.
+                    id=f"={_ASKED}{held}",
+                )
+                for seen, (held, about, secret) in enumerate(self._fields)
+            ]
+            + [
+                Option(
+                    self._apart(self.DONE, here=at == len(self._fields)),
+                    id=f"={_DONE}",
+                )
+            ]
         )
-        listing.highlighted = at if self._fields else None
+        listing.highlighted = at
         self._drawn = listing.highlighted
         self.query_one("#tuning", Label).update(
             f"[$error]{escape(self._wrong)}[/]" if self._wrong else ""
         )
+        # A line broken only in the one row that takes a list, and only while it is being
+        # written: enter keeps what was written, so that row needs a key of its own to hold
+        # more than one line at all. Said where it works and nowhere else.
         self._footed(
-            Key("type", "answer"),
-            Key("backspace", "rub out"),
-            # Only on the one row that takes a list: enter takes the form, so a row holding
-            # several variables needs a key of its own to hold more than one line at all.
-            # Said where it works and not on the rows it does nothing on.
             *(
                 (Key(_CHORD, "break the line"),)
-                if self._fields and self._fields[at][0] == _TYPED
+                if self._editing == f"{_ASKED}{_TYPED}"
                 else ()
             ),
-            Key("enter", "accept"),
             Key("esc", "back"),
         )
-
-    @property
-    def _at(self) -> int:
-        """Which question the cursor is on, counting from zero."""
-        listing = self.query_one("#choices", OptionList)
-        return min(listing.highlighted or 0, max(len(self._fields) - 1, 0))
 
     def _line(self, at: int, held: str, about: str, *, secret: bool, here: bool) -> str:
         """One question: what the answer becomes, what has been typed, and what is being asked.
@@ -4751,20 +4952,52 @@ class Signing(Sheet[Signs]):
         # what it was is worth seeing once, on the way in, by the one typing it.
         value = self._typed_in.get(held, "")
         shown = "•" * len(value) if secret else value
-        return _written(at, self._counting, held or "name", about, shown, here=here)
+        return _written(
+            at,
+            self._counting,
+            held or "name",
+            about,
+            shown,
+            here=here,
+            writing=self._editing == f"{_ASKED}{held}",
+        )
 
-    def on_key(self, event: events.Key) -> None:
-        """Takes a letter as answering the question under the cursor.
-
-        There is nothing to search here -- every question is on screen at once -- so the keys
-        that narrow a list elsewhere are the ones that answer.
+    def editable(self, row: str) -> bool:
+        """Every question is written into.
 
         Args:
-          event: The key.
+          row: The row, by id.
+
+        Returns:
+          True for a question, and False for the row that answers the form.
         """
-        if not self._fields:
-            return
-        held = self._fields[self._at][0]
+        return row.startswith(_ASKED) and any(
+            row == f"{_ASKED}{held}" for held, _, _ in self._fields
+        )
+
+    def steps(self, row: str) -> bool:
+        """None of them moves along: every one of them is typed.
+
+        Args:
+          row: The row, by id.
+
+        Returns:
+          False.
+        """
+        del row
+        return False
+
+    def writes(self, row: str, event: events.Key) -> bool:
+        """Takes a letter as answering the question being written.
+
+        Args:
+          row: The question, by id.
+          event: The key.
+
+        Returns:
+          Whether it was taken.
+        """
+        held = row.removeprefix(_ASKED)
         if event.key == "backspace":
             self._typed_in[held] = self._typed_in.get(held, "")[:-1]
         elif event.key in _CHORD_KEYS and held == _TYPED:
@@ -4774,27 +5007,46 @@ class Signing(Sheet[Signs]):
         elif event.is_printable and event.character:
             self._typed_in[held] = self._typed_in.get(held, "") + event.character
         else:
-            return
-        event.prevent_default()
-        event.stop()
+            return False
         self._wrong = ""
-        self._fill()
+        return True
+
+    def held(self) -> object:
+        """Everything written so far, which esc on a question puts back."""
+        return dict(self._typed_in)
+
+    def put_back(self, was: object) -> None:
+        """Puts back what was written before the question was begun on.
+
+        Args:
+          was: What :meth:`held` answered.
+        """
+        self._typed_in = dict(cast("dict[str, str]", was))
 
     def on_paste(self, event: events.Paste) -> None:
-        """Pastes an answer into the question under the cursor."""
-        if not self._fields or not event.text:
-            event.stop()
+        """Pastes an answer into the question being written, and nowhere while none is."""
+        event.stop()
+        if not self._editing or not event.text:
             return
-        held = self._fields[self._at][0]
+        held = self._editing.removeprefix(_ASKED)
         pasted = event.text.replace("\r\n", "\n").replace("\r", "\n")
         if held != _TYPED:
             # A clipboard commonly ends in a newline. Single-value fields follow
             # Textual Input and take one line; only the free-form env row is multiline.
             pasted = pasted.split("\n", 1)[0]
         self._typed_in[held] = self._typed_in.get(held, "") + pasted
-        event.stop()
         self._wrong = ""
         self._fill()
+
+    @on(OptionList.OptionSelected)
+    def _took(self, event: OptionList.OptionSelected) -> None:
+        """Answers the form, from the row below the questions.
+
+        Args:
+          event: What was chosen.
+        """
+        if str(event.option.id or "").removeprefix("=") == _DONE:
+            self.action_done()
 
     def action_done(self) -> None:
         """Answers with what it is to be called and what its way was told, once that is all.
@@ -4841,26 +5093,9 @@ class Popup(Picks):
     than searched.
     """
 
-    #: None: a box refuses the search, so `s` is not one of its keys and nothing about one is
-    #: said under it.
-    LETTERS: ClassVar[frozenset[str]] = frozenset()
-
-    def check_action(
-        self,
-        action: str,
-        parameters: tuple[object, ...],
-    ) -> bool | None:
-        """Whether one of the keys is live, which a question of two answers narrows.
-
-        Args:
-          action: What the key would do.
-          parameters: What it would do it with.
-
-        Returns:
-          Whether to run it. Never the search: two rows are read rather than narrowed, and a
-          box in the middle of the screen has no room to say what was typed into one.
-        """
-        return action != "search" and super().check_action(action, parameters)
+    #: None: two rows are read rather than narrowed, and a box in the middle of the screen
+    #: has no room for a row that searches.
+    SEARCHES: ClassVar = False
 
     def _ask(self) -> None:
         """Says what is being asked, and takes back the line under it where there is none.
@@ -5008,16 +5243,6 @@ class Adjusts(Drafts[Adjusted]):
 
     TABS: ClassVar = ("Everywhere", "This directory")
 
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        Binding("tab", "next_tab", "next page", priority=True),
-        Binding("shift+tab", "prev_tab", "previous page", priority=True),
-        Binding("left", "easier", "back one", priority=True),
-        Binding("right", "harder", "on one", priority=True),
-        # And space, which turns the row under the cursor round as it does everywhere here.
-        Binding("space", "harder", "on one", priority=True),
-    ]
-
     def __init__(
         self,
         *,
@@ -5156,42 +5381,52 @@ class Adjusts(Drafts[Adjusted]):
         Args:
           held: The row, by id.
         """
-        saves = Key(_CHORD, "save")
         close = Key("esc", "close")
-        if held == _SAVE:
-            self._footed(Key("enter", "save"), close)
-        elif held == _SENT:
-            self._footed(Key("enter", "read"), saves, close)
-        elif held in _SWITCHES:
-            self._footed(Key(_CHANGES, "change"), saves, close)
+        if held == _SENT:
+            self._footed(Key("enter", "read"), close)
         else:
-            self._footed(saves, close)
+            self._footed(close)
 
-    def action_easier(self) -> None:
-        """Steps the row under the cursor back one, which for a switch is the same as on."""
-        self._step()
+    def editable(self, row: str) -> bool:
+        """Whether a row is a switch, turned round where it stands.
 
-    def action_harder(self) -> None:
-        """Steps it on one."""
-        self._step()
+        Args:
+          row: The row, by id.
 
-    def _step(self) -> None:
-        """Turns round whichever switch the cursor is on."""
-        listing = self.query_one("#choices", OptionList)
-        at = listing.highlighted or 0
-        rows = self._rows()
-        held = rows[at][0] if 0 <= at < len(rows) else ""
-        if held == _SENTRY:
+        Returns:
+          True for the switches.
+        """
+        return row in _SWITCHES
+
+    def held(self) -> object:
+        """What every switch says now."""
+        return (self._sentry, self._profile, self._forget)
+
+    def put_back(self, was: object) -> None:
+        """Puts every switch back as it was.
+
+        Args:
+          was: What :meth:`held` answered.
+        """
+        self._sentry, self._profile, self._forget = cast(
+            "tuple[bool | None, bool, bool]", was
+        )
+
+    def step(self, row: str, by: int) -> None:
+        """Turns one switch round, whichever way the arrow points.
+
+        Args:
+          row: The switch.
+          by: Which way, which a switch of two has no use for.
+        """
+        del by
+        if row == _SENTRY:
             self._sentry = not self._sentry
-        elif held == _PROFILES:
+        elif row == _PROFILES:
             self._profile = not self._profile
-        elif held == _FORGET:
+        elif row == _FORGET:
             self._forget = not self._forget
-        else:
-            return
         self._said = ""
-        self.changed()
-        self._fill()
 
     @on(OptionList.OptionSelected)
     def _took(self, event: OptionList.OptionSelected) -> None:
@@ -5204,8 +5439,6 @@ class Adjusts(Drafts[Adjusted]):
             sent, kept = "; ".join(SENT), "; ".join(KEPT)
             self._said = f"Sent: {sent}. Never: {kept}."
             self._fill()
-            return
-        self._step()
 
     def applied(self) -> None:
         """Answers with what was changed, which is nothing where nothing was."""
@@ -5319,21 +5552,6 @@ class Agent(Drafts[Runs]):
     belonged to the CLI before it.
     """
 
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        # The two settings that are a step along rather than a list to open: how hard it
-        # thinks, and whether one turn is run wide. Both are a rung in an order, which is what
-        # an arrow is for. Priority, or the list under the cursor would take them as moving
-        # between rows it has none of.
-        Binding("left", "easier", "back one", priority=True),
-        Binding("right", "harder", "on one", priority=True),
-        # And space, which cycles the row rather than stepping it: the arrows are a
-        # direction and stop at the ends of the range, and this is `the next one`, round to
-        # the start again. One key, one behaviour, on every sheet here that has a row
-        # adjusted where it stands.
-        Binding("space", "cycle", "the next one", priority=True),
-    ]
-
     def __init__(
         self,
         named: str,
@@ -5428,14 +5646,7 @@ class Agent(Drafts[Runs]):
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{self._said}[/]" if self._said else ""
         )
-        held = rows[at][0] if at < len(rows) else _SAVE
-        saves, close = Key(_CHORD, "save"), Key("esc", "close")
-        if held == _SAVE:
-            self._footed(Key("enter", "save"), close)
-        elif held in _STEPPED:
-            self._footed(Key(_CHANGES, "change"), saves, close)
-        else:
-            self._footed(Key("enter", "open"), saves, close)
+        self._footed(Key("enter", "open"), Key("esc", "close"))
 
     def _line(self, at: int, held: str, value: str, about: str, *, here: bool) -> str:
         """One row: what is being said, what it is set to, and what it means.
@@ -5517,64 +5728,55 @@ class Agent(Drafts[Runs]):
         """Answers with the agent as it now stands."""
         self.dismiss(self._made())
 
-    @property
-    def _held(self) -> str:
-        """Which row the cursor is on, by id."""
-        return self.under()
-
-    def action_harder(self) -> None:
-        """Steps the row under the cursor one on, where it is one that is stepped."""
-        self._step(-1)
-
-    def action_easier(self) -> None:
-        """Steps it one back."""
-        self._step(1)
-
-    def action_cycle(self) -> None:
-        """Takes the next one round, which is what space is on every sheet here."""
-        self._step(-1, wraps=True)
-
-    def _step(self, by: int, *, wraps: bool = False) -> None:
-        """Moves whichever rung the cursor is on, however that one moves.
+    def editable(self, row: str) -> bool:
+        """Whether a row is stepped where it stands rather than opened.
 
         Args:
-          by: One step along the efforts towards the one that thinks least, which is the same
-            direction as one step back through everything else.
-          wraps: Whether to come round to the other end of the range rather than stop at it.
-            The arrows point somewhere and stop where the efforts do; space is `the next
-            one`, and a key that did nothing at the end of the range would be a key that
-            looked broken to whoever had walked to that end.
+          row: The row, by id.
+
+        Returns:
+          True for how hard it thinks, and whether a turn is run as a fleet.
         """
-        held = self._held
-        if held == _EFFORT:
+        return row in _STEPPED
+
+    def held(self) -> object:
+        """What the two stepped rows say now."""
+        return (self._effort, self._swarm)
+
+    def put_back(self, was: object) -> None:
+        """Puts the two stepped rows back as they were.
+
+        Args:
+          was: What :meth:`held` answered.
+        """
+        self._effort, self._swarm = cast("tuple[str, bool]", was)
+
+    def step(self, row: str, by: int) -> None:
+        """Moves one stepped row along, coming round at either end.
+
+        Args:
+          row: The row, by id.
+          by: One on or back. On, for the efforts, is towards the one that thinks hardest,
+            which is the first of them.
+        """
+        if row == _EFFORT:
             efforts = self._efforts()
             if not efforts:
                 return
             at = efforts.index(self._effort) if self._effort in efforts else 0
-            self._effort = efforts[
-                (at + by) % len(efforts)
-                if wraps
-                else min(max(at + by, 0), len(efforts) - 1)
-            ]
-        elif held == _SWARM:
+            self._effort = efforts[(at - by) % len(efforts)]
+        elif row == _SWARM:
             self._swarm = not self._swarm
-        else:
-            return
-        self.changed()
         self._said = ""
-        self._fill()
 
     @on(OptionList.OptionSelected)
     def _took(self, event: OptionList.OptionSelected) -> None:
-        """Opens the row under the cursor, or steps it where it is one that is stepped.
+        """Opens the row under the cursor, or saves.
 
         Args:
           event: What was chosen.
         """
         held = str(event.option.id or "").removeprefix("=")
-        if held in _STEPPED:
-            self._step(-1)
-            return
         if held == _SAVE:
             self.applied()
             return
@@ -5729,7 +5931,7 @@ class Accounts(Picks):
     """Which account one agent's turns run as, out of one CLI's own.
 
     The machine's own is always the first of them: an agent nobody has been asked about runs
-    as whoever signed the CLI in, and that is a row rather than a blank. Making one is a key
+    as whoever signed the CLI in, and that is a row rather than a blank. Making one is a row
     here, this being the moment somebody finds out they have none for this CLI.
     """
 
@@ -5739,15 +5941,7 @@ class Accounts(Picks):
         "codex -- so these are that CLI's own. Its sessions, its settings and its skills are "
         "the CLI's whichever account it runs as."
     )
-    keys: ClassVar = (Key("a", "add"),)
     adds = "an account"
-    LETTERS: ClassVar = frozenset({"search", "new"})
-
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        Binding("s", "search", "search", priority=True),
-        Binding("a", "new", "make one", priority=True),
-    ]
 
     def __init__(self, backend: str, current: str = "") -> None:
         """Initializes the choosing.
@@ -5792,7 +5986,7 @@ class Accounts(Picks):
             return self._said
         if self._backend == "dsh" and len(self._rows or []) < 2:  # noqa: PLR2004
             return (
-                "DeepSeek Harness needs an API key; a stores one, or set DEEPSEEK_API_KEY "
+                "DeepSeek Harness needs an API key; add stores one, or set DEEPSEEK_API_KEY "
                 "and reopen hmz"
             )
         if len(self._rows or []) > 1:
@@ -5801,10 +5995,10 @@ class Accounts(Picks):
 
     def added(self) -> None:
         """Makes one, which is what the row below the choices is for."""
-        self.action_new()
+        self._new()
 
     @work
-    async def action_new(self) -> None:
+    async def _new(self) -> None:
         """Makes an account for this CLI without leaving the question it is chosen in.
 
         The same walk `/providers` runs, minus the question it has already answered: which
@@ -5843,19 +6037,13 @@ class Catalogue(Picks):
     """Which model one agent runs, out of what its CLI last said it runs as its account.
 
     The rows are what that CLI said rather than a list written down anywhere: a CLI ships a
-    model without asking anybody, and which of them a turn may name is the account's. `r` asks
-    it again, which is what somebody who came here for a model that is not in the list wants
-    -- and is the whole reason the key is on this sheet rather than somewhere else.
+    model without asking anybody, and which of them a turn may name is the account's. The row
+    below them asks it again, which is what somebody who came here for a model that is not
+    in the list wants -- and is the whole reason the row is on this sheet rather than
+    somewhere else.
     """
 
-    LETTERS: ClassVar = frozenset({"search", "refresh"})
-    keys: ClassVar = (Key("r", "ask it again"),)
-
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        Binding("s", "search", "search", priority=True),
-        Binding("r", "refresh", "ask it what it runs", priority=True),
-    ]
+    again = "ask it again"
 
     def __init__(
         self,
@@ -5870,7 +6058,7 @@ class Catalogue(Picks):
           backend: The CLI whose models these are.
           provider: The account it was asked as, or "" for the machine's own.
           models: What it last said it runs as that account, which is nothing at all for one
-            that has never been asked -- and is what `r` here fills.
+            that has never been asked -- and is what asking again here fills.
           current: The model it runs now.
         """
         super().__init__(current)
@@ -5906,11 +6094,16 @@ class Catalogue(Picks):
             return ""  # narrowed away by what was typed, which the search itself says
         whose = f" as {escape(self._provider)}" if self._provider else ""
         return (
-            f"{escape(self._backend)} has not said what it runs{whose} yet; r asks it"
+            f"{escape(self._backend)} has not said what it runs{whose} yet; asking it "
+            "again asks it"
         )
 
+    def asked_again(self) -> None:
+        """Asks this CLI what it runs, from the row below the models."""
+        self._refresh()
+
     @work
-    async def action_refresh(self) -> None:
+    async def _refresh(self) -> None:
         """Asks this CLI what it runs as this account, and puts up what it answers.
 
         Off the event loop, because asking means starting a coding agent -- some of them take
@@ -5955,6 +6148,9 @@ class Failing(Picks):
     opens them. Being rid of the step is one of them because it is the last thing to decide
     once the other two have been read: what the step says is what says whether it is wanted.
     """
+
+    #: A few rows, read rather than narrowed.
+    SEARCHES: ClassVar = False
 
     def __init__(self, place: str, step: Step) -> None:
         """Asks about one place.
@@ -6012,13 +6208,7 @@ class Fallbacks(Drafts[list[str]]):
     said in `/providers` where the accounts are.
     """
 
-    LETTERS: ClassVar = frozenset({"search", "adding"})
-
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        Binding("s", "search", "search", priority=True),
-        Binding("a", "adding", "add one", priority=True),
-    ]
+    SEARCHES: ClassVar = True
 
     def __init__(self, agents: dict[str, tuple[Model, ...]]) -> None:
         """Reads every step written down.
@@ -6065,8 +6255,9 @@ class Fallbacks(Drafts[list[str]]):
         if all(row[0] != self._was for row in rows):
             self._was = rows[0][0] if rows else ""
         at = next((seen for seen, row in enumerate(rows) if row[0] == self._was), 0)
-        if apart in _APART:
-            at = len(rows) + (1 if apart == _SAVE else 0)
+        below = [_SEARCH, _ADD, _SAVE]
+        if apart in below:
+            at = len(rows) + below.index(apart)
         listing.set_options(
             [
                 Option(
@@ -6076,8 +6267,9 @@ class Fallbacks(Drafts[list[str]]):
                 for seen, (named, said, goes) in enumerate(rows)
             ]
             + [
-                self._adding("a step", here=at == len(rows)),
-                self._saves("these steps", here=at == len(rows) + 1),
+                self._seeking(here=at == len(rows)),
+                self._adding("a step", here=at == len(rows) + 1),
+                self._saves("these steps", here=at == len(rows) + 2),
             ]
         )
         listing.highlighted = at
@@ -6086,12 +6278,7 @@ class Fallbacks(Drafts[list[str]]):
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{self._said or self._nothing(rows)}[/]"
         )
-        self._footed(
-            Key("enter", "what happens"),
-            Key("a", "add"),
-            Key(_CHORD, "save"),
-            Key("esc", "close"),
-        )
+        self._footed(Key("enter", "what happens"), Key("esc", "close"))
 
     @staticmethod
     def _nothing(rows: Sequence[object]) -> str:
@@ -6113,10 +6300,6 @@ class Fallbacks(Drafts[list[str]]):
             named = str(listing.get_option_at_index(at).id or "").removeprefix("=")
             if named and named not in _APART:
                 self._was = named
-
-    def action_adding(self) -> None:
-        """Says that one more place falls back to another, which is two places to choose."""
-        self._adds()
 
     def _drops(self, said: str) -> None:
         """Holds one place having nothing written about it, until the menu is saved.
@@ -6336,6 +6519,9 @@ class Account(Picks):
     is the menu it is said on.
     """
 
+    #: A few rows, read rather than narrowed.
+    SEARCHES: ClassVar = False
+
     def __init__(self, cli: str, name: str, *, gone: bool = False) -> None:
         """Asks about one account.
 
@@ -6426,13 +6612,7 @@ class Providers(Drafts[list[str]]):
     never a value: this is drawn where somebody can read it.
     """
 
-    LETTERS: ClassVar = frozenset({"search", "adding"})
-
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        Binding("s", "search", "search", priority=True),
-        Binding("a", "adding", "make one", priority=True),
-    ]
+    SEARCHES: ClassVar = True
 
     def __init__(self) -> None:
         """Reads every account there is."""
@@ -6524,7 +6704,7 @@ class Providers(Drafts[list[str]]):
         self._follows(listing)
         # Where the cursor is before the rows are built again: the two below them are about
         # the list rather than accounts in it, so a cursor on one is on no account at all.
-        apart = self.under()
+        apart = self.under() if self.under() in _APART else ""
         shown = [one for one in self._found if self.fits(one.name, one.cli, one.way)]
         self._counting = len(str(max(len(shown), 1)))
         if all(self._named(one) != self._was for one in shown):
@@ -6558,14 +6738,16 @@ class Providers(Drafts[list[str]]):
                     id=f"={named}",
                 )
             )
-        if not shown and apart not in _APART:
+        below = [_SEARCH, _ADD, _SAVE]
+        if not shown and apart not in below:
             # Nothing to stand on but the way to make something, which is also the one thing
             # worth doing here: a cursor on no row at all is a menu enter does nothing on.
             apart = _ADD
+        rows.append(self._seeking(here=apart == _SEARCH))
         rows.append(self._adding("an account", here=apart == _ADD))
         rows.append(self._saves("these accounts", here=apart == _SAVE))
-        if apart in _APART:
-            landing = len(rows) - (1 if apart == _SAVE else 2)
+        if apart in below:
+            landing = len(rows) - len(below) + below.index(apart)
         listing.set_options(rows)
         listing.highlighted = landing
         self._drawn = listing.highlighted
@@ -6574,12 +6756,7 @@ class Providers(Drafts[list[str]]):
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
-        self._footed(
-            Key("enter", "what to do"),
-            Key("a", "add"),
-            Key(_CHORD, "save"),
-            Key("esc", "close"),
-        )
+        self._footed(Key("enter", "what to do"), Key("esc", "close"))
 
     def _follows(self, listing: OptionList) -> None:
         """Takes which account the cursor is on off the list, by `cli/name`.
@@ -6686,7 +6863,7 @@ class Providers(Drafts[list[str]]):
         """
         named = str(event.option.id or "").removeprefix("=")
         if named == _ADD:
-            self.action_adding()
+            self._makes()
             return
         if named == _SAVE:
             self.applied()
@@ -6769,7 +6946,7 @@ class Providers(Drafts[list[str]]):
         self._fill()
 
     @work
-    async def action_adding(self) -> None:
+    async def _makes(self) -> None:
         """Asks which CLI, and then walks that backend's own way in.
 
         Two questions rather than one, because the second is only answerable once the first
@@ -6849,7 +7026,7 @@ class Providers(Drafts[list[str]]):
             return f"{escape(one.cli)} says it runs {runs} models as {escape(one.name)}"
         return (
             f"{escape(one.cli)} did not say what it runs as {escape(one.name)}; "
-            "r on its models asks again"
+            "the ask-it-again row under its models asks again"
         )
 
     @work
@@ -7093,6 +7270,9 @@ class Does(Picks):
     an errand to send somebody on for something the sheet was already about.
     """
 
+    #: A few rows, read rather than narrowed.
+    SEARCHES: ClassVar = False
+
     def __init__(self, ran: Ran, *, resumable: bool) -> None:
         """Goes into one run.
 
@@ -7247,12 +7427,7 @@ class Epics(Sheet[Doing]):
     where the run says where it is written down.
     """
 
-    LETTERS: ClassVar = frozenset({"search"})
-
-    BINDINGS: ClassVar = [
-        ("escape", "back", "back"),
-        Binding("s", "search", "search", priority=True),
-    ]
+    SEARCHES: ClassVar = True
 
     def __init__(
         self,
@@ -7322,27 +7497,32 @@ class Epics(Sheet[Doing]):
         """Puts the runs up, marked where the cursor is."""
         listing = self.query_one("#choices", OptionList)
         self._follows(listing)
+        # The row that searches is not a run, so a cursor on it is on none of them.
+        seeking = self.under() == _SEARCH
         shown = [one for one in self._ran if self.fits(one.flow, one.task, one.name)]
         self._counting = len(str(max(len(shown), 1)))
         if all(one.name != self._was for one in shown):
             self._was = shown[0].name if shown else ""
         listing.set_options(
-            Option(
-                self._row(
-                    seen,
-                    f"{_when(one.began)}{_DOT}{one.flow}",
-                    _briefly(self._about(one), self.size.width),
-                    here=one.name == self._was,
-                    inforce=False,
-                ),
-                id=f"={one.name}",
-            )
-            for seen, one in enumerate(shown)
+            [
+                Option(
+                    self._row(
+                        seen,
+                        f"{_when(one.began)}{_DOT}{one.flow}",
+                        _briefly(self._about(one), self.size.width),
+                        here=not seeking and one.name == self._was,
+                        inforce=False,
+                    ),
+                    id=f"={one.name}",
+                )
+                for seen, one in enumerate(shown)
+            ]
+            + [self._seeking(here=seeking or not shown)]
         )
         listing.highlighted = (
-            next((at for at, one in enumerate(shown) if one.name == self._was), 0)
-            if shown
-            else None
+            len(shown)
+            if seeking or not shown
+            else next((at for at, one in enumerate(shown) if one.name == self._was), 0)
         )
         self._drawn = listing.highlighted
         said = self._said or ("" if self._ran else self._nothing())
@@ -7392,7 +7572,7 @@ class Epics(Sheet[Doing]):
         at = listing.highlighted
         if at is not None and 0 <= at < listing.option_count:
             named = str(listing.get_option_at_index(at).id or "").removeprefix("=")
-            if named:
+            if named and named not in _APART:
                 self._was = named
 
     def _under(self) -> Ran | None:

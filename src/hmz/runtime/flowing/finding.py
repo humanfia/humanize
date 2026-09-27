@@ -361,7 +361,7 @@ def _unfetched(named_: str) -> str:
     which = "flowverse has" if len(waiting) == 1 else "flowverses have"
     return (
         f"the {' and '.join(waiting)} {which} not been fetched yet -- open /flowverses "
-        "and press r on it"
+        "and fetch it from its own sheet"
     )
 
 

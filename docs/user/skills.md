@@ -71,7 +71,7 @@ and fetched again each time a run needs them, so they keep up with the repositor
 
 ## Changing what a flow brings
 
-Copy the flow into your project: press <kbd>f</kbd> on it in `/flow`. The copy lands in
+Copy the flow into your project: in `/flow`, walk to it and choose `copy <flow> here` below the flows. The copy lands in
 `.humanize/flows/`, skills and all, and is yours to edit: its `skills/`, and which roles carry
 them, as [Writing a flow](/weaver/writing-a-flow) shows.
 

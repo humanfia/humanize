@@ -20,8 +20,8 @@ from hmz.flows import Budget
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
-from hmz.tui.pick import _BUDGET, _SAVE, Configures, Flows, budget_of
-from tests.integration.tui.test_app import onto, opens, rows
+from hmz.tui.pick import _BUDGET, _DONE, _SAVE, Configures, Flows, budget_of
+from tests.integration.tui.test_app import changes, onto, opens, rows
 from tests.stubs import written
 from tests.tui.fixtures import until
 
@@ -109,13 +109,13 @@ async def test_what_is_set_there_is_kept_and_read_back(
         await until(lambda: isinstance(app.screen, Configures), driver)
         sheet = cast("Configures", app.screen)
 
-        # The four `-b` takes, and nothing else.
-        assert rows(app) == ["duration", "cost", "output_tokens", "graceful"]
+        # The four `-b` takes, and the row that sets them.
+        assert rows(app) == ["duration", "cost", "output_tokens", "graceful", _DONE]
 
-        await driver.press(*"1h")  # a duration is written, as `-b` writes one
-        await driver.press("down", "right")  # cost: 0 -> 1
-        await driver.pause()
+        await changes(app, driver, "duration", *"1h")  # written, as `-b` writes one
+        await changes(app, driver, "cost", "right")  # 0 -> 1
         assert (sheet._typed_in["duration"], sheet._typed_in["cost"]) == ("1h", "1.0")
+        await onto(app, driver, _DONE)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flows), driver)
 
@@ -166,6 +166,7 @@ async def test_a_budget_that_limits_nothing_is_refused_where_it_is_typed(
         await opens(app, driver, _BUDGET)
         await until(lambda: isinstance(app.screen, Configures), driver)
 
+        await onto(app, driver, _DONE)
         await driver.press("enter")
         await driver.pause()
 

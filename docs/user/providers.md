@@ -14,14 +14,15 @@ when two agents of one CLI should run as two accounts in the same run.
 
 In `hmz`:
 
-1. Type `/providers`, then press <kbd>a</kbd>.
+1. Type `/providers`, then choose the `add` row.
 2. Choose the CLI. Each row lists the ways that CLI can be signed in:
 
-   ![a at /providers asks which coding agent the account is for, and lists each CLI's ways
+   ![add at /providers asks which coding agent the account is for, and lists each CLI's ways
    in beside it, with a CLI of your own last](/demo/account-backends.png)
 
 3. Choose a way, say `gateway`. Give the account a name, `deepseek`, and answer what the way
-   asks. A secret shows as bullets. A way that is a login hands the terminal to the CLI's own
+   asks: <kbd>enter</kbd> on a field, type, <kbd>enter</kbd>, then `accept`. A secret shows
+   as bullets. A way that is a login hands the terminal to the CLI's own
    login until it is done.
 4. Name the account after the CLI in `-a`:
 
@@ -54,6 +55,7 @@ first as you are signed in, the second as `deepseek`.
      2. deepseek                  gateway · ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL
      3. work                      login
 
+        search…
         add                       an account
 ```
 
@@ -61,8 +63,7 @@ first as you are signed in, the second as `deepseek`.
 
 - An agent with no account runs **`as local`**: the CLI signed in the way you signed it in
   yourself.
-- At the prompt, <kbd>a</kbd> on that list, or its `add` row, makes an account without leaving
-  it. It is the same walk as `/providers`, without the question of which CLI, and the new
+- At the prompt, that list's `add` row makes an account without leaving it. It is the same walk as `/providers`, without the question of which CLI, and the new
   account comes back chosen.
 - An account belongs to one CLI. What signs in to Claude Code is not what signs in to codex, so
   the list only offers that CLI's accounts.
@@ -109,7 +110,7 @@ account, and a asking which CLI a new account is for](/demo/accounts.gif)
 | **take it away** | The account and its credentials. |
 
 Making an account and signing one in happen at once. Correcting, falling back and taking away
-land when you save the menu: its `save` row, or <kbd>shift+enter</kbd> or <kbd>ctrl+j</kbd>.
+land when you save the menu: its `save` row, or `save` when <kbd>esc</kbd> asks.
 
 Under a CLI that has accounts, the last row is `as local`: the CLI as you signed it in
 yourself. humanize keeps no credentials for it, so the only thing it offers is **falls back
@@ -124,7 +125,8 @@ humanize asks which of them to copy it to:
 ![after claude/shared is made: pi, opencode, mimo and zcode, each marked not installed here
 yet and switched off](/demo/alike.png)
 
-- CLIs installed here start ticked; <kbd>space</kbd> or <kbd>←</kbd>/<kbd>→</kbd> changes one.
+- CLIs installed here start ticked; <kbd>enter</kbd>, <kbd>←</kbd>/<kbd>→</kbd>,
+  <kbd>enter</kbd> changes one, and `copy` writes the copies.
 - A copy takes **the same name**, so `claude/shared` becomes `pi/shared` and
   `opencode/shared` too, and it replaces a copy already there.
 - Correcting the account asks again, so a rotated key is typed once and written over every
@@ -143,7 +145,7 @@ Which models a turn may name depends on the subscription, key or gateway behind 
 account is asked what it runs as soon as it is made. A gateway account lists what the gateway
 itself serves.
 
-The list is what the `model` row offers at `/flow`. <kbd>r</kbd> there asks again: do it when
+The list is what the `model` row offers at `/flow`. `ask it again` there asks again: do it when
 the model you want is missing, or when a failed turn says the list is out of date. Nothing asks
 again on its own.
 

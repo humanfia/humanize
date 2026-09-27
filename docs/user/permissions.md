@@ -105,7 +105,7 @@ apply.
 
 ## Changing what a role may touch
 
-Copy the flow into your project: press <kbd>f</kbd> on it in `/flow`. Then change the role's
+Copy the flow into your project: in `/flow`, walk to it and choose `copy <flow> here` below the flows. Then change the role's
 grant in the copy, as [Writing a flow](/weaver/writing-a-flow) shows.
 
 ## See also

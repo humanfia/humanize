@@ -88,7 +88,7 @@ $ralph_loop Fix the bug in calc.py.
 </div>
 
 The first time, the flow's menu opens and holds your line. Pick the CLI, model and effort for
-its one role, `agent`, set a budget, and press <kbd>shift+enter</kbd> or <kbd>ctrl+j</kbd>: that
+its one role, `agent`, set a budget, and choose its `save` row: that
 saves the setup and starts the run. This directory remembers the setup: next time, the same line starts the run
 straight away.
 
@@ -172,7 +172,7 @@ git diff before
 | If | Then |
 | --- | --- |
 | `hmz` says `no such flow` | It downloads the official flows in the background as it starts. Give it a few seconds and send the line again. |
-| `hmz exec` says `not been fetched yet` | `hmz exec` downloads nothing. Open `hmz`, type `/flowverses`, and press <kbd>r</kbd> on `official`. |
+| `hmz exec` says `not been fetched yet` | `hmz exec` downloads nothing. Open `hmz`, type `/flowverses`, open `official` and choose `fetch it again`. |
 | the model is refused | Model ids change with each CLI release, and your account decides which you may use. In `hmz`, type `/flow ralph_loop` and open the `agent` row: it lists the models your CLI offers. |
 | your CLI is not in the tabs | Every backend, and how to sign each one in, is on [Installation](/user/installation). |
 

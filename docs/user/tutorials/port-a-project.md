@@ -250,8 +250,8 @@ implemented. Before you trust the number, open `tests/test_module.py` beside
   one verifiable project at a time; the flow only runs it.
 - **Give the reviewer a different model.** Its job is to disagree, and two models that fail
   differently disagree more usefully than one model twice.
-- **Change what "done" means.** Press <kbd>f</kbd> on `rlar` in `/flow` to copy it into this
-  project. `-f rlar` then runs your copy. The run ends on the reviewer's `done`, and the
+- **Change what "done" means.** Walk to `rlar` in `/flow` and choose `copy rlar here` to copy it
+  into this project. `-f rlar` then runs your copy. The run ends on the reviewer's `done`, and the
   field's `description` says when it may be true, so adding "and `ruff check` passes" there
   changes what ends the run. See [Answers in a shape](/weaver/shapes).
 - **Change how reviews are written.** The reviewer carries a [skill](/user/skills),

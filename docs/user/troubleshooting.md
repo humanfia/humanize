@@ -96,11 +96,11 @@ The role is written for one CLI only. Give it that CLI.
 then in `~/.humanize/flows`, then among humanize's own flows and every
 [flowverse](/weaver/flowverses) fetched here. Anything else is read as a path.
 
-### `ralph_loop: the official flowverse has not been fetched yet -- open /flowverses and press r on it`
+### `ralph_loop: the official flowverse has not been fetched yet -- open /flowverses and fetch it from its own sheet`
 
 The name is right, but the flowverse has not been downloaded yet. `hmz` fetches flowverses in
-the background every time it starts. To fetch one now, open `/flowverses` and press
-<kbd>r</kbd> on it.
+the background every time it starts. To fetch one now, open `/flowverses`, open it, and choose
+`fetch it again`.
 
 ### `… holds gen-idea, gen-plan, rlcr and none is called 'humanize1'; name one as humanize1:<flow>`
 
@@ -164,7 +164,7 @@ A `$` line names a flow by the name it is offered under:
 | yours, in `~/.humanize/flows` | `$user/twice` |
 | another flowverse's | `$<flowverse>/name` |
 
-A flowverse not fetched yet offers nothing: open `/flowverses` and press <kbd>r</kbd> on it.
+A flowverse not fetched yet offers nothing: open `/flowverses`, open it, and choose `fetch it again`.
 
 ### `no such command: /foo`
 
@@ -272,18 +272,18 @@ list of this account's models is out of date:
 
 ```
 (unlisted: the 3 models this account was last offered (asked 2026-09-10) still name it, so
-that list is the stale part; r on its models asks again)
+that list is the stale part; the ask-it-again row under its models asks again)
 ```
 
 humanize never asks an account again on its own. In `/flow`, open the agent, open its `model`
-row, and press <kbd>r</kbd> to ask the CLI what this account runs now. Then choose one of
+row, and choose `ask it again` to ask the CLI what this account runs now. Then choose one of
 those.
 
 ### `(retired: the model is gone or was never this account's; another place is what answers it)`
 
 The CLI says there is no such model. No account of that CLI has it, so the turn goes straight
-to the next [fallback](/user/fallback). Choose another model: press <kbd>r</kbd> on the agent's
-`model` row to see what the CLI runs.
+to the next [fallback](/user/fallback). Choose another model: `ask it again` under the agent's
+`model` row shows what the CLI runs.
 
 ### `(missing: npm i -g @anthropic-ai/claude-code)`
 

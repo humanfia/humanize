@@ -368,11 +368,11 @@ async def test_the_settings_menu_is_two_pages_and_turns_the_reporting_off(
         ]
         assert "on " in str(listing.get_option_at_index(0).prompt)
 
-        await driver.press("right")  # off
+        await driver.press("enter", "right", "enter")  # off
         await driver.pause()
         assert "off " in str(listing.get_option_at_index(0).prompt)
 
-        await driver.press("tab")  # the other page: this directory
+        await driver.press("right")  # the other page: this directory
         await driver.pause()
         assert [str(one.id) for one in listing.options] == [
             "=workspace",
@@ -414,10 +414,10 @@ async def test_whether_a_run_here_is_profiled_is_a_row_of_this_directory(
         await until(lambda: isinstance(app.screen, Adjusts), driver)
         listing = app.screen.query_one("#choices", OptionList)
 
-        await driver.press("tab")  # this directory
+        await driver.press("right")  # this directory
         await driver.pause()
         await driver.press("down", "down")  # onto profiling
-        await driver.press("right")
+        await driver.press("enter", "right", "enter")
         await driver.pause()
         assert "on " in str(listing.get_option_at_index(2).prompt)
 

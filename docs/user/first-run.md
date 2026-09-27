@@ -52,7 +52,8 @@ Type `/flow` and press <kbd>enter</kbd>. The flows are listed by where they come
 `official` is humanize's own; <kbd>←</kbd> and <kbd>→</kbd> step to your project's flows
 (`local`) and your own (`user`) once you have some.
 
-Press <kbd>s</kbd>, type `ralph`, and press <kbd>enter</kbd> on `ralph_loop`. It gives one
+Press <kbd>enter</kbd> on the `search…` row below the flows, type `ralph`, and press
+<kbd>enter</kbd> on `ralph_loop`. It gives one
 agent the same task again and again, in a fresh conversation each round, until its budget runs
 out or you stop it. See [ralph_loop](/flows/ralph-loop).
 
@@ -60,7 +61,8 @@ out or you stop it. See [ralph_loop](/flows/ralph-loop).
 The rest of humanize's flows are in a git repository, the official
 [flowverse](/weaver/flowverses). `hmz` fetches it in the background every time it opens, and
 `/flow` fetches it if that has not happened yet. If the fetch fails, `/flow` says why under the
-list. Press <kbd>v</kbd> for the flowverses, where <kbd>r</kbd> fetches one again.
+list. The `where flows come from` row below the flows opens the flowverses; open one and
+choose `fetch it again`.
 :::
 
 ## 4. Give the role an agent
@@ -85,7 +87,7 @@ an effort -- or where an environment is.
 
      save      the flow and its roles
 
-enter open · shift+enter/ctrl+j save · esc back to the flows
+enter open · esc back to the flows
 ```
 
 ```text [One agent]
@@ -100,7 +102,7 @@ account they run as, and the model at an effort.
 
      save         this agent
 
-←/→ or space change · shift+enter/ctrl+j save · esc close
+enter change · esc close
 ```
 
 ```text [The budget]
@@ -113,7 +115,9 @@ one is set. Empty or 0 is no limit on that one.
   3. output_tokens   0 ↔
   4. graceful        on ↔
 
-type set · backspace rub out · enter accept · esc back
+     set             all of them
+
+enter change · esc back
 ```
 
 :::
@@ -121,12 +125,12 @@ type set · backspace rub out · enter accept · esc back
 | Row | What you choose | How |
 | --- | --- | --- |
 | `cli` | The coding agent CLI that takes its turns. Only CLIs that can fill this role are listed. | <kbd>enter</kbd>, then pick |
-| `provider` | The account. `as local` is the CLI as you signed it in. | <kbd>enter</kbd>, then pick, or <kbd>a</kbd> to add one |
-| `model` | One of the models that CLI said it runs. | <kbd>enter</kbd>, then pick; <kbd>r</kbd> asks the CLI again |
-| `effort` | How hard it thinks, from the model's own list. | <kbd>←</kbd> <kbd>→</kbd> or <kbd>space</kbd> |
+| `provider` | The account. `as local` is the CLI as you signed it in. | <kbd>enter</kbd>, then pick, or `add` to add one |
+| `model` | One of the models that CLI said it runs. | <kbd>enter</kbd>, then pick; `ask it again` asks the CLI again |
+| `effort` | How hard it thinks, from the model's own list. | <kbd>enter</kbd>, <kbd>←</kbd> <kbd>→</kbd>, <kbd>enter</kbd> |
 
 Choosing another CLI clears the account and the model, since both belong to a CLI. Press
-<kbd>shift+enter</kbd> or <kbd>ctrl+j</kbd> to save the agent. [Providers](/user/providers)
+<kbd>enter</kbd> on `save` to save the agent. [Providers](/user/providers)
 and [Efforts](/user/efforts) say more about accounts and efforts.
 
 A flow that has settings of its own asks for them before its roles. `ralph_loop` has none.
@@ -139,14 +143,15 @@ Press <kbd>enter</kbd> on `budget`. The run stops at whichever limit it reaches 
 - `cost`: how many US dollars it may spend;
 - `output_tokens`: how much the models may write.
 
-Type `20m` into `duration` and press <kbd>enter</kbd>. The row now reads `stops at 20m00s`.
+Press <kbd>enter</kbd> on `duration`, type `20m`, and press <kbd>enter</kbd> to keep it;
+then <kbd>enter</kbd> on `set`. The row now reads `stops at 20m00s`.
 If your account is billed by the token, set a `cost` as well. `graceful` on lets the turn that
 is running finish; off cuts it off. Every flow except `chat` needs a budget. See
 [Every run has a budget](/features/allowances).
 
 ## 6. Save
 
-Press <kbd>shift+enter</kbd> or <kbd>ctrl+j</kbd>, from anywhere on the menu. The status line
+Press <kbd>enter</kbd> on `save`, the last row under the roles. The status line
 now reads `◉ ralph_loop`, and humanize says `say what to do, and the flow starts on it`.
 
 Nothing is applied before you save. <kbd>esc</kbd> steps back, and leaving a menu with changes

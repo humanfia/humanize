@@ -33,18 +33,18 @@ A place is a CLI, an account and a model.</span>
 <span class="p">❯</span> <span class="d">1.</span> <span class="p">claude@work/claude-opus-5</span>  <span class="m">2 more tries, linear · falls back to codex/gpt-5.6</span>
   <span class="d">2.</span> <span class="p">codex/gpt-5.6</span>              <span class="m">falls back to dsh/deepseek-v4-flash</span>
 
+     <span class="p">search…</span>
      <span class="p">add</span>                        <span class="m">a step</span>
      <span class="p">save</span>                       <span class="m">these steps</span>
 
-<span class="d">enter what happens · a add · shift+enter/ctrl+j save · esc close · s search</span></pre>
+<span class="d">enter what happens · esc close</span></pre>
 
 </Term>
 
-1. Press <kbd>a</kbd>, or choose **add**. Pick the place that fails: its CLI, then one of its
+1. Choose **add**. Pick the place that fails: its CLI, then one of its
    accounts, then one of the models it runs.
 2. Pick the place that takes its turns, the same way.
-3. Save: choose **save**, or press <kbd>shift+enter</kbd> or <kbd>ctrl+j</kbd>. Leaving with
-   <kbd>esc</kbd> asks whether to save or discard.
+3. Save: choose **save**. Leaving with <kbd>esc</kbd> asks whether to save or discard.
 
 <kbd>enter</kbd> on a step asks three things about it: where it **falls back to**, how often
 a failed turn is **taken again** there first, and whether to **take it away**.
@@ -55,8 +55,9 @@ there, then moves to `codex/gpt-5.6`, and if it fails there too, on to
 
 ## Trying again
 
-**taken again** sets how a failed turn is retried at this place before it moves on. Step
-each value with <kbd>←</kbd> <kbd>→</kbd> or <kbd>space</kbd>:
+**taken again** sets how a failed turn is retried at this place before it moves on. Change
+each value with <kbd>enter</kbd>, <kbd>←</kbd> <kbd>→</kbd>, <kbd>enter</kbd>, then
+choose **set**:
 
 | Setting | Choices | What it is |
 | --- | --- | --- |
@@ -113,7 +114,7 @@ claude is rate-limited (this account has spent its quota; another one, or a wait
 ```
 
 Where there is something to do about it, the line says so in brackets: an account that needs
-signing in again, a CLI to install, or a model list to refresh with <kbd>r</kbd>. Under
+signing in again, a CLI to install, or a model list to refresh with `ask it again`. Under
 `hmz exec --json`, these lines are `notice` events.
 
 ::: details Antigravity (agy) fails with nothing said

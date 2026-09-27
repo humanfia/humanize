@@ -27,7 +27,9 @@ from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.pick import (
+    _AGAIN,
     _BUDGET,
+    _DONE,
     _SAVE,
     Agent,
     Catalogue,
@@ -36,7 +38,15 @@ from hmz.tui.pick import (
     Confirms,
     Flows,
 )
-from tests.integration.tui.test_app import drops, into_agent, keeps, onto, opens, rows
+from tests.integration.tui.test_app import (
+    changes,
+    drops,
+    into_agent,
+    keeps,
+    onto,
+    opens,
+    rows,
+)
 from tests.stubs import written
 from tests.tui.fixtures import set_up, transcript, until
 
@@ -162,7 +172,8 @@ async def _budgets(app: Humanize, driver: Pilot[None], duration: str) -> None:
     await onto(app, driver, _BUDGET)
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Configures), driver)
-    await driver.press(*duration)
+    await changes(app, driver, "duration", *duration)
+    await onto(app, driver, _DONE)
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Flows), driver)
 
@@ -254,9 +265,7 @@ async def test_explicit_saves_accept_two_agents_then_apply_the_complete_flow(
     app = Humanize()
     async with app.run_test() as driver:
         await _open(app, driver, "pair")
-        await onto(app, driver, "effort")
-        await driver.press("left")
-        await driver.pause()
+        await changes(app, driver, "effort", "left")
 
         await opens(app, driver, _SAVE)
         await until(lambda: isinstance(app.screen, Flows), driver)
@@ -265,9 +274,6 @@ async def test_explicit_saves_accept_two_agents_then_apply_the_complete_flow(
         await onto(app, driver, "1")
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Agent), driver)
-        await onto(app, driver, "effort")
-        await driver.press("right")
-        await driver.pause()
         await opens(app, driver, _SAVE)
         await until(lambda: isinstance(app.screen, Flows), driver)
 
@@ -276,9 +282,11 @@ async def test_explicit_saves_accept_two_agents_then_apply_the_complete_flow(
         await driver.press("enter")
         await until(lambda: not isinstance(app.screen, Flows), driver)
 
+    # The builder was stepped round from the effort it opened on, and the reviewer saved as
+    # it opened.
     chosen = {
-        "builder": Runs("claude/claude-opus-5:high"),
-        "reviewer": Runs("claude/claude-opus-5:max"),
+        "builder": Runs("claude/claude-opus-5:max"),
+        "reviewer": Runs("claude/claude-opus-5:high"),
     }
     assert app._flow_named == "pair"
     assert app._models == chosen
@@ -341,15 +349,15 @@ async def test_a_flow_is_not_saved_until_a_run_of_it_is_given_a_budget(
         await onto(app, driver, _BUDGET)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Configures), driver)
-        assert rows(app) == ["duration", "cost", "output_tokens", "graceful"]
-        await driver.press(*"soon")
+        assert rows(app) == ["duration", "cost", "output_tokens", "graceful", _DONE]
+        await changes(app, driver, "duration", *"soon")
+        await onto(app, driver, _DONE)
         await driver.press("enter")
         await driver.pause()
         assert isinstance(app.screen, Configures)  # not a duration, so not taken
         assert "not a duration" in _said(app)
-        for _ in "soon":
-            await driver.press("backspace")
-        await driver.press(*"90m")
+        await changes(app, driver, "duration", *(["backspace"] * 4), *"90m")
+        await onto(app, driver, _DONE)
         await driver.press("enter")
         await until(lambda: app.screen is sheet, driver)
         assert "stops at 1h30m" in _value(app, _BUDGET)
@@ -395,7 +403,8 @@ async def test_an_environment_role_is_a_row_where_its_place_is_said(
         await onto(app, driver, "@repo")
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Configures), driver)
-        await driver.press(*"nowhere")
+        await changes(app, driver, "where", *"nowhere")
+        await onto(app, driver, _DONE)
         await driver.press("enter")
         await until(lambda: app.screen is sheet, driver)
         assert "expected <role>=<backend>" in _said(app)
@@ -404,9 +413,14 @@ async def test_an_environment_role_is_a_row_where_its_place_is_said(
         await onto(app, driver, "@repo")
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Configures), driver)
-        for _ in "nowhere":
-            await driver.press("backspace")
-        await driver.press(*f"local@{tmp_path}")
+        await changes(
+            app,
+            driver,
+            "where",
+            *(["backspace"] * len("nowhere")),
+            *f"local@{tmp_path}",
+        )
+        await onto(app, driver, _DONE)
         await driver.press("enter")
         await until(lambda: app.screen is sheet, driver)
         assert f"local@{tmp_path}" in _value(app, "@repo")
@@ -433,10 +447,8 @@ async def test_nothing_is_applied_until_the_menu_is_saved_on_the_way_out(
     async with app.run_test() as driver:
         was = (app._flow_named, dict(app._models))
         await _open(app, driver, "here")
-        await onto(app, driver, "effort")
-        await driver.press("left")  # one effort down, which is a change
-        await driver.pause()
-        assert "high" in _value(app, "effort")
+        await changes(app, driver, "effort", "left")  # round to the other, a change
+        assert "max" in _value(app, "effort")
 
         await drops(app, driver)  # asked about, and thrown away
         await until(lambda: isinstance(app.screen, Flows), driver)
@@ -447,9 +459,7 @@ async def test_nothing_is_applied_until_the_menu_is_saved_on_the_way_out(
 
         # And the same walk saved lands the lot, flow and agent together.
         await _open(app, driver, "here")
-        await onto(app, driver, "effort")
-        await driver.press("left")
-        await driver.pause()
+        await changes(app, driver, "effort", "left")
         await keeps(app, driver)
         await until(lambda: isinstance(app.screen, Flows), driver)
         await _budgets(app, driver, "1h")
@@ -457,7 +467,7 @@ async def test_nothing_is_applied_until_the_menu_is_saved_on_the_way_out(
         await until(lambda: not isinstance(app.screen, Flows), driver)
 
     assert app._flow_named == "here"
-    assert app._models == {"builder": Runs("claude/claude-opus-5:high")}
+    assert app._models == {"builder": Runs("claude/claude-opus-5:max")}
 
 
 @pytest.mark.timeout(60)
@@ -470,9 +480,7 @@ async def test_the_question_on_the_way_out_is_two_answers_and_esc(
     app = Humanize()
     async with app.run_test() as driver:
         await _open(app, driver, "here")
-        await onto(app, driver, "effort")
-        await driver.press("left")
-        await driver.pause()
+        await changes(app, driver, "effort", "left")
 
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Confirms), driver)
@@ -484,7 +492,7 @@ async def test_the_question_on_the_way_out_is_two_answers_and_esc(
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Agent), driver)
 
-        assert "high" in _value(app, "effort")
+        assert "max" in _value(app, "effort")
 
 
 @pytest.mark.timeout(60)
@@ -619,7 +627,7 @@ async def codex_only(task: str, *, agents: Agents, envs: EnvCollection,
 
 @pytest.mark.timeout(60)
 @unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
-async def test_the_models_are_what_that_cli_last_said_and_are_asked_again_on_r(
+async def test_the_models_are_what_that_cli_last_said_and_are_asked_again_from_a_row(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
     flows: Path,
 ) -> None:
@@ -631,5 +639,9 @@ async def test_the_models_are_what_that_cli_last_said_and_are_asked_again_on_r(
         await until(lambda: isinstance(app.screen, Catalogue), driver)
         keys = str(app.screen.query_one("#keys", Label).content)
 
-        assert "r ask it again" in keys
+        # Asking again is a row below the models rather than a key.
+        assert rows(app)[-1] == _AGAIN
+        listing = app.screen.query_one("#choices", OptionList)
+        last = listing.get_option_at_index(listing.option_count - 1)
+        assert "ask it again" in str(last.prompt)
         assert "ctrl" not in keys.lower()

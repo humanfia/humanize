@@ -8,7 +8,7 @@ with no provider runs its CLI signed in the way you signed it in yourself.
 | --- | --- |
 | **Named** | `<cli>/<name>`, such as `claude/work`. `<cli>/` with no name is the account this machine is already signed into. |
 | **Kept in** | `~/.humanize/providers/<cli>/<name>/`, or under `$HUMANIZE_HOME` where that is set |
-| **Made at** | `/providers` and <kbd>a</kbd>, or [`Hmz().accounts`](/reference/sdk) from Python |
+| **Made at** | `/providers` and its `add` row, or [`Hmz().accounts`](/reference/sdk) from Python |
 | **Chosen with** | `-a role=CLI@NAME/MODEL:EFFORT`, or `provider="NAME"` on an agent's config |
 | **A turn under one** | Gets the provider's variables and loses the backend's other account variables. Its credential paths are answered out of the provider's directory. |
 
@@ -230,22 +230,22 @@ base URL and nothing else.
 
 You type the names, because the lists are too long to keep. pi reads a variable for each
 provider it knows, and opencode one for each of about 180. Put one variable on each line.
-<kbd>shift+enter</kbd> or <kbd>ctrl+j</kbd> starts a new line, and <kbd>enter</kbd> submits the
-form. Blank lines and lines starting `#` are skipped.
+While writing that field, <kbd>shift+enter</kbd> or <kbd>ctrl+j</kbd> starts a new line and <kbd>enter</kbd> keeps it;
+`accept` submits the form. Blank lines and lines starting `#` are skipped.
 
 ## Making one
 
 At the prompt, open `/providers`:
 
-| Key | Does | When it lands |
+| Row | Does | When it lands |
 | --- | --- | --- |
-| <kbd>a</kbd> | Makes one. It asks which CLI, then which way in, then what that way asks, and hands the terminal to the CLI's own login where the way has one. | at once |
+| `add` | Makes one. It asks which CLI, then which way in, then what that way asks, and hands the terminal to the CLI's own login where the way has one. | at once |
 | <kbd>enter</kbd> → **correct what it holds** | Asks the way's questions again. What it holds is replaced, not merged, and credentials a login left are kept. Secrets start blank. | when the menu is saved |
 | <kbd>enter</kbd> → **sign in again** | Runs the way's own command again, under this account's paths. Only for a way that runs one. | at once |
 | <kbd>enter</kbd> → **falls back to** | Which account of this CLI a turn carries on under when this one fails. See [When an account goes down](#when-an-account-goes-down). | when the menu is saved |
 | <kbd>enter</kbd> → **take it away** | Deletes the account and its credentials. An account already marked shows **keep it after all**. | when the menu is saved |
 
-The same <kbd>a</kbd> works on the `provider` row of an agent's sheet, and comes back with the
+The same `add` row is on the `provider` list of an agent's sheet, and comes back with the
 new account chosen for that agent. The screens are in [TUI](/reference/tui).
 
 **Names** are letters, digits, `.`, `-` and `_`, starting with a letter or a digit: a name is a
