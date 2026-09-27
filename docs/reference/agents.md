@@ -1795,8 +1795,8 @@ catalogue uses; `vendor/some-model` is sent to the endpoint as it stands.
 ### A CLI of your own
 
 Any coding agent that speaks the [Agent Client Protocol](https://agentclientprotocol.com) can
-be driven without humanize knowing anything else about it. Add one at `/providers`: press
-<kbd>a</kbd>, then pick *a CLI of your own*, the last row of the backends list, and give the
+be driven without humanize knowing anything else about it. Add one at `/providers`: choose
+`add`, then pick *a CLI of your own*, the last row of the backends list, and give the
 command that starts it, such as `my-agent --acp` or `gemini --experimental-acp`. It is written
 down under humanize's home, and is a backend from the next prompt on, in every workspace:
 `-a my-agent/...` names it.

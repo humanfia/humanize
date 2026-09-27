@@ -11,7 +11,7 @@ Reach for it after a long run, to see what each agent did and where the time wen
 ## Try it
 
 1. In the project you ran in, type `/epics`. Every run here is listed, newest first.
-2. Move to the run with <kbd>↑</kbd> <kbd>↓</kbd>, or press <kbd>s</kbd> to search what each
+2. Move to the run with <kbd>↑</kbd> <kbd>↓</kbd>, or choose `search…` to search what each
    run was asked to do, and press <kbd>enter</kbd>.
 3. Choose **export it**. humanize gathers the trace and packs the run into an archive, then
    says what it wrote under the list.

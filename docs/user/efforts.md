@@ -18,7 +18,8 @@ hmz exec -f ralph_loop -b cost=5 \
 ```
 
 At the prompt, open `/flow`, then the flow, then the agent's role. The `effort` row is marked
-`↔`: <kbd>←</kbd> and <kbd>→</kbd> step it, and <kbd>space</kbd> takes the next one round.
+`↔`: <kbd>enter</kbd> begins changing it, <kbd>←</kbd> and <kbd>→</kbd> step it round,
+<kbd>enter</kbd> keeps it and <kbd>esc</kbd> puts it back.
 
 ```text{6}
   Set up agent
@@ -30,7 +31,7 @@ At the prompt, open `/flow`, then the flow, then the agent's role. The `effort` 
 
        save                                    this agent
 
-  ←/→ or space change · shift+enter/ctrl+j save · esc close
+  enter change · esc close
 ```
 
 Choosing another model keeps the effort if that model takes it, and otherwise starts at the

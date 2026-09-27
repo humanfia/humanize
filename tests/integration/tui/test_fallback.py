@@ -20,6 +20,7 @@ from hmz.coganchor.backends import Model
 from hmz.tui import Humanize
 from hmz.tui.pick import (
     _ADD,
+    _DONE,
     _SAVE,
     _TAKES_AWAY,
     Accounts,
@@ -29,7 +30,7 @@ from hmz.tui.pick import (
     Fallbacks,
     Retries,
 )
-from tests.integration.tui.test_app import drops, keeps, onto, rows
+from tests.integration.tui.test_app import changes, drops, keeps, onto, rows
 from tests.tui.fixtures import until
 
 if TYPE_CHECKING:
@@ -124,7 +125,8 @@ async def test_a_step_is_two_places_chosen_and_is_held_until_the_menu_is_saved()
     app = Humanize()
     async with app.run_test() as driver:
         await _opens(app, driver)
-        await driver.press("a")
+        await onto(app, driver, _ADD)
+        await driver.press("enter")
         await _place(app, driver, "claude")  # the one that cannot run
         await _place(app, driver, "codex")  # and the one that takes over
         await until(lambda: isinstance(app.screen, Fallbacks), driver)
@@ -147,7 +149,8 @@ async def test_a_place_cannot_fall_back_to_itself() -> None:
     app = Humanize()
     async with app.run_test() as driver:
         await _opens(app, driver)
-        await driver.press("a")
+        await onto(app, driver, _ADD)
+        await driver.press("enter")
         await _place(app, driver, "claude")
         await _place(app, driver, "claude")
         await until(lambda: isinstance(app.screen, Fallbacks), driver)
@@ -262,11 +265,12 @@ async def test_how_often_a_failed_turn_is_taken_again_is_on_the_same_step() -> N
             "=tries",
             "=policy",
             "=for",
+            f"={_DONE}",
         ]
 
-        await driver.press("right")  # one try beyond the first
-        await driver.press("down", "right")  # and the wait after it stepped on one
-        await driver.pause()
+        await changes(app, driver, "tries", "right")  # one try beyond the first
+        await changes(app, driver, "policy", "right")  # and the wait stepped on one
+        await onto(app, driver, _DONE)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Fallbacks), driver)
 

@@ -98,13 +98,15 @@ or say what it is running.
 - MUST make `/settings` two pages, this machine and this directory, and forget this one alone.
 - MUST ask once, at a first start and only with somebody there, whether humanize may report its
   own failures — what would be sent and what never would — unanswered if it is walked away from.
-- MUST hold what a menu changes until it is left and saving is confirmed, asking on the way out
-  of one holding changes; anything that runs an external command or writes to the board MUST
-  apply at once instead.
+- MUST hold what a menu changes until it is saved from its save row or saving is confirmed on
+  the way out, asking on the way out of one holding changes; anything that runs an external
+  command or writes to the board MUST apply at once instead.
 - MUST answer a sheet once however many times its key is pressed, and ask twice on the same key
   before anything is taken away by one, putting that question down when the cursor moves.
-- MUST keep a sheet's keys on the screen in one place, make a search asked for rather than what
-  typing does, and bind no sheet key to a chord except saving.
+- MUST give a menu only `↑`/`↓`, `←`/`→`, `enter` and `esc`, saying them on the screen in one
+  place: a row changed where it stands MUST change only between an `enter` that begins it and an
+  `enter` that keeps it, `esc` putting it back; whatever else a menu does -- search, add, fetch or
+  ask again, copy, save -- MUST be a row of it, and a search MUST be asked for from its row.
 - MUST give a selection back as the text written rather than the rows it was drawn on, let one go
   when what it was made against changes, and never scroll the transcript out from under a reader.
 
@@ -112,15 +114,12 @@ or say what it is running.
 
 | Key | Where | What it does |
 | --- | --- | --- |
-| `enter` | editor, sheets | send the line or take the offer; open the row under the cursor |
-| `shift+enter`, `ctrl+j` | editor, menus | break the line; save the menu |
-| `tab`, `shift+tab` | app, sheets | round the shared transcript and working agents; turn pages |
-| `esc` | app, sheets | open `/monitor`; one step back, out of a search first |
+| `enter` | editor, sheets | send the line or take the offer; open the row under the cursor, or begin and keep changing it |
+| `shift+enter`, `ctrl+j` | editor, sheets | break the line |
+| `tab`, `shift+tab` | app | round the shared transcript and working agents |
+| `esc` | app, sheets | open `/monitor`; one step back, out of a change or a search first |
 | `ctrl+c` | app | take back the nearest thing; twice stops the flow |
 | `ctrl+q` | app | what `/exit` does |
-| `←`, `→` | sheets | step an adjustable row's value, or step between lists |
-| `space` | sheets | the next value, coming round at the end |
-| `s`, `a` | lists | search; add one |
-| `r` | flowverses, models | fetch or ask again |
+| `↑`, `↓` | sheets | walk the rows |
+| `←`, `→` | sheets | change the row being changed; otherwise turn pages, or step between lists |
 | `d` | board | take a line away |
-| `f`, `v` | flows | copy the flow here; where flows come from |

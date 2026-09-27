@@ -1,7 +1,8 @@
 """The models a sheet offers, which are the ones its CLI said it runs as the chosen account.
 
 Nothing is written down, so a list is only ever as good as the last time somebody asked --
-which is what the key on this sheet is for, and what making an account does on its own.
+which is what the row on this sheet that asks again is for, and what making an account
+does on its own.
 
 Driven headlessly, as every test of the interface is, so what is checked is where a keystroke
 lands rather than how it is drawn.
@@ -19,8 +20,8 @@ from hmz.coganchor.backends import Model
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
-from hmz.tui.pick import Agent, Catalogue, Clis
-from tests.integration.tui.test_app import into_agent, keeps, opens, rows
+from hmz.tui.pick import _AGAIN, _APART, Agent, Catalogue, Clis
+from tests.integration.tui.test_app import into_agent, keeps, onto, opens, rows
 from tests.stubs import written
 from tests.tui.fixtures import until
 
@@ -118,13 +119,19 @@ def _value(app: Humanize, held: str) -> str:
 
 
 def _rows(app: Humanize) -> int:
-    """How many models are on the sheet."""
-    return len(app.screen.query_one("#choices", OptionList).options)
+    """How many models are on the sheet, less the rows set below them."""
+    return len([one for one in rows(app) if one not in _APART])
+
+
+async def _asks_again(app: Humanize, driver: Pilot[None]) -> None:
+    """Asks the CLI again what it runs, from the row below the models."""
+    await onto(app, driver, _AGAIN)
+    await driver.press("enter")
 
 
 @pytest.mark.timeout(60)
 @unittest.mock.patch("hmz.tui.app.installed", return_value=UNASKED)
-async def test_a_cli_that_has_not_said_what_it_runs_says_which_key_asks_it(
+async def test_a_cli_that_has_not_said_what_it_runs_says_which_row_asks_it(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
     flows: Path,
 ) -> None:
@@ -135,18 +142,19 @@ async def test_a_cli_that_has_not_said_what_it_runs_says_which_key_asks_it(
 
         assert _rows(app) == 0
         await until(lambda: "has not said what it runs" in _under(app), driver)
-        assert "r asks it" in _under(app)
+        assert "asking it again asks it" in _under(app)
+        assert _AGAIN in rows(app)
         assert "ctrl" not in _under(app)
 
 
 @pytest.mark.timeout(60)
 @unittest.mock.patch("hmz.tui.app.installed", return_value=UNASKED)
-async def test_the_key_asks_the_cli_and_puts_up_what_it_says(
+async def test_the_row_asks_the_cli_and_puts_up_what_it_says(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
     flows: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Which is the whole of what the key is for: the list was short, and now it is not."""
+    """Which is the whole of what the row is for: the list was short, and now it is not."""
     import hmz.coganchor.models
 
     def says(cli: str, provider: str = "", seconds: float = 0.0) -> tuple[Model, ...]:
@@ -158,7 +166,7 @@ async def test_the_key_asks_the_cli_and_puts_up_what_it_says(
         await _to_the_models(app, driver)
         assert _rows(app) == 0
 
-        await driver.press("r")
+        await _asks_again(app, driver)
 
         await until(lambda: _rows(app) == 1, driver)
         assert "max" in str(
@@ -210,7 +218,7 @@ async def test_a_cli_that_will_not_say_says_so_under_the_list(
     async with app.run_test() as driver:
         await _to_the_models(app, driver)
 
-        await driver.press("r")
+        await _asks_again(app, driver)
 
         await until(lambda: "not logged in" in _under(app), driver)
         # And the sheet is still the sheet: the question it asks is still worth answering.

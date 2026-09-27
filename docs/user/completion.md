@@ -68,7 +68,7 @@ you brought back from [history](/user/history).
 ## Narrowing a long list
 
 The menus behind the commands list flows, models, accounts, runs and fallbacks, and those
-lists get long. Press <kbd>s</kbd> and type: a row stays if the letters you type appear in its
+lists get long. Choose the `search…` row below the list and type: a row stays if the letters you type appear in its
 name in that order, so `o5` finds `claude-opus-5`. <kbd>esc</kbd> leaves the search first, then
 the menu.
 

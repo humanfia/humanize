@@ -429,6 +429,29 @@ class Choices(OptionList):
         self._counted()
         return selection.extract("\n".join(self._text)), "\n"
 
+    def action_select(self) -> None:
+        """Picks the row under the cursor, unless the sheet takes enter as something else.
+
+        A sheet takes enter for itself on a row that is changed where it stands, where it
+        begins or ends changing it, and on the row that starts a search. Asked here rather
+        than on a binding of the sheet's own, so that a click on such a row is the same as
+        enter on it.
+        """
+        pressed = getattr(self.screen, "pressed", None)
+        if callable(pressed) and pressed():
+            return
+        super().action_select()
+
+    def action_cursor_up(self) -> None:
+        """Walks up a row, unless the one the cursor is on is being changed."""
+        if not getattr(self.screen, "_editing", ""):
+            super().action_cursor_up()
+
+    def action_cursor_down(self) -> None:
+        """Walks down a row, unless the one the cursor is on is being changed."""
+        if not getattr(self.screen, "_editing", ""):
+            super().action_cursor_down()
+
     def on_click(self, event: events.Click) -> None:
         """Takes the word under two clicks and the whole line under three, as anywhere else.
 

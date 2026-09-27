@@ -28,8 +28,11 @@ from hmz.tui import Humanize
 from hmz.tui.app import _BY_NAME, _COMMANDS, _SAID, Editor, _where
 from hmz.tui.pick import (
     _ADD,
+    _AGAIN,
     _BUDGET,
+    _DONE,
     _SAVE,
+    _SEARCH,
     Accounts,
     Agent,
     Alike,
@@ -94,12 +97,21 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
-def rows(app: Humanize) -> list[str]:
-    """What the sheet on top is offering, by the id each row was put up under."""
+def ids(app: Humanize) -> list[str]:
+    """Every row of the sheet on top, by the id each row was put up under."""
     return [
         str(one.id or "").removeprefix("=")
         for one in app.screen.query_one("#choices", OptionList).options
     ]
+
+
+def rows(app: Humanize) -> list[str]:
+    """What the sheet on top is offering, less the row that starts a search.
+
+    Every list long enough to be searched has that row, so a test about what a list offers
+    would otherwise be a test that it can be searched as well.
+    """
+    return [one for one in ids(app) if one != _SEARCH]
 
 
 async def into_flows(app: Humanize, driver: Pilot[None]) -> None:
@@ -126,7 +138,7 @@ async def onto(app: Humanize, driver: Pilot[None], held: str) -> None:
       held: The row, by its id.
     """
     listing = app.screen.query_one("#choices", OptionList)
-    at = rows(app).index(held)
+    at = ids(app).index(held)
     for _ in range(len(listing.options)):
         if (listing.highlighted or 0) == at:
             return
@@ -173,6 +185,26 @@ async def opens(app: Humanize, driver: Pilot[None], held: str) -> None:
       held: The row, by its id -- `cli`, `model`, `skills` and the rest.
     """
     await onto(app, driver, held)
+    await driver.press("enter")
+    await driver.pause()
+
+
+async def changes(app: Humanize, driver: Pilot[None], held: str, *keys: str) -> None:
+    """Changes one row that is changed where it stands, and keeps what it then says.
+
+    Enter begins changing it, the keys change it, and enter keeps it.
+
+    Args:
+      app: The interface.
+      driver: What is pumping it.
+      held: The row, by its id.
+      keys: What to press while it is being changed.
+    """
+    await onto(app, driver, held)
+    await driver.press("enter")
+    await driver.pause()
+    await driver.press(*keys)
+    await driver.pause()
     await driver.press("enter")
     await driver.pause()
 
@@ -620,9 +652,9 @@ async def test_an_agent_set_up_under_a_running_flow_is_what_the_next_run_starts_
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flows), driver)
         await into_agent(app, driver)
-        await onto(app, driver, "effort")
-        await driver.press("right")  # one harder than it was started at
-        await driver.pause()
+        await changes(
+            app, driver, "effort", "right"
+        )  # one harder than it was started at
         await keeps(app, driver)
         await keeps(app, driver)
         await until(lambda: "the next run starts on" in transcript(app), driver)
@@ -1130,7 +1162,7 @@ async def test_a_menu_of_one_page_draws_no_strip_of_titles(
 
 @pytest.mark.timeout(60)
 async def test_two_views_of_one_question_are_still_turned_between() -> None:
-    """What tab is for, which is why what is walked into does not take it.
+    """What the arrows across are for, which is why what is walked into does not take them.
 
     `/settings` is two scopes of one question -- everywhere, and here -- and either may be
     read first, so neither is reached by picking the other.
@@ -1144,9 +1176,9 @@ async def test_two_views_of_one_question_are_still_turned_between() -> None:
         await until(lambda: isinstance(app.screen, Adjusts), driver)
         sheet = app.screen
         assert isinstance(sheet, Adjusts)
-        assert "tab/shift+tab switch" in str(sheet.query_one("#tabs", Label).content)
+        assert "←/→ page" in str(sheet.query_one("#keys", Label).content)
 
-        await driver.press("tab")
+        await driver.press("right")
         await until(lambda: sheet._tab == 1, driver)
 
         assert "[b $primary]This directory" in str(
@@ -1856,7 +1888,7 @@ async def test_what_an_agent_runs_is_a_row_of_its_own_and_an_effort_the_arrows_m
         await until(lambda: isinstance(app.screen, Catalogue), driver)
         listing = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
-        assert rows(app) == ["claude-opus-5"]
+        assert rows(app) == ["claude-opus-5", _AGAIN]
         assert "❯" in str(listing.get_option_at_index(0).prompt)
         assert "1." in str(listing.get_option_at_index(0).prompt)
         await driver.press("enter")
@@ -1873,12 +1905,13 @@ async def test_what_an_agent_runs_is_a_row_of_its_own_and_an_effort_the_arrows_m
         # It opens on what the agent runs, which is not the hardest thing there is: that is
         # the one to reach for, and this is the one to spend before anybody asked for it.
         assert "high" in effort()
-        await driver.press("right")
+        await driver.press("enter", "right")
         await driver.pause()
-        assert "max" in effort()  # right is more
+        assert "max" in effort()  # right is more, once enter has begun on it
         await driver.press("left")
         await driver.pause()
         assert "high" in effort()  # and left is less
+        await driver.press("enter")
 
         await keeps(app, driver)  # out of the agent, holding it
         await keeps(app, driver)  # and out of the menu, saving the lot
@@ -1918,7 +1951,7 @@ async def test_changing_the_cli_lets_go_of_the_model_that_belonged_to_the_last_o
         listing = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
         # The models of the CLI that was chosen, numbered afresh, and no others.
-        assert rows(app) == ["gpt-5.6-sol", "gpt-5.5"]
+        assert rows(app) == ["gpt-5.6-sol", "gpt-5.5", _AGAIN]
         assert "1." in str(listing.get_option_at_index(0).prompt)
 
         await driver.press("down")  # the second of that CLI's models
@@ -2003,9 +2036,8 @@ async def goal(task: str, *, agents: Agents, envs: EnvCollection, params: FlowPa
 
         await opens(app, driver, "model")
         await until(lambda: isinstance(app.screen, Catalogue), driver)
-        listing = app.screen.query_one("#choices", OptionList)
-        await until(lambda: len(listing.options) == 2, driver)
-        assert rows(app) == ["deepseek-v4-flash", "deepseek-v4-pro"]
+        await until(lambda: "deepseek-v4-flash" in rows(app), driver)
+        assert rows(app) == ["deepseek-v4-flash", "deepseek-v4-pro", _AGAIN]
 
         await driver.press("down", "enter")
         await until(lambda: isinstance(app.screen, Agent), driver)
@@ -2059,7 +2091,8 @@ async def test_deepseek_has_its_own_ways_after_switching_from_kimi(
         assert rows(app) == ["", _ADD]
         assert "saved by dsh" in str(listing.get_option_at_index(0).prompt)
 
-        await driver.press("a")
+        await onto(app, driver, _ADD)
+        await driver.press("enter")
         await until(lambda: isinstance(app.screen, Ways), driver)
         ways = app.screen.query_one("#choices", OptionList)
         assert [str(option.id) for option in ways.options] == ["=key", "=gateway"]
@@ -2077,13 +2110,18 @@ async def test_deepseek_has_its_own_ways_after_switching_from_kimi(
         await until(lambda: isinstance(app.screen, Signing), driver)
         form = app.screen.query_one("#choices", OptionList)
         assert [str(option.id) for option in form.options] == [
-            "=",
-            "=DEEPSEEK_API_KEY",
+            "=?",
+            "=?DEEPSEEK_API_KEY",
+            f"={_DONE}",
         ]
-        await driver.press(*"mine")
-        await driver.press("down")
+        await changes(app, driver, "?", *"mine")
+        await onto(app, driver, "?DEEPSEEK_API_KEY")
+        await driver.press("enter")
+        await driver.pause()
         form.post_message(events.Paste("test-key\n"))
         await driver.pause()
+        await driver.press("enter")
+        await onto(app, driver, _DONE)
         await driver.press("enter")
 
         # A DeepSeek key is a DeepSeek key wherever it is held, so it is asked which other
@@ -2198,7 +2236,7 @@ async def test_one_cli_is_still_a_row_that_is_opened_and_answered(
         await until(lambda: isinstance(app.screen, Catalogue), driver)
         models = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(models.options), driver)
-        assert rows(app) == ["claude-opus-5", "claude-sonnet-5"]
+        assert rows(app) == ["claude-opus-5", "claude-sonnet-5", _AGAIN]
 
 
 @pytest.mark.timeout(60)
@@ -2212,7 +2250,7 @@ async def test_one_cli_is_still_a_row_that_is_opened_and_answered(
 async def test_a_search_is_asked_for_and_left_rather_than_being_what_typing_does(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
 ) -> None:
-    """Every letter on these sheets is a key, so the letters only search once s says so."""
+    """The letters only search once the row that says so has been chosen."""
     from hmz.coganchor import providers
 
     providers.add("claude", "deepseek", way="key", env={"ANTHROPIC_API_KEY": "k"})
@@ -2225,9 +2263,13 @@ async def test_a_search_is_asked_for_and_left_rather_than_being_what_typing_does
         sheet = cast("Accounts", app.screen)
         listing = sheet.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
-        assert "s search" in str(sheet.query_one("#keys", Label).content)
+        await driver.press(*"deep")  # typing at the list is not searching it
+        await driver.pause()
+        assert not sheet._searching
+        assert rows(app) == ["", "deepseek", _ADD]
 
-        await driver.press("s")
+        await onto(app, driver, _SEARCH)
+        await driver.press("enter")
         await driver.pause()
         assert sheet._searching
         await driver.press(*"deep")
@@ -2284,7 +2326,13 @@ async def test_a_turn_is_said_to_run_hard_and_said_to_run_wide_separately(
         listing = app.screen.query_one("#choices", OptionList)
         # Claude's hardest is an effort like any other, reached along the same arrows.
         await onto(app, driver, "effort")
-        await driver.press("right", "right")
+        await driver.press("enter")
+        for _ in range(3):
+            if "ultracode" in shown("effort"):
+                break
+            await driver.press("right")
+            await driver.pause()
+        await driver.press("enter")
         await driver.pause()
         assert "ultracode" in shown("effort")
         assert "swarm" not in rows(app)  # nothing to turn on, so no row saying so
@@ -2306,13 +2354,9 @@ async def test_a_turn_is_said_to_run_hard_and_said_to_run_wide_separately(
         await until(lambda: "swarm" in rows(app), driver)
         assert "off" in shown("swarm")
 
-        await onto(app, driver, "swarm")
-        await driver.press("right")
-        await driver.pause()
+        await changes(app, driver, "swarm", "right")
         assert "on" in shown("swarm")
-        await onto(app, driver, "effort")
-        await driver.press("left")  # and it is still on at another effort
-        await driver.pause()
+        await changes(app, driver, "effort", "left")  # and still on at another effort
         assert "low" in shown("effort")
         assert "on" in shown("swarm")
 
@@ -2347,30 +2391,37 @@ async def test_a_list_too_long_to_walk_is_narrowed_by_typing_at_it(
         sheet = app.screen
         listing = sheet.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
+
         # On to this project's own flows, there being more than one of those to narrow: the
         # page opens on the place the flow in force came from, which is humanize's own.
+        def flows() -> list[str]:
+            return [one for one in rows(app) if "\x1f" in one]
+
         await driver.press("right")
-        await until(lambda: listing.option_count == 3, driver)
+        await until(lambda: len(flows()) == 3, driver)
         every = listing.option_count
 
-        await driver.press("s")
+        await onto(app, driver, _SEARCH)
+        await driver.press("enter")
         await driver.press("c", "h", "a", "t", "t", "e")
         await driver.pause()
-        assert [one for one in rows(app) if one] == ["local\x1flocal/chatter"]
+        assert flows() == ["local\x1flocal/chatter"]
 
         await driver.press("backspace")  # and one letter back is a wider list again
         await driver.pause()
         # `chatty` is in it too, which the last letter had ruled out.
-        assert len([one for one in rows(app) if one]) > 1
+        assert len(flows()) > 1
 
         await driver.press("z", "z")  # narrowed to nothing rather than to everything
         await driver.pause()
-        assert not [one for one in rows(app) if one]
+        assert not [one for one in flows() if one.partition("\x1f")[2]]
 
         await driver.press("escape")  # which esc steps back out of before it leaves
         await driver.pause()
         assert listing.option_count == every
         assert isinstance(app.screen, Flows)
+        # Left on the row that searches, which is where a search that found nothing puts it.
+        await onto(app, driver, flows()[0])
 
         # Spread through the name in order, rather than a prefix: `hk` finds `claude-haiku`.
         await into_agent(app, driver)
@@ -2378,11 +2429,12 @@ async def test_a_list_too_long_to_walk_is_narrowed_by_typing_at_it(
         await until(lambda: isinstance(app.screen, Catalogue), driver)
         listing = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
-        await driver.press("s")
+        await onto(app, driver, _SEARCH)
+        await driver.press("enter")
         await driver.press("h", "k")
         await driver.pause()
 
-        assert rows(app) == ["claude-haiku-4-5"]
+        assert rows(app) == ["claude-haiku-4-5", _AGAIN]
 
 
 @pytest.mark.timeout(60)

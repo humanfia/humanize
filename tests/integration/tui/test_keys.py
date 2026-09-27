@@ -1,17 +1,14 @@
-"""Where a sheet's keys are said, which is one place and once.
+"""What a menu's keys are, and where they are said: four keys, one place, once.
 
-A menu has a row of keys under it and a line about itself above it, and for a long time both
-said what the keys were: nine sheets named a key in the line about them and named it again at
-the bottom, and one of them said a whole sentence twice. That is a key learned twice, and it
-is width taken off a list to say nothing.
+A menu has the arrows up and down to walk its rows, the arrows across to turn its pages, enter
+to open the row under the cursor or begin changing it, and esc to step back -- and nothing
+else. Whatever a letter used to do is a row the arrows walk to, so nothing about working a
+menu has to be known before it is opened.
 
-So the row is built in one place -- :meth:`hmz.tui.pick.Sheet._footed` -- and what that buys
-is the rule being checkable rather than remembered. These are the checks: that row is the
-only place `#keys` is written, no sheet names a key twice in it, and the line about a sheet
-names no key at all.
-
-And the two things that row now has to say: saving a menu, which is a row set below the
-choices and a chord, and the key that cycles whatever the arrows adjust.
+And the row of keys is built in one place -- :meth:`hmz.tui.pick.Sheet._footed` -- which is
+what makes `said once` a thing to check rather than a thing to remember: that row is the only
+place `#keys` is written, no sheet names a key twice in it, it names no key but those four,
+and the line about a sheet names no key at all.
 """
 
 from __future__ import annotations
@@ -30,7 +27,11 @@ from hmz.coganchor.backends import Model
 from hmz.tui import Humanize
 from hmz.tui.pick import (
     _ADD,
+    _DONE,
+    _FORK,
     _SAVE,
+    _SEARCH,
+    _VERSES,
     Adjusts,
     Agent,
     Alike,
@@ -48,7 +49,14 @@ from hmz.tui.pick import (
     Sheet,
     Speaks,
 )
-from tests.integration.tui.test_app import into_agent, into_flows, onto, rows
+from tests.integration.tui.test_app import (
+    changes,
+    ids,
+    into_agent,
+    into_flows,
+    onto,
+    rows,
+)
 from tests.tui.fixtures import until
 
 if TYPE_CHECKING:
@@ -60,10 +68,11 @@ if TYPE_CHECKING:
 #: list to pick from and a rung to step along.
 CLAUDE = {"claude": (Model("claude-opus-5", ("max", "high")),)}
 
+#: The keys a menu has, as its row of keys says them.
+_KEYS = {"←/→", "enter", "esc"}
+
 #: How a key reads when it is named in prose. The line about a sheet MUST NOT name one -- the
-#: row under the list is where the keys are said -- so this is what to look for up there. A
-#: letter key is looked for as the idiom this interface wrote them in, `a adds one`, rather
-#: than on its own: a bare `a` is also the commonest word in English.
+#: row under the list is where the keys are said -- so this is what to look for up there.
 _NAMES = re.compile(
     r"\b(?:enter|esc|escape|tab|space|backspace|arrows?)\b"
     r"|[←→↑↓]"
@@ -72,9 +81,12 @@ _NAMES = re.compile(
     re.IGNORECASE,
 )
 
+#: The letters, chords and keys a menu used to have, none of which it has any more.
+_GONE = ("s", "a", "r", "d", "f", "v", "space", "tab", "shift+tab", "ctrl+j")
+
 
 def once(sheet: Screen[Any]) -> None:
-    """Asserts that one sheet says each of its keys once, and says them only at the bottom.
+    """Asserts that one sheet says each of its keys once, only its four, only at the bottom.
 
     Args:
       sheet: The sheet, as it is drawn now. What its keys are depends on which row the cursor
@@ -86,10 +98,16 @@ def once(sheet: Screen[Any]) -> None:
 
     assert keyed, f"{type(sheet).__name__} says no keys at all"
     assert len(keyed) == len(set(keyed)), f"{type(sheet).__name__} says {keyed}"
+    assert set(keyed) <= _KEYS, f"{type(sheet).__name__} says {keyed}"
     # And the line about the sheet says what the sheet is, and nothing about how to work it.
     about = str(sheet.query_one("#about", Label).content)
     found = _NAMES.search(about)
     assert found is None, f"{type(sheet).__name__} names {found and found.group()!r}"
+
+
+def said(sheet: Screen[Any]) -> str:
+    """The row of keys under a sheet, as it reads."""
+    return str(sheet.query_one("#keys", Label).content)
 
 
 def test_the_keys_are_written_in_one_place() -> None:
@@ -155,14 +173,112 @@ async def test_the_menus_walked_into_say_each_of_their_keys_once(
         await into_agent(app, driver)
         once(app.screen)
 
-        # And on the row that is stepped rather than opened, where the keys are not the same.
+        # And on the row that is changed where it stands, where enter begins changing it.
         await onto(app, driver, "effort")
         once(app.screen)
-        assert "←/→ or space" in str(app.screen.query_one("#keys", Label).content)
+        assert "enter change" in said(app.screen)
+
+        # While it is being changed the keys are about changing it and nothing else.
+        await driver.press("enter")
+        await driver.pause()
+        once(app.screen)
+        assert said(app.screen) == "←/→ change · enter keep · esc undo"
 
 
 @pytest.mark.timeout(60)
-async def test_a_search_says_what_the_keys_do_while_it_runs() -> None:
+@unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
+async def test_a_row_is_changed_only_once_enter_has_begun_on_it(
+    _installed: unittest.mock.MagicMock,  # noqa: PT019 -- `mock.patch` hands it over
+) -> None:
+    """Enter begins, the arrows change, enter keeps and esc puts back what it said before."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        await into_flows(app, driver)
+        await into_agent(app, driver)
+        sheet = app.screen
+        assert isinstance(sheet, Agent)
+        await onto(app, driver, "effort")
+        was = sheet._effort
+
+        # Walking past it, or pressing across on it, changes nothing.
+        await driver.press("right")
+        await driver.pause()
+        assert sheet._effort == was
+        assert not sheet._changed
+
+        # Begun, changed, and put back.
+        await driver.press("enter", "right")
+        await driver.pause()
+        assert sheet._editing == "effort"
+        assert sheet._effort != was
+        # The cursor stays on the row being changed.
+        await driver.press("down")
+        await driver.pause()
+        assert sheet.under() == "effort"
+        await driver.press("escape")
+        await driver.pause()
+        assert not sheet._editing
+        assert sheet._effort == was
+        assert isinstance(app.screen, Agent)  # esc put the row back, and left nothing
+        assert not sheet._changed
+
+        # Begun, changed, and kept -- which is a change the menu is holding.
+        await changes(app, driver, "effort", "right")
+        assert sheet._effort != was
+        assert sheet._changed
+
+
+@pytest.mark.timeout(60)
+@unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
+async def test_esc_on_a_menu_holding_changes_asks_whether_to_save(
+    _installed: unittest.mock.MagicMock,  # noqa: PT019 -- `mock.patch` hands it over
+) -> None:
+    """And saving is a row and that question, and no chord."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        await into_flows(app, driver)
+        await into_agent(app, driver)
+        await changes(app, driver, "effort", "right")
+
+        # The chords that used to save save nothing.
+        for key in ("shift+enter", "ctrl+j"):
+            await driver.press(key)
+            await driver.pause()
+            assert isinstance(app.screen, Agent)
+
+        await driver.press("escape")
+        await until(lambda: isinstance(app.screen, Confirms), driver)
+        await driver.press("enter")
+        await until(lambda: not isinstance(app.screen, (Agent, Confirms)), driver)
+
+
+@pytest.mark.timeout(60)
+@unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
+async def test_no_letter_is_a_key_of_a_menu(
+    _installed: unittest.mock.MagicMock,  # noqa: PT019 -- `mock.patch` hands it over
+) -> None:
+    """What a letter used to do on the flows is a row below them instead."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        await into_flows(app, driver)
+        sheet = app.screen
+        assert isinstance(sheet, Flows)
+        before = ids(app)
+
+        for key in _GONE:
+            await driver.press(key)
+            await driver.pause()
+        assert app.screen is sheet
+        assert not sheet._searching
+        assert not sheet._inside
+        assert ids(app) == before
+
+        # Searching, copying a flow here and where flows come from are rows.
+        assert before[-3:] == [_SEARCH, _FORK, _VERSES]
+
+
+@pytest.mark.timeout(60)
+async def test_a_search_is_a_row_and_says_what_the_keys_do_while_it_runs() -> None:
     """The letters are the search's then, and esc comes out of it before it leaves."""
     app = Humanize()
     async with app.run_test() as driver:
@@ -171,16 +287,27 @@ async def test_a_search_says_what_the_keys_do_while_it_runs() -> None:
         sheet = app.screen
         assert isinstance(sheet, Flowverses)
         await driver.pause()
-        assert "a add" in str(sheet.query_one("#keys", Label).content)
+        assert not sheet._searching
 
-        await driver.press("s")
+        await onto(app, driver, _SEARCH)
+        assert "enter search" in said(sheet)
+        await driver.press("enter")
         await until(lambda: sheet._searching, driver)
-        said = str(sheet.query_one("#keys", Label).content)
+        await driver.press(*"zzzz")
+        await driver.pause()
 
         once(sheet)
-        # The letters reach the search, so they are not offered as keys of the sheet.
-        assert "a add" not in said
-        assert "esc leave search" in said
+        assert "esc leave search" in said(sheet)
+        # Nothing is called that, and the rows below the list are still there.
+        assert rows(app) == [_ADD]
+        assert "zzzz" in str(
+            sheet.query_one("#choices", OptionList).get_option_at_index(0).prompt
+        )
+
+        await driver.press("escape")
+        await driver.pause()
+        assert not sheet._searching
+        assert isinstance(app.screen, Flowverses)
 
 
 @pytest.mark.timeout(60)
@@ -203,58 +330,13 @@ async def test_saving_is_a_row_below_the_choices_rather_than_one_of_them(
         assert "save" in last
         assert f"{listing.option_count}." not in last
 
-
-@pytest.mark.timeout(60)
-@pytest.mark.parametrize("key", ["shift+enter", "ctrl+j"])
-@unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
-async def test_either_spelling_of_the_chord_saves(
-    _installed: unittest.mock.MagicMock,  # noqa: PT019 -- `mock.patch` hands it over
-    key: str,
-) -> None:
-    """Only one of them always arrives, so a menu is bound to both and says both."""
-    app = Humanize()
-    async with app.run_test() as driver:
-        await into_flows(app, driver)
-        await into_agent(app, driver)
-        assert "shift+enter/ctrl+j save" in str(
-            app.screen.query_one("#keys", Label).content
-        )
-
-        await driver.press(key)
+        await onto(app, driver, _SAVE)
+        await driver.press("enter")
         await until(lambda: not isinstance(app.screen, Agent), driver)
 
 
 @pytest.mark.timeout(60)
-@unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
-async def test_space_cycles_whatever_the_arrows_adjust(
-    _installed: unittest.mock.MagicMock,  # noqa: PT019 -- `mock.patch` hands it over
-) -> None:
-    """And comes round at the end of the range, which is what tells it from an arrow."""
-    app = Humanize()
-    async with app.run_test() as driver:
-        await into_flows(app, driver)
-        await into_agent(app, driver)
-        sheet = app.screen
-        assert isinstance(sheet, Agent)
-        await onto(app, driver, "effort")
-        was = sheet._effort
-        efforts = sheet._efforts()
-        assert len(efforts) > 1  # or there would be nothing to cycle through
-
-        await driver.press("space")
-        await driver.pause()
-        assert sheet._effort != was
-
-        # Round to where it started rather than stopping at the end of the range: a key that
-        # means `the next one` and did nothing would look broken to whoever walked there.
-        for _ in range(len(efforts) - 1):
-            await driver.press("space")
-            await driver.pause()
-        assert sheet._effort == was
-
-
-@pytest.mark.timeout(60)
-async def test_the_settings_menu_has_the_same_row_and_the_same_keys(
+async def test_the_settings_menu_turns_its_pages_and_changes_its_rows_the_same_way(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """What is true of one menu that holds what is changed in it is true of all of them."""
@@ -270,17 +352,26 @@ async def test_the_settings_menu_has_the_same_row_and_the_same_keys(
         sheet = app.screen
         assert isinstance(sheet, Adjusts)
         once(sheet)
+        assert "←/→ page" in said(sheet)
         assert rows(app) == ["reports", "sent", _SAVE]
 
-        # Space turns the row under the cursor round, as the arrows do.
+        # Across turns the page while nothing is being changed.
+        await driver.press("right")
+        await driver.pause()
+        assert sheet._tab == 1
+        await driver.press("left")
+        await driver.pause()
+        assert sheet._tab == 0
+
+        # And changes the row once enter has begun on it, and turns nothing.
         listing = sheet.query_one("#choices", OptionList)
         assert "on " in str(listing.get_option_at_index(0).prompt)
-        await driver.press("space")
-        await driver.pause()
+        await changes(app, driver, "reports", "right")
+        assert sheet._tab == 0
         assert "off " in str(listing.get_option_at_index(0).prompt)
 
-        # And the chord lands the lot without walking out and answering a box about it.
-        await driver.press("ctrl+j")
+        await onto(app, driver, _SAVE)
+        await driver.press("enter")
         await until(lambda: not isinstance(app.screen, Adjusts), driver)
 
     assert Settings(tmp_path).enable_sentry is False
@@ -306,6 +397,35 @@ async def test_adding_is_a_row_of_every_list_that_is_added_to() -> None:
 
 
 @pytest.mark.timeout(60)
+async def test_a_form_is_written_a_row_at_a_time_and_answered_from_a_row() -> None:
+    """Typing reaches a question only once enter has begun on it."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        await app.push_screen(Speaks())
+        await until(lambda: isinstance(app.screen, Speaks), driver)
+        sheet = app.screen
+        assert isinstance(sheet, Speaks)
+        await driver.pause()
+        assert rows(app) == ["command", _DONE]
+
+        await driver.press(*"nope")
+        await driver.pause()
+        assert not sheet._typed_in.get("command")
+
+        await changes(app, driver, "command", *"my-agent")
+        assert sheet._typed_in["command"] == "my-agent"
+        # Begun again, written, and put back.
+        await driver.press("enter", *"--acp", "escape")
+        await driver.pause()
+        assert sheet._typed_in["command"] == "my-agent"
+
+        await onto(app, driver, _DONE)
+        assert "enter add" in said(sheet)
+        await driver.press("enter")
+        await until(lambda: not isinstance(app.screen, Speaks), driver)
+
+
+@pytest.mark.timeout(60)
 async def test_the_question_about_what_a_menu_holds_is_five_words() -> None:
     """It arrives over a menu somebody just spent a minute in, and either answer is a word."""
     app = Humanize()
@@ -318,12 +438,12 @@ async def test_the_question_about_what_a_menu_holds_is_five_words() -> None:
         assert str(sheet.query_one("#asked", Label).content) == "Save?"
         assert not str(sheet.query_one("#about", Label).content)
         assert rows(app) == ["keep", "drop"]
-        said = " ".join(
+        words = " ".join(
             str(sheet.query_one(one, Label).content) for one in ("#asked", "#keys")
         )
         # Every word in the box, keys and all, less the dot that separates two keys.
-        words = said.replace("·", " ").split()
-        assert len(words) <= 5, words
+        split = words.replace("·", " ").split()
+        assert len(split) <= 5, split
 
 
 @pytest.mark.timeout(60)
@@ -354,8 +474,8 @@ async def test_a_sheet_is_answered_once_however_fast_the_key_is_pressed(
 
 
 @pytest.mark.timeout(60)
-async def test_the_sheet_of_switches_is_flipped_on_the_same_key() -> None:
-    """Which other backends an account could be run as is switches, and space flips one."""
+async def test_the_sheet_of_switches_is_flipped_the_way_every_row_is_changed() -> None:
+    """Which other backends an account could be run as is switches, changed as rows are."""
     from hmz.coganchor.providers import Provider
 
     one = Provider(cli="claude", name="shared", way="key", env={"K": "v"})
@@ -370,33 +490,35 @@ async def test_the_sheet_of_switches_is_flipped_on_the_same_key() -> None:
 
         # Nothing is installed in a test, so every one of them starts off.
         assert sheet._on == set()
-        await driver.press("space")
-        await driver.pause()
+        await changes(app, driver, "codex", "right")
         assert sheet._on == {"codex"}
+
+        await onto(app, driver, _DONE)
+        await driver.press("enter")
+        await until(lambda: not isinstance(app.screen, Alike), driver)
 
 
 @pytest.mark.timeout(60)
 @unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
-async def test_the_flow_menu_says_the_chord_on_both_of_its_pages(
+async def test_the_flow_menu_is_saved_from_its_row(
     _installed: unittest.mock.MagicMock,  # noqa: PT019 -- `mock.patch` hands it over
 ) -> None:
-    """One menu walked into, so the way to save it is the same key in both halves of it."""
+    """One menu walked into, saved from the row below its roles."""
     app = Humanize()
     async with app.run_test() as driver:
         await into_flows(app, driver)
         sheet = app.screen
         assert isinstance(sheet, Flows)
         assert not sheet._inside
-        assert "shift+enter/ctrl+j save" in str(sheet.query_one("#keys", Label).content)
 
         await driver.press("enter")
         await until(lambda: sheet._inside, driver)
         once(sheet)
         assert rows(app)[-1] == _SAVE
-        assert "shift+enter/ctrl+j save" in str(sheet.query_one("#keys", Label).content)
 
         # And what lands is what the menu was holding, flow and agents together.
-        await driver.press("shift+enter")
+        await onto(app, driver, _SAVE)
+        await driver.press("enter")
         await until(lambda: not isinstance(app.screen, Flows), driver)
 
     assert app._models

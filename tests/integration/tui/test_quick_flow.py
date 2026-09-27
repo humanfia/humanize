@@ -21,8 +21,8 @@ from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.app import _COMMANDS, Editor
 from hmz.tui.complete import offered
-from hmz.tui.pick import _BUDGET, _SAVE, Configures, Flows
-from tests.integration.tui.test_app import opens
+from hmz.tui.pick import _BUDGET, _DONE, _SAVE, Configures, Flows
+from tests.integration.tui.test_app import changes, opens
 from tests.stubs import ShellAgent, written
 from tests.tui.fixtures import holding, transcript, until
 
@@ -186,8 +186,8 @@ async def saves(app: Humanize, driver: Pilot[None]) -> None:
     # as a duration, before the menu is saved.
     await opens(app, driver, _BUDGET)
     await until(lambda: isinstance(app.screen, Configures), driver)
-    await driver.press(*"1h")
-    await driver.press("enter")
+    await changes(app, driver, "duration", *"1h")
+    await opens(app, driver, _DONE)
     await until(lambda: app.screen is sheet, driver)
     await opens(app, driver, _SAVE)
     await until(lambda: not isinstance(app.screen, Flows), driver)

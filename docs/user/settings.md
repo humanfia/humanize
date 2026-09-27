@@ -10,10 +10,10 @@ make it forget.
 /settings
 ```
 
-![/settings opening on what is true of this machine, then tab to this directory: workspace,
+![/settings opening on what is true of this machine, then → to this directory: workspace,
 flow, profile and forget](/demo/profiling.gif)
 
-The menu has two pages. <kbd>tab</kbd> and <kbd>shift+tab</kbd> turn between them.
+The menu has two pages. <kbd>←</kbd> and <kbd>→</kbd> turn between them.
 
 | Page | Row | What it is |
 | --- | --- | --- |
@@ -24,9 +24,9 @@ The menu has two pages. <kbd>tab</kbd> and <kbd>shift+tab</kbd> turn between the
 | | profile | whether a run here [profiles](#whether-a-run-here-is-profiled) the programs it starts |
 | | forget | forget everything this directory remembers |
 
-<kbd>←</kbd> <kbd>→</kbd> or <kbd>space</kbd> flip the row under the cursor. Nothing changes
-until you save: choose the **save** row, or press <kbd>shift+enter</kbd> or <kbd>ctrl+j</kbd>
-anywhere in the menu. Leave with <kbd>esc</kbd> and unsaved changes, and it asks **save** or
+<kbd>enter</kbd> on a row begins changing it, <kbd>←</kbd> <kbd>→</kbd> flip it, and
+<kbd>enter</kbd> keeps it (<kbd>esc</kbd> puts it back). Nothing changes until you save:
+choose the **save** row. Leave with <kbd>esc</kbd> and unsaved changes, and it asks **save** or
 **discard**; <kbd>esc</kbd> on that question takes you back into the menu.
 
 **forget** clears this directory only. Every other directory, and the reporting answer, stay
