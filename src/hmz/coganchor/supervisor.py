@@ -129,6 +129,11 @@ class Supervisor:
         self._signal_write = -1
         self._root_pid = 0
         self._exit_status = 1
+        #: Whether the agent's own process is still its launcher -- a shell running the
+        #: script it was installed as, or `env` finding the interpreter one names -- rather
+        #: than the agent it is about to become. Only ever a script the agent was started as:
+        #: an agent that is a shell outright runs what it runs where its work is.
+        self._launching = False
 
     # --------------------------------------------------------------- lifecycle
 
@@ -310,6 +315,14 @@ class Supervisor:
         elif event in (ptrace.EVENT_FORK, ptrace.EVENT_VFORK, ptrace.EVENT_CLONE):
             self._adopt_child(tracee)
             _try(ptrace.cont, tracee.pid)
+        elif event == ptrace.EVENT_EXEC:
+            if tracee.pid == self._root_pid and self._launching:
+                # Read off the image the agent's process now is, once the exec has
+                # happened: an `env` or a shell looking along `PATH` tries names that are
+                # not there before the one that is, and those say nothing. Once it is the
+                # agent it stays so, whatever it becomes after.
+                self._launching = _launcher(tracee.pid)
+            _try(ptrace.cont, tracee.pid)
         elif event != 0:
             _try(ptrace.cont, tracee.pid)
         elif stop_signal == (signal.SIGTRAP | ptrace.SYSCALL_STOP_SIG):
@@ -395,10 +408,66 @@ class Supervisor:
     # -------------------------------------------------------------- exec bridge
 
     def is_agent_launch(self, tracee: Tracee, program: str) -> bool:
-        """True when a program belongs to this machine rather than the target."""
-        if tracee.pid == self._root_pid and tracee.exec_count == 1:
+        """True when a program belongs to this machine rather than the target.
+
+        The agent itself and its own runtime do, and so does every program its launcher runs
+        on the way to starting it, and the program it `exec`s into: a script installed as the
+        agent that asks `realpath` where it lives is asking about this machine, where it was
+        installed, and the target need have no such path. Once the launcher has become the
+        agent, what the agent runs goes to the target as ever.
+        """
+        if tracee.pid == self._root_pid:
+            if tracee.exec_count == 1:
+                self._launching = _script(program)
+                return True
+            return self._launching or self.router.runs_locally(program)
+        if self._launching and self._launched(tracee.pid):
             return True
         return self.router.runs_locally(program)
+
+    def _stdin(self, pid: int) -> int:
+        """A command's stdin, as the target is to be given it: the tracee's own, borrowed.
+
+        But for the agent's, where the agent is a program rather than a shell: a command that
+        inherited the pipe its driver speaks to the agent on is given nothing to read instead.
+        What is written there is the agent's next request, and forwarding a descriptor means
+        reading it -- whether or not the command ever would have -- so a probe the agent starts
+        as it comes up, and leaves its stdin to, would take the first request away from it and
+        leave it waiting for one that already came. A shell hands its stdin to what it runs on
+        purpose, and keeps doing so.
+        """
+        stolen = _steal(pid, 0)
+        if stolen < 0:
+            return stolen
+        try:
+            given, own = os.fstat(stolen), os.fstat(0)
+            shell = os.path.basename(os.readlink(f"/proc/{self._root_pid}/exe"))
+        except OSError:
+            return stolen
+        if (
+            (given.st_dev, given.st_ino) != (own.st_dev, own.st_ino)
+            or os.isatty(stolen)
+            or shell in _SHELLS
+        ):
+            return stolen
+        os.close(stolen)
+        return os.open(os.devnull, os.O_RDONLY)
+
+    def _launched(self, pid: int) -> bool:
+        """Whether a process was forked from the agent's launcher, running nothing since.
+
+        Walked up through the subshells a script's command substitutions fork, each of which
+        runs no program of its own before the one it forked for.
+        """
+        for _ in range(_LAUNCHER_DEPTH):
+            parent = procfs.parent_of(pid)
+            if parent == self._root_pid:
+                return True
+            forked = self._tracees.get(parent)
+            if forked is None or forked.exec_count:
+                return False
+            pid = parent
+        return False
 
     def begin_remote_exec(
         self,
@@ -413,7 +482,7 @@ class Supervisor:
             self.shadow.flush()
         except OSError as exc:
             log.warning("could not push local changes before exec: %s", exc)
-        stdio = (_steal(tracee.pid, 0), _steal(tracee.pid, 1), _steal(tracee.pid, 2))
+        stdio = (self._stdin(tracee.pid), _steal(tracee.pid, 1), _steal(tracee.pid, 2))
         try:
             cwd = self.router.virtual_cwd(procfs.working_directory(tracee.pid))
         except OSError:
@@ -556,3 +625,39 @@ def _pending_signals(pid: int) -> int:
             return mask
     except (OSError, ValueError):
         return 0
+
+
+#: What an agent installed as a script is started by before it is the agent: a shell running
+#: the script, or `env` looking for the interpreter the script names.
+_SHELLS = frozenset({"sh", "bash", "dash", "zsh", "ksh"})
+_LAUNCHERS = _SHELLS | {"env"}
+
+#: How many subshells deep a launcher's helper is looked for.
+_LAUNCHER_DEPTH = 16
+
+
+def _script(program: str) -> bool:
+    """Whether the agent was started as a script a shell or `env` runs: an installed launcher."""
+    try:
+        with open(program, "rb") as handle:
+            first = handle.readline(256)
+    except OSError:
+        return False
+    words = first[2:].split() if first.startswith(b"#!") else []
+    return (
+        bool(words)
+        and os.path.basename(words[0].decode(errors="replace")) in _LAUNCHERS
+    )
+
+
+def _launcher(pid: int) -> bool:
+    """Whether a process is running a launcher -- a shell, or `env` -- rather than an agent.
+
+    What it is running is its executable, which for a script is the interpreter its first
+    line names: `/usr/bin/env` for `#!/usr/bin/env node` until `env` has found `node`.
+    """
+    try:
+        running = os.readlink(f"/proc/{pid}/exe")
+    except OSError:
+        return False
+    return os.path.basename(running) in _LAUNCHERS

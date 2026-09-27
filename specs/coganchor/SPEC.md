@@ -458,10 +458,12 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
   redirected to, a call that cannot be given it failing rather than reading the path it named.
 - Every program it spawns MUST behave as an ordinary local child, its parent released as soon as the
   child starts and signals travelling both ways; a command MUST NOT report a success it did not
-  achieve, and nothing coganchor started MUST outlive it.
+  achieve, MUST NOT be handed what is written to an agent that is not a shell on its own
+  stdin, and nothing coganchor started MUST outlive it.
 - A file it modified MUST reach the target before any command runs there and again at the end, and
   creating, removing, renaming, linking and changing modes MUST reach it first; its executable,
-  state directory, redirect answers, private variables and connections MUST stay with it.
+  the executables beside it in its own package, what its launcher script runs before becoming
+  it, state directory, redirect answers, private variables and connections MUST stay with it.
 - Losing the link MUST NOT stop the agent: work needing the target fails and it exits with its own
   status. A mirror holding unrelated files, or last used elsewhere, MUST be refused unless told to.
 - Only file contents MUST be expected to cross — not ownership, device nodes, extended attributes or

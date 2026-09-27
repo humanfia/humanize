@@ -105,3 +105,42 @@ def test_a_program_the_agent_keeps_in_its_own_state_directory_runs_here(
 
     assert str(tmp_path / ".grok") in resolved.local_programs
     assert any(str(native).startswith(one) for one in resolved.local_programs)
+
+
+def test_what_an_npm_package_keeps_beside_its_program_runs_here(tmp_path: Path) -> None:
+    """Mimo's `bin/mimo` hands over to the `bin/.mimocode` its install left beside it."""
+    bin_ = tmp_path / "lib" / "node_modules" / "@mimo-ai" / "cli" / "bin"
+    launcher = executable(bin_ / "mimo", b"#!/usr/bin/env node\n")
+    native = executable(bin_ / ".mimocode")
+    notes = bin_ / "README"
+    notes.write_text("not a program\n")
+    helper = executable(bin_.parent / "vendor" / "rg")
+
+    resolved = resolve([str(launcher)])
+
+    assert str(native) in resolved.local_programs
+    assert str(notes) not in resolved.local_programs
+    assert str(helper) not in resolved.local_programs
+
+
+def test_a_program_in_a_shared_directory_brings_none_of_its_neighbours(
+    tmp_path: Path,
+) -> None:
+    program = executable(tmp_path / "usr" / "bin" / "agent")
+    neighbour = executable(tmp_path / "usr" / "bin" / "cat")
+
+    resolved = resolve([str(program)])
+
+    assert str(neighbour) not in resolved.local_programs
+
+
+def test_a_projects_bin_of_commands_is_no_package_of_the_agents(tmp_path: Path) -> None:
+    """pnpm and yarn put a script per command of the whole project in `node_modules/.bin`."""
+    bin_ = tmp_path / "project" / "node_modules" / ".bin"
+    program = executable(bin_ / "agent")
+    neighbour = executable(bin_ / "tsc")
+
+    resolved = resolve([str(program)])
+
+    assert str(neighbour) not in resolved.local_programs
+

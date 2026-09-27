@@ -319,3 +319,43 @@ def test_a_docker_daemon_behind_an_imported_host_is_dialled_through_it(
 
     assert far.reached, far.said
     assert (far.version, far.cpus, far.memory) == (here.version, here.cpus, here.memory)
+
+
+#: An agent that starts a command as it comes up, leaving its stdin to it, and then reads its
+#: first request -- as codex's app-server does, probing its sandbox before it reads a line.
+_READS_AFTER_A_PROBE = (
+    "import subprocess, sys\n"
+    "subprocess.run(['/bin/true'])\n"
+    "print('got', sys.stdin.readline().strip())\n"
+)
+
+
+@pytest.mark.timeout(120)
+def test_an_agent_anchored_over_real_ssh_keeps_its_own_stdin(
+    ssh_host: str, tmp_path: Path
+) -> None:
+    import sys
+
+    from hmz.coganchor import AnchorConfig
+    from tests.supervising import WITHOUT
+
+    if WITHOUT:
+        pytest.skip(WITHOUT)
+    work = tmp_path / "work"
+    work.mkdir()
+    config = AnchorConfig(
+        target=f"ssh://{ssh_host}", workspace=str(work), shadow=str(tmp_path / "mirror")
+    )
+
+    result = subprocess.run(
+        [*config.command(["python3", "-c", _READS_AFTER_A_PROBE])],
+        input="the first request\n",
+        capture_output=True,
+        text=True,
+        timeout=90,
+        env={**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)},
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "got the first request"

@@ -221,7 +221,11 @@ be read back fails the call.
 ### What stays on this machine
 
 - **The agent's own programs.** The CLI, the interpreter its `#!` line names at every `PATH`
-  entry the search may reach, and for Codex its native binary and code-mode host.
+  entry the search may reach, the executables beside it in its own npm package (mimo's
+  `bin/.mimocode`), and for Codex its native binary and code-mode host.
+- **What its launcher runs.** An agent installed as a shell script runs here until it `exec`s
+  the agent, and so does every helper the script runs on the way: cursor-agent's `realpath` of
+  its own install asks about this machine, not the target.
 - **Its state directory**, and anything it runs from there, such as Grok Build's native binary
   under `~/.grok/bin`. All twelve CLIs are known by name: `agy`, `claude`, `codex`,
   `cursor-agent`, `dsh`, `grok`, `kimi`, `mimo`, `opencode`, `pi`, `qwen`, `zcode`. So are
@@ -232,6 +236,9 @@ be read back fails the call.
   `--net remote` sends them to the target instead, and `--net-allow HOST[:PORT]` keeps named
   hosts local anyway.
 - **Variables named `--private`**, which the agent has and its commands on the target do not.
+- **The agent's stdin.** A command it runs that inherited the pipe its driver speaks to it on
+  gets an empty stdin on the target, so it cannot take the agent's next request away. An agent
+  that is a shell (`bash -c ...`) hands its stdin on as a shell does.
 
 ## `native`: the target's own CLI {#native-the-target-s-own-cli}
 
