@@ -604,44 +604,46 @@ class DshSession(SessionBase):
             launch = [env, *(part for name in hushed for part in ("-u", name)), *launch]
         written = self._cordis(composition)
         cordis = str(Path(written.name) / "cordis.yml")
-        harness = harness_type(
-            # The SDK's own default for this one; passed rather than left out so that the
-            # provider a turn runs under is named where a reader looks for it. It stays this
-            # whatever endpoint the turn is pointed at: it names the adapter route the
-            # runtime registers rather than a place -- `@deepseek-ai/dsh-llm-deepseek` owns
-            # exactly this one and the server refuses the handshake with `no adapter
-            # registered for provider` for any other name. A gateway is a base URL under
-            # that same route, which is why it is carried in the environment below.
-            provider="deepseek-official",
-            model=self._agent.config.model,
-            cwd=where,
-            runtime_cwd=started,
-            # Not the SDK's default, which leaves `$DSH_SESSION_ROOT` unset and lets the
-            # composition fall back to `./.sessions` in the workspace -- a repository the
-            # agent is working in would collect the logs of every run against it. Where this
-            # agent keeps its sessions instead, laid out as the dsh home is: the run's own
-            # directory for them, and the dsh home -- which `$DSH_HOME` moves -- only where
-            # this process was told to keep none.
-            session_root=str(self._agent.kept() / "sessions"),
-            cordis=cordis,
-            env=environment,
-            # Which is also why `cordis` above is never left out: the SDK injects its own
-            # default config only for a launch it resolved the arguments of itself, and this
-            # one is resolved here -- the bundled runtime wrapped in whatever `spawned` puts
-            # in front of it, and in `env -u` where credentials have to be dropped.
-            launch_args_override=tuple(launch),
-            # humanize's, not the SDK's: `request_timeout_seconds` defaults to None there,
-            # which is every JSON-RPC request waiting for as long as it takes. It bounds the
-            # acknowledgement rather than the turn -- `session/prompt` answers with the
-            # message id as soon as the prompt is in the inbox -- so what it catches is a
-            # runtime that came up and never answered. The turn itself is the watchdog's.
-            request_timeout_seconds=_REQUEST_SECONDS,
-        )
+        harness: _Harness | None = None
         try:
+            harness = harness_type(
+                # The SDK's own default for this one; passed rather than left out so that the
+                # provider a turn runs under is named where a reader looks for it. It stays this
+                # whatever endpoint the turn is pointed at: it names the adapter route the
+                # runtime registers rather than a place -- `@deepseek-ai/dsh-llm-deepseek` owns
+                # exactly this one and the server refuses the handshake with `no adapter
+                # registered for provider` for any other name. A gateway is a base URL under
+                # that same route, which is why it is carried in the environment below.
+                provider="deepseek-official",
+                model=self._agent.config.model,
+                cwd=where,
+                runtime_cwd=started,
+                # Not the SDK's default, which leaves `$DSH_SESSION_ROOT` unset and lets the
+                # composition fall back to `./.sessions` in the workspace -- a repository the
+                # agent is working in would collect the logs of every run against it. Where this
+                # agent keeps its sessions instead, laid out as the dsh home is: the run's own
+                # directory for them, and the dsh home -- which `$DSH_HOME` moves -- only where
+                # this process was told to keep none.
+                session_root=str(self._agent.kept() / "sessions"),
+                cordis=cordis,
+                env=environment,
+                # Which is also why `cordis` above is never left out: the SDK injects its own
+                # default config only for a launch it resolved the arguments of itself, and this
+                # one is resolved here -- the bundled runtime wrapped in whatever `spawned` puts
+                # in front of it, and in `env -u` where credentials have to be dropped.
+                launch_args_override=tuple(launch),
+                # humanize's, not the SDK's: `request_timeout_seconds` defaults to None there,
+                # which is every JSON-RPC request waiting for as long as it takes. It bounds the
+                # acknowledgement rather than the turn -- `session/prompt` answers with the
+                # message id as soon as the prompt is in the inbox -- so what it catches is a
+                # runtime that came up and never answered. The turn itself is the watchdog's.
+                request_timeout_seconds=_REQUEST_SECONDS,
+            )
             harness.start()
         except Exception:
-            with contextlib.suppress(Exception):
-                harness.close()
+            if harness is not None:
+                with contextlib.suppress(Exception):
+                    harness.close()
             # The composition belonged to a runtime that never came up, and the next try
             # writes its own. Taken away here rather than left for the garbage collector,
             # which would reclaim it at a moment nobody chose and warn about it on the way.
