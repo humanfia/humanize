@@ -68,7 +68,7 @@ from hmz.coganchor.agents import ANYONE, FLOW, SWARM, USER, driver
 from hmz.coganchor.prices import money
 from hmz.flows import Budget
 from hmz.runtime import telemetry
-from hmz.runtime.kept import Runs
+from hmz.runtime.kept import Runs, read_back, written
 from hmz.runtime.telemetry import KEPT, SAYS, SENT
 
 from .discover import installed, ready_to_open
@@ -4966,6 +4966,7 @@ _REPORTS, _QUIET = "on", "off"
 #: The rows the settings menu is made of, by the id each is put up under.
 _SENTRY = "reports"
 _SENT = "sent"
+_BTW = "btw"
 _WORKSPACE = "workspace"
 _RUNS = "flow"
 _PROFILES = "profile"
@@ -4985,11 +4986,14 @@ class Adjusted(NamedTuple):
         that was not touched.
       profile: Whether a run in this directory is profiled as well as traced.
       forget: Whether to forget what this workspace was set up to run.
+      btw: The agent `/btw` asks about a whole flow, as `cli@provider/model:effort`, or ""
+        for the flow's first agent.
     """
 
     enable_sentry: bool | None = None
     profile: bool = False
     forget: bool = False
+    btw: str = ""
 
 
 class Adjusts(Drafts[Adjusted]):
@@ -5028,6 +5032,9 @@ class Adjusts(Drafts[Adjusted]):
         flows: int,
         overridden: bool = False,
         profile: bool = False,
+        btw: str = "",
+        clis: dict[str, tuple[Model, ...]] | None = None,
+        unavailable: frozenset[str] = frozenset(),
     ) -> None:
         """Initializes the menu on what is remembered now.
 
@@ -5041,8 +5048,14 @@ class Adjusts(Drafts[Adjusted]):
           overridden: Whether the environment is answering the reporting question for this
             run, so that a row saying one thing while humanize does another says so.
           profile: Whether a run here is profiled as well as traced.
+          btw: The agent `/btw` asks about a whole flow, or "" for the flow's first.
+          clis: The backends the btw agent may be set up as, and what each runs.
+          unavailable: The optional backends that still need installing.
         """
         super().__init__()
+        self._btw = btw
+        self._clis = dict(clis or {})
+        self._unavailable = unavailable
         self._sentry = enable_sentry
         self._overridden = overridden
         self._workspace = workspace
@@ -5095,6 +5108,11 @@ class Adjusts(Drafts[Adjusted]):
                 "report what goes wrong to humanize",
             ),
             (_SENT, "", "what a report carries, and what it never does"),
+            (
+                _BTW,
+                self._btw or "the flow's first agent",
+                "the agent /btw asks about a whole flow; space goes back to the first",
+            ),
         ]
 
     def _fill(self) -> None:
@@ -5146,7 +5164,7 @@ class Adjusts(Drafts[Adjusted]):
           The line, with the mark that says which of the three kinds of row it is -- turned
           round where it stands, opened onto something to read, or neither.
         """
-        mark = _CYCLES if name in _SWITCHES else _OPENS if name == _SENT else ""
+        mark = _CYCLES if name in _SWITCHES else _OPENS if name in (_SENT, _BTW) else ""
         shown = f"{value} {mark}".strip()
         return f"{shown}   {about}" if shown else about
 
@@ -5162,6 +5180,8 @@ class Adjusts(Drafts[Adjusted]):
             self._footed(Key("enter", "save"), close)
         elif held == _SENT:
             self._footed(Key("enter", "read"), saves, close)
+        elif held == _BTW:
+            self._footed(Key("enter", "choose"), saves, close)
         elif held in _SWITCHES:
             self._footed(Key(_CHANGES, "change"), saves, close)
         else:
@@ -5187,6 +5207,8 @@ class Adjusts(Drafts[Adjusted]):
             self._profile = not self._profile
         elif held == _FORGET:
             self._forget = not self._forget
+        elif held == _BTW and self._btw:
+            self._btw = ""
         else:
             return
         self._said = ""
@@ -5205,7 +5227,31 @@ class Adjusts(Drafts[Adjusted]):
             self._said = f"Sent: {sent}. Never: {kept}."
             self._fill()
             return
+        if held == _BTW:
+            self._chooses_btw()
+            return
         self._step()
+
+    @work
+    async def _chooses_btw(self) -> None:
+        """Sets up the btw agent on the sheet every agent is set up on, and holds it."""
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        chosen = await showing.push_screen_wait(
+            Agent(
+                "the btw agent",
+                read_back(self._btw) or Runs(""),
+                self._clis,
+                unavailable=self._unavailable,
+            )
+        )
+        if chosen is None or not _complete(chosen):
+            return
+        self._btw, self._said = written(chosen), ""
+        self.changed()
+        self._fill()
 
     def applied(self) -> None:
         """Answers with what was changed, which is nothing where nothing was."""
@@ -5214,6 +5260,7 @@ class Adjusts(Drafts[Adjusted]):
                 enable_sentry=self._sentry,
                 profile=self._profile,
                 forget=self._forget,
+                btw=self._btw,
             )
         )
 

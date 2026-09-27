@@ -270,7 +270,7 @@ async def test_the_settings_menu_has_the_same_row_and_the_same_keys(
         sheet = app.screen
         assert isinstance(sheet, Adjusts)
         once(sheet)
-        assert rows(app) == ["reports", "sent", _SAVE]
+        assert rows(app) == ["reports", "sent", "btw", _SAVE]
 
         # Space turns the row under the cursor round, as the arrows do.
         listing = sheet.query_one("#choices", OptionList)

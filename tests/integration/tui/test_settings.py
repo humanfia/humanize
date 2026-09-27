@@ -364,6 +364,7 @@ async def test_the_settings_menu_is_two_pages_and_turns_the_reporting_off(
         assert [str(one.id) for one in listing.options] == [
             "=reports",
             "=sent",
+            "=btw",
             f"={_SAVE}",
         ]
         assert "on " in str(listing.get_option_at_index(0).prompt)

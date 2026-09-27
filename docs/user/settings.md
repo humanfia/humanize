@@ -19,6 +19,7 @@ The menu has two pages. <kbd>tab</kbd> and <kbd>shift+tab</kbd> turn between the
 | --- | --- | --- |
 | **Everywhere** | reports | whether humanize [reports what goes wrong](/user/reporting) to its developers, for every project on this machine |
 | | sent | what a report carries and what it never does. <kbd>enter</kbd> reads it out. |
+| | btw | the agent [`/btw`](/user/btw) asks about a whole flow. <kbd>enter</kbd> chooses its CLI, account, model and effort; <kbd>space</kbd> goes back to the flow's first agent. It takes effect the next time you enter btw mode. |
 | **This directory** | workspace | the directory these settings belong to |
 | | flow | the flow it opens on, and how many agents that flow was set up with |
 | | profile | whether a run here [profiles](#whether-a-run-here-is-profiled) the programs it starts |
