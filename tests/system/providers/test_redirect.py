@@ -470,3 +470,99 @@ def test_two_runs_at_once_do_not_see_each_others_accounts(tmp_path: Path) -> Non
 
     assert [out for out, _ in said] == ['{"token": "first"}', '{"token": "second"}']
     assert [one.returncode for one in running] == [0, 0]
+
+
+# ------------------------------------------------------------- what a session keeps
+
+
+@traced
+@pytest.mark.timeout(60)
+def test_a_session_is_written_where_it_is_kept_and_nothing_of_it_at_home(
+    tmp_path: Path,
+) -> None:
+    """The account this machine is signed into, supervised for nothing but its sessions.
+
+    Where it is kept is not there yet, which is how a run starts: the directory is made as
+    the CLI makes its own, rather than the CLI being told there is nowhere to make it.
+    """
+    home = tmp_path / "home" / ".claude"
+    home.mkdir(parents=True)
+    named, kept = (
+        home / "projects",
+        tmp_path / "epic" / "sessions" / "claude" / "projects",
+    )
+
+    done = cred(
+        [
+            f"--keep={named}={kept}",
+            "--",
+            "sh",
+            "-c",
+            (
+                f'mkdir -p "{named}/-w" && printf said >> "{named}/-w/t.jsonl" && '
+                f'cat "{named}/-w/t.jsonl"'
+            ),
+        ]
+    )
+
+    assert done.returncode == 0, done.stderr
+    assert done.stdout == "said"
+    assert (kept / "-w" / "t.jsonl").read_text() == "said"
+    assert not named.exists()
+
+
+@traced
+@pytest.mark.timeout(60)
+def test_a_session_read_back_is_the_file_itself_and_never_a_copy(
+    tmp_path: Path,
+) -> None:
+    """A transcript is appended to while it is read back; a copy would be a turn behind."""
+    named, kept = tmp_path / "home" / "t.jsonl", tmp_path / "kept" / "t.jsonl"
+    named.parent.mkdir()
+    kept.parent.mkdir()
+    kept.write_text("said")
+
+    done = cred(
+        [
+            f"--keep={named}={kept}",
+            "--",
+            sys.executable,
+            "-c",
+            _WHICH,
+            str(named),
+            str(os.O_RDONLY),
+        ]
+    )
+
+    assert done.stdout.strip() == str(kept), done.stderr
+
+
+@traced
+@pytest.mark.timeout(60)
+def test_a_pattern_keeps_every_file_it_names_whatever_its_version(
+    tmp_path: Path,
+) -> None:
+    """Which is codex's databases: named for the schema they are at, write-ahead logs too."""
+    home, kept = tmp_path / "home", tmp_path / "kept"
+    home.mkdir()
+
+    done = cred(
+        [
+            f"--keep={home}/state_*.sqlite*={kept}/state_*.sqlite*",
+            "--",
+            "sh",
+            "-c",
+            (
+                f'printf a > "{home}/state_7.sqlite"; '
+                f'printf b > "{home}/state_7.sqlite-wal"; '
+                f'printf c > "{home}/logs_2.sqlite"'
+            ),
+        ]
+    )
+
+    assert done.returncode == 0, done.stderr
+    assert sorted(one.name for one in kept.iterdir()) == [
+        "state_7.sqlite",
+        "state_7.sqlite-wal",
+    ]
+    assert sorted(one.name for one in home.iterdir()) == ["logs_2.sqlite"]

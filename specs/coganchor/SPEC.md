@@ -122,8 +122,9 @@ class Model:
 class Profile:
     name: str
     aliases: tuple[str, ...]
-    # and the rest of one CLI as data: where it keeps its home, logs, journal, config and
-    # skills; which efforts it takes and how long it may go silent; whether it swarms,
+    # and the rest of one CLI as data: where it keeps its home, logs, sessions, journal,
+    # config and skills, and whether its driver tells it where its sessions go; which efforts
+    # it takes and how long it may go silent; whether it swarms,
     # searches, restarts, resumes, shares a session or forks one; which hooks, preloads and
     # bundles it has seams for; which variables and credentials an account of it is; the ways
     # it can be asked what it runs; its endpoint and what fronts it; and the signs by which a
@@ -135,6 +136,9 @@ class Profile:
     def accounts(self) -> frozenset[str]: ...
     def hushes(self) -> frozenset[str]: ...
     def credentials(self) -> tuple[tuple[str, str], ...]: ...
+    def kept(
+        self, at: Path, environment: Mapping[str, str] | None = None
+    ) -> tuple[tuple[str, str], ...]: ...
     @staticmethod
     def configuration() -> Path: ...
 
@@ -477,7 +481,8 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
   never by a path, and removed when the turn is over whatever became of it.
 - A native session MUST refuse a turn asking for the flow's own callbacks and MUST ask nothing of
   this machine's kernel; the skills a flow carries MUST be put into the target's workspace for the
-  turn and taken out again, writing over nothing and removing only what was made.
+  turn and taken out again, writing over nothing and removing only what was made; and its sessions
+  MUST stay where the target's CLI keeps them.
 - A ticket MUST be unguessable, MUST be the whole of what authenticates a peer, and MUST pair only
   the two halves that presented the same one; exactly one connection MUST carry a session and both
   halves MUST agree on which; nothing of it MUST reach a half before it has been told how the

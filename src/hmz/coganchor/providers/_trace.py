@@ -16,7 +16,8 @@ Which of the provider's paths depends on what the call is about to do with it. O
 about a credential or opens it to read is given the copy :mod:`hmz.coganchor.providers._staging`
 holds in memory, because a CLI asks about its token hundreds of times a turn and the answer is the
 same every time. One that could change it is given the provider's own file, and drops that copy: a
-refreshed token is durable where it is written, and the next read makes the copy again.
+refreshed token is durable where it is written, and the next read makes the copy again. A session's
+path is never given a copy, whatever the call: a transcript is appended to while it is read back.
 """
 
 from __future__ import annotations
@@ -29,9 +30,10 @@ from typing import TYPE_CHECKING, Any
 
 from hmz.coganchor.linux import procfs, ptrace
 from hmz.coganchor.linux.syscalls import NR
+from hmz.coganchor.policy import parents
 
 from ._staging import Staging
-from .redirect import UNSWAPPABLE, failed
+from .redirect import UNSWAPPABLE, failed, head
 
 if TYPE_CHECKING:
     from hmz.coganchor.linux.ptrace import Registers
@@ -146,6 +148,23 @@ _WRITING = os.O_WRONLY | os.O_RDWR | os.O_CREAT | os.O_TRUNC | os.O_APPEND
 #: Where `struct open_how` keeps the flags, which is the front of it.
 _OPEN_HOW_FLAGS = 0
 
+#: The calls that make what they name without an `open`'s flags to say so, and so need
+#: somewhere to make it: where a session is kept is made as the first of these reaches it.
+_MAKES = frozenset(
+    {
+        NR.CREAT,
+        NR.MKDIR,
+        NR.MKDIRAT,
+        NR.SYMLINK,
+        NR.SYMLINKAT,
+        NR.LINK,
+        NR.LINKAT,
+        NR.RENAME,
+        NR.RENAMEAT,
+        NR.RENAMEAT2,
+    }
+)
+
 
 class Tracing:
     """One redirected run: the processes it is watching, and what each of them is told."""
@@ -162,8 +181,14 @@ class Tracing:
         #: Every path this table could answer, as the bytes a process names one with. A path
         #: that does not start with one of them is not one of the provider's, whatever else
         #: it is: `Swaps.swap` answers a path that is one of these, is inside one, or is one
-        #: with another suffix, and each of those starts with the path itself.
-        self._prefixes = tuple(os.fsencode(named) for named, _ in swaps.pairs)
+        #: with another suffix, and each of those starts with the path itself -- or, for a
+        #: pattern, with everything written before its first wildcard.
+        self._prefixes = tuple(
+            os.fsencode(head(named)) for named, _ in (*swaps.pairs, *swaps.kept)
+        )
+        #: The directories a session's path has already been given, so that making sure of
+        #: one is a lookup after the first time rather than a call on every write.
+        self._made: set[str] = set()
         #: Every process being watched, and whether it has been attached to yet: a child
         #: reports itself before its parent's fork event arrives, and the first stop of one
         #: is where its options are set.
@@ -300,12 +325,19 @@ class Tracing:
                 continue  # a process that went away mid-read is not one to fail a call for
             if named is None:
                 continue
-            instead = self._swaps.swap(named)
-            if instead is None:
+            found = self._swaps.answer(named)
+            if found is None:
                 continue
+            instead, kept = found
             if changes is None:
                 changes = self._changes(pid, registers)
-            if changes:
+            if kept:
+                # A session's, which is never a copy, and whose directory is made as the call
+                # that creates something in it comes: the directory it stands in for is the
+                # CLI's, and already there.
+                if changes and self._creates(pid, registers):
+                    parents(instead, self._made)
+            elif changes:
                 self._staging.wrote(instead)
             else:
                 instead = self._staging.reading(instead) or instead
@@ -320,6 +352,31 @@ class Tracing:
         if registers.dirty:
             _try(ptrace.setregs, pid, registers)
         _try(ptrace.cont, pid)
+
+    def _creates(self, pid: int, registers: Registers) -> bool:
+        """Whether a call that changes things may make something at a path it names.
+
+        Args:
+          pid: The process.
+          registers: Its registers at the stop.
+
+        Returns:
+          True for one that creates, links or renames, and an `open` asking to create.
+        """
+        number = registers.syscall_number
+        if number in _MAKES:
+            return True
+        if number == NR.OPEN:
+            return bool(registers.arg(1) & os.O_CREAT)
+        if number == NR.OPENAT:
+            return bool(registers.arg(2) & os.O_CREAT)
+        if number == NR.OPENAT2:
+            try:
+                raw = procfs.read_bytes(pid, registers.arg(2), _OPEN_HOW_FLAGS + 8)
+            except OSError:
+                return False
+            return bool(int.from_bytes(raw[_OPEN_HOW_FLAGS:], "little") & os.O_CREAT)
+        return False
 
     def _changes(self, pid: int, registers: Registers) -> bool:
         """Whether this call could change what is at the path it names.

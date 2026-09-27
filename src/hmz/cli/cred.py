@@ -1,8 +1,10 @@
 """``hmz internal cred`` -- run a program with some of its paths answered by others.
 
-What a turn under a provider is spawned as, and what a login run for one is spawned as: the
-program runs here, unchanged and on this terminal, and the handful of syscalls that name one
-of its credential files are handed a path inside the provider's directory instead.
+What a turn under a provider is spawned as, what a login run for one is spawned as, and what
+every turn whose sessions humanize keeps is spawned as: the program runs here, unchanged and on
+this terminal, and the handful of syscalls that name one of its credential files are handed a
+path inside the provider's directory instead -- and those naming its sessions, one inside the
+directory humanize keeps them in.
 
 Its own command rather than something the driver does in this process, for the reason
 `hmz internal anchor` is: the supervisor forks the program and takes the process's signal
@@ -43,6 +45,15 @@ def cred(argv: list[str]) -> int:
         "a directory names everything inside it",
     )
     parser.add_argument(
+        "--keep",
+        metavar="FROM=TO",
+        action="append",
+        default=[],
+        dest="keeps",
+        help="answer FROM with TO as --map does, and never with a copy: a session the CLI "
+        "appends to while it reads it back; repeatable",
+    )
+    parser.add_argument(
         "command",
         nargs=argparse.REMAINDER,
         metavar="COMMAND",
@@ -58,11 +69,13 @@ def cred(argv: list[str]) -> int:
             "no program given; try `hmz internal cred --map FROM=TO -- claude`"
         )
     try:
-        swaps = redirect.read(args.maps)
+        swaps = redirect.read(args.maps, args.keeps)
     except ValueError as why:
         parser.error(str(why))
     if not swaps:
-        parser.error("nothing to answer with anything: give at least one --map")
+        parser.error(
+            "nothing to answer with anything: give at least one --map or --keep"
+        )
 
     try:
         return redirect.run(swaps, command)

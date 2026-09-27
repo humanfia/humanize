@@ -1102,15 +1102,13 @@ class ClaudeCodeSession(StreamSessionBase):
         """
         import shutil
 
-        from hmz.coganchor.backends import named
-
         if self._agent.config.machine is not None:
             raise NotImplementedError(
                 "claude cannot carry a conversation into another directory on another machine"
             )
-        profile = named("claude")
-        assert profile is not None  # noqa: S101 -- the backend this driver is for
-        projects = profile.directory(self._environ()) / "projects"
+        # Where this agent's sessions are, which is humanize's own directory for them rather
+        # than Claude's home wherever a turn keeps them there.
+        projects = self._agent.kept() / "projects"
         # Where this conversation is held first: an earlier fork carried elsewhere left a
         # copy of it there, as it stood then, which is not where it stands now.
         held = os.path.abspath(self.cwd)  # noqa: PTH100

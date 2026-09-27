@@ -67,14 +67,16 @@ run, where you can [export it](/user/export) or, for a flow that can be picked u
 it](/user/resuming). Carrying a run on starts a new run, with its own sessions and trace.
 
 ::: details Read one session's own log
-Each session a run opened is linked from the `sessions/` folder in the run's directory, under a
-name that says whose it was, which CLI took its turns and which account they ran as. The link
-points at the log the CLI itself wrote:
+Each session a run opened is kept in the `sessions/` folder in the run's directory, a folder
+per CLI laid out as that CLI lays out its home: Claude Code's are under
+`sessions/claude/projects/`. It is the only copy -- the CLI wrote it there, not into its own
+home, and resumes it from there -- so the run is the one place to look, and nothing a run did
+shows up among the conversations you had with the CLI yourself.
 
-![ls of one run's directory, then of its sessions/ folder, holding a link named
-fixer-claude@local-… to Claude Code's own log](/demo/run-linked.png)
+![ls of one run's directory, then every file under its sessions/ folder: one Claude Code
+transcript, under sessions/claude/projects/](/demo/run-kept.png)
 
-The links only work on this machine. To send a run elsewhere, [export it](/user/export).
+To send a run elsewhere, [export it](/user/export).
 :::
 
 ## Profile the programs too {#profiling-a-run}
@@ -97,7 +99,8 @@ starts in this directory too.
 
 ## Which CLIs a trace can read
 
-A trace reads each CLI's own logs, so it holds the sessions of every built-in CLI but one:
+A trace reads each CLI's own logs, where the run kept them, so it holds the sessions of every
+built-in CLI but one:
 
 | CLI | In a trace |
 | --- | --- |

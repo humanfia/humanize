@@ -3903,7 +3903,11 @@ class Humanize(App[None]):
         if record["person"]:
             return
         seen = Seen(
-            record["agent"], record["cli"], record["model"], frozenset(record["counts"])
+            record["agent"],
+            record["cli"],
+            record["model"],
+            frozenset(record["counts"]),
+            kept=record.get("kept", ""),
         )
         if record["run"] == self._generation:
             self._seen[record["key"]] = seen

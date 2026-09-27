@@ -415,6 +415,46 @@ An [anchored](/reference/remote-execution) turn uses none of this. A process has
 the anchor is handed the same paths as `redirects` and its own supervisor answers them with the
 provider's files.
 
+### Where a turn's sessions are kept {#where-sessions-are-kept}
+
+The same supervisor keeps every turn's sessions out of the CLI's home, whatever account it runs
+as -- the one this machine is signed into included, which is then supervised for nothing else:
+
+```sh
+python -m hmz internal cred [--map=FROM=TO ...] --keep=FROM=TO [--keep=...] -- claude ...
+```
+
+Each `--keep` is one of the paths `sessions` names for that backend in
+`src/hmz/coganchor/backends.py`, answered with the same path under the directory the turn's
+agent keeps its sessions in: the run's [epic](/reference/tracing#epics), as
+`sessions/<cli>/…`, or `~/.humanize/sessions/<cli>/…` for an agent no run drives. Only those:
+the settings, the skills and the credentials are still read from the CLI's home, and a
+`--map` still answers the credentials. A kept path is answered with the file itself for every
+call, never a copy -- a transcript is appended to while it is read back -- and the directory it
+goes in is made as the CLI writes into it. A name in `sessions` may be a glob, such as codex's
+`state_*.sqlite*`, which answers whatever schema version and write-ahead file it matches.
+
+| CLI | Kept, under its home |
+| --- | --- |
+| `claude` | `projects/`, `sessions/`, `file-history/`, `session-env/`, `tasks/`, `todos/`, `plans/` |
+| `codex` | `sessions/`, `archived_sessions/`, `session_index.jsonl`, `state_*.sqlite*`, `thread_history_*.sqlite*`, `goals_*.sqlite*`, `queue_*.sqlite*`, `memories_*.sqlite*`, `thread-writer-locks/`, `shell_snapshots/` |
+| `kimi` | `sessions/`, `session_index.jsonl`, `workspaces.json`, `server/events/`, `search-index/`, `file-history/` |
+| `qwen` | `projects/`, `tmp/`, `file-history/` |
+| `grok` | `sessions/`, `active_sessions.*` |
+| `pi` | `sessions/` |
+| `agy` | `conversations/`, `brain/`, `annotations/`, `implicit/`, `presence/`, `conversation_summaries.db*`, `jetbox_summaries_proto.pb`, `cache/last_conversations.json` |
+| `zcode` | `cli/db/`, `cli/rollout/`, `cli/agents/`, `cli/artifacts/`, `cli/exec/` |
+| `cursor-agent` | `chats/`, `projects/*/agent-transcripts/` |
+| `opencode` | `opencode.db*`, `storage/` |
+| `mimo` | `mimocode.db*`, `storage/` |
+| `dsh` | `sessions/`, which humanize names to it as its session root rather than supervising it |
+
+A machine that cannot supervise a turn -- anything but Linux on x86-64 or aarch64, or a kernel
+that will not let humanize trace one, which is asked by supervising a program that does
+nothing -- keeps its sessions where each CLI does rather than refusing every turn, and so does
+a turn taken on another machine: by the target's own CLI, or under a harness there. `HUMANIZE_SESSIONS=off` does the same on any machine: nothing is supervised for
+sessions, and an account's credentials still are.
+
 ## When an account goes down
 
 Each account can name the account to carry on under when a turn under it fails: a subscription

@@ -36,6 +36,7 @@ from .watchdog import Watchdog, held
 if TYPE_CHECKING:
     import asyncio
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+    from pathlib import Path
 
     from pydantic import BaseModel
 
@@ -57,9 +58,21 @@ class Journal(Protocol):
     :class:`hmz.runtime.epic.Epic` is what answers to it.
     """
 
+    @property
+    def keeps(self) -> Path:
+        """Where the run keeps the sessions its agents open, a directory per backend inside."""
+        ...
+
     def opened(self, agent: AgentBase, session: str, parent: str = "") -> None:
         """Writes down a session one of the agents has just opened, and what it came from."""
         ...
+
+
+#: What says, for one process, that humanize keeps no session of its own: `off`, `0` or `no`,
+#: and every CLI keeps its sessions where it always has, with nothing supervised on their
+#: account. For a machine that will not hand a tracee over, and for a suite of stand-ins that
+#: must not need one.
+KEEPING = "HUMANIZE_SESSIONS"
 
 
 #: What a turn exits with when there was nothing to run. The shell's own status for a command
@@ -2403,7 +2416,8 @@ class SessionBase(ABC):
         Args:
           into: The agent the child is a conversation of, or None for this one's. It must be
             of this backend, on the account this conversation is kept under, and working on
-            the same machine.
+            the same machine -- and it keeps its sessions where this one's agent does from
+            here on, since that is the only place this conversation can be read from.
           cwd: Where the child works, or None for where this conversation does.
 
         Returns:
@@ -2417,7 +2431,8 @@ class SessionBase(ABC):
             conversation would be two loops writing into one, so it is refused where it is
             asked -- and :attr:`forks` is how a flow asks first.
           ValueError: If `into` is of another backend, on another account or on another
-            machine, none of which can read this conversation where it is kept.
+            machine, or keeps its sessions somewhere else already, none of which can read
+            this conversation where it is kept.
           RuntimeError: If no turn has landed here yet, so there is no conversation to carry:
             a session that has got nowhere is one to open rather than one to fork.
         """
@@ -2444,6 +2459,10 @@ class SessionBase(ABC):
                 f"{self._agent.backend} cannot carry a conversation into another directory"
             )
         seed = self.id  # raises while nothing has landed, which is nothing to carry
+        if agent is not self._agent and agent.keeps != self._agent.keeps:
+            # The history is kept where this conversation's agent keeps its sessions, and a
+            # CLI can only carry on a conversation it can read: the child is kept there too.
+            agent.keeps = self._agent.keeps
         if elsewhere and cwd is not None:
             where = os.fspath(cwd)
             self._carry(where)
@@ -3541,6 +3560,12 @@ class AgentBase(ABC):
         #: every session this agent opens. Left unset by an agent driven by hand, which is
         #: not a run of anything.
         self.epic: Journal | None = None
+        #: Where this agent keeps its sessions where somebody has said, which is where the
+        #: conversation it was forked into life from is kept; None for wherever its run keeps
+        #: them, or humanize does for an agent no run is driving.
+        self._keeps: Path | None = None
+        #: Whether a process has kept one of its sessions there, which settles it.
+        self._settled = False
         #: What the whole run this agent is part of may spend, and what it has spent so far,
         #: set by whatever is driving the flow. Every agent of one run holds the same ledger:
         #: an allowance is the run's money and not any one agent's, so two agents under one
@@ -4169,6 +4194,7 @@ class AgentBase(ABC):
             if made:
                 made.loads(self._loads)
                 made.epic = self.epic
+                made._keeps = self._keeps
                 # And this run's allowance, because a turn taken by a stand-in is this run's
                 # turn: an account that went down is not a reason for the money to stop being
                 # counted.
@@ -4205,6 +4231,117 @@ class AgentBase(ABC):
         they differ. A backend holding something of its own per agent does the same where it
         hands that thing out.
         """
+
+    @property
+    def keeps(self) -> Path:
+        """Where this agent's sessions are kept, a directory per backend inside it.
+
+        The run's own for an agent a run is driving, which is what makes an epic the one place
+        a run's sessions are; humanize's own for one driven by hand, which is nobody's run and
+        still nothing its CLI keeps at home. Settled by the first process that keeps one there
+        and held from then on: a conversation is carried on from where it was kept, and a
+        server holding every conversation of an agent holds that place for as long as it is
+        up -- so an agent handed to another run afterwards goes on keeping what it opens where
+        it started, and the run says where that is.
+        """
+        if self._keeps is not None:
+            return self._keeps
+        if self.epic is not None:
+            return self.epic.keeps
+        from hmz import home
+
+        return home() / "sessions"
+
+    @keeps.setter
+    def keeps(self, at: Path) -> None:
+        """Keeps this agent's sessions somewhere else, for one that has kept none yet.
+
+        Args:
+          at: The directory, a directory per backend inside it.
+
+        Raises:
+          ValueError: If it has kept a session somewhere else already, which could not be
+            carried on from here.
+        """
+        if self._settled and at != self.keeps:
+            raise ValueError(
+                f"{self._id}: its sessions are kept in {self.keeps}, and a conversation "
+                f"kept there cannot be carried on from {at}"
+            )
+        self._keeps = at
+
+    def kept(self) -> Path:
+        """The directory this agent's sessions are under, laid out as its CLI lays out its home.
+
+        What reads a session back asks this rather than the CLI's home, since that is where
+        the one thing and the other are no longer the same place.
+
+        Returns:
+          This backend's directory in :attr:`keeps` where its turns keep their sessions there,
+          and the CLI's own home where they cannot: a backend nothing is written down about,
+          a process told `HUMANIZE_SESSIONS=off`, a machine that cannot supervise a turn, and
+          a turn the target's own CLI takes.
+        """
+        from hmz.coganchor.backends import named
+
+        profile = named(self.backend)
+        if profile is None:
+            return self.keeps / self.backend
+        if self._keeping():
+            return self.keeps / profile.name
+        try:
+            environment = self._environ()
+        except ValueError:
+            # An account that is not there, which the next turn says; the home is the CLI's
+            # own wherever it is asked from, and nothing was run as that account to move it.
+            environment = None
+        return profile.directory(environment)
+
+    def _keeping(self) -> bool:
+        """Whether this agent's turns keep their sessions in :attr:`keeps` rather than at home.
+
+        Returns:
+          True for a backend whose sessions are written down, which its driver tells where
+          they go or a supervisor answers -- the anchor's, or one of this machine's own where
+          this machine can run one -- unless this process was told to keep none.
+        """
+        from hmz.coganchor.backends import named
+        from hmz.coganchor.providers.redirect import supervises
+
+        profile = named(self.backend)
+        if profile is None or not profile.sessions:
+            return False
+        if os.environ.get(KEEPING, "").strip().lower() in ("off", "0", "no"):
+            return False
+        if profile.told:
+            return True
+        if self._config.machine is None:
+            return supervises()
+        # One whose machine is not up yet has taken no turn: whatever it is about to be, it
+        # has nothing kept anywhere to be read back.
+        if self._anchor is None:
+            return True
+        from hmz.coganchor.elsewhere import elsewhere
+
+        # A CLI that runs on the target, or under a harness on another machine, keeps its
+        # sessions on that machine: nothing of this one's is there to keep them in.
+        return not self._anchor.native and not elsewhere(self._anchor)
+
+    def _keeping_swaps(self) -> tuple[tuple[str, str], ...]:
+        """The paths this agent's sessions are kept at, and where its turn keeps them instead.
+
+        Returns:
+          One pair per path, or nothing for an agent whose sessions stay where its CLI keeps
+          them, and nothing for one whose driver tells the CLI outright.
+        """
+        from hmz.coganchor.backends import named
+
+        profile = named(self.backend)
+        if profile is None or not self._keeping():
+            return ()
+        # Settled from here on: this process keeps them there, and so does the conversation.
+        self._keeps, self._settled = self.keeps, True
+        return profile.kept(self._keeps, self._environ())
 
     def environment(self) -> Mapping[str, str]:
         """What this agent's turns are run with, on top of the environment they inherit.
@@ -4263,7 +4400,9 @@ class AgentBase(ABC):
 
         Every backend renders its own call and then comes here, so that what a turn is wrapped
         in is decided once: the provider's own arguments are added to the CLI's command line,
-        and the whole of it is put under whatever has to supervise it.
+        and the whole of it is put under whatever has to supervise it -- which, on a machine
+        that can supervise one, is every turn whose sessions humanize keeps: the CLI's own
+        session paths are answered from :attr:`keeps`, and nothing else of its home is.
 
         A turn that is both anchored and run under a provider is supervised once, not twice: a
         process has one tracer, so the anchor is told which paths to answer rather than being
@@ -4287,7 +4426,7 @@ class AgentBase(ABC):
 
         Returns:
           The command to spawn, which is `argv` itself for an agent that is neither anchored
-          nor run under a provider -- which is most of them.
+          nor run under a provider, and whose sessions stay where its CLI keeps them.
         """
         from hmz.coganchor.backends import elsewhere
 
@@ -4306,17 +4445,24 @@ class AgentBase(ABC):
             argv = [found, *argv[1:]]
         if provider is not None and provider.args:
             argv = [*argv, *provider.args]
-        if anchor is None:
-            return provider.command(argv) if provider is not None else argv
-        if native:
+        if anchor is not None and native:
+            # The target's own CLI keeps its sessions on the target, where nothing of this
+            # machine's reaches: they stay where it keeps them, and the run says so.
             return self._reaching(anchor, provider).command(argv, chdir=cwd)
         swaps = provider.swaps() if provider is not None else ()
+        # And the sessions, which a turn keeps in the run's own directory rather than in the
+        # CLI's home: answered by the same supervisor, never with a copy.
+        kept = self._keeping_swaps()
+        if anchor is None:
+            from hmz.coganchor.providers.redirect import command
+
+            return command(swaps, argv, kept)
         # What the provider hands the agent as variables is the agent's own, and the target
         # is not to be given it: everything the agent exports is inherited by every command
         # it runs there, and a key crossing to another machine is a key on that machine.
         private = tuple(provider.env) if provider is not None else ()
         return self._reaching(anchor, provider).command(
-            argv, swaps=swaps, private=private, chdir=cwd
+            argv, swaps=(*swaps, *kept), private=private, chdir=cwd
         )
 
     def _reaching(

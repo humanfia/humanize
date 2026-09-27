@@ -2,14 +2,14 @@
 
 An epic is what a run was, and it is written to be read on the machine it ran on: the record
 of what happened, the state a resumable flow left, the trace anybody gathered afterwards --
-and, beside those, a link per file the backend logged each session to. A link rather than a
-copy, deliberately, so that nothing humanize keeps can be the reason a log is written twice.
+and, beside those, the sessions themselves, which every turn of the run kept there in the
+layout its CLI keeps them in at home.
 
-That is exactly what cannot be sent anywhere. A directory of symlinks into somebody's home is
-a bundle with nothing in it once it leaves their machine, so this is the other reading of a
-run: every link followed and the file behind it carried whole, every record it holds, and a
-manifest saying what humanize and each backend were when it ran -- their versions, and the
-hash of the executable that actually took the turns. One archive, to attach to an issue.
+A directory is not something to attach to an issue, so this is the other reading of a run:
+every file each session was logged to carried whole, every record it holds, and a manifest
+saying what humanize and each backend were when it ran -- their versions, and the hash of the
+executable that actually took the turns. One archive. An epic written before sessions were
+kept holds links instead, and those are followed to the files behind them.
 
 **What it carries is the user's. What it never carries is a credential.**
 :mod:`hmz.runtime.telemetry` promises that nothing anybody typed, nothing an agent said and nothing
@@ -53,11 +53,11 @@ from hmz.runtime.epic import (
     RESUME,
     SESSIONS,
     TRACES,
+    logs,
     read,
     records,
     sessions,
     tree,
-    where,
 )
 
 if TYPE_CHECKING:
@@ -206,8 +206,8 @@ def bundle(
 
     Everything the run wrote goes in -- its own record, a record per flow it called, the
     state a resumable flow left, the profile of the programs it ran, every trace gathered of
-    it -- and beside those the session logs themselves rather than the links pointing at
-    them, since a link is worth nothing on any machine but the one that made it.
+    it -- and beside those the session logs themselves, each filed under the session it is a
+    log of.
 
     Args:
       epic: The run, by the directory it is written in.
@@ -233,10 +233,10 @@ def bundle(
     landed = _lands(epic, at)
     landed.parent.mkdir(parents=True, exist_ok=True)
     struck = _struck(ran)
-    # What each session was logged to, followed once. The manifest says what the archive
-    # holds, and a second walk of the links would let it name a file the archive has not
-    # got: a log rolls over while this runs, and an absence that means that reads exactly
-    # like an absence that means the bundle lost it.
+    # What each session was logged to, found once. The manifest says what the archive
+    # holds, and a second look would let it name a file the archive has not got: a log
+    # rolls over while this runs, and an absence that means that reads exactly like an
+    # absence that means the bundle lost it.
     behind = logged(epic)
     found = {one.name: dict(behind.get(one.name, {})) for one in ran.sessions}
     held: list[str] = []
@@ -289,27 +289,25 @@ def bundle(
 
 
 def logged(epic: Path) -> dict[str, dict[str, Path]]:
-    """Every file one run's sessions were logged to, as the files rather than as the links.
+    """Every file one run's sessions were logged to.
 
-    Which is what an epic points at and never holds: `sessions/<session>/` is a directory of
-    symlinks into whichever home the backend keeps its own logs in, made for whoever is
-    reading the run on the machine it ran on. Followed here, and a link whose file has gone
-    -- rolled over, cleaned up, a home somebody threw away -- is left out rather than carried
-    as a name with nothing behind it.
+    Which the epic holds itself, under `sessions/<cli>/` laid out as that CLI's home is --
+    or, for a session that could not be kept there, wherever its CLI keeps it. A file that
+    has gone -- rolled over, cleaned up -- is left out rather than carried as a name with
+    nothing behind it.
 
     Args:
       epic: The run, by the directory it is written in.
 
     Returns:
       One entry per session that was logged to anything, by the name the run gave it, and
-      inside it the file behind each link by the name the link is under -- which is the name
-      the archive files it as, since an epic flattens the path where two of a session's logs
-      share a basename. A session whose backend logs nothing at all has no entry, which is
-      what the manifest says in words instead.
+      inside it each file by where it is under the directory that session is kept in -- which
+      is the name the archive files it as, under the session's own. A session whose backend
+      logs nothing at all has no entry, which is what the manifest says in words instead.
     """
     held: dict[str, dict[str, Path]] = {}
     for one in sessions(epic):
-        found = _behind(where(epic, one))
+        found = logs(epic, one)
         if found:
             held[one.name] = found
     return held
@@ -411,28 +409,6 @@ def _files(epic: Path) -> Iterator[tuple[str, Path]]:
         for one in sorted((epic / TRACES).iterdir()):
             if one.is_file():
                 yield f"{TRACES}/{one.name}", one
-
-
-def _behind(at: Path) -> dict[str, Path]:
-    """The files one session's links point at, which is what a bundle actually carries.
-
-    Args:
-      at: The session's own directory inside the epic.
-
-    Returns:
-      Them, by the name each link is under, and nothing at all for a session whose backend
-      logged none, whose logs have since gone, or whose directory was never made.
-    """
-    try:
-        found = sorted(at.iterdir())
-    except OSError:
-        return {}
-    held: dict[str, Path] = {}
-    for link in found:
-        with contextlib.suppress(OSError):
-            if link.is_file():  # follows the link, and answers no for a dangling one
-                held[link.name] = link.resolve()
-    return held
 
 
 def _copies(
@@ -568,8 +544,8 @@ def _sessions(
 
     Args:
       ran: What that run was, already read.
-      found: What actually went in the archive, by session name -- rather than what the
-        links point at now, which is a second reading and may be a different answer.
+      found: What actually went in the archive, by session name -- rather than what is
+        there now, which is a second reading and may be a different answer.
 
     Returns:
       One entry apiece, oldest session first.

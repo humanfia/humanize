@@ -20,8 +20,10 @@ Three independent questions, answered here:
 
 from __future__ import annotations
 
+import contextlib
 import os
 import posixpath
+import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -37,7 +39,97 @@ from hmz.coganchor.proto import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-__all__ = ["Layout", "Router"]
+__all__ = ["Layout", "Router", "answered", "head", "parents"]
+
+#: What makes a name a pattern rather than a name: a `*`, standing for any run of characters
+#: in that one name. The only wildcard there is, so that a home whose path holds a `[` or a
+#: `?` -- which somebody's may -- is still the path it spells.
+_WILDCARD = "*"
+
+
+def head(named: str) -> str:
+    """What every path one entry answers starts with, as characters.
+
+    The whole of it for a path, and everything up to its first wildcard for a pattern: which
+    is what a tracer can hold a path it has read against without working anything out.
+
+    Args:
+      named: The path or pattern, as it is written in a table.
+
+    Returns:
+      That prefix.
+    """
+    return named.partition(_WILDCARD)[0]
+
+
+def _matches(name: str, pattern: str) -> bool:
+    """Whether one name is one a name of a pattern answers."""
+    if _WILDCARD not in pattern:
+        return name == pattern
+    return (
+        re.fullmatch(".*".join(map(re.escape, pattern.split(_WILDCARD))), name)
+        is not None
+    )
+
+
+def parents(path: str, made: set[str]) -> None:
+    """Makes the directory an answered path is in, where it is not there yet.
+
+    What both halves of a supervised turn do before a call that creates something at a path
+    they answered: where a session is kept is not made until something is written into it, and
+    a CLI making its own directory with `mkdir -p` would otherwise be told there is nowhere to
+    make it. A credential's is there already, which makes this nothing.
+
+    Args:
+      path: The path the call is about to be given.
+      made: The directories already made by whoever is asking, which is added to.
+    """
+    parent = os.path.dirname(path)
+    if parent in made:
+        return
+    with contextlib.suppress(OSError):
+        os.makedirs(parent, exist_ok=True)
+        made.add(parent)
+
+
+def answered(named: str, instead: str, path: str) -> str | None:
+    """What one entry of a table answers one path with.
+
+    A path answers three shapes, and the third is not a nicety: the file itself, anything
+    inside it where it is a directory, and anything beside it under the same name and another
+    suffix. That last is how these CLIs rotate a token -- write `.credentials.json.tmp`, rename
+    it over `.credentials.json` -- and a temp file left unanswered would put the new token in
+    the real store and then rename it across two filesystems.
+
+    A pattern -- a name of it holding a `*`, `state_*.sqlite*` or `projects/*/chats` --
+    answers every path whose names match its own one for one, and anything inside one: a
+    database named for the schema version it is at, and the write-ahead files beside it, are
+    one entry rather than one per version. What it is answered with ends in the same names as
+    the pattern does, and what matched them is put in their place.
+
+    Args:
+      named: What the agent names, as a path or a pattern.
+      instead: What it gets.
+      path: The absolute, normalised path the process named.
+
+    Returns:
+      The path to give it instead, or None for a path this entry says nothing about.
+    """
+    if _WILDCARD not in named:
+        if path == named:
+            return instead
+        if path.startswith((named + "/", named + ".")):
+            return instead + path[len(named) :]
+        return None
+    wanted = named.split("/")
+    said = path.split("/")
+    if len(said) < len(wanted) or not all(
+        _matches(one, pattern) for one, pattern in zip(said, wanted, strict=False)
+    ):
+        return None
+    fixed = next(at for at, one in enumerate(wanted) if _WILDCARD in one)
+    kept = instead.split("/")[: -(len(wanted) - fixed)]
+    return "/".join([*kept, *said[fixed:]])
 
 
 def _unknown_platform() -> str:
@@ -268,32 +360,18 @@ class Router:
         lies beside one under the same name and another suffix -- which is how
         a credential is rotated, ``.tmp`` written and renamed over the real
         one, and leaving that unanswered would write the new token into the
-        store being redirected away from.  The same rule as
+        store being redirected away from.  And a redirect written as a pattern
+        answers every path whose names match its own.  The same rule as
         :meth:`hmz.coganchor.providers.redirect.Swaps.swap`, which the two halves of
-        a redirected run keep in step by saying it the same way.
+        a redirected run keep in step by asking the one function, :func:`answered`.
         """
         for named, instead in self.redirects:
-            if path == named:
-                return instead
-            if _within(path, named):
-                return posixpath.join(instead, path[len(named) :].lstrip("/"))
-            if path.startswith(named + "."):
-                return instead + path[len(named) :]
+            found = answered(named, instead, path)
+            if found is not None:
+                return found
         return None
 
 
 def _normalise(path: str) -> str:
     expanded = os.path.abspath(os.path.expanduser(path))
     return expanded.rstrip("/") or "/"
-
-
-def _within(path: str, root: str) -> bool:
-    """Plain containment, by the characters alone.
-
-    What :meth:`Router.swap` answers by, and it slices the path it is given against the
-    root's own length afterwards, so this must not fold anything away.  The layouts are
-    matched by :func:`hmz.coganchor.proto.path_within` instead, which may.
-    """
-    if root == "/":
-        return path.startswith("/")
-    return path == root or path.startswith(root + "/")

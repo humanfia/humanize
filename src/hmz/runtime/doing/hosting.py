@@ -1052,6 +1052,7 @@ class Host:
                     "counts": sorted(type(agent).counts),
                     "forks": forks,
                     "person": person,
+                    "kept": "" if person else str(agent.kept()),
                     "mono": time.monotonic(),
                 }
             )

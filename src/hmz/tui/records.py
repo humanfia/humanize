@@ -131,6 +131,7 @@ def opened(
         "counts": sorted(type(agent).counts),
         "forks": session is not None and session.forks,
         "person": isinstance(agent, HumanAgent),
+        "kept": "" if isinstance(agent, HumanAgent) else str(agent.kept()),
         "mono": time.monotonic(),
     }
 

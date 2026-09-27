@@ -3,22 +3,23 @@
 Nothing else knows that a session was part of a run. The backends log them one at a time, each
 under an id of its own, and say nothing about whose they were, which account took their turns
 or what they were for -- so a trace of a run can only be gathered afterwards if the run itself
-wrote down what it opened, and a person can only find the logs of one if the run points at
-them.
+wrote down what it opened, and a person can only find the logs of one if the run says where
+they are.
 
 The agents here are the engine's fakes, where only what a run writes down is asked about, and
 the stand-in `claude` of :mod:`tests.recording`, where what a session is called and where its
 log is are: a real process and nothing more, no coding agent CLI, no network, nothing CI has
-not got. The one thing that needs more -- what an epic says about the account a session's turns
-were taken as, which is a supervised turn and so a kernel that will hand over a tracee -- is in
-`tests/system/runtime/test_epics.py`.
+not got. Which is also why every session here stays where the stand-in keeps it: keeping one in
+the run is a supervised turn, and so is taking one as a named account -- both need a kernel that
+will hand over a tracee, and both are in `tests/system/runtime/test_epics.py`.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -28,19 +29,17 @@ from hmz.runtime.epic import (
     JOURNAL,
     called,
     epics,
-    linked,
+    logs,
     opened,
     read,
     sessions,
     tree,
+    where,
 )
 from hmz.runtime.flowing.fakes import FakeAgentDriver
 from hmz.runtime.runner import Runner
 from tests.recording import AGENT, ONE, TASK, logged, standing_in
 from tests.stubs import ShellAgent, events, written
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 #: A flow that opens one session per role, each of which answers once.
 FLOW = """
@@ -278,8 +277,8 @@ def test_the_epics_of_one_workspace_are_not_another_workspace_s(
 ) -> None:
     """They are kept under the workspace they ran in, which is what looks them up."""
     here, there = tmp_path / "here", tmp_path / "there"
-    for where in (here, there):
-        where.mkdir()
+    for workspace in (here, there):
+        workspace.mkdir()
     monkeypatch.chdir(here)
     _run(here, FLOW, actor=FakeAgentDriver(), reviewer=FakeAgentDriver()).run("go")
 
@@ -321,14 +320,20 @@ def test_a_session_is_named_for_whose_it_is_what_ran_it_and_which_account(
         str(tmp_path / "flow"),
         "",  # forked from nothing, which is what a session nobody branched is
         JOURNAL,
+        one.where,
     )
     assert one.name == called("builder", "claude", "", one.ident)
 
 
-def test_the_logs_of_a_session_are_linked_into_the_epic_that_opened_it(
+def test_a_session_kept_where_its_cli_keeps_it_is_read_back_from_there(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A link rather than a copy: humanize reads and writes the log where the backend keeps it."""
+    """A turn that could not keep its session in the run says where it went, and nothing more.
+
+    Which is every turn of this tier -- `HUMANIZE_SESSIONS=off`, since keeping one is a
+    supervised turn -- so the epic holds no copy of the log and no link to it: the line that
+    says the session was opened says where it is, and that is where it is read from.
+    """
     config = standing_in(tmp_path, monkeypatch)
     monkeypatch.chdir(tmp_path)
     written(tmp_path, "flow", ONE)
@@ -338,10 +343,10 @@ def test_the_logs_of_a_session_are_linked_into_the_epic_that_opened_it(
     (epic,) = epics()
     (one,) = sessions(epic)
     log = logged(config, tmp_path.resolve(), one.ident)
-    link = epic / "sessions" / one.name / log.name
-    assert link.is_symlink()
-    assert link.resolve() == log.resolve()
-    assert linked(epic) == {one.name: [str(log)]}
+    assert one.where == str(config)
+    assert where(epic, one) == config
+    assert logs(epic, one) == {log.relative_to(config).as_posix(): log}
+    assert not [path for path in epic.rglob("*") if path.is_symlink()]
 
 
 def test_a_resumable_run_journals_each_session_by_the_id_its_cli_gave_it(
@@ -370,7 +375,7 @@ def test_a_resumable_run_journals_each_session_by_the_id_its_cli_gave_it(
     ]
 
 
-def test_a_log_written_after_the_last_turn_is_linked_when_the_run_ends(
+def test_a_log_written_after_the_last_turn_is_read_back_with_the_rest(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A sub-agent's transcript is written whenever that sub-agent ran, which is later."""
@@ -398,7 +403,7 @@ def test_a_log_written_after_the_last_turn_is_linked_when_the_run_ends(
 
     (epic,) = epics()
     (one,) = sessions(epic)
-    assert sorted(p.name for p in (epic / "sessions" / one.name).iterdir()) == sorted(
+    assert sorted(Path(name).name for name in logs(epic, one)) == sorted(
         ["explore.jsonl", f"{one.ident}.jsonl"]
     )
 

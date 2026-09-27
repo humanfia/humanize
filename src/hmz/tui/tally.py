@@ -17,13 +17,13 @@ import json
 import threading
 from collections import Counter
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from hmz.coganchor import backends
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from pathlib import Path
 
     from .monitor import Monitor
 
@@ -203,6 +203,8 @@ class Seen:
       counts: The kinds of token its backend reports, whether or not it has spent any.
       idents: What the backend has called it so far, each a log to read. Replaced rather
         than added to, since the logs are read on a thread of their own.
+      kept: The directory its logs are under, laid out as its CLI lays out its home, or ""
+        for the CLI's own home.
     """
 
     id: str
@@ -210,6 +212,7 @@ class Seen:
     model: str
     counts: frozenset[str] = frozenset()
     idents: frozenset[str] = frozenset()
+    kept: str = ""
 
 
 @dataclass
@@ -282,7 +285,9 @@ class Tally:
             profile = backends.named(seen.backend)
             if profile is None:
                 continue
-            home = profile.directory()
+            # Where this session's logs are, which is the run's own directory for them rather
+            # than the CLI's home wherever its turns keep them there.
+            home = Path(seen.kept) if seen.kept else profile.directory()
             # Every name the backend has given this session, which it does as the turn starts
             # rather than when the turn lands -- and a session let go of keeps its names, its
             # last rows being still worth reading.

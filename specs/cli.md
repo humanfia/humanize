@@ -24,7 +24,7 @@ hmz internal anchor serve --export <virtual>[:<real>] [--export ...]
     [--token <secret>] [--log-level debug|info|warning|error]
 hmz internal anchor rendezvous [--listen [<host>:]<port>] [--punching <seconds>]
     [--log-level debug|info|warning|error]
-hmz internal cred --map <from>=<to> [--map ...] -- <command> [<args>...]
+hmz internal cred (--map | --keep) <from>=<to> [...] -- <command> [<args>...]
 hmz internal tools --at <socket>
 hmz internal hook --at <socket>
 ```

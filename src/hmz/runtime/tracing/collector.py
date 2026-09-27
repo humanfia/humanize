@@ -85,6 +85,7 @@ def collect(
     start: str | None = None,
     end: str | None = None,
     profile: str | os.PathLike[str] | Iterable[Process] | None = None,
+    kept: Iterable[str | os.PathLike[str]] | None = None,
 ) -> dict[str, Any]:
     """Aggregates agent trajectories into a Chrome trace.
 
@@ -122,6 +123,10 @@ def collect(
             the trace with a track per thread, beside the agents' own: a turn
             is mostly other programs, and one timeline is what makes that
             visible.
+        kept: Where humanize kept the sessions it ran, each holding a
+            directory per CLI laid out as that CLI's home is -- an epic's
+            `sessions/` -- read beside every CLI's own home, which holds the
+            sessions nobody ran through humanize. None for those homes alone.
 
     Returns:
         The Chrome trace document, also written to output when one is given.
@@ -162,16 +167,21 @@ def collect(
     )
 
     window = (bounds[0], bounds[1])
+    places = [pathlib.Path(one) for one in kept or ()]
     collected: list[Session] = []
     for each in backends.PROFILES:
         reader = _READERS.get(each.name)
-        home = each.directory()
         # Only the backends somebody has written a reader for: the rest keep their sessions
         # in a format nobody has taken apart yet, and a home directory being there is not a
         # reason to fail the whole trace. Being a database is no longer one of the reasons --
         # opencode and mimocode keep theirs in SQLite and are read with a query.
-        if reader is not None and home.is_dir():
-            collected += reader(home, root, names, window)
+        if reader is None:
+            continue
+        # The CLI's own home, and every place humanize kept a session of it: a directory
+        # laid out as that home is, so the one reader reads both.
+        for home in (each.directory(), *(one / each.name for one in places)):
+            if home.is_dir():
+                collected += reader(home, root, names, window)
 
     named = {ident: name for name, opened in (agents or {}).items() for ident in opened}
     known = {item.key: item for item in collected}

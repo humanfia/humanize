@@ -116,12 +116,16 @@ def test_a_session_opened_says_what_its_backend_counts() -> None:
         "counts",
         "forks",
         "person",
+        "kept",
         "mono",
     }
     assert said["counts"] == sorted(ClaudeCodeAgent.counts)
     assert said["forks"] is session.forks
     assert said["person"] is False
-    assert opened(4, "human", "human", HumanAgent(), None)["person"] is True
+    assert said["kept"] == str(agent.kept())
+    person = opened(4, "human", "human", HumanAgent(), None)
+    assert person["person"] is True
+    assert person["kept"] == ""
 
 
 def test_a_run_starting_and_ending_are_records_too() -> None:

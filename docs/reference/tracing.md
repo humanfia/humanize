@@ -107,7 +107,7 @@ Every run of a flow is one **epic**, a directory written as the run happens:
     epic.<flow>_<hex>.jsonl         the same, for one flow the run called
     resume.jsonl                    what a resumable flow did, for --resume
     profile.jsonl                   the programs it ran, for a run that was profiled
-    sessions/<session>/…            a link per file the backend logged that session to
+    sessions/<cli>/…                its sessions, where that CLI keeps them under its home
     traces/export.trace.json        the trace exporting the run gathers, replaced each time
     traces/<datetime>.trace.json    one gathered from Python, kept every time
 ```
@@ -124,7 +124,7 @@ says what it got to. Every line has `event` and `at`.
 | `event` | Written | Carries |
 | --- | --- | --- |
 | `began` | when the flow starts | `flow` as it was named, its canonical `ref`, `task`, `workspace`, `resumable`, `picked_up` (the epic it was picked up from, where there was one), `agents` (one per role: `agent`, `backend`, `model`, `effort`, `provider`), `envs` as `-e` spells each, `params` and `budget` |
-| `opened` | each time an agent opens a session | `agent`, `backend`, `provider`, `session` (the backend's id), `name`, and `where` its links are |
+| `opened` | each time an agent opens a session | `agent`, `backend`, `provider`, `session` (the backend's id), `name`, and `where` it is kept |
 | `called` | when the flow calls another flow | `flow`, the callee's canonical ref; `task`; and `epic`, the record that call is written to |
 | `returned` | when that call returns, however it ended | `flow` and the same `epic` |
 | `usage` | as the run stops | what every session spent: `cost`, `output_tokens`, `seconds` |
@@ -133,18 +133,27 @@ says what it got to. Every line has `event` and `at`.
 An agent stopped by hand, and a run whose budget ran out, end `stopped` rather than `failed`.
 
 ```json
-{"event": "opened", "at": "2026-08-09T01:44:58.020Z", "agent": "builder", "backend": "claude", "provider": "work", "session": "0a1b2c3d-…", "name": "builder-claude@work-0a1b2c3d-…", "where": "sessions/builder-claude@work-0a1b2c3d-…"}
+{"event": "opened", "at": "2026-08-09T01:44:58.020Z", "agent": "builder", "backend": "claude", "provider": "work", "session": "0a1b2c3d-…", "name": "builder-claude@work-0a1b2c3d-…", "where": "sessions/claude"}
 ```
 
-**`sessions/<session>/`** holds a link to every file that session was logged to, named for the
-role, the CLI, the account and the backend's id: `builder-claude@work-0a1b2c3d`, with
-`@local` for the account this machine is already signed into. The links are made when the
-session opens and again when the run ends, since a backend goes on writing after the turn that
-opened the session. A filesystem that will not make one is a run without links rather than a
-run that stops.
+**`sessions/<cli>/`** is where the run's sessions are, and the only copy of them: every turn
+of the run keeps its CLI's sessions there, laid out exactly as that CLI lays them out under its
+own home -- `sessions/claude/projects/<workspace>/<id>.jsonl`, `sessions/codex/sessions/…`. The
+CLI writes them there, and resumes and forks them from there; its settings, skills and
+credentials are still the ones in its home. Each `opened` line says `where` a session is kept,
+`sessions/<cli>` from the epic. `name` is what the run calls it: the role, the CLI, the account
+and the backend's id, `builder-claude@work-0a1b2c3d`, with `@local` for the account this
+machine is already signed into.
 
-![One run's sessions/ directory: a directory per session, named for its agent, CLI and account,
-holding a symlink to the log Claude Code itself is writing](/demo/run-linked.png)
+![One run's directory, and the one file under its sessions/: a Claude Code transcript kept at
+sessions/claude/projects/-work-demo/, where Claude Code keeps it under its own home](/demo/run-kept.png)
+
+A session no turn could keep stays where its CLI keeps it, and its `where` is that directory:
+a turn taken on another [anchored machine](/reference/remote-execution) -- by its own CLI, or
+under a harness there -- any turn on a machine that cannot supervise one -- anything but Linux
+on x86-64 or aarch64, or a kernel that will not let humanize trace -- and every turn under
+`HUMANIZE_SESSIONS=off`. An epic written before sessions were kept holds a
+directory of links per session instead, and still reads back.
 
 **It is not a transcript.** The backend's own log is the turn-by-turn record. An epic keeps the
 shape of the run: enough to gather a trace afterwards from the ids alone.
@@ -223,7 +232,10 @@ read is a run with no profile rather than a run that stops.
 
 ## Where the logs are read from {#where-the-trajectories-come-from}
 
-Each backend's own home directory, which humanize only reads:
+Where humanize kept the sessions it ran -- the run's own `sessions/` for a trace of one run,
+and every epic's and `~/.humanize/sessions/` otherwise -- and beside those each backend's own
+home directory, which humanize only reads and which holds the sessions it did not run. A
+directory humanize kept is read as that backend's home is, `sessions/<cli>/` standing for it:
 
 | Backend | Moved by | Default |
 | --- | --- | --- |

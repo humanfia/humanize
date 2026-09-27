@@ -27,9 +27,10 @@ WORK = pathlib.Path("/work/demo")
 #: Where humanize keeps what outlives one run, inside this container.
 HOME = pathlib.Path("/root/.humanize")
 
-#: Claude Code's home, inside this container. The trajectories below are written under it so
-#: that a trace collected from one of the runs below has something real to read -- real in
-#: shape, invented in content.
+#: Claude Code's home, inside this container. The trajectories below are written under it,
+#: and then kept in the run that opened each -- where a turn keeps its session -- so that a
+#: trace collected from one of the runs below has something real to read: real in shape,
+#: invented in content.
 CLAUDE = pathlib.Path("/root/.claude")
 
 #: The moment the invented work happened, so a rendered GIF does not change every day.
@@ -350,14 +351,31 @@ class _Drove:
         """The account this machine is signed into, which is the one nobody made."""
         return None
 
+    def kept(self) -> pathlib.Path:
+        """Where its sessions are, which is its run's own directory for its CLI."""
+        return self.epic.keeps / self.backend
+
+
+def _keep(drove: _Drove, session: str) -> None:
+    """Moves one invented conversation into the run that opened it, as a turn keeps one.
+
+    Args:
+      drove: The agent that opened it, whose run it is kept in.
+      session: The conversation.
+    """
+    folder = re.sub(r"[^a-zA-Z0-9]", "-", str(WORK))
+    at = drove.kept() / "projects" / folder
+    at.mkdir(parents=True, exist_ok=True)
+    shutil.move(CLAUDE / "projects" / folder / f"{session}.jsonl", at)
+
 
 def _runs() -> None:
     """Writes down two runs of this project, as the code that writes down a real run.
 
     Invented, like everything else here -- the moments included, so that a rendered GIF says
     the same date tomorrow. What is not invented is the shape: this is `hmz.runtime.epic` writing
-    its own record, linking each session to the transcript above, and the engine's journal
-    keeping what a flow that can be picked up left behind.
+    its own record, each session kept in it where its CLI would have kept it at home, and the
+    engine's journal keeping what a flow that can be picked up left behind.
     """
     from hmz.coganchor.agents import AgentConfig
     from hmz.runtime import epic as written_as
@@ -385,6 +403,7 @@ def _runs() -> None:
     ) as one:
         first.epic = one
         one.opened(first, SESSION)
+        _keep(first, SESSION)
 
     written_as._now = _ticks(LATER)  # noqa: SLF001
     second = _Drove(id="fixer", backend="claude", config=config)
@@ -399,6 +418,7 @@ def _runs() -> None:
     ) as two:
         second.epic = two
         two.opened(second, NIGHTLY)
+        _keep(second, NIGHTLY)
         asyncio.run(_kept(two.resume))
         _profile(two.path)
         two.stopped()  # its budget ran out, which is how a loop like this one ends

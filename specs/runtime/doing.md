@@ -129,6 +129,7 @@ class Epics:
         start: str | None = None,
         end: str | None = None,
         profile: str | os.PathLike[str] | None = None,
+        kept: Iterable[str | os.PathLike[str]] | None = None,
     ) -> dict[str, Any]: ...
 
 # flows.py -- the flows there are, and the places they come from. What each of these answers
@@ -281,7 +282,9 @@ class Fallbacks:
   why rather than raise.
 - A trace of one run MUST be gathered here rather than by whoever asked for it, by the ids the
   run wrote down rather than the directory it ran in, MUST land with the run unless a path was
-  named, and one asked for without a workspace MUST stay without one.
+  named, and one asked for without a workspace MUST stay without one. It MUST read the sessions
+  that run kept, and a trace asked for without saying where MUST read every place humanize
+  keeps them.
 
 ### Hosting
 

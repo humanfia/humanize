@@ -9,10 +9,11 @@ out of the ids alone, and enough to find the sessions a run left behind.
 
 Not what the sessions said. A backend's own log is the turn-by-turn record and this is not a
 second copy of it: what is kept here is the shape of the run, one line per thing that happened
-to it, and beside the lines a link per session pointing at the log the backend is writing. A
-link rather than a copy, and read by whoever is looking rather than by humanize: a run is
-written and read through the paths the backends themselves keep, so that nothing here can be
-the reason a log is written twice or read from the wrong place.
+to it, and beside the lines the sessions themselves. Each agent of the run keeps them here --
+its CLI's own session paths are answered from `sessions/<cli>/` for every turn it takes, laid
+out exactly as that CLI lays out its home -- so the backend writes its log into the epic and
+nowhere else, resumes and forks it from there, and the one copy of a run's sessions is the
+run's.
 
 One epic is one run, and one directory::
 
@@ -21,8 +22,13 @@ One epic is one run, and one directory::
         epic.<flow>_<which>.jsonl       the same, for one flow the run called
         resume.jsonl                    the engine's journal, for a flow that can be picked up
         profile.jsonl                   the programs it ran, for a run that was profiled
-        sessions/<session>/…            a link per file the backend logged it to
+        sessions/<cli>/…                its sessions, where that CLI keeps them under its home
         traces/<when>.trace.json        what was gathered of it afterwards, to be read
+
+A session a turn could not keep here -- one the target's own CLI took, one on a machine that
+cannot supervise a turn, one in a process told `HUMANIZE_SESSIONS=off` -- stays where its CLI
+keeps it, and the line that says it was opened says where that is. An epic written before
+sessions were kept holds a directory of links per session instead, and still reads back.
 
 A flow may call another, and a called flow opens sessions exactly as the flow that called it
 does. So each call gets a record of its own beside the run's own, and the record of whatever
@@ -53,7 +59,6 @@ import re
 import shutil
 import threading
 import uuid
-from collections import Counter
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, Self, cast
 
@@ -83,7 +88,7 @@ __all__ = [
     "Sub",
     "called",
     "epics",
-    "linked",
+    "logs",
     "opened",
     "picks_up",
     "read",
@@ -117,7 +122,7 @@ RECORD = "epic.{flow}_{ident}.jsonl"
 #: run's own, which is the record of the flow nothing called.
 RECORDS = "epic.*.jsonl"
 
-#: Where the links to the sessions' own logs go, a directory per session.
+#: Where the sessions the run opened are kept, a directory per CLI laid out as its home is.
 SESSIONS = "sessions"
 
 #: The engine's journal of a resumable run: what each flow call kept, and which calls ended.
@@ -156,7 +161,7 @@ class Session(NamedTuple):
         already signed into.
       ident: The id the backend gave it, which is what a trace of the run is gathered by.
       name: What the run calls it -- which agent, which CLI, which account and which session,
-        in one name -- and the directory its links are under.
+        in one name.
       at: When it was opened.
       flow: The flow it was opened inside, as that flow was asked for: the run's own, or one
         the run called. "" for a session written down before a run said.
@@ -168,6 +173,10 @@ class Session(NamedTuple):
       record: The record of this epic it was written into, which is which *call* of that flow
         opened it. A flow called five times in one run is five records, and the name alone
         would make one flow of the five.
+      where: Where it is kept, laid out as its CLI lays out its home: said from the epic --
+        `sessions/<cli>` -- for one a turn kept in the run, and whole for one that stayed
+        wherever its CLI keeps them. "" for a line that never said, which :func:`where` reads
+        as the directory of links an epic written before sessions were kept holds.
     """
 
     agent: str
@@ -179,6 +188,7 @@ class Session(NamedTuple):
     flow: str = ""
     parent: str = ""
     record: str = ""
+    where: str = ""
 
 
 class Drove(NamedTuple):
@@ -346,77 +356,6 @@ def _provider(agent: AgentBase) -> str:
     except ValueError:
         return agent.config.provider
     return at.name if at is not None else ""
-
-
-def _logs(backend: str, ident: str) -> list[Path]:
-    """Every file one session was logged to by the backend that ran it.
-
-    Args:
-      backend: The CLI, by the name `hmz.coganchor.backends` knows it under.
-      ident: The id it gave the session.
-
-    Returns:
-      The files, oldest path first, and nothing at all for a backend humanize has no logs
-      written down for or one that has never run on this machine.
-    """
-    profile = backends.named(backend)
-    if profile is None or not profile.logs:
-        return []
-    where = profile.directory()
-    if not where.is_dir():
-        return []
-    found: list[Path] = []
-    for pattern in profile.logs:
-        try:
-            found += sorted(where.glob(pattern.format(ident=ident)))
-        except (OSError, ValueError):
-            continue  # a home that cannot be read is a session with no links, not a failure
-    return [one for one in found if one.is_file()]
-
-
-def _link(at: Path, backend: str, ident: str) -> list[str]:
-    """Points a directory of the epic's own at the logs one session is being written to.
-
-    Made for whoever is reading the run afterwards, and for nothing else: humanize reads and
-    writes a log where the backend keeps it, so a link that is broken, refused by the
-    filesystem or pointing at a file that has since been rolled over costs the run nothing.
-
-    Args:
-      at: The directory to make them in, which is the session's own under `sessions/`.
-      backend: The CLI that logged it.
-      ident: The id it logged it under.
-
-    Returns:
-      What each link is called, which is the log's own name where that is unambiguous and the
-      path under the backend's home flattened where two of them share one.
-    """
-    found = _logs(backend, ident)
-    if not found:
-        return []
-    profile = backends.named(backend)
-    where = profile.directory() if profile is not None else Path()
-    shared = Counter(one.name for one in found)
-    made: list[str] = []
-    try:
-        at.mkdir(parents=True, exist_ok=True)
-        # The links this made last time go first: a session gains files as it runs -- a
-        # sub-agent's transcript, a second day's log -- and a name that was unambiguous when
-        # there was one file is a name two files want once there are two.
-        for old in at.iterdir():
-            if old.is_symlink():
-                old.unlink()
-        for one in found:
-            name = one.name
-            if shared[name] > 1:
-                with_root = one.relative_to(where) if one.is_relative_to(where) else one
-                name = _LEGIBLE.sub("-", str(with_root)).strip("-")
-            (at / name).symlink_to(one)
-            made.append(name)
-    except OSError:
-        # A filesystem that will not make one -- Windows without the privilege, a mount that
-        # has gone -- is a run without links rather than a run that stops.
-        return made
-    return made
 
 
 def _journal(epic: Path) -> Iterator[dict[str, Any]]:
@@ -607,9 +546,6 @@ class Epic:
         self._writing = (
             threading.Lock()
         )  # sessions open on whichever thread a turn runs on
-        #: Every session this run has opened, by the name it was written down under, so that
-        #: the links can be made again as the backends go on writing to them.
-        self._sessions: dict[str, tuple[str, str]] = {}
         self._flow = flow
         self._where = workspace
         self._profiler: Profiler | None = None
@@ -641,6 +577,11 @@ class Epic:
     def resume(self) -> Path:
         """Where the engine keeps this run's journal, for a flow that can be picked up."""
         return self._at / RESUME
+
+    @property
+    def keeps(self) -> Path:
+        """Where this run's agents keep the sessions they open, a directory per CLI inside."""
+        return self._at / SESSIONS
 
     def stopped(self) -> None:
         """Says the run was stopped rather than failed, for the line it ends with.
@@ -702,10 +643,6 @@ class Epic:
         # and so that a run which is over stops costing anything.
         if self._profiler is not None:
             self._profiler.stop()
-        # The links again, now that the run is over: a backend writes a session's log while
-        # the session runs and finishes writing it after the last turn, and a sub-agent's
-        # transcript appears whenever that sub-agent was started.
-        self.links()
         # A run interrupted from outside is a run that was stopped, however the turn under
         # way made of it: the process goes out from under that turn, and from inside one
         # that reads as a turn that could not finish.
@@ -756,10 +693,18 @@ class Epic:
           parent: The id of the conversation it was forked from, or "" for one that
             started from nothing.
         """
-        self.session(agent.id, agent.backend, _provider(agent), session, parent)
+        self.session(
+            agent.id, agent.backend, _provider(agent), session, parent, agent.kept()
+        )
 
     def session(
-        self, agent: str, backend: str, provider: str, ident: str, parent: str = ""
+        self,
+        agent: str,
+        backend: str,
+        provider: str,
+        ident: str,
+        parent: str = "",
+        where: Path | None = None,
     ) -> None:
         """Writes down a session, as :meth:`opened` does, for one no coganchor agent opened.
 
@@ -769,40 +714,25 @@ class Epic:
           provider: The account they ran as, or "" for this machine's own.
           ident: Its id.
           parent: The id of the conversation it was forked from, or "".
+          where: The directory it is kept under, laid out as its CLI lays out its home, or
+            None for this run's own directory for that CLI.
         """
-        name = called(agent, backend, provider, ident)
-        with self._writing:
-            self._sessions[name] = (backend, ident)
+        at = where if where is not None else self.keeps / backend
         self.write(
             "opened",
             agent=agent,
             backend=backend,
             provider=provider or LOCAL,
             session=ident,
-            name=name,
-            # Where to look for it inside this epic, which is a link and not the log itself.
-            where=f"{SESSIONS}/{name}",
+            name=called(agent, backend, provider, ident),
+            # Where it is kept: said from the epic for a session a turn kept in it, and as the
+            # whole path for one that stayed wherever its CLI keeps it.
+            where=str(at.relative_to(self._at))
+            if at.is_relative_to(self._at)
+            else str(at),
             # Said only where there is one, so that the ordinary line stays the line it was.
             **({"parent": parent} if parent else {}),
         )
-        self.links(name)
-
-    def links(self, only: str = "") -> None:
-        """Points this epic's `sessions/` at the logs its sessions are being written to.
-
-        Args:
-          only: One session, by the name it was written down under, or "" for every session
-            this run has opened.
-        """
-        with self._writing:
-            if not only:
-                held = dict(self._sessions)
-            elif only in self._sessions:
-                held = {only: self._sessions[only]}
-            else:
-                return
-        for name, (backend, ident) in held.items():
-            _link(self._at / SESSIONS / name, backend, ident)
 
     def write(self, event: str, **said: Any) -> None:
         """Appends one line to the epic.
@@ -826,7 +756,7 @@ class Sub(Epic):
     Everything a run writes down, a flow the run called writes down too: the sessions it
     opened, and whatever it called in turn. What it does not have is a
     directory: it is part of the run that called it, so its record sits beside that run's own
-    in the same epic, and its sessions link into the same `sessions/`.
+    in the same epic, and its sessions are kept in the same `sessions/`.
 
     It ends when the call returns rather than when the run does, and says so at both ends --
     here, and in the record of whatever called it. Closed by :meth:`ended` rather than as a
@@ -1023,6 +953,7 @@ def sessions(epic: Path) -> list[Session]:
                     flow=flow,
                     parent=str(said.get("parent") or ""),
                     record=at.name,
+                    where=str(said.get("where") or ""),
                 )
             )
     # By when each was opened rather than by which record it is in: the records are one run,
@@ -1205,33 +1136,56 @@ def _how(events: Sequence[dict[str, Any]]) -> str:
 
 
 def where(epic: Path, session: Session) -> Path:
-    """Where one session's links are, inside the epic that opened it.
+    """Where one session is kept, laid out as the CLI that ran it lays out its home.
 
     Args:
       epic: The epic's directory.
       session: The session.
 
     Returns:
-      The directory, which is there once that session has been logged to anything.
+      This epic's own directory for that CLI for a session a turn kept in the run, which is
+      every one it could, and wherever its CLI keeps them for one that stayed there. For an
+      epic written before sessions were kept, the directory of links to that one's logs.
     """
-    return epic / SESSIONS / session.name
+    return epic / (session.where or f"{SESSIONS}/{session.name}")
 
 
-def linked(epic: Path) -> dict[str, list[str]]:
-    """What each session of one epic is linked to, as the paths the links point at.
+def logs(epic: Path, session: Session) -> dict[str, Path]:
+    """Every file one session was logged to, as the files themselves.
 
     Args:
       epic: The epic's directory.
+      session: The session.
 
     Returns:
-      One entry per session that has links, by the name the run gave it.
+      Each by where it is under :func:`where` -- the CLI's own layout, such as
+      `projects/<dir>/<id>.jsonl` -- and nothing at all for a backend that logs none or a
+      session whose logs have gone. For an epic written before sessions were kept, each link
+      that still leads somewhere, by the name the link is under.
     """
-    held: dict[str, list[str]] = {}
-    for one in sessions(epic):
-        at = where(epic, one)
+    at = where(epic, session)
+    held: dict[str, Path] = {}
+    if at == epic / SESSIONS / session.name:
+        # An epic written before sessions were kept: a link per log, read through.
         try:
             found = sorted(at.iterdir())
         except OSError:
-            continue
-        held[one.name] = [str(link.readlink()) for link in found if link.is_symlink()]
+            return held
+        for link in found:
+            # `is_file` follows the link, and answers no for one that leads nowhere now.
+            with contextlib.suppress(OSError):
+                if link.is_file():
+                    held[link.name] = link.resolve()
+        return held
+    profile = backends.named(session.backend)
+    if profile is None:
+        return held
+    for pattern in profile.logs:
+        try:
+            found = sorted(at.glob(pattern.format(ident=session.ident)))
+        except (OSError, ValueError):
+            continue  # a directory that cannot be read is a session with no logs
+        for one in found:
+            if one.is_file():
+                held[one.relative_to(at).as_posix()] = one
     return held

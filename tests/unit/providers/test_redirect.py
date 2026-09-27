@@ -181,3 +181,114 @@ def test_a_run_that_cannot_be_supervised_does_not_run_unsupervised(
 
     assert cli.main(["internal", "cred", "--map=/house/x=/store/y", "--", "true"]) == 1
     assert "no supervisor here" in capsys.readouterr().err
+
+
+# ------------------------------------------------------------- what a session keeps
+
+
+def test_a_session_is_kept_rather_than_swapped_and_so_is_never_read_as_a_copy() -> None:
+    """A transcript is appended to while it is read back; a copy of it would be stale."""
+    swaps = redirect.Swaps.of(
+        [("/house/.claude/.credentials.json", "/store/mine/creds")],
+        [("/house/.claude/projects", "/epic/sessions/claude/projects")],
+    )
+
+    assert swaps.answer("/house/.claude/.credentials.json") == (
+        "/store/mine/creds",
+        False,
+    )
+    assert swaps.answer("/house/.claude/projects/-w/id.jsonl") == (
+        "/epic/sessions/claude/projects/-w/id.jsonl",
+        True,
+    )
+    assert swaps.answer("/house/.claude/settings.json") is None
+
+
+def test_a_table_that_keeps_only_sessions_is_still_a_table() -> None:
+    """The account this machine is signed into answers nothing but where its sessions go."""
+    assert redirect.Swaps.of([], [("/house/.codex/sessions", "/epic/codex/sessions")])
+
+
+def test_a_pattern_answers_every_name_it_matches_and_everything_inside_one() -> None:
+    """Which is how codex names its databases: for the schema they are at, which moves."""
+    swaps = redirect.Swaps.of(
+        [], [("/house/.codex/state_*.sqlite*", "/epic/codex/state_*.sqlite*")]
+    )
+
+    assert swaps.swap("/house/.codex/state_5.sqlite") == "/epic/codex/state_5.sqlite"
+    assert swaps.swap("/house/.codex/state_6.sqlite-wal") == (
+        "/epic/codex/state_6.sqlite-wal"
+    )
+    assert swaps.swap("/house/.codex/logs_2.sqlite") is None
+    assert swaps.swap("/house/.codex") is None
+
+
+def test_a_pattern_in_the_middle_answers_what_is_under_the_name_it_matched() -> None:
+    """Cursor writes its transcripts beside each project, whatever that project is called."""
+    swaps = redirect.Swaps.of(
+        [],
+        [
+            (
+                "/house/.cursor/projects/*/agent-transcripts",
+                "/epic/cursor-agent/projects/*/agent-transcripts",
+            )
+        ],
+    )
+
+    assert swaps.swap("/house/.cursor/projects/p-1/agent-transcripts/a.jsonl") == (
+        "/epic/cursor-agent/projects/p-1/agent-transcripts/a.jsonl"
+    )
+    assert swaps.swap("/house/.cursor/projects/p-1/.workspace-trusted") is None
+    assert swaps.swap("/house/.cursor/projects/p-1") is None
+
+
+def test_what_every_answered_path_starts_with_is_what_comes_before_a_wildcard() -> None:
+    """What a tracer holds a path against before it works anything out."""
+    assert redirect.head("/house/.codex/state_*.sqlite*") == "/house/.codex/state_"
+    assert redirect.head("/house/.claude/projects") == "/house/.claude/projects"
+
+
+def test_the_command_keeps_each_session_apart_from_the_credentials() -> None:
+    rendered = redirect.command(
+        [("/house/x", "/store/y")],
+        ["claude"],
+        [("/house/.claude/projects", "/epic/sessions/claude/projects")],
+    )
+
+    assert rendered[5:] == [
+        "--map=/house/x=/store/y",
+        "--keep=/house/.claude/projects=/epic/sessions/claude/projects",
+        "--",
+        "claude",
+    ]
+    assert redirect.read(["/house/x=/store/y"], ["/house/k=/epic/k"]).kept == (
+        ("/house/k", "/epic/k"),
+    )
+
+
+def test_a_line_that_keeps_a_session_and_swaps_nothing_is_a_line_to_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    ran: list[redirect.Swaps] = []
+
+    def run(swaps: redirect.Swaps, argv: list[str]) -> int:
+        ran.append(swaps)
+        return 0
+
+    monkeypatch.setattr("hmz.coganchor.providers.redirect.run", run)
+
+    assert cli.main(["internal", "cred", "--keep=/house/k=/epic/k", "--", "true"]) == 0
+    assert ran == [redirect.Swaps.of([], [("/house/k", "/epic/k")])]
+
+
+def test_a_home_whose_path_holds_what_a_glob_would_read_is_still_its_path() -> None:
+    """A `*` is the one wildcard: a `[` or a `?` in somebody's home is a character of it."""
+    swaps = redirect.Swaps.of(
+        [("/data/u[1]/.claude/.credentials.json", "/store/creds")],
+        [("/data/u?/.claude/projects", "/epic/claude/projects")],
+    )
+
+    assert swaps.swap("/data/u[1]/.claude/.credentials.json") == "/store/creds"
+    assert swaps.swap("/data/u1/.claude/.credentials.json") is None
+    assert swaps.swap("/data/u?/.claude/projects/p") == "/epic/claude/projects/p"
+    assert swaps.swap("/data/ux/.claude/projects/p") is None

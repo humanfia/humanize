@@ -65,7 +65,7 @@ JOURNAL = "epic.jsonl"  # the run's own record, inside the epic
 RECORD = "epic.{flow}_{ident}.jsonl"  # the record of one flow the run called
 RECORDS = "epic.*.jsonl"
 RESUME = "resume.jsonl"  # the engine's journal of a resumable run, inside its epic
-SESSIONS = "sessions"  # where each session's own logs are pointed at
+SESSIONS = "sessions"  # where the run keeps its sessions, a directory per CLI
 TRACES = "traces"
 LOCAL = "local"  # what a session that ran on this machine is anchored as
 class Session(NamedTuple):
@@ -78,6 +78,7 @@ class Session(NamedTuple):
     flow: str = ""
     parent: str = ""
     record: str = ""
+    where: str = ""  # where it is kept: from the epic, or whole where it stayed at home
 class Drove(NamedTuple):  # one agent role, and what it was given
     agent: str
     backend: str
@@ -139,12 +140,19 @@ class Epic:  # a context manager, closed however the run ends
     def workspace(self) -> Path: ...
     @property
     def resume(self) -> Path: ...  # where the engine keeps this run's journal
+    @property
+    def keeps(self) -> Path: ...  # where its agents keep the sessions they open
     def stopped(self) -> None: ...
     def opened(self, agent: AgentBase, session: str, parent: str = "") -> None: ...
     def session(
-        self, agent: str, backend: str, provider: str, ident: str, parent: str = ""
+        self,
+        agent: str,
+        backend: str,
+        provider: str,
+        ident: str,
+        parent: str = "",
+        where: Path | None = None,
     ) -> None: ...
-    def links(self, only: str = "") -> None: ...
     def write(self, event: str, **said: Any) -> None: ...
     def called(self, flow: str, task: str = "", *, resumable: bool = False) -> Sub: ...
     def __enter__(self) -> Self: ...
@@ -170,8 +178,8 @@ def read(epic: Path) -> Ran | None: ...
 def tree(epic: Path) -> tuple[Called, ...]: ...
 def sessions(epic: Path) -> list[Session]: ...
 def opened(epic: Path) -> dict[str, list[str]]: ...
-def linked(epic: Path) -> dict[str, list[str]]: ...
 def where(epic: Path, session: Session) -> Path: ...
+def logs(epic: Path, session: Session) -> dict[str, Path]: ...
 def picks_up(epic: Path) -> bool: ...
 def state(epic: Path, flow: str = "") -> dict[str, Any]: ...  # flow by canonical ref
 def resumed(flow: str, workspace: Path | str | None = None) -> Path | None: ...
@@ -280,8 +288,12 @@ class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
 - A run MUST read back as the tree of flows it called, however deep and however many ran at
   once, each call saying how it ended and each session saying which call opened it.
 - Every session a run opened MUST read back as whose it was, what took its turns, which
-  account they ran as, what the backend called it and which conversation it was forked from,
-  and its own logs MUST be reachable from the epic without humanize copying or moving them.
+  account they ran as, what the backend called it, which conversation it was forked from and
+  where it is kept. A session a turn could keep MUST be kept in the epic as the only copy of it:
+  under `sessions/<cli>/`, laid out as that CLI's home is, written, resumed and forked there, and
+  never in the CLI's own home. One no turn could keep MUST be read where its CLI kept it, the
+  epic saying where; an epic holding a link per session MUST still read back, and no epic MUST
+  be given one.
 - A resumable run's journal MUST be kept inside its epic, MUST be there for a run picking it
   up even where this one was killed, and a run picking one up MUST be handed a copy of it in an
   epic of its own and MUST say which epic it came from.
