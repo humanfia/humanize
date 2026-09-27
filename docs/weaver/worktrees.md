@@ -162,7 +162,8 @@ it left. In a flow that runs for days, destroy what you are done with yourself.
 
 A role typed `LocalEnv` is always on this machine, and `hmz exec` fills it with the directory
 you run it in. Type it `Env` instead and whoever runs the flow names it with `-e`, which may be
-a directory on a host `ssh` reaches:
+a directory on a host `ssh` reaches, or one a container of its own is given
+(`-e workspace=docker@gpubox/srv/repo`):
 
 ```python
 from hmz.flows import Env, GitWorktreeEnvMixin
@@ -177,8 +178,9 @@ hmz exec -f parts -a agent=claude/claude-opus-5:high \
 ```
 
 Everything above works the same there. Worktrees, copies and scratch directories are made on
-that machine, `workdir` is a path on it, and an agent spawned in one works on it. See [Remote
-execution](/user/remote-execution).
+that machine, `workdir` is a path on it, and an agent spawned in one works on it. In a
+container, what is not under the workdir goes with the container when the run ends. See [Remote
+execution](/user/remote-execution) and [Containers](/user/containers).
 
 ## See also
 

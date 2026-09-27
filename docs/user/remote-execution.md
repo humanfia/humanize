@@ -113,6 +113,8 @@ async def onbox(task: str, *, agents: Agents, envs: Envs, params: FlowParams, ct
 | `ssh@build-box/home/me/build/myproject` | that directory on a host `ssh` reaches: a host you [saved under a name](#save-a-host-under-a-name), `host`, `user@host`, `host:port`, or an alias from your ssh config |
 | `ssh@build-box/~/build/myproject` | the same, under the home directory of whoever ssh logs in as |
 | `ssh@build-box` | the workdir the host saved as `build-box` was saved with |
+| `docker@gpubox/home/me/myproject` | a [container of its own](/user/containers#try-it-a-container-per-environment) on the docker daemon saved as `gpubox`, holding that directory of the daemon's host |
+| `docker@local/home/me/myproject` | the same, on docker's default here, with nothing saved |
 | `local@/srv/project` | a directory on this machine |
 
 At the prompt, <kbd>enter</kbd> on the role's row at `/flow` asks for the same three parts
@@ -131,7 +133,9 @@ The agent works in a copy of the host's directory that humanize keeps here **at 
 path**. That path has to be one you can create on this machine, and must be free here:
 absent, empty, or humanize's copy of that same host from an earlier run. A directory with other
 files in it is refused rather than overwritten, so `ssh@build-box/home/me/code/myproject`
-fails when your own checkout is at `/home/me/code/myproject` on this machine.
+fails when your own checkout is at `/home/me/code/myproject` on this machine. A `docker@`
+environment keeps its copy under `~/.humanize/envs/mirrors/` instead, so its workdir may be
+your own checkout.
 :::
 
 ## Save a host under a name
@@ -157,6 +161,11 @@ print(envs.check(envs.find("ssh", "gpu")))   # reached, and its CPUs, memory and
 
 Then `-e box=ssh@gpu` runs in `~/myproject` on it. What each field means is in
 [Machines › Environment providers](/reference/machines#environment-providers).
+
+A docker daemon is saved the same way, with `envs.new("docker", …)`, and named with
+`-e box=docker@<name>/…`: see [Containers](/user/containers#try-it-a-container-per-environment).
+Its `endpoint` may be `ssh:gpu`, the daemon on the host saved as `gpu`, reached with everything
+that host says.
 
 ## What it needs
 

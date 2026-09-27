@@ -231,12 +231,17 @@ def test_a_docker_daemon_behind_a_stored_ssh_host_dials_it_as_it_says(
         SSHProvider(name="gpu", host="box", identity_file="/k", options={"A": "b"})
     )
     daemon = DockerProvider(name="far", endpoint="ssh:gpu").daemon()
+    (path,) = [
+        one.removeprefix("PATH=")
+        for one in daemon.docker("ps")
+        if one.startswith("PATH=")
+    ]
 
     # What docker's own ssh would run: the login, the port and the host, and the dial.
-    ssh = daemon.env["PATH"].split(os.pathsep)[0] + "/ssh"
+    ssh = path.split(os.pathsep)[0] + "/ssh"
     ran = subprocess.run(
         [ssh, "-o", "ConnectTimeout=30", "-T", "--", "box", "true"],
-        env={**os.environ, "PATH": daemon.env["PATH"]},
+        env={**os.environ, "PATH": path},
         capture_output=True,
         text=True,
         check=False,
@@ -250,4 +255,4 @@ def test_a_docker_daemon_behind_a_stored_ssh_host_dials_it_as_it_says(
     assert checked.reached, checked.said
     (_, docker) = standins.read_text().splitlines()
     assert docker.startswith("--host ssh://box info ")
-    assert docker.split(" | ")[1].startswith(daemon.env["PATH"].split(os.pathsep)[0])
+    assert docker.split(" | ")[1].startswith(path.split(os.pathsep)[0])

@@ -1250,3 +1250,33 @@ def test_every_install_humanize_offers_excludes_the_redesigned_sdk() -> None:
     assert profile is not None
     for line in (profile.installs, dsh._EXTRA, pick._installing("dsh")):
         assert backends.DSH_SDK in line
+
+
+@pytest.mark.parametrize("under", [".", "deeper"])
+def test_an_anchored_runtime_is_started_where_there_is_a_directory(
+    tmp_path: Path, under: str
+) -> None:
+    """The SDK starts the runtime's process in a directory, which anchored is the anchor's.
+
+    The runtime works in the mirror, which the anchor makes once it is running -- so the
+    anchor is started wherever there is a directory to start it in, and told the rest.
+    """
+    from hmz.coganchor import AnchorConfig
+    from hmz.coganchor.machines import AnchoredConfig
+
+    workspace, mirror = tmp_path / "work", tmp_path / "mirror"
+    (workspace / under).mkdir(parents=True, exist_ok=True)
+    anchor = AnchorConfig(
+        target=f"local:{tmp_path / 'there'}",
+        workspace=str(workspace),
+        shadow=str(mirror),
+    )
+    Harness.next_scripts.append([assistant("done"), completed()])
+    agent = DshAgent(replace(configured(), machine=AnchoredConfig(anchor=anchor)))
+
+    assert agent.new(workspace / under)("work") == "done"
+
+    (made,) = Harness.made
+    assert Path(str(made.config["cwd"])) == (mirror / under).resolve()
+    assert Path(str(made.config["runtime_cwd"])) == tmp_path
+    assert not mirror.exists(), "the mirror is the anchor's to make"

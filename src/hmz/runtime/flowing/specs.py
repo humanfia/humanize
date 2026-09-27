@@ -5,6 +5,7 @@ list::
 
     -a coder=claude/opus:high,reviewer=codex@work/gpt-5:medium
     -e repo=ssh@gpu-box/home/me/repo -e scratch=local@/tmp/scratch
+    -e box=docker@gpubox/srv/x
     -p rounds=3 -p tags=a,b,c
     -b duration=1h30m,cost=5 -b output_tokens=200k
 
@@ -103,10 +104,11 @@ class EnvSpec:
     Attributes:
       role: The role it fills.
       backend: Which kind of machine.
-      provider: The ssh host -- the name of a stored provider, `host` or `user@host` -- or
-        "" for this machine.
+      provider: The ssh host -- the name of a stored provider, `host` or `user@host` --, the
+        docker provider -- the name of a stored one, or `local` for docker's default here --,
+        or "" for this machine.
       workdir: The directory there: absolute, or `~/...` under the home of whoever ssh
-        logs in as.
+        logs in as. A docker one is a directory of the daemon's host.
     """
 
     role: str
@@ -190,8 +192,10 @@ def parse_envs(values: Sequence[str]) -> list[EnvSpec]:
 
     `local@/home/me/repo` is a directory on this machine, and `local` takes no provider.
     `ssh@gpu-box/home/me/repo` is one on the host `gpu-box`, and `ssh@gpu-box/~/repo` one under
-    the home directory there. `ssh@gpu-box` alone is the workdir the environment provider
-    called `gpu-box` was written down with.
+    the home directory there. `docker@gpubox/srv/repo` is one of the docker daemon's host that
+    the docker provider called `gpubox` hands a container of its own, and `docker@local/...` one
+    of docker's default here. `ssh@gpu-box` or `docker@gpubox` alone is the workdir the
+    environment provider of that name was written down with.
 
     Args:
       values: What each `-e` was given.
@@ -225,6 +229,10 @@ def parse_envs(values: Sequence[str]) -> list[EnvSpec]:
         provider = (read["provider"] or "").strip()
         if backend is EnvBackendKind.SSH and not provider:
             raise EnvSpecError(f"-e {said!r}: ssh needs a host, as in ssh@host/workdir")
+        if backend is EnvBackendKind.DOCKER and not provider:
+            raise EnvSpecError(
+                f"-e {said!r}: docker needs a provider, as in docker@local/workdir"
+            )
         if backend is EnvBackendKind.LOCAL and provider:
             raise EnvSpecError(
                 f"-e {said!r}: local takes no provider, as in local@/workdir"

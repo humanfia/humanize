@@ -41,7 +41,7 @@ from hmz.coganchor.transport import Endpoint, Road, Target, python_command
 from .base import MachineBase, MachineConfig
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
 #: What the container does while the turns come and go: nothing, in the interpreter coganchor's
 #: target half needs, looked for the way that half looks for it -- the same machine and the
@@ -65,7 +65,7 @@ MEMORY = "humanize.memory"
 GPUS = "humanize.gpus"
 
 #: The kind of device an NVIDIA GPU is listed as, where the daemon lists them.
-_CDI = "nvidia.com/gpu"
+CDI = _CDI = "nvidia.com/gpu"
 
 #: What docker takes as a container's name.
 _NAMED = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_.-]+")
@@ -98,6 +98,9 @@ class DockerConfig(MachineConfig):
         them every one it has.
       runtime: The OCI runtime to run it under, or None for the daemon's default.
       network: The network to put it on, or None for the daemon's default.
+      run_args: What else `docker run` is told, ahead of the image -- a daemon's own mounts,
+        devices or options, as whoever runs it says it is to be run. Said before humanize's
+        own resources and GPUs, which a later flag of docker's outranks.
       env: Variables to set in it.
       labels: Labels to put on it beside humanize's own, which are never taken from here:
         what a container holds is read back off those, and they say only what it was given.
@@ -113,6 +116,7 @@ class DockerConfig(MachineConfig):
     gpus: tuple[str, ...] | Literal["all"] = ()
     runtime: str | None = None
     network: str | None = None
+    run_args: tuple[str, ...] = ()
     # Left out of the hash, which the rest of the setting still answers for: a mapping has
     # none, and a frozen setting that could not be hashed is one no set could hold.
     env: Mapping[str, str] = field(default_factory=dict[str, str], hash=False)
@@ -149,6 +153,7 @@ class DockerConfig(MachineConfig):
         for key in (*self.env, *self.labels):
             if not key or "=" in key:
                 raise ValueError(f"unsupported name {key!r}; expected one without '='")
+        object.__setattr__(self, "run_args", tuple(str(one) for one in self.run_args))
         # Copies, so the caller's own dictionary changing later does not change the setting.
         object.__setattr__(self, "env", dict(self.env))
         object.__setattr__(self, "labels", dict(self.labels))
@@ -204,7 +209,10 @@ class Allocation:
 
 
 def allocations(
-    endpoint: str = "local", labels: Mapping[str, str] | None = None
+    endpoint: str = "local",
+    labels: Mapping[str, str] | None = None,
+    *,
+    seconds: float | None = None,
 ) -> list[Allocation]:
     """What humanize's running containers on one daemon hold of its host.
 
@@ -215,36 +223,33 @@ def allocations(
       endpoint: The daemon to ask, spelled as :attr:`DockerConfig.endpoint` is.
       labels: Labels a container must also carry to be counted, such as the provider it was
         allocated from.
+      seconds: How long each question may take, or None for as long as the daemon does.
 
     Returns:
       One allocation per container, read off the labels it was started with.
 
     Raises:
       ValueError: If the endpoint cannot be read.
-      OSError: If the daemon cannot be asked.
+      OSError: If the daemon cannot be asked, or did not answer in time.
     """
     where = Endpoint.parse(endpoint)
     wanted = [f"label={_LABEL}"]
     wanted += [f"label={key}={value}" for key, value in (labels or {}).items()]
-    listed = subprocess.run(
+    listed = _asked(
         where.docker(
             "ps",
             "--quiet",
             "--no-trunc",
             *(word for one in wanted for word in ("--filter", one)),
         ),
-        capture_output=True,
-        text=True,
-        check=False,
+        seconds,
     )
     if listed.returncode != 0:
         raise OSError(f"could not ask {where} what it runs: {listed.stderr.strip()}")
     held = listed.stdout.split()
     if not held:
         return []
-    inspected = subprocess.run(
-        where.docker("inspect", *held), capture_output=True, text=True, check=False
-    )
+    inspected = _asked(where.docker("inspect", *held), seconds)
     # A container that went between the two questions is one docker names as missing while
     # still answering for the rest; anything else it says it could not do is a daemon that
     # was not asked, which is not the same as one with nothing on it.
@@ -262,6 +267,79 @@ def allocations(
             f"could not ask {where} what it runs: {inspected.stderr.strip()}"
         ) from why
     return [_allocation(one) for one in found]
+
+
+def info(endpoint: str = "local", seconds: float | None = None) -> dict[str, Any]:
+    """What a daemon says of itself, as `docker info` says it.
+
+    Args:
+      endpoint: The daemon to ask, spelled as :attr:`DockerConfig.endpoint` is.
+      seconds: How long it may take, or None for as long as the daemon does.
+
+    Returns:
+      Everything it said.
+
+    Raises:
+      ValueError: If the endpoint cannot be read.
+      OSError: If there is no `docker` here, the daemon could not be asked or did not answer
+        in time, or it said it could not answer -- in its own words.
+    """
+    where = Endpoint.parse(endpoint)
+    said = _asked(where.docker("info", "--format", "{{json .}}"), seconds)
+    told: object = None
+    with contextlib.suppress(ValueError):
+        told = json.loads(said.stdout) if said.stdout.strip() else None
+    held = cast("dict[str, Any]", told) if isinstance(told, dict) else {}
+    errors = [str(one) for one in cast("list[Any]", held.get("ServerErrors") or [])]
+    if said.returncode or errors or not held.get("ServerVersion"):
+        why = "; ".join(errors) or said.stderr.strip() or f"exit {said.returncode}"
+        raise OSError(f"could not ask {where} what it has: {why}")
+    return held
+
+
+def gpus_listed(devices: Sequence[Any], kind: str = "") -> tuple[str, ...]:
+    """The GPUs a daemon's CDI devices name, by index where it names them by index.
+
+    A GPU is listed under several names -- its index, its UUID, and again under each vendor
+    that registered it -- so the indices are the answer where there are any, and the other
+    names, less `all`, where there are not.
+
+    Args:
+      devices: `DiscoveredDevices`, as `docker info` says it.
+      kind: The one kind of device to read, such as :data:`CDI`, or "" for every GPU.
+    """
+    names: list[str] = []
+    for device in devices:
+        said: Mapping[str, Any] = (
+            cast("Mapping[str, Any]", device) if isinstance(device, dict) else {}
+        )
+        listed, _, name = str(said.get("ID") or "").partition("=")
+        wanted = listed == kind if kind else listed.endswith("/gpu")
+        if wanted and name and name != "all" and name not in names:
+            names.append(name)
+    indices = sorted((one for one in names if one.isdigit()), key=int)
+    return tuple(indices or names)
+
+
+def _asked(argv: list[str], seconds: float | None) -> subprocess.CompletedProcess[str]:
+    """Runs one question for a daemon, with nothing on its stdin, for so long at most.
+
+    Raises:
+      OSError: If it could not be run, or did not answer in time.
+    """
+    try:
+        return subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            timeout=seconds,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise OSError(
+            errno.ETIMEDOUT, f"{argv[0]} did not answer within {seconds:g}s"
+        ) from error
 
 
 def _allocation(inspected: Mapping[str, Any]) -> Allocation:
@@ -387,6 +465,7 @@ class Docker(MachineBase):
                     # into a directory owned by root on a host nobody here can see.
                     "--mount",
                     _bound(workspace),
+                    *config.run_args,
                     *self._resources(),
                     *gpus,
                     config.image,
@@ -538,17 +617,10 @@ class Docker(MachineBase):
     def _info(self) -> dict[str, Any]:
         """What the daemon says of itself, asked once, or nothing where it would not say."""
         if self._told is None:
-            said = subprocess.run(
-                self._endpoint.docker("info", "--format", "{{json .}}"),
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            told: object = {}
-            if said.returncode == 0:
-                with contextlib.suppress(ValueError):
-                    told = json.loads(said.stdout)
-            self._told = cast("dict[str, Any]", told) if isinstance(told, dict) else {}
+            try:
+                self._told = info(str(self._endpoint))
+            except OSError:
+                self._told = {}
         return self._told
 
     def _whose(self, workspace: str) -> str:

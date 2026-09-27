@@ -26,6 +26,7 @@ __all__ = [
     "TraceeGoneError",
     "UnresolvedPathError",
     "fd_target",
+    "parent_of",
     "read_bytes",
     "read_cstring",
     "read_string_array",
@@ -297,6 +298,7 @@ _SELF: Final = "self"
 #: without pulling in the fifty lines after it.
 _STATUS_HEAD: Final = 512
 _TGID: Final = "Tgid:"
+_PPID: Final = "PPid:"
 
 #: How many magic links one path may cross before it is called a loop.  A descriptor can
 #: point at ``/proc/<pid>/fd`` itself, so one resolution can uncover another.  Forty, which
@@ -492,6 +494,27 @@ def _thread_group(pid: int) -> int:
                 return int(said)
             break
     return pid
+
+
+def parent_of(pid: int) -> int:
+    """The process a task's own process was started by, as ``/proc/<pid>/status`` says.
+
+    Args:
+      pid: The task.
+
+    Returns:
+      Its parent's pid, or 0 where it has gone or the file does not say.
+    """
+    try:
+        with open(f"/proc/{pid}/status", "rb") as handle:
+            head = handle.read(_STATUS_HEAD).decode("ascii", "replace")
+    except OSError:
+        return 0
+    for line in head.splitlines():
+        if line.startswith(_PPID):
+            said = line[len(_PPID) :].strip()
+            return int(said) if _numeric(said) else 0
+    return 0
 
 
 def _numeric(name: str) -> bool:

@@ -77,7 +77,7 @@ All of these import from `hmz.flows`.
 | Permissions | [`Permission`](#permission), [`PermissionKind`](#permissionkind) |
 | Budgets | [`Budget`](#budget), [`Usage`](#usage) |
 | Environments | [`EnvCollection`](#envcollection), [`Env`](#env), [`LocalEnv`](#localenv), [`EnvBackendKind`](#envbackendkind), [`SequenceNotStr`](#sequencenotstr) |
-| Environment mixins | [`ShellEnvMixin`, `BashEnvMixin`, `FilesEnvMixin`](#what-an-environment-can-do), [`GitWorktreeEnvMixin`, `TemporaryClonedDirEnvMixin`, `ScratchDirEnvMixin`](#worktrees-copies-and-scratch-directories), [`CPUEnvMixin`, `MemoryEnvMixin`, `GPUEnvMixin`](#what-a-machine-must-have) |
+| Environment mixins | [`ShellEnvMixin`, `BashEnvMixin`, `FilesEnvMixin`](#what-an-environment-can-do), [`GitWorktreeEnvMixin`, `TemporaryClonedDirEnvMixin`, `ScratchDirEnvMixin`](#worktrees-copies-and-scratch-directories), [`CPUEnvMixin`, `MemoryEnvMixin`, `GPUEnvMixin`, `ImageEnvMixin`](#what-a-machine-must-have) |
 | Hooks | [`HookKind`](#hookkind), [`HookFn`](#hookfn), [`HookParams`, `HookResult`](#hookparams-and-hookresult), [`HOOK_TYPES`](#hook-types), and a [`<Moment>HookParams` and `<Moment>HookResult`](#hooks-in-a-flow) pair per moment |
 | Errors | [`FlowException`](#when-something-goes-wrong) and the 44 classes under it |
 
@@ -584,7 +584,8 @@ first turn. A turn that is cancelled (a `TaskGroup` sibling failing, a deadline,
 
 ## Environment roles {#where-each-agent-works}
 
-An environment is a working directory on a machine: this one, or one `ssh` reaches.
+An environment is a working directory on a machine: this one, one `ssh` reaches, or a
+container of its own on a docker daemon.
 
 ```python
 from hmz.flows import BashEnvMixin, Env, EnvCollection, FilesEnvMixin, GPUEnvMixin
@@ -621,8 +622,9 @@ mixins. `NotRequired` roles may be left out. Every role but a `LocalEnv` one is 
 `-e <role>=<backend>@<provider>/<workdir>`: `local@/srv/data` on this machine,
 `ssh@gpu-box/home/me/repo` on a host `ssh` reaches or an
 [environment provider](/reference/machines#environment-providers) saved as `gpu-box`,
-`ssh@gpu-box/~/repo` under the home directory there. Full syntax in the
-[CLI reference](/reference/cli).
+`ssh@gpu-box/~/repo` under the home directory there, `docker@gpubox/srv/repo` in a container of
+its own on the daemon a docker provider saved as `gpubox` names (`docker@local/...` on docker's
+default here). Full syntax in the [CLI reference](/reference/cli).
 
 ### `Env` {#env}
 
@@ -640,8 +642,8 @@ class Env(Protocol):
 | Member | |
 | --- | --- |
 | `workdir` | The directory commands run in and relative paths are under. Absolute, or `~/…` under the ssh login's home. |
-| `backend` | `local` or `ssh`, an [`EnvBackendKind`](#envbackendkind). |
-| `provider` | The ssh host, or `""` for this machine. |
+| `backend` | `local`, `ssh` or `docker`, an [`EnvBackendKind`](#envbackendkind). |
+| `provider` | The ssh host, the docker provider (`local` for docker's default here), or `""` for this machine. |
 | `available` | Whether the machine could be reached and the workdir exists, as last seen. |
 | `role` | The key it fills in the flow's `EnvCollection`. |
 | `derive_subdir(subdir=…)` | An environment at a directory under this one, made if missing, filling the same role with the same grant. Raises `ValueError` for a `subdir` that is absolute or climbs out. |
@@ -666,8 +668,9 @@ review:review: 'workspace' is a LocalEnv, and the environment given is ssh@gpu-b
 
 ### `EnvBackendKind` {#envbackendkind}
 
-`class EnvBackendKind(StrEnum)`: `LOCAL` (`"local"`, this machine) and `SSH` (`"ssh"`, a host
-`ssh` itself resolves).
+`class EnvBackendKind(StrEnum)`: `LOCAL` (`"local"`, this machine), `SSH` (`"ssh"`, a host
+`ssh` itself resolves) and `DOCKER` (`"docker"`, a container of its own on a docker provider's
+daemon).
 
 ### What an environment can do {#what-an-environment-can-do}
 
@@ -689,13 +692,47 @@ tuples of strings match.
 ### What a machine must have {#what-a-machine-must-have}
 
 Three mixins are amounts rather than abilities. A machine that has less than the role declares
-is refused before anything runs, with `ResourceUnmet`.
+is refused before anything runs, with `ResourceUnmet`. A fourth names the image a container is
+started from.
 
 | Mixin | Class attributes |
 | --- | --- |
 | `CPUEnvMixin` | `_cpu_count: int = 1`, the fewest logical CPUs. |
 | `MemoryEnvMixin` | `_memory: int = 0`, the least memory, in bytes. |
 | `GPUEnvMixin` | `_gpu_count: int = 1` and `_gpu_memory: int = 0`, the fewest GPUs and the least memory each, in bytes. |
+| `ImageEnvMixin` | `_image: ClassVar[str] = ""`, what a `docker` environment's container is started from: `""` for the provider's `image`, else `python:3.12-slim`. It needs `/bin/sh` and Python ≥ 3.12, and no sshd. Says nothing of an environment that is not a container. |
+
+On a `docker` environment the amounts size the container rather than check a machine: it is
+given exactly what the role declares as hard limits, no limit on what it declares none of, and
+no GPU without `GPUEnvMixin`. What it asks is held against what the provider may still hand out
+before any agent starts, and the run is refused, saying what is free and which container holds
+the rest, where the provider cannot give it
+([how](/reference/machines#docker-environments)). Everything derived from the environment, a
+subdirectory, worktree, temporary copy or scratch directory, is in the same container; what is
+not under the workdir goes with it.
+
+```python
+from hmz.flows import CPUEnvMixin, Env, EnvCollection, FilesEnvMixin, GPUEnvMixin
+from hmz.flows import ImageEnvMixin, MemoryEnvMixin, ShellEnvMixin
+
+
+class Trainer(
+    Env, ShellEnvMixin, FilesEnvMixin, CPUEnvMixin, MemoryEnvMixin, GPUEnvMixin, ImageEnvMixin
+):
+    _image = "nvcr.io/nvidia/pytorch:25.01-py3"
+    _cpu_count = 8
+    _memory = 32 << 30
+    _gpu_count = 1
+
+
+class Envs(EnvCollection):
+    trainer: Trainer
+```
+
+```sh
+hmz exec -f train -a coder=claude/claude-opus-5:high -e trainer=docker@gpubox/srv/repo \
+    -b duration=6h "get the loss under 2.1"
+```
 
 ### Worktrees, copies and scratch directories {#worktrees-copies-and-scratch-directories}
 
@@ -1336,7 +1373,7 @@ next attempt fails the same way.
 | <code id="missingrole">MissingRole</code> | a required role was not given |
 | <code id="capabilitymissing">CapabilityMissing</code> | an agent or environment lacks a mixin its role declares |
 | <code id="permissiontoonarrow">PermissionTooNarrow</code> | an agent holds a narrower `Permission` than its role declares |
-| <code id="resourceunmet">ResourceUnmet</code> | a machine has fewer CPUs or GPUs, or less memory, than declared |
+| <code id="resourceunmet">ResourceUnmet</code> | a machine has fewer CPUs or GPUs, or less memory, than declared, or a docker provider has not that much left to hand out |
 | <code id="harnessmismatch">HarnessMismatch</code> | a role typed as one harness was given another |
 | <code id="capabilitynotgranted">CapabilityNotGranted</code> | the flow used something its role did not declare, or tried to widen a grant |
 | <code id="paramserror">ParamsError</code> | params do not validate against the flow's model |

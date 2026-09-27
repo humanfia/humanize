@@ -131,7 +131,7 @@ def run(
 | `flow` | The flow: the name it is listed under, a path, or a [ref](/reference/flows#refs). |
 | `task` | What it is to do. |
 | `agents` | By role: an `-a` spec without the `<role>=` (`"claude@work/claude-opus-5:high"`), or a driver such as a [`fakes.FakeAgentDriver`](/reference/flows#fakeagentdriver). Or `Line.agents`. |
-| `envs` | By role: an `-e` spec without the `<role>=` (`"ssh@gpu-box/home/me/repo"`), or a driver. Or `Line.envs`. |
+| `envs` | By role: an `-e` spec without the `<role>=` (`"ssh@gpu-box/home/me/repo"`, `"docker@gpubox/srv/repo"`), or a driver. Or `Line.envs`. |
 | `params` | A mapping (strings as `-p` gives them are read as the field's type) or an instance of the flow's `FlowParams`. `None` for its defaults. |
 | `budget` | A [`Budget`](/reference/flows#budget), or a mapping validated into one: `{"cost": 5}`, `{"duration": 3600}` or `{"duration": "PT1H"}`. Unlike `-b`, a mapping does not read `"1h"`. Required for every flow but `chat`. |
 | `resume` | `True` for the newest run of this flow here that can be picked up, or the epic directory to pick up. |
@@ -382,7 +382,8 @@ print(accounts.env("ANTHROPIC_BASE_URL=https://gateway.example\nTIMEOUT=60"))
 ## `Environments` {#environments}
 
 `Hmz().environments`: [the machines an environment may be put on](/reference/machines#environment-providers),
-saved under names that `-e <role>=ssh@<name>` then names. `backend` is `ssh` or `docker`.
+saved under names that `-e <role>=ssh@<name>` or `-e <role>=docker@<name>` then names.
+`backend` is `ssh` or `docker`.
 
 | Method | |
 | --- | --- |
@@ -402,7 +403,9 @@ saved under names that `-e <role>=ssh@<name>` then names. `backend` is `ssh` or 
 `alias`, `config`) or `DockerProvider` (`endpoint`, `tls_dir`, `image`, `runtime`, `run_args`,
 `cpus`, `memory`, `gpus`, `gpu_memory`, `max_containers`), each with `backend`, `name`, `workdir`,
 `made` (`typed` or `imported`), `at` and `held()`. `SSHProvider.target()` is the coganchor target
-it is reached by, and `DockerProvider.daemon()` how `docker` reaches it. `SSHHost` has `alias`,
+it is reached by, and `DockerProvider.daemon()` the daemon as a
+[`hmz.coganchor.transport.Endpoint`](/reference/machines#a-docker-daemon), whose `.docker(*argv)`
+is how `docker` reaches it. `SSHHost` has `alias`,
 `host`, `user`, `port`, `identity_files` and `proxy_jump`. `Checked` has `reached`, `said`,
 `home`, `cpus`, `memory`, `gpus`, `gpu_memory`, `runtimes`, `version` and `short`.
 

@@ -1,0 +1,320 @@
+"""A docker environment as it is declared, named, shared out and placed -- nothing started.
+
+What a role declares of a container -- its image, beside the resources every environment may
+declare -- is read once per type; `-e role=docker@<provider>/<workdir>` names a provider written
+down or docker's default here; what a provider may hand out is worked out against what its
+running containers already hold, arithmetic alone; and an agent working in one is anchored to
+the container rather than put on this machine. Starting a container, and what docker says of it,
+is the integration tier's against a stand-in and the system tier's against a daemon.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path, PurePosixPath
+
+import pytest
+
+from hmz.coganchor.machines import AnchoredConfig, gpus_listed, store
+from hmz.coganchor.machines.docker import Allocation
+from hmz.coganchor.transport import Endpoint, Target
+from hmz.flows import (
+    CPUEnvMixin,
+    Env,
+    EnvBackendKind,
+    EnvCollection,
+    EnvUnavailable,
+    FlowDefinitionError,
+    GPUEnvMixin,
+    ImageEnvMixin,
+    MemoryEnvMixin,
+    ResourceUnmet,
+    ShellEnvMixin,
+)
+from hmz.runtime.flowing.declaring import env_roles
+from hmz.runtime.flowing.environing import MachineEnvDriver
+from hmz.runtime.flowing.environing_docker import (
+    IMAGE,
+    Asked,
+    DockerMachine,
+    Has,
+    Share,
+    has_of,
+    shared,
+)
+from hmz.runtime.flowing.environments import open_env
+from hmz.runtime.flowing.specs import parse_envs
+
+
+class Trainer(
+    Env, ShellEnvMixin, CPUEnvMixin, MemoryEnvMixin, GPUEnvMixin, ImageEnvMixin
+):
+    _image = "nvcr.io/nvidia/pytorch:25.01-py3"
+    _cpu_count = 8
+    _memory = 32 << 30
+    _gpu_count = 2
+    _gpu_memory = 40 << 30
+
+
+class Plain(Env, ShellEnvMixin): ...
+
+
+class Envs(EnvCollection):
+    trainer: Trainer
+    plain: Plain
+
+
+def _roles() -> dict[str, object]:
+    return {one.name: one for one in env_roles(Envs, globals(), {})}
+
+
+# ------------------------------------------------------------------------ what is declared
+
+
+def test_an_image_is_read_off_the_role_with_its_resources() -> None:
+    trainer, plain = env_roles(Envs, globals(), {})
+
+    assert (trainer.image, trainer.cpu_count, trainer.memory) == (
+        "nvcr.io/nvidia/pytorch:25.01-py3",
+        8,
+        32 << 30,
+    )
+    assert (trainer.gpu_count, trainer.gpu_memory) == (2, 40 << 30)
+    assert ImageEnvMixin not in trainer.capabilities, (
+        "an image is a value, not a behaviour"
+    )
+    assert (plain.image, plain.cpu_count, plain.gpu_count) == ("", 0, 0)
+
+
+def test_an_image_without_its_mixin_says_nothing() -> None:
+    class Stray(Env):
+        _image = "ubuntu"
+
+    class Strays(EnvCollection):
+        stray: Stray
+
+    (stray,) = env_roles(Strays, {}, {"Stray": Stray})
+    assert stray.image == ""
+
+
+@pytest.mark.parametrize("image", [3, "two words", None])
+def test_what_is_no_image_is_refused_where_the_flow_is_read(image: object) -> None:
+    class Broken(Env, ImageEnvMixin):
+        _image = image  # pyright: ignore[reportAssignmentType]
+
+    class Broke(EnvCollection):
+        broken: Broken
+
+    with pytest.raises(FlowDefinitionError, match="_image"):
+        env_roles(Broke, {}, {"Broken": Broken})
+
+
+# --------------------------------------------------------------------------- what is shared
+
+
+def _held(
+    name: str,
+    *,
+    cpus: float | None = None,
+    memory: int | None = None,
+    gpus: tuple[str, ...] | str = (),
+) -> Allocation:
+    return Allocation(
+        name=name,
+        cpus=cpus,
+        memory=memory,
+        gpus=gpus,  # pyright: ignore[reportArgumentType]
+        labels={"humanize.pid": "42", "humanize.host": "gpubox"},
+    )
+
+
+_BOX = Has(cpus=16, memory=64 << 30, gpus=("0", "1", "2", "3"))
+
+
+def test_a_share_is_exactly_what_was_asked_and_the_first_gpus_nobody_holds() -> None:
+    share = shared(
+        Asked(cpus=2, memory=1 << 30, gpus=2),
+        _BOX,
+        [_held("a", gpus=("0",)), _held("b", gpus=("2",))],
+        where="docker@gpubox",
+        role="box",
+    )
+
+    assert share == Share(cpus=2.0, memory=1 << 30, gpus=("1", "3"))
+
+
+def test_a_role_asking_nothing_is_given_no_limit_and_no_gpu() -> None:
+    held = [_held("a", cpus=16, memory=64 << 30, gpus="all")]
+
+    assert shared(Asked(), _BOX, held, where="docker@gpubox", role="box") == Share(
+        None, None, ()
+    )
+
+
+def test_what_is_short_is_named_with_who_holds_it() -> None:
+    held = [
+        _held("humanize-gpubox-a-1", cpus=10, gpus=("0", "1")),
+        _held("humanize-gpubox-b-2", memory=60 << 30, gpus=("2",)),
+    ]
+
+    with pytest.raises(ResourceUnmet) as refused:
+        shared(
+            Asked(cpus=8, memory=8 << 30, gpus=2),
+            _BOX,
+            held,
+            where="docker@gpubox",
+            role="box",
+        )
+
+    said = str(refused.value)
+    assert "docker@gpubox has 6 of 16 CPUs free, and 'box' asks for 8" in said
+    assert "10 CPUs held by humanize-gpubox-a-1, pid 42 on gpubox" in said
+    assert "has 4 GiB of 64 GiB of memory free, and 'box' asks for 8 GiB" in said
+    assert "has 1 of 4 GPUs free, and 'box' asks for 2" in said
+    assert "GPU 0, 1 held by humanize-gpubox-a-1" in said
+    assert "GPU 2 held by humanize-gpubox-b-2" in said
+
+
+def test_a_container_holding_every_gpu_leaves_none() -> None:
+    with pytest.raises(ResourceUnmet, match=r"0 of 4 GPUs free.*every GPU held by a"):
+        shared(
+            Asked(gpus=1), _BOX, [_held("a", gpus="all")], where="docker@x", role="r"
+        )
+
+
+def test_no_more_containers_than_the_provider_may_run() -> None:
+    few = Has(cpus=16, memory=0, gpus=(), containers=2)
+
+    shared(Asked(), few, [_held("a")], where="docker@x", role="r")
+    with pytest.raises(ResourceUnmet, match="runs 2 of the 2 containers it may"):
+        shared(Asked(), few, [_held("a"), _held("b")], where="docker@x", role="r")
+
+
+def test_gpus_too_small_for_the_role_are_refused_where_the_provider_says_their_size() -> (
+    None
+):
+    small = Has(cpus=16, memory=0, gpus=("0",), gpu_memory=24 << 30)
+    asked = Asked(gpus=1, gpu_memory=40 << 30)
+
+    with pytest.raises(ResourceUnmet, match="GPUs have 24 GiB each"):
+        shared(asked, small, [], where="docker@x", role="r")
+    # Where nothing says how large they are, the container is asked once it is up.
+    unsaid = Has(cpus=16, memory=0, gpus=("0",))
+    assert shared(asked, unsaid, [], where="docker@x", role="r").gpus == ("0",)
+
+
+def test_a_provider_left_at_zero_hands_out_what_its_daemon_has() -> None:
+    info = {
+        "NCPU": 64,
+        "MemTotal": 256 << 30,
+        "DiscoveredDevices": [
+            {"Source": "cdi", "ID": "nvidia.com/gpu=all"},
+            {"Source": "cdi", "ID": "nvidia.com/gpu=1"},
+            {"Source": "cdi", "ID": "nvidia.com/gpu=0"},
+            {"Source": "cdi", "ID": "nvidia.com/gpu=GPU-1ac8"},
+        ],
+    }
+    everything = store.DockerProvider(name="box")
+    capped = store.DockerProvider(
+        name="box", cpus=8, memory=16 << 30, gpus=("1",), gpu_memory=1, max_containers=3
+    )
+
+    assert has_of(everything, info) == Has(64.0, 256 << 30, ("0", "1"))
+    assert has_of(None, info) == Has(64.0, 256 << 30, ("0", "1"))
+    assert has_of(capped, info) == Has(8.0, 16 << 30, ("1",), 1, 3)
+    assert gpus_listed([{"ID": "k8s.io/gpu=GPU-a"}]) == ("GPU-a",)
+
+
+# ---------------------------------------------------------------------------- what -e names
+
+
+def test_a_docker_environment_names_a_provider_written_down(tmp_path: Path) -> None:
+    store.add(store.DockerProvider(name="gpubox", workdir=str(tmp_path)))
+
+    (named,) = parse_envs(["box=docker@gpubox"])
+    (spelled,) = parse_envs([f"box=docker@local{tmp_path}"])
+
+    assert named.backend is EnvBackendKind.DOCKER
+    assert (named.provider, named.workdir) == ("gpubox", PurePosixPath(tmp_path))
+    assert (spelled.provider, spelled.workdir) == ("local", PurePosixPath(tmp_path))
+
+
+def test_a_docker_provider_nobody_wrote_down_is_refused() -> None:
+    (spec,) = parse_envs(["box=docker@nowhere/srv/x"])
+
+    with pytest.raises(EnvUnavailable, match="no docker provider called 'nowhere'"):
+        open_env(spec)
+
+
+def test_a_docker_provider_that_cannot_be_read_says_so() -> None:
+    at = store.where("docker", "broken")
+    at.mkdir(parents=True)
+    (at / "provider.json").write_text("{")
+    (spec,) = parse_envs(["box=docker@broken/srv/x"])
+
+    with pytest.raises(EnvUnavailable, match="cannot be read"):
+        open_env(spec)
+
+
+def test_a_workdir_under_home_is_only_this_machines() -> None:
+    store.add(store.DockerProvider(name="far", endpoint="tcp://10.0.0.5:2375"))
+    (far,) = parse_envs(["box=docker@far/~/x"])
+    (near,) = parse_envs(["box=docker@local/~/x"])
+
+    with pytest.raises(EnvUnavailable, match="absolute path there"):
+        open_env(far)
+    assert open_env(near).workdir == PurePosixPath(Path.home() / "x")
+
+
+def _machine(driver: object) -> DockerMachine:
+    assert isinstance(driver, MachineEnvDriver)
+    machine = driver._machine
+    assert isinstance(machine, DockerMachine)
+    return machine
+
+
+def test_a_container_is_started_as_its_role_says_and_named_for_it() -> None:
+    store.add(
+        store.DockerProvider(
+            name="gpubox", endpoint="ssh://me@gpubox:2222", image="debian:13"
+        )
+    )
+    trainer, plain = env_roles(Envs, globals(), {})
+    (spec,) = parse_envs(["trainer=docker@gpubox/srv/x"])
+
+    driver = open_env(spec, trainer)
+    bare = open_env(parse_envs(["plain=docker@gpubox/srv/x"])[0], plain)
+    default = open_env(parse_envs(["plain=docker@local/srv/x"])[0], plain)
+
+    machine = _machine(driver)
+    assert machine.image == "nvcr.io/nvidia/pytorch:25.01-py3"
+    assert machine.asked == Asked(8, 32 << 30, 2, 40 << 30)
+    assert machine.endpoint == Endpoint(host="ssh://me@gpubox:2222")
+    assert machine.name.startswith("humanize-gpubox-trainer-")
+    assert Target.parse(machine.target).endpoint == machine.endpoint
+    assert _machine(bare).image == "debian:13"
+    assert _machine(default).image == IMAGE
+    assert (driver.backend, driver.provider) == (EnvBackendKind.DOCKER, "gpubox")
+    # Nothing is started until something is asked of it, and what it has is the least.
+    assert not driver.available
+    assert (driver.cpu_count, driver.gpu_count) == (1, 0)
+
+
+def test_an_agent_in_a_container_is_anchored_to_it_in_a_mirror_of_its_own() -> None:
+    (spec,) = parse_envs(["box=docker@local/srv/x"])
+    driver = open_env(spec)
+
+    placement = driver.placement()
+
+    assert (placement.backend, placement.provider, placement.workdir) == (
+        EnvBackendKind.DOCKER,
+        "local",
+        PurePosixPath("/srv/x"),
+    )
+    assert isinstance(placement.machine, AnchoredConfig)
+    anchor = placement.machine.anchor
+    assert anchor.target.startswith("docker://humanize-local-box-")
+    assert anchor.workspace == "/srv/x"
+    assert anchor.shadow is not None
+    assert not anchor.shadow.startswith("/srv/x")
+    # The same workdir is the same machine, which is what a fork asks.
+    assert driver.placement() == placement

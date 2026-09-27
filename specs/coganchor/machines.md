@@ -40,6 +40,7 @@ class Anchored(MachineBase):
 CPUS: str      # the labels a container carries what it was given of its host under
 MEMORY: str
 GPUS: str
+CDI: str       # the kind of device a GPU is handed out as by name: `nvidia.com/gpu`
 
 @dataclass(frozen=True, kw_only=True)
 class DockerConfig(MachineConfig):
@@ -53,6 +54,7 @@ class DockerConfig(MachineConfig):
     gpus: tuple[str, ...] | Literal["all"] = ()
     runtime: str | None = None
     network: str | None = None
+    run_args: tuple[str, ...] = ()  # what else `docker run` is told, ahead of the image
     env: Mapping[str, str] = field(default_factory=dict[str, str])
     labels: Mapping[str, str] = field(default_factory=dict[str, str])
     @property
@@ -73,8 +75,13 @@ class Allocation:
     labels: Mapping[str, str]
 
 def allocations(
-    endpoint: str = "local", labels: Mapping[str, str] | None = None
+    endpoint: str = "local",
+    labels: Mapping[str, str] | None = None,
+    *,
+    seconds: float | None = None,
 ) -> list[Allocation]: ...
+def info(endpoint: str = "local", seconds: float | None = None) -> dict[str, Any]: ...
+def gpus_listed(devices: Sequence[Any], kind: str = "") -> tuple[str, ...]: ...
 
 # mapped.py -- the workspace on that machine, as a flow's own Python reaches it
 @dataclass(frozen=True, slots=True)
@@ -159,19 +166,12 @@ class DockerProvider:
     made: str = TYPED
     @property
     def at(self) -> Path: ...
-    def daemon(self) -> DockerDaemon: ...
+    def daemon(self) -> Endpoint: ...
     def held(self) -> dict[str, Any]: ...
 
 type EnvProvider = SSHProvider | DockerProvider
 
-@dataclass(frozen=True, slots=True)
-class DockerDaemon:
-    endpoint: str
-    args: tuple[str, ...] = ()  # before the docker command: --host, --context, TLS
-    env: Mapping[str, str] = {}
-    def command(self, argv: Sequence[str]) -> list[str]: ...
-
-def daemon_of(endpoint: str, tls_dir: str = "") -> DockerDaemon: ...
+def daemon_of(endpoint: str, tls_dir: str = "") -> Endpoint: ...
 def under() -> Path: ...
 def where(backend: str, name: str) -> Path: ...
 def new(backend: str, name: str, **fields: Any) -> EnvProvider: ...
@@ -239,8 +239,9 @@ def hosts(
 - What a container was given MUST be written on it under `CPUS`, `MEMORY` and `GPUS`, and those
   and `humanize` MUST NOT be taken from the caller's labels. `allocations` MUST read them back
   for every running container of humanize's on a daemon, whoever started it, MUST raise
-  `OSError` rather than answer for a daemon it could not ask, and MUST read a label holding no
-  number as saying nothing.
+  `OSError` rather than answer for a daemon it could not ask or that did not answer within
+  `seconds`, and MUST read a label holding no number as saying nothing. `info` MUST raise
+  `OSError` the same way, saying what the daemon said.
 - `Mapped` MUST reach the machine down the same road a turn takes, and MUST take a path either
   as the machine names it or relative to the workspace.
 - `Mapped.run` MUST answer with the exit status and everything written on both streams, MUST
@@ -267,8 +268,9 @@ def hosts(
   tells it, and an imported one MUST name its alias rather than what the alias resolved to, so
   that the config goes on being what it says. Nothing here MUST read or print what an identity
   file holds.
-- `daemon_of` MUST be the one place an endpoint becomes a `docker` command line; a daemon behind
-  a stored ssh provider MUST be dialled with everything that provider says.
+- `daemon_of` MUST be the one place a provider's endpoint becomes an `Endpoint`, whose `docker`
+  is the one place it becomes a command line; a daemon behind a stored ssh provider MUST be
+  dialled with everything that provider says.
 - `aliases` MUST follow every `Include` as ssh does and MUST NOT list a pattern; what a host
   resolves to MUST be asked of `ssh -G`. `imports` MUST leave a provider already there unless
   told to update it, and MUST keep the workdir of one it updates.

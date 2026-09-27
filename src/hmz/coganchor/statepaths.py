@@ -172,6 +172,7 @@ def resolve(command: list[str]) -> ResolvedAgent:
         local_programs.extend(_interpreter(shebang))
     if profile.name == "codex":
         local_programs.extend(_codex_runtime_programs(program, shebang))
+    local_programs.extend(_beside(program))
 
     return ResolvedAgent(
         profile=profile,
@@ -242,6 +243,37 @@ def _interpreter(shebang: tuple[str, ...]) -> list[str]:
     if resolved:
         found.extend((os.path.abspath(resolved), os.path.realpath(resolved)))
     return found
+
+
+def _beside(program: str) -> list[str]:
+    """The programs an npm package keeps in the directory its agent's own program is in.
+
+    A package's launcher hands over to a native binary kept beside it -- mimo's `bin/mimo`
+    runs the `bin/.mimocode` its install put there -- and that binary is the agent, so it stays
+    on this machine with the launcher. Only a package's own directory is read this way: a
+    program kept in a directory every other program shares, `/usr/bin` among them, has no
+    neighbours of its own.
+
+    Args:
+      program: The agent's program, its links followed.
+
+    Returns:
+      Every executable file in the same directory, where that is inside `node_modules`.
+    """
+    directory = os.path.dirname(program)
+    parts = directory.split(os.sep)
+    if "node_modules" not in parts:
+        return []
+    # Inside a package, not the `.bin` every package of a project puts its commands in.
+    within = parts[len(parts) - parts[::-1].index("node_modules") :]
+    if not within or within[0] == ".bin":
+        return []
+    try:
+        names = os.listdir(directory)
+    except OSError:
+        return []
+    beside = (os.path.join(directory, name) for name in names)
+    return [one for one in beside if os.path.isfile(one) and os.access(one, os.X_OK)]
 
 
 def _codex_runtime_programs(program: str, shebang: tuple[str, ...]) -> list[str]:

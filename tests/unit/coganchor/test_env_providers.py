@@ -17,7 +17,7 @@ import pytest
 from hmz import home
 from hmz.coganchor.machines import AnchoredConfig, store
 from hmz.coganchor.machines.store import DockerProvider, SSHProvider
-from hmz.coganchor.transport import Target, ssh_flags
+from hmz.coganchor.transport import Endpoint, Target, ssh_flags
 from hmz.flows import EnvBackendKind, EnvUnavailable
 from hmz.runtime.flowing.environing import MachineEnvDriver
 from hmz.runtime.flowing.environing_ssh import SSHMachine
@@ -229,6 +229,10 @@ def test_what_no_ssh_provider_could_be_is_refused(
         ({"endpoint": "docker.sock"}, "is not a docker endpoint"),
         ({"endpoint": "unix://relative.sock"}, "is not a docker endpoint"),
         ({"endpoint": "tcp://host"}, "is not a docker endpoint"),
+        ({"endpoint": "tcp://host:0"}, "is not a docker endpoint"),
+        ({"endpoint": "tcp://host:99999"}, "is not a docker endpoint"),
+        ({"endpoint": "tcp://host:2376?tls=/certs"}, "is not a docker endpoint"),
+        ({"endpoint": "context:two words"}, "is not a docker endpoint"),
         ({"endpoint": "ssh://-oProxyCommand=x"}, "is not a docker endpoint"),
         ({"endpoint": "ssh:../x"}, "is not a docker endpoint"),
         ({"endpoint": "context:"}, "is not a docker endpoint"),
@@ -364,15 +368,19 @@ def test_an_endpoint_is_what_docker_is_told(
 ) -> None:
     daemon = DockerProvider(name="d", endpoint=endpoint).daemon()
 
-    assert daemon.args == args
-    assert not daemon.env
-    assert daemon.command(["info"]) == ["docker", *args, "info"]
+    assert daemon == Endpoint.parse(endpoint)
+    said = daemon.docker("info")
+    assert said[said.index("docker") :] == ["docker", *args, "info"]
+    assert not [one for one in said if one.startswith("PATH=")]
 
 
 def test_a_tls_daemon_is_told_where_its_certificates_are() -> None:
     daemon = store.daemon_of("tcp://10.0.0.3:2376", "/certs")
 
-    assert daemon.args == (
+    assert daemon == Endpoint(host="tcp://10.0.0.3:2376", certs="/certs")
+    said = daemon.docker("ps")
+    assert said[said.index("docker") :] == [
+        "docker",
         "--host",
         "tcp://10.0.0.3:2376",
         "--tlsverify",
@@ -382,7 +390,8 @@ def test_a_tls_daemon_is_told_where_its_certificates_are() -> None:
         "/certs/cert.pem",
         "--tlskey",
         "/certs/key.pem",
-    )
+        "ps",
+    ]
 
 
 def test_a_daemon_behind_a_stored_ssh_host_is_dialled_as_that_host_says() -> None:
@@ -392,14 +401,19 @@ def test_a_daemon_behind_a_stored_ssh_host_is_dialled_as_that_host_says() -> Non
     plain = store.daemon_of("ssh:plain")
     keyed = store.daemon_of("ssh:keyed")
 
-    assert (plain.args, dict(plain.env)) == (("--host", "ssh://me@gpu:2222"), {})
-    assert keyed.args == ("--host", "ssh://gpu")
-    shim = store.where("ssh", "keyed") / "bin"
-    assert keyed.env["PATH"].startswith(f"{shim}:")
-    assert keyed.command(["ps"])[:3] == ["env", f"PATH={keyed.env['PATH']}", "docker"]
-    said = (shim / "ssh").read_text()
-    assert "exec ssh -o 'IdentityFile=~/.ssh/k' \"$@\"" in said
+    assert plain == Endpoint(host="ssh://me@gpu:2222")
+    assert keyed == Endpoint(host="ssh://gpu", options=(("IdentityFile", "~/.ssh/k"),))
+    assert Endpoint.parse(str(keyed)) == keyed
+    said = keyed.docker("ps")
+    (path,) = [one for one in said if one.startswith("PATH=")]
+    shim = Path(path.removeprefix("PATH=").split(":")[0])
+    assert shim.parent == home() / "docker-ssh"
+    assert said[said.index("docker") :] == ["docker", "--host", "ssh://gpu", "ps"]
+    assert "exec ssh -o 'IdentityFile=~/.ssh/k' \"$@\"" in (shim / "ssh").read_text()
     assert _mode(shim / "ssh") == 0o700
+    # The same options are the same `ssh`, written once.
+    assert [one for one in store.daemon_of("ssh:keyed").docker("ps") if "PATH=" in one]
+    assert len(list((home() / "docker-ssh").iterdir())) == 1
     with pytest.raises(ValueError, match="no ssh provider called 'ghost'"):
         store.daemon_of("ssh:ghost")
 

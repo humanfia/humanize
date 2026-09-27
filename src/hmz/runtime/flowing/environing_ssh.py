@@ -164,12 +164,15 @@ def _ran_now(client: RemoteClient, argv: list[str], cwd: str, within: float) -> 
     return b"".join(out).decode("utf-8", "replace")
 
 
-def _opened(provider: str, target: str) -> tuple[Transport, RemoteClient, _Facts]:
+def _opened(
+    provider: str, target: str, over: str = "ssh"
+) -> tuple[Transport, RemoteClient, _Facts]:
     """Reaches a host and learns what it has, from a thread that may wait.
 
     Args:
       provider: The host as it was named, which is what an error says.
       target: The coganchor target that reaches it.
+      over: What reaches it, which is what an error says too.
 
     Raises:
       EnvUnavailable: If there is no such host.
@@ -188,7 +191,7 @@ def _opened(provider: str, target: str) -> tuple[Transport, RemoteClient, _Facts
         if any(clue in said for clue in _NO_SUCH_HOST):
             raise EnvUnavailable(f"there is no ssh host {provider}: {said}") from error
         raise EnvConnectionError(
-            f"could not reach {provider} over ssh: {said}"
+            f"could not reach {provider} over {over}: {said}"
         ) from error
     client = RemoteClient(link.channel)
     try:
@@ -200,7 +203,7 @@ def _opened(provider: str, target: str) -> tuple[Transport, RemoteClient, _Facts
         _shut(link, client)
         if isinstance(error, (OSError, ProtocolError)):
             raise EnvConnectionError(
-                f"could not reach {provider} over ssh: {error}"
+                f"could not reach {provider} over {over}: {error}"
             ) from error
         raise
     return link, client, facts
@@ -395,6 +398,9 @@ class SSHMachine(Machine):
 
     backend = EnvBackendKind.SSH
 
+    #: What reaches it, as an error says so.
+    over = "ssh"
+
     def __init__(self, provider: str, target: str = "") -> None:
         """Initializes a machine that has not been reached.
 
@@ -470,7 +476,7 @@ class SSHMachine(Machine):
             await asyncio.to_thread(_shut, *stale)
         try:
             link, client, facts = await asyncio.to_thread(
-                _opened, self.provider, self.target
+                _opened, self.provider, self.target, self.over
             )
         except EnvError:
             self._reached = False

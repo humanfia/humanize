@@ -91,15 +91,46 @@ session's turns land.
 | `-e repo=ssh@build-box/~/project` | the same, with `~` resolved to the login's home once the host is reached |
 | `-e repo=ssh@gpu/srv/project`, `gpu` a saved [environment provider](#environment-providers) | an `AnchoredConfig` whose target carries everything `gpu` says: `ssh://me@10.0.0.2:2222?IdentityFile=~/.ssh/gpu` |
 | `-e repo=ssh@gpu` | the same, in the workdir `gpu` was saved with |
+| `-e repo=docker@gpubox/srv/project`, `gpubox` a saved [docker provider](#a-docker-daemon) | an `AnchoredConfig` whose anchor has `target="docker://humanize-gpubox-repo-<hex>[@<endpoint>]"`, `workspace="/srv/project"`, and a mirror of its own under `~/.humanize/envs/mirrors/<container>` |
+| `-e repo=docker@local/srv/project` | the same, on docker's default here, with no provider saved |
+| `-e repo=docker@gpubox` | the same, in the workdir `gpubox` was saved with |
 
 One agent can have sessions on two machines, each working where it was spawned. The flow's own
 code reaches an environment the same way: `await repo.exec(["make", "test"])` and
 `await repo.read("NOTES.md")` run on that machine, in that directory.
 
-No environment brings up a container of its own yet. A run whose work belongs in a container
-is started inside one, or pointed at a container reached as an ssh host; an agent configured by
-hand can have one, [below](#dockerconfig). Docker daemons can already be saved as
-[environment providers](#environment-providers) and checked.
+### A container per environment {#docker-environments}
+
+`-e role=docker@<provider>/<workdir>` gives the role a container of its own, on the daemon the
+provider names. It is started when the run first reaches its environments, before any agent
+starts, and removed when the run closes it. The workdir is a directory of the daemon's host,
+mounted at its own path, so what the agents write there outlives the container.
+
+| | |
+| --- | --- |
+| **Image** | the role's [`_image`](/reference/flows#what-a-machine-must-have), else the provider's `image`, else `python:3.12-slim`. It needs `/bin/sh` and Python ≥ 3.12, and no sshd. |
+| **Limits** | exactly the CPUs, memory and GPUs the role declares, as hard limits. What it declares none of has no limit; no GPU without `GPUEnvMixin`. The provider's `runtime` and `run_args` are passed too. |
+| **Labels** | `humanize.provider`, `humanize.role`, `humanize.host` and `humanize.pid` beside `humanize` and what it holds (`humanize.cpus`, `humanize.memory`, `humanize.gpus`). |
+| **Derived environments** | a subdirectory, a worktree, a temporary copy or a scratch directory is in the same container. What is not under the workdir is the container's own, and goes with it. |
+| **Agents** | run here, supervised, in a mirror of their own; every command they run lands in the container through `docker exec`. |
+
+Before the container starts, what the role asks is held against what the provider may still
+hand out: what it was saved with, or the daemon's own where that is `0`, less what its running
+containers hold, read off their labels by [`allocations`](#what-a-daemon-has-given-out). A
+provider with `max_containers` runs no more than that at once, and GPUs are the first ids
+nobody holds. Where something is short the run is refused, saying what is free and who holds
+the rest:
+
+```text
+docker@gpubox has 0 of 2 GPUs free, and 'box' asks for 1 (GPU 0 held by
+humanize-gpubox-box-1a2b3c4d, pid 4242 on gpubox; GPU 1 held by humanize-gpubox-box-5e6f7a8b,
+pid 4250 on gpubox)
+```
+
+Two runs on this machine never work that out for one provider at once: each holds
+`~/.humanize/env-providers/docker/.<name>.lock` until its container is up and labelled. A run
+killed outright leaves its container behind; the next run on that provider removes any whose
+`humanize.pid` on this host is gone.
 
 ## Environment providers {#environment-providers}
 
@@ -180,12 +211,16 @@ is named for what the provider says as well as for the host, port and login.
 | `tls_dir` | For `tcp://`: the directory holding `ca.pem`, `cert.pem` and `key.pem`. |
 | `image`, `runtime`, `run_args` | The image a container starts from when the flow names none, the runtime (`nvidia`), and anything else `docker run` is told. |
 | `cpus`, `memory`, `gpus`, `gpu_memory`, `max_containers` | What it may hand out: CPUs, bytes, GPU device ids, bytes per GPU, containers at once. `0` or empty is all it has. |
+| `workdir` | Where `-e role=docker@<name>` works when the line names no workdir. |
 
-`provider.daemon()` is the one place an endpoint becomes a `docker` command line:
-`daemon.command(["info"])` is `["docker", "--host", "unix:///var/run/docker.sock", "info"]`.
-For `ssh:<name>`, docker dials the host with its own `ssh`, which it can only tell the login, the
-port and the host. The rest of what the saved host says goes in an `ssh` of its own, kept with
-that provider and put first on the `PATH` of the `docker` that dials it.
+`provider.daemon()` is the daemon as a [`hmz.coganchor.transport.Endpoint`](#endpoints), whose `.docker(*argv)` is the
+one place an endpoint becomes a `docker` command line: `daemon.docker("info")` is
+`["env", "-u", "DOCKER_HOST", …, "docker", "--host", "unix:///var/run/docker.sock", "info"]`.
+`tls_dir` becomes `?tls=<dir>`. `ssh:<name>` becomes `ssh://[user@]host[:port]?KEYWORD=VALUE&…`,
+carrying everything the saved host says. Docker dials that host with its own `ssh`, which it can
+only tell the login, the port and the host, so the options go in an `ssh` of their own, written
+once under `~/.humanize/docker-ssh/<digest>/ssh` and put first on the `PATH` of every `docker`
+sent there.
 
 ### Checking one
 
@@ -241,6 +276,7 @@ of that daemon's CPUs, memory and GPUs.
 | `gpus` | `()`: none | The GPUs it is given, by the ids `nvidia-smi` lists, or `"all"`. |
 | `runtime` | the daemon's | The OCI runtime to run it under, e.g. `runc` or `nvidia`. |
 | `network` | the daemon's | The network to put it on. |
+| `run_args` | `()` | Anything else `docker run` is told, ahead of the image and of humanize's own limits. |
 | `env` | `{}` | Variables to set in it. |
 | `labels` | `{}` | Labels to put on it, e.g. which provider it was allocated from. `humanize`, `humanize.cpus`, `humanize.memory` and `humanize.gpus` are humanize's own and are not taken from here. |
 
@@ -260,6 +296,7 @@ docker [endpoint] run --detach
     --env HOME=/tmp
     --env NVIDIA_VISIBLE_DEVICES=void
     --mount type=bind,source=<workspace>,target=<workspace>
+    <run_args>
     --cpus … --memory … --shm-size … --runtime … --network …
     --device nvidia.com/gpu=<id>
     <image>
@@ -295,6 +332,7 @@ to start.
 | `tcp://HOST:PORT` | one listening on a port, in plain TCP | a daemon told to listen there |
 | `tcp://HOST:PORT?tls=DIR` | the same, over TLS verified with `DIR/ca.pem`, `DIR/cert.pem` and `DIR/key.pem` | the certificates |
 | `ssh://[USER@]HOST[:PORT]` | the one on that host, through docker's own ssh transport | ssh access to the host as your `ssh` config has it, and `docker` there. The container needs no sshd. |
+| `ssh://[USER@]HOST[:PORT]?KEYWORD=VALUE&…` | the same, with `ssh` told each option first (`F=<file>` for a config of its own) | the same |
 | `context:NAME` | the one a docker context names | the context, in `DOCKER_CONFIG` or `~/.docker` |
 
 Every `docker` command for the container, from `run` to the `exec` each turn rides and the
@@ -453,6 +491,7 @@ such as `the machine at docker://humanize-4f2a cannot serve linux: it says it is
 | --- | --- |
 | The agent to work in this checkout, as you | **this machine** |
 | The work on a bigger box, a GPU host, or a machine with the right toolchain | **already running**, `ssh://`. In a flow: `-e <role>=ssh@<host>/<workdir>` |
+| A flow's environment in a container of its own, sized by what its role declares | `-e <role>=docker@<provider>/<workdir>`: [a container per environment](#docker-environments) |
 | Cheap reconnects across a long loop of short turns | **already running**, `tcp://` to a [target left listening](/reference/remote-execution#serving-a-target) |
 | A toolchain that is not yours, without giving up your workspace | **a container of its own** |
 | A share of a GPU box's CPUs, memory and GPUs, in an image of your choosing | **a container of its own**, with `endpoint`, `cpus`, `memory` and `gpus` |
@@ -534,5 +573,5 @@ from hmz.coganchor.agents import anchored
 | `Ran` | What one command there came to: `.argv`, `.status`, `.output`, `.ok`. |
 | `anchored(target)` | An `AnchoredConfig` from a target spelling, or `None` for `""`. |
 | `SSHProvider`, `DockerProvider` | A saved [environment provider](#environment-providers). `Hmz().environments` is how to reach them. |
-| `daemon_of(endpoint, tls_dir="")` | How `docker` reaches the daemon an endpoint names: `.args`, `.env`, `.command(argv)`. |
+| `daemon_of(endpoint, tls_dir="")` | The daemon an endpoint as a provider spells it names, as an `Endpoint`: `.docker(*argv)`, `.here`. |
 | `agent.anchor` | `AnchorConfig \| None`: where the agent's turns land, bringing the machine up if it must. |

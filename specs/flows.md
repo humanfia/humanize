@@ -9,7 +9,7 @@ Mixin system is crucial to the flow system. It allows the flow to declare what i
 `hmz exec` should support these flags:
 
 - `-a|--agents <role>=<harness>@<provider>/<model>:<effort>`: specifying an agent spec;
-- `-e|--envs <role>=<backend>@<provider>/<workdir>`: specifying an env spec; for `ssh`, `<provider>` is the name of an environment provider written down (`hmz.coganchor.machines.store`), or else a destination `ssh` itself resolves, and `/<workdir>` may be left off for a provider written down with one;
+- `-e|--envs <role>=<backend>@<provider>/<workdir>`: specifying an env spec; for `ssh`, `<provider>` is the name of an environment provider written down (`hmz.coganchor.machines.store`), or else a destination `ssh` itself resolves; for `docker`, it is the name of a docker provider written down, or `local` for docker's default here, and `<workdir>` is a directory of the daemon's host, which the role's container of its own is given; `/<workdir>` may be left off for a provider written down with one;
 - `-p|--params <key>=<value>`: specifying a flow param.
 
 All of the above supports comma-separated list and multiple flags. (e.g. `-a role1=... -a role2=...` or `-a role1=...,role2=...`)
@@ -22,6 +22,7 @@ All of the above supports comma-separated list and multiple flags. (e.g. `-a rol
 class EnvBackendKind(StrEnum):
     LOCAL = auto()
     SSH = auto()
+    DOCKER = auto()
 
 class Env(Protocol):
     @property
@@ -77,6 +78,11 @@ class GPUEnvMixin:
     _gpu_count: ClassVar[int] = 1
     _gpu_memory: ClassVar[int] = 0
 
+class ImageEnvMixin:
+    _image: ClassVar[str] = ""
+    # What a docker env's container is started from: "" for the provider's image, else
+    # `python:3.12-slim`. Says nothing of an env that is not a container.
+
 class GitWorktreeEnvMixin:
     async def derive_worktree(
         self,
@@ -109,6 +115,17 @@ class MyEnv(Env, CPUEnvMixin, MemoryEnvMixin):
 
 class MyEnvCollection(EnvCollection):
     my_env: MyEnv
+```
+
+A `docker` env is a container of its own, which the resource mixins size rather than check: it
+is started from the role's image with exactly the CPUs, memory and GPUs the role declares as
+hard limits, out of what its provider may still hand out, and the run is refused before any
+agent starts where the provider cannot:
+
+```py
+class Trainer(Env, ShellEnvMixin, FilesEnvMixin, GPUEnvMixin, ImageEnvMixin):
+    _image = "nvcr.io/nvidia/pytorch:25.01-py3"
+    _gpu_count = 1
 ```
 
 ## Agents

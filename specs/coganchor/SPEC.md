@@ -335,6 +335,7 @@ class Endpoint:              # the docker daemon a container is held by
     host: str = ""
     context: str = ""
     certs: str = ""
+    options: tuple[tuple[str, str], ...] = ()  # ssh://HOST?KEYWORD=VALUE&...; `F` the config
     @classmethod
     def parse(cls, spec: str) -> Endpoint: ...
     def __str__(self) -> str: ...
@@ -445,11 +446,12 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
   goes too. `check` MUST answer what a target is without running anything on it.
 - A target MUST be `ssh://[USER@]HOST[:PORT]`, `docker://CONTAINER[@ENDPOINT]`,
   `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT` or `local[:DIR]`, and an endpoint `local`,
-  `unix:///PATH`, `tcp://HOST:PORT[?tls=DIR]`, `ssh://[USER@]HOST[:PORT]` or `context:NAME`; a
-  container naming none, or `local`, MUST be held by docker's default as this process's
-  environment leaves it. Every `docker` on a container's road MUST name any other endpoint on
-  its own command line and MUST be run without the variables that would take it elsewhere, and
-  nothing MUST be needed inside the container but `/bin/sh` and a Python of at least 3.12.
+  `unix:///PATH`, `tcp://HOST:PORT[?tls=DIR]`, `ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...]` or
+  `context:NAME`; a container naming none, or `local`, MUST be held by docker's default as this
+  process's environment leaves it. Every `docker` on a container's road MUST name any other
+  endpoint on its own command line and MUST be run without the variables that would take it
+  elsewhere, an `ssh://` one's options MUST reach the `ssh` docker dials with, and nothing MUST
+  be needed inside the container but `/bin/sh` and a Python of at least 3.12.
 - A supervised agent MUST start in the workspace, or the directory in it the session opened at,
   named as the target names it, and MUST see the target inside it: the same names, contents, sizes,
   modes and timestamps at the same paths, with failures answered by the target's own error.
@@ -458,10 +460,12 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
   redirected to, a call that cannot be given it failing rather than reading the path it named.
 - Every program it spawns MUST behave as an ordinary local child, its parent released as soon as the
   child starts and signals travelling both ways; a command MUST NOT report a success it did not
-  achieve, and nothing coganchor started MUST outlive it.
+  achieve, MUST NOT be handed what is written to an agent that is not a shell on its own
+  stdin, and nothing coganchor started MUST outlive it.
 - A file it modified MUST reach the target before any command runs there and again at the end, and
   creating, removing, renaming, linking and changing modes MUST reach it first; its executable,
-  state directory, redirect answers, private variables and connections MUST stay with it.
+  the executables beside it in its own package, what its launcher script runs before becoming
+  it, state directory, redirect answers, private variables and connections MUST stay with it.
 - Losing the link MUST NOT stop the agent: work needing the target fails and it exits with its own
   status. A mirror holding unrelated files, or last used elsewhere, MUST be refused unless told to.
 - Only file contents MUST be expected to cross — not ownership, device nodes, extended attributes or

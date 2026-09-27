@@ -32,7 +32,7 @@ once holds a session per place:
 | **this directory** | the directory the run started in |
 | **a worktree each** | a git worktree of its own: one agent, several checkouts |
 | **a copy each** | a throwaway copy of the directory, removed when the flow that made it ends, unless the run can be [picked up](/features/resuming) |
-| **another machine** | a directory on an ssh host. The agent stays here and its commands land there. See [the anchor](/features/anchor). |
+| **another machine** | a directory on an ssh host, or in a container of its own. The agent stays here and its commands land there. See [the anchor](/features/anchor). |
 
 ## Whole flows at once
 

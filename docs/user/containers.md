@@ -1,11 +1,21 @@
 # Containers
 
 Put a flow's work in a container when the agents need a toolchain or a filesystem you do not
-have here. There are two ways to do it from the command line: run humanize itself inside the
-container, or run an ssh server in the container and point one of the flow's environments at
-it.
+have here. There are three ways to do it from the command line: give one of the flow's
+environments a container of its own, run humanize itself inside the container, or run an ssh
+server in the container and point one of the flow's environments at it.
 
 <div class="ct-ways">
+  <div class="ct-way">
+    <p class="ct-name">A container per environment</p>
+    <p class="ct-type"><code>hmz exec … -e ROLE=docker@PROVIDER/…</code></p>
+    <dl>
+      <dt>agents run</dt><dd>here, with your sign-in</dd>
+      <dt>commands run</dt><dd>in the container</dd>
+      <dt>the image needs</dt><dd>Python 3.12 or newer</dd>
+      <dt>works with</dt><dd>a flow with a role for another machine</dd>
+    </dl>
+  </div>
   <div class="ct-way">
     <p class="ct-name">The whole run in a container</p>
     <p class="ct-type"><code>docker run … hmz exec …</code></p>
@@ -27,6 +37,39 @@ it.
     </dl>
   </div>
 </div>
+
+## Try it: a container per environment
+
+Save the docker daemon you want the containers on, with what it may hand out:
+
+```python
+from hmz.sdk import Hmz
+
+envs = Hmz().environments
+envs.add(envs.new(
+    "docker", "gpubox",
+    endpoint="local",   # or unix:///…, tcp://…, ssh://…, ssh:<saved host>, context:…
+    gpus=("0", "1"), cpus=16, memory=64 << 30,
+))
+```
+
+Then name it in an environment role, with a directory of the daemon's host for the workdir:
+
+```sh
+hmz exec -f boxed -a coder=claude/claude-haiku-4-5-20251001:low \
+    -e box=docker@gpubox/home/me/myproject \
+    -b cost=0.5 "get the suite green"
+```
+
+The role gets a container of its own, started from the image the flow declares for it (else
+the provider's `image`, else `python:3.12-slim`) and given exactly the CPUs, memory and GPUs the
+role declares. The directory is mounted at the path it has, so the work outlives the container,
+which goes when the run ends. The agents stay on this machine, supervised; every command they
+run lands in the container through `docker exec`, so the image needs no ssh server, no CLI and
+no sign-in. `docker@local/…` uses docker's default here with no provider saved. A daemon with
+less left to hand out than the role asks for refuses the run before any agent starts, saying
+what is free and which container holds the rest. Details in the
+[Machines reference](/reference/machines#docker-environments).
 
 ## Try it: the whole run in one container
 
@@ -95,7 +138,7 @@ Narrowing what an agent may do is [permissions](/user/permissions). Read
 <style scoped>
 .ct-ways {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   margin: 22px 0 8px;
 }

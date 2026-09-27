@@ -552,6 +552,10 @@ class DshSession(SessionBase):
 
         harness_type = _harness_type()
         where = self._workspace()
+        # Where the runtime's process is started, which is where it works -- but for an
+        # anchored one, which works in a mirror the anchor makes once it is running and
+        # starts it in: the anchor is started wherever there is a directory to start it in.
+        started = where if self._agent.anchor is None else _nearest(where)
         launch = self._agent.spawned(list(_runtime_args()), self.cwd)
         # An account is the whole of what a turn under it runs on: its key, and the endpoint
         # to send that key to where the account was made by the gateway way. The layers an
@@ -610,7 +614,7 @@ class DshSession(SessionBase):
             provider="deepseek-official",
             model=self._agent.config.model,
             cwd=where,
-            runtime_cwd=where,
+            runtime_cwd=started,
             # Not the SDK's default, which leaves `$DSH_SESSION_ROOT` unset and lets the
             # composition fall back to `./.sessions` in the workspace -- a repository the
             # agent is working in would collect the logs of every run against it. Where this
@@ -717,6 +721,14 @@ def _runtime_args() -> tuple[str, ...]:
         vars(module)["resolve_bundled_launch_args"],
     )
     return resolve()
+
+
+def _nearest(path: str) -> str:
+    """The nearest directory there is at or above a path."""
+    at = Path(path)
+    while not at.is_dir() and at != at.parent:
+        at = at.parent
+    return str(at)
 
 
 def _dsh_home() -> Path:

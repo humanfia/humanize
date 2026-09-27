@@ -35,7 +35,8 @@ while it runs. Signals travel both ways: stopping a command stops the real one o
 
 ## What stays on this machine
 
-- the agent's own program, and the runtime it runs on
+- the agent's own program, and the runtime it runs on, down to what its launcher script runs
+  on the way to starting it
 - its state directory, and anything it runs from inside it
 - the credentials of the [account](/features/accounts) it runs as, including a token it
   refreshes mid-turn

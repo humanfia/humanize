@@ -51,7 +51,8 @@ class OutworlderDriver(Protocol): ...  # away_for(role), run(prompt, schema, rol
 @dataclass(frozen=True, slots=True)
 class AgentSpec: ...  # role, harness, provider, model, effort, cli
 @dataclass(frozen=True, slots=True)
-class EnvSpec: ...  # role, backend, provider (a stored provider's name, or a host), workdir
+class EnvSpec: ...  # role, backend, provider (a stored provider's name, a host, or
+                    # `local` for docker's default here), workdir
 def parse_agents(values: Sequence[str]) -> list[AgentSpec]: ...
 def parse_envs(values: Sequence[str]) -> list[EnvSpec]: ...
 def parse_params(values: Sequence[str]) -> dict[str, str]: ...
@@ -149,6 +150,7 @@ class EnvRole:
     memory: int
     gpu_count: int
     gpu_memory: int
+    image: str  # a docker env's, or "" for its provider's
     grant: Grant
     resources: bool
 @dataclass(frozen=True, slots=True, eq=False)
@@ -280,7 +282,8 @@ def under() -> Path: ...
   resolve. `NotRequired`, `Required`, `ReadOnly` and `Annotated` MUST be read through, and
   `__extra_items__` MUST NOT be relied on.
 - A role's type MUST be read once per type: its capabilities (a mixin's bases with it), its
-  `_permission` and `_skills` for an agent, its resources for an environment, the harness a
+  `_permission` and `_skills` for an agent, its resources and `_image` for an environment, the
+  harness a
   harness protocol names, and whether the runtime fills it -- an `Outworlder`, a `LocalEnv`.
   A type no agent or environment can be MUST raise `FlowDefinitionError`.
 
@@ -395,6 +398,29 @@ def under() -> Path: ...
   where a harness cuts it.
 - A call whose caller has ended MUST raise `FlowCancelled` at its next operation.
 - `running` MUST answer with every call going now, and nothing of a call once it has ended.
+
+### Docker environments
+
+- A `docker` environment MUST be a container of its own per environment a run is given, on the
+  daemon its provider names -- `local` being docker's default here where no provider is written
+  down under that name -- and everything derived from it MUST be in that container. It MUST be
+  started from the role's `_image`, else the provider's, else `python:3.12-slim`, with the
+  workdir -- a directory of the daemon's host -- mounted at its own path, and nothing needed in
+  the image but `/bin/sh` and a Python of at least 3.12; an sshd MUST NOT be.
+- It MUST be given exactly the CPUs, memory and GPUs its role declares as hard limits, no GPU
+  where it declares none and no limit on what else it declares none of, and the provider's
+  runtime and arguments; it MUST be labelled with its provider, role, host and process beside
+  what it holds, and its driver MUST report what it was given.
+- Before any agent starts, what the role asks MUST be held against what its provider may hand
+  out -- what it was written down with, the daemon's own where that is 0 -- less what that
+  provider's running containers hold, and its container limit; GPUs MUST be the first ids
+  nobody holds, and GPU memory the provider's where it says it. What is short MUST raise
+  `ResourceUnmet` saying how much of what is free and which container holds the rest, and no
+  two runs on this machine MUST work it out for one provider at once.
+- An agent working in one MUST be anchored to its container, supervised on this machine in a
+  mirror of its own and reaching the container by `docker exec` alone.
+- Its container MUST be taken down when the environment is closed, and one whose process on
+  this host has gone MUST be taken down by the next run on its provider.
 
 ### Fakes
 
