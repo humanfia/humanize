@@ -54,10 +54,14 @@ def _notices(model: str) -> list[str]:
     return [text for kind, text in said if kind == "notice"]
 
 
-def test_a_model_claude_does_not_know_is_said_to_be_running_as_its_default() -> None:
-    (said,) = _notices("claude-nonexistent-9")
+@pytest.mark.parametrize("model", ["claude-nonexistent-9", "claude-opus-5"])
+def test_a_model_claude_does_not_know_is_said_to_be_running_as_its_default(
+    model: str,
+) -> None:
+    """Its default read as the model only where it is that model, or that model dated."""
+    (said,) = _notices(model)
 
-    assert "claude-nonexistent-9" in said
+    assert model in said
     assert "claude-opus-5-5" in said
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
 from collections import Counter
 from dataclasses import dataclass
@@ -128,6 +129,11 @@ _UNFINISHED = frozenset(
     }
 )
 
+#: The names Claude Code takes for a model besides its id, which it resolves to one: a model it
+#: is told by one of these is running under another name than it was told, and rightly.
+#: `[1m]` after any of them, or after an id, is the same model with a longer context window.
+_ALIASES = frozenset({"default", "best", "opus", "sonnet", "haiku", "opusplan"})
+
 #: What Claude calls each rung of the ladder, said on its own command line. Three line up with
 #: a mode of Claude's own: `plan` is an agent that works everything out and changes nothing,
 #: `acceptEdits` is one that may change what it is working on without asking, and Claude's own
@@ -146,11 +152,6 @@ _UNFINISHED = frozenset(
 #: :meth:`ClaudeCodeSession._command` says `--permission-mode` only where there is a rung --
 #: the way it says `--effort` only where there is an effort. A row spelled "" would be a flag
 #: carrying nothing, which is a mode named badly rather than a mode unasked for.
-#: The names Claude Code takes for a model besides its id, which it resolves to one: a model it
-#: is told by one of these is running under another name than it was told, and rightly.
-#: `[1m]` after any of them, or after an id, is the same model with a longer context window.
-_ALIASES = frozenset({"default", "best", "opus", "sonnet", "haiku", "opusplan"})
-
 _PERMITTED = {
     "read-only": "plan",
     "workspace-write": "acceptEdits",
@@ -820,7 +821,7 @@ class ClaudeCodeSession(StreamSessionBase):
             or not asked
             or not running
             or asked in _ALIASES
-            or running.startswith(asked)
+            or re.fullmatch(re.escape(asked) + r"(-\d{8})?(\[1m\])?", running)
         ):
             return ""
         from hmz.coganchor import models
