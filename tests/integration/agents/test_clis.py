@@ -357,6 +357,8 @@ noted(said)
 
 if said == "quiet":
     sys.exit(0)
+if said == "crash":
+    sys.exit(3)
 if said == "boom":
     out({"type": "error", "message": "grok would not take it"})
     sys.exit(0)
@@ -1356,6 +1358,13 @@ def test_grok_reports_a_refused_turn_as_a_failed_turn(stubs: _Stubs) -> None:
             GrokBuildAgentConfig(model="m", effort="high", web_search=False)
         ).new()("boom")
     assert "would not take it" in str(errored.value.stderr)
+
+
+def test_grok_whose_command_exits_nonzero_is_a_failed_turn(stubs: _Stubs) -> None:
+    """Grok borrows the command transport, so the exit status is read as a command's is."""
+    with pytest.raises(subprocess.CalledProcessError) as crashed:
+        GrokBuildAgent(replace(GROK, max_turns=8)).new()("crash")
+    assert crashed.value.returncode == 3
 
 
 def test_grok_that_said_nothing_at_all_is_a_failed_turn(stubs: _Stubs) -> None:

@@ -76,6 +76,17 @@ def turn(prompt):
         emit({"type": "result", "is_error": True, "error": {"message": "turn refused"},
           "usage": totals})
         return
+    if prompt.startswith("unshaped"):
+        # The model wrote its answer out instead of calling the tool the flag adds, and
+        # Qwen Code refuses the turn for it -- whatever the words were.
+        words = json.dumps({"value": prompt}) if prompt == "unshaped" else "no shape"
+        emit({"type": "assistant", "message": {"id": "0", "content": [
+          {"type": "text", "text": words}], "usage": {"input_tokens": 2}}})
+        emit({"type": "result", "subtype": "error_during_execution", "is_error": True,
+          "error": {"message": "Model produced plain text instead of calling the "
+          "structured_output tool as required by --json-schema after 1 turn(s)."},
+          "usage": totals})
+        sys.exit(1)
     text = json.dumps({"value": prompt}) if "--json-schema" in flags else prompt
     if count == 1:
         usage = {"input_tokens": 2}
@@ -176,6 +187,25 @@ def test_first_shaped_turn_opens_only_one_conversation(qwen: _Qwen) -> None:
     first, second = qwen.calls()
     assert first["session"] == second["session"]
     assert first["pid"] != second["pid"]
+
+
+def test_a_shape_written_out_rather_than_handed_to_the_tool_is_the_answer(
+    qwen: _Qwen,
+) -> None:
+    """Qwen refuses the channel the shape came down; the words are the answer all the same."""
+    session = qwen.agent.new()
+
+    assert session("unshaped", schema=_Answer) == _Answer(value="unshaped")
+    assert qwen.agent.opened == [session.id]
+
+
+def test_words_written_out_that_are_not_the_shape_still_fail_the_shaped_turn(
+    qwen: _Qwen,
+) -> None:
+    session = qwen.agent.new()
+
+    with pytest.raises(Exception, match="no shape"):
+        session("unshaped-prose", schema=_Answer)
 
 
 def test_shape_success_record_does_not_hide_a_nonzero_exit(qwen: _Qwen) -> None:
