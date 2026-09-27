@@ -16,6 +16,9 @@ The ceiling is raised here to what one commit can be. It was also what kept two 
 Textual makes against every character of a sequence from backtracking without end: the one for
 a key report, answered here with a pattern that takes exactly what Textual's takes in linear
 time, and the one for a resize reported in band, held to the length it was only ever tried at.
+
+All of it is Textual's to fix, and is asked of it in Textualize/textual#6721: once a release has
+it, this module goes.
 """
 
 # The ceiling and both patterns are private to Textual's parser, and changing them there is
