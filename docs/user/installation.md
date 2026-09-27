@@ -149,6 +149,7 @@ hmz
 ```
 
 The first time, humanize asks each CLI it found which models it runs. That can take a minute.
+It asks again, in the background, when what a CLI said is more than a week old.
 Once one has answered, the line above the prompt names the agent it would start:
 
 ```text

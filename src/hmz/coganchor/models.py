@@ -52,12 +52,17 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.backends import Profile
 
-__all__ = ["ask", "asked", "offered", "where"]
+__all__ = ["STALE", "ask", "asked", "offered", "stale", "where"]
 
 #: How long a backend is given to say what it runs. Generous, because this is a coding agent
 #: starting up and some of them take the better part of a minute over it. Nothing waits on
 #: this at a prompt, so the cost of waiting too long is a spinner rather than a lost answer.
 WAITING = 180.0
+
+#: How long what a backend said it runs is taken as what it runs. Vendors move their lists
+#: under a kept one -- `grok-4.5` was offered, and a fortnight later was an `unknown model id`
+#: -- and every id in a list nobody asked again is offered as if it were not.
+STALE = datetime.timedelta(days=7)
 
 #: Where the catalogue of the account nobody chose is kept, under humanize's own home. A
 #: provider's is kept in the provider's own directory instead.
@@ -192,6 +197,25 @@ def asked(cli: str, provider: str = "") -> str:
     held = _kept(cli, provider)
     said = held.get("asked")
     return said if isinstance(said, str) else ""
+
+
+def stale(cli: str, provider: str = "") -> bool:
+    """Whether what this account last said it runs is too old to go on offering unasked.
+
+    Args:
+      cli: The backend, by any name it answers to.
+      provider: The account, or "" for the CLI as it already runs.
+
+    Returns:
+      True for one never asked, or asked longer than :data:`STALE` ago.
+    """
+    try:
+        when = datetime.datetime.strptime(
+            asked(cli, provider), "%Y-%m-%dT%H:%M:%SZ"
+        ).replace(tzinfo=datetime.UTC)
+    except ValueError:
+        return True
+    return datetime.datetime.now(datetime.UTC) - when > STALE
 
 
 def ask(cli: str, provider: str = "", seconds: float = WAITING) -> tuple[Model, ...]:

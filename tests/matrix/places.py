@@ -126,7 +126,7 @@ CANDIDATES: dict[str, tuple[Place, ...]] = {
         _at("dsh", "nvidia", "nvidia/deepseek-ai/deepseek-v4-flash", "off"),
     ),
     "grok": (
-        _at("grok", "", "grok-4.5"),
+        _at("grok", "", "grok-4.7"),
         _at("grok", "nvidia", "azure/openai/gpt-5.4-mini"),
     ),
     "kimi": (

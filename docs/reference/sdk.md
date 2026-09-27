@@ -368,6 +368,7 @@ is the one this machine is already signed into.
 | `environ(provider) -> dict[str, str]` | What a turn under this account is run with. |
 | `models(cli, provider="") -> tuple[Model, ...]` | What the backend last said it runs as this account, each with its efforts. Empty if never asked. |
 | `asked(cli, provider="") -> str` | When it was last asked, or `""`. |
+| `stale(cli, provider="") -> bool` | Whether that is never, or more than a week ago (`hmz.coganchor.models.STALE`): a list to ask again before offering it. |
 | `ask(cli, provider="", seconds=None) -> tuple[Model, ...]` | **Starts the backend** to find out, and keeps the answer. |
 
 `Provider` has `cli`, `name`, `way`, `env`, `args`, `made`, `fallback` and `at`, the directory

@@ -61,7 +61,7 @@ CHEAPEST: dict[HarnessKind, tuple[str, str]] = {
     HarnessKind.OPENCODE: ("opencode/nemotron-3.5-lightning-free", ""),
     HarnessKind.MIMO: ("xiaomi/mimo-v2.5", "low"),
     HarnessKind.QWEN: ("qwen3-coder-flash", "low"),
-    HarnessKind.GROK: ("grok-4.5", "low"),
+    HarnessKind.GROK: ("grok-4.7", "low"),
     HarnessKind.AGY: ("gemini-3.8-flash-low", "low"),
     HarnessKind.DSH: ("deepseek-v4-flash", "off"),
 }
