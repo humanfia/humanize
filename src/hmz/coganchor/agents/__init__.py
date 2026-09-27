@@ -18,6 +18,7 @@ from .allowance import (
     blinded,
 )
 from .base import (
+    KEEPING,
     WINDOW,
     AgentBase,
     CommandSessionBase,
@@ -123,6 +124,7 @@ __all__ = [
     "DRIVEN",
     "EVERYWHERE",
     "FLOW",
+    "KEEPING",
     "KINDS",
     "MILLION",
     "OUTCOMES",

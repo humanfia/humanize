@@ -259,7 +259,9 @@ class Tally:
             profile = backends.named(agent.backend)
             if profile is None:
                 continue
-            home = profile.directory()
+            # Where this agent's sessions are, which is the run's own directory for them
+            # rather than the CLI's home wherever its turns keep them there.
+            home = agent.kept()
             # Every session this agent has going, named as the backend names it -- which it
             # does as the turn starts rather than when the turn lands -- and every one it has
             # let go of, whose last rows are still worth reading.

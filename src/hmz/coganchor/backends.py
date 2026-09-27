@@ -518,6 +518,18 @@ class Profile:
       logs: The files one session is logged to under that home, as globs taking `{ident}`.
         Claude gets two -- a sub-agent it starts writes its own transcript, and the tokens it
         spends are the run's.
+      sessions: Where under that home a session is kept: everything one writes, and
+        everything a resumed or forked one reads back -- the transcripts, the index they are
+        found by, what the CLI keeps per conversation beside them. Paths relative to the home,
+        any part of which may be a glob of one name (`state_*.sqlite*`, `projects/*/x`), a
+        directory standing for everything inside it. These, and only these, are what a
+        humanize turn keeps in a directory of humanize's own instead: the settings, the
+        skills and the credentials stay the CLI's. Read off what a turn of each actually
+        wrote and read, with a tracer, rather than off its documentation. Empty for a
+        backend nothing is written down about, whose sessions stay where it keeps them.
+      told: Whether its driver tells the CLI where to keep those, so that nothing has to be
+        answered for it: dsh is started by humanize's own SDK call, which names its session
+        root outright.
       skills: The skill files under that home, as globs, each naming the `SKILL.md` of one
         skill -- which is where the CLI itself looks for the skills a user has installed.
         Empty for a backend that can be given no skills, and for one that offers no way of
@@ -654,6 +666,8 @@ class Profile:
     logs: tuple[str, ...]
     efforts: tuple[str, ...]
     home_in: str = ""
+    sessions: tuple[str, ...] = ()
+    told: bool = False
     skills: tuple[str, ...] = ()
     shared: tuple[str, ...] = ()
     config: tuple[str, ...] = ()
@@ -808,6 +822,38 @@ class Profile:
                 held.append((str(self.directory() / said), f"home/{said}"))
         return tuple(held)
 
+    def kept(
+        self, at: Path, environment: Mapping[str, str] | None = None
+    ) -> tuple[tuple[str, str], ...]:
+        """Every place one of its sessions is kept, and where a humanize turn keeps it instead.
+
+        The same path under a directory of humanize's own as under the CLI's home, so that
+        what is kept there is laid out exactly as the CLI lays out its own and is read back
+        by whatever reads the one.
+
+        Args:
+          at: Where humanize keeps sessions, a directory per backend inside it.
+          environment: The environment the turn runs with, or None for this process's own,
+            which is what says where the home it would have written to is.
+
+        Returns:
+          One `(the path the CLI names, the path it is answered with)` pair per entry of
+          `sessions`, and one more where the home is reached through a link, for the same
+          path spelled with the link followed. Nothing for a backend whose driver tells it
+          where they go, or one nothing is written down about.
+        """
+        if self.told:
+            return ()
+        home = self.directory(environment)
+        settled = Path(os.path.realpath(home))
+        instead = at / self.name
+        held: list[tuple[str, str]] = []
+        for said in self.sessions:
+            held.append((str(home / said), str(instead / said)))
+            if settled != home:
+                held.append((str(settled / said), str(instead / said)))
+        return tuple(held)
+
 
 #: What Claude Code documents on its own command line, for every model it runs, and above them
 #: the one it does not document but takes: `ultracode` is `xhigh` with the turn opted into
@@ -931,6 +977,21 @@ PROFILES = (
         home_var="CLAUDE_CONFIG_DIR",
         home_dir=".claude",
         logs=("projects/*/{ident}.jsonl", "projects/*/{ident}/subagents/**/*.jsonl"),
+        # Claude 2.1.283, traced through a turn, a `--resume` and a `--fork-session`: the
+        # transcripts and the sub-agents' beside them under `projects/`, the running sessions
+        # it registers under `sessions/`, and what it keeps per session id -- the files it
+        # checkpointed, the environment its hooks set, its task lists old and new, the plans
+        # a session in plan mode wrote. `projects/` holds the auto-memory of each project too,
+        # which is kept with the run for being inside it: a session's memory is the run's.
+        sessions=(
+            "projects",
+            "sessions",
+            "file-history",
+            "session-env",
+            "tasks",
+            "todos",
+            "plans",
+        ),
         efforts=_CLAUDE,
         # `ultracode` is real and undocumented, so the catalogue Claude Code answers with
         # will never name it: a model asked about keeps it whatever that list says.
@@ -1067,6 +1128,22 @@ PROFILES = (
         # a row is rewritten in place, so what has been spent is asked of the reader afresh
         # rather than counted off the bytes that arrived since the last look.
         logs=("conversations/{ident}.db",),
+        # agy 1.2.3, traced through a turn and one more in the same conversation: its
+        # database, the `brain/` it writes the transcript and a session's scratch into, the
+        # annotations, implicit summaries and presence lock it keeps per conversation id, and
+        # the three indexes of them -- the summaries database, the summaries protobuf, and the
+        # recent list it caches. Its own log is not among them: `journal` below is read where
+        # the CLI keeps it, being the process's rather than any conversation's.
+        sessions=(
+            "conversations",
+            "brain",
+            "annotations",
+            "implicit",
+            "presence",
+            "conversation_summaries.db*",
+            "jetbox_summaries_proto.pb",
+            "cache/last_conversations.json",
+        ),
         # The one backend here that fails without saying why. It exits with `Agent execution
         # terminated due to error` on both streams and puts the HTTP status in its own log --
         # which is how six rate-limited turns of the 2026-09-09 evaluation read as six turns
@@ -1153,6 +1230,24 @@ PROFILES = (
         home_var="CODEX_HOME",
         home_dir=".codex",
         logs=("sessions/**/rollout-*{ident}.jsonl",),
+        # codex 0.153.4, traced through a turn, another on the same app server and a
+        # `thread/fork` on a second one: the rollouts, archived or not, and the index of them,
+        # and the databases a thread is a row of -- its state, its history, its goals, what is
+        # queued for it, and the memories drawn out of it -- each named for its schema version,
+        # which moves, and each with the write-ahead files beside it. And the locks and shell
+        # snapshots it keeps per thread id. Its logs database is the process's, not a thread's.
+        sessions=(
+            "sessions",
+            "archived_sessions",
+            "session_index.jsonl",
+            "state_*.sqlite*",
+            "thread_history_*.sqlite*",
+            "goals_*.sqlite*",
+            "queue_*.sqlite*",
+            "memories_*.sqlite*",
+            "thread-writer-locks",
+            "shell_snapshots",
+        ),
         efforts=_CODEX,
         # Four places, which is what `skills/list` answers with: its own home, the shared
         # one under yours, and both of the directories a project may keep them in. A turn is
@@ -1283,6 +1378,10 @@ PROFILES = (
         # is `zstd`, which answers only in whole frames, so an agent set to that is one this
         # path reads nothing from until its session is over.
         logs=("sessions/*/{ident}/session.jsonl",),
+        # The session root the SDK is handed, which is the only thing a turn of it writes
+        # under this home -- and the only backend here humanize tells where to keep them.
+        sessions=("sessions",),
+        told=True,
         efforts=_DSH,
         # None, and not for want of looking: the `dsh` command line reads `.dsh/skills` and
         # `.agents/skills`, but that is its web profile's own harness. What humanize drives is
@@ -1344,6 +1443,10 @@ PROFILES = (
         # the directory rather than a file, and `updates.jsonl` is the conversation itself --
         # the others beside it are the plan, the rewind points and what it was told.
         logs=("sessions/*/{ident}/updates.jsonl",),
+        # grok 1.0.24, traced through a turn and another in the same session: a directory per
+        # workspace per session, with the search index of them beside, and the registry of
+        # the ones running -- its JSON, its lock and the temporary it is written through.
+        sessions=("sessions", "active_sessions.*"),
         # What it says when the model it was handed is not in the catalogue it is
         # holding -- which is not the same as the model not being the account's.
         # `grok models` with no account answers out of a list built into the
@@ -1469,6 +1572,18 @@ PROFILES = (
         home_var="KIMI_CODE_HOME",
         home_dir=".kimi-code",
         logs=("server/events/{ident}.jsonl",),
+        # `kimi web`, traced through a turn, another and a `kimi fork`: the sessions, a
+        # directory per workspace, the index of them and the table of those workspaces, the
+        # events the server logs per session, the search index, and what it checkpoints per
+        # session. The registry of running servers is the process's and stays where it is.
+        sessions=(
+            "sessions",
+            "session_index.jsonl",
+            "workspaces.json",
+            "server/events",
+            "search-index",
+            "file-history",
+        ),
         efforts=_KIMI,
         # Every model Kimi runs takes a turn as a fleet as well as as one agent: `swarmmax`
         # and `max` are the same thinking at two widths.
@@ -1541,6 +1656,8 @@ PROFILES = (
         # a directory per workspace. The id is the tail of the name, so a glob on it finds the
         # session whichever workspace it was opened in.
         logs=("sessions/*/*{ident}.jsonl",),
+        # A turn, another and a `--fork` write nothing else under this home.
+        sessions=("sessions",),
         efforts=_PI,
         # Two places, and both are yours: the `skills/` of its own home, and the shared one
         # under yours. Nothing under the workspace, though pi reads `.pi/skills` and
@@ -1651,6 +1768,10 @@ PROFILES = (
         # One file per session, named for the session and nothing else, under a directory per
         # directory the work was done in.
         logs=("projects/*/chats/{ident}.jsonl",),
+        # A turn, another and a fork write the chats and each project's memory beside them
+        # under `projects/`, the per-project scratch under `tmp/`, and what is checkpointed
+        # per session. The usage ledgers are the account's and stay where they are.
+        sessions=("projects", "tmp", "file-history"),
         efforts=_QWEN,
         # Four places: its own home and the shared one under yours, and both of the
         # directories a project may keep them in -- `.qwen` and `.agents`, which is the pair
@@ -1727,6 +1848,10 @@ PROFILES = (
         # None: a session here is rows of a database rather than a file, so there is no log to
         # read a run's cost out of as it is spent, and none to gather afterwards.
         logs=(),
+        # That database and its write-ahead files, and the per-session JSON a release before
+        # it kept -- traced through a turn, another and a `--fork`. The snapshots it takes of
+        # a workspace are a cache of the workspace rather than of the session.
+        sessions=("opencode.db*", "storage"),
         efforts=_VARIANTS,
         # Its own are under the configuration home rather than the data home this backend is
         # otherwise kept under -- `~/.config/opencode`, where its `opencode.json` is, not
@@ -1804,6 +1929,8 @@ PROFILES = (
         home_in="mimocode",
         home_dir=".local/share/mimocode",
         logs=(),
+        # opencode's, under its own name: the database, and the per-session diffs.
+        sessions=("mimocode.db*", "storage"),
         efforts=_VARIANTS,
         # The same arrangement as opencode, which it is a fork of, and one directory more:
         # it reads Codex's as well as Claude Code's. The ones it ships under its own data
@@ -1890,6 +2017,10 @@ PROFILES = (
         # back and what it cost. Under `cli/`, which is where the command line keeps what is
         # its own rather than the desktop app's.
         logs=("cli/rollout/model-io-{ident}.jsonl",),
+        # A turn and another on the same app server: the database a session is rows of, the
+        # rollouts, and the directories it keeps per session -- its sub-agents, artifacts and
+        # the output of what it ran. `v2/` is the account's and the desktop app's.
+        sessions=("cli/db", "cli/rollout", "cli/agents", "cli/artifacts", "cli/exec"),
         efforts=_ZCODE,
         # Four places: its own directory and the shared one under your home, and the same pair
         # under the project. Both tiers, and no flag to turn either off. `zcode skills list`
@@ -1984,6 +2115,10 @@ PROFILES = (
         # None to read: a chat is kept in the agent store rather than as a file per session,
         # so there is no trajectory here for a trace to gather.
         logs=(),
+        # That store, a directory per chat, and the transcripts it writes beside each project
+        # it trusts. The rest of a project's directory is not a session's: it is the trust
+        # itself, and the socket its worker listens on.
+        sessions=("chats", "projects/*/agent-transcripts"),
         efforts=_CURSOR,
         # Both tiers, under the layout every one of these CLIs reads a skill in. It reads
         # several other CLIs' directories too, and those are theirs rather than this one's.

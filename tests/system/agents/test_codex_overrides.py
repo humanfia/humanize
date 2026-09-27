@@ -13,12 +13,14 @@ from __future__ import annotations
 import json
 import shutil
 import time
-from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
 from hmz.coganchor.agents import CodexAgent, CodexAgentConfig
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 pytestmark = pytest.mark.agent
 
@@ -26,8 +28,6 @@ pytestmark = pytest.mark.agent
 #: server that ignored `-c` cannot land in this band by accident.
 _ASKED_WINDOW = 50_000
 _ASKED_COMPACT = 40_000
-
-_SESSIONS = Path.home() / ".codex" / "sessions"
 
 
 def _window_in(path: Path) -> int | None:
@@ -49,13 +49,15 @@ def _window_in(path: Path) -> int | None:
     return None
 
 
-def _window_codex_reported(session_id: str, started: float) -> int:
+def _window_codex_reported(session_id: str, started: float, sessions: Path) -> int:
     """The effective window Codex recorded for this thread.
 
     Args:
       session_id: The thread the turn landed in, as the app server named it.
       started: Unix time just before the agent was constructed, so an older
         rollout is not read as this one.
+      sessions: Where the rollouts were kept, which is humanize's directory for the
+        agent's sessions rather than `~/.codex/sessions`.
 
     Returns:
       The `model_context_window` Codex wrote on `task_started`.
@@ -64,8 +66,8 @@ def _window_codex_reported(session_id: str, started: float) -> int:
       AssertionError: If Codex never wrote one for this thread.
     """
     found: list[Path] = []
-    if _SESSIONS.is_dir():
-        for path in _SESSIONS.rglob("*.jsonl"):
+    if sessions.is_dir():
+        for path in sessions.rglob("*.jsonl"):
             try:
                 if path.stat().st_mtime < started - 2:
                     continue
@@ -108,7 +110,9 @@ def _turn(overrides: tuple[tuple[str, str], ...]) -> tuple[str, int]:
     said = list(session.stream("Reply with exactly: OK. Use no tools."))
     assert said[-1].kind == "result", said[-1]
     assert session.id
-    return session.id, _window_codex_reported(session.id, started)
+    return session.id, _window_codex_reported(
+        session.id, started, agent.kept() / "sessions"
+    )
 
 
 @pytest.fixture

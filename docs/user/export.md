@@ -58,7 +58,7 @@ A file the run never wrote is left out: `resume.jsonl` only for a flow that
 **`traces/export.trace.json`** is gathered as part of the export, so whoever opens the archive
 can open the run as a [timeline](/user/tracing) without gathering anything themselves.
 
-**`sessions/`** holds the logs themselves, not links to them. Some CLIs keep no log file of a
+**`sessions/`** holds the logs themselves, a folder per session. Some CLIs keep no log file of a
 conversation to copy: opencode, mimo, cursor-agent, and CLIs you added on the Accounts page of
 `/settings`. Their sessions have no directory here, and the manifest says why against each one.
 The trace still covers opencode and mimo sessions.

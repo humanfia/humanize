@@ -1,7 +1,7 @@
 """The runs of a workspace that have already happened, and what is gathered out of them.
 
-One run is one epic: a directory holding what happened, what each session was logged to, and the
-journal of a flow that says it can be picked up. What is written down as a run happens is
+One run is one epic: a directory holding what happened, the sessions it opened, and the journal
+of a flow that says it can be picked up. What is written down as a run happens is
 :mod:`hmz.runtime.epic`; reading the backends' own logs back is :mod:`hmz.runtime.tracing`;
 packaging one whole run up to send somewhere is :mod:`hmz.runtime.exporting`. All three are asked
 here, so that whatever is listing the runs -- a command line, the interface's own `/epics` -- asks
@@ -117,7 +117,9 @@ class Epics:
         """
         import datetime
 
-        from hmz.runtime.epic import TRACES
+        from hmz import home
+        from hmz.runtime.epic import SESSIONS, TRACES
+        from hmz.runtime.epic import where as kept_in
         from hmz.runtime.tracing.profile import PROFILE
 
         agents = self.opened(epic)
@@ -126,6 +128,16 @@ class Epics:
             stamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
             where = epic / TRACES / f"{stamp}.trace.json"
         where.parent.mkdir(parents=True, exist_ok=True)
+        # Where the run kept its sessions: its own directory for them, and wherever else one
+        # of them says it was kept by humanize -- an agent that had kept sessions somewhere
+        # before this run was handed it goes on keeping them there. Not a CLI's own home,
+        # which is read whatever is said here.
+        kept = {epic / SESSIONS} | {
+            at.parent
+            for one in self.sessions(epic)
+            if (at := kept_in(epic, one)).name == one.backend
+            and at.is_relative_to(home())
+        }
         # No workspace at all: the ids are exactly this run's, wherever they were logged.
         document = Epics().trace(
             sessions=[ident for ids in agents.values() for ident in ids],
@@ -134,6 +146,7 @@ class Epics:
             start=start,
             end=end,
             profile=epic / PROFILE,
+            kept=sorted(kept),
         )
         return where, document
 
@@ -146,10 +159,8 @@ class Epics:
     ) -> tuple[Path, dict[str, Any]]:
         """Packages one whole run up as one archive, to send to somebody who was not there.
 
-        Everything the run wrote and everything its sessions were logged to, with the links
-        followed: an epic points at the backends' own logs rather than copying them, and a
-        directory of symlinks is a bundle with nothing in it the moment it leaves the machine
-        that made it. Credentials are struck out of every byte of it.
+        Everything the run wrote and everything its sessions were logged to, which the epic
+        keeps itself. Credentials are struck out of every byte of it.
 
         Args:
           epic: The run, by the directory it is written in.
@@ -176,6 +187,7 @@ class Epics:
         start: str | None = None,
         end: str | None = None,
         profile: str | os.PathLike[str] | None = None,
+        kept: Iterable[str | os.PathLike[str]] | None = None,
     ) -> dict[str, Any]:
         """Gathers what a run left behind into one Chrome trace.
 
@@ -189,12 +201,23 @@ class Epics:
           start: The earliest session time to include, in any wording dateparser understands.
           end: The latest.
           profile: Where the run's own profile was written, for a run that was profiled.
+          kept: Where humanize kept the sessions to read besides each CLI's own home, a
+            directory per CLI inside each, or None for everywhere it keeps them: every
+            epic's, and its own for an agent no run was driving.
 
         Returns:
           The trace, as the object that was written.
         """
+        from hmz import home
+        from hmz.runtime.epic import SESSIONS
         from hmz.runtime.tracing.collector import collect
 
+        if kept is None:
+            # Where :attr:`hmz.coganchor.agents.AgentBase.keeps` puts them: each run's own --
+            # of this workspace, where there is one -- and humanize's for an agent no run drove.
+            runs = self.under() if self._workspace is not None else home() / "epics"
+            within = "*" if self._workspace is not None else "*/*"
+            kept = [home() / SESSIONS, *sorted(runs.glob(f"{within}/{SESSIONS}"))]
         return collect(
             self._workspace,
             sessions=sessions,
@@ -203,4 +226,5 @@ class Epics:
             start=start,
             end=end,
             profile=profile,
+            kept=kept,
         )

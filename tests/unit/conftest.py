@@ -11,13 +11,23 @@ and `tests/test_tiers.py` for the check that the two never disagree.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import pytest
 
+from hmz.coganchor.agents import KEEPING
 from tests import tiers
-
-if TYPE_CHECKING:
-    import pytest
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     tiers.applied("unit", items)
+
+
+@pytest.fixture(autouse=True)
+def _keeps_no_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Runs every turn with its sessions where its CLI keeps them, as `HUMANIZE_SESSIONS=off`.
+
+    A unit test asks what a turn would be spawned as and reads the answer; on a machine
+    that can supervise one, every turn humanize keeps the sessions of is wrapped in the
+    supervisor that keeps them, and an answer that differs by machine is not one to pin.
+    The tests about keeping them take it back for themselves.
+    """
+    monkeypatch.setenv(KEEPING, "off")

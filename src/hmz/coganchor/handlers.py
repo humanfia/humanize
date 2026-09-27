@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Literal
 
 from hmz.coganchor.linux import procfs
 from hmz.coganchor.linux.syscalls import ARCH, NR, syscall_name
+from hmz.coganchor.policy import parents
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle only matters for typing
     from collections.abc import Callable
@@ -73,6 +74,50 @@ _OPEN_HOW_FLAGS = 8
 #: the promise or quietly re-root the path somewhere else.
 _OPEN_HOW_RESOLVE = 16
 _RESOLVE_CONFINED = 0x08 | 0x10
+
+#: The calls among those below that make what they name, and so need somewhere to make it --
+#: an `open` among them only where it asks to create, which :func:`_creates` reads.
+_MAKES = frozenset(
+    {
+        NR.CREAT,
+        NR.MKDIR,
+        NR.MKDIRAT,
+        NR.SYMLINK,
+        NR.SYMLINKAT,
+        NR.LINK,
+        NR.LINKAT,
+        NR.RENAME,
+        NR.RENAMEAT,
+        NR.RENAMEAT2,
+    }
+)
+
+
+def _creates(pid: int, registers: Registers) -> bool:
+    """Whether a stopped syscall may make something at a path it names.
+
+    Args:
+      pid: The process.
+      registers: Its registers at the stop.
+
+    Returns:
+      True for a call that creates, links or renames, and an `open` asking to create.
+    """
+    number = registers.syscall_number
+    if number in _MAKES:
+        return True
+    if number == NR.OPEN:
+        return bool(registers.arg(1) & O_CREAT)
+    if number == NR.OPENAT:
+        return bool(registers.arg(2) & O_CREAT)
+    if number == NR.OPENAT2:
+        try:
+            raw = procfs.read_bytes(pid, registers.arg(2), _OPEN_HOW_FLAGS)
+        except OSError:
+            return False
+        return bool(int.from_bytes(raw, "little") & O_CREAT)
+    return False
+
 
 #: Where each syscall keeps the paths it names, as ``(descriptor argument, path
 #: argument)`` pairs -- the descriptor being ``None`` for a call that has none and
@@ -142,6 +187,9 @@ class SyscallDispatcher:
 
     def __init__(self, supervisor: Supervisor) -> None:
         self._sup = supervisor
+        #: The directories an answered path has already been given, so that making sure of
+        #: one is a lookup after the first time rather than a call on every open.
+        self._made: set[str] = set()
         self._table = {
             NR.EXECVE: self._execve,
             NR.EXECVEAT: self._execveat,
@@ -244,6 +292,10 @@ class SyscallDispatcher:
             instead = settled if answered is None else answered
             if instead == named:
                 continue
+            if answered is not None and _creates(tracee.pid, registers):
+                # Where it is answered may not have been made yet: a session humanize keeps
+                # is written into a directory the CLI already has at home.
+                parents(answered, self._made)
             if _confined(tracee.pid, registers):
                 if answered is None:
                     continue

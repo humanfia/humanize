@@ -21,21 +21,17 @@ Show
 
 Sleep 500ms
 # One run of one flow is one directory: what happened, what the flow left behind, the
-# programs it ran, and a link to every conversation it opened.
+# programs it ran, and every conversation it opened.
 Type 'ls "$run"' Enter
 Sleep 2200ms
 Screenshot "/out/run.png"
 Sleep 600ms
 
-# A session is named for whose it was, what took its turns and which account they ran as.
-Type 'ls "$run"sessions' Enter
-Sleep 2800ms
-
-# And the name points at the log the backend itself wrote, which humanize reads and writes
-# where the backend keeps it: the link is for whoever is reading the run afterwards.
-Type 'ls -l "$run"sessions/*/ | tail -1' Enter
+# Its conversations are kept in it, a directory per CLI laid out as that CLI's home is:
+# the only copy there is, which the CLI wrote there and resumes from there.
+Type 'cd "$run" && find sessions -type f' Enter
 Sleep 3s
-Screenshot "/out/run-linked.png"
+Screenshot "/out/run-kept.png"
 Sleep 600ms
 
 # What a flow that says it can be picked up left for the next run of it: the engine's

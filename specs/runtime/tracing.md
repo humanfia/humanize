@@ -16,6 +16,7 @@ def collect(
     start: str | None = None,
     end: str | None = None,
     profile: str | os.PathLike[str] | Iterable[Process] | None = None,
+    kept: Iterable[str | os.PathLike[str]] | None = None,
 ) -> dict[str, Any]: ...
 
 # tracing/profile.py
@@ -48,7 +49,8 @@ def read(at: str | os.PathLike[str]) -> list[Process]: ...
 - `collect` MUST raise `ValueError` for a time it cannot read or an empty session id, and
   MUST NOT fail a whole trace because one backend is absent or unreadable.
 - Where a backend keeps its logs MUST be read from `hmz.coganchor`, and nothing here MAY
-  require anything of what drives one.
+  require anything of what drives one. Every directory in `kept` MUST be read beside each
+  backend's own home, as a directory per backend laid out as that home is.
 - Profiling MUST sample rather than intercept and MUST NOT be able to stop a run: a process
   that cannot be read, or a profile that cannot be written, MUST leave the run as it was.
 - A profile MUST be appended as each program goes rather than held to the end, and a start

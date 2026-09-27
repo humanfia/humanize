@@ -251,3 +251,78 @@ def test_a_turn_is_run_without_every_spelling_of_the_account_not_just_the_writte
     assert "GOOGLE_API_KEY" in opencode.hushes()
     # Every account name is hushed too: the aliases are added to it, never in place of it.
     assert kimi.accounts() <= kimi.hushes()
+
+
+def _sampled(glob: str) -> str:
+    """One path a glob names, every wildcard in it taken as a name of its own."""
+    return glob.format(ident="an-id").replace("**", "a").replace("*", "a")
+
+
+def _answers(profile: backends.Profile, relative: str) -> bool:
+    """Whether a path under a backend's home is one of its sessions'."""
+    from hmz.coganchor.providers.redirect import answered
+
+    return any(
+        answered(f"/home/{said}", f"/kept/{said}", f"/home/{relative}") is not None
+        for said in profile.sessions
+    )
+
+
+def test_every_log_a_backend_writes_is_one_of_the_sessions_humanize_keeps() -> None:
+    """What a trace, an export and the running tally read is what a turn kept in the run."""
+    for profile in backends.PROFILES:
+        for glob in profile.logs:
+            assert _answers(profile, _sampled(glob)), (profile.name, glob)
+
+
+def test_no_session_humanize_keeps_is_a_credential_or_a_skill() -> None:
+    """The CLI keeps reading its account and its skills where the person at it put them."""
+    for profile in backends.PROFILES:
+        for said in profile.creds:
+            if not said.startswith(("~/", "config/")):
+                assert not _answers(profile, said), (profile.name, said)
+        for glob in profile.skills:
+            assert not _answers(profile, _sampled(glob)), (profile.name, glob)
+
+
+def test_a_session_is_kept_at_the_same_path_under_a_directory_per_backend(
+    tmp_path: Path,
+) -> None:
+    profile = backends.named("claude")
+    assert profile is not None
+    home = tmp_path / "home"
+
+    kept = profile.kept(tmp_path / "kept", {"CLAUDE_CONFIG_DIR": str(home)})
+
+    assert (str(home / "projects"), str(tmp_path / "kept/claude/projects")) in kept
+    assert all(one.startswith(str(home)) for one, _ in kept)
+
+
+def test_a_home_reached_through_a_link_is_kept_under_both_spellings(
+    tmp_path: Path,
+) -> None:
+    """A CLI that settles a path before opening it names the other one."""
+    profile = backends.named("pi")
+    assert profile is not None
+    (tmp_path / "real").mkdir()
+    (tmp_path / "linked").symlink_to(tmp_path / "real")
+
+    kept = profile.kept(
+        tmp_path / "kept", {"PI_CODING_AGENT_DIR": str(tmp_path / "linked")}
+    )
+
+    assert [one for one, _ in kept] == [
+        str(tmp_path / "linked/sessions"),
+        str(tmp_path / "real/sessions"),
+    ]
+
+
+def test_a_backend_told_where_its_sessions_go_is_answered_nothing(
+    tmp_path: Path,
+) -> None:
+    """The one handed its session root by humanize's own SDK call: nothing is traced."""
+    profile = backends.named("dsh")
+    assert profile is not None
+
+    assert profile.told
+    assert profile.kept(tmp_path) == ()

@@ -483,7 +483,7 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     # map, which the machines reading the settings above are not required to have.
     from hmz.coganchor import __version__, statepaths, transport
     from hmz.coganchor.netproxy import NetProxy
-    from hmz.coganchor.policy import Layout, Router
+    from hmz.coganchor.policy import Layout, Router, head
     from hmz.coganchor.remote import RemoteClient
     from hmz.coganchor.shadow import ShadowTree, prepare_shadow_root
     from hmz.coganchor.supervisor import Launch, Supervisor
@@ -509,8 +509,13 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
             agent.local_paths
             + [os.path.abspath(path) for path in config.local_paths]
             # What a path is answered with is this machine's business: mirroring a
-            # provider's credentials onto the target would put them where the work lands.
-            + [instead for _, instead in redirects]
+            # provider's credentials onto the target would put them where the work lands,
+            # and a session humanize keeps is kept here. A pattern's is the directory it is
+            # in, which is the one every path it answers is under.
+            + [
+                instead if head(instead) == instead else os.path.dirname(head(instead))
+                for _, instead in redirects
+            ]
         ),
         local_programs=tuple(
             agent.local_programs

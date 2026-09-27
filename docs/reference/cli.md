@@ -379,7 +379,7 @@ which is what `hmz internal anchor --check` is for.
 | Command | |
 | --- | --- |
 | [`hmz internal anchor`](#hmz-internal-anchor) | A turn whose work lands on another machine; under `serve`, the half that lands it. |
-| [`hmz internal cred`](#hmz-internal-cred) | A program run with its credential files answered from an account's own directory. |
+| [`hmz internal cred`](#hmz-internal-cred) | A program run with its credential files answered from an account's own directory, and its sessions from where humanize keeps them. |
 | [`hmz internal hook`](#hmz-internal-hook) | One moment of a coding agent's hook table, carried to the flow it belongs to. |
 | [`hmz internal tools`](#hmz-internal-tools) | A coding agent's tool calls, carried to the process whose callbacks they are. |
 
@@ -491,20 +491,23 @@ hmz internal anchor rendezvous --listen 0.0.0.0:9001
 ### `hmz internal cred`
 
 ```
-hmz internal cred --map FROM=TO [--map ...] -- COMMAND [ARGS...]
+hmz internal cred (--map | --keep) FROM=TO [...] -- COMMAND [ARGS...]
 ```
 
 Runs a program with some of its paths answered by others, and exits with its status. What a
-turn or a login under a [provider](/reference/providers) is spawned as: the program runs here,
-on this terminal, and the syscalls that name one of its credential files are handed a path
-inside that account's directory instead.
+turn or a login under a [provider](/reference/providers) is spawned as, and every turn whose
+sessions humanize [keeps](/reference/providers#where-sessions-are-kept): the program
+runs here, on this terminal, and the syscalls that name one of its credential files are handed
+a path inside that account's directory instead, and those naming its sessions one inside the
+directory they are kept in.
 
 | Flag | |
 | --- | --- |
-| `--map FROM=TO` | **Required, repeatable.** Answer this path (a file, or everything under a directory) with that one. |
+| `--map FROM=TO` | **Repeatable.** Answer this path (a file, or everything under a directory) with that one, a read with a copy held in memory. |
+| `--keep FROM=TO` | **Repeatable.** The same, never with a copy, making where it goes as the program writes. `FROM` may hold a glob in any of its names. |
 | `--` | Ends the flags. Everything after it is the program and its arguments. |
 
-A line with nothing to map or nothing to run is a usage error. A program that could not be
+A line with nothing to map or keep, or nothing to run, is a usage error. A program that could not be
 supervised exits 1 rather than running unsupervised as whoever is at this machine.
 
 ### `hmz internal hook`
@@ -552,6 +555,7 @@ A socket that is not there exits 1, which the CLI reads as tools being unavailab
 | `HUMANIZE_DAEMON` | `off`, `0` or `no`: `hmz` opens the interface in this terminal rather than [holding the run apart](/reference/daemon). Anything else, empty included, holds it. |
 | `HUMANIZE_SENTRY` | `on` or `off`: answers the [reporting](/user/reporting) question for this process without writing anything down. |
 | `HUMANIZE_WATCHDOG` | Seconds a turn may say nothing before [the watchdog looks at it](/reference/agents#when-a-cli-stops-answering), overriding every backend's own. `0` or less turns it off. |
+| `HUMANIZE_SESSIONS` | `off`, `0` or `no`: every CLI keeps its sessions in its own home, and a turn is supervised only for an [account](/reference/providers). Anything else keeps them in the run, or in `~/.humanize/sessions/` for an agent driven by hand. |
 | `HUMANIZE_PRICES` | Where model prices come from: a URL or a path to read instead of [OpenLLMPrices](https://openllmprices.com/). `off`, `0`, `no`, `none` or empty: fetch nothing and use what is kept. |
 | `HUMANIZE_SHADOWS` | Where the mirrors coganchor has made are recorded. Defaults to `~/.cache/humanize/shadows`. |
 | `HUMANIZE_SSH_REUSE` | `0`, `no`, `false` or empty: open a fresh `ssh` per command instead of sharing one connection per host. Set it for a host whose sshd refuses multiplexing. The shared sockets live under `$XDG_RUNTIME_DIR`, else the temporary directory. |
@@ -578,10 +582,12 @@ Set **inside** an anchored agent, so that it and what it spawns can tell:
 
 ### Backend homes
 
-Where each CLI keeps its sessions and logs. humanize reads them wherever it reads a CLI's own
-files: the session links in an [epic](/reference/tracing#epics), the trace `/epics` gathers,
-the cost readout in the interface, the skills an agent is listed with, and the log a failed
-turn is explained from. A home that does not exist is skipped.
+Where each CLI keeps its settings, skills, credentials and -- for a session humanize did not
+run -- its sessions. humanize reads them wherever it reads a CLI's own files: the skills an
+agent is listed with, the log a failed turn is explained from, and the sessions a trace gathers
+beside the ones its [epics](/reference/tracing#epics) keep. A home that does not exist is
+skipped. The sessions a turn opens are kept by humanize instead, laid out the same way, under
+the path the variable moves them to.
 
 | Variable | CLI | Default |
 | --- | --- | --- |
@@ -625,12 +631,13 @@ with everything but letters and digits turned into `-`.
 | `epic.<flow>_<hex>.jsonl` | each flow the run [called](/reference/flows#a-flow-that-calls-another-flow) | The same, for that call. The run's own record names which file each call is in. |
 | `resume.jsonl` | a run of a flow that [can be picked up](/reference/flows#a-flow-that-can-be-picked-up) | The journal `--resume` and `/resume` carry on from. |
 | `profile.jsonl` | a run of a workspace that is [profiled](/reference/tracing#profiling-a-run) | The programs the run started, sampled as it ran. |
-| `sessions/<session>/` | every run | A link per file each session was logged to. The logs stay where the backend keeps them. |
+| `sessions/<cli>/` | every turn of the run | Its sessions, laid out as that CLI's home is, and the only copy: the CLI writes and resumes them here. |
 | `traces/export.trace.json` | exporting on `/epics` | The trace of that run. One gathered by hand is named for the moment instead. |
 
 | Elsewhere | Written by | |
 | --- | --- | --- |
 | `.humanize/<run>.epic.tar.gz` | **export it**, on a run in `/epics` | One whole run to send: its records, its session logs in full, a manifest. `0600`. |
+| `~/.humanize/sessions/<cli>/` | a turn of an agent no run drives, from Python | Its sessions, as an epic's `sessions/` keeps a run's. |
 
 ### Flows
 

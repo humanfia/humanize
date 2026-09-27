@@ -1,10 +1,9 @@
 """One whole run, packaged up to send to somebody who was not there.
 
-A run points at its sessions rather than holding them, which is right on the machine that ran
-it and worth nothing anywhere else: a directory of symlinks into somebody's home is an archive
-with nothing in it. So a bundle is the run with every link followed -- and with every
-credential taken out, since the one thing a person sending their own run must not also send is
-the key it ran on.
+A run holds its sessions, which is right on the machine that ran it and is not yet something
+to attach to an issue. So a bundle is the run in one archive, the session logs carried as what
+they say -- and with every credential taken out, since the one thing a person sending their own
+run must not also send is the key it ran on.
 
 `hmz.runtime.exporting` itself, and no command line: there is none any more. What asks for a
 bundle now is `/epics` in the interface, on the run under its cursor, and this is the layer
@@ -13,9 +12,10 @@ anything asked for one.
 
 Every run here is driven by a stand-in CLI -- `claude`, which keeps its conversations where
 Claude Code does, and `opencode`, which keeps them to itself -- so the whole file is a real
-process, a temporary home and a tarball: nothing CI has not got. The one check that needs
-more -- that a run taken as a named account carries none of that account's key, which means a
-supervised turn and so a kernel that will hand over a tracee -- is in
+process, a temporary home and a tarball: nothing CI has not got. Which is why each keeps them
+at home rather than in the run, keeping one there being a supervised turn. What needs more --
+a session kept in the run, and a run taken as a named account carrying none of that account's
+key, which both mean a kernel that will hand over a tracee -- is in
 `tests/system/runtime/test_export.py`.
 """
 
@@ -190,7 +190,7 @@ def test_a_session_log_comes_as_its_contents_and_not_as_a_link(
     """The whole point: a link into somebody's home is worth nothing on another machine."""
     epic = _ran(tmp_path, monkeypatch, task="Reply with the single word: hello")
     (one,) = sessions(epic)
-    name = f"{one.ident}.jsonl"
+    ((name, _),) = logged(epic)[one.name].items()
 
     at = bundle(epic, tmp_path / "out.tar.gz")[0]
     with tarfile.open(at) as opened:
@@ -397,15 +397,16 @@ def test_a_link_whose_log_has_gone_is_left_out_rather_than_carried_empty(
     assert "has since gone" in said["sessions"][0]["because"]
 
 
-def test_what_each_session_was_logged_to_is_read_through_the_links(
+def test_what_each_session_was_logged_to_is_read_where_it_is_kept(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The files themselves, since what a bundle carries is what is behind each link."""
+    """The files themselves, each by where it is under the directory the session is kept in."""
     epic = _ran(tmp_path, monkeypatch)
     (one,) = sessions(epic)
     log = _log(tmp_path, epic)
 
-    assert logged(epic) == {one.name: {log.name: log.resolve()}}
+    config = tmp_path / "claude-home"
+    assert logged(epic) == {one.name: {log.relative_to(config).as_posix(): log}}
 
 
 @pytest.mark.parametrize(

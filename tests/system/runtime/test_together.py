@@ -52,8 +52,9 @@ def test_an_anchored_flow_leaves_its_work_there_and_its_trajectory_here(
     """An anchor moves the work, not the conversation, so the flow reads back the same way.
 
     The agent runs on this machine whatever the anchor says, keeping its credentials and the
-    transcript a trace is built from; the file it writes is checked on the target, where the
-    workspace it was given only ever existed.
+    transcript a trace is built from -- the second where humanize keeps it, which is this
+    machine too; the file it writes is checked on the target, where the workspace it was
+    given only ever existed.
     """
     target, mirror = tmp_path / "target", tmp_path / "mirror"
     target.mkdir()
@@ -84,7 +85,12 @@ def test_an_anchored_flow_leaves_its_work_there_and_its_trajectory_here(
         sandbox / "landed.txt"
     ).exists()  # nothing landed where the flow was started
 
-    document = tracing.collect(sessions=session.id, agents={agent.id: agent.opened})
+    # Kept where humanize keeps the sessions of an agent no run drives, and read from there.
+    document = tracing.collect(
+        sessions=session.id,
+        agents={agent.id: agent.opened},
+        kept=[agent.keeps],
+    )
 
     assert document["otherData"]["sessions"] == "1"
     assert labels(document, "process_name") == {

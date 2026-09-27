@@ -613,10 +613,11 @@ class DshSession(SessionBase):
             runtime_cwd=where,
             # Not the SDK's default, which leaves `$DSH_SESSION_ROOT` unset and lets the
             # composition fall back to `./.sessions` in the workspace -- a repository the
-            # agent is working in would collect the logs of every run against it. Under the
-            # dsh home instead, which `$DSH_HOME` moves and which is where `backends.py`
-            # reads the trajectory of a session back from.
-            session_root=str(_dsh_home() / "sessions"),
+            # agent is working in would collect the logs of every run against it. Where this
+            # agent keeps its sessions instead, laid out as the dsh home is: the run's own
+            # directory for them, and the dsh home -- which `$DSH_HOME` moves -- only where
+            # this process was told to keep none.
+            session_root=str(self._agent.kept() / "sessions"),
             cordis=cordis,
             env=environment,
             # Which is also why `cordis` above is never left out: the SDK injects its own

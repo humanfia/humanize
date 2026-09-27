@@ -7472,7 +7472,7 @@ class Epics(Sheet[Doing]):
 
     A run is written down as it happens -- which flow, on what, by which agents, and which
     sessions each of them opened -- and until now nothing showed them. What they are for is
-    two things: reading one back afterwards, which is what the links to its sessions are, and
+    two things: reading one back afterwards, which is what the sessions kept in it are, and
     carrying one on, which is what a flow that says it can be picked up is for.
 
     Read rather than chosen from, so enter goes into the run under the cursor rather than
