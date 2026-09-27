@@ -146,6 +146,11 @@ _UNFINISHED = frozenset(
 #: :meth:`ClaudeCodeSession._command` says `--permission-mode` only where there is a rung --
 #: the way it says `--effort` only where there is an effort. A row spelled "" would be a flag
 #: carrying nothing, which is a mode named badly rather than a mode unasked for.
+#: The names Claude Code takes for a model besides its id, which it resolves to one: a model it
+#: is told by one of these is running under another name than it was told, and rightly.
+#: `[1m]` after any of them, or after an id, is the same model with a longer context window.
+_ALIASES = frozenset({"default", "best", "opus", "sonnet", "haiku", "opusplan"})
+
 _PERMITTED = {
     "read-only": "plan",
     "workspace-write": "acceptEdits",
@@ -329,6 +334,8 @@ class ClaudeCodeSession(StreamSessionBase):
         self._at: str | None = None
         #: The id Claude says this session has, taken only once a turn has landed in it.
         self._named: str | None = None
+        #: Whether it has been said that Claude is running another model than it was told.
+        self._substituted = False
         #: The agents this turn has started of its own, by the id of the call that started
         #: each: Claude ends one by answering that call, and what comes back names no tool,
         #: so what it was is remembered here until it does.
@@ -792,6 +799,46 @@ class ClaudeCodeSession(StreamSessionBase):
         # happened.
         self._spends(owed, turn=False)
 
+    def _running(self, running: str) -> str:
+        """What to say where Claude is running another model than the one it was told.
+
+        Claude Code takes a `--model` it does not know without a word and runs its own default
+        in its place -- a turn that succeeds, on a model nobody chose, at that model's price.
+        What it says it is running as it starts is the one place that shows.
+
+        Args:
+          running: The model its `system/init` says it is running.
+
+        Returns:
+          The warning, once a session, or "" where the model is the one it was told: the id
+          itself, that id dated, an alias of Claude's own, or one an account set up and keeps
+          under its own name.
+        """
+        asked = self._agent.config.model.removesuffix("[1m]")
+        if (
+            self._substituted
+            or not asked
+            or not running
+            or asked in _ALIASES
+            or running.startswith(asked)
+        ):
+            return ""
+        from hmz.coganchor import models
+
+        try:
+            held = {
+                one.name for one in models.offered("claude", self._agent.node().name)
+            }
+        except (OSError, ValueError):
+            held = set[str]()
+        if asked in held:
+            return ""
+        self._substituted = True
+        return (
+            f"Claude Code does not know the model {asked!r} and is running {running}, "
+            "its own default, in its place"
+        )
+
     def _read(self, line: str) -> Iterator[Event]:
         """Reads one event Claude wrote, as the things it says the agent did.
 
@@ -835,6 +882,10 @@ class ClaudeCodeSession(StreamSessionBase):
             # Noted, not taken: this is the first line out, said before anything can go
             # wrong, and a session is only opened by a turn that lands in it.
             self._named = str(said["session_id"])
+            if said.get("subtype") == "init" and (
+                instead := self._running(str(said.get("model") or ""))
+            ):
+                yield Event(kind="notice", text=instead)
         elif said.get("type") == "result":
             if failure := _result_failure(said):
                 # Claude has emitted `subtype: success` with `is_error: true`, so neither

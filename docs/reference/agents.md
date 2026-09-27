@@ -1553,6 +1553,13 @@ ClaudeCodeAgentConfig(model="claude-opus-5", effort="max", allowed_tools=("Bash(
   started with restarts the process and resumes the conversation.
 - `bypass` is `manual` mode with `--permission-prompt-tool stdio`; see [What an agent may
   do](#what-an-agent-may-do).
+- **A `model` Claude Code does not know runs as its default.** It says nothing and the turn
+  succeeds, on a model nobody chose. Humanize reads what its `system/init` says it is running
+  and, where that is neither the model, the model dated, one of Claude's aliases (`opus`,
+  `sonnet`, `haiku`, `default`, `best`, `opusplan`, any of them with `[1m]`) nor a name the
+  account's catalogue keeps, says so once a session as a `notice`:
+  `Claude Code does not know the model 'claude-nonexistent-9' and is running claude-opus-5-5,
+  its own default, in its place`. The turn goes on.
 
 ### Codex
 
