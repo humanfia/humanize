@@ -24,7 +24,7 @@ def home() -> pathlib.Path: ...
 | `flows` | The whole of what a flow imports, and nothing besides | [flows.md](flows.md) |
 | `runtime` | What a run is: finding the flow, driving it, writing it down, reading it back | [runtime/SPEC.md](runtime/SPEC.md) |
 | `cli` | The command line | [cli.md](cli.md) |
-| `daemon` | Holding a run where a terminal closing cannot end it | [daemon.md](daemon.md) |
+| `daemon` | Holding a workspace's runs where a terminal closing cannot end them, for whatever reads them | [daemon.md](daemon.md) |
 | `tui` | The terminal interface | [tui.md](tui.md) |
 | `sdk` | The way in from outside | [sdk.md](sdk.md) |
 

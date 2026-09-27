@@ -9,7 +9,7 @@ what it offers -- every answer is `hmz.runtime`'s or `hmz.daemon`'s.
 ```python
 # __init__.py -- both ways in, and every type either hands back
 __all__ = ["Accounts", "Daemon", "Daemons", "Epics", "Fallbacks", "Flows", "Flowverses",
-           "Held", "Hmz", "Refused", "Run", "Session", "fakes"]
+           "Held", "Hmz", "Host", "Link", "Refused", "Run", "Session", "fakes"]
 def __getattr__(name: str) -> object: ...  # `fakes` is `hmz.runtime.flowing.fakes`, whole
 
 # daemons.py -- the runs being held apart from a terminal
@@ -19,6 +19,7 @@ class Daemons:
     def hold(self, opens: Callable[[Held], object],
              workspace: str | os.PathLike[str] | None = None,
              *, columns: int = 0, rows: int = 0) -> Daemon: ...
+    def host(self, workspace: str | os.PathLike[str] | None = None) -> Daemon: ...
 ```
 
 ## Requirements
@@ -39,3 +40,6 @@ class Daemons:
   a flow, an interface of its own, or anything else it has written.
 - `Daemons.here` MUST answer with nothing for a workspace holding no live run, and
   `Daemons.hold` MUST raise `OSError` where the run could not be held.
+- `Daemons.host` MUST answer with the daemon hosting a workspace's runs for frontends, started
+  where none is, and a tool MUST be one of those frontends through the same `Link` an interface
+  and `hmz attach` hold.

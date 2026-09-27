@@ -1,9 +1,12 @@
 """The run a terminal closing cannot end, and the terminals that come and go from it.
 
-    from hmz.daemon import running, start
+    from hmz.daemon import host, running, start
 
     held = running() or start(opens)
     held.attach()
+
+    with host().link(name="ci") as link:   # a workspace's runs, held for frontends
+        link.start("chat", "say hello", agents={"assistant": "claude/MODEL:low"})
 
 One daemon per workspace. It holds a run the way `screen` holds a shell -- a process of its
 own, in a session of its own, drawing on a pseudoterminal nobody has to be looking at -- and a
@@ -15,6 +18,11 @@ How a run is opened is still none of this. What is held is a callable that opens
 returns when it is over, which is what keeps what draws and what holds apart: the interface
 draws on a terminal, and whether that terminal is somebody's ssh session or one of these is
 not a thing it has to be told.
+
+A daemon holds a workspace's runs one of two ways. :func:`start` holds a run the way `screen`
+holds a shell, and a terminal reads it. :func:`host` holds :class:`hmz.runtime.Host` -- the
+runs of a workspace and who is outside them -- and any number of frontends read it at once,
+each a :class:`Link` of its own saying JSON over the socket rather than drawing on it.
 
 What the run *is* is this package's now. It is the process a run of this workspace happens in,
 so it is where the runtime is reached from: :class:`Hmz` is handed through from
@@ -36,6 +44,7 @@ from typing import TYPE_CHECKING, Any
 
 from hmz.daemon import where
 from hmz.daemon.attach import attaches, reads, size
+from hmz.daemon.link import Link, linked
 from hmz.daemon.proto import CONTROL, Frames, asked, spoken
 from hmz.daemon.serve import Held, hosts, logged
 from hmz.daemon.session import Session
@@ -46,7 +55,18 @@ if TYPE_CHECKING:
 
     from hmz.runtime import Hmz
 
-__all__ = ["Daemon", "Held", "Hmz", "Session", "daemons", "running", "start"]
+__all__ = [
+    "Daemon",
+    "Held",
+    "Hmz",
+    "Link",
+    "Session",
+    "daemons",
+    "host",
+    "linked",
+    "running",
+    "start",
+]
 
 #: How long a daemon is given to bind its socket before whoever asked for one gives up. It is
 #: a fork and a bind; a second is already generous, and ten is a machine under load.
@@ -100,12 +120,15 @@ class Daemon:
       workspace: The project it is holding a run in.
       pid: The process holding it.
       started: When it was started, in UTC.
+      protocol: Which version of the frontends' protocol it speaks, or 0 for a run held for
+        a terminal, which frontends do not reach.
     """
 
     at: Path
     workspace: str
     pid: int
     started: str
+    protocol: int = 0
 
     @property
     def alive(self) -> bool:
@@ -123,6 +146,24 @@ class Daemon:
         except OSError:
             return 1
         return reads(one)
+
+    def link(self, name: str = "", kind: str = "sdk", *, replay: bool = True) -> Link:
+        """Attaches a frontend to the runs this daemon hosts.
+
+        Args:
+          name: What the frontend is called, or "" for whoever is at this end and `kind`.
+          kind: What it is: `tui`, `cli` or `sdk`.
+          replay: Whether to be told the run so far, or only what happens from here.
+
+        Returns:
+          The link, attached; a context manager, closed to let go.
+
+        Raises:
+          OSError: If nothing answers there, or what does is a run held for a terminal.
+        """
+        from hmz.daemon.link import reached
+
+        return reached(self.at, name, kind, replay=replay)
 
     def status(self) -> dict[str, Any]:
         """What the run says about itself: how many are reading, and what is running.
@@ -304,6 +345,70 @@ def start(
             errno.EADDRINUSE, f"a run is already being held in {already.workspace}"
         )
     wide, tall = _terminal(columns, rows)
+    return _forks(
+        lambda telling: hosts(opens, at, columns=wide, rows=tall, telling=telling),
+        at,
+        seconds,
+    )
+
+
+def host(
+    workspace: str | os.PathLike[str] | None = None, *, seconds: float = _PATIENCE
+) -> Daemon:
+    """Holds a workspace's runs where a terminal closing cannot end them, for frontends.
+
+    The same process :func:`start` makes -- two forks, a session of its own, one per
+    workspace -- holding :class:`hmz.runtime.Host` rather than a pseudoterminal. What it
+    prints is said to its frontends, and it goes once nothing is running or stopping and
+    nobody is attached, or once it is stopped.
+
+    Args:
+      workspace: The project directory, or None for wherever humanize is being run.
+      seconds: How long to wait for it to bind its socket.
+
+    Returns:
+      The daemon hosting this workspace's runs, listening: the one already there, or one
+      started now.
+
+    Raises:
+      OSError: If a run is held here for a terminal, or no host could be started.
+    """
+    at = where.at(workspace)
+    found = _read(at)
+    if found is None:
+        try:
+            return _forks(lambda telling: _hosts(workspace, at, telling), at, seconds)
+        except OSError:
+            # Another started one in the same breath, which is the one this answers with.
+            found = _read(at)
+            if found is None:
+                raise
+    if not found.protocol:
+        raise OSError(
+            errno.EADDRINUSE,
+            f"a run is being held for a terminal in {found.workspace}; `hmz` opens it",
+        )
+    return found
+
+
+def _forks(serving: Callable[[int], object], at: Path, seconds: float) -> Daemon:
+    """Starts a daemon doing `serving`, and comes back once it is listening.
+
+    A fork so that whatever asked for it is not waiting on it, `setsid` so that the terminal
+    which started it is no longer its own -- which is what keeps a hangup from reaching it --
+    and a second fork so that it can never take a controlling terminal again.
+
+    Args:
+      serving: What the daemon does, handed the descriptor to say it is listening on.
+      at: The daemon's own directory.
+      seconds: How long to wait for it to bind its socket.
+
+    Returns:
+      The daemon, listening.
+
+    Raises:
+      OSError: If it could not be started, or did not come up in the time it was given.
+    """
     reading, telling = os.pipe()
     # Before the fork: what this process has written and not yet flushed is buffered in it,
     # and a fork copies the buffer -- so anything left in one would be written twice, once
@@ -314,7 +419,7 @@ def start(
     middle = os.fork()
     if middle == 0:  # pragma: no cover -- the child never comes back to be covered
         os.close(reading)
-        _detaches(opens, at, wide, tall, telling)
+        _detaches(serving, at, telling)
     os.close(telling)
     try:
         _waits(reading, seconds)
@@ -332,11 +437,7 @@ def start(
 
 
 def _detaches(
-    opens: Callable[[Held], object],
-    at: Path,
-    columns: int,
-    rows: int,
-    telling: int,
+    serving: Callable[[int], object], at: Path, telling: int
 ) -> None:  # pragma: no cover -- runs only in the forked child
     """The two forks and the session, and then the run, in the process that holds it."""
     status = 0
@@ -351,7 +452,7 @@ def _detaches(
 
         with contextlib.suppress(OSError, ValueError):
             signal.signal(signal.SIGHUP, signal.SIG_IGN)
-        hosts(opens, at, columns=columns, rows=rows, telling=telling)
+        serving(telling)
     except BaseException as why:  # noqa: BLE001 -- the last frame of a process nobody reads
         status = 1
         # Said back down the pipe as well as written down: whoever asked for a daemon is
@@ -367,6 +468,46 @@ def _detaches(
             sys.stdout.flush()
             sys.stderr.flush()
         os._exit(status)  # nothing of this process is anybody's to unwind
+
+
+def _hosts(
+    workspace: str | os.PathLike[str] | None, at: Path, telling: int
+) -> None:  # pragma: no cover -- runs only in the forked child
+    """The runs of a workspace, hosted, in the process that holds them."""
+    import signal
+    import threading
+
+    from hmz.daemon.carrying import Printed, serves
+    from hmz.runtime import Hmz
+
+    if workspace is not None:
+        os.chdir(workspace)
+    at.mkdir(parents=True, exist_ok=True)
+    # Nobody types at this process, and nobody reads its terminal: what a CLI it starts
+    # writes straight to a descriptor goes down beside the socket, and what is printed in
+    # Python is said to every frontend.
+    nothing = os.open(os.devnull, os.O_RDONLY)
+    os.dup2(nothing, 0)
+    written = os.open(at / where.LOG, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+    for fd in (1, 2):
+        os.dup2(written, fd)
+    for fd in (nothing, written):
+        os.close(fd)
+    with contextlib.suppress(OSError, ValueError):
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+    hmz = Hmz()
+    # If it has been answered yes, and never otherwise: nobody is here to ask.
+    hmz.reports()
+    held = hmz.host()
+    sys.stdout = sys.stderr = Printed(held)
+
+    def closes(_signal: int, _frame: object) -> None:
+        # Off the signal's frame: closing waits on threads the frame may be holding up.
+        threading.Thread(target=held.close, daemon=True).start()
+
+    with contextlib.suppress(OSError, ValueError):
+        signal.signal(signal.SIGTERM, closes)
+    serves(held, at, telling)
 
 
 def _waits(reading: int, seconds: float) -> None:
@@ -406,11 +547,13 @@ def _read(at: Path) -> Daemon | None:
         return None
     if not _listening(at):
         return None
+    protocol = said.get("protocol")
     return Daemon(
         at=at,
         workspace=str(said.get("workspace") or ""),
         pid=pid,
         started=str(said.get("started") or ""),
+        protocol=protocol if isinstance(protocol, int) else 0,
     )
 
 

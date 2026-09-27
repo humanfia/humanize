@@ -18,6 +18,15 @@ per workspace, reached over its socket. That is what a tool looking after a run 
 started asks: what is being held here, what it is running, letting go of the terminals on it,
 stopping it. A run held that way outlives the program that asked for it.
 
+A workspace's runs held for frontends are :class:`Host`, and a tool is one of those frontends
+through a :class:`Link` -- the same one an interface or `hmz attach` holds -- claiming the
+roles it answers for and saying what the others type:
+
+    with (Daemons().here() or Daemons().host()).link(name="ci") as link:
+        link.claim("reviewer")
+        for said in link:
+            ...
+
 :mod:`fakes` is the third thing a tool outside wants: the in-memory drivers a flow is tested
 on -- scripted agents, dictionary filesystems, an outworlder that answers from a list -- which
 are :mod:`hmz.runtime.flowing.fakes`, handed through whole.
@@ -38,7 +47,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from hmz.daemon import Daemon, Held, Session
+    from hmz.daemon import Daemon, Held, Link, Session
     from hmz.runtime import (
         Accounts,
         Epics,
@@ -46,6 +55,7 @@ if TYPE_CHECKING:
         Flows,
         Flowverses,
         Hmz,
+        Host,
         Refused,
         Run,
     )
@@ -62,6 +72,8 @@ __all__ = [
     "Flowverses",
     "Held",
     "Hmz",
+    "Host",
+    "Link",
     "Refused",
     "Run",
     "Session",
@@ -83,6 +95,8 @@ _WRITTEN = {
     "Flowverses": "hmz.runtime",
     "Held": "hmz.daemon",
     "Hmz": "hmz.runtime",
+    "Host": "hmz.runtime",
+    "Link": "hmz.daemon",
     "Refused": "hmz.runtime",
     "Run": "hmz.runtime",
     "Session": "hmz.daemon",

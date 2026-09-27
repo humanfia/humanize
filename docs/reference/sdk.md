@@ -2,7 +2,8 @@
 
 `hmz.sdk` is how a program that is not humanize drives humanize. It offers two ways into a
 run: [`Hmz`](#hmz) runs one in your own process, and [`Daemons`](#daemons) holds one in a
-process of its own, where a terminal closing cannot end it.
+process of its own, where a terminal closing cannot end it -- and a program may be one of
+several [frontends](#link) sharing a workspace's runs.
 
 ::: code-group
 
@@ -52,6 +53,17 @@ print(daemon.status())
 daemon.stop()
 ```
 
+```python [one of its frontends]
+from hmz.sdk import Daemons
+
+with (Daemons().here() or Daemons().host()).link(name="starter") as link:
+    link.start("ralph_loop", "fix the build",
+               agents={"agent": "claude/claude-opus-5:high"}, budget={"cost": 5})
+    for said in link:            # everything the run does, as messages
+        if said["type"] == "ended":
+            break
+```
+
 :::
 
 `Hmz().run(...)` is what `hmz exec` calls with a command line. A run refused before it starts
@@ -70,12 +82,13 @@ All of these import from `hmz.sdk`.
 | [`Accounts`](#accounts), [`Fallbacks`](#fallbacks) | The accounts an agent runs as, and where a turn goes when its place cannot take it: `Hmz.accounts` and `Hmz.fallbacks`. |
 | [`Epics`](#epics) | The runs of a workspace that already happened: `Hmz.epics`. |
 | [`Daemons`](#daemons), [`Daemon`](#session), [`Held`](#session), [`Session`](#session) | Runs held apart from any terminal. |
+| [`Host`](#link), [`Link`](#link) | A workspace's runs shared by several frontends, and one frontend of them. |
 | [`fakes`](#fakes) | The in-memory kit a flow is tested on, as a module. |
 
 ::: tip Stable and internal
 Import these from `hmz.sdk`. Each is fetched from the layer it is written in, only when it is
-named: `Hmz`, `Run` and the objects `Hmz` hands out from `hmz.runtime`, and `Daemon`, `Held`
-and `Session` from `hmz.daemon`. Those modules, and the types the methods below return
+named: `Hmz`, `Run`, `Host` and the objects `Hmz` hands out from `hmz.runtime`, and `Daemon`,
+`Held`, `Link` and `Session` from `hmz.daemon`. Those modules, and the types the methods below return
 (`Offer`, `Declaration`, `Line`, `Provider` and the rest), are **internal**. Their fields are
 listed here as they are today.
 
@@ -456,6 +469,7 @@ where, document = runs.traced(last)
 | `here(workspace=None) -> Daemon \| None` | The run held in one workspace, or `None`. |
 | `all() -> list[Daemon]` | Every run held on this machine, oldest first. |
 | `hold(opens, workspace=None, *, columns=0, rows=0) -> Daemon` | Starts a daemon and returns once it is listening. `opens(held)` is called in the held process with a [`Held`](#session), and returns when the run is over. `columns` and `rows` are the terminal size it draws for until one attaches; `0` for this terminal's. `OSError` if it could not start, or a run is already held there. |
+| `host(workspace=None) -> Daemon` | The daemon [hosting](/reference/daemon#hosting) that workspace's runs for frontends, started where none is. `OSError` where the run there is held for a terminal, or no host came up. |
 
 The third tab at the [top of the page](#sdk) is `hold` holding a flow.
 
@@ -466,6 +480,8 @@ A **`Daemon`** is one held run, as a tool outside reaches it.
 | Member | |
 | --- | --- |
 | `at`, `workspace`, `pid`, `started` | Its directory, its project, the process holding it, and when it started, in UTC. |
+| `protocol` | `1` for a host of frontends, `0` for a run held for a terminal. |
+| `link(name="", kind="sdk", *, replay=True) -> Link` | Attaches a [frontend](#link) to a host. |
 | `alive` | Whether that process is still there. |
 | `status() -> dict` | What it says about itself: `pid`, `workspace`, `started`, `attached` (terminals reading it), `flows` and `calls` running. |
 | `attach() -> int` | Reads it from this terminal until it ends or lets go. |
@@ -485,6 +501,32 @@ A **`Held`** is what `opens` is handed: a `Session`, plus the hooks the held pro
 A **`Session`** is the `Protocol` whatever is drawing a held run sees: `attached`, how many
 terminals are reading it, and `detach()`. An interface of your own that is handed one knows it
 is held; one handed none is running in the terminal it was typed in.
+
+## `Host` and `Link` {#link}
+
+A **`Host`** is a workspace's runs as every frontend attached to them shares them: the run
+going, who claims which `Outworlder` role, who is away, what is waiting to be said to an agent,
+and a history a frontend arriving late reads from the top. `Hmz().host()` is the one for a
+workspace in your own process; `Daemons().host()` holds one in a process of its own.
+
+A **`Link`** is one frontend of a host: the same class in your process and over a daemon's
+socket. It is told everything as messages and asks for everything as requests; claims make a
+role yours alone to answer.
+
+```python
+from hmz.sdk import Daemons
+
+with (Daemons().here() or Daemons().host()).link(name="ci", replay=False) as link:
+    link.claim("reviewer")
+    for said in link:
+        if said["type"] == "pending":
+            for asked in said["pending"]:
+                if asked["owner"] == link.client:
+                    link.answer(asked["question"], "looks good")
+```
+
+Every method, message and request is in the [daemon reference](/reference/daemon#link). A
+request refused raises [`Refused`](#refused), with the reason every frontend is given.
 
 ## `fakes` {#fakes}
 

@@ -1,10 +1,12 @@
 """What the socket between a run and the terminals reading it carries.
 
-A frame is a kind and some bytes, and there are six kinds. Five of them are a terminal: the
+A frame is a kind and some bytes, and there are seven kinds. Five of them are a terminal: the
 one that says a terminal has arrived and how big it is, the two that carry the keys one way
 and the screen the other, the one that says it has been resized, and the one that says the
 run has let go. The sixth is a line asking the run a question about itself, which is what a
-terminal reaching for a held run sends and closes before deciding whether to attach.
+terminal reaching for a held run sends and closes before deciding whether to attach. The
+seventh is a frontend's: one JSON object, a request one way and a message the other, which is
+the whole of what a frontend of a host and the host say to each other.
 
 Framed rather than a raw pipe both ways, because the two directions are not only bytes: a
 terminal that has been resized has to say so, and a run that is letting go has to say that
@@ -22,7 +24,9 @@ __all__ = [
     "GONE",
     "HELLO",
     "INPUT",
+    "MESSAGE",
     "OUTPUT",
+    "PROTOCOL",
     "RESIZE",
     "Frames",
     "asked",
@@ -42,6 +46,13 @@ RESIZE = b"R"
 GONE = b"X"
 #: A question about the run rather than a terminal reading it, answered with one of the same.
 CONTROL = b"C"
+#: One JSON object between a frontend and the host it is attached to: a request on its way in,
+#: and a reply or a message about the runs on its way out.
+MESSAGE = b"M"
+
+#: Which version of what a frontend and a host say to each other this is, written down beside
+#: a host's socket so that a frontend reaching one it cannot read says so rather than hanging.
+PROTOCOL = 1
 
 #: How long a frame may be. A screen is kilobytes and a paste is not much more; a length
 #: longer than this is a socket that is not carrying this protocol.
@@ -55,7 +66,7 @@ def frame(kind: bytes, payload: bytes = b"") -> bytes:
     """One frame, ready to be written.
 
     Args:
-      kind: Which of the six it is.
+      kind: Which of the seven it is.
       payload: What it carries.
 
     Returns:

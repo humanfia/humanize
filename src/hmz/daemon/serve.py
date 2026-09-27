@@ -13,29 +13,39 @@ longer its own, a second fork so it can never take another, and its own pseudote
 there is a screen to draw on when nobody is reading.
 """
 
+# The socket helpers this shares with the half that carries a host's messages are that half's,
+# and private to the package rather than to either module.
+# pyright: reportPrivateUsage=false
+
 from __future__ import annotations
 
 import contextlib
-import dataclasses
 import fcntl
 import os
 import selectors
 import signal
-import socket
 import struct
 import sys
 import termios
 import threading
-import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from hmz.daemon import where
+from hmz.daemon.carrying import (
+    _listens,
+    _now,
+    _quietly,
+    _Reading,
+    _watching,
+    logged,
+)
 from hmz.daemon.proto import (
     CONTROL,
     GONE,
     HELLO,
     INPUT,
+    MESSAGE,
     OUTPUT,
     RESIZE,
     Frames,
@@ -45,6 +55,7 @@ from hmz.daemon.proto import (
 )
 
 if TYPE_CHECKING:
+    import socket
     from collections.abc import Callable, Generator
 
 __all__ = ["Held", "hosts", "logged", "sized"]
@@ -79,28 +90,6 @@ _COLUMNS, _ROWS = 80, 24
 #: reading -- it is a terminal that has not been told its own size, or one being taken down --
 #: and laying a screen out against it is what a full-screen program crashes on.
 _NARROW, _SHORT = 8, 2
-
-
-@dataclasses.dataclass(slots=True)
-class _Reading:
-    """One socket on the other end of this run, and what has arrived off it so far.
-
-    A socket is on the list from the moment it connects, before it has said what it is for: a
-    terminal says so with `HELLO` and is drawn for from then on, and a question about the run
-    says so with `CONTROL` and is answered and closed. One record rather than a dict apiece,
-    so that there is one list to take a socket off rather than three to keep in step.
-
-    Attributes:
-      one: The socket.
-      frames: What has been read off it that is not yet a whole frame.
-      joined: Whether it is a terminal reading this run, rather than one that has not said.
-      sending: What the run has drawn that this socket has not taken yet.
-    """
-
-    one: socket.socket
-    frames: Frames
-    joined: bool = False
-    sending: bytearray = dataclasses.field(default_factory=bytearray)
 
 
 def sized(fd: int, columns: int, rows: int) -> None:
@@ -458,6 +447,12 @@ class Held:
         elif kind == CONTROL:
             self._answers(one, asked(payload))
             self._closing(selector, one)
+        elif kind == MESSAGE:
+            # A frontend, reaching for runs held for frontends: this one is held for a
+            # terminal, and says so rather than leaving it waiting on a reply.
+            with contextlib.suppress(OSError):
+                one.sendall(frame(GONE, b"held for a terminal; `hmz` opens it"))
+            self._closing(selector, one)
 
     def _joins(self, one: socket.socket, said: dict[str, Any]) -> None:
         """Takes a terminal onto the list, and has the run draw itself for it."""
@@ -640,46 +635,6 @@ class Held:
         logged(self._at, about)
 
 
-def logged(at: Path, about: str) -> None:
-    """Writes down what went wrong where nobody was reading a terminal to see it.
-
-    Args:
-      at: The daemon's own directory.
-      about: What was being done, since whatever is being handled is what raised.
-    """
-    with (
-        contextlib.suppress(OSError),
-        (at / where.LOG).open("a", encoding="utf-8") as writing,
-    ):
-        writing.write(f"{about}\n{traceback.format_exc()}\n")
-
-
-def _watching(
-    selector: selectors.BaseSelector, one: socket.socket | int, *, waiting: bool
-) -> None:
-    """Says whether one descriptor is worth waking for room to write as well as to read.
-
-    Args:
-      selector: What the loop waits on.
-      one: The descriptor, or the socket it belongs to.
-      waiting: Whether anything is waiting to be written to it.
-
-    Note:
-      A descriptor that has gone since the round began is one there is nothing to say about,
-      which is what the loop finds out when it closes it.
-    """
-    wanted = selectors.EVENT_READ | (selectors.EVENT_WRITE if waiting else 0)
-    with contextlib.suppress(KeyError, ValueError, OSError):
-        if selector.get_key(one).events != wanted:
-            selector.modify(one, wanted)
-
-
-def _quietly(hook: Callable[[], object]) -> None:
-    """Runs one of the registered hooks, which must not be able to end the run."""
-    with contextlib.suppress(Exception):
-        hook()
-
-
 def hosts(
     opens: Callable[[Held], object],
     at: Path,
@@ -752,40 +707,6 @@ def hosts(
                     os.close(fd)
 
 
-def _listens(at: Path) -> socket.socket:
-    """Binds the socket terminals arrive on, taking away one a daemon that is gone left.
-
-    Called with this workspace's daemon lock already held, so that taking a socket away as
-    stale cannot be taking one from a daemon that is coming up beside this.
-
-    Args:
-      at: The daemon's own directory.
-
-    Returns:
-      The socket, listening.
-
-    Raises:
-      OSError: If it cannot be bound.
-    """
-    path = at / where.SOCKET
-    if path.exists():
-        # A socket file outlives the process that bound it, and one nothing is listening on
-        # is a terminal that hangs rather than one that says nothing is running. Nothing else
-        # can be listening on it: this workspace's daemon lock is held.
-        with contextlib.suppress(OSError):
-            path.unlink()
-    listening = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    try:
-        with where.reached(at) as reaching:
-            listening.bind(reaching)
-        path.chmod(0o600)
-        listening.listen(8)
-    except OSError:
-        listening.close()
-        raise
-    return listening
-
-
 @contextlib.contextmanager
 def _drawn_on(slave: int) -> Generator[None]:
     """Puts the standard streams on the pseudoterminal, and puts them back afterwards.
@@ -820,10 +741,3 @@ def _drawn_on(slave: int) -> Generator[None]:
         for name, was in said.items():
             if was is not None:
                 os.environ[name] = was
-
-
-def _now() -> str:
-    """This moment, to the second, which is how long a daemon's own note has to be true."""
-    import datetime
-
-    return datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")

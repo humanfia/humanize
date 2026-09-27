@@ -30,11 +30,13 @@ from typing import TYPE_CHECKING, Any
 import pytest
 
 from hmz.daemon import where
+from hmz.daemon.link import reached
 from hmz.daemon.proto import (
     CONTROL,
     GONE,
     HELLO,
     INPUT,
+    MESSAGE,
     OUTPUT,
     RESIZE,
     Frames,
@@ -488,6 +490,20 @@ def test_a_runtime_that_will_not_say_is_a_run_running_nothing_rather_than_no_ans
     assert said["ok"]
     assert said["flows"] == []
     assert said["calls"] == []
+
+
+@pytest.mark.timeout(60)
+def test_a_frontend_reaching_for_a_run_held_for_a_terminal_is_told_so(
+    holding: Holding,
+) -> None:
+    """Rather than left waiting on a reply this protocol has no way to give."""
+    frontend = holding.terminal(joining=False)
+
+    frontend.says(MESSAGE, {"id": "r1", "do": "hello", "name": "bot"})
+
+    assert frontend.hears(GONE) == b"held for a terminal; `hmz` opens it"
+    with pytest.raises(OSError, match="held for a terminal"):
+        reached(holding.at, "bot")
 
 
 @pytest.mark.timeout(60)
