@@ -34,12 +34,15 @@ to ask.
 
 from __future__ import annotations
 
+import contextlib
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from argparse import ArgumentParser
-    from collections.abc import MutableMapping
+    from collections.abc import Generator, MutableMapping
+
+    from hmz.runtime import Run
 
 __all__ = ["APART", "COMMANDS", "INTERNAL", "main", "many", "opens"]
 
@@ -144,8 +147,10 @@ def _exec(argv: list[str]) -> int:
         # do is say so plainly, on the stream that is not the answer.
         if blind := running.unreadable():
             out.aside(f"hmz exec: {blind}")
+        ended: list[int] = []
         try:
-            running.run()
+            with _ending(running, ended):
+                running.run()
         except Refused as error:
             # An environment that could not be reached, or one short of what its role
             # needs, which is only known once it has been asked -- still before the flow ran.
@@ -161,12 +166,65 @@ def _exec(argv: list[str]) -> int:
             # as a crash and printed as a traceback nobody has anything to do about.
             out.aside(f"hmz exec: stopped -- {why}")
         except BaseException as why:
+            if ended:
+                # Nor is one a terminate or a hangup stopped, once it has let go of what it
+                # made: it exits as the signal would have had it.
+                raise SystemExit(128 + ended[0]) from None
             # Reported and then raised on exactly as it was: what a flow does when it fails
             # is the flow's business and the person at the terminal's, and this is only
             # humanize finding out that it happened.
             telemetry.crash(why, doing="hmz exec")
             raise
+    if ended:
+        raise SystemExit(128 + ended[0])
     return 0
+
+
+@contextlib.contextmanager
+def _ending(running: Run, ended: list[int]) -> Generator[None]:
+    """Stops a run on a terminate or a hangup as an interrupt stops it, while it runs.
+
+    Left to themselves either would end the process where it stood, and what the run made
+    would outlive it -- a container going on running until the next run on its provider
+    found it. Stopped instead, the run unwinds and lets go of all of it first.
+
+    Args:
+      running: The run.
+      ended: Where the signal that stopped it is written, once one has.
+    """
+    import signal
+    import threading
+
+    # The stopping is done by a thread waiting for the word rather than on the signal's own
+    # frame, which may be holding a lock the stopping takes -- the run's, or the one
+    # threading takes to start a thread.
+    told = threading.Event()
+
+    def stops() -> None:
+        told.wait()
+        if ended:
+            running.stop()
+
+    def ends(signum: int, _frame: object) -> None:
+        # Once: a second is the run already letting go of what it made, which cancelling it
+        # again would cut short.
+        if not ended:
+            ended.append(signum)
+            told.set()
+
+    was: dict[int, Any] = {}
+    for one in (signal.SIGTERM, signal.SIGHUP):
+        with contextlib.suppress(ValueError):  # off the main thread, where none reaches
+            # A signal somebody chose to have ignored -- a hangup under `nohup` -- stays so.
+            if signal.getsignal(one) != signal.SIG_IGN:
+                was[one] = signal.signal(one, ends)
+    threading.Thread(target=stops, daemon=True, name="humanize-ending").start()
+    try:
+        yield
+    finally:
+        for one, before in was.items():
+            signal.signal(one, before)
+        told.set()
 
 
 def _attach(argv: list[str]) -> int:

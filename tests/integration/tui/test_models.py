@@ -319,18 +319,32 @@ async def test_an_unconfigured_advisory_backend_does_not_outrun_model_discovery(
 
 
 @pytest.mark.timeout(60)
+@pytest.mark.parametrize(("days", "again"), [(1, False), (8, True)])
 @unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
-async def test_a_backend_that_has_already_said_is_not_asked_again_on_its_own(
+async def test_a_backend_that_has_lately_said_is_not_asked_again_on_its_own(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
     monkeypatch: pytest.MonkeyPatch,
+    days: int,
+    *,
+    again: bool,
 ) -> None:
-    """Asking is a coding agent starting up, and the key on the models is what asks again."""
+    """Asking is a coding agent starting up, and the key on the models is what asks again.
+
+    Unless what it said has gone stale: a vendor moves its list under a kept one, and a week
+    on, the interface asks again as it opens rather than go on offering what may be gone.
+    """
+    import datetime
+    import json
+
     import hmz.coganchor.models
     from hmz.coganchor import models
 
     kept = models.where("claude")
     kept.parent.mkdir(parents=True, exist_ok=True)
-    kept.write_text('{"asked": "before", "models": []}')
+    then = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days)
+    kept.write_text(
+        json.dumps({"asked": then.strftime("%Y-%m-%dT%H:%M:%SZ"), "models": []})
+    )
     asked: list[str] = []
 
     def note(cli: str, provider: str = "", seconds: float = 0.0) -> tuple[Model, ...]:
@@ -343,4 +357,4 @@ async def test_a_backend_that_has_already_said_is_not_asked_again_on_its_own(
         await driver.pause()
         await driver.pause()
 
-    assert asked == []
+    assert asked == (["claude"] if again else [])

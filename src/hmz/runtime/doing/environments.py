@@ -201,13 +201,17 @@ class Environments:
           seconds: How long it is given.
 
         Returns:
-          What it said, or why it said nothing.
+          What it said, or why it said nothing -- never raising, even for a provider that
+          can no longer be reached the way it was written down.
         """
         from hmz.coganchor.machines.store import SSHProvider
 
-        if isinstance(provider, SSHProvider):
-            return _ssh(provider, seconds)
-        return _docker(provider, seconds)
+        try:
+            if isinstance(provider, SSHProvider):
+                return _ssh(provider, seconds)
+            return _docker(provider, seconds)
+        except (ValueError, OSError, RuntimeError) as error:
+            return Checked(reached=False, said=str(error))
 
 
 def _asked(argv: list[str], seconds: float) -> tuple[int, str, str]:
@@ -270,10 +274,7 @@ def _docker(provider: DockerProvider, seconds: float) -> Checked:
     """A docker daemon, asked `docker info`, and held up against what it was given."""
     from hmz.coganchor.machines import gpus_listed
 
-    try:
-        asking = provider.daemon().docker("info", "--format", "{{json .}}")
-    except (ValueError, OSError) as error:
-        return Checked(reached=False, said=str(error))
+    asking = provider.daemon().docker("info", "--format", "{{json .}}")
     status, out, err = _asked(asking, seconds)
     try:
         said: object = json.loads(out) if out.strip() else {}

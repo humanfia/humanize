@@ -16,10 +16,12 @@ import json
 import os
 import subprocess
 import sys
+import threading
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
+import yaml
 from pydantic import BaseModel, ConfigDict
 
 from hmz.coganchor.agents import (
@@ -40,9 +42,6 @@ from hmz.coganchor.agents import (
 from hmz.coganchor.machines import AnchoredConfig
 from tests.agents import standins
 from tests.stubs import HereAnchor
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 PI = PiAgentConfig(model="openai-codex/gpt-5.5", effort="high")
 OPENCODE = OpencodeAgentConfig(model="opencode/big-pickle", effort="high")
@@ -148,6 +147,19 @@ while True:
     part({"type": "toolcall_end", "contentIndex": 2,
           "toolCall": {"type": "toolCall", "id": "call_1", "name": "bash",
                        "arguments": {"command": "echo " + said}}})
+    if said == "slow":
+        # A command that takes its time, until the run is told to stop: the call is left with
+        # a result that says it was aborted, and the run settles before the abort is answered.
+        while (more := take()) is not None and more["type"] != "abort":
+            held.append(more)
+        note([], "abort")
+        out({"type": "message_end", "message": {"role": "toolResult",
+             "toolCallId": "call_1", "isError": True,
+             "content": [{"type": "text", "text": "Operation aborted"}]}})
+        out({"type": "agent_end"})
+        out({"type": "agent_settled"})
+        out({"type": "response", "command": "abort", "success": True})
+        continue
     part({"type": "text_end", "contentIndex": 1, "content": said})
     out({"type": "message_end", "message": {"role": "assistant",
          "content": ([] if said == "wrong" else [{"type": "text", "text": said}]),
@@ -565,6 +577,29 @@ def test_pi_can_be_talked_to_while_a_turn_is_running(stubs: _Stubs) -> None:
         "steer actually, stop",
     ]
     assert session("after") == "after"  # the stream is still in step for the next turn
+
+
+def test_pi_is_told_to_abort_a_turn_before_it_is_cut_off(stubs: _Stubs) -> None:
+    """So that the call it was in the middle of is left with a result saying so.
+
+    Ended outright, pi leaves the call in its session with no result at all, and the next
+    turn's model is shown one it has to guess about -- which some take for the first prompt
+    still being theirs to answer, and answer it instead of their own.
+    """
+    session = PiAgent(PI).new()
+
+    def cuts() -> None:
+        for event in session.stream("slow"):
+            if event.kind == "tool":
+                threading.Thread(target=session.cut, kwargs={"why": "stopped"}).start()
+
+    cutting = threading.Thread(target=cuts)
+    cutting.start()
+    cutting.join(30)
+
+    assert not cutting.is_alive()
+    assert [call.stdin for call in stubs.calls() if call.stdin] == ["slow", "abort"]
+    assert session("after") == "after"
 
 
 def test_pi_gives_node_one_place_to_keep_what_it_compiled(
@@ -1144,6 +1179,32 @@ def test_grok_runs_a_shaped_turn_as_the_command_that_carries_the_shape(
     )
 
 
+class _Loose(BaseModel):
+    """A shape as a flow writes one: other properties unsaid, and a field with a default."""
+
+    value: str
+    more: int = 0
+
+
+def test_grok_holds_a_shape_as_a_model_behind_a_gateway_takes_one(
+    stubs: _Stubs,
+) -> None:
+    """Closed, and every property it names required.
+
+    An OpenAI-backed account's model refuses a structured output that is not --
+    `additionalProperties is required to be supplied and to be false` -- and a gateway account
+    is how many machines run grok.
+    """
+    session = GrokBuildAgent(GROK).new()
+    session("hi")
+    session("again", schema=_Loose)
+
+    _, shaped = stubs.calls()
+    said = json.loads(shaped.argv[shaped.argv.index("--json-schema") + 1])
+    assert said["additionalProperties"] is False
+    assert said["required"] == ["value", "more"]
+
+
 def test_grok_loads_the_conversation_back_onto_the_process_after_a_shaped_turn(
     stubs: _Stubs,
 ) -> None:
@@ -1445,6 +1506,42 @@ def test_agy_runs_every_rung_of_the_ladder_as_its_own_flags(
     assert opened.argv[at : at + len(flags)] == flags
     if "--mode" in flags:
         assert "--dangerously-skip-permissions" not in opened.argv
+
+
+def test_agy_is_held_to_reading_as_an_agent_whose_tools_only_read(
+    stubs: _Stubs,
+) -> None:
+    """Plan mode alone is not reading: agy 1.2 in plan mode writes the file it is asked to.
+
+    So a turn at `read-only` is started as an agent of humanize's, found where agy finds a
+    project's own, whose tools read and do nothing else.
+    """
+    config = AntigravityCLIAgentConfig(
+        model="gemini-3.5-flash-medium", effort="high", permission="read-only"
+    )
+    assert AntigravityCLIAgent(config).new()("hi") == "hi"
+
+    (opened,) = stubs.calls()
+    assert opened.argv[opened.argv.index("--agent") + 1] == "hmz-read-only"
+    added = [
+        Path(opened.argv[at + 1])
+        for at, one in enumerate(opened.argv)
+        if one == "--add-dir"
+    ]
+    (defined,) = [
+        found
+        for one in added
+        if (found := one / ".agents" / "agents" / "hmz-read-only.md").is_file()
+    ]
+    front = yaml.safe_load(defined.read_text().split("---")[1])
+    assert front["name"] == "hmz-read-only"
+    assert front["excludeDefaultComponents"] is True
+    assert set(front["tools"]) <= {
+        "view_file",
+        "grep_search",
+        "find_by_name",
+        "list_dir",
+    }
 
 
 def test_agy_tells_the_cli_nothing_where_nothing_was_said_about_the_rung(

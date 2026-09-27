@@ -784,7 +784,12 @@ class GrokBuildSession(StreamSessionBase):
             argv.append(_NO_WEB)
         argv += _extras(config)
         if (schema := self._shaping) is not None:
-            argv += ["--json-schema", json.dumps(schema.model_json_schema())]
+            # Held as Codex's models hold one, closed and every property required: a grok
+            # account behind a gateway runs a model that refuses a structured output that is
+            # not, and every model takes one that is.
+            from .codex import strict
+
+            argv += ["--json-schema", json.dumps(strict(schema.model_json_schema()))]
         if self._id is not None:
             argv += ["--resume", self._id]
         elif self._forked_from is not None:

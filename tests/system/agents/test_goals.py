@@ -22,6 +22,7 @@ from hmz.coganchor.agents import (
     KimiCodeCLIAgent,
     KimiCodeCLIAgentConfig,
 )
+from tests.agents.signedin import KIMI_K3
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -43,6 +44,7 @@ def test_claude_answers_the_goal_command_itself() -> None:
     assert "no goal set" in session("/goal").lower()
 
 
+@KIMI_K3
 def test_kimi_reaches_for_its_goal_tools(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capfd: pytest.CaptureFixture[str]
 ) -> None:
@@ -58,6 +60,7 @@ def test_kimi_reaches_for_its_goal_tools(
     assert (tmp_path / "DONE.txt").read_text().strip() == "done"
 
 
+@KIMI_K3
 def test_kimi_answers_with_the_last_turn_a_goal_took(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capfd: pytest.CaptureFixture[str]
 ) -> None:
@@ -85,6 +88,7 @@ def test_kimi_answers_with_the_last_turn_a_goal_took(
     assert answer != "BANANA"
 
 
+@KIMI_K3
 def test_kimi_runs_a_swarm_when_the_effort_says_to(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

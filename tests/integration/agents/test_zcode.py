@@ -155,6 +155,11 @@ for line in sys.stdin:
             "response": "Forked session sess_forked: copied 3 messages.",
             "snapshot": {"messages": []}}})
         continue
+    if call["method"] == "session/setThoughtLevel" and not call["params"].get(
+            "thoughtLevel"):
+        send({"id": call["id"], "error": {"code": -32602,
+                                          "message": "thoughtLevel is required"}})
+        continue
     if call["method"] == "session/goal":
         send({"id": call["id"], "result": {"response": "Goal complete",
                                            "startedTurn": True, "snapshot": {}}})
@@ -733,6 +738,23 @@ def test_a_fork_is_cut_from_where_the_conversation_had_got_to(
     assert server.named("session/subscribe")[-1]["sessionId"] == "sess_forked"
     # And the fork is the child's first turn: nothing opened a session of its own for it.
     assert len(server.named("session/create")) == 1
+    agent.stop()
+
+
+def test_a_fork_of_an_agent_at_no_thought_level_is_told_none(
+    server: _FakeServer, tmp_path: Path
+) -> None:
+    """A child is settled with everything its agent runs at, and no rung is not a level.
+
+    `thoughtLevel` is required of `session/setThoughtLevel`, and there is no call that unsays
+    one: an agent at no rung says nothing, as it said nothing when its session was opened.
+    """
+    agent = ZcodeAgent(ZcodeAgentConfig(model="zai/glm-5.3", effort="auto"))
+    session = agent.new(tmp_path)
+    session("first")
+
+    assert session.fork()("second") == "second"
+    assert server.named("session/setThoughtLevel") == []
     agent.stop()
 
 

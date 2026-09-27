@@ -441,13 +441,15 @@ class Broker:
             _say(half, {"peer": other, "punch": punching})
             direct = bool(lines.read(punching + _ANSWERING).get("direct"))
             joined = pair.settle(role, direct=direct, patience=_ANSWERING)
+            if role == ANCHOR:
+                # Before the half is told, so that what this pair came to is what the next
+                # pair of the same two machines is judged by, however soon that one comes.
+                self._learn(between, worked=joined)
+                if not joined:
+                    self._carried += 1
             _say(half, {"go": "direct" if joined else "relay"})
             pair.spoke(role)
-            if role == ANCHOR:
-                self._learn(between, worked=joined)
             if not joined:
-                if role == ANCHOR:
-                    self._carried += 1
                 pair.carry(role)
         except (OSError, ValueError) as exc:
             log.debug("a half of %s left: %s", role or "a meeting", exc)
@@ -536,6 +538,8 @@ class _Pair:
     )
     #: Set once the bytes have finished flowing, for whichever thread is not carrying them.
     done: threading.Event = field(default_factory=threading.Event)
+    #: How the two are joined -- direct or not -- once the first of them has been told.
+    joined: bool | None = None
 
     def arrive(
         self, role: str, half: socket.socket, mine: list[tuple[str, int]]
@@ -576,15 +580,21 @@ class _Pair:
         One end holding a socket the other end never saw is the case this exists for: the
         anchoring half can have sent its choice into a hole that closed, and a pair that
         disagrees is a pair that hangs. So both verdicts are collected and the answer is the
-        weaker of the two, for both of them.
+        weaker of the two, for both of them -- decided once, by whichever is told first: a
+        half that gave up waiting for the other has been told the session is carried, and the
+        late one, finding both verdicts in, must be told the same rather than work it out
+        again.
         """
         with self.lock:
             self.verdicts[role] = direct
         self.answered[role].set()
-        if not self.answered[_OPPOSITE[role]].wait(patience):
-            return False
+        heard = self.answered[_OPPOSITE[role]].wait(patience)
         with self.lock:
-            return all(self.verdicts.get(name, False) for name in ROLES)
+            if self.joined is None:
+                self.joined = heard and all(
+                    self.verdicts.get(name, False) for name in ROLES
+                )
+            return self.joined
 
     def spoke(self, role: str) -> None:
         """Says that half has been told how the session will be joined."""

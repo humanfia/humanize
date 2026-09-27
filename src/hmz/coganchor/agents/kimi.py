@@ -115,6 +115,10 @@ class _Running:
 
     session: str | None = None
     config: dict[str, Any] = field(default_factory=dict[str, Any])
+    #: The daemon the turn is running on, and the prompt it is: what a cut aborts, and what
+    #: the turn asks what it is waiting on -- never a daemon started after it was put down.
+    server: _AppServer | None = None
+    prompt: str | None = None
 
 
 #: How often a running turn is asked whether it is still running, how long one call may take,
@@ -700,13 +704,16 @@ class _AppServer:
             target=collections.deque, args=(self._proc.stdout, 0), daemon=True
         ).start()
 
-    def call(self, method: str, path: str, body: Any = None) -> Any:
+    def call(
+        self, method: str, path: str, body: Any = None, seconds: float = _CALL_SECONDS
+    ) -> Any:
         """Makes one call to the daemon.
 
         Args:
           method: The HTTP method to make it with.
           path: The path under the daemon's API root.
           body: What to send as JSON, or None to send nothing.
+          seconds: How long it is given.
 
         Returns:
           What the daemon answered with, unwrapped from its envelope.
@@ -728,7 +735,7 @@ class _AppServer:
             },
         )
         try:
-            with urllib.request.urlopen(request, timeout=_CALL_SECONDS) as response:  # noqa: S310
+            with urllib.request.urlopen(request, timeout=seconds) as response:  # noqa: S310
                 said: dict[str, Any] = json.load(response)
         except urllib.error.HTTPError as refused:
             raise Failed(
@@ -762,7 +769,17 @@ class _AppServer:
                 return
 
             # Provider wrappers and Kimi share this dedicated group. Taking down the group
-            # prevents a stopped flow from leaving either wrapper or daemon behind.
+            # prevents a stopped flow from leaving either wrapper or daemon behind. And the
+            # rest of the tree after it: Kimi starts each command a tool runs in a session of
+            # its own, which the group does not reach, so a command a turn was in when its
+            # daemon went would otherwise run on to its end with nothing waiting for it.
+            import psutil
+
+            kin: list[psutil.Process] = []
+            if self._proc.poll() is None:
+                # Only while it is ours: the pid of one already gone and reaped is anybody's.
+                with contextlib.suppress(psutil.Error):
+                    kin = psutil.Process(self._proc.pid).children(recursive=True)
             with contextlib.suppress(ProcessLookupError):
                 os.killpg(self._proc.pid, signal.SIGTERM)
             with contextlib.suppress(subprocess.TimeoutExpired):
@@ -770,6 +787,9 @@ class _AppServer:
             with contextlib.suppress(ProcessLookupError):
                 os.killpg(self._proc.pid, signal.SIGKILL)
             self._proc.wait()
+            for one in kin:
+                with contextlib.suppress(psutil.Error):
+                    one.kill()
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -948,7 +968,9 @@ class KimiCodeCLISession(SessionBase):
         # Named by its own words: Kimi mints a fresh id for a steered prompt, so the id it
         # answers with is not the one it took, and the words are what both ends have.
         self.steering(text, ticket=text)
-        server = self._agent.server
+        # The turn's own daemon, never one started for this: a word for a turn whose daemon
+        # has been put down is a word with no turn to go into.
+        server = running.server or self._agent.server
         queued = server.call(
             "POST",
             f"/sessions/{running.session}/prompts",
@@ -999,7 +1021,7 @@ class KimiCodeCLISession(SessionBase):
         """
         if what in self._unserved:
             return []
-        server = self._agent.server
+        server = self._running.server or self._agent.server
         route = f"/sessions/{session}/{what}"
         try:
             held = server.call("GET", route + self._filter[what])
@@ -1102,7 +1124,7 @@ class KimiCodeCLISession(SessionBase):
                     if rung
                     else "nothing said what this agent may do",
                 }
-            self._agent.server.call(
+            (self._running.server or self._agent.server).call(
                 "POST", f"/sessions/{session}/approvals/{named}", answer
             )
 
@@ -1161,10 +1183,27 @@ class KimiCodeCLISession(SessionBase):
                     }
                 else:
                     answers[str(question["id"])] = {"kind": "other", "text": said}
-            self._agent.server.call(
+            (self._running.server or self._agent.server).call(
                 "POST",
                 f"/sessions/{session}/questions/{pending['question_id']}",
                 {"answers": answers},
+            )
+
+    def _cuts(self) -> None:
+        """Aborts the prompt the turn is running, which is what stops a command it is in.
+
+        Before the daemon is put down, which is what cutting a turn here goes on to do:
+        Kimi starts a tool's command in a session of its own, and aborting the prompt is how
+        it is told to take that down -- the daemon going takes down only its own group.
+        """
+        running = self._running
+        if running.server is None or running.session is None or not running.prompt:
+            return
+        with contextlib.suppress(subprocess.CalledProcessError, ValueError):
+            running.server.call(
+                "POST",
+                f"/sessions/{running.session}/prompts/{running.prompt}:abort",
+                seconds=_STOP_SECONDS,
             )
 
     def _lets_go(self) -> None:
@@ -1406,12 +1445,16 @@ class KimiCodeCLISession(SessionBase):
                 # session was set to, so it is carried here: a word steered in is a prompt
                 # submitted to the same route, and one that said nothing about the web would
                 # be the one body of this session that did not.
-                self._running = _Running(session=session, config=turn | web)
-                since = server.call(
+                self._running = _Running(
+                    session=session, config=turn | web, server=server
+                )
+                posted = server.call(
                     "POST",
                     f"/sessions/{session}/prompts",
                     {"content": [{"type": "text", "text": prompt}], **turn, **web},
-                )["user_message_id"]
+                )
+                since = posted["user_message_id"]
+                self._running.prompt = str(posted.get("prompt_id") or "") or None
                 answer = ""
                 shown: dict[
                     str, int
@@ -1449,6 +1492,11 @@ class KimiCodeCLISession(SessionBase):
                 # process before believing anything is wrong.
                 with Watchdog(self, riding=lambda: server._proc) as watch:
                     while True:
+                        if self._cut:
+                            # Ended here rather than on the next call to a daemon that has
+                            # been put down, which is a call that fails -- or, for one that
+                            # asks the agent for its daemon, one that starts another.
+                            raise Failed(1, server._argv, "", f"cut off: {self._cut}")
                         # First of all: a turn that has stopped -- to ask, or to have a tool
                         # approved -- waits on the answer, so a poll that only read messages
                         # would be reading a session that has stopped moving. Asked at once

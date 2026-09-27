@@ -193,8 +193,12 @@ def test_a_real_turn_lands_on_the_account_humanize_was_given(
         assert all(one.startswith("gw/") for one in served[:10]), served[:10]
         wanted = next((one for one in served if "glm" in one), served[0])
 
+        # At a rung that grants what it asks: at none, ZCode's own mode asks before a
+        # write, and with nobody to answer the driver says no.
         agent = ZcodeAgent(
-            ZcodeAgentConfig(model=wanted, effort="high", provider="nvidia")
+            ZcodeAgentConfig(
+                model=wanted, effort="high", provider="nvidia", permission="auto"
+            )
         )
         # Registered after the removal above and so run before it, a stack coming apart in
         # the reverse of the order it was built: an agent stopped after its account had been

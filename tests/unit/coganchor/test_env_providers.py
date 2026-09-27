@@ -23,6 +23,7 @@ from hmz.runtime.flowing.environing import MachineEnvDriver
 from hmz.runtime.flowing.environing_ssh import SSHMachine
 from hmz.runtime.flowing.environments import open_env
 from hmz.runtime.flowing.specs import EnvSpecError, parse_envs
+from hmz.sdk import Hmz
 
 #: Names a directory could hold and a provider may not have.
 _NOT_NAMES = [
@@ -36,6 +37,10 @@ _NOT_NAMES = [
     "-dash",
     "two words",
 ]
+
+
+#: A home no user has, which `Path.expanduser` raises for rather than answers.
+_NOBODY = "~hmz-no-such-user"
 
 
 def _mode(at: Path) -> int:
@@ -392,6 +397,49 @@ def test_a_tls_daemon_is_told_where_its_certificates_are() -> None:
         "/certs/key.pem",
         "ps",
     ]
+
+
+def test_a_path_under_no_home_there_is_is_refused_where_it_is_written_down() -> None:
+    """A `~user` the machine has no user for is a provider nothing could reach."""
+    for provider in (
+        SSHProvider(name="s", host="h", config=f"{_NOBODY}/config"),
+        DockerProvider(name="d", endpoint="tcp://h:2376", tls_dir=f"{_NOBODY}/certs"),
+    ):
+        with pytest.raises(ValueError, match="under no home there is"):
+            store.add(provider)
+        with pytest.raises(ValueError, match="under no home there is"):
+            store.write(provider)
+    assert store.providers() == []
+
+
+def test_a_provider_whose_home_has_gone_is_listed_and_checked_without_raising() -> None:
+    """One written down while its home was there: still listed, and asked, said why."""
+    for backend, name, field, path in (
+        ("docker", "d", "tls_dir", f"{_NOBODY}/certs"),
+        ("ssh", "s", "config", f"{_NOBODY}/config"),
+    ):
+        at = store.where(backend, name)
+        at.mkdir(parents=True)
+        held = (
+            {"endpoint": "tcp://10.0.0.3:2376"}
+            if backend == "docker"
+            else {"host": "h"}
+        )
+        (at / "provider.json").write_text(json.dumps({**held, field: path}))
+
+    listed = store.providers()
+
+    assert [(one.backend, one.name) for one in listed] == [
+        ("ssh", "s"),
+        ("docker", "d"),
+    ]
+    for provider in listed:
+        checked = Hmz().environments.check(provider, seconds=5)
+
+        assert not checked.reached
+        assert "under no home there is" in checked.said
+    with pytest.raises(ValueError, match="under no home there is"):
+        store.daemon_of("tcp://10.0.0.3:2376", f"{_NOBODY}/certs")
 
 
 def test_a_daemon_behind_a_stored_ssh_host_is_dialled_as_that_host_says() -> None:

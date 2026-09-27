@@ -19,6 +19,10 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
+#: A home no user has, which `Path.expanduser` raises for.
+_NOBODY = "~hmz-no-such-user"
+
+
 @pytest.fixture(autouse=True)
 def user_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A home of the test's own, with an `.ssh` in it and nothing else."""
@@ -72,6 +76,15 @@ def test_an_include_that_is_not_absolute_is_under_the_users_ssh(
     config.write_text("Include extra\nHost mine\n")
 
     assert sshconfig.aliases(config) == ["extra", "mine"]
+
+
+def test_an_include_under_no_home_there_is_includes_nothing(tmp_path: Path) -> None:
+    """`~somebody` nobody is, as ssh reads it: a file that is not there, not a crash."""
+    config = tmp_path / "config"
+    config.write_text(f"Include {_NOBODY}/config\nHost mine\n")
+
+    assert sshconfig.aliases(config) == ["mine"]
+    assert sshconfig.aliases(f"{_NOBODY}/config") == []
 
 
 def test_a_config_that_includes_itself_ends(tmp_path: Path) -> None:

@@ -100,6 +100,18 @@ def _text(value: str, what: str) -> str:
     return value
 
 
+def _here(value: str, what: str) -> str:
+    """A path on this machine with its `~` or `~user` expanded, or ValueError.
+
+    `Path.expanduser` raises `RuntimeError` for a `~user` there is no such user for, which
+    would crash whatever reads the provider; that is a value it cannot take instead.
+    """
+    expanded = os.path.expanduser(value)  # noqa: PTH111 -- which raises for one
+    if expanded.startswith("~"):
+        raise ValueError(f"{what} {value!r} is under no home there is")
+    return expanded
+
+
 def _workdir(value: str) -> str:
     """A default workdir: absolute, or under the login's home, or none at all."""
     _text(value, "the workdir")
@@ -208,10 +220,13 @@ class SSHProvider:
         Returns:
           `(KEYWORD, VALUE)` pairs as :attr:`hmz.coganchor.transport.Target.options` holds
           them: the config file as `F`, then the fields that are options, then the options.
+
+        Raises:
+          ValueError: For a config file under a home there is no longer any of.
         """
         said: list[tuple[str, str]] = []
         if self.config:
-            said.append(("F", str(Path(self.config).expanduser())))
+            said.append(("F", _here(self.config, "the config file")))
         if self.alias and self.host:
             said.append(("HostName", self.host))
         if self.identity_file:
@@ -407,14 +422,18 @@ def daemon_of(endpoint: str, tls_dir: str = "") -> Endpoint:
       The daemon.
 
     Raises:
-      ValueError: For an endpoint that is none of them, or `ssh:<name>` naming no stored
-        ssh provider.
+      ValueError: For an endpoint that is none of them, `ssh:<name>` naming no stored
+        ssh provider, or certificates under a home there is none of.
     """
     from hmz.coganchor.transport import Endpoint
 
     _endpoint(endpoint)
     if not endpoint.startswith("ssh:") or endpoint.startswith("ssh://"):
-        certs = f"?tls={Path(tls_dir).expanduser().absolute()}" if tls_dir else ""
+        certs = (
+            f"?tls={Path(_here(tls_dir, 'the TLS directory')).absolute()}"
+            if tls_dir
+            else ""
+        )
         return Endpoint.parse(endpoint + certs)
     name = endpoint[len("ssh:") :]
     found = find(SSH, name)
@@ -580,7 +599,8 @@ def add(provider: EnvProvider) -> EnvProvider:
     """Writes a new provider down.
 
     Raises:
-      ValueError: If there is one of that backend under that name already.
+      ValueError: If there is one of that backend under that name already, or it names a
+        path under a home there is none of.
       OSError: If it cannot be written.
     """
     if find(provider.backend, provider.name) is not None:
@@ -597,8 +617,16 @@ def write(provider: EnvProvider) -> EnvProvider:
       It, as it is now written down.
 
     Raises:
+      ValueError: If it names a config file or certificates under a home there is none of,
+        which would be a provider nothing could reach. Refused here rather than where it is
+        made, so that one written down while its home was there is still listed -- and
+        checked, saying why -- once it has gone.
       OSError: If it cannot be written.
     """
+    if isinstance(provider, SSHProvider):
+        _here(provider.config, "the config file")
+    else:
+        _here(provider.tls_dir, "the TLS directory")
     at = where(provider.backend, provider.name)
     _kept(at)
     _writes(at / _HELD, json.dumps(provider.held(), indent=2) + "\n")
@@ -684,7 +712,7 @@ def imports(
     wanted = found if names is None else list(names)
     if missing := [one for one in wanted if one not in found]:
         raise ValueError(f"the ssh config names no host {', '.join(missing)}")
-    own = config is not None and Path(config).expanduser().resolve() != (
+    own = config is not None and Path(_here(str(config), "the config")).resolve() != (
         sshconfig.default().resolve()
     )
     # Every one made before any is written, so that one refused writes none of them.
@@ -712,7 +740,7 @@ def imports(
             provider = SSHProvider(
                 name=name,
                 alias=alias,
-                config=str(Path(config).expanduser().resolve())
+                config=str(Path(_here(str(config), "the config")).resolve())
                 if own and config
                 else "",
                 workdir=already.workdir if already is not None else "",

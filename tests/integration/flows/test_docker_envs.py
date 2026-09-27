@@ -15,8 +15,11 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import socket
 import subprocess
+import sys
+import time
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -322,3 +325,97 @@ def test_a_lock_per_provider_is_held_beside_the_providers(
 
     assert (store.under() / "docker" / ".gpubox.lock").is_file()
     assert [one.name for one in store.providers("docker")] == ["gpubox"]
+
+
+#: A flow holding its container until it is ended from outside: it says it has one, and waits.
+_WAITS = """
+from hmz.flows import AgentCollection, Env, EnvCollection, FilesEnvMixin, FlowParams
+from hmz.flows import ImageEnvMixin, ShellEnvMixin, flow
+
+
+class Box(Env, ShellEnvMixin, FilesEnvMixin, ImageEnvMixin):
+    _image = "python:3.12-slim"
+
+
+class Envs(EnvCollection):
+    box: Box
+
+
+@flow(agents=AgentCollection, envs=Envs, params=FlowParams)
+async def waits(task, *, agents, envs, params, ctx):
+    await envs["box"].write("up.txt", b"up")
+    await envs["box"].exec(["sleep", "240"], timeout=300)
+"""
+
+
+@pytest.mark.timeout(120)
+@pytest.mark.parametrize("ending", [signal.SIGTERM, signal.SIGHUP])
+def test_a_run_ended_by_a_terminate_or_a_hangup_takes_its_container_down(
+    standin: Standin, tmp_path: Path, ending: signal.Signals
+) -> None:
+    """Rather than leave it running until the next run on its provider finds it."""
+    work = tmp_path / "work"
+    work.mkdir()
+    flow = written(tmp_path / "flows", "waits", _WAITS)
+    run = subprocess.Popen(
+        [
+            *(sys.executable, "-m", "hmz", "exec", "-f", str(flow)),
+            *("-e", f"box=docker@local{work}", "-b", "cost=1", "go"),
+        ],
+        cwd=tmp_path,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        deadline = time.monotonic() + 60
+        while not (work / "up.txt").exists():
+            assert run.poll() is None, run.communicate()
+            assert time.monotonic() < deadline, "the run never had its container"
+            time.sleep(0.1)
+        run.send_signal(ending)
+        _, err = run.communicate(timeout=60)
+    finally:
+        if run.poll() is None:
+            run.kill()
+
+    assert run.returncode == 128 + ending, err
+    assert "Traceback" not in err, err
+    assert ["rm", "--force", "c0ffee"] in [one["argv"] for one in standin.said()]
+
+
+@pytest.mark.timeout(120)
+def test_a_hangup_somebody_chose_to_ignore_is_still_ignored(
+    standin: Standin, tmp_path: Path
+) -> None:
+    """A run started under `nohup` goes on when its terminal goes, and a terminate ends it."""
+    work = tmp_path / "work"
+    work.mkdir()
+    flow = written(tmp_path / "flows", "waits", _WAITS)
+    run = subprocess.Popen(
+        [
+            *("nohup", sys.executable, "-m", "hmz", "exec", "-f", str(flow)),
+            *("-e", f"box=docker@local{work}", "-b", "cost=1", "go"),
+        ],
+        cwd=tmp_path,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        deadline = time.monotonic() + 60
+        while not (work / "up.txt").exists():
+            assert run.poll() is None, run.communicate()
+            assert time.monotonic() < deadline, "the run never had its container"
+            time.sleep(0.1)
+        run.send_signal(signal.SIGHUP)
+        with pytest.raises(subprocess.TimeoutExpired):
+            run.wait(timeout=3)
+        run.send_signal(signal.SIGTERM)
+        _, err = run.communicate(timeout=60)
+    finally:
+        if run.poll() is None:
+            run.kill()
+
+    assert run.returncode == 128 + signal.SIGTERM, err
+    assert ["rm", "--force", "c0ffee"] in [one["argv"] for one in standin.said()]

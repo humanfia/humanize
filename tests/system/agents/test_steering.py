@@ -22,6 +22,7 @@ from hmz.coganchor.agents import (
     KimiCodeCLIAgent,
     KimiCodeCLIAgentConfig,
 )
+from tests.agents.signedin import KIMI_K3
 
 #: Small and quick: what is being tested is the plumbing, not the model.
 CONFIG = ClaudeCodeAgentConfig(model="claude-haiku-4-5-20251001", effort="low")
@@ -72,6 +73,7 @@ def test_codex_takes_a_word_put_into_the_turn_it_is_running() -> None:
     assert said[-1].kind == "result"
 
 
+@KIMI_K3
 @pytest.mark.agent
 @pytest.mark.timeout(300)
 def test_kimi_steers_a_word_into_the_turn_it_is_running() -> None:

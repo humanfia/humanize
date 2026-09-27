@@ -185,7 +185,8 @@ frontend that hangs rather than one that says nothing is running.
 `host` forks so the caller is not kept waiting, calls `setsid` so the terminal that started it
 is no longer its controlling terminal (a hangup cannot reach it), and forks again so it can
 never take one. That is what `screen` does underneath, done in-process. The host reads nothing,
-ignores an interrupt, closes its runs on a terminate, and says what is printed in it to its
+ignores an interrupt, closes its runs on a terminate -- waiting up to 15 seconds for them to
+let go of what they made, a container included -- and says what is printed in it to its
 frontends.
 
 The interface draws in the process of the terminal it was opened in, and knows the runs only

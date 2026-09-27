@@ -177,9 +177,11 @@ def trouble(
 
 # models.py -- what each backend runs, asked of it and kept until it is asked again
 WAITING: float   # how long `ask` gives a backend to answer
+STALE: timedelta  # how long what one said is offered before it is asked again
 
 def where(cli: str, provider: str = "") -> Path: ...
 def asked(cli: str, provider: str = "") -> str: ...
+def stale(cli: str, provider: str = "") -> bool: ...
 def offered(cli: str, provider: str = "") -> tuple[Model, ...]: ...
 def ask(cli: str, provider: str = "", seconds: float = WAITING) -> tuple[Model, ...]: ...
 
@@ -497,7 +499,8 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
 - What a backend runs MUST be asked of that backend, or of the account's own endpoint where one is
   set, kept per account and gone when the account is, and empty rather than guessed at until asked
   for; reading what was kept MUST cost one file read and reach nothing, and the credential the
-  endpoint is asked under MUST NOT follow a redirect off the host the account named.
+  endpoint is asked under MUST NOT follow a redirect off the host the account named. What was
+  kept MUST be `stale` once asked longer than `STALE` ago, and never asked is stale.
 - A model's efforts MUST be its backend's ladder narrowed to the rungs that backend said the model
   takes, in that order, and the whole ladder where it said nothing of it.
 - `price` and `cost` MUST cost one file read and no network; fetching MUST be refusable by an

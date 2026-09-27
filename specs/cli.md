@@ -109,6 +109,8 @@ def tools(argv: list[str]) -> int: ...
   be the docker provider written down under that name, or `local` for docker's default here, and
   anything else MUST be refused; `/<workdir>` MAY be left off only for a provider written down
   with one, and the run MUST record the workdir it took.
+- `hmz exec` MUST stop its run on a terminate or a hangup as it does on an interrupt, and MUST
+  exit with 128 plus the signal only once the run has let go of everything it made.
 - `--resume` MUST pick up the newest run of that flow in this workspace that can be picked up;
   without it every run MUST start from the top.
 - MUST read `<cli>` from the front and `<effort>` from after the last colon so that a model's own
