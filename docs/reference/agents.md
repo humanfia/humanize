@@ -1675,6 +1675,9 @@ so that a `use_leader = true` in your config cannot put every session of a flow 
 - On the command line the prompt is one argument, `--single=…`. Linux caps one argument at 32
   pages, which leaves 131062 bytes of prompt (about 32 thousand tokens); a longer prompt raises
   before the process starts.
+- A shaped turn's `--json-schema` is held as Codex's is: every object closed
+  (`additionalProperties: false`) with every property it names required, and no defaults. A
+  model behind an OpenAI-compatible gateway account refuses a structured output that is not.
 - `--include-partial-messages`, `--agent-profile` and `--plugin-dir` are not fields: the first
   only affects an output format these turns do not use, and the other two exist only on
   `grok agent`, so shaped, forked and tool-withheld turns would silently lose them.

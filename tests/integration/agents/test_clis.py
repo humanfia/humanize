@@ -1179,6 +1179,32 @@ def test_grok_runs_a_shaped_turn_as_the_command_that_carries_the_shape(
     )
 
 
+class _Loose(BaseModel):
+    """A shape as a flow writes one: other properties unsaid, and a field with a default."""
+
+    value: str
+    more: int = 0
+
+
+def test_grok_holds_a_shape_as_a_model_behind_a_gateway_takes_one(
+    stubs: _Stubs,
+) -> None:
+    """Closed, and every property it names required.
+
+    An OpenAI-backed account's model refuses a structured output that is not --
+    `additionalProperties is required to be supplied and to be false` -- and a gateway account
+    is how many machines run grok.
+    """
+    session = GrokBuildAgent(GROK).new()
+    session("hi")
+    session("again", schema=_Loose)
+
+    _, shaped = stubs.calls()
+    said = json.loads(shaped.argv[shaped.argv.index("--json-schema") + 1])
+    assert said["additionalProperties"] is False
+    assert said["required"] == ["value", "more"]
+
+
 def test_grok_loads_the_conversation_back_onto_the_process_after_a_shaped_turn(
     stubs: _Stubs,
 ) -> None:
