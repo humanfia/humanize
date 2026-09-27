@@ -26,6 +26,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
     from pathlib import Path
 
+    from tests.machines.fixtures import Standin
+
 #: How long a test waits for something another process is doing.
 PATIENCE = 30.0
 
@@ -209,6 +211,57 @@ def test_stopping_the_host_closes_it(hosted: daemon.Daemon) -> None:
 def test_killing_the_host_closes_it_first(hosted: daemon.Daemon) -> None:
     assert hosted.kill()
     assert daemon.running() is None
+
+
+#: A run holding a container until it is ended from outside: it says it has one, and waits.
+WAITS = """
+from hmz.flows import AgentCollection, Env, EnvCollection, FilesEnvMixin, FlowParams
+from hmz.flows import ImageEnvMixin, ShellEnvMixin, flow
+
+
+class Box(Env, ShellEnvMixin, FilesEnvMixin, ImageEnvMixin):
+    _image = "python:3.12-slim"
+
+
+class Envs(EnvCollection):
+    box: Box
+
+
+@flow(agents=AgentCollection, envs=Envs, params=FlowParams, name="waits")
+async def waits(task, *, agents, envs, params, ctx):
+    await envs["box"].write("up.txt", b"up")
+    await envs["box"].exec(["sleep", "240"], timeout=300)
+"""
+
+
+@pytest.fixture
+def slow_to_go(standin: Standin) -> Standin:
+    """A `docker` slower to take a container down than a host going waits for its frontends.
+
+    Said before the host is started, which is the process that runs it.
+    """
+    standin.set("STANDIN_RM_SECONDS", "8")
+    return standin
+
+
+@pytest.mark.timeout(90)
+def test_a_host_terminated_takes_the_containers_of_its_runs_down_first(
+    slow_to_go: Standin, hosted: daemon.Daemon, workspace: Path
+) -> None:
+    """Rather than go while its run is still letting go of what it made."""
+    written(workspace, "waits", WAITS)
+    work = workspace / "work"
+    work.mkdir()
+    with hosted.link(name="starter") as link:
+        link.start(
+            "waits", "go", envs={"box": f"docker@local{work}"}, budget={"cost": 1}
+        )
+        assert until((work / "up.txt").exists)
+
+    assert hosted.kill()
+    assert ["removed", "--force", "c0ffee"] in [
+        one["argv"] for one in slow_to_go.said()
+    ]
 
 
 def test_a_workspace_held_by_an_older_humanize_is_not_hosted_as_well(

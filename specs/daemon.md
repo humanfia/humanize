@@ -95,7 +95,8 @@ class Frames:
   one where none is, and MUST refuse a workspace an older humanize holds. The host
   process MUST read nothing, MUST write its own descriptors beside its socket, MUST say what is
   printed in it to its frontends a line at a time, MUST ignore an interrupt, MUST close its runs
-  on a terminate, and MUST report its own failures where that has been answered yes.
+  on a terminate and wait a while for them to let go of what they made, and MUST report its own
+  failures where that has been answered yes.
 - MUST carry one JSON object a `MESSAGE` frame each way, and MUST carry out every request off the
   thread carrying the bytes: a frontend's requests in the order it made them, an aside apart
   from the rest. Each request MUST be answered with one reply naming it, and a frontend MUST say

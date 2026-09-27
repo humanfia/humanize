@@ -84,6 +84,10 @@ _OUTWORLDER = "outworlder:"
 #: What a flow told to stop and not yet gone is doing, in the interface's own words.
 _UNWINDING = "it is closing out the turn it was in"
 
+#: How long closing waits for the runs it stopped to let go of what they made -- a container
+#: taken down, a session closed -- before whoever closed the host goes on without them.
+_LETTING_GO = 15.0
+
 
 def record(
     agent: AgentBase,
@@ -321,6 +325,8 @@ class Host:
         self._sides = itertools.count(1)
         self._keeps = False
         self._closed = False
+        #: The thread each run started here is driven on, for closing to wait for.
+        self._driving: list[threading.Thread] = []
         self._ticking: threading.Thread | None = None
         self._spent_at = 0.0
         self._requests: dict[
@@ -542,7 +548,22 @@ class Host:
         }
 
     def close(self) -> None:
-        """Closes every run here and lets every frontend go, telling each why."""
+        """Closes every run here and lets every frontend go, telling each why.
+
+        And waits a while for those runs to let go of what they made, however many times it is
+        called: whoever closes a host may be about to end the process holding it, and what a
+        run had not taken down by then -- a container -- would outlive it.
+        """
+        self._close()
+        with self._lock:
+            driving = list(self._driving)
+        until = time.monotonic() + _LETTING_GO
+        for thread in driving:
+            if thread is not threading.current_thread():
+                thread.join(max(0.0, until - time.monotonic()))
+
+    def _close(self) -> None:
+        """Closes every run here and lets every frontend go, telling each why, once."""
         with self._lock:
             if self._closed:
                 return
@@ -892,9 +913,13 @@ class Host:
         _closed_all(sides)
         run.watch(functools.partial(self._heard, current))
         run.opened(functools.partial(self._opened, current))
-        threading.Thread(
+        driving = threading.Thread(
             target=self._drives, args=(current,), daemon=True, name="humanize-run"
-        ).start()
+        )
+        with self._lock:
+            self._driving = [one for one in self._driving if one.is_alive()]
+            self._driving.append(driving)
+        driving.start()
         return _ok(run=number)
 
     def _drives(self, current: _Run) -> None:
