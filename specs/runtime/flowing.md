@@ -45,7 +45,7 @@ class SessionHandle(Protocol): ...  # id, usage, turn, steer, interrupt, close
 class AgentDriver(Protocol): ...  # harness, model, effort, provider, capabilities, open, close
 class EnvDriver(Protocol): ...  # backend, provider, workdir, capabilities, resources, exec,
                                # read, write, derive_*, destroy_*, placement, close
-class OutworlderDriver(Protocol): ...  # away, run
+class OutworlderDriver(Protocol): ...  # away_for(role), run(prompt, schema, role)
 
 # specs.py -- what -a, -e, -p and -b say
 @dataclass(frozen=True, slots=True)
@@ -323,6 +323,8 @@ def under() -> Path: ...
 - An outworlder that is away MUST answer `""` for text, the schema built from its defaults
   where every field has one, and `OutworlderAway` otherwise. One made with `Outworlder.new()`
   MUST be away until a hook is hung on it with `on_outworlder_run`.
+- The run's own outworlder MUST be asked, and asked whether it is away, as the `Outworlder` role
+  the run filled with it, which a flow handing it on under another name MUST NOT change.
 
 ### Budgets and usage
 

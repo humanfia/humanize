@@ -1156,6 +1156,8 @@ class Declared(NamedTuple):
       unbounded: Whether a run of it needs no budget: a flow humanize ships -- `chat`, a
         conversation, which stops when the person does.
       resumable: Whether a run of it can be picked up where it left off.
+      outworlders: The `Outworlder` roles, by name, in the order the flow declares them:
+        whoever is at this prompt, once apiece, each with a transcript of what it asks.
     """
 
     agents: tuple[AgentRole, ...]
@@ -1163,6 +1165,7 @@ class Declared(NamedTuple):
     params: type[BaseModel]
     unbounded: bool = False
     resumable: bool = False
+    outworlders: tuple[str, ...] = ()
 
     @property
     def roles(self) -> tuple[str, ...]:
@@ -1202,6 +1205,7 @@ def declared_of(flow: str) -> Declared | None:
         said.params,
         unbounded=unbounded,
         resumable=said.resumable,
+        outworlders=tuple(one.name for one in said.agents if one.auto),
     )
 
 

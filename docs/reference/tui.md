@@ -39,8 +39,8 @@ lines](#starting-a-flow-outright) · [menus](#menus) · [what it remembers](#wha
 | Part | Shows |
 | --- | --- |
 | **Opening box** | `humanize v<version>` in its top border, the name drawn large (smaller on a narrow terminal), and the package's one-line summary. [`/clear`](#commands) draws it again. |
-| **Transcript** | One agent's, or the one every agent's work appears on, which it opens on. See [Reading one agent](#reading-one-agent). |
-| **Above the editor, right** | One line per agent role: `role · cli/model:effort`, the account where it is not this machine's own, then `●` (a turn open) or `○`, how many conversations it holds, and `reading` or `unread`. Under them, [the run's cost](#the-cost-readout). |
+| **Transcript** | One agent's, one conversation's, one outworlder's, or the one every agent's work appears on, which it opens on. See [Reading one agent](#reading-one-agent). |
+| **Above the editor, right** | One line per agent role: `role · cli/model:effort`, the account where it is not this machine's own, then `●` (a turn open) or `○`, how many conversations it holds, and `reading` or `unread`. While a flow runs, one line per outworlder: `human · outworlder`, then `away`, `asking`, and `reading` or `unread`. Under them, [the run's cost](#the-cost-readout). |
 | **Above the editor, left** | Lines typed and not yet taken, pinned. See [Talking to a running flow](#talking-to-a-running-flow). |
 | **Editor** | Multi-line, up to ten rows, behind `❯`. |
 | **Status line, left** | The modes, then what is running. See below. |
@@ -58,7 +58,8 @@ The left side is the first of these that holds:
 | Nothing running | `◉ <flow> · <directory>`, with your home as `~`. |
 
 In front of it go the modes: `afk` in the warning colour while
-[`/afk`](#questions-and-being-away) is on, and `details` while [`/details`](#commands) is.
+[`/afk`](#questions-and-being-away) is on for every outworlder, or `afk <role>, …` naming the
+ones it is on for, and `details` while [`/details`](#commands) is.
 After it, `· copied` for two seconds after a [copy](#selecting-and-copying).
 
 The right side lists only keys that work now, in this order:
@@ -67,7 +68,7 @@ The right side lists only keys that work now, in this order:
 | --- | --- |
 | `↑↓ move · tab take · esc dismiss` | The offers list is open. Nothing else is shown then. |
 | `enter start`, `enter say`, `enter answer` | Something is typed: no flow running, a flow running, a question up. |
-| `tab agent` | There is another transcript to step to. |
+| `shift+tab view` | There is another transcript to step to. |
 | `/ commands`, `shift+enter newline`, `esc monitor` | Always. |
 | `ctrl+c clear` · `ctrl+c again to stop` · `ctrl+c again to exit` · `ctrl+c stop` · `ctrl+c close them` · `ctrl+c exit` | What the next <kbd>ctrl+c</kbd> does: [see below](#ctrl-c). |
 
@@ -107,7 +108,7 @@ See [Cost and rate](/user/tally).
 | prompt | <kbd>↑</kbd> <kbd>↓</kbd> | Walks [history](#history), from the first or last line of what is typed. Over the offers list, moves in it. |
 | prompt | <kbd>tab</kbd> | Over the offers list, takes the one highlighted. |
 | prompt | <kbd>esc</kbd> | Over the offers list, dismisses it. |
-| anywhere | <span id="key-tab"></span><kbd>tab</kbd> <kbd>shift+tab</kbd> | Next or previous [transcript](#reading-one-agent): the one every agent is on, then each agent with a turn open. Not while a menu is up. |
+| anywhere | <span id="key-tab"></span><kbd>shift+tab</kbd> <kbd>tab</kbd> | Next or previous [transcript](#reading-one-agent): the one every agent is on, then each conversation with a turn open, then each outworlder of the running flow. Not while a menu is up. |
 | anywhere | <span id="key-esc"></span><kbd>esc</kbd> | Opens [`/monitor`](#watching-the-run). It stops nothing. |
 | anywhere | <span id="key-ctrl-c"></span><kbd>ctrl+c</kbd> | Clears a half-typed line. With nothing typed, stops the flow on the second press, or leaves on the second press with nothing running. See [ctrl+c](#ctrl-c). |
 | anywhere | <kbd>ctrl+q</kbd> | Does what [`/exit`](#leaving-and-letting-go) does, asking first if a flow is running. |
@@ -189,8 +190,8 @@ list, with a line about each.
 | <span id="cmd-monitor"></span>`/monitor` | <Badge type="tip" text="yes" /> | [The run, drawn](#watching-the-run), and the board. Also <kbd>esc</kbd>. |
 | <span id="cmd-clear"></span>`/clear` | <Badge type="tip" text="yes" /> | Clears the transcript being read and draws the opening box again. Nothing else. |
 | <span id="cmd-details"></span>`/details [on\|off]` | <Badge type="tip" text="yes" /> | Shows or hides the working: tool calls, thinking, and what a backend prints on its way past. Off at start. |
-| <span id="cmd-afk"></span>`/afk [on\|off]` | <Badge type="tip" text="yes" /> | [Says you are away](#questions-and-being-away): nothing waits on you. Off at start. |
-| <span id="cmd-stop"></span>`/stop` | <Badge type="info" text="needs one" /> | [Stops the flow](#stop), asked once. |
+| <span id="cmd-afk"></span>`/afk [on\|off]` | <Badge type="tip" text="yes" /> | [Says you are away](#questions-and-being-away): nothing waits on you. On an outworlder's transcript, as that outworlder alone; not on one agent's. Off at start. |
+| <span id="cmd-stop"></span>`/stop` | <Badge type="info" text="needs one" /> | [Stops the flow](#stop), asked once. Only on the transcript every agent is on and on the monitor. |
 | <span id="cmd-exit"></span>`/exit` | <Badge type="warning" text="asks" /> | [Leaves](#leaving-and-letting-go). Asks first if a flow is running. Also <kbd>ctrl+q</kbd>. |
 
 </RefFilter>
@@ -246,27 +247,32 @@ What counts as a `$` line:
 
 ### Reading one agent
 
-There is one transcript per agent, and one where every agent's work appears together. The
-interface opens on that one.
+There is one transcript per conversation, one per agent holding all of its conversations, one
+per outworlder, and one where every agent's work and everything every outworlder asks appear
+together. The interface opens on that one, and goes back to it when a flow starts.
 
-- <kbd>tab</kbd> and <kbd>shift+tab</kbd> step round it and the agents with a turn open,
-  wrapping at either end. An agent between turns stays on screen once you are on it, but is not
-  stepped onto. Every agent that has worked can be read from [`/monitor`](#watching-the-run).
-- Stepping onto another transcript redraws it from the top, under `── reading builder ──`, or
-  `── reading every agent ──`. `/clear` clears only the one you are reading.
-- All of one agent's conversations run down its one transcript. Where it holds several, each
-  turn says which: `● builder is working · conversation 3 of 3`.
+- <kbd>shift+tab</kbd> steps forward round it, the conversations with a turn open and the
+  outworlders of the running flow, and <kbd>tab</kbd> steps back, wrapping at either end. A
+  conversation that has ended stays on screen once you are on it, but is not stepped onto; it
+  can still be read from [the monitor](#watching-the-run).
+- Stepping onto another transcript redraws it from the top, under `── reading builder ·
+  conversation 2 ──`, `── reading outworlder human ──` or `── reading every agent ──`.
+  `/clear` clears only the one you are reading.
+- A role's conversations are numbered in the order it opened them, from one, again for each
+  run. Where it holds several, each turn says which: `● builder is working · conversation 3 of
+  3`.
 - On the shared transcript, a line `── builder` marks each change of speaker.
-- `unread` marks an agent that has said something since you last read it. Nothing is marked
-  while you read the shared transcript.
-- Kept: the last 16 transcripts, and the last 2,000 lines of each. The
-  [trace](/reference/tracing) keeps everything.
+- `unread` marks an agent or an outworlder that has said something since you last read it.
+  Nothing is marked while you read the shared transcript.
+- Kept: the last 32 transcripts, a conversation's going before an agent's, and the last 2,000
+  lines of each. The [trace](/reference/tracing) keeps everything.
 
 ### Talking to a running flow
 
-A line typed while a flow runs goes to [the agent you are reading](#reading-one-agent), into
-the conversation with a turn open. Reading every agent at once, it goes to whichever has a turn
-open.
+A line typed while a flow runs goes to [the conversation you are reading](#reading-one-agent),
+or, reading an agent, into its conversation with a turn open. Reading every agent at once, it
+goes to whichever has a turn open. While a [question is up](#questions-and-being-away), a line
+typed on the shared transcript or on the asking outworlder's answers it instead.
 
 The line is **pinned** above the editor, dimmed, until something takes it:
 
@@ -337,8 +343,12 @@ A side question still running is dropped when the next flow starts or the interf
 
 ### Questions, and being away
 
-Two things wait on you, and both are shown where you type. The next line you type is the answer
-rather than a word put into the turn, and the status line says `enter answer`.
+Two things wait on you. Both are shown on the transcript of the outworlder asking and on the
+one every agent is on, and the next line typed on either is the answer rather than a word put
+into the turn: the status line says `enter answer`. On the shared transcript it answers the
+oldest question up, on an outworlder's the oldest that outworlder asks. On one agent's
+transcript a line goes to the agent, as ever. The answers a question offers are numbered, and
+a bare number picks one: `2` answers `2. south`.
 
 - **The flow asks.** A flow whose roles include an
   [`Outworlder`](/reference/flows#the-person-at-the-prompt) is asking you when it runs that
@@ -353,6 +363,12 @@ question is told nobody answered. A question already up when `/afk` goes on is a
 nobody, which the flow hears as `OutworlderAway`. It starts **off**. While on, `afk` leads the
 status line.
 
+Each outworlder is away or here on its own. `/afk` on an outworlder's transcript sets that one;
+on the shared transcript or the monitor it sets every one, clearing what was set apart. It is
+not offered on one agent's transcript, which asks you nothing: typed there it says
+`hmz: /afk works on the monitor, the transcript every agent is on and an outworlder's
+transcript, not on one agent's transcript`.
+
 A question still up when the flow ends or is stopped ends with it.
 
 ### Stopping {#stop}
@@ -364,6 +380,9 @@ once. The turn under way is interrupted and the flow unwinds from where it stand
   it was in`. The next <kbd>ctrl+c</kbd> closes its conversations without waiting.
 - With nothing running: `hmz: no flow is running, so there is nothing to stop`.
 - It resets <kbd>ctrl+c</kbd>'s count, so the press after it is a first press.
+- Only on the transcript every agent is on and on the monitor, where the whole run is watched.
+  Elsewhere it is not offered, and typed out says `hmz: /stop works on the monitor and the
+  transcript every agent is on, not on …`. <kbd>ctrl+c</kbd> twice stops the flow from anywhere.
 
 See [Stopping](/user/stopping) and [ctrl+c](#ctrl-c).
 

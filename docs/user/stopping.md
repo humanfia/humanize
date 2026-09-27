@@ -15,7 +15,7 @@ in. Most flows are loops that never end on their own, so this, or a budget, is h
 | | Where | How |
 | --- | --- | --- |
 | <kbd>ctrl+c</kbd> <kbd>ctrl+c</kbd> | at the prompt | Two presses within 3 seconds. The first only warns. |
-| `/stop` | at the prompt | Sent once. You typed it out on purpose, so it is not asked twice. |
+| `/stop` | at the prompt, reading every agent, or on the monitor | Sent once. You typed it out on purpose, so it is not asked twice. Not offered on one conversation's or one outworlder's transcript, where it says where it works instead. |
 | <kbd>ctrl+c</kbd> | on an `hmz exec` line | One press. |
 | a budget | `-b` on `hmz exec`, or what a run may spend in `/flow` | Nothing to press: the run stops itself when the budget is spent. See [Allowances](/features/allowances). |
 

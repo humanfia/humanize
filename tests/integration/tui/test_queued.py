@@ -657,7 +657,7 @@ async def test_three_lines_typed_in_a_row_are_three_turns_of_a_chat() -> None:
             while said:
                 # What a session does on the way in, then what the flow does after.
                 prompts.append("\n\n".join([said, *app._at_turn_start()]))
-                said = app._listen(generation)
+                said = app._listen(generation, "human")
 
         talking = threading.Thread(target=chatting)
         talking.start()

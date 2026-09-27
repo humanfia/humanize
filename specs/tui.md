@@ -44,12 +44,18 @@ or say what it is running.
 - MUST offer a half-typed command or flow what it could become, reconsidered as the cursor moves
   as well as the text, offer nothing against a whole word, and keep focus in the editor.
 - MUST keep what was typed for walking back to, per directory, and fixed for the session.
-- MUST keep one transcript per agent and one more they all appear on, open on the latter and
-  return to it when a run starts, and bound what is kept without dropping either of those two.
+- MUST keep one transcript per agent, one per conversation, one per outworlder and one more
+  they all appear on -- every agent's lines and all that every outworlder asks and is answered
+  -- open on the last and return to it when a run starts, and bound what is kept without
+  dropping it or the one read.
+- MUST round the shared transcript, the conversations with a turn open and the outworlders of
+  a running flow, forward on `shift+tab` and back on `tab`, a conversation that has ended
+  leaving the round while staying readable from the monitor.
 - MUST show which agent is read, how many conversations it holds, whether it is working and
-  whether it has something unread — nothing unread while the shared transcript is read.
-- MUST send a typed line to the agent being read, to whichever of its conversations has a turn
-  open and holding it for the next turn otherwise, and keep it against the agent that took it.
+  whether it has something unread — nothing unread while the shared transcript is read — and
+  each outworlder of a running flow, whether it is asking, away, read or unread.
+- MUST send a typed line to the conversation being read, or to whichever of the agent's has a
+  turn open, holding it for the next turn otherwise, and keep it against the agent that took it.
 - MUST name what is running as the flow started and whatever it called, innermost last.
 - MUST offer exactly these commands, each doing what it says: `/flow`, `/btw`, `/flowverses`,
   `/providers`, `/fallback`, `/epics`, `/resume`, `/settings`, `/monitor`, `/clear`, `/details`,
@@ -73,8 +79,13 @@ or say what it is running.
   this machine's own account as `as local`, models known runnable as the chosen account, and
   efforts that model takes -- and letting an account be made where one is asked for. An
   environment role MUST take a spec as `-e` spells one.
-- MUST be whoever is outside a run: a question a flow puts to its outworlder MUST be asked at
-  the prompt and answered with the next line typed, and `/afk` MUST make the outworlder away.
+- MUST be whoever is outside a run, once per outworlder: a question one puts MUST be shown on
+  its transcript and the shared one and answered with the next line typed on either -- the
+  oldest of that outworlder's, or of any on the shared one -- an offered answer taken by its
+  number as well; `/afk` MUST make the outworlder read away, or every one elsewhere.
+- MUST offer and run a command only where it works -- `/afk` anywhere but one agent's
+  transcript, `/stop` only on the monitor and the shared transcript -- and refuse it elsewhere,
+  saying where it works.
 - MUST offer, per place flows come from, what it holds, adding one, fetching it again and taking
   one away, against the same store the flows are read from, with any credential in a URL hidden.
 - MUST list every account under its CLI and offer correcting, re-signing, what it falls back to
@@ -114,7 +125,7 @@ or say what it is running.
 | --- | --- | --- |
 | `enter` | editor, sheets | send the line or take the offer; open the row under the cursor |
 | `shift+enter`, `ctrl+j` | editor, menus | break the line; save the menu |
-| `tab`, `shift+tab` | app, sheets | round the shared transcript and working agents; turn pages |
+| `shift+tab`, `tab` | app, sheets | round the views forward and back; turn pages |
 | `esc` | app, sheets | open `/monitor`; one step back, out of a search first |
 | `ctrl+c` | app | take back the nearest thing; twice stops the flow |
 | `ctrl+q` | app | what `/exit` does |

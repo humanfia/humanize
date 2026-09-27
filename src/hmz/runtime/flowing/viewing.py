@@ -1110,11 +1110,11 @@ class Source:
             None
         )
 
-    @property
-    def away(self) -> bool:
+    def away_for(self, role: str) -> bool:
+        """Whether nobody answers as one role: the run's `Outworlder` role it was filled for."""
         if self.made:
             return self.hook is None
-        return self.driver is None or self.driver.away
+        return self.driver is None or self.driver.away_for(role)
 
 
 class _Person:
@@ -1155,18 +1155,24 @@ class OutworlderView:
     :class:`~hmz.runtime.flowing.spi.OutworlderDriver`, and one a flow made with
     `Outworlder.new()` through the `on_outworlder_run` hook hung on it; either answers for
     itself while it is away.
+
+    Asked as the role the run filled it for, which it keeps however many flows it is handed
+    on to under other names: that is the one person the driver is away or here as.
     """
 
     _permission: ClassVar[Permission] = Permission()
     _skills: ClassVar[tuple[str, ...]] = ()
 
-    __slots__ = ("_line", "_node", "_role", "_source")
+    __slots__ = ("_asker", "_line", "_node", "_role", "_source")
 
-    def __init__(self, source: Source, node: Call | None, role: str) -> None:
-        """A view of an outworlder for one role of one flow call."""
+    def __init__(
+        self, source: Source, node: Call | None, role: str, asker: str | None = None
+    ) -> None:
+        """A view of an outworlder for one role of one flow call, asking as `asker`."""
         self._source = source
         self._node = node
         self._role = role
+        self._asker = role if asker is None else asker
         self._line: _Line | None = None
 
     def __repr__(self) -> str:
@@ -1184,7 +1190,7 @@ class OutworlderView:
 
     @property
     def away(self) -> bool:
-        return self._source.away
+        return self._source.away_for(self._asker)
 
     @property
     def effort(self) -> str:
@@ -1287,10 +1293,10 @@ class OutworlderView:
                 CALLING.reset(token)
             return _answered(answered.output, output_schema, self._role or "outworlder")
         driver = source.driver
-        if driver is None or driver.away:
+        if driver is None or driver.away_for(self._asker):
             return away_answer(output_schema)
         try:
-            said = await driver.run(prompt, output_schema)
+            said = await driver.run(prompt, output_schema, self._asker)
         except OutworlderAway:
             return away_answer(output_schema)
         return _answered(said, output_schema, self._role or "outworlder")

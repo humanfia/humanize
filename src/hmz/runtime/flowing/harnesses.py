@@ -94,6 +94,7 @@ if TYPE_CHECKING:
         AgentBase,
         AgentConfig,
         Event,
+        HumanAgent,
         Hung,
         Occasion,
         Question,
@@ -1270,19 +1271,19 @@ def _retrieved(landed: asyncio.Future[Any]) -> None:
 def open_outworlder(
     *,
     ask: Callable[[Question], str | None] | None = None,
-    away: Callable[[], bool] | None = None,
+    away: Callable[[str], bool] | None = None,
 ) -> HumanOutworlder:
     """Makes the driver for whoever is outside the run.
 
     Args:
       ask: Asks the person one question and waits for the answer, on a thread of its own:
-        the question's text, and the answers it offers where it offers any. Answers None when
-        nobody answered -- they walked away, or the interface closed. A text turn is one
-        question; a turn asked for a schema is one question per field, as
-        :class:`hmz.coganchor.agents.HumanAgent` asks them. None for nobody at all, which is
-        `hmz exec`.
-      away: Whether nobody is there now -- `/afk` -- asked whenever it matters. None for
-        away exactly when there is nobody to `ask`.
+        the question's text, the answers it offers where it offers any, and the `Outworlder`
+        role asking as its `asker`. Answers None when nobody answered -- they walked away, or
+        the interface closed. A text turn is one question; a turn asked for a schema is one
+        question per field, as :class:`hmz.coganchor.agents.HumanAgent` asks them. None for
+        nobody at all, which is `hmz exec`.
+      away: Whether nobody is there now for one `Outworlder` role -- `/afk` -- asked whenever
+        it matters. None for away exactly when there is nobody to `ask`.
 
     Returns:
       The driver.
@@ -1293,34 +1294,34 @@ def open_outworlder(
 class HumanOutworlder:
     """Whoever is outside the run, asked through the person-shaped agent coganchor has.
 
+    One person per `Outworlder` role, each stamping what it asks with the role, so that an
+    interface holding several can say which of them is asking and take each one's answer.
+
     Implements :class:`~hmz.runtime.flowing.spi.OutworlderDriver`.
     """
 
-    __slots__ = ("_ask", "_away", "_person")
+    __slots__ = ("_ask", "_away", "_lock", "_people")
 
     def __init__(
         self,
         *,
         ask: Callable[[Question], str | None] | None,
-        away: Callable[[], bool] | None,
+        away: Callable[[str], bool] | None,
     ) -> None:
         """Initializes the driver; see :func:`open_outworlder`."""
-        from hmz.coganchor.agents import HumanAgent
-
         self._ask = ask
         self._away = away
-        self._person = HumanAgent(name="outworlder")
-        self._person.ask = ask
+        self._people: dict[str, HumanAgent] = {}
+        self._lock = threading.Lock()
 
-    @property
-    def away(self) -> bool:
-        """Whether nobody is there to answer. It may change at any time."""
+    def away_for(self, role: str) -> bool:
+        """Whether nobody is there to answer as one role. It may change at any time."""
         if self._ask is None:
             return True
-        return self._away() if self._away is not None else False
+        return self._away(role) if self._away is not None else False
 
     async def run(
-        self, prompt: str, output_schema: type[pydantic.BaseModel] | None
+        self, prompt: str, output_schema: type[pydantic.BaseModel] | None, role: str
     ) -> str | pydantic.BaseModel:
         """Asks, and waits for the answer.
 
@@ -1332,22 +1333,39 @@ class HumanOutworlder:
           OutworlderAway: If it is away and the schema cannot be answered by default, or went
             away -- answered nothing -- while this was waiting.
         """
-        if self.away:
+        if self.away_for(role):
             return away_answer(output_schema)
-        said = await _threaded(lambda: self._asked(prompt, output_schema))
+        said = await _threaded(lambda: self._asked(prompt, output_schema, role))
         if said is None:
             raise OutworlderAway("nobody answered")
         return said
 
+    def _person(self, role: str) -> HumanAgent:
+        """The person asked as one role, made the first time that role asks."""
+        from hmz.coganchor.agents import HumanAgent
+
+        ask = self._ask
+        with self._lock:
+            person = self._people.get(role)
+            if person is None:
+                person = self._people[role] = HumanAgent(name="outworlder")
+                person.ask = (
+                    None
+                    if ask is None
+                    else lambda question: ask(dataclasses.replace(question, asker=role))
+                )
+            return person
+
     def _asked(
-        self, prompt: str, output_schema: type[pydantic.BaseModel] | None
+        self, prompt: str, output_schema: type[pydantic.BaseModel] | None, role: str
     ) -> str | pydantic.BaseModel | None:
         """Puts the prompt to the person, on a thread of its own."""
         from hmz.coganchor.agents import Question
 
+        person = self._person(role)
         if output_schema is None:
-            return self._person.asked(Question(text=prompt))
-        return self._person.new()(prompt, suppress=True, schema=output_schema)
+            return person.asked(Question(text=prompt))
+        return person.new()(prompt, suppress=True, schema=output_schema)
 
 
 def away_answer(

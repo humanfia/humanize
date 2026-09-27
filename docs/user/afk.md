@@ -52,6 +52,17 @@ It works before a run starts and during one. A question already waiting when you
 dropped, and the flow is told nobody answered. What an empty answer means for each kind of
 question is on [Questions](/user/questions).
 
+## One outworlder at a time
+
+A flow may have more than one [outworlder](/user/questions), each with a transcript of its own
+that <kbd>shift+tab</kbd> reaches. Where you type `/afk` decides whom it is about:
+
+| Where | `/afk` sets |
+| --- | --- |
+| an outworlder's transcript | that outworlder alone; the status line names it, `afk human` |
+| every agent's transcript, or the monitor | every outworlder at once, undoing what was set for one |
+| one conversation's transcript | nothing: it is not offered there, and says where it works |
+
 ::: tip `/afk` is about questions, not approvals
 A flow's agents never wait for approval, whether you are here or away. See
 [Permissions](/user/permissions).

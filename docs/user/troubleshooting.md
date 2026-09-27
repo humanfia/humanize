@@ -209,7 +209,7 @@ whichever has a turn open. Until that agent takes it, the line stays pinned abov
 - **Several lines** go one at a time, so the later ones wait a turn or two.
 - **When the flow ends**, lines nobody took move into the transcript marked `never sent`.
 
-To send it to another agent, press <kbd>tab</kbd> to read that one first. See
+To send it to another agent, press <kbd>shift+tab</kbd> to read that one first. See
 [Steering](/user/steering).
 
 ### The screen is unreadable in my terminal

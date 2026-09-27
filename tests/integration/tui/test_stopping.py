@@ -157,6 +157,36 @@ def test_stop_is_offered_among_the_commands_and_says_it_is_asked_once() -> None:
 
 
 @pytest.mark.timeout(60)
+async def test_a_typed_stop_works_only_where_the_whole_run_is_watched() -> None:
+    """On one agent's transcript it would read as stopping that agent, so it is not offered.
+
+    Typed out anyway it says where it works and stops nothing; from the transcript every
+    agent is on it stops the flow as ever.
+    """
+    from textual.widgets import OptionList
+
+    from hmz.tui.app import Editor
+    from tests.tui.fixtures import holding
+
+    app = Humanize()
+    async with app.run_test() as driver:
+        run = holding(app)
+        for view in ("builder/1", "outworlder:human"):
+            app._now_reading(view)
+            await driver.press(*"/sto")
+            await driver.pause()
+            assert not app.query_one("#offers", OptionList).has_class("offering")
+            app.query_one(Editor).text = ""
+            await _typed(driver, "/stop")
+            await until(lambda: "/stop works on" in transcript(app), driver)
+            assert not run.stopped
+
+        app._now_reading("")
+        await _typed(driver, "/stop")
+        await until(lambda: run.stopped, driver)
+
+
+@pytest.mark.timeout(60)
 async def test_a_typed_stop_leaves_no_half_made_gesture_behind_it() -> None:
     """A press made before the command and one made after it are not one gesture.
 

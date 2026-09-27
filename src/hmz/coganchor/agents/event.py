@@ -327,10 +327,14 @@ class Question:
       options: The answers it offered, if it offered any. An answer is not held to them --
         every backend that offers options takes something else too -- but they are what the
         agent expects, and what an interface has to show for the question to read as one.
+      asker: The `Outworlder` role of a run that is asking, where one is -- so that an
+        interface holding several can say which of them wants the answer and hand it to that
+        one -- or "" for a question an agent put through no such role.
     """
 
     text: str
     options: tuple[str, ...] = ()
+    asker: str = ""
 
 
 class Saying:

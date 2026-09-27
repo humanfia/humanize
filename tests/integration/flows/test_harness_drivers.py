@@ -802,33 +802,37 @@ async def test_an_outworlder_answers_through_the_callback_it_was_given() -> None
         return "3" if question.text.startswith("far") else "north"
 
     outworlder = open_outworlder(ask=ask)
-    assert not outworlder.away
-    assert await outworlder.run("Where now?", None) == "north"
-    chosen = await outworlder.run("Choose.", Choice)
+    assert not outworlder.away_for("human")
+    assert await outworlder.run("Where now?", None, "human") == "north"
+    chosen = await outworlder.run("Choose.", Choice, "guide")
     assert chosen == Choice(way="north", far=3)
     assert asked[0].text == "Where now?"
+    # Each question says which role asked it, a field of a schema as much as a text turn.
+    assert [one.asker for one in asked] == ["human", "guide", "guide"]
 
 
 async def test_an_outworlder_nobody_answers_is_away() -> None:
     outworlder = open_outworlder(ask=lambda question: None)
     with pytest.raises(OutworlderAway):
-        await outworlder.run("Anyone?", None)
+        await outworlder.run("Anyone?", None, "human")
 
 
 async def test_an_away_outworlder_answers_what_it_can_by_default() -> None:
     outworlder = open_outworlder()
-    assert outworlder.away
-    assert await outworlder.run("Anyone?", None) == ""
+    assert outworlder.away_for("human")
+    assert await outworlder.run("Anyone?", None, "human") == ""
 
     class Defaulted(pydantic.BaseModel):
         far: int = 2
 
-    assert await outworlder.run("Anyone?", Defaulted) == Defaulted()
+    assert await outworlder.run("Anyone?", Defaulted, "human") == Defaulted()
     with pytest.raises(OutworlderAway):
-        await outworlder.run("Anyone?", Choice)
-    here = open_outworlder(ask=lambda question: "x", away=lambda: True)
-    assert here.away
-    assert await here.run("Anyone?", None) == ""
+        await outworlder.run("Anyone?", Choice, "human")
+    here = open_outworlder(ask=lambda question: "x", away=lambda role: role == "gone")
+    assert here.away_for("gone")
+    assert not here.away_for("human")
+    assert await here.run("Anyone?", None, "gone") == ""
+    assert await here.run("Anyone?", None, "human") == "x"
 
 
 async def test_a_session_carries_its_skills_where_its_cli_reads_them(

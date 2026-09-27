@@ -2482,6 +2482,47 @@ async def test_the_marker_is_where_a_narrow_terminal_cannot_take_it_away() -> No
         assert drawn.startswith("afk")  # ahead of the flow, the directory and the keys
 
 
+@pytest.mark.timeout(60)
+async def test_afk_is_one_outworlder_on_its_own_transcript_and_every_one_elsewhere() -> (
+    None
+):
+    """Each outworlder is its own person to be away as; where all of them are, it is all."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        holding(app)
+        app._outworlders = ["human", "guide"]
+
+        async def send(line: str) -> None:
+            await driver.press(*line)
+            await driver.press("enter")
+            await driver.pause()
+
+        app._now_reading("outworlder:guide")
+        await send("/afk on")
+        assert app._away("guide")
+        assert not app._away("human")
+        assert "afk guide" in str(app.query_one("#status", Static).content)
+
+        app._now_reading("")
+        await send("/afk on")
+        assert app._away("guide")
+        assert app._away("human")
+        await send("/afk")
+        assert not app._away("guide")
+        assert not app._away("human")
+
+        # And not on one agent's, which asks nobody anything: it is not offered there, and
+        # typed out anyway it says where it works rather than doing something.
+        app._now_reading("builder/1")
+        await driver.press(*"/af")
+        await driver.pause()
+        assert not app.query_one("#offers", OptionList).has_class("offering")
+        app.query_one(Editor).text = ""
+        await send("/afk on")
+        assert not app._away("human")
+        assert "/afk works on" in transcript(app)
+
+
 def test_the_commands_are_offered_in_alphabetical_order() -> None:
     """The one order a list of commands has that a reader can predict."""
     from hmz.tui.complete import offered

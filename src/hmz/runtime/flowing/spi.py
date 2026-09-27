@@ -790,15 +790,19 @@ class EnvDriver(Protocol):
 
 
 class OutworlderDriver(Protocol):
-    """Whoever is outside the run, taking turns as an agent of it."""
+    """Whoever is outside the run, taking turns as an agent of it.
 
-    @property
-    def away(self) -> bool:
-        """Whether nobody is there to answer. It may change at any time."""
+    Asked as one of a run's `Outworlder` roles: the role the run filled, which a flow handing
+    it on to a flow it calls does not change, so that a person answering several of them can
+    be away from one and here for another.
+    """
+
+    def away_for(self, role: str) -> bool:
+        """Whether nobody is there to answer as one role. It may change at any time."""
         ...
 
     async def run(
-        self, prompt: str, output_schema: type[pydantic.BaseModel] | None
+        self, prompt: str, output_schema: type[pydantic.BaseModel] | None, role: str
     ) -> str | pydantic.BaseModel:
         """Asks, and waits for the answer.
 
@@ -808,6 +812,7 @@ class OutworlderDriver(Protocol):
         Args:
           prompt: What to ask.
           output_schema: The model the answer is an instance of, or None for text.
+          role: The `Outworlder` role asking.
 
         Returns:
           The answer.

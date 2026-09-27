@@ -19,7 +19,7 @@ from hmz.coganchor.backends import Model
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
-from hmz.tui.app import _COMMANDS, Editor
+from hmz.tui.app import _COMMANDS, Editor, _Asked
 from hmz.tui.complete import offered
 from hmz.tui.pick import _BUDGET, _SAVE, Configures, Flows
 from tests.integration.tui.test_app import opens
@@ -379,14 +379,15 @@ async def test_nothing_is_offered_against_a_dollar_while_an_agent_waits_to_be_an
     Settings(tmp_path).remember("chat", _CHAT)
     app = Humanize()
     async with app.run_test() as driver:
-        app._asking = Question("which way?")
+        asked = _Asked(Question("which way?"))
+        app._asking = [asked]
         await driver.press(*"$cha")
         await driver.pause()
 
         assert not app.query_one("#offers", OptionList).has_class("offering")
 
         await driver.press("enter")
-        await until(lambda: app._answer == "$cha", driver)  # answered, not completed
+        await until(lambda: asked.answer == "$cha", driver)  # answered, not completed
 
 
 @pytest.mark.timeout(60)

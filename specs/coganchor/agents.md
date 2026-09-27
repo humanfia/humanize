@@ -313,6 +313,7 @@ class Event:
 class Question:
     text: str
     options: tuple[str, ...] = ()
+    asker: str = ""  # the `Outworlder` role asking, where one is
 
 class Failed(subprocess.CalledProcessError):
     def __init__(
