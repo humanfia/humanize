@@ -160,7 +160,7 @@ const counting = computed(() => presses.value > 0)
 const keys = computed(() => {
   const held: string[] = []
   if (typed.value) held.push(phase.value === 'running' ? 'enter say' : 'enter start')
-  held.push('/ commands', 'shift+enter newline', 'esc monitor')
+  held.push('/ commands', 'shift+enter newline', '← monitor')
   if (typed.value) held.push('ctrl+c clear')
   else if (counting.value)
     held.push(phase.value === 'running' ? 'ctrl+c again to stop' : 'ctrl+c again to exit')

@@ -67,7 +67,7 @@ hmz exec -f planned -b cost=30 \
 
 Each published flow is one `await` in yours. Run it at the prompt instead, as
 `$local/planned`, and while `gen-plan` runs the status line reads
-`planned ▸ humanize1:gen-plan`, with [`/monitor`](/user/monitor) drawing the same tree. Either
+`planned ▸ humanize1:gen-plan`, with [the monitor](/user/monitor) drawing the same tree. Either
 way, the [trace](/user/tracing) keeps every call and every return.
 
 A called flow raises what it raised, **as it raised it**: a `CostExceeded` three flows down is

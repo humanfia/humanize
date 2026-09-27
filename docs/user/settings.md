@@ -15,7 +15,7 @@ const screen = (lines, mode) => [
   { rule: true },
   {
     l: `${mode}[c]·|·[/] rlar… [m](252s · ctrl+c twice to stop)[/]`,
-    keys: '/ commands · shift+enter newline · esc monitor · ctrl+c stop',
+    keys: '/ commands · shift+enter newline · ← monitor · ctrl+c stop',
     hl: mode !== '',
   },
 ]

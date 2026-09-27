@@ -4,11 +4,13 @@ import TermScreen from '../.vitepress/theme/components/user-running/TermScreen.v
 const heading = '   [b]Board[/] · [m]what you and the flow both write on[/]'
 const todo = ' [b]❯[/] [c]◈[/] todo                      [m]write the parser[/]'
 const doing = "   [m]◈[/] doing                     [m]tokenizer[/] · [m]flow's[/]"
-const add = ['', '        [b]add[/]                       [m]a line[/]']
-const keys = '   [m]↑↓ move · enter read or change · a add · d twice takes one away · esc close[/]'
-// What sits between is the rest of the sheet -- the flow, what it has cost -- left out here.
+const add = ['   [m]+[/] [m]a new line[/]']
+// What sits between is the rest of the monitor -- the flow, what it has cost -- left out here.
 const gap = ['', '   [m]⋮[/]', '']
-const said = (words) => (words ? [...gap, `   [m]${words}[/]`, '', keys] : [...gap, keys])
+const said = (words) => [...gap, ...(words ? [`[m]${words}[/]`] : []), { rule: true }, { prompt: '' }, { rule: true }, {
+  l: '[c]▣[/] monitor[m] · a node per agent[/]',
+  keys: '↑↓ node · enter read · → back · ctrl+t by session · / commands',
+}]
 
 const board = [
   {
@@ -17,14 +19,9 @@ const board = [
     caption: "A line marked <code>flow's</code> is not yours to change.",
   },
   {
-    label: 'd',
-    lines: [heading, todo, doing, ...add, ...said('press d again to take todo off the board')],
-    caption: 'The first <kbd>d</kbd> only asks. Moving the cursor cancels it.',
-  },
-  {
-    label: 'd again',
+    label: 'enter, then empty it',
     lines: [heading, doing, ...add, ...said('todo is off the board')],
-    caption: 'The second <kbd>d</kbd> takes the line off at once. There is nothing to save.',
+    caption: '<kbd>enter</kbd> opens the line; rub out what it says and <kbd>enter</kbd> again takes it off at once. There is nothing to save.',
   },
 ]
 </script>
@@ -33,23 +30,24 @@ const board = [
 
 A run of a flow never has a board: a flow has no way to read or write one. The board belongs to
 the person agent in humanize's lower [agent layer](/reference/agents), and a run that holds one
-shows it on [`/monitor`](/user/monitor), under the drawing.
+shows it on [the monitor](/user/monitor), under the drawing.
 
 ## Try it
 
-Where a run has a board, <kbd>esc</kbd> opens it on `/monitor`. Press the keys to see what
-they do:
+Where a run has a board, <kbd>←</kbd> on an empty prompt goes up to the monitor, and the board
+is under the drawing. Press the keys to see what they do:
 
-<TermScreen title="hmz · /monitor, cropped to the board" :frames="board" art />
+<TermScreen title="hmz · the monitor, cropped to the board" :frames="board" art />
 
 ## The keys
 
 | Key | Does |
 | --- | --- |
-| <kbd>a</kbd>, or <kbd>enter</kbd> on `add` | Put up a line: type its name, <kbd>enter</kbd>, then what it says, <kbd>enter</kbd>. |
-| <kbd>enter</kbd> on a line | Change what it says. |
-| <kbd>d</kbd> twice | Take the line off. |
-| <kbd>esc</kbd> | Close `/monitor`. |
+| <kbd>↑</kbd> <kbd>↓</kbd> | Move between the lines, as between the boxes above them. |
+| <kbd>enter</kbd> on `+ a new line` | Put up a line: type its name, <kbd>enter</kbd>, then what it says, <kbd>enter</kbd>. |
+| <kbd>enter</kbd> on a line | Change what it says, then <kbd>enter</kbd>. Saved empty, the line is taken off. |
+| <kbd>esc</kbd> | While writing a line: back, changing nothing. |
+| <kbd>→</kbd> | Back to the log. |
 
 A board line never stops the run, and nothing waits for it. To give a running loop more work,
 edit the file it reads each round instead; see [Loops](/weaver/loops).

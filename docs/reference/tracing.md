@@ -328,6 +328,6 @@ Returns the document. Both raise `ValueError` for a time dateparser cannot read
 
 ## Watching a run instead
 
-A trace is for afterwards. While a run is going, `/monitor` shows the same shape live: who is
+A trace is for afterwards. While a run is going, the monitor shows the same shape live: who is
 working, each handover between agents and how often it happened, and what each model has cost
 in tokens and money and the rate it is costing now. See [Monitor](/user/monitor).

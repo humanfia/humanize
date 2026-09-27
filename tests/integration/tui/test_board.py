@@ -1,6 +1,6 @@
-"""`/monitor`: the agents that have worked, the fleets under them, and the board.
+"""The monitor: the agents that have worked, the fleets under them, and the board.
 
-Three things that all belong on the one sheet, because all three are what the run *is doing*.
+Three things that all belong on the one screen, because all three are what the run *is doing*.
 An agent the flow declared and never reached is not; a subagent one of them started is; and so
 is what there is left to do, which is the board -- the lines the person and the flow both
 write on and neither waits at.
@@ -12,12 +12,12 @@ import time
 from typing import TYPE_CHECKING
 
 import pytest
-from textual.widgets import Label, OptionList
+from textual.widgets import OptionList, Static
 
 from hmz.coganchor.agents import AgentConfig, Board, Event, HumanAgent, Refused
 from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
-from hmz.tui.pick import EVERY, Entry, Monitoring
+from hmz.tui.monitoring import EVERY, OUTWORLDER, Entry, Monitoring
 from tests.integration.tui.test_attach import SteerableAgent
 from tests.tui.fixtures import until
 
@@ -30,23 +30,32 @@ CONFIG = AgentConfig(model="m", effort="high")
 
 
 def _drawn(app: Humanize) -> str:
-    """Everything the sheet has put up, as one block to read."""
-    boxes = app.screen.query_one("#choices", OptionList)
+    """Everything the graph has put up, as one block to read."""
+    boxes = app.screen.query_one("#graph", OptionList)
     return "\n".join(
         str(boxes.get_option_at_index(at).prompt) for at in range(boxes.option_count)
     )
 
 
 def _ids(app: Humanize) -> list[str]:
-    """The id of every row on the sheet, in the order they are drawn."""
-    boxes = app.screen.query_one("#choices", OptionList)
+    """The id of every row on the graph, in the order they are drawn."""
+    boxes = app.screen.query_one("#graph", OptionList)
     return [str(boxes.get_option_at_index(at).id) for at in range(boxes.option_count)]
 
 
+def _under(app: Humanize) -> str:
+    """What the monitor says under the graph."""
+    return str(app.screen.query_one("#under", Static).content)
+
+
 async def _opens(app: Humanize, driver: Pilot[None]) -> None:
-    """Opens `/monitor` and waits for it to be up."""
+    """Goes up to the monitor and waits for it to be up."""
     app.action_monitor()
-    await until(lambda: isinstance(app.screen, Monitoring), driver)
+    await until(
+        lambda: isinstance(app.screen, Monitoring) and bool(app.screen.query("#graph")),
+        driver,
+    )
+    await driver.pause()
 
 
 def _two(app: Humanize) -> tuple[AgentBase, AgentBase]:
@@ -139,9 +148,7 @@ async def test_a_run_with_no_person_in_its_flow_has_no_board() -> None:
         await _opens(app, driver)
 
         assert "Board" not in _drawn(app)
-        await driver.press("a")
-        await driver.pause()
-        assert "keeps no board" in str(app.screen.query_one("#tuning", Label).content)
+        assert "\x00" not in "".join(_ids(app))  # and no row to put a line up with
 
 
 @pytest.mark.timeout(60)
@@ -178,16 +185,13 @@ async def test_a_line_the_flow_keeps_to_itself_is_not_one_to_change_here() -> No
         # Down to it, and enter: it says why rather than opening an editor. The last row
         # is the one that puts a line up, so the flow's own line is the one before it.
         while (
-            app.screen.query_one("#choices", OptionList).highlighted
-            != len(_ids(app)) - 2
+            app.screen.query_one("#graph", OptionList).highlighted != len(_ids(app)) - 2
         ):
             await driver.press("down")
         await driver.press("enter")
         await driver.pause()
 
-        assert "the flow's to change" in str(
-            app.screen.query_one("#tuning", Label).content
-        )
+        assert "the flow's to change" in _under(app)
         assert isinstance(app.screen, Monitoring)
 
 
@@ -201,7 +205,12 @@ async def test_a_line_is_typed_onto_the_board_and_the_flow_reads_it_at_once() ->
         app._agents = [one, person]
         await _opens(app, driver)
 
-        await driver.press("a")
+        # The last row is the one that puts a line up, and enter on it is a new line.
+        while app.screen.query_one("#graph", OptionList).highlighted != (
+            len(_ids(app)) - 1
+        ):
+            await driver.press("down")
+        await driver.press("enter")
         await until(lambda: isinstance(app.screen, Entry), driver)
         await driver.press(*"todo")
         await driver.press("enter")  # the name, then what it says
@@ -359,7 +368,7 @@ async def test_the_box_under_the_cursor_says_so_on_the_box() -> None:
         await driver.press("down")  # off the row they all appear on, onto the first box
         await driver.pause()
 
-        boxes = app.screen.query_one("#choices", OptionList)
+        boxes = app.screen.query_one("#graph", OptionList)
         assert boxes.highlighted == 1
         assert "❯" in str(boxes.get_option_at_index(1).prompt)
         assert "❯" not in str(boxes.get_option_at_index(2).prompt)
@@ -377,7 +386,7 @@ async def test_a_clock_ticking_puts_the_row_back_rather_than_the_whole_list() ->
         await _opens(app, driver)
         sheet = app.screen
         assert isinstance(sheet, Monitoring)
-        boxes = sheet.query_one("#choices", OptionList)
+        boxes = sheet.query_one("#graph", OptionList)
         held = boxes.get_option_at_index(1)
 
         app._monitor.opened[one.id] = time.monotonic() - 91.0
@@ -400,7 +409,7 @@ async def test_what_the_boxes_say_is_not_said_again_under_them() -> None:
 
         await _opens(app, driver)
 
-        under = str(app.screen.query_one("#tuning", Label).content)
+        under = _under(app)
         assert "Flow:" in under  # which flows are running, which no box says
         assert "Tokens:" in under
         assert "Working:" not in under  # the boxes are marked, and once is enough
@@ -418,4 +427,122 @@ async def test_a_run_that_has_not_started_says_so_where_the_boxes_would_be() -> 
 
         assert "no agent has taken a turn yet" in _drawn(app)
         # And the agents that are set up are said under it, there being no boxes to say them.
-        assert "Agents:" in str(app.screen.query_one("#tuning", Label).content)
+        assert "Agents:" in _under(app)
+
+
+@pytest.mark.timeout(60)
+async def test_a_line_written_down_empty_is_taken_off_the_board() -> None:
+    """There is no key that takes a line away: saving it with nothing in it is how."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        one, _other = _two(app)
+        person = HumanAgent()
+        app._agents = [one, person]
+        person.board.put("todo", "fix the build")
+        await _opens(app, driver)
+
+        while app.screen.query_one("#graph", OptionList).highlighted != (
+            _ids(app).index("\x00todo")
+        ):
+            await driver.press("down")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Entry), driver)
+        for _ in "fix the build":
+            await driver.press("backspace")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Monitoring), driver)
+
+        assert person.board.held("todo") is None
+        assert "off the board" in _under(app)
+
+
+@pytest.mark.timeout(60)
+async def test_left_off_an_empty_prompt_is_the_monitor_and_right_comes_back() -> None:
+    """The monitor is the parent of the log: `←` goes up to it, `→` back down."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        _two(app)
+
+        await driver.press("escape")  # which is not how it is opened any more
+        await driver.pause()
+        assert not isinstance(app.screen, Monitoring)
+
+        await driver.press("x", "left")  # with something typed, it is the editor's
+        await driver.pause()
+        assert not isinstance(app.screen, Monitoring)
+        await driver.press("right", "backspace")  # back to the end, and rubbed out
+
+        await driver.press("left")
+        await until(
+            lambda: (
+                isinstance(app.screen, Monitoring) and bool(app.screen.query("#graph"))
+            ),
+            driver,
+        )
+        await driver.pause()
+        # The first node is every agent's log, and it is the one the cursor starts on.
+        assert app.screen.query_one("#graph", OptionList).highlighted == 0
+        assert _ids(app)[0] == EVERY
+        assert "all agents" in _drawn(app)
+
+        await driver.press("right")
+        await until(lambda: not isinstance(app.screen, Monitoring), driver)
+        assert app._attached == EVERY
+
+
+@pytest.mark.timeout(60)
+async def test_ctrl_t_draws_a_node_per_session_and_enter_reads_one() -> None:
+    """A loop that opens a session a turn is one agent and many sessions; both are drawn."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        one, _other = _two(app)
+        first, second = one.new(), one.new()
+        app._heard(one, first, Event(kind="begins", text=""))
+        app._heard(one, first, Event(kind="ends", text=""))
+        app._heard(one, second, Event(kind="begins", text=""))
+        await driver.pause()
+        await _opens(app, driver)
+        assert _ids(app) == [EVERY, one.id]
+
+        await driver.press("ctrl+t")
+        await until(lambda: _ids(app) == [EVERY, f"{one.id}/1", f"{one.id}/2"], driver)
+        assert "session 2" in _drawn(app)
+        assert "↓ 1" in _drawn(app)  # the first session handed to the second
+
+        await driver.press("down", "enter")
+        await until(lambda: not isinstance(app.screen, Monitoring), driver)
+        assert app._attached == one.id  # the log of the role the session is of
+
+        # And it opens the way it was left.
+        await _opens(app, driver)
+        assert _ids(app) == [EVERY, f"{one.id}/1", f"{one.id}/2"]
+
+
+@pytest.mark.timeout(60)
+async def test_a_command_typed_on_the_monitor_is_carried_out_there() -> None:
+    """The prompt under the graph is the log's own: every command works from it."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        _two(app)
+        await _opens(app, driver)
+
+        await driver.press(*"/afk on")
+        await driver.press("enter")
+        await until(lambda: app._afk, driver)
+
+        assert isinstance(app.screen, Monitoring)  # still up
+        assert "away" in _under(app)  # and it answered where it was typed
+
+
+@pytest.mark.timeout(60)
+async def test_the_person_is_a_node_of_their_own() -> None:
+    """An outworlder is not an agent the flow drives, and it is read on a log of its own."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        one, _other = _two(app)
+        person = HumanAgent()
+        app._agents = [one, person]
+        await _opens(app, driver)
+
+        assert _ids(app)[1] == f"{OUTWORLDER}{person.id}"
+        assert "outworlder" in _drawn(app)

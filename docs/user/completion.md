@@ -48,7 +48,7 @@ While the list is open:
 | --- | --- |
 | <kbd>↑</kbd> <kbd>↓</kbd> | Move through the list. |
 | <kbd>tab</kbd> or <kbd>enter</kbd> | Take the highlighted offer. It replaces the word you were typing. |
-| <kbd>esc</kbd> | Put the list away. Press it again with no list open to open [`/monitor`](/user/monitor). |
+| <kbd>esc</kbd> | Put the list away. |
 
 Once a word is complete, the list goes away, so <kbd>enter</kbd> sends the line. A complete
 command shows a **hint** instead, with what it takes: type `/afk` and the line under the prompt

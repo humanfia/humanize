@@ -18,7 +18,7 @@ const below = [
   { rule: true },
   {
     l: '[c]·|·[/] actor… [m](51s · ctrl+c twice to stop)[/]',
-    keys: 'tab agent · / commands · shift+enter newline · esc monitor · ctrl+c stop',
+    keys: 'tab agent · / commands · shift+enter newline · ← monitor · ctrl+c stop',
   },
 ]
 
@@ -82,7 +82,7 @@ answers from a snapshot of the run:
 
 It can read the workspace, but it cannot change anything and it cannot steer the flow. It is a
 real turn, though, and it counts against the run's [budget](/features/allowances). It does not
-appear on [`/monitor`](/user/monitor) or in the run's [trace](/user/tracing).
+appear on [the monitor](/user/monitor) or in the run's [trace](/user/tracing).
 
 To tell the agent something rather than ask about it, type the line without `/btw`. See
 [Talking to a running turn](/user/steering).

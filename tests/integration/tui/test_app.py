@@ -26,6 +26,7 @@ from hmz.runtime.epic import epics
 from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
 from hmz.tui.app import _BY_NAME, _COMMANDS, _SAID, Editor, _where
+from hmz.tui.monitoring import Monitoring
 from hmz.tui.pick import (
     _ADD,
     _AGAIN,
@@ -43,7 +44,6 @@ from hmz.tui.pick import (
     Confirms,
     Epics,
     Flows,
-    Monitoring,
     Signing,
     Ways,
 )
@@ -176,6 +176,25 @@ async def into_agent(app: Humanize, driver: Pilot[None], at: int = 0) -> None:
     await onto(app, driver, str(at))
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Agent), driver)
+
+
+async def up(app: Humanize, driver: Pilot[None]) -> str:
+    """Goes up to the monitor and waits for its graph to be drawn.
+
+    Args:
+      app: The interface.
+      driver: What is pumping it.
+
+    Returns:
+      What it says under the graph.
+    """
+    app.action_monitor()
+    await until(
+        lambda: isinstance(app.screen, Monitoring) and bool(app.screen.query("#graph")),
+        driver,
+    )
+    await driver.pause()
+    return str(app.screen.query_one("#under", Static).content)
 
 
 async def opens(app: Humanize, driver: Pilot[None], held: str) -> None:
@@ -399,17 +418,15 @@ async def test_what_the_flow_did_is_on_monitor(workspace: Path) -> None:
         await until(lambda: bool((workspace / "said.txt").exists()), driver)
 
         # Read while the flow is still running, which is the whole point of a sheet for it.
-        app.action_monitor()
-        await until(lambda: isinstance(app.screen, Monitoring), driver)
-        said = str(app.screen.query_one("#tuning", Label).content)
+        said = await up(app, driver)
         assert "flow" in said
         # The flow itself, drawn: the transcript all of them are on, then a box per agent.
-        boxes = app.screen.query_one("#choices", OptionList)
+        boxes = app.screen.query_one("#graph", OptionList)
         drawn = "\n".join(
             str(boxes.get_option_at_index(one).prompt)
             for one in range(boxes.option_count)
         )
-        assert "every agent" in drawn
+        assert "all agents" in drawn
         assert "1 turn" in drawn  # the one agent, and its one turn
         assert app._monitor.turns.total() == 1
 
@@ -644,12 +661,10 @@ async def test_what_is_running_is_not_swapped_underneath_itself(
 
         assert app._flow_named == "flow"  # nothing got anywhere
         assert app._models == {"coder": Runs("claude/m:high")}
-        # And `/monitor` is not refused either: it is read, so nothing conflicts with it.
-        app.action_monitor()
-        await until(lambda: isinstance(app.screen, Monitoring), driver)
-        assert "flow" in str(app.screen.query_one("#tuning", Label).content)
+        # And the monitor is not refused either: it is read, so nothing conflicts with it.
+        assert "flow" in await up(app, driver)
 
-        await driver.press("escape")
+        await driver.press("right")
         await until(lambda: not isinstance(app.screen, Monitoring), driver)
         app.action_stop_flow()
         await until(lambda: app._run is None and app._stopping is None, driver)
@@ -741,12 +756,10 @@ async def test_two_ctrl_c_stop_the_flow_and_not_just_the_turn(workspace: Path) -
 
 
 @pytest.mark.timeout(90)
-async def test_escape_is_how_the_run_is_read_rather_than_how_it_is_stopped(
+async def test_the_run_is_read_by_going_up_to_it_and_neither_key_stops_it(
     workspace: Path,
 ) -> None:
-    """A key pressed to dismiss things must not be the key that ends a day's work."""
-    from hmz.tui.pick import Monitoring
-
+    """A key pressed to dismiss things must not be the key that ends a day's work, nor `←`."""
     written(workspace, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
@@ -760,10 +773,14 @@ async def test_escape_is_how_the_run_is_read_rather_than_how_it_is_stopped(
         held = app._run
 
         await driver.press("escape")
-        await until(lambda: isinstance(app.screen, Monitoring), driver)
+        await driver.pause()
+        assert app._run is held  # esc stops nothing
+        assert not isinstance(app.screen, Monitoring)  # and opens nothing either
 
+        await driver.press("left")  # which is how the run is read now
+        await until(lambda: isinstance(app.screen, Monitoring), driver)
         assert app._run is held  # read, and nothing stopped by reading it
-        await driver.press("escape")
+        await driver.press("right")
         await driver.pause()
         app.action_stop_flow()
         await until(lambda: app._run is None and app._stopping is None, driver)
@@ -976,10 +993,7 @@ async def test_the_tokens_group_on_the_monitor_carries_the_bill_beside_the_count
     async with app.run_test() as driver:
         app._monitor.begins("actor", priced)
         app._monitor.spend("actor", 1040, kinds={"input": 1000, "output": 40})
-        app.action_monitor()
-        await until(lambda: isinstance(app.screen, Monitoring), driver)
-
-        said = str(app.screen.query_one("#tuning", Label).content)
+        said = await up(app, driver)
 
     assert priced in said
     assert "1.0k" in said
@@ -1067,10 +1081,7 @@ async def test_the_kinds_group_on_the_monitor_says_what_a_run_spent_its_tokens_o
             model=priced,
             kinds={"input": 1000, "cache_read": 100, "output": 40},
         )
-        app.action_monitor()
-        await until(lambda: isinstance(app.screen, Monitoring), driver)
-
-        said = str(app.screen.query_one("#tuning", Label).content)
+        said = await up(app, driver)
 
     assert "Kinds" in said
     assert "cache_read" in said

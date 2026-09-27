@@ -12,7 +12,7 @@ const screen = (said, answer, mode) => [
   { rule: true },
   {
     l: `${mode}[c]◉[/] ralph_loop[m] · ~/work/api[/]`,
-    keys: '/ commands · shift+enter newline · esc monitor · ctrl+c exit',
+    keys: '/ commands · shift+enter newline · ← monitor · ctrl+c exit',
     hl: mode !== '',
   },
 ]

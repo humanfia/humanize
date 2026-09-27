@@ -33,7 +33,7 @@ lines](#starting-a-flow-outright) · [menus](#menus) · [what it remembers](#wha
 ────────────────────────────────────────────────────────────────────────
 ❯ type here
 ────────────────────────────────────────────────────────────────────────
-  ·|· builder… (73s · ctrl+c twice to stop)  esc monitor · ctrl+c stop
+  ·|· builder… (73s · ctrl+c twice to stop)      ← monitor · ctrl+c stop
 ```
 
 | Part | Shows |
@@ -69,7 +69,8 @@ The right side lists only keys that work now, in this order:
 | `↑↓ move · tab take · esc dismiss` | The offers list is open. Nothing else is shown then. |
 | `enter start`, `enter say`, `enter answer` | Something is typed: no flow running, a flow running, a question up. |
 | `tab agent` | There is another transcript to step to. |
-| `/ commands`, `shift+enter newline`, `esc monitor` | Always. |
+| `/ commands`, `shift+enter newline` | Always. |
+| `← monitor` | Nothing is typed. |
 | `ctrl+c clear` · `ctrl+c again to stop` · `ctrl+c again to exit` · `ctrl+c stop` · `ctrl+c close them` · `ctrl+c exit` | What the next <kbd>ctrl+c</kbd> does: [see below](#ctrl-c). |
 
 On a terminal too narrow for all of them, hints drop from the front, so the <kbd>ctrl+c</kbd>
@@ -97,7 +98,7 @@ See [Cost and rate](/user/tally).
 
 <RefFilter
   label="Filter keys: try esc, save, or a menu"
-  :chips="['prompt', 'anywhere', 'every menu', '/flow', '/settings', '/monitor', '/exit']"
+  :chips="['prompt', 'anywhere', 'every menu', '/flow', '/settings', 'monitor', '/exit']"
 >
 
 | Where | Key | Does |
@@ -108,7 +109,7 @@ See [Cost and rate](/user/tally).
 | prompt | <kbd>tab</kbd> | Over the offers list, takes the one highlighted. |
 | prompt | <kbd>esc</kbd> | Over the offers list, dismisses it. |
 | anywhere | <span id="key-tab"></span><kbd>tab</kbd> <kbd>shift+tab</kbd> | Next or previous [transcript](#reading-one-agent): the one every agent is on, then each agent with a turn open. Not while a menu is up. |
-| anywhere | <span id="key-esc"></span><kbd>esc</kbd> | Opens [`/monitor`](#watching-the-run). It stops nothing. |
+| prompt | <span id="key-left"></span><kbd>←</kbd> | With nothing typed, on the log: up to [the monitor](#watching-the-run). It stops nothing. |
 | anywhere | <span id="key-ctrl-c"></span><kbd>ctrl+c</kbd> | Clears a half-typed line. With nothing typed, stops the flow on the second press, or leaves on the second press with nothing running. See [ctrl+c](#ctrl-c). |
 | anywhere | <kbd>ctrl+q</kbd> | Does what [`/exit`](#leaving-and-letting-go) does, asking first if a flow is running. |
 | anywhere | drag · double click · triple click | Copies what was dragged across, the word, or the whole line. See [Selecting and copying](#selecting-and-copying). |
@@ -120,9 +121,10 @@ See [Cost and rate](/user/tally).
 | every menu | typing · <kbd>backspace</kbd> | Only while a search runs, or a field is being written. |
 | /flow | <kbd>←</kbd> <kbd>→</kbd> | On the flows: the place before or after, wrapping round. |
 | /settings accounts | <kbd>shift+enter</kbd> <kbd>ctrl+j</kbd> | Making an account, while writing the one field that takes a list of variables: breaks the line. |
-| /monitor | <kbd>enter</kbd> | On a box, reads that agent. On a board line, changes it. |
-| /monitor | <kbd>a</kbd> | Puts a line on the board. |
-| /monitor | <kbd>d</kbd> <kbd>d</kbd> | Takes the board line under the cursor off, on the second press. |
+| monitor | <kbd>↑</kbd> <kbd>↓</kbd> | With nothing typed: the node before or after. |
+| monitor | <kbd>enter</kbd> · click | With nothing typed: reads that node's log. On a board line, changes it; saved empty, takes it off. On `+ a new line`, puts one up. |
+| monitor | <kbd>→</kbd> | With nothing typed: back to the log last read. |
+| monitor | <kbd>ctrl+t</kbd> | A node per agent, or per session. |
 | /exit | <kbd>enter</kbd> | Takes the answer under the cursor. |
 | /exit | <kbd>esc</kbd> | Stays. |
 
@@ -150,8 +152,8 @@ list is open, <kbd>tab</kbd> is the list's.
 | Nothing running | **1** says `— press ctrl+c again to leave —`.<br>**2**, within 3 s, leaves. |
 
 The status line always names what the next press does. A press more than three seconds after
-the last is a first press again; the third press has no time limit. <kbd>esc</kbd> never stops
-anything.
+the last is a first press again; the third press has no time limit. <kbd>esc</kbd> and
+<kbd>←</kbd> never stop anything.
 
 ## Slash commands {#commands}
 
@@ -168,7 +170,6 @@ list, with a line about each.
 | <span id="cmd-epics"></span>`/epics` | <Badge type="warning" text="read only" /> | [The runs of this directory](#the-runs-that-have-already-happened): go into one, export it, resume it. |
 | <span id="cmd-resume"></span>`/resume` | <Badge type="danger" text="refused" /> | [Picks up the last run here](#carrying-the-last-one-on-outright) of a flow that can be picked up. |
 | <span id="cmd-settings"></span>`/settings` | <Badge type="tip" text="yes" /> | [Everything humanize remembers](#what-humanize-remembers), in five pages: everywhere, this directory, [accounts](#the-accounts-themselves), [fallback](#where-a-turn-goes-when-it-cannot-be-taken) and [flowverses](#where-flows-come-from). |
-| <span id="cmd-monitor"></span>`/monitor` | <Badge type="tip" text="yes" /> | [The run, drawn](#watching-the-run), and the board. Also <kbd>esc</kbd>. |
 | <span id="cmd-clear"></span>`/clear` | <Badge type="tip" text="yes" /> | Clears the transcript being read and draws the opening box again. Nothing else. |
 | <span id="cmd-afk"></span>`/afk [on\|off]` | <Badge type="tip" text="yes" /> | [Says you are away](#questions-and-being-away): nothing waits on you. Off at start. |
 | <span id="cmd-stop"></span>`/stop` | <Badge type="info" text="needs one" /> | [Stops the flow](#stop), asked once. |
@@ -232,7 +233,7 @@ interface opens on that one.
 
 - <kbd>tab</kbd> and <kbd>shift+tab</kbd> step round it and the agents with a turn open,
   wrapping at either end. An agent between turns stays on screen once you are on it, but is not
-  stepped onto. Every agent that has worked can be read from [`/monitor`](#watching-the-run).
+  stepped onto. Every agent that has worked can be read from [the monitor](#watching-the-run).
 - Stepping onto another transcript redraws it from the top, under `── reading builder ──`, or
   `── reading every agent ──`. `/clear` clears only the one you are reading.
 - All of one agent's conversations run down its one transcript. Where it holds several, each
@@ -370,7 +371,7 @@ opens it again from the top. Where the run is not held (output not a terminal, o
 
 ## Menus
 
-`/flow`, `/epics`, `/settings` and `/monitor` each put up a sheet over the screen. The [keys
+`/flow`, `/epics` and `/settings` each put up a sheet over the screen. The [keys
 table](#keys) lists every key; each sheet's own are on its bottom row.
 
 ### Every menu {#the-menus-and-when-what-they-hold-lands}
@@ -807,13 +808,15 @@ run is what `/epics` is for.
 `hmz exec --resume` is the command-line equivalent: see
 [Picking a run up](/reference/cli#picking-a-run-up).
 
-### `/monitor` {#watching-the-run}
+### The monitor {#watching-the-run}
 
-The run, drawn. <kbd>esc</kbd> opens it; it is never refused, and redraws itself while open.
+The run, drawn across the whole screen, over the log's own prompt. It is the parent of the log:
+<kbd>←</kbd> with nothing typed goes up to it, and picking a node reads that node's log. It is
+never refused, redraws itself while up, and every command works from its prompt. There is no
+command for it, and <kbd>esc</kbd> does not open it.
 
 ```text
-  ▣ every agent · 1 of 2 working · 17 turns · 7m11s
-
+❯ ▣ all agents · 1 of 2 working · 17 turns · 7m11s · reading
   ┌──────────────────────────────────────────────────────┐
   │ ● builder                                        43s │
   │ claude/claude-opus-5:high · 12 turns                 │
@@ -822,27 +825,30 @@ The run, drawn. <kbd>esc</kbd> opens it; it is never refused, and redraws itself
     └╴◇ Task find the flaky one
   │   ↓ 6 · ↑ 5
   ┌──────────────────────────────────────────────────────┐
-❯ │ ○ reviewer                                idle 1m04s │
+  │ ○ reviewer                                idle 1m04s │
   │ codex/gpt-5.6-sol:high · 5 turns              unread │
   └──────────────────────────────────────────────────────┘
 
-  Flow:             humanize1:rlcr   431s
-  Set:              max                          20
+Flow:             humanize1:rlcr   431s
+Set:              max                          20
 
-  Tokens:           claude-opus-5        48.2k    $1.34   91 out/s
-                    gpt-5.6-sol           9.1k             12 out/s
-  Kinds:            input                 1.2k
-                    output                 980
-                    cache_read           46.0k
-                    cache_write           9.1k
-
-  ↑↓ move · enter read · esc close
+Tokens:           claude-opus-5        48.2k    $1.34   91 out/s
+                  gpt-5.6-sol           9.1k             12 out/s
+Kinds:            input                 1.2k
+                  output                 980
+                  cache_read           46.0k
+                  cache_write           9.1k
+────────────────────────────────────────────────────────────────────────
+❯
+────────────────────────────────────────────────────────────────────────
+  ▣ monitor · a node per agent  ↑↓ node · enter read · → back · ctrl+t by session
 ```
 
 | Part | |
 | --- | --- |
-| `▣ every agent` | The first row: how many boxes are working, the run's turns and time. <kbd>enter</kbd> reads the shared transcript. |
-| a box | One per agent that has taken a turn, in the order the flow declares them. Left: `●` working or `○` idle, the role, what it runs and its turns. Right: how long the open turn has run, or `idle` and how long since its last; `reading` or `unread`. <kbd>enter</kbd> or a click reads that agent, working or not. |
+| `▣ all agents` | The first node, where the cursor starts: how many boxes are working, the run's turns and time. <kbd>enter</kbd> reads the shared transcript. |
+| `◉ <role> · outworlder` | Under it, a node per outworlder of a run that talks to you. <kbd>enter</kbd> reads what the flow says to you. |
+| a box | One per agent that has taken a turn, in the order the flow declares them; with <kbd>ctrl+t</kbd>, one per session, as `<role> · session <n>`. Left: `●` working or `○` idle, the name, what it runs and its turns. Right: how long the open turn has run, or `idle` and how long since its last; `reading` or `unread`. <kbd>enter</kbd> or a click reads it, working or ended. |
 | `├╴◆` `└╴◇` | Sub-agents it started of its own: `◆` still going, `◇` back. Only from [backends that report them](/reference/agents#not-every-backend-runs-every-moment). A long fleet is cut, with a count. |
 | `↓ 6 · ↑ 5` | Handovers between neighbouring boxes, each way; the latest one lit. |
 | `Flow` | What is running, nested flows indented under the flow that called them, each with its time. |
@@ -851,12 +857,17 @@ The run, drawn. <kbd>esc</kbd> opens it; it is never refused, and redraws itself
 | `Also` | Handovers between boxes that are not neighbours. |
 | `Tokens` | One row per model, biggest first: tokens, money (blank where unpriced), output tokens a second. |
 | `Kinds` | The run's tokens by kind, over every model. `+` marks a floor. |
+| the last line under them | What the last command typed here answered. |
+| the status line | `▣ monitor`, whether a node is an agent or a session, and the keys that work now. |
+
+The arrows and <kbd>enter</kbd> are the graph's only while nothing is typed; once you type, they
+are the prompt's.
 
 **The board** sits under the diagram where the run keeps one: named lines you and the flow both
-write. <kbd>a</kbd> or the `add` row puts one up (a name, then what it says), <kbd>enter</kbd>
-changes the line under the cursor, and <kbd>d</kbd> twice takes it off at once. A line the flow
-wrote is the flow's to change. Where the run keeps no board, none is drawn and <kbd>a</kbd>
-says `this run keeps no board`. See [The mission board](/user/board).
+write, each a node the arrows reach. <kbd>enter</kbd> on `+ a new line` puts one up (a name,
+then what it says), <kbd>enter</kbd> on a line changes it, and a line saved empty is taken off at
+once. A line the flow wrote is the flow's to change. Where the run keeps no board, none is
+drawn. See [The mission board](/user/board).
 
 After a run ends, its boxes stay, with every clock stopped where the run stopped.
 

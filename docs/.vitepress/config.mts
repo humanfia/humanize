@@ -70,7 +70,7 @@ const MOVED_TO_WEAVER = [
 ]
 
 // And where a page moved a second time, which overrides the table above: `/status` is
-// `/monitor` now, so the page about it is too, and both of the paths it has had send a reader on.
+// the monitor now, so the page about it is too, and both of the paths it has had send a reader on.
 // Likewise `/providers`, `/fallback` and `/details` are pages of `/settings` now, and so are the
 // pages that were about them.
 const MOVED_AGAIN: Record<string, string> = {
@@ -279,7 +279,7 @@ export default defineConfig({
             { text: 'Talking to a running turn', link: '/user/steering' },
             { text: 'Side questions (/btw)', link: '/user/btw' },
             { text: 'Many conversations at once', link: '/user/conversations' },
-            { text: 'Watching a run (/monitor)', link: '/user/monitor' },
+            { text: 'Watching a run (the monitor)', link: '/user/monitor' },
             { text: 'Being away (/afk)', link: '/user/afk' },
             { text: 'Stopping', link: '/user/stopping' },
             { text: 'Leaving it running', link: '/user/leaving' },

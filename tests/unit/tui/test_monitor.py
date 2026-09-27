@@ -73,6 +73,32 @@ def test_an_agent_taking_two_turns_running_hands_to_nobody() -> None:
     assert monitor.turns["actor"] == 2
 
 
+def test_the_shape_is_kept_a_session_at_a_time_as_well() -> None:
+    """A loop opening a session a turn is one agent and many sessions: both shapes are true."""
+    monitor = Monitor()
+    monitor.begins("actor", "opus", session="actor/1")
+    monitor.ends("actor", session="actor/1")
+    monitor.begins("actor", "opus", session="actor/2")
+    monitor.started("actor", "c1", "read the tests", session="actor/2")
+
+    agents = monitor.shape()
+    sessions = monitor.shape(sessions=True)
+
+    assert agents.turns == {"actor": 2}
+    assert agents.handovers == {}  # one agent twice running hands to nobody
+    assert sessions.turns == {"actor/1": 1, "actor/2": 1}
+    assert sessions.working == frozenset({"actor/2"})
+    assert sessions.handovers == {("actor/1", "actor/2"): 1}
+    assert [one.about for one in sessions.under["actor/2"]] == ["read the tests"]
+
+
+def test_a_run_whose_turns_name_no_session_has_no_session_to_draw() -> None:
+    monitor = Monitor()
+    monitor.begins("actor", "opus")
+
+    assert monitor.shape(sessions=True).turns == {}
+
+
 def test_spending_is_counted_per_model_and_not_per_agent() -> None:
     """Two agents at one model are one line: what is being watched is the model's bill."""
     monitor = Monitor()

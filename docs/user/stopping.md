@@ -36,7 +36,8 @@ under the prompt always says what that is:
 A press more than 3 seconds after the last one starts over from the top, and so does a press
 after a `/stop`.
 
-<kbd>esc</kbd> never stops anything. It opens [`/monitor`](/user/monitor).
+<kbd>esc</kbd> never stops anything, and neither does <kbd>←</kbd>, which goes up to
+[the monitor](/user/monitor).
 
 ## What a stop does
 
@@ -92,7 +93,7 @@ starts with; the running one keeps what it started with.
 
 | | What it does instead |
 | --- | --- |
-| <kbd>esc</kbd> | Opens [`/monitor`](/user/monitor). |
+| <kbd>←</kbd> | With nothing typed, goes up to [the monitor](/user/monitor). |
 | `/clear` | Clears the transcript you are reading. The flow keeps running. |
 | a question the flow asked you | Ends with the flow when it stops. It never holds a stop up. |
 | a second `/stop` | Says `hmz: the flow is already stopping: …`. A <kbd>ctrl+c</kbd> is what hurries it. |
