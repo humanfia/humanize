@@ -97,11 +97,16 @@ or say what it is running.
   adding one, fetching it again and taking one away, against the same store the flows are read
   from, with any credential in a URL hidden.
 - MUST list on the accounts page of `/settings` every account under its CLI and offer
-  correcting, re-signing, what it falls back to and taking it away, never drawing a secret back
-  onto the screen.
+  correcting, re-signing, what it fails over to and taking it away, never drawing a secret back
+  onto the screen, a secret left blank while correcting keeping the one it has.
+- MUST make an account on one form -- its CLI, its way in, a name no account is already called,
+  what that way asks, and which other CLIs to write it down for -- wherever one is asked for,
+  and then ask what it runs without holding up the page it was made from, saying so while it
+  asks and saying how that went, why included, once it has.
 - MUST answer both scales of falling back — which agent takes over from which, on the fallback
-  page of `/settings`, and which account a failing one falls back to, on its accounts page —
-  refusing anything that falls back to itself.
+  page of `/settings`, a step written on one form of the place that fails, the place it falls
+  back to and how it is tried again, and which account a failing one fails over to, on its
+  accounts page, where one can be made — refusing anything that falls back to itself.
 - MUST list the runs of this directory newest first with when each began, its flow, its task, how
   it went and how many sessions it opened, marking which can be picked up, readable while one runs.
 - MUST offer per run where it is written down, carrying it on where its flow says so, and
@@ -124,9 +129,11 @@ or say what it is running.
 - MUST draw the board a flow and a person share under the diagram, its lines nodes like any
   other, applying changes at once while the flow runs, taking a line away when it is saved empty,
   and refusing, where enter was pressed, to edit a line the flow owns.
-- MUST make `/settings` the one menu of every setting, in five pages: this machine (reporting,
-  details, and the btw agent where there is one), this directory, accounts, fallback and
-  flowverses; forget this directory alone; and remember whether details are shown.
+- MUST make `/settings [page]` the one menu of every setting, in five pages it opens on by the
+  name `everywhere`, `directory`, `accounts`, `fallback` or `flowverses`, offered as it is typed,
+  refusing any other: this machine (reporting, details, and the btw agent where there is one),
+  this directory, accounts, fallback and flowverses; forget this directory alone; keep what
+  each page last said while another is read; and remember whether details are shown.
 - MUST apply each saved setting at once where it can, and otherwise say beside its row and in
   the transcript when it lands: profiling from the next flow run, accounts from the next agent
   session, forgetting from the next launch.
@@ -134,12 +141,17 @@ or say what it is running.
   own failures — what would be sent and what never would — unanswered if it is walked away from.
 - MUST hold what a menu changes until it is saved from its save row or saving is confirmed on
   the way out, asking on the way out of one holding changes; anything that runs an external
-  command or writes to the board MUST apply at once instead.
+  command or writes to the board MUST apply at once instead, and a page that holds nothing MUST
+  have no save row.
 - MUST answer a sheet once however many times its key is pressed.
-- MUST give a menu only `↑`/`↓`, `←`/`→`, `enter` and `esc`, saying them on the screen in one
-  place: a row changed where it stands MUST change only between an `enter` that begins it and an
-  `enter` that keeps it, `esc` putting it back; whatever else a menu does -- search, add, fetch or
-  ask again, copy, save -- MUST be a row of it, and a search MUST be asked for from its row.
+- MUST give a menu only `↑`/`↓`, `←`/`→`, `enter` and `esc`, and on a form `/settings` opens
+  typing, saying them on the screen in one place: a row changed where it stands MUST change only
+  between an `enter` -- or, on such a form's written row, a letter -- that begins it and an
+  `enter` that keeps it, `esc` putting it back, and keeping one on such a form MUST move on to
+  what is still to be answered; whatever else a menu does -- search, add, fetch or ask again,
+  copy, save -- MUST be a row of it, above the list on each page of `/settings`, with saving
+  last; a search MUST be asked for from its row; and such a form MUST be answered from a row
+  called `done` that says what answering it does.
 - MUST give a selection back as the text written rather than the rows it was drawn on, let one go
   when what it was made against changes, and never scroll the transcript out from under a reader.
 
@@ -148,6 +160,7 @@ or say what it is running.
 | Key | Where | What it does |
 | --- | --- | --- |
 | `enter` | editor, sheets | send the line or take the offer; open the row under the cursor, or begin and keep changing it |
+| typing | `/settings` forms | on a written row, begin writing it |
 | `shift+enter`, `ctrl+j` | editor, sheets | break the line |
 | `shift+tab`, `tab` | app | round the views forward and back |
 | `esc` | sheets | one step back, out of a change or a search first |
@@ -156,5 +169,5 @@ or say what it is running.
 | `ctrl+t` | monitor | a node per agent or per session |
 | `ctrl+c` | app | take back the nearest thing; twice stops the flow |
 | `ctrl+q` | app | what `/exit` does |
-| `↑`, `↓` | sheets | walk the rows |
-| `←`, `→` | sheets | change the row being changed; otherwise turn pages, or step between lists |
+| `↑`, `↓` | sheets | walk the rows, round the ends; on a `/settings` form, keeping the row being written |
+| `←`, `→` | sheets | change the row being changed; otherwise turn pages, round the ends, or step between lists |

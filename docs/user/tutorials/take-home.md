@@ -155,7 +155,7 @@ yet, the run is refused:
 hmz exec: error: flame_chase: the official flowverse has not been fetched yet -- open the flowverses page of /settings and fetch it from its own sheet
 ```
 
-Run `hmz`, type `/settings`, press <kbd>→</kbd> four times to reach Flowverses, open `official`,
+Run `hmz`, type `/settings flowverses`, open `official`,
 choose `fetch it again`, then run the line again.
 :::
 

@@ -85,33 +85,64 @@ cannot run, and where flows come from.
 
 ```
 /settings
+/settings accounts
 ```
 
 ![/settings opening on what is true of this machine, then → to this directory: workspace,
 flow, profile and forget](/demo/profiling.gif)
 
-The menu has five pages. <kbd>←</kbd> and <kbd>→</kbd> turn between them:
+The menu has five pages. `/settings` opens on the first; `/settings <page>` opens straight on
+the one named, and the word is offered as you type it. <kbd>←</kbd> and <kbd>→</kbd> turn
+between them, and round from the last to the first:
 
-| Page | What it holds |
-| --- | --- |
-| [**Everywhere**](#everywhere) | whether humanize reports what goes wrong, whether the screen [shows the working](#details), and which agent `/btw` talks to |
-| [**This directory**](#this-directory) | the flow it opens on, whether its runs are profiled, and forgetting it |
-| [**Accounts**](#accounts) | every account an agent may run as, under a heading per CLI |
-| [**Fallback**](#fallback) | where a turn goes when the place taking it cannot take it |
-| [**Flowverses**](#flowverses) | the git repositories flows come from |
+| Page | `/settings …` | What it holds |
+| --- | --- | --- |
+| [**Everywhere**](#everywhere) | `everywhere` | whether humanize reports what goes wrong, whether the screen [shows the working](#details), and which agent `/btw` talks to |
+| [**This directory**](#this-directory) | `directory` | the flow it opens on, whether its runs are profiled, and forgetting it |
+| [**Accounts**](#accounts) | `accounts` | every account an agent may run as, under a heading per CLI |
+| [**Fallback**](#fallback) | `fallback` | where a turn goes when the place taking it cannot take it |
+| [**Flowverses**](#flowverses) | `flowverses` | the git repositories flows come from |
 
-On the first two pages, <kbd>enter</kbd> on a row begins changing it, <kbd>←</kbd> <kbd>→</kbd>
-flip it, and <kbd>enter</kbd> keeps it (<kbd>esc</kbd> puts it back). The last three are lists:
-the `add` row adds one, <kbd>enter</kbd> opens the one under the cursor, and the `search…` row
-narrows them. Nothing held changes until you save: choose the **save** row. Leave with
-<kbd>esc</kbd> and unsaved changes, and it asks **save** or **discard**; <kbd>esc</kbd> on that
-question takes you back into the menu.
+A name `/settings` does not have is refused, naming the ones it does.
+
+### How a page is laid out {#layout}
+
+Every page is one of two kinds, and each kind is laid out the same way wherever it is.
+
+**A page of settings** (Everywhere, This directory) is its rows, then `save`. On a row marked
+`↔`, <kbd>enter</kbd> begins changing it, <kbd>←</kbd> <kbd>→</kbd> step it, and
+<kbd>enter</kbd> keeps it (<kbd>esc</kbd> puts it back). A row marked `▸` opens something.
+
+**A page that is a list** (Accounts, Fallback, Flowverses) is, from the top:
+
+1. what is done about the list: `add …` first, then anything else that brings one in, then
+   `search…`;
+2. the list, numbered, under a heading per group where it has groups;
+3. `save`, where the page holds anything until it is saved. Flowverses holds nothing, so it has
+   no `save` row.
+
+The cursor opens on the first thing listed, or on `add …` where there is nothing yet. A search
+puts it on the first thing it finds, so <kbd>enter</kbd> takes the best match. <kbd>enter</kbd>
+on something listed opens **its own menu**: what can be done to that one thing, taking it away
+last.
+
+**A form** is what adding or correcting something opens: a row per question, then `done`, whose
+line says what answering it will do. Type on a written row to write it, no <kbd>enter</kbd>
+first; <kbd>enter</kbd> keeps it and moves the cursor on to the next row still to be answered,
+or to `done` once none is. A row marked `↔` is a choice stepped where it stands; one marked `▸`
+opens a list to choose from. What a form can guess is written in for you (a name, a region) and
+the first letter you type replaces it. A secret is drawn as bullets and never shown back.
+<kbd>esc</kbd> out of a form you wrote in asks whether to keep it.
+
+The line under the list says what became of the last thing done on that page, and it is still
+there when you turn back to the page.
 
 ### When a change lands {#saving}
 
-What every page holds lands together, when you save: choose the **save** row. Leave with <kbd>esc</kbd>
-and unsaved changes, and it asks **save** or **discard**; <kbd>esc</kbd> on that question
-takes you back into the menu.
+What every page holds lands together, when you save: choose the **save** row. Leave with
+<kbd>esc</kbd> and unsaved changes, and it asks **save** or **discard**; <kbd>esc</kbd> on that
+question takes you back into the menu. The `save` row says `nothing held yet` until something
+is.
 
 A few things happen as you ask rather than on save: making an account, signing one in, and
 everything on the Flowverses page. And a few that are saved cannot take hold at once, because
@@ -122,7 +153,7 @@ and the transcript says it again once saved:
 | --- | --- |
 | reports, details, fallback steps | at once |
 | profile | from the next flow run |
-| correcting an account, what it falls back to, taking it away | from the next agent session: a session already running keeps the account it started with |
+| correcting an account, what it fails over to, taking it away | from the next agent session: a session already running keeps the account it started with |
 | forget | from the next launch: the interface open now keeps what it opened with |
 
 ## Everywhere
@@ -257,17 +288,21 @@ of one CLI should run as two accounts in the same run.
 
 In `hmz`:
 
-1. Type `/settings`, press <kbd>→</kbd> twice to turn to **Accounts**, then choose the `add`
-   row.
-2. Choose the CLI. Each row lists the ways that CLI can be signed in:
+1. Type `/settings accounts`. The cursor is on `add an account`, or on your first account if
+   you have one (`add an account` is the top row). Press <kbd>enter</kbd>.
+2. The form opens on the first CLI installed here and its first way in:
 
-   ![add on the accounts page asks which coding agent the account is for, and lists each CLI's
-   ways in beside it, with a CLI of your own last](/demo/account-backends.png)
+   ![add an account: the CLI and the way in stepped where they stand, the name written in for
+   you, what that way asks, and which other CLIs to write it down for](/demo/account-form.png)
 
-3. Choose a way, say `gateway`. Give the account a name, `deepseek`, and answer what the way
-   asks. A secret shows as bullets. A way that is a login hands the terminal to the CLI's own
+3. Choose the way: <kbd>↓</kbd> to `way`, <kbd>enter</kbd>, <kbd>→</kbd> until it says, say,
+   `gateway`, <kbd>enter</kbd>. The rows under it change to what that way asks, and the cursor
+   goes to the first of them. Type each answer and press <kbd>enter</kbd>; a secret shows as
+   bullets. The name is written in for you (the way's own, unless an account is already called
+   that); type over it to call it something else, `deepseek` here.
+4. Press <kbd>enter</kbd> on `done`. A way that is a login hands the terminal to the CLI's own
    login until it is done.
-4. Name the account after the CLI in `-a`:
+5. Name the account after the CLI in `-a`:
 
 ```sh{3}
 hmz exec -f flame_chase \
@@ -278,6 +313,11 @@ hmz exec -f flame_chase \
 
 `flame_chase` has two agents take turns on one task. Here both run the same Claude Code: the
 first as you are signed in, the second as `deepseek`.
+
+An Anthropic API key, from `/settings accounts` to back at the prompt, is ten key presses and
+the key itself: <kbd>enter</kbd>, <kbd>enter</kbd> on `add an account`, <kbd>↓</kbd>
+<kbd>enter</kbd> <kbd>→</kbd> <kbd>→</kbd> <kbd>enter</kbd> to choose `key`, type the key,
+<kbd>enter</kbd>, <kbd>enter</kbd> on `done`, and <kbd>esc</kbd>.
 
 ### Choosing one for an agent
 
@@ -290,7 +330,7 @@ first as you are signed in, the second as `deepseek`.
 ```
 
 ```text [at the prompt]
-/flow, choose the flow, enter on a role, then its provider row:
+/flow, choose the flow, enter on a role, then its account row:
 
    Select the account its turns run as
 
@@ -305,8 +345,9 @@ first as you are signed in, the second as `deepseek`.
 
 - An agent with no account runs **`as local`**: the CLI signed in the way you signed it in
   yourself.
-- At the prompt, that list's `add` row makes an account without leaving it. It is the same walk as on the Accounts page, without the question of which CLI, and the
-  new account comes back chosen.
+- At the prompt, that list's `add` row makes an account without leaving it. It is the same form
+  as on the Accounts page, without the row that asks which CLI, and the new account comes back
+  chosen. The agent's sheet then asks its CLI what it runs, without holding you up.
 - An account belongs to one CLI. What signs in to Claude Code is not what signs in to codex, so
   the list only offers that CLI's accounts.
 
@@ -337,72 +378,71 @@ variables you type, one `NAME=VALUE` per line.
 ### Managing accounts
 
 The Accounts page lists every account under a heading per CLI: its name, the way it was made
-by, and the names of the variables it sets. It never shows a value.
+by, and the names of the variables it sets. It never shows a value. Above the list are
+`add an account`, `add a CLI of your own` (one that [speaks ACP](/reference/agents#a-cli-of-your-own)),
+and `search…`.
 
 ![the Accounts page of /settings listing a claude account and as local, enter opening what can
-be done with the account, and a asking which CLI a new account is for](/demo/accounts.gif)
+be done with the account](/demo/accounts.gif)
 
 <kbd>enter</kbd> on an account opens what you can do with it:
 
 | On the menu | What it does |
 | --- | --- |
-| **correct what it holds** | Asks its way's questions again. Secrets are never shown back, so you type them again. |
+| **correct what it holds** | Asks its way's questions again, on the same form it was made on. Secrets are never shown back: leave one blank to keep it, or type a new one. |
 | **sign in again** | Runs its login again. It owns the terminal while it does. |
-| **falls back to** | The account a turn carries on under when this one fails. |
+| **fails over to** | The account a turn carries on as when this one fails. The list it opens has `add an account` at the top, for when the one you want is not there yet. |
 | **take it away** | The account and its credentials. |
 
-Making an account and signing one in happen at once. Correcting, falling back and taking away
+Making an account and signing one in happen at once. Correcting, failing over and taking away
 are held until you [save the menu](#saving), and while one is held its row says `from the next
 agent session`: an agent picks the change up when it next opens a session, and a session
 already running keeps the account it started with.
 
 Under a CLI that has accounts, the last row is `as local`: the CLI as you signed it in
-yourself. humanize keeps no credentials for it, so the only thing it offers is **falls back
+yourself. humanize keeps no credentials for it, so the only thing it offers is **fails over
 to**.
 
 ### One account, several CLIs
 
 An API key belongs to the vendor, not to the CLI. An Anthropic key works in Claude Code, pi,
-opencode, mimocode and ZCode alike. So when you make an account that other CLIs could run as,
-humanize asks which of them to copy it to:
+opencode, mimocode and ZCode alike. So when the account you are making is one other CLIs could
+run as, the form has a row for each of them, `also for pi`, `also for opencode` and so on:
 
-![after claude/shared is made: pi, opencode, mimo and zcode, each marked not installed here
-yet and switched off](/demo/alike.png)
+![the add-an-account form for a Claude API key: also for pi, opencode, mimo and zcode, each on
+because it is installed here](/demo/alike.png)
 
-- CLIs installed here start ticked; <kbd>enter</kbd>, <kbd>←</kbd>/<kbd>→</kbd>,
-  <kbd>enter</kbd> changes one, and `copy` writes the copies.
+- Each starts **on** where that CLI is installed here, and off where it is not. Change one as any
+  `↔` row: <kbd>enter</kbd>, <kbd>←</kbd>/<kbd>→</kbd>, <kbd>enter</kbd>. `done` says which
+  it will be copied to.
 - A copy takes **the same name**, so `claude/shared` becomes `pi/shared` and
-  `opencode/shared` too, and it replaces a copy already there.
-- Correcting the account asks again, so a rotated key is typed once and written over every
-  copy you tick.
-- Only variables travel. An account made by a login stays with its CLI.
-
-::: tip Before you trust a rotation
-The ticks follow which CLIs are installed, not which ones already hold a copy. A copy on a CLI
-you did not tick keeps the old key. The Accounts page shows the copies: the same name under
-another CLI's heading.
-:::
+  `opencode/shared` too. The name written in for you is one no account of any CLI has, so a
+  copy never writes over another account; where you type one that does, the row says so.
+- Correcting the account asks again, with each CLI that already holds a copy switched on, so a
+  rotated key is typed once and written over every copy.
+- Only variables travel. An account made by a login stays with its CLI, and asks nothing.
 
 ### Which models an account can run
 
 Which models a turn may name depends on the subscription, key or gateway behind it, so a new
-account is asked what it runs as soon as it is made. A gateway account lists what the gateway
-itself serves.
+account's CLI is asked what it runs as soon as the account is made. On the Accounts page that
+happens in the background: the account's row says `asking what it runs…`, you can carry on,
+and the line under the list says how many models it named, or why it named none (a login that
+has not finished, a key it refused). A gateway account lists what the gateway itself serves.
 
 The list is what the `model` row offers at `/flow`. `ask it again` there asks again: do it when
-the model you want is missing, or when a failed turn says the list is out of date. Nothing asks
-again on its own.
+the model you want is missing, or when a failed turn says the list is out of date.
 
 ### When an account fails
 
-Each account can name another account of the same CLI to carry on under: **falls back to**, on
+Each account can name another account of the same CLI to carry on as: **fails over to**, on
 its menu. A turn that fails on one walks that chain and keeps its conversation.
 
 ```text
-claude/subscription ──fails──▶ claude/key ──fails──▶ claude/gateway
+claude/subscription ──fails over──▶ claude/key ──fails over──▶ claude/gateway
 ```
 
-`as local` can start a chain, but nothing falls back *to* it. How many times a failed turn is
+`as local` can start a chain, but nothing fails over *to* it. How many times a failed turn is
 tried again first, and moving on to another CLI or another model, are set on the
 [Fallback](#fallback) page.
 
@@ -416,7 +456,7 @@ tried again first, and moving on to another CLI or another model, are set on the
   in your shell profile cannot quietly win over the account you chose.
 
 ::: details From Python
-Every step of the walk is a call on `Hmz().accounts`:
+Every row of the form is a call on `Hmz().accounts`:
 
 ```python
 from hmz.sdk import Hmz
@@ -428,7 +468,7 @@ shared = accounts.make("claude", "shared", accounts.way("claude", "key"), {
 
 accounts.serves(shared)                     # ('pi', 'opencode', 'mimo', 'zcode')
 accounts.copies(shared, "pi")               # pi/shared, holding the same key
-accounts.points("claude", "work", "shared")  # work falls back to shared
+accounts.points("claude", "work", "shared")  # work fails over to shared
 ```
 
 `make` writes an account down. For a way that runs a login, `sign_in(account, way)` runs it.
@@ -446,43 +486,49 @@ It is the second of two fallbacks, and the one that costs the conversation:
 
 | | Another account of the same CLI | Another place |
 | --- | --- | --- |
-| **Set on** | [Accounts](#when-an-account-fails) | Fallback |
+| **Set on** | [Accounts](#when-an-account-fails), as **fails over to** | Fallback, as a step |
 | **Answers** | a subscription used up, a key refused | a model retired, a CLI missing, a whole account throttled |
 | **The conversation** | carries on where it was | starts over, in a new session at the new place |
 | **Tried** | first | once no account of that CLI is left to try |
 
 ### Try it {#fallback-try-it}
 
-Type `/settings` and press <kbd>→</kbd> three times to turn to **Fallback**:
+Type `/settings fallback`:
 
 <Term title="/settings · Fallback">
 
 <pre><span class="p b">Settings</span>
 
-<span class="m">Everywhere · This directory · Accounts ·</span> <span class="p b">Fallback</span> <span class="m">· Flowverses</span>   <span class="d">←/→ page</span>
-
 <span class="m">Where a turn goes when the place taking it cannot take it at all.
 A place is a CLI, an account and a model.</span>
+
+<span class="m">Everywhere · This directory · Accounts ·</span> <span class="p b">Fallback</span> <span class="m">· Flowverses</span>
+
+     <span class="p">add a step</span>                 <span class="m">a place that fails, and where it goes</span>
+     <span class="p">search…</span>
 
 <span class="p">❯</span> <span class="d">1.</span> <span class="p">claude@work/claude-opus-5</span>  <span class="m">2 more tries, linear · falls back to codex/gpt-5.6</span>
   <span class="d">2.</span> <span class="p">codex/gpt-5.6</span>              <span class="m">falls back to dsh/deepseek-v4-flash</span>
 
-     <span class="p">search…</span>
-     <span class="p">add</span>                        <span class="m">a step</span>
-     <span class="p">save</span>                       <span class="m">what is set here</span>
+     <span class="p">save</span>                       <span class="m">what every page holds</span>
 
-<span class="d">enter what happens · esc close</span></pre>
+<span class="d">enter what happens · ←/→ page · esc close</span></pre>
 
 </Term>
 
-1. Choose **add**. Pick the place that fails: its CLI, then one of its
-   accounts, then one of the models it runs.
-2. Pick the place that takes its turns, the same way.
-3. Save: choose **save**. Leaving with <kbd>esc</kbd> asks whether to save or discard. Once saved, the next turn that fails reads
-   it.
+1. Choose **add a step**. One form opens: the place that fails, where it falls back to, and how
+   it is tried again first.
+2. <kbd>enter</kbd> on `fails at` opens every place there is in one list: each installed CLI, as
+   each of its accounts, at each model it runs. `search…` narrows it by any of the three
+   (`opus`, `work`, `codex`). Choose one, and the cursor moves to `falls back to`.
+3. <kbd>enter</kbd> there and choose the place that takes its turns. The place that fails is
+   not offered, and `nowhere` is, first. The cursor moves to `done`.
+4. Change `tries`, `policy` or `for` if you want a failed turn tried again here first, then
+   <kbd>enter</kbd> on `done`.
+5. Save: choose **save**. Leaving with <kbd>esc</kbd> asks whether to save or discard. Once
+   saved, the next turn that fails reads it.
 
-<kbd>enter</kbd> on a step asks three things about it: where it **falls back to**, how often
-a failed turn is **taken again** there first, and whether to **take it away**.
+<kbd>enter</kbd> on a step opens the same form for it, with `take it away` above `done`.
 
 Steps chain. Above, a turn that fails at `claude@work/claude-opus-5` is tried twice more
 there, then moves to `codex/gpt-5.6`, and if it fails there too, on to
@@ -490,9 +536,9 @@ there, then moves to `codex/gpt-5.6`, and if it fails there too, on to
 
 ### Trying again
 
-**taken again** sets how a failed turn is retried at this place before it moves on. Change
-each value with <kbd>enter</kbd>, <kbd>←</kbd> <kbd>→</kbd>, <kbd>enter</kbd>, then
-choose **set**:
+`tries`, `policy` and `for`, on a step's form, set how a failed turn is retried at this place
+before it moves on. Change each value with <kbd>enter</kbd>, <kbd>←</kbd> <kbd>→</kbd>,
+<kbd>enter</kbd>, then choose **done**:
 
 | Setting | Choices | What it is |
 | --- | --- | --- |
@@ -608,21 +654,21 @@ The rest is in the [SDK reference](/reference/sdk).
 
 A [flowverse](/weaver/flowverses) is a git repository of flows. The last page lists every place
 flows come from: `official`, the package's own, your `local` and `user` flows, and every
-flowverse you have added. Type `/settings` and press <kbd>→</kbd> four times to reach it, or
-choose `where flows come from` below the flows of `/flow`, which opens `/settings` on this page.
+flowverse you have added. Type `/settings flowverses`, or choose `where flows come from` below
+the flows of `/flow`, which opens `/settings` on this page.
 
 ![the Flowverses page of /settings: every place flows come from, then enter on one to read what
 it holds](/demo/flowverses.gif)
 
 | Row | What it does |
 | --- | --- |
-| a flowverse | <kbd>enter</kbd> says what it holds, then offers `fetch it again` and `take … away`. |
+| `add a flowverse` | Adds one: a URL or `owner/repo`, then a name to keep it under (blank for the repository's own), then `done` clones it. |
 | `search…` | Narrows the list by what you type. |
-| `add` | Adds one: a URL or `owner/repo`, then a name to keep it under. |
+| a flowverse | <kbd>enter</kbd> says what it holds, under `fetch it again` and `take … away`. |
 
-Everything here happens as you ask, not on save. `hmz` also fetches every flowverse that has a
-URL in the background each time it starts. A flowverse never fetched is listed anyway, marked
-`not fetched yet`, and a flow from it says so:
+Everything here happens as you ask, not on save, so the page has no `save` row. `hmz` also
+fetches every flowverse that has a URL in the background each time it starts. A flowverse never
+fetched is listed anyway, marked `not fetched yet`, and a flow from it says so:
 
 ```
 the official flowverse has not been fetched yet -- open the flowverses page of /settings and fetch it from its own sheet

@@ -33,7 +33,7 @@ fetched here, and your own. Each is offered under one name:
 
 <Term>
 
-<pre><span class="p">/settings</span>          <span class="p">Every setting: here, everywhere, accounts, fallback, flowverses</span>
+<pre><span class="p">/settings</span> <span class="m">[page]</span>   <span class="p">Every setting: everywhere, this directory, accounts, fallback, flowverses</span>
 /stop              <span class="m">Stop the flow; typed out, so not asked twice</span>
 <span class="d">────────────────────────────────────────────────────────────</span>
 <span class="d">❯</span> /s

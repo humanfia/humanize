@@ -18,55 +18,55 @@ Hide
 Type "cd /work/demo && clear" Enter
 Show
 
-# Off camera, because it is the walk rather than the thing: the prompt, `/settings` turned to Accounts, `a`,
-# which CLI, and `key` -- which is a variable rather than a login, so it asks and runs
+# Off camera, because it is the walk rather than the thing: the prompt, `/settings accounts`,
+# `add an account`, and `key` -- which is a variable rather than a login, so it asks and runs
 # nothing. The stills below are of each step all the same.
 Hide
 Type "hmz" Enter
 Wait+Screen /ctrl\+c exit/
-Type "/settings" Enter
-Wait+Screen /Settings/
-Tab
-Tab
+Type "/settings accounts" Enter
 Wait+Screen /as local/
-Type "a"
-Wait+Screen /which coding agent/
+Up 3
 Enter
-Wait+Screen /Select how to sign in/
-Down 2
+Wait+Screen /Add an account/
+Down
+Enter
+Right 2
 Enter
 Wait+Screen /API key/
+# What it is called: the name written in for it is replaced by the first letter typed.
+Up
+Type "shared"
+Enter
+# And the key -- which is the words `not-a-real-key`, and is drawn as bullets whatever it
+# is. Typed off camera all the same: a key being typed is not a thing to film.
+Type "not-a-real-key"
+Enter
 Show
 Sleep 1200ms
-# What it is called, and the key -- which is the words `not-a-real-key`, and is drawn as
-# bullets whatever it is. Typed off camera all the same: a key being typed is not a thing to
-# film, and this is what a demo of one looks like.
-Hide
-Type "shared"
-Down
-Type "not-a-real-key"
-Show
-Sleep 800ms
-Enter
 
 # And then the question this is about: an Anthropic key is an Anthropic key whoever holds
-# it, so the backends that could be run as this account are offered a copy of it.
-Wait+Screen /runs more than/
-Sleep 2s
+# it, so there is a row for each backend that could be run as this account, on the same form.
 Screenshot "/out/alike.png"
-Sleep 400ms
+Sleep 800ms
 
 # The ones this machine has installed start on; the rest are a keypress away.
+Up 4
+Sleep 500ms
+Enter
 Right
+Enter
 Sleep 700ms
-Down
-Sleep 400ms
+Enter
 Right
+Enter
 Sleep 1200ms
+Down 2
+Sleep 500ms
 Enter
 
 # And they are accounts of their own from here on, under the same name.
-Wait+Screen /and runs/
+Wait+Screen /written down for/
 Sleep 2s
 Screenshot "/out/alike-copied.png"
 Sleep 400ms

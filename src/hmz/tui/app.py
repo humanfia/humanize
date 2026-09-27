@@ -104,6 +104,7 @@ from .pick import (
     settled,
 )
 from .pick import EVERY as _EVERY
+from .pick import PAGES as _PAGES
 from .records import Following
 from .selecting import Choices, Transcript
 from .tally import Seen, Tally
@@ -3340,19 +3341,39 @@ class Humanize(App[None]):
             else "[dim]humanize reports nothing; /settings turns it on[/dim]"
         )
 
-    def action_settings(self) -> None:
+    def action_settings(self, page: str = "") -> None:
         """Opens every setting humanize has, which is what `/settings` is for.
 
         Five pages: what is true of this machine, what is remembered about this directory,
         the accounts agents run as, where a turn goes when it cannot run, and where flows
-        come from. Not refused while a flow runs -- what lands at once does not touch what
-        is running, and what does not says when it will. What it was answered with comes
-        back as a message rather than to here, since the flow menu opens it too.
+        come from -- opened on the one named, so that the page somebody came for is not
+        three presses of an arrow away. Not refused while a flow runs -- what lands at once
+        does not touch what is running, and what does not says when it will. What it was
+        answered with comes back as a message rather than to here, since the flow menu opens
+        it too.
+
+        Args:
+          page: Which page to open on, by the word its title starts with, or "" for the
+            first.
         """
+        said = page.lower()
+        if said and said not in _PAGES:
+            self.show(
+                f"hmz: /settings has no page {page!r}: say {', '.join(_PAGES[:-1])} or "
+                f"{_PAGES[-1]}",
+                "red",
+            )
+            return
         agents = installed()
         unavailable = installable()
         agents.update(unavailable)
-        self.push_screen(Adjusts(agents, unavailable=frozenset(unavailable)))
+        self.push_screen(
+            Adjusts(
+                agents,
+                page=_PAGES.index(said) if said else 0,
+                unavailable=frozenset(unavailable),
+            )
+        )
 
     @on(Adjusts.Settled)
     def _took_settings(self, event: Adjusts.Settled) -> None:
@@ -4669,8 +4690,10 @@ _COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "settings",
-        "Every setting: here, everywhere, accounts, fallback, flowverses",
-        lambda app, _: app.action_settings(),
+        "Every setting: everywhere, this directory, accounts, fallback, flowverses",
+        lambda app, argv: app.action_settings(argv[0] if argv else ""),
+        takes="[page]",
+        offers=_PAGES,
     ),
     Command("clear", "Clear the screen", lambda app, _: app.action_clear()),
     Command(

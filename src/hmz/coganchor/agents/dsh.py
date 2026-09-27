@@ -122,10 +122,10 @@ _EXTRA = (
 )
 _KEY_REQUIRED = (
     "DeepSeek Harness signs in with a key rather than a login and needs a DeepSeek API "
-    "key. Save one in dsh under Settings -> Models; in hmz, set an agent to dsh and press "
-    "a on its provider row, "
-    "and create a key account -- or a gateway account, which is that same key and the "
-    "endpoint to send it to; or set DEEPSEEK_API_KEY before starting hmz."
+    "key. Save one in dsh under Settings -> Models; in hmz, type /settings accounts and "
+    "add a dsh account by key -- or by gateway, which is that same key and the endpoint "
+    "to send it to -- then choose it on the agent's account row; or set DEEPSEEK_API_KEY "
+    "before starting hmz."
 )
 _GOAL = "Use create_goal to pursue this objective until it is complete:\n\n{}"
 
