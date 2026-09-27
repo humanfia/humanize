@@ -339,6 +339,10 @@ class Shown:
     interface draws from -- so the two readings of one run say the same things in the same
     order. Watching a session is also what stops its CLI teeing its own raw progress to
     stderr, so this replaces that tee rather than being printed beside it.
+
+    Or handed the records a host says about a run, which are the same events written down
+    once by the runtime: `hmz attach` reads a run that way, and `hmz exec` writes its own
+    events through the same record, so the two say one thing the same way.
     """
 
     def __init__(self, out: Out) -> None:
@@ -353,7 +357,7 @@ class Shown:
         # the second turn's start time write over the first's -- so the first would be timed
         # against the wrong moment, the second against nothing at all, and the clock at the
         # foot would go out while a turn was still thinking.
-        self._began: dict[tuple[str, int], float] = {}
+        self._began: dict[tuple[str, str], float] = {}
         self._lock = threading.Lock()
         # A run nobody watched used to tee its progress to stderr and put each turn's answer
         # on stdout, and a script reading one reads that stdout -- so it goes on going there.
@@ -389,79 +393,94 @@ class Shown:
             rather than one of them.
           event: What was said.
         """
-        if self._out.as_json:
-            self._object(agent, session, event)
-            return
-        self._row(agent, session, event)
+        from hmz.runtime.doing.hosting import record
 
-    def _object(
-        self, agent: AgentBase, session: SessionBase | None, event: Event
-    ) -> None:
+        # Keyed by the conversation itself, which is what tells two turns of one agent
+        # apart: nothing here numbers conversations, and nothing written shows the key.
+        key = agent.id if session is None else f"{agent.id}#{id(session)}"
+        self._shows(record(agent, session, event, key=key), _where(agent, session))
+
+    def told(self, said: dict[str, Any]) -> None:
+        """Shows one event record, as a host says one, in whichever language is being read.
+
+        Args:
+          said: The record. Anything that is not an `event` is not this to show.
+        """
+        if said.get("type") == "event":
+            self._shows(said, "")
+
+    def _shows(self, said: dict[str, Any], where: str) -> None:
+        if self._out.as_json:
+            self._object(said)
+            return
+        self._row(said, where)
+
+    def _object(self, said: dict[str, Any]) -> None:
         """Puts one event on the stream a program is reading, as one object."""
         self._out.record(
-            at=time.time(),
-            agent=agent.id,
-            cli=agent.backend,
-            model=agent.config.model,
-            # `named` rather than `id`: a session is named by the backend as its first turn
-            # starts, and asking for the id before that raises.
-            session=(session.named or "") if session is not None else "",
-            kind=event.kind,
-            text=event.text,
-            whose=event.whose,
+            at=said["at"],
+            agent=said["agent"],
+            cli=said["cli"],
+            model=said["model"],
+            # What the backend calls the conversation, which is what a program reading this
+            # finds it by in the backend's own logs.
+            session=said["ident"],
+            kind=said["kind"],
+            text=said["text"],
+            whose=said["whose"],
             # A cost in money goes here, for whoever is holding the prices.
-            tokens=dict(event.tokens),
-            spent=dict(event.spent),
+            tokens=said["tokens"],
+            spent=said["spent"],
         )
 
-    def _row(self, agent: AgentBase, session: SessionBase | None, event: Event) -> None:
+    def _row(self, said: dict[str, Any], where: str) -> None:
         """Shows one event as a line, or as several for something said in several."""
-        whose = agent.id
-        if event.kind == "begins":
+        whose, kind, text = str(said["agent"]), said["kind"], str(said["text"])
+        if kind == "begins":
             with self._lock:
-                self._began[whose, id(session)] = time.monotonic()
+                self._began[whose, said["key"]] = time.monotonic()
             self._out.line(
                 (f"{_SAID} ", "dim"),
-                (f"{whose} is working{_where(agent, session)}", "dim"),
+                (f"{whose} is working{where}", "dim"),
             )
-        elif event.kind == "ends":
+        elif kind == "ends":
             with self._lock:
-                started = self._began.pop((whose, id(session)), time.monotonic())
+                started = self._began.pop((whose, said["key"]), time.monotonic())
             took = time.monotonic() - started
             self._out.line(
                 (f"{_WORKED} ", "dim"), (f"Worked for {took:.0f}s{_DOT}{whose}", "dim")
             )
-        elif event.kind == "text":
-            self._says(event.text)
-        elif event.kind == "reasoning":
-            for line in event.text.splitlines():
+        elif kind == "text":
+            self._says(text)
+        elif kind == "reasoning":
+            for line in text.splitlines():
                 self._out.line((line, "dim italic"))
-        elif event.kind == "tool":
-            named, _, about = event.text.partition(" ")
+        elif kind == "tool":
+            named, _, about = text.partition(" ")
             self._out.line((f"{_SAID} ", "green"), (named, ""), (f"({about})", "dim"))
-        elif event.kind == "notice":
+        elif kind == "notice":
             # humanize saying what it is doing about the turn rather than the agent working:
             # a rate limit being waited out, another account being carried on as, a turn being
             # cut off. Said in its own colour so it does not read as a tool call.
-            self._out.line((f"{_SAID} ", "yellow"), (event.text, "dim"))
-        elif event.kind in ("subagent", "subagent-ends"):
-            named, _, about = event.text.partition(" ")
-            done = "started" if event.kind == "subagent" else "done"
+            self._out.line((f"{_SAID} ", "yellow"), (text, "dim"))
+        elif kind in ("subagent", "subagent-ends"):
+            named, _, about = text.partition(" ")
+            done = "started" if kind == "subagent" else "done"
             self._out.line(
                 (f"{_SAID} ", "cyan"), (named, ""), (f"({about}) {done}", "dim")
             )
-        elif event.kind == "asks":
-            self._out.line((f"{_SAID} ", "yellow"), (event.text, "yellow"))
-        elif event.kind == "failed":
-            self._out.line(("hmz: ", "red"), (event.text, "red"))
-        elif event.kind == "result":
-            self._footer(agent, event)
-            if self._echoes and event.text:
+        elif kind == "asks":
+            self._out.line((f"{_SAID} ", "yellow"), (text, "yellow"))
+        elif kind == "failed":
+            self._out.line(("hmz: ", "red"), (text, "red"))
+        elif kind == "result":
+            self._footer(said)
+            if self._echoes and text:
                 # Where the backend's own command line would have put it, and where every
                 # script written against `hmz exec` before this reads it. Nothing for a turn
                 # that answered nothing: a blank line is not an answer, and a script reading
                 # this stream would have to know to drop it.
-                self._out.answer(event.text)
+                self._out.answer(text)
 
     def _says(self, text: str) -> None:
         """What the agent said, on the bullet, with the rest of it set under."""
@@ -470,7 +489,7 @@ class Shown:
         for line in said[1:]:
             self._out.line((f"  {line}", ""))
 
-    def _footer(self, agent: AgentBase, event: Event) -> None:
+    def _footer(self, said: dict[str, Any]) -> None:
         """What the turn cost, under the turn, for a backend that says.
 
         In money as well as in tokens, since nobody is watching a token count for its own
@@ -482,29 +501,28 @@ class Shown:
         from hmz.coganchor.agents import KINDS
         from hmz.coganchor.prices import cost, money
 
-        if not event.spent:
+        spent: dict[str, float] = said["spent"]
+        model, whose = str(said["model"]), str(said["agent"])
+        if not spent:
             return
         # In the one order every reader of these is shown them: what went in, what came out,
         # then the cache kinds and the reasoning. A footer whose columns came out in whatever
         # order the backend happened to write them is one nobody can read two turns of.
         counted = _DOT.join(
-            f"{kind} {_counted(event.spent[kind])}"
+            f"{kind} {_counted(spent[kind])}"
             for kind in sorted(
-                event.spent,
+                spent,
                 key=lambda kind: (
                     KINDS.index(kind) if kind in KINDS else len(KINDS),
                     kind,
                 ),
             )
         )
-        bill = cost(event.spent, agent.config.model)
+        bill = cost(spent, model)
         priced = f"{money(bill)}{_DOT}" if bill is not None else ""
         self._out.line(
             (f"{_WORKED} ", "dim"),
-            (
-                f"{counted}{_DOT}{priced}{agent.config.model}{_DOT}{agent.id}",
-                "dim",
-            ),
+            (f"{counted}{_DOT}{priced}{model}{_DOT}{whose}", "dim"),
         )
 
     def _working(self) -> str:
