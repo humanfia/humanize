@@ -135,6 +135,8 @@ def test_what_a_cli_says_when_it_stops_is_read_as_the_kind_it_is() -> None:
     read = {
         "Error: 429 Too Many Requests": "throttled",
         "RESOURCE_EXHAUSTED: quota exceeded for this project": "throttled",
+        "Error: Some resource has been exhausted: You are sending requests too "
+        "quickly. Please slow down": "throttled",
         "Claude AI usage limit reached": "throttled",
         "API Error: 401 unauthorized": "refused",
         "Authentication required": "refused",

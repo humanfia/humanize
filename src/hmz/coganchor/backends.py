@@ -217,6 +217,11 @@ SIGNS: tuple[Sign, ...] = (
     Sign("throttled", r"rate[ _-]?limit"),
     Sign("throttled", r"quota"),
     Sign("throttled", r"resource[ _-]?exhausted"),
+    # The same status said as a sentence, which is how Grok Build puts xAI's 429 on its last
+    # line -- `Some resource has been exhausted: You are sending requests too quickly` -- with
+    # the number only in a log line above it.
+    Sign("throttled", r"resource has been exhausted"),
+    Sign("throttled", r"sending requests too quickly"),
     Sign("throttled", r"overloaded"),
     Sign("throttled", r"usage limit"),
     Sign("throttled", r"insufficient[ _-]balance"),
