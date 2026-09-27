@@ -1,4 +1,4 @@
-"""Which agents are installed here, what each one runs, and where their turns could land.
+"""Which agents are installed here, and what each one runs.
 
 Installed backends are found here, and optional backends somebody can add are named separately
 so the picker can teach them how. An effort a model does not take is not offered against it.
@@ -15,7 +15,6 @@ on the key that says to ask again -- and read here.
 from __future__ import annotations
 
 import importlib.util
-import subprocess
 from typing import TYPE_CHECKING
 
 from hmz.coganchor.backends import named, profiles, program, speaking
@@ -26,11 +25,7 @@ if TYPE_CHECKING:
 
     from hmz.coganchor.backends import Model
 
-__all__ = ["installable", "installed", "machines", "ready_to_open"]
-
-#: How long the machines around here are given to name themselves before the list goes up
-#: without them. A docker daemon that is not answering is not a reason to sit at a sheet.
-_LOOKING_SECONDS = 2.0
+__all__ = ["installable", "installed", "ready_to_open"]
 
 #: The backends that want something of this Python environment as well as of this machine,
 #: by the modules that say the extra carrying one is installed. Every module of it, because
@@ -131,50 +126,3 @@ def ready_to_open(backend: str, where: Path) -> bool:
     from hmz.coganchor.agents.dsh import native_ready
 
     return native_ready(where)
-
-
-def machines() -> list[tuple[str, str]]:
-    """Where an agent's turns could land, besides this machine.
-
-    Found rather than typed, for the same reason the models are: a container that is not
-    running and a host with no entry in your ssh config are not places work can go, and a
-    list of what is actually there is shorter than the one you would have to remember. What
-    is not found is still typed -- a target is a string, and any string that reads as one is
-    taken.
-
-    Returns:
-      One `(target, where it came from)` pair apiece, containers first and then hosts, in the
-      order each source gave them. Empty where there is no docker and no ssh config, which is
-      a machine that only runs its own turns.
-    """
-    found: list[tuple[str, str]] = [
-        (f"docker://{named}", "container") for named in _containers()
-    ]
-    found.extend((f"ssh://{host}", "ssh config") for host in _hosts())
-    return found
-
-
-def _containers() -> list[str]:
-    """The containers running here, which are the ones a turn could be run in."""
-    try:
-        listed = subprocess.run(
-            ["docker", "ps", "--format", "{{.Names}}"],
-            capture_output=True,
-            text=True,
-            timeout=_LOOKING_SECONDS,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return []  # no docker here, or none that answered: no containers to offer
-    return [named for named in listed.stdout.split() if named]
-
-
-def _hosts() -> list[str]:
-    """The hosts named in this user's ssh config, in the order they are written there.
-
-    A pattern is not a host: `Host *` is what the settings under it apply to rather than
-    somewhere to send a turn, and choosing it would send one nowhere.
-    """
-    from hmz.coganchor.machines import sshconfig
-
-    return sshconfig.aliases()

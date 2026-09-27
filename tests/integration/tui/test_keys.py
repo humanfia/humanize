@@ -24,6 +24,7 @@ from textual.widgets import Label, OptionList
 
 import hmz.tui.pick
 from hmz.coganchor.backends import Model
+from hmz.coganchor.machines.store import SSHProvider
 from hmz.tui import Humanize
 from hmz.tui.pick import (
     _ADD,
@@ -35,17 +36,24 @@ from hmz.tui.pick import (
     Adjusts,
     Agent,
     Confirms,
+    Docking,
     Epics,
     Failing,
     Falls,
     Fetches,
     Flows,
     Flowverses,
+    Hosting,
+    Hosts,
+    Importing,
     Leaves,
+    Machine,
+    Placing,
     Reports,
     Sheet,
     Signing,
     Speaks,
+    Unsaved,
 )
 from tests.integration.tui.test_app import (
     changes,
@@ -128,17 +136,28 @@ def test_the_keys_are_written_in_one_place() -> None:
         pytest.param(partial(Failing, dict(CLAUDE)), id="failing"),
         pytest.param(Signing, id="signing"),
         pytest.param(Epics, id="epics"),
+        pytest.param(Hosting, id="hosting"),
+        pytest.param(Docking, id="docking"),
+        pytest.param(Importing, id="importing"),
+        pytest.param(
+            partial(Machine, SSHProvider(name="gpu", host="gpu")), id="machine"
+        ),
+        pytest.param(partial(Hosts, "ssh", unsaved=True), id="hosts"),
+        pytest.param(Unsaved, id="unsaved"),
+        pytest.param(partial(Placing, "box"), id="placing"),
         *(
             pytest.param(
                 partial(Adjusts, dict(CLAUDE), page=page), id=f"settings-{page}"
             )
-            for page in range(5)
+            for page in range(6)
         ),
     ],
 )
 async def test_a_sheet_says_each_of_its_keys_once(
-    opens: Callable[[], Sheet[Any]],
+    opens: Callable[[], Sheet[Any]], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # A home of its own: importing reads the ssh config in it, and a test reads nobody's.
+    monkeypatch.setenv("HOME", str(tmp_path))
     app = Humanize()
     async with app.run_test() as driver:
         await app.push_screen(opens())
@@ -271,7 +290,7 @@ async def test_a_search_is_a_row_and_says_what_the_keys_do_while_it_runs() -> No
     """The letters are the search's then, and esc comes out of it before it leaves."""
     app = Humanize()
     async with app.run_test() as driver:
-        await app.push_screen(Adjusts({}, page=4))
+        await app.push_screen(Adjusts({}, page=5))
         await until(lambda: isinstance(app.screen, Flowverses), driver)
         sheet = app.screen
         assert isinstance(sheet, Flowverses)
@@ -367,7 +386,7 @@ async def test_the_settings_menu_turns_its_pages_and_changes_its_rows_the_same_w
 
 
 @pytest.mark.timeout(60)
-@pytest.mark.parametrize("page", [2, 3, 4])
+@pytest.mark.parametrize("page", [2, 3, 4, 5])
 async def test_adding_is_the_first_row_of_every_page_that_is_a_list(page: int) -> None:
     """Found in the same place on each of them, and on an empty one the whole of the page."""
     app = Humanize()
@@ -378,7 +397,7 @@ async def test_adding_is_the_first_row_of_every_page_that_is_a_list(page: int) -
 
         assert rows(app)[0] == _ADD
         # Saved from the last row where the page holds anything, and from nowhere where not.
-        assert (rows(app)[-1] == _SAVE) is (page != 4)
+        assert (rows(app)[-1] == _SAVE) is (page in (2, 4))
 
         # And the cursor walks on to it and stays there, it being a row like any other: the
         # list is built again on every keystroke, off which row the cursor is on.
@@ -529,7 +548,7 @@ async def test_a_search_above_a_list_lands_on_the_first_thing_it_finds() -> None
 
     app = Humanize()
     async with app.run_test() as driver:
-        await app.push_screen(Adjusts({}, page=4))
+        await app.push_screen(Adjusts({}, page=5))
         await until(lambda: isinstance(app.screen, Flowverses), driver)
         sheet = app.screen
         assert isinstance(sheet, Flowverses)

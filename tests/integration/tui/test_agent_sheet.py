@@ -37,6 +37,7 @@ from hmz.tui.pick import (
     Configures,
     Confirms,
     Flows,
+    Placing,
 )
 from tests.integration.tui.test_app import (
     changes,
@@ -382,7 +383,7 @@ async def test_an_environment_role_is_a_row_where_its_place_is_said(
     flows: Path,
     tmp_path: Path,
 ) -> None:
-    """Written as `-e` writes it, and read the way `-e` is: one that does not read is refused."""
+    """Placed on its own sheet, read the way `-e` is: one that does not read is refused."""
     app = Humanize()
     async with app.run_test() as driver:
         await driver.press(*"/flow placed")
@@ -402,21 +403,18 @@ async def test_an_environment_role_is_a_row_where_its_place_is_said(
 
         await onto(app, driver, "@repo")
         await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Configures), driver)
-        await changes(app, driver, "where", *"nowhere")
+        await until(lambda: isinstance(app.screen, Placing), driver)
+        await changes(app, driver, "spelled", *"nowhere")
         await onto(app, driver, _DONE)
         await driver.press("enter")
-        await until(lambda: app.screen is sheet, driver)
+        await driver.pause()
+        assert isinstance(app.screen, Placing)
         assert "expected <role>=<backend>" in _said(app)
-        assert "not said yet" in _value(app, "@repo")
 
-        await onto(app, driver, "@repo")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Configures), driver)
         await changes(
             app,
             driver,
-            "where",
+            "spelled",
             *(["backspace"] * len("nowhere")),
             *f"local@{tmp_path}",
         )

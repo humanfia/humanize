@@ -169,7 +169,7 @@ list, with a line about each.
 | <span id="cmd-btw"></span>`/btw [question]` | <Badge type="tip" text="yes" /> | [Enters or leaves btw mode](#btw): side questions about the flow, answered read-only beside it. |
 | <span id="cmd-epics"></span>`/epics` | <Badge type="warning" text="read only" /> | [The runs of this directory](#the-runs-that-have-already-happened): go into one, export it, resume it. |
 | <span id="cmd-resume"></span>`/resume` | <Badge type="danger" text="refused" /> | [Picks up the last run here](#carrying-the-last-one-on-outright) of a flow that can be picked up. |
-| <span id="cmd-settings"></span>`/settings [page]` | <Badge type="tip" text="yes" /> | [Everything humanize remembers](#what-humanize-remembers), in five pages: `everywhere`, `directory`, [`accounts`](#the-accounts-themselves), [`fallback`](#where-a-turn-goes-when-it-cannot-be-taken) and [`flowverses`](#where-flows-come-from). With a page, opens on it. |
+| <span id="cmd-settings"></span>`/settings [page]` | <Badge type="tip" text="yes" /> | [Everything humanize remembers](#what-humanize-remembers), in six pages: `everywhere`, `directory`, [`accounts`](#the-accounts-themselves), [`environments`](#environments), [`fallback`](#where-a-turn-goes-when-it-cannot-be-taken) and [`flowverses`](#where-flows-come-from). With a page, opens on it. |
 | <span id="cmd-clear"></span>`/clear` | <Badge type="tip" text="yes" /> | Clears the transcript being read and draws the opening box again. Nothing else. |
 | <span id="cmd-afk"></span>`/afk [on\|off]` | <Badge type="tip" text="yes" /> | [Says you are away](#questions-and-being-away): nothing waits on you. On an outworlder's transcript, as that outworlder alone; not on one agent's. Off at start. |
 | <span id="cmd-claim"></span>`/claim [on\|off]` | <Badge type="tip" text="yes" /> | [Holds the outworlder being read](#several-people-on-one-run) for this interface alone; `off` gives it back. Only on an outworlder's transcript. |
@@ -184,7 +184,7 @@ command is shown in red and nothing happens:
 | Typed | Answered |
 | --- | --- |
 | `/afk maybe` | `hmz: say on or off, not 'maybe'` |
-| `/settings nosuch` | `hmz: /settings has no page 'nosuch': say everywhere, directory, accounts, fallback or flowverses` |
+| `/settings nosuch` | `hmz: /settings has no page 'nosuch': say everywhere, directory, accounts, environments, fallback or flowverses` |
 | `/nosuch` | `hmz: no such command: /nosuch` |
 | `/resume last` | `hmz: /resume takes nothing: it carries the last run here on, and /epics is where another one is named` |
 | `/btw what's left` | `hmz: No closing quotation`: arguments are split like a shell line |
@@ -445,7 +445,7 @@ table](#keys) lists every key; each sheet's own are on its bottom row.
 | --- | --- |
 | **Four keys** | <kbd>↑</kbd> <kbd>↓</kbd> walk the rows, <kbd>←</kbd> <kbd>→</kbd> turn the pages, <kbd>enter</kbd> opens the row under the cursor, <kbd>esc</kbd> steps back. There are no others: what a menu does besides is a row of it. |
 | **Nothing lands until you save** | On `/flow`, an agent's sheet, `/settings`, a flow's params and budget, and the forms `/settings` opens. Save with the `save` (or `set`) row below the choices. <kbd>esc</kbd> out of a menu holding changes asks, in a box over it, whether to save or discard; <kbd>esc</kbd> on the box goes back to the menu. A menu you only looked at asks nothing. |
-| **Some happen at once** | `/epics` and the Flowverses page of `/settings` hold no draft, and have no `save` row: what you ask for happens as you ask. So do making an account and signing one in on its Accounts page. |
+| **Some happen at once** | `/epics` and the Environments and Flowverses pages of `/settings` hold no draft, and have no `save` row: what you ask for happens as you ask. So do making an account and signing one in on its Accounts page. |
 | **Rows set apart** | Out of the numbering: `search…`, `add …`, `save`, and what else a menu does -- `ask it again`, `fetch it again`, `copy … here`, `where flows come from`, `take … away`. On the pages of `/settings` and the lists they open, they are above the list and `save` is last; elsewhere they are below it. |
 | **Forms** | Adding or correcting something on `/settings` opens a form: a row per question, then `done`, which says what answering it will do. Typing on a written row writes it; <kbd>enter</kbd> keeps it and moves on to the next row still to be answered, or to `done`. What the form guessed for you is replaced by the first letter typed. |
 | **Changing a row** | A row marked `↔`, a switch, or a field to write is changed where it stands: <kbd>enter</kbd> begins, <kbd>←</kbd> <kbd>→</kbd> or typing change it, <kbd>enter</kbd> keeps it, <kbd>esc</kbd> puts it back. Walking past a row never changes it. `▸` opens something. |
@@ -595,19 +595,40 @@ declares, plus the supported ones a `pip install` away, marked as such.
 
 #### Where each agent works
 
-Each environment role the flow declares is a row under the agents, answered as `-e` spells it
-after `<role>=`:
+Each environment role the flow declares is a row under the agents. <kbd>enter</kbd> on it opens
+one form, whose rows are the parts of what `-e` takes after `<role>=`:
+
+```text
+  Where box is
+
+    1. backend  ssh ↔                   a machine reached over ssh
+    2. host     gpu ▸                   as ~/.ssh/config says · works in ~/work
+    3. workdir  ~/work                  blank for ~/work, where it is saved to work
+    4. as -e    ssh@gpu                 all of it as -e spells it: typing one sets the rows above
+
+  ❯    done                      holds box at ssh@gpu until the flow is saved
+
+  enter done · esc back
+```
+
+| Row | |
+| --- | --- |
+| `backend` ↔ | Every backend `-e` takes. It starts on the first one an [environment provider](#environments) is saved for, else on `local`. Changing it lets go of the host and the workdir. |
+| `host` ▸ | Not asked for `local`; `daemon` for a docker backend, once `-e` takes one. Opens the providers of that backend saved on [Environments](#environments), with `add an ssh host` (or `add a docker host`) above them, which saves one on the same form and comes back with it chosen, and, for ssh, `a host not saved`: `host`, `user@host`, `host:port` or an ssh config alias, saved nowhere. |
+| `workdir` | The directory there: absolute, or `~/…` under the ssh login's home. It starts from where the provider is saved to work, and while it still says that, `as -e` leaves it out so the role follows the provider; typed over, it is spelled out. Blank is the provider's too. |
+| `as -e` | All of it, as `-e` spells it. Typing a whole spec there sets the rows above. |
+| `done` | Holds it with the rest of the menu, read the way `-e` reads it: one that does not read is refused under the form, in `-e`'s words. With nothing said, it leaves the role unsaid. |
 
 | Answer | Where the work goes |
 | --- | --- |
 | `local@/home/me/repo` | A directory on this machine. |
-| `ssh@gpu-box/home/me/repo` | A directory on a host you reach with ssh (`host`, `user@host`, `host:port` or an ssh config alias). |
+| `ssh@gpu-box/home/me/repo` | A directory on a host you reach with ssh: a saved provider, `host`, `user@host`, `host:port` or an ssh config alias. |
 | `ssh@gpu-box/~/repo` | The same, under the ssh login's home. |
+| `ssh@gpu-box` | Where the provider `gpu-box` is saved to work. |
 
-An answer that does not read is shown in red under the roles; an empty one leaves the role
-unanswered. A host that cannot be reached, a missing directory and a machine smaller than the
-role declares are red lines when the flow starts, before any turn. An agent spawned in an ssh
-environment takes its turns there; its credentials stay here. See
+A host that cannot be reached, a missing directory and a machine smaller than the role declares
+are red lines when the flow starts, before any turn. An agent spawned in an ssh environment
+takes its turns there; its credentials stay here. See
 [Remote execution](/reference/remote-execution).
 
 #### What each agent carries
@@ -662,15 +683,15 @@ the three, as `hmz exec` will not run one without a `-b`.
 
 ### `/settings` {#what-humanize-remembers}
 
-Everything humanize remembers, in one menu of five pages. `/settings` opens on the first,
-`/settings <page>` on the one named (`everywhere`, `directory`, `accounts`, `fallback`,
-`flowverses`, offered as you type). <kbd>←</kbd> and <kbd>→</kbd> turn between them; `where
+Everything humanize remembers, in one menu of six pages. `/settings` opens on the first,
+`/settings <page>` on the one named (`everywhere`, `directory`, `accounts`, `environments`,
+`fallback`, `flowverses`, offered as you type). <kbd>←</kbd> and <kbd>→</kbd> turn between them; `where
 flows come from` on `/flow` opens it on **Flowverses**.
 
 ```text
   Settings
 
-  Everywhere · This directory · Accounts · Fallback · Flowverses
+  Everywhere · This directory · Accounts · Environments · Fallback · Flowverses
 
   ❯ 1. reports   on ↔    report what goes wrong to humanize
     2. sent      ▸       what a report carries, and what it never does
@@ -692,17 +713,18 @@ flows come from` on `/flow` opens it on **Flowverses**.
 | This directory | `profile` ↔ | Whether a run here [profiles](/user/tracing#profiling-a-run) the programs it starts. |
 | This directory | `forget` ↔ | Forget everything remembered here, across every flow. Other directories are untouched. |
 | Accounts | | [The accounts](#the-accounts-themselves) agents run as. |
+| Environments | | [The machines](#environments) a flow's environments go on: add, import, check, correct, take away. |
 | Fallback | | [Where a turn goes](#where-a-turn-goes-when-it-cannot-be-taken) when its place cannot take it. |
 | Flowverses | | [Where flows come from](#where-flows-come-from): add, fetch again, take away. |
 
 - On the first two pages, <kbd>enter</kbd> begins changing the row under the cursor,
-  <kbd>←</kbd> <kbd>→</kbd> step it and <kbd>enter</kbd> keeps it. The last three are lists,
+  <kbd>←</kbd> <kbd>→</kbd> step it and <kbd>enter</kbd> keeps it. The last four are lists,
   laid out alike: `add …` and `search…` above the list, the list, then `save` where the page
   holds anything. The cursor opens on the first thing listed, or on `add …` where there is
   nothing yet. What the line under a list last said is still there when you turn back to it.
 - What every page holds lands together, on the `save` row; <kbd>esc</kbd> with anything held asks
-  whether to save or discard. Making an account, signing one in and everything on Flowverses
-  happen at once instead.
+  whether to save or discard. Making an account, signing one in and everything on
+  Environments and Flowverses happen at once instead.
 - Once saved, the transcript says what changed, and, for what cannot take hold at once, when it
   will. `reports`, `details` and the fallback steps take hold at once (the next failed turn
   reads the steps). `profile` does from the next flow run. A corrected account, what it fails
@@ -796,6 +818,51 @@ to, and take it away](/demo/account-does.png)
   `asking what it runs…`, and the line under the list says how many models it named or why it
   named none.
 
+#### Environments {#environments}
+
+The machines a flow's environment roles can be put on, saved under a name that `-e` and
+`/flow` then name: ssh hosts, and docker daemons with what each may hand out, under a heading
+per backend. They are kept in `~/.humanize/env-providers/` (see
+[Machines › Environment providers](/reference/machines#environment-providers)).
+
+```text
+     add an ssh host           a machine reached over ssh
+     add a docker host         a docker daemon, here or elsewhere
+     import ~/.ssh/config      the hosts it names, or another's
+     search…
+
+  ssh
+  ❯ 1. box                     me@box.example.com:2200 · key ~/.ssh/id_box · works in ~/proj
+    2. gpu                     as ~/.ssh/config says · works in ~/work
+
+  docker
+    3. local                   local · 16 CPUs, 64G, GPUs 0
+
+  enter what to do · ←/→ page · esc close
+```
+
+![The Environments page of /settings: the ssh hosts and the docker daemons under a heading
+each, below the rows that add and import one](/demo/environments.png)
+
+| Row | |
+| --- | --- |
+| `add an ssh host` | One form: `host` (`user@host:port` is taken apart into `user` and `port`), `name` (written in after the host, never one already saved), `user`, `port`, `identity file` (a path; never read), `proxy jump`, `options` (`KEYWORD=VALUE, …`), `workdir`, then `done`. |
+| `add a docker host` | One form: `endpoint` ↔ (`local`, `socket`, `tcp` with a TLS directory, `saved ssh host` ▸, `ssh address`, `context`) and the row that way asks, `name`, `image`, `runtime`, `run args`, `at once`, `workdir`, then what it may hand out: `cpus`, `memory` (`64G`, in docker's units of 1024) and `gpus` (`0, 1`), each blank for all it has. `detect` asks the daemon and writes what it has into those three to be typed over, the cursor on the first. |
+| `import ~/.ssh/config` | A form: `from`, the config to read (yours, or a path typed over it), then a switch per host it names, as `ssh -G` resolves it: on, unless it is saved already. The cursor lands on `done`, which saves each host switched on under its `Host`. Nothing is written to the config. |
+| a provider | What there is to do with it (below). |
+
+| On one provider | |
+| --- | --- |
+| **correct it** | Its form again, less the name; an imported host has an `alias` row too. |
+| **check it** | An ssh host is reached as a run reaches it, with nobody there to type a password: its home, CPUs, memory and GPUs. A docker daemon is asked `docker info`, and what it is saved to hand out and has not got is said in yellow. Given 30 seconds, in the background. |
+| **take it away** | It is saved no more. A docker host that reached its daemon through it is named. |
+
+- Everything here happens at once, so the page has no `save` row. A provider added or corrected
+  is checked as it lands, and the line under the list says what it answered or why it could not
+  be reached.
+- A search narrows by name, backend, and what the row says.
+- The same providers are [`Hmz().environments`](/reference/machines#environment-providers).
+
 #### Fallback {#where-a-turn-goes-when-it-cannot-be-taken}
 
 A list of steps between **places**. A place is a CLI, an account and a model: what a turn can
@@ -805,7 +872,7 @@ account). The effort and what the agent may reach for carry across a step unchan
 ```text
   Settings
 
-  Everywhere · This directory · Accounts · Fallback · Flowverses
+  Everywhere · This directory · Accounts · Environments · Fallback · Flowverses
 
   Where a turn goes when the place taking it cannot take it at all. A
   place is a CLI, an account and a model.

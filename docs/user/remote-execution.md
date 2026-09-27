@@ -115,6 +115,11 @@ async def onbox(task: str, *, agents: Agents, envs: Envs, params: FlowParams, ct
 | `ssh@build-box` | the workdir the host saved as `build-box` was saved with |
 | `local@/srv/project` | a directory on this machine |
 
+At the prompt, <kbd>enter</kbd> on the role's row at `/flow` asks for the same three parts
+one row at a time (the backend, a host saved here or one that is not, the directory) and
+shows the `-e` they come to; see [Choosing one for a
+role](/user/settings#choosing-one-for-a-role).
+
 **Only a role the flow declares for it.** The workspace is always the directory you started
 in, and naming it with `-e` is refused. The flows humanize and the official flowverse ship all
 work in the workspace alone, so none of them takes an `-e`. A flow written for another machine
@@ -134,6 +139,11 @@ fails when your own checkout is at `/home/me/code/myproject` on this machine.
 A host that needs more than a name — a login, a port, a key, a jump host — can be saved once
 and named from then on. Or import the hosts your ssh config already names: each keeps pointing
 at its `Host`, so the config stays the one place it is written.
+
+At the prompt, both are on the [Environments page of
+`/settings`](/user/settings#environments): `/settings environments`, then `import
+~/.ssh/config` or `add an ssh host`. Each is checked as it is saved, and at `/flow` the role's
+row then offers it by name. From Python:
 
 ```python
 from hmz.sdk import Hmz

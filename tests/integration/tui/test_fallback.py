@@ -56,7 +56,7 @@ def _under(app: Humanize) -> str:
 
 async def _opens(app: Humanize, driver: Pilot[None]) -> None:
     """Opens the fallback page of `/settings` and waits for it to be up."""
-    await into_settings(app, driver, 3)
+    await into_settings(app, driver, 4)
 
 
 async def _place(app: Humanize, driver: Pilot[None], place: str) -> None:
@@ -377,3 +377,31 @@ async def test_a_step_added_for_a_place_that_has_one_starts_from_it() -> None:
 
     said = fallbacks.tried("claude/claude-opus-5")
     assert (said.tries, said.policy, said.timeout) == (3, "linear", 300.0)
+
+
+@pytest.mark.timeout(60)
+async def test_choosing_an_account_that_has_not_said_what_it_runs_asks_and_stays(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Asked, and the list stays up for the place to be chosen once it has said."""
+    asked: list[tuple[str, str]] = []
+
+    def asks(cli: str, account: str) -> None:
+        asked.append((cli, account))
+
+    app = Humanize()
+    async with app.run_test() as driver:
+        sheet = Places({"claude": ()}, "Select the place that fails")
+        monkeypatch.setattr(sheet, "_asks", asks)
+        answered: list[str | None] = []
+        app.push_screen(sheet, callback=answered.append)
+        await until(lambda: app.screen is sheet, driver)
+        await until(
+            lambda: bool(sheet.query("#choices")) and len(rows(app)) == 1, driver
+        )
+        await driver.press("enter")
+        await driver.pause()
+
+        assert asked == [("claude", "")]
+        assert app.screen is sheet
+        assert answered == []

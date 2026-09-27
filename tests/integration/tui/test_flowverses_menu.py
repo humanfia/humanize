@@ -108,7 +108,7 @@ async def _adding(app: Humanize, driver: Pilot[None]) -> Fetches:
 
 async def _open(app: Humanize, driver: Pilot[None]) -> Flowverses:
     """Opens the places flows come from, which is the last page of `/settings`."""
-    await into_settings(app, driver, 4)
+    await into_settings(app, driver, 5)
     sheet = app.screen
     assert isinstance(sheet, Flowverses)
     return sheet

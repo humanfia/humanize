@@ -78,20 +78,21 @@ const turn = [
 # Settings — `/settings`
 
 Everything humanize remembers is in one menu: `/settings`. It holds what is true of this
-machine, what this directory remembers, the accounts agents run as, where a turn goes when it
-cannot run, and where flows come from.
+machine, what this directory remembers, the accounts agents run as, the machines a flow's
+environments go on, where a turn goes when it cannot run, and where flows come from.
 
 ## Try it
 
 ```
 /settings
 /settings accounts
+/settings environments
 ```
 
 ![/settings opening on what is true of this machine, then → to this directory: workspace,
 flow, profile and forget](/demo/profiling.gif)
 
-The menu has five pages. `/settings` opens on the first; `/settings <page>` opens straight on
+The menu has six pages. `/settings` opens on the first; `/settings <page>` opens straight on
 the one named, and the word is offered as you type it. <kbd>←</kbd> and <kbd>→</kbd> turn
 between them, and round from the last to the first:
 
@@ -100,6 +101,7 @@ between them, and round from the last to the first:
 | [**Everywhere**](#everywhere) | `everywhere` | whether humanize reports what goes wrong, whether the screen [shows the working](#details), and which agent `/btw` talks to |
 | [**This directory**](#this-directory) | `directory` | the flow it opens on, whether its runs are profiled, and forgetting it |
 | [**Accounts**](#accounts) | `accounts` | every account an agent may run as, under a heading per CLI |
+| [**Environments**](#environments) | `environments` | the machines a flow's environments go on: ssh hosts and docker daemons |
 | [**Fallback**](#fallback) | `fallback` | where a turn goes when the place taking it cannot take it |
 | [**Flowverses**](#flowverses) | `flowverses` | the git repositories flows come from |
 
@@ -113,13 +115,13 @@ Every page is one of two kinds, and each kind is laid out the same way wherever 
 `↔`, <kbd>enter</kbd> begins changing it, <kbd>←</kbd> <kbd>→</kbd> step it, and
 <kbd>enter</kbd> keeps it (<kbd>esc</kbd> puts it back). A row marked `▸` opens something.
 
-**A page that is a list** (Accounts, Fallback, Flowverses) is, from the top:
+**A page that is a list** (Accounts, Environments, Fallback, Flowverses) is, from the top:
 
 1. what is done about the list: `add …` first, then anything else that brings one in, then
    `search…`;
 2. the list, numbered, under a heading per group where it has groups;
-3. `save`, where the page holds anything until it is saved. Flowverses holds nothing, so it has
-   no `save` row.
+3. `save`, where the page holds anything until it is saved. Environments and Flowverses hold
+   nothing, so they have no `save` row.
 
 The cursor opens on the first thing listed, or on `add …` where there is nothing yet. A search
 puts it on the first thing it finds, so <kbd>enter</kbd> takes the best match. <kbd>enter</kbd>
@@ -145,7 +147,7 @@ question takes you back into the menu. The `save` row says `nothing held yet` un
 is.
 
 A few things happen as you ask rather than on save: making an account, signing one in, and
-everything on the Flowverses page. And a few that are saved cannot take hold at once, because
+everything on the Environments and Flowverses pages. And a few that are saved cannot take hold at once, because
 something already running started without them. The row says when while the change is held,
 and the transcript says it again once saved:
 
@@ -475,6 +477,182 @@ accounts.points("claude", "work", "shared")  # work fails over to shared
 See [SDK › Accounts](/reference/sdk#accounts).
 :::
 
+## Environments
+
+An **environment provider** is a machine a flow's [environment
+roles](/user/remote-execution) can be put on, saved under a name: an ssh host with everything
+`ssh` has to be told to reach it, or a docker daemon with what it may hand out. Save one here,
+then choose it for a role at [`/flow`](#choosing-one-for-a-role), or name it after the `@` of
+`-e`:
+
+```sh
+hmz exec -f onbox -e box=ssh@gpu -b duration=1h "run the benchmarks"
+```
+
+`ssh@gpu` with no directory works where `gpu` was saved to work. Reach for one when a machine
+needs more than its name to be reached (a login, a port, a key, a jump host), or when it is a
+docker daemon.
+
+### Try it {#environments-try-it}
+
+Type `/settings environments`:
+
+<Term title="/settings · Environments">
+
+<pre><span class="p b">Settings</span>
+
+<span class="m">The machines a flow's environments can be put on, saved under a name that -e and
+/flow name: ssh hosts, and docker daemons with what each may hand out.</span>
+
+<span class="m">Everywhere · This directory · Accounts ·</span> <span class="p b">Environments</span> <span class="m">· Fallback · Flowverses</span>
+
+     <span class="p">add an ssh host</span>           <span class="m">a machine reached over ssh</span>
+     <span class="p">add a docker host</span>         <span class="m">a docker daemon, here or elsewhere</span>
+     <span class="p">import ~/.ssh/config</span>      <span class="m">the hosts it names, or another's</span>
+     <span class="p">search…</span>
+
+  <span class="p">ssh</span>
+<span class="p">❯</span> <span class="d">1.</span> <span class="p">box</span>                       <span class="m">me@box.example.com:2200 · key ~/.ssh/id_box · works in ~/proj</span>
+  <span class="d">2.</span> <span class="p">gpu</span>                       <span class="m">as ~/.ssh/config says · works in ~/work</span>
+
+  <span class="p">docker</span>
+  <span class="d">3.</span> <span class="p">local</span>                     <span class="m">local · 16 CPUs, 64G, GPUs 0</span>
+
+<span class="d">enter what to do · ←/→ page · esc close</span></pre>
+
+</Term>
+
+- **Import the hosts you already have.** Choose `import ~/.ssh/config`. Each host your ssh
+  config names is listed as `ssh -G` resolves it (the machine, the login, the port, the key,
+  the jump host), switched on unless it is saved already, and the cursor is on `done`: press
+  <kbd>enter</kbd>. From an empty page that is four key presses, <kbd>↓</kbd> <kbd>↓</kbd>
+  <kbd>enter</kbd> <kbd>enter</kbd>, however many hosts there are.
+- **Add one by hand.** Choose `add an ssh host`, type `me@box.example.com:2200`, and choose
+  `done`. The login and the port go to their own rows, and the name is written in for you
+  (`box`, the host's first label).
+- **Add a docker daemon.** Choose `add a docker host`, then `detect` (two <kbd>↑</kbd> from
+  the first row): the daemon's CPUs, memory and GPUs are written in and the cursor is on the
+  first of them. Type `16`, <kbd>enter</kbd>, `64G`, <kbd>enter</kbd>, `0`, <kbd>enter</kbd>,
+  and <kbd>enter</kbd> on `done`. From an empty page that is nine key presses and what you
+  typed.
+
+![the Environments page of /settings: ssh hosts and a docker daemon under a heading each,
+enter opening what can be done to one, then the form a docker daemon is added
+on](/demo/environments.gif)
+
+Everything on this page happens as you ask, so it has no `save` row. What you add or correct
+is asked what it has as it lands, in the background, and the line under the list says what it
+answered, or why it could not be reached.
+
+### An ssh host
+
+| Row | What it is |
+| --- | --- |
+| host | The machine: a name or an address. `user@host:port` is taken apart into the rows below. |
+| name | What `-e` and `/flow` call it. Written in after the host until you type one; never one already saved. |
+| user, port | Who to log in as, and the port. Blank is your ssh config's, or ssh's own. |
+| identity file | The key, by its path. humanize never reads what is in it. |
+| proxy jump | The host it is reached through (`ProxyJump`). |
+| options | Anything else ssh is told, `KEYWORD=VALUE` with a comma between two: `ServerAliveInterval=15, Compression=yes`. A setting with a row of its own is refused here. |
+| workdir | Where it works when `-e` names no directory: `/abs/path`, or `~/path` under the login's home. |
+
+Whatever is set is passed to `ssh` ahead of your own config, so what is written here wins.
+
+### Importing from an ssh config
+
+`import ~/.ssh/config` opens one form: the config to read, then a switch per host it names.
+
+- `from` is your own config. Type another file's path over it to read that one instead; its
+  hosts are then saved with that file named, and `ssh` is told to read it for them.
+- A host already saved starts switched off and says `saved already`; switched on, it is
+  imported again, keeping its workdir. One you typed in by hand is never written over.
+- An imported host is saved under its `Host` and keeps pointing at it, so `ssh` resolves it
+  through the config every time: editing the config edits the host. Nothing here writes to the
+  config.
+- What was imported, and what was left switched off, is said under the list.
+
+### A docker host
+
+![add a docker host: the endpoint stepped where it stands, the name written in for you, and
+what it may hand out last, over detect and done](/demo/docker-form.png)
+
+`endpoint` is where the daemon is, stepped with <kbd>enter</kbd>, <kbd>←</kbd> <kbd>→</kbd>,
+<kbd>enter</kbd>. The row under it is what that way asks:
+
+| endpoint | Asks | Saved as |
+| --- | --- | --- |
+| `local` | nothing: whatever `docker` on this machine reaches | `local` |
+| `socket` | its path | `unix:///run/docker.sock` |
+| `tcp` | `host:port`, and a directory of `ca.pem`, `cert.pem` and `key.pem` for TLS | `tcp://10.0.0.5:2376` |
+| `saved ssh host` | which ssh host saved here the daemon is on, from a list | `ssh:gpu` |
+| `ssh address` | `[user@]host[:port]` of any host ssh reaches | `ssh://me@box` |
+| `context` | a docker context's name | `context:remote` |
+
+Then `name`, `image` (what a container starts from when the flow names none), `runtime`
+(`nvidia`; blank for the daemon's own), `run args` (anything else `docker run` is told),
+`at once` (how many containers it may run together), `workdir`, and what it may hand out:
+
+| Row | Takes | Blank is |
+| --- | --- | --- |
+| cpus | a number, `16` or `0.5` | all it has |
+| memory | a number and a unit, in docker's units of 1024: `64G`, `512M`, `1.5T` | all it has |
+| gpus | device ids: `0, 1` | all it has |
+
+**`detect`** asks the daemon what it has and writes it into those three rows, for you to type
+less over; the first letter typed replaces what it wrote. Where the daemon has less than a
+provider is saved to hand out (more CPUs than it has, a GPU it does not have, a runtime it does
+not offer), the line under the list says so in yellow when it is checked.
+
+### On one provider
+
+<kbd>enter</kbd> on a provider opens what can be done to it, all of it at once:
+
+| On the menu | What it does |
+| --- | --- |
+| **correct it** | Its form again, less the name. An imported host also has an `alias` row, the `Host` it is resolved through. It is checked again as it lands. |
+| **check it** | An ssh host is reached the way a run reaches it, with nobody there to type a password, and says its home, CPUs, memory and GPUs. A docker daemon is asked `docker info`. Either is given 30 seconds. |
+| **take it away** | It is saved no more. A run already on it keeps what it read as it started. A docker host that reached its daemon through it is named, since it now reaches nothing. |
+
+### Choosing one for a role {#choosing-one-for-a-role}
+
+At `/flow`, <kbd>enter</kbd> on an environment role opens where it is:
+
+<Term title="/flow · onbox">
+
+<pre><span class="p b">Where box is</span>
+
+  <span class="d">1.</span> backend  <span class="a">ssh ↔</span>                   <span class="m">a machine reached over ssh</span>
+  <span class="d">2.</span> host     <span class="a">gpu ▸</span>                   <span class="m">as ~/.ssh/config says · works in ~/work</span>
+  <span class="d">3.</span> workdir  <span class="a">~/work</span>                  <span class="m">blank for ~/work, where it is saved to work</span>
+  <span class="d">4.</span> as -e    <span class="a">ssh@gpu</span>                 <span class="m">all of it as -e spells it: typing one sets the rows above</span>
+
+<span class="p">❯</span>    <span class="p">done</span>                   <span class="m">holds box at ssh@gpu until the flow is saved</span>
+
+<span class="d">enter done · esc back</span></pre>
+
+</Term>
+
+- `backend` is every backend `-e` takes. It starts on the first one anything is saved for, and
+  the cursor on the first thing still to answer.
+- `host` (`daemon` for a docker backend, once `-e` takes one) opens the providers of that
+  backend saved here, with `add an
+  ssh host` above them (the same form, and the new one comes back chosen) and, for ssh, `a host
+  not saved`: any host `ssh` reaches, as you would type it, saved nowhere.
+- `workdir` starts from where the provider was saved to work. Left as it is, the spelling
+  leaves it out (`ssh@gpu`), so the role goes on following the provider when its workdir is
+  corrected; type over it for another directory there (`ssh@gpu/~/other`).
+- `as -e` is all of it, as `-e` spells it. Type a whole spec there instead and the rows above
+  take it apart; one `-e` would refuse is refused on `done`, in the words `-e` refuses it in.
+
+What `done` holds is saved with the flow, from the `save` row of `/flow`, and it is what the
+next `hmz` here opens on.
+
+::: details From Python
+Every row of this page is a call on `Hmz().environments`: `new`, `add`, `write`, `remove`,
+`hosts`, `import_ssh` and `check`. See [Machines › Environment
+providers](/reference/machines#environment-providers).
+:::
+
 ## Fallback
 
 When a turn cannot run where it is (the model was retired, the CLI will not start, the whole
@@ -682,6 +860,8 @@ Adding one, publishing your own and naming a flow by URL are in
 - [History](/user/history): the other thing kept between starts
 - [Tracing](/user/tracing): what a profiled run is drawn into
 - [Providers reference](/reference/providers): every way in, every field, and adding a CLI
+- [Remote execution](/user/remote-execution): what an environment on another machine is, and
+  what it needs there
 - [Accounts, drawn](/features/accounts): the account chain and its waits, step by step
 - [Unattended runs](/user/unattended): where a place to fall back to earns its keep
 - [TUI › /settings](/reference/tui#what-humanize-remembers): the menu, row by row

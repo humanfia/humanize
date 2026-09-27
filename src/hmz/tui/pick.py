@@ -18,8 +18,9 @@ menu nobody can see the way out of. On the pages of `/settings` what is done abo
 above it and saving below everything, so that each page is laid out as the last one was.
 
 A flow is set up by role: each agent role it declares is a CLI, an account, a model and an
-effort (:class:`Agent`); each environment role is where it is, written as `-e` writes it; and
-beside them are the flow's own params and what a run of it may spend. The order of one agent's
+effort (:class:`Agent`); each environment role is a backend, a machine and a directory there
+(:class:`Placing`), which is what `-e` writes; and beside them are the flow's own params and
+what a run of it may spend. The order of one agent's
 rows is the order of what depends on what: an account belongs to a backend and a model belongs
 to the CLI that runs it, so neither can be asked before the CLI has been. The backends are read
 one at a time, a tab apiece: the ones installed here plus an optional one the sheet can teach
@@ -35,6 +36,7 @@ The run itself, drawn, is not a sheet: it is the monitor, a screen of its own in
 from __future__ import annotations
 
 import contextlib
+import re
 import shlex
 import sys
 from pathlib import Path
@@ -87,6 +89,8 @@ if TYPE_CHECKING:
     # and this is the step itself. Two things called the same thing in one file is one of
     # them being read as the other.
     from hmz.coganchor.fallbacks import Falls as Step
+    from hmz.coganchor.machines.sshconfig import SSHHost
+    from hmz.coganchor.machines.store import DockerProvider, EnvProvider, SSHProvider
     from hmz.coganchor.providers import Provider
     from hmz.daemon import Hmz
     from hmz.runtime.epic import Ran
@@ -202,6 +206,14 @@ _DONE = f"{_APART_MARK}done"
 #: Writing down a CLI of your own that speaks ACP, which is a backend rather than an account
 #: and so a row of its own beside the one that adds an account.
 _SPEAKS = f"{_APART_MARK}speaks"
+#: The rows of the environments page beside the one that adds an ssh host, which is `_ADD`:
+#: adding a docker daemon, and bringing in the hosts an ssh config names. And the row of the
+#: list a role's machine is chosen from that names an ssh host nobody saved, and the row of
+#: the form a docker daemon is written on that asks the daemon what it has.
+_DOCKS = f"{_APART_MARK}docks"
+_IMPORTS = f"{_APART_MARK}imports"
+_UNSAVED = f"{_APART_MARK}unsaved"
+_DETECTS = f"{_APART_MARK}detects"
 
 #: And what the row that sets what a run may spend answers with. Set apart for the reason
 #: saving is: the rows of the flow menu's second page are the agents it drives, and what the
@@ -218,7 +230,22 @@ _TAKES_AWAY = f"{_APART_MARK}take-away"
 #: apart is not one of the things being kept track of, and one taken for one would move the
 #: cursor off it the moment it was walked to.
 _APART = frozenset(
-    {_SAVE, _ADD, _SEARCH, _AGAIN, _FORK, _WHENCE, _DONE, _TAKES_AWAY, _BUDGET, _SPEAKS}
+    {
+        _SAVE,
+        _ADD,
+        _SEARCH,
+        _AGAIN,
+        _FORK,
+        _WHENCE,
+        _DONE,
+        _TAKES_AWAY,
+        _BUDGET,
+        _SPEAKS,
+        _DOCKS,
+        _IMPORTS,
+        _UNSAVED,
+        _DETECTS,
+    }
 )
 
 #: And what each of them is called, which is both the word on the row and what the row of
@@ -236,6 +263,10 @@ _ON_APART = {
     _TAKES_AWAY: "take it away",
     _BUDGET: "set",
     _SPEAKS: "add",
+    _DOCKS: "add",
+    _IMPORTS: "import",
+    _UNSAVED: "write one",
+    _DETECTS: "detect",
 }
 
 #: The search row, as a row above a list is written down: it draws itself.
@@ -2532,51 +2563,30 @@ class Flows(Drafts[Chosen]):
 
     @work
     async def _placing(self, role: str) -> None:
-        """Asks where one environment role is, as `-e` says it, and holds the answer.
+        """Asks where one environment role is -- backend, machine, directory -- and holds it.
 
         Args:
           role: The environment role.
         """
-        from pydantic import create_model
-
+        if self.opening():
+            return
         showing = cast(
             "App[None]",
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
-        model = create_model(
-            "Where",
-            where=(
-                str,
-                Field(
-                    default="",
-                    description="local@/abs/path, or ssh@host/abs/path -- "
-                    "ssh@host/~/path under the login's home",
-                ),
-            ),
-        )
-        held = await showing.push_screen_wait(
-            Configures(
-                self._flow,
-                model,
-                model(where=self._envs.get(role, "")),
-                asked=f"Where {role} is",
-                about="The machine and the directory this environment role works in, "
-                "as -e says one after the role.",
-            )
-        )
-        if held is None:
-            return
-        said = str(held.model_dump().get("where") or "").strip()
-        wrong = placed(role, said) if said else ""
-        if wrong:
-            self._said = bad(escape(wrong))
+        was = self._envs.get(role, "")
+        try:
+            said = await showing.push_screen_wait(Placing(role, was))
+        finally:
+            self.opened()
+        if said is None or said == was:
+            return  # walked out of, or nothing moved
+        if said:
+            self._envs[role] = said
         else:
-            if said:
-                self._envs[role] = said
-            else:
-                self._envs.pop(role, None)
-            self._said = ""
-            self.changed()
+            self._envs.pop(role, None)
+        self._said = ""
+        self.changed()
         self._fill()
 
     def _forks(self) -> None:
@@ -2990,7 +3000,7 @@ class Holds(Sheet[str]):
 class Pages(Drafts["Adjusted"]):
     """What every page of `/settings` shares: where the cursor is, and what has been said.
 
-    One menu rather than five, so there is one line under the list and one account of what
+    One menu rather than six, so there is one line under the list and one account of what
     happened for the transcript however many pages it happened on. Each page after the first
     two is a class of its own that :class:`Adjusts` is made of -- what a list of accounts does
     is a good deal of code, and it reads better beside the sheets it opens than folded into
@@ -4488,6 +4498,18 @@ class Picks(Sheet[str]):
         )
         self._footed(Key("enter", "choose"), Key("esc", "back"))
 
+    def above(self) -> list[tuple[str, str, str]]:
+        """The rows about the list, for one whose rows go above it: add, ask again, search.
+
+        Returns:
+          One `(id, what it is called, the line about it)` apiece, in order.
+        """
+        return [
+            *(((_ADD, f"add {self.adds}", ""),) if self.adds else ()),
+            *(((_AGAIN, self.again, ""),) if self.again else ()),
+            *((_SEEK,) if self.SEARCHES else ()),
+        ]
+
     def _fill_atop(
         self, listing: OptionList, shown: list[tuple[str, str, str]]
     ) -> None:
@@ -4497,11 +4519,7 @@ class Picks(Sheet[str]):
           listing: The list.
           shown: The choices, as a search has narrowed them.
         """
-        atop = [
-            *(((_ADD, f"add {self.adds}", ""),) if self.adds else ()),
-            *(((_AGAIN, self.again, ""),) if self.again else ()),
-            *((_SEEK,) if self.SEARCHES else ()),
-        ]
+        atop = self.above()
         ids = [held for held, _, _ in atop] + [answer for answer, _, _ in shown]
         sought = self._sought([answer for answer, _, _ in shown])
         was = (
@@ -5401,16 +5419,25 @@ _FORGET = "forget"
 #: what is remembered rather than something to set here.
 _SWITCHES = (_SENTRY, _DETAILS, _PROFILES, _FORGET)
 
-#: The pages of `/settings`, in the order they are turned between.
-_EVERYWHERE, _DIRECTORY, _ACCOUNTS, _FALLBACK, _VERSES = range(5)
+#: The pages of `/settings`, in the order they are turned between. The machines a flow's
+#: environments go on are beside the accounts its agents run as: both are providers, one of
+#: somewhere to run and one of something to run as.
+_EVERYWHERE, _DIRECTORY, _ACCOUNTS, _MACHINES, _FALLBACK, _VERSES = range(6)
 
 #: What `/settings` is told to open each of them by, in the same order: the first word of
 #: each title that is not `this`, lower case, so that the word typed is the word on the tab.
-PAGES = ("everywhere", "directory", "accounts", "fallback", "flowverses")
+PAGES = (
+    "everywhere",
+    "directory",
+    "accounts",
+    "environments",
+    "fallback",
+    "flowverses",
+)
 
 #: The pages that are lists of things, which are the ones with a search and a row to add
 #: one more from rather than switches to turn round.
-_LISTS = frozenset({_ACCOUNTS, _FALLBACK, _VERSES})
+_LISTS = frozenset({_ACCOUNTS, _MACHINES, _FALLBACK, _VERSES})
 
 #: When a setting that cannot land at once does land, said beside its row while it is held
 #: and in the transcript once it is saved.
@@ -6239,6 +6266,8 @@ class Places(Picks):
         Args:
           event: What was chosen.
         """
+        # All of it answered here: the list's own would answer an account asked with its row.
+        event.prevent_default()
         held = str(event.option.id).removeprefix("=")
         if held.startswith(_UNASKED):
             cli, _, account = held.removeprefix(_UNASKED).partition(_HALVES)
@@ -7385,6 +7414,1971 @@ class Providers(Pages):
             told.append(f"[dim]the accounts apply {self.NEXT_SESSION}[/dim]")
 
 
+# ---------------------------------------------------------------------------- environments
+
+#: The backends an environment provider is saved for, as `-e` and the store name them.
+_SSH, _DOCKER = "ssh", "docker"
+
+#: What one provider of each is called on the rows that add one.
+_KINDS = {_SSH: "an ssh host", _DOCKER: "a docker host"}
+
+#: The ssh config an import reads unless it is told another, as the row says it.
+_OWN_CONFIG = "~/.ssh/config"
+
+#: What checking one environment provider answers with, on its own menu.
+_CHECKS = "checks"
+
+#: What memory is written as on a form: a number and a unit, in docker's units of 1024.
+_SIZE = re.compile(r"(\d+(?:\.\d+)?)\s*(?:([KMGTP])(?:I?B)?|B)", re.IGNORECASE)
+_UNITS = "KMGTP"
+
+
+class _Had(Protocol):
+    """What a provider said it has when it was checked, as the runtime answers it."""
+
+    @property
+    def reached(self) -> bool: ...
+    @property
+    def said(self) -> str: ...
+    @property
+    def home(self) -> str: ...
+    @property
+    def cpus(self) -> float: ...
+    @property
+    def memory(self) -> int: ...
+    @property
+    def gpus(self) -> tuple[str, ...]: ...
+    @property
+    def gpu_memory(self) -> int: ...
+    @property
+    def runtimes(self) -> tuple[str, ...]: ...
+    @property
+    def version(self) -> str: ...
+    @property
+    def short(self) -> tuple[str, ...]: ...
+
+
+def _sized(amount: int, *, exact: bool = False) -> str:
+    """Bytes as a row says them and a form takes them back: `64G`, `512M`.
+
+    Whole: the largest unit of a megabyte or more that divides it, else what it comes to in
+    whole G -- or M, under one -- rounded down. A daemon's memory is not a round number, and
+    one written in rounded up would be more than it has.
+
+    Args:
+      amount: The bytes.
+      exact: Whether it is to be read back as the very same amount -- a form correcting what
+        was saved, which must not change what nobody touched -- in the largest unit that
+        divides it, bytes and all.
+    """
+    for at in range(len(_UNITS), 0 if exact else 1, -1):
+        if amount and not amount % 1024**at:
+            return f"{amount // 1024**at}{_UNITS[at - 1]}"
+    if exact:
+        return f"{amount}B"
+    for at in (3, 2, 1):
+        if amount >= 1024**at:
+            return f"{amount // 1024**at}{_UNITS[at - 1]}"
+    return str(amount)
+
+
+def _bytes(said: str) -> int:
+    """An amount of memory as a form was given it, in bytes.
+
+    Raises:
+      ValueError: For one that is not a number and a unit: a bare number is bytes to docker
+        and gigabytes to whoever typed it.
+    """
+    read = _SIZE.fullmatch(said.strip())
+    if read is None:
+        raise ValueError(
+            f"memory: {said!r} is not an amount: a number and a unit, as 64G or 512M"
+        )
+    unit = read[2] or ""
+    return int(float(read[1]) * 1024 ** (_UNITS.index(unit.upper()) + 1 if unit else 0))
+
+
+def _number(said: str, what: str) -> float:
+    """A number a form was given, or 0 for none.
+
+    Raises:
+      ValueError: For one that is not a number, `nan` and `inf` among them.
+    """
+    import math
+
+    if not said:
+        return 0.0
+    try:
+        value = float(said)
+    except ValueError:
+        value = math.nan
+    if not math.isfinite(value):
+        raise ValueError(f"{what}: {said!r} is not a number")
+    return value
+
+
+#: Where one option ends and the next begins: a comma before a keyword, and not every comma --
+#: a value may be a list of its own, as `Ciphers=aes128-ctr,aes256-ctr` is.
+_OPTION = re.compile(r",\s*(?=[A-Za-z][A-Za-z0-9]*\s*[=\s])")
+
+
+def _options(said: str) -> dict[str, str]:
+    """What else `ssh` is told, as a form was given it: `KEYWORD=VALUE`, a comma apart.
+
+    Raises:
+      ValueError: For one that says no value.
+    """
+    held: dict[str, str] = {}
+    for one in (part.strip() for part in _OPTION.split(said)):
+        if not one:
+            continue
+        key, _, value = one.partition("=") if "=" in one else one.partition(" ")
+        if not key.strip() or not value.strip():
+            raise ValueError(f"options: {one!r} is not KEYWORD=VALUE")
+        held[key.strip()] = value.strip()
+    return held
+
+
+def _unique(base: str, taken: frozenset[str]) -> str:
+    """A name nothing is called yet: the base, or the base with `-2`, `-3` after it."""
+    count = 1
+    while (named := base if count == 1 else f"{base}-{count}") in taken:
+        count += 1
+    return named
+
+
+def _called_after(host: str, fallback: str) -> str:
+    """What a provider reached at a host is called until somebody says: the host's first label.
+
+    An address is called what it is, and anything a provider's name cannot hold is a dash.
+    """
+    host = host.rpartition("@")[2].partition(":")[0].strip()
+    if not re.fullmatch(r"[\d.]+", host):
+        host = host.partition(".")[0]
+    return re.sub(r"[^A-Za-z0-9._-]", "-", host).lstrip("._-") or fallback
+
+
+def _config_named(config: str) -> str:
+    """An ssh config as a row says it: the user's own as `~/.ssh/config`, another shortly."""
+    if not config:
+        return _OWN_CONFIG
+    said = str(Path(config).expanduser())
+    home = str(Path.home())
+    if said.startswith(f"{home}/"):
+        said = f"~{said[len(home) :]}"
+    return said if len(said) <= _LABEL else f"…/{_shortly(said)}"
+
+
+def _hands_out(one: DockerProvider) -> str:
+    """What a docker daemon may hand out, as a row says it."""
+    held = [
+        *((f"{one.cpus:g} CPUs",) if one.cpus else ()),
+        *((_sized(one.memory),) if one.memory else ()),
+        *((f"GPUs {', '.join(one.gpus)}",) if one.gpus else ()),
+    ]
+    return ", ".join(held) or "all it has"
+
+
+def _machine_line(one: EnvProvider) -> str:
+    """What a row says about one environment provider: how it is reached, and what it has.
+
+    A key by its path and never by what is in it, as everywhere here: `ssh` reads a key.
+    """
+    if one.backend == _SSH:
+        host = cast("SSHProvider", one)
+        reach = host.login() + (f":{host.port}" if host.port else "")
+        if host.alias:
+            config = _config_named(host.config)
+            reach = (
+                f"as {config} says"
+                if reach == host.name and not host.host
+                else f"{reach}, as {config} says"
+            )
+        said = [
+            reach,
+            *((f"key {host.identity_file}",) if host.identity_file else ()),
+            *((f"through {host.proxy_jump}",) if host.proxy_jump else ()),
+            *((f"-o {', '.join(host.options)}",) if host.options else ()),
+        ]
+    else:
+        daemon = cast("DockerProvider", one)
+        said = [
+            daemon.endpoint,
+            *((daemon.image,) if daemon.image else ()),
+            *((f"runtime {daemon.runtime}",) if daemon.runtime else ()),
+            _hands_out(daemon),
+            *((f"{daemon.max_containers} at once",) if daemon.max_containers else ()),
+        ]
+    if one.workdir:
+        said.append(f"works in {one.workdir}")
+    return _DOT.join(said)
+
+
+def _answered(one: EnvProvider, said: _Had) -> str:
+    """What to say once a provider has been asked what it has, as markup.
+
+    What it has, and in yellow what it was saved as handing out and has not got: a resource
+    the daemon does not have is a run refused later, so it is said now.
+    """
+    named = f"{one.backend}/{one.name}"
+    if not said.reached:
+        return bad(escape(f"{named} could not be reached: {said.said}"))
+    lead = (
+        f": docker {said.version}"
+        if said.version
+        else f": home {said.home}"
+        if said.home
+        else ""
+    )
+    line = escape(f"{named} answers{lead}; {_has(said)}")
+    if said.short:
+        line += "\n" + iffy(
+            escape(f"short of what it is saved to hand out: {'; '.join(said.short)}")
+        )
+    return line
+
+
+async def _checked(one: EnvProvider) -> _Had | str:
+    """Asks a provider what it has, off the loop: what it said, or why asking went wrong.
+
+    Returns:
+      What it has, or -- where asking raised rather than answering, as a TLS directory under
+      a `~somebody` nobody is does -- why, in words.
+    """
+    import asyncio
+
+    envs = _hmz().environments
+    try:
+        return await asyncio.to_thread(envs.check, one)
+    except (OSError, ValueError, RuntimeError) as why:
+        return f"{one.backend}/{one.name} could not be asked: {why}"
+
+
+def _has(said: _Had) -> str:
+    """What a provider said it has, as one line: its CPUs, memory, GPUs and runtimes."""
+    has = [f"{said.cpus:g} CPUs", _sized(said.memory)]
+    if said.gpus:
+        gpus = f"GPUs {', '.join(said.gpus)}"
+        has.append(
+            f"{gpus}, {_sized(said.gpu_memory)} each" if said.gpu_memory else gpus
+        )
+    runs = f"; runtimes {', '.join(said.runtimes)}" if said.runtimes else ""
+    return f"{', '.join(has)}{runs}"
+
+
+async def provided(host: App[None], backend: str) -> tuple[EnvProvider | None, str]:
+    """Asks for an environment provider on the one form that makes one, and saves it.
+
+    Here rather than beside either place that asks: the environments page of `/settings`,
+    and the list a role's machine is chosen from on `/flow` -- which is where somebody finds
+    out the one they want is not saved yet.
+
+    Args:
+      host: The interface, which the form is pushed onto.
+      backend: `ssh` or `docker`.
+
+    Returns:
+      The provider, saved -- or None, and why not: "" for a form walked out of.
+    """
+    form: Form[EnvProvider] = Hosting() if backend == _SSH else Docking()
+    one = await host.push_screen_wait(form)
+    if one is None:
+        return None, ""
+    try:
+        return _hmz().environments.add(one), ""
+    except (
+        OSError,
+        ValueError,
+    ) as why:  # saved meanwhile, or a directory that will not do
+        return None, str(why)
+
+
+#: The rows of the form an ssh host is written on, by the field each answers.
+_ALIAS, _HOST, _USER, _PORT, _KEY, _JUMP, _OPTIONS, _WORKDIR = (
+    "alias",
+    "host",
+    "user",
+    "port",
+    "identity_file",
+    "proxy_jump",
+    "options",
+    "workdir",
+)
+
+
+class Hosting(Form["EnvProvider"]):
+    """An ssh host, on one form: what reaches it, what it is called, where it works.
+
+    The host first, it being the one thing there is to type: the name is written in after it
+    -- its first label, unless a host is already saved as that -- and follows it until
+    somebody types over it. The rest is what `ssh` is told on top of the user's own config,
+    each blank for what that config says, so a host the config already knows is one row.
+
+    Correcting one asks the same less the name it is saved under; one imported from an ssh
+    config is asked its `Host` as well, which is what `ssh` resolves it through.
+    """
+
+    def __init__(self, one: SSHProvider | None = None) -> None:
+        """Initializes the form on a host, or on nothing for one being added.
+
+        Args:
+          one: The host being corrected, or None to add one.
+        """
+        super().__init__()
+        self._one = one
+        #: What ssh hosts are saved as, read once: the name is written in per keystroke.
+        self._taken = frozenset(each.name for each in _hmz().environments.all(_SSH))
+        if one is None:
+            self._typed_in = {_HOST: ""}
+            self._names()
+            return
+        self._typed_in = {
+            _ALIAS: one.alias,
+            _HOST: one.host,
+            _USER: one.user,
+            _PORT: str(one.port) if one.port else "",
+            _KEY: one.identity_file,
+            _JUMP: one.proxy_jump,
+            _OPTIONS: ", ".join(f"{key}={value}" for key, value in one.options.items()),
+            _WORKDIR: one.workdir,
+        }
+
+    def _names(self) -> None:
+        """Calls it after its host, until somebody has typed a name of their own."""
+        if self._one is not None:
+            return
+        if self._typed_in.get(_CALLED) and _CALLED not in self._fresh:
+            return
+        self._typed_in[_CALLED] = _unique(
+            _called_after(self._typed_in.get(_HOST, ""), _SSH), self._taken
+        )
+        self._fresh.add(_CALLED)
+
+    def asked(self) -> list[Question]:
+        """The host, its name, and what ssh is told on top of your own config."""
+        typed = self._typed_in
+        one = self._one
+        aliased = one is not None and bool(one.alias)
+        rows: list[Question] = []
+        if one is not None and aliased:
+            rows.append(
+                Question(
+                    _ALIAS,
+                    "alias",
+                    f"the Host of {_config_named(one.config)} it is resolved through",
+                    needed=not typed.get(_ALIAS, "").strip()
+                    and not typed.get(_HOST, "").strip(),
+                )
+            )
+        rows.append(
+            Question(
+                _HOST,
+                "host",
+                "what the alias is pointed at instead; blank for the config's"
+                if aliased
+                else "the machine: a name or an address, or user@host:port",
+                needed=not aliased and not typed.get(_HOST, "").strip(),
+            )
+        )
+        if one is None:
+            rows.append(
+                Question(
+                    _CALLED,
+                    "name",
+                    "what -e and /flow call it",
+                    needed=not typed.get(_CALLED, "").strip(),
+                )
+            )
+        rows.extend(
+            [
+                Question(
+                    _USER, "user", "who to log in as; blank for your ssh config's"
+                ),
+                Question(_PORT, "port", "blank for your ssh config's, or 22"),
+                Question(_KEY, "identity file", "the key to log in with, by its path"),
+                Question(_JUMP, "proxy jump", "the host it is reached through, if any"),
+                Question(
+                    _OPTIONS, "options", "anything else ssh is told: KEYWORD=VALUE, …"
+                ),
+                Question(
+                    _WORKDIR,
+                    "workdir",
+                    "where it works when -e names no directory: /abs or ~/path",
+                ),
+            ]
+        )
+        return rows
+
+    def writes(self, row: str, event: events.Key) -> bool:
+        """Takes a letter, and calls it after the host being typed, where it is.
+
+        Args:
+          row: The question, by id.
+          event: The key.
+
+        Returns:
+          Whether it was taken.
+        """
+        taken = super().writes(row, event)
+        if taken and row == _HOST:
+            self._names()
+        return taken
+
+    def edited(self) -> None:
+        """Takes a host written as ssh takes one -- `user@host:port` -- apart into its rows.
+
+        Into the rows for the login and the port where nothing is written in them yet: one
+        somebody typed is theirs. And the name follows what is left.
+        """
+        super().edited()
+        typed = self._typed_in
+        host = typed.get(_HOST, "").strip()
+        user, at, rest = host.rpartition("@")
+        if at and user and not typed.get(_USER, "").strip():
+            typed[_USER], host = user, rest
+        named, colon, port = host.rpartition(":")
+        if colon and named and port.isdigit() and not typed.get(_PORT, "").strip():
+            typed[_PORT], host = port, named
+        typed[_HOST] = host
+        self._names()
+
+    def done_about(self) -> str:
+        """What answering it does: saves it, and asks it what it has."""
+        name = self._one.name if self._one else self._typed_in.get(_CALLED, "").strip()
+        doing = "corrects" if self._one else "adds"
+        return f"{doing} ssh/{name}, and asks it what it has"
+
+    def _ask(self) -> None:
+        """Says what is being added or corrected, and puts the questions up."""
+        self.query_one("#asked", Label).update(
+            escape(f"Correct ssh/{self._one.name}") if self._one else "Add an ssh host"
+        )
+        self.query_one("#about", Label).update(
+            "A machine a flow's environments can be put on, reached as ssh reaches it with "
+            "your own config, and with what is written here on top. A key is named by its "
+            "path and never read."
+        )
+        self._fill()
+        self.query_one("#choices", OptionList).focus()
+
+    def _fields(self, typed: Mapping[str, str]) -> dict[str, Any]:
+        """Everything the form says of the host besides its name, as the store takes it.
+
+        Raises:
+          ValueError: For a port that is not one, or an option with no value.
+        """
+        port = typed.get(_PORT, "")
+        if port and not port.isdigit():
+            raise ValueError(f"port: {port!r} is not a port")
+        fields: dict[str, Any] = {
+            "host": typed.get(_HOST, ""),
+            "user": typed.get(_USER, ""),
+            "port": int(port or 0),
+            "identity_file": typed.get(_KEY, ""),
+            "proxy_jump": typed.get(_JUMP, ""),
+            "options": _options(typed.get(_OPTIONS, "")),
+            "workdir": typed.get(_WORKDIR, ""),
+        }
+        if self._one is not None:
+            fields |= {
+                "alias": typed.get(_ALIAS, ""),
+                "config": self._one.config,
+                "made": self._one.made,
+            }
+        return fields
+
+    def action_done(self) -> None:
+        """Answers with the host, once `ssh` could be told everything it says."""
+        envs = _hmz().environments
+        typed = {key: value.strip() for key, value in self._typed_in.items()}
+        name = self._one.name if self._one is not None else typed.get(_CALLED, "")
+        if self._one is None and envs.find(_SSH, name) is not None:
+            self._wrong = (
+                f"an ssh host is saved as {name} already; correct it from its own row, "
+                "or call this one something else"
+            )
+            self._fill()
+            return
+        try:
+            made = envs.new(_SSH, name, **self._fields(typed))
+        except ValueError as why:
+            self._wrong = str(why)
+            self._fill()
+            return
+        self.dismiss(made)
+
+
+#: The rows of the form a docker daemon is written on, by the field or the part of its
+#: endpoint each answers.
+_ENDPOINT, _SOCKET, _ADDRESS, _TLS, _VIA, _CONTEXT = (
+    "endpoint",
+    "socket",
+    "address",
+    "tls_dir",
+    "via",
+    "context",
+)
+_IMAGE, _RUNTIME, _ARGS, _CPUS, _MEMORY, _GPUS, _AT_ONCE = (
+    "image",
+    "runtime",
+    "run_args",
+    "cpus",
+    "memory",
+    "gpus",
+    "max_containers",
+)
+
+#: The ways a docker daemon is reached, as its form steps through them, and what each is.
+_ENDPOINTS = {
+    "local": "whatever docker on this machine reaches",
+    "socket": "a daemon's unix socket on this machine",
+    "tcp": "a daemon listening at an address",
+    "saved ssh host": "the daemon on an ssh host saved here",
+    "ssh address": "the daemon on any host ssh reaches",
+    "context": "a docker context of yours",
+}
+
+#: What each of them but `local` is spelled with, and the row the rest of it is written on.
+_REACHED = {
+    "ssh address": ("ssh://", _ADDRESS),
+    "socket": ("unix://", _SOCKET),
+    "tcp": ("tcp://", _ADDRESS),
+    "saved ssh host": ("ssh:", _VIA),
+    "context": ("context:", _CONTEXT),
+}
+
+
+class Docking(Form["EnvProvider"]):
+    """A docker daemon, on one form: where it is, what it is called, what it may hand out.
+
+    Where it is is a row stepped through the ways a daemon is reached, and the rows under it
+    are the one that way asks: a socket, an address, a saved ssh host, a context. What it may
+    hand out -- CPUs, memory, GPUs -- is each blank for all it has, and `detect` asks the
+    daemon and writes what it has in, for somebody to type less over.
+
+    Correcting one asks the same, less the name it is saved under.
+    """
+
+    def __init__(self, one: DockerProvider | None = None) -> None:
+        """Initializes the form on a daemon, or on nothing for one being added.
+
+        Args:
+          one: The daemon being corrected, or None to add one.
+        """
+        super().__init__()
+        self._one = one
+        self._taken = frozenset(each.name for each in _hmz().environments.all(_DOCKER))
+        #: What to say under the form, as markup: what detecting found, or that it is asking.
+        self._noted = ""
+        self._detecting = False
+        #: The ssh hosts the `on` row has named, read once apiece: it is redrawn per key.
+        self._vias: dict[str, EnvProvider | None] = {}
+        if one is None:
+            self._typed_in = {_ENDPOINT: "local"}
+            self._names()
+            return
+        self._typed_in = {
+            _ENDPOINT: "local",
+            _TLS: one.tls_dir,
+            _IMAGE: one.image,
+            _RUNTIME: one.runtime,
+            _ARGS: shlex.join(one.run_args),
+            _CPUS: f"{one.cpus:g}" if one.cpus else "",
+            _MEMORY: _sized(one.memory, exact=True) if one.memory else "",
+            _GPUS: ", ".join(one.gpus),
+            _AT_ONCE: str(one.max_containers) if one.max_containers else "",
+            _WORKDIR: one.workdir,
+        }
+        for kind, (spelled, row) in _REACHED.items():
+            if one.endpoint.startswith(spelled):
+                self._typed_in |= {_ENDPOINT: kind, row: one.endpoint[len(spelled) :]}
+                break
+
+    def _names(self) -> None:
+        """Calls it after where it is, until somebody has typed a name of their own."""
+        typed = self._typed_in
+        if self._one is not None or (typed.get(_CALLED) and _CALLED not in self._fresh):
+            return
+        kind = typed.get(_ENDPOINT, "local")
+        base = (
+            kind
+            if kind == "local"
+            else _called_after(typed.get(_ADDRESS, ""), _DOCKER)
+            if kind in ("tcp", "ssh address")
+            else typed.get(_VIA, "") or _DOCKER
+            if kind == "saved ssh host"
+            else typed.get(_CONTEXT, "").strip() or _DOCKER
+            if kind == "context"
+            else _DOCKER
+        )
+        typed[_CALLED] = _unique(base, self._taken)
+        self._fresh.add(_CALLED)
+
+    def _via_host(self) -> EnvProvider | None:
+        """The saved ssh host the `on` row names, or None where it names none."""
+        via = self._typed_in.get(_VIA, "")
+        if via not in self._vias:
+            self._vias[via] = _hmz().environments.find(_SSH, via) if via else None
+        return self._vias[via]
+
+    def _endpoint(self) -> str:
+        """Where the daemon is, spelled as a provider spells it."""
+        kind = self._typed_in.get(_ENDPOINT, "local")
+        if kind not in _REACHED:
+            return "local"
+        spelled, row = _REACHED[kind]
+        return spelled + self._typed_in.get(row, "").strip()
+
+    def asked(self) -> list[Question]:
+        """Where it is, its name, and what it may hand out."""
+        typed = self._typed_in
+        kind = typed.get(_ENDPOINT, "local")
+        rows = [Question(_ENDPOINT, "endpoint", _ENDPOINTS.get(kind, ""), _STEPS)]
+        if kind == "socket":
+            rows.append(
+                Question(
+                    _SOCKET,
+                    "socket",
+                    "its path: /run/docker.sock",
+                    needed=not typed.get(_SOCKET, "").strip(),
+                )
+            )
+        elif kind in ("tcp", "ssh address"):
+            rows.append(
+                Question(
+                    _ADDRESS,
+                    "address",
+                    "host:port it listens at"
+                    if kind == "tcp"
+                    else "[user@]host[:port]",
+                    needed=not typed.get(_ADDRESS, "").strip(),
+                )
+            )
+            if kind == "tcp":
+                rows.append(
+                    Question(
+                        _TLS,
+                        "tls",
+                        "the directory of its ca.pem, cert.pem and key.pem; blank for none",
+                    )
+                )
+        elif kind == "saved ssh host":
+            via = self._via_host()
+            rows.append(
+                Question(
+                    _VIA,
+                    "on",
+                    _machine_line(via)
+                    if via is not None
+                    else "which ssh host saved here its daemon is on",
+                    _OPENS_ONTO,
+                    needed=via is None,
+                )
+            )
+        elif kind == "context":
+            rows.append(
+                Question(
+                    _CONTEXT,
+                    "context",
+                    "the docker context's name",
+                    needed=not typed.get(_CONTEXT, "").strip(),
+                )
+            )
+        if self._one is None:
+            rows.append(
+                Question(
+                    _CALLED,
+                    "name",
+                    "what -e and /flow call it",
+                    needed=not typed.get(_CALLED, "").strip(),
+                )
+            )
+        # What it may hand out last, over the row that asks the daemon what it has: what is
+        # written in there is walked through and typed over, and then the form is done.
+        rows.extend(
+            [
+                Question(
+                    _IMAGE,
+                    "image",
+                    "what a container starts from, unless the flow says",
+                ),
+                Question(_RUNTIME, "runtime", "as nvidia; blank for the daemon's own"),
+                Question(
+                    _ARGS, "run args", "what else docker run is told, as you type it"
+                ),
+                Question(
+                    _AT_ONCE, "at once", "how many containers; blank for no limit"
+                ),
+                Question(
+                    _WORKDIR, "workdir", "where it works when -e names no directory"
+                ),
+                Question(
+                    _CPUS, "cpus", "how many it may hand out; blank for all it has"
+                ),
+                Question(_MEMORY, "memory", "how much, as 64G; blank for all it has"),
+                Question(_GPUS, "gpus", "which, by id: 0, 1; blank for all it has"),
+            ]
+        )
+        return rows
+
+    def choices(self, held: str) -> Sequence[str]:
+        """The ways a daemon is reached."""
+        return list(_ENDPOINTS) if held == _ENDPOINT else ()
+
+    def stepped(self, held: str) -> None:
+        """Calls it after where it now is, where nobody has named it.
+
+        Args:
+          held: The row that moved.
+        """
+        del held
+        self._names()
+
+    def writes(self, row: str, event: events.Key) -> bool:
+        """Takes a letter, and calls it after where it is as that is typed.
+
+        Args:
+          row: The question, by id.
+          event: The key.
+
+        Returns:
+          Whether it was taken.
+        """
+        taken = super().writes(row, event)
+        if taken and row in (_ADDRESS, _CONTEXT):
+            self._names()
+        return taken
+
+    def edited(self) -> None:
+        """Takes a row kept, pasted into or walked off, which the name may follow."""
+        super().edited()
+        self._names()
+
+    def opens(self, held: str) -> None:
+        """Opens the ssh hosts saved here, for the one its daemon is on.
+
+        Args:
+          held: The row, which is that one.
+        """
+        if held == _VIA:
+            self._via()
+
+    @work
+    async def _via(self) -> None:
+        """Asks which saved ssh host the daemon is on, and moves on."""
+        if self.opening():
+            return
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        try:
+            chosen = await showing.push_screen_wait(
+                Hosts(_SSH, self._typed_in.get(_VIA, ""))
+            )
+        finally:
+            self.opened()
+        if chosen is None:
+            return
+        if chosen != self._typed_in.get(_VIA):
+            self._typed_in[_VIA], self._wrong = chosen, ""
+            self._vias.clear()  # one may have been added on the way
+            self._names()
+            self.changed()
+        self.kept(_VIA)
+        self._fill()
+
+    def beside(self) -> list[tuple[str, str, str]]:
+        """Asking the daemon what it has, above the row that answers the form."""
+        return [(_DETECTS, "detect", "ask the daemon what it has, and write that in")]
+
+    def besides(self, held: str) -> None:
+        """Asks the daemon what it has.
+
+        Args:
+          held: The row, which is the one that detects.
+        """
+        if held == _DETECTS:
+            self._detects()
+
+    @work
+    async def _detects(self) -> None:
+        """Asks the daemon what it has, off the loop, and writes it in to be typed over.
+
+        Written in as what the form guessed, so the first letter typed into one replaces it:
+        what somebody wants is usually less than all of it, and now they can see how much all
+        of it is.
+        """
+        if self._detecting:
+            return
+        envs = _hmz().environments
+        try:
+            probe = envs.new(
+                _DOCKER,
+                _DOCKER,
+                endpoint=self._endpoint(),
+                tls_dir=self._typed_in.get(_TLS, "").strip()
+                if self._typed_in.get(_ENDPOINT) == "tcp"
+                else "",
+            )
+        except ValueError as why:
+            self._wrong = str(why)
+            self._fill()
+            return
+        self._detecting, self._wrong = True, ""
+        self._noted = f"asking {escape(self._endpoint())} what it has…"
+        self._fill()
+        said = await _checked(probe)
+        self._detecting, self._noted = False, ""
+        if isinstance(said, str) or not said.reached:
+            self._wrong = (
+                said
+                if isinstance(said, str)
+                else f"the daemon did not answer: {said.said}"
+            )
+            self._fill()
+            return
+        for held, value in (
+            (_CPUS, f"{said.cpus:g}" if said.cpus else ""),
+            (_MEMORY, _sized(said.memory) if said.memory else ""),
+            (_GPUS, ", ".join(said.gpus)),
+        ):
+            if value:
+                self._typed_in[held] = value
+                self._fresh.add(held)
+        self._noted = escape(f"it has {_has(said)}: written in, to type less over")
+        self.changed()
+        self._fill()
+        # On the first of them, for the typing over.
+        rows = [one.held for one in self._now or []]
+        if _CPUS in rows:
+            self.query_one("#choices", OptionList).highlighted = rows.index(_CPUS)
+            self._fill()
+
+    def kept(self, row: str) -> None:
+        """Moves on to the next of what detecting wrote in, while there is one to type over.
+
+        Args:
+          row: The row, by id.
+        """
+        rows = [one.held for one in self.asked()]
+        detected = (_CPUS, _MEMORY, _GPUS)
+        if row in detected and row in rows:
+            onward = [
+                at
+                for at, held in enumerate(rows)
+                if at > rows.index(row) and held in detected and held in self._fresh
+            ]
+            if onward:
+                self.query_one("#choices", OptionList).highlighted = onward[0]
+                return
+        super().kept(row)
+
+    def note(self) -> str:
+        """What detecting found, or that it is asking."""
+        return self._noted
+
+    def done_about(self) -> str:
+        """What answering it does: saves it, and asks the daemon what it has."""
+        name = self._one.name if self._one else self._typed_in.get(_CALLED, "").strip()
+        doing = "corrects" if self._one else "adds"
+        return f"{doing} docker/{name}, and asks the daemon what it has"
+
+    def _ask(self) -> None:
+        """Says what is being added or corrected, and puts the questions up."""
+        self.query_one("#asked", Label).update(
+            escape(f"Correct docker/{self._one.name}")
+            if self._one
+            else "Add a docker host"
+        )
+        self.query_one("#about", Label).update(
+            "A docker daemon a flow's environments can be put in a container on: this "
+            "machine's, or one reached over ssh or at an address. What it may hand out is "
+            "what the flows put on it are held to."
+        )
+        self._fill()
+        self.query_one("#choices", OptionList).focus()
+
+    def _fields(self, typed: Mapping[str, str]) -> dict[str, Any]:
+        """Everything the form says of the daemon besides its name, as the store takes it.
+
+        Raises:
+          ValueError: For an amount that is not one, or run args that do not split.
+        """
+        most, tls = typed.get(_AT_ONCE, ""), typed.get(_TLS, "")
+        try:
+            Path(tls).expanduser()
+        except (
+            RuntimeError
+        ):  # `~somebody` nobody is, which would crash whatever reads it
+            raise ValueError(f"tls: {tls!r} is under no home there is") from None
+        if most and not most.isdigit():
+            raise ValueError(f"at once: {most!r} is not a number of containers")
+        try:
+            argv = shlex.split(typed.get(_ARGS, ""))
+        except ValueError as why:
+            raise ValueError(f"run args: {why}") from None
+        return {
+            "endpoint": self._endpoint(),
+            "tls_dir": tls if typed.get(_ENDPOINT) == "tcp" else "",
+            "image": typed.get(_IMAGE, ""),
+            "runtime": typed.get(_RUNTIME, ""),
+            "run_args": argv,
+            "cpus": _number(typed.get(_CPUS, ""), "cpus"),
+            "memory": _bytes(typed[_MEMORY]) if typed.get(_MEMORY) else 0,
+            "gpus": [one for one in re.split(r"[,\s]+", typed.get(_GPUS, "")) if one],
+            "max_containers": int(most or 0),
+            "workdir": typed.get(_WORKDIR, ""),
+            "gpu_memory": self._one.gpu_memory if self._one is not None else 0,
+        }
+
+    def action_done(self) -> None:
+        """Answers with the daemon, once everything said of it reads."""
+        envs = _hmz().environments
+        typed = {key: value.strip() for key, value in self._typed_in.items()}
+        name = self._one.name if self._one is not None else typed.get(_CALLED, "")
+        if self._one is None and envs.find(_DOCKER, name) is not None:
+            self._wrong = (
+                f"a docker host is saved as {name} already; correct it from its own row, "
+                "or call this one something else"
+            )
+            self._fill()
+            return
+        try:
+            made = envs.new(_DOCKER, name, **self._fields(typed))
+        except ValueError as why:
+            self._wrong = str(why)
+            self._fill()
+            return
+        self.dismiss(made)
+
+
+class Imported(NamedTuple):
+    """Which hosts of an ssh config to save, as the form they are switched on in answers.
+
+    Attributes:
+      config: The config, or None for the user's own.
+      names: The hosts to save, by their `Host`.
+      again: The ones saved already to save again, over what an import left.
+      left: The ones switched off.
+    """
+
+    config: str | None
+    names: tuple[str, ...] = ()
+    again: tuple[str, ...] = ()
+    left: tuple[str, ...] = ()
+
+
+#: The row an import is told which ssh config to read on, and what each host's switch is put
+#: up under, in front of its `Host`.
+_CONFIG = "config"
+_HOSTED = "host:"
+
+
+class Importing(Form[Imported]):
+    """The hosts an ssh config names, each switched on or off, saved from the row that answers.
+
+    Read as `ssh -G` reads them -- the machine, the login, the port, the key, the jump host,
+    `Include` and `Match` and all -- off the drawing path: it is a program. Each is switched
+    on unless it is saved already, so bringing in a config's new hosts is the one row. The
+    config is the user's own unless the first row says another, and nothing here writes to
+    it: a host imported goes on reading it, so the config stays the one place it is written.
+    """
+
+    def __init__(self) -> None:
+        """Initializes the form on the user's own config, read once it is up."""
+        super().__init__()
+        # Written in as a guess, so that a path typed over it replaces it.
+        self._typed_in = {_CONFIG: _OWN_CONFIG}
+        self._fresh.add(_CONFIG)
+        self._hosts: list[SSHHost] = []
+        #: What the hosts were last read from, as the row said it, or None before they were.
+        self._read: str | None = None
+        self._reading = False
+        #: The ssh hosts saved already, by name: what an import would write over.
+        self._saved = {one.name: one for one in _hmz().environments.all(_SSH)}
+        #: Why a host starts switched off, by its `Host`, for the ones that do.
+        self._off: dict[str, str] = {}
+
+    def _config(self) -> str | None:
+        """The config to read, or None for the user's own -- which ssh reads with the system's."""
+        said = self._typed_in.get(_CONFIG, "").strip()
+        try:
+            own = not said or Path(said).expanduser() == Path(_OWN_CONFIG).expanduser()
+        except (
+            RuntimeError
+        ):  # `~somebody` nobody is: a path that reads nothing, said so
+            own = False
+        return None if own else said
+
+    def _standing(self, found: Sequence[SSHHost]) -> dict[str, str]:
+        """Why each host that starts switched off does, by its `Host`.
+
+        Read as the store names an imported host -- its `Host`, anything a name cannot hold
+        made a dash -- since that name is what it would be saved under: a host saved under it
+        already, one typed in under it, and one an earlier host takes it from.
+        """
+        from hmz.coganchor.machines.store import IMPORTED
+
+        off: dict[str, str] = {}
+        taken: dict[str, str] = {}
+        for one in found:
+            name = re.sub(r"[^A-Za-z0-9._-]", "-", one.alias).lstrip("._-")
+            saved = self._saved.get(name)
+            if not name:
+                off[one.alias] = "no name a host can be saved under"
+            elif name in taken:
+                off[one.alias] = f"{taken[name]} is imported as {name}"
+            elif saved is not None and saved.made != IMPORTED:
+                off[one.alias] = f"a host typed in is saved as {name}"
+            elif saved is not None:
+                off[one.alias] = "saved already"
+            taken.setdefault(name, one.alias)
+        return off
+
+    def _on(self, alias: str) -> bool:
+        """Whether one host is switched on to be imported."""
+        return self._typed_in.get(f"{_HOSTED}{alias}") == _YES
+
+    def asked(self) -> list[Question]:
+        """The config, and a switch per host it names."""
+        rows = [
+            Question(
+                _CONFIG,
+                "from",
+                "the ssh config to read: yours, or another file",
+                needed=not self._typed_in.get(_CONFIG, "").strip(),
+            )
+        ]
+        rows.extend(
+            Question(f"{_HOSTED}{one.alias}", one.alias, self._about_host(one), _STEPS)
+            for one in self._hosts
+        )
+        return rows
+
+    def _about_host(self, one: SSHHost) -> str:
+        """What a host's row says: where it reaches, as whom, with what, and if it is saved."""
+        said = [
+            f"{one.user}@{one.host}:{one.port}"
+            if one.user
+            else f"{one.host}:{one.port}",
+            *((f"key {', '.join(one.identity_files)}",) if one.identity_files else ()),
+            *((f"through {one.proxy_jump}",) if one.proxy_jump else ()),
+            *((self._off[one.alias],) if one.alias in self._off else ()),
+        ]
+        return _DOT.join(said)
+
+    def choices(self, held: str) -> Sequence[str]:
+        """On and off, for a host."""
+        return (_YES, _NO) if held.startswith(_HOSTED) else ()
+
+    def note(self) -> str:
+        """That the config is being read, or that it names nothing."""
+        if self._reading:
+            return f"reading {escape(self._typed_in.get(_CONFIG, ''))}…"
+        if self._read is not None and not self._hosts and not self._wrong:
+            return f"{escape(self._read)} names no host to import"
+        return ""
+
+    def done_about(self) -> str:
+        """What answering it does: which hosts it saves."""
+        on = [one.alias for one in self._hosts if self._on(one.alias)]
+        if not on:
+            return "imports nothing until a host is switched on"
+        # Three by name, which a row has room for, and a count past that.
+        return (
+            f"imports {', '.join(on)}"
+            if len(on) <= 3  # noqa: PLR2004
+            else f"imports {len(on)} hosts"
+        )
+
+    def edited(self) -> None:
+        """Reads the hosts again once the config the first row names has changed."""
+        super().edited()
+        if self._typed_in.get(_CONFIG, "").strip() != self._read:
+            self._reads()
+
+    def _ask(self) -> None:
+        """Says what an import is, puts the form up, and reads the config."""
+        self.query_one("#asked", Label).update("Import ssh hosts")
+        self.query_one("#about", Label).update(
+            "The hosts an ssh config names, as ssh itself reads them. Each is saved under "
+            "its Host and goes on reading the config, which nothing here writes to."
+        )
+        self._fill()
+        self.query_one("#choices", OptionList).focus()
+        self._reads()
+
+    @work(exclusive=True)
+    async def _reads(self) -> None:
+        """Reads the hosts the config names, off the loop, and lands on the row that imports.
+
+        Exclusive, so that a config typed while another is being read is the one read.
+        """
+        import asyncio
+
+        said = self._typed_in.get(_CONFIG, "").strip()
+        self._reading, self._wrong = True, ""
+        self._fill()
+        envs = _hmz().environments
+        try:
+            found = await asyncio.to_thread(envs.hosts, self._config())
+        except (
+            OSError,
+            RuntimeError,
+        ) as why:  # no ssh, or a config nobody's home holds
+            found, self._wrong = [], f"{said}: {why}"
+        self._reading, self._read, self._hosts = False, said, found
+        self._off = self._standing(found)
+        for one in found:
+            self._typed_in.setdefault(
+                f"{_HOSTED}{one.alias}", _NO if one.alias in self._off else _YES
+            )
+        self._fill()
+        if any(self._on(one.alias) for one in found):
+            # On the row that imports them, now that there are rows for it to be below.
+            self.query_one("#choices", OptionList).highlighted = len(found) + 1
+            self._fill()
+
+    def action_done(self) -> None:
+        """Answers with the hosts switched on, once there are any."""
+        if self._reading:
+            self._wrong = "the config is still being read"
+        elif not any(self._on(one.alias) for one in self._hosts):
+            self._wrong = "no host is switched on to import"
+        if self._wrong:
+            self._fill()
+            return
+        on = [one.alias for one in self._hosts if self._on(one.alias)]
+        # Switched on over one saved already is saving it again, which the store is told.
+        again = {alias for alias in on if alias in self._off}
+        self.dismiss(
+            Imported(
+                self._config(),
+                tuple(alias for alias in on if alias not in again),
+                tuple(alias for alias in on if alias in again),
+                tuple(one.alias for one in self._hosts if not self._on(one.alias)),
+            )
+        )
+
+
+class Machine(Picks):
+    """What to do with one environment provider: correct it, check it, or take it away.
+
+    Its own menu, as an account's is: three questions about the one under the cursor, taking
+    it away last. Each happens at once -- checking one runs `ssh` or `docker`, one corrected
+    is checked as it lands, and one taken away is a directory gone; a run already on it keeps
+    what it read as it started.
+    """
+
+    SEARCHES: ClassVar = False
+
+    def __init__(self, one: EnvProvider) -> None:
+        """Asks about one provider.
+
+        Args:
+          one: The provider.
+        """
+        super().__init__()
+        self._one = one
+        self.asked = escape(f"{one.backend}/{one.name}")
+        self.about = escape(_machine_line(one))
+
+    def rows(self) -> list[tuple[str, str, str]]:
+        """Correcting it, checking it, and taking it away."""
+        return [
+            (_CORRECTS, "correct it", "what it was saved with, asked again"),
+            (
+                _CHECKS,
+                "check it",
+                "ask it what it has: its home, CPUs, memory and GPUs"
+                if self._one.backend == _SSH
+                else "ask the daemon what it has, against what it hands out",
+            ),
+            (_TAKES_AWAY, "take it away", "it is saved no more, at once"),
+        ]
+
+
+class Hosts(Picks):
+    """Which saved provider of one backend a role's machine is -- or one more, added here.
+
+    The providers saved on the environments page of `/settings`, each with what reaches it.
+    Adding one is the row above them, on the form that page opens, and it comes back chosen.
+    For a role on ssh a host nobody saved is a row as well: `-e` takes any host `ssh`
+    reaches, and saving one under a name is a convenience rather than a condition.
+    """
+
+    ATOP: ClassVar = True
+
+    def __init__(
+        self, backend: str, current: str = "", *, unsaved: bool = False
+    ) -> None:
+        """Initializes the choosing.
+
+        Args:
+          backend: The backend whose providers these are.
+          current: The one chosen now, which the tick goes against.
+          unsaved: Whether a host nobody saved may be named instead.
+        """
+        super().__init__(current)
+        self._backend = backend
+        self._unsaved = unsaved
+        self._said = ""
+        self.adds = _KINDS.get(backend, "")
+        self.asked = {
+            _SSH: "Select the ssh host it is on",
+            _DOCKER: "Select the docker daemon it is on",
+        }.get(backend, f"Select the {backend} provider it is on")
+        self.about = "Saved on the environments page of /settings; one added here is saved there."
+
+    def rows(self) -> list[tuple[str, str, str]]:
+        """Every provider of the backend saved here, each with what reaches it."""
+        return [
+            (one.name, one.name, _machine_line(one))
+            for one in _hmz().environments.all(self._backend)
+        ]
+
+    def above(self) -> list[tuple[str, str, str]]:
+        """Adding one, naming one nobody saved, and searching."""
+        rows = super().above()
+        if self._unsaved:
+            at = 1 if self.adds else 0
+            rows.insert(
+                at,
+                (_UNSAVED, "a host not saved", "any host ssh reaches, as you type it"),
+            )
+        return rows
+
+    def nothing(self) -> str:
+        """What came of adding one, or that there is none saved yet."""
+        if self._said:
+            return self._said
+        return "" if self._rows else f"no {escape(self._backend)} host is saved yet"
+
+    def added(self) -> None:
+        """Adds one, which is then the one chosen."""
+        self._new()
+
+    @work
+    async def _new(self) -> None:
+        """Adds a provider of this backend without leaving the question, and chooses it."""
+        if self.opening():
+            return
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        try:
+            one, why = await provided(showing, self._backend)
+        finally:
+            self.opened()
+        if one is None:
+            if why:
+                self._said = bad(escape(why))
+                self._fill()
+            return
+        self.dismiss(one.name)
+
+    @on(OptionList.OptionSelected)
+    def _took(self, event: OptionList.OptionSelected) -> None:
+        """Asks for a host nobody saved, where that is the row chosen.
+
+        Args:
+          event: What was chosen.
+        """
+        if str(event.option.id or "").removeprefix("=") != _UNSAVED:
+            return  # the list's own, which answers it
+        # Taken here and nowhere else: the list's own would answer with the row's id.
+        event.prevent_default()
+        self._types()
+
+    @work
+    async def _types(self) -> None:
+        """Asks which host, and answers with it as it was typed."""
+        if self.opening():
+            return
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        saved = any(one[0] == self._current for one in self._rows or [])
+        try:
+            said = await showing.push_screen_wait(
+                Unsaved("" if saved else self._current)
+            )
+        finally:
+            self.opened()
+        if said:
+            self.dismiss(said)
+
+
+class Unsaved(Form[str]):
+    """An ssh host nobody saved, named as `ssh` takes one: for one role, and nowhere else."""
+
+    def __init__(self, host: str = "") -> None:
+        """Initializes the form on a host already named, or on none.
+
+        Args:
+          host: The host named now, or "".
+        """
+        super().__init__()
+        self._typed_in = {_HOST: host}
+
+    def asked(self) -> list[Question]:
+        """The host."""
+        return [
+            Question(
+                _HOST,
+                "host",
+                "[user@]host[:port], or an alias your ssh config names",
+                needed=not self._typed_in.get(_HOST, "").strip(),
+            )
+        ]
+
+    def done_about(self) -> str:
+        """What answering it does."""
+        return "puts the role on it, saving nothing"
+
+    def _ask(self) -> None:
+        """Says what a host not saved is."""
+        self.query_one("#asked", Label).update("An ssh host not saved")
+        self.query_one("#about", Label).update(
+            "Reached as ssh reaches it with your own config and nothing on top. Saving one "
+            "under a name is the environments page of /settings."
+        )
+        self._fill()
+        self.query_one("#choices", OptionList).focus()
+
+    def action_done(self) -> None:
+        """Answers with the host, once it is one."""
+        said = self._typed_in.get(_HOST, "").strip()
+        if not said:
+            self._wrong = "no host was named"
+        elif re.search(r"[\s/]", said):
+            self._wrong = f"{said!r} is not a host: it takes no space and no slash"
+        if self._wrong:
+            self._fill()
+            return
+        self.dismiss(said)
+
+
+def _spelled(role: str, spec: str) -> tuple[str, str, str] | None:
+    """What an `-e` spec comes to -- its backend, its machine, its directory -- read as `-e` is.
+
+    Args:
+      role: The role it is for.
+      spec: What follows `<role>=`.
+
+    Returns:
+      The three, or None for a spec that does not read.
+    """
+    from hmz.runtime.flowing import SpecError, parse_envs
+
+    try:
+        (one,) = parse_envs([f"{role}={spec}"])
+    except (SpecError, ValueError):
+        return None
+    # A directory the spec leaves out is its provider's, followed rather than copied: `-e`
+    # fills it in from the provider, and a spec read back must not have it written in.
+    kept = "/" in spec.partition("@")[2]
+    return one.backend.value, one.provider, str(one.workdir) if kept else ""
+
+
+#: The rows of the form an environment role is placed on, besides its workdir.
+_BACKEND, _PROVIDER, _SPELLED = "backend", "provider", "spelled"
+
+#: What each backend is, said beside it as it is stepped to.
+_BACKENDS_ABOUT = {
+    "local": "this machine",
+    _SSH: "a machine reached over ssh",
+    _DOCKER: "a container on a docker daemon",
+}
+
+#: What the machine is called on the row it is chosen on.
+_ON_ROW = {_SSH: "host", _DOCKER: "daemon"}
+
+
+class Placing(Form[str]):
+    """Where one environment role works: the backend, the machine, and the directory there.
+
+    In the order they depend on each other, which is the order `-e` spells them in: the
+    backend -- every one `-e` takes -- settles which machines there are to choose from, and a
+    saved one brings where it works unless somebody says otherwise. What the rows come to is
+    the last row, spelled as `-e` spells it; typing a whole one there sets the rows above,
+    because a spec copied off a command line is a spec, and somebody holding one should not
+    have to take it apart to say it here.
+    """
+
+    def __init__(self, role: str, spec: str = "") -> None:
+        """Initializes the form on where the role is now.
+
+        Args:
+          role: The environment role.
+          spec: Where it is now, as `-e` spells it after `<role>=`, or "" for nowhere yet --
+            which starts on the first backend anything is saved for.
+        """
+        from hmz.flows import EnvBackendKind
+
+        super().__init__()
+        self._role = role
+        self._kinds = [kind.value for kind in EnvBackendKind]
+        self._local = EnvBackendKind.LOCAL.value
+        envs = _hmz().environments
+        read = _spelled(role, spec) if spec else None
+        # One that does not read is kept as it was written, for somebody to correct.
+        raw = spec if read is None else ""
+        if read is None:
+            backend = next(
+                (one for one in self._kinds if one in _KINDS and envs.all(one)),
+                self._kinds[0],
+            )
+            read = (backend, "", "")
+        #: The providers looked up by the rows, by backend and name, read once apiece: the
+        #: form is redrawn per keystroke, and which one the rows name is read off them.
+        self._finds: dict[tuple[str, str], EnvProvider | None] = {}
+        self._reads_in(read)
+        if raw:
+            self._typed_in[_SPELLED] = raw
+        else:
+            self._spells()
+
+    def _reads_in(self, read: tuple[str, str, str]) -> None:
+        """Puts a backend, a machine and a directory in the rows, the provider's own if none.
+
+        Args:
+          read: The three, the directory "" for the one the provider is saved with.
+        """
+        self._typed_in |= dict(zip((_BACKEND, _PROVIDER, _WORKDIR), read, strict=True))
+        self._fresh.discard(_WORKDIR)
+        found = self._machine()
+        if not read[2] and found is not None and found.workdir:
+            self._typed_in[_WORKDIR] = found.workdir
+            self._fresh.add(_WORKDIR)
+
+    def _machine(self) -> EnvProvider | None:
+        """The provider the rows name, where one is saved under that name."""
+        key = (self._typed_in.get(_BACKEND, ""), self._typed_in.get(_PROVIDER, ""))
+        if key not in self._finds:
+            self._finds[key] = _hmz().environments.find(*key) if key[1] else None
+        return self._finds[key]
+
+    def _composed(self) -> str:
+        """The rows, as `-e` spells them after `<role>=`, or "" where they say too little.
+
+        Where the directory is still the one the provider is saved with, it is left out, so
+        that the role goes on working wherever that provider is saved to.
+        """
+        backend, provider, workdir = (
+            self._typed_in.get(one, "").strip()
+            for one in (_BACKEND, _PROVIDER, _WORKDIR)
+        )
+        if backend == self._local:
+            return f"{backend}@{workdir}" if workdir else ""
+        if not provider:
+            return ""
+        head = f"{backend}@{provider}"
+        found = self._machine()
+        if _WORKDIR in self._fresh and found is not None and workdir == found.workdir:
+            workdir = ""
+        if not workdir:
+            return head
+        return head + (workdir if workdir.startswith("/") else f"/{workdir}")
+
+    def _spells(self) -> None:
+        """Spells the last row out of the rows above it, to be typed over."""
+        self._typed_in[_SPELLED] = self._composed()
+        self._fresh.add(_SPELLED)
+
+    def asked(self) -> list[Question]:
+        """The backend, the machine where it has one, the directory, and all of it spelled."""
+        typed = self._typed_in
+        backend = typed.get(_BACKEND, "")
+        rows = [
+            Question(
+                _BACKEND,
+                "backend",
+                _BACKENDS_ABOUT.get(backend, "where its machine is"),
+                _STEPS,
+            )
+        ]
+        found = self._machine()
+        saved = found.workdir if found is not None else ""
+        if backend != self._local:
+            provider = typed.get(_PROVIDER, "").strip()
+            rows.append(
+                Question(
+                    _PROVIDER,
+                    _ON_ROW.get(backend, "provider"),
+                    _machine_line(found)
+                    if found is not None
+                    else "not saved: ssh reaches it as it is written"
+                    if provider and backend == _SSH
+                    else "not saved here"
+                    if provider
+                    else "choose one saved here, or add one",
+                    _OPENS_ONTO if backend in _KINDS else _WRITES,
+                    needed=not provider,
+                )
+            )
+        rows.append(
+            Question(
+                _WORKDIR,
+                "workdir",
+                "a directory on this machine, absolute"
+                if backend == self._local
+                else f"blank for {saved}, where it is saved to work"
+                if saved
+                else "where it works there: /abs, or ~/path under the login's home",
+                needed=not typed.get(_WORKDIR, "").strip() and not saved,
+            )
+        )
+        rows.append(
+            Question(
+                _SPELLED,
+                "as -e",
+                "all of it as -e spells it: typing one sets the rows above",
+            )
+        )
+        return rows
+
+    def choices(self, held: str) -> Sequence[str]:
+        """Every backend `-e` takes."""
+        return self._kinds if held == _BACKEND else ()
+
+    def stepped(self, held: str) -> None:
+        """Lets go of the machine and the directory, which were the last backend's.
+
+        Args:
+          held: The row that moved.
+        """
+        del held
+        self._typed_in[_PROVIDER] = self._typed_in[_WORKDIR] = ""
+        self._fresh.discard(_WORKDIR)
+        self._spells()
+
+    def _takes(self, provider: str) -> None:
+        """Puts the role on a machine, working where it is saved to unless somebody said.
+
+        Args:
+          provider: The machine, by the name it is saved under or as it was typed.
+        """
+        self._typed_in[_PROVIDER] = provider
+        if not self._typed_in.get(_WORKDIR) or _WORKDIR in self._fresh:
+            found = self._machine()
+            saved = found.workdir if found is not None else ""
+            self._typed_in[_WORKDIR] = saved
+            if saved:
+                self._fresh.add(_WORKDIR)
+            else:
+                self._fresh.discard(_WORKDIR)
+        self._spells()
+
+    def opens(self, held: str) -> None:
+        """Opens the machines of the backend chosen.
+
+        Args:
+          held: The row, which is the machine's.
+        """
+        if held == _PROVIDER:
+            self._chooses()
+
+    @work
+    async def _chooses(self) -> None:
+        """Asks which machine, and moves on to what is still to be answered."""
+        if self.opening():
+            return
+        backend = self._typed_in.get(_BACKEND, "")
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        try:
+            chosen = await showing.push_screen_wait(
+                Hosts(
+                    backend, self._typed_in.get(_PROVIDER, ""), unsaved=backend == _SSH
+                )
+            )
+        finally:
+            self.opened()
+        if chosen is None:
+            return
+        if chosen != self._typed_in.get(_PROVIDER):
+            self._finds.clear()  # one may have been added on the way
+            self._takes(chosen)
+            self._wrong = ""
+            self.changed()
+        self.kept(_PROVIDER)
+        self._fill()
+
+    def writes(self, row: str, event: events.Key) -> bool:
+        """Takes a letter, and spells the last row again out of what it changed.
+
+        Args:
+          row: The question, by id.
+          event: The key.
+
+        Returns:
+          Whether it was taken.
+        """
+        taken = super().writes(row, event)
+        if taken and row == _PROVIDER:
+            self._takes(self._typed_in[_PROVIDER])
+        elif taken and row == _WORKDIR:
+            self._spells()
+        return taken
+
+    def edited(self) -> None:
+        """Takes a spec typed whole into the last row as the rows above, where it reads."""
+        super().edited()
+        if _SPELLED in self._fresh:
+            self._spells()  # something above it moved, pasted in or walked off
+            return
+        read = _spelled(self._role, self._typed_in.get(_SPELLED, "").strip())
+        if read is None:
+            return  # kept as written, and said what is wrong with it once it is answered
+        self._reads_in(read)
+        self._spells()
+
+    def done_about(self) -> str:
+        """What answering it does: holds where the role is until the flow is saved."""
+        spec = self._typed_in.get(_SPELLED, "").strip()
+        if not spec:
+            return f"leaves {self._role} unsaid"
+        return f"holds {self._role} at {spec} until the flow is saved"
+
+    def _ask(self) -> None:
+        """Says which role this is, and lands on the first thing still to be answered."""
+        self.query_one("#asked", Label).update(escape(f"Where {self._role} is"))
+        self.query_one("#about", Label).update(
+            "The machine this environment role works on, and the directory there. One saved "
+            "on the environments page of /settings is chosen by name, and brings where it "
+            "works with it."
+        )
+        self._fill()
+        first = next((at for at, one in enumerate(self._now or []) if one.needed), None)
+        if first is not None:
+            self.query_one("#choices", OptionList).highlighted = first
+            self._fill()
+        self.query_one("#choices", OptionList).focus()
+
+    def action_done(self) -> None:
+        """Answers with where the role is, read as `-e` reads it, or with nowhere at all."""
+        typed = self._typed_in
+        spec = typed.get(_SPELLED, "").strip()
+        if not spec and any(
+            typed.get(one, "").strip() for one in (_PROVIDER, _WORKDIR)
+        ):
+            missing = next((one for one in self.asked() if one.needed), None)
+            self._wrong = (
+                f"say the {missing.named} as well" if missing else "say where it is"
+            )
+        elif spec:
+            self._wrong = placed(self._role, spec)
+        if self._wrong:
+            self._fill()
+            return
+        self.dismiss(spec)
+
+
+class Machines(Pages):
+    """The environments page of `/settings`: every machine a flow's environments may go on.
+
+    What a role's machine is chosen out of on `/flow` -- ssh hosts, and docker daemons with
+    what each may hand out -- under a heading per backend, below the rows that bring one in:
+    adding either on one form, and importing the hosts an ssh config names. Enter on one
+    opens what can be done to it: correcting it, checking it, taking it away.
+
+    Nothing here is held until the menu is saved, so the page has no row to save from. What
+    is added or corrected is asked what it has as it lands -- `ssh` into the host, `docker
+    info` of the daemon -- and an import runs `ssh -G`: each is a command run, and something
+    that has already run is not a draft. Taking one away goes with them, as a flowverse's
+    does, on a page that holds nothing.
+    """
+
+    #: What the page says it is.
+    MACHINES_ABOUT = (
+        "The machines a flow's environments can be put on, saved under a name that -e "
+        "and /flow name: ssh hosts, and docker daemons with what each may hand out. What "
+        "happens here happens at once."
+    )
+
+    def __init__(self) -> None:
+        """Holds nothing until the page is first read."""
+        super().__init__()
+        self._saved_machines: list[EnvProvider] = []
+        #: The ones being asked what they have, as `backend/name`, which their rows say.
+        self._checking: dict[str, object] = {}
+
+    def _read_machines(self) -> None:
+        """Reads every provider off the disk, which is what the rows are drawn from."""
+        self._saved_machines = _hmz().environments.all()
+
+    @staticmethod
+    def _machine_key(one: EnvProvider) -> str:
+        """One provider as it is keyed here: by its backend and its name."""
+        return f"{one.backend}/{one.name}"
+
+    def _fill_machines(self) -> None:
+        """Puts the providers up under a heading per backend, under the rows that bring one in."""
+        listing = self.query_one("#choices", OptionList)
+        self._follows(listing)
+        lined = [(one, _machine_line(one)) for one in self._saved_machines]
+        shown = [
+            (one, line) for one, line in lined if self.fits(one.name, one.backend, line)
+        ]
+        self._counting = len(str(max(len(shown), 1)))
+        atop = [
+            (_ADD, f"add {_KINDS[_SSH]}", "a machine reached over ssh"),
+            (_DOCKS, f"add {_KINDS[_DOCKER]}", "a docker daemon, here or elsewhere"),
+            (_IMPORTS, f"import {_OWN_CONFIG}", "the hosts it names, or another's"),
+            _SEEK,
+        ]
+        landing = self._lands(
+            [held for held, _, _ in atop], [self._machine_key(one) for one, _ in shown]
+        )
+        rows = self._atop(atop, here=landing)
+        group = ""
+        for seen, (one, line) in enumerate(shown):
+            keyed = self._machine_key(one)
+            if one.backend != group:
+                # A heading, with a blank line above it once there is a group above it.
+                if group:
+                    rows.append(Option("", disabled=True))
+                group = one.backend
+                rows.append(
+                    Option(f"{_INDENT}[$primary]{escape(group)}[/]", disabled=True)
+                )
+            about = f"{line}{_DOT}checking…" if keyed in self._checking else line
+            rows.append(
+                Option(
+                    self._row(
+                        seen, one.name, about, here=keyed == landing, inforce=False
+                    ),
+                    id=f"={keyed}",
+                )
+            )
+        self._put(listing, rows, landing)
+        self._drawn = listing.highlighted
+        said = self._said or (
+            ""
+            if self._saved_machines
+            else "nothing saved yet: a role's machine is named by hand"
+        )
+        self.query_one("#tuning", Label).update(
+            f"[$text-muted]{said}[/]" if said else ""
+        )
+        self._footed(Key("enter", "what to do"), Key("esc", "close"))
+
+    def _took_machine(self, named: str) -> None:
+        """Opens what there is to do with the provider chosen, or brings one in.
+
+        Args:
+          named: The row chosen, by its id.
+        """
+        if named in (_ADD, _DOCKS):
+            self._adds_machine(_SSH if named == _ADD else _DOCKER)
+            return
+        if named == _IMPORTS:
+            self._imports_hosts()
+            return
+        one = next(
+            (each for each in self._saved_machines if self._machine_key(each) == named),
+            None,
+        )
+        if one is not None:
+            self._doing_machine(one)
+
+    @work
+    async def _doing_machine(self, one: EnvProvider) -> None:
+        """Asks what to do with one provider, and does it.
+
+        Args:
+          one: The provider.
+        """
+        if self.opening():
+            return
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        try:
+            said = await showing.push_screen_wait(Machine(one))
+        finally:
+            self.opened()
+        if said == _CORRECTS:
+            self._corrects_machine(one)
+        elif said == _CHECKS:
+            self._checks(one)
+        elif said == _TAKES_AWAY:
+            self._drops_machine(one)
+
+    @work
+    async def _adds_machine(self, backend: str) -> None:
+        """Asks for a provider on the form that makes one, saves it, and asks what it has.
+
+        Args:
+          backend: `ssh` or `docker`.
+        """
+        if self.opening():
+            return
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        try:
+            one, why = await provided(showing, backend)
+        finally:
+            self.opened()
+        if one is None:
+            if why:
+                self._said = bad(escape(why))
+                self._fill()
+            return
+        self._told.append(
+            f"[dim]{escape(self._machine_key(one))} is saved at {escape(str(one.at))}[/dim]"
+        )
+        self._read_machines()
+        self._aim = self._machine_key(one)
+        self._checks(one)
+
+    @work
+    async def _corrects_machine(self, one: EnvProvider) -> None:
+        """Asks what one provider is to say, starting from what it says, and saves it.
+
+        Args:
+          one: The provider.
+        """
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        form: Form[EnvProvider] = (
+            Hosting(cast("SSHProvider", one))
+            if one.backend == _SSH
+            else Docking(cast("DockerProvider", one))
+        )
+        fixed = await showing.push_screen_wait(form)
+        if fixed is None or fixed == one:
+            return  # walked out, or nothing changed
+        try:
+            _hmz().environments.write(fixed)
+        except OSError as why:
+            self._said = bad(escape(str(why)))
+            self._fill()
+            return
+        self._told.append(f"[dim]{escape(self._machine_key(fixed))} is corrected[/dim]")
+        self._read_machines()
+        self._aim = self._machine_key(fixed)
+        self._checks(fixed)
+
+    def _drops_machine(self, one: EnvProvider) -> None:
+        """Takes one provider away, and says what that leaves reaching nothing.
+
+        Args:
+          one: The provider.
+        """
+        keyed = self._machine_key(one)
+        try:
+            _hmz().environments.remove(one.backend, one.name)
+        except (OSError, ValueError) as why:
+            self._said = bad(escape(str(why)))
+            self._fill()
+            return
+        self._told.append(f"[dim]{escape(keyed)} is no longer saved[/dim]")
+        self._said = f"{escape(keyed)} is no longer saved"
+        # A docker daemon reached through the host that went is reached through nothing.
+        stranded = [
+            each.name
+            for each in self._saved_machines
+            if each.backend == _DOCKER
+            and one.backend == _SSH
+            and cast("DockerProvider", each).endpoint == f"ssh:{one.name}"
+        ]
+        if stranded:
+            self._said += "\n" + iffy(
+                escape(
+                    f"{', '.join(stranded)} reached its daemon through it; correct them"
+                )
+            )
+        self._was = ""
+        self._read_machines()
+        self._fill()
+
+    @work
+    async def _imports_hosts(self) -> None:
+        """Asks which hosts of an ssh config to save, and saves them."""
+        if self.opening():
+            return
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        try:
+            chosen = await showing.push_screen_wait(Importing())
+        finally:
+            self.opened()
+        if chosen is None:
+            return
+        envs = _hmz().environments
+        try:
+            # The ones imported again first: the one that is refused -- a host somebody typed
+            # in under that name -- is then refused before anything is written.
+            made = [
+                *(
+                    envs.import_ssh(chosen.config, chosen.again, update=True)
+                    if chosen.again
+                    else ()
+                ),
+                *envs.import_ssh(chosen.config, chosen.names),
+            ]
+        except (OSError, ValueError, RuntimeError) as why:
+            self._said = bad(escape(str(why)))
+            self._read_machines()
+            self._fill()
+            return
+        names = ", ".join(one.name for one in made)
+        whence = _config_named(chosen.config or "")
+        if made:
+            self._told.append(
+                f"[dim]{escape(names)} imported from {escape(whence)}[/dim]"
+            )
+        said = f"imported {names or 'nothing'} from {whence}"
+        if chosen.left:
+            said += f"; left {', '.join(chosen.left)}"
+        self._said = escape(f"{said}. Check one from its own row.")
+        self._read_machines()
+        if made:
+            self._aim = self._machine_key(made[0])
+        self._fill()
+
+    @work
+    async def _checks(self, one: EnvProvider) -> None:
+        """Asks one provider what it has, saying so while it does and after.
+
+        In the background: it is `ssh` reaching a machine or `docker` reaching a daemon, and
+        either may take the better part of a minute to give up -- a page that could not be
+        read or left meanwhile would be a page that looked as though it had hung.
+
+        Args:
+          one: The provider.
+        """
+        keyed = self._machine_key(one)
+        # This one's own, so that the answer to one asked before it was corrected is not
+        # taken for the answer to what it is now: the last asked is the one said.
+        turn = self._checking[keyed] = object()
+        self._tell(_MACHINES, f"asking {escape(keyed)} what it has…")
+        self._fill()
+        said = await _checked(one)
+        if self._checking.get(keyed) is not turn:
+            return
+        del self._checking[keyed]
+        self._tell(
+            _MACHINES,
+            bad(escape(said)) if isinstance(said, str) else _answered(one, said),
+        )
+        self._fill()
+
+
 class Adjusted(NamedTuple):
     """What the settings menu answers with: what was changed, and what happened.
 
@@ -7395,8 +9389,8 @@ class Adjusted(NamedTuple):
       profile: Whether a run in this directory is profiled as well as traced, or None where
         that was not touched.
       forget: Whether to forget what this workspace was set up to run.
-      told: What the pages that write for themselves -- the accounts, the fallbacks and the
-        flowverses -- did, as lines for the transcript.
+      told: What the pages that write for themselves -- the accounts, the environments, the
+        fallbacks and the flowverses -- did, as lines for the transcript.
       placed: The last thing that happened to the flowverses, or "" for nothing.
       btw: The agent `/btw` asks about a whole flow, as `cli@provider/model:effort` or "" for
         the flow's first agent, or None where that was not touched.
@@ -7411,14 +9405,14 @@ class Adjusted(NamedTuple):
     btw: str | None = None
 
 
-class Adjusts(Providers, Fallbacks, Flowverses):
+class Adjusts(Providers, Machines, Fallbacks, Flowverses):
     """Every setting humanize has: `/settings`, one menu of pages, opened on any by its name.
 
     Everywhere is what is true of this machine however many projects are driven from it;
-    this directory is one directory's; the accounts, the fallbacks and the flowverses are
-    the places agents run as, turns go when they cannot, and flows come from. One menu
-    because they are one question -- what does humanize remember -- and a command apiece
-    was five things to learn the names of.
+    this directory is one directory's; the accounts, the environments, the fallbacks and the
+    flowverses are what agents run as, the machines their work goes on, where turns go when
+    they cannot, and where flows come from. One menu because they are one question -- what
+    does humanize remember -- and a command apiece was six things to learn the names of.
 
     A menu rather than a file to edit, for the reason every other menu here is one: what is
     written down is written down in humanize's own words, and a person should not have to know
@@ -7426,13 +9420,14 @@ class Adjusts(Providers, Fallbacks, Flowverses):
     is left and saving is confirmed, and each setting takes effect at once where it can;
     where it cannot, the row says when it will while it is held and the transcript says so
     once it is saved. What runs a command of its own -- making an account, signing one in,
-    fetching a flowverse -- happens as it is asked for, as it always did.
+    saving or checking a machine, fetching a flowverse -- happens as it is asked for.
     """
 
     TABS: ClassVar = (
         "Everywhere",
         "This directory",
         "Accounts",
+        "Environments",
         "Fallback",
         "Flowverses",
     )
@@ -7496,6 +9491,7 @@ class Adjusts(Providers, Fallbacks, Flowverses):
         """Says what the menu is, reads the pages that are lists, and puts one up."""
         self.query_one("#asked", Label).update("Settings")
         self._read_accounts()
+        self._read_machines()
         self._read_verses()
         self._fill()
         self.query_one("#choices", OptionList).focus()
@@ -7574,6 +9570,7 @@ class Adjusts(Providers, Fallbacks, Flowverses):
                 _DIRECTORY: "What it remembers about this directory: the flow it opens "
                 "on, and what that flow was last set up to run.",
                 _ACCOUNTS: self.ACCOUNTS_ABOUT,
+                _MACHINES: self.MACHINES_ABOUT,
                 _FALLBACK: self.STEPS_ABOUT,
                 _VERSES: self.VERSES_ABOUT,
             }[self._tab]
@@ -7581,6 +9578,8 @@ class Adjusts(Providers, Fallbacks, Flowverses):
         self.tabbed(self._tab_line())
         if self._tab == _ACCOUNTS:
             self._fill_accounts()
+        elif self._tab == _MACHINES:
+            self._fill_machines()
         elif self._tab == _FALLBACK:
             self._fill_steps()
         elif self._tab == _VERSES:
@@ -7716,6 +9715,8 @@ class Adjusts(Providers, Fallbacks, Flowverses):
             self.applied()
         elif self._tab == _ACCOUNTS:
             self._took_account(held)
+        elif self._tab == _MACHINES:
+            self._took_machine(held)
         elif self._tab == _FALLBACK:
             self._took_step(held)
         elif self._tab == _VERSES:
@@ -7779,10 +9780,10 @@ class Adjusts(Providers, Fallbacks, Flowverses):
     def dismiss(self, result: Adjusted | None = None) -> AwaitComplete:
         """Answers, saying what happened even where nothing held was saved.
 
-        Making an account and fetching a flowverse happen as they are asked for, so a menu
-        walked out of without saving -- or with what it held thrown away -- still has
-        something to say about them. And it is said to the interface as well as answered,
-        since the interface is what applies the rest.
+        Making an account, saving a machine and fetching a flowverse happen as they are
+        asked for, so a menu walked out of without saving -- or with what it held thrown
+        away -- still has something to say about them. And it is said to the interface as
+        well as answered, since the interface is what applies the rest.
 
         Args:
           result: What the menu is answered with, or None for nothing held.

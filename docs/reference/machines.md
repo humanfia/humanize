@@ -105,7 +105,9 @@ hand can have one, [below](#dockerconfig). Docker daemons can already be saved a
 
 A machine an environment may be put on, saved under a name so that `-e` can name it: an ssh
 host with everything `ssh` needs to be told to reach it, or a docker daemon with what it may
-hand out. Each is a directory of its own, `~/.humanize/env-providers/<backend>/<name>/`, holding
+hand out. At the prompt they are the [Environments page of
+`/settings`](/user/settings#environments), where each is added, imported, checked, corrected
+and taken away. Each is a directory of its own, `~/.humanize/env-providers/<backend>/<name>/`, holding
 `provider.json`; every level is yours alone (`0700`, the file `0600`). A name is letters,
 digits, `.`, `-` and `_`, starting with a letter or a digit.
 
