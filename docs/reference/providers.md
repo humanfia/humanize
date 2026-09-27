@@ -8,7 +8,7 @@ with no provider runs its CLI signed in the way you signed it in yourself.
 | --- | --- |
 | **Named** | `<cli>/<name>`, such as `claude/work`. `<cli>/` with no name is the account this machine is already signed into. |
 | **Kept in** | `~/.humanize/providers/<cli>/<name>/`, or under `$HUMANIZE_HOME` where that is set |
-| **Made at** | `/providers` and its `add` row, or [`Hmz().accounts`](/reference/sdk) from Python |
+| **Made at** | the Accounts page of `/settings` and its `add` row, or [`Hmz().accounts`](/reference/sdk) from Python |
 | **Chosen with** | `-a role=CLI@NAME/MODEL:EFFORT`, or `provider="NAME"` on an agent's config |
 | **A turn under one** | Gets the provider's variables and loses the backend's other account variables. Its credential paths are answered out of the provider's directory. |
 
@@ -78,13 +78,13 @@ it goes with it. The home is read from humanize's own environment.
 - `grok`'s `mcp_credentials.json` holds the tokens its MCP servers handed back.
 - `zcode`'s file is shared with the ZCode desktop app, and encrypted with a key derived from
   this machine and this user.
-- An ACP CLI added at `/providers` has no credential files humanize knows of, so its accounts
-  are variables.
+- An ACP CLI added on the Accounts page of `/settings` has no credential files humanize knows
+  of, so its accounts are variables.
 
 ## The ways in
 
 A way is one kind of account: a subscription you sign into, a key, a gateway, an account on a
-cloud. `/providers` offers a backend's ways once you pick the CLI, and
+cloud. The Accounts page of `/settings` offers a backend's ways once you pick the CLI, and
 `Hmz().accounts.ways(cli)` returns the same list.
 
 | Backend | `login` | `device` | `key` | `gateway` | Also | `env` |
@@ -235,7 +235,7 @@ While writing that field, <kbd>shift+enter</kbd> or <kbd>ctrl+j</kbd> starts a n
 
 ## Making one
 
-At the prompt, open `/providers`:
+At the prompt, open `/settings` and press <kbd>tab</kbd> twice to turn to its Accounts page:
 
 | Row | Does | When it lands |
 | --- | --- | --- |
@@ -244,6 +244,10 @@ At the prompt, open `/providers`:
 | <kbd>enter</kbd> → **sign in again** | Runs the way's own command again, under this account's paths. Only for a way that runs one. | at once |
 | <kbd>enter</kbd> → **falls back to** | Which account of this CLI a turn carries on under when this one fails. See [When an account goes down](#when-an-account-goes-down). | when the menu is saved |
 | <kbd>enter</kbd> → **take it away** | Deletes the account and its credentials. An account already marked shows **keep it after all**. | when the menu is saved |
+
+What lands when the menu is saved reaches an agent from its next session: a session already
+running keeps the account it started with, and the row says `from the next agent session` while
+the change is held.
 
 The same `add` row is on the `provider` list of an agent's sheet, and comes back with the
 new account chosen for that agent. The screens are in [TUI](/reference/tui).
@@ -279,8 +283,8 @@ replaces what it holds and keeps its credentials and its fallback. `asks` lists 
 with neither an answer nor a default. `sign_in` returns the command's exit status: `0` for a
 way with no command, and `127` for a CLI that is not installed. See [SDK](/reference/sdk).
 
-Reading one back from Python gives everything it holds. The `/providers` list shows only the
-names of the variables it sets, never their values.
+Reading one back from Python gives everything it holds. The Accounts page of `/settings` shows
+only the names of the variables it sets, never their values.
 
 ```python
 one = accounts.find("claude", "deepseek")   # None if there is none
@@ -418,7 +422,7 @@ that ran out, a key refused, a gateway answering 503. That one can name the next
 **chain**. A turn walks the chain inside the conversation it was in, with the same agent and
 the same model.
 
-Set it with **falls back to** in `/providers`, or from Python:
+Set it with **falls back to** on the Accounts page of `/settings`, or from Python:
 
 ```python
 accounts = Hmz().accounts
@@ -440,9 +444,9 @@ accounts.chain(held)                   # [subscription, key, gateway]
 | The machine's own account | Can fall back to others. What it says is kept in `~/.humanize/local/<cli>.json`. |
 
 An account's chain answers an account going down. A retired model, a CLI that will not start,
-or a limit on the whole place is answered by [another agent](/user/fallback), which a turn
+or a limit on the whole place is answered by [another agent](/user/settings#fallback), which a turn
 moves to only once this chain is spent. How many times a failed turn is retried first is set
-per place on [`/fallback`](/user/fallback), not on the account.
+per place on [the Fallback page of `/settings`](/user/settings#fallback), not on the account.
 
 ## One account, several CLIs
 
@@ -468,12 +472,12 @@ for cli in accounts.serves(one):
 At the prompt, making or correcting an account that other backends could run asks which of them
 to write it down for. The ones installed here are ticked to start with:
 
-![/providers, a, claude, key: an account named and its key typed as bullets, then the question
-of which other backends to write it down for](/demo/alike.gif)
+![/settings, the Accounts page, a, claude, key: an account named and its key typed as bullets,
+then the question of which other backends to write it down for](/demo/alike.gif)
 
 Each copy is then an account of its own, listed under its own backend:
 
-![the /providers list afterwards: shared under claude, opencode and pi, each saying which
+![the Accounts page afterwards: shared under claude, opencode and pi, each saying which
 variable it sets](/demo/alike-copied.png)
 
 ## Requirements and limits
@@ -499,7 +503,7 @@ and `provider.json` is `0600` from the moment it exists. Taking an account away 
 directory, credentials and all.
 :::
 
-**The interface never draws a value.** The `/providers` list shows variable names, and a
+**The interface never draws a value.** The Accounts page of `/settings` shows variable names, and a
 secret answered at the prompt is drawn as bullets. From Python, `one.env` holds the values
 themselves, and a value you pass to `make` or `write` from a script is only as private as
 wherever that script got it.

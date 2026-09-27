@@ -71,9 +71,17 @@ const MOVED_TO_WEAVER = [
 
 // And where a page moved a second time, which overrides the table above: `/status` is
 // `/monitor` now, so the page about it is too, and both of the paths it has had send a reader on.
+// Likewise `/providers`, `/fallback` and `/details` are pages of `/settings` now, and so are the
+// pages that were about them.
 const MOVED_AGAIN: Record<string, string> = {
   'guide/status': 'user/monitor',
   'user/status': 'user/monitor',
+  'guide/providers': 'user/settings#accounts',
+  'user/providers': 'user/settings#accounts',
+  'guide/fallback': 'user/settings#fallback',
+  'user/fallback': 'user/settings#fallback',
+  'guide/details': 'user/settings#details',
+  'user/details': 'user/settings#details',
 }
 
 const MOVED: Record<string, string> = {
@@ -271,7 +279,6 @@ export default defineConfig({
             { text: 'Talking to a running turn', link: '/user/steering' },
             { text: 'Side questions (/btw)', link: '/user/btw' },
             { text: 'Many conversations at once', link: '/user/conversations' },
-            { text: 'Showing the working (/details)', link: '/user/details' },
             { text: 'Watching a run (/monitor)', link: '/user/monitor' },
             { text: 'Being away (/afk)', link: '/user/afk' },
             { text: 'Stopping', link: '/user/stopping' },
@@ -285,16 +292,16 @@ export default defineConfig({
           items: [
             { text: 'Completion', link: '/user/completion' },
             { text: 'History', link: '/user/history' },
-            { text: 'What a project remembers', link: '/user/settings' },
+            { text: 'Settings (/settings)', link: '/user/settings' },
           ],
         },
         {
           text: 'Agents and accounts',
           collapsed: false,
           items: [
-            { text: 'Providers', link: '/user/providers' },
+            { text: 'Accounts', link: '/user/settings#accounts' },
             { text: 'Efforts', link: '/user/efforts' },
-            { text: 'Falling back', link: '/user/fallback' },
+            { text: 'Falling back', link: '/user/settings#fallback' },
             { text: 'Cost and rate', link: '/user/tally' },
             { text: 'Permissions', link: '/user/permissions' },
             { text: 'Skills', link: '/user/skills' },

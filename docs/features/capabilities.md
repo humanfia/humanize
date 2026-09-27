@@ -14,10 +14,10 @@ shows what you get from it, it is the smaller link underneath.
 | You can | Go to |
 | --- | --- |
 | **Ready-made loops.** Pick a loop somebody already wrote: a Ralph loop, a reviewer loop, three lanes at once. | [Flows](/flows/) |
-| **Any coding agent.** Claude Code, Codex, Cursor, Kimi and eight more, most under the login they already have. Add any Agent Client Protocol CLI yourself. | [Providers](/user/providers)<br><small>[Every coding agent you have](/features/backends)</small> |
+| **Any coding agent.** Claude Code, Codex, Cursor, Kimi and eight more, most under the login they already have. Add any Agent Client Protocol CLI yourself. | [Accounts](/user/settings#accounts)<br><small>[Every coding agent you have](/features/backends)</small> |
 | **Model and effort.** Choose each agent's model and how hard it thinks. | [Efforts](/user/efforts) |
-| **Two accounts of one CLI.** A subscription and a gateway of the same CLI, side by side, each with its own login. | [Providers](/user/providers)<br><small>[Two accounts of one CLI](/features/accounts)</small> |
-| **Fall back.** When an account runs out, another takes the conversation on. When a CLI is gone, the turn moves where you said. | [Falling back](/user/fallback)<br><small>[Two accounts of one CLI](/features/accounts)</small> |
+| **Two accounts of one CLI.** A subscription and a gateway of the same CLI, side by side, each with its own login. | [Accounts](/user/settings#accounts)<br><small>[Two accounts of one CLI](/features/accounts)</small> |
+| **Fall back.** When an account runs out, another takes the conversation on. When a CLI is gone, the turn moves where you said. | [Falling back](/user/settings#fallback)<br><small>[Two accounts of one CLI](/features/accounts)</small> |
 | **Skills.** See which skills each agent loads. A flow can bring its own. | [Skills](/user/skills) |
 | **From a script.** Run a flow from a shell script or a cron job, with no interface. | [Run it unattended](/user/unattended)<br><small>[Prompt, script or Python](/features/surfaces)</small> |
 | **In CI.** Run a flow on a schedule and open a pull request with what it did. | [humanize in CI](/user/ci) |

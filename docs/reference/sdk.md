@@ -313,7 +313,8 @@ print([role.name for role in flows.declared("rlar").agents])   # ['actor', 'revi
 
 ## `Flowverses` {#flowverses}
 
-`Hmz().verses`: where flows come from, the same store [`/flowverses`](/reference/tui) walks.
+`Hmz().verses`: where flows come from, the same store [the Flowverses page of
+`/settings`](/reference/tui#where-flows-come-from) walks.
 
 | Method | |
 | --- | --- |
@@ -387,8 +388,8 @@ print(accounts.env("ANTHROPIC_BASE_URL=https://gateway.example\nTIMEOUT=60"))
 
 ## `Fallbacks` {#fallbacks}
 
-`Hmz().fallbacks`: [where a turn goes](/user/fallback) when the place taking it cannot take it
-at all. A place is written `CLI[@ACCOUNT]/MODEL`.
+`Hmz().fallbacks`: [where a turn goes](/user/settings#fallback) when the place taking it cannot
+take it at all. A place is written `CLI[@ACCOUNT]/MODEL`.
 
 | Member | |
 | --- | --- |

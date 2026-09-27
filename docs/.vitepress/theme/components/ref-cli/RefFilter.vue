@@ -5,7 +5,7 @@
 //
 // Two ways to narrow, which combine: words typed into the box, each of which a row must
 // contain somewhere, and a chip, which a row's first cell must be -- or begin with, followed
-// by a space, so that `/flow` takes in `/flow agent` and leaves `/flowverses` out.
+// by a space, so that `/settings` takes in `/settings accounts` and `/flow` would leave a `/flowchart` out.
 //
 // Each row may carry an anchor. A link to one whose row is filtered away clears the filter
 // first, so the page has somewhere to scroll to.

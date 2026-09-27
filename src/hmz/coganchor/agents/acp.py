@@ -1110,8 +1110,8 @@ class AcpAgent(AgentBase):
         found = backends.speaking().get(self.backend)
         if not found:
             raise ValueError(
-                f"{self.backend}: no command to start it with; /providers, then a, "
-                "then `a CLI of your own` is where one is written down"
+                f"{self.backend}: no command to start it with; the accounts page of "
+                "/settings, then add, then `a CLI of your own` is where one is written down"
             )
         return found
 

@@ -1,6 +1,6 @@
-"""`/flowverses` -- the places flows come from, and the four things to do with one.
+"""The flowverses page of `/settings` -- where flows come from, and the four things to do.
 
-Its own menu rather than two keys on the sheet a flow is chosen at. Adding a repository and
+Its own page rather than two keys on the sheet a flow is chosen at. Adding a repository and
 fetching one again are things done to the list of places rather than to the flow under the
 cursor, and a sheet that asks `which flow` with keys on it about something else is a sheet
 asking two questions. What one holds is the third: it is the one question about a flowverse
@@ -27,14 +27,15 @@ from hmz.tui.pick import (
     _ADD,
     _AGAIN,
     _DONE,
+    _SAVE,
     _TAKES_AWAY,
-    _VERSES,
+    _WHENCE,
     Fetches,
     Flows,
     Flowverses,
     Holds,
 )
-from tests.integration.tui.test_app import changes, onto, rows
+from tests.integration.tui.test_app import changes, into_settings, onto, rows
 from tests.stubs import written
 from tests.tui.fixtures import until
 
@@ -107,13 +108,10 @@ async def _adding(app: Humanize, driver: Pilot[None]) -> Fetches:
 
 
 async def _open(app: Humanize, driver: Pilot[None]) -> Flowverses:
-    """Opens the places flows come from, as `/flowverses` does."""
-    await driver.press(*"/flowverses")
-    await driver.press("enter")
-    await until(lambda: isinstance(app.screen, Flowverses), driver)
+    """Opens the places flows come from, which is the last page of `/settings`."""
+    await into_settings(app, driver, 4)
     sheet = app.screen
     assert isinstance(sheet, Flowverses)
-    await until(lambda: bool(sheet.query_one("#choices", OptionList).options), driver)
     return sheet
 
 
@@ -130,7 +128,7 @@ async def test_every_place_flows_come_from_is_listed(theirs: Path) -> None:
     async with app.run_test() as driver:
         sheet = await _open(app, driver)
 
-        assert rows(app) == [OFFICIAL, "theirs", LOCAL, USER, _ADD]
+        assert rows(app) == [OFFICIAL, "theirs", LOCAL, USER, _ADD, _SAVE]
         drawn = str(
             sheet.query_one("#choices", OptionList).get_option(f"={LOCAL}").prompt
         )
@@ -323,7 +321,7 @@ async def test_one_that_was_added_is_taken_away_from_inside_what_it_holds(
         await until(lambda: "no longer here" in _under(sheet), driver)
 
         assert [one.name for one in flowverses()] == [OFFICIAL, LOCAL, USER]
-        assert rows(app) == [OFFICIAL, LOCAL, USER, _ADD]
+        assert rows(app) == [OFFICIAL, LOCAL, USER, _ADD, _SAVE]
         # And the marker is on a row that is still there, rather than on the hole one left.
         listing = sheet.query_one("#choices", OptionList)
         assert listing.highlighted == 0
@@ -373,7 +371,7 @@ async def test_none_of_the_ones_always_here_offer_to_be_taken_away(named: str) -
 
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Flowverses), driver)
-        assert rows(app) == [OFFICIAL, LOCAL, USER, _ADD]
+        assert rows(app) == [OFFICIAL, LOCAL, USER, _ADD, _SAVE]
 
 
 @pytest.mark.timeout(60)
@@ -417,10 +415,10 @@ async def test_the_places_are_walked_to_from_the_flows(theirs: Path) -> None:
         menu = app.screen
         assert isinstance(menu, Flows)
 
-        await onto(app, driver, _VERSES)
+        await onto(app, driver, _WHENCE)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flowverses), driver)
-        assert rows(app) == [OFFICIAL, "theirs", LOCAL, USER, _ADD]
+        assert rows(app) == [OFFICIAL, "theirs", LOCAL, USER, _ADD, _SAVE]
 
         places = app.screen
         await onto(app, driver, "theirs")
@@ -463,7 +461,7 @@ async def test_the_places_do_not_open_over_a_fetch_the_flows_started() -> None:
         menu._fetching = OFFICIAL  # as catching up on fetches leaves it while it runs
         menu._fill()
 
-        await onto(app, driver, _VERSES)
+        await onto(app, driver, _WHENCE)
         await driver.press("enter")
         await until(
             lambda: (

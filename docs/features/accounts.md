@@ -21,7 +21,7 @@ settings and installed skills are the ones the CLI already has. So the turn stil
 [trace](/features/tracing), still counts what it spends, and still loads your skills.
 
 An account can also be just a key, or a gateway's address and token. Which kinds each backend
-offers is on [Providers](/user/providers).
+offers is on [Accounts](/user/settings#accounts).
 
 ## Keys in your shell stay out of it
 
@@ -78,7 +78,8 @@ what it may do come across unchanged, and the flow still sees one turn.
 
 ## How it waits
 
-You set how a place retries, and how it waits in between, in [Falling back](/user/fallback).
+You set how a place retries, and how it waits in between, in [Falling
+back](/user/settings#fallback).
 
 - **Out of the box, a place does not retry**, beyond what the table above builds in.
 - **The waits are the standard ones**: constant, linear, exponential, exponential with jitter,
@@ -90,6 +91,6 @@ You set how a place retries, and how it waits in between, in [Falling back](/use
 
 ## Where the detail is
 
-- [Providers](/user/providers): making an account, signing it in, pointing it somewhere
-- [Falling back](/user/fallback): the chain, the next place, and the waits
+- [Accounts](/user/settings#accounts): making an account, signing it in, pointing it somewhere
+- [Falling back](/user/settings#fallback): the chain, the next place, and the waits
 - [Providers reference](/reference/providers): every way in, every field, and adding a CLI

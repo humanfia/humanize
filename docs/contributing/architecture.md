@@ -55,7 +55,8 @@ this.
 ## Adding a backend
 
 ::: tip An ACP CLI needs no code
-A CLI that speaks the Agent Client Protocol can be added from the interface, at `/providers`.
+A CLI that speaks the Agent Client Protocol can be added from the interface, on the Accounts
+page of `/settings`.
 :::
 
 1. A `Profile` in `coganchor/backends.py`: its names, efforts, homes, log globs, credential

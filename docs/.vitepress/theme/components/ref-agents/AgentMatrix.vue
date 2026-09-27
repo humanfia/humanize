@@ -63,7 +63,7 @@ const ROWS: Row[] = [
   { name: 'zcode', product: 'ZCode', steers: no, goal: yes, schema: prompt, fork: yes, web: yes, rungs: four, moments: [PERM], fast: no, trace: yes },
   {
     name: 'an ACP CLI',
-    product: 'added at /providers',
+    product: 'added in /settings',
     steers: no,
     goal: no,
     schema: prompt,

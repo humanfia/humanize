@@ -127,8 +127,9 @@ If you are already signed in, there is nothing to do. humanize runs each CLI as 
 in, which the agent menu calls `as local`.
 
 ::: tip An API key, or two accounts of one CLI
-Make an account at [`/providers`](/user/providers) inside `hmz`. It can hold a login, an API
-key, or a gateway of your own, and one flow can run two accounts of the same CLI at once.
+Make an account on [the Accounts page of `/settings`](/user/settings#accounts) inside `hmz`. It
+can hold a login, an API key, or a gateway of your own, and one flow can run two accounts of the
+same CLI at once.
 :::
 
 ## 3. Check it works {#check-what-you-have}
@@ -200,8 +201,9 @@ Give it a key in any one of these ways:
 - `DEEPSEEK_API_KEY` in the environment, or in a `.env` file in the project.
   `DEEPSEEK_BASE_URL` points it at another endpoint.
 - The key saved by dsh's own CLI, if you also have it: `dsh web`, then **Settings → Models**.
-- An account at [`/providers`](/user/providers): `key` for a DeepSeek key, or `gateway` for a
-  key that belongs to a proxy or another vendor, which also asks for its URL.
+- An account on [the Accounts page of `/settings`](/user/settings#accounts): `key` for a
+  DeepSeek key, or `gateway` for a key that belongs to a proxy or another vendor, which also
+  asks for its URL.
 
 Until it has a key, humanize lists `dsh` but does not pick it for you. Its models are
 `deepseek-v4-flash` and `deepseek-v4-pro`, at the efforts `max`, `high`, `low` and `off`:
@@ -218,8 +220,8 @@ A `dsh` agent works with full access whatever its flow declares. See
 :::
 
 ::: details Any other CLI that speaks the Agent Client Protocol
-Add it at `/providers`, and it is offered beside the twelve above. See
-[Many backends, one agent](/features/backends).
+Add it on the Accounts page of [`/settings`](/user/settings#accounts), and it is offered beside
+the twelve above. See [Many backends, one agent](/features/backends).
 :::
 
 ## Where humanize keeps things

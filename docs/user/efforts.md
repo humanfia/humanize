@@ -63,7 +63,7 @@ and the agent sheet offers each model its own.
 | `qwen` | `max`, `xhigh`, `high`, `medium`, `low`, `none` |
 | `zcode` | `max`, `xhigh`, `high`, `medium`, `low`, `enabled`, `nothink`, `disabled` <Badge type="warning" text="subset per model" /> |
 | `agy` | `high`, `medium`, `low` |
-| a CLI added at `/providers` | any word <Badge type="info" text="not sent" /> |
+| a CLI added on the Accounts page of `/settings` | any word <Badge type="info" text="not sent" /> |
 | every backend | `auto` |
 
 :::
@@ -102,5 +102,5 @@ cannot move it, so a flow never makes an agent think harder than you asked.
 ## See also
 
 - [Cost and rate](/user/tally): what a harder effort costs
-- [Providers](/user/providers): the account a model runs as
+- [Accounts](/user/settings#accounts): the account a model runs as
 - [Agents › Efforts](/reference/agents#efforts): the whole reference

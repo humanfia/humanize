@@ -74,19 +74,15 @@ from .pick import (
     DETACHES,
     RESUMES,
     STOPS,
-    Adjusted,
     Adjusts,
     Chosen,
     Declared,
     Drawn,
     Epics,
-    Fallbacks,
     Flows,
-    Flowverses,
     Held,
     Leaves,
     Monitoring,
-    Providers,
     Reports,
     Runs,
     budget_of,
@@ -894,10 +890,12 @@ class Humanize(App[None]):
         self._btw_generation = 0
         self._btw_closed = False
         #: Whether what a turn did on its way to an answer -- the tools it used, the thinking
-        #: it did aloud, whatever it printed on its way past -- is shown, which `/details`
-        #: toggles. Off, because a flow is watched to see where it has got to: what the
-        #: agents said to each other and to you is that, and a tool row per file read is a
-        #: transcript nobody is reading and the answer scrolled off the top of it.
+        #: it did aloud, whatever it printed on its way past -- is shown, which the details
+        #: switch on the first page of `/settings` turns, and which is read from what is
+        #: remembered once that has been read. Off until somebody says otherwise, because a
+        #: flow is watched to see where it has got to: what the agents said to each other and
+        #: to you is that, and a tool row per file read is a transcript nobody is reading and
+        #: the answer scrolled off the top of it.
         self._details = False
         #: Whether anybody is here to be asked, which `/afk` toggles. They are, until you say
         #: you are not: a flow that asks the person outside it and is answered by nobody is a
@@ -929,6 +927,7 @@ class Humanize(App[None]):
         #: What this workspace was last set up to run, so that opening it again finds it
         #: that way rather than back at the default.
         self.settings = self.hmz.settings
+        self._details = self.settings.details
         #: The flow to run and what each of its roles is given, which start out as the flow
         #: that is only talking to one agent and the first agent there is to talk to. So the
         #: first thing you say starts something rather than being told to pick a flow first:
@@ -2146,23 +2145,6 @@ class Humanize(App[None]):
             return
         command.does(self, argv)
 
-    def action_details(self, argv: Sequence[str] = ()) -> None:
-        """Turns the working on or off, and says which way it went.
-
-        Args:
-          argv: What was written after the name, which is `on`, `off`, or nothing at all.
-        """
-        if (switched := self._switched(argv, now=self._details)) is None:
-            return
-        self._details = switched
-        self.show(
-            "[dim]showing the working: every tool call, all of the thinking, and "
-            "whatever a backend prints on its way past[/dim]"
-            if self._details
-            else "[dim]showing what each turn said, and nothing of how it got there[/dim]"
-        )
-        self._draw()  # and the status line says which mode this is in from now on
-
     def action_afk(self, argv: Sequence[str] = ()) -> None:
         """Says whether anybody is here to be asked, and marks the status line with it.
 
@@ -2822,53 +2804,31 @@ class Humanize(App[None]):
             else "[dim]humanize reports nothing; /settings turns it on[/dim]"
         )
 
-    @work
-    async def action_settings(self) -> None:
-        """Opens what humanize remembers, which is what `/settings` is for.
+    def action_settings(self) -> None:
+        """Opens every setting humanize has, which is what `/settings` is for.
 
-        Two pages: what is true of this machine, and what is remembered about this directory.
-        Not refused while a flow runs -- nothing on it changes what is running.
+        Five pages: what is true of this machine, what is remembered about this directory,
+        the accounts agents run as, where a turn goes when it cannot run, and where flows
+        come from. Not refused while a flow runs -- what lands at once does not touch what
+        is running, and what does not says when it will. What it was answered with comes
+        back as a message rather than to here, since the flow menu opens it too.
         """
-        # What is written down rather than what is happening: the environment may answer for
-        # one run, and a menu that showed that would be a menu offering to change a thing it
-        # cannot. The sheet says so under the list where the two differ.
-        #
-        # Read again rather than off the interface's own `Settings`, which was made when it
-        # opened: the first-start question writes through one of its own, so the long-lived
-        # one would show a machine that has just answered as one nobody has asked.
-        written = Hmz().settings.enable_sentry
-        profiling = self.settings.profiling
-        said = await self.push_screen_wait(
-            Adjusts(
-                enable_sentry=written,
-                overridden=telemetry.enabled() is not written,
-                workspace=str(Path.cwd()),
-                flow=self.settings.flow,
-                agents=len(self.settings.agents(self.settings.flow)),
-                flows=len(self.settings.flows()),
-                profile=profiling,
-            )
-        )
-        if said is None:
-            return
-        self._took_settings(said, written=written, profiling=profiling)
+        agents = installed()
+        agents.update(installable())
+        self.push_screen(Adjusts(agents))
 
-    def _took_settings(
-        self,
-        said: Adjusted,
-        *,
-        written: bool | None = None,
-        profiling: bool = False,
-    ) -> None:
-        """Does what the settings menu was holding.
+    @on(Adjusts.Settled)
+    def _took_settings(self, event: Adjusts.Settled) -> None:
+        """Does what the settings menu was holding, at once wherever it can be done at once.
 
         Args:
-          said: What it answered with.
-          written: What was written down when it opened, so that a setting nobody moved is
-            not written again.
-          profiling: Whether this directory was already being profiled, for the same reason.
+          event: What it answered with: only what was changed, and what the pages that
+            write for themselves did.
         """
-        if said.enable_sentry is not None and said.enable_sentry != written:
+        said = event.said
+        for one in said.told:
+            self.show(one)
+        if said.enable_sentry is not None:
             # Through the same road the first-start question takes, so that the answer is
             # written down, what was read is forgotten, and reporting starts or stops now
             # rather than at the next start.
@@ -2878,32 +2838,32 @@ class Humanize(App[None]):
                 if said.enable_sentry
                 else "[dim]humanize reports nothing[/dim]"
             )
-        if said.profile != profiling:
-            self.settings.profiles(on=said.profile)
+        if said.details is not None:
+            self.settings.detailing(on=said.details)
+            self._details = said.details
             self.show(
-                "[dim]a run here profiles the programs it starts; /epics collects the "
-                "trace[/dim]"
+                "[dim]showing the working: every tool call, all of the thinking, and "
+                "whatever a backend prints on its way past[/dim]"
+                if said.details
+                else "[dim]showing what each turn said, and nothing of how it got there[/dim]"
+            )
+            self._draw()  # and the status line says which mode this is in from now on
+        if said.profile is not None:
+            self.settings.profiles(on=said.profile)
+            # Read as a run starts, so one running now carries on as it started.
+            self.show(
+                "[dim]a run here profiles the programs it starts from the next flow run; "
+                "/epics collects the trace[/dim]"
                 if said.profile
-                else "[dim]a run here is traced and not profiled[/dim]"
+                else "[dim]a run here is traced and not profiled from the next flow run[/dim]"
             )
         if said.forget and self.settings.forget():
+            # What this interface opened on is already in hand, so it is the next one that
+            # opens without it.
             self.show(
-                "[dim]what was remembered about this directory is forgotten[/dim]"
+                "[dim]what was remembered about this directory is forgotten; humanize "
+                "opens without it from the next launch[/dim]"
             )
-
-    @work
-    async def action_flowverses(self) -> None:
-        """Opens the places flows come from, which is what `/flowverses` is for.
-
-        Not which flow to run -- that is `/flow`, where the arrows step between these places
-        and the list holds the one being read, and where `v` opens this same menu. A command
-        as well, because that is the way in while a flow runs: choosing a flow is not offered
-        then, so neither is the list `v` is a key of. Not refused while one is going either --
-        a flowverse fetched now is a flowverse the next run may reach for, and nothing here
-        touches the flow that is running.
-        """
-        for one in await self.push_screen_wait(Flowverses()) or ():
-            self.show(f"[dim]{one}[/dim]")
 
     @work
     async def action_epics(self) -> None:
@@ -3074,35 +3034,6 @@ class Humanize(App[None]):
             "run left behind[/dim]"
         )
         self._flow(ran.task, resume=epic)
-
-    @work
-    async def action_fallback(self) -> None:
-        """Opens where a turn goes when the place taking it cannot, which is `/fallback`.
-
-        Its own menu rather than a row of the accounts, because it is not about accounts: a
-        place is a CLI, an account and a model, and a turn with nowhere left to run is taken
-        at another place entirely -- written between the two rather than on either.
-
-        Not refused while a flow runs, as the accounts are not: what is written down here is
-        read by a turn that has failed, so a step added now is one the next failure walks.
-        """
-        agents = installed()
-        agents.update(installable())
-        for one in await self.push_screen_wait(Fallbacks(agents)) or ():
-            self.show(one)
-
-    @work
-    async def action_providers(self) -> None:
-        """Opens the accounts an agent may be run as, which is what `/providers` is for.
-
-        Not refused while a flow runs. What it holds is not what is running: an agent reads
-        the account it was configured with once, so one made or taken away now is one the next
-        session sees. A login that takes the terminal does hold the rest of the interface up
-        while it has it, which is what handing the terminal over means.
-        """
-        said = await self.push_screen_wait(Providers())
-        for one in said or ():
-            self.show(one)
 
     def _at_turn_start(self) -> list[str]:
         """What a turn starting folds into its prompt, which is one waiting line, or none.
@@ -4024,21 +3955,6 @@ _COMMANDS: tuple[Command, ...] = (
         takes="<question>",
     ),
     Command(
-        "flowverses",
-        "Manage the places flows come from",
-        lambda app, _: app.action_flowverses(),
-    ),
-    Command(
-        "providers",
-        "Manage the accounts agents run as",
-        lambda app, _: app.action_providers(),
-    ),
-    Command(
-        "fallback",
-        "Where a turn goes when the place taking it cannot take it at all",
-        lambda app, _: app.action_fallback(),
-    ),
-    Command(
         "epics",
         "The runs of this directory, and what to do with one",
         lambda app, _: app.action_epics(),
@@ -4050,7 +3966,7 @@ _COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "settings",
-        "What humanize remembers, here and everywhere",
+        "Every setting: here, everywhere, accounts, fallback, flowverses",
         lambda app, _: app.action_settings(),
     ),
     Command(
@@ -4059,12 +3975,6 @@ _COMMANDS: tuple[Command, ...] = (
         lambda app, _: app.action_monitor(),
     ),
     Command("clear", "Clear the screen", lambda app, _: app.action_clear()),
-    Command(
-        "details",
-        "Toggle tool calls and thinking",
-        lambda app, argv: app.action_details(argv),
-        takes="[on|off]",
-    ),
     Command(
         "afk",
         "Toggle whether an agent may ask you",

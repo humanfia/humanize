@@ -31,19 +31,17 @@ from hmz.tui.pick import (
     _FORK,
     _SAVE,
     _SEARCH,
-    _VERSES,
+    _WHENCE,
     Adjusts,
     Agent,
     Alike,
     Confirms,
     Epics,
-    Fallbacks,
     Falls,
     Fetches,
     Flows,
     Flowverses,
     Leaves,
-    Providers,
     Reports,
     Retries,
     Sheet,
@@ -126,24 +124,16 @@ def test_the_keys_are_written_in_one_place() -> None:
         pytest.param(Reports, id="reports"),
         pytest.param(Fetches, id="fetches"),
         pytest.param(Speaks, id="speaks"),
-        pytest.param(Flowverses, id="flowverses"),
         pytest.param(partial(Falls, "claude", "one"), id="falls"),
         pytest.param(
             partial(Retries, "claude/m:high", 3, "exponential", 60.0), id="retries"
         ),
         pytest.param(Epics, id="epics"),
-        pytest.param(partial(Fallbacks, dict(CLAUDE)), id="fallbacks"),
-        pytest.param(Providers, id="providers"),
-        pytest.param(
-            partial(
-                Adjusts,
-                enable_sentry=None,
-                workspace="/tmp/somewhere",
-                flow="chat",
-                agents=1,
-                flows=1,
-            ),
-            id="adjusts",
+        *(
+            pytest.param(
+                partial(Adjusts, dict(CLAUDE), page=page), id=f"settings-{page}"
+            )
+            for page in range(5)
         ),
     ],
 )
@@ -274,7 +264,7 @@ async def test_no_letter_is_a_key_of_a_menu(
         assert ids(app) == before
 
         # Searching, copying a flow here and where flows come from are rows.
-        assert before[-3:] == [_SEARCH, _FORK, _VERSES]
+        assert before[-3:] == [_SEARCH, _FORK, _WHENCE]
 
 
 @pytest.mark.timeout(60)
@@ -282,7 +272,7 @@ async def test_a_search_is_a_row_and_says_what_the_keys_do_while_it_runs() -> No
     """The letters are the search's then, and esc comes out of it before it leaves."""
     app = Humanize()
     async with app.run_test() as driver:
-        await app.push_screen(Flowverses())
+        await app.push_screen(Adjusts({}, page=4))
         await until(lambda: isinstance(app.screen, Flowverses), driver)
         sheet = app.screen
         assert isinstance(sheet, Flowverses)
@@ -299,7 +289,7 @@ async def test_a_search_is_a_row_and_says_what_the_keys_do_while_it_runs() -> No
         once(sheet)
         assert "esc leave search" in said(sheet)
         # Nothing is called that, and the rows below the list are still there.
-        assert rows(app) == [_ADD]
+        assert rows(app) == [_ADD, _SAVE]
         assert "zzzz" in str(
             sheet.query_one("#choices", OptionList).get_option_at_index(0).prompt
         )
@@ -353,7 +343,8 @@ async def test_the_settings_menu_turns_its_pages_and_changes_its_rows_the_same_w
         assert isinstance(sheet, Adjusts)
         once(sheet)
         assert "←/→ page" in said(sheet)
-        assert rows(app) == ["reports", "sent", _SAVE]
+        assert rows(app)[:3] == ["reports", "sent", "details"]
+        assert rows(app)[-1] == _SAVE
 
         # Across turns the page while nothing is being changed.
         await driver.press("right")
@@ -382,18 +373,18 @@ async def test_adding_is_a_row_of_every_list_that_is_added_to() -> None:
     """A letter said only at the bottom of the screen is a letter nobody finds."""
     app = Humanize()
     async with app.run_test() as driver:
-        await app.push_screen(Flowverses())
+        await app.push_screen(Adjusts({}, page=4))
         await until(lambda: isinstance(app.screen, Flowverses), driver)
         await driver.pause()
 
-        assert rows(app)[-1] == _ADD
+        assert rows(app)[-2:] == [_ADD, _SAVE]
 
         # And the cursor walks on to it and stays there, it being a row like any other: the
         # list is built again on every keystroke, off which flowverse the cursor is on.
         listing = app.screen.query_one("#choices", OptionList)
         await onto(app, driver, _ADD)
         await driver.pause()
-        assert listing.highlighted == listing.option_count - 1
+        assert listing.highlighted == listing.option_count - 2
 
 
 @pytest.mark.timeout(60)

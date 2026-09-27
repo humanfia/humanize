@@ -85,7 +85,7 @@ typed.
 | `nothing-started` | a task typed with no coding agent to run it | why |
 | `changes-dropped` | a menu answered, then its changes thrown away | which menu |
 | `save-refused` | a menu that would not save, a role or a budget still unset | how many roles were unset |
-| `key-does-nothing` | a key pressed in `/providers` on this machine's own account, where it does nothing | which menu, and what was asked |
+| `key-does-nothing` | a key pressed on the Accounts page of `/settings` on this machine's own account, where it does nothing | which menu, and what was asked |
 | `line-refused` | a typed line the agent refused | how long its refusal was |
 | `lines-never-sent` | typed lines still waiting when the flow ended | how many |
 | `skill-name-taken` | a skill a flow brought, where the CLI already loads another of that name | nothing more |

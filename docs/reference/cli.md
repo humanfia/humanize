@@ -164,7 +164,7 @@ roles are written in means nothing.
 
 | Part | |
 | --- | --- |
-| `<cli>` | One of the twelve below, or a CLI of your own [added at `/providers`](/reference/agents#a-cli-of-your-own), by the name it was added under. |
+| `<cli>` | One of the twelve below, or a CLI of your own [added on the Accounts page of `/settings`](/reference/agents#a-cli-of-your-own), by the name it was added under. |
 | `@<provider>` | The [account](/reference/providers) its turns run as: `claude@deepseek`. Left off, the CLI runs as you already run it. A CLI name never holds an `@`. |
 | `<model>` | Whatever that CLI is asked for. Not checked against a list. It may hold slashes of its own (`kimi-code/k3`; pi, opencode, mimocode and ZCode write `provider/id`), so the CLI is read from the front and the effort from after the last colon. |
 | `<effort>` | A rung on that CLI's ladder, or `auto` for none: the CLI's own default. Any other word is refused before anything runs. The ladders are in the [Agents reference](/reference/agents). A CLI of your own has no ladder and takes any word. On Kimi Code, `swarm` in front (`swarmmax`) runs the turn as a fleet. |
@@ -638,7 +638,7 @@ with everything but letters and digits turned into `-`.
 | --- | --- | --- |
 | `.humanize/flows/*/` | you | This project's flows, offered as `local/<flow>`. |
 | `~/.humanize/flows/*/` | you | Your flows in every project, offered as `user/<flow>`. |
-| `~/.humanize/flowverses/<name>/` | **a** in `/flowverses`, and every start | A [flowverse](/weaver/flowverses), cloned. Its flows are offered as `<name>/<flow>`. |
+| `~/.humanize/flowverses/<name>/` | **a** on the flowverses page of `/settings`, and every start | A [flowverse](/weaver/flowverses), cloned. Its flows are offered as `<name>/<flow>`. |
 | `~/.humanize/flowverses/.pinned/<digest>/<commit>/` | a run of a `git+…#<flow>` ref | The repository a flow was [named by URL](/reference/flows#refs) in, at that commit. |
 | `~/.humanize/skills/<owner>-<repo>-<digest>/` | a flow that names skills | A repository of [skills a flow brings](/reference/flows#the-skills-a-flow-brings), cloned; fetched again when a run next asks. |
 | `~/.humanize/envs/<name>-<digest>/` | a flow that derives an environment | What a flow [derives from a workdir](/reference/flows#worktrees-copies-and-scratch-directories): `clones/`, `scratch/`, `worktrees/`. On an ssh host, the same under `${HUMANIZE_HOME:-~/.humanize}` there. Removed as the flow ends, unless its run can be picked up. |
@@ -647,13 +647,13 @@ with everything but letters and digits turned into `-`.
 
 | Path | Written by | |
 | --- | --- | --- |
-| `~/.humanize/providers/<cli>/<name>/provider.json` | **a** in `/providers` | How a [provider](/reference/providers) was made and what its turns run with. `0600`, in a `0700` directory. |
+| `~/.humanize/providers/<cli>/<name>/provider.json` | **a** on `/settings` › Accounts | How a [provider](/reference/providers) was made and what its turns run with. `0600`, in a `0700` directory. |
 | `~/.humanize/providers/<cli>/<name>/{home,user}/…` | the CLI's own login | That account's credentials, at the names the CLI keeps its own under. |
-| `~/.humanize/providers/<cli>/<name>/models.json` | **a** in `/providers`; **r** on a model list | What that account may name. Never the credential it was asked with. |
-| `~/.humanize/local/<cli>.json` | enter on "as local" in `/providers` | What the account this machine is signed into falls back to. |
+| `~/.humanize/providers/<cli>/<name>/models.json` | **a** on `/settings` › Accounts; **r** on a model list | What that account may name. Never the credential it was asked with. |
+| `~/.humanize/local/<cli>.json` | enter on "as local" on `/settings` › Accounts | What the account this machine is signed into falls back to. |
 | `~/.humanize/models/<cli>.json` | the interface; **r** on a model list | What the CLI as you run it may name. |
-| `~/.humanize/fallbacks.json` | `/fallback` | Where a turn goes when its place cannot take it, and how often it is tried again first. |
-| `~/.humanize/acp.json` | adding a CLI of your own at `/providers` | Your [ACP CLIs](/reference/agents#a-cli-of-your-own), as `{name: [argv…]}`. |
+| `~/.humanize/fallbacks.json` | `/settings` › Fallback | Where a turn goes when its place cannot take it, and how often it is tried again first. |
+| `~/.humanize/acp.json` | adding a CLI of your own on `/settings` › Accounts | Your [ACP CLIs](/reference/agents#a-cli-of-your-own), as `{name: [argv…]}`. |
 | `~/.humanize/prices.json` | the interface, as it opens | Model prices from `HUMANIZE_PRICES`, refreshed when older than a day. `hmz exec` reads what is kept. |
 
 ### The interface and the daemon

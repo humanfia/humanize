@@ -2,9 +2,9 @@
 
 The flows are read a place at a time -- humanize's own, whatever else has been added, and then
 this project's and yours -- so what is checked here is that the arrows step between those
-places, and that the list holds the one being read and nothing else.
-What can happen to a flowverse is `/flowverses` and is checked beside it: this page is about
-which flow to run.
+places, and that the list holds the one being read and nothing else. What can happen to a
+flowverse is the flowverses page of `/settings`, checked beside it: this page is about which
+flow to run.
 
 Driven headlessly, as every test of the interface is, so what is checked is where a keystroke
 lands rather than how it is drawn.

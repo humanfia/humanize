@@ -101,7 +101,7 @@ const BACKENDS: Backend[] = [
   },
   {
     cli: 'my-cli',
-    called: 'a CLI added at /providers',
+    called: 'a CLI added in /settings',
     ladder: [],
     acp: true,
     note: 'It has no ladder. Any word is taken and none is sent: it runs at whatever you configured it at.',

@@ -44,8 +44,9 @@ a command. What each agent may touch is set by the flow. See [Permissions](/user
 - **role** is the name the flow gives the agent: `agent` for [ralph_loop](/flows/ralph-loop),
   `actor` and `reviewer` for [rlar](/flows/rlar). Each flow's page lists its roles.
 - **cli** is one of `agy`, `claude`, `codex`, `cursor-agent`, `dsh`, `grok`, `kimi`, `mimo`,
-  `opencode`, `pi`, `qwen`, `zcode`, or a CLI you added at [`/providers`](/user/providers).
-- **@account** runs the turns as an [account](/user/providers) you made. Leave it off to run
+  `opencode`, `pi`, `qwen`, `zcode`, or a CLI you added on [the Accounts page of
+  `/settings`](/user/settings#accounts).
+- **@account** runs the turns as an [account](/user/settings#accounts) you made. Leave it off to run
   the CLI as this machine is signed in.
 - **model** goes to the CLI as written. humanize does not check it against a list.
 - **effort** must be on that CLI's [ladder](/user/efforts); a CLI you added takes any word.

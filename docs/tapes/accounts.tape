@@ -1,4 +1,4 @@
-# `/providers`: what there is to do with one account, and where a CLI of your own goes.
+# The Accounts page of `/settings`: what there is to do with one account, and where a CLI of your own goes.
 #
 # The account this walks over was made by `stage.py` at a reserved-invalid endpoint with the
 # words `not-a-real-token`. Nothing here signs in to anything, and no value is ever drawn.
@@ -23,8 +23,11 @@ Sleep 400ms
 
 # Every account there is, under a heading per CLI. The names of the variables each sets,
 # and never a value: this is drawn where somebody can read it.
-Type "/providers" Enter
-Wait+Screen /Providers/
+Type "/settings" Enter
+Wait+Screen /Settings/
+Tab
+Tab
+Wait+Screen /as local/
 Sleep 1400ms
 
 # Enter opens what there is to do with the one under the cursor -- four questions about one

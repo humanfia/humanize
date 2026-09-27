@@ -18,14 +18,17 @@ Hide
 Type "cd /work/demo && clear" Enter
 Show
 
-# Off camera, because it is the walk rather than the thing: the prompt, `/providers`, `a`,
+# Off camera, because it is the walk rather than the thing: the prompt, `/settings` turned to Accounts, `a`,
 # which CLI, and `key` -- which is a variable rather than a login, so it asks and runs
 # nothing. The stills below are of each step all the same.
 Hide
 Type "hmz" Enter
 Wait+Screen /ctrl\+c exit/
-Type "/providers" Enter
-Wait+Screen /Providers/
+Type "/settings" Enter
+Wait+Screen /Settings/
+Tab
+Tab
+Wait+Screen /as local/
 Type "a"
 Wait+Screen /which coding agent/
 Enter

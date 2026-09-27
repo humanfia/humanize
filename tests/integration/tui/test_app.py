@@ -34,12 +34,14 @@ from hmz.tui.pick import (
     _SAVE,
     _SEARCH,
     Accounts,
+    Adjusts,
     Agent,
     Alike,
     Catalogue,
     Clis,
     Configures,
     Confirms,
+    Epics,
     Flows,
     Monitoring,
     Signing,
@@ -206,6 +208,39 @@ async def changes(app: Humanize, driver: Pilot[None], held: str, *keys: str) -> 
     await driver.press(*keys)
     await driver.pause()
     await driver.press("enter")
+    await driver.pause()
+
+
+async def into_settings(app: Humanize, driver: Pilot[None], page: int = 0) -> None:
+    """Opens `/settings`, and turns to one of its pages.
+
+    Args:
+      app: The interface.
+      driver: What is pumping it.
+      page: Which page, counting from the first: everywhere, this directory, the accounts,
+        the fallbacks and the flowverses.
+    """
+    await driver.press(*"/settings")
+    await driver.press("enter")
+    await until(lambda: isinstance(app.screen, Adjusts), driver)
+    sheet = cast("Adjusts", app.screen)
+    for _ in range(page):
+        await driver.press("right")
+        await driver.pause()
+    await until(lambda: sheet._tab == page, driver)
+    await until(lambda: bool(sheet.query_one("#choices", OptionList).options), driver)
+
+
+async def details(app: Humanize, driver: Pilot[None]) -> None:
+    """Turns the details switch round on the first page of `/settings`, and saves it.
+
+    Args:
+      app: The interface.
+      driver: What is pumping it.
+    """
+    await into_settings(app, driver)
+    await changes(app, driver, "details", "right")
+    await keeps(app, driver)
     await driver.pause()
 
 
@@ -394,7 +429,7 @@ async def test_a_half_typed_command_is_offered_the_rest_of_itself() -> None:
         # The name is what is taken; what is shown is the name and what it is for.
         assert [
             str(offers.get_option_at_index(i).id) for i in range(offers.option_count)
-        ] == ["/flow", "/flowverses"]
+        ] == ["/flow"]
         assert "Switch flow" in str(offers.get_option_at_index(0).prompt)
 
         await driver.press("tab")
@@ -1131,33 +1166,57 @@ async def test_a_flow_is_opened_to_reach_its_agents_and_esc_comes_back() -> None
 
 
 @pytest.mark.timeout(60)
-@pytest.mark.parametrize(
-    ("said", "sheet"),
-    [
-        pytest.param("/fallback", "Fallbacks", id="fallback"),
-        pytest.param("/providers", "Providers", id="providers"),
-    ],
-)
-async def test_a_menu_of_one_page_draws_no_strip_of_titles(
-    said: str, sheet: str
-) -> None:
+async def test_a_menu_of_one_page_draws_no_strip_of_titles() -> None:
     """One title is nowhere to turn to, so the row it would take is a row nobody paid for.
 
     The strip is for pages that are turned between: a terminal has only so many rows, and the
     keys are what falls off the bottom of a short one.
     """
-    import hmz.tui.pick as sheets
-
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*said)
+        await driver.press(*"/epics")
         await driver.press("enter")
-        await until(lambda: isinstance(app.screen, getattr(sheets, sheet)), driver)
+        await until(lambda: isinstance(app.screen, Epics), driver)
 
         tabs = app.screen.query_one("#tabs", Label)
 
         assert not str(tabs.content)
         assert not tabs.display  # gone rather than blank: a blank row is still a row
+
+
+@pytest.mark.timeout(60)
+async def test_the_commands_that_were_pages_of_settings_are_gone() -> None:
+    """`/settings` is every setting, so the four commands it swallowed are nobody's now."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        for gone in ("fallback", "providers", "flowverses", "details"):
+            await driver.press(*f"/{gone}")
+            await driver.press("enter")
+            await driver.pause()
+            assert f"no such command: /{gone}" in transcript(app)
+            assert gone not in _BY_NAME
+
+
+@pytest.mark.timeout(60)
+async def test_settings_is_one_menu_of_five_pages() -> None:
+    """Everywhere, this directory, the accounts, the fallbacks and the flowverses."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        await into_settings(app, driver)
+        sheet = cast("Adjusts", app.screen)
+        assert [part.strip() for part in sheet.TABS] == [
+            "Everywhere",
+            "This directory",
+            "Accounts",
+            "Fallback",
+            "Flowverses",
+        ]
+        assert rows(app)[:3] == ["reports", "sent", "details"]
+
+        await driver.press("left")
+        await until(lambda: sheet._tab == len(sheet.TABS) - 1, driver)
+        assert _ADD in rows(app)
+        assert rows(app)[-1] == _SAVE
 
 
 @pytest.mark.timeout(60)
@@ -1359,16 +1418,22 @@ async def test_details_covers_the_thinking_as_well_as_the_tools() -> None:
     Off to begin with: a flow is watched to see where it has got to, and what the agents said
     is that. How each of them got there is asked for.
     """
+    from hmz.runtime.settings import Settings
+
     app = Humanize()
     async with app.run_test() as driver:
         assert not app._details
 
-        await driver.press(*"/details")
-        await driver.press("enter")
-        await driver.pause()
+        await details(app, driver)
 
-        assert app._details
+        assert app._details  # at once, rather than from the next launch
         assert "thinking" in transcript(app)  # said to be part of the same switch
+
+    # And remembered, so that the next launch opens showing it too.
+    assert Settings().details
+    app = Humanize()
+    async with app.run_test():
+        assert app._details
 
 
 @pytest.mark.timeout(60)
@@ -1401,9 +1466,7 @@ async def test_what_a_turn_did_on_the_way_is_shown_only_where_it_is_asked_for() 
         assert "pyproject.toml" not in shown
         assert "thinking aloud" not in shown
 
-        await driver.press(*"/details on")
-        await driver.press("enter")
-        await driver.pause()
+        await details(app, driver)
         await asyncio.to_thread(turn)
         await until(lambda: "thinking aloud" in transcript(app), driver)
 
@@ -2470,10 +2533,10 @@ async def test_a_switch_takes_on_and_off_as_well_as_being_flipped() -> None:
             await driver.pause()
             assert app._afk is want, said
 
-        await driver.press(*"/details sideways")
+        await driver.press(*"/afk sideways")
         await driver.press("enter")
         await driver.pause()
-        assert app._details is False  # unchanged, and said so rather than guessed at
+        assert app._afk is False  # unchanged, and said so rather than guessed at
         assert "say on or off" in transcript(app)
 
 
@@ -2496,9 +2559,7 @@ async def test_the_status_line_says_which_modes_this_is_in() -> None:
         await driver.pause()
         assert "afk" in str(app.query_one("#status", Static).content)
 
-        await driver.press(*"/details on")
-        await driver.press("enter")
-        await driver.pause()
+        await details(app, driver)
         status = str(app.query_one("#status", Static).content)
         assert "afk" in status
         assert "details" in status
@@ -2614,7 +2675,6 @@ def test_the_offers_say_what_each_command_takes() -> None:
         assert one.about, one.name  # or it is offered with nothing said about it
 
     assert _BY_NAME["afk"].takes == "[on|off]"
-    assert _BY_NAME["details"].takes == "[on|off]"
     assert _BY_NAME["exit"].takes == ""  # a command that takes nothing says nothing
 
 

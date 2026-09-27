@@ -12,7 +12,7 @@
 //   lists them. `dsh` is the one driven through a Python SDK rather than a CLI, signed in with
 //   a DeepSeek API key rather than a login; it and `kimi` are the two with an extra of their
 //   own in `pyproject.toml`, and `[kimi]` adds a client, not the CLI. A CLI that speaks the
-//   Agent Client Protocol is added at `/providers`.
+//   Agent Client Protocol is added on the accounts page of `/settings`.
 // - The ways in are the three a reader types or imports: `hmz`, `hmz exec` and `hmz.sdk`.
 //
 // Every chip that has a page links to it. Hovering only lifts the band it is over; nothing
@@ -120,7 +120,7 @@ const BANDS: Band[] = [
           { text: 'pi' },
           { text: 'qwen' },
           { text: 'zcode' },
-          { text: 'any ACP CLI', href: '/user/providers', tag: '/providers', apart: true },
+          { text: 'any ACP CLI', href: '/user/settings#accounts', tag: '/settings', apart: true },
         ],
       },
     ],

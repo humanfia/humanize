@@ -58,8 +58,9 @@ The left side is the first of these that holds:
 | Nothing running | `◉ <flow> · <directory>`, with your home as `~`. |
 
 In front of it go the modes: `afk` in the warning colour while
-[`/afk`](#questions-and-being-away) is on, and `details` while [`/details`](#commands) is.
-After it, `· copied` for two seconds after a [copy](#selecting-and-copying).
+[`/afk`](#questions-and-being-away) is on, and `details` while
+[details](#what-humanize-remembers) is on. After it, `· copied` for two seconds after a
+[copy](#selecting-and-copying).
 
 The right side lists only keys that work now, in this order:
 
@@ -96,8 +97,7 @@ See [Cost and rate](/user/tally).
 
 <RefFilter
   label="Filter keys: try esc, save, or a menu"
-  :chips="['prompt', 'anywhere', 'every menu', '/flow', '/providers',
-    '/monitor', '/exit']"
+  :chips="['prompt', 'anywhere', 'every menu', '/flow', '/settings', '/monitor', '/exit']"
 >
 
 | Where | Key | Does |
@@ -119,7 +119,7 @@ See [Cost and rate](/user/tally).
 | every menu | <kbd>esc</kbd> | One step back: puts back a row being changed, then leaves a running search, then leaves. Leaving a menu that holds changes asks: save or discard. |
 | every menu | typing · <kbd>backspace</kbd> | Only while a search runs, or a field is being written. |
 | /flow | <kbd>←</kbd> <kbd>→</kbd> | On the flows: the place before or after, wrapping round. |
-| /providers | <kbd>shift+enter</kbd> <kbd>ctrl+j</kbd> | Making an account, while writing the one field that takes a list of variables: breaks the line. |
+| /settings accounts | <kbd>shift+enter</kbd> <kbd>ctrl+j</kbd> | Making an account, while writing the one field that takes a list of variables: breaks the line. |
 | /monitor | <kbd>enter</kbd> | On a box, reads that agent. On a board line, changes it. |
 | /monitor | <kbd>a</kbd> | Puts a line on the board. |
 | /monitor | <kbd>d</kbd> <kbd>d</kbd> | Takes the board line under the cursor off, on the second press. |
@@ -165,27 +165,23 @@ list, with a line about each.
 | --- | --- | --- |
 | <span id="cmd-flow"></span>`/flow [flow]` | <Badge type="warning" text="roles only" /> | [Chooses the flow](#choosing-a-flow) and sets up its roles, params and budget. With a name, opens inside that flow. |
 | <span id="cmd-btw"></span>`/btw <question>` | <Badge type="info" text="needs one" /> | [Asks a side question](#btw) about the running flow, answered by a read-only copy of one of its agents. |
-| <span id="cmd-flowverses"></span>`/flowverses` | <Badge type="tip" text="yes" /> | [Where flows come from](#where-flows-come-from): add, fetch again, take away. |
-| <span id="cmd-providers"></span>`/providers` | <Badge type="tip" text="yes" /> | [The accounts](#the-accounts-themselves) agents run as. |
-| <span id="cmd-fallback"></span>`/fallback` | <Badge type="tip" text="yes" /> | [Where a turn goes](#where-a-turn-goes-when-it-cannot-be-taken) when its place cannot take it. |
 | <span id="cmd-epics"></span>`/epics` | <Badge type="warning" text="read only" /> | [The runs of this directory](#the-runs-that-have-already-happened): go into one, export it, resume it. |
 | <span id="cmd-resume"></span>`/resume` | <Badge type="danger" text="refused" /> | [Picks up the last run here](#carrying-the-last-one-on-outright) of a flow that can be picked up. |
-| <span id="cmd-settings"></span>`/settings` | <Badge type="tip" text="yes" /> | [What humanize remembers](#what-humanize-remembers), everywhere and here. |
+| <span id="cmd-settings"></span>`/settings` | <Badge type="tip" text="yes" /> | [Everything humanize remembers](#what-humanize-remembers), in five pages: everywhere, this directory, [accounts](#the-accounts-themselves), [fallback](#where-a-turn-goes-when-it-cannot-be-taken) and [flowverses](#where-flows-come-from). |
 | <span id="cmd-monitor"></span>`/monitor` | <Badge type="tip" text="yes" /> | [The run, drawn](#watching-the-run), and the board. Also <kbd>esc</kbd>. |
 | <span id="cmd-clear"></span>`/clear` | <Badge type="tip" text="yes" /> | Clears the transcript being read and draws the opening box again. Nothing else. |
-| <span id="cmd-details"></span>`/details [on\|off]` | <Badge type="tip" text="yes" /> | Shows or hides the working: tool calls, thinking, and what a backend prints on its way past. Off at start. |
 | <span id="cmd-afk"></span>`/afk [on\|off]` | <Badge type="tip" text="yes" /> | [Says you are away](#questions-and-being-away): nothing waits on you. Off at start. |
 | <span id="cmd-stop"></span>`/stop` | <Badge type="info" text="needs one" /> | [Stops the flow](#stop), asked once. |
 | <span id="cmd-exit"></span>`/exit` | <Badge type="warning" text="asks" /> | [Leaves](#leaving-and-letting-go). Asks first if a flow is running. Also <kbd>ctrl+q</kbd>. |
 
 </RefFilter>
 
-`/details` and `/afk` flip when given nothing, and take `on` or `off`. A line that is not a
+`/afk` flips when given nothing, and takes `on` or `off`. A line that is not a
 command is shown in red and nothing happens:
 
 | Typed | Answered |
 | --- | --- |
-| `/details maybe` | `hmz: say on or off, not 'maybe'` |
+| `/afk maybe` | `hmz: say on or off, not 'maybe'` |
 | `/nosuch` | `hmz: no such command: /nosuch` |
 | `/resume last` | `hmz: /resume takes nothing: it carries the last run here on, and /epics is where another one is named` |
 | `/btw what's left` | `hmz: No closing quotation`: arguments are split like a shell line |
@@ -374,17 +370,16 @@ opens it again from the top. Where the run is not held (output not a terminal, o
 
 ## Menus
 
-`/flow`, `/flowverses`, `/providers`, `/fallback`, `/epics`, `/settings` and `/monitor` each
-put up a sheet over the screen. The [keys table](#keys) lists every key; each sheet's own are
-on its bottom row.
+`/flow`, `/epics`, `/settings` and `/monitor` each put up a sheet over the screen. The [keys
+table](#keys) lists every key; each sheet's own are on its bottom row.
 
 ### Every menu {#the-menus-and-when-what-they-hold-lands}
 
 | Rule | |
 | --- | --- |
 | **Four keys** | <kbd>↑</kbd> <kbd>↓</kbd> walk the rows, <kbd>←</kbd> <kbd>→</kbd> turn the pages, <kbd>enter</kbd> opens the row under the cursor, <kbd>esc</kbd> steps back. There are no others: what a menu does besides is a row of it. |
-| **Nothing lands until you save** | On `/flow`, an agent's sheet, `/providers`, `/fallback`, `/settings`, a flow's params and budget, and the retry sheet. Save with the `save` (or `set`) row below the choices. <kbd>esc</kbd> out of a menu holding changes asks, in a box over it, whether to save or discard; <kbd>esc</kbd> on the box goes back to the menu. A menu you only looked at asks nothing. |
-| **Some happen at once** | `/flowverses` and `/epics` hold no draft: what you ask for happens as you ask. So do making an account and signing one in on `/providers`. |
+| **Nothing lands until you save** | On `/flow`, an agent's sheet, `/settings`, a flow's params and budget, and the retry sheet. Save with the `save` (or `set`) row below the choices. <kbd>esc</kbd> out of a menu holding changes asks, in a box over it, whether to save or discard; <kbd>esc</kbd> on the box goes back to the menu. A menu you only looked at asks nothing. |
+| **Some happen at once** | `/epics` and the Flowverses page of `/settings` hold no draft: what you ask for happens as you ask. So do making an account and signing one in on its Accounts page. |
 | **Rows below the choices** | Set apart under the list: `search…`, `add`, `save`, and what else a menu does -- `ask it again`, `fetch it again`, `copy … here`, `where flows come from`, `take … away`. |
 | **Changing a row** | A row marked `↔`, a switch, or a field to write is changed where it stands: <kbd>enter</kbd> begins, <kbd>←</kbd> <kbd>→</kbd> or typing change it, <kbd>enter</kbd> keeps it, <kbd>esc</kbd> puts it back. Walking past a row never changes it. `▸` opens something. |
 | **Search** | <kbd>enter</kbd> on `search…` starts it, letters narrow by name, <kbd>esc</kbd> clears and leaves it. Typing never searches by itself. |
@@ -426,7 +421,7 @@ each where there are any.
 - `copy … here` copies the flow the cursor was last on, with what it imports and the skills it
   brings, into `.humanize/flows/`. Your own are looked in first, so the name then means your
   copy.
-- `where flows come from` opens [`/flowverses`](#where-flows-come-from).
+- `where flows come from` opens `/settings` on [Flowverses](#where-flows-come-from).
 - **While a flow runs**, there are no flows to choose: `/flow` opens inside the running flow's
   roles, and <kbd>esc</kbd> there leaves. What you save is what the next run starts on.
 - `/flow <name>` opens already inside that flow; `/flow ./path` opens a flow of your own by
@@ -597,33 +592,56 @@ The `budget` row sits under the roles and says what the run is held to without o
 **Every flow but `chat` needs one.** The menu will not save a flow whose budget sets none of
 the three, as `hmz exec` will not run one without a `-b`.
 
-### `/flowverses` {#where-flows-come-from}
+### `/settings` {#what-humanize-remembers}
 
-Where flows come from: each a git repository with a `flows/` directory, cloned under
-`~/.humanize/flowverses/`, plus your own `local` and `user`. `where flows come from` on
-`/flow` opens the same sheet; the command is how you reach it while a flow runs.
+Everything humanize remembers, in one menu of five pages. <kbd>←</kbd> and <kbd>→</kbd> turn
+between them; `where flows come from` on `/flow` opens it on **Flowverses**.
 
-![The /flowverses list: official, which holds `chat` from the package and, at its GitHub URL,
-the rest, marked as not fetched yet](/demo/flowverses.png)
+```text
+  Settings
 
-| Key | |
-| --- | --- |
-| Row | |
-| --- | --- |
-| a flowverse | What it holds: a row per flow, then `fetch it again` (or `fetch it`), then the row that takes it away. `official`, `local` and `user` cannot be taken away, and say why; `local` and `user` have nothing to fetch. |
-| `add` | Adds one: a URL or `owner/repo`, then a name to keep it under, each written with <kbd>enter</kbd>, typing, <kbd>enter</kbd>; `fetch` clones it. |
+  Everywhere · This directory · Accounts · Fallback · Flowverses
+                                            ←/→ page
 
-- A place never fetched is listed anyway, with its URL and `not fetched yet`.
-- Each happens as you ask: a clone runs in the background, and what came of it is said under
-  the list and again in the transcript.
-- Every start of the interface fetches every flowverse that has a URL, quietly and one at a
-  time, except a clone you have written into. It stops if a flow starts. A fetch that brings
-  something down makes any open list of flows read them again.
-- `where flows come from` is refused while `/flow` is still fetching the place it opened on.
-- Nothing here is refused while a flow runs.
-- The same is [`Hmz().verses`](/reference/sdk): `add`, `fetch`, `remove`, `holds`.
+  ❯ 1. reports   on ↔    report what goes wrong to humanize
+    2. sent      ▸       what a report carries, and what it never does
+    3. details   off ↔   show every tool call and all of the thinking
 
-### `/providers` {#the-accounts-themselves}
+       save              what is set here
+
+  enter change · ←/→ page · esc close
+```
+
+| Page | Row | |
+| --- | --- | --- |
+| Everywhere | `reports` ↔ | Whether humanize [reports what goes wrong](/user/reporting): `on`, `off`, or `not answered yet`. Where `HUMANIZE_SENTRY` overrides it for this run, the page says so. |
+| Everywhere | `sent` ▸ | What a report carries and what it never does. <kbd>enter</kbd> reads it out. |
+| Everywhere | `details` ↔ | Shows or hides [the working](/user/settings#details): every tool call, all of the thinking, and what a backend prints on its way past. Off until turned on, and remembered in `~/.humanize/settings.yaml` as `details`, so the next start opens the same way. The status line says `details` while it is on. |
+| Everywhere | `btw agent` | The agent [`/btw`](#btw) talks to outside a session. Only once humanize has one. |
+| This directory | `workspace` | The directory these are for. |
+| This directory | `flow` | The flow it opens on, and how many agents that flow was set up with. |
+| This directory | `profile` ↔ | Whether a run here [profiles](/user/tracing#profiling-a-run) the programs it starts. |
+| This directory | `forget` ↔ | Forget everything remembered here, across every flow. Other directories are untouched. |
+| Accounts | | [The accounts](#the-accounts-themselves) agents run as. |
+| Fallback | | [Where a turn goes](#where-a-turn-goes-when-it-cannot-be-taken) when its place cannot take it. |
+| Flowverses | | [Where flows come from](#where-flows-come-from): add, fetch again, take away. |
+
+- On the first two pages, <kbd>enter</kbd> begins changing the row under the cursor,
+  <kbd>←</kbd> <kbd>→</kbd> step it and <kbd>enter</kbd> keeps it. The last three are lists,
+  each with a `search…` row and an `add` row.
+- What every page holds lands together, on the `save` row; <kbd>esc</kbd> with anything held asks
+  whether to save or discard. Making an account, signing one in and everything on Flowverses
+  happen at once instead.
+- Once saved, the transcript says what changed, and, for what cannot take hold at once, when it
+  will. `reports`, `details` and the fallback steps take hold at once (the next failed turn
+  reads the steps). `profile` does from the next flow run. A corrected account, what it falls
+  back to, or one taken away, from the next agent session: a session already running keeps the
+  account it started with, and the row says `from the next agent session` while such a change
+  is held. `forget` from the next launch: the interface open now keeps what it opened with.
+- On a first start, a box asks `Report what goes wrong to humanize?`; <kbd>esc</kbd> there
+  leaves it unanswered, to be asked again next time.
+
+#### Accounts {#the-accounts-themselves}
 
 Every account an agent may run as, under a heading per CLI, with the way it was made and the
 variables it sets (names only, never values).
@@ -640,8 +658,8 @@ variables it sets (names only, never values).
     5. as local   the CLI as this machine is already signed in
 ```
 
-![/providers: the accounts under a heading per CLI, enter opening what there is to do with one,
-and add asking which backend a new one is for](/demo/accounts.gif)
+![The Accounts page of /settings: the accounts under a heading per CLI, enter opening what
+there is to do with one, and add asking which backend a new one is for](/demo/accounts.gif)
 
 | Row | |
 | --- | --- |
@@ -669,20 +687,23 @@ to, and take it away](/demo/account-does.png)
   mimocode) is then offered to them: a list of switches, the installed ones on, each turned
   with <kbd>enter</kbd>, <kbd>←</kbd> <kbd>→</kbd>, <kbd>enter</kbd>. `copy` writes the account
   down for the ones on as well, <kbd>esc</kbd> for none.
-- Nothing here is refused while a flow runs. An agent reads its account once, so a change
-  reaches the next run.
+- Nothing here is refused while a flow runs. What lands on save reaches an agent from its next
+  session, and the row says `from the next agent session` while it is held: a session already
+  running keeps the account it started with.
 - How often a failed turn is tried again is
-  [`/fallback`](#where-a-turn-goes-when-it-cannot-be-taken), not here.
+  [Fallback](#where-a-turn-goes-when-it-cannot-be-taken), not here.
 - The same accounts are [`Hmz().accounts`](/reference/sdk).
 
-### `/fallback` {#where-a-turn-goes-when-it-cannot-be-taken}
+#### Fallback {#where-a-turn-goes-when-it-cannot-be-taken}
 
-One page of steps between **places**. A place is a CLI, an account and a model: what a turn can
+A list of steps between **places**. A place is a CLI, an account and a model: what a turn can
 fail for having named (a retired model, a CLI that will not start, a rate limit on the whole
 account). The effort and what the agent may reach for carry across a step unchanged.
 
 ```text
-  Fallback
+  Settings
+
+  Everywhere · This directory · Accounts · Fallback · Flowverses
 
   Where a turn goes when the place taking it cannot take it at all. A
   place is a CLI, an account and a model.
@@ -693,7 +714,7 @@ account). The effort and what the agent may reach for carry across a step unchan
 
        search…
        add                         a step
-       save                        these steps
+       save                        what is set here
 
   enter what happens · esc close
 ```
@@ -704,9 +725,9 @@ account). The effort and what the agent may reach for carry across a step unchan
 - A place cannot fall back to itself; a chain that comes round ends at the second sight of a
   place.
 - An account falling back to another account of the same CLI is on
-  [`/providers`](#the-accounts-themselves), not here.
-- Held until saved. The same steps are [`Hmz().fallbacks`](/reference/sdk). What they mean is
-  [Falling back](/user/fallback).
+  [Accounts](#the-accounts-themselves), not here.
+- Held until saved, then read by the next turn that fails. The same steps are
+  [`Hmz().fallbacks`](/reference/sdk). What they mean is [Falling back](/user/settings#fallback).
 
 The retry sheet changes three rows where they stand, and `set` takes them:
 
@@ -715,6 +736,30 @@ The retry sheet changes three rows where they stand, and `set` takes them:
 | `tries` | `none`, 1, 2, 3, 5, 8, 13, 21 more tries |
 | `policy` | `none`, `constant`, `linear`, `exponential`, `exponential-jitter` (the default), `fibonacci` |
 | `for` | `as long as it takes`, `30s`, `1m`, `5m`, `15m`, `60m` |
+
+#### Flowverses {#where-flows-come-from}
+
+Where flows come from: each a git repository with a `flows/` directory, cloned under
+`~/.humanize/flowverses/`, plus your own `local` and `user`. `where flows come from` on `/flow`
+opens `/settings` on this page.
+
+![The Flowverses page of /settings: official, which holds `chat` from the package and, at its
+GitHub URL, the rest, marked as not fetched yet](/demo/flowverses.png)
+
+| Row | |
+| --- | --- |
+| a flowverse | What it holds: a row per flow, then `fetch it again` (or `fetch it`), then the row that takes it away. `official`, `local` and `user` cannot be taken away, and say why; `local` and `user` have nothing to fetch. |
+| `add` | Adds one: a URL or `owner/repo`, then a name to keep it under, each written with <kbd>enter</kbd>, typing, <kbd>enter</kbd>; `fetch` clones it. |
+
+- A place never fetched is listed anyway, with its URL and `not fetched yet`.
+- Each happens as you ask: a clone runs in the background, and what came of it is said under
+  the list and again in the transcript.
+- Every start of the interface fetches every flowverse that has a URL, quietly and one at a
+  time, except a clone you have written into. It stops if a flow starts. A fetch that brings
+  something down makes any open list of flows read them again.
+- `where flows come from` is refused while `/flow` is still fetching the place it opened on.
+- Nothing here is refused while a flow runs.
+- The same is [`Hmz().verses`](/reference/sdk): `add`, `fetch`, `remove`, `holds`.
 
 ### `/epics` {#the-runs-that-have-already-happened}
 
@@ -761,35 +806,6 @@ run is what `/epics` is for.
 
 `hmz exec --resume` is the command-line equivalent: see
 [Picking a run up](/reference/cli#picking-a-run-up).
-
-### `/settings` {#what-humanize-remembers}
-
-Two pages over `~/.humanize/settings.yaml`.
-
-```text
-  Settings
-
-  Everywhere · This directory
-
-  ❯ 1. reports   on ↔   report what goes wrong to humanize
-    2. sent      ▸      what a report carries, and what it never does
-
-       save             what is set here
-
-  enter change · ←/→ page · esc close
-```
-
-| Page | Row | |
-| --- | --- | --- |
-| Everywhere | `reports` ↔ | Whether humanize [reports what goes wrong](/user/reporting): `on`, `off`, or `not answered yet`. Where `HUMANIZE_SENTRY` overrides it for this run, the page says so. |
-| Everywhere | `sent` ▸ | What a report carries and what it never does. |
-| This directory | `workspace` | The directory these are for. |
-| This directory | `flow` | The flow it opens on, and how many agents that flow was set up with. |
-| This directory | `profile` ↔ | Whether a run here [profiles](/user/tracing#profiling-a-run) the programs it starts. |
-| This directory | `forget` ↔ | Forget everything remembered here, across every flow. Other directories are untouched. |
-
-Held until saved. On a first start, a box asks `Report what goes wrong to humanize?`;
-<kbd>esc</kbd> there leaves it unanswered, to be asked again next time.
 
 ### `/monitor` {#watching-the-run}
 
@@ -856,8 +872,8 @@ A half-typed line is offered what it could become, in a list above the editor:
 | `/flow ` | Every flow: humanize's own, every fetched flowverse's, and your `local/` and `user/` ones. |
 | `$` | The same flows, while the word after `$` is being typed. What follows is the task, and is not completed. |
 
-- A word already written out in full is offered nothing, so <kbd>enter</kbd> sends `/flow`
-  rather than taking `/flowverses`.
+- A word already written out in full is offered nothing, so <kbd>enter</kbd> sends `/settings`
+  as it is.
 - Taking an offer replaces the word being typed.
 - Offers follow the cursor as well as the text: with the cursor mid-line, nothing is offered.
 - Nothing is offered while a question is up against a `$` line, nor on a line reached by
@@ -905,6 +921,8 @@ where each environment role is, its params and its budget. It is kept in
   about again.
 - **Params** read back through the flow's own `FlowParams`: a field since dropped or renamed is
   asked again.
+- **Details**, as `details: true` or `false` at the top of the file, for every directory: the
+  interface opens showing the working or not, as it was last left.
 
 ## Colours
 

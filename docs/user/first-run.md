@@ -130,7 +130,7 @@ enter change · esc back
 | `effort` | How hard it thinks, from the model's own list. | <kbd>enter</kbd>, <kbd>←</kbd> <kbd>→</kbd>, <kbd>enter</kbd> |
 
 Choosing another CLI clears the account and the model, since both belong to a CLI. Press
-<kbd>enter</kbd> on `save` to save the agent. [Providers](/user/providers)
+<kbd>enter</kbd> on `save` to save the agent. [Accounts](/user/settings#accounts)
 and [Efforts](/user/efforts) say more about accounts and efforts.
 
 A flow that has settings of its own asks for them before its roles. `ralph_loop` has none.
@@ -228,7 +228,7 @@ A flow that is set up here starts at once. One that is not opens the menu on its
 your line, and saving starts it. `$ralph_loop` with nothing after it only chooses the flow.
 While a flow is running, a `$` line is refused with `a flow is running; no choosing a flow`.
 
-[What a project remembers](/user/settings) shows how to change or forget this.
+[Settings](/user/settings) shows how to change or forget this.
 
 ## Next
 

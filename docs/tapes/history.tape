@@ -23,11 +23,11 @@ Show
 Sleep 400ms
 
 # Three lines sent, each of which is now in the history.
-Type "/details on" Enter
-Sleep 900ms
 Type "/afk on" Enter
 Sleep 900ms
-Type "/details off" Enter
+Type "/clear" Enter
+Sleep 900ms
+Type "/afk off" Enter
 Sleep 900ms
 
 # Half a line, and then up: the newest first, one further back each press.

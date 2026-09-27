@@ -20,7 +20,7 @@ for. New to humanize? Start with the [User Guide](/user/) or the [Weaver Guide](
 | a process named `hmz internal …` | [CLI › `hmz internal`](/reference/cli#hmz-internal) |
 | a key, at the prompt or in a menu | [TUI › Keys](/reference/tui#keys) |
 | a slash command | [TUI › Slash commands](/reference/tui#commands) |
-| a menu: `/flow`, `/providers`, `/fallback`, `/epics`, `/settings`, `/monitor` | [TUI › Menus](/reference/tui#menus) |
+| a menu: `/flow`, `/epics`, `/settings`, `/monitor` | [TUI › Menus](/reference/tui#menus) |
 | a run left going after `/exit` | [Daemon](/reference/daemon) |
 | the API a flow is written against | [Flows](/reference/flows) |
 | driving humanize from another program | [SDK](/reference/sdk) |

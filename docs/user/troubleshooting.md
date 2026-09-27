@@ -73,7 +73,7 @@ See [Allowances](/features/allowances) for what each key stops.
 ### `agent=claude/claude-opus-5:ultra: claude cannot be asked to think at 'ultra'; expected one of ultracode, max, xhigh, high, medium, low`
 
 That effort is not on the backend's ladder. Pick one from the list, or `auto` for none. A CLI
-you added at [`/providers`](/user/providers) takes any effort.
+you added on [the Accounts page of `/settings`](/user/settings#accounts) takes any effort.
 
 ### `cursor-agent lists no gpt-5.2-medium: this account runs gpt-5.2 as gpt-5.2-low, gpt-5.2-high`
 
@@ -96,10 +96,11 @@ The role is written for one CLI only. Give it that CLI.
 then in `~/.humanize/flows`, then among humanize's own flows and every
 [flowverse](/weaver/flowverses) fetched here. Anything else is read as a path.
 
-### `ralph_loop: the official flowverse has not been fetched yet -- open /flowverses and fetch it from its own sheet`
+### `ralph_loop: the official flowverse has not been fetched yet -- open the flowverses page of /settings and fetch it from its own sheet`
 
 The name is right, but the flowverse has not been downloaded yet. `hmz` fetches flowverses in
-the background every time it starts. To fetch one now, open `/flowverses`, open it, and choose
+the background every time it starts. To fetch one now, open `/settings`, turn to its
+[Flowverses](/user/settings#flowverses) page with <kbd>→</kbd>, open it, and choose
 `fetch it again`.
 
 ### `… holds gen-idea, gen-plan, rlcr and none is called 'humanize1'; name one as humanize1:<flow>`
@@ -164,7 +165,8 @@ A `$` line names a flow by the name it is offered under:
 | yours, in `~/.humanize/flows` | `$user/twice` |
 | another flowverse's | `$<flowverse>/name` |
 
-A flowverse not fetched yet offers nothing: open `/flowverses`, open it, and choose `fetch it again`.
+A flowverse not fetched yet offers nothing: open the [Flowverses page of
+`/settings`](/user/settings#flowverses), open it, and choose `fetch it again`.
 
 ### `no such command: /foo`
 
@@ -190,8 +192,7 @@ without saving. Type the line again and save the menu this time.
 
 ### `say on or off, not 'yes'`
 
-`/details` and `/afk` switch over when you give them nothing. Given a word, they take only `on`
-or `off`.
+`/afk` switches over when you give it nothing. Given a word, it takes only `on` or `off`.
 
 ### `/btw needs a flow that is running`
 
@@ -237,9 +238,9 @@ Command '['claude', …]' returned non-zero exit status 1. 429 rate limit exceed
 (throttled: this account has spent its quota; another one, or a wait, is what answers it)
 ```
 
-humanize waits, retries, or moves to the next account or [fallback](/user/fallback) by itself,
-depending on the kind. The entries below say what is left for you to do. A failure with no
-brackets is one humanize did not recognise, and it is retried as that place says.
+humanize waits, retries, or moves to the next account or [fallback](/user/settings#fallback) by
+itself, depending on the kind. The entries below say what is left for you to do. A failure with
+no brackets is one humanize did not recognise, and it is retried as that place says.
 
 ### The agent fails on its first turn
 
@@ -250,8 +251,8 @@ knows which models your account may use.
 ### `(throttled: this account has spent its quota; another one, or a wait, is what answers it)`
 
 The account hit its rate limit. humanize waits, tries once more, then moves to the next account
-of that CLI. Give it one to move to: add an account at [`/providers`](/user/providers) and set
-what it falls back to.
+of that CLI. Give it one to move to: add an account on [the Accounts page of
+`/settings`](/user/settings#accounts) and set what it falls back to.
 
 ### `(refused: that account needs signing in again)`
 
@@ -262,8 +263,8 @@ account. Sign the account back in, with the CLI's own login for the account this
 claude auth login
 ```
 
-For an account humanize keeps, open `/providers`, choose the account, and pick
-**sign in again**.
+For an account humanize keeps, open the [Accounts page of `/settings`](/user/settings#accounts),
+choose the account, and pick **sign in again**.
 
 ### `(unlisted: … this account was last offered …)`
 
@@ -281,9 +282,9 @@ those.
 
 ### `(retired: the model is gone or was never this account's; another place is what answers it)`
 
-The CLI says there is no such model. No account of that CLI has it, so the turn goes straight
-to the next [fallback](/user/fallback). Choose another model: `ask it again` under the agent's
-`model` row shows what the CLI runs.
+The CLI says there is no such model. No account of that CLI has it, so the turn goes straight to
+the next [fallback](/user/settings#fallback). Choose another model: `ask it again` under the
+agent's `model` row shows what the CLI runs.
 
 ### `(missing: npm i -g @anthropic-ai/claude-code)`
 
@@ -448,8 +449,8 @@ flow runs, so import the type at runtime.
 
 ## Still stuck
 
-- Turn on [`/details`](/user/details) to see everything the agents do, and press <kbd>esc</kbd>
-  for [`/monitor`](/user/monitor) to see which one is doing what.
+- Turn on [details](/user/settings#details) to see everything the agents do, and press
+  <kbd>esc</kbd> for [`/monitor`](/user/monitor) to see which one is doing what.
 - [Export the run](/user/export) from `/epics` and attach the archive to an issue, with the
   output of `hmz --version`. Credentials are struck out, but your task and the agents'
   transcripts are in it.

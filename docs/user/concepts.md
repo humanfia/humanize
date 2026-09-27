@@ -71,9 +71,9 @@ choose one at `/flow` or name it with `$`. See [Your first run](/user/first-run)
 
 ## Flowverse
 
-A git repository of flows. `official` is humanize's own; add others at `/flowverses`. Its flows
-are named `<flowverse>/<flow>`, and humanize's own by their bare names. See
-[Flowverses](/weaver/flowverses).
+A git repository of flows. `official` is humanize's own; add others on the [Flowverses page of
+`/settings`](/user/settings#flowverses). Its flows are named `<flowverse>/<flow>`, and
+humanize's own by their bare names. See [Flowverses](/weaver/flowverses).
 
 ## Outworlder
 
@@ -90,7 +90,7 @@ of the home directory, the machine, and the web. See [Permissions](/user/permiss
 
 A named account for one backend, kept apart from the CLI's own login: a login, an API key, or a
 gateway. It is the `provider` row of an agent, where `as local` means the CLI as you signed it
-in. See [Providers](/user/providers).
+in. See [Accounts](/user/settings#accounts).
 
 ## Role
 
@@ -124,7 +124,7 @@ Python.
 
 The directory `hmz` runs in. What is remembered, the run you can leave and come back to, and
 the runs `/epics` lists all belong to one workspace. See
-[What a project remembers](/user/settings).
+[Settings](/user/settings).
 
 ---
 

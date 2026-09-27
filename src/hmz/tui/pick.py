@@ -59,6 +59,7 @@ from textual import events, on, work
 from textual.await_complete import AwaitComplete
 from textual.binding import Binding
 from textual.containers import Vertical
+from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList
 from textual.widgets.option_list import Option
@@ -207,7 +208,7 @@ _AGAIN = f"{_APART_MARK}again"
 #: Copying the flow the cursor was last on into this project, and opening where flows come
 #: from: the two things the list of flows offers beside picking one.
 _FORK = f"{_APART_MARK}fork"
-_VERSES = f"{_APART_MARK}verses"
+_WHENCE = f"{_APART_MARK}whence"
 #: Answering a form with everything written into it, which each form names for itself.
 _DONE = f"{_APART_MARK}done"
 
@@ -226,7 +227,7 @@ _TAKES_AWAY = f"{_APART_MARK}take-away"
 #: apart is not one of the things being kept track of, and one taken for one would move the
 #: cursor off it the moment it was walked to.
 _APART = frozenset(
-    {_SAVE, _ADD, _SEARCH, _AGAIN, _FORK, _VERSES, _DONE, _TAKES_AWAY, _BUDGET}
+    {_SAVE, _ADD, _SEARCH, _AGAIN, _FORK, _WHENCE, _DONE, _TAKES_AWAY, _BUDGET}
 )
 
 #: And what each of them is called, which is both the word on the row and what the row of
@@ -239,7 +240,7 @@ _ON_APART = {
     _SEARCH: "search",
     _AGAIN: "refresh",
     _FORK: "copy",
-    _VERSES: "open",
+    _WHENCE: "open",
     _DONE: "done",
     _TAKES_AWAY: "take it away",
     _BUDGET: "set",
@@ -1925,7 +1926,7 @@ class Flows(Drafts[Chosen]):
         named = str(listing.get_option_at_index(at).id or "")
         if _HALVES in named:
             self._was, self._below = named, ""
-        elif named.removeprefix("=") in (_SEARCH, _FORK, _VERSES):
+        elif named.removeprefix("=") in (_SEARCH, _FORK, _WHENCE):
             # Below the flows, where the flow last walked off is the one copying copies.
             self._below = named.removeprefix("=")
 
@@ -2241,7 +2242,7 @@ class Flows(Drafts[Chosen]):
                 )
             ]
         named = self._was.partition(_HALVES)[2]
-        below = [_SEARCH, *((_FORK,) if named else ()), _VERSES]
+        below = [_SEARCH, *((_FORK,) if named else ()), _WHENCE]
         if self._below not in below:
             self._below = ""
         rows.append(self._seeking(here=self._below == _SEARCH))
@@ -2261,9 +2262,9 @@ class Flows(Drafts[Chosen]):
                 self._apart(
                     "where flows come from",
                     "flowverses",
-                    here=self._below == _VERSES,
+                    here=self._below == _WHENCE,
                 ),
-                id=f"={_VERSES}",
+                id=f"={_WHENCE}",
             )
         )
         listing.set_options(rows)
@@ -2534,10 +2535,10 @@ class Flows(Drafts[Chosen]):
 
     @work
     async def _verses(self) -> None:
-        """Opens where flows come from, which is a question about the places.
+        """Opens where flows come from, which is the flowverses page of `/settings`.
 
-        A menu of its own rather than three more rows here, and reached from here rather than
-        from a command alone: adding a repository, fetching one again and taking one away are
+        That menu rather than three more rows here, and reached from here rather than from
+        `/settings` alone: adding a repository, fetching one again and taking one away are
         done to the list of places rather than to the flow under the cursor. Its own menu for
         a second reason as well -- each of those runs git as it is asked for, and something
         that has already been cloned is not a draft this one could hold until it is saved.
@@ -2559,12 +2560,12 @@ class Flows(Drafts[Chosen]):
             "App[None]",
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
-        said = await showing.push_screen_wait(Flowverses())
+        said = await showing.push_screen_wait(Adjusts(self._agents, page=_VERSES))
         self._offers = None
-        if said:
+        if said is not None and said.placed:
             # What happened to the places, said under the flows. Only where something did:
             # a walk in to look and out again must not wipe what the list was already saying.
-            self._said = said[-1]
+            self._said = said.placed
         self._fill()
 
     @on(OptionList.OptionSelected)
@@ -2578,7 +2579,7 @@ class Flows(Drafts[Chosen]):
             below = str(event.option.id or "").removeprefix("=")
             if below == _FORK:
                 self._forks()
-            elif below == _VERSES:
+            elif below == _WHENCE:
                 self._verses()
             _, _, name = below.partition(_HALVES)
             if name:
@@ -2894,76 +2895,96 @@ class Holds(Sheet[str]):
             self.dismiss(held)
 
 
-class Flowverses(Sheet[list[str]]):
-    """The places flows come from: what there is, what one holds, and what can happen to one.
+class Pages(Drafts["Adjusted"]):
+    """What every page of `/settings` shares: where the cursor is, and what has been said.
 
-    Walked to from the menu a flow is chosen at, on the row below the flows, and opened by
-    `/flowverses` -- which
-    is the way in while a flow is running, the flows not being offered then. Its own sheet
-    rather than a deeper view of that menu: adding a repository and fetching one again each
-    run git as they are asked for, and something that has already been cloned is not a draft
-    the flow menu could hold until it is saved.
+    One menu rather than five, so there is one line under the list and one account of what
+    happened for the transcript however many pages it happened on. Each page after the first
+    two is a class of its own that :class:`Adjusts` is made of -- what a list of accounts does
+    is a good deal of code, and it reads better beside the sheets it opens than folded into
+    one class five times as long -- and this is what they have in common.
+    """
+
+    def __init__(self) -> None:
+        """Starts with the cursor nowhere and nothing said."""
+        super().__init__()
+        #: Which row the cursor is on, by the id it was put up under: a search narrows the
+        #: rows and a heading is not one, so a row number is not the thing it was on.
+        self._was = ""
+        #: What became of the last thing done, said under the list.
+        self._said = ""
+        #: What is worth saying again once this menu is done with, as it was said: whoever
+        #: opened it says it where they say things, which is not always a transcript.
+        self._told: list[str] = []
+
+    def _follows(self, listing: OptionList) -> None:
+        """Takes which row the cursor is on off the list, by its id.
+
+        Only a row that is one of the things listed: the rows below them are about the list
+        rather than in it, and one taken for one would be looked for among them, not found,
+        and the cursor put back on the first of them as it arrived.
+
+        Args:
+          listing: The list.
+        """
+        at = listing.highlighted
+        if at is not None and 0 <= at < listing.option_count:
+            named = str(listing.get_option_at_index(at).id or "").removeprefix("=")
+            if named and named not in _APART:
+                self._was = named
+
+
+class Flowverses(Pages):
+    """The flowverses page of `/settings`: what there is, what one holds, what can happen.
+
+    Also what the row below the flows on the menu a flow is chosen at turns to. Nothing on it
+    is held until the menu is saved: adding a repository and fetching one again each run git
+    as they are asked for, and something that has already been cloned is not a draft.
 
     Taking one away and fetching one again are not rows here: enter opens what a flowverse
     holds, and both are said in there, among everything else about it.
-
-    Its own sheet rather than three more rows on the flows for the same reason it is a walk
-    away from them: what happens here happens to the list of places rather than to the flow
-    under the cursor, and a sheet that asks `which flow` with three rows on it about something
-    else is a sheet asking two questions. Stepping between the places stays with the flows,
-    that being about which list of flows is being read.
     """
 
-    SEARCHES: ClassVar = True
+    #: What the page says it is.
+    VERSES_ABOUT = (
+        "Where flows come from: a git repository with a flows/ directory apiece, cloned "
+        "under humanize's home, and the flows of your own read where they lie. What happens "
+        "here happens at once."
+    )
 
     def __init__(self) -> None:
-        """Reads every flowverse there is."""
+        """Holds nothing until the page is first read."""
         super().__init__()
-        self._found: list[Flowverse] = []
-        #: Which one the cursor is on, by name: a search narrows the rows, so a row number is
-        #: not a flowverse.
-        self._was = ""
-        #: What became of the last thing that happened, said under the list.
-        self._said = ""
+        self._verses: list[Flowverse] = []
         #: What is being fetched now, so that a second fetch is not started over it.
         self._fetching = ""
-        #: What is worth saying again once this menu is done with, as the menu said it:
-        #: whoever opened it says it where they say things, which is not always a transcript.
-        self._told: list[str] = []
+        #: The last thing that happened to the places, for the flow menu `v` was pressed on
+        #: to say under its flows: the transcript is told about every page, and the flows are
+        #: a different list because of this one alone.
+        self._placed = ""
 
-    def _ask(self) -> None:
-        """Says what these are, and puts them up."""
-        self.query_one("#asked", Label).update("Flowverses")
-        self.query_one("#about", Label).update(
-            "Where flows come from: a git repository with a flows/ directory apiece, cloned "
-            "under humanize's home, and the flows of your own read where they lie. Each is "
-            "offered here under its name."
-        )
-        self._read()
-        self._fill()
-        self.query_one("#choices", OptionList).focus()
-
-    def _read(self) -> None:
+    def _read_verses(self) -> None:
         """Reads the flowverses off the disk, which is what the rows are drawn from."""
-        self._found = _hmz().verses.all()
+        self._verses = _hmz().verses.all()
 
-    def _about(self, one: Flowverse) -> str:
+    @staticmethod
+    def _verse_about(one: Flowverse) -> str:
         """What a row says about one flowverse: where it came from, and whether it is here."""
         said = _came_from(one)
         if not one.fetched:
             return f"{said}{_DOT}not fetched yet"
         return said
 
-    def _fill(self) -> None:
+    def _fill_verses(self) -> None:
         """Puts the flowverses up, marked where the cursor is."""
         listing = self.query_one("#choices", OptionList)
         self._follows(listing)
         # Where the cursor is now, before the rows are built again: the rows below them are
         # about the list rather than one of it, so a cursor sitting on one is not on any
         # flowverse -- and a redraw that put it back on one would walk it off as it arrived.
-        below = [_SEARCH, _ADD]
+        below = [_SEARCH, _ADD, _SAVE]
         apart = self.under() if self.under() in below else ""
-        shown = [one for one in self._found if self.fits(one.name, one.url)]
+        shown = [one for one in self._verses if self.fits(one.name, one.url)]
         self._counting = len(str(max(len(shown), 1)))
         if all(one.name != self._was for one in shown):
             self._was = shown[0].name if shown else ""
@@ -2981,7 +3002,7 @@ class Flowverses(Sheet[list[str]]):
                     self._row(
                         seen,
                         one.name,
-                        self._about(one),
+                        self._verse_about(one),
                         here=not apart and one.name == self._was,
                         inforce=False,
                     ),
@@ -2992,6 +3013,7 @@ class Flowverses(Sheet[list[str]]):
             + [
                 self._seeking(here=at == len(shown)),
                 self._adding("a flowverse", here=at == len(shown) + 1),
+                self._saves("what is set here", here=at == len(shown) + 2),
             ]
         )
         listing.highlighted = at
@@ -3002,36 +3024,21 @@ class Flowverses(Sheet[list[str]]):
         )
         self._footed(Key("enter", "what it holds"), Key("esc", "close"))
 
-    def _follows(self, listing: OptionList) -> None:
-        """Takes which flowverse the cursor is on off the list, by name.
-
-        Only a row that is one: the row below them is about the list rather than about
-        anything in it, so a cursor on it would otherwise be read as a flowverse of that
-        name, found to be none of them, and put back on the first row.
-        """
-        at = listing.highlighted
-        if at is not None and 0 <= at < listing.option_count:
-            named = str(listing.get_option_at_index(at).id or "").removeprefix("=")
-            if named and named not in _APART:
-                self._was = named
-
-    @on(OptionList.OptionSelected)
-    def _took(self, event: OptionList.OptionSelected) -> None:
-        """Opens what the flowverse under the cursor holds.
+    def _took_verse(self, named: str) -> None:
+        """Opens what the flowverse chosen holds, or adds one.
 
         Args:
-          event: What was chosen.
+          named: The row chosen, by its id.
         """
-        named = str(event.option.id or "").removeprefix("=")
         if named == _ADD:
-            self._adds()
+            self._adds_verse()
             return
-        one = next((each for each in self._found if each.name == named), None)
+        one = next((each for each in self._verses if each.name == named), None)
         if one is not None:
-            self._holds(one)
+            self._opens_verse(one)
 
     @work
-    async def _holds(self, one: Flowverse) -> None:
+    async def _opens_verse(self, one: Flowverse) -> None:
         """Reads what one flowverse holds, which means running each flow in it."""
         showing = cast(
             "App[None]",
@@ -3046,7 +3053,7 @@ class Flowverses(Sheet[list[str]]):
         self._fill()
 
     @work
-    async def _adds(self) -> None:
+    async def _adds_verse(self) -> None:
         """Asks where a flowverse is and what to call it here, and clones it."""
         if self.opening():
             return
@@ -3109,9 +3116,10 @@ class Flowverses(Sheet[list[str]]):
             self._said = bad(escape(str(why)))
             return
         self._said = bad(f"{escape(one.name)} is no longer here")
-        self._told.append(self._said)
+        self._placed = self._said
+        self._told.append(f"[dim]{self._said}[/dim]")
         self._was = ""
-        self._read()
+        self._read_verses()
 
     async def _fetches(self, named: str, doing: Callable[[], str]) -> None:
         """Runs one git fetch off the event loop, and shows the list it left behind.
@@ -3139,14 +3147,11 @@ class Flowverses(Sheet[list[str]]):
             return
         self._fetching = ""
         self._said = f"{escape(name)} is fetched"
-        self._told.append(self._said)
-        self._read()
+        self._placed = self._said
+        self._told.append(f"[dim]{self._said}[/dim]")
+        self._read_verses()
         self._was = name
         self._fill()
-
-    def leaving(self) -> None:
-        """Leaves, saying in the transcript whatever happened while this was open."""
-        self.dismiss(self._told or None)
 
 
 def _briefly(said: str, width: int) -> str:
@@ -4606,9 +4611,9 @@ async def made(host: App[None], cli: str, *, whose: str = "") -> Made:
     """Walks one backend's way in, and writes down the account it makes.
 
     Here rather than beside whatever asked for it, because both places that ask are here:
-    `/providers`, which asks which backend first, and the sheet an agent's own account is
-    chosen on, which knows the backend already and would otherwise have to send somebody out
-    of the question they are answering to answer it.
+    the accounts page of `/settings`, which asks which backend first, and the sheet an
+    agent's own account is chosen on, which knows the backend already and would otherwise
+    have to send somebody out of the question they are answering to answer it.
 
     Args:
       host: The interface, which is what the sheets are pushed onto and what hands the
@@ -5198,257 +5203,33 @@ class Leaves(Popup):
 #: The two answers to the question humanize asks about itself on a first start.
 _REPORTS, _QUIET = "on", "off"
 
-#: The rows the settings menu is made of, by the id each is put up under.
+#: The rows the first two pages of the settings menu are made of, by the id each is put up
+#: under.
 _SENTRY = "reports"
 _SENT = "sent"
+_DETAILS = "details"
+_BTW = "btw"
 _WORKSPACE = "workspace"
 _RUNS = "flow"
 _PROFILES = "profile"
 _FORGET = "forget"
 
-#: Which of them are turned round where they stand, which is what the arrows and space do to
-#: the row under the cursor. The other two are a reading: a directory and the flow it opens
-#: on are what is remembered rather than something to set here.
-_SWITCHES = (_SENTRY, _PROFILES, _FORGET)
+#: Which of them are turned round where they stand, which is what enter and the arrows do to
+#: the row under the cursor. The rest are a reading: a directory and the flow it opens on are
+#: what is remembered rather than something to set here.
+_SWITCHES = (_SENTRY, _DETAILS, _PROFILES, _FORGET)
 
+#: The pages of `/settings`, in the order they are turned between.
+_EVERYWHERE, _DIRECTORY, _ACCOUNTS, _FALLBACK, _VERSES = range(5)
 
-class Adjusted(NamedTuple):
-    """What the settings menu answers with: what to change, and what to forget.
+#: The pages that are lists of things, which are the ones with a search and a row to add
+#: one more from rather than switches to turn round.
+_LISTS = frozenset({_ACCOUNTS, _FALLBACK, _VERSES})
 
-    Attributes:
-      enable_sentry: Whether humanize reports its own failures from now on, or None where
-        that was not touched.
-      profile: Whether a run in this directory is profiled as well as traced.
-      forget: Whether to forget what this workspace was set up to run.
-    """
-
-    enable_sentry: bool | None = None
-    profile: bool = False
-    forget: bool = False
-
-
-class Adjusts(Drafts[Adjusted]):
-    """What humanize remembers: the settings that are everywhere, and this directory's.
-
-    Two pages because they are two kinds of thing rather than two halves of one. What is on
-    the first is true of this machine however many projects are driven from it -- whether
-    humanize reports its own failures is the whole of it today -- and what is on the second is
-    one directory's: the flow it opens on, and the agents that flow was last set up with.
-
-    A menu rather than a file to edit, for the reason every other menu here is one: what is
-    written down is written down in humanize's own words, and a person should not have to know
-    the shape of a YAML file to turn a thing off. Nothing lands until it is left and saving is
-    confirmed, exactly as everywhere else.
-    """
-
-    TABS: ClassVar = ("Everywhere", "This directory")
-
-    def __init__(
-        self,
-        *,
-        enable_sentry: bool | None,
-        workspace: str,
-        flow: str,
-        agents: int,
-        flows: int,
-        overridden: bool = False,
-        profile: bool = False,
-    ) -> None:
-        """Initializes the menu on what is remembered now.
-
-        Args:
-          enable_sentry: Whether humanize reports its own failures, or None while nobody has
-            been asked.
-          workspace: The directory this is the second page of.
-          flow: The flow it was last set up to run, or "" for one it never was.
-          agents: How many agents that flow was set up with here.
-          flows: How many flows this directory has been set up to run.
-          overridden: Whether the environment is answering the reporting question for this
-            run, so that a row saying one thing while humanize does another says so.
-          profile: Whether a run here is profiled as well as traced.
-        """
-        super().__init__()
-        self._sentry = enable_sentry
-        self._overridden = overridden
-        self._workspace = workspace
-        self._flow = flow
-        self._agents = agents
-        self._flows = flows
-        self._profile = profile
-        self._forget = False
-        self._said = (
-            f"{SAYS} is set, so this run does the opposite of what this says"
-            if overridden
-            else ""
-        )
-
-    def _ask(self) -> None:
-        """Says what the menu is, and puts up the page it opened on."""
-        self.query_one("#asked", Label).update("Settings")
-        self._fill()
-        self.query_one("#choices", OptionList).focus()
-
-    def _rows(self) -> list[tuple[str, str, str]]:
-        """The rows of whichever page is open: its id, what it says, and what it means."""
-        if self._tab:
-            return [
-                (
-                    _WORKSPACE,
-                    _shortly(self._workspace),
-                    "the directory these are remembered for",
-                ),
-                (
-                    _RUNS,
-                    self._flow or "nothing yet",
-                    f"the flow it opens on, set up with {_many(self._agents, 'agent')}",
-                ),
-                (
-                    _PROFILES,
-                    _YES if self._profile else _NO,
-                    "profile the programs a run here starts",
-                ),
-                (
-                    _FORGET,
-                    _YES if self._forget else _NO,
-                    f"forget what is remembered here, across {_many(self._flows, 'flow')}",
-                ),
-            ]
-        return [
-            (
-                _SENTRY,
-                {True: _YES, False: _NO, None: "not answered yet"}[self._sentry],
-                "report what goes wrong to humanize",
-            ),
-            (_SENT, "", "what a report carries, and what it never does"),
-        ]
-
-    def _fill(self) -> None:
-        """Puts up whichever page is open, and the titles above it."""
-        self.query_one("#about", Label).update(
-            "What humanize remembers about this machine."
-            if not self._tab
-            else "What it remembers about this directory: the flow it opens on, and what "
-            "that flow was last set up to run."
-        )
-        listing = self.query_one("#choices", OptionList)
-        rows = self._rows()
-        self._counting = len(str(len(rows)))
-        at = min(listing.highlighted or 0, len(rows))
-        listing.set_options(
-            [
-                Option(
-                    self._row(
-                        seen,
-                        name,
-                        self._says(name, value, about),
-                        here=seen == at,
-                        inforce=False,
-                    ),
-                    id=f"={name}",
-                )
-                for seen, (name, value, about) in enumerate(rows)
-            ]
-            + [self._saves("what is set here", here=at == len(rows))]
-        )
-        listing.highlighted = at
-        self._drawn = at
-        self.tabbed(self._tab_line())
-        self.query_one("#tuning", Label).update(
-            f"[$text-muted]{self._said}[/]" if self._said else ""
-        )
-        self._keys_for(rows[at][0] if at < len(rows) else _SAVE)
-
-    @staticmethod
-    def _says(name: str, value: str, about: str) -> str:
-        """One row, less its name: what it is set to, whether it moves, and what it means.
-
-        Args:
-          name: The row, by id.
-          value: What it is set to, or "" for a row that is not set to anything.
-          about: What it means.
-
-        Returns:
-          The line, with the mark that says which of the three kinds of row it is -- turned
-          round where it stands, opened onto something to read, or neither.
-        """
-        mark = _CYCLES if name in _SWITCHES else _OPENS if name == _SENT else ""
-        shown = f"{value} {mark}".strip()
-        return f"{shown}   {about}" if shown else about
-
-    def _keys_for(self, held: str) -> None:
-        """Says what the keys do on the row under the cursor, which is not the same on each.
-
-        Args:
-          held: The row, by id.
-        """
-        close = Key("esc", "close")
-        if held == _SENT:
-            self._footed(Key("enter", "read"), close)
-        else:
-            self._footed(close)
-
-    def editable(self, row: str) -> bool:
-        """Whether a row is a switch, turned round where it stands.
-
-        Args:
-          row: The row, by id.
-
-        Returns:
-          True for the switches.
-        """
-        return row in _SWITCHES
-
-    def held(self) -> object:
-        """What every switch says now."""
-        return (self._sentry, self._profile, self._forget)
-
-    def put_back(self, was: object) -> None:
-        """Puts every switch back as it was.
-
-        Args:
-          was: What :meth:`held` answered.
-        """
-        self._sentry, self._profile, self._forget = cast(
-            "tuple[bool | None, bool, bool]", was
-        )
-
-    def step(self, row: str, by: int) -> None:
-        """Turns one switch round, whichever way the arrow points.
-
-        Args:
-          row: The switch.
-          by: Which way, which a switch of two has no use for.
-        """
-        del by
-        if row == _SENTRY:
-            self._sentry = not self._sentry
-        elif row == _PROFILES:
-            self._profile = not self._profile
-        elif row == _FORGET:
-            self._forget = not self._forget
-        self._said = ""
-
-    @on(OptionList.OptionSelected)
-    def _took(self, event: OptionList.OptionSelected) -> None:
-        """Says what a report carries, for the one row that is a thing to read."""
-        held = str(event.option.id or "").removeprefix("=")
-        if held == _SAVE:
-            self.applied()
-            return
-        if held == _SENT:
-            sent, kept = "; ".join(SENT), "; ".join(KEPT)
-            self._said = f"Sent: {sent}. Never: {kept}."
-            self._fill()
-
-    def applied(self) -> None:
-        """Answers with what was changed, which is nothing where nothing was."""
-        self.dismiss(
-            Adjusted(
-                enable_sentry=self._sentry,
-                profile=self._profile,
-                forget=self._forget,
-            )
-        )
+#: When a setting that cannot land at once does land, said beside its row while it is held
+#: and in the transcript once it is saved.
+_NEXT_RUN = "from the next flow run"
+_NEXT_LAUNCH = "from the next launch"
 
 
 #: How much of a directory a row says: the last of it, which is what tells one project from
@@ -6001,7 +5782,7 @@ class Accounts(Picks):
     async def _new(self) -> None:
         """Makes an account for this CLI without leaving the question it is chosen in.
 
-        The same walk `/providers` runs, minus the question it has already answered: which
+        The same walk the accounts page runs, minus the question it has already answered: which
         backend. What comes of it is what this list is now showing, so a new account is chosen
         straight away -- making one here is choosing it -- unless its own way in failed, which
         is said under the list and left for whoever is looking to decide about.
@@ -6190,8 +5971,8 @@ class Failing(Picks):
         ]
 
 
-class Fallbacks(Drafts[list[str]]):
-    """Where a turn goes when the place taking it cannot take it at all.
+class Fallbacks(Pages):
+    """The fallback page of `/settings`: where a turn goes when its place cannot take it.
 
     A place is three things and no more: the CLI, the account it runs as, and the model it
     runs. That is what a turn can fail for having named -- a model retired, a CLI that will
@@ -6205,37 +5986,25 @@ class Fallbacks(Drafts[list[str]]):
 
     An account falling back to another account of the same CLI is not this. That happens
     inside the conversation that was running, so it is a thing about the account, and it is
-    said in `/providers` where the accounts are.
+    said on the accounts page where the accounts are.
     """
 
-    SEARCHES: ClassVar = True
+    #: What the page says it is.
+    STEPS_ABOUT = (
+        "Where a turn goes when the place taking it cannot take it at all. A place is a "
+        "CLI, an account and a model. Saved, it is what the next failed turn walks."
+    )
 
-    def __init__(self, agents: dict[str, tuple[Model, ...]]) -> None:
-        """Reads every step written down.
-
-        Args:
-          agents: The backends offered here, and what each of them says it runs, which is
-            what choosing a place is offered out of.
-        """
+    def __init__(self) -> None:
+        """Holds no steps until the menu reads them."""
         super().__init__()
-        self._agents = dict(agents)
+        #: The backends offered here, and what each of them says it runs, which is what
+        #: choosing a place is offered out of.
+        self._offered: dict[str, tuple[Model, ...]] = {}
         #: The steps, held until the menu is saved.
-        self._steps: list[Step] = list(_hmz().fallbacks.all())
-        #: Which of them the cursor is on, by the place it is written against.
-        self._was = self._steps[0].spec if self._steps else ""
-        self._said = ""
+        self._steps: list[Step] = []
 
-    def _ask(self) -> None:
-        """Says what these are, and puts them up."""
-        self.query_one("#asked", Label).update("Fallback")
-        self.query_one("#about", Label).update(
-            "Where a turn goes when the place taking it cannot take it at all. A place is a "
-            "CLI, an account and a model."
-        )
-        self._fill()
-        self.query_one("#choices", OptionList).focus()
-
-    def _rows(self) -> list[tuple[str, str, str]]:
+    def _step_rows(self) -> list[tuple[str, str, str]]:
         """Every row: its id, the place that fails, and what happens when it does.
 
         Returns:
@@ -6243,14 +6012,14 @@ class Fallbacks(Drafts[list[str]]):
         """
         return [(one.spec, one.spec, _falling(one)) for one in self._steps]
 
-    def _fill(self) -> None:
+    def _fill_steps(self) -> None:
         """Puts the steps up, each saying what fails and what happens when it does."""
         listing = self.query_one("#choices", OptionList)
         self._follows(listing)
         # Where the cursor is before the rows are built again: the two below them are about
         # the list rather than steps in it, so a cursor on one is on no step at all.
         apart = self.under()
-        rows = [row for row in self._rows() if self.fits(row[1], row[2])]
+        rows = [row for row in self._step_rows() if self.fits(row[1], row[2])]
         self._counting = len(str(max(len(rows), 1)))
         if all(row[0] != self._was for row in rows):
             self._was = rows[0][0] if rows else ""
@@ -6269,39 +6038,18 @@ class Fallbacks(Drafts[list[str]]):
             + [
                 self._seeking(here=at == len(rows)),
                 self._adding("a step", here=at == len(rows) + 1),
-                self._saves("these steps", here=at == len(rows) + 2),
+                self._saves("what is set here", here=at == len(rows) + 2),
             ]
         )
         listing.highlighted = at
         self._drawn = listing.highlighted
-        self.tabbed(self._tab_line())
+        said = self._said or ("" if rows else "nothing falls back anywhere yet")
         self.query_one("#tuning", Label).update(
-            f"[$text-muted]{self._said or self._nothing(rows)}[/]"
+            f"[$text-muted]{said}[/]" if said else ""
         )
         self._footed(Key("enter", "what happens"), Key("esc", "close"))
 
-    @staticmethod
-    def _nothing(rows: Sequence[object]) -> str:
-        """What to say under a page with nothing on it, which is where to start."""
-        return "" if rows else "nothing falls back anywhere yet"
-
-    def _follows(self, listing: OptionList) -> None:
-        """Takes which row the cursor is on off the list, by its id.
-
-        Only a row that is a step: the two below them are about the list rather than in it,
-        and one taken for a step would be looked for among the steps, not found, and the
-        cursor put back on the first of them as it arrived.
-
-        Args:
-          listing: The list.
-        """
-        at = listing.highlighted
-        if at is not None and 0 <= at < listing.option_count:
-            named = str(listing.get_option_at_index(at).id or "").removeprefix("=")
-            if named and named not in _APART:
-                self._was = named
-
-    def _drops(self, said: str) -> None:
+    def _drops_step(self, said: str) -> None:
         """Holds one place having nothing written about it, until the menu is saved.
 
         Held rather than done, as everything on this menu is: the row goes from the list at
@@ -6316,23 +6064,19 @@ class Fallbacks(Drafts[list[str]]):
         self.changed()
         self._fill()
 
-    @on(OptionList.OptionSelected)
-    def _took(self, event: OptionList.OptionSelected) -> None:
-        """Asks what happens when the place under the cursor cannot take a turn.
+    def _took_step(self, named: str) -> None:
+        """Asks what happens when the place chosen cannot take a turn, or adds one.
 
         Args:
-          event: What was chosen.
+          named: The row chosen, by its id.
         """
-        named = str(event.option.id or "").removeprefix("=")
         if named == _ADD:
-            self._adds()
-        elif named == _SAVE:
-            self.applied()
+            self._adds_step()
         elif named:
-            self._doing(named)
+            self._doing_step(named)
 
     @work
-    async def _adds(self) -> None:
+    async def _adds_step(self) -> None:
         """Chooses the place that cannot run, and then the place that takes its turns."""
         if self.opening():
             return
@@ -6348,7 +6092,7 @@ class Fallbacks(Drafts[list[str]]):
         self._writes(said, at)
 
     @work
-    async def _doing(self, said: str) -> None:
+    async def _doing_step(self, said: str) -> None:
         """Asks what to do about one step: where it goes, or how often it is taken again.
 
         Args:
@@ -6358,12 +6102,12 @@ class Fallbacks(Drafts[list[str]]):
             "App[None]",
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
-        step = self._step(said)
+        step = self._step_of(said)
         chosen = await showing.push_screen_wait(Failing(said, step))
         if chosen is None:
             return  # walked out, which changes nothing
         if chosen == _TAKES_AWAY:
-            self._drops(said)
+            self._drops_step(said)
             return
         if chosen == _GOES:
             at = await self._chosen(f"What takes {said}'s turns")
@@ -6376,7 +6120,7 @@ class Fallbacks(Drafts[list[str]]):
         if tried is not None:
             self._tries(said, *tried)
 
-    def _step(self, said: str) -> Step:
+    def _step_of(self, said: str) -> Step:
         """The step written against one place, or an empty one for a place with none."""
         from hmz.coganchor.fallbacks import Falls
 
@@ -6395,7 +6139,7 @@ class Fallbacks(Drafts[list[str]]):
             self._said = "a place cannot fall back to itself"
             self._fill()
             return
-        self._held(replace(self._step(said), to=at))
+        self._holds_step(replace(self._step_of(said), to=at))
 
     def _tries(self, said: str, tries: int, policy: str, timeout: float) -> None:
         """Holds how often a failed turn at one place is taken again, until the menu is saved.
@@ -6408,11 +6152,11 @@ class Fallbacks(Drafts[list[str]]):
         """
         from dataclasses import replace
 
-        self._held(
-            replace(self._step(said), tries=tries, policy=policy, timeout=timeout)
+        self._holds_step(
+            replace(self._step_of(said), tries=tries, policy=policy, timeout=timeout)
         )
 
-    def _held(self, step: Step) -> None:
+    def _holds_step(self, step: Step) -> None:
         """Puts one step in place of whatever was held against that place.
 
         Args:
@@ -6440,24 +6184,27 @@ class Fallbacks(Drafts[list[str]]):
             "App[None]",
             self.app,  # pyright: ignore[reportUnknownMemberType]
         )
-        cli = await showing.push_screen_wait(Clis(self._agents))
+        cli = await showing.push_screen_wait(Clis(self._offered))
         if not cli:
             return ""
         account = await showing.push_screen_wait(Accounts(cli))
         if account is None:
             return ""
         model = await showing.push_screen_wait(
-            Catalogue(cli, account, self._agents.get(cli, ()))
+            Catalogue(cli, account, self._offered.get(cli, ()))
         )
         if not model:
             return ""
         self._said = escape(asked)
         return _hmz().fallbacks.spec(cli, model, account)
 
-    def applied(self) -> None:
-        """Writes down every step, and answers with what it did."""
+    def _applies_steps(self, told: list[str]) -> None:
+        """Writes down every step that was changed, and says what it did.
+
+        Args:
+          told: What the transcript is to say, which this adds to.
+        """
         steps = _hmz().fallbacks
-        told: list[str] = []
         # Against what is written down rather than over it: a menu somebody opened to change
         # one thing must not report the four it left alone as things it did.
         was = {one.spec: one for one in steps.all()}
@@ -6476,7 +6223,6 @@ class Fallbacks(Drafts[list[str]]):
                 told.append(f"hmz: {escape(str(why))}")
             else:
                 told.append(f"[dim]{escape(said)} {escape(_falling(step))}[/dim]")
-        self.dismiss(told)
 
 
 def _falling(step: Step) -> str:
@@ -6515,8 +6261,8 @@ class Account(Picks):
     somebody deciding to be rid of it is deciding about.
 
     How many times over a failed turn is tried again is not among them. That is a thing about
-    the place a turn runs at rather than about the credentials it runs with, and `/fallback`
-    is the menu it is said on.
+    the place a turn runs at rather than about the credentials it runs with, and the
+    fallback page of `/settings` is where it is said.
     """
 
     #: A few rows, read rather than narrowed.
@@ -6539,8 +6285,8 @@ class Account(Picks):
         self._gone = gone
         self.asked = f"{cli}/{name}" if name else f"{cli}, as this machine is signed in"
         self.about = (
-            "Correcting it, pointing it somewhere and taking it away land when the accounts "
-            "menu is saved; signing in happens as it is asked for."
+            "Correcting it, pointing it somewhere and taking it away land when /settings is "
+            "saved; signing in happens as it is asked for."
         )
 
     def rows(self) -> list[tuple[str, str, str]]:
@@ -6569,9 +6315,9 @@ class Account(Picks):
             (
                 _TAKES_AWAY,
                 "keep it after all" if self._gone else "take it away",
-                "it is held to go when the accounts menu is saved"
+                "it is held to go when /settings is saved"
                 if self._gone
-                else "the account and its credentials, when that menu is saved",
+                else "the account and its credentials, when /settings is saved",
             ),
         ]
 
@@ -6592,32 +6338,42 @@ class Account(Picks):
         )
 
 
-class Providers(Drafts[list[str]]):
-    """Every account there is to run an agent as, under a heading per CLI.
+class Providers(Pages):
+    """The accounts page of `/settings`: every account to run an agent as, per CLI.
 
     Read rather than chosen from: which account an agent runs as is asked where that agent is
     set up, so nothing here is being picked for anything. What it is for is what can happen to
     one -- made, set up again, signed in again, marked as where a turn goes when another
     account fails, taken away -- and all but the first of those are one menu, opened with
-    enter on the account they are about. A row of letter keys was a row of keys somebody had
-    to read off the bottom of the screen while enter, which every list already means, did one
-    of the four.
+    enter on the account they are about.
 
     What is written down without running anything is held until the menu is saved: taking one
     away, marking one as a fallback, correcting what one holds. What cannot be held is what
     runs a command of its own -- making an account and signing one in own the terminal while
-    they run, and something that has already happened is not a draft.
+    they run, and something that has already happened is not a draft. Either way an agent
+    reads the account it was configured with once, so what changes here is what its next
+    session runs as, and the row says so while it is held.
 
     Each row is the name, the way it was made by and the variables it sets. Their names and
     never a value: this is drawn where somebody can read it.
     """
 
-    SEARCHES: ClassVar = True
+    #: What the page says it is.
+    ACCOUNTS_ABOUT = (
+        "One named set of credentials per account, kept apart from the CLI's own and from "
+        "each other's. An agent is given one where it is set up. Making one and signing one "
+        "in happen as they are asked for; the rest lands when this menu is saved, and an "
+        "agent runs as it from its next session."
+    )
+
+    #: What a row says about an account whose change lands when the menu is saved, and when
+    #: that change is felt: not by a session that is running, which read its account once.
+    NEXT_SESSION = "from the next agent session"
 
     def __init__(self) -> None:
-        """Reads every account there is."""
+        """Holds nothing until the page is first read."""
         super().__init__()
-        self._found: list[Provider] = []
+        self._accounts: list[Provider] = []
         #: The ones to take away when this is saved, as `cli/name`.
         self._gone: set[str] = set()
         #: What each one is to fall back to when this is saved, by `cli/name`: the name of
@@ -6629,37 +6385,16 @@ class Providers(Drafts[list[str]]):
         #: `cli/name`: an account that several CLIs can be run as is corrected for all of
         #: them at once, which is the point of having copied it in the first place.
         self._alike: dict[str, tuple[str, ...]] = {}
-        #: Which account the cursor is on, as `cli/name`: the headings between them are rows
-        #: nothing can land on, so a row number is not an account.
-        self._was = ""
-        #: What is worth saying under the list, and what is worth saying in the transcript
-        #: once this menu is done with.
-        self._said = ""
-        self._told: list[str] = []
 
-    def _ask(self) -> None:
-        """Says what these are, and puts them up."""
-        self.query_one("#asked", Label).update("Providers")
-        self.query_one("#about", Label).update(
-            "One named set of credentials per account, kept apart from the CLI's own and "
-            "from each other's. An agent is given one where it is set up. Taking one away, "
-            "pointing one somewhere and correcting one land when this menu is saved; making "
-            "one and signing one in happen as they are asked for."
-        )
-        self._read()
-        self._fill()
-        self.query_one("#choices", OptionList).focus()
-
-    def _read(self) -> None:
+    def _read_accounts(self) -> None:
         """Reads every account off the disk, which is what the rows are drawn from.
 
         The account this machine is already signed into is one of them, under each CLI that
         has one of its own: it is what an agent nobody gave an account runs as, and it is
-        where that agent's chain begins, so it is a row to press f and t on like any other.
-        Under a CLI with no accounts there is nothing for it to fall back to, so it is a row
-        there only where something has already been said about it -- a chain that outlived
-        the accounts it named -- which must not be a setting somebody believes in that nothing
-        shows.
+        where that agent's chain begins. Under a CLI with no accounts there is nothing for it
+        to fall back to, so it is a row there only where something has already been said about
+        it -- a chain that outlived the accounts it named -- which must not be a setting
+        somebody believes in that nothing shows.
 
         Last in each CLI's group rather than first: what somebody came here to read is the
         accounts they made, and this is the one that was always there.
@@ -6676,36 +6411,40 @@ class Providers(Drafts[list[str]]):
             if (one := accounts.find(profile.name, LOCAL)) is not None
             and (profile.name in whose or one.fallback)
         ]
-        self._found = sorted(
+        self._accounts = sorted(
             [*held, *mine], key=lambda one: (one.cli, not one.name, one.name)
         )
 
-    def _named(self, one: Provider) -> str:
+    @staticmethod
+    def _named(one: Provider) -> str:
         """One account as it is keyed here, which is by the CLI it belongs to and its name."""
         return f"{one.cli}/{one.name}"
 
-    def _about(self, one: Provider) -> str:
-        """What a row says about one account, and what is going to happen to it."""
+    def _account_about(self, one: Provider) -> str:
+        """What a row says about one account, what is going to happen to it, and when."""
+        named = self._named(one)
         said = (
             _sets(one) if one.name else "the CLI as this machine is already signed in"
         )
-        if self._named(one) in self._edits:
+        if named in self._edits:
             said += f"{_DOT}corrected"
-        falls = self._chains.get(self._named(one), one.fallback)
+        falls = self._chains.get(named, one.fallback)
         if falls:
             said += f"{_DOT}falls back to {falls}"
-        if self._named(one) in self._gone:
+        if named in self._gone:
             said += f"{_DOT}to be taken away"
+        if named in self._edits or named in self._chains or named in self._gone:
+            said += f"{_DOT}{self.NEXT_SESSION}"
         return said
 
-    def _fill(self) -> None:
+    def _fill_accounts(self) -> None:
         """Puts the accounts up under a heading apiece, marked where the cursor is."""
         listing = self.query_one("#choices", OptionList)
         self._follows(listing)
         # Where the cursor is before the rows are built again: the two below them are about
         # the list rather than accounts in it, so a cursor on one is on no account at all.
         apart = self.under() if self.under() in _APART else ""
-        shown = [one for one in self._found if self.fits(one.name, one.cli, one.way)]
+        shown = [one for one in self._accounts if self.fits(one.name, one.cli, one.way)]
         self._counting = len(str(max(len(shown), 1)))
         if all(self._named(one) != self._was for one in shown):
             # Gone, or never there: the cursor starts on the first of them, and a list with
@@ -6731,8 +6470,8 @@ class Providers(Drafts[list[str]]):
                     self._row(
                         seen,
                         one.name or "as local",
-                        self._about(one),
-                        here=not apart and named == self._was,
+                        self._account_about(one),
+                        here=apart not in _APART and named == self._was,
                         inforce=False,
                     ),
                     id=f"={named}",
@@ -6745,42 +6484,26 @@ class Providers(Drafts[list[str]]):
             apart = _ADD
         rows.append(self._seeking(here=apart == _SEARCH))
         rows.append(self._adding("an account", here=apart == _ADD))
-        rows.append(self._saves("these accounts", here=apart == _SAVE))
+        rows.append(self._saves("what is set here", here=apart == _SAVE))
         if apart in below:
             landing = len(rows) - len(below) + below.index(apart)
         listing.set_options(rows)
         listing.highlighted = landing
         self._drawn = listing.highlighted
-        self.tabbed(self._tab_line())
-        said = self._said or ("" if self._found else "no accounts yet")
+        said = self._said or ("" if self._accounts else "no accounts yet")
         self.query_one("#tuning", Label).update(
             f"[$text-muted]{said}[/]" if said else ""
         )
         self._footed(Key("enter", "what to do"), Key("esc", "close"))
 
-    def _follows(self, listing: OptionList) -> None:
-        """Takes which account the cursor is on off the list, by `cli/name`.
-
-        The headings between them are rows nothing can land on, so a row number is not an
-        account and the id on the row is the only thing that says which one is meant. The
-        two rows below them are not accounts either, and one taken for one would be looked
-        for among them, not found, and the cursor put back on the first account as it
-        arrived.
-
-        Args:
-          listing: The list.
-        """
-        at = listing.highlighted
-        if at is not None and 0 <= at < listing.option_count:
-            named = str(listing.get_option_at_index(at).id or "").removeprefix("=")
-            if named and named not in _APART:
-                self._was = named
-
-    def _under(self) -> Provider | None:
+    def _account_under(self) -> Provider | None:
         """The account the cursor is on, or None where the list has nothing in it."""
-        return next((one for one in self._found if self._named(one) == self._was), None)
+        return next(
+            (one for one in self._accounts if self._named(one) == self._was), None
+        )
 
-    def _machines(self, cli: str, doing: str) -> str:
+    @staticmethod
+    def _machines(cli: str, doing: str) -> str:
         """Why the account this machine is signed into is not one to do that to.
 
         Args:
@@ -6800,15 +6523,12 @@ class Providers(Drafts[list[str]]):
         )
 
     @work
-    async def action_fallback(self, one: Provider | None = None) -> None:
+    async def _falls_back(self, one: Provider) -> None:
         """Asks which account a turn under this one carries on under when it fails.
 
         Args:
-          one: The account, or None for the one the cursor is on.
+          one: The account.
         """
-        one = one or self._under()
-        if one is None:
-            return
         named = self._named(one)
         showing = cast(
             "App[None]",
@@ -6827,18 +6547,13 @@ class Providers(Drafts[list[str]]):
         self.changed()
         self._fill()
 
-    def _drops(self, one: Provider) -> None:
+    def _drops_account(self, one: Provider) -> None:
         """Holds one account to be taken away when this menu is saved, or takes that back.
 
         Held rather than done, as the rest of what this menu writes down is: credentials go
         with it, and a menu that deleted as it was read would be one where walking out had
         changed something nobody confirmed. The row stays where it is, saying what is going
         to happen to it, so the cursor is left on the thing it was on.
-
-        Nothing is refused here. The account this machine is already signed into is not
-        offered the row that answers with this -- humanize did not make it and keeps no
-        credentials for it -- and :meth:`Account.nothing` is where that is said, which is
-        where somebody looking for the row would have been looking.
 
         Args:
           one: The account.
@@ -6854,26 +6569,23 @@ class Providers(Drafts[list[str]]):
         self.changed()
         self._fill()
 
-    @on(OptionList.OptionSelected)
-    def _took(self, event: OptionList.OptionSelected) -> None:
-        """Opens what there is to do with the account under the cursor.
+    def _took_account(self, named: str) -> None:
+        """Opens what there is to do with the account chosen, or makes one.
 
         Args:
-          event: What was chosen.
+          named: The row chosen, by its id.
         """
-        named = str(event.option.id or "").removeprefix("=")
         if named == _ADD:
-            self._makes()
+            self._adds_account()
             return
-        if named == _SAVE:
-            self.applied()
-            return
-        one = next((each for each in self._found if self._named(each) == named), None)
+        one = next(
+            (each for each in self._accounts if self._named(each) == named), None
+        )
         if one is not None:
-            self._doing(one)
+            self._doing_account(one)
 
     @work
-    async def _doing(self, one: Provider) -> None:
+    async def _doing_account(self, one: Provider) -> None:
         """Asks what to do with one account, and does it.
 
         Args:
@@ -6891,11 +6603,11 @@ class Providers(Drafts[list[str]]):
         if said == _CORRECTS:
             self._corrects(one)
         elif said == _SIGNS_IN:
-            self.action_again(one)
+            self._again(one)
         elif said == _FALLS_BACK:
-            self.action_fallback(one)
+            self._falls_back(one)
         elif said == _TAKES_AWAY:
-            self._drops(one)
+            self._drops_account(one)
 
     @work
     async def _corrects(self, one: Provider) -> None:
@@ -6946,7 +6658,7 @@ class Providers(Drafts[list[str]]):
         self._fill()
 
     @work
-    async def _makes(self) -> None:
+    async def _adds_account(self) -> None:
         """Asks which CLI, and then walks that backend's own way in.
 
         Two questions rather than one, because the second is only answerable once the first
@@ -7005,11 +6717,12 @@ class Providers(Drafts[list[str]]):
         self._said = self._landed(one, outcome.status, runs=outcome.runs)
         if outcome.copied:
             self._said += f"{_DOT}and runs {escape(', '.join(outcome.copied))} too"
-        self._read()
+        self._read_accounts()
         self._was = self._named(one)
         self._fill()
 
-    def _landed(self, one: Provider, status: int, *, runs: int) -> str:
+    @staticmethod
+    def _landed(one: Provider, status: int, *, runs: int) -> str:
         """What to say about an account that has just been made or signed in again.
 
         Args:
@@ -7030,16 +6743,13 @@ class Providers(Drafts[list[str]]):
         )
 
     @work
-    async def action_again(self, one: Provider | None = None) -> None:
+    async def _again(self, one: Provider) -> None:
         """Runs one account's own way in again, asking for whatever it still needs.
 
         Args:
-          one: The account, or None for the one the cursor is on.
+          one: The account.
         """
         accounts = _hmz().accounts
-        one = one or self._under()
-        if one is None:
-            return
         if not one.name:
             self._said = self._machines(one.cli, "sign in")
             self._fill()
@@ -7117,10 +6827,14 @@ class Providers(Drafts[list[str]]):
         )
         self._fill()
 
-    def applied(self) -> None:
-        """Does everything the menu was holding, and answers with what became of each."""
+    def _applies_accounts(self, told: list[str]) -> None:
+        """Does everything the accounts page was holding, and says what became of each.
+
+        Args:
+          told: What the transcript is to say, which this adds to.
+        """
         accounts = _hmz().accounts
-        told = list(self._told)
+        was = len(told)
         # Taken away first, and then everything that is left: a chain pointed at an account
         # that is going in the same save is a chain that goes nowhere, and one written before
         # the removal would be written and then quietly left dangling.
@@ -7136,7 +6850,7 @@ class Providers(Drafts[list[str]]):
                 if gone
                 else f"hmz: no provider {escape(taken)}"
             )
-        for one in self._found:
+        for one in self._accounts:
             named = self._named(one)
             if named in self._gone:
                 continue  # gone above, so there is nothing to correct or point anywhere
@@ -7167,18 +6881,380 @@ class Providers(Drafts[list[str]]):
                         if falls
                         else f"[dim]{escape(named)} falls back to nowhere[/dim]"
                     )
-        self.dismiss(told)
+        if len(told) > was:
+            # When it is felt, said once rather than on every line: an agent reads the
+            # account it was configured with once, so one running now carries on as it was.
+            told.append(f"[dim]the accounts apply {self.NEXT_SESSION}[/dim]")
 
-    def leaving(self) -> None:
-        """Asks about what is held, and answers with what happened where nothing is.
 
-        A menu that made an account and then held nothing still has something to say: what it
-        did, it did as it was asked to, and the transcript is where that is said.
+class Adjusted(NamedTuple):
+    """What the settings menu answers with: what was changed, and what happened.
+
+    Attributes:
+      enable_sentry: Whether humanize reports its own failures from now on, or None where
+        that was not touched.
+      details: Whether the working of each turn is shown, or None where that was not touched.
+      profile: Whether a run in this directory is profiled as well as traced, or None where
+        that was not touched.
+      forget: Whether to forget what this workspace was set up to run.
+      told: What the pages that write for themselves -- the accounts, the fallbacks and the
+        flowverses -- did, as lines for the transcript.
+      placed: The last thing that happened to the flowverses, or "" for nothing.
+    """
+
+    enable_sentry: bool | None = None
+    details: bool | None = None
+    profile: bool | None = None
+    forget: bool = False
+    told: tuple[str, ...] = ()
+    placed: str = ""
+
+
+class Adjusts(Providers, Fallbacks, Flowverses):
+    """Every setting humanize has: `/settings`, one menu of five pages.
+
+    Everywhere is what is true of this machine however many projects are driven from it;
+    this directory is one directory's; the accounts, the fallbacks and the flowverses are
+    the places agents run as, turns go when they cannot, and flows come from. One menu
+    because they are one question -- what does humanize remember -- and a command apiece
+    was five things to learn the names of.
+
+    A menu rather than a file to edit, for the reason every other menu here is one: what is
+    written down is written down in humanize's own words, and a person should not have to know
+    the shape of a YAML file to turn a thing off. What is held lands together when the menu
+    is left and saving is confirmed, and each setting takes effect at once where it can;
+    where it cannot, the row says when it will while it is held and the transcript says so
+    once it is saved. What runs a command of its own -- making an account, signing one in,
+    fetching a flowverse -- happens as it is asked for, as it always did.
+    """
+
+    TABS: ClassVar = (
+        "Everywhere",
+        "This directory",
+        "Accounts",
+        "Fallback",
+        "Flowverses",
+    )
+
+    class Settled(Message):
+        """Says what the settings menu was answered with, to whoever applies it.
+
+        Posted to the interface rather than only answered to whoever opened the menu: the
+        flow menu opens it too, from the row below its flows, and what was changed there is
+        the interface's to apply all the same -- the details it shows, the directory it remembers.
         """
-        if not self._changed:
-            self.dismiss(self._told or None)
-            return
-        self.asks_to_save()
+
+        def __init__(self, said: Adjusted) -> None:
+            """Carries the answer.
+
+            Args:
+              said: What the menu was answered with.
+            """
+            super().__init__()
+            self.said = said
+
+    def __init__(
+        self, agents: Mapping[str, tuple[Model, ...]], *, page: int = _EVERYWHERE
+    ) -> None:
+        """Initializes the menu on what is remembered now.
+
+        What is written down rather than what is happening: the environment may answer the
+        reporting question for one run, and a menu that showed that would be a menu offering
+        to change a thing it cannot. The page says so under the list where the two differ.
+
+        Args:
+          agents: The backends offered here, and what each of them says it runs, which is
+            what the fallback page chooses a place out of.
+          page: Which page to open on.
+        """
+        super().__init__()
+        settings = _hmz().settings
+        self._sentry = self._sentry_was = settings.enable_sentry
+        self._overridden = telemetry.enabled() is not self._sentry
+        self._details = self._details_was = settings.details
+        #: The agent `/btw` talks to outside a session, for a humanize that has one.
+        self._btw: str | None = (
+            str(getattr(settings, _BTW) or "")
+            if hasattr(type(settings), _BTW)
+            else None
+        )
+        self._workspace = str(Path.cwd())
+        self._flow = settings.flow
+        self._roles = len(settings.agents(settings.flow))
+        self._flows = len(settings.flows())
+        self._profile = self._profile_was = settings.profiling
+        self._forget = False
+        self._offered = dict(agents)
+        self._steps = list(_hmz().fallbacks.all())
+        self._tab = page
+
+    def _ask(self) -> None:
+        """Says what the menu is, reads the pages that are lists, and puts one up."""
+        self.query_one("#asked", Label).update("Settings")
+        self._read_accounts()
+        self._read_verses()
+        self._fill()
+        self.query_one("#choices", OptionList).focus()
+
+    def _turn_page(self, by: int) -> None:
+        """Turns the page, leaving what was said on the last one with it.
+
+        Args:
+          by: One page forward or back.
+        """
+        self._said, self._was = "", ""
+        # And the rows it was drawn with, which the next page would otherwise read the cursor
+        # off: the row to add one more on the accounts is not a row of the fallbacks.
+        self.query_one("#choices", OptionList).clear_options()
+        super()._turn_page(by)
+
+    def _rows(self) -> list[tuple[str, str, str]]:
+        """The rows of the first two pages: its id, what it says, and what it means."""
+        if self._tab == _DIRECTORY:
+            profile = "profile the programs a run here starts"
+            if self._profile != self._profile_was:
+                profile += f"{_DOT}{_NEXT_RUN}"
+            forget = (
+                f"forget what is remembered here, across {_many(self._flows, 'flow')}"
+            )
+            if self._forget:
+                forget += f"{_DOT}{_NEXT_LAUNCH}"
+            return [
+                (
+                    _WORKSPACE,
+                    _shortly(self._workspace),
+                    "the directory these are remembered for",
+                ),
+                (
+                    _RUNS,
+                    self._flow or "nothing yet",
+                    f"the flow it opens on, set up with {_many(self._roles, 'agent')}",
+                ),
+                (_PROFILES, _YES if self._profile else _NO, profile),
+                (_FORGET, _YES if self._forget else _NO, forget),
+            ]
+        rows = [
+            (
+                _SENTRY,
+                {True: _YES, False: _NO, None: "not answered yet"}[self._sentry],
+                "report what goes wrong to humanize",
+            ),
+            (_SENT, "", "what a report carries, and what it never does"),
+            (
+                _DETAILS,
+                _YES if self._details else _NO,
+                "show every tool call and all of the thinking",
+            ),
+        ]
+        if self._btw is not None:
+            rows.append(
+                (
+                    _BTW,
+                    self._btw or "not set",
+                    "the agent /btw talks to outside a session",
+                )
+            )
+        return rows
+
+    def _fill(self) -> None:
+        """Puts up whichever page is open, and the titles above it."""
+        self.query_one("#about", Label).update(
+            {
+                _EVERYWHERE: "What humanize remembers about this machine.",
+                _DIRECTORY: "What it remembers about this directory: the flow it opens "
+                "on, and what that flow was last set up to run.",
+                _ACCOUNTS: self.ACCOUNTS_ABOUT,
+                _FALLBACK: self.STEPS_ABOUT,
+                _VERSES: self.VERSES_ABOUT,
+            }[self._tab]
+        )
+        self.tabbed(self._tab_line())
+        if self._tab == _ACCOUNTS:
+            self._fill_accounts()
+        elif self._tab == _FALLBACK:
+            self._fill_steps()
+        elif self._tab == _VERSES:
+            self._fill_verses()
+        else:
+            self._fill_own()
+
+    def _fill_own(self) -> None:
+        """Puts up the first or second page, which are settings rather than lists."""
+        listing = self.query_one("#choices", OptionList)
+        rows = self._rows()
+        self._counting = len(str(len(rows)))
+        at = min(listing.highlighted or 0, len(rows))
+        listing.set_options(
+            [
+                Option(
+                    self._row(
+                        seen,
+                        name,
+                        self._says(name, value, about),
+                        here=seen == at,
+                        inforce=False,
+                    ),
+                    id=f"={name}",
+                )
+                for seen, (name, value, about) in enumerate(rows)
+            ]
+            + [self._saves("what is set here", here=at == len(rows))]
+        )
+        listing.highlighted = at
+        self._drawn = at
+        said = self._said
+        if (
+            not said
+            and self._tab == _EVERYWHERE
+            and self._overridden
+            and self._sentry == self._sentry_was
+        ):
+            said = f"{SAYS} is set, so this run does the opposite of what this says"
+        self.query_one("#tuning", Label).update(
+            f"[$text-muted]{said}[/]" if said else ""
+        )
+        self._keys_for(rows[at][0] if at < len(rows) else _SAVE)
+
+    @staticmethod
+    def _says(name: str, value: str, about: str) -> str:
+        """One row, less its name: what it is set to, whether it moves, and what it means.
+
+        Args:
+          name: The row, by id.
+          value: What it is set to, or "" for a row that is not set to anything.
+          about: What it means.
+
+        Returns:
+          The line, with the mark that says which of the three kinds of row it is -- turned
+          round where it stands, opened onto something to read, or neither.
+        """
+        mark = _CYCLES if name in _SWITCHES else _OPENS if name == _SENT else ""
+        shown = f"{value} {mark}".strip()
+        return f"{shown}   {about}" if shown else about
+
+    def _keys_for(self, held: str) -> None:
+        """Says what the keys do on the row under the cursor, which is not the same on each.
+
+        Args:
+          held: The row, by id.
+        """
+        close = Key("esc", "close")
+        if held == _SENT:
+            self._footed(Key("enter", "read"), close)
+        else:
+            self._footed(close)
+
+    def editable(self, row: str) -> bool:
+        """Whether a row is a switch, turned round where it stands.
+
+        Only on the first two pages: the others are lists, whose rows are things rather than
+        settings, and one of them may be called whatever a switch is called.
+
+        Args:
+          row: The row, by id.
+
+        Returns:
+          True for the switches.
+        """
+        return self._tab not in _LISTS and row in _SWITCHES
+
+    def held(self) -> object:
+        """What every switch says now."""
+        return (self._sentry, self._details, self._profile, self._forget)
+
+    def put_back(self, was: object) -> None:
+        """Puts every switch back as it was.
+
+        Args:
+          was: What :meth:`held` answered.
+        """
+        self._sentry, self._details, self._profile, self._forget = cast(
+            "tuple[bool | None, bool, bool, bool]", was
+        )
+
+    def step(self, row: str, by: int) -> None:
+        """Turns one switch round, whichever way the arrow points.
+
+        Args:
+          row: The switch.
+          by: Which way, which a switch of two has no use for.
+        """
+        del by
+        if row == _SENTRY:
+            self._sentry = not self._sentry
+        elif row == _DETAILS:
+            self._details = not self._details
+        elif row == _PROFILES:
+            self._profile = not self._profile
+        elif row == _FORGET:
+            self._forget = not self._forget
+        self._said = ""
+
+    @on(OptionList.OptionSelected)
+    def _took(self, event: OptionList.OptionSelected) -> None:
+        """Does what enter does on the row chosen, which each page says for itself.
+
+        Args:
+          event: What was chosen.
+        """
+        held = str(event.option.id or "").removeprefix("=")
+        if held == _SAVE:
+            self.applied()
+        elif self._tab == _ACCOUNTS:
+            self._took_account(held)
+        elif self._tab == _FALLBACK:
+            self._took_step(held)
+        elif self._tab == _VERSES:
+            self._took_verse(held)
+        elif held == _SENT:
+            sent, kept = "; ".join(SENT), "; ".join(KEPT)
+            self._said = f"Sent: {sent}. Never: {kept}."
+            self._fill()
+
+    def applied(self) -> None:
+        """Lands what every page was holding, and answers with what was changed."""
+        told = list(self._told)
+        self._applies_accounts(told)
+        self._applies_steps(told)
+        self.dismiss(
+            Adjusted(
+                enable_sentry=self._sentry
+                if self._sentry is not None and self._sentry != self._sentry_was
+                else None,
+                details=self._details if self._details != self._details_was else None,
+                profile=self._profile if self._profile != self._profile_was else None,
+                forget=self._forget,
+                told=tuple(told),
+                placed=self._placed,
+            )
+        )
+
+    def dismiss(self, result: Adjusted | None = None) -> AwaitComplete:
+        """Answers, saying what happened even where nothing held was saved.
+
+        Making an account and fetching a flowverse happen as they are asked for, so a menu
+        walked out of without saving -- or with what it held thrown away -- still has
+        something to say about them. And it is said to the interface as well as answered,
+        since the interface is what applies the rest.
+
+        Args:
+          result: What the menu is answered with, or None for nothing held.
+
+        Returns:
+          The waiting, as a sheet's own is.
+        """
+        said = result or (
+            Adjusted(told=tuple(self._told), placed=self._placed)
+            if self._told
+            else None
+        )
+        if said is not None and not self._answered:
+            showing = cast(
+                "App[None]",
+                self.app,  # pyright: ignore[reportUnknownMemberType]
+            )
+            showing.post_message(self.Settled(said))
+        return super().dismiss(said)
 
 
 #: What can be done with a run that has already happened, once somebody is inside it: pick it

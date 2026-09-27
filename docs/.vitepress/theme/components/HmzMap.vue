@@ -34,8 +34,8 @@ const AREAS: Area[] = [
       {
         name: 'Any coding agent',
         line: 'Claude Code, Codex, Cursor, Kimi and eight more, most under the login they already have.',
-        link: '/user/providers',
-        page: 'Providers',
+        link: '/user/settings#accounts',
+        page: 'Accounts',
       },
       {
         name: 'Model and effort',
@@ -46,13 +46,13 @@ const AREAS: Area[] = [
       {
         name: 'Two accounts of one CLI',
         line: 'A subscription and a gateway of the same CLI, side by side, each with its own login.',
-        link: '/user/providers',
-        page: 'Providers',
+        link: '/user/settings#accounts',
+        page: 'Accounts',
       },
       {
         name: 'Fall back',
         line: 'When an account runs out, another takes the conversation on. When a CLI is gone, the turn moves where you said.',
-        link: '/user/fallback',
+        link: '/user/settings#fallback',
         page: 'Falling back',
       },
       {
