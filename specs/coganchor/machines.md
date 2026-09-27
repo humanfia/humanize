@@ -260,8 +260,9 @@ def hosts(
   that no provider could be, MUST NOT be listed either.
 - A provider MUST be refused where it is made, not where it is used: an ssh provider with
   neither a host nor an alias, a word `ssh` would read as an option, a setting it has a field
-  for given as an option, a value of more than one line; a docker provider with an endpoint
-  that is none of the kinds, certificates for one that is not `tcp://`, or a negative amount.
+  for given as an option, a value of more than one line, a config file under a home there is
+  none of; a docker provider with an endpoint that is none of the kinds, certificates for one
+  that is not `tcp://` or under a home there is none of, or a negative amount.
 - `add` MUST refuse a name already taken and `write` MUST replace what was there; `new` MUST
   write nothing, and a provider made again from what `held` wrote MUST be itself.
 - Every field of an ssh provider that is set MUST reach `ssh`, ahead of what humanize itself

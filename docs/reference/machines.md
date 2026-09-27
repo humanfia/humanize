@@ -233,7 +233,9 @@ sent there.
 | **Also** | | `short`: what it was saved as handing out and has not got |
 
 `reached` is `False` with `said` saying why where it did not answer in time, wanted a
-password, or was not there.
+password, was not there, or can no longer be reached as it was saved: a `tls_dir` or `config`
+under a `~user` the machine has no user for is refused when the provider is made, and said
+here where the home went away after it was saved.
 
 ## `AnchoredConfig`
 

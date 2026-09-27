@@ -23,6 +23,7 @@ from hmz.runtime.flowing.environing import MachineEnvDriver
 from hmz.runtime.flowing.environing_ssh import SSHMachine
 from hmz.runtime.flowing.environments import open_env
 from hmz.runtime.flowing.specs import EnvSpecError, parse_envs
+from hmz.sdk import Hmz
 
 #: Names a directory could hold and a provider may not have.
 _NOT_NAMES = [
@@ -36,6 +37,10 @@ _NOT_NAMES = [
     "-dash",
     "two words",
 ]
+
+
+#: A home no user has, which `Path.expanduser` raises for rather than answers.
+_NOBODY = "~hmz-no-such-user"
 
 
 def _mode(at: Path) -> int:
@@ -213,6 +218,7 @@ def test_one_is_taken_away_whole() -> None:
         ({"host": "h", "options": {"LogLevel": ""}}, "says nothing"),
         ({"host": "h", "options": {"SetEnv": 'A="b"'}}, "holds a quote"),
         ({"host": "h", "workdir": "relative/path"}, "neither absolute nor under"),
+        ({"host": "h", "config": f"{_NOBODY}/config"}, "under no home"),
         ({"host": "h", "made": "guessed"}, "not typed or imported"),
     ],
 )
@@ -237,6 +243,7 @@ def test_what_no_ssh_provider_could_be_is_refused(
         ({"endpoint": "ssh:../x"}, "is not a docker endpoint"),
         ({"endpoint": "context:"}, "is not a docker endpoint"),
         ({"tls_dir": "/certs"}, "for a tcp:// endpoint"),
+        ({"endpoint": "tcp://h:2376", "tls_dir": f"{_NOBODY}/certs"}, "under no home"),
         ({"image": "two words"}, "is not an image"),
         ({"runtime": "-x"}, "is not a runtime"),
         ({"gpus": ["0", "0"]}, "named twice"),
@@ -392,6 +399,22 @@ def test_a_tls_daemon_is_told_where_its_certificates_are() -> None:
         "/certs/key.pem",
         "ps",
     ]
+
+
+def test_a_provider_whose_home_has_gone_is_checked_without_raising() -> None:
+    """One written down while its home was there, asked after: said why, not raised."""
+    docker = DockerProvider(name="d", endpoint="tcp://10.0.0.3:2376", tls_dir="~/certs")
+    ssh = SSHProvider(name="s", host="h", config="~/config")
+    object.__setattr__(docker, "tls_dir", f"{_NOBODY}/certs")
+    object.__setattr__(ssh, "config", f"{_NOBODY}/config")
+
+    for provider in (docker, ssh):
+        checked = Hmz().environments.check(provider, seconds=5)
+
+        assert not checked.reached
+        assert "under no home there is" in checked.said
+    with pytest.raises(ValueError, match="under no home there is"):
+        store.daemon_of("tcp://10.0.0.3:2376", f"{_NOBODY}/certs")
 
 
 def test_a_daemon_behind_a_stored_ssh_host_is_dialled_as_that_host_says() -> None:

@@ -100,6 +100,18 @@ def _text(value: str, what: str) -> str:
     return value
 
 
+def _here(value: str, what: str) -> str:
+    """A path on this machine with its `~` or `~user` expanded, or ValueError.
+
+    `Path.expanduser` raises `RuntimeError` for a `~user` there is no such user for, which
+    would crash whatever reads the provider; that is a value it cannot take instead.
+    """
+    expanded = os.path.expanduser(value)  # noqa: PTH111 -- which raises for one
+    if expanded.startswith("~"):
+        raise ValueError(f"{what} {value!r} is under no home there is")
+    return expanded
+
+
 def _workdir(value: str) -> str:
     """A default workdir: absolute, or under the login's home, or none at all."""
     _text(value, "the workdir")
@@ -172,7 +184,7 @@ class SSHProvider:
         if self.proxy_jump and not _JUMP.match(self.proxy_jump):
             raise ValueError(f"{self.name}: {self.proxy_jump!r} is not a jump host")
         _text(self.identity_file, "the identity file")
-        _text(self.config, "the config file")
+        _here(_text(self.config, "the config file"), "the config file")
         _workdir(self.workdir)
         if self.made not in (TYPED, IMPORTED):
             raise ValueError(
@@ -208,10 +220,13 @@ class SSHProvider:
         Returns:
           `(KEYWORD, VALUE)` pairs as :attr:`hmz.coganchor.transport.Target.options` holds
           them: the config file as `F`, then the fields that are options, then the options.
+
+        Raises:
+          ValueError: For a config file under a home there is no longer any of.
         """
         said: list[tuple[str, str]] = []
         if self.config:
-            said.append(("F", str(Path(self.config).expanduser())))
+            said.append(("F", _here(self.config, "the config file")))
         if self.alias and self.host:
             said.append(("HostName", self.host))
         if self.identity_file:
@@ -282,7 +297,7 @@ class DockerProvider:
         _endpoint(self.endpoint)
         if self.tls_dir and not self.endpoint.startswith("tcp://"):
             raise ValueError(f"{self.name}: TLS certificates are for a tcp:// endpoint")
-        _text(self.tls_dir, "the TLS directory")
+        _here(_text(self.tls_dir, "the TLS directory"), "the TLS directory")
         if self.image and not re.fullmatch(r"[^\s]+", self.image):
             raise ValueError(f"{self.name}: {self.image!r} is not an image")
         if self.runtime and not _WORD.match(self.runtime):
@@ -407,14 +422,18 @@ def daemon_of(endpoint: str, tls_dir: str = "") -> Endpoint:
       The daemon.
 
     Raises:
-      ValueError: For an endpoint that is none of them, or `ssh:<name>` naming no stored
-        ssh provider.
+      ValueError: For an endpoint that is none of them, `ssh:<name>` naming no stored
+        ssh provider, or certificates under a home there is none of.
     """
     from hmz.coganchor.transport import Endpoint
 
     _endpoint(endpoint)
     if not endpoint.startswith("ssh:") or endpoint.startswith("ssh://"):
-        certs = f"?tls={Path(tls_dir).expanduser().absolute()}" if tls_dir else ""
+        certs = (
+            f"?tls={Path(_here(tls_dir, 'the TLS directory')).absolute()}"
+            if tls_dir
+            else ""
+        )
         return Endpoint.parse(endpoint + certs)
     name = endpoint[len("ssh:") :]
     found = find(SSH, name)
@@ -684,7 +703,7 @@ def imports(
     wanted = found if names is None else list(names)
     if missing := [one for one in wanted if one not in found]:
         raise ValueError(f"the ssh config names no host {', '.join(missing)}")
-    own = config is not None and Path(config).expanduser().resolve() != (
+    own = config is not None and Path(_here(str(config), "the config")).resolve() != (
         sshconfig.default().resolve()
     )
     # Every one made before any is written, so that one refused writes none of them.
@@ -712,7 +731,7 @@ def imports(
             provider = SSHProvider(
                 name=name,
                 alias=alias,
-                config=str(Path(config).expanduser().resolve())
+                config=str(Path(_here(str(config), "the config")).resolve())
                 if own and config
                 else "",
                 workdir=already.workdir if already is not None else "",

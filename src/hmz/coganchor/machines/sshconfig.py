@@ -11,6 +11,7 @@ those would be a second answer to keep in step with the first.
 from __future__ import annotations
 
 import glob
+import os
 import re
 import shlex
 import subprocess
@@ -19,7 +20,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import os
     from collections.abc import Sequence
 
 __all__ = ["SSHHost", "aliases", "default", "hosts", "resolve"]
@@ -89,8 +89,17 @@ def aliases(config: str | os.PathLike[str] | None = None) -> list[str]:
       such file.
     """
     named: list[str] = []
-    _read(Path(config).expanduser() if config is not None else default(), named, 0)
+    _read(_expanded(config) if config is not None else default(), named, 0)
     return named
+
+
+def _expanded(path: str | os.PathLike[str]) -> Path:
+    """A path with its `~` expanded as ssh would.
+
+    A `~user` there is no such user for is left as it is -- a file that is not there -- rather
+    than raised for, as `Path.expanduser` does.
+    """
+    return Path(os.path.expanduser(path))  # noqa: PTH111 -- see above
 
 
 def _read(at: Path, named: list[str], depth: int) -> None:
@@ -117,7 +126,7 @@ def _read(at: Path, named: list[str], depth: int) -> None:
         elif keyword == "include":
             for pattern in words:
                 # A relative one is under `~/.ssh`, as ssh reads it in a user's config.
-                path = Path(pattern).expanduser()
+                path = _expanded(pattern)
                 if not path.is_absolute():
                     path = default().parent / path
                 # `glob.glob`, since `Path.glob` takes no pattern that is absolute.
@@ -199,7 +208,7 @@ def hosts(
     Raises:
       OSError: If there is no `ssh`, or it cannot read the config.
     """
-    flags = ("-F", str(Path(config).expanduser())) if config is not None else ()
+    flags = ("-F", str(_expanded(config))) if config is not None else ()
     return [
         resolve(alias, flags, alias=alias, seconds=seconds) for alias in aliases(config)
     ]
