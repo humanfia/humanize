@@ -25,7 +25,7 @@ Type "/settings" Enter
 Wait+Screen /Settings/
 Sleep 2s
 
-# The first two of its five pages: what is true of this machine, and what is remembered about
+# The first two of its six pages: what is true of this machine, and what is remembered about
 # this directory, a press of the arrow across away.
 Right
 Wait+Screen /profile/

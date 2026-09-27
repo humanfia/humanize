@@ -85,7 +85,11 @@ or say what it is running.
   CLIs installed here whose harness is the one the role names and serves what the role asks,
   this machine's own account as `as local`, models known runnable as the chosen account, and
   efforts that model takes -- and letting an account be made where one is asked for. An
-  environment role MUST take a spec as `-e` spells one.
+  environment role MUST be set by its backend -- every one `-e` takes -- then, for a backend
+  that has them, a provider of it saved on the environments page, one made there and then, or
+  for ssh a host not saved, then its directory, starting from the one that provider is saved
+  with; MUST come to what `-e` spells, refused as `-e` refuses it; and MUST take that spelling
+  typed whole as well.
 - MUST be whoever is outside a run, once per outworlder: a question one puts MUST be shown on
   its transcript and the shared one and answered with the next line typed on either -- the
   oldest of that outworlder's, or of any on the shared one -- an offered answer taken by its
@@ -96,6 +100,15 @@ or say what it is running.
 - MUST offer on the flowverses page of `/settings`, per place flows come from, what it holds,
   adding one, fetching it again and taking one away, against the same store the flows are read
   from, with any credential in a URL hidden.
+- MUST list on the environments page of `/settings` every environment provider under its
+  backend -- ssh hosts, and docker daemons with what each may hand out -- and offer making either
+  on one form wherever one is asked for, importing the hosts an ssh config names -- the user's
+  own or another file, switched on per host and saved already or not, never writing to it --
+  and per provider correcting it, checking it and taking it away; MUST ask one what it has as
+  it is made or corrected and when checked -- an ssh host its home, CPUs, memory and GPUs, a
+  docker daemon the same and what it is saved to hand out that it has not got -- off the drawing
+  path, saying why where it cannot be reached; MUST apply all of it at once, so that the page
+  holds nothing; and MUST NOT read a key it names.
 - MUST list on the accounts page of `/settings` every account under its CLI and offer
   correcting, re-signing, what it fails over to and taking it away, never drawing a secret back
   onto the screen, a secret left blank while correcting keeping the one it has.
@@ -129,11 +142,12 @@ or say what it is running.
 - MUST draw the board a flow and a person share under the diagram, its lines nodes like any
   other, applying changes at once while the flow runs, taking a line away when it is saved empty,
   and refusing, where enter was pressed, to edit a line the flow owns.
-- MUST make `/settings [page]` the one menu of every setting, in five pages it opens on by the
-  name `everywhere`, `directory`, `accounts`, `fallback` or `flowverses`, offered as it is typed,
-  refusing any other: this machine (reporting, details, and the btw agent where there is one),
-  this directory, accounts, fallback and flowverses; forget this directory alone; keep what
-  each page last said while another is read; and remember whether details are shown.
+- MUST make `/settings [page]` the one menu of every setting, in six pages it opens on by the
+  name `everywhere`, `directory`, `accounts`, `environments`, `fallback` or `flowverses`, offered
+  as it is typed, refusing any other: this machine (reporting, details, and the btw agent where
+  there is one), this directory, accounts, environments, fallback and flowverses; forget this
+  directory alone; keep what each page last said while another is read; and remember whether
+  details are shown.
 - MUST apply each saved setting at once where it can, and otherwise say beside its row and in
   the transcript when it lands: profiling from the next flow run, accounts from the next agent
   session, forgetting from the next launch.

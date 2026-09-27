@@ -4694,7 +4694,8 @@ _COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "settings",
-        "Every setting: everywhere, this directory, accounts, fallback, flowverses",
+        "Every setting: everywhere, this directory, accounts, environments, fallback, "
+        "flowverses",
         lambda app, argv: app.action_settings(argv[0] if argv else ""),
         takes="[page]",
         offers=_PAGES,

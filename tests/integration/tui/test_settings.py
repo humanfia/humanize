@@ -463,10 +463,12 @@ def test_settings_offers_its_pages_by_name() -> None:
         "everywhere",
         "directory",
         "accounts",
+        "environments",
         "fallback",
         "flowverses",
     ]
     assert offered("/settings ac", _COMMANDS) == ["accounts"]
+    assert offered("/settings env", _COMMANDS) == ["environments"]
     # Written out in full, so enter over the list sends the line.
     assert offered("/settings accounts", _COMMANDS) == []
     assert offered("/settings accounts x", _COMMANDS) == []
@@ -475,7 +477,13 @@ def test_settings_offers_its_pages_by_name() -> None:
 @pytest.mark.timeout(60)
 @pytest.mark.parametrize(
     ("page", "tab"),
-    [("everywhere", 0), ("directory", 1), ("Accounts", 2), ("fallback", 3)],
+    [
+        ("everywhere", 0),
+        ("directory", 1),
+        ("Accounts", 2),
+        ("environments", 3),
+        ("fallback", 4),
+    ],
 )
 async def test_settings_opens_straight_onto_the_page_it_is_given(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, page: str, tab: int

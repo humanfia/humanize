@@ -3,7 +3,6 @@ from __future__ import annotations
 import importlib.machinery
 import importlib.util
 import shutil
-import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -136,87 +135,3 @@ def test_the_backend_that_arrives_with_humanize_is_asked_whether_it_is_set_up(
 
     assert discover.ready_to_open("dsh", tmp_path)
     assert not discover.ready_to_open("dsh", tmp_path / "elsewhere")
-
-
-# ----------------------------------------------- where a turn could land besides here
-
-
-def test_the_containers_running_here_are_offered_before_the_hosts(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
-    (tmp_path / ".ssh").mkdir()
-    (tmp_path / ".ssh" / "config").write_text("Host builder\n  HostName 10.0.0.2\n")
-    _docker(monkeypatch, "one\ntwo\n")
-
-    assert discover.machines() == [
-        ("docker://one", "container"),
-        ("docker://two", "container"),
-        ("ssh://builder", "ssh config"),
-    ]
-
-
-def test_a_machine_with_no_docker_and_no_ssh_config_only_runs_its_own_turns(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
-    _refuses(monkeypatch, FileNotFoundError("no docker here"))
-
-    assert discover.machines() == []
-
-
-def test_a_docker_that_does_not_answer_is_not_a_reason_to_sit_at_a_sheet(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    """A daemon that has hung must not hold the picker open waiting on it."""
-    monkeypatch.setenv("HOME", str(tmp_path))
-    _refuses(
-        monkeypatch, subprocess.TimeoutExpired(["docker"], discover._LOOKING_SECONDS)
-    )
-
-    assert discover.machines() == []
-
-
-def test_the_hosts_are_the_ones_written_in_the_config_in_the_order_they_are_written(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
-    (tmp_path / ".ssh").mkdir()
-    (tmp_path / ".ssh" / "config").write_text(
-        "# a note\n"
-        "Host builder gpu\n"
-        "  HostName 10.0.0.2\n"
-        "\n"
-        "Host *\n"
-        "  ForwardAgent yes\n"
-        "\n"
-        "Host web-?\n"
-        "Host !not-this\n"
-        "Host builder\n"  # said twice, offered once
-        "host lowercase\n"
-    )
-    _docker(monkeypatch, "")
-
-    assert discover.machines() == [
-        ("ssh://builder", "ssh config"),
-        ("ssh://gpu", "ssh config"),
-        ("ssh://lowercase", "ssh config"),
-    ]
-
-
-def _docker(monkeypatch: pytest.MonkeyPatch, said: str) -> None:
-    """Answers `docker ps` with these names, without a docker daemon anywhere near it."""
-
-    def listing(*_: object, **__: object) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess(["docker"], 0, said, "")
-
-    monkeypatch.setattr(subprocess, "run", listing)
-
-
-def _refuses(monkeypatch: pytest.MonkeyPatch, why: Exception) -> None:
-    """Makes `docker ps` fail the way a machine without one, or with a hung one, fails."""
-
-    def refusing(*_: object, **__: object) -> subprocess.CompletedProcess[str]:
-        raise why
-
-    monkeypatch.setattr(subprocess, "run", refusing)

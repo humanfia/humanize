@@ -524,6 +524,36 @@ def _account() -> None:
     )
 
 
+def _machines() -> None:
+    """Writes down the machines a demo of the environments page is about.
+
+    Hosts at reserved-invalid names, a key named by a path nothing is at, and an ssh config
+    of this container's own naming the one imported: nothing here reaches anything, and a key
+    is never read however real its path.
+    """
+    from hmz.coganchor.machines import store
+
+    ssh = pathlib.Path("/root/.ssh")
+    ssh.mkdir(mode=0o700, parents=True, exist_ok=True)
+    (ssh / "config").write_text("Host gpu\n  HostName gpu.example.invalid\n  User me\n")
+    store.add(
+        store.SSHProvider(
+            name="box",
+            host="box.example.invalid",
+            user="me",
+            port=2200,
+            identity_file="~/.ssh/id_box",
+            workdir="~/proj",
+        )
+    )
+    store.add(
+        store.SSHProvider(
+            name="gpu", alias="gpu", workdir="~/work", made=store.IMPORTED
+        )
+    )
+    store.add(store.DockerProvider(name="local", cpus=16, memory=64 << 30, gpus=("0",)))
+
+
 def _settings() -> None:
     """Answers what a first start asks, and turns profiling on for the demo project.
 
@@ -552,4 +582,5 @@ if __name__ == "__main__":
     _trajectories()
     _runs()
     _account()
+    _machines()
     _settings()

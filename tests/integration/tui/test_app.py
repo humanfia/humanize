@@ -253,7 +253,7 @@ async def into_settings(app: Humanize, driver: Pilot[None], page: int = 0) -> No
       app: The interface.
       driver: What is pumping it.
       page: Which page, counting from the first: everywhere, this directory, the accounts,
-        the fallbacks and the flowverses.
+        the environments, the fallbacks and the flowverses.
     """
     from hmz.tui.pick import PAGES
 
@@ -1207,8 +1207,8 @@ async def test_the_commands_that_were_pages_of_settings_are_gone() -> None:
 
 
 @pytest.mark.timeout(60)
-async def test_settings_is_one_menu_of_five_pages() -> None:
-    """Everywhere, this directory, the accounts, the fallbacks and the flowverses."""
+async def test_settings_is_one_menu_of_six_pages() -> None:
+    """Everywhere, this directory, the accounts, the environments, the fallbacks, the flowverses."""
     app = Humanize()
     async with app.run_test() as driver:
         await into_settings(app, driver)
@@ -1217,6 +1217,7 @@ async def test_settings_is_one_menu_of_five_pages() -> None:
             "Everywhere",
             "This directory",
             "Accounts",
+            "Environments",
             "Fallback",
             "Flowverses",
         ]
