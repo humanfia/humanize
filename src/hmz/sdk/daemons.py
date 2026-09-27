@@ -79,3 +79,22 @@ class Daemons:
         from hmz import daemon
 
         return daemon.start(opens, workspace, columns=columns, rows=rows)
+
+    def host(self, workspace: str | os.PathLike[str] | None = None) -> Daemon:
+        """The daemon hosting a workspace's runs for frontends, started where none is.
+
+        What a tool reaches to be one of a run's frontends: its `link()` is a
+        :class:`hmz.daemon.Link`, the same one an interface or `hmz attach` holds.
+
+        Args:
+          workspace: The project directory, or None for wherever this is being run.
+
+        Returns:
+          The daemon, listening.
+
+        Raises:
+          OSError: If a run is held there for a terminal, or no host could be started.
+        """
+        from hmz import daemon
+
+        return daemon.host(workspace)

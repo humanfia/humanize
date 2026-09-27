@@ -1,0 +1,236 @@
+"""A workspace's runs hosted where a terminal closing cannot end them, with frontends of their own.
+
+The whole of it as it really works: `daemon.host()` forking a process that holds the runs, and
+frontends that are processes of their own -- a program written against the SDK apiece -- each
+answering for the role it claimed. What the carrying does with each thing that can arrive is
+`tests/integration/daemon/test_carrying.py`, which drives it in this process.
+
+Integration rather than system, as `test_held.py` is: a fork and a socket on this machine are
+things every runner has, and what the frontends run is a flow that drives no agent at all.
+"""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+import time
+from typing import TYPE_CHECKING, Any
+
+import pytest
+
+from hmz import cli, daemon
+from hmz.sdk import Daemons
+from tests.stubs import written
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterator
+    from pathlib import Path
+
+#: How long a test waits for something another process is doing.
+PATIENCE = 30.0
+
+#: Two people outside the run, asked one after the other, and what each said kept.
+ASKS = """
+import asyncio
+import json
+from pathlib import Path
+
+from hmz.flows import AgentCollection, EnvCollection, FlowParams, LocalEnv, Outworlder, flow
+
+
+class Agents(AgentCollection):
+    planner: Outworlder
+    reviewer: Outworlder
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams, name="asks")
+async def asks(task, *, agents, envs, params, ctx):
+    here = envs["workspace"]
+    while not Path("go").exists():
+        await asyncio.sleep(0.02)
+    planner = await agents["planner"].spawn(env=here)
+    reviewer = await agents["reviewer"].spawn(env=here)
+    plan = await agents["planner"].run(f"what is the plan for {task}?", session=planner)
+    review = await agents["reviewer"].run(f"is {plan!r} good?", session=reviewer)
+    print(f"planned {plan} and reviewed {review}")
+    Path("result.json").write_text(json.dumps({"plan": plan, "review": review}))
+"""
+
+#: A frontend in a process of its own: claims one role, and answers what it asks.
+ANSWERS = """
+import sys
+
+from hmz.sdk import Daemons
+
+role = sys.argv[1]
+with Daemons().here().link(name=role, replay=False) as link:
+    link.claim(role)
+    print("claimed", flush=True)
+    for said in link:
+        if said["type"] == "pending":
+            for one in said["pending"]:
+                if one["role"] == role and one["owner"] == link.client:
+                    link.answer(one["question"], f"{role} says yes")
+        if said["type"] == "ended":
+            break
+"""
+
+
+def until(what: Callable[[], object], seconds: float = PATIENCE) -> bool:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if what():
+            return True
+        time.sleep(0.05)
+    return bool(what())
+
+
+@pytest.fixture
+def hosted(workspace: Path) -> Iterator[daemon.Daemon]:
+    """This workspace's runs, hosted, and gone again however the test ended."""
+    written(workspace, "asks", ASKS)
+    one = daemon.host()
+    try:
+        yield one
+    finally:
+        (workspace / "go").write_text("")
+        if one.alive:
+            one.kill()
+
+
+def _answering(role: str) -> subprocess.Popen[str]:
+    """A frontend of its own for one role, once it holds the role."""
+    process = subprocess.Popen(
+        [sys.executable, "-c", ANSWERS, role],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert process.stdout is not None
+    assert process.stdout.readline().strip() == "claimed", process.stderr
+    return process
+
+
+@pytest.mark.timeout(90)
+def test_runs_are_hosted_apart_and_found_again(hosted: daemon.Daemon) -> None:
+    found = daemon.running()
+
+    assert found is not None
+    assert (found.pid, found.protocol) == (hosted.pid, 1)
+    # Found rather than started again, however it is asked for.
+    assert daemon.host().pid == hosted.pid
+    assert Daemons().host().pid == hosted.pid
+    status = hosted.status()
+    assert (status["kind"], status["attached"], status["state"]) == ("host", 0, "idle")
+
+
+@pytest.mark.timeout(90)
+def test_frontends_of_their_own_each_answer_for_the_role_they_claimed(
+    hosted: daemon.Daemon, workspace: Path
+) -> None:
+    frontends = [_answering(role) for role in ("planner", "reviewer")]
+    seen: list[dict[str, Any]] = []
+    with hosted.link(name="starter") as link:
+        link.heard(seen.append)
+        assert link.start("asks", "the parser", budget={"cost": 1})["run"] == 1
+        (workspace / "go").write_text("")
+
+        assert until(lambda: any(one["type"] == "ended" for one in list(seen)))
+    for one in frontends:
+        assert one.wait(PATIENCE) == 0, one.stderr
+
+    assert (workspace / "result.json").read_text() == (
+        '{"plan": "planner says yes", "review": "reviewer says yes"}'
+    )
+    answered = [(one["role"], one["by"]) for one in seen if one["type"] == "answered"]
+    assert answered == [("planner", "planner"), ("reviewer", "reviewer")]
+    # What the flow printed, which nobody reads the host's own terminal for.
+    assert "planned planner says yes and reviewed reviewer says yes" in [
+        one["text"] for one in seen if one["type"] == "printed"
+    ]
+
+
+@pytest.mark.timeout(90)
+def test_a_host_nobody_is_reading_and_nothing_is_running_in_goes(
+    hosted: daemon.Daemon,
+) -> None:
+    with hosted.link(name="passing"):
+        assert hosted.status()["attached"] == 1
+
+    assert until(lambda: not hosted.alive)
+    assert daemon.running() is None
+
+
+@pytest.mark.timeout(90)
+def test_a_run_that_ended_with_nobody_there_waits_for_somebody_to_read_it(
+    hosted: daemon.Daemon, workspace: Path
+) -> None:
+    with hosted.link(name="starter") as link:
+        link.start("asks", "the parser", budget={"cost": 1})
+        link.afk(on=True)
+    (workspace / "go").write_text("")
+    assert until((workspace / "result.json").exists)
+
+    time.sleep(1.5)  # rounds enough for a host with nothing to hold to have gone
+    assert hosted.alive
+    with hosted.link(name="late") as late:
+        replayed: list[str] = []
+        for one in late:
+            if one["type"] == "live":
+                break
+            replayed.append(one["type"])
+    assert "ended" in replayed
+    # And that was who it was waiting for: nobody is left to hold it for.
+    assert until(lambda: not hosted.alive)
+
+
+@pytest.mark.timeout(90)
+def test_stopping_the_host_closes_it(hosted: daemon.Daemon) -> None:
+    seen: list[dict[str, Any]] = []
+    link = hosted.link(name="watching")
+    link.heard(seen.append)
+
+    assert hosted.stop()
+
+    assert not hosted.alive
+    assert until(
+        lambda: any(
+            one == {"type": "gone", "why": "the host was closed"} for one in list(seen)
+        )
+    )
+    link.close()
+
+
+@pytest.mark.timeout(90)
+def test_killing_the_host_closes_it_first(hosted: daemon.Daemon) -> None:
+    assert hosted.kill()
+    assert daemon.running() is None
+
+
+@pytest.mark.timeout(90)
+def test_a_workspace_holding_a_run_for_a_terminal_is_not_hosted_as_well(
+    held: daemon.Daemon,
+) -> None:
+    with pytest.raises(OSError, match="held for a terminal"):
+        daemon.host()
+    with pytest.raises(OSError, match="held for a terminal"):
+        held.link()
+
+
+@pytest.mark.timeout(90)
+def test_the_interface_line_says_the_runs_here_are_read_by_attaching(
+    hosted: daemon.Daemon,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv(cli.APART, raising=False)
+    monkeypatch.setattr(cli, "_at_a_terminal", lambda: True)
+
+    assert cli.opens() == 1
+
+    assert "`hmz attach` reads them" in capsys.readouterr().err
+    assert hosted.alive

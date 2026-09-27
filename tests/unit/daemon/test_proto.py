@@ -98,3 +98,33 @@ def test_a_mapping_goes_and_comes_back() -> None:
 def test_anything_that_is_not_a_mapping_reads_as_nothing_said(payload: bytes) -> None:
     """A frame from something that is not this is answered rather than raised about."""
     assert proto.asked(payload) == {}
+
+
+def test_a_message_is_one_json_object_a_frame_either_way() -> None:
+    """What a frontend and a host say to each other: a request in, a message out."""
+    said = {"type": "event", "seq": 7, "text": "hello", "tokens": {"m": 3}}
+    frames = proto.Frames()
+
+    ((kind, payload),) = frames.feed(proto.spoken(proto.MESSAGE, said))
+
+    assert kind == proto.MESSAGE
+    assert proto.asked(payload) == said
+
+
+def test_a_message_is_a_kind_of_its_own() -> None:
+    """A frontend's frame is told apart from every terminal's by its kind alone."""
+    assert proto.MESSAGE not in {
+        proto.HELLO,
+        proto.INPUT,
+        proto.OUTPUT,
+        proto.RESIZE,
+        proto.GONE,
+        proto.CONTROL,
+    }
+
+
+def test_the_version_beside_a_host_is_the_one_its_frontends_are_welcomed_with() -> None:
+    """One protocol, said in two places: the note beside the socket, and the welcome."""
+    from hmz.runtime.doing import hosting
+
+    assert proto.PROTOCOL == hosting.PROTOCOL

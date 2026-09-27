@@ -36,6 +36,21 @@ When a flow is running, `/exit` (or <kbd>ctrl+q</kbd>) asks what you mean:
 
 The other ways to stop a run are on [Stopping](/user/stopping).
 
+## More than one person on one run
+
+A run can also be held for **frontends** rather than for a terminal: a program on the
+[SDK](/reference/sdk#link) starts it, and each person reads it with
+[`hmz attach`](/reference/cli#hmz-attach) from a terminal of their own.
+
+- **Each answers for their own part.** `hmz attach -c reviewer` makes the reviewer's questions
+  yours alone; a question nobody claimed goes to whoever answers first.
+- **Everybody sees who did what.** Every answer and every line said to an agent says who said
+  it, and whoever arrives late reads the run from the top.
+- **Leaving hands your part back.** A frontend that goes gives its roles back, and whatever it
+  was asked waits for somebody else. `/afk` stays said after you have gone.
+
+The details are in the [daemon reference](/reference/daemon#hosting).
+
 ## What it does not survive
 
 The run lives on the machine it started on. If that machine restarts, or the run's process is

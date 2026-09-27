@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from hmz.runtime.doing.epics import Epics
     from hmz.runtime.doing.fallbacks import Fallbacks
     from hmz.runtime.doing.flows import Flows, Flowverses
+    from hmz.runtime.doing.hosting import Host
     from hmz.runtime.doing.running import Run
     from hmz.runtime.flowing import AgentDriver, EnvDriver, OutworlderDriver
     from hmz.runtime.flowing.specs import AgentSpec, EnvSpec
@@ -53,6 +54,7 @@ class Hmz:
             it named, spelled the way it was named.
         """
         self._workspace: str | os.PathLike[str] | None = workspace
+        self._host: Host | None = None
         self._settings: Settings | None = None
         self._flows: Flows | None = None
         self._accounts: Accounts | None = None
@@ -281,3 +283,16 @@ class Hmz:
             budget=line.budget,
             resume=line.resume,
         ).run()
+
+    def host(self) -> Host:
+        """The runs of this workspace as every frontend attached to them shares them.
+
+        One per object, made the first time it is asked for: whatever frontends attach to it
+        share one run going, one queue of lines, one set of claims -- which is what makes two
+        of them one run rather than two copies of it.
+        """
+        if self._host is None:
+            from hmz.runtime.doing.hosting import Host
+
+            self._host = Host(self)
+        return self._host

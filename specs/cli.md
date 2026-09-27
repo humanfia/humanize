@@ -1,6 +1,6 @@
 # `cli`
 
-`hmz` -- the whole command line, over layers that have none of their own. One command anybody types,
+`hmz` -- the whole command line, over layers that have none of their own. Two commands anybody types,
 one door onto what humanize spawns for itself, and naming no command at all opens the terminal
 interface. It reads a line, routes it and settles who is reading; it decides nothing a layer under it
 decides.
@@ -16,6 +16,7 @@ hmz exec -f|--flow <ref> [-a|--agents <agent>[,<agent>...]]... [-e|--envs <env>[
 <agent>  := <role>=<cli>[@<provider>]/<model>:<effort>
 <env>    := <role>=<backend>@<provider>[/<workdir>]
 <limit>  := duration=<duration> | cost=<usd> | output_tokens=<count> | graceful=<bool>
+hmz attach [--json] [-c|--claim <role>]...
 hmz internal <command> [<args>...]
 hmz internal anchor [<options>] <agent> [<args>...]
 hmz internal anchor serve --export <virtual>[:<real>] [--export ...]
@@ -31,7 +32,7 @@ hmz internal hook --at <socket>
 ```python
 # __init__.py
 APART = "HUMANIZE_DAEMON"   # `off`, `0` or `no`: keep the run with the terminal
-COMMANDS: dict[str, tuple[Callable[[list[str]], int], str]]  # exec, internal
+COMMANDS: dict[str, tuple[Callable[[list[str]], int], str]]  # attach, exec, internal
 INTERNAL: dict[str, tuple[Callable[[list[str]], int], str]]  # anchor, cred, hook, tools
 def main(argv: list[str] | None = None) -> int: ...
 def opens() -> int: ...
@@ -59,8 +60,10 @@ class Shown:    # the agents' own events, drawn as one run; a context manager
     def heard(  # handed to `Run.watch`, which every session of a run is watched through
         self, agent: AgentBase, session: SessionBase | None, event: Event
     ) -> None: ...
+    def told(self, said: dict[str, Any]) -> None: ...  # one event record, as a host says one
 
-# anchor.py, cred.py, hook.py, tools.py -- one command apiece
+# attach.py, anchor.py, cred.py, hook.py, tools.py -- one command apiece
+def attach(argv: list[str]) -> int: ...
 def anchor(argv: list[str]) -> int: ...
 def cred(argv: list[str]) -> int: ...
 def hook(argv: list[str]) -> int: ...
@@ -69,8 +72,8 @@ def tools(argv: list[str]) -> int: ...
 
 ## Requirements
 
-- MUST offer exactly one command to a person -- `hmz exec` -- and MUST leave everything else humanize
-  keeps to the prompt or to `sdk`.
+- MUST offer exactly two commands to a person -- `hmz exec` and `hmz attach` -- and MUST leave
+  everything else humanize keeps to the prompt or to `sdk`.
 - MUST gather every line humanize spawns for itself under `hmz internal`, MUST show both commands in
   the listing, MUST leave nothing it routes out of it, and MUST have each of those lines say in its
   own help that it is not one to type.
@@ -82,7 +85,8 @@ def tools(argv: list[str]) -> int: ...
 - MUST open the interface on a run held apart from the terminal wherever there is a terminal on both
   ends, reading whichever run is already held here and starting one where none is; with no terminal on
   both ends it MUST open in this process. `APART` MUST refuse holding for a whole machine, and
-  anything else that stops a run being held MUST be said and then done without.
+  anything else that stops a run being held MUST be said and then done without. Runs held here for
+  frontends MUST be said to be read by `hmz attach` rather than opened on.
 - MUST settle whether escapes may be written in one place: `NO_COLOR` MUST win over everything, then
   `TERM=dumb`, then `FORCE_COLOR`, and otherwise whether a terminal is reading. `FORCE_COLOR` MUST NOT
   make a run believe somebody is watching it, and `rich` MUST NOT be reached until escapes are wanted.
@@ -115,6 +119,17 @@ def tools(argv: list[str]) -> int: ...
   for a model nobody prices -- with something going on moving while a terminal is reading.
 - MUST say, without asking, when a cap cannot be read -- a cost cap over a model nobody prices -- and
   MUST say a run its budget stopped in a line rather than as a failure.
+- `hmz attach` MUST start nothing: with nothing held here, or a run held for a terminal, it MUST
+  say so and exit 1. It MUST claim every `-c` role before reading on, and MUST exit 2 where one is
+  somebody else's.
+- `hmz attach` MUST follow the run going, or the next one to start, and MUST exit 0 once it ends
+  or the host lets go; the end of stdin MUST NOT end it.
+- Without `--json`, `hmz attach` MUST draw an agent's events as `hmz exec` draws them, and the
+  rest of what it is told as lines saying who did what. A line typed MUST answer the oldest
+  question this frontend may answer and MUST otherwise be said to the run; `/afk [on|off] [ROLE]`,
+  `/claim ROLE`, `/release ROLE` and `/stop` MUST do what they do at the interface.
+- With `--json`, `hmz attach` MUST write every message it is told to stdout as it is told, and
+  MUST pass every line of stdin through as one request, writing the reply that names it.
 - `hmz internal anchor` MUST load `coganchor` and nothing else of humanize, the door included.
 - `hmz internal cred` MUST exit with the program's own status, MUST refuse a line naming nothing to
   answer or no program to run, and MUST NOT fall back to running unsupervised.
