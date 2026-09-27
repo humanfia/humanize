@@ -64,16 +64,6 @@ SLOW = (
 SETTLE = 15.0
 
 
-#: What pi does after a turn is cut off mid-command, seen by driving `session.cut` and then a
-#: second turn on the driver itself: the second turn's own reasoning is about the second
-#: prompt, and what it answers is the first prompt's reply. Not yet told apart as the driver's
-#: or the model's (pi@nvidia's minimax-m3); some runs it does not happen.
-_PI_CUT = (
-    "after a turn is cut off mid-command, pi's next turn answers with the cut turn's"
-    " reply ('SLEPT') instead of its own; reproduced on the driver with `session.cut`"
-)
-
-
 def _word() -> str:
     """A word no model would say unless it was told to, for telling an answer from a guess."""
     return f"KIWI{secrets.randbelow(9000) + 1000}"
@@ -322,7 +312,7 @@ async def steered(task, *, agents, envs, params, ctx):
 '''
 
 
-@feature(mixin(SteeringAgentMixin), xfail={"pi": Unsettled(_PI_CUT)})
+@feature(mixin(SteeringAgentMixin))
 def test_steer(cell: Cell) -> None:
     """A word put into a turn that is running is what the turn goes on from."""
     got = cell.run(cell.flow("steered", STEERED.replace("SETTLE", str(SETTLE))), SLOW)
@@ -366,17 +356,7 @@ async def interrupted(task, *, agents, envs, params, ctx):
 '''
 
 
-@feature(
-    xfail={
-        "dsh": Unsettled(
-            "a race, two runs in three: the turn after one the flow cancelled fails -- the"
-            " cancelled call, still unwinding, puts down the session's runtime and removes"
-            " the cordis.yml the next turn's runtime was started from ('usage:"
-            " dsh-jsonrpc-agent <path/to/cordis.yml>')"
-        ),
-        "pi": Unsettled(_PI_CUT),
-    }
-)
+@feature()
 def test_interrupt(cell: Cell) -> None:
     """A turn the flow cancels stops at once, and its session takes the next turn."""
     got = cell.run(

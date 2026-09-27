@@ -16,6 +16,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -146,6 +147,19 @@ while True:
     part({"type": "toolcall_end", "contentIndex": 2,
           "toolCall": {"type": "toolCall", "id": "call_1", "name": "bash",
                        "arguments": {"command": "echo " + said}}})
+    if said == "slow":
+        # A command that takes its time, until the run is told to stop: the call is left with
+        # a result that says it was aborted, and the run settles before the abort is answered.
+        while (more := take()) is not None and more["type"] != "abort":
+            held.append(more)
+        note([], "abort")
+        out({"type": "message_end", "message": {"role": "toolResult",
+             "toolCallId": "call_1", "isError": True,
+             "content": [{"type": "text", "text": "Operation aborted"}]}})
+        out({"type": "agent_end"})
+        out({"type": "agent_settled"})
+        out({"type": "response", "command": "abort", "success": True})
+        continue
     part({"type": "text_end", "contentIndex": 1, "content": said})
     out({"type": "message_end", "message": {"role": "assistant",
          "content": ([] if said == "wrong" else [{"type": "text", "text": said}]),
@@ -563,6 +577,29 @@ def test_pi_can_be_talked_to_while_a_turn_is_running(stubs: _Stubs) -> None:
         "steer actually, stop",
     ]
     assert session("after") == "after"  # the stream is still in step for the next turn
+
+
+def test_pi_is_told_to_abort_a_turn_before_it_is_cut_off(stubs: _Stubs) -> None:
+    """So that the call it was in the middle of is left with a result saying so.
+
+    Ended outright, pi leaves the call in its session with no result at all, and the next
+    turn's model is shown one it has to guess about -- which some take for the first prompt
+    still being theirs to answer, and answer it instead of their own.
+    """
+    session = PiAgent(PI).new()
+
+    def cuts() -> None:
+        for event in session.stream("slow"):
+            if event.kind == "tool":
+                threading.Thread(target=session.cut, kwargs={"why": "stopped"}).start()
+
+    cutting = threading.Thread(target=cuts)
+    cutting.start()
+    cutting.join(30)
+
+    assert not cutting.is_alive()
+    assert [call.stdin for call in stubs.calls() if call.stdin] == ["slow", "abort"]
+    assert session("after") == "after"
 
 
 def test_pi_gives_node_one_place_to_keep_what_it_compiled(

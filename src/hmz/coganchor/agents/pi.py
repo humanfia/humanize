@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
@@ -110,6 +111,14 @@ _CACHE = ("compiled", "pi")
 #: job, because that one also switches off every extension tool and turns on three built-ins
 #: pi ships disabled -- which is a different agent, not a stricter one.
 _CHANGING = ("bash", "edit", "write", "powershell")
+
+#: How long a turn being cut off is given to be aborted by pi itself before its process is
+#: ended outright. pi answers `abort` once the run has stopped, having written the call it was
+#: in the middle of into the session with a result saying it was aborted; a process ended
+#: before then leaves that call with no result at all, and the next turn's model is shown
+#: pi's own `No result provided` for it -- which some models read as the prompt before still
+#: being theirs to answer, and answer that instead of their own.
+_ABORTING = 5.0
 
 
 def _about(called: dict[str, Any]) -> str:
@@ -261,6 +270,8 @@ class PiSession(StreamSessionBase):
         #: What the process now up was last told to think at, so that a flow moving the
         #: effort mid-session is told to pi rather than left on the flag it was started with.
         self._at: str | None = None
+        #: Set once pi has answered an `abort`, which is once the run it was told to stop has.
+        self._aborted = threading.Event()
         #: The calls this turn has already said, by pi's own id for each, so that the row goes
         #: out at the first fragment of the arguments that says anything and not again at
         #: every fragment after it.
@@ -409,6 +420,15 @@ class PiSession(StreamSessionBase):
             self.unsteered(text)  # nothing is coming back for a word that never went in
             raise
 
+    def _cuts(self) -> None:
+        """Has pi abort the run first, and then ends its process as every one held open is."""
+        proc = self._proc
+        if proc is not None and proc.poll() is None:
+            self._aborted.clear()
+            self._send(json.dumps({"type": "abort"}) + "\n")
+            self._aborted.wait(_ABORTING)
+        super()._cuts()
+
     def _restarted(self) -> None:
         """Forgets the turn the last process was in the middle of, which this one is not."""
         self._said, self._failed, self._spent, self._costing = "", None, 0, Usage()
@@ -431,6 +451,8 @@ class PiSession(StreamSessionBase):
         except json.JSONDecodeError:
             return  # not ours: pi prints the odd plain line among the JSON
         match said.get("type"):
+            case "response" if said.get("command") == "abort":
+                self._aborted.set()
             case "response" if said.get("success") is False:
                 # A command pi would not take. The one that matters is the prompt: a turn that
                 # was never started is a failed turn, and there is no `agent_settled` coming.
