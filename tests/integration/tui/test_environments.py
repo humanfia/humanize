@@ -811,7 +811,8 @@ async def test_a_config_under_a_home_nobody_has_is_said_rather_than_crashing(
         await until(lambda: form._read == "~nosuchuser9/config", driver)
 
         assert app.is_running
-        assert "~nosuchuser9/config:" in _under(app)
+        # Read as ssh reads it: a file that is not there, which names no host.
+        assert "~nosuchuser9/config names no host" in _under(app)
         assert rows(app) == ["config", _DONE]
 
 

@@ -326,6 +326,12 @@ elif command == "inspect":
     print(os.environ.get("STANDIN_INSPECT", "[]"))
     if "STANDIN_INSPECT_SAYS" in os.environ:
         sys.exit(os.environ["STANDIN_INSPECT_SAYS"])
+elif command == "rm" and "STANDIN_RM_SECONDS" in os.environ:
+    # A container that takes its time going, and says when it has gone.
+    import time
+    time.sleep(float(os.environ["STANDIN_RM_SECONDS"]))
+    with open(os.environ["STANDIN_LOG"], "a") as log:
+        log.write(json.dumps({"argv": ["removed", *rest], "DOCKER_HOST": None}) + "\\n")
 """
 
 

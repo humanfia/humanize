@@ -1184,11 +1184,12 @@ class Humanize(App[None]):
 
     @work
     async def _asks_what_runs(self) -> None:
-        """Asks each backend here what it runs, the once, for the account nobody chose.
+        """Asks each backend here what it runs, for the account nobody chose, where it is due.
 
-        Only the ones that have never been asked: what a CLI runs is kept, and this is the
-        first filling of it -- the moment before that, there is nothing to offer at any of the
-        sheets and nothing to open talking to.
+        Only the ones never asked or asked too long ago: what a CLI runs is kept, and this is
+        the first filling of it -- the moment before that, there is nothing to offer at any
+        of the sheets and nothing to open talking to -- and the refilling of one a vendor has
+        since moved under.
 
         In the background and one at a time, because asking means starting a coding agent,
         or reaching the endpoint an account points one at: a prompt cannot wait on either, and
@@ -1199,7 +1200,7 @@ class Humanize(App[None]):
 
         accounts = self.hmz.accounts
         for backend in installed():
-            if accounts.asked(backend):
+            if not accounts.stale(backend):
                 continue
             try:
                 await asyncio.to_thread(accounts.ask, backend)

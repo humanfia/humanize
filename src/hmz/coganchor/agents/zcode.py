@@ -1249,7 +1249,9 @@ def _settling(
                 },
             )
         )
-    if held.effort != told[1]:
+    # Nor does an agent at no thought level, for the reason :func:`_thought` gives: the call
+    # requires a level, and there is none that unsays one.
+    if held.effort and held.effort != told[1]:
         calls.append(
             (
                 "session/setThoughtLevel",

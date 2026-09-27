@@ -8,6 +8,7 @@ turn is made of and the answer read back out of them.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
@@ -53,7 +54,7 @@ class _Verdict(BaseModel):
 #: A `kimi web` that says where it is listening and then serves the calls a turn is made of,
 #: recording each one. A prompt of `boom` is refused, which is how a failed turn is spelled.
 _KIMI = """
-import json, pathlib, sys
+import json, os, pathlib, signal, subprocess, sys
 import socketserver
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -85,6 +86,10 @@ WANTED = [{"approval_id": "a_0", "session_id": "session_fake", "turn_id": 0,
            "created_at": "2026-01-01T00:00:00.000Z",
            "expires_at": "2026-01-02T00:00:00.000Z"}]
 DECIDED = []
+# A command a turn of `sleeping` runs, started as the real daemon starts its shell: in a
+# session of its own, which taking the daemon's group down does not reach.
+RUNNING = []
+ABORTED = []
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -128,6 +133,14 @@ class Handler(BaseHTTPRequestHandler):
             if QUEUED[:1] != ["forgetful"]:
                 WANTED.clear()
             self.reply({"resolved": True, "resolved_at": "2026-01-01T00:00:01.000Z"})
+        elif self.path.endswith(":abort"):
+            # The prompt stopped, and the command it was running with it -- the real daemon
+            # takes its own children down by their group.
+            ABORTED.append(self.path)
+            for child in RUNNING:
+                os.killpg(child.pid, signal.SIGKILL)
+                child.wait()
+            self.reply({"aborted": True})
         elif self.path.endswith("/prompts:steer"):
             # What was queued is moved into the turn already running, which is the whole
             # difference between putting a word in and queueing a turn behind this one.
@@ -138,6 +151,11 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(None, status=400)
             else:
                 QUEUED.append(sent["content"][0]["text"])
+                if QUEUED[0] == "sleeping" and not RUNNING:
+                    RUNNING.append(subprocess.Popen(
+                        [sys.executable, "-c", "import time; time.sleep(120)"],
+                        start_new_session=True))
+                    pathlib.Path(str(LOG) + ".child").write_text(str(RUNNING[0].pid))
                 # Running while nothing else is, queued while a turn already has the session.
                 self.reply({"prompt_id": "p_%d" % len(QUEUED),
                             "user_message_id": "msg_0",
@@ -151,7 +169,10 @@ class Handler(BaseHTTPRequestHandler):
         note({"path": self.path, "body": None, "token": self.headers.get("Authorization")})
         if "/status" in self.path:
             POLLS.append(None)
-            if QUEUED and QUEUED[0] == "patient":
+            if QUEUED and QUEUED[0] == "sleeping":
+                # In a command until the prompt is aborted, however long that is.
+                self.reply({"busy": not ABORTED})
+            elif QUEUED and QUEUED[0] == "patient":
                 # Working until it is told something else, which is what makes a word put in
                 # mid-turn observable: the turn cannot end before it lands.
                 self.reply({"busy": not STEERED})
@@ -1311,6 +1332,48 @@ def test_a_codex_turn_ignores_what_another_thread_is_saying(codex: _FakeServer) 
 
     threading.Thread(target=finish, daemon=True).start()
     assert session("do the task") == "steered:go on"
+
+
+def test_kimi_cut_off_in_a_command_aborts_the_prompt_and_starts_no_daemon(
+    kimi: _FakeServer,
+) -> None:
+    """A stop reaches the command the turn is in, and ends the turn at once.
+
+    The daemon starts a command in a session of its own, so taking its group down leaves the
+    command running; and a turn still going round after the daemon went would start another
+    one to ask what it was waiting on. Cut off as the runtime cuts one off -- again every
+    second until the turn has ended -- the prompt is aborted, which is what ends the command.
+    """
+    import psutil
+
+    session = _agent().new()
+    ended = threading.Event()
+
+    def turn() -> None:
+        with contextlib.suppress(Exception):
+            session("sleeping")
+        ended.set()
+
+    threading.Thread(target=turn, daemon=True).start()
+    child = Path(f"{kimi.log}.child")
+    deadline = time.monotonic() + 30
+    while not child.exists():
+        assert time.monotonic() < deadline, "the turn never ran its command"
+        time.sleep(0.05)
+    running = psutil.Process(int(child.read_text()))
+    began = time.monotonic()
+    while True:
+        session.cut(why="stopped")
+        if ended.wait(1.0) or time.monotonic() - began > 30:
+            break
+    took = time.monotonic() - began
+
+    assert ended.is_set(), "the turn was still going half a minute after it was cut off"
+    assert took < 10, f"the turn took {took:.0f}s to end"
+    assert not running.is_running() or running.status() == psutil.STATUS_ZOMBIE
+    assert [call for call in kimi.calls() if call["path"].endswith(":abort")]
+    assert len([call for call in kimi.calls() if call["path"] == "argv"]) == 1
+    session._agent.stop()
 
 
 def test_kimi_steers_a_word_into_the_turn_already_running(kimi: _FakeServer) -> None:

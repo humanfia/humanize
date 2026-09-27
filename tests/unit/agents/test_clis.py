@@ -129,6 +129,22 @@ def test_agy_refuses_a_read_only_rung_its_own_flag_would_undo() -> None:
     assert agent.config.permission == UNSAID
 
 
+def test_agy_refuses_to_read_only_on_another_machine() -> None:
+    """What holds it to reading is a file here, and an agent agy cannot find is its default.
+
+    Which is every tool there is, and a turn that would say nothing about it.
+    """
+    from hmz.coganchor import AnchorConfig
+    from hmz.coganchor.machines import AnchoredConfig
+
+    elsewhere = AnchoredConfig(anchor=AnchorConfig(target="ssh://gpu-box"))
+    told = AntigravityCLIAgentConfig(model="m", effort="high", machine=elsewhere)
+
+    with pytest.raises(ValueError, match="read-only on another machine"):
+        AntigravityCLIAgent(replace(told, permission="read-only"))
+    assert AntigravityCLIAgent(replace(told, permission="bypass"))
+
+
 @pytest.mark.parametrize("waiting", [0.0, -1.0, float("nan"), float("inf"), 1e16])
 def test_agy_refuses_a_print_clock_that_cannot_be_written_as_a_duration(
     waiting: float,

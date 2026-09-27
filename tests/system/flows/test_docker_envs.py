@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -359,6 +360,72 @@ def test_runs_at_once_get_gpus_of_their_own_and_one_too_many_is_refused(
         check=True,
     )
     assert held.stdout.split() == [], "a run left its container behind"
+
+
+#: A flow holding its container until it is ended from outside: it says it has one, and waits.
+_WAITS = """
+from hmz.flows import AgentCollection, Env, EnvCollection, FilesEnvMixin, FlowParams
+from hmz.flows import ImageEnvMixin, ShellEnvMixin, flow
+
+
+class Box(Env, ShellEnvMixin, FilesEnvMixin, ImageEnvMixin):
+    _image = "python:3.12-slim"
+
+
+class Envs(EnvCollection):
+    box: Box
+
+
+@flow(agents=AgentCollection, envs=Envs, params=FlowParams)
+async def waits(task, *, agents, envs, params, ctx):
+    await envs["box"].write("up.txt", b"up")
+    await envs["box"].exec(["sleep", "240"], timeout=300)
+"""
+
+
+@pytest.mark.timeout(300)
+@pytest.mark.parametrize("ending", [signal.SIGTERM, signal.SIGHUP])
+def test_a_run_terminated_mid_run_takes_its_container_down(
+    daemon: None, tmp_path: Path, ending: signal.Signals
+) -> None:
+    """Rather than leave it running until the next run on its provider finds it."""
+    flow = written(tmp_path / "flows", "waits", _WAITS)
+    work = tmp_path / "work"
+    work.mkdir()
+    run = _hmz(flow, f"box=docker@local{work}", "go", tmp_path)
+    try:
+        deadline = time.monotonic() + 240
+        while not (work / "up.txt").exists():
+            assert run.poll() is None, run.communicate()
+            assert time.monotonic() < deadline, "the run never had its container"
+            time.sleep(0.2)
+        held = _of(run.pid)
+        run.send_signal(ending)
+        _, err = run.communicate(timeout=120)
+    finally:
+        if run.poll() is None:
+            run.kill()
+        left = _of(run.pid)
+        if left:
+            subprocess.run(["docker", "rm", "--force", *left], check=False)
+
+    assert len(held) == 1, held
+    assert run.returncode == 128 + ending, err
+    assert left == [], "the run left its container behind"
+
+
+def _of(pid: int) -> list[str]:
+    """Every container a process of that pid started that docker still has."""
+    said = subprocess.run(
+        [
+            *("docker", "ps", "--all", "--quiet", "--filter", "label=humanize"),
+            *("--filter", f"label=humanize.pid={pid}"),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return said.stdout.split()
 
 
 async def test_a_role_asking_more_gpus_than_there_are_is_refused_before_starting(

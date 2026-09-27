@@ -748,6 +748,7 @@ What an anchor keeps on a target is in [Remote execution](/reference/remote-exec
 | `2` | The line was wrong: argparse's own rejections, and everything [refused before anything runs](#what-is-refused-before-anything-runs), a malformed listen address and a non-loopback listener with no token among them. |
 | `127` | `hmz internal anchor --native`: the target has no such CLI. |
 | `130` | Interrupted. |
+| `143`, `129` | `hmz exec` terminated (`SIGTERM`) or hung up on (`SIGHUP`). The run is stopped as an interrupt stops it, and exits only once it has let go of everything it made: its sessions closed, its containers removed. A second signal while it does is ignored. |
 | *the program's own* | `hmz internal anchor` exits with the agent's status, `hmz internal cred` with the supervised program's. |
 
 ## Python entry points

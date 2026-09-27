@@ -328,3 +328,35 @@ def test_how_long_a_backend_is_given_to_answer_is_passed_on_only_when_it_is_said
     held.ask("claude", "mine", 12.5)
 
     assert seen == [("claude", "", None), ("claude", "mine", 12.5)]
+
+
+@pytest.mark.parametrize(
+    ("days", "stale"), [(None, True), (1, False), (6, False), (8, True), (40, True)]
+)
+def test_what_a_backend_said_it_runs_goes_stale_a_week_after_it_was_asked(
+    days: int | None, *, stale: bool
+) -> None:
+    """So a list a vendor has since moved under is asked again rather than offered for ever.
+
+    `grok-4.5` was in what grok said it runs on the tenth, and an `unknown model id` by the
+    twenty-seventh: nothing had asked it again in between, so it was offered all the same.
+    """
+    import datetime
+    import json
+
+    from hmz.coganchor import models
+
+    if days is not None:
+        at = models.where("grok")
+        at.parent.mkdir(parents=True, exist_ok=True)
+        then = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days)
+        at.write_text(
+            json.dumps(
+                {
+                    "asked": then.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    "models": [{"name": "grok-4.5", "efforts": ["low"]}],
+                }
+            )
+        )
+
+    assert Hmz().accounts.stale("grok") is stale

@@ -274,6 +274,17 @@ class Accounts:
 
         return models.asked(cli, provider)
 
+    def stale(self, cli: str, provider: str = "") -> bool:
+        """Whether what one backend said it runs as one account is too old to go on offering.
+
+        True for one never asked, and for one asked longer ago than
+        :data:`hmz.coganchor.models.STALE`: what to ask again, unprompted, where asking is
+        cheap to wait for.
+        """
+        from hmz.coganchor import models
+
+        return models.stale(cli, provider)
+
     def ask(
         self, cli: str, provider: str = "", seconds: float | None = None
     ) -> tuple[Model, ...]:

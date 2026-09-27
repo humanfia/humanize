@@ -724,8 +724,9 @@ starts the transport again and resumes it by id.
 | How the backend holds a turn | `interrupt` reaches | `cut` reaches |
 | --- | --- | --- |
 | One command per turn: `cursor-agent`, `opencode`, `mimo`, and the command-line turns of `agy`, `grok` and `qwen` | the command and its children | the same |
-| One process held open: `claude`, `pi`, and the ordinary turns of `agy`, `grok` and `qwen` | that process; the next turn starts another and resumes | the same |
-| A transport shared by the agent's sessions: `codex`, `kimi`, `zcode` (app server or daemon), `dsh` (SDK runtime) | nothing is taken down; the turn stops at the next thing the transport says | the transport, and every turn on it |
+| One process held open: `claude`, `pi`, and the ordinary turns of `agy`, `grok` and `qwen` | that process; the next turn starts another and resumes. `pi` is told to `abort` first and given up to 5 s to say it has, so the call it was in is recorded as aborted -- except where the cut is made on the thread reading the turn, a spent budget, which ends it at once | the same |
+| A transport shared by the agent's sessions: `codex`, `zcode` (app server), `dsh` (SDK runtime) | nothing is taken down; the turn stops at the next thing the transport says | the transport, and every turn on it |
+| `kimi` (daemon) | the prompt is aborted, which takes down a command it is in, and the turn ends at its next round | that, then the daemon and its whole process tree, and every turn on it |
 | An ACP CLI | `session/cancel` | the same |
 
 `agent.stop()` closes every session of the agent, which lets go of whatever holds each
@@ -953,7 +954,7 @@ turn.
 
 | Backend | `read-only` | `workspace-write` | `auto` | `bypass` |
 | --- | --- | --- | --- | --- |
-| `agy` | `plan` mode | `accept-edits` mode | skip permissions | — |
+| `agy` | `plan` mode, as an agent of four read tools; refused on another machine | `accept-edits` mode | skip permissions | — |
 | `claude` | `plan` mode | `acceptEdits` mode | `auto` mode | `manual` mode, answered here |
 | `codex` | `read-only` sandbox | `workspace-write` sandbox | `workspace-write`, `on-request` | `danger-full-access` |
 | `cursor-agent` | `plan` mode | sandbox on | `--auto-review` | sandbox off |
@@ -971,6 +972,12 @@ How each backend says it, and what to know:
 - **Antigravity**: `--mode plan`, `--mode accept-edits`, and `--dangerously-skip-permissions`
   for both `auto` and `bypass`. At `workspace-write` edits pass and commands are denied: a
   print-mode run soft-denies what it was not permitted and names it under `denied_actions`.
+  **Plan mode alone does not hold it to reading**: agy 1.2 writes the file it is asked to in
+  it. So a `read-only` turn is also started as `--agent hmz-read-only`, an agent humanize
+  writes under `~/.humanize/agy/` before each such turn and adds with `--add-dir`, whose only
+  tools are `view_file`, `grep_search`, `find_by_name` and `list_dir`. agy runs an `--agent` it cannot
+  find as its default agent without saying so, and that directory is only on this machine, so
+  `read-only` on another machine is refused with `Unserved`.
 - **Claude Code**: `--permission-mode`. **Its `bypass` is humanize answering, not Claude
   skipping.** An account's managed settings can carry
   `"disableBypassPermissionsMode": "disable"`, and then `--dangerously-skip-permissions`
@@ -1547,6 +1554,13 @@ ClaudeCodeAgentConfig(model="claude-opus-5", effort="max", allowed_tools=("Bash(
   started with restarts the process and resumes the conversation.
 - `bypass` is `manual` mode with `--permission-prompt-tool stdio`; see [What an agent may
   do](#what-an-agent-may-do).
+- **A `model` Claude Code does not know runs as its default.** It says nothing and the turn
+  succeeds, on a model nobody chose. Humanize reads what its `system/init` says it is running
+  and, where that is neither the model, the model dated, one of Claude's aliases (`opus`,
+  `sonnet`, `haiku`, `default`, `best`, `opusplan`, any of them with `[1m]`) nor a name the
+  account's catalogue keeps, says so once a session as a `notice`:
+  `Claude Code does not know the model 'claude-nonexistent-9' and is running claude-opus-5-5,
+  its own default, in its place`. The turn goes on.
 
 ### Codex
 
@@ -1661,6 +1675,9 @@ so that a `use_leader = true` in your config cannot put every session of a flow 
 - On the command line the prompt is one argument, `--single=…`. Linux caps one argument at 32
   pages, which leaves 131062 bytes of prompt (about 32 thousand tokens); a longer prompt raises
   before the process starts.
+- A shaped turn's `--json-schema` is held as Codex's is: every object closed
+  (`additionalProperties: false`) with every property it names required, and no defaults. A
+  model behind an OpenAI-compatible gateway account refuses a structured output that is not.
 - `--include-partial-messages`, `--agent-profile` and `--plugin-dir` are not fields: the first
   only affects an output format these turns do not use, and the other two exist only on
   `grok agent`, so shaped, forked and tool-withheld turns would silently lose them.
@@ -1698,6 +1715,10 @@ How a turn is followed:
   to start.
 - Session settings are set once rather than before every turn. A goal is set going each time it
   is asked for.
+- A turn cut off has its prompt aborted (`POST …/prompts/<id>:abort`) before the daemon is put
+  down, which is how Kimi takes down a command the turn is in: it starts each one in a session
+  of its own, out of reach of the daemon's process group. Putting the daemon down takes the
+  whole process tree with it, and a turn cut off asks no daemon started after it went.
 
 ### pi
 

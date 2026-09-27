@@ -61,7 +61,7 @@ CHEAPEST: dict[HarnessKind, tuple[str, str]] = {
     HarnessKind.OPENCODE: ("opencode/nemotron-3.5-lightning-free", ""),
     HarnessKind.MIMO: ("xiaomi/mimo-v2.5", "low"),
     HarnessKind.QWEN: ("qwen3-coder-flash", "low"),
-    HarnessKind.GROK: ("grok-4.5", "low"),
+    HarnessKind.GROK: ("grok-4.7", "low"),
     HarnessKind.AGY: ("gemini-3.8-flash-low", "low"),
     HarnessKind.DSH: ("deepseek-v4-flash", "off"),
 }
@@ -199,9 +199,12 @@ async def test_a_fork_carries_on_in_another_workdir(
         except UnsupportedOperation as refused:
             pytest.fail(f"{harness} is said to fork into another workdir: {refused}")
         said = await child.turn(
+            # `pwd` first and the answer after it, in one message: a turn answers with what
+            # it said last, and a model that says the word before reaching for the shell has
+            # said it in a message the answer is not.
             TurnRequest(
-                "What was the code word? Reply with it alone, then run `pwd` and reply "
-                "with its output on a second line."
+                "Run `pwd` first. Then, in one final message, reply with the code word on "
+                "the first line and the output of `pwd` on the second."
             ),
             RecordingSink(),
         )

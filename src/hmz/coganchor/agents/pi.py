@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
@@ -25,6 +26,8 @@ from .preload import preloaded
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
+
+    from pydantic import BaseModel
 
 #: What each kind of thing pi says a turn did reads as. A message is a list of parts and pi
 #: says each of them three times -- as it starts, once per fragment, and once with the whole
@@ -110,6 +113,14 @@ _CACHE = ("compiled", "pi")
 #: job, because that one also switches off every extension tool and turns on three built-ins
 #: pi ships disabled -- which is a different agent, not a stricter one.
 _CHANGING = ("bash", "edit", "write", "powershell")
+
+#: How long a turn being cut off is given to be aborted by pi itself before its process is
+#: ended outright. pi answers `abort` once the run has stopped, having written the call it was
+#: in the middle of into the session with a result saying it was aborted; a process ended
+#: before then leaves that call with no result at all, and the next turn's model is shown
+#: pi's own `No result provided` for it -- which some models read as the prompt before still
+#: being theirs to answer, and answer that instead of their own.
+_ABORTING = 5.0
 
 
 def _about(called: dict[str, Any]) -> str:
@@ -261,6 +272,10 @@ class PiSession(StreamSessionBase):
         #: What the process now up was last told to think at, so that a flow moving the
         #: effort mid-session is told to pi rather than left on the flag it was started with.
         self._at: str | None = None
+        #: Set once pi has answered an `abort`, which is once the run it was told to stop has,
+        #: and the thread that would read that answer.
+        self._aborted = threading.Event()
+        self._reading = 0
         #: The calls this turn has already said, by pi's own id for each, so that the row goes
         #: out at the first fragment of the arguments that says anything and not again at
         #: every fragment after it.
@@ -409,6 +424,34 @@ class PiSession(StreamSessionBase):
             self.unsteered(text)  # nothing is coming back for a word that never went in
             raise
 
+    def _stream(
+        self, prompt: str, *, schema: type[BaseModel] | None = None
+    ) -> Iterator[Event]:
+        """The turn, knowing which thread is taking it for as long as it does."""
+        self._reading = threading.get_ident()
+        try:
+            yield from super()._stream(prompt, schema=schema)
+        finally:
+            self._reading = 0
+
+    def _cuts(self) -> None:
+        """Has pi abort the run first, and then ends its process as every one held open is.
+
+        Not where the cut is made on the thread reading the turn -- a budget spent, read off
+        what the turn said -- since that thread is the one pi's answer would be read on, and
+        there the process is ended at once, as it always was.
+        """
+        proc = self._proc
+        if (
+            proc is not None
+            and proc.poll() is None
+            and threading.get_ident() != self._reading
+        ):
+            self._aborted.clear()
+            self._send(json.dumps({"type": "abort"}) + "\n")
+            self._aborted.wait(_ABORTING)
+        super()._cuts()
+
     def _restarted(self) -> None:
         """Forgets the turn the last process was in the middle of, which this one is not."""
         self._said, self._failed, self._spent, self._costing = "", None, 0, Usage()
@@ -431,6 +474,8 @@ class PiSession(StreamSessionBase):
         except json.JSONDecodeError:
             return  # not ours: pi prints the odd plain line among the JSON
         match said.get("type"):
+            case "response" if said.get("command") == "abort":
+                self._aborted.set()
             case "response" if said.get("success") is False:
                 # A command pi would not take. The one that matters is the prompt: a turn that
                 # was never started is a failed turn, and there is no `agent_settled` coming.

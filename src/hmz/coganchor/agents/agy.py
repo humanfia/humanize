@@ -17,6 +17,7 @@ from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
+from hmz import home
 from hmz.coganchor import backends
 
 from ._inputs import snapshot
@@ -38,6 +39,10 @@ _COMMAND = "agy"
 #: 2026-09-15: `--mode plan` is "research and plan without making changes", `--mode
 #: accept-edits` is "auto-approve file edits, prompt for commands", and
 #: `--dangerously-skip-permissions` is the one where nothing is asked at all.
+#:
+#: `plan` is not what holds `read-only` to reading, though: agy 1.2 in plan mode writes the
+#: file it is asked to. What does is :data:`_READER`, the agent a turn at that rung is started
+#: as, whose tools read and do nothing else.
 #:
 #: The prompting is nobody's to answer here, and that is what makes the two tighter rungs real
 #: rungs rather than turns that hang on them: a print-mode run soft-denies the tool it was not
@@ -67,6 +72,55 @@ _PERMITTED = {
     "bypass": ("--dangerously-skip-permissions",),
     UNSAID: (),
 }
+
+#: The agent a turn at `read-only` is started as (`--agent`): one of humanize's own, whose
+#: toolset is the reading tools alone and none of the CLI's built-in ones
+#: (`excludeDefaultComponents`), so that nothing it can reach for writes. Put where agy finds a
+#: project's own agents, `.agents/agents/`, in a directory of humanize's added to the turn
+#: (`--add-dir`). An `--agent` agy cannot find is run as its default agent without a word, which
+#: is every tool there is -- so a turn landing on another machine, where that directory is not,
+#: is refused at this rung rather than started, and the file is written again before every turn
+#: that names it rather than trusted to still be there. Checked against agy 1.2.12 on
+#: 2026-09-27: its model says it has `view_file`, `grep_search`, `find_by_name`, `list_dir` and
+#: `manage_task`.
+_READER = "hmz-read-only"
+_READING = f"""---
+name: {_READER}
+description: Reads, and changes nothing.
+tools: [view_file, grep_search, find_by_name, list_dir]
+excludeDefaultComponents: true
+subagent: false
+---
+# Reader
+
+You may read files and search them. You have no way of changing anything: no tool here writes
+a file or runs a command. When asked to change something, say that you cannot.
+"""
+
+
+def _reader() -> Path:
+    """The directory holding :data:`_READER` where agy finds it, as it is to be found.
+
+    Under humanize's own home, which nothing tidies away under a process that is still using
+    it, and written whole wherever it is not already exactly this -- through a file beside it,
+    so that a turn starting while another process writes it reads one or the other.
+
+    Returns:
+      The directory to add to a `read-only` turn.
+    """
+    at = home() / "agy"
+    defined = at / ".agents" / "agents" / f"{_READER}.md"
+    try:
+        if defined.read_text(encoding="utf-8") == _READING:
+            return at
+    except OSError:
+        pass
+    defined.parent.mkdir(parents=True, exist_ok=True)
+    beside = defined.with_name(f".{defined.name}.{os.getpid()}")
+    beside.write_text(_READING, encoding="utf-8")
+    beside.replace(defined)
+    return at
+
 
 #: How long the CLI's own print-mode clock is given, in seconds, for a turn nobody has said
 #: anything about. Its own default is five minutes, and since 1.1.28 a turn that reaches that
@@ -434,6 +488,8 @@ class AntigravityCLISession(StreamSessionBase):
             # reach the target, and a turn left to find a project of its own would be one
             # whose edits land nowhere anybody is watching.
             argv += ["--add-dir", self._workspace()]
+        if config.permission == "read-only":
+            argv += ["--add-dir", str(_reader()), "--agent", _READER]
         if config.sandbox:
             argv.append("--sandbox")
         if config.disable_slash_commands:
@@ -638,11 +694,12 @@ class AntigravityCLIAgentConfig(AgentConfig):
     Four of its flags are deliberately not here. `--project` and `--new-project` choose the
     project whose directory `add_workspace` exists to stop replacing the session's, so a field
     for them would be a field for undoing the one above it. `--agent` picks a custom agent
-    definition, which is a system prompt and a toolset chosen behind the flow's back, out of
-    definitions nothing here mounts. `--log-file` moves the log a failed turn's real reason is
-    read out of, and what reads it -- :func:`hmz.coganchor.backends.journalled` -- finds the
-    newest under this backend's home rather than being told a path per turn, so naming one
-    would move the log away from the only thing that looks at it.
+    definition, which is a system prompt and a toolset chosen behind the flow's back -- the one
+    humanize picks itself is the one that holds a `read-only` turn to reading. `--log-file`
+    moves the log a failed turn's real reason is read out of, and what reads it --
+    :func:`hmz.coganchor.backends.journalled` -- finds the newest under this backend's home
+    rather than being told a path per turn, so naming one would move the log away from the
+    only thing that looks at it.
 
     Attributes:
       add_workspace: Whether the session's own directory is pinned as a workspace root with
@@ -716,12 +773,19 @@ class AntigravityCLIAgent(AgentBase):
             disabled` and goes on running, which is an agent that may write under a rung
             saying it may not -- and a rung that lies is worse than one that is refused. Only
             `plan`: the CLI names that mode alone, and `--mode accept-edits` is unaffected.
+            And `read-only` on another machine, where :data:`_READER` is not to be found and
+            agy would run its default agent in its place.
         """
         super()._serves(config)
         if _settled(config).disable_slash_commands and config.permission == "read-only":
             raise Unserved(
                 f"{_COMMAND} cannot run at read-only with disable_slash_commands: "
                 f"its plan mode has no effect while expansion is off"
+            )
+        if config.machine is not None and config.permission == "read-only":
+            raise Unserved(
+                f"{_COMMAND} cannot run at read-only on another machine: what holds it "
+                "there is an agent of humanize's that is a file on this one"
             )
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> AntigravityCLISession:
