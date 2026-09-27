@@ -17,13 +17,13 @@ from typing import TYPE_CHECKING
 import pytest
 from textual.widgets import Static
 
-from hmz.coganchor.agents import AgentBase, AgentConfig, Event
+from hmz.coganchor.agents import AgentBase, AgentConfig
 from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
 from hmz.tui.app import _PINNED
 from hmz.tui.monitor import short
 from tests.stubs import ShellAgent, ShellSession, written
-from tests.tui.fixtures import holding, set_up, transcript
+from tests.tui.fixtures import event, holding, set_up, told, transcript
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -92,15 +92,20 @@ def _pinned(app: Humanize) -> str:
     return str(said.content) if said.has_class("waiting") else ""
 
 
-async def _running(app: Humanize, driver: Pilot[None]) -> None:
+async def _running(app: Humanize, driver: Pilot[None], *agents: AgentBase) -> None:
     """Puts the interface in the one state this is about: a flow up, and no turn open.
 
     Which is a flow between two turns, or one inside a sleep of its own -- the moment a line
     has nowhere to go but the queue.
+
+    Args:
+      app: The interface.
+      driver: What is pumping it.
+      agents: The agents whose conversations the flow has opened, none by default.
     """
     app._flow_named, app._models = "flow", {"coder": Runs("claude/m:high")}
     app._declared = None  # a flow nothing here loads, whose one role is `coder`
-    holding(app, ShellAgent(CONFIG))
+    holding(app, *agents)
     app._queued = []
     await driver.pause()
 
@@ -168,13 +173,12 @@ async def test_a_line_into_a_turn_that_is_open_is_pinned_until_the_agent_has_it(
     """
     app = Humanize()
     async with app.run_test() as driver:
-        await _running(app, driver)
         agent = SteerableAgent(CONFIG)
-        app._agents = [agent]
         session = agent.new()
+        await _running(app, driver, agent)
         # A turn is open on that conversation, so there is one to steer -- and the interface
         # reads the only conversation there is, which is where a typed line goes.
-        app._heard(agent, session, Event(kind="begins", text=""))
+        told(app, event(f"{agent.id}/1", "begins"))
 
         await driver.press(*"and this")
         await driver.press("enter")
@@ -187,7 +191,7 @@ async def test_a_line_into_a_turn_that_is_open_is_pinned_until_the_agent_has_it(
         assert f"with {short(agent.id)}" in _pinned(app)
 
         # And written down when that agent's own stream says the turn has taken it in.
-        app._heard(agent, session, Event(kind="took", text="and this"))
+        told(app, event(f"{agent.id}/1", "took", "and this"))
         await until(lambda: "and this" in transcript(app), driver)
 
         assert _pinned(app) == ""
@@ -204,17 +208,16 @@ async def test_a_turn_that_ended_without_saying_it_had_it_says_that_instead() ->
     """
     app = Humanize()
     async with app.run_test() as driver:
-        await _running(app, driver)
         agent = SteerableAgent(CONFIG)
-        app._agents = [agent]
         session = agent.new()
-        app._heard(agent, session, Event(kind="begins", text=""))
+        await _running(app, driver, agent)
+        told(app, event(f"{agent.id}/1", "begins"))
 
         await driver.press(*"take this")
         await driver.press("enter")
         await until(lambda: bool(_pinned(app)), driver)
 
-        app._heard(agent, session, Event(kind="ends", text=""))
+        told(app, event(f"{agent.id}/1", "ends"))
         await until(lambda: "take this" in transcript(app), driver)
 
         assert _pinned(app) == ""
@@ -233,12 +236,11 @@ async def test_a_word_the_backend_would_not_take_goes_back_in_the_queue() -> Non
     app = Humanize()
     async with app.run_test() as driver:
         await _running(app, driver)
-        agent = app._agents[0]
         with app._saying:
-            app._given.append((agent.id, "never went"))
+            app._given.append(("coder", "never went"))
             app._queued.append("typed after it")
 
-        app._unreached(agent.id, "never went", "no active turn to steer")
+        app._unreached("coder", "never went", "no active turn to steer")
         await driver.pause()
 
         assert app._given == []
@@ -254,16 +256,13 @@ async def test_a_word_put_to_one_agent_is_not_taken_off_by_another() -> None:
     app = Humanize()
     async with app.run_test() as driver:
         await _running(app, driver)
-        builder = app._agents[0]
-        reviewer = ShellAgent(CONFIG)
-        app._agents.append(reviewer)
 
         with app._saying:
-            app._given.append((builder.id, "for the builder"))
-        app._heard(reviewer, reviewer.new(), Event(kind="took", text="for the builder"))
+            app._given.append(("coder", "for the builder"))
+        told(app, event("reviewer/1", "took", "for the builder"))
         await driver.pause()
 
-        assert app._given == [(builder.id, "for the builder")]
+        assert app._given == [("coder", "for the builder")]
         assert "for the builder" not in transcript(app)
 
 
@@ -534,11 +533,10 @@ async def test_lines_typed_in_a_row_go_into_the_turn_one_at_a_time() -> None:
     """
     app = Humanize()
     async with app.run_test() as driver:
-        await _running(app, driver)
         agent = SteerableAgent(CONFIG)
-        app._agents = [agent]
         session = agent.new()
-        app._heard(agent, session, Event(kind="begins", text=""))
+        await _running(app, driver, agent)
+        told(app, event(f"{agent.id}/1", "begins"))
 
         for said in ("hi", "hi again", "hi once more"):
             app._interject(said)
@@ -549,7 +547,7 @@ async def test_lines_typed_in_a_row_go_into_the_turn_one_at_a_time() -> None:
         assert app._given == [(agent.id, "hi")]
         assert app._queued == ["hi again", "hi once more"]
 
-        app._heard(agent, session, Event(kind="took", text="hi"))
+        told(app, event(f"{agent.id}/1", "took", "hi"))
         await until(lambda: len(session.put_in) > 1, driver)
 
         assert session.put_in == ["hi", "hi again"]
@@ -591,11 +589,10 @@ async def test_what_went_to_an_agent_is_pinned_in_front_of_what_is_still_queued(
     # and fails a test that is about which line comes first rather than about where
     # either is cut. The lines are short and the terminal is wide, so neither is cut.
     async with app.run_test(size=(120, 24)) as driver:
-        await _running(app, driver)
         agent = SteerableAgent(CONFIG)
-        app._agents = [agent]
         session = agent.new()
-        app._heard(agent, session, Event(kind="begins", text=""))
+        await _running(app, driver, agent)
+        told(app, event(f"{agent.id}/1", "begins"))
 
         app._interject("gone")
         app._interject("behind")
@@ -684,7 +681,7 @@ async def test_the_pin_sits_on_the_editor_beside_what_the_run_is_running_as() ->
     app = Humanize()
     async with app.run_test(size=(80, 24)) as driver:
         await _running(app, driver)
-        app._monitor.spend(app._agents[0].id, 12345, model="m")
+        app._monitor.spend("coder", 12345, model="m")
         app._interject("hi")
         app._interject("hi again")
         await until(lambda: bool(_pinned(app)), driver)

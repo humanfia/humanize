@@ -49,7 +49,16 @@ from hmz.tui.pick import (
 )
 from tests.stubs import events as recorded
 from tests.stubs import written
-from tests.tui.fixtures import ONE, holding, set_up, transcript, until
+from tests.tui.fixtures import (
+    ONE,
+    event,
+    holding,
+    opened,
+    set_up,
+    told,
+    transcript,
+    until,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -324,7 +333,7 @@ async def test_a_line_typed_while_a_flow_runs_reaches_the_agent(
         await driver.press("enter")
         # The turn will not end until it has been told something else, so this cannot race.
         await until(
-            lambda: any(agent.sessions for agent in app._agents),
+            lambda: bool(app._seen),
             driver,
         )
         await driver.press(*"and this")
@@ -410,7 +419,7 @@ async def test_what_the_flow_did_is_on_monitor(workspace: Path) -> None:
         await driver.press(*"start")
         await driver.press("enter")
         await until(
-            lambda: any(agent.sessions for agent in app._agents),
+            lambda: bool(app._seen),
             driver,
         )
         await driver.press(*"and this")
@@ -642,7 +651,7 @@ async def test_what_is_running_is_not_swapped_underneath_itself(
         await driver.press(*"start")
         await driver.press("enter")
         await until(
-            lambda: any(agent.sessions for agent in app._agents),
+            lambda: bool(app._seen),
             driver,
         )
 
@@ -692,10 +701,10 @@ async def test_an_agent_set_up_under_a_running_flow_is_what_the_next_run_starts_
         await driver.press(*"start")
         await driver.press("enter")
         await until(
-            lambda: any(agent.sessions for agent in app._agents),
+            lambda: bool(app._seen),
             driver,
         )
-        (agent,) = app._agents
+        ((_, agent, _),) = app._behind()
         assert agent.config.effort == "high"
 
         await driver.press(*"/flow")
@@ -733,7 +742,7 @@ async def test_two_ctrl_c_stop_the_flow_and_not_just_the_turn(workspace: Path) -
         await driver.press(*"start")
         await driver.press("enter")
         await until(
-            lambda: any(agent.sessions for agent in app._agents),
+            lambda: bool(app._seen),
             driver,
         )
         await driver.press("ctrl+c")
@@ -767,7 +776,7 @@ async def test_the_run_is_read_by_going_up_to_it_and_neither_key_stops_it(
         await driver.press(*"start")
         await driver.press("enter")
         await until(
-            lambda: any(agent.sessions for agent in app._agents),
+            lambda: bool(app._seen),
             driver,
         )
         held = app._run
@@ -870,22 +879,22 @@ async def test_a_flow_between_two_turns_is_a_flow_that_is_running() -> None:
 async def test_a_flow_that_called_another_names_both_of_them() -> None:
     """A flow may reach for another and run it, and what is running is then both."""
     from hmz.runtime.flowing import LiveCall
+    from hmz.tui.records import called
 
     started = LiveCall("chat:chat", "chat", 1, time.monotonic(), 0, None)
-    called = LiveCall("rlar:review", "review", 2, time.monotonic(), 0, started)
+    inner = LiveCall("rlar:review", "review", 2, time.monotonic(), 0, started)
     app = Humanize()
     async with app.run_test() as driver:
         app._flow_named = "chat"
-        with unittest.mock.patch.object(
-            type(app.hmz.flows), "running", return_value=(started, called)
-        ):
-            app._draw()
-            await driver.pause()
-            status = str(app.query_one("#status", Static).content)
+        told(app, called((started, inner)))
+        app._draw()
+        await driver.pause()
+        status = str(app.query_one("#status", Static).content)
 
         assert "chat ▸ rlar:review" in status
 
         # And back to the one that is set up to run, once nothing is.
+        told(app, called(()))
         app._draw()
         await driver.pause()
         assert "chat" in str(app.query_one("#status", Static).content)
@@ -896,11 +905,9 @@ async def test_the_readout_says_what_a_run_cost_in_money_as_well_as_in_tokens(
     priced: str,
 ) -> None:
     """A token count says how much work was done and nothing about what it came to."""
-    from hmz.coganchor.agents.claude import ClaudeCodeAgent, ClaudeCodeAgentConfig
-
     app = Humanize()
     async with app.run_test() as driver:
-        app._agents = [ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high"))]
+        told(app, opened("actor/1"))
         app._monitor.begins("actor", priced)
         app._monitor.spend("actor", 1040, kinds={"input": 1000, "output": 40})
         app._draw()
@@ -921,20 +928,17 @@ async def test_a_turn_that_lands_carries_the_kinds_its_bill_is_made_of(
     priced: str,
 ) -> None:
     """The `result` says what it cost by model and by kind, and the money needs both."""
-    from hmz.coganchor.agents import Event, Usage
-    from hmz.coganchor.agents.claude import ClaudeCodeAgent, ClaudeCodeAgentConfig
-
-    agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model=priced, effort="high"))
     app = Humanize()
     async with app.run_test():
-        app._heard(
-            agent,
-            agent.new(),
-            Event(
-                kind="result",
-                text="done",
+        told(
+            app,
+            event(
+                "actor/1",
+                "result",
+                "done",
                 tokens={priced: 1040},
-                spent=Usage(input=1000, output=40),
+                spent={"input": 1000, "output": 40},
+                model=priced,
             ),
         )
 
@@ -955,20 +959,17 @@ async def test_a_turn_spread_over_two_models_keeps_the_kinds_it_was_made_of(
     turn counted as tokens of no kind at all: missing from every per-kind figure and priced
     at nothing, which is a worse answer than an apportioned one.
     """
-    from hmz.coganchor.agents import Event, Usage
-    from hmz.coganchor.agents.claude import ClaudeCodeAgent, ClaudeCodeAgentConfig
-
-    agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model=priced, effort="high"))
     app = Humanize()
     async with app.run_test():
-        app._heard(
-            agent,
-            agent.new(),
-            Event(
-                kind="result",
-                text="done",
+        told(
+            app,
+            event(
+                "actor/1",
+                "result",
+                "done",
                 tokens={priced: 1000, "some-lite-model": 40},
-                spent=Usage(input=1000, output=40),
+                spent={"input": 1000, "output": 40},
+                model=priced,
             ),
         )
 
@@ -1011,21 +1012,18 @@ async def test_the_remainder_of_dividing_a_turn_between_models_marks_nothing(
     that is counting everything as a floor -- a warning about arithmetic, on the commonest
     turn Claude Code takes, since a turn that reached for a sub-agent names two models.
     """
-    from hmz.coganchor.agents import Event, Usage
-    from hmz.coganchor.agents.claude import ClaudeCodeAgent, ClaudeCodeAgentConfig
-
-    agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model=priced, effort="high"))
     app = Humanize()
     async with app.run_test():
-        app._monitor.reporting(agent.id, {"input", "output", "cache_read"})
-        app._heard(
-            agent,
-            agent.new(),
-            Event(
-                kind="result",
-                text="done",
+        app._monitor.reporting("actor", {"input", "output", "cache_read"})
+        told(
+            app,
+            event(
+                "actor/1",
+                "result",
+                "done",
                 tokens={priced: 201_391, "some-lite-model": 1755},
-                spent=Usage(input=1663, output=410, cache_read=201_073),
+                spent={"input": 1663, "output": 410, "cache_read": 201_073},
+                model=priced,
             ),
         )
 
@@ -1093,11 +1091,9 @@ async def test_a_model_nobody_prices_is_a_token_count_with_no_dollars_beside_it(
     None
 ):
     """`$0.00` against an unlisted model would be a claim about a bill, and a wrong one."""
-    from hmz.coganchor.agents.claude import ClaudeCodeAgent, ClaudeCodeAgentConfig
-
     app = Humanize()
     async with app.run_test() as driver:
-        app._agents = [ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high"))]
+        told(app, opened("actor/1"))
         app._monitor.begins("actor", "a-model-nobody-lists")
         app._monitor.spend("actor", 4000, kinds={"input": 3000, "output": 1000})
         app._draw()
@@ -1114,13 +1110,9 @@ async def test_a_model_nobody_prices_is_a_token_count_with_no_dollars_beside_it(
 @pytest.mark.timeout(60)
 async def test_a_turn_that_has_gone_quiet_still_reads_as_one_that_is_running() -> None:
     """A model thinks for minutes without a word, and the clock is what says it is alive."""
-    from hmz.coganchor.agents import Event
-    from hmz.coganchor.agents.claude import ClaudeCodeAgent, ClaudeCodeAgentConfig
-
-    agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high"), name="one")
     app = Humanize()
     async with app.run_test() as driver:
-        app._heard(agent, agent.new(), Event(kind="begins", text="do it"))
+        told(app, event("one/1", "begins", "do it"))
         app._began["one"] = time.monotonic() - 42  # a turn that started a while ago
         app._draw()
         await driver.pause()
@@ -1372,15 +1364,16 @@ async def test_a_third_ctrl_c_does_not_wait_for_the_flow_to_unwind() -> None:
     going: what the flow gets back is a turn that failed, exactly as it would have had the
     agent fallen over by itself. It is the last thing a key can do about a run.
     """
-    from hmz.coganchor.agents import AgentConfig, Event
+    from hmz.coganchor.agents import AgentConfig
     from tests.stubs import ShellAgent
 
     app = Humanize()
     async with app.run_test() as driver:
         agent = ShellAgent(AgentConfig(model="m", effort="high"))
-        run = holding(app, agent)
+        agent.rename("builder")
         session = agent.new()
-        app._heard(agent, session, Event(kind="begins", text=""))
+        run = holding(app, agent)
+        told(app, event("builder/1", "begins"))
         await driver.pause()
 
         await driver.press("ctrl+c")
@@ -1390,7 +1383,7 @@ async def test_a_third_ctrl_c_does_not_wait_for_the_flow_to_unwind() -> None:
         assert app._stopping is run
         assert run.stopped
         assert (
-            session in app._working
+            "builder/1" in app._working
         )  # which is a turn nothing has reported the end of
 
         await driver.press("ctrl+c")
@@ -1399,7 +1392,8 @@ async def test_a_third_ctrl_c_does_not_wait_for_the_flow_to_unwind() -> None:
         # Closed, whatever the stop came to: a backend that ignored one is the reason there
         # is a third press at all. And the run reads as over from here.
         assert run.closed
-        assert session not in app._working
+        assert "builder/1" not in app._working
+        del session
         assert "closing 1 conversation" in transcript(app)
         assert app.is_running  # the run, rather than the interface
         assert app._stopping is None  # and nothing left for a fourth press to reach
@@ -1450,21 +1444,19 @@ async def test_details_covers_the_thinking_as_well_as_the_tools() -> None:
 @pytest.mark.timeout(60)
 async def test_what_a_turn_did_on_the_way_is_shown_only_where_it_is_asked_for() -> None:
     """The complaint this answers: a screen of tool rows, with the answer somewhere in it."""
-    from hmz.coganchor.agents import Event
-    from hmz.coganchor.agents.claude import ClaudeCodeAgent, ClaudeCodeAgentConfig
-
     app = Humanize()
     async with app.run_test() as driver:
-        agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high"))
-        app._agents = [agent]
-        session = agent.new()
+        told(app, opened("actor/1"))
 
         def turn() -> None:
-            app._heard(agent, session, Event(kind="begins", text=""))
-            app._heard(agent, session, Event(kind="tool", text="Read pyproject.toml"))
-            app._heard(agent, session, Event(kind="reasoning", text="thinking aloud"))
-            app._heard(agent, session, Event(kind="text", text="the answer"))
-            app._heard(agent, session, Event(kind="ends", text=""))
+            told(
+                app,
+                event("actor/1", "begins"),
+                event("actor/1", "tool", "Read pyproject.toml"),
+                event("actor/1", "reasoning", "thinking aloud"),
+                event("actor/1", "text", "the answer"),
+                event("actor/1", "ends"),
+            )
 
         await asyncio.to_thread(turn)
         await until(lambda: "Worked for" in transcript(app), driver)
@@ -1495,24 +1487,18 @@ async def test_what_humanize_is_doing_about_a_turn_is_not_hidden_with_the_workin
     The line saying which it is was said as a tool call, so asking not to see every file read
     was asking not to be told a rate limit was being waited out either.
     """
-    from hmz.coganchor.agents import Event
-    from hmz.coganchor.agents.claude import ClaudeCodeAgent, ClaudeCodeAgentConfig
-
     app = Humanize()
     async with app.run_test() as driver:
-        agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high"))
-        app._agents = [agent]
-        session = agent.new()
+        told(app, opened("actor/1"))
 
         def turn() -> None:
-            app._heard(agent, session, Event(kind="begins", text=""))
-            app._heard(agent, session, Event(kind="tool", text="Read pyproject.toml"))
-            app._heard(
-                agent,
-                session,
-                Event(kind="notice", text="waiting 30s for a rate limit"),
+            told(
+                app,
+                event("actor/1", "begins"),
+                event("actor/1", "tool", "Read pyproject.toml"),
+                event("actor/1", "notice", "waiting 30s for a rate limit"),
+                event("actor/1", "ends"),
             )
-            app._heard(agent, session, Event(kind="ends", text=""))
 
         assert not app._details
         await asyncio.to_thread(turn)
@@ -1635,9 +1621,9 @@ async def test_every_line_typed_between_turns_is_a_turn_of_one_conversation(
 
         # One session: the second turn was taken in the first's conversation rather than in
         # another, so the agent had the first in context.
-        (agent,) = app._agents
-        assert agent.id == "assistant"
-        assert agent.opened == [agent.opened[0]]
+        (seen,) = app._seen.values()
+        assert seen.id == "assistant"
+        assert len(seen.idents) == 1
         # And nothing is left pinned above the prompt: a flow waiting to be told something
         # takes what was typed at once, so it was said rather than held.
         assert not app.query_one("#queued", Static).has_class("waiting")
@@ -1891,14 +1877,11 @@ async def test_a_turn_reads_the_way_claude_code_renders_one() -> None:
     Which is Claude Code's own shape, read off its own screen: no bars, no boxes, nothing
     indented -- every line starts where the terminal does.
     """
-    from hmz.coganchor.agents import Event
-    from hmz.coganchor.agents.claude import ClaudeCodeAgent, ClaudeCodeAgentConfig
-
     app = Humanize()
     async with app.run_test() as driver:
-        agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high"))
-        app._agents = [agent]  # so the conversation it opens is one there is to read
-        session = agent.new()
+        told(
+            app, opened("actor/1")
+        )  # so the conversation it opens is one there is to read
         app._said_by_you("do the thing")
 
         app._details = True  # so that a tool row is one of the parts there are to draw
@@ -1906,10 +1889,13 @@ async def test_a_turn_reads_the_way_claude_code_renders_one() -> None:
         # From a thread of its own, as a turn always says things: `_heard` hands them to the
         # event loop, which it may only do from somewhere that is not the event loop.
         def turn() -> None:
-            app._heard(agent, session, Event(kind="begins", text=""))
-            app._heard(agent, session, Event(kind="tool", text="Bash git status"))
-            app._heard(agent, session, Event(kind="text", text="one\ntwo"))
-            app._heard(agent, session, Event(kind="ends", text=""))
+            told(
+                app,
+                event("actor/1", "begins"),
+                event("actor/1", "tool", "Bash git status"),
+                event("actor/1", "text", "one\ntwo"),
+                event("actor/1", "ends"),
+            )
 
         await asyncio.to_thread(turn)
         await until(lambda: "Worked for" in transcript(app), driver)
@@ -2707,7 +2693,7 @@ async def test_two_things_said_get_two_answers_and_not_three(
         await driver.press(*"first")
         await driver.press("enter")
         # The turn will not end until it has been told something else, so this cannot race.
-        await until(lambda: any(a.sessions for a in app._agents), driver)
+        await until(lambda: bool(app._seen), driver)
         await driver.press(*"second")
         await driver.press("enter")
         await until(lambda: "answer to second" in transcript(app), driver)

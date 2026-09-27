@@ -90,7 +90,7 @@ async def test_a_typed_stop_stops_the_flow_as_the_second_press_does(
     async with app.run_test() as driver:
         set_up(app, "flow")
         await _typed(driver, "start")
-        await until(lambda: any(agent.sessions for agent in app._agents), driver)
+        await until(lambda: bool(app._seen), driver)
 
         await _typed(driver, "/stop")
         await until(lambda: app._run is None and app._stopping is None, driver)
@@ -230,7 +230,7 @@ async def test_the_press_after_a_typed_stop_does_not_close_the_interface(
     async with app.run_test() as driver:
         set_up(app, "flow")
         await _typed(driver, "start")
-        await until(lambda: any(agent.sessions for agent in app._agents), driver)
+        await until(lambda: bool(app._seen), driver)
         await driver.press("ctrl+c")
         await driver.pause()
         assert app._presses == 1

@@ -241,12 +241,12 @@ async def test_btw_reaches_an_ended_session_with_no_flow_running() -> None:
     app = Humanize()
     primary = MainAgent(CONFIG)
     primary.rename("builder")
-    app._ran = []
     # Told as a run tells it, and then let go of by everything but the interface: an agent
     # holds its conversations weakly, and a flow that has ended holds none of them.
     ended = primary.new()
     ended._id = "ended-1"
-    app._opened(app._ran, app._monitor, app._tally, "builder", primary, ended)
+    holding(app, primary)
+    app._run = None  # which is what the run ending leaves behind
     del ended
     gc.collect()
 

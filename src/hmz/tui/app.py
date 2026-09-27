@@ -39,7 +39,6 @@ import sys
 import threading
 import time
 import traceback
-import weakref
 from collections import deque
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -105,8 +104,9 @@ from .pick import (
     settled,
 )
 from .pick import EVERY as _EVERY
+from .records import Following
 from .selecting import Choices, Transcript
-from .tally import Tally
+from .tally import Seen, Tally
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -138,6 +138,11 @@ class _Running(Protocol):
     @property
     def flow(self) -> str:
         """The flow, as it was named."""
+        ...
+
+    @property
+    def ref(self) -> str:
+        """The flow's canonical ref."""
         ...
 
     def watch(self, listener: Listener) -> None:
@@ -224,9 +229,6 @@ _NAMED = re.compile(r"[A-Za-z][\w.-]*(?:/[A-Za-z][\w.-]*)*(?::[\w.-]+)?")
 #: How much live activity a side question may carry into its isolated context: a bound on
 #: optional observation, since a day-long flow must not grow the interface without limit.
 _BTW_EVENTS = 80
-
-#: How many of a run's conversations `/btw` keeps hold of to be asked about, newest kept.
-_BTW_KEPT = 256
 
 
 @dataclass
@@ -798,7 +800,7 @@ class Humanize(App[None]):
         for run in (self._run, self._stopping):
             if run is not None:
                 run.close()
-        self._run, self._stopping, self._agents = None, None, []
+        self._run, self._stopping = None, None
         self._close_btw()
         self.exit()
 
@@ -934,12 +936,7 @@ class Humanize(App[None]):
         self._presses = 0
         if run is None:
             return
-        closing = [
-            session
-            for agent in self._ran
-            for session in agent.sessions
-            if session in self._working
-        ]
+        closing = [key for key in self._driven() if key in self._working]
         if closing:
             self.show(
                 f"[dim]— closing {len(closing)} conversation(s) under their turns —[/dim]"
@@ -947,8 +944,8 @@ class Humanize(App[None]):
         # On this thread, as telling the flow to stop is: closing a conversation is closing
         # the process behind it, which is a second at the outside.
         run.close()
-        for session in closing:
-            self._working.discard(session)
+        for key in closing:
+            self._working.discard(key)
 
     def __init__(
         self,
@@ -991,15 +988,27 @@ class Humanize(App[None]):
         #: The run going now, or None: which is what `a flow is running` means here.
         self._run: _Running | None = None
         #: Which run is the one going now, counted: what the person outside it is asked is
-        #: answered only while the run asking is still the one going.
+        #: answered only while the run asking is still the one going, and a record of a run
+        #: that has since been replaced is one about a run nobody is watching.
         self._generation = 0
-        #: The agents behind the sessions the run going now has opened, which is who a typed
-        #: line is said to. One per session, each named for the role it was opened for.
-        self._agents: list[AgentBase] = []
+        #: The run going now, or the last, as the records it tells: each session it opened by
+        #: the key it is read under, in the order it opened them, each named for its role.
+        #: Kept once the run is over, since its transcripts are still on the screen and
+        #: still worth reading back.
+        self._seen: dict[str, Seen] = {}
+        #: What tells those records of a run held here, and keeps what is behind each key --
+        #: the one place a conversation itself is reached from: to put a word into a turn,
+        #: to ask a side question of it, and for the board.
+        self._following: Following | None = None
         #: What the flow has done so far, which is what the right-hand column shows, and who
         #: reads the agents' own logs into it while it runs.
         self._monitor = Monitor()
         self._tally = Tally([], self._monitor)
+        #: The same pair for each run still going, by run: a run told to stop unwinds in its
+        #: own time, and the next may have started by the time it has.
+        self._followed: dict[int, tuple[Monitor, Tally]] = {}
+        #: The flow calls going, as last told: the flow started and whatever it called.
+        self._called: list[dict[str, Any]] = []
         #: The task of the run in front of us and a bounded plain record of what its agent
         #: streams have said. `/btw` reads these once, as a snapshot; it never reaches into a
         #: flow's conversations for context, because doing that would make the side question a
@@ -1010,11 +1019,6 @@ class Humanize(App[None]):
         self._btw_lock = threading.Lock()
         #: Btw mode, while it is on: who it talks to and the side conversations it opened.
         self._btw: _Btw | None = None
-        #: Every conversation of the run in front of us, or of the last, by the key it is read
-        #: and `/btw` asks it by. Held here rather than read off the agents, which hold theirs
-        #: weakly: a session that has ended is still one to ask about, and a key must go on
-        #: naming the one it named when a loop drops the rest.
-        self._btw_known: dict[str, tuple[AgentBase, SessionBase]] = {}
         #: Whether what a turn did on its way to an answer -- the tools it used, the thinking
         #: it did aloud, whatever it printed on its way past -- is shown, which the details
         #: switch on the first page of `/settings` turns, and which is read from what is
@@ -1037,15 +1041,6 @@ class Humanize(App[None]):
         #: The `Outworlder` roles of the run, in the order the flow declares them and then as
         #: any other first asks: one transcript apiece, and a stop on the ring each.
         self._outworlders: list[str] = []
-        #: Which conversation each session is, counted per role in the order they opened --
-        #: `builder/2` is the second a builder opened -- and how many each role has opened.
-        #: Held weakly for the reason the conversations with a turn open are, and numbered
-        #: under a lock, since sessions open on whatever thread the run opens them on.
-        self._numbered: weakref.WeakKeyDictionary[SessionBase, str] = (
-            weakref.WeakKeyDictionary()
-        )
-        self._opened_of: dict[str, int] = {}
-        self._numbering = threading.Lock()
         #: The last thing a turn answered with, and the last thing an agent stopped to ask:
         #: what the flow puts to the person is often exactly that -- a conversation says the
         #: agent's answer back to you to ask what next -- and a line already on the screen is
@@ -1125,14 +1120,10 @@ class Humanize(App[None]):
         #: closes its conversations under whatever turn is still open, which is the only
         #: thing left that a key can do about a flow already on its way out.
         self._stopping: _Running | None = None
-        #: The agents of the last run, which outlive it: their transcripts are still on the
-        #: screen when the flow is over, so the diagram that reads one out is still about
-        #: them. The run going now's are the same list, filled as its sessions open.
-        self._ran: list[AgentBase] = []
-        #: The conversations with a turn open, which are the only ones a typed line can go
-        #: into: one written to a conversation between turns is answered on its own, outside
-        #: the flow. Weakly held, for the reason the transcript is.
-        self._working: weakref.WeakSet[SessionBase] = weakref.WeakSet()
+        #: The conversations with a turn open, by key, which are the only ones a typed line
+        #: can go into: one written to a conversation between turns is answered on its own,
+        #: outside the flow.
+        self._working: set[str] = set()
         #: Whether the monitor draws a node per session rather than per agent, as `ctrl+t`
         #: last left it.
         self._by_session = False
@@ -1600,48 +1591,6 @@ class Humanize(App[None]):
         role, _, count = key.partition("/")
         return f"{short(role)}{_DOT}conversation {count}" if count else short(role)
 
-    def _key_of(self, agent: AgentBase, session: SessionBase | None) -> str:
-        """The transcript a conversation's lines go on, numbering it the first time.
-
-        Args:
-          agent: Whose conversation it is.
-          session: The conversation, or None for something the agent said for all of them.
-
-        Returns:
-          `<role>/<n>` for the n-th conversation the role opened, counting from one. What no
-          one conversation said -- a question a server put for all of them -- goes on the one
-          working, or the newest, since that is where somebody reading the agent is reading;
-          and on the role alone where it has none.
-        """
-        if session is None:
-            session = self._working_in(agent) or next(reversed(agent.sessions), None)
-        if session is None:
-            return agent.id
-        with self._numbering:
-            key = self._numbered.get(session)
-            if key is None:
-                counted = self._opened_of[agent.id] = (
-                    self._opened_of.get(agent.id, 0) + 1
-                )
-                key = self._numbered[session] = f"{agent.id}/{counted}"
-        return key
-
-    def _session_at(self, key: str) -> tuple[AgentBase, SessionBase] | None:
-        """The conversation one transcript is of, while it is still held.
-
-        Args:
-          key: The transcript, as `_now_reading` names them.
-
-        Returns:
-          Its agent and the conversation, or None for a transcript that is no conversation's
-          or one whose conversation has gone.
-        """
-        for agent in self._of(self._role_of(key)):
-            for session in agent.sessions:
-                if self._numbered.get(session) == key:
-                    return agent, session
-        return None
-
     def _view_kind(self) -> str:
         """Which kind of view is in front of the person, which is what a command works in.
 
@@ -1705,27 +1654,20 @@ class Humanize(App[None]):
             del self._kept[gone]
         return kept
 
-    def _conversations(self) -> list[tuple[AgentBase, SessionBase]]:
+    def _conversations(self) -> list[str]:
         """Every conversation the flow has open, in the order the flow takes its agents.
 
         The person is not among them: they are an agent a flow talks to rather than one it
         drives, and the conversation with them is this prompt.
 
         Returns:
-          The agent and the conversation, agents in the order the flow takes them and each of
-          their conversations oldest first.
+          Their keys, agents in the order the flow takes them and each of their conversations
+          oldest first -- and none once the run is over, there being nothing left to say to.
         """
-        from hmz.coganchor.agents import HumanAgent
+        return self._driven() if self._run is not None else []
 
-        return [
-            (agent, session)
-            for agent in self._agents
-            if not isinstance(agent, HumanAgent)
-            for session in agent.sessions
-        ]
-
-    def _driven(self) -> list[AgentBase]:
-        """The agents there are transcripts of, which is the run's or the last run's.
+    def _driven(self) -> list[str]:
+        """The conversations there are transcripts of, which are the run's or the last run's.
 
         The last run's once it is over, because its transcripts are still on the screen and
         still worth reading back: a run that ended is the one somebody wants to look at.
@@ -1733,13 +1675,13 @@ class Humanize(App[None]):
         is asked of the conversations, and there are none of those once a run is over.
 
         Returns:
-          One per session opened, oldest first, each named for its role.
+          One key per session opened, oldest first.
         """
-        return list(self._agents or self._ran)
+        return list(self._seen)
 
-    def _of(self, role: str) -> list[AgentBase]:
-        """The agents behind every session one role has opened, oldest first."""
-        return [one for one in self._driven() if one.id == role]
+    def _of(self, role: str) -> list[str]:
+        """Every session one role has opened, oldest first."""
+        return [key for key, seen in list(self._seen.items()) if seen.id == role]
 
     def _working_agents(self) -> list[str]:
         """Which of the flow's roles have a turn open, in the order they opened sessions.
@@ -1750,27 +1692,26 @@ class Humanize(App[None]):
         """
         return list(
             dict.fromkeys(
-                agent.id
-                for agent in self._driven()
-                if any(session in self._working for session in agent.sessions)
+                seen.id
+                for key, seen in list(self._seen.items())
+                if key in self._working
             )
         )
 
-    def _reading(self) -> AgentBase | None:
-        """The agent being read, where one role is rather than all of them.
+    def _reading(self) -> str | None:
+        """The conversation being read, where one role is rather than all of them.
 
         Returns:
-          The agent of the conversation read, the newest agent of the role read, or None on
-          the transcript they all appear on, on an outworlder's, and for one whose flow is
-          over -- the transcript stays up either way, there being nothing to say to it.
+          The conversation read, the newest of the role read, or None on the transcript they
+          all appear on, on an outworlder's, and for one whose flow is over -- the transcript
+          stays up either way, there being nothing to say to it.
         """
         if "/" in self._attached:
-            found = self._session_at(self._attached)
-            return found[0] if found else None
+            return self._attached if self._attached in self._seen else None
         held = self._of(self._role_of(self._attached)) if self._attached else []
         return held[-1] if held else None
 
-    def _says_to(self) -> SessionBase | None:
+    def _says_to(self) -> str | None:
         """Which conversation a typed line goes into, which is the one on the screen.
 
         The agent being read is what is being said to; of its conversations, the one with a
@@ -1779,18 +1720,17 @@ class Humanize(App[None]):
         is whichever has a turn open -- which is what the transcript is showing.
 
         Returns:
-          The conversation, or None where there is none open to say it to yet -- and on an
-          outworlder's transcript, which is no agent's to say anything to.
+          The conversation's key, or None where there is none open to say it to yet -- and on
+          an outworlder's transcript, which is no agent's to say anything to.
         """
         if "/" in self._attached:
-            found = self._session_at(self._attached)
-            return found[1] if found else None
+            return self._reading()
         if self._attached.startswith(_OUTWORLDER):
             return None
-        agent = self._reading()
-        if agent is not None:
-            return self._working_in(agent)
-        working = [one for _, one in self._conversations() if one in self._working]
+        working = [key for key in self._conversations() if key in self._working]
+        key = self._reading()
+        if key is not None:
+            return key if key in working else None
         return working[0] if working else None
 
     def _now_reading(self, whose: str, *, stepped: bool = True) -> None:
@@ -1821,7 +1761,7 @@ class Humanize(App[None]):
                 one.unread = False
         shown = self.query_one("#transcript", Transcript)
         shown.clear()
-        held = self._opened_of.get(whose, 0) if self._role_of(whose) == whose else 0
+        held = len(self._of(whose)) if self._role_of(whose) == whose else 0
         many = f"{_DOT}{held} conversations" if held > 1 else ""
         named = f"{escape(self._titled(whose))}{many}"
         shown.write(
@@ -1855,17 +1795,13 @@ class Humanize(App[None]):
             return []
         held: list[Held] = []
         for role in self._named_by:
-            agents = self._of(role)
+            keys = self._of(role)
             held.append(
                 Held(
-                    many=sum(len(agent.sessions) for agent in agents),
+                    many=len(keys),
                     reading=role == self._role_of(self._attached),
                     unread=self._unread(role),
-                    working=any(
-                        one in self._working
-                        for agent in agents
-                        for one in agent.sessions
-                    ),
+                    working=any(key in self._working for key in keys),
                 )
             )
         return held
@@ -1891,11 +1827,7 @@ class Humanize(App[None]):
           The transcripts to step round, the one they are all on first -- so that there is
           always the way back to watching the flow rather than one agent of it.
         """
-        running = [
-            self._key_of(agent, session)
-            for agent, session in self._conversations()
-            if session in self._working
-        ]
+        running = [key for key in self._conversations() if key in self._working]
         asked = (
             [f"{_OUTWORLDER}{one}" for one in self._outworlders]
             if self._run is not None
@@ -2186,8 +2118,7 @@ class Humanize(App[None]):
           which is what this line says with nothing going on.
         """
         return (
-            " ▸ ".join(named_as(one.ref) for one in self.hmz.flows.running())
-            or self._flow_named
+            " ▸ ".join(named_as(one["ref"]) for one in self._called) or self._flow_named
         )
 
     def _waiting_lines(self, beside: int = 0) -> list[str]:
@@ -2391,6 +2322,7 @@ class Humanize(App[None]):
                 reading=lambda: self._attached,
                 board=self._board,
                 outworlders=self._outworlding,
+                calls=lambda: self._called,
                 sessions=self._by_session,
                 turned=self._turns_monitor,
             ),
@@ -2435,11 +2367,27 @@ class Humanize(App[None]):
         """
         from hmz.coganchor.agents import HumanAgent
 
-        held = self._agents or self._ran
         return next(
-            (one.board for one in held if isinstance(one, HumanAgent)),
+            (
+                agent.board
+                for _, agent, _ in self._behind()
+                if isinstance(agent, HumanAgent)
+            ),
             None,
         )
+
+    def _behind(self) -> list[tuple[str, AgentBase, SessionBase | None]]:
+        """Every key of the run going now or the last, with the agent and conversation behind it.
+
+        What a record does not carry and three things still need: a word put into a turn, a
+        side question asked of a session, and the board.
+
+        Returns:
+          The key, the agent, and its conversation -- None for a person and for one gone --
+          oldest first.
+        """
+        following = self._following
+        return following.behind() if following is not None else []
 
     def _boxes(self, sessions: bool = False) -> list[Drawn]:  # noqa: FBT001, FBT002
         """The nodes that have worked, as the monitor draws them, in the flow's own order.
@@ -2461,7 +2409,7 @@ class Humanize(App[None]):
         """
         shape = self._monitor.shape(sessions=sessions)
         named = self._named_by
-        seen = list(dict.fromkeys(agent.id for agent in self._driven()))
+        seen = list(dict.fromkeys(one.id for one in list(self._seen.values())))
         seen.sort(key=lambda who: named.index(who) if who in named else len(named))
         if sessions:
             return [
@@ -2488,11 +2436,7 @@ class Humanize(App[None]):
             ]
         drawn: list[Drawn] = []
         for who in seen:
-            working = any(
-                one in self._working
-                for agent in self._of(who)
-                for one in agent.sessions
-            )
+            working = any(key in self._working for key in self._of(who))
             if not (working or shape.turns.get(who, 0)):
                 continue
             drawn.append(
@@ -2645,32 +2589,21 @@ class Humanize(App[None]):
     def _btw_sessions(self) -> list[tuple[str, AgentBase, SessionBase]]:
         """Every conversation of this run or the last, keyed as the views name them.
 
-        Returns:
-          `(<role>/<n>, agent, session)` apiece, `n` counting a role's from 1, the person's
-          left out: theirs is this prompt.
-        """
-        for agent in self._driven():
-            for session in agent.sessions:
-                self._btw_note(agent, session)
-        with self._btw_lock:
-            return [(key, *held) for key, held in self._btw_known.items()]
+        The key its transcript and its node go by, so that a side question asked of
+        `builder/2` is asked of the conversation `builder/2` shows.
 
-    def _btw_note(self, agent: AgentBase, session: SessionBase) -> None:
-        """Keys one conversation of the run for `/btw`, once, keeping the newest few hundred."""
+        Returns:
+          `(<role>/<n>, agent, session)` apiece, `n` counting a role's from 1: every one still
+          held, the newest few hundred held here once the run has let go, and the person's
+          left out -- theirs is this prompt.
+        """
         from hmz.coganchor.agents import HumanAgent
 
-        if isinstance(agent, HumanAgent):
-            return
-        # The key its transcript and its node go by, so that a side question asked of
-        # `builder/2` is asked of the conversation `builder/2` shows.
-        key = self._key_of(agent, session)
-        with self._btw_lock:
-            if key in self._btw_known:
-                return
-            self._btw_known[key] = (agent, session)
-            # A loop that opens a session a round runs for days; the oldest go first.
-            while len(self._btw_known) > _BTW_KEPT:
-                del self._btw_known[next(iter(self._btw_known))]
+        return [
+            (key, agent, session)
+            for key, agent, session in self._behind()
+            if session is not None and not isinstance(agent, HumanAgent)
+        ]
 
     def _enter_btw(self) -> _Btw | None:
         """Starts btw mode against whatever is on the screen, saying so."""
@@ -2753,16 +2686,16 @@ class Humanize(App[None]):
         shape = self._monitor.shape()
         # One per role, however many sessions it opened: a role is what is watched, and each
         # of its sessions is an agent of its own named for it.
-        driven = {agent.id: agent for agent in self._driven() if agent.id}
+        driven = {seen.id: seen for seen in list(self._seen.values()) if seen.id}
         agents = tuple(
             AgentProgress(
                 agent=who,
-                model=agent.config.model,
+                model=seen.model,
                 turns=shape.turns.get(who, 0),
                 working=who in shape.working,
                 role=who,
             )
-            for who, agent in driven.items()
+            for who, seen in driven.items()
         )
         handovers = tuple(
             sorted(
@@ -2795,14 +2728,14 @@ class Humanize(App[None]):
                 key,
                 (
                     "working"
-                    if session in self._working
+                    if key in self._working
                     else "idle"
                     if self._run
                     else "ended"
                 )
                 + f", model={agent.config.model or '(default)'}",
             )
-            for key, agent, session in self._btw_sessions()
+            for key, agent, _ in self._btw_sessions()
         )
         return FlowSnapshot(
             flow=self._flowing(),
@@ -2826,22 +2759,18 @@ class Humanize(App[None]):
         Returns:
           An agent to clone, or None where there is nothing set up to make one from.
         """
-        from hmz.coganchor.agents import HumanAgent
-
         said = read_back(self.settings.btw) if self.settings.btw else None
         if said is not None and (made := _made(said)) is not None:
             return made
         # The first the flow declares, as it is running where it has run.
+        ran = {key: agent for key, agent, _ in self._btw_sessions()}
         for role in self._named_by:
-            ran = [one for one in self._of(role) if not isinstance(one, HumanAgent)]
-            if ran:
-                return ran[0]
+            if held := [ran[key] for key in self._of(role) if key in ran]:
+                return held[0]
             runs = self._models.get(role)
             if runs is not None and (made := _made(runs)) is not None:
                 return made
-        return next(
-            (one for one in self._driven() if not isinstance(one, HumanAgent)), None
-        )
+        return next((ran[key] for key in self._driven() if key in ran), None)
 
     def _btw_clone(self, source: AgentBase, name: str) -> AgentBase:
         """Makes a read-only, skill-free agent that is invisible to the primary run."""
@@ -3112,7 +3041,7 @@ class Humanize(App[None]):
         self.show("[dim]— stopping the flow —[/dim]")
         # Held by identity, so that the run's own thread can say when it has finished
         # unwinding and nothing says it of a run that started since.
-        self._run, self._stopping, self._agents = None, run, []
+        self._run, self._stopping = None, run
         self._spoke.set()  # and a flow waiting to be told hears that it is over
         self._release()  # as does one waiting on an answer
         self._never_sent("the flow stopped first")
@@ -3128,7 +3057,7 @@ class Humanize(App[None]):
         for run in (self._run, self._stopping):
             if run is not None:
                 run.close()
-        self._run, self._stopping, self._agents = None, None, []
+        self._run, self._stopping = None, None
         self._spoke.set()
         self._release()
         self._close_btw()
@@ -3744,24 +3673,25 @@ class Humanize(App[None]):
         from hmz.runtime.flowing import open_outworlder
         from hmz.runtime.kept import written
 
-        self._generation += 1
-        generation = self._generation
+        generation = self._generation + 1
+        agents = {
+            role: written(runs)
+            for role, runs in self._models.items()
+            if role in self._named_by
+        }
+        envs = {
+            role: spec
+            for role, spec in self._envs.items()
+            if self._declared is None or role in self._declared.places
+        }
         try:
             # Whoever is outside the run is whoever is at this prompt: asked on a thread of
             # the run's own, and away while `/afk` says so -- which a run asks as it asks.
             run: _Running = self.hmz.run(
                 self._flow_named,
                 task,
-                agents={
-                    role: written(runs)
-                    for role, runs in self._models.items()
-                    if role in self._named_by
-                },
-                envs={
-                    role: spec
-                    for role, spec in self._envs.items()
-                    if self._declared is None or role in self._declared.places
-                },
+                agents=agents,
+                envs=envs,
                 params=self._params.model_dump() if self._params is not None else None,
                 budget=self._budget,
                 resume=resume if resume is not None else False,
@@ -3773,139 +3703,213 @@ class Humanize(App[None]):
         except Exception as why:  # noqa: BLE001 -- a flow that will not start is a line to fix
             self.show(f"hmz: {why}", "red")
             return
-        agents: list[AgentBase] = []
-        self._run, self._agents, self._ran = run, agents, agents
-        # A side conversation is about the run it was opened on, and that run has gone.
-        if self._btw is not None:
-            self._leave_btw("a new flow started")
-        with self._btw_lock:
-            self._flow_task = task
-            self._btw_events.clear()
-            self._btw_known.clear()
-        # Nothing is left of the flow before this one to press a key about, and what is
-        # being read is one of its agents unless it was the transcript they all appear on.
-        # Which is where a run is watched from, so it is where a run starts.
-        self._stopping = None
-        if self._attached != _EVERY:
-            self._now_reading(_EVERY, stepped=False)
-        # The conversations of the run before this one went with it, and so do their numbers
-        # and their transcripts: this run's first conversation is its role's first again.
-        with self._numbering:
-            self._numbered = weakref.WeakKeyDictionary()
-            self._opened_of = {}
-        for gone in [key for key in self._kept if "/" in key]:
-            del self._kept[gone]
-        with self._saying:
-            self._outworlders = list(
-                self._declared.outworlders if self._declared is not None else ()
-            )
-        self._monitor = Monitor()
-        # What the run costs is read from the logs the agents keep, which they write as they
-        # go: a backend only says what a turn cost once the turn is over, and a turn is long.
-        self._tally = Tally([], self._monitor)
-        self._tally.watch()
+        # Counted before the run is kept, so that nothing reading the one can find the other
+        # still saying the run before it.
+        self._generation = generation
+        self._run, self._stopping = run, None
+        following = self._follow(run)
+        following.starts(
+            flow=self._flow_named,
+            task=task,
+            ref=run.ref,
+            roles=self._named_by,
+            outworlders=self._declared.outworlders
+            if self._declared is not None
+            else (),
+            agents=agents,
+            envs=envs,
+            params=self._params.model_dump(mode="json")
+            if self._params is not None
+            else None,
+            budget=self._budget,
+            resume=str(resume or ""),
+        )
         with self._saying:
             self._queued, self._given, self._handed = [], [], False
-        watching, tally = self._monitor, self._tally
-        run.watch(self._heard)
-        run.opened(functools.partial(self._opened, agents, watching, tally))
         self._draw()
 
         def drive() -> int:
+            from hmz.coganchor.agents import Stopped
             from hmz.flows import BudgetExceeded, FlowException
             from hmz.runtime import Refused
 
+            # Until it says otherwise: whatever else it raises goes on to be reported as the
+            # crash it is, once the run has been said to be over.
+            how, why = "crashed", ""
             try:
                 run.run()
-            except asyncio.CancelledError:
-                pass  # stopped by hand, which said so as it was stopped
-            except Refused as why:
-                self._on_screen(self.show, f"hmz: {why}", "red")
-            except BudgetExceeded as why:
+                how = "done"
+            except (asyncio.CancelledError, Stopped):
+                how = "stopped"  # by hand, which said so as it was stopped
+            except Refused as refused:
+                how, why = "refused", str(refused)
+            except BudgetExceeded as spent:
                 # The ordinary end of a budgeted loop rather than a crash: what a run is
                 # given a budget for.
-                self._on_screen(self.show, f"hmz: stopped -- {why}", "yellow")
-            except FlowException as why:
+                how, why = "budget", str(spent)
+            except FlowException as failed:
                 # A failure the flow API has a name for -- a harness that would not take the
                 # turn, a machine that went away, a flow that refused what it was handed --
                 # which is said as what it is rather than as a traceback nobody can act on.
-                self._on_screen(self.show, f"hmz: {type(why).__name__}: {why}", "red")
+                how, why = "failed", f"{type(failed).__name__}: {failed}"
             finally:
-                tally.stops()  # read once more, for what the last turn wrote on its way out
-                watching.stops()  # the clock the rate is over is the run's, and it is over
-                # Only this run's own, and only while it is still the one running. A flow
-                # takes a while to unwind after it is stopped, and the next flow may have
-                # started in the meantime. Clearing then would leave the running one
-                # unreachable, and saying it was done would be saying it of the wrong flow.
-                if self._stopping is run:
-                    # Stopped by hand, and now finished unwinding: there is nothing left for
-                    # the press that does not wait for it to reach.
-                    self._stopping = None
-                if self._run is run:
-                    self._run, self._agents = None, []
-                    self._spoke.set()
-                    self._release()
-                    self._on_screen(self.show, "[dim]— the flow is done —[/dim]")
-                    # And whatever it never got round to taking, which is now on its way
-                    # nowhere: a flow that ends of its own accord strands the pin exactly as
-                    # one that is stopped does.
-                    self._on_screen(self._never_sent, "the flow ended first")
+                following.ends(how, why)
             return 0
 
         self._background(drive)
 
-    def _opened(
-        self,
-        agents: list[AgentBase],
-        monitor: Monitor,
-        tally: Tally,
-        role: str,
-        agent: AgentBase,
-        session: SessionBase,
-    ) -> None:
-        """Takes one session a run has just opened as one of the run's own.
-
-        Told on the run's own thread, before the session's first turn, with the agent behind
-        it already named for its role: its transcript is that role's, what its backend counts
-        is said to the monitor, and whichever turn of it starts next takes the oldest line
-        that was held.
+    def _follow(self, run: _Running) -> Following:
+        """Reads a run held here as the records it tells, from now on.
 
         Args:
-          agents: The run's agents, which this one joins.
-          monitor: The run's monitor.
-          tally: What reads the run's logs.
-          role: The role it was opened for.
-          agent: The agent behind it.
-          session: Its conversation.
+          run: The run, which is the one of the generation going now.
+
+        Returns:
+          What tells its records, which is what its start is told through as well.
         """
-        del role
-        # Numbered now, in the order the run opens them, rather than as each first speaks:
-        # `builder/2` is the second conversation a builder opened whichever spoke first.
-        self._key_of(agent, session)
-        agent.waiting = self._at_turn_start
-        agents.append(agent)
-        if agents is self._ran:
-            self._btw_note(agent, session)
+        following = Following(
+            self._generation,
+            self._told,
+            waiting=self._at_turn_start,
+            running=self.hmz.flows.running,
+        )
+        self._following = following
+        run.watch(following.hears)
+        run.opened(following.opens)
+        return following
+
+    def _told(self, record: dict[str, Any]) -> None:
+        """Takes one record of a run, which is everything the interface draws a run from.
+
+        Called from whichever thread the run said it on, which is why everything drawn from
+        here goes through `_on_screen`.
+
+        Args:
+          record: What was told, as JSON; see `hmz.tui.records`.
+        """
+        kind = record["type"]
+        if kind == "event":
+            self._heard(record)
+        elif kind == "opened":
+            self._opened(record)
+        elif kind == "started":
+            self._started(record)
+        elif kind == "ended":
+            self._ended(record)
+        elif kind == "calls":
+            self._called = record["calls"]
+
+    def _started(self, record: dict[str, Any]) -> None:
+        """Takes a run that has just started as the one in front of us.
+
+        Told on the event loop, which is where a run is started from.
+
+        Args:
+          record: The run, as it started.
+        """
+        # A side conversation is about the run it was opened on, and that run has gone.
+        if self._btw is not None:
+            self._leave_btw("a new flow started")
+        with self._btw_lock:
+            self._flow_task = record["task"]
+            self._btw_events.clear()
+        # Nothing is left of the flow before this one to press a key about, and what is
+        # being read is one of its agents unless it was the transcript they all appear on.
+        # Which is where a run is watched from, so it is where a run starts.
+        if self._attached != _EVERY:
+            self._now_reading(_EVERY, stepped=False)
+        # The conversations of the run before this one went with it, and so do their numbers
+        # and their transcripts: this run's first conversation is its role's first again.
+        self._seen, self._working = {}, set()
+        for gone in [key for key in self._kept if "/" in key]:
+            del self._kept[gone]
+        with self._saying:
+            self._outworlders = list(record["outworlders"])
+        self._monitor = Monitor(began=record["began"])
+        # What the run costs is read from the logs the agents keep, which they write as they
+        # go: a backend only says what a turn cost once the turn is over, and a turn is long.
+        self._tally = Tally([], self._monitor)
+        self._followed[record["run"]] = (self._monitor, self._tally)
+        self._tally.watch()
+
+    def _ended(self, record: dict[str, Any]) -> None:
+        """Says how a run went, and lets go of it where it is still the one held.
+
+        Told on the run's own thread as it returns, whichever way it returned.
+
+        Args:
+          record: The run, as it ended.
+        """
+        why = record["why"]
+        if record["how"] in ("refused", "failed"):
+            self._on_screen(self.show, f"hmz: {why}", "red")
+        elif record["how"] == "budget":
+            self._on_screen(self.show, f"hmz: stopped -- {why}", "yellow")
+        followed = self._followed.pop(record["run"], None)
+        if followed is not None:
+            monitor, tally = followed
+            tally.stops()  # read once more, for what the last turn wrote on its way out
+            monitor.stops()  # the clock the rate is over is the run's, and it is over
+        # Only this run's own, and only while it is still the one running. A flow takes a
+        # while to unwind after it is stopped, and the next flow may have started in the
+        # meantime. Clearing then would leave the running one unreachable, and saying it was
+        # done would be saying it of the wrong flow.
+        ours = record["run"] == self._generation
+        if self._stopping is not None and ours:
+            # Stopped by hand, and now finished unwinding: there is nothing left for the
+            # press that does not wait for it to reach.
+            self._stopping = None
+        if self._run is not None and ours:
+            self._run = None
+            self._spoke.set()
+            self._release()
+            self._on_screen(self.show, "[dim]— the flow is done —[/dim]")
+            # And whatever it never got round to taking, which is now on its way nowhere: a
+            # flow that ends of its own accord strands the pin exactly as one that is
+            # stopped does.
+            self._on_screen(self._never_sent, "the flow ended first")
+
+    def _opened(self, record: dict[str, Any]) -> None:
+        """Takes one session a run has just opened as one of the run's own.
+
+        Told on the run's own thread, before the session's first turn: its transcript is its
+        role's, and what its backend counts is said to the monitor. A person holds no
+        conversation, and the board is all there is of them.
+
+        Args:
+          record: The session, as it opened.
+        """
+        if record["person"]:
+            return
+        seen = Seen(
+            record["agent"], record["cli"], record["model"], frozenset(record["counts"])
+        )
+        if record["run"] == self._generation:
+            self._seen[record["key"]] = seen
+        followed = self._followed.get(record["run"])
+        if followed is None:
+            return
+        monitor, tally = followed
         # What its backend counts, said before its first turn: a kind nothing was spent on
         # this turn is missing from that turn's reckoning exactly as a kind the CLI never
         # counts is, and what is drawn of a run driving two backends has to tell the two
         # apart to say which of its figures are whole.
-        monitor.reporting(agent.id, type(agent).counts)
-        tally.add(agent)
+        monitor.reporting(seen.id, seen.counts)
+        tally.add(seen)
 
-    def _remember_btw(self, agent: AgentBase, event: Event) -> None:
+    def _remember_btw(self, record: dict[str, Any]) -> None:
         """Keeps a compact progress record for future side questions.
 
         Reasoning is intentionally omitted: a side question needs observable progress, not a
         second copy of private chain-of-thought. The event stream still reaches the ordinary
         transcript exactly as before.
         """
-        # A stopped flow can take a moment to unwind while a new one is already up. Its old
-        # watcher is still bound to this method, but its events must not become progress for
-        # the new run.
-        if self._run is not None and not any(agent is held for held in self._agents):
+        # A stopped flow can take a moment to unwind while a new one is already up. Its
+        # events must not become progress for the new run.
+        if self._run is not None and record["run"] != self._generation:
             return
-        if event.kind not in {
+        kind = record["kind"]
+        if kind not in {
             "begins",
             "ends",
             "failed",
@@ -3917,23 +3921,21 @@ class Humanize(App[None]):
         }:
             return
         text = (
-            event.text.split("\n\n", 1)[0]
-            if event.kind == "begins"
+            record["text"].split("\n\n", 1)[0]
+            if kind == "begins"
             else "turn ended"
-            if event.kind == "ends"
-            else event.text
+            if kind == "ends"
+            else record["text"]
         )
         text = compact(text)
         with self._btw_lock:
             self._btw_events.append(
                 Observation(
-                    agent=agent.id, kind=event.kind, text=text, at=time.monotonic()
+                    agent=record["agent"], kind=kind, text=text, at=time.monotonic()
                 )
             )
 
-    def _heard(
-        self, agent: AgentBase, session: SessionBase | None, event: Event
-    ) -> None:
+    def _heard(self, record: dict[str, Any]) -> None:
         """Shows what a turn said, on the transcript of the agent that said it.
 
         And takes what it cost into what the monitor shows, which is per agent: an agent is
@@ -3948,13 +3950,13 @@ class Humanize(App[None]):
         from here goes through `_on_screen`.
 
         Args:
-          agent: Whose turn said it.
-          session: Which of that agent's conversations said it, or None for something the
-            agent said rather than one of them -- a question put by a server that speaks for
-            every conversation it holds. Either way it is shown against the agent, all of
-            whose conversations are the one transcript.
-          event: What was said.
+          record: What was said, by whose turn and in which of its conversations -- or in
+            none, for something the agent said rather than one of them: a question put by a
+            server that speaks for every conversation it holds. Either way it is shown
+            against the agent, all of whose conversations are the one transcript.
         """
+        agent, kind, text = record["agent"], record["kind"], record["text"]
+        now: float = record["mono"]
         # First, whatever else happens: showing a line raises once the interface has gone, and
         # what a watcher raises is swallowed, so accounting after it would be lost.
         # The kinds go with the tokens where a turn spent them all on one model, which is the
@@ -3966,50 +3968,57 @@ class Humanize(App[None]):
         # no kind at all, which is a turn missing from every per-kind figure and priced at
         # nothing. Where the CLI's own log is read as well, the exact split is in it, and the
         # fullest reckoning is the one the money and the kinds are both read off.
-        whole = sum(event.tokens.values())
-        for model, tokens in event.tokens.items():
-            if not event.spent:
+        tokens: dict[str, int] = record["tokens"]
+        spent: dict[str, float] = record["spent"]
+        whole = sum(tokens.values())
+        for model, count in tokens.items():
+            if not spent:
                 broken = None
-            elif len(event.tokens) == 1:
-                broken = dict(event.spent)  # the whole turn, on the one model it named
+            elif len(tokens) == 1:
+                broken = dict(spent)  # the whole turn, on the one model it named
             elif whole > 0:
-                broken = {
-                    kind: spent * tokens / whole for kind, spent in event.spent.items()
-                }
+                broken = {kind: one * count / whole for kind, one in spent.items()}
             else:
                 # Two models and nothing on either. There is nothing to divide by and
                 # nothing to divide, and a turn whose accounting raised would lose the
                 # line it was about: what a watcher raises is swallowed.
                 broken = None
-            self._monitor.spend(agent.id, tokens, model=model, kinds=broken)
+            self._monitor.spend(agent, count, model=model, now=now, kinds=broken)
         # Anything at all the agent did, token or not: a tool, a word, an answer. A turn
         # spends most of its minutes between the counts it reports, and a figure worked out
         # only when one arrives stands still through all of them.
         self._monitor.stirring()
-        self._remember_btw(agent, event)
-        if event.kind == "result":
+        self._remember_btw(record)
+        if kind == "result":
             # Kept to tell a flow saying an agent's answer back to the person -- a
             # conversation asking what next -- from a question it asks them.
-            self._last_answer = event.text
-        elif event.kind == "asks":
-            self._last_asked = event.text
+            self._last_answer = text
+        elif kind == "asks":
+            self._last_asked = text
+        # And the node the monitor draws that conversation as, which is the key of the
+        # conversation it stands for -- only while the run it is of is the one in front of
+        # us. A run stopped and still unwinding behind the next numbers its conversations
+        # from one as that one does, so what it says goes on its agent's transcript instead.
+        ours = record["run"] == self._generation
+        numbered: str | None = (record["session"] or None) if ours else None
+        seen = self._seen.get(record["session"]) if numbered is not None else None
+        if seen is not None and record["ident"] not in ("", *seen.idents):
+            # What the backend calls it, which is the name its log is kept under.
+            seen.idents = seen.idents | {record["ident"]}
         # The conversation's own transcript, which is its agent's too and every agent's.
-        whose = self._key_of(agent, session)
-        if event.kind == "took":
+        whose: str = record["key"] if ours else agent
+        if kind == "took":
             # The agent saying a word put into its turn is now in front of it, which is the
             # one thing that makes a word said rather than posted.
-            self._on_screen(self._took, agent.id, event.text, whose)
+            self._on_screen(self._took, agent, text, whose)
             return
-        # And the node the monitor draws that conversation as, which is the same key: a node
-        # opened is the transcript of the conversation it stands for.
-        numbered = self._key_of(agent, session) if session is not None else None
-        if event.kind == "begins":
-            self._monitor.begins(agent.id, agent.config.model, session=numbered)
-            self._began[agent.id] = time.monotonic()
-            if session is not None:
+        if kind == "begins":
+            self._monitor.begins(agent, record["model"], now=now, session=numbered)
+            self._began[agent] = now
+            if numbered is not None:
                 # Which is what makes it a conversation a typed line may go into: one written
                 # to a conversation between turns is answered on its own, outside the flow.
-                self._working.add(session)
+                self._working.add(numbered)
             # A turn takes minutes and says nothing for most of them, so the line that says
             # one has started is the whole of what a flow looks like while it thinks. Which
             # of that agent's conversations, where it has more than one: a loop that opens
@@ -4018,38 +4027,37 @@ class Humanize(App[None]):
             self._on_screen(
                 self._part,
                 whose,
-                f"[dim]{_SAID} {escape(short(agent.id))} is working"
-                f"{self._conversation(agent, session)}[/]",
+                f"[dim]{_SAID} {escape(short(agent))} is working"
+                f"{self._conversation(numbered or '')}[/]",
                 packs=False,
             )
-        elif event.kind == "ends":
-            self._monitor.ends(agent.id, session=numbered)
-            if session is not None:
-                self._working.discard(session)
+        elif kind == "ends":
+            self._monitor.ends(agent, now=now, session=numbered)
+            if numbered is not None:
+                self._working.discard(numbered)
             # Whatever it was holding is not on its way anywhere now: the turn it was put
             # into is over, and it never said it had it.
-            self._on_screen(self._ended_holding, agent.id)
-            took = time.monotonic() - self._began.pop(agent.id, time.monotonic())
+            self._on_screen(self._ended_holding, agent)
+            took = now - self._began.pop(agent, now)
             # The line Claude Code closes a turn with, which says how long it worked.
             self._on_screen(
                 self._part,
                 whose,
-                f"[dim]{_WORKED} Worked for {took:.0f}s"
-                f"{_DOT}{escape(short(agent.id))}[/]",
+                f"[dim]{_WORKED} Worked for {took:.0f}s{_DOT}{escape(short(agent))}[/]",
                 packs=False,
             )
-        elif event.kind in ("subagent", "subagent-ends"):
+        elif kind in ("subagent", "subagent-ends"):
             # An agent this one started of its own. Counted whether or not the details are
             # being shown, since the monitor draws the fleet under the agent that started it
             # and a fleet nobody counted would be an agent working with nothing under it.
-            named, _, about = event.text.partition(" ")
-            if event.kind == "subagent":
+            named, _, about = text.partition(" ")
+            if kind == "subagent":
                 self._monitor.started(
-                    agent.id, event.whose, about or named, session=numbered
+                    agent, record["whose"], about or named, session=numbered
                 )
             else:
                 self._monitor.finished(
-                    agent.id, event.whose, about or named, session=numbered
+                    agent, record["whose"], about or named, session=numbered
                 )
             if self._details:
                 self._on_screen(
@@ -4057,10 +4065,10 @@ class Humanize(App[None]):
                     whose,
                     f"[$secondary]{_SAID}[/] {escape(named)}"
                     f"[dim]({escape(about)}) "
-                    f"{'started' if event.kind == 'subagent' else 'done'}[/]",
+                    f"{'started' if kind == 'subagent' else 'done'}[/]",
                     packs=True,
                 )
-        elif event.kind == "notice":
+        elif kind == "notice":
             # Not the working, so details do not hide it: this is humanize saying what it
             # is doing about a turn -- waiting out a rate limit, carrying on as another
             # account, cutting the turn off, taking it away from a backend that had stopped
@@ -4069,45 +4077,45 @@ class Humanize(App[None]):
             self._on_screen(
                 self._part,
                 whose,
-                f"[yellow]{_SAID}[/] [dim]{escape(event.text)}[/]",
+                f"[yellow]{_SAID}[/] [dim]{escape(text)}[/]",
                 packs=False,
             )
-        elif event.kind == "tool" and self._details:
+        elif kind == "tool" and self._details:
             # The tool on the bullet, what it came back with under it -- Claude Code's shape.
-            named, _, about = escape(event.text).partition(" ")
+            named, _, about = escape(text).partition(" ")
             self._on_screen(
                 self._part,
                 whose,
                 f"[green]{_SAID}[/] {named}[dim]({about})[/]",
                 packs=True,
             )
-        elif event.kind == "reasoning" and self._details:
+        elif kind == "reasoning" and self._details:
             self._on_screen(
                 self._part,
                 whose,
                 "\n".join(
-                    f"[dim italic]{line}[/]" for line in escape(event.text).splitlines()
+                    f"[dim italic]{line}[/]" for line in escape(text).splitlines()
                 ),
                 packs=False,
             )
-        elif event.kind == "asks":
+        elif kind == "asks":
             self._on_screen(
                 self._part,
                 whose,
-                f"[yellow]{_SAID}[/] {escape(event.text)}",
+                f"[yellow]{_SAID}[/] {escape(text)}",
                 packs=False,
             )
-        elif event.kind == "failed":
+        elif kind == "failed":
             self._on_screen(
                 self._part,
                 whose,
-                f"[red]hmz: {escape(event.text)}[/]",
+                f"[red]hmz: {escape(text)}[/]",
                 packs=False,
             )
-        elif event.kind == "text":
+        elif kind == "text":
             # The bullet on the first line, two spaces under it for the rest, which is how
             # Claude Code sets a message it has just written.
-            said = escape(event.text).splitlines() or [""]
+            said = escape(text).splitlines() or [""]
             self._on_screen(
                 self._part,
                 whose,
@@ -4120,42 +4128,23 @@ class Humanize(App[None]):
                 packs=False,
             )
 
-    def _conversation(self, agent: AgentBase, session: SessionBase | None) -> str:
+    def _conversation(self, key: str) -> str:
         """Which of a role's conversations a turn is being taken in, where it has several.
 
         Args:
-          agent: Whose turn it is -- one of the agents behind the role's sessions.
-          session: The conversation it is in, or None where the agent said it.
+          key: The conversation, or "" where the agent said it rather than one of them.
 
         Returns:
           Which one, counting from one, and nothing at all for a role holding one -- there
           being nothing to tell it apart from.
         """
-        if session is None:
+        role, _, at = key.partition("/")
+        if not at:
             return ""
-        _, _, at = self._key_of(agent, session).partition("/")
-        opened = self._opened_of.get(agent.id, 0)
+        opened = len(self._of(role))
         if opened < 2:  # noqa: PLR2004 -- one is none to tell apart
             return ""
         return f"{_DOT}conversation {at} of {opened}"
-
-    def _working_in(self, agent: AgentBase) -> SessionBase | None:
-        """Which of one agent's conversations has a turn open, for a line said to it.
-
-        Args:
-          agent: The agent.
-
-        Returns:
-          The newest of its conversations that is working, or None where none of them is,
-          which is a line that waits for whichever turn starts next. Only the conversations
-          there are to read: the person's is this prompt, and is not one of them.
-        """
-        working = [
-            session
-            for who, session in self._conversations()
-            if who is agent and session in self._working
-        ]
-        return working[-1] if working else None
 
     def _part(
         self, whose: str | None, text: str, *, packs: bool, shared: bool = True
@@ -4496,15 +4485,19 @@ class Humanize(App[None]):
         the flow -- so it waits for whichever turn starts next, and a running flow never
         drops one.
         """
-        session = self._says_to()
-        if session is None or session not in self._working:
+        key = self._says_to()
+        following = self._following
+        if (
+            key is None
+            or key not in self._working
+            or key not in self._conversations()
+            or following is None
+        ):
             return
         # The agent alongside its conversation: a word put in is pinned against whoever has
         # it, and it is that agent's own stream that will say it has been taken in.
-        agent = next(
-            (who for who, one in self._conversations() if one is session), None
-        )
-        if agent is None:
+        agent, session = following.at(key)
+        if session is None:
             return
         with self._saying:
             if any(who == agent.id for who, _ in self._given):

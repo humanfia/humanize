@@ -19,7 +19,7 @@ line and above its prompt is said here by the graph and the line under it.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, ClassVar, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, cast
 
 from rich.markup import escape
 from textual import events, on, work
@@ -45,7 +45,6 @@ from .pick import (
     EVERY,
     Key,
     Sheet,
-    _hmz,
     bad,
     named_as,
     reads,
@@ -54,7 +53,7 @@ from .pick import (
 from .selecting import Choices
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
     from pydantic import BaseModel
     from textual.app import App, ComposeResult
@@ -122,7 +121,7 @@ _NOTHING = "\x02"
 _ON_IT = "◈"
 
 
-def _flowing(started: str) -> list[str]:
+def _flowing(started: str, calls: Sequence[Mapping[str, Any]]) -> list[str]:
     """Which flow is running, and inside which, for the row that names one.
 
     A flow may reach for another by name and run it, so the flow a run is in is not always
@@ -131,20 +130,20 @@ def _flowing(started: str) -> list[str]:
 
     Args:
       started: The flow that was chosen, which is what this says with nothing running.
+      calls: The flow calls going, oldest first, as the run says them.
 
     Returns:
       One line apiece, the one that was started first and whatever it called under it, each
       with how long it has been going; and just the one that is set up to run where nothing
       is running.
     """
-    now = _hmz().flows.running()
-    if not now:
+    if not calls:
         return [escape(started)]
     return [
-        f"{'  ' * (one.depth - 1)}{'▸ ' if one.depth > 1 else ''}"
-        f"{escape(named_as(one.ref))}"
-        f"   [$text-muted]{time.monotonic() - one.since:.0f}s[/]"
-        for one in now
+        f"{'  ' * (one['depth'] - 1)}{'▸ ' if one['depth'] > 1 else ''}"
+        f"{escape(named_as(one['ref']))}"
+        f"   [$text-muted]{time.monotonic() - one['since']:.0f}s[/]"
+        for one in calls
     ]
 
 
@@ -659,6 +658,7 @@ class Monitoring(Screen[str | None]):
         reading: Callable[[], str] = lambda: EVERY,
         board: Callable[[], Board | None] = lambda: None,
         outworlders: Callable[[], Sequence[str]] = tuple,
+        calls: Callable[[], Sequence[Mapping[str, Any]]] = tuple,
         sessions: bool = False,
         turned: Callable[[bool], None] = lambda _: None,
     ) -> None:
@@ -679,6 +679,7 @@ class Monitoring(Screen[str | None]):
             whose flow does not talk to the person.
           outworlders: The roles of the run that are the person, each of which is a view of
             its own.
+          calls: The flow calls going, oldest first: the flow started and whatever it called.
           sessions: Whether to open on a node per session rather than per agent.
           turned: Told which of the two `ctrl+t` turned it to, so the next time the monitor
             opens it opens the way it was left.
@@ -690,6 +691,7 @@ class Monitoring(Screen[str | None]):
         self._reading = reading
         self._boarding = board
         self._outworlding = outworlders
+        self._calling = calls
         self._turned = turned
         self._boxes: list[Drawn] = []
         #: Whether a node is a session rather than an agent, which `ctrl+t` turns.
@@ -975,7 +977,7 @@ class Monitoring(Screen[str | None]):
         # picture has no room for, what it has cost, a blank line between one and the next.
         groups: list[list[tuple[str, list[str]]]] = [
             [
-                ("Flow", _flowing(flow)),
+                ("Flow", _flowing(flow, self._calling())),
                 (
                     "Agents",
                     (reads(named, models) or ["none installed"])

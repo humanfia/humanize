@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -29,7 +30,29 @@ from hmz.coganchor.agents import (
     ZcodeAgentConfig,
 )
 from hmz.tui.monitor import Monitor
-from hmz.tui.tally import Tally
+from hmz.tui.tally import Seen, Tally
+
+if TYPE_CHECKING:
+    from hmz.coganchor.agents import AgentBase
+
+
+def _seen(agent: AgentBase, *idents: str) -> Seen:
+    """One session of an agent, as what is told of it says: the backend's names for it.
+
+    Args:
+      agent: The agent behind it, which says what runs it, at what, and what it counts.
+      idents: What the backend has called the session so far.
+
+    Returns:
+      The session, as a tally reads it.
+    """
+    return Seen(
+        agent.id,
+        agent.backend,
+        agent.config.model,
+        type(agent).counts,
+        frozenset(idents),
+    )
 
 
 def _rows(path: Path, *rows: dict[str, object]) -> None:
@@ -79,10 +102,8 @@ def test_a_claude_turn_is_counted_while_it_is_still_being_written(home: Path) ->
     log = home / "claude_config_dir" / "projects" / "-tmp-work" / "s1.jsonl"
     _rows(log, _said("claude-opus-5", 300))
     agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="opus", effort="high"))
-    session = agent.new()
-    session._adopt("s1")
     monitor = Monitor()
-    tally = Tally([agent], monitor)
+    tally = Tally([_seen(agent, "s1")], monitor)
 
     tally.read()
 
@@ -108,10 +129,9 @@ def test_a_sub_agent_is_counted_as_the_model_it_ran_on(home: Path) -> None:
         projects / "s1" / "subagents" / "agent-one.jsonl", _said("claude-haiku-4-5", 40)
     )
     agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="opus", effort="high"))
-    agent.new()._adopt("s1")
     monitor = Monitor()
 
-    Tally([agent], monitor).read()
+    Tally([_seen(agent, "s1")], monitor).read()
 
     assert monitor.spent == {"claude-opus-5": 1302, "claude-haiku-4-5": 1042}
 
@@ -140,9 +160,8 @@ def test_a_codex_thread_is_counted_from_the_rollout_it_writes(home: Path) -> Non
         },
     )
     agent = CodexAgent(CodexAgentConfig(model="gpt-5.6-sol", effort="low"))
-    agent.new()._adopt("t1")
     monitor = Monitor()
-    tally = Tally([agent], monitor)
+    tally = Tally([_seen(agent, "t1")], monitor)
 
     tally.read()
 
@@ -193,10 +212,9 @@ def test_a_dsh_session_is_counted_from_its_assistant_messages(home: Path) -> Non
         },
     )
     agent = DshAgent(DshAgentConfig(model="deepseek-v4-flash", effort="high"))
-    agent.new()._adopt("session-d1")
     monitor = Monitor()
 
-    Tally([agent], monitor).read()
+    Tally([_seen(agent, "session-d1")], monitor).read()
 
     # The log names the actual model, and reasoning is already part of output.
     assert monitor.spent == {"deepseek-v4-pro": 23}
@@ -223,10 +241,9 @@ def test_a_kimi_session_is_counted_from_the_steps_its_daemon_writes(home: Path) 
         },
     )
     agent = KimiCodeCLIAgent(KimiCodeCLIAgentConfig(model="kimi-code/k3", effort="max"))
-    agent.new()._adopt("session_k1")
     monitor = Monitor()
 
-    Tally([agent], monitor).read()
+    Tally([_seen(agent, "session_k1")], monitor).read()
 
     assert monitor.spent == {"kimi-code/k3": 22086}
 
@@ -259,9 +276,8 @@ def test_a_zcode_session_is_counted_from_the_requests_it_rolls_out(
         },
     )
     agent = ZcodeAgent(ZcodeAgentConfig(model="zai/glm-nine", effort="high"))
-    agent.new()._adopt("sess_z1")
     monitor = Monitor()
-    tally = Tally([agent], monitor)
+    tally = Tally([_seen(agent, "sess_z1")], monitor)
 
     tally.read()
 
@@ -290,9 +306,8 @@ def test_a_row_that_is_only_half_written_is_left_for_the_next_read(home: Path) -
             json.dumps(_said("claude-opus-5", 500))[:40]
         )  # still being written
     agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="opus", effort="high"))
-    agent.new()._adopt("s1")
     monitor = Monitor()
-    tally = Tally([agent], monitor)
+    tally = Tally([_seen(agent, "s1")], monitor)
 
     tally.read()
 
@@ -310,10 +325,9 @@ def test_a_row_that_is_only_half_written_is_left_for_the_next_read(home: Path) -
 def test_a_session_with_no_log_to_read_is_left_to_its_backend(home: Path) -> None:
     """An agent working on another machine keeps its log there, and says so itself."""
     agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="opus", effort="high"))
-    agent.new()._adopt("nowhere")
     monitor = Monitor()
 
-    Tally([agent], monitor).read()
+    Tally([_seen(agent, "nowhere")], monitor).read()
     monitor.spend(agent.id, 4000, model="opus")  # what the turn itself reported
 
     assert monitor.spent == {"opus": 4000}
@@ -324,10 +338,9 @@ def test_what_was_read_is_reported_kind_by_kind(home: Path) -> None:
     log = home / "claude_config_dir" / "projects" / "-tmp-work" / "s1.jsonl"
     _rows(log, _said("claude-opus-5", 300))
     agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="opus", effort="high"))
-    agent.new()._adopt("s1")
     monitor = Monitor()
 
-    Tally([agent], monitor).read()
+    Tally([_seen(agent, "s1")], monitor).read()
 
     assert monitor.kinds[("read", "claude-opus-5")] == {
         "input": 2,
@@ -357,10 +370,9 @@ def test_a_log_that_says_only_a_total_is_counted_and_not_priced(home: Path) -> N
         },
     )
     agent = CodexAgent(CodexAgentConfig(model="gpt-5.6-sol", effort="low"))
-    agent.new()._adopt("t1")
     monitor = Monitor()
 
-    Tally([agent], monitor).read()
+    Tally([_seen(agent, "t1")], monitor).read()
 
     assert monitor.spent == {"gpt-5.6-sol": 1000}
     # Counted under no kind at all, which is what cannot be priced -- rather than guessed
@@ -399,10 +411,9 @@ def test_a_cached_read_codex_counted_inside_the_input_is_not_billed_twice(
         },
     )
     agent = CodexAgent(CodexAgentConfig(model="gpt-5.6-sol", effort="low"))
-    agent.new()._adopt("t1")
     monitor = Monitor()
 
-    Tally([agent], monitor).read()
+    Tally([_seen(agent, "t1")], monitor).read()
 
     assert monitor.kinds[("read", "gpt-5.6-sol")] == {
         "input": 100,
@@ -441,10 +452,9 @@ def test_a_prompt_that_was_wholly_cached_has_no_plain_input_rather_than_none_of_
         },
     )
     agent = CodexAgent(CodexAgentConfig(model="gpt-5.6-sol", effort="low"))
-    agent.new()._adopt("t1")
     monitor = Monitor()
 
-    Tally([agent], monitor).read()
+    Tally([_seen(agent, "t1")], monitor).read()
 
     assert monitor.kinds[("read", "gpt-5.6-sol")] == {"cache_read": 800, "output": 100}
 
@@ -460,9 +470,8 @@ def test_a_backend_reports_what_its_log_says_once_that_log_has_been_read(
     machine, and a kind claimed off a log nobody read would be a nought drawn as a fact.
     """
     agent = CodexAgent(CodexAgentConfig(model="gpt-5.6-sol", effort="low"))
-    agent.new()._adopt("t1")
     monitor = Monitor()
-    tally = Tally([agent], monitor)
+    tally = Tally([_seen(agent, "t1")], monitor)
 
     tally.read()  # nothing written yet, so nothing claimed
 
