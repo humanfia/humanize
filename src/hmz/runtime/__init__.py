@@ -33,6 +33,7 @@ if TYPE_CHECKING:
     from hmz.runtime.doing.epics import Epics
     from hmz.runtime.doing.fallbacks import Fallbacks
     from hmz.runtime.doing.flows import Flows, Flowverses
+    from hmz.runtime.doing.hosting import Host
     from hmz.runtime.doing.running import Run
     from hmz.runtime.runner import Refused
 
@@ -43,6 +44,7 @@ __all__ = [
     "Flows",
     "Flowverses",
     "Hmz",
+    "Host",
     "Refused",
     "Run",
 ]
@@ -56,6 +58,7 @@ _WRITTEN = {
     "Flows": "hmz.runtime.doing.flows",
     "Flowverses": "hmz.runtime.doing.flows",
     "Hmz": "hmz.runtime.doing.core",
+    "Host": "hmz.runtime.doing.hosting",
     "Refused": "hmz.runtime.runner",
     "Run": "hmz.runtime.doing.running",
 }

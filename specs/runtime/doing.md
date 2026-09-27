@@ -2,8 +2,8 @@
 
 Everything that can be asked of one workspace, composed out of the layers under it: the flows
 there are, the accounts they run as, where a turn goes when the place taking it cannot, the
-runs already made and the run being made now. It is no rule of its own, and `Hmz` is the front
-door `hmz.runtime` offers.
+runs already made and the run being made now, and whoever is outside it. It is no rule of its
+own, and `Hmz` is the front door `hmz.runtime` offers.
 
 ## API
 
@@ -54,6 +54,23 @@ class Hmz:
         outworlder: OutworlderDriver | None = None,
     ) -> Run: ...
     def exec(self, argv: list[str]) -> Any: ...
+    def host(self) -> Host: ...
+
+# hosting.py -- one workspace's runs, shared by every frontend attached to them
+PROTOCOL: int  # which version of the messages below this speaks
+class Host:
+    def __init__(self, hmz: Hmz) -> None: ...
+    def attach(self, name: str, kind: str, heard: Callable[[dict[str, Any]], None],
+               *, replay: bool = True) -> str: ...  # the frontend's client id
+    def detach(self, client: str) -> None: ...
+    def asked(self, client: str, said: dict[str, Any]) -> dict[str, Any]: ...
+    def status(self) -> dict[str, Any]: ...
+    def away_for(self, role: str) -> bool: ...
+    def printed(self, text: str) -> None: ...
+    attached: int; idle: bool; closed: bool  # properties
+    def close(self) -> None: ...
+def record(agent: AgentBase, session: SessionBase | None, event: Event, *, key: str = "",
+           run: int = 0) -> dict[str, Any]: ...
 
 # running.py -- one run of one flow
 class Run:
@@ -224,3 +241,41 @@ class Fallbacks:
 - A trace of one run MUST be gathered here rather than by whoever asked for it, by the ids the
   run wrote down rather than the directory it ran in, MUST land with the run unless a path was
   named, and one asked for without a workspace MUST stay without one.
+
+### Hosting
+
+- `host()` MUST be one `Host` per `Hmz`, made when first asked for, and MUST be what every
+  frontend of a workspace's runs attaches to, in this process or through a daemon: a request
+  MUST be answered the same way whichever frontend asked it, and refused in the same words.
+- MUST NOT hand a frontend anything while holding a lock, and MUST tell each frontend on a
+  thread of its own out of an outbox of its own, so that one that stops taking what it is told
+  holds up neither the run nor another frontend; one further behind than a whole replay MUST be
+  told why and let go of. Whatever a frontend is told last MUST be `gone`, saying why.
+- Attaching MUST tell a frontend, all at once and in this order, who it is, every record kept
+  of the run in order unless it asked for none, how everything stands now, and `live`; after
+  that, everything as it happens.
+- What is kept MUST be the run going or the last one, started afresh with each run, numbered in
+  the order it happened and held to a ceiling in bytes, the oldest whole records going first and
+  counted. A text too long to carry MUST be cut, and what was cut counted.
+- `record` MUST be the one shape an agent's event is written in, for every frontend and for
+  `hmz exec --json` alike, and a conversation MUST be keyed `<role>/<n>` once, as it opens, so
+  that every frontend names it alike.
+- An `Outworlder` role MUST be claimed by one frontend at a time -- refused to another unless it
+  takes it over -- and given back when that frontend goes. Only its claimant MUST answer for a
+  claimed role; a role nobody claims MUST be answered by whoever answers first, and a later
+  answer refused with who gave it.
+- A question MUST stay asked with nobody attached, MUST be offered to everybody when its
+  claimant goes rather than asked again, and MUST be taken back when its run stops or ends or its
+  role goes away.
+- Away MUST be per role, and MUST outlive the frontend that said it. A frontend MUST NOT say it
+  is away for a role somebody else holds, and saying it is away for everything MUST leave those
+  roles as they were.
+- A line said to a run MUST go into the turn open on the view it was said on -- a conversation,
+  a role's newest, or the first working -- one at a time per agent until the agent says it has
+  it; said while no turn is open it MUST go into whichever turn starts next for it, and one the
+  agent refuses MUST go back to the head of the queue. A turn that ends holding one, and a run
+  that stops or ends with any waiting, MUST say so. Claims MUST NOT gate what is said to agents.
+- One run MUST be going at a time, and any frontend MAY start, stop or force one; forcing MUST
+  close every conversation of a stopping run under whatever turn is open, and say how many.
+- An aside MUST be read-only, carry no skills, say nothing to the run, answer only the frontend
+  that opened it, and be closed when that frontend goes or another run starts.
