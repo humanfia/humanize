@@ -28,6 +28,8 @@ from hmz.flows import (
     EnvBackendKind,
     HarnessError,
     HarnessKind,
+    HarnessRefused,
+    HarnessThrottled,
     HookKind,
     HookResult,
     Permission,
@@ -137,7 +139,12 @@ async def test_the_real_cli_keeps_the_driver_contract(
     driver = _driver(harness)
     placement = _placement(tmp_path / "work")
     await _answers(driver, placement)
-    await check_agent_driver(driver, placement, slow_prompt=SLOW, settle=SETTLE)
+    try:
+        await check_agent_driver(driver, placement, slow_prompt=SLOW, settle=SETTLE)
+    except (HarnessThrottled, HarnessRefused) as spent:
+        # A dozen turns, on an account that took the first: one whose quota or sign-in
+        # runs out partway -- a free tier's daily allowance, say -- is the machine's.
+        pytest.skip(f"{harness}'s account stopped taking turns partway: {spent}")
 
 
 @pytest.mark.parametrize(
