@@ -134,7 +134,7 @@ What is true of this machine, for every project on it.
 | reports | whether humanize [reports what goes wrong](/user/reporting) to its developers |
 | sent | what a report carries and what it never does. <kbd>enter</kbd> reads it out. |
 | details | whether the screen [shows the working](#details): every tool call and all of the thinking |
-| btw agent | the agent [`/btw`](/user/btw) talks to outside a session. Shown only once humanize has one. |
+| btw | the agent [`/btw`](/user/btw) talks to outside a session. <kbd>enter</kbd> chooses its CLI, account, model and effort; `back to the flow's first agent`, under it once one is chosen, undoes that. It takes effect the next time you enter btw mode. |
 
 ### Details
 

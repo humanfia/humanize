@@ -66,7 +66,7 @@ from hmz.coganchor.agents import SWARM, driver
 from hmz.coganchor.prices import money
 from hmz.flows import Budget
 from hmz.runtime import telemetry
-from hmz.runtime.kept import Runs
+from hmz.runtime.kept import Runs, read_back, written
 from hmz.runtime.telemetry import KEPT, SAYS, SENT
 
 from .discover import installed, ready_to_open
@@ -5142,6 +5142,8 @@ _SENTRY = "reports"
 _SENT = "sent"
 _DETAILS = "details"
 _BTW = "btw"
+#: The row that puts the btw agent back to the flow's first, shown while another is chosen.
+_BTW_FIRST = "btw-first"
 _WORKSPACE = "workspace"
 _RUNS = "flow"
 _PROFILES = "profile"
@@ -5163,6 +5165,7 @@ _LISTS = frozenset({_ACCOUNTS, _FALLBACK, _VERSES})
 #: and in the transcript once it is saved.
 _NEXT_RUN = "from the next flow run"
 _NEXT_LAUNCH = "from the next launch"
+_NEXT_BTW = "from the next time btw mode is entered"
 
 
 #: How much of a directory a row says: the last of it, which is what tells one project from
@@ -6833,6 +6836,8 @@ class Adjusted(NamedTuple):
       told: What the pages that write for themselves -- the accounts, the fallbacks and the
         flowverses -- did, as lines for the transcript.
       placed: The last thing that happened to the flowverses, or "" for nothing.
+      btw: The agent `/btw` asks about a whole flow, as `cli@provider/model:effort` or "" for
+        the flow's first agent, or None where that was not touched.
     """
 
     enable_sentry: bool | None = None
@@ -6841,6 +6846,7 @@ class Adjusted(NamedTuple):
     forget: bool = False
     told: tuple[str, ...] = ()
     placed: str = ""
+    btw: str | None = None
 
 
 class Adjusts(Providers, Fallbacks, Flowverses):
@@ -6887,7 +6893,11 @@ class Adjusts(Providers, Fallbacks, Flowverses):
             self.said = said
 
     def __init__(
-        self, agents: Mapping[str, tuple[Model, ...]], *, page: int = _EVERYWHERE
+        self,
+        agents: Mapping[str, tuple[Model, ...]],
+        *,
+        page: int = _EVERYWHERE,
+        unavailable: frozenset[str] = frozenset(),
     ) -> None:
         """Initializes the menu on what is remembered now.
 
@@ -6899,18 +6909,17 @@ class Adjusts(Providers, Fallbacks, Flowverses):
           agents: The backends offered here, and what each of them says it runs, which is
             what the fallback page chooses a place out of.
           page: Which page to open on.
+          unavailable: The optional backends that still need installing, which the btw agent
+            is offered as it is anywhere else an agent is set up.
         """
         super().__init__()
         settings = _hmz().settings
         self._sentry = self._sentry_was = settings.enable_sentry
         self._overridden = telemetry.enabled() is not self._sentry
         self._details = self._details_was = settings.details
-        #: The agent `/btw` talks to outside a session, for a humanize that has one.
-        self._btw: str | None = (
-            str(getattr(settings, _BTW) or "")
-            if hasattr(type(settings), _BTW)
-            else None
-        )
+        #: The agent `/btw` talks to outside a session, or "" for the flow's first.
+        self._btw = self._btw_was = settings.btw
+        self._unavailable = unavailable
         self._workspace = str(Path.cwd())
         self._flow = settings.flow
         self._roles = len(settings.agents(settings.flow))
@@ -6979,14 +6988,12 @@ class Adjusts(Providers, Fallbacks, Flowverses):
                 "show every tool call and all of the thinking",
             ),
         ]
-        if self._btw is not None:
-            rows.append(
-                (
-                    _BTW,
-                    self._btw or "not set",
-                    "the agent /btw talks to outside a session",
-                )
-            )
+        btw = "the agent /btw talks to outside a session"
+        if self._btw != self._btw_was:
+            btw += f"{_DOT}{_NEXT_BTW}"
+        rows.append((_BTW, self._btw or "the flow's first agent", btw))
+        if self._btw:
+            rows.append((_BTW_FIRST, "", "back to the flow's first agent"))
         return rows
 
     def _fill(self) -> None:
@@ -7061,7 +7068,7 @@ class Adjusts(Providers, Fallbacks, Flowverses):
           The line, with the mark that says which of the three kinds of row it is -- turned
           round where it stands, opened onto something to read, or neither.
         """
-        mark = _CYCLES if name in _SWITCHES else _OPENS if name == _SENT else ""
+        mark = _CYCLES if name in _SWITCHES else _OPENS if name in (_SENT, _BTW) else ""
         shown = f"{value} {mark}".strip()
         return f"{shown}   {about}" if shown else about
 
@@ -7074,6 +7081,10 @@ class Adjusts(Providers, Fallbacks, Flowverses):
         close = Key("esc", "close")
         if held == _SENT:
             self._footed(Key("enter", "read"), close)
+        elif held == _BTW:
+            self._footed(Key("enter", "choose"), close)
+        elif held == _BTW_FIRST:
+            self._footed(Key("enter", "go back"), close)
         else:
             self._footed(close)
 
@@ -7143,6 +7154,38 @@ class Adjusts(Providers, Fallbacks, Flowverses):
             sent, kept = "; ".join(SENT), "; ".join(KEPT)
             self._said = f"Sent: {sent}. Never: {kept}."
             self._fill()
+        elif held == _BTW:
+            self._chooses_btw()
+        elif held == _BTW_FIRST:
+            self._btw, self._said = "", ""
+            self.changed()
+            self._fill()
+
+    @work
+    async def _chooses_btw(self) -> None:
+        """Sets up the btw agent on the sheet every agent is set up on, and holds it."""
+        if self.opening():
+            return
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        try:
+            chosen = await showing.push_screen_wait(
+                Agent(
+                    "the btw agent",
+                    read_back(self._btw) or Runs(""),
+                    self._offered,
+                    unavailable=self._unavailable,
+                )
+            )
+        finally:
+            self.opened()
+        if chosen is None or not _complete(chosen):
+            return
+        self._btw, self._said = written(chosen), ""
+        self.changed()
+        self._fill()
 
     def applied(self) -> None:
         """Lands what every page was holding, and answers with what was changed."""
@@ -7157,6 +7200,7 @@ class Adjusts(Providers, Fallbacks, Flowverses):
                 details=self._details if self._details != self._details_was else None,
                 profile=self._profile if self._profile != self._profile_was else None,
                 forget=self._forget,
+                btw=self._btw if self._btw != self._btw_was else None,
                 told=tuple(told),
                 placed=self._placed,
             )

@@ -166,7 +166,7 @@ list, with a line about each.
 | Command | While a flow runs | Does |
 | --- | --- | --- |
 | <span id="cmd-flow"></span>`/flow [flow]` | <Badge type="warning" text="roles only" /> | [Chooses the flow](#choosing-a-flow) and sets up its roles, params and budget. With a name, opens inside that flow. |
-| <span id="cmd-btw"></span>`/btw <question>` | <Badge type="info" text="needs one" /> | [Asks a side question](#btw) about the running flow, answered by a read-only copy of one of its agents. |
+| <span id="cmd-btw"></span>`/btw [question]` | <Badge type="tip" text="yes" /> | [Enters or leaves btw mode](#btw): side questions about the flow, answered read-only beside it. |
 | <span id="cmd-epics"></span>`/epics` | <Badge type="warning" text="read only" /> | [The runs of this directory](#the-runs-that-have-already-happened): go into one, export it, resume it. |
 | <span id="cmd-resume"></span>`/resume` | <Badge type="danger" text="refused" /> | [Picks up the last run here](#carrying-the-last-one-on-outright) of a flow that can be picked up. |
 | <span id="cmd-settings"></span>`/settings` | <Badge type="tip" text="yes" /> | [Everything humanize remembers](#what-humanize-remembers), in five pages: everywhere, this directory, [accounts](#the-accounts-themselves), [fallback](#where-a-turn-goes-when-it-cannot-be-taken) and [flowverses](#where-flows-come-from). |
@@ -304,23 +304,37 @@ during a turn like any other; its process ends between turns, when nothing is se
 
 ### Side questions (`/btw`) {#btw}
 
-`/btw <question>` asks about the running flow without steering it. The question goes to a copy
-of one of the flow's agents, in a session of its own, with read-only permission, no skills and
-no goals, given a snapshot of the run: the task, the agents, their turns and handovers, what
-has been spent, and the last 32 things the run did. The agent you are reading is tried first,
-then the others. The answer appears as `● btw · <question> <answer>`.
+`/btw [question]` enters btw mode, and asks the question if there is one. While it is on, the
+status line starts with `btw · <who>`, and every line that is not a command is one more turn of
+the same side conversation. `/btw` on its own, or <kbd>esc</kbd>, leaves it and closes every side
+session it opened. Starting a flow or closing the interface leaves it too. Answers appear in
+cyan as `● btw · <question> <answer>`.
 
-The question is split like a shell line and joined again, so an apostrophe needs quotes:
-`/btw "what's left?"`.
+Who answers depends on the view:
+
+| View | Answered by |
+| --- | --- |
+| one agent or one session | That session's side copy: a fork of it where its CLI forks (`Profile.forks`), else a new session of the same agent given a snapshot of the run and that role's recent activity. Ended sessions too, with no flow running. |
+| every agent, an outworlder, or the monitor | The btw agent: the one set on `/settings`, else the flow's first agent. It is given the snapshot and the list of sessions. |
+
+Every side session runs at the read-only rung (a flow's `NONE`), with no skills, no goals, no
+allow-listed tools, no MCP approval and none of the flow's callbacks.
+
+The btw agent reaches a session by answering with lines of the form
+`@ask <session>: <question>`, where `<session>` is `<role>/<n>`. The interface puts each one to
+that session's side copy, opening it the first time, shows `btw · asking <session>: …`, and
+hands the answers back as `<answer from="<session>">`. It may ask 4 per question; after that it
+is told to answer with what it has. A line works on every CLI at the read-only rung, where a
+tool would need one that takes tools.
+
+The question on the `/btw` line is split like a shell line, so an apostrophe there needs quotes.
+Lines typed in btw mode are taken as they are.
 
 | Refused | Says |
 | --- | --- |
-| no question | `hmz: usage: /btw <question>` |
-| no flow running | `hmz: /btw needs a flow that is running` |
-| no agent that can take a read-only turn | `hmz: /btw needs a coding agent that supports read-only turns` |
-| four already running | `hmz: /btw already has 4 questions in progress` |
-
-A side question still running is dropped when the next flow starts or the interface closes.
+| nothing to make the btw agent from | `hmz: /btw needs a coding agent to ask` |
+| the session is gone | `hmz: /btw: <session> has no conversation to ask` |
+| a question while the last is still being answered | `hmz: btw is still answering the last question` |
 
 ### Questions, and being away
 
@@ -636,7 +650,7 @@ between them; `where flows come from` on `/flow` opens it on **Flowverses**.
 | Everywhere | `reports` ↔ | Whether humanize [reports what goes wrong](/user/reporting): `on`, `off`, or `not answered yet`. Where `HUMANIZE_SENTRY` overrides it for this run, the page says so. |
 | Everywhere | `sent` ▸ | What a report carries and what it never does. <kbd>enter</kbd> reads it out. |
 | Everywhere | `details` ↔ | Shows or hides [the working](/user/settings#details): every tool call, all of the thinking, and what a backend prints on its way past. Off until turned on, and remembered in `~/.humanize/settings.yaml` as `details`, so the next start opens the same way. The status line says `details` while it is on. |
-| Everywhere | `btw agent` | The agent [`/btw`](#btw) talks to outside a session. Only once humanize has one. |
+| Everywhere | `btw` ▸ | The [btw agent](#btw). <kbd>enter</kbd> sets it up on the same sheet as a flow's agent; `back to the flow's first agent`, under it once one is chosen, undoes that. Saved as `btw:` in `settings.yaml`; takes effect the next time btw mode is entered. |
 | This directory | `workspace` | The directory these are for. |
 | This directory | `flow` | The flow it opens on, and how many agents that flow was set up with. |
 | This directory | `profile` ↔ | Whether a run here [profiles](/user/tracing#profiling-a-run) the programs it starts. |

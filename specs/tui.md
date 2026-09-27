@@ -58,8 +58,15 @@ or say what it is running.
   turn open, holding it for the next turn otherwise, and keep it against the agent that took it.
 - MUST name what is running as the flow started and whatever it called, innermost last.
 - MUST offer exactly these commands, each doing what it says: `/flow`, `/btw`, `/epics`,
-  `/resume`, `/settings`, `/clear`, `/afk`, `/stop`, `/exit`. `/btw` MUST be answered from a
-  snapshot, not by asking the flow.
+  `/resume`, `/settings`, `/clear`, `/afk`, `/stop`, `/exit`. `/btw [question]` MUST enter btw
+  mode, marked on the status line, in which every typed line is one more turn of one side
+  conversation until `/btw` or esc leaves it and closes it; MUST NOT ask the flow's own sessions;
+  MUST answer in cyan in the current view. In a session's view, ended ones included with no flow
+  running, MUST ask a read-only, skill-less fork of that session where its CLI forks, else a
+  read-only, skill-less session of the same agent seeded from a snapshot. In the aggregate or
+  monitor MUST ask the btw agent (the one set on `/settings`, else the flow's first) at NONE
+  permission with no skills, seeded with a snapshot and the sessions, which reaches a session's
+  side conversation by `@ask <session>: <question>`, at most 4 per question.
 - MUST carry the last run of this directory of a flow that can be picked up on for `/resume` —
   its flow, roles, params, budget and task, picking up its journal, saying which — say why there
   is none to carry on, and refuse it, as it refuses picking any run up, while a flow is running

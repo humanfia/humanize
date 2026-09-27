@@ -128,7 +128,8 @@ Nothing is marked `unread` while you read every agent, since everything is on th
 
 - **The transcript**, drawn from the top with a line saying whose it is.
 - **Where a line you type goes.** See [Talking to a running turn](/user/steering).
-- **Which agent answers [`/btw`](/user/btw).**
+- **Who answers [`/btw`](/user/btw)**: a side copy of that agent's newest session, or the btw agent
+  while you read every agent.
 - **What `/clear` clears**: only that transcript.
 
 ## One agent, many conversations

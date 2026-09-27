@@ -343,8 +343,7 @@ async def test_the_settings_menu_turns_its_pages_and_changes_its_rows_the_same_w
         assert isinstance(sheet, Adjusts)
         once(sheet)
         assert "←/→ page" in said(sheet)
-        assert rows(app)[:3] == ["reports", "sent", "details"]
-        assert rows(app)[-1] == _SAVE
+        assert rows(app) == ["reports", "sent", "details", "btw", _SAVE]
 
         # Across turns the page while nothing is being changed.
         await driver.press("right")

@@ -194,12 +194,12 @@ without saving. Type the line again and save the menu this time.
 
 `/afk` switches over when you give it nothing. Given a word, it takes only `on` or `off`.
 
-### `/btw needs a flow that is running`
+### `/btw needs a coding agent to ask`
 
-[`/btw`](/user/btw) asks the running flow's agents a side question, so it needs a flow that is
-running. `/btw needs a coding agent that supports read-only turns` means the flow has no coding
-agent to ask. `/btw already has 4 questions in progress` means four are still out: wait for one
-to answer.
+In the view of every agent, [`/btw`](/user/btw) asks the btw agent. None is set in `/settings`
+and no flow is set up to copy one from. Choose a flow, or set the **btw agent** in `/settings`.
+`btw is still answering the last question` means the side conversation has not answered yet:
+wait for it.
 
 ### A line I typed did not reach the agent
 
