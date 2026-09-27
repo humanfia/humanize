@@ -119,7 +119,7 @@ onUnmounted(() => observer?.disconnect())
         <rect class="run" x="116" y="38" width="70" height="12" rx="6" />
       </svg>
       <h3>Close the terminal, keep the run</h3>
-      <p>Leave a run going, lose the SSH session, and open it again from the same directory.</p>
+      <p>Leave a run going, lose the SSH session, open it again from the same directory, or read it from two at once.</p>
     </a>
 
     <a class="card" :href="withBase('/features/tracing')">

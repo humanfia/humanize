@@ -13,14 +13,14 @@ that wants what `hmz exec` does, or what a sheet of the interface does, writes t
 than the command line, and a tool with something better in mind than either has what it would
 need to write its own.
 
-:class:`Daemons` is a run held where a terminal closing cannot end it -- a process of its own,
-per workspace, reached over its socket. That is what a tool looking after a run somebody else
-started asks: what is being held here, what it is running, letting go of the terminals on it,
-stopping it. A run held that way outlives the program that asked for it.
+:class:`Daemons` is a workspace's runs held where a terminal closing cannot end them -- a
+process of its own, per workspace, reached over its socket. That is what a tool looking after
+runs somebody else started asks: what is being held here, what it is running, letting go of
+the frontends on it, stopping it. Runs held that way outlive the program that asked for them.
 
-A workspace's runs held for frontends are :class:`Host`, and a tool is one of those frontends
-through a :class:`Link` -- the same one an interface or `hmz attach` holds -- claiming the
-roles it answers for and saying what the others type:
+A workspace's runs are :class:`Host`, and a tool is one of their frontends through a
+:class:`Link` -- the same one an interface or `hmz attach` holds -- claiming the roles it
+answers for and saying what the others type:
 
     with (Daemons().here() or Daemons().host()).link(name="ci") as link:
         link.claim("reviewer")
@@ -47,7 +47,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from hmz.daemon import Daemon, Held, Link, Session
+    from hmz.daemon import Daemon, Link
     from hmz.runtime import (
         Accounts,
         Environments,
@@ -72,21 +72,19 @@ __all__ = [
     "Fallbacks",
     "Flows",
     "Flowverses",
-    "Held",
     "Hmz",
     "Host",
     "Link",
     "Refused",
     "Run",
-    "Session",
     "fakes",
 ]
 
 #: Which front door each of them is behind: the runtime, reached straight, and the daemon
-#: holding a run apart from a terminal. The name of the layer rather than the module inside it
-#: that happens to hold the class, so that what is offered out here follows what is done in
-#: there -- and one entry apiece, so that `from hmz.sdk import Hmz` costs the one module `Hmz`
-#: is in rather than every layer humanize has.
+#: holding a workspace's runs apart from a terminal. The name of the layer rather than the
+#: module inside it that happens to hold the class, so that what is offered out here follows
+#: what is done in there -- and one entry apiece, so that `from hmz.sdk import Hmz` costs the
+#: one module `Hmz` is in rather than every layer humanize has.
 _WRITTEN = {
     "Accounts": "hmz.runtime",
     "Daemon": "hmz.daemon",
@@ -96,13 +94,11 @@ _WRITTEN = {
     "Fallbacks": "hmz.runtime",
     "Flows": "hmz.runtime",
     "Flowverses": "hmz.runtime",
-    "Held": "hmz.daemon",
     "Hmz": "hmz.runtime",
     "Host": "hmz.runtime",
     "Link": "hmz.daemon",
     "Refused": "hmz.runtime",
     "Run": "hmz.runtime",
-    "Session": "hmz.daemon",
 }
 
 #: What is offered as a module rather than out of one: the fakes are a kit, used as one.

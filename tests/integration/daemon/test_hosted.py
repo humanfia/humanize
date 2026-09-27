@@ -5,8 +5,8 @@ frontends that are processes of their own -- a program written against the SDK a
 answering for the role it claimed. What the carrying does with each thing that can arrive is
 `tests/integration/daemon/test_carrying.py`, which drives it in this process.
 
-Integration rather than system, as `test_held.py` is: a fork and a socket on this machine are
-things every runner has, and what the frontends run is a flow that drives no agent at all.
+Integration rather than system: a fork and a socket on this machine are things every runner
+has, and what the frontends run is a flow that drives no agent at all.
 """
 
 from __future__ import annotations
@@ -211,26 +211,37 @@ def test_killing_the_host_closes_it_first(hosted: daemon.Daemon) -> None:
     assert daemon.running() is None
 
 
-@pytest.mark.timeout(90)
-def test_a_workspace_holding_a_run_for_a_terminal_is_not_hosted_as_well(
-    held: daemon.Daemon,
+def test_a_workspace_held_by_an_older_humanize_is_not_hosted_as_well(
+    older: daemon.Daemon,
 ) -> None:
-    with pytest.raises(OSError, match="held for a terminal"):
+    with pytest.raises(OSError, match="older humanize"):
         daemon.host()
-    with pytest.raises(OSError, match="held for a terminal"):
-        held.link()
+    with pytest.raises(OSError, match="host"):
+        older.link()
 
 
 @pytest.mark.timeout(90)
-def test_the_interface_line_says_the_runs_here_are_read_by_attaching(
-    hosted: daemon.Daemon,
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+def test_the_interface_line_opens_one_more_frontend_of_the_runs_here(
+    hosted: daemon.Daemon, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv(cli.APART, raising=False)
     monkeypatch.setattr(cli, "_at_a_terminal", lambda: True)
+    seen: dict[str, Any] = {}
 
-    assert cli.opens() == 1
+    class Stands:
+        return_code = 0
 
-    assert "`hmz attach` reads them" in capsys.readouterr().err
-    assert hosted.alive
+        def __init__(self, **said: Any) -> None:
+            seen.update(said)
+
+        def run(self) -> None:
+            seen["status"] = hosted.status()
+            seen["link"].close()
+
+    monkeypatch.setattr("hmz.tui.Humanize", Stands)
+
+    assert cli.opens() == 0
+
+    assert [one["kind"] for one in seen["status"]["clients"]] == ["tui"]
+    # The last frontend gone with nothing running, the host goes with it.
+    assert until(lambda: not hosted.alive)

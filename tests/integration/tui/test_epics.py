@@ -23,7 +23,7 @@ from hmz.tui import Humanize
 from hmz.tui.pick import Does, Epics
 from tests.integration.tui.test_app import onto, rows
 from tests.stubs import written
-from tests.tui.fixtures import holding, until
+from tests.tui.fixtures import holding, idle, link, told, until
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -250,7 +250,7 @@ async def test_going_into_a_run_says_where_it_is_written_down(workspace: Path) -
 
 @pytest.mark.timeout(90)
 async def test_carrying_a_run_on_runs_the_flow_again_on_what_it_left(
-    workspace: Path,
+    workspace: Path, hosting: None
 ) -> None:
     """The whole of it: the run is picked up, and the flow goes on rather than starting over."""
     _ran("counts", "keep going")
@@ -483,13 +483,16 @@ async def test_carrying_one_on_is_refused_while_a_flow_runs_and_not_after(
         await until(lambda: "a flow is running" in _under(sheet), driver)
 
         assert len(epics(workspace)) == 1  # and nothing was started
+        assert not link(app).asked_for("start")
 
         # And the same list, once the flow is over, picks the run up rather than repeating
         # itself about a run that has gone.
-        app._run = None
+        told(app, idle())
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Does), driver)
         await onto(app, driver, "resume")
         await driver.press("enter")
         await until(lambda: app.screen is not sheet, driver)
-        await until(lambda: len(epics(workspace)) == 2, driver)
+        await until(lambda: bool(link(app).asked_for("start")), driver)
+        [start] = link(app).asked_for("start")
+        assert start["resume"] == str(epics(workspace)[0])

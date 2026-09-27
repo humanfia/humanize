@@ -49,20 +49,21 @@ hmz --help           # the commands
 [last set up to run](/reference/tui#what-it-remembers), and starts nothing: the first line you
 send starts the flow.
 
-The interface runs in a [process of its own](/reference/daemon), one per directory, so closing
-the terminal does not end a run. `hmz` in a directory reads the run already held there, or
-starts one. It opens in this process instead when:
+The runs are held by a [process of their own](/reference/daemon), one per directory, so
+closing the terminal does not end a run. `hmz` opens the interface in this process as one
+[frontend](/reference/daemon#hosting) of the runs held in this directory, starting a host where
+none is; every `hmz` there is a whole interface of its own on the same runs. The interface
+holds the runs in this process instead when:
 
 | Case | What is said |
 | --- | --- |
 | stdin or stdout is not a terminal | nothing |
 | `HUMANIZE_DAEMON` is `off`, `0` or `no` | nothing |
-| the run cannot be held (no fork, no writable home, no socket) | `hmz: this run cannot be held apart from the terminal (…), so it is opened here instead` |
+| the runs cannot be held (no fork, no writable home, no socket) | `hmz: the runs here cannot be held apart from the terminal (…), so they are held in this process instead` |
 
-A held run that went away between being found and being read is reported as
-`hmz: the run that was being held here has gone, so a new one is opened`. Runs held here for
-[frontends](/reference/daemon#hosting) are not opened on: `hmz` says
-`hmz: this directory's runs are held for frontends; hmz attach reads them` and exits 1.
+Runs held here by a daemon of an older humanize are not opened on: `hmz` says
+`hmz: the runs in <dir> are held by an older humanize (pid <n>); stop it with that version` and
+exits 1. It exits 1 too where the host lets go of the interface, saying why.
 
 ## `hmz exec`
 
@@ -384,9 +385,9 @@ hmz attach [--json] [-c|--claim <role>]...
 
 One more frontend of the runs a [host](/reference/daemon#hosting) is holding in this directory:
 what every agent says, every question the run asks, and who answered it. Several can read one
-run at once, each answering for its own part. It starts nothing: a program on the
-[SDK](/reference/sdk#link) starts the run, and this follows the run going -- or the next one to
-start -- until it ends.
+run at once, each answering for its own part, beside every interface `hmz` opens there. It
+starts nothing: an interface or a program on the [SDK](/reference/sdk#link) starts the run, and
+this follows the run going -- or the next one to start -- until it ends.
 
 | Flag | |
 | --- | --- |
@@ -412,7 +413,7 @@ whoever else is reading it.
 | Exit | |
 | --- | --- |
 | `0` | The run it followed ended, or the host let go of it. |
-| `1` | Nothing is held here, or it is held for a terminal (`hmz` opens that). |
+| `1` | Nothing is held here, or an older humanize holds it. |
 | `2` | A `-c` role is somebody else's. |
 
 ## `hmz internal` <Badge type="warning" text="not typed by hand" /> {#hmz-internal}
@@ -601,7 +602,7 @@ A socket that is not there exits 1, which the CLI reads as tools being unavailab
 | Variable | |
 | --- | --- |
 | `HUMANIZE_HOME` | Where humanize keeps what outlives a run. Defaults to `~/.humanize`. Every path under [Files](#files) moves with it. |
-| `HUMANIZE_DAEMON` | `off`, `0` or `no`: `hmz` opens the interface in this terminal rather than [holding the run apart](/reference/daemon). Anything else, empty included, holds it. |
+| `HUMANIZE_DAEMON` | `off`, `0` or `no`: the interface holds its runs in its own process rather than [apart from the terminal](/reference/daemon). Anything else, empty included, holds them apart. |
 | `HUMANIZE_NAME` | What a frontend of a [host](/reference/daemon#hosting) is called, ahead of `@tui`, `@cli` or `@sdk`. Defaults to your login. |
 | `HUMANIZE_SENTRY` | `on` or `off`: answers the [reporting](/user/reporting) question for this process without writing anything down. |
 | `HUMANIZE_WATCHDOG` | Seconds a turn may say nothing before [the watchdog looks at it](/reference/agents#when-a-cli-stops-answering), overriding every backend's own. `0` or less turns it off. |
@@ -719,10 +720,10 @@ with everything but letters and digits turned into `-`.
 | --- | --- | --- |
 | `~/.humanize/settings.yaml` | the interface | Per workspace: what each flow was last set up with, [by the name it is offered under](/reference/tui#what-it-remembers), and whether runs are profiled. Beside them, `enable_sentry`. |
 | `~/.humanize/history.jsonl` | the interface | What was typed at the prompt, and where. |
-| `~/.humanize/daemons/<project>-<digest>/daemon.sock` | `hmz` | The socket a terminal reaches a [held run](/reference/daemon) through. `0600`. |
-| `~/.humanize/daemons/<project>-<digest>/daemon.json` | `hmz` | The process holding it, the workspace, when, and the `TERM` it draws for -- or, for a [host](/reference/daemon#hosting), `kind` and `protocol`. |
+| `~/.humanize/daemons/<project>-<digest>/daemon.sock` | `hmz` | The socket a frontend reaches the [held runs](/reference/daemon) through. `0600`. |
+| `~/.humanize/daemons/<project>-<digest>/daemon.json` | `hmz` | The process holding them, the workspace, when, and the [host's](/reference/daemon#hosting) `kind` and `protocol`. |
 | `~/.humanize/daemons/<project>-<digest>/daemon.lock` | `hmz` | Held by the daemon while it runs. The kernel drops it when the process goes. |
-| `~/.humanize/daemons/<project>-<digest>/daemon.log` | `hmz` | What could not be said through a terminal about that run. |
+| `~/.humanize/daemons/<project>-<digest>/daemon.log` | `hmz` | What could not be said to a frontend about those runs. |
 
 ### Caches
 
@@ -774,7 +775,7 @@ from hmz.runtime.flowing import run_flow       # a flow, over drivers
 from hmz.runtime.flowing import open_agent, open_env, parse_agents, parse_budget  # -a, -e, -b
 from hmz.runtime.tracing import collect        # the trace /epics gathers
 from hmz.coganchor import connect, check       # hmz internal anchor, and its --check
-from hmz.daemon import running, start, host    # the run hmz holds apart from the terminal
+from hmz.daemon import running, host           # the runs hmz holds apart from the terminal
 ```
 
 | Call | Reference |
@@ -782,4 +783,4 @@ from hmz.daemon import running, start, host    # the run hmz holds apart from th
 | `await run_flow(flow, task, agents=…, envs=…, params=…, budget=…)` | [Flows](/reference/flows#running-one) |
 | `collect(workspace, *, sessions=…, agents=…, output=…, start=…, end=…, profile=…)` | [Tracing](/reference/tracing) |
 | `connect(command, config)`, `check(config)` | [Remote execution](/reference/remote-execution) |
-| `running(workspace)`, `start(opens)`, `host(workspace)` | [Daemon](/reference/daemon) |
+| `running(workspace)`, `host(workspace)` | [Daemon](/reference/daemon) |

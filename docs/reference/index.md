@@ -45,8 +45,8 @@ for. New to humanize? Start with the [User Guide](/user/) or the [Weaver Guide](
   </a>
   <a :href="withBase('/reference/daemon')">
     <strong>Daemon</strong>
-    <span>The process holding a run so a terminal can leave, and how to reach it from
-    Python.</span>
+    <span>The process holding a directory's runs so a terminal can leave and several can
+    read them, and how to reach it from Python.</span>
   </a>
 </div>
 
@@ -54,7 +54,7 @@ for. New to humanize? Start with the [User Guide](/user/) or the [Weaver Guide](
 
 | Page | |
 | --- | --- |
-| [SDK](/reference/sdk) | How a tool that is not humanize reaches it: `Hmz` straight at the runtime, `Daemons` over a held run. |
+| [SDK](/reference/sdk) | How a tool that is not humanize reaches it: `Hmz` straight at the runtime, `Daemons` over held runs. |
 | [Flows](/reference/flows) | The flow API: what `@flow` declares, and the agents, environments and params a flow is handed. |
 | [Agents](/reference/agents) | Driving a coding agent from Python: an agent is settings, a session is memory. |
 | [Machines](/reference/machines) | Where an agent's turns land: here, a container, or a machine already running. |

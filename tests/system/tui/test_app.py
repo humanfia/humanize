@@ -41,6 +41,7 @@ if TYPE_CHECKING:
 )
 async def test_deepseek_chat_explains_a_missing_api_key_instead_of_staying_blank(
     _installed: unittest.mock.MagicMock,  # noqa: PT019 -- patch hands it over
+    hosting: None,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:

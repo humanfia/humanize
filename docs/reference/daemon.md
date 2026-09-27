@@ -8,71 +8,67 @@ import '../.vitepress/theme/components/ref-cli/ref.css'
 
 # Daemon reference
 
-`hmz` holds the [interface](/reference/tui), and the run inside it, in a process of its own:
-one per directory. Your terminal reads that process. Closing the terminal lets go of it; the
-run goes on taking turns, and `hmz` in the same directory opens it again from the top.
+`hmz` holds a directory's runs in a process of their own -- a **host**, one per directory --
+and opens the [interface](/reference/tui) in your terminal's own process as one **frontend**
+of them, over a socket. Closing the terminal lets go of that frontend; the run goes on taking
+turns, and `hmz` in the same directory opens another interface on it, read from the top.
 
 ```text
- your terminal ──┐                  ┌── daemon, one per directory ──┐
- another one   ──┼── daemon.sock ──▶│  pseudoterminal               │
- (ssh, tmux…)  ──┘  keys in,        │     ▲                         │
-                    screen out      │  the interface ── the flow    │
-                                    └───────────────────────────────┘
+ hmz (alice@tui) ──────┐                       ┌── daemon, one per directory ───────┐
+ hmz (bob@tui) ────────┤                       │  the host: the run going, claims,  │
+ hmz attach -c planner ┼── daemon.sock ───────▶│  away, lines, questions, history   │
+ a bot on the SDK ─────┘  JSON requests in,    │        │                           │
+                          messages out         │     the flow and its agents        │
+                                               └────────────────────────────────────┘
 ```
 
-For what this means day to day, see [The terminal can leave](/features/daemon). A daemon
-can also hold a workspace's runs for [several frontends at once](#hosting).
+For what this means day to day, see [The terminal can leave](/features/daemon).
 
 ## From the prompt
 
 | | |
 | --- | --- |
-| `hmz` | Reads the run held in this directory, or starts one where none is. |
-| `/exit`, <kbd>ctrl+q</kbd> | With a flow running, asks: **stop it, then leave**, or **leave it running**, which lets go of this terminal. The terminal left prints `detached`. With nothing running, leaves. |
-| <kbd>ctrl+c</kbd> twice | Stops the flow. It never lets go of the terminal. |
+| `hmz` | Opens an interface on the runs a host holds in this directory, starting a host where none is. Every `hmz` is a whole interface of its own on the same runs. |
+| `/exit`, <kbd>ctrl+q</kbd> | With a flow running, asks: **stop it, then leave**, which stops it for everybody, or **leave it running**, which lets go of this interface alone. With nothing running, leaves. |
+| <kbd>ctrl+c</kbd> twice | Stops the flow, for everybody reading it. It never lets go of the interface. |
 
-Several terminals may read one run at once. Each says how big it is as it arrives, and the
-screen is laid out again for it.
+## When runs are not held
 
-## When a run is not held
-
-The interface opens in the terminal's own process, with nothing held, when:
+The interface holds its runs in its own process, as a host nobody else reaches, when:
 
 | Case | |
 | --- | --- |
 | stdin or stdout is not a terminal | Output to a file, input from a pipe, a test driving the interface. |
-| `HUMANIZE_DAEMON` is `off`, `0` or `no` | This repository's test suite sets it. `hmz.daemon.start` holds a run whatever it says. |
-| The run cannot be held | No fork, no writable home, no socket. Said on stderr, then done without. |
+| `HUMANIZE_DAEMON` is `off`, `0` or `no` | This repository's test suite sets it. `hmz.daemon.host` starts a host whatever it says. |
+| The runs cannot be held | No fork, no writable home, no socket. Said on stderr, then done without. |
 
-Then `/exit` offers **stay here** in place of **leave it running**: closing that terminal
+Then `/exit` offers **stay here** in place of **leave it running**: closing that interface
 closes the run.
+
+A directory whose runs are held by a daemon of an older humanize -- one that held a run on a
+pseudoterminal -- is refused: `hmz: the runs in <dir> are held by an older humanize (pid <n>);
+stop it with that version`. `hmz attach` says the same and exits `1`.
 
 ## One per directory
 
 One daemon per workspace, so two runs never write over one epic. The directory is named for the
 project and a digest of its whole path, so two checkouts of one repository are two workspaces.
-The command line says nothing about what to run, so a terminal arriving at a held run brings no
-second setup to it.
+The command line says nothing about what to run, so an interface arriving at held runs brings
+no second setup to them: while a run goes, every interface shows the roles and agents it was
+started with.
 
 ## Runs held for frontends {#hosting}
 
-A daemon can hold a workspace's runs a second way: as a **host**, for any number of
-**frontends** at once. A frontend is anything that attaches: [`hmz attach`](/reference/cli#hmz-attach),
-a program written against the [SDK](/reference/sdk#link), or an interface of its own. Each gets
-its own stream of what the runs do, and each asks for what it wants done.
-
-```text
- hmz attach -c planner ──┐                       ┌── daemon, one per directory ───────┐
- hmz attach -c reviewer ─┼── daemon.sock ───────▶│  the host: the run going, claims,  │
- a bot on the SDK ───────┘  JSON requests in,    │  away, lines, questions, history   │
-                            messages out         │        │                           │
-                                                 │     the flow and its agents        │
-                                                 └────────────────────────────────────┘
-```
+The host holds a workspace's runs for any number of **frontends** at once. A frontend is
+anything that attaches: an [interface](/reference/tui#several-people-on-one-run),
+[`hmz attach`](/reference/cli#hmz-attach), or a program written against the
+[SDK](/reference/sdk#link). Each gets its own stream of what the runs do, and each asks for what
+it wants done.
 
 Several people can then share one run, each answering for a different part of it:
 
-- **Claims.** An `Outworlder` role a frontend claims is that frontend's alone to answer. Claiming
+- **Claims.** An `Outworlder` role a frontend claims -- `/claim` at the interface, `-c` on
+  `hmz attach` -- is that frontend's alone to answer. Claiming
   one somebody else holds is refused (`reviewer is alice@cli's`) unless it takes it over, and the
   old owner is told. A claim is given back when its frontend lets go; claims are not written down.
 - **Questions.** A question is shown to every frontend, with its owner: the claimant, or nobody.
@@ -133,7 +129,7 @@ History records carry `seq`, and `run` where they belong to one:
 | `type` | Fields |
 | --- | --- |
 | `started` | `flow`, `ref`, `task`, `by`, `client`, `roles`, `outworlders`, `agents`, `envs`, `params`, `budget`, `resume`, `began` (host monotonic), `at` (wall clock) |
-| `opened` | `role`, `key` (`coder/2`), `agent`, `cli`, `model`, `counts` (sorted), `forks`, `person`, `mono` |
+| `opened` | `role`, `key` (`coder/2`), `agent`, `cli`, `model`, `counts` (sorted), `forks`, `person`, `kept` (the directory its logs are under, `""` for the CLI's own home), `mono` |
 | `event` | `key`, `session` (the key where the event named a conversation, else `""`), `agent`, `cli`, `model`, `ident` (the backend's name for the conversation), `kind`, `text`, `whose`, `tokens`, `spent`, `at`, `mono` |
 | `asked` | `question`, `role`, `text`, `options`, `mode` (`ask` with options or a turn open, else `listen`) |
 | `answered` | `question`, `role`, `by`, `client`, `text` |
@@ -143,7 +139,7 @@ History records carry `seq`, and `run` where they belong to one:
 | `unheld` | `agent`, `texts`: lines a turn ended without saying it had |
 | `dropped` | `given`, `queued`, `because` (`stopped` or `ended`) |
 | `printed` | `text` |
-| `stopping` | `by` |
+| `stopping` | `by`, `client` |
 | `ended` | `how` (`done`, `stopped`, `budget`, `refused`, `failed`, `crashed`), `why`, `mono` |
 
 Snapshots say how one thing stands; only the latest of each is kept:
@@ -165,20 +161,9 @@ The last message a frontend is told is `gone`, with `why`: `let go`, `the host w
 `too far behind; attach again` for one that stopped taking what it was sent and fell further
 behind than a whole run.
 
-A terminal that reaches a host is told `GONE` -- `held for frontends; hmz attach reads it` --
-and a frontend that reaches a run held for a terminal is told `held for a terminal; hmz opens
-it`, rather than either being left to wait.
-
-## The terminal it draws for {#what-kind-of-terminal-it-draws-for}
-
-A held run keeps one pseudoterminal for its whole life, with the `TERM` of the shell that first
-ran `hmz` there. A terminal of another kind that reads it later is drawn for in that first
-one's language; [`status()`](#daemon) says which, under `term`. To change it, stop the held run
-and run `hmz` again from the terminal you want.
-
-<span id="what-a-terminal-is-put-back-to"></span>When a terminal stops reading, however it
-stops, it puts itself back: out of the alternate screen, cursor shown, mouse and focus
-reporting off, bracketed paste off, keyboard protocol popped, line wrapping on.
+A reader that sends a host any other kind of frame -- an older humanize's terminal, reaching for
+a run held on a pseudoterminal -- is told `GONE` with why, and let go of, rather than being
+left to wait.
 
 ## What is on disk
 
@@ -187,24 +172,25 @@ reporting off, bracketed paste off, keyboard protocol popped, line wrapping on.
 
 | File | |
 | --- | --- |
-| `daemon.sock` | The socket terminals reach the run through. `0600`. |
-| `daemon.json` | `pid`, `workspace`, `started` (UTC) and `term`; for a [host](#hosting), `kind: "host"` and `protocol: 1` in place of `term`. |
+| `daemon.sock` | The socket frontends reach the runs through. `0600`. |
+| `daemon.json` | `pid`, `workspace`, `started` (UTC), `kind: "host"` and `protocol: 1`. One without `protocol` is an older humanize's. |
 | `daemon.lock` | Held by the daemon while it runs. The kernel drops it when the process goes, however it goes. |
-| `daemon.log` | What could not be said through a terminal: the daemon's own failures, and a process that could not reach the socket. A host's CLIs write here too. |
+| `daemon.log` | What could not be said to a frontend: the daemon's own failures, and a process that could not reach the socket. What the CLIs a host starts write straight to their descriptors lands here too. |
 
 A `daemon.json` whose process has gone reads as nothing held: a stale socket file would be a
-terminal that hangs rather than one that says nothing is running.
+frontend that hangs rather than one that says nothing is running.
 
 ## How it is held
 
-`start` forks so the caller is not kept waiting, calls `setsid` so the terminal that started it
-is no longer its controlling terminal (a hangup cannot reach it), forks again so it can never
-take one, and opens a pseudoterminal for the interface to draw on when nobody is reading. That
-is what `screen` does underneath, done in-process.
+`host` forks so the caller is not kept waiting, calls `setsid` so the terminal that started it
+is no longer its controlling terminal (a hangup cannot reach it), and forks again so it can
+never take one. That is what `screen` does underneath, done in-process. The host reads nothing,
+ignores an interrupt, closes its runs on a terminate, and says what is printed in it to its
+frontends.
 
-The interface knows nothing of it: it draws on a terminal. Everything it *does* runs in the
-held process, which is why [`Hmz`](/reference/sdk) is reached from there: `hmz.daemon` hands it
-through, and the interface asks it directly. The socket is only for the terminals outside.
+The interface draws in the process of the terminal it was opened in, and knows the runs only
+as the messages it is told and the requests it asks: the same [`Link`](#link) whether they are
+held by a host or in its own process.
 
 ## Python
 
@@ -214,59 +200,59 @@ through, and the interface asks it directly. The socket is only for the terminal
 ```python
 from hmz.sdk import Daemons
 
-held = Daemons().here()          # this directory's run, or None
-for one in Daemons().all():      # every run held on this machine
+held = Daemons().here()          # this directory's host, or None
+for one in Daemons().all():      # every host on this machine
     print(one.workspace, one.status()["flows"])
 ```
 
 | `Daemons` | |
 | --- | --- |
-| `here(workspace=None)` | The [`Daemon`](#daemon) holding a run in that workspace, or `None`. |
-| `all()` | Every run held on this machine, oldest first. |
-| `hold(opens, workspace=None, *, columns=0, rows=0)` | Holds a run and returns its `Daemon` once it is listening. `opens` is called in the held process with the [`Held`](#held) run, and returns when the run is over. Raises `OSError` where one is already held there, or it did not come up. |
-| `host(workspace=None)` | The `Daemon` [hosting](#hosting) that workspace's runs for frontends, started where none is. Raises `OSError` where a run is held there for a terminal, or no host came up. |
+| `here(workspace=None)` | The [`Daemon`](#daemon) holding runs in that workspace, or `None`. |
+| `all()` | Every daemon on this machine, oldest first. |
+| `host(workspace=None)` | The `Daemon` [hosting](#hosting) that workspace's runs, started where none is. Raises `OSError` where an older humanize holds them, or no host came up. |
 
 The same, one layer down:
 
 ```python
-from hmz.daemon import Daemon, Held, Hmz, Link, Session, daemons, host, linked, running, start
+from hmz.daemon import Daemon, Hmz, Host, Link, daemons, host, linked, running
 ```
 
 | `hmz.daemon` | |
 | --- | --- |
 | `running(workspace=None)` | As `Daemons().here()`. |
 | `daemons()` | As `Daemons().all()`. |
-| `start(opens, workspace=None, *, columns=0, rows=0, seconds=10.0)` | As `Daemons().hold()`, waiting `seconds` for the socket. `columns` and `rows` are the size to draw for until a terminal arrives; `0` is this terminal's. |
-| `host(workspace=None, *, seconds=10.0)` | As `Daemons().host()`. |
+| `host(workspace=None, *, seconds=10.0)` | As `Daemons().host()`, waiting `seconds` for the socket. |
 | `linked(host, name="", kind="tui", *, replay=True)` | A [`Link`](#link) to a `Host` in this process, as `Hmz().host()` answers one. |
+| `Hmz`, `Host` | The runtime's own, handed through. |
 
 ### `Daemon`
 
-One held run. Attributes `at` (its directory), `workspace`, `pid`, `started` and `protocol`
-(`1` for a [host](#hosting), `0` for a run held for a terminal).
+One daemon. Attributes `at` (its directory), `workspace`, `pid`, `started` and `protocol`
+(`1` for a [host](#hosting), `0` for an older humanize's, which no frontend reaches).
 
 | | |
 | --- | --- |
 | `alive` | Whether the process holding it is still there. |
-| `link(name="", kind="sdk", *, replay=True)` | Attaches a frontend to the runs a host holds, and returns its [`Link`](#link). `name` defaults to `HUMANIZE_NAME`, else your login, then `@kind`; a name already attached gets `#2`. `OSError` where nothing answers, or the run is held for a terminal. |
-| `attach()` | Reads it from this terminal until it ends or lets go. `0`, or `1` where there was nothing to read. |
-| `status()` | What it says about itself (below). A run that will not answer, starting up or wedged, is answered for from `daemon.json`. |
-| `detach()` | Lets go of every terminal reading it, leaving the run running. How many. |
-| `stop(*, seconds=20.0)` | Asks the run to stop, as closing the interface does, and waits. Whether it has gone. |
+| `link(name="", kind="sdk", *, replay=True)` | Attaches a frontend to the runs a host holds, and returns its [`Link`](#link). `name` defaults to `HUMANIZE_NAME`, else your login, then `@kind`; a name already attached gets `#2`. `OSError` where nothing answers, or an older humanize holds them. |
+| `status()` | What it says about itself (below). One that will not answer, starting up or wedged, is answered for from `daemon.json`. |
+| `detach()` | Lets go of every frontend, leaving the runs running. How many. |
+| `stop(*, seconds=20.0)` | Closes the runs, lets every frontend go, and waits for the daemon to go. Whether it has gone. |
 | `kill(*, seconds=20.0)` | `SIGTERM`, then `SIGKILL`, whatever the run was doing; removes the socket and `daemon.json`. Whether it has gone. |
 | `asked(said)` | Sends one control request (below) and returns the answer, or `{}` where none came in 5 s. |
 
-`status()` answers with these keys. A run that did not answer gives only the ones marked †,
+`status()` answers with these keys. A daemon that did not answer gives only the ones marked †,
 from `daemon.json`, with `attached` `0` and `flows` and `calls` empty.
 
 | Key | |
 | --- | --- |
-| `ok` | `true`: the run answered. |
-| `pid`, `workspace`, `started`, `term` † | As in `daemon.json`. |
-| `attached` † | How many terminals are reading. |
+| `ok` | `true`: the daemon answered. |
+| `pid`, `workspace`, `started`, `kind`, `protocol` † | As in `daemon.json`. |
+| `attached` † | How many frontends are reading. |
+| `clients` | Who: `[{client, name, kind}]`. |
+| `state`, `run` | `idle`, `running` or `stopping`, and the number of the run going or the last. |
 | `flows` † | The refs of the flows running, outermost first. |
 | `calls` † | The same as objects: `ref`, `name`, `depth`, `seconds` running, `id`, and `parent`, the index of the call that made it. |
-| `flow` | The flow the interface is running or set up to run. |
+| `flow` | The flow of the run going or the last. |
 | `budget`, `usage` | What the run may spend and has spent, as JSON (`Infinity` for no cost limit). `null` with nothing running. |
 
 ### Control requests
@@ -276,13 +262,9 @@ A request is `{"do": …}` over the socket; `Daemon.asked` sends one.
 | `do` | Answer |
 | --- | --- |
 | `status` | `{"ok": true, …}`, as above. |
-| `detach` | `{"ok": true, "let go": <count>}` |
-| `stop` | `{"ok": true}`, then the interface stops its flow and closes -- or a host closes its runs and lets every frontend go. `{"ok": false, "why": "this run cannot be stopped from outside it"}` where nothing registered a stop. |
+| `detach` | `{"ok": true, "let go": <count>}`: every frontend let go of. |
+| `stop` | `{"ok": true}`, then the host closes its runs and lets every frontend go, telling each why. |
 | anything else | `{"ok": false, "why": "no such request: '<do>'"}` |
-
-A host answers `status` with `kind`, `protocol`, `clients` (`[{client, name, kind}]`),
-`state` (`idle`, `running`, `stopping`) and `run`, beside the keys above; `detach` lets go of
-every frontend.
 
 ### `Link` {#link}
 
@@ -313,25 +295,3 @@ with (Daemons().here() or Daemons().host()).link(name="ci", replay=False) as lin
                 if asked["owner"] == link.client:
                     link.answer(asked["question"], "looks good")
 ```
-
-### `Held`
-
-What `opens` is handed: the run being held. It is a [`Session`](#session), plus the three hooks
-the held process registers.
-
-| | |
-| --- | --- |
-| `redrawn(hook)` | Called on a thread of its own when a terminal arrives, to draw the whole screen again. |
-| `stopping(hook)` | Called when a `stop` request arrives. |
-| `says(hook)` | Returns a dict merged into `status()`. The flows running are added by the daemon itself. |
-
-### `Session`
-
-What whatever is drawing sees of the run holding it: a `Protocol`, so a held run and one opened
-in the terminal's own process are one interface. The interface is handed one only where the run
-is held, which is where `/exit` offers **leave it running**.
-
-| | |
-| --- | --- |
-| `attached` | How many terminals are reading now. |
-| `detach()` | Lets go of every terminal, leaving the run running. How many. |

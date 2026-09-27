@@ -14,11 +14,11 @@ from typing import TYPE_CHECKING
 import pytest
 from textual.widgets import OptionList, Static
 
-from hmz.coganchor.agents import Board, HumanAgent, Refused
+from hmz.coganchor.agents import Board, Refused
 from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
 from hmz.tui.monitoring import EVERY, OUTWORLDER, Entry, Monitoring
-from tests.tui.fixtures import event, holding, opened, told, until
+from tests.tui.fixtures import event, link, opened, snapshot, told, until
 
 if TYPE_CHECKING:
     from textual.pilot import Pilot
@@ -62,11 +62,30 @@ def _two(app: Humanize) -> tuple[str, str]:
     return "builder", "reviewer"
 
 
-def _person(app: Humanize) -> HumanAgent:
-    """The person of a run, who keeps its board with the flow."""
-    person = HumanAgent()
-    holding(app, person)
-    return person
+def _board(app: Humanize, *lines: tuple[str, str, str]) -> None:
+    """The board of a run whose flow talks to the person, as the runs say it now.
+
+    Args:
+      app: The interface.
+      lines: Each line on it, as what it is called, what it says, and whose it is.
+    """
+    told(
+        app,
+        snapshot(
+            "board",
+            items=[
+                {
+                    "key": key,
+                    "value": value,
+                    "about": "",
+                    "whose": whose,
+                    "by": "",
+                    "at": 0,
+                }
+                for key, value, whose in lines
+            ],
+        ),
+    )
 
 
 @pytest.mark.timeout(60)
@@ -149,9 +168,9 @@ async def test_the_board_is_under_the_diagram_and_says_what_is_on_it() -> None:
     app = Humanize()
     async with app.run_test() as driver:
         _two(app)
-        person = _person(app)
-        person.board.put("todo", "fix the build", about="what there is to do")
-        person.board.put("progress", "two of five", whose="flow")
+        _board(
+            app, ("todo", "fix the build", "both"), ("progress", "two of five", "flow")
+        )
 
         await _opens(app, driver)
 
@@ -168,8 +187,7 @@ async def test_a_line_the_flow_keeps_to_itself_is_not_one_to_change_here() -> No
     app = Humanize()
     async with app.run_test() as driver:
         _two(app)
-        person = _person(app)
-        person.board.put("progress", "two of five", whose="flow")
+        _board(app, ("progress", "two of five", "flow"))
         await _opens(app, driver)
 
         # Down to it, and enter: it says why rather than opening an editor. The last row
@@ -183,15 +201,16 @@ async def test_a_line_the_flow_keeps_to_itself_is_not_one_to_change_here() -> No
 
         assert "the flow's to change" in _under(app)
         assert isinstance(app.screen, Monitoring)
+        assert not link(app).asked_for("board")  # refused here, never asked of the runs
 
 
 @pytest.mark.timeout(60)
-async def test_a_line_is_typed_onto_the_board_and_the_flow_reads_it_at_once() -> None:
-    """Neither side waits at the board: what is written here is there the moment it is."""
+async def test_a_line_typed_onto_the_board_is_asked_of_the_runs_at_once() -> None:
+    """Neither side waits at the board: what is written here is asked of the runs at once."""
     app = Humanize()
     async with app.run_test() as driver:
         _two(app)
-        person = _person(app)
+        _board(app)
         await _opens(app, driver)
 
         # The last row is the one that puts a line up, and enter on it is a new line.
@@ -207,10 +226,13 @@ async def test_a_line_is_typed_onto_the_board_and_the_flow_reads_it_at_once() ->
         await driver.press(*"fix the build")
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Monitoring), driver)
+        await until(lambda: bool(link(app).asked_for("board")), driver)
 
-        assert person.board.get("todo") == "fix the build"
-        assert person.board.items()[0].by == "user"
-        assert "fix the build" in _drawn(app)
+        [asked] = link(app).asked_for("board")
+        assert (asked["key"], asked["value"]) == ("todo", "fix the build")
+        # And what the runs say the board is now is what is drawn.
+        _board(app, ("todo", "fix the build", "both"))
+        await until(lambda: "fix the build" in _drawn(app), driver)
 
 
 def test_the_board_is_named_lines_that_either_side_may_be_kept_off() -> None:
@@ -420,8 +442,7 @@ async def test_a_line_written_down_empty_is_taken_off_the_board() -> None:
     app = Humanize()
     async with app.run_test() as driver:
         _two(app)
-        person = _person(app)
-        person.board.put("todo", "fix the build")
+        _board(app, ("todo", "fix the build", "both"))
         await _opens(app, driver)
 
         while app.screen.query_one("#graph", OptionList).highlighted != (
@@ -434,8 +455,10 @@ async def test_a_line_written_down_empty_is_taken_off_the_board() -> None:
             await driver.press("backspace")
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Monitoring), driver)
+        await until(lambda: bool(link(app).asked_for("board")), driver)
 
-        assert person.board.held("todo") is None
+        [asked] = link(app).asked_for("board")
+        assert (asked["key"], asked["value"]) == ("todo", "")
         assert "off the board" in _under(app)
 
 
@@ -510,10 +533,12 @@ async def test_a_command_typed_on_the_monitor_is_carried_out_there() -> None:
 
         await driver.press(*"/afk on")
         await driver.press("enter")
-        await until(lambda: app._afk, driver)
+        await until(lambda: "away" in _under(app), driver)
 
         assert isinstance(app.screen, Monitoring)  # still up
         assert "away" in _under(app)  # and it answered where it was typed
+        [asked] = link(app).asked_for("afk")
+        assert asked["on"] is True
 
 
 @pytest.mark.timeout(60)

@@ -16,7 +16,9 @@ shape: it runs each test somewhere temporary with no backend installed, so a tes
 reads the developer's own PATH.
 
 `catching_up` and `freshening` are the other half of that pair: they hand the fetch back to a
-test that is about the fetching.
+test that is about the fetching. `_linked_to_nothing` and `hosting` are one more such pair: every
+interface here is opened on a fake end of the runs that writes down what it asks, and a test
+that runs a flow through the interface asks for runs held in its own process back.
 
 Imported rather than rewritten so that there is one copy of each, in `tests/tui/fixtures.py`
 where the interface's tests have always kept them. `__all__` is load-bearing: it is what says
@@ -41,6 +43,20 @@ is the only place both can reach. `test_app` is for what only this tier has -- `
 
 from __future__ import annotations
 
-from tests.tui.fixtures import _elsewhere, _fetches_nothing, catching_up, freshening
+from tests.tui.fixtures import (
+    _elsewhere,
+    _fetches_nothing,
+    _linked_to_nothing,
+    catching_up,
+    freshening,
+    hosting,
+)
 
-__all__ = ["_elsewhere", "_fetches_nothing", "catching_up", "freshening"]
+__all__ = [
+    "_elsewhere",
+    "_fetches_nothing",
+    "_linked_to_nothing",
+    "catching_up",
+    "freshening",
+    "hosting",
+]

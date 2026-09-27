@@ -14,17 +14,17 @@ from typing import TYPE_CHECKING, cast
 import pytest
 from textual.widgets import OptionList
 
-from hmz.coganchor.agents import AgentConfig, Question
+from hmz.coganchor.agents import AgentConfig
 from hmz.coganchor.backends import Model
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
-from hmz.tui.app import _COMMANDS, Editor, _Asked
+from hmz.tui.app import _COMMANDS, Editor
 from hmz.tui.complete import offered
 from hmz.tui.pick import _BUDGET, _DONE, _SAVE, Configures, Flows
 from tests.integration.tui.test_app import changes, opens
 from tests.stubs import ShellAgent, written
-from tests.tui.fixtures import holding, transcript, until
+from tests.tui.fixtures import asked, holding, link, pending, told, transcript, until
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -379,15 +379,17 @@ async def test_nothing_is_offered_against_a_dollar_while_an_agent_waits_to_be_an
     Settings(tmp_path).remember("chat", _CHAT)
     app = Humanize()
     async with app.run_test() as driver:
-        asked = _Asked(Question("which way?"))
-        app._asking = [asked]
+        told(app, pending(asked("q1", text="which way?")))
         await driver.press(*"$cha")
         await driver.pause()
 
         assert not app.query_one("#offers", OptionList).has_class("offering")
 
         await driver.press("enter")
-        await until(lambda: asked.answer == "$cha", driver)  # answered, not completed
+        await until(lambda: bool(link(app).asked_for("answer")), driver)
+        # Answered, not completed.
+        [answer] = link(app).asked_for("answer")
+        assert (answer["question"], answer["text"]) == ("q1", "$cha")
 
 
 @pytest.mark.timeout(60)
@@ -398,12 +400,15 @@ async def test_a_dollar_while_a_flow_runs_is_refused_the_way_choosing_one_is(
     Settings(tmp_path).remember("chat", _CHAT)
     app = Humanize()
     async with app.run_test() as driver:
-        run = holding(app, ShellAgent(AgentConfig(model="m", effort="high")))
+        holding(app, ShellAgent(AgentConfig(model="m", effort="high")))
+        running = app._run
         await sends(app, driver, "$chat fix the build")
         await until(lambda: "a flow is running" in transcript(app), driver)
 
-        assert app._run is run  # left exactly as it was
+        assert running is not None
+        assert app._run is running  # left exactly as it was
         assert not started
+        assert not link(app).requests
 
 
 @pytest.mark.timeout(60)
@@ -458,21 +463,9 @@ async def test_tab_takes_the_flow_that_is_offered_under_the_sigil() -> None:
 
 @pytest.mark.timeout(60)
 async def test_an_environment_role_the_flow_no_longer_declares_is_not_handed_to_it(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> None:
     """A role renamed since is one no row can clear, and must not refuse every later run."""
-    from typing import Any
-
-    from hmz.runtime.doing.core import Hmz
-
-    handed: list[dict[str, Any]] = []
-
-    def caught(self: Hmz, flow: str, task: str, **said: Any) -> None:
-        del self, flow, task
-        handed.append(said)
-        raise RuntimeError("caught")
-
-    monkeypatch.setattr(Hmz, "run", caught)
     written(tmp_path / ".humanize" / "flows", "loop", _ONE)
     Settings(tmp_path).remember(
         "local/loop", _WORKER, envs={"scratch": "local@/tmp"}, budget=_SPENDS
@@ -480,8 +473,8 @@ async def test_an_environment_role_the_flow_no_longer_declares_is_not_handed_to_
     app = Humanize()
     async with app.run_test() as driver:
         await sends(app, driver, "$local/loop fix the build")
-        await until(lambda: bool(handed), driver)
+        await until(lambda: bool(link(app).asked_for("start")), driver)
 
-    (said,) = handed
+    (said,) = link(app).asked_for("start")
     assert said["envs"] == {}
     assert said["agents"] == {"worker": "claude/m:high"}

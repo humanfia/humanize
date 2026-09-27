@@ -1,9 +1,9 @@
 """Where one workspace's daemon keeps its socket, and what is written down beside it.
 
 One daemon per workspace, under humanize's own home: a directory named for the project it is
-holding, with the socket terminals reach it through and a note of what is running there. The
+holding, with the socket frontends reach it through and a note of what is running there. The
 note is what tells a daemon that is running from one whose machine went down without it -- a
-socket file outlives the process that bound it, and a stale one is a terminal that hangs.
+socket file outlives the process that bound it, and a stale one is a frontend that hangs.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import re
+import socket
 import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -30,6 +31,7 @@ __all__ = [
     "SOCKET",
     "alive",
     "at",
+    "connects",
     "held",
     "holds",
     "reached",
@@ -37,14 +39,14 @@ __all__ = [
     "wrote",
 ]
 
-#: The socket a terminal reaches a run through, inside that run's own directory.
+#: The socket a frontend reaches the runs through, inside the daemon's own directory.
 SOCKET = "daemon.sock"
 
 #: What is written down about the daemon there: which process, which workspace, since when.
 RECORD = "daemon.json"
 
-#: Where whatever the daemon itself could not say through a terminal goes -- a crash before
-#: the interface was up, after the last terminal let go, or a directory that went away under
+#: Where whatever the daemon itself could not say to a frontend goes -- a crash before one
+#: was attached, after the last one let go, or a directory that went away under
 #: whoever was reaching for the socket.
 LOG = "daemon.log"
 
@@ -138,6 +140,31 @@ def reached(where: Path) -> Generator[str]:
             os.chdir(was)
         except OSError:
             _logged(where, f"a run reaching for its socket could not go back to {was}")
+
+
+def connects(where: Path, seconds: float | None = None) -> socket.socket:
+    """Connects to the socket in one daemon's directory.
+
+    Args:
+      where: The daemon's own directory.
+      seconds: How long connecting is given, or None for as long as it takes -- which the
+        socket keeps, for whatever is asked of it next.
+
+    Returns:
+      The socket, connected.
+
+    Raises:
+      OSError: If nothing is listening there.
+    """
+    one = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        one.settimeout(seconds)
+        with reached(where) as reaching:
+            one.connect(reaching)
+    except OSError:
+        one.close()
+        raise
+    return one
 
 
 def _logged(where: Path, about: str) -> None:

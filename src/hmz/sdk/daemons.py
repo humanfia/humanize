@@ -1,10 +1,10 @@
-"""The runs humanize is holding apart from a terminal, as a tool outside reaches one.
+"""The runs humanize is holding apart from a terminal, as a tool outside reaches them.
 
-A run of a flow outlives the program that asked for it: it is held in a process of its own,
-one per workspace, and is reached over the socket beside it. That is the other way in --
-:class:`hmz.runtime.doing.core.Hmz` runs a flow here, in the process that asked, and this
-starts one somewhere a terminal closing cannot end it and reaches whichever are already
-running.
+A workspace's runs outlive the program that asked for them: they are held in a process of
+their own, one per workspace, and are reached over the socket beside it. That is the other way
+in -- :class:`hmz.runtime.doing.core.Hmz` runs a flow here, in the process that asked, and
+this starts a host somewhere a terminal closing cannot end it and reaches whichever are
+already running.
 
 :mod:`hmz.daemon` is where all of it is done; this is the one object it is asked through, so
 that a tool holds one thing per way in rather than a module of functions apiece.
@@ -16,15 +16,14 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import os
-    from collections.abc import Callable
 
-    from hmz.daemon import Daemon, Held
+    from hmz.daemon import Daemon
 
 __all__ = ["Daemons"]
 
 
 class Daemons:
-    """Every run being held apart from a terminal, and how one is put there."""
+    """Every workspace's runs being held apart from a terminal, and how they are put there."""
 
     def here(self, workspace: str | os.PathLike[str] | None = None) -> Daemon | None:
         """The run being held in one workspace, if one is.
@@ -47,39 +46,6 @@ class Daemons:
 
         return daemon.daemons()
 
-    def hold(
-        self,
-        opens: Callable[[Held], object],
-        workspace: str | os.PathLike[str] | None = None,
-        *,
-        columns: int = 0,
-        rows: int = 0,
-    ) -> Daemon:
-        """Puts a run where a terminal closing cannot end it, and comes back once it is there.
-
-        What is held is whatever `opens` does. It is called in the held process with the run
-        being held, and returns when the run is over -- so a tool that wants a flow held is a
-        tool whose `opens` runs one, and one that wants an interface of its own held draws
-        one.
-
-        Args:
-          opens: What opens the run, called in the detached process.
-          workspace: The project directory, or None for wherever this is being run.
-          columns: How wide the terminal it draws for is until one arrives, or 0 for this
-            one's.
-          rows: How tall, or 0 for this one's.
-
-        Returns:
-          The daemon, listening.
-
-        Raises:
-          OSError: If it could not be started, or did not come up in the time it was given --
-            which is what a workspace already holding a run answers with.
-        """
-        from hmz import daemon
-
-        return daemon.start(opens, workspace, columns=columns, rows=rows)
-
     def host(self, workspace: str | os.PathLike[str] | None = None) -> Daemon:
         """The daemon hosting a workspace's runs for frontends, started where none is.
 
@@ -93,7 +59,7 @@ class Daemons:
           The daemon, listening.
 
         Raises:
-          OSError: If a run is held there for a terminal, or no host could be started.
+          OSError: If a daemon of an older humanize holds it, or no host could be started.
         """
         from hmz import daemon
 

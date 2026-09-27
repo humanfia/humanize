@@ -97,7 +97,7 @@ const LAYERS: Layer[] = [
     id: 'tui',
     dotted: 'hmz.tui',
     here: 'The terminal interface: slash commands, keys, menus, and what they draw.',
-    note: 'Reaches the runtime only through `daemon`.',
+    note: 'Reaches the runtime only through `daemon`, as one frontend of the runs a host holds.',
     spec: 'tui.md',
     ref: '/reference/tui',
   },
@@ -112,7 +112,7 @@ const LAYERS: Layer[] = [
   {
     id: 'daemon',
     dotted: 'hmz.daemon',
-    here: 'A run held apart from the terminal, and the terminals that attach to it.',
+    here: "A workspace's runs held apart from the terminal, and the socket every frontend reaches them over.",
     note: 'Names the runtime by its front door, `hmz.runtime`.',
     spec: 'daemon.md',
     ref: '/reference/daemon',

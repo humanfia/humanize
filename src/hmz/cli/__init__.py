@@ -41,14 +41,17 @@ if TYPE_CHECKING:
     from argparse import ArgumentParser
     from collections.abc import MutableMapping
 
-    from hmz.daemon import Held
+__all__ = ["APART", "COMMANDS", "INTERNAL", "main", "many", "opens"]
 
-__all__ = ["APART", "COMMANDS", "INTERNAL", "apart", "main", "many", "opens"]
-
-#: What says whether a run may be held apart from the terminal at all, for a machine that
-#: would rather it went with the window. `off`, `0` or `no`; anything else is silence, and
-#: silence is a run that is held wherever there is a terminal to hand over to.
+#: What says whether runs may be held apart from the terminal at all, for a machine that
+#: would rather they went with the window. `off`, `0` or `no`; anything else is silence, and
+#: silence is runs held by a host wherever there is a terminal on both ends.
 APART = "HUMANIZE_DAEMON"
+
+#: How many times the runs held here are reached for before they are held in this process
+#: instead, and how long apart: a host is a moment from going once its last frontend has.
+_TRIES = 3
+_AGAIN = 0.5
 
 
 def many(count: int | str, thing: str) -> str:
@@ -315,98 +318,69 @@ def _tui() -> int:
 
 
 def opens() -> int:
-    """Opens the interface, on this terminal or on one a run of its own is being held on.
+    """Opens the interface, in this process, on the runs held for this directory.
 
-    A run of a flow outlives the terminal it was started from, which is what makes leaving it
-    running an answer to `/exit`: the interface goes on running where nothing is reading it, and
-    `hmz` in this directory opens it again. So a line that opens the interface reads whichever
-    run is already being held here, and starts one where none is.
+    Runs of a flow outlive the terminal they were started from, which is what makes leaving
+    one running an answer to `/exit`: a host holds this directory's runs where nothing has to
+    be reading them, and every interface opened here -- this one, one in the next terminal,
+    one a colleague opened over ssh -- is one more frontend of the same runs, each whole and
+    each its own. So a line that opens the interface reads the runs a host already holds
+    here, and starts a host where none is.
 
-    A terminal is what makes that worth doing. With nothing to attach -- output going to a
-    file, a test driving the interface itself -- the interface is opened here, in this
-    process, exactly as it always was.
+    A terminal on both ends is what makes that worth doing. With nothing to attach -- output
+    going to a file, a test driving the interface itself -- the runs are held in this process
+    instead, and go with it.
 
     Returns:
-      Zero, once the interface has been closed or this terminal has been let go of.
+      Zero, once the interface has been closed; one where the runs let go of it first.
     """
     if not (_apart_is_wanted() and _at_a_terminal()):
         return _here()
 
+    import time
+
     from hmz import daemon
 
-    found = daemon.running()
-    if found is not None and found.protocol:
-        # Runs held for frontends rather than a terminal: nothing here draws on that yet,
-        # and reading one is what `hmz attach` is for.
-        print(
-            "hmz: this directory's runs are held for frontends; `hmz attach` reads them",
-            file=sys.stderr,
-        )
-        return 1
-    if found is not None:
-        if found.attach() == 0:
-            return 0
-        # It went between being found and being read, which is a directory with no run in it
-        # after all rather than a reason to open nothing.
-        print(
-            "hmz: the run that was being held here has gone, so a new one is opened",
-            file=sys.stderr,
-        )
-    # Opened on nothing in particular, which is what the interface then reads out of what
-    # this directory was last left running.
-    try:
-        found = daemon.start(apart)
-    except OSError as why:
+    failed: OSError | None = None
+    for _ in range(_TRIES):
+        found = daemon.running()
+        if found is not None and not found.protocol:
+            # Runs held for a terminal by an older humanize, which nothing here can read and
+            # which a second host beside it would fight over the directory with.
+            print(f"hmz: {daemon.older(found)}", file=sys.stderr)
+            return 1
+        try:
+            link = (found or daemon.host()).link(kind="tui")
+            break
+        except OSError as why:
+            failed = why
+            # A host found on its way out -- the last interface on it has just gone -- is
+            # found gone the next time, and one started in its place.
+            time.sleep(_AGAIN)
+    else:
         # A machine that will not fork, a home directory that cannot be written, a socket
         # that will not bind: none of those is a reason not to open the interface. What is
-        # lost is being able to walk away from the run, which is said and then done without.
+        # lost is being able to walk away from the runs, which is said and then done without.
         print(
-            f"hmz: this run cannot be held apart from the terminal ({why}), "
-            "so it is opened here instead",
+            f"hmz: the runs here cannot be held apart from the terminal ({failed}), "
+            "so they are held in this process instead",
             file=sys.stderr,
         )
         return _here()
-    return found.attach()
+    from hmz.tui import Humanize
+
+    app = Humanize(link=link)
+    app.run()
+    return app.return_code or 0
 
 
 def _here() -> int:
-    """Opens the interface in this process, on the terminal it was started from."""
+    """Opens the interface in this process, holding this directory's runs itself."""
     from hmz.tui import Humanize
 
-    Humanize().run()
-    return 0
-
-
-def apart(session: Held) -> None:
-    """Opens the interface inside the process holding the run, and returns when it closes.
-
-    What is holding the run is the whole of what it is told. Which flow is open, what drives
-    it and what it is set up with are the interface's own to read back out of this directory.
-
-    Args:
-      session: What is holding the run, which is what leaving it running lets go of and what
-        draws the screen again for a terminal that has just arrived.
-    """
-    # Here rather than inside the line that opens the interface: this is the one function
-    # that runs in the process holding a run, which is the other side of a fork and has none
-    # of what `_tui` did before it. Textual reads the answer once, while it is imported, so
-    # it has to be settled before the interface below is reached.
-    _prepare_textual_terminal()
-
-    from hmz.tui import Humanize
-
-    app = Humanize(session=session)
-    # Each of these is called from a thread of whatever is holding the run, so each hands the
-    # work to the interface's own thread and waits there rather than here. What is running
-    # here is not among them: the daemon is the process those flows are running in and asks
-    # the runtime itself, rather than being handed the answer by whatever it is holding.
-    session.redrawn(lambda: app.call_from_thread(app.reattached))
-    session.stopping(lambda: app.call_from_thread(app.action_quit))
-    # And what the interface says about the run it holds -- the flow, what it may spend and
-    # what it has spent -- which the daemon adds to its status. Read on the daemon's thread,
-    # off what the run keeps under its own locks rather than off the screen.
-    session.says(app.said)
+    app = Humanize()
     app.run()
+    return app.return_code or 0
 
 
 def _apart_is_wanted() -> bool:
@@ -426,11 +400,11 @@ def _apart_is_wanted() -> bool:
 
 
 def _at_a_terminal() -> bool:
-    """Whether there is a terminal on both ends of this process to hand over to.
+    """Whether there is a terminal on both ends of this process to walk away from.
 
-    A run held apart from the terminal is read by a terminal proxying to it, so there has to
-    be one: output going to a file and input coming from a pipe are a run that is opened
-    here, in this process, exactly as it always was.
+    Runs held apart from the terminal are worth holding so only where somebody could come
+    back to them: output going to a file and input coming from a pipe are runs held here, in
+    this process, exactly as they always were.
 
     Returns:
       Whether there is one.

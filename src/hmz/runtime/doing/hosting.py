@@ -963,16 +963,23 @@ class Host:
                 if self._stopping is not None:
                     return _no(f"the flow is already stopping: {_UNWINDING}")
                 return _no("no flow is running, so there is nothing to stop")
-            self._stops(current, frontend.name)
+            self._stops(current, frontend)
         current.run.stop()
         return _ok()
 
-    def _stops(self, current: _Run, by: str) -> None:
+    def _stops(self, current: _Run, by: _Frontend) -> None:
         """Takes a run off as the one going, as stopping it does. Under the lock."""
         self._current = None
         self._stopping = current
-        current.stopped_by = by
-        self._record({"type": "stopping", "run": current.number, "by": by})
+        current.stopped_by = by.name
+        self._record(
+            {
+                "type": "stopping",
+                "run": current.number,
+                "by": by.name,
+                "client": by.client,
+            }
+        )
         self._releases(current.number)
         self._drops(current.number, "stopped")
         self._snap_run()
@@ -983,7 +990,7 @@ class Host:
         with self._lock:
             current = self._current
             if current is not None:
-                self._stops(current, frontend.name)
+                self._stops(current, frontend)
             stopping = self._stopping
             if stopping is None:
                 return _no("no flow is running, so there is nothing to stop")

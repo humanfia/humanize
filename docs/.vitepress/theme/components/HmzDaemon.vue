@@ -1,8 +1,9 @@
 <script setup lang="ts">
-// A terminal watches a run; it does not own it. Close one, and the run carries on with nobody
-// watching. Run `hmz` in the same directory and the whole screen is drawn again. Leaving and
-// stopping are two different answers to `/exit`, and a machine that restarts takes the run
-// with it -- which is what picking a run up is for. A simulation; the rounds are drawn.
+// An interface reads a run; it does not own it. Close one, and the run carries on with nobody
+// reading. Run `hmz` in the same directory and a new interface reads it from the top. Leaving
+// lets go of one interface and stopping stops the run for all of them, and a machine that
+// restarts takes the run with it -- which is what picking a run up is for. A simulation; the
+// rounds are drawn.
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 
 type RunState = 'running' | 'stopped' | 'gone'
@@ -11,8 +12,8 @@ interface Term {
   id: string
   name: string
   on: boolean
-  redrawn: boolean
-  // What the terminal says once it is no longer watching, and whether it is still open at all.
+  replayed: boolean
+  // What the terminal says once its interface has gone, and whether it is still open at all.
   why: string
   open: boolean
 }
@@ -21,11 +22,11 @@ const START = 7
 
 const run = ref<RunState>('running')
 const round = ref(START)
-const said = ref('Two terminals are watching one run.')
+const said = ref('Two interfaces are reading one run.')
 
 const terms = reactive<Term[]>([
-  { id: 'laptop', name: 'your laptop', on: true, redrawn: false, why: '', open: true },
-  { id: 'desk', name: 'a second terminal', on: true, redrawn: false, why: '', open: true },
+  { id: 'laptop', name: 'your laptop', on: true, replayed: false, why: '', open: true },
+  { id: 'desk', name: 'a second terminal', on: true, replayed: false, why: '', open: true },
 ])
 
 const watching = computed(() => terms.filter((one) => one.on).length)
@@ -37,26 +38,26 @@ let idle = false
 function tick() {
   if (idle || run.value !== 'running') return
   round.value += 1
-  for (const one of terms) one.redrawn = false
+  for (const one of terms) one.replayed = false
 }
 
-// Every terminal still watching lets go, saying why.
+// Every interface still reading is let go of, saying why.
 function letGo(why: string) {
   for (const one of terms) {
     if (!one.on) continue
     one.on = false
-    one.redrawn = false
+    one.replayed = false
     one.why = why
   }
 }
 
 function close(term: Term) {
   term.on = false
-  term.redrawn = false
+  term.replayed = false
   term.open = false
   said.value =
     watching.value === 0
-      ? `Nobody is watching, and round ${round.value} carries on regardless.`
+      ? `Nobody is reading, and round ${round.value} carries on regardless.`
       : `${cap(term.name)} closed. The run did not notice.`
 }
 
@@ -64,21 +65,27 @@ function attach(term: Term) {
   if (!alive.value) return
   term.on = true
   term.open = true
-  term.redrawn = true
-  said.value = `hmz in the same directory: the whole screen is drawn again, at round ${round.value}.`
+  term.replayed = true
+  said.value = `hmz in the same directory: a new interface reads the run from the top, at round ${round.value}.`
 }
 
-function leave() {
-  if (!alive.value || !watching.value) return
-  letGo('detached')
-  said.value = '/exit → leave it running: every terminal lets go, and the run carries on.'
+// /exit lets go of the one interface it was typed at, and of nobody else.
+function leave(term: Term) {
+  if (!alive.value || !term.on) return
+  term.on = false
+  term.replayed = false
+  term.why = '/exit: left it running'
+  said.value = watching.value
+    ? `${cap(term.name)} left it running. The other interface goes on reading.`
+    : `${cap(term.name)} left it running. Nobody is reading, and the run carries on.`
 }
 
+// /stop, or ctrl+c twice, from any interface: one run, stopped for everybody reading it.
 function stop() {
   if (!alive.value || !watching.value) return
   run.value = 'stopped'
   letGo('the flow stopped')
-  said.value = `/exit → stop it, then leave: the flow stopped at round ${round.value}.`
+  said.value = `/stop: the flow stopped at round ${round.value}, for every interface reading it.`
 }
 
 function restart() {
@@ -94,10 +101,10 @@ function reset() {
   for (const one of terms) {
     one.on = true
     one.open = true
-    one.redrawn = false
+    one.replayed = false
     one.why = ''
   }
-  said.value = 'Two terminals are watching one run.'
+  said.value = 'Two interfaces are reading one run.'
 }
 
 function cap(text: string) {
@@ -149,17 +156,14 @@ const runLabel = computed(() => {
         <p class="watchers">
           <template v-if="!alive">nothing to watch</template>
           <template v-else-if="watching">
-            {{ watching }} terminal{{ watching === 1 ? '' : 's' }} watching
+            {{ watching }} interface{{ watching === 1 ? '' : 's' }} reading
           </template>
-          <template v-else>nobody watching · still running</template>
+          <template v-else>nobody reading · still running</template>
         </p>
-        <!-- /exit is typed at a terminal, so it needs one watching. -->
+        <!-- /stop is typed at an interface, so it needs one reading. -->
         <div class="actions">
-          <button type="button" :disabled="!alive || !watching" @click="leave">
-            /exit → leave it running
-          </button>
           <button type="button" class="stop" :disabled="!alive || !watching" @click="stop">
-            /exit → stop it, then leave
+            /stop: for everybody
           </button>
           <button type="button" class="gone" :disabled="!alive" @click="restart">
             the machine restarts
@@ -171,13 +175,13 @@ const runLabel = computed(() => {
         <article v-for="term in terms" :key="term.id" class="term" :class="{ on: term.on }">
           <header>
             <strong>{{ term.name }}</strong>
-            <span>{{ term.on ? 'watching' : term.open ? 'back at its shell' : 'closed' }}</span>
+            <span>{{ term.on ? 'reading' : term.open ? 'back at its shell' : 'closed' }}</span>
           </header>
           <div class="screen" :class="{ shell: !term.on, closed: !term.open }">
             <template v-if="term.on">
               <span class="hi">ralph_loop · round {{ round }}</span>
               <span>{{ round % 2 ? 'the agent is running the tests' : 'the agent is editing' }}</span>
-              <span v-if="term.redrawn" class="note">drawn again from the top</span>
+              <span v-if="term.replayed" class="note">read again from the top</span>
               <span v-else class="dim">❯</span>
             </template>
             <template v-else-if="term.open">
@@ -188,7 +192,12 @@ const runLabel = computed(() => {
               <span class="dim">no window</span>
             </template>
           </div>
-          <button v-if="term.on" type="button" @click="close(term)">close the window</button>
+          <template v-if="term.on">
+            <button type="button" :disabled="!alive" @click="leave(term)">
+              /exit → leave it running
+            </button>
+            <button type="button" @click="close(term)">close the window</button>
+          </template>
           <button v-else type="button" :disabled="!alive" @click="attach(term)">
             {{ term.open ? 'run hmz here' : 'open, run hmz' }}
           </button>

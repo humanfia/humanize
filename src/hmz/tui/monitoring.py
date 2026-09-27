@@ -29,7 +29,7 @@ from textual.screen import Screen
 from textual.widgets import Label, OptionList, Static, TextArea
 from textual.widgets.option_list import Option
 
-from hmz.coganchor.agents import ANYONE, FLOW, USER
+from hmz.coganchor.agents import ANYONE, FLOW
 from hmz.coganchor.prices import money
 
 from .monitor import lasting, short, thousands
@@ -45,7 +45,6 @@ from .pick import (
     EVERY,
     Key,
     Sheet,
-    bad,
     named_as,
     reads,
     setting,
@@ -58,12 +57,11 @@ if TYPE_CHECKING:
     from pydantic import BaseModel
     from textual.app import App, ComposeResult
 
-    from hmz.coganchor.agents import Board
     from hmz.runtime.kept import Runs
 
     from .monitor import Counted, Monitor, Shape, Under
 
-__all__ = ["EVERY", "OUTWORLDER", "Drawn", "Entry", "Monitoring"]
+__all__ = ["EVERY", "OUTWORLDER", "BoardSeen", "Drawn", "Entry", "Line", "Monitoring"]
 
 #: What the node of an outworlder is read under, ahead of its role: the log a person reads
 #: what the flow says to them in, and answers it from.
@@ -145,6 +143,68 @@ def _flowing(started: str, calls: Sequence[Mapping[str, Any]]) -> list[str]:
         f"   [$text-muted]{time.monotonic() - one['since']:.0f}s[/]"
         for one in calls
     ]
+
+
+class Line(NamedTuple):
+    """One line of the board a flow and a person share, as the runs say it.
+
+    Attributes:
+      key: What it is called.
+      value: What it says, or "" for one that says only what it is about.
+      about: What it is for, as whoever put it up said.
+      whose: Who may change it: the flow's, the person's, or anybody's.
+      by: Who put it up last.
+      at: When, as the clock of the machine the runs are on reads.
+    """
+
+    key: str
+    value: str = ""
+    about: str = ""
+    whose: str = ANYONE
+    by: str = ""
+    at: float = 0.0
+
+
+class BoardSeen:
+    """The board a flow and a person share, as the runs last said it.
+
+    What is on it is read off what the runs say, since the board itself is theirs; what the
+    person writes on it is asked of them, and comes back as the board they say next. A line
+    the flow owns is refused here before it is asked, as it would be there.
+    """
+
+    def __init__(
+        self,
+        items: Sequence[Mapping[str, Any]],
+        asks: Callable[[str, str], None],
+    ) -> None:
+        """Holds what is on the board, and how to ask for it to change.
+
+        Args:
+          items: Its lines, as the runs said them.
+          asks: What asks the runs to put a line up -- or take it off, said as nothing.
+        """
+        self._lines = [
+            Line(**{key: one[key] for key in Line._fields if key in one})
+            for one in items
+        ]
+        self._asks = asks
+
+    def items(self) -> list[Line]:
+        """Every line on it, in the order the runs said them."""
+        return list(self._lines)
+
+    def held(self, key: str) -> Line | None:
+        """The line of that name, or None where there is none."""
+        return next((one for one in self._lines if one.key == key), None)
+
+    def put(self, key: str, value: str) -> None:
+        """Asks for a line to say something, putting it up where it is not there yet."""
+        self._asks(key, value)
+
+    def drop(self, key: str) -> None:
+        """Asks for a line to come off."""
+        self._asks(key, "")
 
 
 class Drawn(NamedTuple):
@@ -474,7 +534,7 @@ class Entry(Sheet[tuple[str, str]]):
         Binding("enter", "onward", "next", priority=True),
     ]
 
-    def __init__(self, key: str, value: str, board: Board) -> None:
+    def __init__(self, key: str, value: str, board: BoardSeen) -> None:
         """Initializes the writing.
 
         Args:
@@ -656,9 +716,11 @@ class Monitoring(Screen[str | None]):
         drawn: Callable[[bool], Sequence[Drawn]],
         setup: Callable[[], tuple[str, tuple[str, ...], list[Runs], BaseModel | None]],
         reading: Callable[[], str] = lambda: EVERY,
-        board: Callable[[], Board | None] = lambda: None,
+        board: Callable[[], BoardSeen | None] = lambda: None,
         outworlders: Callable[[], Sequence[str]] = tuple,
         calls: Callable[[], Sequence[Mapping[str, Any]]] = tuple,
+        whose: Callable[[str], str] = lambda _: "",
+        frontends: Callable[[], Sequence[str]] = tuple,
         sessions: bool = False,
         turned: Callable[[bool], None] = lambda _: None,
     ) -> None:
@@ -680,6 +742,8 @@ class Monitoring(Screen[str | None]):
           outworlders: The roles of the run that are the person, each of which is a view of
             its own.
           calls: The flow calls going, oldest first: the flow started and whatever it called.
+          whose: Who holds an outworlder role to answer: `yours`, `<name>'s`, or "".
+          frontends: Every frontend reading the runs, by name, this one said to be.
           sessions: Whether to open on a node per session rather than per agent.
           turned: Told which of the two `ctrl+t` turned it to, so the next time the monitor
             opens it opens the way it was left.
@@ -692,6 +756,8 @@ class Monitoring(Screen[str | None]):
         self._boarding = board
         self._outworlding = outworlders
         self._calling = calls
+        self._whose = whose
+        self._frontends = frontends
         self._turned = turned
         self._boxes: list[Drawn] = []
         #: Whether a node is a session rather than an agent, which `ctrl+t` turns.
@@ -921,10 +987,12 @@ class Monitoring(Screen[str | None]):
                 key,
                 f"{_marked(here=self._was == key)}[$primary]◉[/] {escape(role)}"
                 f"{_DOT}[$text-muted]outworlder: what the flow says to you[/]"
+                + (f"{_DOT}[$text-muted]{escape(whose)}[/]" if whose else "")
                 + (f"{_DOT}[$primary]reading[/]" if self._reading() == key else ""),
             )
             for role in self._outworlding()
             if (key := f"{OUTWORLDER}{role}")
+            for whose in [self._whose(role)]
         ]
 
     def _agents(self, shape: Shape) -> list[_Row]:
@@ -987,6 +1055,14 @@ class Monitoring(Screen[str | None]):
                 # Only what was changed: a flow of forty settings says nothing by listing
                 # the ones nobody touched, and this is read to see what this run is.
                 ("Set", [escape(one) for one in setting(config)]),
+                # Who else is reading, where anybody is: which of them holds which role is
+                # on the outworlders' nodes, and who said what is on the log.
+                (
+                    "Reading",
+                    [escape(one) for one in frontends]
+                    if len(frontends := self._frontends()) > 1
+                    else [],
+                ),
             ],
             [
                 # Only the ones the boxes have no arrow for: the rest are drawn above.
@@ -1175,18 +1251,15 @@ class Monitoring(Screen[str | None]):
         if said is None:
             return  # walked out of it, which changes nothing
         named, value = said
-        try:
-            if value:
-                board.put(named, value, by=USER)
-                self._said = f"{escape(named)} is on the board"
-            elif board.held(named) is not None:
-                # Written down as nothing, which is a line with nothing to say: taken off
-                # rather than left up empty, there being no key of its own that does it.
-                board.drop(named, by=USER)
-                self._said = f"{escape(named)} is off the board"
-            else:
-                self._said = "nothing was written, so nothing went up"
-        except (PermissionError, ValueError) as why:
-            self._said = bad(escape(str(why)))
+        if value:
+            board.put(named, value)
+            self._said = f"{escape(named)} is on the board"
+        elif board.held(named) is not None:
+            # Written down as nothing, which is a line with nothing to say: taken off rather
+            # than left up empty, there being no key of its own that does it.
+            board.drop(named)
+            self._said = f"{escape(named)} is off the board"
+        else:
+            self._said = "nothing was written, so nothing went up"
         self._ids = []  # the rows have moved, so they are put up again
         self._fill()

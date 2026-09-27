@@ -23,7 +23,7 @@ from hmz.runtime.epic import epics
 from hmz.tui import Humanize
 from tests.stubs import events as recorded
 from tests.stubs import written
-from tests.tui.fixtures import ONE, Holding, set_up, transcript, until
+from tests.tui.fixtures import ONE, idle, link, set_up, told, transcript, until
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -78,7 +78,7 @@ async def _typed(driver: Pilot[None], line: str) -> None:
 
 @pytest.mark.timeout(90)
 async def test_a_typed_stop_stops_the_flow_as_the_second_press_does(
-    workspace: Path,
+    workspace: Path, hosting: None
 ) -> None:
     """One line does what two presses do: the loop ends rather than handing on.
 
@@ -130,13 +130,13 @@ async def test_a_flow_already_stopping_is_said_to_be_rather_than_told_again() ->
     """
     app = Humanize()
     async with app.run_test() as driver:
-        app._stopping = Holding()
-        held = app._stopping
+        told(app, idle(stopping=0))
 
         await _typed(driver, "/stop")
         await until(lambda: "already stopping" in transcript(app), driver)
 
-        assert app._stopping is held
+        assert app._stopping == 0
+        assert not link(app).requests  # nothing asked of the runs at all
 
 
 def test_stop_is_offered_among_the_commands_and_says_it_is_asked_once() -> None:
@@ -217,7 +217,7 @@ async def test_a_typed_stop_leaves_no_half_made_gesture_behind_it() -> None:
 
 @pytest.mark.timeout(90)
 async def test_the_press_after_a_typed_stop_does_not_close_the_interface(
-    workspace: Path,
+    workspace: Path, hosting: None
 ) -> None:
     """The same, over a flow that was stopped and has finished unwinding.
 
@@ -258,7 +258,7 @@ async def test_the_keys_name_what_the_press_after_a_typed_stop_does() -> None:
         await driver.press("ctrl+c")  # the press that asks, and is then typed past
         await driver.pause()
         assert app._presses == 1
-        app._stopping = Holding()
+        told(app, idle(stopping=0))
 
         await _typed(driver, "/stop")
         await until(lambda: "already stopping" in transcript(app), driver)

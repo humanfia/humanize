@@ -30,19 +30,17 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import functools
 import os
+import queue
 import re
 import shlex
-import subprocess
 import sys
 import threading
 import time
-import traceback
 from collections import deque
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, Protocol, cast
+from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, cast
 
 import pyfiglet
 from rich.box import ROUNDED
@@ -81,7 +79,7 @@ from .complete import VIEWS, Command, hinted, offered
 from .discover import installable, installed
 from .history import History
 from .monitor import Monitor, short, thousands
-from .monitoring import Drawn, Monitoring
+from .monitoring import BoardSeen, Drawn, Monitoring
 from .pick import (
     DETACHES,
     RESUMES,
@@ -105,7 +103,6 @@ from .pick import (
 )
 from .pick import EVERY as _EVERY
 from .pick import PAGES as _PAGES
-from .records import Following
 from .selecting import Choices, Transcript
 from .tally import Seen, Tally
 
@@ -114,57 +111,52 @@ if TYPE_CHECKING:
 
     from pydantic import BaseModel
 
-    from hmz.coganchor.agents import AgentBase, Board, Event, Question, SessionBase
-    from hmz.daemon import Session
-    from hmz.flows import Budget, Usage
-    from hmz.runtime.flowing.harnesses import Listener
+    from hmz.daemon import Host, Link
+    from hmz.flows import Budget
 
 
-class _Running(Protocol):
-    """A run of a flow, as the interface holds one: `hmz.runtime.Run`, named by its shape.
+@dataclass(frozen=True)
+class _RunSeen:
+    """A run of a flow, as the frontends of the runs here are told of one.
 
-    Named here rather than imported, the runtime being reached through the daemon alone.
+    What `started` said of it and the `run` snapshot says again: which run it is, which flow,
+    on what, and what each of its roles was given -- another frontend may have started a
+    flow this one never set up, so while it goes it is read off this rather than off what
+    is set up here.
+
+    Attributes:
+      number: Which run of the host it is.
+      flow: The flow, as it was named.
+      ref: The flow's canonical ref.
+      task: What it was started on.
+      by: Who started it, as that frontend is named.
+      roles: Its agent roles, in the order the flow declares them.
+      outworlders: Its `Outworlder` roles, likewise.
+      agents: What each agent role runs, as `-a` spells it after `<role>=`.
     """
 
-    @property
-    def budget(self) -> Budget:
-        """What the run may spend."""
-        ...
+    number: int
+    flow: str = ""
+    ref: str = ""
+    task: str = ""
+    by: str = ""
+    roles: tuple[str, ...] = ()
+    outworlders: tuple[str, ...] = ()
+    agents: Mapping[str, str] = field(default_factory=dict[str, str])
 
-    @property
-    def usage(self) -> Usage:
-        """What it has spent so far."""
-        ...
-
-    @property
-    def flow(self) -> str:
-        """The flow, as it was named."""
-        ...
-
-    @property
-    def ref(self) -> str:
-        """The flow's canonical ref."""
-        ...
-
-    def watch(self, listener: Listener) -> None:
-        """Has everything every session of the run says reach `listener`."""
-        ...
-
-    def opened(self, callback: Callable[[str, AgentBase, SessionBase], None]) -> None:
-        """Has each session the run opens told to `callback` as it opens."""
-        ...
-
-    def run(self) -> object:
-        """Runs the flow here, until it returns."""
-        ...
-
-    def stop(self) -> None:
-        """Stops the flow, which unwinds in its own time."""
-        ...
-
-    def close(self) -> None:
-        """Stops it and ends every conversation still open, without waiting."""
-        ...
+    @classmethod
+    def of(cls, said: Mapping[str, Any]) -> _RunSeen:
+        """A run as a `started` record or a `run` snapshot says it."""
+        return cls(
+            int(said.get("run") or 0),
+            str(said.get("flow") or ""),
+            str(said.get("ref") or ""),
+            str(said.get("task") or ""),
+            str(said.get("by") or ""),
+            tuple(said.get("roles") or ()),
+            tuple(said.get("outworlders") or ()),
+            dict(said.get("agents") or {}),
+        )
 
 
 #: How often the right-hand column and the status line are redrawn, in seconds.
@@ -227,6 +219,14 @@ _STARTS_ON = "chat"
 #: there could be, and is a line somebody happened to begin with a `$`.
 _NAMED = re.compile(r"[A-Za-z][\w.-]*(?:/[A-Za-z][\w.-]*)*(?::[\w.-]+)?")
 
+#: How long a request made on the way out is given to be answered: the interface is going,
+#: and a host that will not answer is not one to be left behind a frozen screen for.
+_PATIENCE = 10.0
+
+#: What a line left waiting when a run went is said to have been stopped by, as the host says
+#: why it let go of it.
+_FIRST = {"stopped": "the flow stopped first", "ended": "the flow ended first"}
+
 #: How much live activity a side question may carry into its isolated context: a bound on
 #: optional observation, since a day-long flow must not grow the interface without limit.
 _BTW_EVENTS = 80
@@ -238,50 +238,18 @@ class _Btw:
 
     Attributes:
       target: The session asked, as `<role>/<n>`, or "" for the btw agent.
-      sides: Each side conversation opened, by the session it is about -- "" for the btw
-        agent's own.
+      sides: Each side conversation opened, as the host numbers it, by the session it is
+        about -- "" for the btw agent's own.
       busy: Whether a question is being answered.
     """
 
     target: str
-    sides: dict[str, SessionBase] = field(
-        default_factory=lambda: cast("dict[str, SessionBase]", {})
-    )
+    sides: dict[str, str] = field(default_factory=dict[str, str])
     busy: bool = False
 
 
 class _BtwLeft(Exception):  # noqa: N818 -- a way out rather than a failure
     """Btw mode was left while a side conversation was being opened."""
-
-
-def _made(runs: Runs) -> AgentBase | None:
-    """An agent as `/settings` or the flow menu writes one, or None for one that cannot be."""
-    from hmz.coganchor.agents import driver
-    from hmz.coganchor.agents.base import identifying
-    from hmz.runtime.flowing.specs import parse_agents
-    from hmz.runtime.kept import written
-
-    try:
-        spec = parse_agents([f"btw={written(runs)}"])[0]
-        kind, made = driver(spec.cli)
-        return kind(
-            made(
-                model=spec.model,
-                effort=spec.effort,
-                provider=spec.provider,
-                **identifying(made, spec.cli),
-            )
-        )
-    except Exception:  # noqa: BLE001 -- a stale setting is one nothing is made from
-        return None
-
-
-def _quiet_watch(
-    _agent: AgentBase,
-    _session: SessionBase | None,
-    _event: Event,
-) -> None:
-    """Consumes a side agent's events so backend output stays out of the main transcript."""
 
 
 def _where() -> str:
@@ -313,25 +281,6 @@ def _clipped(said: str, room: int) -> str:
       It, or as much of it as fits with an ellipsis where the rest was.
     """
     return said if len(said) <= room else said[: room - 1] + "…"
-
-
-def _chosen(question: Question, typed: str) -> str:
-    """What a line typed at a question answers: the answer it numbers, or the line itself.
-
-    Args:
-      question: What was asked, and the answers it offered, numbered from one as shown.
-      typed: The line.
-
-    Returns:
-      The offered answer a bare number names, where it is not itself one of the answers --
-      and the line as it was typed otherwise, since an answer is not held to what is offered.
-    """
-    said = typed.strip()
-    if said.isdigit() and said not in question.options:
-        at = int(said)
-        if 1 <= at <= len(question.options):
-            return question.options[at - 1]
-    return typed
 
 
 #: How many cells the bar opencode spins in its status line is wide. Blocks, not braille --
@@ -465,26 +414,6 @@ class _Kept:
     unread: bool = False
     packed: bool = False
     spoke: str = ""
-
-
-@dataclass
-class _Asked:
-    """One question an outworlder has stopped the flow on, and what it was answered with.
-
-    Attributes:
-      question: What it asks, and which outworlder asks it.
-      answer: What was typed back, "" until something was.
-      done: Set once it is answered, or once nobody is left to answer it.
-    """
-
-    question: Question
-    answer: str = ""
-    done: threading.Event = field(default_factory=threading.Event)
-
-    @property
-    def asker(self) -> str:
-        """The outworlder asking, and "outworlder" where the question does not say."""
-        return self.question.asker or "outworlder"
 
 
 class Editor(TextArea):
@@ -796,12 +725,19 @@ class Humanize(App[None]):
         """Leaves, having first stopped whatever was running.
 
         A flow is a loop and a turn can think for minutes, so leaving without stopping it
-        would leave the interface gone and the work going -- which reads as a hang.
+        would leave the interface gone and the work going -- which reads as a hang. Runs held
+        in this process go with it; runs a host holds are forced to a stop for everybody,
+        which is what `stop it, then leave` asks for, and are otherwise left alone.
         """
-        for run in (self._run, self._stopping):
-            if run is not None:
-                run.close()
-        self._run, self._stopping = None, None
+        self._quitting = True
+        if self._host is not None:
+            # This process is where they are, so closing them is the only way they end.
+            self._host.close()
+        elif self._run is not None or self._stopping is not None:
+            # Asked here rather than in the background: this process is about to go, and a
+            # request on a thread of its own would go with it before it was sent.
+            with contextlib.suppress(Exception):
+                self._link.asked({"do": "force"}, seconds=_PATIENCE)
         self._close_btw()
         self.exit()
 
@@ -809,53 +745,26 @@ class Humanize(App[None]):
     async def action_exit(self) -> None:
         """Closes the interface, having first asked what is to become of a running flow.
 
-        Closing the interface and stopping the run are two things wherever the run is being
-        held somewhere a terminal closing cannot reach: the flow goes on taking its turns and
-        the next terminal to open it is drawn for from the top. So it is asked rather than
-        assumed, and it is asked only where there is something to ask about -- with nothing
-        running, `/exit` is a window being closed.
+        Closing the interface and stopping the run are two things wherever the runs are held
+        somewhere this interface closing cannot reach: the flow goes on taking its turns for
+        whoever else is reading it, and the next `hmz` here reads it from the top. So it is
+        asked rather than assumed, and it is asked only where there is something to ask about
+        -- with nothing running, `/exit` is a window being closed.
 
-        The one way out, letting go of the terminal included: a person who has decided to
-        leave is asked what becomes of the running flow once, rather than having to know
-        which of two words asks.
+        What it lets go of is this interface and nothing else: another reading the same runs
+        goes on reading them, and whatever this one held for a role is anybody's again.
         """
         if self._run is None:
             self.action_quit()
             return
-        said = await self.push_screen_wait(Leaves(held=self._session is not None))
+        said = await self.push_screen_wait(Leaves(held=self._host is None))
         if said == STOPS:
             self.action_quit()
         elif said == DETACHES:
-            self._detach()
-
-    def _detach(self) -> None:
-        """Lets go of the terminal reading this, leaving the flow running.
-
-        The answer to `/exit` that closes the terminal rather than the run: what was running
-        goes on running, and `hmz` in this directory opens it again. Only ever reached where
-        something outside this terminal is holding the run -- where nothing is, the question
-        offers staying here instead, an answer that cannot be carried out not being one.
-        """
-        session = self._session
-        if session is None or not session.attached:
-            # The reader went while the question was up, which is the run carrying on either
-            # way: what would have been let go of has let go of itself.
-            self.show("hmz: nothing is reading this run to let go of", "red")
-            return
-        session.detach()
-
-    def reattached(self) -> None:
-        """Draws the whole screen again, for a terminal that has just begun reading this.
-
-        A terminal that has just arrived has none of what was drawn before it: it is in
-        whatever modes the shell left it in, at whatever size it happens to be, showing
-        whatever was on it. So the interface is stopped and started again on it, which is
-        what puts the modes back and draws every row from the top.
-
-        Called from whatever is holding the run, on a thread of its own.
-        """
-        with contextlib.suppress(Exception), self.suspend():
-            pass
+            self._quitting = True
+            self._close_btw()
+            self._link.close()
+            self.exit()
 
     def action_interrupt(self) -> None:
         """Takes back the nearest thing there is to take back, on a press or two or three.
@@ -933,27 +842,28 @@ class Humanize(App[None]):
         is left that a turn could still be running in, so nothing is left spinning at the
         person who has just asked twice for it to stop.
         """
-        run, self._stopping = self._stopping, None
+        self._stopping = None
         self._presses = 0
-        if run is None:
-            return
-        closing = [key for key in self._driven() if key in self._working]
-        if closing:
+        self._asks("force", then=self._forced)
+
+    def _forced(self, answer: dict[str, Any]) -> None:
+        """Says how many conversations forcing a run closed under their turns.
+
+        Args:
+          answer: What the host answered, which says how many as `closed`.
+        """
+        closed = answer.get("closed")
+        if closed:
             self.show(
-                f"[dim]— closing {len(closing)} conversation(s) under their turns —[/dim]"
+                f"[dim]— closed {closed} conversation(s) under their turns —[/dim]"
             )
-        # On this thread, as telling the flow to stop is: closing a conversation is closing
-        # the process behind it, which is a second at the outside.
-        run.close()
-        for key in closing:
-            self._working.discard(key)
 
     def __init__(
         self,
         flow: str = "",
         agents: Mapping[str, Runs] | None = None,
         params: BaseModel | None = None,
-        session: Session | None = None,
+        link: Link | None = None,
     ) -> None:
         """Initializes an interface holding no agents, because nothing is running yet.
 
@@ -965,10 +875,10 @@ class Humanize(App[None]):
             what was remembered.
           params: What that flow is set up with, or None to open on what was remembered.
             Checked by whatever read the line: an interface is opened set up, not corrected.
-          session: What is holding this run somewhere a terminal closing cannot reach, or
-            None for one opened in the terminal it is drawn on -- where letting go of the
-            terminal and stopping the run are the same thing, and `/exit` offers staying
-            here rather than an answer that cannot be carried out.
+          link: This interface's end of the runs a host holds apart from it, or None to
+            hold them here, in this process -- where closing the interface and stopping the
+            run are the same thing, and `/exit` offers staying here rather than an answer
+            that cannot be carried out.
         """
         # `ansi_color` up front rather than left to the theme: Textual picks the filter it
         # runs every colour through inside `App.__init__`, before a theme set below could
@@ -982,25 +892,69 @@ class Humanize(App[None]):
         self.register_theme(_TERMINAL)
         asked = os.environ.get("TEXTUAL_THEME", "")
         self.theme = asked if asked in self.available_themes else _TERMINAL.name
-        #: What is holding this run where a terminal closing cannot reach it, or None for one
-        #: that is only in the terminal it was opened in. The whole of what the interface
-        #: knows about that: how many terminals are reading, and how to let go of them.
-        self._session = session
+        #: This interface's end of the runs: everything it draws is a message told through
+        #: it, and everything it does to a run is a request asked through it. Made as it
+        #: mounts where none was handed over, on runs held in this process.
+        self._linked: Link | None = link
+        #: The runs, where they are held in this process rather than by a host apart from it:
+        #: what closing the interface closes. None where a host holds them.
+        self._host: Host | None = None
+        #: Who this interface is to the runs, as they named it: its client id and its name.
+        self._me = ""
+        self._named = ""
+        #: Every frontend reading the runs, this one included, by client id: their names.
+        self._frontends: dict[str, str] = {}
+        #: Which `Outworlder` role is held by which frontend, as the runs last said.
+        self._claims: dict[str, str] = {}
+        #: The questions the runs are waiting on, oldest first, each saying whose it is.
+        self._pending: list[dict[str, Any]] = []
+        #: What has been said to the run and not taken yet, as the runs last said: the lines
+        #: queued, and the ones put into a turn that the agent has not said it has.
+        self._queued: list[dict[str, Any]] = []
+        self._given: list[dict[str, Any]] = []
+        #: The board a flow and a person share, as the runs last said it, or None for a run
+        #: whose flow talks to nobody.
+        self._boarded: BoardSeen | None = None
+        #: Whether what the runs held when this arrived has all been told, so that what is
+        #: told after it is happening now rather than being read back.
+        self._live = False
+        #: What the runs have said and the screen has not taken yet, oldest first, and
+        #: whether the screen has been asked to take it.
+        self._arriving = threading.Lock()
+        self._arrived: deque[dict[str, Any]] = deque()
+        self._draining = False
+        #: Whether this interface is on its way out, so that the runs letting it go is not
+        #: news to say.
+        self._quitting = False
+        #: Requests waiting to be asked, in order, on the one thread that asks them: a line
+        #: typed twice is two lines in the order they were typed.
+        self._requests: queue.SimpleQueue[
+            tuple[
+                dict[str, Any],
+                Callable[[dict[str, Any]], object] | None,
+                Callable[[], object] | None,
+                bool,
+            ]
+            | None
+        ] = queue.SimpleQueue()
         #: The run going now, or None: which is what `a flow is running` means here.
-        self._run: _Running | None = None
-        #: Which run is the one going now, counted: what the person outside it is asked is
-        #: answered only while the run asking is still the one going, and a record of a run
+        self._run: _RunSeen | None = None
+        #: Which run is the one in front of us, as the runs number them: a record of a run
         #: that has since been replaced is one about a run nobody is watching.
         self._generation = 0
+        #: The runs somebody told to stop, which have said so already and are not `done`.
+        self._halted: set[int] = set()
+        #: Whether this interface has asked for a run to start and not yet heard it has, or
+        #: that it was refused: what is typed meanwhile is said to the run it is starting.
+        self._starting = False
+        #: The questions this interface has answered and not yet heard were taken, which
+        #: a line typed next does not answer again.
+        self._answering: set[str] = set()
         #: The run going now, or the last, as the records it tells: each session it opened by
         #: the key it is read under, in the order it opened them, each named for its role.
         #: Kept once the run is over, since its transcripts are still on the screen and
         #: still worth reading back.
         self._seen: dict[str, Seen] = {}
-        #: What tells those records of a run held here, and keeps what is behind each key --
-        #: the one place a conversation itself is reached from: to put a word into a turn,
-        #: to ask a side question of it, and for the board.
-        self._following: Following | None = None
         #: What the flow has done so far, which is what the right-hand column shows, and who
         #: reads the agents' own logs into it while it runs.
         self._monitor = Monitor()
@@ -1028,17 +982,11 @@ class Humanize(App[None]):
         #: to you is that, and a tool row per file read is a transcript nobody is reading and
         #: the answer scrolled off the top of it.
         self._details = False
-        #: Whether anybody is here to be asked, which `/afk` toggles. They are, until you say
-        #: you are not: a flow that asks the person outside it and is answered by nobody is a
-        #: flow that has stopped. Away, the outworlder answers what an away one answers. The
-        #: first is every outworlder, which `/afk` sets from the transcript every agent is on
-        #: or the monitor; the second is one outworlder set apart from it, which `/afk` sets
-        #: from that outworlder's own transcript.
+        #: Whether anybody is there to be asked, as the runs last said: `/afk` asks them to
+        #: change it, and it outlives this interface. The first is every outworlder; the
+        #: second is one outworlder set apart from it.
         self._afk = False
         self._afk_of: dict[str, bool] = {}
-        #: The questions the flow has stopped on, oldest first, each waiting on its answer.
-        #: Written from the run's threads and read here, under `_saying`.
-        self._asking: list[_Asked] = []
         #: The `Outworlder` roles of the run, in the order the flow declares them and then as
         #: any other first asks: one transcript apiece, and a stop on the ring each.
         self._outworlders: list[str] = []
@@ -1052,10 +1000,10 @@ class Humanize(App[None]):
         #: for a moment: a clipboard is written to silently, and a gesture that says nothing
         #: is one nobody knows worked.
         self._copied = 0.0
-        #: humanize, as the one object everything the interface does goes through: the
-        #: flows there are, the agents and accounts they run as, the runs already made here
-        #: and the run being started now. Reached through the daemon, which is the process a
-        #: run of this workspace is held in and so where the interface asks for one. A
+        #: humanize, as the one object what the interface reads and writes on this machine
+        #: goes through: the flows there are, the agents and accounts they run as, the runs
+        #: already made here. Reached through the daemon, as the interface reaches everything
+        #: of the runtime; the runs themselves are asked of through the link instead. A
         #: command line holds the same object, reached the short way.
         self.hmz = Hmz()
         #: What this workspace was last set up to run, so that opening it again finds it
@@ -1120,7 +1068,7 @@ class Humanize(App[None]):
         #: A run that has been told to stop and has not finished unwinding. A third ctrl+c
         #: closes its conversations under whatever turn is still open, which is the only
         #: thing left that a key can do about a flow already on its way out.
-        self._stopping: _Running | None = None
+        self._stopping: int | None = None
         #: The conversations with a turn open, by key, which are the only ones a typed line
         #: can go into: one written to a conversation between turns is answered on its own,
         #: outside the flow.
@@ -1128,63 +1076,31 @@ class Humanize(App[None]):
         #: Whether the monitor draws a node per session rather than per agent, as `ctrl+t`
         #: last left it.
         self._by_session = False
-        #: Said while no turn was open, for whichever turn starts next to take. Written from
-        #: the event loop and drained from whichever thread a flow runs on, so it is held
-        #: under a lock: `a running flow never drops a line` is only true if nothing races.
-        self._queued: list[str] = []
-        #: Said into a turn that was running, and not yet answered for: what a backend takes
-        #: from us is not what the agent has heard, and every one of them says the second
-        #: thing separately, as a `took`. Held under the same lock as `(agent, words)`, at
-        #: most one per agent -- the next goes only once this one is answered for.
-        self._given: list[tuple[str, str]] = []
-        self._saying = threading.Lock()
-        #: Whether the person has just been asked what to say next and answered out of the
-        #: queue, in which case the turn that answer starts has its line already.
-        self._handed = False
-        #: Set when something is said, so a flow waiting to be told hears it at once rather
-        #: than at the next tick, and whether a flow is waiting to be told at all.
-        self._spoke = threading.Event()
-        self._awaiting = False
-        self._listening = 0
-
-    def said(self) -> dict[str, Any]:
-        """What this interface says about the run it is holding, for the daemon's status.
-
-        Called from the daemon's own thread, so it reads what the run keeps under its own
-        locks and nothing of the screen. As JSON: a budget with no limit on its cost is
-        written as the string `Infinity`, which reads back.
-
-        Returns:
-          The flow, what the run may spend and what it has spent -- the two as None with
-          nothing running.
-        """
-        import json
-
-        run = self._run
-        return {
-            "flow": run.flow if run is not None else self._flow_named,
-            "budget": json.loads(run.budget.model_dump_json())
-            if run is not None
-            else None,
-            "usage": json.loads(run.usage.model_dump_json())
-            if run is not None
-            else None,
-        }
 
     @property
     def _named_by(self) -> tuple[str, ...]:
         """The agent roles somebody chooses an agent for, in the order the flow declares them.
 
         What a line about one says, and what every transcript but the shared one is named
-        by. For a flow that will not load, the roles something was remembered for.
+        by. While a run goes, its own: another frontend may have started a flow this one
+        never set up. For a flow that will not load, the roles something was remembered for.
         """
+        if self._run is not None:
+            return self._run.roles
         if self._declared is not None:
             return self._declared.roles
         return tuple(self._models)
 
+    def _runs_of(self, role: str) -> Runs:
+        """What one agent role runs: as the run going was started with, or as set up here."""
+        if self._run is not None:
+            said = self._run.agents.get(role, "")
+            return read_back(said) or Runs(said)
+        return self._models.get(role, Runs(""))
+
     def _in_order(self) -> list[Runs]:
         """What each agent role runs, in the order the flow declares them."""
-        return [self._models.get(role, Runs("")) for role in self._named_by]
+        return [self._runs_of(role) for role in self._named_by]
 
     def compose(self) -> ComposeResult:
         """The transcript, the offers, the editor, the status. The width is the transcript's.
@@ -1215,6 +1131,17 @@ class Humanize(App[None]):
         # makes a flow watchable: a session tees each agent's streams to ours as they arrive.
         self.begin_capture_print(self)
         self._welcome()
+        # Reached now rather than as this was made, so that nothing the runs say arrives
+        # before there is a screen to say it on: runs held in this process where no host was
+        # handed over, and the run so far first however they are held.
+        if self._linked is None:
+            self._host = self.hmz.host()
+            self._linked = self._links(self._host)
+        self._me = self._linked.client
+        self._linked.heard(self._told)
+        threading.Thread(
+            target=self._requested, daemon=True, name="humanize-requests"
+        ).start()
         self._draw()
         self.set_interval(_REFRESH, self._draw)
         self._asks_what_runs()
@@ -1230,6 +1157,30 @@ class Humanize(App[None]):
         for elsewhere in self.query("#transcript, #offers"):
             elsewhere.can_focus = False
         self.query_one(Editor).focus()
+
+    @property
+    def _link(self) -> Link:
+        """This interface's end of the runs, which it holds from the moment it is mounted.
+
+        Raises:
+          RuntimeError: If it is asked for before then.
+        """
+        if self._linked is None:
+            raise RuntimeError("the interface reaches the runs once it is mounted")
+        return self._linked
+
+    def _links(self, host: Host) -> Link:
+        """This interface's end of runs held in this process, rather than by a host apart.
+
+        Args:
+          host: The runs.
+
+        Returns:
+          The link, attached as an interface.
+        """
+        from hmz.daemon import linked
+
+        return linked(host, kind="tui")
 
     @work
     async def _asks_what_runs(self) -> None:
@@ -1415,6 +1366,18 @@ class Humanize(App[None]):
     def on_print(self, event: events.Print) -> None:
         """Puts something printed under this process into the transcript, as a barred block.
 
+        Where the runs are held in this process, which is where what a flow prints lands; a
+        host apart from it says what is printed there as a `printed` message instead, which
+        lands in the same place.
+
+        Args:
+          event: What was printed.
+        """
+        self._prints(event.text)
+
+    def _prints(self, text: str) -> None:
+        """Puts something printed where the runs are into the transcript, as a barred block.
+
         Output is barred rather than indented because that is what opencode does with it:
         a command and what it said are one block, set apart from the words around them.
 
@@ -1422,8 +1385,11 @@ class Humanize(App[None]):
         than the answer -- the same thing its tool rows and its thinking are -- and a flow
         watched to see where it has got to is one where all of that is in the way. The raw
         line is still retained in the bounded `/btw` snapshot when details are off.
+
+        Args:
+          text: What was printed.
         """
-        if event.text.strip():
+        if text.strip():
             # Flow-owned progress (for example, a Ralph round counter) is useful to `/btw`
             # even when details keep it out of the visible transcript.
             with self._btw_lock:
@@ -1431,12 +1397,12 @@ class Humanize(App[None]):
                     Observation(
                         agent="",
                         kind="flow",
-                        text=compact(event.text),
+                        text=compact(text),
                         at=time.monotonic(),
                     )
                 )
-        if event.text.strip() and self._details:
-            for line in escape(event.text.rstrip("\n")).splitlines():
+        if text.strip() and self._details:
+            for line in escape(text.rstrip("\n")).splitlines():
                 self.show(f"[dim]  {_CAME_BACK}  {line}[/]")
 
     def on_text_selected(self) -> None:
@@ -1471,7 +1437,7 @@ class Humanize(App[None]):
         self._copied = time.monotonic()
         self._draw()
 
-    def _said_by_you(self, text: str, whose: str = "") -> None:
+    def _said_by_you(self, text: str, whose: str = "", by: str = "") -> None:
         """Puts something you said in the transcript, behind the `❯` Claude Code marks it with.
 
         Args:
@@ -1482,16 +1448,31 @@ class Humanize(App[None]):
             otherwise be on whichever screen happened to be up when the agent took it. "" for
             a line that went to nobody in particular: a command, the task that starts a flow,
             a line a flow that ended never took.
+          by: Who said it, as `_by` says it, where it was another frontend rather than you.
         """
         # What is read next starts its own part.
         self._keeping(whose or None).packed = False
         said = escape(text).splitlines() or [""]
         for line in (
             "",
-            f"[dim]{_YOURS}[/] {said[0]}",
+            f"[dim]{_YOURS}[/] {said[0]}" + (f"[dim]{escape(by)}[/]" if by else ""),
             *(f"  {one}" for one in said[1:]),
         ):
             self._into(whose or None, line)
+
+    def _by(self, said: Mapping[str, Any]) -> str:
+        """Who said something the runs were told, where it was not this interface.
+
+        Args:
+          said: What the runs said of it, naming the frontend by `client` and `by`.
+
+        Returns:
+          ` · by <name>`, or "" for this interface's own and for one nobody said.
+        """
+        client = str(said.get("client") or "")
+        if not client or client == self._me:
+            return ""
+        return f"{_DOT}by {said.get('by') or self._frontends.get(client, client)}"
 
     def show(self, text: str, style: str = "") -> None:
         """Puts a line in the transcript, on whichever one is being read.
@@ -1951,11 +1932,14 @@ class Humanize(App[None]):
         # Left, first match wins, as opencode's status line resolves it: what is running if
         # anything is, else where this is. Right, the usage. The two ends are pushed apart.
         working = self._monitor.now_working()
-        if self._run is not None and not working and self._awaiting:
+        if self._run is not None and not working and (waits := self._waits_on()):
             # A flow that has run out of things to do until it is told one. Spinning a bar at
             # it would read as a turn that has been thinking for as long as you have been
             # deciding what to say, which is the opposite of what is happening.
-            left = f"[$text-muted]{_SPINNER[0]} waiting for you{_DOT}ctrl+c twice to stop[/]"
+            left = (
+                f"[$text-muted]{_SPINNER[0]} waiting for {escape(waits)}"
+                f"{_DOT}ctrl+c twice to stop[/]"
+            )
         elif working or self._run is not None:
             bar = _SPINNER[int(time.monotonic() / _REFRESH) % len(_SPINNER)]
             # Whoever is talking and how long their turn has been going, or -- between two
@@ -2076,23 +2060,48 @@ class Humanize(App[None]):
             away = [one for one in self._outworlders if self._away(one)]
         return f"afk {', '.join(away)}" if away else ""
 
+    def _whose(self, role: str) -> str:
+        """Who holds one outworlder role: `yours`, `<name>'s`, or "" for nobody yet."""
+        owner = self._claims.get(role)
+        if owner is None:
+            return ""
+        if owner == self._me:
+            return "yours"
+        return f"{self._frontends.get(owner, owner)}'s"
+
+    def _waits_on(self) -> str:
+        """Who the run is waiting on to say what next, or "" where it is not waiting.
+
+        Returns:
+          `you` where this interface may answer what it waits on, the name of whoever holds
+          the role asking otherwise.
+        """
+        listening = [one for one in self._pending if one.get("mode") == "listen"]
+        if not listening:
+            return ""
+        if any(one.get("owner") in (None, self._me) for one in listening):
+            return "you"
+        owner = str(listening[0].get("owner"))
+        return self._frontends.get(owner, owner)
+
     def _outworlder_lines(self) -> list[str]:
         """One line per outworlder of the run going, under the agents above the prompt.
 
-        Each says it is an outworlder, whether it is asking something now, and -- as an
-        agent's does -- whether it is the one being read or has something unread, since what
-        it asks is on a transcript of its own.
+        Each says it is an outworlder, whose it is to answer where somebody has claimed it,
+        whether it is asking something now, and -- as an agent's does -- whether it is the
+        one being read or has something unread, since what it asks is on a transcript of its
+        own.
         """
         if self._run is None:
             return []
-        with self._saying:
-            asking = {one.asker for one in self._asking}
+        asking = {one.get("role") for one in self._pending}
         lines: list[str] = []
         for role in self._outworlders:
             key = f"{_OUTWORLDER}{role}"
             marks = [
                 role,
                 "outworlder",
+                *([whose] if (whose := self._whose(role)) else []),
                 *(["away"] if self._away(role) else []),
                 *(["asking"] if role in asking else []),
                 *(
@@ -2139,10 +2148,12 @@ class Humanize(App[None]):
           somebody typed is a bracket, and nothing here is drawn in a colour of its own.
           Nothing at all with nothing waiting.
         """
-        with self._saying:
-            # What has gone to an agent went before anything still queued, the queue being
-            # drained from the front, so it reads oldest first the same way the transcript does.
-            held = list(self._given) + [("", said) for said in self._queued]
+        # What has gone to an agent went before anything still queued, the queue being
+        # drained from the front, so it reads oldest first the same way the transcript does.
+        held = [
+            (str(one.get("agent") or ""), str(one.get("text")), self._by(one))
+            for one in [*self._given, *self._queued]
+        ]
         if not held:
             return []
         # One line of the pin is one row of the screen: what is over is cut with an ellipsis
@@ -2150,11 +2161,13 @@ class Humanize(App[None]):
         # the transcript, the editor and the status line would all go off the bottom.
         room = max(_NARROW, self.size.width - beside - len(_YOURS) - 5)
         lines: list[str] = []
-        for at, (who, said) in enumerate(held):
+        for at, (who, said, by) in enumerate(held):
             first, *rest = said.splitlines() or [""]
             # Who has it, for a word already put to somebody: a flow drives several agents,
-            # and which of them is holding your line is the half of this worth knowing.
+            # and which of them is holding your line is the half of this worth knowing. And
+            # who said it, where it was not this interface: several may be saying things.
             with_it = f"{_DOT}with {short(who)}" if who else ""
+            with_it += by
             # As the transcript sets one: the first line behind the marker, the rest lined
             # up under it.
             shown = [
@@ -2315,7 +2328,7 @@ class Humanize(App[None]):
                 monitor=lambda: self._monitor,
                 drawn=self._boxes,
                 setup=lambda: (
-                    self._flow_named,
+                    self._run.flow if self._run is not None else self._flow_named,
                     self._named_by,
                     self._in_order(),
                     self._params,
@@ -2324,6 +2337,8 @@ class Humanize(App[None]):
                 board=self._board,
                 outworlders=self._outworlding,
                 calls=lambda: self._called,
+                whose=self._whose,
+                frontends=self._reading_too,
                 sessions=self._by_session,
                 turned=self._turns_monitor,
             ),
@@ -2356,39 +2371,30 @@ class Humanize(App[None]):
         """
         return list(self._outworlders)
 
-    def _board(self) -> Board | None:
+    def _board(self) -> BoardSeen | None:
         """The board this run has, or None for one whose flow does not talk to the person.
 
         The person's rather than the flow's: a flow is a function that returns, and the board
-        outlives any one turn of it -- so it is held by the one agent of a run that nobody
-        chose and nothing takes a turn of.
+        outlives any one turn of it. As the runs last said it, what is written on it put and
+        taken off by asking them.
 
         Returns:
           The board, or None where the flow being run declares no person.
         """
-        from hmz.coganchor.agents import HumanAgent
+        return self._boarded
 
-        return next(
-            (
-                agent.board
-                for _, agent, _ in self._behind()
-                if isinstance(agent, HumanAgent)
-            ),
-            None,
-        )
-
-    def _behind(self) -> list[tuple[str, AgentBase, SessionBase | None]]:
-        """Every key of the run going now or the last, with the agent and conversation behind it.
-
-        What a record does not carry and three things still need: a word put into a turn, a
-        side question asked of a session, and the board.
+    def _reading_too(self) -> list[str]:
+        """Every frontend reading the runs, this one first and said to be this one.
 
         Returns:
-          The key, the agent, and its conversation -- None for a person and for one gone --
-          oldest first.
+          Their names, in the order they arrived, and `you` beside this interface's own.
         """
-        following = self._following
-        return following.behind() if following is not None else []
+        return [
+            f"{name}{_DOT}you" if client == self._me else name
+            for client, name in sorted(
+                self._frontends.items(), key=lambda one: one[0] != self._me
+            )
+        ]
 
     def _boxes(self, sessions: bool = False) -> list[Drawn]:  # noqa: FBT001, FBT002
         """The nodes that have worked, as the monitor draws them, in the flow's own order.
@@ -2417,7 +2423,7 @@ class Humanize(App[None]):
                 Drawn(
                     who=key,
                     named=f"{role}{_DOT}session {at}",
-                    runs=self._models[role].spec if role in self._models else "",
+                    runs=self._runs_of(role).spec,
                     working=key in shape.working,
                     # A session read on its own where it has a log of its own, and on its
                     # role's where it does not: that is the log reading it opens.
@@ -2444,7 +2450,7 @@ class Humanize(App[None]):
                 Drawn(
                     who=who,
                     named=who,
-                    runs=self._models[who].spec if who in self._models else "",
+                    runs=self._runs_of(who).spec,
                     working=working,
                     reading=who == self._attached,
                     unread=self._unread(who),
@@ -2511,7 +2517,9 @@ class Humanize(App[None]):
         """Says whether anybody is here to be asked, and marks the status line with it.
 
         On an outworlder's own transcript it is that outworlder alone; anywhere else it is
-        every one of them, as one switch -- the ones set apart from it included.
+        every one of them this interface may answer for, as one switch -- the ones set apart
+        from it included, and the ones another frontend holds left as that one left them. It
+        is the runs' to hold rather than this interface's, so it outlives this interface.
 
         Args:
           argv: What was written after the name, which is `on`, `off`, or nothing at all.
@@ -2520,26 +2528,50 @@ class Humanize(App[None]):
             role = self._attached.removeprefix(_OUTWORLDER)
             if (switched := self._switched(argv, now=self._away(role))) is None:
                 return
-            self._afk_of[role] = switched
-            self.show(
-                f"[dim]away as {escape(role)}: what it asks is told nobody is here[/dim]"
+            said = (
+                f"away as {role}: what it asks is told nobody is here"
                 if switched
-                else f"[dim]here as {escape(role)}: it may stop and ask you[/dim]"
+                else f"here as {role}: it may stop and ask you"
             )
-            self._draw()
+            self._asks("afk", then=lambda _: self._says(said), on=switched, role=role)
             return
         now = self._afk and all(self._afk_of.values())
         if (switched := self._switched(argv, now=now)) is None:
             return
-        self._afk = switched
-        self._afk_of.clear()
-        self.show(
-            "[dim]away: an agent that wants to ask is told nobody is here[/dim]"
-            if self._afk
-            else "[dim]here: an agent may stop and ask you[/dim]"
+        said = (
+            "away: an agent that wants to ask is told nobody is here"
+            if switched
+            else "here: an agent may stop and ask you"
         )
-        # Said once in the transcript and from now on in the status line: a line that has
+        # Said once in the transcript and from then on in the status line: a line that has
         # scrolled away is not how somebody finds out that an agent may not reach them.
+        self._asks("afk", then=lambda _: self._says(said), on=switched)
+
+    def action_claim(self, argv: Sequence[str] = ()) -> None:
+        """Holds the outworlder being read for this interface alone, or gives it back.
+
+        A role claimed is answered here and nowhere else: what it asks is this interface's to
+        answer, and another reading the same runs is refused it until this one gives it back
+        or goes. Claiming is about answering and nothing else -- anybody may still say
+        anything to the agents.
+
+        Args:
+          argv: What was written after the name, which is `on`, `off`, or nothing at all.
+        """
+        role = self._attached.removeprefix(_OUTWORLDER)
+        mine = self._claims.get(role) == self._me
+        if (switched := self._switched(argv, now=mine)) is None:
+            return
+        if switched:
+            said = f"{role} is yours to answer, and nobody else's"
+            self._asks("claim", then=lambda _: self._says(said), role=role)
+        else:
+            said = f"{role} is anybody's to answer again"
+            self._asks("release", then=lambda _: self._says(said), role=role)
+
+    def _says(self, said: str) -> None:
+        """Says something that happened, quietly, and redraws what it changed."""
+        self.show(f"[dim]{escape(said)}[/dim]")
         self._draw()
 
     def action_btw(self, question: str = "") -> None:
@@ -2582,35 +2614,26 @@ class Humanize(App[None]):
         key = self._attached
         if "/" in key:
             return key
-        keys = [
-            held for held, _, _ in self._btw_sessions() if held.startswith(f"{key}/")
-        ]
+        keys = [held for held in self._btw_sessions() if held.startswith(f"{key}/")]
         return keys[-1] if keys else ""
 
-    def _btw_sessions(self) -> list[tuple[str, AgentBase, SessionBase]]:
+    def _btw_sessions(self) -> list[str]:
         """Every conversation of this run or the last, keyed as the views name them.
 
         The key its transcript and its node go by, so that a side question asked of
         `builder/2` is asked of the conversation `builder/2` shows.
 
         Returns:
-          `(<role>/<n>, agent, session)` apiece, `n` counting a role's from 1: every one still
-          held, the newest few hundred held here once the run has let go, and the person's
-          left out -- theirs is this prompt.
+          `<role>/<n>` apiece, `n` counting a role's from 1, and the person's left out --
+          theirs is this prompt.
         """
-        from hmz.coganchor.agents import HumanAgent
-
-        return [
-            (key, agent, session)
-            for key, agent, session in self._behind()
-            if session is not None and not isinstance(agent, HumanAgent)
-        ]
+        return list(self._seen)
 
     def _enter_btw(self) -> _Btw | None:
         """Starts btw mode against whatever is on the screen, saying so."""
         target = self._btw_target()
         if target:
-            if not any(key == target for key, _, _ in self._btw_sessions()):
+            if target not in self._btw_sessions():
                 self.show(f"hmz: /btw: {target} has no conversation to ask", "red")
                 return None
         elif not (self.settings.btw or self._btw_sessions() or self._models):
@@ -2650,9 +2673,11 @@ class Humanize(App[None]):
             held = list(mode.sides.values()) if mode is not None else []
             if mode is not None:
                 mode.sides.clear()
-        for session in held:
-            with contextlib.suppress(Exception):
-                session.close()
+        # Asked of the runs, which hold them; and nothing to ask on the way out, since this
+        # interface going is every side conversation it opened going with it.
+        if not self._quitting:
+            for side in held:
+                self._asks("unaside", quiet=True, side=side)
 
     def _btw_ask(self, mode: _Btw, question: str) -> None:
         """Puts one more question to btw mode's side conversation, on a thread of its own.
@@ -2707,8 +2732,7 @@ class Humanize(App[None]):
         )
         with self._btw_lock:
             observations = tuple(self._btw_events)
-        with self._saying:
-            waiting = len(self._queued) + len(self._given)
+        waiting = len(self._queued) + len(self._given)
         moment = time.monotonic()
         ended = self._monitor.until
         elapsed = (ended if ended is not None else moment) - self._monitor.began
@@ -2734,9 +2758,9 @@ class Humanize(App[None]):
                     if self._run
                     else "ended"
                 )
-                + f", model={agent.config.model or '(default)'}",
+                + f", model={seen.model or '(default)'}",
             )
-            for key, agent, _ in self._btw_sessions()
+            for key, seen in list(self._seen.items())
         )
         return FlowSnapshot(
             flow=self._flowing(),
@@ -2750,64 +2774,64 @@ class Humanize(App[None]):
             waiting=waiting,
             spent=spent,
             kinds=counted,
-            waiting_for_input=self._awaiting,
+            waiting_for_input=bool(self._waits_on()),
             sessions=sessions,
         )
 
-    def _btw_source(self) -> AgentBase | None:
-        """What the btw agent is made from: the one `/settings` names, or the flow's first.
+    def _btw_source(self) -> dict[str, str] | None:
+        """What the btw agent is opened as: the one `/settings` names, or the flow's first.
 
         Returns:
-          An agent to clone, or None where there is nothing set up to make one from.
+          What to open a side conversation with -- `runs`, an agent as `-a` spells one, or
+          `key`, one of the run's conversations to copy the agent of -- or None where there
+          is nothing set up to open one as.
         """
+        from hmz.runtime.kept import written
+
         said = read_back(self.settings.btw) if self.settings.btw else None
-        if said is not None and (made := _made(said)) is not None:
-            return made
+        if said is not None:
+            return {"runs": written(said)}
         # The first the flow declares, as it is running where it has run.
-        ran = {key: agent for key, agent, _ in self._btw_sessions()}
+        ran = self._btw_sessions()
         for role in self._named_by:
-            if held := [ran[key] for key in self._of(role) if key in ran]:
-                return held[0]
-            runs = self._models.get(role)
-            if runs is not None and (made := _made(runs)) is not None:
-                return made
-        return next((ran[key] for key in self._driven() if key in ran), None)
+            if held := [key for key in self._of(role) if key in ran]:
+                return {"key": held[0]}
+            if (runs := self._runs_of(role)).spec:
+                return {"runs": written(runs)}
+        return {"key": ran[0]} if ran else None
 
-    def _btw_clone(self, source: AgentBase, name: str) -> AgentBase:
-        """Makes a read-only, skill-free agent that is invisible to the primary run."""
-        # `permission` is part of every AgentConfig, including backend-specific subclasses.
-        # The read-only rung is what a flow's NONE maps to; a backend that cannot express it
-        # raises here rather than silently running a side question with write permissions.
-        settings: dict[str, object] = {"permission": "read-only", "goals": False}
-        # Claude's optional allow-list can auto-approve a write even in a normal permission
-        # mode. A side question has no reason to carry the flow's explicit tool grants.
-        if hasattr(source.config, "allowed_tools"):
-            settings["allowed_tools"] = ()
-        # Cursor's is the same thing said about MCP servers: read-only is about edits, so a
-        # side question would otherwise reach every server this workspace names on the flow's
-        # say-so rather than on anybody's answer.
-        if hasattr(source.config, "approve_mcps"):
-            settings["approve_mcps"] = False
-        config = replace(source.config, **settings)
-        clone = source.clone(config=config, name=name, skills=())
-        # A watcher prevents command-backed backends from echoing the side answer to the
-        # interface's captured stdout. It is intentionally not the primary app watcher.
-        clone.watch(_quiet_watch)
-        return clone
-
-    def _btw_kept(self, mode: _Btw, key: str, session: SessionBase) -> None:
+    def _btw_kept(self, mode: _Btw, key: str, side: str) -> str:
         """Holds a side conversation on btw mode, or closes it for a mode that has gone.
+
+        Args:
+          mode: The btw mode it was opened for.
+          key: The session it is about, or "" for the btw agent's own.
+          side: The side conversation, as the runs number it.
+
+        Returns:
+          The side conversation, held.
 
         Raises:
           _BtwLeft: If btw mode was left while it was being opened.
         """
         with self._btw_lock:
             if self._btw is mode:
-                mode.sides[key] = session
-                return
-        with contextlib.suppress(Exception):
-            session.close()
+                mode.sides[key] = side
+                return side
+        self._asks("unaside", quiet=True, side=side)
         raise _BtwLeft
+
+    def _aside(self, side: str, prompt: str) -> str:
+        """One turn of a side conversation: what it answered to a prompt.
+
+        Args:
+          side: The side conversation, as the runs number it.
+          prompt: What to say to it.
+
+        Returns:
+          Its answer.
+        """
+        return str(self._link.aside(side=side, prompt=prompt).get("answer") or "")
 
     def _btw_turn(
         self, mode: _Btw, key: str, question: str, snapshot: FlowSnapshot
@@ -2815,7 +2839,8 @@ class Humanize(App[None]):
         """One turn of one session's side conversation, opening it the first time.
 
         A fork of the session where its CLI forks, carrying its history, and a copy of its
-        agent seeded from the snapshot where it cannot, or where the fork will not open.
+        agent seeded from the snapshot where it cannot, or where the fork will not open --
+        which of the two the runs opened is what they say back.
 
         Args:
           mode: The btw mode it is asked in.
@@ -2828,34 +2853,23 @@ class Humanize(App[None]):
         """
         side = mode.sides.get(key)
         if side is not None:
-            return str(side(format_turn(question)) or "").strip()
-        found = next(
-            ((agent, one) for held, agent, one in self._btw_sessions() if held == key),
-            None,
-        )
-        if found is None:
+            return self._aside(side, format_turn(question))
+        if key not in self._btw_sessions():
             return f"(no session {key} to ask)"
-        agent, session = found
-        if session.forks:
-            forked: SessionBase | None = None
+        opened = self._link.aside(key=key, fork=True)
+        side = self._btw_kept(mode, key, str(opened["side"]))
+        if opened.get("forked"):
             try:
-                forked = session.fork(into=self._btw_clone(agent, f"btw-{key}"))
-                forked.loads(())
-                forked.offers(None)
-                self._btw_kept(mode, key, forked)
-                answer = str(forked(format_forked(key, question)) or "").strip()
-                if answer:
+                if answer := self._aside(side, format_forked(key, question)):
                     return answer
-            except _BtwLeft:
-                raise
             except Exception:  # noqa: BLE001, S110 -- the copy below is what is left to try
                 pass
-            if forked is not None:
-                with self._btw_lock:
-                    if mode.sides.get(key) is forked:
-                        del mode.sides[key]
-                with contextlib.suppress(Exception):
-                    forked.close()
+            # A fork that opened and would not answer: a copy of its agent is asked instead.
+            with self._btw_lock:
+                if mode.sides.get(key) == side:
+                    del mode.sides[key]
+            self._asks("unaside", quiet=True, side=side)
+            side = self._btw_kept(mode, key, str(self._link.aside(key=key)["side"]))
         role = key.rpartition("/")[0]
         about = replace(
             snapshot,
@@ -2864,9 +2878,7 @@ class Humanize(App[None]):
             ),
             sessions=(),
         )
-        side = self._btw_clone(agent, f"btw-{key}").new(self._btw_cwd(session))
-        self._btw_kept(mode, key, side)
-        return str(side(format_snapshot(about, question, about=key)) or "").strip()
+        return self._aside(side, format_snapshot(about, question, about=key))
 
     def _btw_agent_turn(self, mode: _Btw, question: str, snapshot: FlowSnapshot) -> str:
         """One turn of the btw agent, carrying out whatever it asks of the sessions.
@@ -2884,14 +2896,13 @@ class Humanize(App[None]):
             source = self._btw_source()
             if source is None:
                 return ""
-            side = self._btw_clone(source, "btw").new(str(Path.cwd()))
-            self._btw_kept(mode, "", side)
+            side = self._btw_kept(mode, "", str(self._link.aside(**source)["side"]))
             prompt = format_snapshot(snapshot, question)
         else:
             prompt = format_turn(question)
         hops = 0
         while True:
-            asks, answer = asked(str(side(prompt) or ""))
+            asks, answer = asked(self._aside(side, prompt))
             if not asks or hops >= HOPS:
                 return answer
             answers: list[tuple[str, str]] = []
@@ -2910,14 +2921,6 @@ class Humanize(App[None]):
                     said = f"(could not ask: {why})"
                 answers.append((key, said or "(no answer)"))
             prompt = format_answers(answers, more=hops < HOPS)
-
-    @staticmethod
-    def _btw_cwd(session: SessionBase) -> str | None:
-        """Where a side conversation about one session works, which is where that one does."""
-        try:
-            return session.cwd
-        except (OSError, RuntimeError, ValueError):
-            return None
 
     def _run_btw(self, mode: _Btw, question: str, snapshot: FlowSnapshot) -> None:
         """Runs one side turn and posts only its final display event."""
@@ -3025,10 +3028,9 @@ class Humanize(App[None]):
         """Stops the whole flow, not just the turn -- which is the second ctrl+c or `/stop`.
 
         The turn running now is interrupted and every call of the flow unwinds from where it
-        stands, closing what it opened. The run is let go of here rather than when its own
-        thread notices, so that the next thing said starts something instead of being put to
-        a flow that is on its way out -- and kept as the one stopping, since a flow unwinds in
-        its own time and the press after this one is the one that does not wait for it.
+        stands, closing what it opened -- for every frontend reading it, since there is one
+        run however many are reading. It is let go of here rather than when the runs say so,
+        so that the press after this one is the one that does not wait for it to unwind.
 
         Silent when nothing is running, every caller having its own answer for that: the key
         is mid-gesture and the press after it says what it does, a flow chosen while none runs
@@ -3038,63 +3040,63 @@ class Humanize(App[None]):
         run = self._run
         if run is None:
             return
-        run.stop()
-        self.show("[dim]— stopping the flow —[/dim]")
-        # Held by identity, so that the run's own thread can say when it has finished
-        # unwinding and nothing says it of a run that started since.
-        self._run, self._stopping = None, run
-        self._spoke.set()  # and a flow waiting to be told hears that it is over
-        self._release()  # as does one waiting on an answer
-        self._never_sent("the flow stopped first")
+        self._run, self._stopping = None, run.number
+        self._asks("stop")
 
     def on_unmount(self) -> None:
-        """Stops whatever is running as the interface goes, however it goes.
+        """Lets go of the runs as the interface goes, however it goes.
 
-        A flow waiting to be told something waits on this interface, and nothing else will
-        release it: an interface that went away without saying so would leave a thread
-        waiting on a prompt that is not there, holding a backend open behind it. Said to
-        nobody rather than to the transcript, which has gone with everything else.
+        Runs held in this process go with it -- nothing else would ever close them -- and
+        runs a host holds are left to it and whoever else is reading them. Said to nobody
+        rather than to the transcript, which has gone with everything else.
         """
-        for run in (self._run, self._stopping):
-            if run is not None:
-                run.close()
-        self._run, self._stopping = None, None
-        self._spoke.set()
-        self._release()
+        self._quitting = True
         self._close_btw()
+        if self._linked is not None:
+            self._linked.close()
+        if self._host is not None:
+            self._host.close()
+        self._requests.put(None)
 
-    def _never_sent(self, because: str) -> None:
-        """Puts whatever was still waiting into the transcript, nothing being left to take it.
+    def _asks(
+        self,
+        do: str,
+        then: Callable[[dict[str, Any]], object] | None = None,
+        *,
+        refused: Callable[[], object] | None = None,
+        quiet: bool = False,
+        **said: Any,
+    ) -> None:
+        """Asks the runs one thing, off the event loop, in the order things were asked.
 
-        A flow ends two ways -- stopped by hand, or of its own accord -- and both leave the
-        pin holding lines that are not on their way anywhere. They come off it and into the
-        transcript as what they turned out to be: a line typed at a flow that is gone has to
-        be somewhere, or the next thing typed would quietly take its place.
+        One thread asks every request in turn: a request may take as long as what it asks
+        does -- a flow is imported to start it -- and two lines typed one after the other
+        must reach the run in that order. What it answers is drawn once it has; a refusal is
+        said in red, in the words the runs refused it in.
 
         Args:
-          because: What to say about why it never went.
+          do: What to ask.
+          then: What to do with the answer once it has come, on the screen, or None.
+          refused: What to do once it has been refused, on the screen, or None.
+          quiet: Whether a refusal is to go unsaid, for one that only says it was already so.
+          said: What that takes.
         """
-        with self._saying:
-            held, self._queued = self._queued, []
-            given, self._given = [text for _, text in self._given], []
-        if not (held or given):
-            return
-        # Lines typed at a flow that is no longer there to take them. Counted rather than
-        # read: what they said is theirs, and how many of them there were is the signal.
-        telemetry.snag("lines-never-sent", how_many=len(held) + len(given))
-        for (
-            said
-        ) in given:  # oldest first: what went to an agent went before what is queued
-            self._said_by_you(said)
-        if given:
-            # Put to an agent, which never said it had it: it may well have reached the
-            # model, and saying it never went would be as wrong as saying it landed.
-            self.show(f"[dim]   put to the agent, never taken back: {because}[/dim]")
-        for said in held:
-            self._said_by_you(said)
-        if held:
-            self.show(f"[dim]   never sent: {because}[/dim]")
-        self._draw()
+        self._requests.put(({"do": do, **said}, then, refused, quiet))
+
+    def _requested(self) -> None:
+        """Asks every request put in, in order, until the interface goes: the one thread."""
+        while (asked := self._requests.get()) is not None:
+            request, answered, refused, hushed = asked
+            try:
+                answer = self._link.asked(request)
+            except Exception as why:  # noqa: BLE001 -- a refusal, or runs gone: said either way
+                if not hushed:
+                    self._on_screen(self.show, f"hmz: {why}", "red")
+                if refused is not None:
+                    self._on_screen(cast("Callable[..., None]", refused))
+                continue
+            if answered is not None:
+                self._on_screen(cast("Callable[..., None]", answered), answer)
 
     @work
     async def action_flow(self, named: str = "") -> None:
@@ -3265,14 +3267,10 @@ class Humanize(App[None]):
             chosen.params,
             chosen.budget,
         ) == (self._flow_named, self._models, self._envs, self._params, self._budget)
-        if not running and not same:
-            # A flow is chosen in order to be run, so whatever is running stops: the interface
-            # opens on one already, and a choice that quietly went to the back of the queue
-            # behind it would read as no choice at all. Answering the same way twice is not a
-            # choice, though, and must not end the conversation.
-            self.action_stop_flow()
-        # Read again whether or not it is the same flow: a fetch or an edit since may have
-        # given it roles the menu was just saved with.
+        # Nothing running is stopped for it: a run another frontend started while the menu
+        # was up is theirs as much as anybody's, and starting this one is refused while it
+        # goes rather than ending it. Read again whether or not it is the same flow: a fetch
+        # or an edit since may have given it roles the menu was just saved with.
         self._declared = declared_of(chosen.flow)
         self._flow_named = chosen.flow
         self._models, self._envs = dict(chosen.agents), dict(chosen.envs)
@@ -3600,50 +3598,6 @@ class Humanize(App[None]):
         )
         self._flow(ran.task, resume=epic)
 
-    def _at_turn_start(self) -> list[str]:
-        """What a turn starting folds into its prompt, which is one waiting line, or none.
-
-        None when the person has just handed the flow the line it is starting this turn on:
-        that line is this turn's, and taking the one behind it as well would put the two in
-        front of the agent together and have them answered once -- which is the same thing
-        going wrong from the other side.
-
-        Returns:
-          The one line to fold in, or nothing at all.
-        """
-        with self._saying:
-            if self._handed:
-                self._handed = False
-                return []
-        return self._take()
-
-    def _take(self, whose: str = "") -> list[str]:
-        """Takes the oldest thing said while nobody was working, and leaves the rest.
-
-        One line, not the queue: five lines typed in a row are five things said, and folding
-        them into one prompt would have them answered once. The one behind this goes into
-        the turn after, or into this one the moment it is running.
-
-        The queue is the interface's rather than any one agent's: a line is typed at the flow
-        and reaches whichever agent asks for it first, which is what "a typed line reaches
-        whoever has the turn" means. Both hooks drain it, and both drain it destructively, so
-        a line is delivered once however it is asked for.
-
-        Args:
-          whose: The transcript it is said on once it goes -- the outworlder's that takes it
-            -- or "" for the one being read.
-
-        Returns:
-          The oldest thing said, as the one-line list a turn folds into its prompt, which is
-          nothing at all when nothing is waiting.
-        """
-        with self._saying:
-            if not self._queued:
-                return []
-            held = [self._queued.pop(0)]
-        self._on_screen(self._went, held, whose)
-        return held
-
     def _on_screen(
         self, doing: Callable[..., None], *said: object, **and_so: object
     ) -> None:
@@ -3669,165 +3623,240 @@ class Humanize(App[None]):
         if self.is_running:  # and one that has gone has nothing left to draw on
             doing(*said, **and_so)
 
-    def _went(self, held: list[str], whose: str = "") -> None:
-        """Puts what was waiting into the transcript, now that it has gone.
-
-        Args:
-          held: What was taken, oldest first.
-          whose: The transcript it goes on, as `_take` was told it.
-        """
-        for said in held:
-            self._said_by_you(said, whose)
-        self._draw()
-
     def _flow(self, task: str, resume: Path | None = None) -> None:
-        """Starts the flow that is set up, keeping the run so that a typed line reaches it.
+        """Asks the runs to start the flow that is set up, on what was said.
+
+        Every frontend reading the runs reads the run it starts, as it happens: that is where
+        what it says comes back from, this one included, so nothing about it is drawn here.
 
         Args:
           task: What it is to do.
           resume: The run to pick up, for a flow that says it can be picked up, or None for
             a run from the top.
         """
-        if self._run is not None:
+        if self._run is not None or self._starting:
             self.show("hmz: a flow is already running", "red")
             return
-        from hmz.runtime.flowing import open_outworlder
+        import json
+
         from hmz.runtime.kept import written
 
-        generation = self._generation + 1
-        agents = {
-            role: written(runs)
-            for role, runs in self._models.items()
-            if role in self._named_by
-        }
-        envs = {
-            role: spec
-            for role, spec in self._envs.items()
-            if self._declared is None or role in self._declared.places
-        }
-        try:
-            # Whoever is outside the run is whoever is at this prompt: asked on a thread of
-            # the run's own, and away while `/afk` says so -- which a run asks as it asks.
-            run: _Running = self.hmz.run(
-                self._flow_named,
-                task,
-                agents=agents,
-                envs=envs,
-                params=self._params.model_dump() if self._params is not None else None,
-                budget=self._budget,
-                resume=resume if resume is not None else False,
-                outworlder=open_outworlder(
-                    ask=functools.partial(self._outworlder_asks, generation),
-                    away=self._away,
-                ),
-            )
-        except Exception as why:  # noqa: BLE001 -- a flow that will not start is a line to fix
-            self.show(f"hmz: {why}", "red")
-            return
-        # Counted before the run is kept, so that nothing reading the one can find the other
-        # still saying the run before it.
-        self._generation = generation
-        self._run, self._stopping = run, None
-        following = self._follow(run)
-        following.starts(
+        self._starting = True
+        self._asks(
+            "start",
+            refused=self._not_started,
             flow=self._flow_named,
             task=task,
-            ref=run.ref,
-            roles=self._named_by,
-            outworlders=self._declared.outworlders
-            if self._declared is not None
-            else (),
-            agents=agents,
-            envs=envs,
+            agents={
+                role: written(runs)
+                for role, runs in self._models.items()
+                if role in self._named_by
+            },
+            envs={
+                role: spec
+                for role, spec in self._envs.items()
+                if self._declared is None or role in self._declared.places
+            },
             params=self._params.model_dump(mode="json")
             if self._params is not None
             else None,
-            budget=self._budget,
-            resume=str(resume or ""),
+            # As JSON, which is what a budget crosses a socket as and reads back from.
+            budget=json.loads(self._budget.model_dump_json())
+            if self._budget is not None
+            else None,
+            resume=str(resume) if resume is not None else False,
         )
-        with self._saying:
-            self._queued, self._given, self._handed = [], [], False
+
+    def _not_started(self) -> None:
+        """Takes a start that was refused as nothing starting, which the refusal has said."""
+        self._starting = False
         self._draw()
 
-        def drive() -> int:
-            from hmz.coganchor.agents import Stopped
-            from hmz.flows import BudgetExceeded, FlowException
-            from hmz.runtime import Refused
+    def _told(self, message: dict[str, Any]) -> None:
+        """Takes one message about the runs, which is everything the interface draws them from.
 
-            # Until it says otherwise: whatever else it raises goes on to be reported as the
-            # crash it is, once the run has been said to be over.
-            how, why = "crashed", ""
-            try:
-                run.run()
-                how = "done"
-            except (asyncio.CancelledError, Stopped):
-                how = "stopped"  # by hand, which said so as it was stopped
-            except Refused as refused:
-                how, why = "refused", str(refused)
-            except BudgetExceeded as spent:
-                # The ordinary end of a budgeted loop rather than a crash: what a run is
-                # given a budget for.
-                how, why = "budget", str(spent)
-            except FlowException as failed:
-                # A failure the flow API has a name for -- a harness that would not take the
-                # turn, a machine that went away, a flow that refused what it was handed --
-                # which is said as what it is rather than as a traceback nobody can act on.
-                how, why = "failed", f"{type(failed).__name__}: {failed}"
-            finally:
-                following.ends(how, why)
-            return 0
-
-        self._background(drive)
-
-    def _follow(self, run: _Running) -> Following:
-        """Reads a run held here as the records it tells, from now on.
+        Called on the link's own thread, and taken on the screen's: what is drawn and what it
+        is drawn from are then only ever touched in one place. Handed over without waiting on
+        the screen, and taken there as many at a time as have arrived -- a frontend arriving
+        late to a long run is told thousands at once, and a round trip and a redraw apiece
+        would be it reading the run back for as long as the run took to say it.
 
         Args:
-          run: The run, which is the one of the generation going now.
-
-        Returns:
-          What tells its records, which is what its start is told through as well.
+          message: What was told, as JSON; see `hmz.runtime.doing.hosting`.
         """
-        following = Following(
-            self._generation,
-            self._told,
-            waiting=self._at_turn_start,
-            running=self.hmz.flows.running,
-        )
-        self._following = following
-        run.watch(following.hears)
-        run.opened(following.opens)
-        return following
+        with self._arriving:
+            self._arrived.append(message)
+            if self._draining:
+                return
+            self._draining = True
+        try:
+            asyncio.get_running_loop()
+        except (
+            RuntimeError
+        ):  # the link's own thread, which is not to wait on the screen
+            if not self.call_later(self._drains):
+                with (
+                    self._arriving
+                ):  # the screen has gone, and nothing is left to take it
+                    self._arrived.clear()
+                    self._draining = False
+            return
+        self._drains()
 
-    def _told(self, record: dict[str, Any]) -> None:
-        """Takes one record of a run, which is everything the interface draws a run from.
+    def _drains(self) -> None:
+        """Takes every message that has arrived, in order, and redraws once for all of them."""
+        while True:
+            with self._arriving:
+                taking = list(self._arrived)
+                self._arrived.clear()
+                if not taking or not self.is_running:
+                    self._draining = False
+                    break
+            for message in taking:
+                try:
+                    self._takes(message)
+                except Exception as why:  # noqa: BLE001 -- one message is not all of them
+                    self.log(
+                        f"a {message.get('type')} message could not be drawn: {why}"
+                    )
+        self._draw()
 
-        Called from whichever thread the run said it on, which is why everything drawn from
-        here goes through `_on_screen`.
+    def _takes(self, message: dict[str, Any]) -> None:
+        """Takes one message, on the screen's own thread.
 
         Args:
-          record: What was told, as JSON; see `hmz.tui.records`.
+          message: What was told.
         """
-        kind = record["type"]
+        kind = message.get("type")
         if kind == "event":
-            self._heard(record)
+            self._heard(message)
         elif kind == "opened":
-            self._opened(record)
+            self._opened(message)
         elif kind == "started":
-            self._started(record)
+            self._started(message)
+        elif kind == "stopping":
+            self._stopped(message)
         elif kind == "ended":
-            self._ended(record)
+            self._ended(message)
+        elif kind == "asked":
+            self._show_question(message)
+        elif kind == "answered":
+            self._answered(message)
+        elif kind == "said":
+            self._said_by_you(
+                str(message.get("text") or ""),
+                str(message.get("key") or ""),
+                self._by(message),
+            )
+        elif kind == "refused":
+            self.show(f"hmz: {message['because']}", "red")
+        elif kind == "unheld":
+            self._unheld(message)
+        elif kind == "dropped":
+            self._never_sent(message)
+        elif kind == "printed":
+            self._prints(str(message.get("text") or ""))
+        elif kind == "welcome":
+            self._me, self._named = message["client"], message["name"]
+        elif kind == "live":
+            self._live = True
+        elif kind == "gone":
+            self._gone(str(message.get("why") or ""))
+        else:
+            self._stands(message)
+
+    def _stands(self, message: dict[str, Any]) -> None:
+        """Takes how one thing stands now, as the runs say it whenever it changes.
+
+        Args:
+          message: The snapshot: which thing, and how it stands.
+        """
+        kind = message.get("type")
+        if kind == "run":
+            self._ran(message)
+        elif kind == "sessions":
+            # How things stand wins over what was read back of how they came to: a turn
+            # that began before this interface arrived is working whether or not the record
+            # of it beginning was kept.
+            if message.get("run") == self._generation:
+                self._working = set(message.get("working") or ())
         elif kind == "calls":
-            self._called = record["calls"]
+            self._called = list(message.get("calls") or ())
+        elif kind == "clients":
+            self._frontends = {
+                one["client"]: one["name"] for one in message.get("clients") or ()
+            }
+        elif kind == "claims":
+            self._claimed(dict(message.get("claims") or {}))
+        elif kind == "away":
+            self._afk = bool(message.get("all"))
+            self._afk_of = dict(message.get("of") or {})
+        elif kind == "waiting":
+            self._queued = list(message.get("queued") or ())
+            self._given = list(message.get("given") or ())
+        elif kind == "pending":
+            self._pending = list(message.get("pending") or ())
+        elif kind == "board":
+            items = message.get("items")
+            self._boarded = (
+                None
+                if items is None
+                else BoardSeen(
+                    items, lambda key, value: self._asks("board", key=key, value=value)
+                )
+            )
+
+    def _ran(self, message: dict[str, Any]) -> None:
+        """Takes which run is going and which is stopping, as the runs say it now.
+
+        Args:
+          message: The `run` snapshot: the state, and what the run in front of us started as.
+        """
+        if (
+            message.get("state") == "running"
+            and message.get("run", 0) > self._generation
+        ):
+            # A run whose start was not kept for this interface to read back, which is one
+            # older than the most that is kept: it starts here instead.
+            self._started(message)
+        self._run = _RunSeen.of(message) if message.get("state") == "running" else None
+        if self._run is not None:
+            self._starting = False
+        stopping = message.get("stopping")
+        self._stopping = stopping if isinstance(stopping, int) else None
+
+    def _claimed(self, claims: dict[str, str]) -> None:
+        """Takes who holds which role now, saying so where one this interface held has gone.
+
+        Args:
+          claims: Each role held, and the client holding it.
+        """
+        was, self._claims = self._claims, claims
+        if not self._live:
+            return
+        for role, owner in was.items():
+            if owner == self._me and claims.get(role) != self._me:
+                now = self._whose(role) or "anybody's"
+                self.show(f"[dim]{escape(role)} is {escape(now)} to answer now[/dim]")
+
+    def _gone(self, why: str) -> None:
+        """Takes the runs letting go of this interface, which is the end of it.
+
+        Args:
+          why: Why they let go of it.
+        """
+        if self._quitting:
+            return  # asked for, on the way out
+        self._quitting = True
+        self.exit(return_code=1, message=f"hmz: {why or 'the runs let go of this'}")
 
     def _started(self, record: dict[str, Any]) -> None:
         """Takes a run that has just started as the one in front of us.
 
-        Told on the event loop, which is where a run is started from.
-
         Args:
           record: The run, as it started.
         """
+        self._generation = int(record["run"])
         # A side conversation is about the run it was opened on, and that run has gone.
         if self._btw is not None:
             self._leave_btw("a new flow started")
@@ -3844,51 +3873,52 @@ class Humanize(App[None]):
         self._seen, self._working = {}, set()
         for gone in [key for key in self._kept if "/" in key]:
             del self._kept[gone]
-        with self._saying:
-            self._outworlders = list(record["outworlders"])
+        self._outworlders = list(record.get("outworlders") or ())
+        # What it was started on, where somebody else started it: what they said is what
+        # this run is doing, and it went down here as it was typed where it was typed here.
+        if by := self._by(record):
+            self._said_by_you(str(record.get("task") or ""), by=by)
         self._monitor = Monitor(began=record["began"])
         # What the run costs is read from the logs the agents keep, which they write as they
         # go: a backend only says what a turn cost once the turn is over, and a turn is long.
         self._tally = Tally([], self._monitor)
-        self._followed[record["run"]] = (self._monitor, self._tally)
+        self._followed[self._generation] = (self._monitor, self._tally)
         self._tally.watch()
 
-    def _ended(self, record: dict[str, Any]) -> None:
-        """Says how a run went, and lets go of it where it is still the one held.
+    def _stopped(self, record: dict[str, Any]) -> None:
+        """Says a run is on its way out, and who asked for it to be.
 
-        Told on the run's own thread as it returns, whichever way it returned.
+        Args:
+          record: The run, as it was told to stop.
+        """
+        self._halted.add(int(record["run"]))
+        if record["run"] == self._generation:
+            client = str(record.get("client") or "")
+            who = (
+                "" if client in ("", self._me) else f"{record.get('by') or client} is "
+            )
+            self.show(f"[dim]— {escape(who)}stopping the flow —[/dim]")
+
+    def _ended(self, record: dict[str, Any]) -> None:
+        """Says how a run went.
 
         Args:
           record: The run, as it ended.
         """
         why = record["why"]
-        if record["how"] in ("refused", "failed"):
-            self._on_screen(self.show, f"hmz: {why}", "red")
+        if record["how"] in ("refused", "failed", "crashed"):
+            self.show(f"hmz: {why}", "red")
         elif record["how"] == "budget":
-            self._on_screen(self.show, f"hmz: stopped -- {why}", "yellow")
+            self.show(f"hmz: stopped -- {why}", "yellow")
         followed = self._followed.pop(record["run"], None)
         if followed is not None:
             monitor, tally = followed
             tally.stops()  # read once more, for what the last turn wrote on its way out
             monitor.stops()  # the clock the rate is over is the run's, and it is over
-        # Only this run's own, and only while it is still the one running. A flow takes a
-        # while to unwind after it is stopped, and the next flow may have started in the
-        # meantime. Clearing then would leave the running one unreachable, and saying it was
-        # done would be saying it of the wrong flow.
-        ours = record["run"] == self._generation
-        if self._stopping is not None and ours:
-            # Stopped by hand, and now finished unwinding: there is nothing left for the
-            # press that does not wait for it to reach.
-            self._stopping = None
-        if self._run is not None and ours:
-            self._run = None
-            self._spoke.set()
-            self._release()
-            self._on_screen(self.show, "[dim]— the flow is done —[/dim]")
-            # And whatever it never got round to taking, which is now on its way nowhere: a
-            # flow that ends of its own accord strands the pin exactly as one that is
-            # stopped does.
-            self._on_screen(self._never_sent, "the flow ended first")
+        # Only this run's own, and only one nobody stopped: a run stopped by hand has said
+        # so already, and one still unwinding behind the next is no run anybody is watching.
+        if record["run"] == self._generation and record["run"] not in self._halted:
+            self.show("[dim]— the flow is done —[/dim]")
 
     def _opened(self, record: dict[str, Any]) -> None:
         """Takes one session a run has just opened as one of the run's own.
@@ -4033,9 +4063,8 @@ class Humanize(App[None]):
         # The conversation's own transcript, which is its agent's too and every agent's.
         whose: str = record["key"] if ours else agent
         if kind == "took":
-            # The agent saying a word put into its turn is now in front of it, which is the
-            # one thing that makes a word said rather than posted.
-            self._on_screen(self._took, agent, text, whose)
+            # The agent saying a word put into its turn is now in front of it, which the runs
+            # say as the word being said, with who said it.
             return
         if kind == "begins":
             self._monitor.begins(agent, record["model"], now=now, session=numbered)
@@ -4060,9 +4089,6 @@ class Humanize(App[None]):
             self._monitor.ends(agent, now=now, session=numbered)
             if numbered is not None:
                 self._working.discard(numbered)
-            # Whatever it was holding is not on its way anywhere now: the turn it was put
-            # into is over, and it never said it had it.
-            self._on_screen(self._ended_holding, agent)
             took = now - self._began.pop(agent, now)
             # The line Claude Code closes a turn with, which says how long it worked.
             self._on_screen(
@@ -4192,70 +4218,49 @@ class Humanize(App[None]):
         kept.packed = packs
         self._into(whose, text, shared=shared)
 
-    def _background(self, work: Callable[[], int]) -> None:
-        """Runs something off the event loop, showing what it says rather than dying of it.
-
-        Args:
-          work: What to do, answering with the status to report, if any.
-        """
-
-        def go() -> None:
-            from hmz.coganchor.agents import Stopped
-
-            try:
-                status = work()
-            except SystemExit as stopped:  # argparse rejecting the line, not a crash
-                status = int(stopped.code or 0)
-            except Stopped:
-                return  # asked for: esc already said the flow was stopping
-            except Exception as why:  # noqa: BLE001 -- a flow fails how it likes, and is shown
-                telemetry.crash(why, doing="a flow")
-                with contextlib.suppress(RuntimeError):  # or the interface has gone
-                    self.call_from_thread(
-                        self.show, traceback.format_exc().strip(), "red"
-                    )
-                return
-            if status:
-                with contextlib.suppress(RuntimeError):
-                    self.call_from_thread(self.show, f"— exited {status} —", "red")
-
-        # A thread of our own rather than a worker: a worker is joined on the way out, and a
-        # turn that is still thinking would hold the interpreter open behind a closed screen.
-        threading.Thread(target=go, daemon=True).start()
-
     def _said(self, text: str) -> None:
         """Takes a line that is not a command, which is a task, an answer, or a word put in.
 
         With a flow chosen and not yet running, it is the task that starts it -- the way a
         first message to opencode is the thing it is asked to do, and the reason the flow
         this opens on is one that takes anything as a task. With one running, it is the
-        answer to whatever the flow stopped to ask, or goes to the agent taking its turn --
-        into the turn under way, or to the flow waiting to be told the next one.
+        answer to whatever the flow stopped to ask that is this interface's to answer, or it
+        goes to the agent taking its turn -- into the turn under way, or to the flow waiting
+        to be told the next one.
 
         Args:
           text: What was said.
         """
         if (asked := self._answers_to()) is not None:
-            with self._saying:
-                # Taken off the list here rather than by the thread waiting on it, so that a
-                # second line typed before that thread wakes answers the next question.
-                if asked in self._asking:
-                    self._asking.remove(asked)
-            self._said_by_you(text, f"{_OUTWORLDER}{asked.asker}")
-            asked.answer = _chosen(asked.question, text)
-            asked.done.set()  # and the turn waiting on it carries on
-            self._spoke.set()  # as does a flow waiting to be told what to say next
+            # Set aside here rather than when the runs say it was answered, so that a second
+            # line typed before they do answers the next question -- and put back where it
+            # is refused, since the question is still waiting.
+            question = str(asked["question"])
+            self._answering.add(question)
+            self._asks(
+                "answer",
+                refused=lambda: self._answering.discard(question),
+                question=question,
+                text=text,
+            )
             self._draw()
         elif self._run is not None and self._view_kind() == "outworlder":
             # Nothing of its own is up, and a line typed here is for this outworlder alone:
             # left in the queue, whichever other outworlder asked next would take it.
+            role = self._attached.removeprefix(_OUTWORLDER)
+            whose = self._whose(role)
             self.show(
-                f"hmz: {self._attached.removeprefix(_OUTWORLDER)} is not asking anything "
-                "now; read another transcript to say it to an agent",
+                f"hmz: {role} is {whose} to answer, not yours"
+                if whose not in ("", "yours")
+                else f"hmz: {role} is not asking anything now; read another transcript "
+                "to say it to an agent",
                 "red",
             )
-        elif self._run is not None:
-            self._interject(text)
+        elif self._run is not None or self._starting:
+            # Into the turn on the view being read, or the next one to start there: the runs
+            # pin it above the prompt until it goes, and say who said it once it has. Asked
+            # after the start before it, so a run still starting is the one it is said to.
+            self._asks("say", text=text, to=self._attached)
         else:
             self._said_by_you(text)
             self._starts(text)
@@ -4278,187 +4283,86 @@ class Humanize(App[None]):
             return
         self._flow(task)
 
-    def _outworlder_asks(self, generation: int, question: Question) -> str | None:
-        """Puts what a flow asks the person outside it to this prompt, and waits for them.
-
-        Called from a thread of the run's own, which waits here. A question asked while a
-        turn is open -- an agent that stopped to ask, put to the person by its flow -- or one
-        with answers to choose from is shown and answered by the line typed after it, since a
-        line typed into an open turn would otherwise go to the turn. Anything else is what to
-        say next, answered by the next line typed, a line typed before it was asked included;
-        what was asked is shown first, on the transcript every agent is on unless it is what
-        an agent has just answered, which that transcript already shows -- a conversation
-        saying back what was said. `/afk`, a run that has ended or been stopped, and an
-        interface that has gone each answer nobody, which the flow hears as whoever is
-        outside the run being away.
-
-        Every outworlder asks on a transcript of its own as well, which shows all it asks
-        and nothing else.
-
-        Args:
-          generation: Which run is asking, so that a run on its way out cannot take the
-            answer meant for the run that replaced it.
-          question: What it asks, and which outworlder asks it.
-
-        Returns:
-          What was typed, or None if nobody was there to type it.
-        """
-        asker = question.asker or "outworlder"
-        if not self._live(generation, asker):
-            return None
-        with self._saying:
-            if asker not in self._outworlders:
-                self._outworlders.append(asker)
-        if question.options or len(self._working):
-            return self._ask(generation, question)
-        said = question.text.strip()
-        if said:
-            with contextlib.suppress(RuntimeError):  # or the interface has gone
-                self.call_from_thread(
-                    self._show_question,
-                    question,
-                    shared=said != self._last_answer.strip(),
-                )
-        return self._listen(generation, asker)
-
-    def _live(self, generation: int, asker: str) -> bool:
-        """Whether the run asking is still the one going, and somebody is here to answer."""
-        return (
-            not self._away(asker)
-            and generation == self._generation
-            and self._run is not None
-        )
-
-    def _listen(self, generation: int, asker: str) -> str | None:
-        """Waits at the prompt for a flow that has nothing to do until it is told something.
-
-        Nothing on the event loop is touched, so the interface goes on being an interface
-        while a flow waits in it.
-
-        Args:
-          generation: Which run is waiting.
-          asker: The outworlder it waits on.
-
-        Returns:
-          What was said next, or None once this flow is over -- stopped by hand, or the
-          interface going away, either of which has to release this rather than leave a
-          thread waiting on a prompt that is not there.
-        """
-        # Held as a question up as well, so that a line typed on this outworlder's own
-        # transcript, or on the shared one, is this one's rather than whichever outworlder
-        # happens to read the queue first.
-        from hmz.coganchor.agents import Question
-
-        asked = _Asked(Question("", asker=asker))
-        with self._saying:
-            self._asking.append(asked)
-            self._listening += 1
-            self._awaiting = True
-        try:
-            while True:
-                # Cleared before the queue is read, so that a line arriving between the two
-                # sets it again and is not waited through.
-                self._spoke.clear()
-                if asked.done.is_set() and asked.answer:
-                    held = [asked.answer]
-                elif not self._live(generation, asker):
-                    return None
-                else:
-                    held = self._take(f"{_OUTWORLDER}{asker}")
-                if held:
-                    # Whatever turn this answer starts is that line's turn, and takes
-                    # nothing else out of the queue on the way in.
-                    with self._saying:
-                        self._handed = True
-                    return "\n\n".join(held)
-                self._spoke.wait(_REFRESH)
-        finally:
-            with self._saying:
-                if asked in self._asking:
-                    self._asking.remove(asked)
-                self._listening -= 1
-                self._awaiting = self._listening > 0
-
-    def _ask(self, generation: int, question: Question) -> str | None:
-        """Puts a question the flow asks to whoever is at this prompt, and waits for them.
-
-        Args:
-          generation: Which run is asking.
-          question: What it wants to know, and which outworlder wants it.
-
-        Returns:
-          What was typed, or None if nobody was there to type it.
-        """
-        asked = _Asked(question)
-        # Held before the question goes up, so that an answer arriving between the two has
-        # somewhere to land.
-        with self._saying:
-            self._asking.append(asked)
-        with contextlib.suppress(RuntimeError):  # or the interface has gone
-            self.call_from_thread(self._show_question, question)
-        try:
-            while not asked.done.wait(_REFRESH):
-                # `/afk` while the question is up says so too, or saying you are away would
-                # leave the flow waiting on the answer you had just declined to give.
-                if not self._live(generation, asked.asker):
-                    break
-        finally:
-            with self._saying:
-                if asked in self._asking:
-                    self._asking.remove(asked)
-        return asked.answer or None
-
-    def _answers_to(self) -> _Asked | None:
+    def _answers_to(self) -> dict[str, Any] | None:
         """The question a line typed now would answer, if it would answer one.
 
         On an outworlder's own transcript, the oldest that outworlder asks; on the one every
         agent is on, and on the monitor, the oldest any of them asks, those being where every
         one of them is answered. On an agent's own, none: what is typed there is said to it.
+        And only one this interface may answer: a role another holds is theirs.
 
         Returns:
-          The question, or None where a typed line goes elsewhere.
+          The question, as the runs said it, or None where a typed line goes elsewhere.
         """
         kind = self._view_kind()
         if kind == "session":
             return None
-        asker = self._attached.removeprefix(_OUTWORLDER) if kind == "outworlder" else ""
-        with self._saying:
-            return next(
-                (one for one in self._asking if not asker or one.asker == asker), None
-            )
+        role = self._attached.removeprefix(_OUTWORLDER) if kind == "outworlder" else ""
+        return next(
+            (
+                one
+                for one in self._pending
+                if (not role or one.get("role") == role)
+                and one.get("owner") in (None, self._me)
+                and one.get("question") not in self._answering
+            ),
+            None,
+        )
 
-    def _release(self) -> None:
-        """Lets go of every question still up, there being nobody left to answer it."""
-        with self._saying:
-            held, self._asking = self._asking, []
-        for one in held:
-            one.done.set()
-
-    def _show_question(self, question: Question, *, shared: bool = True) -> None:
+    def _show_question(self, record: dict[str, Any]) -> None:
         """Shows a question the flow asks, and what it will take for an answer.
 
         On the transcript of the outworlder asking, and on the one every agent is on --
         unless an agent has just stopped to ask the same thing, or has just said it, which
         is already there and is not said twice. The answers it offers are numbered, so that
-        one is chosen by its number as well as by its words.
+        one is chosen by its number as well as by its words. What to say next, with nothing
+        asked in words, is shown as nothing: the prompt is what asks it.
 
         Args:
-          question: What the flow wants to know.
-          shared: Whether the question itself goes on the one every agent is on.
+          record: What the flow wants to know, and which outworlder wants it.
         """
-        key = f"{_OUTWORLDER}{question.asker or 'outworlder'}"
-        asked = question.text.strip()
+        role = str(record.get("role") or "outworlder")
+        if role not in self._outworlders:
+            self._outworlders.append(role)
+        asked = str(record.get("text") or "").strip()
+        listening = record.get("mode") == "listen"
+        if listening and not asked:
+            return
+        key = f"{_OUTWORLDER}{role}"
         repeated = bool(self._last_asked) and asked == self._last_asked.strip()
+        # A conversation saying back what its agent answered, to ask what next: on the
+        # one every agent is on already.
+        said_back = listening and asked == self._last_answer.strip()
         self._part(
             key,
             f"[yellow]{_SAID}[/] {escape(asked)}",
             packs=False,
-            shared=shared and not repeated,
+            shared=not (repeated or said_back),
         )
-        for at, option in enumerate(question.options, 1):
+        for at, option in enumerate(record.get("options") or (), 1):
             self._into(key, f"      [dim]{at}. {escape(option)}[/dim]")
-        self._into(key, "   [dim]type an answer, or /afk to stop being asked[/dim]")
-        self._draw()
+        whose = self._whose(role)
+        self._into(
+            key,
+            f"   [dim]{escape(whose)} to answer[/dim]"
+            if whose not in ("", "yours")
+            else f"   [dim]{'yours to answer: ' if whose else ''}type an answer, or /afk "
+            "to stop being asked[/dim]",
+        )
+
+    def _answered(self, record: dict[str, Any]) -> None:
+        """Shows a question answered, on its outworlder's transcript and the shared one.
+
+        Args:
+          record: What was answered, by whom, to which question.
+        """
+        asked = record.get("question")
+        self._pending = [one for one in self._pending if one.get("question") != asked]
+        self._said_by_you(
+            str(record.get("text") or ""),
+            f"{_OUTWORLDER}{record.get('role') or 'outworlder'}",
+            self._by(record),
+        )
 
     @property
     def _set_up(self) -> bool:
@@ -4472,127 +4376,7 @@ class Humanize(App[None]):
             role in self._models and self._models[role].spec for role in self._named_by
         )
 
-    def _interject(self, text: str) -> None:
-        """Puts something in the queue for the flow, and sends it if nothing is in the way.
-
-        Everything typed joins one queue, whether or not a turn is running: a line is a
-        thing said, and things said go one at a time and in order. It is pinned above the
-        prompt rather than written into the transcript until it goes -- it has not been said
-        to anybody yet, and a transcript is what happened, which is what Claude Code does
-        with a queued line too.
-
-        Args:
-          text: What to say.
-        """
-        with self._saying:
-            self._queued.append(text)
-        self._spoke.set()  # a flow between turns is waiting to be told something
-        self._draw()  # rather than at the next tick: it was just typed
-        self._hand_over()
-
-    def _hand_over(self) -> None:
-        """Puts the oldest waiting line into the conversation on the screen, one at a time.
-
-        Into the agent being read rather than into whichever happens to be working: a flow
-        drives several, and a line said to the one that is not on the screen is a line said
-        to the wrong agent. Of that agent's conversations it is the one with a turn open,
-        since a line written to one between turns is answered on its own outside the flow.
-        Where every agent is being read at once there is no one of them to have meant, so it
-        is whichever has a turn open -- which is the one the screen is showing anyway.
-
-        One at a time and never two: a backend given a second word while it is still
-        swallowing the first runs the two together and answers once, so five lines typed in
-        a row would come back as one reply. The next goes only once the turn has said it has
-        this one, which is also the only point at which the two could not be run together.
-
-        Nothing is sent between turns. A line has nowhere to go but the queue then -- writing
-        it to a conversation that is not working would have it answered on its own, outside
-        the flow -- so it waits for whichever turn starts next, and a running flow never
-        drops one.
-        """
-        key = self._says_to()
-        following = self._following
-        if (
-            key is None
-            or key not in self._working
-            or key not in self._conversations()
-            or following is None
-        ):
-            return
-        # The agent alongside its conversation: a word put in is pinned against whoever has
-        # it, and it is that agent's own stream that will say it has been taken in.
-        agent, session = following.at(key)
-        if session is None:
-            return
-        with self._saying:
-            if any(who == agent.id for who, _ in self._given):
-                return  # it is holding one already, and holds one at a time
-            if not self._queued:
-                return
-            text = self._queued.pop(0)
-            self._given.append((agent.id, text))
-        self._draw()
-
-        def put_in() -> int:
-            # Off the event loop: this writes to the agent, and a large paste into a pipe the
-            # interface itself is draining would otherwise deadlock the two.
-            try:
-                session.interject(text)
-            except (NotImplementedError, RuntimeError, OSError) as error:
-                self._on_screen(self._unreached, agent.id, text, str(error))
-            except subprocess.CalledProcessError as refused:
-                # A backend that refused it: codex drops a steer that named a turn already
-                # over, and kimi answers one inside a 200. Either way it never went.
-                self._on_screen(
-                    self._unreached,
-                    agent.id,
-                    text,
-                    refused.stderr or "the agent refused it",
-                )
-            return 0
-
-        self._background(put_in)
-
-    def _unreached(self, who: str, text: str, because: str) -> None:
-        """Puts a word back at the head of the queue, the agent never having taken it.
-
-        At the head rather than the end, and without trying the next one behind it: it was
-        said before everything still waiting, and sending that one now would be sending it
-        to the agent that just refused this.
-
-        Args:
-          who: The agent it was put to.
-          text: The word.
-          because: What the backend said about it.
-        """
-        # How long the refusal was and nothing of what it said: `because` is a backend's own
-        # stderr, which is the one thing a report may not carry.
-        telemetry.snag("line-refused", said=len(because))
-        with self._saying:
-            if (who, text) in self._given:
-                self._given.remove((who, text))
-                self._queued.insert(0, text)
-        self.show(f"hmz: {because}", "red")
-        self._spoke.set()  # and whichever turn starts next takes it instead
-        self._draw()
-
-    def _took(self, who: str, text: str, where: str = "") -> None:
-        """Takes a word off the pin, the agent having said it now has it.
-
-        Args:
-          who: The agent that said so.
-          text: The word it said it has.
-          where: The transcript of the conversation that took it, or "" for the agent's.
-        """
-        with self._saying:
-            if (who, text) not in self._given:
-                return  # somebody else's word, or one already written down
-            self._given.remove((who, text))
-        self._said_by_you(text, where or who)
-        self._draw()
-        self._hand_over()  # and the next one behind it goes now that this is through
-
-    def _ended_holding(self, who: str) -> None:
+    def _unheld(self, record: dict[str, Any]) -> None:
         """Says what became of the words an agent was holding when its turn ended.
 
         The turn is over and it never said it had them, so they are neither waiting nor
@@ -4601,20 +4385,44 @@ class Humanize(App[None]):
         drops it -- which is more than this can tell from here, so it says what it knows.
 
         Args:
-          who: The agent whose turn ended.
+          record: The agent whose turn ended, and what it was holding.
         """
-        with self._saying:
-            held = [text for agent, text in self._given if agent == who]
-            self._given = [pair for pair in self._given if pair[0] != who]
+        held = [str(one) for one in record.get("texts") or ()]
         if not held:
             return
         for text in held:
             self._said_by_you(text)
         self.show(
-            f"[dim]   put to {escape(short(who))}, which ended its turn without saying "
-            f"it had {'them' if len(held) > 1 else 'it'}[/dim]"
+            f"[dim]   put to {escape(short(str(record.get('agent'))))}, which ended its "
+            f"turn without saying it had {'them' if len(held) > 1 else 'it'}[/dim]"
         )
-        self._draw()
+
+    def _never_sent(self, record: dict[str, Any]) -> None:
+        """Puts whatever was still waiting into the transcript, nothing being left to take it.
+
+        A flow ends two ways -- stopped by hand, or of its own accord -- and both leave the
+        pin holding lines that are not on their way anywhere. They come off it and into the
+        transcript as what they turned out to be: a line typed at a flow that is gone has to
+        be somewhere, or the next thing typed would quietly take its place.
+
+        Args:
+          record: What was waiting -- put to an agent, or queued -- and why it never went.
+        """
+        because = str(record.get("because") or "")
+        because = _FIRST.get(because, because)
+        given: list[dict[str, Any]] = list(record.get("given") or ())
+        queued: list[dict[str, Any]] = list(record.get("queued") or ())
+        # Oldest first: what went to an agent went before what is queued.
+        for one in given:
+            self._said_by_you(str(one.get("text")), by=self._by(one))
+        if given:
+            # Put to an agent, which never said it had it: it may well have reached the
+            # model, and saying it never went would be as wrong as saying it landed.
+            self.show(f"[dim]   put to the agent, never taken back: {because}[/dim]")
+        for one in queued:
+            self._said_by_you(str(one.get("text")), by=self._by(one))
+        if queued:
+            self.show(f"[dim]   never sent: {because}[/dim]")
 
 
 def _machine() -> dict[str, object]:
@@ -4708,6 +4516,15 @@ _COMMANDS: tuple[Command, ...] = (
         # Every outworlder from where all of them are, one from its own transcript, and
         # nothing from an agent's, which asks nobody anything.
         where=VIEWS - {"session"},
+    ),
+    Command(
+        "claim",
+        "Answer for this outworlder alone; off gives it back",
+        lambda app, argv: app.action_claim(argv),
+        takes="[on|off]",
+        # On the transcript of the one outworlder it holds, and nowhere else: which role is
+        # meant is the one being read.
+        where=frozenset({"outworlder"}),
     ),
     Command(
         "stop",

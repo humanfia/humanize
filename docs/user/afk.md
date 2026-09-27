@@ -63,6 +63,12 @@ that <kbd>shift+tab</kbd> reaches. Where you type `/afk` decides whom it is abou
 | every agent's transcript, or the monitor | every outworlder at once, undoing what was set for one |
 | one conversation's transcript | nothing: it is not offered there, and says where it works |
 
+Away belongs to the run rather than to your interface: it stays said after you
+[leave](/user/leaving), and every interface reading the run shows it. Where somebody else has
+[claimed](/reference/tui#several-people-on-one-run) an outworlder, `/afk` from every agent's
+transcript leaves theirs as they left it, and `/afk` on their outworlder's transcript is
+refused, saying whose it is.
+
 ::: tip `/afk` is about questions, not approvals
 A flow's agents never wait for approval, whether you are here or away. See
 [Permissions](/user/permissions).

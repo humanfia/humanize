@@ -5,28 +5,42 @@ agent's lines interleaved into one screen is none of them readable, and a screen
 time a loop opened its next conversation is one nobody can read back through -- so a running
 conversation is what is stepped onto, all of an agent's conversations run down its one
 transcript as well, each outworlder asks on one of its own, and the one this opens on is the
-one where all of it appears together. Driven headlessly, so what is checked is what a
-keystroke does rather than how it is drawn.
+one where all of it appears together. What a line typed on one of them does is asked of the
+runs -- said to the view it was typed on, or answering what that view's outworlder asks -- and
+which outworlder is whose to answer is what the runs say of the claims on it. Driven headlessly
+off the messages the runs tell, so what is checked is what a keystroke asks for and what is
+drawn of what was told, rather than where the host puts a line.
 """
 
 from __future__ import annotations
 
 import os
 import sys
-import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from textual.widgets import OptionList, Static
 
-from hmz.coganchor.agents import AgentConfig, Question
 from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
-from hmz.tui.app import _EVERY, _KEPT
+from hmz.tui.app import _KEPT
 from hmz.tui.monitor import short
-from hmz.tui.pick import Held, reads
-from tests.stubs import ShellAgent, ShellSession, written
-from tests.tui.fixtures import event, holding, opened, set_up, told, transcript
+from hmz.tui.pick import EVERY, Held, reads
+from tests.stubs import written
+from tests.tui.fixtures import (
+    asked,
+    event,
+    holding,
+    link,
+    opened,
+    pending,
+    running,
+    set_up,
+    snapshot,
+    started,
+    told,
+    transcript,
+)
 from tests.tui.fixtures import until as waited
 
 if TYPE_CHECKING:
@@ -34,10 +48,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from textual.pilot import Pilot
-
-    from hmz.coganchor.agents import AgentBase
-
-CONFIG = AgentConfig(model="m", effort="high")
 
 #: A `claude --print` that says which session it is, says one thing, and then holds the turn
 #: open until the workspace says it may finish. Which is what makes two turns run at once here,
@@ -89,28 +99,6 @@ async def run(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
 """
 
 
-class Steerable(ShellSession):
-    """A conversation a word can be put into, which a shell-backed one has no process for."""
-
-    def __init__(
-        self, agent: AgentBase, cwd: str | os.PathLike[str] | None = None
-    ) -> None:
-        super().__init__(agent, cwd)
-        self.put_in: list[str] = []
-
-    def interject(self, text: str) -> None:
-        """Takes the word and says nothing about it, as a backend takes one off us."""
-        self.put_in.append(text)
-
-
-class SteerableAgent(ShellAgent):
-    """An agent whose conversations record what was put into them."""
-
-    def new(self, cwd: str | os.PathLike[str] | None = None) -> Steerable:
-        """Opens one."""
-        return Steerable(self, cwd)
-
-
 async def until(ready: Callable[[], bool], driver: Pilot[None]) -> None:
     """The shared wait, and then one more pump once it comes back.
 
@@ -136,6 +124,33 @@ def _above(app: Humanize) -> str:
     return str(app.query_one("#above", Static).content)
 
 
+async def _types(driver: Pilot[None], line: str) -> None:
+    """Types one line and sends it, as somebody at the prompt would."""
+    await driver.press(*line)
+    await driver.press("enter")
+    await driver.pause()
+
+
+def _answered(
+    question: str,
+    role: str,
+    text: str,
+    *,
+    by: str = "you@tui",
+    client: str = "c1",
+) -> dict[str, Any]:
+    """The runs saying a question was answered, what with, and by whom."""
+    return {
+        "type": "answered",
+        "run": 0,
+        "question": question,
+        "role": role,
+        "by": by,
+        "client": client,
+        "text": text,
+    }
+
+
 @pytest.fixture
 def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """A flow that holds two conversations open, and a `claude` it never launches."""
@@ -155,10 +170,10 @@ def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 async def _two_agents(app: Humanize, driver: Pilot[None], where: Path) -> None:
-    """Starts the flow that holds a conversation open for each of two agents.
+    """Starts the flow that holds a conversation open for each of two agents, for real.
 
     Args:
-      app: The interface.
+      app: The interface, opened on runs held in this process.
       driver: What is pumping it.
       where: The workspace it is running in.
     """
@@ -186,46 +201,58 @@ def _let_go(where: Path) -> None:
     (where / "go.txt").write_text("")
 
 
-async def _both_working(
-    app: Humanize, driver: Pilot[None]
-) -> tuple[SteerableAgent, Steerable, SteerableAgent, Steerable]:
+async def _both_working(app: Humanize, driver: Pilot[None], **said: Any) -> None:
     """Two agents with a turn open apiece, which is what there is to step between.
 
-    The conversations are handed back as well as the agents: an agent holds its own weakly,
-    so one nothing here keeps is one the next collection takes away.
+    `builder` and then `reviewer`, one conversation each, as the runs tell a run of them.
 
     Args:
       app: The interface.
       driver: What is pumping it.
-
-    Returns:
-      Each agent and the conversation it is working in, in the order the flow takes them.
+      said: What else the run's start says: its `outworlders`, say.
     """
-    one, two = SteerableAgent(CONFIG), SteerableAgent(CONFIG)
-    # Named for the roles they fill, as the run names the agent behind each session it opens.
-    one.rename("builder")
-    two.rename("reviewer")
-    first, second = one.new(), two.new()
-    holding(app, one, two)
-    app._models = {"builder": Runs("claude/m:high"), "reviewer": Runs("codex/n:high")}
-    app._declared = None  # a flow nothing here loads, whose roles are these two
-    told(app, event("builder/1", "begins"), event("reviewer/1", "begins"))
+    record = started(
+        roles=["builder", "reviewer"],
+        agents={"builder": "claude/m:high", "reviewer": "codex/n:high"},
+        **said,
+    )
+    told(
+        app,
+        record,
+        running(record),
+        opened("builder/1"),
+        opened("reviewer/1"),
+        event("builder/1", "begins"),
+        event("reviewer/1", "begins"),
+    )
     await driver.pause()
-    return one, first, two, second
+
+
+def _frontends(**names: str) -> dict[str, Any]:
+    """The `clients` snapshot: every frontend reading the runs, by client id."""
+    return snapshot(
+        "clients",
+        clients=[
+            {"client": client, "name": name, "kind": "tui"}
+            for client, name in names.items()
+        ],
+    )
 
 
 @pytest.mark.timeout(60)
-async def test_it_opens_on_the_transcript_every_agent_is_on(workspace: Path) -> None:
+async def test_it_opens_on_the_transcript_every_agent_is_on(
+    workspace: Path, hosting: None
+) -> None:
     """A flow is watched rather than an agent of it, so that is where a run starts."""
     app = Humanize()
     async with app.run_test() as driver:
-        assert app._attached == _EVERY
+        assert app._attached == EVERY
 
         await _two_agents(app, driver, workspace)
 
         # Still, with two of them going: stepping onto one is asked for rather than done to
         # somebody the moment a flow opens its first conversation.
-        assert app._attached == _EVERY
+        assert app._attached == EVERY
         assert app._reading() is None
         _let_go(workspace)
         await until(lambda: app._run is None, driver)
@@ -233,7 +260,7 @@ async def test_it_opens_on_the_transcript_every_agent_is_on(workspace: Path) -> 
 
 @pytest.mark.timeout(60)
 async def test_shift_tab_steps_round_the_conversations_that_are_running(
-    workspace: Path,
+    workspace: Path, hosting: None
 ) -> None:
     """The ones thinking, and the transcript they are all on, which is the way back."""
     app = Humanize()
@@ -251,14 +278,14 @@ async def test_shift_tab_steps_round_the_conversations_that_are_running(
 
         await driver.press("shift+tab")  # round the end, back to all of them
         await driver.pause()
-        assert app._attached == _EVERY
+        assert app._attached == EVERY
 
         _let_go(workspace)
         await until(lambda: app._run is None, driver)
 
 
 @pytest.mark.timeout(60)
-async def test_tab_steps_the_other_way_round(workspace: Path) -> None:
+async def test_tab_steps_the_other_way_round(workspace: Path, hosting: None) -> None:
     """The other way round the same ring, which is what a pair of keys is for."""
     app = Humanize()
     async with app.run_test() as driver:
@@ -282,19 +309,18 @@ async def test_an_agent_that_is_not_working_is_not_stepped_onto() -> None:
     """With ten agents going, what somebody is stepping between is the ones thinking."""
     app = Humanize()
     async with app.run_test() as driver:
-        one, _first, _two, _second = await _both_working(app, driver)
+        await _both_working(app, driver)
         told(app, event("reviewer/1", "ends"))
         await driver.pause()
 
         await driver.press("shift+tab")
         await driver.pause()
-        assert app._attached == f"{one.id}/1"
+        assert app._attached == "builder/1"
 
-        await driver.press(
-            "shift+tab"
-        )  # past the one that stopped, back to all of them
+        # Past the one that stopped, back to all of them.
+        await driver.press("shift+tab")
         await driver.pause()
-        assert app._attached == _EVERY
+        assert app._attached == EVERY
 
 
 @pytest.mark.timeout(60)
@@ -346,9 +372,8 @@ async def test_every_conversation_of_one_agent_runs_down_the_same_transcript() -
 
         await driver.press("tab")
         await driver.pause()
-        assert (
-            app._attached == _EVERY
-        )  # nothing is working, so there is nowhere to step
+        # Nothing is working, so there is nowhere to step.
+        assert app._attached == EVERY
         app._now_reading("builder")
         await driver.pause()
 
@@ -370,83 +395,85 @@ async def test_every_conversation_of_one_agent_runs_down_the_same_transcript() -
 
 
 @pytest.mark.timeout(60)
-async def test_a_typed_line_goes_to_the_agent_being_read() -> None:
+async def test_a_typed_line_is_said_to_the_conversation_being_read() -> None:
     """Which is the whole point: a flow drives several, and one of them is on the screen."""
     app = Humanize()
     async with app.run_test() as driver:
-        _one, first, two, second = await _both_working(app, driver)
+        await _both_working(app, driver)
 
         await driver.press("shift+tab")
         await driver.press("shift+tab")
         await driver.pause()
-        assert app._attached == f"{two.id}/1"
+        assert app._attached == "reviewer/1"
 
-        await driver.press(*"for the second")
-        await driver.press("enter")
-        await until(lambda: bool(second.put_in), driver)
+        await _types(driver, "for the second")
+        await until(lambda: bool(link(app).asked_for("say")), driver)
 
-        assert second.put_in == ["for the second"]
-        assert first.put_in == []  # not the one that happened to be working as well
-        assert app._given == [
-            (two.id, "for the second")
-        ]  # pinned against whoever has it
+        assert link(app).asked_for("say") == [
+            {"do": "say", "text": "for the second", "to": "reviewer/1"}
+        ]
 
 
 @pytest.mark.timeout(60)
-async def test_a_word_put_into_a_turn_is_kept_against_the_agent_that_took_it() -> None:
+async def test_a_line_typed_on_an_agent_s_own_is_said_to_that_agent() -> None:
+    """Its newest conversation with a turn open is the runs' to find, by the role."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _both_working(app, driver)
+        app._now_reading("builder")
+        await driver.pause()
+
+        await _types(driver, "for the builder")
+        await until(lambda: bool(link(app).asked_for("say")), driver)
+
+        assert link(app).asked_for("say")[0]["to"] == "builder"
+
+
+@pytest.mark.timeout(60)
+async def test_a_word_put_into_a_turn_is_kept_against_the_conversation_that_took_it() -> (
+    None
+):
     """It is part of that conversation, so it reads back as part of it wherever it was typed."""
     app = Humanize()
     async with app.run_test() as driver:
-        _one, _first, _two, second = await _both_working(app, driver)
+        await _both_working(app, driver)
 
-        # Typed while all of them are on the screen, and taken by the second agent.
-        await driver.press("shift+tab")
-        await driver.press("shift+tab")
-        await driver.pause()
-        await driver.press(*"try the other way")
-        await driver.press("enter")
-        await until(lambda: bool(second.put_in), driver)
-        told(app, event("reviewer/1", "took", "try the other way"))
+        told(
+            app,
+            {
+                "type": "said",
+                "run": 0,
+                "text": "try the other way",
+                "key": "reviewer/1",
+                "by": "you@tui",
+                "client": "c1",
+            },
+        )
         await driver.pause()
 
+        # On the one they all appear on, which is where the run is watched from.
         assert "try the other way" in transcript(app)
-        # And on the one they all appear on, which is where the run is watched from.
-        app._now_reading(_EVERY)
+        app._now_reading("reviewer/1")
         await driver.pause()
         assert "try the other way" in transcript(app)
+        app._now_reading("builder/1")
+        await driver.pause()
+        assert "try the other way" not in transcript(app)
 
 
 @pytest.mark.timeout(60)
-async def test_a_line_typed_with_every_agent_read_goes_to_whoever_is_working() -> None:
-    """There is no one agent to have meant, so it is the one the screen is showing."""
+async def test_a_line_typed_with_every_agent_read_is_said_to_all_of_them() -> None:
+    """There is no one agent to have meant, so the runs put it where a turn is open."""
     app = Humanize()
     async with app.run_test() as driver:
-        _one, first, _two, _second = await _both_working(app, driver)
+        await _both_working(app, driver)
 
-        await driver.press(*"anybody")
-        await driver.press("enter")
-        await until(lambda: bool(first.put_in), driver)
+        await _types(driver, "anybody")
+        await until(lambda: bool(link(app).asked_for("say")), driver)
 
-        assert first.put_in == ["anybody"]
-
-
-@pytest.mark.timeout(60)
-async def test_nothing_is_said_to_a_conversation_between_turns() -> None:
-    """One written to between turns would be answered on its own, outside the flow."""
-    app = Humanize()
-    async with app.run_test() as driver:
-        agent = SteerableAgent(CONFIG)
-        agent.rename("builder")
-        session = agent.new()  # open, and no turn in it
-        holding(app, agent)
-        app._models = {"builder": Runs("claude/m:high")}
-
-        await driver.press(*"and this")
-        await driver.press("enter")
-        await driver.pause()
-
-        assert session.put_in == []
-        assert app._queued == ["and this"]  # held for whichever turn starts next
+        assert link(app).asked_for("say") == [
+            {"do": "say", "text": "anybody", "to": EVERY}
+        ]
 
 
 @pytest.mark.timeout(60)
@@ -454,23 +481,22 @@ async def test_reading_nothing_at_all_is_a_key_that_does_nothing() -> None:
     """With no flow running there is nothing working, and a key that says so is in the way."""
     app = Humanize()
     async with app.run_test() as driver:
-        opened = transcript(app)
+        drawn = transcript(app)
 
         await driver.press("tab")
         await driver.press("shift+tab")
         await driver.pause()
 
-        assert app._attached == _EVERY
+        assert app._attached == EVERY
         assert app._reading() is None
         assert app.is_running
-        assert (
-            transcript(app) == opened
-        )  # nothing was drawn again, there being nothing to
+        # Nothing was drawn again, there being nothing to.
+        assert transcript(app) == drawn
 
 
 @pytest.mark.timeout(60)
 async def test_a_flow_starting_reads_the_transcript_they_are_all_on(
-    workspace: Path,
+    workspace: Path, hosting: None
 ) -> None:
     """What was being read belonged to a flow that has gone, and this is where a run starts."""
     app = Humanize()
@@ -482,7 +508,7 @@ async def test_a_flow_starting_reads_the_transcript_they_are_all_on(
 
         await _two_agents(app, driver, workspace)
 
-        assert app._attached == _EVERY
+        assert app._attached == EVERY
         assert "that flow has gone" in transcript(app)
         _let_go(workspace)
         await until(lambda: app._run is None, driver)
@@ -493,7 +519,7 @@ async def test_the_line_above_the_prompt_says_which_agent_and_how_many() -> None
     """What is being read has to be visible, and so does what is not, and who is working."""
     app = Humanize()
     async with app.run_test() as driver:
-        one, _first, two, _second = await _both_working(app, driver)
+        await _both_working(app, driver)
         app._draw()
         await driver.pause()
 
@@ -501,6 +527,8 @@ async def test_the_line_above_the_prompt_says_which_agent_and_how_many() -> None
         above = _above(app)
         assert above.count("●") == 2
         assert "reading" not in above
+        # What each runs is what the run was started with, whatever is set up here.
+        assert "reviewer · codex/n:high" in above
 
         # Nothing is unread while all of them are being read: it is on that screen too.
         told(app, event("reviewer/1", "text", "over here"))
@@ -511,7 +539,7 @@ async def test_the_line_above_the_prompt_says_which_agent_and_how_many() -> None
         # Read one of them, and what the other says is something to be told about.
         await driver.press("shift+tab")
         await driver.pause()
-        assert app._attached == f"{one.id}/1"
+        assert app._attached == "builder/1"
         assert "reading" in _above(app)
         told(app, event("reviewer/1", "text", "and again"))
         app._draw()
@@ -521,7 +549,7 @@ async def test_the_line_above_the_prompt_says_which_agent_and_how_many() -> None
         # And reading it is what makes it read.
         await driver.press("shift+tab")
         await driver.pause()
-        assert app._attached == f"{two.id}/1"
+        assert app._attached == "reviewer/1"
         assert "unread" not in _above(app)
 
         # An agent that has stopped says so, in the one mark on this line that moves itself.
@@ -561,12 +589,12 @@ async def test_a_question_the_agent_itself_put_reaches_the_person() -> None:
     """
     app = Humanize()
     async with app.run_test() as driver:
-        one, _first, two, _second = await _both_working(app, driver)
+        await _both_working(app, driver)
 
         await driver.press("shift+tab")
         await driver.press("shift+tab")
         await driver.pause()
-        assert app._attached == f"{two.id}/1"
+        assert app._attached == "reviewer/1"
 
         told(app, event("builder/1", "asks", "which way?", session=False))
         app._draw()
@@ -577,7 +605,7 @@ async def test_a_question_the_agent_itself_put_reaches_the_person() -> None:
 
         await driver.press("tab")
         await driver.pause()
-        assert app._attached == f"{one.id}/1"
+        assert app._attached == "builder/1"
         assert "which way?" in transcript(app)
 
 
@@ -588,11 +616,11 @@ async def test_the_diagram_reads_an_agent_that_is_not_working() -> None:
 
     app = Humanize()
     async with app.run_test() as driver:
-        one, _first, two, _second = await _both_working(app, driver)
+        await _both_working(app, driver)
         told(app, event("reviewer/1", "text", "then it stopped"))
         told(app, event("reviewer/1", "ends"))
         await driver.pause()
-        assert app._working_agents() == [one.id]  # so tab cannot reach the second
+        assert app._working_agents() == ["builder"]  # so tab cannot reach the second
 
         await driver.press("left")
         await until(
@@ -606,12 +634,12 @@ async def test_the_diagram_reads_an_agent_that_is_not_working() -> None:
         drawn = [
             str(boxes.get_option_at_index(at).id) for at in range(boxes.option_count)
         ]
-        assert drawn == [_EVERY, one.id, two.id]
+        assert drawn == [EVERY, "builder", "reviewer"]
 
         # Clicked rather than walked to: a box is drawn where it is in order to be pointed at.
         # Row nought is the one they all appear on, and a box is four rows under the one above.
         await driver.click(boxes, offset=(4, 1 + 4 + 4))
-        await until(lambda: app._attached == two.id, driver)
+        await until(lambda: app._attached == "reviewer", driver)
 
         assert "then it stopped" in transcript(app)
 
@@ -661,7 +689,7 @@ async def test_a_cleared_screen_still_says_which_agent_a_line_is_from() -> None:
     """The name is said once as it changes, so a screen cleared under one has to forget it."""
     app = Humanize()
     async with app.run_test() as driver:
-        one, _first, _two, _second = await _both_working(app, driver)
+        await _both_working(app, driver)
         told(app, event("builder/1", "text", "before the clear"))
         await driver.pause()
         app.action_clear()
@@ -673,9 +701,8 @@ async def test_a_cleared_screen_still_says_which_agent_a_line_is_from() -> None:
 
         shown = transcript(app)
         assert "after the clear" in shown
-        assert (
-            short(one.id) in shown
-        )  # said again, there being nothing above it that said it
+        # Said again, there being nothing above it that said it.
+        assert short("builder") in shown
 
 
 @pytest.mark.timeout(60)
@@ -689,7 +716,9 @@ async def test_a_run_still_unwinding_says_nothing_into_the_next_run_s_conversati
     """
     app = Humanize()
     async with app.run_test() as driver:
-        app._generation = 1  # a run has started since the one this is from
+        # A run has started since the one this is from.
+        record = started(1, roles=["builder"])
+        told(app, record, running(record))
         told(app, opened("builder/1", run=1), event("builder/1", "begins", run=1))
         told(app, event("builder/1", "text", "from the run before", run=0))
         await driver.pause()
@@ -716,30 +745,9 @@ async def test_what_is_kept_is_held_to_the_last_few_agents() -> None:
         assert len(app._kept) == _KEPT
         # The newest are the ones there is still any reason to read, and neither the one
         # being read nor the one they are all on is ever among what is dropped.
-        assert _EVERY in app._kept
+        assert EVERY in app._kept
         assert roles[-1] in app._kept
         assert roles[0] not in app._kept
-
-
-def _asks(
-    app: Humanize, question: Question
-) -> tuple[threading.Thread, list[str | None]]:
-    """Has the run put a question to the person, from a thread of its own as a run does.
-
-    Args:
-      app: The interface.
-      question: What is asked, and which outworlder asks it.
-
-    Returns:
-      The thread waiting on the answer, and what it was answered with once it has been.
-    """
-    answered: list[str | None] = []
-    generation = app._generation
-    asking = threading.Thread(
-        target=lambda: answered.append(app._outworlder_asks(generation, question))
-    )
-    asking.start()
-    return asking, answered
 
 
 @pytest.mark.timeout(60)
@@ -749,12 +757,11 @@ async def test_an_outworlder_asks_on_a_transcript_of_its_own_and_is_answered_the
     """What it puts to the person and nothing else, and a line typed there answers it."""
     app = Humanize()
     async with app.run_test() as driver:
-        await _both_working(app, driver)
+        await _both_working(app, driver, outworlders=["human"])
         told(app, event("builder/1", "text", "an agent's own line"))
-        asking, answered = _asks(
-            app, Question("which way?", ("north", "south"), asker="human")
-        )
-        await until(lambda: bool(app._asking), driver)
+        question = asked("q1", "human", "which way?", options=("north", "south"))
+        told(app, question, pending(question))
+        await driver.pause()
 
         # One stop of the ring, the last: backwards off all of them is where it is.
         assert app._ring()[-1] == "outworlder:human"
@@ -767,11 +774,36 @@ async def test_an_outworlder_asks_on_a_transcript_of_its_own_and_is_answered_the
         assert "an agent's own line" not in shown
         assert "asking" in _above(app)
 
-        await driver.press("2")
-        await driver.press("enter")
+        await _types(driver, "2")
+        await until(lambda: bool(link(app).asked_for("answer")), driver)
+        assert link(app).asked_for("answer") == [
+            {"do": "answer", "question": "q1", "text": "2"}
+        ]
+
+        # And what it was answered with is on its transcript once the runs say so.
+        told(app, _answered("q1", "human", "south"), pending())
         await driver.pause()
-        asking.join(5)
-        assert answered == ["south"]
+        assert "south" in transcript(app).split("which way?")[-1]
+        assert "asking" not in _above(app)
+
+
+@pytest.mark.timeout(60)
+async def test_an_answer_the_runs_refuse_leaves_the_question_to_answer_again() -> None:
+    """A line that answered nothing is said to have, and the next line answers it instead."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _both_working(app, driver, outworlders=["human"])
+        question = asked("q1", "human", "go on?")
+        told(app, question, pending(question))
+        link(app).answers["answer"] = {"ok": False, "why": "an answer says something"}
+        await _types(driver, "   x")
+        await until(lambda: "an answer says something" in transcript(app), driver)
+
+        assert app._answers_to() == pending(question)["pending"][0]
+        del link(app).answers["answer"]
+        await _types(driver, "yes")
+        await until(lambda: len(link(app).asked_for("answer")) == 2, driver)
+        assert not link(app).asked_for("say")
 
 
 @pytest.mark.timeout(60)
@@ -781,28 +813,28 @@ async def test_every_agent_s_transcript_answers_an_outworlder_and_a_conversation
     """Where all of them are is where every outworlder is answered; a conversation is said to."""
     app = Humanize()
     async with app.run_test() as driver:
-        _one, first, _two, _second = await _both_working(app, driver)
-        asking, answered = _asks(app, Question("go on?", asker="human"))
-        await until(lambda: bool(app._asking), driver)
+        await _both_working(app, driver, outworlders=["human"])
+        question = asked("q1", "human", "go on?")
+        told(app, question, pending(question))
+        await driver.pause()
         assert "go on?" in transcript(app)  # it opened on all of them, and it is there
 
         await driver.press("shift+tab")
         await driver.pause()
         assert "go on?" not in transcript(app)  # nor on a conversation's own
-        await driver.press(*"to the agent")
-        await driver.press("enter")
-        await until(lambda: bool(first.put_in), driver)
-        assert first.put_in == ["to the agent"]
-        assert app._asking  # still up, since that line went to the agent
+        await _types(driver, "to the agent")
+        await until(lambda: bool(link(app).asked_for("say")), driver)
+        assert link(app).asked_for("say")[0]["to"] == "builder/1"
+        assert app._pending  # still up, since that line went to the agent
 
         await driver.press("tab")
         await driver.pause()
-        assert app._attached == _EVERY
-        await driver.press(*"yes")
-        await driver.press("enter")
-        await driver.pause()
-        asking.join(5)
-        assert answered == ["yes"]
+        assert app._attached == EVERY
+        await _types(driver, "yes")
+        await until(lambda: bool(link(app).asked_for("answer")), driver)
+        assert link(app).asked_for("answer") == [
+            {"do": "answer", "question": "q1", "text": "yes"}
+        ]
 
 
 @pytest.mark.timeout(60)
@@ -810,13 +842,13 @@ async def test_an_ended_conversation_leaves_the_ring_and_can_still_be_read() -> 
     """Stepping is held to what is running, and the monitor reaches the rest by name."""
     app = Humanize()
     async with app.run_test() as driver:
-        one, _first, two, _second = await _both_working(app, driver)
+        await _both_working(app, driver)
         told(app, event("reviewer/1", "text", "said before it ended"))
         told(app, event("reviewer/1", "ends"))
         await driver.pause()
 
-        assert app._ring() == [_EVERY, f"{one.id}/1"]
-        app._now_reading(f"{two.id}/1")
+        assert app._ring() == [EVERY, "builder/1"]
+        app._now_reading("reviewer/1")
         await driver.pause()
         assert "said before it ended" in transcript(app)
 
@@ -826,30 +858,160 @@ async def test_a_line_on_one_outworlder_s_transcript_is_that_one_s_alone() -> No
     """Two waiting to be told what next, and the line goes to the one it was typed at."""
     app = Humanize()
     async with app.run_test() as driver:
-        holding(app)  # a run, and no turn open in it: each is told what to say next
-        alice, to_alice = _asks(app, Question("alice?", asker="alice"))
-        bob, to_bob = _asks(app, Question("bob?", asker="bob"))
-        await until(lambda: len(app._asking) == 2, driver)
+        # A run, and no turn open in it: each is told what to say next.
+        holding(app, outworlders=["alice", "bob"])
+        alice = asked("q1", "alice", "alice?", mode="listen")
+        bob = asked("q2", "bob", "bob?", mode="listen")
+        told(app, alice, bob, pending(alice, bob))
+        await driver.pause()
 
         app._now_reading("outworlder:bob")
-        await driver.press(*"for bob")
-        await driver.press("enter")
-        await driver.pause()
-        bob.join(5)
-        assert to_bob == ["for bob"]
-        assert alice.is_alive()  # still waiting, for a line of its own
+        await _types(driver, "for bob")
+        await until(lambda: bool(link(app).asked_for("answer")), driver)
+        assert link(app).asked_for("answer") == [
+            {"do": "answer", "question": "q2", "text": "for bob"}
+        ]
 
         # And one typed at an outworlder asking nothing is refused rather than left for
         # whichever outworlder reads the queue next.
-        await driver.press(*"for bob again")
-        await driver.press("enter")
-        await driver.pause()
-        assert "bob is not asking anything" in transcript(app)
-        assert app._queued == []
+        await _types(driver, "for bob again")
+        await until(lambda: "bob is not asking anything" in transcript(app), driver)
+        assert len(link(app).asked_for("answer")) == 1
+        assert not link(app).asked_for("say")
 
-        app._now_reading(_EVERY)
-        await driver.press(*"for alice")
-        await driver.press("enter")
+        app._now_reading(EVERY)
+        await _types(driver, "for alice")
+        await until(lambda: len(link(app).asked_for("answer")) == 2, driver)
+        assert link(app).asked_for("answer")[-1] == {
+            "do": "answer",
+            "question": "q1",
+            "text": "for alice",
+        }
+
+
+@pytest.mark.timeout(60)
+async def test_claiming_an_outworlder_asks_the_runs_and_is_drawn_as_yours() -> None:
+    """Typed on its own transcript, since which role is meant is the one being read."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        holding(app, outworlders=["human"])
+        app._now_reading("outworlder:human")
         await driver.pause()
-        alice.join(5)
-        assert to_alice == ["for alice"]
+
+        await _types(driver, "/claim")
+        await until(lambda: bool(link(app).asked_for("claim")), driver)
+        assert link(app).asked_for("claim") == [{"do": "claim", "role": "human"}]
+        await until(
+            lambda: "yours to answer, and nobody else's" in transcript(app), driver
+        )
+
+        told(app, _frontends(c1="you@tui"), snapshot("claims", claims={"human": "c1"}))
+        await driver.pause()
+        assert any(
+            "human · outworlder · yours" in one for one in app._outworlder_lines()
+        )
+
+        # Again, and it is given back: a switch, as `/afk` is.
+        await _types(driver, "/claim")
+        await until(lambda: bool(link(app).asked_for("release")), driver)
+        assert link(app).asked_for("release") == [{"do": "release", "role": "human"}]
+
+
+@pytest.mark.timeout(60)
+async def test_claiming_is_refused_off_an_outworlder_s_transcript() -> None:
+    """On the one every agent is on there is no one role for it to mean."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        holding(app, outworlders=["human"])
+
+        await _types(driver, "/claim")
+        await until(lambda: "/claim works on" in transcript(app), driver)
+
+        assert not link(app).asked_for("claim")
+
+
+@pytest.mark.timeout(60)
+async def test_a_role_another_frontend_holds_is_theirs_to_answer() -> None:
+    """Drawn as theirs, not answered here, and said to be theirs where it is typed at."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        holding(app, "builder/1", outworlders=["human"])
+        told(
+            app,
+            _frontends(c1="you@tui", c2="bob@tui"),
+            snapshot("claims", claims={"human": "c2"}),
+        )
+        question = asked("q1", "human", "which way?", owner="c2")
+        told(app, question, pending(question))
+        await driver.pause()
+
+        assert any(
+            "human · outworlder · bob@tui's" in one for one in app._outworlder_lines()
+        )
+        assert "bob@tui's to answer" in transcript(app)
+        # On the one every agent is on, it is not this interface's to answer: said instead.
+        assert app._answers_to() is None
+        await _types(driver, "a word for the run")
+        await until(lambda: bool(link(app).asked_for("say")), driver)
+        assert not link(app).asked_for("answer")
+
+        app._now_reading("outworlder:human")
+        await _types(driver, "mine")
+        await until(
+            lambda: "human is bob@tui's to answer, not yours" in transcript(app), driver
+        )
+        assert not link(app).asked_for("answer")
+
+        # And once they answer it, who did is on the transcript.
+        told(
+            app, _answered("q1", "human", "north", by="bob@tui", client="c2"), pending()
+        )
+        await driver.pause()
+        assert "north · by bob@tui" in transcript(app)
+
+
+@pytest.mark.timeout(60)
+async def test_a_role_taken_from_this_interface_says_whose_it_is_now() -> None:
+    """A take-over is said to the one it was taken from, once it is reading live."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        holding(app, outworlders=["human"])
+        told(
+            app,
+            _frontends(c1="you@tui", c2="bob@tui"),
+            snapshot("claims", claims={"human": "c1"}),
+            {"type": "live", "seq": 0, "elided": 0},
+        )
+        await driver.pause()
+
+        told(app, snapshot("claims", claims={"human": "c2"}))
+        await driver.pause()
+
+        assert "human is bob@tui's to answer now" in transcript(app)
+
+
+@pytest.mark.timeout(60)
+async def test_away_on_an_outworlder_s_transcript_is_asked_for_that_one_alone() -> None:
+    """Every one of them from where all of them are, one from its own transcript."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        holding(app, outworlders=["human"])
+        app._now_reading("outworlder:human")
+        await driver.pause()
+
+        await _types(driver, "/afk")
+        await until(lambda: bool(link(app).asked_for("afk")), driver)
+        assert link(app).asked_for("afk") == [
+            {"do": "afk", "on": True, "role": "human"}
+        ]
+        await until(lambda: "away as human" in transcript(app), driver)
+
+        # How it stands is the runs' to say, and the status line says it once they have.
+        told(app, snapshot("away", all=False, of={"human": True}))
+        await driver.pause()
+        assert app._away_marker() == "afk human"
+
+        app._now_reading(EVERY)
+        await _types(driver, "/afk off")
+        await until(lambda: len(link(app).asked_for("afk")) == 2, driver)
+        assert link(app).asked_for("afk")[-1] == {"do": "afk", "on": False}

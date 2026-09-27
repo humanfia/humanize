@@ -10,8 +10,6 @@ taken yet is kept against it up to a ceiling, and one that falls further behind 
 told so and let go of; every request is carried out on a thread of its own connection's,
 never on the one carrying everybody's bytes, because starting a flow imports it and an aside
 is a turn of an agent.
-
-The socket helpers the terminal half shares are here too, since this is the half that stays.
 """
 
 from __future__ import annotations
@@ -36,7 +34,6 @@ from hmz.daemon import where
 from hmz.daemon.proto import (
     CONTROL,
     GONE,
-    HELLO,
     MESSAGE,
     PROTOCOL,
     Frames,
@@ -83,15 +80,14 @@ class _Reading:
     """One socket on the other end of this daemon, and what has arrived off it so far.
 
     A socket is on the list from the moment it connects, before it has said what it is for: a
-    terminal says so with `HELLO`, a frontend with a `hello` request, and a question about the
-    runs with `CONTROL`. One record rather than a dict apiece, so that there is one list to
-    take a socket off rather than several to keep in step.
+    frontend says so with a `hello` request, and a question about the runs with `CONTROL`. One
+    record rather than a dict apiece, so that there is one list to take a socket off rather
+    than several to keep in step.
 
     Attributes:
       one: The socket.
       frames: What has been read off it that is not yet a whole frame.
-      joined: Whether it is a terminal or a frontend reading the runs, rather than one that
-        has not said.
+      joined: Whether it is a frontend reading the runs, rather than one that has not said.
       sending: What it has been sent that it has not taken yet.
       client: The frontend's client id, once it has said hello.
       lengths: How much of what it has not taken is each frame, oldest first, so that one
@@ -407,15 +403,17 @@ class Carrier:
                 name="humanize-control",
             ).start()
             return False
-        if kind == HELLO:
-            # A terminal, reaching for a run held on a pseudoterminal: there is none here.
-            with contextlib.suppress(OSError):
-                reading.one.sendall(
-                    frame(GONE, b"held for frontends; `hmz attach` reads it")
+        # Anything else is a reader speaking another protocol -- an older humanize's terminal,
+        # reaching for a run held on a pseudoterminal -- told so rather than left waiting.
+        with contextlib.suppress(OSError):
+            reading.one.sendall(
+                frame(
+                    GONE,
+                    b"held for frontends by a newer humanize; `hmz` of it reads it",
                 )
-            self._gone(selector, reading)
-            return False
-        return True
+            )
+        self._gone(selector, reading)
+        return False
 
     def _answers(self, reading: _Reading, said: dict[str, Any]) -> None:
         """Answers a question about the runs rather than a frontend reading them."""
