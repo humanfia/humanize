@@ -218,7 +218,6 @@ def test_one_is_taken_away_whole() -> None:
         ({"host": "h", "options": {"LogLevel": ""}}, "says nothing"),
         ({"host": "h", "options": {"SetEnv": 'A="b"'}}, "holds a quote"),
         ({"host": "h", "workdir": "relative/path"}, "neither absolute nor under"),
-        ({"host": "h", "config": f"{_NOBODY}/config"}, "under no home"),
         ({"host": "h", "made": "guessed"}, "not typed or imported"),
     ],
 )
@@ -243,7 +242,6 @@ def test_what_no_ssh_provider_could_be_is_refused(
         ({"endpoint": "ssh:../x"}, "is not a docker endpoint"),
         ({"endpoint": "context:"}, "is not a docker endpoint"),
         ({"tls_dir": "/certs"}, "for a tcp:// endpoint"),
-        ({"endpoint": "tcp://h:2376", "tls_dir": f"{_NOBODY}/certs"}, "under no home"),
         ({"image": "two words"}, "is not an image"),
         ({"runtime": "-x"}, "is not a runtime"),
         ({"gpus": ["0", "0"]}, "named twice"),
@@ -401,14 +399,41 @@ def test_a_tls_daemon_is_told_where_its_certificates_are() -> None:
     ]
 
 
-def test_a_provider_whose_home_has_gone_is_checked_without_raising() -> None:
-    """One written down while its home was there, asked after: said why, not raised."""
-    docker = DockerProvider(name="d", endpoint="tcp://10.0.0.3:2376", tls_dir="~/certs")
-    ssh = SSHProvider(name="s", host="h", config="~/config")
-    object.__setattr__(docker, "tls_dir", f"{_NOBODY}/certs")
-    object.__setattr__(ssh, "config", f"{_NOBODY}/config")
+def test_a_path_under_no_home_there_is_is_refused_where_it_is_written_down() -> None:
+    """A `~user` the machine has no user for is a provider nothing could reach."""
+    for provider in (
+        SSHProvider(name="s", host="h", config=f"{_NOBODY}/config"),
+        DockerProvider(name="d", endpoint="tcp://h:2376", tls_dir=f"{_NOBODY}/certs"),
+    ):
+        with pytest.raises(ValueError, match="under no home there is"):
+            store.add(provider)
+        with pytest.raises(ValueError, match="under no home there is"):
+            store.write(provider)
+    assert store.providers() == []
 
-    for provider in (docker, ssh):
+
+def test_a_provider_whose_home_has_gone_is_listed_and_checked_without_raising() -> None:
+    """One written down while its home was there: still listed, and asked, said why."""
+    for backend, name, field, path in (
+        ("docker", "d", "tls_dir", f"{_NOBODY}/certs"),
+        ("ssh", "s", "config", f"{_NOBODY}/config"),
+    ):
+        at = store.where(backend, name)
+        at.mkdir(parents=True)
+        held = (
+            {"endpoint": "tcp://10.0.0.3:2376"}
+            if backend == "docker"
+            else {"host": "h"}
+        )
+        (at / "provider.json").write_text(json.dumps({**held, field: path}))
+
+    listed = store.providers()
+
+    assert [(one.backend, one.name) for one in listed] == [
+        ("ssh", "s"),
+        ("docker", "d"),
+    ]
+    for provider in listed:
         checked = Hmz().environments.check(provider, seconds=5)
 
         assert not checked.reached

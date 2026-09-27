@@ -184,7 +184,7 @@ class SSHProvider:
         if self.proxy_jump and not _JUMP.match(self.proxy_jump):
             raise ValueError(f"{self.name}: {self.proxy_jump!r} is not a jump host")
         _text(self.identity_file, "the identity file")
-        _here(_text(self.config, "the config file"), "the config file")
+        _text(self.config, "the config file")
         _workdir(self.workdir)
         if self.made not in (TYPED, IMPORTED):
             raise ValueError(
@@ -297,7 +297,7 @@ class DockerProvider:
         _endpoint(self.endpoint)
         if self.tls_dir and not self.endpoint.startswith("tcp://"):
             raise ValueError(f"{self.name}: TLS certificates are for a tcp:// endpoint")
-        _here(_text(self.tls_dir, "the TLS directory"), "the TLS directory")
+        _text(self.tls_dir, "the TLS directory")
         if self.image and not re.fullmatch(r"[^\s]+", self.image):
             raise ValueError(f"{self.name}: {self.image!r} is not an image")
         if self.runtime and not _WORD.match(self.runtime):
@@ -599,7 +599,8 @@ def add(provider: EnvProvider) -> EnvProvider:
     """Writes a new provider down.
 
     Raises:
-      ValueError: If there is one of that backend under that name already.
+      ValueError: If there is one of that backend under that name already, or it names a
+        path under a home there is none of.
       OSError: If it cannot be written.
     """
     if find(provider.backend, provider.name) is not None:
@@ -616,8 +617,16 @@ def write(provider: EnvProvider) -> EnvProvider:
       It, as it is now written down.
 
     Raises:
+      ValueError: If it names a config file or certificates under a home there is none of,
+        which would be a provider nothing could reach. Refused here rather than where it is
+        made, so that one written down while its home was there is still listed -- and
+        checked, saying why -- once it has gone.
       OSError: If it cannot be written.
     """
+    if isinstance(provider, SSHProvider):
+        _here(provider.config, "the config file")
+    else:
+        _here(provider.tls_dir, "the TLS directory")
     at = where(provider.backend, provider.name)
     _kept(at)
     _writes(at / _HELD, json.dumps(provider.held(), indent=2) + "\n")

@@ -234,8 +234,8 @@ sent there.
 
 `reached` is `False` with `said` saying why where it did not answer in time, wanted a
 password, was not there, or can no longer be reached as it was saved: a `tls_dir` or `config`
-under a `~user` the machine has no user for is refused when the provider is made, and said
-here where the home went away after it was saved.
+under a `~user` the machine has no user for is refused by `add` and `write`, and one saved
+before its home went is still listed, and said here.
 
 ## `AnchoredConfig`
 
