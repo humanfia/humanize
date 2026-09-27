@@ -4,10 +4,11 @@ Five ways in, and they are two kinds of thing.
 
 Three of them *start* the serving half and take the pipe they started it down. ``local[:REAL]``
 runs it as a child of this process, where ``REAL`` is the directory standing in for the
-target's copy of the workspace; ``ssh://[user@]host[:port]`` and ``docker://container`` ship a
-self-contained zipapp of coganchor to the far side and run it there, needing nothing installed
-but a Python 3. Those three differ in one thing only -- how a command is run over there -- so
-they are one road with three prefixes, and :class:`Road` is that road.
+target's copy of the workspace; ``ssh://[user@]host[:port]`` and
+``docker://container[@endpoint]`` ship a self-contained zipapp of coganchor to the far side and
+run it there, needing nothing installed but a Python 3. Those three differ in one thing only --
+how a command is run over there -- so they are one road with three prefixes, and :class:`Road`
+is that road. A container's prefix names the daemon holding it, which :class:`Endpoint` is.
 
 Two of them *find* a serving half somebody else started. ``tcp://host:port`` dials one left
 listening. ``peer://TICKET@BROKER:PORT`` meets one through
@@ -47,6 +48,7 @@ if TYPE_CHECKING:
     from hmz.coganchor.rendezvous import Meeting
 
 __all__ = [
+    "Endpoint",
     "Road",
     "Target",
     "Transport",
@@ -194,6 +196,123 @@ def python_command(
     return ["/bin/sh", "-c", script, "humanize", *args]
 
 
+#: What a `docker` sent to any daemon but this machine's default is run without. Each of them
+#: would take the command somewhere its endpoint does not say: `DOCKER_HOST` and
+#: `DOCKER_CONTEXT` name another daemon, and the other three turn TLS on -- which no flag can
+#: turn off again, docker reading even `--tlsverify=false` as a request for it.
+_DOCKER_AMBIENT = (
+    "DOCKER_HOST",
+    "DOCKER_CONTEXT",
+    "DOCKER_TLS",
+    "DOCKER_TLS_VERIFY",
+    "DOCKER_CERT_PATH",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class Endpoint:
+    """Which docker daemon a container is reached through.
+
+    Written the way docker's own `--host` and `--context` write one, so that what a setting
+    says is what `docker` is told: `local` for docker's default here, `unix:///PATH`,
+    `tcp://HOST:PORT` with `?tls=DIR` for a verified one, `ssh://[USER@]HOST[:PORT]`, or
+    `context:NAME`. `ssh://` is docker's own transport, so it is the daemon's host that needs
+    an sshd and a `docker`, and never the container.
+
+    Attributes:
+      host: docker's `--host` for it, or "" for a context or for the default.
+      context: The docker context it is reached by, or "".
+      certs: For a `tcp://` host, the directory holding its `ca.pem`, `cert.pem` and `key.pem`
+        -- docker's own `DOCKER_CERT_PATH` layout -- or "" for plain TCP.
+    """
+
+    host: str = ""
+    context: str = ""
+    certs: str = ""
+
+    @classmethod
+    def parse(cls, spec: str) -> Endpoint:
+        """Reads an endpoint spelling.
+
+        Args:
+          spec: One of the five, or "" for `local`.
+
+        Returns:
+          The daemon it names.
+
+        Raises:
+          ValueError: If it is not one of them, or is one of them spelled wrongly.
+        """
+        if spec in ("", "local"):
+            return cls()
+        if spec.startswith("context:") and spec[len("context:") :]:
+            return cls(context=spec[len("context:") :])
+        if spec.startswith("unix:///"):
+            return cls(host=spec)
+        if spec.startswith("ssh://"):
+            authority = spec[len("ssh://") :]
+            if authority.rpartition("@")[2] and not set("/?#") & set(authority):
+                return cls(host=spec)
+        if spec.startswith("tcp://"):
+            address, asks, certs = spec[len("tcp://") :].partition("?tls=")
+            host, _, port = address.rpartition(":")
+            if host and port.isdigit() and (not asks or certs.startswith("/")):
+                return cls(host=f"tcp://{address}", certs=certs)
+        raise ValueError(
+            f"unsupported docker endpoint {spec!r}; expected local, unix:///PATH, "
+            "tcp://HOST:PORT[?tls=DIR], ssh://[USER@]HOST[:PORT] or context:NAME"
+        )
+
+    def __str__(self) -> str:
+        """Its own spelling back, which :meth:`parse` reads as this endpoint again."""
+        if self.context:
+            return f"context:{self.context}"
+        if self.certs:
+            return f"{self.host}?tls={self.certs}"
+        return self.host or "local"
+
+    @property
+    def here(self) -> bool:
+        """Whether the daemon is this machine's, and so sees the files this one does.
+
+        A socket is, and so is docker's default unless this process's `DOCKER_HOST` sends it
+        somewhere that is not one. A daemon reached over the network, over ssh, or through a
+        context -- which may be either -- is answered for as one that is not.
+        """
+        if self.context:
+            return False
+        host = self.host or os.environ.get("DOCKER_HOST", "")
+        return not host or host.startswith("unix://")
+
+    def docker(self, *argv: str) -> list[str]:
+        """The `docker` command that runs `argv` against this daemon and no other.
+
+        Docker's default is left to find itself, the way `docker` run by hand finds it. Any
+        other is said on the command line, with the variables that would redirect it taken
+        off on the way: every command for one container has to reach the daemon holding it,
+        whatever the environment of whichever process happens to be asking.
+
+        Args:
+          argv: The docker subcommand and its arguments.
+
+        Returns:
+          The argv to run here.
+        """
+        if not self.host and not self.context:
+            return ["docker", *argv]
+        said = ["--context", self.context] if self.context else ["--host", self.host]
+        if self.certs:
+            said += ["--tlsverify"]
+            for flag, pem in (
+                ("--tlscacert", "ca"),
+                ("--tlscert", "cert"),
+                ("--tlskey", "key"),
+            ):
+                said += [flag, os.path.join(self.certs, f"{pem}.pem")]
+        unset = [word for name in _DOCKER_AMBIENT for word in ("-u", name)]
+        return ["env", *unset, "docker", *said, *argv]
+
+
 @dataclass(frozen=True, slots=True)
 class Target:
     """Where the target is."""
@@ -225,8 +344,15 @@ class Target:
             if host and port.isdigit():
                 return cls("ssh", host=host, port=int(port))
             return cls("ssh", host=authority)
-        if spec.startswith("docker://") and (container := spec[len("docker://") :]):
-            return cls("docker", host=container)
+        if spec.startswith("docker://"):
+            # At the first `@`: a container's name cannot hold one, and an endpoint's can.
+            container, at, where = spec[len("docker://") :].partition("@")
+            if container and (where or not at):
+                # Kept as its own spelling, and none for the default -- so a target
+                # naming its daemon `local` is the same target as one naming none.
+                endpoint = Endpoint.parse(where)
+                spelled = "" if endpoint == Endpoint() else str(endpoint)
+                return cls("docker", host=container, path=spelled)
         if spec.startswith("tcp://"):
             host, _, port = spec[len("tcp://") :].rpartition(":")
             if not host or not port.isdigit():
@@ -238,8 +364,9 @@ class Target:
             met = Meeting.parse(spec[len("peer://") :])
             return cls("peer", host=met.host, port=met.port, path=met.ticket)
         raise ValueError(
-            f"unsupported target {spec!r}; expected ssh://HOST, docker://CONTAINER, "
-            "tcp://HOST:PORT, peer://TICKET@HOST:PORT or local[:PATH]"
+            f"unsupported target {spec!r}; expected ssh://HOST, "
+            "docker://CONTAINER[@ENDPOINT], tcp://HOST:PORT, peer://TICKET@HOST:PORT or "
+            "local[:PATH]"
         )
 
     def describe(self) -> str:
@@ -247,7 +374,7 @@ class Target:
         if self.scheme == "ssh":
             return f"ssh://{self.host}" + (f":{self.port}" if self.port else "")
         if self.scheme == "docker":
-            return f"docker://{self.host}"
+            return f"docker://{self.host}" + (f"@{self.path}" if self.path else "")
         if self.scheme == "tcp":
             return f"tcp://{self.host}:{self.port}"
         if self.scheme == "peer":
@@ -266,6 +393,17 @@ class Target:
         from hmz.coganchor.rendezvous import Meeting
 
         return Meeting(self.path, self.host, self.port)
+
+    @property
+    def endpoint(self) -> Endpoint:
+        """The daemon a `docker://` target's container is held by.
+
+        Raises:
+          ValueError: If this is not one, there being no daemon to answer with.
+        """
+        if self.scheme != "docker":
+            raise ValueError(f"{self.describe()} is not a container")
+        return Endpoint.parse(self.path)
 
 
 @dataclass(frozen=True, slots=True)
@@ -322,7 +460,7 @@ class Road:
         if target.scheme == "docker":
             return cls(
                 target,
-                ("docker", "exec", "-i", target.host),
+                tuple(target.endpoint.docker("exec", "-i", target.host)),
                 quotes=False,
                 cache=CONTAINER_CACHE,
                 mirrors=CONTAINER_MIRRORS,
@@ -439,6 +577,16 @@ class Road:
             _PUSHED.add(already)
         return where
 
+    def forget(self) -> None:
+        """Forgets that this machine was given the bundle, for one that has been replaced.
+
+        A container made again under a name one had before is a new machine holding nothing,
+        and the memo would otherwise answer for it with what the old one was given.
+        """
+        named = self.target.describe()
+        with _PUSHED_LOCK:
+            _PUSHED.difference_update([one for one in _PUSHED if one[0] == named])
+
     def _said(self) -> str:
         """The tail of what a container printed, for an error that does not say enough.
 
@@ -449,7 +597,7 @@ class Road:
         if self.target.scheme != "docker":
             return ""
         said = subprocess.run(
-            ["docker", "logs", "--tail", "3", self.target.host],
+            self.target.endpoint.docker("logs", "--tail", "3", self.target.host),
             capture_output=True,
             check=False,
         )
@@ -464,9 +612,10 @@ class Road:
 
 #: Which machines already hold which bundle, so that a road walked twice is not paid for
 #: twice. The target *whole* rather than its host, because two machines can answer to one
-#: name -- `ssh://box:2201` and `ssh://box:2202` are two of them -- and a memo that could not
-#: tell them apart is a second machine left without the archive it is about to be asked to
-#: run. And the digest, because a rebuilt bundle is a different file.
+#: name -- `ssh://box:2201` and `ssh://box:2202` are two of them, and so are two containers
+#: of one name on two daemons, which is why a container's spelling carries its endpoint -- and
+#: a memo that could not tell them apart is a second machine left without the archive it is
+#: about to be asked to run. And the digest, because a rebuilt bundle is a different file.
 _PUSHED: set[tuple[str, str]] = set()
 _PUSHED_LOCK = threading.Lock()
 

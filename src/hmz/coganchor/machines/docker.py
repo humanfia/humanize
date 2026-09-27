@@ -1,9 +1,16 @@
-"""A container of one image, holding the workspace at the path it already has here.
+"""A container of one image, holding the workspace at the path it already has on its host.
 
-The project directory is mounted rather than copied, and the container runs as the user who
-started the flow, so what a turn writes there is this user's file in this user's directory and
-survives the container it was written from. Everything else -- the tools, the interpreters, the
-libraries a command reaches for -- is the image's, which is what the isolation is.
+The project directory is mounted rather than copied, and the container runs as whoever owns
+it, so what a turn writes there is that user's file in that user's directory and survives the
+container it was written from. Everything else -- the tools, the interpreters, the libraries a
+command reaches for -- is the image's, which is what the isolation is.
+
+The daemon may be this machine's or another's: an :class:`~hmz.coganchor.transport.Endpoint`
+names it, and every command for the container goes to that daemon and no other. On a daemon
+elsewhere the workspace is a path on *its* host, so it is asked for there rather than looked
+for here. What the container may take of that host -- CPUs, memory, GPUs -- is said in the
+setting and written on the container as labels, so that whoever shares out a daemon can read
+back what is already taken with :func:`allocations`.
 
 Driven through the `docker` command rather than a client library, because that is what a turn
 reaches the container through: coganchor's `docker://` target runs its own half over
@@ -12,18 +19,29 @@ reaches the container through: coganchor's `docker://` target runs its own half 
 
 from __future__ import annotations
 
+import contextlib
+import csv
 import errno
+import io
+import json
 import os
+import posixpath
+import re
+import shutil
 import subprocess
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from hmz.coganchor import AnchorConfig
 from hmz.coganchor.places import ISOLATED, MANAGED, REMOTE
-from hmz.coganchor.transport import python_command
+from hmz.coganchor.transport import Endpoint, Road, Target, python_command
 
 from .base import MachineBase, MachineConfig
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 #: What the container does while the turns come and go: nothing, in the interpreter coganchor's
 #: target half needs, looked for the way that half looks for it -- the same machine and the
@@ -32,25 +50,108 @@ from .base import MachineBase, MachineConfig
 #: where it is set up rather than a turn later.
 _IDLE = tuple(python_command(["-c", "import time; time.sleep(2**31)"]))
 
+#: Asking a container whose the directory it was given is, in the same interpreter.
+_OWNER = "import os, sys; held = os.stat(sys.argv[1]); print(held.st_uid, held.st_gid)"
+
 #: Marks a container as one of ours, and whose, for whoever has to clean up after a flow that
 #: was killed before it could. Named for the project rather than for this layer, since it is
 #: read by whoever runs `docker ps`, to whom the layers are not a thing.
 _LABEL = "humanize"
 
+#: What a container was given of its daemon's host, written on it beside that: CPUs as a
+#: number, memory in bytes, and GPUs as their ids joined by commas or `all`.
+CPUS = "humanize.cpus"
+MEMORY = "humanize.memory"
+GPUS = "humanize.gpus"
+
+#: The kind of device an NVIDIA GPU is listed as, where the daemon lists them.
+_CDI = "nvidia.com/gpu"
+
+#: What docker takes as a container's name.
+_NAMED = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_.-]+")
+
+#: And what :data:`_OWNER` answers with.
+_OWNED = re.compile(r"(\d+) (\d+)\s*\Z")
+
 
 @dataclass(frozen=True, kw_only=True)
 class DockerConfig(MachineConfig):
-    """What the container is run from.
+    """What the container is run from, and on which daemon.
 
     Attributes:
-      image: The image to run, which needs a `python3` for coganchor's target half and whatever
-        else the agent is expected to reach for.
-      workspace: The project directory to give the container, defaulting to this one. It is the
-        directory itself that goes there, not a copy of it, so the work outlives the container.
+      image: The image to run, which needs `/bin/sh` and a Python of at least 3.12 for
+        coganchor's target half, and whatever else the agent is expected to reach for.
+      workspace: The project directory to give the container, as its daemon's host names it,
+        defaulting to this directory. It is the directory itself that goes there, not a copy
+        of it, so the work outlives the container.
+      endpoint: The daemon to run it on, as :class:`~hmz.coganchor.transport.Endpoint` reads
+        one: `local` for docker's default here, `unix:///PATH`, `tcp://HOST:PORT[?tls=DIR]`,
+        `ssh://[USER@]HOST[:PORT]` or `context:NAME`.
+      name: What to call the container, or None for a name of its own. A config that names
+        its container brings up one at a time: a second agent given it while the first still
+        holds the name is refused by docker.
+      cpus: How many of the host's CPUs it may use, or None for no limit.
+      memory: How many bytes of memory it may use, or None for no limit.
+      shm_size: How large its `/dev/shm` is, in bytes, or None for docker's default.
+      gpus: The ids of the GPUs it is given, as `nvidia-smi` names them, or `all`. None
+        reach it otherwise, even on a daemon whose runtime would hand an image asking for
+        them every one it has.
+      runtime: The OCI runtime to run it under, or None for the daemon's default.
+      network: The network to put it on, or None for the daemon's default.
+      env: Variables to set in it.
+      labels: Labels to put on it beside humanize's own, which are never taken from here:
+        what a container holds is read back off those, and they say only what it was given.
     """
 
     image: str = "python:3.12"
     workspace: str | None = None
+    endpoint: str = "local"
+    name: str | None = None
+    cpus: float | None = None
+    memory: int | None = None
+    shm_size: int | None = None
+    gpus: tuple[str, ...] | Literal["all"] = ()
+    runtime: str | None = None
+    network: str | None = None
+    # Left out of the hash, which the rest of the setting still answers for: a mapping has
+    # none, and a frozen setting that could not be hashed is one no set could hold.
+    env: Mapping[str, str] = field(default_factory=dict[str, str], hash=False)
+    labels: Mapping[str, str] = field(default_factory=dict[str, str], hash=False)
+
+    def __post_init__(self) -> None:
+        """Refuses what docker would refuse, where it is written rather than as it starts.
+
+        Raises:
+          ValueError: If the endpoint cannot be read, the name is not one docker takes, a
+            limit is not more than nothing, a GPU is not named, or a variable or a label
+            has no name.
+        """
+        Endpoint.parse(self.endpoint)
+        if self.name is not None and not _NAMED.fullmatch(self.name):
+            raise ValueError(f"unsupported container name {self.name!r}")
+        for what, limit in (
+            ("cpus", self.cpus),
+            ("memory", self.memory),
+            ("shm_size", self.shm_size),
+        ):
+            if limit is not None and limit <= 0:
+                raise ValueError(f"{what} must be more than nothing, not {limit!r}")
+        # Read as whatever it was handed, so that ids given as numbers are taken and a
+        # string that is not `all` is refused rather than read a character at a time.
+        gpus = cast("object", self.gpus)
+        if gpus != "all":
+            if not isinstance(gpus, tuple | list):
+                raise ValueError(f"gpus must be ids or 'all', not {gpus!r}")
+            ids = tuple(str(one) for one in cast("tuple[object, ...]", gpus))
+            if not all(ids) or any("," in one for one in ids):
+                raise ValueError(f"unsupported gpus {ids!r}; expected their ids")
+            object.__setattr__(self, "gpus", ids)
+        for key in (*self.env, *self.labels):
+            if not key or "=" in key:
+                raise ValueError(f"unsupported name {key!r}; expected one without '='")
+        # Copies, so the caller's own dictionary changing later does not change the setting.
+        object.__setattr__(self, "env", dict(self.env))
+        object.__setattr__(self, "labels", dict(self.labels))
 
     @property
     def capabilities(self) -> frozenset[str]:
@@ -83,6 +184,115 @@ class DockerConfig(MachineConfig):
         return Docker(self)
 
 
+@dataclass(frozen=True, slots=True)
+class Allocation:
+    """One of humanize's containers running on a daemon, and what it was given there.
+
+    Attributes:
+      name: The container.
+      cpus: The CPUs it may use, or None for no limit.
+      memory: The bytes of memory it may use, or None for no limit.
+      gpus: The GPUs it was given, or `all`.
+      labels: Every label it carries, humanize's own among them.
+    """
+
+    name: str
+    cpus: float | None
+    memory: int | None
+    gpus: tuple[str, ...] | Literal["all"]
+    labels: Mapping[str, str]
+
+
+def allocations(
+    endpoint: str = "local", labels: Mapping[str, str] | None = None
+) -> list[Allocation]:
+    """What humanize's running containers on one daemon hold of its host.
+
+    Whoever started them: a daemon is shared out between everybody using it, and a container
+    is holding its share whichever user's flow brought it up.
+
+    Args:
+      endpoint: The daemon to ask, spelled as :attr:`DockerConfig.endpoint` is.
+      labels: Labels a container must also carry to be counted, such as the provider it was
+        allocated from.
+
+    Returns:
+      One allocation per container, read off the labels it was started with.
+
+    Raises:
+      ValueError: If the endpoint cannot be read.
+      OSError: If the daemon cannot be asked.
+    """
+    where = Endpoint.parse(endpoint)
+    wanted = [f"label={_LABEL}"]
+    wanted += [f"label={key}={value}" for key, value in (labels or {}).items()]
+    listed = subprocess.run(
+        where.docker(
+            "ps",
+            "--quiet",
+            "--no-trunc",
+            *(word for one in wanted for word in ("--filter", one)),
+        ),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if listed.returncode != 0:
+        raise OSError(f"could not ask {where} what it runs: {listed.stderr.strip()}")
+    held = listed.stdout.split()
+    if not held:
+        return []
+    inspected = subprocess.run(
+        where.docker("inspect", *held), capture_output=True, text=True, check=False
+    )
+    # A container that went between the two questions is one docker names as missing while
+    # still answering for the rest; anything else it says it could not do is a daemon that
+    # was not asked, which is not the same as one with nothing on it.
+    trouble = [
+        line
+        for line in inspected.stderr.splitlines()
+        if line.strip() and "no such" not in line.lower()
+    ]
+    try:
+        if inspected.returncode != 0 and trouble:
+            raise ValueError(trouble)  # noqa: TRY301 -- answered with the parse failure below
+        found = cast("list[dict[str, Any]]", json.loads(inspected.stdout or "[]"))
+    except ValueError as why:
+        raise OSError(
+            f"could not ask {where} what it runs: {inspected.stderr.strip()}"
+        ) from why
+    return [_allocation(one) for one in found]
+
+
+def _allocation(inspected: Mapping[str, Any]) -> Allocation:
+    """What one container holds, as `docker inspect` said it."""
+    config = cast("dict[str, Any]", inspected.get("Config") or {})
+    said = {
+        str(key): str(value)
+        for key, value in cast("dict[str, Any]", config.get("Labels") or {}).items()
+    }
+    gpus = said.get(GPUS, "")
+    return Allocation(
+        name=str(inspected.get("Name", "")).lstrip("/"),
+        cpus=_number(said.get(CPUS), float),
+        memory=_number(said.get(MEMORY), int),
+        gpus="all" if gpus == "all" else tuple(one for one in gpus.split(",") if one),
+        labels=said,
+    )
+
+
+def _number[N: (int, float)](label: str | None, kind: type[N]) -> N | None:
+    """A label read as the number it should hold, or None where it holds none.
+
+    Rather than raising: a label is anybody's to write on a container, and one written wrong
+    on somebody else's must not stop every reader of the daemon from counting the rest.
+    """
+    try:
+        return kind(label) if label is not None else None
+    except ValueError:
+        return None
+
+
 class Docker(MachineBase):
     """One container, and the mirror the agent works in while its turns land there."""
 
@@ -92,21 +302,25 @@ class Docker(MachineBase):
         """Initializes a backend holding no container.
 
         Args:
-          config: The image and workspace the container is started with.
+          config: The image, the workspace and the daemon the container is started with.
         """
         super().__init__(config)
+        self._endpoint = Endpoint.parse(config.endpoint)
         self._mirror: tempfile.TemporaryDirectory[str] | None = None
-        self._name: str | None = None
+        self._told: dict[str, Any] | None = None
 
     def start(self) -> AnchorConfig:
         """Starts the container and asks it what it is holding.
 
         Returns:
-          The anchor that reaches it, which names the workspace by the path it has here.
+          The anchor that reaches it, which names the workspace by the path it has on the
+          daemon's host and the container by a target carrying that daemon.
 
         Raises:
           FileNotFoundError: If there is no workspace directory to give the container, or no
             `docker` to give it to.
+          ValueError: If the workspace on a daemon elsewhere is not an absolute path, which is
+            the only kind a path on another machine can be.
           RuntimeError: If the container cannot be started -- an image with no shell in it,
             or none holding a Python new enough, is refused here. What docker said is
             attached. Or if what came up is not the machine these settings promised, which
@@ -117,15 +331,28 @@ class Docker(MachineBase):
             process is what looks for one, so an image without one holds no container to
             serve from by the time this asks.
         """
-        # `abspath` rather than `Path.resolve`: what is mounted is the directory named, and
-        # a workspace reached through a symlink is not a request to mount what it points at.
-        workspace = os.path.abspath(self._config.workspace or os.getcwd())  # noqa: PTH100, PTH109
-        if not Path(workspace).is_dir():
-            # Said here because docker would not say it: a mount whose source is missing is
-            # created for you, owned by root, inside the directories this user owns.
-            raise FileNotFoundError(
-                errno.ENOENT, "no directory to give the container", workspace
-            )
+        config = self._config
+        endpoint = self._endpoint
+        if shutil.which("docker") is None:
+            # Asked here, since a `docker` reached through `env` is one whose absence would
+            # otherwise read as a container that would not start.
+            raise FileNotFoundError(errno.ENOENT, "no docker command here", "docker")
+        if endpoint.here:
+            # `abspath` rather than `Path.resolve`: what is mounted is the directory named,
+            # and a workspace reached through a symlink is not a request to mount what it
+            # points at.
+            workspace = os.path.abspath(config.workspace or os.getcwd())  # noqa: PTH100, PTH109
+            if not Path(workspace).is_dir():
+                raise FileNotFoundError(
+                    errno.ENOENT, "no directory to give the container", workspace
+                )
+        else:
+            workspace = posixpath.normpath(config.workspace or os.getcwd())  # noqa: PTH109
+            if not workspace.startswith("/"):
+                raise ValueError(
+                    f"a workspace on {endpoint} is a path on that machine, so it has to be "
+                    f"an absolute one, not {workspace!r}"
+                )
         # A mirror of its own, never the workspace: coganchor overwrites a mirror with what the
         # target has, and here the target's copy *is* the workspace, mounted rather than
         # mirrored. Nothing of the work lives in the mirror, so it goes with the container,
@@ -133,46 +360,54 @@ class Docker(MachineBase):
         self._mirror = tempfile.TemporaryDirectory(
             prefix="humanize-", ignore_cleanup_errors=True
         )
-        self._name = Path(self._mirror.name).name
+        name = config.name or Path(self._mirror.name).name
+        # Read back rather than written out, so a container on the default names no daemon
+        # whichever way that default was spelled.
+        target = Target.parse(f"docker://{name}@{endpoint}")
         try:
+            gpus, by_name = self._gpus()
             started = subprocess.run(
-                [
-                    "docker",
+                endpoint.docker(
                     "run",
                     "--detach",
+                    # Where docker writes the id of what it created, which is the one thing
+                    # `stop` may remove: a name somebody else's container already had is a
+                    # container this never made.
+                    "--cidfile",
+                    self._made(),
                     "--name",
-                    self._name,
-                    # Whose it is, so that sweeping up after a flow that was killed outright
-                    # cannot reach past this user on a machine several of them share.
-                    "--label",
-                    f"{_LABEL}={os.getuid()}",
+                    name,
+                    *self._labelled(),
                     "--user",
-                    f"{os.getuid()}:{os.getgid()}",
+                    self._whose(workspace),
                     "--workdir",
                     workspace,
-                    # No account inside the image answers to that uid, so home is said
-                    # outright, and away from the workspace: what a command caches is not the
-                    # project's.
-                    "--env",
-                    "HOME=/tmp",
-                    "--volume",
-                    f"{workspace}:{workspace}",
-                    self._config.image,
+                    *self._environment(visible=not gpus or by_name),
+                    # `--mount` rather than `--volume`, which would make a missing source
+                    # into a directory owned by root on a host nobody here can see.
+                    "--mount",
+                    _bound(workspace),
+                    *self._resources(),
+                    *gpus,
+                    config.image,
                     *_IDLE,
-                ],
+                ),
                 capture_output=True,
                 text=True,
                 check=False,
             )
             if started.returncode != 0:
-                # Raised here rather than below: everything in this block has a container
-                # behind it by now, and the handler is what takes that container back down.
+                # Raised here rather than below: everything in this block may have a
+                # container behind it by now, and the handler is what takes it back down.
                 raise RuntimeError(  # noqa: TRY301
-                    f"could not start a container of {self._config.image}: "
+                    f"could not start a container of {config.image} on {endpoint}: "
                     f"{started.stderr.strip()}"
                 )
+            # A container made just now holds no bundle, whatever one of the same name was
+            # given before it on this daemon.
+            Road.to(target).forget()
             anchor = AnchorConfig(
-                target=f"docker://{self._name}",
+                target=target.describe(),
                 workspace=workspace,
                 shadow=str(Path(self._mirror.name) / "shadow"),
             )
@@ -187,12 +422,195 @@ class Docker(MachineBase):
 
     def stop(self) -> None:
         """Removes the container and the mirror, leaving the workspace as the turns left it."""
-        if self._name is not None:
-            # A container that never started is one docker complains about and we do not.
+        if self._mirror is None:
+            return
+        try:
+            made = Path(self._made()).read_text().strip()
+        except OSError:
+            made = ""  # docker never got as far as making one
+        if made:
             subprocess.run(
-                ["docker", "rm", "--force", self._name],
+                self._endpoint.docker("rm", "--force", made),
                 capture_output=True,
                 check=False,
             )
-        if self._mirror is not None:
-            self._mirror.cleanup()
+        self._mirror.cleanup()
+
+    def _made(self) -> str:
+        """Where docker says which container it made, beside the mirror it is named for."""
+        assert self._mirror is not None  # noqa: S101 -- asked only once there is one
+        return str(Path(self._mirror.name) / "container")
+
+    def _labelled(self) -> list[str]:
+        """The labels: the caller's, then whose it is and what it holds of the host."""
+        config = self._config
+        # Whose it is, so that sweeping up after a flow that was killed outright cannot
+        # reach past this user on a machine several of them share. And none of humanize's
+        # own from the caller, even where the setting says nothing of its own under that
+        # name: a limit that is only a label is one `allocations` would count as taken.
+        said = {
+            key: value
+            for key, value in config.labels.items()
+            if key not in (_LABEL, CPUS, MEMORY, GPUS)
+        }
+        said[_LABEL] = str(os.getuid())
+        if config.cpus is not None:
+            said[CPUS] = f"{config.cpus:g}"
+        if config.memory is not None:
+            said[MEMORY] = str(config.memory)
+        if config.gpus:
+            said[GPUS] = "all" if config.gpus == "all" else ",".join(config.gpus)
+        return [
+            word
+            for key, value in said.items()
+            for word in ("--label", f"{key}={value}")
+        ]
+
+    def _environment(self, *, visible: bool) -> list[str]:
+        """Its variables: a home, the caller's, and no GPU but those handed it by name.
+
+        Args:
+          visible: Whether to say that the runtime is to add no GPU of its own -- which is
+            every time but when `--gpus` is what hands them out, that being docker saying
+            which GPUs in this same variable.
+        """
+        # No account inside the image answers to the user it runs as, so home is said
+        # outright, and away from the workspace: what a command caches is not the project's.
+        said = {"HOME": "/tmp", **self._config.env}  # noqa: S108
+        if visible:
+            # Last, so nothing outranks it. A daemon whose default runtime is NVIDIA's hands
+            # an image that sets this to `all` every GPU it has, asked for or not; `void` is
+            # the value that runtime reads as none of its own, leaving only the devices the
+            # daemon itself was asked for by name.
+            said["NVIDIA_VISIBLE_DEVICES"] = "void"
+        return [
+            word for key, value in said.items() for word in ("--env", f"{key}={value}")
+        ]
+
+    def _resources(self) -> list[str]:
+        """What it may take of the host, and what it runs under, GPUs aside."""
+        config = self._config
+        said: list[str] = []
+        if config.cpus is not None:
+            said += ["--cpus", f"{config.cpus:g}"]
+        if config.memory is not None:
+            said += ["--memory", str(config.memory)]
+        if config.shm_size is not None:
+            said += ["--shm-size", str(config.shm_size)]
+        if config.runtime:
+            said += ["--runtime", config.runtime]
+        if config.network:
+            said += ["--network", config.network]
+        return said
+
+    def _gpus(self) -> tuple[list[str], bool]:
+        """The GPUs it is given, and whether they are given by name.
+
+        Returns:
+          The flags, none for a container given none, and True where they name each device.
+        """
+        gpus = self._config.gpus
+        if not gpus:
+            return [], False
+        wanted = ("all",) if gpus == "all" else gpus
+        if {f"{_CDI}={one}" for one in wanted} <= self._devices():
+            # By name, where the daemon lists them: a device is the daemon's own to hand
+            # out, needing no runtime of NVIDIA's to be its default.
+            return [
+                word for one in wanted for word in ("--device", f"{_CDI}={one}")
+            ], True
+        # Quoted, since docker reads the value as a CSV row and two ids are two fields of it
+        # otherwise.
+        ids = ",".join(wanted)
+        return ["--gpus", "all" if gpus == "all" else f'"device={ids}"'], False
+
+    def _devices(self) -> set[str]:
+        """The devices the daemon can hand a container by name, or none it would say."""
+        listed = self._info().get("DiscoveredDevices")
+        if not isinstance(listed, list):
+            return set()  # a daemon too old to list any, or one listing none
+        return {
+            str(one.get("ID"))
+            for one in cast("list[dict[str, Any]]", listed)
+            if one.get("Source") == "cdi"
+        }
+
+    def _info(self) -> dict[str, Any]:
+        """What the daemon says of itself, asked once, or nothing where it would not say."""
+        if self._told is None:
+            said = subprocess.run(
+                self._endpoint.docker("info", "--format", "{{json .}}"),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            told: object = {}
+            if said.returncode == 0:
+                with contextlib.suppress(ValueError):
+                    told = json.loads(said.stdout)
+            self._told = cast("dict[str, Any]", told) if isinstance(told, dict) else {}
+        return self._told
+
+    def _whose(self, workspace: str) -> str:
+        """Who the container runs as: whoever owns the workspace, as `uid:gid`.
+
+        This user, on a daemon that is this machine's -- which for one running rootless, as
+        this user, is the container's own root. On another, the owner of the workspace on
+        *its* host, asked of a container of the same image given the same directory -- which
+        is also what finds that there is no such directory there, since a bind mount of
+        nothing is one docker refuses.
+
+        Raises:
+          FileNotFoundError: If the daemon's host has no such directory.
+          RuntimeError: If no container of the image could be asked.
+        """
+        if self._endpoint.here:
+            security = cast("list[str]", self._info().get("SecurityOptions") or [])
+            if any("name=rootless" in one for one in security):
+                return "0:0"
+            return f"{os.getuid()}:{os.getgid()}"
+        asked = subprocess.run(
+            self._endpoint.docker(
+                "run",
+                "--rm",
+                "--label",
+                f"{_LABEL}={os.getuid()}",
+                "--network",
+                "none",
+                "--mount",
+                _bound(workspace),
+                self._config.image,
+                *python_command(["-c", _OWNER, workspace]),
+            ),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        # The last line, since an image's entrypoint may have said something first.
+        owner = _OWNED.search(asked.stdout)
+        if asked.returncode == 0 and owner is not None:
+            return f"{owner[1]}:{owner[2]}"
+        why = asked.stderr.strip()
+        if "bind source path does not exist" in why:
+            raise FileNotFoundError(
+                errno.ENOENT,
+                f"no directory to give the container on {self._endpoint}",
+                workspace,
+            )
+        raise RuntimeError(
+            f"could not start a container of {self._config.image} on {self._endpoint}: "
+            f"{why or asked.stdout.strip()}"
+        )
+
+
+def _bound(workspace: str) -> str:
+    """The `--mount` giving a container the workspace at the path it already has.
+
+    Written as the CSV row docker reads it as, so a path holding a comma or a quote is one
+    field rather than several.
+    """
+    row = io.StringIO()
+    csv.writer(row, lineterminator="").writerow(
+        ["type=bind", f"source={workspace}", f"target={workspace}"]
+    )
+    return row.getvalue()

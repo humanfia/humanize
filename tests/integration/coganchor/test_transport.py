@@ -66,6 +66,9 @@ def test_target_parsing() -> None:
         "box",
         "http://box",
         "docker://",
+        "docker://box@",
+        "docker://@unix:///run/docker.sock",
+        "docker://box@nowhere",
         "tcp://box",
         "tcp://box:none",
         "peer://broker:9001",
@@ -82,6 +85,8 @@ def test_target_descriptions_round_trip() -> None:
     for spec in (
         "ssh://build-box",
         "docker://janus-9f2c",
+        "docker://janus-9f2c@ssh://me@gpu-box:2222",
+        "docker://janus-9f2c@tcp://10.0.0.5:2376?tls=/etc/docker-certs",
         "tcp://10.0.0.5:7777",
         "peer://cafe1234@broker.example:9001",
         "local:/srv/project",

@@ -75,7 +75,9 @@ takes, and lists the pitfalls, which all apply here.
 
 Code that builds agents by hand, outside a flow, can give an agent a container of an image you
 name, brought up on its first turn and taken down with it. It needs Linux and `docker` on this
-machine. That is Python below the flow API: see the [Machines reference](/reference/machines).
+machine; the daemon can be this machine's or one reached over a socket, TCP, ssh or a docker
+context, and the container can be given a share of its CPUs, memory and GPUs. No sshd is needed
+in the image. That is Python below the flow API: see the [Machines reference](/reference/machines).
 
 ::: warning A container is not a permission boundary
 An agent can still rewrite whatever is mounted into its container, your project included.

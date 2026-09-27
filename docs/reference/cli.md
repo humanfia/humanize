@@ -399,7 +399,7 @@ Everything after the agent's name is the agent's own.
 
 | Flag | Default | |
 | --- | --- | --- |
-| `--target URL` | `$HUMANIZE_TARGET`, else `local` | `ssh://HOST`, `docker://CONTAINER`, `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT`, or `local[:DIR]`. |
+| `--target URL` | `$HUMANIZE_TARGET`, else `local` | `ssh://HOST`, `docker://CONTAINER[@ENDPOINT]`, `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT`, or `local[:DIR]`. |
 | `--harness WHERE` | `$HUMANIZE_HARNESS`, else `local` | Where the agent process and the supervisor tracing it run: `local`, `same` (wherever `--target` is), or a target of their own. See [where the harness runs](/reference/remote-execution#where-the-harness-runs). |
 | `--broker HOST` | `$HUMANIZE_RENDEZVOUS`, else this machine's outward address | Where the two halves dial to be introduced, when `--harness` and `--target` name different machines. |
 | `--workspace PATH` | this directory | The project directory as it exists on the target. |

@@ -1,13 +1,14 @@
-"""The docker fixture, brought to where the tests that need a container now live.
+"""The docker fixtures, brought to where the tests that need a container now live.
 
-It stays declared in `tests/machines/fixtures.py`, next to the name of the image it looks for,
-because that name is also imported by the tests themselves. Re-exported rather than copied so
-that the skip a machine without docker gets is worded once: a second copy that drifted would
-be a container test reporting failure on a laptop that simply has no daemon running.
+They stay declared in `tests/machines/fixtures.py`, next to the name of the image they look
+for, because that name is also imported by the tests themselves. Re-exported rather than
+copied so that the skip a machine without docker gets is worded once: a second copy that
+drifted would be a container test reporting failure on a laptop that simply has no daemon
+running.
 """
 
 from __future__ import annotations
 
-from tests.machines.fixtures import daemon
+from tests.machines.fixtures import context, daemon, forwarded, sshd
 
-__all__ = ["daemon"]
+__all__ = ["context", "daemon", "forwarded", "sshd"]
