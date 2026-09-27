@@ -1,11 +1,15 @@
-"""The docker fixtures, brought to the flows tests that start containers of their own.
+"""The fixtures this directory's tests name, re-exported from where they are written.
 
-Re-exported rather than copied, as `tests/system/machines/conftest.py` does and for its reason:
-the skip a machine without docker gets is worded once, in `tests/machines/fixtures.py`.
+The docker fixtures are `tests/machines/fixtures.py`'s, re-exported rather than copied, as
+`tests/system/machines/conftest.py` does and for its reason: the skip a machine without docker
+gets is worded once there. `ssh_host` is `tests.flows.sshd`'s, which the regression matrix in
+`tests/system/matrix` takes back by name too: one sshd of the test's own, started one way, for
+both suites that need a host a real `ssh` reaches.
 """
 
 from __future__ import annotations
 
+from tests.flows.sshd import ssh_host
 from tests.machines.fixtures import daemon, forwarded, ssh_provider
 
-__all__ = ["daemon", "forwarded", "ssh_provider"]
+__all__ = ["daemon", "forwarded", "ssh_host", "ssh_provider"]

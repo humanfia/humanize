@@ -6,10 +6,11 @@ zipapp bootstrapped over a real ssh connection, its serving half started through
 driver contract run through what that opens -- with the master connection `ssh` keeps and
 every command riding it, as a host far away would have it.
 
-The host is `localhost` where ssh answers there without a password. Where it does not, it is
-an `sshd` of the test's own, started on a loopback port with keys made for it and reached
-through an `ssh` that is told about them -- nothing of the user's `~/.ssh` is read or written.
-It skips, saying why, on a machine with neither.
+The host is `tests.flows.sshd.ssh_host`: `localhost` where ssh answers there without a
+password, and otherwise an `sshd` of the test's own, started on a loopback port with keys
+made for it -- nothing of the user's `~/.ssh` is read or written. It skips, saying why, on a
+machine with neither. The regression matrix runs a real agent's turn on the same host, which
+is why the fixture is a helper both take back by name rather than a function written here.
 
 What the contract derives lands in humanize's home on the far side, which for `localhost` is
 the real `~/.humanize/envs` -- ssh carries none of this process's environment there -- so the
@@ -21,134 +22,19 @@ from __future__ import annotations
 
 import os
 import shutil
-import socket
 import subprocess
-import time
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING
 
 import psutil
 import pytest
 
-from hmz import home
 from hmz.runtime import Hmz
 from hmz.runtime.flowing.environing import MachineEnvDriver, home_of
 from hmz.runtime.flowing.environing_ssh import SSHMachine
 from hmz.runtime.flowing.environments import open_env, probe
 from hmz.runtime.flowing.specs import parse_envs
 from tests.flows.contracts import check_env_driver
-
-if TYPE_CHECKING:
-    from collections.abc import Iterator
-
-#: The name the sshd of the test's own is reached by.
-_ALIAS = "hmz-sshd-test"
-
-
-def _unreachable() -> str | None:
-    """Why `ssh localhost` does not answer without a password, or None when it does."""
-    try:
-        said = subprocess.run(
-            [
-                "ssh",
-                "-o",
-                "BatchMode=yes",
-                "-o",
-                "ConnectTimeout=10",
-                "localhost",
-                "true",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired) as error:
-        return f"`ssh localhost` could not be run: {error}"
-    if said.returncode:
-        why = said.stderr.strip() or f"exit {said.returncode}"
-        return f"passwordless ssh to localhost is not available ({why})"
-    return None
-
-
-def _free_port() -> int:
-    with socket.socket() as probing:
-        probing.bind(("127.0.0.1", 0))
-        return int(probing.getsockname()[1])
-
-
-def _keyed(at: Path) -> Path:
-    subprocess.run(
-        ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(at)],
-        check=True,
-        capture_output=True,
-    )
-    return at
-
-
-@pytest.fixture
-def ssh_host(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
-    """A host a real `ssh` reaches without a password: localhost, or an sshd of our own."""
-    why = _unreachable()
-    if why is None:
-        yield "localhost"
-        return
-    sshd = shutil.which("sshd") or shutil.which(
-        "sshd", path="/usr/sbin:/usr/local/sbin"
-    )
-    if sshd is None or shutil.which("ssh-keygen") is None:
-        pytest.skip(f"{why}, and there is no sshd here to start one of the test's own")
-    at = tmp_path / "sshd"
-    at.mkdir()
-    host_key, client_key = _keyed(at / "host_key"), _keyed(at / "client_key")
-    shutil.copy(f"{client_key}.pub", at / "authorized_keys")
-    port = _free_port()
-    (at / "sshd_config").write_text(
-        f"Port {port}\nListenAddress 127.0.0.1\nHostKey {host_key}\n"
-        f"AuthorizedKeysFile {at / 'authorized_keys'}\nPidFile {at / 'sshd.pid'}\n"
-        "UsePAM no\nStrictModes no\nPasswordAuthentication no\n"
-        "KbdInteractiveAuthentication no\nPubkeyAuthentication yes\n"
-        "AcceptEnv HUMANIZE_HOME\n"
-    )
-    (at / "ssh_config").write_text(
-        f"Host {_ALIAS}\n  HostName 127.0.0.1\n  Port {port}\n"
-        f"  IdentityFile {client_key}\n  IdentitiesOnly yes\n"
-        f"  UserKnownHostsFile {at / 'known_hosts'}\n  StrictHostKeyChecking no\n"
-        f"  SetEnv HUMANIZE_HOME={home()}\n  LogLevel ERROR\n"
-    )
-    ssh = shutil.which("ssh")
-    assert ssh is not None
-    wrapper = at / "bin" / "ssh"
-    wrapper.parent.mkdir()
-    wrapper.write_text(f'#!/bin/sh\nexec {ssh} -F {at / "ssh_config"} "$@"\n')
-    wrapper.chmod(0o755)
-    server = subprocess.Popen(
-        [sshd, "-D", "-e", "-f", str(at / "sshd_config")],
-        stdout=subprocess.DEVNULL,
-        stderr=(at / "sshd.log").open("w"),
-    )
-    try:
-        deadline = time.monotonic() + 20
-        while True:
-            try:
-                socket.create_connection(("127.0.0.1", port), timeout=1).close()
-                break
-            except OSError:
-                if server.poll() is not None or time.monotonic() > deadline:
-                    said = (at / "sshd.log").read_text().strip()
-                    pytest.skip(
-                        f"{why}, and an sshd of the test's own would not start: {said}"
-                    )
-                time.sleep(0.1)
-        monkeypatch.setenv("PATH", f"{wrapper.parent}{os.pathsep}{os.environ['PATH']}")
-        yield _ALIAS
-    finally:
-        server.terminate()
-        try:
-            server.wait(10)
-        except subprocess.TimeoutExpired:
-            server.kill()
-            server.wait()
+from tests.flows.sshd import ALIAS as _ALIAS
 
 
 def _git(cwd: Path, *argv: str) -> None:

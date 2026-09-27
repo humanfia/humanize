@@ -411,7 +411,13 @@ class HarnessDriver:
         from hmz.coganchor import backends
 
         command = self._profile.name if self._profile is not None else self._spec.cli
-        if backends.program(command) is None:
+        # A CLI somebody added runs the command it was added with -- the one its config was
+        # given, or the one written down when it was added -- which may be a path PATH does
+        # not name: `/opt/mimo/bin/mimo` is mimo, and is installed.
+        added = tuple(getattr(self._config, "command", ()) or ()) or (
+            backends.speaking().get(command) or ()
+        )
+        if backends.program(added[0] if added else command) is None:
             raise HarnessNotInstalled(
                 f"{command} is not installed here: {backends.installing(self._spec.cli)}"
             )

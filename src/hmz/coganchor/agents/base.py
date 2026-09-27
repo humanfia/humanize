@@ -2154,6 +2154,16 @@ class SessionBase(ABC):
         between them.
         """
 
+    def _excused(self) -> bool:
+        """Whether a turn whose command exited nonzero answered all the same, by its own records.
+
+        An exit status is the command's word on the turn, and nothing here second-guesses it
+        -- but for a backend whose records say more precisely than its status which failures
+        left an answer behind, and say it here. On every session rather than only on a
+        command's, because the command transport is borrowed by sessions that are not one.
+        """
+        return False
+
     def _lets_go(self) -> None:
         """Puts down whatever transport this turn is riding, from another thread than its own.
 
@@ -2786,7 +2796,8 @@ class CommandSessionBase(SessionBase):
                     # the command had already written is kept all the same -- it is the last
                     # thing the agent said before it stopped saying anything.
                     raise Failed(status, argv, stdout, str(wedged.stderr))
-                raise Failed(status, argv, stdout, "".join(err))
+                if not self._excused():
+                    raise Failed(status, argv, stdout, "".join(err))
             answered = self._result(stdout)
             if self._id is None:
                 # Separated, so that a stdout without a trailing newline cannot glue the first

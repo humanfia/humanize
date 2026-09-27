@@ -197,6 +197,14 @@ _WEB_TOOLS = ("web_search", "web_fetch")
 #: one: an agent that wrote about an API error would have written something else beside it.
 _REFUSED = re.compile(r"^\[API Error:(?P<said>.*)\]$", re.DOTALL)
 
+#: What Qwen Code says of a turn held to `--json-schema` whose model wrote its answer out as
+#: text rather than handing it to the `structured_output` tool the flag adds. The words are
+#: still the answer, and whether they are the shape is for whoever asked to check -- which
+#: humanize does of every shaped turn -- so this one refusal is not a failed turn: a model
+#: that answers `{"total": 42}` in prose has answered, and refusing it is refusing the shape
+#: for the channel it came down.
+_UNSHAPED = "Model produced plain text instead of calling the structured_output tool"
+
 #: What each kind of thing said reads as. `assistant` carries the agent talking and the tools
 #: it reached for in the one message; `result` is the turn's own answer and is read for what
 #: it cost rather than shown twice.
@@ -419,6 +427,12 @@ class QwenCodeSession(StreamSessionBase):
         #: on a tool has still answered.
         self._said = ""
         self._failed: str | None = None
+        #: The last thing the agent wrote in the turn now running, whole, which is the answer
+        #: a shaped turn gave where it wrote rather than handed it to its tool.
+        self._written = ""
+        #: Whether that is what the turn now running answered with, which Qwen Code exits
+        #: nonzero for.
+        self._unshaped = False
         #: What the turn now running has cost, and which parts of it have been shown -- one
         #: message is said once, and a stream that repeats it would show it twice.
         self._costing = Usage()
@@ -633,6 +647,7 @@ class QwenCodeSession(StreamSessionBase):
           The command and the prompt to write to it.
         """
         self._said, self._failed, self._shown = "", None, set()
+        self._written, self._unshaped = "", False
         self._costing = Usage()
         self._fragmented = False
         if self._id is None:
@@ -792,7 +807,11 @@ class QwenCodeSession(StreamSessionBase):
             self._total = Usage({**self._total, **total})
             if said.get("is_error"):
                 failed: dict[str, Any] = said.get("error") or {}
-                self._failed = str(failed.get("message") or "") or json.dumps(said)
+                message = str(failed.get("message") or "")
+                if message.startswith(_UNSHAPED) and self._written.strip():
+                    self._said, self._unshaped = self._written, True
+                else:
+                    self._failed = message or json.dumps(said)
 
     def _message(self, message: dict[str, Any]) -> Iterator[Event]:
         """Reads one message the model produced, which is text and tools together.
@@ -811,6 +830,9 @@ class QwenCodeSession(StreamSessionBase):
             if marked in self._shown:
                 return
             self._shown.add(marked)
+        # What the turn answered with is the last message's words, so an earlier message's --
+        # narration ahead of a tool, say -- is not left standing for a later one with none.
+        self._written = ""
         # Counted once where it is reported: each message carries one request's usage.
         self._costing = self._costing + self._cost(
             cast("dict[str, Any]", message.get("usage") or {})
@@ -822,12 +844,14 @@ class QwenCodeSession(StreamSessionBase):
             kind = str(part.get("type") or "")
             if kind == "tool_use":
                 yield Event(kind="tool", text=_called(part))
-            elif (says := _SAYS.get(kind)) is not None and not self._fragmented:
+            elif (says := _SAYS.get(kind)) is not None:
+                words = str(part.get("text") or part.get("thinking") or "")
+                if says == "text" and words.strip():
+                    self._written = words
                 # Said already, a fragment at a time, for a turn reading the partial stream:
                 # the finished message repeats every word of it, and the whole point of
                 # reading them early was to read them once.
-                words = str(part.get("text") or part.get("thinking") or "")
-                if words.strip():
+                if words.strip() and not self._fragmented:
                     yield Event(kind=says, text=words)
 
     def _fragment(self, event: dict[str, Any]) -> Iterator[Event]:
@@ -873,6 +897,10 @@ class QwenCodeSession(StreamSessionBase):
                 if counted.get(named) is not None
             }
         )
+
+    def _excused(self) -> bool:
+        """Whether the turn exited nonzero only for a shape it wrote out rather than handed over."""
+        return self._unshaped
 
     def _result(self, transcript: str) -> Event:
         """The turn's answer, and what it cost, out of the records it wrote.

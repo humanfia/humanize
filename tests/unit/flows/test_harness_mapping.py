@@ -285,6 +285,23 @@ def test_a_cli_nobody_added_is_not_installed() -> None:
         open_agent(spec)
 
 
+def test_a_cli_added_by_a_path_path_does_not_name_is_installed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """What it was added with is what runs, so that is what is looked for, not its name."""
+    runs = tmp_path / "opt" / "my-agent"
+    runs.parent.mkdir()
+    runs.write_text("#!/bin/sh\n")
+    runs.chmod(0o755)
+    monkeypatch.setenv("PATH", str(tmp_path / "nothing"))
+    added = backends.remember("", [str(runs), "acp"])
+    made = open_agent(AgentSpec("coder", HarnessKind.ACP, "", "m", "", added))
+
+    made._check_installed()
+
+    assert made._installed
+
+
 async def test_a_session_cannot_be_opened_in_a_workdir_that_is_not_there(
     tmp_path: Path,
 ) -> None:
