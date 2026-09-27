@@ -329,6 +329,10 @@ class ClaudeCodeSession(StreamSessionBase):
         self._at: str | None = None
         #: The id Claude says this session has, taken only once a turn has landed in it.
         self._named: str | None = None
+        #: Whether Claude is in the middle of an answer: it opens each with a `system init`
+        #: and closes it with a `result`. A word it takes in while one is open is answered
+        #: in that one; a word it takes in between two opens the next.
+        self._answering = False
         #: The agents this turn has started of its own, by the id of the call that started
         #: each: Claude ends one by answering that call, and what comes back names no tool,
         #: so what it was is remembered here until it does.
@@ -632,6 +636,7 @@ class ClaudeCodeSession(StreamSessionBase):
         # And whatever was under the turn the last process was taking: it went with it.
         self._fleet = {}
         self._reaching, self._announced = {}, set()
+        self._answering = False
         self._at = self.effort
         self._offering = self._telling
         self._gated = self._gating
@@ -830,12 +835,21 @@ class ClaudeCodeSession(StreamSessionBase):
             if said.get("state") == "started":
                 words = self.took(str(said.get("command_uuid") or ""))
                 if words is not None:
+                    if self._answering:
+                        # Taken into the answer under way -- a word put in while a tool ran,
+                        # read once the tool returned -- which the `result` ending it is the
+                        # answer to as well: no answer of its own is coming.
+                        with self._writing:
+                            self._folded += 1
                     yield Event(kind="took", text=words)
         elif said.get("type") == "system" and said.get("session_id"):
+            if said.get("subtype") == "init":
+                self._answering = True
             # Noted, not taken: this is the first line out, said before anything can go
             # wrong, and a session is only opened by a turn that lands in it.
             self._named = str(said["session_id"])
         elif said.get("type") == "result":
+            self._answering = False
             if failure := _result_failure(said):
                 # Claude has emitted `subtype: success` with `is_error: true`, so neither
                 # field is sufficient alone. The remaining reasons also guard a malformed
