@@ -13,7 +13,7 @@ asked to:
   of a second, and takes a word put in mid-turn as the end of it. `claude` answers the turn
   and then the word, each with an answer of its own -- but for `slow tool`, a turn in a tool
   call, where it reads the word once the tool returns and answers both at once, as the real
-  one does.
+  one does. `merge` holds off two seconds, and answers a word put in meanwhile with the turn.
 - `use a tool` reaches for `Bash` -- asking permission where the CLI asks -- and answers
   `allowed` or `denied: <why>`; `ask me` asks its user `Which way?` and answers what it was
   told; `delegate` starts a subagent.
@@ -176,6 +176,23 @@ def turn(said):
              "session_id": session, "result": why})
         print(why, file=sys.stderr, flush=True)
         sys.exit(1)
+    if said.startswith("merge"):
+        # A word put in before the turn has started is merged into it, and the two are
+        # answered once -- as Claude merges what queues up before it begins.
+        more = take(2.0)
+        if more is None:
+            sys.exit(0)
+        if not more:
+            result("merge done")
+            return
+        words = more["message"]["content"][0]["text"]
+        # Said to have been taken before the answer that takes both opens.
+        out({"type": "command_lifecycle", "state": "started",
+             "command_uuid": more.get("uuid", "")})
+        out({"type": "system", "subtype": "init", "session_id": session})
+        speak("heard " + words)
+        result(answered(words))
+        return
     if said.startswith("slow tool"):
         # A word put in while a tool runs is read with what the tool returned, and answered
         # in the same answer as the turn: one `result` for the two.
@@ -264,8 +281,10 @@ while True:
         continue
     text = said["message"]["content"][0]["text"]
     note({"said": text, "session": session})
-    # Every answer opens with this, as the real one's does: not once for the process.
-    out({"type": "system", "subtype": "init", "session_id": session})
+    # Every answer opens with this, as the real one's does: not once for the process. The
+    # one that merges a word in opens once it has the word.
+    if not text.startswith("merge"):
+        out({"type": "system", "subtype": "init", "session_id": session})
     turn(text)
 """
 )

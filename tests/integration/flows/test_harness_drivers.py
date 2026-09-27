@@ -457,22 +457,22 @@ async def test_a_queued_steer_is_taken_into_the_turn_in_flight(
         await driver.close()
 
 
-async def test_a_steer_claude_reads_as_its_tool_returns_ends_the_turn_on_one_answer(
-    clis: Logs, work: Placement
+@pytest.mark.parametrize("prompt", ["slow tool, please", "merge, please"])
+async def test_a_steer_claude_answers_with_the_turn_ends_the_turn_on_one_answer(
+    clis: Logs, work: Placement, prompt: str
 ) -> None:
-    """A word put in while a tool runs is answered with the turn, not after it.
+    """A word Claude takes into the answer it is giving is answered with it, not after it.
 
-    Claude reads it once the tool returns and answers the turn and the word in one answer,
-    where a word put in while it is writing gets an answer of its own. A turn counting one
-    answer per thing said waited for a second that was never coming.
+    Claude reads a word put in while a tool runs once the tool returns, and merges one put in
+    before it has started on the prompt; either way the turn and the word get one answer,
+    where a word put in while it is writing gets one of its own. A turn counting one answer
+    per thing said waited for a second that was never coming.
     """
     del clis
     driver = open_agent(SPECS[HarnessKind.CLAUDE])
     try:
         handle = await _open(driver, work)
-        turning = asyncio.create_task(
-            handle.turn(TurnRequest("slow tool, please"), RecordingSink())
-        )
+        turning = asyncio.create_task(handle.turn(TurnRequest(prompt), RecordingSink()))
         await asyncio.sleep(0.5)
         await handle.steer("Reply with the single word: turned", queued=True)
         assert await asyncio.wait_for(turning, 30) == "turned"
