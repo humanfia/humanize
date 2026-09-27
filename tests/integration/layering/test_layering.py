@@ -17,7 +17,7 @@ has not got one for -- so the serving half must not reach the rest of `coganchor
 anything a caller imports to configure one.
 
 The rules are on the layers alone. Above them sit the ways in: the interface, which reaches
-the runtime through the daemon holding the run it is drawing, and the command line, which
+the runtime through the daemon holding the runs it is a frontend of, and the command line, which
 joins them and so may name any of them -- and which is checked instead by what a run of it
 actually loads. `sdk` is above all of it and is the way in from outside; what says so is that
 nothing below it names it.
@@ -146,12 +146,12 @@ ALLOWED: dict[str, set[str]] = {
         "hmz.runtime.telemetry",
         "hmz.runtime.tracing",
     },
-    # The run held where a terminal closing cannot end it. How one is opened is still none of
-    # its business -- it is handed something that opens one and returns when it is over -- but
-    # what a run is, is: this is the process a run of the workspace happens in, so it is where
-    # the runtime is reached from, and what is running here is a question it answers itself.
-    # The front door and nothing past it, so that the half of humanize which is a process and
-    # a socket costs the layers it asks and not the ones beside them.
+    # A workspace's runs held where a terminal closing cannot end them. What a run is, is the
+    # runtime's -- the daemon holds its `Host` and carries messages between it and the
+    # frontends on its socket -- so it is where the runtime is reached from, and what is
+    # running here is a question it answers itself. The front door and nothing past it, so
+    # that the half of humanize which is a process and a socket costs the layers it asks and
+    # not the ones beside them.
     "hmz.daemon": {"hmz.runtime"},
     "hmz.tui": {
         # The agents, the facts about them, the accounts they run as, what a turn falls back
@@ -177,19 +177,20 @@ ALLOWED: dict[str, set[str]] = {
         # thing here with somebody to ask -- and where what it does that nobody meant is
         # noticed. The reporter names nothing above itself.
         "hmz.runtime.telemetry",
-        # What holds a run where a terminal closing cannot end it, and through it humanize as
-        # one object: what starts a flow, gathers a trace of one that has ended, and walks
-        # every store the sheets show. Everything the interface does rather than draws is
-        # asked of it -- which is why the runner and what humanize remembers are not named
-        # here: the sheets reach both through this and nothing here may reach past it to
-        # them. Through the daemon and not around it because a run of this workspace is held
-        # in a process of its own and this interface is what is drawing in it -- so the thing
-        # holding the run is the thing it asks, and a run held apart from a terminal and a run
-        # in the terminal somebody typed `hmz` in are one interface rather than two.
+        # What holds a workspace's runs where a terminal closing cannot end them, and through
+        # it humanize as one object: what gathers a trace of a run that has ended, and walks
+        # every store the sheets show. Everything the interface does to a run is a request
+        # through the daemon's `Link`, and everything else it does rather than draws is asked
+        # of `Hmz` handed through here -- which is why the runner and what humanize remembers
+        # are not named here: the sheets reach both through this and nothing here may reach
+        # past it to them. Through the daemon and not around it because the runs this
+        # interface reads are the host's, in this process or in one of its own -- so runs
+        # held apart from a terminal and runs in the terminal somebody typed `hmz` in are one
+        # interface rather than two.
         "hmz.daemon",
     },
-    # How a tool that is not humanize reaches humanize: the runtime, straight at it, and a run
-    # held apart from a terminal, reached over the socket beside it. Nothing below names it,
+    # How a tool that is not humanize reaches humanize: the runtime, straight at it, and runs
+    # held apart from a terminal, reached over the socket beside them. Nothing below names it,
     # which is what tells a seam somebody outside reaches in through from a seam every way in
     # has to pass through -- it composes nothing and restates nothing, and hands through what
     # the two front doors under it already offer.

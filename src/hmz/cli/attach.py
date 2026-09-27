@@ -343,10 +343,7 @@ def attach(argv: list[str]) -> int:
         print("hmz attach: nothing is being held in this directory", file=sys.stderr)
         return 1
     if not found.protocol:
-        print(
-            "hmz attach: the run here is held for a terminal; `hmz` opens it",
-            file=sys.stderr,
-        )
+        print(f"hmz attach: {daemon.older(found)}", file=sys.stderr)
         return 1
     try:
         link = found.link(kind="cli")

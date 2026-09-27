@@ -1,100 +1,86 @@
-"""Side questions read a flow without becoming turns of that flow."""
+"""Side questions read a flow without becoming turns of that flow.
+
+A side conversation is the runs' to open -- a read-only fork of a session where its CLI forks,
+a seeded copy where it does not, the btw agent otherwise -- and the Host's tests are where that
+is checked. What is checked here is what the interface asks for and what it draws: which side
+it opens for the view it is on, what it says to it, the `@ask` hops of the btw agent, and
+closing what it opened when btw mode is left. The runs are a `FakeLink` that opens sides and
+answers their turns as told.
+"""
 
 from __future__ import annotations
 
 import asyncio
-import gc
 import time
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from hmz.coganchor.agents import AgentBase, AgentConfig, Event, SessionBase
-from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.app import _COMMANDS
-from hmz.tui.btw import asked, format_snapshot
+from hmz.tui.btw import HOPS, asked, format_snapshot
 from hmz.tui.pick import Adjusted, Adjusts
-from tests.tui.fixtures import holding, transcript
+from tests.tui.fixtures import FakeLink, holding, idle, told, transcript
 
 if TYPE_CHECKING:
-    import os
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable
 
-    from pydantic import BaseModel
     from textual.pilot import Pilot
 
 
-CONFIG = AgentConfig(model="m", effort="high")
-
-
 def _plain(prompt: str) -> str:
-    """What every side session here answers, whatever it was asked."""
+    """What every side conversation here answers, whatever it was asked."""
     del prompt
     return "The builder is checking the test suite."
 
 
-class SideSession(SessionBase):
-    """A deterministic session that records each prompt, and the session it went to."""
+class Sides(FakeLink):
+    """Runs that open side conversations and answer their turns as a test says.
 
-    prompts: ClassVar[list[str]] = []
-    heard: ClassVar[list[tuple[SessionBase, str]]] = []
-    reply: ClassVar[Callable[[str], str]] = staticmethod(_plain)
-    closed: ClassVar[list[SessionBase]] = []
+    Attributes:
+      opened: What each side was opened with, by the side it became.
+      turns: Every turn, as the side it went to and the prompt it was.
+      reply: What a side answers a prompt with.
+      forks: Whether a side opened on a session is a fork of it, as the runs say.
+      refusing: Why the runs refuse every side, or "" where they refuse none.
+    """
 
-    def _stream(
-        self, prompt: str, *, schema: type[BaseModel] | None = None
-    ) -> Iterator[Event]:
-        del schema
-        self.prompts.append(prompt)
-        self.heard.append((self, prompt))
-        yield Event(kind="result", text=type(self).reply(prompt))
+    def __init__(self) -> None:
+        super().__init__()
+        self.opened: dict[str, dict[str, Any]] = {}
+        self.turns: list[tuple[str, str]] = []
+        self.reply: Callable[[str], str] = _plain
+        self.forks = False
+        self.refusing = ""
 
-    def close(self) -> None:
-        self.closed.append(self)
-        super().close()
-
-
-class SideAgent(AgentBase):
-    """An agent whose side turns never touch the filesystem."""
-
-    def new(self, cwd: str | os.PathLike[str] | None = None) -> SideSession:
-        return SideSession(self, cwd)
-
-
-class MainSession(SideSession):
-    """A held primary session, distinguishable from the side session."""
-
-
-class MainAgent(SideAgent):
-    def new(self, cwd: str | os.PathLike[str] | None = None) -> MainSession:
-        return MainSession(self, cwd)
-
-
-class ForkingSession(MainSession):
-    """A primary session whose CLI can carry it into a second conversation."""
+    def _answering(self, said: dict[str, Any], seconds: float | None) -> dict[str, Any]:
+        if said.get("do") != "aside":
+            return super()._answering(said, seconds)
+        self.requests.append(said)
+        if self.refusing:
+            return {"ok": False, "why": self.refusing}
+        side = said.get("side")
+        if side:
+            self.turns.append((str(side), str(said["prompt"])))
+            return {"ok": True, "answer": self.reply(str(said["prompt"]))}
+        opened = f"s{len(self.opened) + 1}"
+        self.opened[opened] = said
+        return {
+            "ok": True,
+            "side": opened,
+            "forked": self.forks and bool(said.get("fork")),
+        }
 
     @property
-    def forks(self) -> bool:
-        return True
+    def prompts(self) -> list[str]:
+        """Every prompt a side was told, in order."""
+        return [prompt for _, prompt in self.turns]
 
-
-class ForkingAgent(SideAgent):
-    def new(self, cwd: str | os.PathLike[str] | None = None) -> SideSession:
-        # Its own conversations fork; the ones made for a fork of it are plain side ones.
-        return (ForkingSession if not self.sessions else SideSession)(self, cwd)
-
-
-@pytest.fixture(autouse=True)
-def _fresh() -> Iterator[None]:
-    """Each test reads only the prompts it sent itself."""
-    SideSession.prompts.clear()
-    SideSession.heard.clear()
-    SideSession.closed.clear()
-    yield
-    _HELD.clear()
-    SideSession.reply = staticmethod(_plain)
+    @property
+    def closed(self) -> list[str]:
+        """Every side the interface closed."""
+        return [str(one["side"]) for one in self.asked_for("unaside")]
 
 
 async def until(ready: Callable[[], bool], driver: Pilot[None]) -> None:
@@ -117,120 +103,138 @@ def status(app: Humanize) -> str:
     return str(app.query_one("#status").render())
 
 
-#: The primary conversations made here, held: an agent holds its own only weakly.
-_HELD: list[SessionBase] = []
-
-
-def building(session: type[MainAgent | ForkingAgent] = MainAgent) -> AgentBase:
-    """A primary agent named for its role, with one conversation that has had a turn."""
-    primary = session(CONFIG)
-    primary.rename("builder")
-    held = primary.new()
-    held._id = "primary-1"
-    _HELD.append(held)
-    return primary
-
-
 @pytest.mark.timeout(60)
 async def test_btw_is_offered_and_does_not_enqueue_a_primary_message() -> None:
     """The command is a side turn, not another line for the running flow."""
-    app = Humanize()
-    primary = building()
-    holding(app, primary)
-    app._models = {"builder": Runs("claude/m:high")}
-    app._queued = ["keep working"]
-    app._given = [(primary.id, "already handed")]
-    app._monitor.begins(primary.id, "m")
-    before_sessions = list(primary.sessions)
-
+    sides = Sides()
+    app = Humanize(link=sides)
     async with app.run_test() as driver:
+        holding(app, "builder/1")
+        app._monitor.begins("builder", "m")
         await typed(driver, "/btw what is happening?")
         await until(lambda: "The builder is checking" in transcript(app), driver)
 
-        assert app._queued == ["keep working"]
-        assert app._given == [(primary.id, "already handed")]
-        assert primary.sessions == before_sessions
-        assert len(SideSession.prompts) == 1
-        assert "what is happening?" in SideSession.prompts[0]
-        assert "finished: no" in SideSession.prompts[0]
-        assert "builder/1" in SideSession.prompts[0]
+        assert not sides.asked_for("say")
+        # The btw agent, a copy of the flow's first agent, opened on nothing of its own.
+        [opened] = sides.opened.values()
+        assert opened["key"] == "builder/1"
+        assert not opened.get("fork")
+        [prompt] = sides.prompts
+        assert "what is happening?" in prompt
+        assert "finished: no" in prompt
+        assert "builder/1" in prompt
+
+
+@pytest.mark.timeout(60)
+async def test_the_btw_agent_set_in_settings_is_the_one_opened() -> None:
+    """An agent as `/settings` names it, rather than a copy of one the flow runs."""
+    Settings().btw = "claude@work/m:high"
+    sides = Sides()
+    app = Humanize(link=sides)
+    async with app.run_test() as driver:
+        holding(app, "builder/1")
+        await typed(driver, "/btw what now?")
+        await until(lambda: bool(sides.turns), driver)
+
+        [opened] = sides.opened.values()
+        assert opened["runs"] == "claude@work/m:high"
+        assert "key" not in opened
 
 
 @pytest.mark.timeout(60)
 async def test_btw_mode_is_one_conversation_until_it_is_left() -> None:
-    """Each line typed in btw mode is one more turn of the same side session."""
-    app = Humanize()
-    primary = building()
-    holding(app, primary)
-
+    """Each line typed in btw mode is one more turn of the same side conversation."""
+    sides = Sides()
+    app = Humanize(link=sides)
     async with app.run_test() as driver:
+        holding(app, "builder/1")
         await typed(driver, "/btw")
         assert "btw · btw agent" in status(app)
         await typed(driver, "first?")
-        await until(lambda: len(SideSession.heard) == 1, driver)
+        await until(lambda: len(sides.turns) == 1, driver)
         await until(lambda: not app._btw or not app._btw.busy, driver)
         await typed(driver, "second?")
-        await until(lambda: len(SideSession.heard) == 2, driver)
+        await until(lambda: len(sides.turns) == 2, driver)
 
-        (one, first), (two, second) = SideSession.heard
-        assert one is two
+        (one, first), (two, second) = sides.turns
+        assert one == two
         assert "<flow_snapshot>" in first
         assert "<flow_snapshot>" not in second
         assert "second?" in second
         # Neither went to the flow.
-        assert app._queued == []
+        assert not sides.asked_for("say")
 
         await driver.press("escape")
-        await driver.pause()
+        await until(lambda: bool(sides.closed), driver)
         assert app._btw is None
-        assert one in SideSession.closed
+        assert sides.closed == [one]
         assert "btw ·" not in status(app)
         assert "btw: left" in transcript(app)
 
 
 @pytest.mark.timeout(60)
-async def test_btw_in_a_session_view_forks_that_session_read_only() -> None:
-    """Where the CLI forks, the side conversation carries the session's own history."""
-    app = Humanize()
-    primary = building(ForkingAgent)
-    holding(app, primary)
-
+async def test_btw_in_a_session_view_asks_a_fork_of_that_session() -> None:
+    """Where the runs fork it, the side conversation carries the session's own history."""
+    sides = Sides()
+    sides.forks = True
+    app = Humanize(link=sides)
     async with app.run_test() as driver:
+        holding(app, "builder/1")
         app._attached = "builder"
         await typed(driver, "/btw why that file?")
         await until(lambda: "The builder is checking" in transcript(app), driver)
         assert "btw · builder/1" in status(app)
 
-        [(forked, prompt)] = SideSession.heard
-        assert forked not in primary.sessions
-        assert forked._forked_from == "primary-1"
-        assert forked._agent.config.permission == "read-only"
-        assert forked._agent.config.goals is False
-        assert forked._skills == ()
+        [(side, opened)] = sides.opened.items()
+        assert opened["key"] == "builder/1"
+        assert opened["fork"] is True
+        [(asked_of, prompt)] = sides.turns
+        assert asked_of == side
         assert "read-only side copy of the flow session `builder/1`" in prompt
         assert "<flow_snapshot>" not in prompt
 
         await typed(driver, "/btw")
-        await driver.pause()
+        await until(lambda: bool(sides.closed), driver)
         assert app._btw is None
-        assert forked in SideSession.closed
+        assert sides.closed == [side]
+
+
+@pytest.mark.timeout(60)
+async def test_a_fork_that_answers_nothing_is_given_up_for_a_seeded_copy() -> None:
+    """A fork that opened and says nothing is closed, and a copy told the snapshot asked."""
+    sides = Sides()
+    sides.forks = True
+    sides.reply = lambda prompt: (
+        "" if "read-only side copy" in prompt else _plain(prompt)
+    )
+    app = Humanize(link=sides)
+    async with app.run_test() as driver:
+        holding(app, "builder/1")
+        app._attached = "builder/1"
+        await typed(driver, "/btw what now?")
+        await until(lambda: "The builder is checking" in transcript(app), driver)
+
+        assert [opened.get("fork") for opened in sides.opened.values()] == [True, None]
+        forked, copied = sides.opened
+        assert sides.closed == [forked]
+        assert [side for side, _ in sides.turns] == [forked, copied]
+        assert "<flow_snapshot>" in sides.prompts[-1]
+        assert app._btw is not None
+        assert app._btw.sides == {"builder/1": copied}
 
 
 @pytest.mark.timeout(60)
 async def test_btw_on_a_session_that_cannot_fork_asks_a_seeded_copy() -> None:
     """Without a fork, a read-only copy of the same agent is told what the flow did."""
-    app = Humanize()
-    primary = building()
-    holding(app, primary)
-
+    sides = Sides()
+    app = Humanize(link=sides)
     async with app.run_test() as driver:
+        holding(app, "builder/1")
         app._attached = "builder"
         await typed(driver, "/btw what now?")
         await until(lambda: "The builder is checking" in transcript(app), driver)
 
-        [(side, prompt)] = SideSession.heard
-        assert side not in primary.sessions
-        assert side._agent.config.permission == "read-only"
+        [prompt] = sides.prompts
         assert "the session `builder/1`" in prompt
         assert "<flow_snapshot>" in prompt
 
@@ -238,24 +242,31 @@ async def test_btw_on_a_session_that_cannot_fork_asks_a_seeded_copy() -> None:
 @pytest.mark.timeout(60)
 async def test_btw_reaches_an_ended_session_with_no_flow_running() -> None:
     """A session of a run that is over can still be asked about."""
-    app = Humanize()
-    primary = MainAgent(CONFIG)
-    primary.rename("builder")
-    # Told as a run tells it, and then let go of by everything but the interface: an agent
-    # holds its conversations weakly, and a flow that has ended holds none of them.
-    ended = primary.new()
-    ended._id = "ended-1"
-    holding(app, primary)
-    app._run = None  # which is what the run ending leaves behind
-    del ended
-    gc.collect()
-
+    sides = Sides()
+    app = Humanize(link=sides)
     async with app.run_test() as driver:
+        holding(app, "builder/1")
+        told(app, idle())  # which is what the run ending leaves behind
         app._attached = "builder/1"
         await typed(driver, "/btw what did you do?")
         await until(lambda: "The builder is checking" in transcript(app), driver)
 
-        assert "finished: yes" in SideSession.prompts[0]
+        assert "finished: yes" in sides.prompts[0]
+
+
+@pytest.mark.timeout(60)
+async def test_btw_on_a_session_there_is_none_of_says_so() -> None:
+    """A view of a conversation the run never opened is nothing to ask."""
+    sides = Sides()
+    app = Humanize(link=sides)
+    async with app.run_test() as driver:
+        holding(app, "builder/1")
+        app._attached = "builder/2"
+        await typed(driver, "/btw anybody?")
+        await until(lambda: "has no conversation to ask" in transcript(app), driver)
+
+        assert app._btw is None
+        assert not sides.opened
 
 
 @pytest.mark.timeout(60)
@@ -269,20 +280,19 @@ async def test_the_btw_agent_asks_a_session_by_writing_a_line() -> None:
             return "fixing the parser"
         return "@ask builder/1: what are you doing?"
 
-    SideSession.reply = staticmethod(reply)
-    app = Humanize()
-    primary = building()
-    holding(app, primary)
-
+    sides = Sides()
+    sides.reply = reply
+    app = Humanize(link=sides)
     async with app.run_test() as driver:
+        holding(app, "builder/1")
         await typed(driver, "/btw what is the builder up to?")
         await until(lambda: "fixing the parser." in transcript(app), driver)
 
         shown = transcript(app)
         assert "btw · asking builder/1: what are you doing?" in shown
         assert "@ask" not in shown.split("asking builder/1")[-1]
-        sessions = {session for session, _ in SideSession.heard}
-        assert len(sessions) == 2  # the btw agent's, and one for builder/1
+        assert len(sides.opened) == 2  # the btw agent's, and one for builder/1
+        assert len({side for side, _ in sides.turns}) == 2
         assert app._btw is not None
         assert set(app._btw.sides) == {"", "builder/1"}
 
@@ -298,14 +308,48 @@ async def test_the_btw_agent_stops_asking_after_a_few() -> None:
             return "busy"
         return "@ask builder/1: again?"
 
-    SideSession.reply = staticmethod(reply)
-    app = Humanize()
-    holding(app, building())
-
+    sides = Sides()
+    sides.reply = reply
+    app = Humanize(link=sides)
     async with app.run_test() as driver:
+        holding(app, "builder/1")
         await typed(driver, "/btw loop")
         await until(lambda: "enough" in transcript(app), driver)
-        assert transcript(app).count("btw · asking builder/1") == 4
+        assert transcript(app).count("btw · asking builder/1") == HOPS
+
+
+@pytest.mark.timeout(60)
+async def test_a_side_the_runs_would_not_open_is_said_in_red() -> None:
+    """A refusal is the runs' to word, and it is said rather than answered as nothing."""
+    sides = Sides()
+    app = Humanize(link=sides)
+    async with app.run_test() as driver:
+        holding(app, "builder/1")
+        sides.refusing = "builder/1 has no conversation to ask"
+        app._attached = "builder/1"
+        await typed(driver, "/btw why?")
+        await until(lambda: "hmz: /btw:" in transcript(app), driver)
+
+        assert "builder/1 has no conversation to ask" in transcript(app)
+
+
+@pytest.mark.timeout(60)
+async def test_a_new_run_leaves_btw_mode_and_closes_its_sides() -> None:
+    """A side conversation is about the run it was opened on, and that run has gone."""
+    sides = Sides()
+    app = Humanize(link=sides)
+    async with app.run_test() as driver:
+        holding(app, "builder/1")
+        await typed(driver, "/btw what now?")
+        await until(lambda: bool(sides.turns), driver)
+        await until(lambda: not app._btw or not app._btw.busy, driver)
+
+        holding(app, "builder/1", run=1)
+        await until(lambda: bool(sides.closed), driver)
+
+        assert app._btw is None
+        assert "a new flow started" in transcript(app)
+        assert sides.closed == list(sides.opened)
 
 
 def test_btw_snapshot_format_includes_runtime_progress() -> None:

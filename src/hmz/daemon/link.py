@@ -331,7 +331,7 @@ class _Carried:
                     elif said_gone:
                         continue
                     elif kind == GONE:
-                        # A run held for a terminal, saying so.
+                        # A daemon of another protocol, saying so.
                         why = payload.decode(errors="replace") or why
                         said_gone = True
                         told({"type": "gone", "why": why})
@@ -380,20 +380,14 @@ def reached(
       The link, attached.
 
     Raises:
-      OSError: If nothing is listening there, or what is will not take a frontend -- a run
-        held for a terminal says so rather than leaving this waiting.
+      OSError: If nothing is listening there, or what is will not take a frontend -- a
+        daemon of an older humanize says so rather than leaving this waiting.
     """
     import os
 
     from hmz.runtime import Refused
 
-    one = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    try:
-        with where.reached(at) as reaching:
-            one.connect(reaching)
-    except OSError:
-        one.close()
-        raise
+    one = where.connects(at)
     carried = _Carried(one)
     link = Link(carried.asks, carried.leaves)
     carried.start(link.told)

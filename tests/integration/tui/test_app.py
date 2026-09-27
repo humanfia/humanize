@@ -51,8 +51,10 @@ from tests.tui.fixtures import (
     ONE,
     event,
     holding,
+    link,
     opened,
     set_up,
+    snapshot,
     told,
     transcript,
     until,
@@ -89,8 +91,12 @@ for line in sys.stdin:
 
 
 @pytest.fixture
-def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Puts the patient fake `claude` on PATH and works in a directory of our own."""
+def workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, hosting: None) -> Path:
+    """Puts the patient fake `claude` on PATH and works in a directory of our own.
+
+    And holds the runs in this process, since what it is for is a flow really running.
+    """
+    del hosting
     binaries = tmp_path / "bin"
     binaries.mkdir()
     fake = binaries / "claude"
@@ -374,7 +380,9 @@ async def test_a_command_that_is_not_one_is_said_so() -> None:
 
 
 @pytest.mark.timeout(60)
-async def test_a_flow_that_is_not_there_is_a_line_to_correct_and_not_the_end() -> None:
+async def test_a_flow_that_is_not_there_is_a_line_to_correct_and_not_the_end(
+    hosting: None,
+) -> None:
     """A flow chosen that will not load is said so, and the interface stays up."""
     app = Humanize()
     async with app.run_test() as driver:
@@ -706,12 +714,8 @@ async def test_an_agent_set_up_under_a_running_flow_is_what_the_next_run_starts_
         set_up(app, "flow")
         await driver.press(*"start")
         await driver.press("enter")
-        await until(
-            lambda: bool(app._seen),
-            driver,
-        )
-        ((_, agent, _),) = app._behind()
-        assert agent.config.effort == "high"
+        await until(lambda: bool(app._seen) and app._run is not None, driver)
+        assert app._runs_of("coder") == Runs("claude/m:high")
 
         await driver.press(*"/flow")
         await driver.press("enter")
@@ -724,7 +728,8 @@ async def test_an_agent_set_up_under_a_running_flow_is_what_the_next_run_starts_
         await keeps(app, driver)
         await until(lambda: "the next run starts on" in transcript(app), driver)
 
-        assert agent.config.effort == "high"  # the running one, as it started
+        # The running one, as it started, and what the line above the prompt names it by.
+        assert app._runs_of("coder") == Runs("claude/m:high")
         assert app._models == {"coder": Runs("claude/m:max")}  # and the next, as saved
         app.action_stop_flow()
         await until(lambda: app._run is None and app._stopping is None, driver)
@@ -802,27 +807,26 @@ async def test_the_run_is_read_by_going_up_to_it_and_neither_key_stops_it(
 
 
 @pytest.mark.timeout(90)
-async def test_a_line_to_a_running_flow_is_never_turned_away(workspace: Path) -> None:
+async def test_a_line_to_a_running_flow_is_never_turned_away() -> None:
     """Between two turns there is no turn to steer, and the line still has to land.
 
     A flow that is running takes what is typed either way: into the turn under way, or into
     whichever turn starts next. There is no third answer -- a flow that is not running is
-    what makes the first thing you say the task.
+    what makes the first thing you say the task. Which is the runs' to settle: the interface
+    says it to them, on the view it was typed on.
     """
-    from hmz.coganchor.agents.claude import ClaudeCodeAgent, ClaudeCodeAgentConfig
-
-    written(workspace, "flow", FLOW)
     app = Humanize()
     async with app.run_test() as driver:
-        # A flow that is running, with nobody mid-turn: an agent that has launched nothing.
-        set_up(app, "flow")
-        holding(app, ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high")))
-        app._queued = []
+        # A flow that is running, with nobody mid-turn.
+        holding(app, "coder/1")
         await driver.press(*"and this")
         await driver.press("enter")
-        await driver.pause()
+        await until(lambda: bool(link(app).asked_for("say")), driver)
 
-        assert app._queued == ["and this"]  # held, not refused
+        assert link(app).asked_for("say") == [
+            {"do": "say", "text": "and this", "to": ""}
+        ]
+        assert not link(app).asked_for("start")  # said, not taken for a task
         assert "nothing is running to be told" not in transcript(app)
 
 
@@ -884,15 +888,18 @@ async def test_a_flow_between_two_turns_is_a_flow_that_is_running() -> None:
 @pytest.mark.timeout(60)
 async def test_a_flow_that_called_another_names_both_of_them() -> None:
     """A flow may reach for another and run it, and what is running is then both."""
-    from hmz.runtime.flowing import LiveCall
-    from hmz.tui.records import called
-
-    started = LiveCall("chat:chat", "chat", 1, time.monotonic(), 0, None)
-    inner = LiveCall("rlar:review", "review", 2, time.monotonic(), 0, started)
+    now = time.monotonic()
+    started = {"ref": "chat:chat", "name": "chat", "depth": 1, "since": now, "id": 0}
+    inner = {"ref": "rlar:review", "name": "review", "depth": 2, "since": now, "id": 0}
     app = Humanize()
     async with app.run_test() as driver:
         app._flow_named = "chat"
-        told(app, called((started, inner)))
+        told(
+            app,
+            snapshot(
+                "calls", calls=[{**started, "parent": None}, {**inner, "parent": 0}]
+            ),
+        )
         app._draw()
         await driver.pause()
         status = str(app.query_one("#status", Static).content)
@@ -900,7 +907,7 @@ async def test_a_flow_that_called_another_names_both_of_them() -> None:
         assert "chat ▸ rlar:review" in status
 
         # And back to the one that is set up to run, once nothing is.
-        told(app, called(()))
+        told(app, snapshot("calls", calls=[]))
         app._draw()
         await driver.pause()
         assert "chat" in str(app.query_one("#status", Static).content)
@@ -1276,8 +1283,9 @@ for line in sys.stdin:
 
 
 @pytest.fixture
-def asking(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Puts a `claude` on PATH that stops to ask before it answers."""
+def asking(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, hosting: None) -> Path:
+    """Puts a `claude` on PATH that stops to ask before it answers, and holds the runs here."""
+    del hosting
     binaries = tmp_path / "bin"
     binaries.mkdir()
     fake = binaries / "claude"
@@ -1326,11 +1334,12 @@ async def test_away_means_the_agent_is_told_nobody_is_there_rather_than_waiting(
     app = Humanize()
     async with app.run_test() as driver:
         set_up(app, "chat", {"assistant": Runs("claude/m:high")})
+        assert (
+            not app._afk
+        )  # it starts off, so an agent may ask until you say otherwise
         await driver.press(*"/afk")
         await driver.press("enter")
-        assert (
-            app._afk
-        )  # and it starts off, so an agent may ask until you say otherwise
+        await until(lambda: app._afk, driver)  # as the runs say, which hold it
 
         await driver.press(*"start")
         await driver.press("enter")
@@ -1372,39 +1381,33 @@ async def test_a_third_ctrl_c_does_not_wait_for_the_flow_to_unwind() -> None:
     going: what the flow gets back is a turn that failed, exactly as it would have had the
     agent fallen over by itself. It is the last thing a key can do about a run.
     """
-    from hmz.coganchor.agents import AgentConfig
-    from tests.stubs import ShellAgent
-
     app = Humanize()
     async with app.run_test() as driver:
-        agent = ShellAgent(AgentConfig(model="m", effort="high"))
-        agent.rename("builder")
-        session = agent.new()
-        run = holding(app, agent)
+        run = holding(app, "builder/1")
         told(app, event("builder/1", "begins"))
+        link(app).answers["force"] = {"ok": True, "closed": 1}
         await driver.pause()
 
         await driver.press("ctrl+c")
         await driver.press("ctrl+c")
-        await driver.pause()
+        await until(lambda: run.stopped, driver)
         assert app._run is None  # stopped, and still unwinding
-        assert app._stopping is run
-        assert run.stopped
+        assert app._stopping == run.number
+        assert not run.closed
         assert (
             "builder/1" in app._working
         )  # which is a turn nothing has reported the end of
 
         await driver.press("ctrl+c")
-        await driver.pause()
+        await until(lambda: "closed 1 conversation" in transcript(app), driver)
 
         # Closed, whatever the stop came to: a backend that ignored one is the reason there
         # is a third press at all. And the run reads as over from here.
         assert run.closed
-        assert "builder/1" not in app._working
-        del session
-        assert "closing 1 conversation" in transcript(app)
         assert app.is_running  # the run, rather than the interface
         assert app._stopping is None  # and nothing left for a fourth press to reach
+        told(app, snapshot("sessions", run=run.number, open=[], working=[]))
+        assert "builder/1" not in app._working  # as the runs say, once they have
 
 
 @pytest.mark.timeout(60)
@@ -1568,8 +1571,9 @@ for line in sys.stdin:
 
 
 @pytest.fixture
-def talking(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """One `claude` on PATH, and an interface that opens set up to talk to it."""
+def talking(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, hosting: None) -> Path:
+    """One `claude` on PATH, an interface that opens set up to talk to it, and runs held here."""
+    del hosting
     binaries = tmp_path / "bin"
     binaries.mkdir()
     fake = binaries / "claude"
@@ -1615,17 +1619,23 @@ async def test_every_line_typed_between_turns_is_a_turn_of_one_conversation(
     talking: Path,
 ) -> None:
     """The whole of what was asked for: saying something is all it takes, twice over."""
+
+    def asking() -> str:
+        """What the flow is waiting to be told what next about, which is what it answered."""
+        return next((str(one["text"]) for one in app._pending), "")
+
     app = Humanize()
     async with app.run_test() as driver:
         await driver.press(*"first")
         await driver.press("enter")
-        await until(lambda: "heard first" in transcript(app), driver)
         # The turn is over and the flow is waiting to be told the next one, rather than gone.
-        await until(lambda: app._awaiting, driver)
+        await until(lambda: asking() == "heard first", driver)
+        assert app._waits_on() == "you"
 
         await driver.press(*"second")
         await driver.press("enter")
-        await until(lambda: "heard second" in transcript(app), driver)
+        await until(lambda: asking() == "heard second", driver)
+        assert "second" in transcript(app)  # an answer, drawn as the runs said it was
 
         # One session: the second turn was taken in the first's conversation rather than in
         # another, so the agent had the first in context.
@@ -1666,6 +1676,7 @@ def test_deepseek_with_a_local_key_can_be_the_chat_default(
 async def test_deepseek_chat_sends_hello_and_draws_the_sdk_reply(
     _installed: unittest.mock.MagicMock,  # noqa: PT019 -- patch hands it over
     monkeypatch: pytest.MonkeyPatch,
+    hosting: None,
 ) -> None:
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
     session_id = "session-chat"
@@ -1759,7 +1770,7 @@ async def test_a_flow_waiting_to_be_told_something_can_still_be_stopped(
     async with app.run_test() as driver:
         await driver.press(*"first")
         await driver.press("enter")
-        await until(lambda: app._awaiting, driver)  # waiting, with no turn open
+        await until(lambda: app._waits_on() == "you", driver)  # with no turn open
 
         await driver.press("ctrl+c")
         await driver.press("ctrl+c")
@@ -1783,7 +1794,9 @@ async def test_clearing_the_screen_clears_the_screen_and_nothing_else(
     async with app.run_test() as driver:
         await driver.press(*"remember this")
         await driver.press("enter")
-        await until(lambda: "remember this" in transcript(app), driver)
+        await until(
+            lambda: "remember this" in transcript(app) and app._run is not None, driver
+        )
 
         await driver.press(*"/clear")
         await driver.press("enter")
@@ -2519,21 +2532,49 @@ async def test_the_cursor_can_be_seen_in_the_lists_that_are_chosen_from() -> Non
         assert marked == [listing.highlighted]
 
 
+async def _away(app: Humanize, driver: Pilot[None], line: str) -> dict[str, object]:
+    """Types an `/afk` line, and has the runs say it is so, as a host holding them would.
+
+    Away is the runs' to hold rather than the interface's, so what the line does is ask; what
+    the status line then says is what the runs answer with, which is told back here: the one
+    role it names, or every role with none claimed -- which is all a fake end of them has.
+
+    Args:
+      app: The interface.
+      driver: What is pumping it.
+      line: What is typed.
+
+    Returns:
+      What was asked, without the role where it named none.
+    """
+    before = len(link(app).asked_for("afk"))
+    await driver.press(*line)
+    await driver.press("enter")
+    await until(lambda: len(link(app).asked_for("afk")) > before, driver)
+    said = dict(link(app).asked_for("afk")[-1])
+    role, on = str(said.get("role") or ""), bool(said["on"])
+    if role:
+        told(app, snapshot("away", all=app._afk, of={**app._afk_of, role: on}))
+    else:
+        told(app, snapshot("away", all=on, of={}))
+        said.pop("role", None)
+    return said
+
+
 @pytest.mark.timeout(60)
 async def test_a_switch_takes_on_and_off_as_well_as_being_flipped() -> None:
     """A toggle is what you reach for; `on` is what you write down and replay."""
     app = Humanize()
     async with app.run_test() as driver:
         for said, want in (("/afk on", True), ("/afk on", True), ("/afk", False)):
-            await driver.press(*said)
-            await driver.press("enter")
-            await driver.pause()
+            assert await _away(app, driver, said) == {"do": "afk", "on": want}, said
             assert app._afk is want, said
 
         await driver.press(*"/afk sideways")
         await driver.press("enter")
         await driver.pause()
         assert app._afk is False  # unchanged, and said so rather than guessed at
+        assert len(link(app).asked_for("afk")) == 3  # and nothing asked of the runs
         assert "say on or off" in transcript(app)
 
 
@@ -2551,9 +2592,7 @@ async def test_the_status_line_says_which_modes_this_is_in() -> None:
         status = str(app.query_one("#status", Static).content)
         assert "afk" not in status  # nothing to say while an agent may ask
 
-        await driver.press(*"/afk")
-        await driver.press("enter")
-        await driver.pause()
+        await _away(app, driver, "/afk")
         assert "afk" in str(app.query_one("#status", Static).content)
 
         await details(app, driver)
@@ -2561,9 +2600,7 @@ async def test_the_status_line_says_which_modes_this_is_in() -> None:
         assert "afk" in status
         assert "details" in status
 
-        await driver.press(*"/afk off")
-        await driver.press("enter")
-        await driver.pause()
+        await _away(app, driver, "/afk off")
         status = str(app.query_one("#status", Static).content)
         assert "afk" not in status
         assert "details" in status  # the other switch is left where it was
@@ -2599,8 +2636,7 @@ async def test_afk_is_one_outworlder_on_its_own_transcript_and_every_one_elsewhe
     """Each outworlder is its own person to be away as; where all of them are, it is all."""
     app = Humanize()
     async with app.run_test() as driver:
-        holding(app)
-        app._outworlders = ["human", "guide"]
+        holding(app, outworlders=["human", "guide"])
 
         async def send(line: str) -> None:
             await driver.press(*line)
@@ -2608,16 +2644,20 @@ async def test_afk_is_one_outworlder_on_its_own_transcript_and_every_one_elsewhe
             await driver.pause()
 
         app._now_reading("outworlder:guide")
-        await send("/afk on")
+        assert await _away(app, driver, "/afk on") == {
+            "do": "afk",
+            "on": True,
+            "role": "guide",
+        }
         assert app._away("guide")
         assert not app._away("human")
         assert "afk guide" in str(app.query_one("#status", Static).content)
 
         app._now_reading("")
-        await send("/afk on")
+        assert await _away(app, driver, "/afk on") == {"do": "afk", "on": True}
         assert app._away("guide")
         assert app._away("human")
-        await send("/afk")
+        assert await _away(app, driver, "/afk") == {"do": "afk", "on": False}
         assert not app._away("guide")
         assert not app._away("human")
 
@@ -2631,6 +2671,7 @@ async def test_afk_is_one_outworlder_on_its_own_transcript_and_every_one_elsewhe
         await send("/afk on")
         assert not app._away("human")
         assert "/afk works on" in transcript(app)
+        assert len(link(app).asked_for("afk")) == 3  # nothing asked of the runs for it
 
 
 def test_the_commands_are_offered_in_alphabetical_order() -> None:
@@ -2668,7 +2709,7 @@ for line in sys.stdin:
 
 @pytest.mark.timeout(90)
 async def test_two_things_said_get_two_answers_and_not_three(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, hosting: None
 ) -> None:
     """A turn says its answer as it says it and again as it settles; one of those is enough.
 
@@ -2818,7 +2859,7 @@ async def run(task: str, *, agents: Agents, envs: Envs, params: FlowParams,
 
 @pytest.mark.timeout(90)
 async def test_the_person_asked_for_a_shape_is_asked_a_question_at_a_time(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, hosting: None
 ) -> None:
     """A flow settles what only a person can settle, in the model it is going to run on.
 

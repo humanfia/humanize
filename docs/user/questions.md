@@ -38,6 +38,10 @@ turn.
   agent instead. See [Many conversations at once](/user/conversations).
 - **Any answer goes.** If the agent offered choices, they are listed, numbered, with the
   question, and a bare number picks one; but you can type something else.
+- **Somebody else's.** Where [another interface](/features/daemon#several-people-on-one-run)
+  reads the same run, a question nobody has claimed goes to whoever answers first, and an
+  answer from somebody else shows ` · by <name>`. One whose outworlder another has claimed
+  with `/claim` says `<name>'s to answer` under it, and is not yours to answer.
 - **Nothing times out.** The agent waits for as long as you take.
 - **Stopping wins.** A question still up when the flow ends or is stopped ends with it.
 

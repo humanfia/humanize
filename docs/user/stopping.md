@@ -59,14 +59,15 @@ running, it asks first:
 <pre><span class="p b">A flow is running.</span>
 
 <span class="p">❯</span> <span class="d">1.</span> <span class="p">stop it, then leave</span>
-  <span class="d">2.</span> <span class="p">leave it running</span>          <span class="m">`hmz` opens it again</span>
+  <span class="d">2.</span> <span class="p">leave it running</span>          <span class="m">`hmz` here reads it again</span>
 
 <span class="d">enter choose · esc stay</span></pre>
 
 </Term>
 
-**leave it running** lets the flow carry on without your terminal. Run `hmz` again in the same
-directory to get back to it. When humanize cannot hold the run apart from the terminal
+**leave it running** lets the flow carry on without your terminal, and without letting go of
+anybody else reading it. Run `hmz` again in the same directory to get back to it. **stop it,
+then leave** stops it for everybody, as `/stop` and <kbd>ctrl+c</kbd> twice do. When humanize cannot hold the run apart from the terminal
 (input or output is not a terminal, or `HUMANIZE_DAEMON=off` is set), the second answer is
 **stay here** instead.
 

@@ -1,9 +1,9 @@
 # SDK
 
 `hmz.sdk` is how a program that is not humanize drives humanize. It offers two ways into a
-run: [`Hmz`](#hmz) runs one in your own process, and [`Daemons`](#daemons) holds one in a
-process of its own, where a terminal closing cannot end it -- and a program may be one of
-several [frontends](#link) sharing a workspace's runs.
+run: [`Hmz`](#hmz) runs one in your own process, and [`Daemons`](#daemons) holds a workspace's
+runs in a process of their own, where a terminal closing cannot end them -- and a program is
+one of several [frontends](#link) sharing them, beside every interface and `hmz attach` there.
 
 ::: code-group
 
@@ -29,28 +29,6 @@ run.start()                      # returns at once
 print(run.usage)                 # what it has spent so far
 run.stop()                       # interrupts the turn under way, and unwinds
 run.wait()
-```
-
-```python [held by a daemon]
-import asyncio
-
-from hmz.sdk import Daemons, Hmz
-
-
-def opens(held):
-    # Runs in the held process, and returns when the run is over.
-    run = Hmz().run("ralph_loop", "fix the build",
-                    agents={"agent": "claude/claude-opus-5:high"}, budget={"cost": 5})
-    held.stopping(run.stop)      # what Daemon.stop() from outside does
-    try:
-        run.run()
-    except asyncio.CancelledError:
-        pass                     # stopped from outside, as meant
-
-
-daemon = Daemons().hold(opens)   # returns once the daemon is listening
-print(daemon.status())
-daemon.stop()
 ```
 
 ```python [one of its frontends]
@@ -82,14 +60,14 @@ All of these import from `hmz.sdk`.
 | [`Accounts`](#accounts), [`Fallbacks`](#fallbacks) | The accounts an agent runs as, and where a turn goes when its place cannot take it: `Hmz.accounts` and `Hmz.fallbacks`. |
 | [`Environments`](#environments) | The ssh hosts and docker daemons an environment may be put on, saved under names: `Hmz.environments`. |
 | [`Epics`](#epics) | The runs of a workspace that already happened: `Hmz.epics`. |
-| [`Daemons`](#daemons), [`Daemon`](#session), [`Held`](#session), [`Session`](#session) | Runs held apart from any terminal. |
+| [`Daemons`](#daemons), [`Daemon`](#daemon) | Runs held apart from any terminal. |
 | [`Host`](#link), [`Link`](#link) | A workspace's runs shared by several frontends, and one frontend of them. |
 | [`fakes`](#fakes) | The in-memory kit a flow is tested on, as a module. |
 
 ::: tip Stable and internal
 Import these from `hmz.sdk`. Each is fetched from the layer it is written in, only when it is
-named: `Hmz`, `Run`, `Host` and the objects `Hmz` hands out from `hmz.runtime`, and `Daemon`,
-`Held`, `Link` and `Session` from `hmz.daemon`. Those modules, and the types the methods below return
+named: `Hmz`, `Run`, `Host` and the objects `Hmz` hands out from `hmz.runtime`, and `Daemon`
+and `Link` from `hmz.daemon`. Those modules, and the types the methods below return
 (`Offer`, `Declaration`, `Line`, `Provider` and the rest), are **internal**. Their fields are
 listed here as they are today.
 
@@ -497,46 +475,31 @@ where, document = runs.traced(last)
 
 ## `Daemons` {#daemons}
 
-`Daemons()`: every run being held apart from a terminal, one per workspace. See
-[Daemon](/reference/daemon) for what holding one means.
+`Daemons()`: every workspace's runs being held apart from a terminal, one host per workspace.
+See [Daemon](/reference/daemon) for what holding them means.
 
 | Method | |
 | --- | --- |
-| `here(workspace=None) -> Daemon \| None` | The run held in one workspace, or `None`. |
-| `all() -> list[Daemon]` | Every run held on this machine, oldest first. |
-| `hold(opens, workspace=None, *, columns=0, rows=0) -> Daemon` | Starts a daemon and returns once it is listening. `opens(held)` is called in the held process with a [`Held`](#session), and returns when the run is over. `columns` and `rows` are the terminal size it draws for until one attaches; `0` for this terminal's. `OSError` if it could not start, or a run is already held there. |
-| `host(workspace=None) -> Daemon` | The daemon [hosting](/reference/daemon#hosting) that workspace's runs for frontends, started where none is. `OSError` where the run there is held for a terminal, or no host came up. |
+| `here(workspace=None) -> Daemon \| None` | The daemon holding one workspace's runs, or `None`. |
+| `all() -> list[Daemon]` | Every daemon on this machine, oldest first. |
+| `host(workspace=None) -> Daemon` | The daemon [hosting](/reference/daemon#hosting) that workspace's runs, started where none is. `OSError` where an older humanize holds them, or no host came up. |
 
-The third tab at the [top of the page](#sdk) is `hold` holding a flow.
+The last tab at the [top of the page](#sdk) is a program starting a flow as one frontend.
 
-## `Daemon`, `Held` and `Session` {#session}
+## `Daemon` {#daemon}
 
-A **`Daemon`** is one held run, as a tool outside reaches it.
+<span id="session"></span>A **`Daemon`** is one workspace's host, as a tool outside reaches it.
 
 | Member | |
 | --- | --- |
 | `at`, `workspace`, `pid`, `started` | Its directory, its project, the process holding it, and when it started, in UTC. |
-| `protocol` | `1` for a host of frontends, `0` for a run held for a terminal. |
-| `link(name="", kind="sdk", *, replay=True) -> Link` | Attaches a [frontend](#link) to a host. |
+| `protocol` | `1` for a host, `0` for a daemon of an older humanize, which no frontend reaches. |
+| `link(name="", kind="sdk", *, replay=True) -> Link` | Attaches a [frontend](#link) to it. |
 | `alive` | Whether that process is still there. |
-| `status() -> dict` | What it says about itself: `pid`, `workspace`, `started`, `attached` (terminals reading it), `flows` and `calls` running. |
-| `attach() -> int` | Reads it from this terminal until it ends or lets go. |
-| `detach() -> int` | Lets go of every terminal reading it. Returns how many. |
-| `stop(*, seconds=20.0) -> bool` | Asks the run to stop, as closing the interface does, and waits. Returns whether it has gone. The run only stops if its `opens` hung a `stopping` hook. |
+| `status() -> dict` | What it says about itself: `pid`, `workspace`, `started`, `attached` (frontends reading it) and `clients`, `state`, `flows` and `calls` running. |
+| `detach() -> int` | Lets go of every frontend reading it, leaving its runs running. Returns how many. |
+| `stop(*, seconds=20.0) -> bool` | Closes its runs, lets every frontend go, and waits. Returns whether it has gone. |
 | `kill(*, seconds=20.0) -> bool` | Ends the process, whatever it was doing. |
-
-A **`Held`** is what `opens` is handed: a `Session`, plus the hooks the held process registers.
-
-| Member | |
-| --- | --- |
-| `attached: int`, `detach() -> int` | As `Session`. |
-| `redrawn(hook)` | What to call when a terminal arrives, which is to draw the screen again. |
-| `stopping(hook)` | What to call when somebody asks the run to stop from outside. |
-| `says(hook)` | What to add to `status()`. |
-
-A **`Session`** is the `Protocol` whatever is drawing a held run sees: `attached`, how many
-terminals are reading it, and `detach()`. An interface of your own that is handed one knows it
-is held; one handed none is running in the terminal it was typed in.
 
 ## `Host` and `Link` {#link}
 

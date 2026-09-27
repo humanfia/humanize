@@ -26,7 +26,7 @@ import pytest
 from hmz.daemon import Daemon, carrying, where
 from hmz.daemon.carrying import Carrier
 from hmz.daemon.link import Link, reached
-from hmz.daemon.proto import GONE, HELLO, MESSAGE, Frames, asked, spoken
+from hmz.daemon.proto import GONE, MESSAGE, Frames, asked, frame, spoken
 from hmz.runtime import Hmz, Host
 
 if TYPE_CHECKING:
@@ -239,16 +239,17 @@ def test_a_frontend_says_hello_before_it_asks_anything(carried: Carried) -> None
 
 
 @pytest.mark.timeout(60)
-def test_a_terminal_reaching_for_runs_held_for_frontends_is_told_so(
+def test_a_reader_of_another_protocol_is_told_so_rather_than_left_waiting(
     carried: Carried,
 ) -> None:
+    """An older humanize's terminal says hello with a frame of its own, which is no request."""
     one = carried.raw()
 
-    one.sendall(spoken(HELLO, {"columns": 80, "rows": 24}))
+    one.sendall(frame(b"H", b'{"columns": 80, "rows": 24}'))
     one.settimeout(PATIENCE)
 
     assert Frames().feed(one.recv(1 << 16)) == [
-        (GONE, b"held for frontends; `hmz attach` reads it")
+        (GONE, b"held for frontends by a newer humanize; `hmz` of it reads it")
     ]
 
 

@@ -42,6 +42,7 @@ import pytest
 
 import hmz.tui.app
 import hmz.tui.pick
+from hmz.daemon import Link
 from hmz.tui.pick import Flows
 from hmz.tui.selecting import Transcript
 
@@ -51,7 +52,7 @@ if TYPE_CHECKING:
 
     from textual.pilot import Pilot
 
-    from hmz.coganchor.agents import AgentBase, Event, SessionBase
+    from hmz.coganchor.agents import AgentBase
     from hmz.flows import Budget
     from hmz.runtime.kept import Runs
     from hmz.tui import Humanize
@@ -64,6 +65,9 @@ _CATCHES = Flows._catches_up
 
 #: And taking what the ones already here say now, likewise.
 _FRESHENS = hmz.tui.app.Humanize._freshens_flows
+
+#: And holding runs in this process, before the suite hands every interface a fake instead.
+_LINKS = hmz.tui.app.Humanize._links
 
 
 @pytest.fixture(autouse=True)
@@ -202,95 +206,262 @@ def set_up(
     app._budget = budget if budget is not None else Budget(cost=1)
 
 
-class Holding:
-    """A run the interface is holding that runs nothing: for a test about that state alone.
+class FakeLink(Link):
+    """An interface's end of runs that are not there: every request written down and answered.
 
-    It opens a session and says something in one only where a test says so, through `opens`
-    and `says`, and then tells whoever is following it just as a run does.
+    What the interface is told is pushed by the test through `told`, and what it asks is
+    kept in `requests`, answered `{"ok": True}` unless `answers` says otherwise for that kind
+    of request -- a refusal is an answer with `ok` false and `why`. Steering and routing are
+    the host's, and tested against it; what is tested with this is what the interface draws
+    and what it asks for.
 
     Attributes:
-      stopped: Whether it was told to stop.
-      closed: Whether it was closed.
+      requests: What was asked, in the order it was asked.
+      answers: What each kind of request is answered with, where not with `ok`.
     """
 
-    flow = "flow"
-    ref = "flow"
+    def __init__(self, client: str = "c1") -> None:
+        self.requests: list[dict[str, Any]] = []
+        self.answers: dict[str, dict[str, Any]] = {}
+        super().__init__(self._answering, lambda: None)
+        self.client = client
 
-    def __init__(self) -> None:
-        from hmz.flows import Budget, Usage
+    def heard(self, listener: Callable[[dict[str, Any]], None]) -> None:
+        """Takes the listener, and tells it nothing: the test does, with `told`."""
+        del listener
 
-        self.budget = Budget(cost=1)
-        self.usage = Usage()
-        self.stopped = False
-        self.closed = False
-        self._listeners: list[Callable[..., None]] = []
-        self._callbacks: list[Callable[..., None]] = []
+    def _answering(self, said: dict[str, Any], seconds: float | None) -> dict[str, Any]:
+        del seconds
+        self.requests.append(said)
+        return dict(self.answers.get(str(said.get("do")), {"ok": True}))
 
-    def watch(self, listener: Callable[..., None]) -> None:
-        """Keeps who hears what its turns say, which is nothing until a test says it."""
-        self._listeners.append(listener)
-
-    def opened(self, callback: Callable[..., None]) -> None:
-        """Keeps who is told of each session it opens."""
-        self._callbacks.append(callback)
-
-    def opens(self, agent: AgentBase, session: SessionBase | None = None) -> None:
-        """Opens one session for the role the agent is named for, as a run tells of one.
-
-        Args:
-          agent: The agent behind it.
-          session: Its conversation, or None for a person, who holds none.
-        """
-        for callback in list(self._callbacks):
-            callback(agent.id, agent, session)
-
-    def says(self, agent: AgentBase, session: SessionBase | None, event: Event) -> None:
-        """Has a turn say something, as a run's own sessions do.
-
-        Args:
-          agent: Whose turn.
-          session: Which of its conversations, or None for the agent's own.
-          event: What it says.
-        """
-        for listener in list(self._listeners):
-            listener(agent, session, event)
-
-    def run(self) -> None:
-        """Runs nothing."""
-
-    def stop(self) -> None:
-        """Writes down that it was told to."""
-        self.stopped = True
-
-    def close(self) -> None:
-        """Likewise."""
-        self.closed = True
+    def asked_for(self, do: str) -> list[dict[str, Any]]:
+        """Every request of one kind, in the order they were asked."""
+        return [one for one in self.requests if one.get("do") == do]
 
 
-def holding(app: Humanize, *agents: AgentBase) -> Holding:
-    """Puts the interface in the state of holding a running flow, with these agents in it.
+@pytest.fixture(autouse=True)
+def _linked_to_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Opens every interface on a `FakeLink` rather than on runs held in this process.
 
-    Every conversation each of them holds is opened in it, as a run tells the interface of
-    one: numbered for its role in the order given, which is the key its records name it by,
-    and kept as what a word typed at it reaches. A person holds none, and is told of as the
-    one the board is kept by.
+    Held runs are the host's, and tested against it; an interface opened here is drawn from
+    what a test tells it and asks what it asks of nobody, so that nothing a test did not say
+    arrives on a thread of its own to race what it did. `hosting` gives the runs back to a
+    test that drives a real run through the interface.
+    """
+
+    def fake(_self: Humanize, _host: object) -> FakeLink:
+        return FakeLink()
+
+    monkeypatch.setattr(hmz.tui.app.Humanize, "_links", fake)
+
+
+@pytest.fixture
+def hosting(_linked_to_nothing: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Gives an interface runs held in this process again, for a test that runs a flow.
+
+    Named after the fixture that took them away, so that it is put back after rather than
+    before: two fixtures setting one attribute is the order they run in.
+    """
+    monkeypatch.setattr(hmz.tui.app.Humanize, "_links", _LINKS)
+
+
+def link(app: Humanize) -> FakeLink:
+    """The fake end of the runs an interface was opened on, which says what it asked."""
+    held = app._link
+    assert isinstance(held, FakeLink), "opened on runs held here: see `hosting`"
+    return held
+
+
+def started(
+    run: int = 0,
+    *,
+    flow: str = "flow",
+    task: str = "",
+    roles: Iterable[str] = (),
+    outworlders: Iterable[str] = (),
+    agents: Mapping[str, str] | None = None,
+    by: str = "you@tui",
+    client: str = "c1",
+) -> dict[str, Any]:
+    """A run starting, as the record every frontend is told of it by.
+
+    Args:
+      run: Which run it is: 0, as an interface that has started none numbers the first.
+      flow: The flow.
+      task: What it was started on.
+      roles: Its agent roles, in the order the flow declares them.
+      outworlders: Its `Outworlder` roles.
+      agents: What each agent role runs, as `-a` spells it; `claude/m:high` apiece where
+        None.
+      by: Who started it.
+      client: Which frontend that was: `c1` is the interface a `FakeLink` is.
+
+    Returns:
+      The record.
+    """
+    named = list(roles)
+    return {
+        "type": "started",
+        "run": run,
+        "flow": flow,
+        "ref": flow,
+        "task": task,
+        "by": by,
+        "client": client,
+        "roles": named,
+        "outworlders": list(outworlders),
+        "agents": dict(agents)
+        if agents is not None
+        else dict.fromkeys(named, "claude/m:high"),
+        "envs": {},
+        "params": {},
+        "budget": {},
+        "resume": "",
+        "began": time.monotonic(),
+        "at": time.time(),
+    }
+
+
+def snapshot(kind: str, **fields: Any) -> dict[str, Any]:
+    """How one thing stands, as the runs say it: `claims`, `pending`, `waiting` and the rest."""
+    return {"type": kind, **fields}
+
+
+def running(
+    record: Mapping[str, Any], *, stopping: int | None = None
+) -> dict[str, Any]:
+    """The `run` snapshot of a run going, as a `started` record said it began."""
+    return {**record, "type": "run", "state": "running", "stopping": stopping}
+
+
+def idle(*, stopping: int | None = None) -> dict[str, Any]:
+    """The `run` snapshot with nothing running: stopping, where a run still is."""
+    return {
+        "type": "run",
+        "state": "idle" if stopping is None else "stopping",
+        "run": 0,
+        "stopping": stopping,
+    }
+
+
+def asked(
+    question: str,
+    role: str = "human",
+    text: str = "",
+    *,
+    options: Iterable[str] = (),
+    mode: str = "ask",
+    run: int = 0,
+    owner: str | None = None,
+) -> dict[str, Any]:
+    """A question an `Outworlder` asks, as the `asked` record says it and `pending` lists it.
+
+    Args:
+      question: Its id.
+      role: The outworlder asking.
+      text: What it asks.
+      options: The answers it offers.
+      mode: `ask`, or `listen` for what to say next.
+      run: The run asking.
+      owner: The frontend holding the role, or None for anybody's.
+
+    Returns:
+      The record; `pending` lists the same fields with `type` taken off.
+    """
+    return {
+        "type": "asked",
+        "run": run,
+        "question": question,
+        "role": role,
+        "text": text,
+        "options": list(options),
+        "mode": mode,
+        "owner": owner,
+    }
+
+
+def pending(*questions: Mapping[str, Any]) -> dict[str, Any]:
+    """The `pending` snapshot, listing questions as `asked` makes them."""
+    return {
+        "type": "pending",
+        "pending": [
+            {key: value for key, value in one.items() if key != "type"}
+            for one in questions
+        ],
+    }
+
+
+class Holding:
+    """A run the runs say is going, as a test puts one in front of the interface.
+
+    What the interface asked of it is read off its `FakeLink`.
+
+    Attributes:
+      number: Which run it is.
+    """
+
+    def __init__(self, app: Humanize, number: int) -> None:
+        self._app = app
+        self.number = number
+
+    @property
+    def stopped(self) -> bool:
+        """Whether the interface asked for it to stop, or to be forced to."""
+        return any(
+            one.get("do") in ("stop", "force") for one in link(self._app).requests
+        )
+
+    @property
+    def closed(self) -> bool:
+        """Whether the interface asked for it to be forced to a stop."""
+        return bool(link(self._app).asked_for("force"))
+
+
+def holding(
+    app: Humanize,
+    *agents: AgentBase | str,
+    outworlders: Iterable[str] = (),
+    task: str = "",
+    run: int = 0,
+) -> Holding:
+    """Puts the interface in the state of reading a running flow, with these agents in it.
+
+    Tells it the run started and is going, then opens every conversation each agent holds,
+    numbered for its role in the order given -- or the one key given as a string. A person
+    holds none, and is told of as the one the board is kept by.
 
     Args:
       app: The interface.
-      agents: The agents behind the sessions the run has opened.
+      agents: The agents behind the sessions the run has opened, or their keys.
+      outworlders: The run's `Outworlder` roles.
+      task: What it was started on.
+      run: Which run it is.
 
     Returns:
-      The run it is holding.
+      The run.
     """
     from hmz.coganchor.agents import HumanAgent
 
-    run = Holding()
-    app._run = run
-    app._follow(run)
+    keys: list[str] = []
+    person = False
+    counted: dict[str, int] = {}
     for agent in agents:
-        for session in [None] if isinstance(agent, HumanAgent) else agent.sessions:
-            run.opens(agent, session)
-    return run
+        if isinstance(agent, str):
+            keys.append(agent)
+            continue
+        if isinstance(agent, HumanAgent):
+            person = True
+            continue
+        for _ in agent.sessions or [None]:
+            counted[agent.id] = counted.get(agent.id, 0) + 1
+            keys.append(f"{agent.id}/{counted[agent.id]}")
+    roles = list(dict.fromkeys(key.partition("/")[0] for key in keys))
+    record = started(run, task=task, roles=roles, outworlders=outworlders)
+    told(app, record, running(record), *(opened(key, run=run) for key in keys))
+    if person:
+        told(app, snapshot("board", items=[]))
+    return Holding(app, run)
 
 
 def opened(
@@ -300,6 +471,7 @@ def opened(
     model: str = "m",
     cli: str = "claude",
     counts: Iterable[str] = (),
+    person: bool = False,
 ) -> dict[str, Any]:
     """A session a run has opened, as the record the interface is told of it by.
 
@@ -309,9 +481,10 @@ def opened(
       model: What it runs at.
       cli: What runs it.
       counts: The kinds of token its backend reports.
+      person: Whether it is the person, who holds the board rather than a conversation.
 
     Returns:
-      The record, as `hmz.tui.records.opened` makes one.
+      The record, as `hmz.runtime.doing.hosting.Host` says one.
     """
     role = key.partition("/")[0]
     return {
@@ -324,7 +497,8 @@ def opened(
         "model": model,
         "counts": sorted(counts),
         "forks": False,
-        "person": False,
+        "person": person,
+        "kept": "",
         "mono": time.monotonic(),
     }
 
@@ -360,7 +534,7 @@ def event(
       cli: What runs it.
 
     Returns:
-      The record, as `hmz.tui.records.record` makes one.
+      The record, as `hmz.runtime.doing.hosting.record` makes one.
     """
     return {
         "type": "event",
@@ -382,11 +556,11 @@ def event(
 
 
 def told(app: Humanize, *records: dict[str, Any]) -> None:
-    """Tells the interface records of a run, in order, as a run it follows tells it them.
+    """Tells the interface messages about its runs, in order, as the runs tell it them.
 
     Args:
       app: The interface.
-      records: What it is told, as `opened` and `event` make them.
+      records: What it is told, as the builders here make them.
     """
     for one in records:
         app._told(one)

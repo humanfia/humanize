@@ -40,7 +40,7 @@ lines](#starting-a-flow-outright) · [menus](#menus) · [what it remembers](#wha
 | --- | --- |
 | **Opening box** | `humanize v<version>` in its top border, the name drawn large (smaller on a narrow terminal), and the package's one-line summary. [`/clear`](#commands) draws it again. |
 | **Transcript** | One agent's, one conversation's, one outworlder's, or the one every agent's work appears on, which it opens on. See [Reading one agent](#reading-one-agent). |
-| **Above the editor, right** | One line per agent role: `role · cli/model:effort`, the account where it is not this machine's own, then `●` (a turn open) or `○`, how many conversations it holds, and `reading` or `unread`. While a flow runs, one line per outworlder: `human · outworlder`, then `away`, `asking`, and `reading` or `unread`. Under them, [the run's cost](#the-cost-readout). |
+| **Above the editor, right** | One line per agent role: `role · cli/model:effort`, the account where it is not this machine's own, then `●` (a turn open) or `○`, how many conversations it holds, and `reading` or `unread`. While a flow runs, one line per outworlder: `human · outworlder`, then who [holds it](#several-people-on-one-run) -- `yours` or `<name>'s` -- where somebody does, `away`, `asking`, and `reading` or `unread`. Under them, [the run's cost](#the-cost-readout). |
 | **Above the editor, left** | Lines typed and not yet taken, pinned. See [Talking to a running flow](#talking-to-a-running-flow). |
 | **Editor** | Multi-line, up to ten rows, behind `❯`. |
 | **Status line, left** | The modes, then what is running. See below. |
@@ -52,7 +52,7 @@ The left side is the first of these that holds:
 
 | State | Left side |
 | --- | --- |
-| A flow waiting for you to say something | `·\|· waiting for you · ctrl+c twice to stop` |
+| A flow waiting for you to say something | `·\|· waiting for you · ctrl+c twice to stop`, or `waiting for <name>` where the role asking is another frontend's. |
 | A turn open | `·\|· builder… (73s · ctrl+c twice to stop)`: who is working, and for how long. |
 | A flow between turns | The same, naming the flow and how long the run has gone. A flow that [called another](/reference/flows#a-flow-that-calls-another-flow) names both, innermost last: `chat ▸ rlar`. |
 | Nothing running | `◉ <flow> · <directory>`, with your home as `~`. |
@@ -172,12 +172,13 @@ list, with a line about each.
 | <span id="cmd-settings"></span>`/settings [page]` | <Badge type="tip" text="yes" /> | [Everything humanize remembers](#what-humanize-remembers), in five pages: `everywhere`, `directory`, [`accounts`](#the-accounts-themselves), [`fallback`](#where-a-turn-goes-when-it-cannot-be-taken) and [`flowverses`](#where-flows-come-from). With a page, opens on it. |
 | <span id="cmd-clear"></span>`/clear` | <Badge type="tip" text="yes" /> | Clears the transcript being read and draws the opening box again. Nothing else. |
 | <span id="cmd-afk"></span>`/afk [on\|off]` | <Badge type="tip" text="yes" /> | [Says you are away](#questions-and-being-away): nothing waits on you. On an outworlder's transcript, as that outworlder alone; not on one agent's. Off at start. |
-| <span id="cmd-stop"></span>`/stop` | <Badge type="info" text="needs one" /> | [Stops the flow](#stop), asked once. Only on the transcript every agent is on and on the monitor. |
-| <span id="cmd-exit"></span>`/exit` | <Badge type="warning" text="asks" /> | [Leaves](#leaving-and-letting-go). Asks first if a flow is running. Also <kbd>ctrl+q</kbd>. |
+| <span id="cmd-claim"></span>`/claim [on\|off]` | <Badge type="tip" text="yes" /> | [Holds the outworlder being read](#several-people-on-one-run) for this interface alone; `off` gives it back. Only on an outworlder's transcript. |
+| <span id="cmd-stop"></span>`/stop` | <Badge type="info" text="needs one" /> | [Stops the flow](#stop) for everybody reading it, asked once. Only on the transcript every agent is on and on the monitor. |
+| <span id="cmd-exit"></span>`/exit` | <Badge type="warning" text="asks" /> | [Leaves](#leaving-and-letting-go): this interface, and nobody else's. Asks first if a flow is running. Also <kbd>ctrl+q</kbd>. |
 
 </RefFilter>
 
-`/afk` flips when given nothing, and takes `on` or `off`. A line that is not a
+`/afk` and `/claim` flip when given nothing, and take `on` or `off`. A line that is not a
 command is shown in red and nothing happens:
 
 | Typed | Answered |
@@ -277,6 +278,8 @@ The line is **pinned** above the editor, dimmed, until something takes it:
    `put to <agent>, which ended its turn without saying it had it`.
 5. A flow that ends, however it ends, moves whatever is still pinned into the transcript,
    marked `never sent`.
+6. What [another frontend](#several-people-on-one-run) says to the run is pinned and put in the
+   transcript the same way, marked `· by <name>`.
 
 The pin shows at most five lines, cut at the screen edge, and counts the rest:
 `… 3 more waiting`, `… 6 more lines`. What is sent is the whole of what you typed.
@@ -365,12 +368,20 @@ not offered on one agent's transcript, which asks you nothing: typed there it sa
 `hmz: /afk works on the monitor, the transcript every agent is on and an outworlder's
 transcript, not on one agent's transcript`.
 
+Away is held with the runs rather than by this interface: it stays said after you
+[leave](#leaving-and-letting-go), until somebody says otherwise. Where [other
+frontends](#several-people-on-one-run) hold roles, `/afk` off an outworlder's transcript sets
+every role you may answer for and leaves theirs as they are, and on the transcript of a role
+somebody else holds it is refused, saying whose it is.
+
 A question still up when the flow ends or is stopped ends with it.
 
 ### Stopping {#stop}
 
 `/stop` stops the whole flow, not just the turn: what the second <kbd>ctrl+c</kbd> does, asked
-once. The turn under way is interrupted and the flow unwinds from where it stands.
+once. The turn under way is interrupted and the flow unwinds from where it stands. There is one
+run however many are reading it, so it stops for all of them, and each is told who stopped it:
+`— alice@tui is stopping the flow —`.
 
 - With a flow already stopping: `hmz: the flow is already stopping: it is closing out the turn
   it was in`. The next <kbd>ctrl+c</kbd> closes its conversations without waiting.
@@ -384,23 +395,44 @@ See [Stopping](/user/stopping) and [ctrl+c](#ctrl-c).
 
 ### Leaving, and letting go
 
-Closing the interface and stopping the run are two things: the run is
-[held in a process of its own](/reference/daemon). With a flow running, `/exit` and
-<kbd>ctrl+q</kbd> ask:
+Closing the interface and stopping the run are two things: the runs are
+[held by a process of their own](/reference/daemon), and this interface is one reader of them.
+With a flow running, `/exit` and <kbd>ctrl+q</kbd> ask:
 
 ```text
 A flow is running.
 
 ❯ 1. stop it, then leave
-  2. leave it running             `hmz` opens it again
+  2. leave it running             `hmz` here reads it again
 
 enter choose · esc stay
 ```
 
-**leave it running** lets go of this terminal. The flow carries on, and `hmz` in this directory
-opens it again from the top. Where the run is not held (output not a terminal, or
+**leave it running** lets go of this interface and nothing else: the flow carries on, anybody
+else reading it goes on reading it, any role you [claimed](#several-people-on-one-run) is
+anybody's again, and `hmz` in this directory reads the run again from the top. **stop it, then
+leave** stops the run for everybody, closing its conversations under whatever turn is open.
+Where the runs are held in this process (output not a terminal, or
 [`HUMANIZE_DAEMON`](/reference/cli#environment-variables) off), the second answer is
 **stay here** instead. With nothing running, `/exit` leaves without asking.
+
+### Several people on one run
+
+Every `hmz` in a directory is a whole interface of its own -- its own views, monitor and
+prompt -- over the same runs, and so is [`hmz attach`](/reference/cli#hmz-attach) and a program
+on the [SDK](/reference/daemon#link). Each is named for `HUMANIZE_NAME`, else your login, then
+what it is: `alice@tui`, `bob@cli`; a name already reading gets `#2`.
+
+- **Claims.** `/claim` on an outworlder's transcript makes what it asks yours alone to answer.
+  Another interface sees it marked `alice@tui's` above its prompt, on the monitor and under the
+  question, and a line it types there is refused, saying whose it is. `/claim off`, or leaving,
+  gives it back; a role somebody else holds is refused (`reviewer is bob@tui's`).
+- **Unclaimed questions** are everybody's: the first answer wins, and a later one is refused
+  with `already answered by …`.
+- **Who did what.** An answer, a line said to an agent, or a run started from another frontend
+  carries ` · by <name>` in the transcript. The monitor lists who is reading under `Reading`.
+- **Arriving late** reads the run from the top: what was said, asked and answered, and how
+  things stand now.
 
 ## Menus
 
@@ -921,12 +953,13 @@ Kinds:            input                 1.2k
 | Part | |
 | --- | --- |
 | `▣ all agents` | The first node, where the cursor starts: how many boxes are working, the run's turns and time. <kbd>enter</kbd> reads the shared transcript. |
-| `◉ <role> · outworlder` | Under it, a node per outworlder of a run that talks to you. <kbd>enter</kbd> reads what the flow says to you. |
+| `◉ <role> · outworlder` | Under it, a node per outworlder of a run that talks to you, with `yours` or `<name>'s` where somebody [holds it](#several-people-on-one-run). <kbd>enter</kbd> reads what the flow says to you. |
 | a box | One per agent that has taken a turn, in the order the flow declares them; with <kbd>ctrl+t</kbd>, one per session, as `<role> · session <n>`. Left: `●` working or `○` idle, the name, what it runs and its turns. Right: how long the open turn has run, or `idle` and how long since its last; `reading` or `unread`. <kbd>enter</kbd> or a click reads it, working or ended. |
 | `├╴◆` `└╴◇` | Sub-agents it started of its own: `◆` still going, `◇` back. Only from [backends that report them](/reference/agents#not-every-backend-runs-every-moment). A long fleet is cut, with a count. |
 | `↓ 6 · ↑ 5` | Handovers between neighbouring boxes, each way; the latest one lit. |
 | `Flow` | What is running, nested flows indented under the flow that called them, each with its time. |
 | `Set` | The flow's params that are not at their defaults. |
+| `Reading` | Where [more than one frontend](#several-people-on-one-run) reads the runs: each by name, yours marked `you`. |
 | `Agents` | Before any agent has worked: the agents set up, in place of the boxes. |
 | `Also` | Handovers between boxes that are not neighbours. |
 | `Tokens` | One row per model, biggest first: tokens, money (blank where unpriced), output tokens a second. |

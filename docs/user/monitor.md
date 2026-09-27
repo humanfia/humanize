@@ -121,7 +121,9 @@ every agent's work appears on, which is where a run is watched from. Its row als
 boxes are working, the run's turns, and how long it has run.
 
 Under it, a run that talks to you has a `◉` node for each outworlder: the role that is you. Enter
-on it reads what the flow says to you.
+on it reads what the flow says to you. Where another interface reads the same run, the node says
+whose the role is to answer -- `yours`, or `bob@tui's` -- once somebody has
+[claimed](/reference/tui#several-people-on-one-run) it.
 
 ## Reading a box
 
@@ -164,6 +166,7 @@ still be read. The status line says which you are looking at: `a node per agent`
 | `Flow` | The flow running, and any flow it called, innermost last, each with how long it has run. |
 | `Set` | The flow's settings that differ from its defaults. |
 | `Also` | Handovers the arrows could not show. |
+| `Reading` | Where more than one interface, `hmz attach` or program reads the run: each by name, yours marked `you`. |
 | `Tokens` | Tokens and money per model, and the output tokens a second each is producing. |
 | `Kinds` | Tokens by kind for the whole run. A `+` marks a floor, because some agent's CLI does not report that kind. See [Cost and rate](/user/tally). |
 

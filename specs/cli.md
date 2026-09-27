@@ -36,7 +36,6 @@ COMMANDS: dict[str, tuple[Callable[[list[str]], int], str]]  # attach, exec, int
 INTERNAL: dict[str, tuple[Callable[[list[str]], int], str]]  # anchor, cred, hook, tools
 def main(argv: list[str] | None = None) -> int: ...
 def opens() -> int: ...
-def apart(session: Held) -> None: ...
 def many(count: int | str, thing: str) -> str: ...
 # output.py -- who is reading, asked once rather than command by command
 def terminal(stream: IO[str] | None = None) -> bool: ...
@@ -82,11 +81,11 @@ def tools(argv: list[str]) -> int: ...
   nothing about what to run: what was chosen at the prompt MUST be what the next line opens on.
 - MUST pass everything after a command name to that command untouched, `--help` included, at both
   levels, and MUST cost no module of any other command to reach one. `python -m hmz` MUST be `hmz`.
-- MUST open the interface on a run held apart from the terminal wherever there is a terminal on both
-  ends, reading whichever run is already held here and starting one where none is; with no terminal on
-  both ends it MUST open in this process. `APART` MUST refuse holding for a whole machine, and
-  anything else that stops a run being held MUST be said and then done without. Runs held here for
-  frontends MUST be said to be read by `hmz attach` rather than opened on.
+- MUST open the interface in this process, as one more frontend of the runs a host holds here
+  wherever there is a terminal on both ends -- the host already holding them, or one started where
+  none is; with no terminal on both ends it MUST hold the runs in this process. `APART` MUST refuse
+  holding for a whole machine, anything else that stops the runs being held MUST be said and then
+  done without, and runs held by an older humanize MUST be said to be and left alone.
 - MUST settle whether escapes may be written in one place: `NO_COLOR` MUST win over everything, then
   `TERM=dumb`, then `FORCE_COLOR`, and otherwise whether a terminal is reading. `FORCE_COLOR` MUST NOT
   make a run believe somebody is watching it, and `rich` MUST NOT be reached until escapes are wanted.
@@ -119,8 +118,8 @@ def tools(argv: list[str]) -> int: ...
   for a model nobody prices -- with something going on moving while a terminal is reading.
 - MUST say, without asking, when a cap cannot be read -- a cost cap over a model nobody prices -- and
   MUST say a run its budget stopped in a line rather than as a failure.
-- `hmz attach` MUST start nothing: with nothing held here, or a run held for a terminal, it MUST
-  say so and exit 1. It MUST claim every `-c` role before reading on, and MUST exit 2 where one is
+- `hmz attach` MUST start nothing: with nothing held here, or runs held by an older humanize, it
+  MUST say so and exit 1. It MUST claim every `-c` role before reading on, and MUST exit 2 where one is
   somebody else's.
 - `hmz attach` MUST follow the run going, or the next one to start, and MUST exit 0 once it ends
   or the host lets go; the end of stdin MUST NOT end it.

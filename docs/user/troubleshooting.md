@@ -170,7 +170,7 @@ A flowverse not fetched yet offers nothing: open the [Flowverses page of
 
 ### `no such command: /foo`
 
-Type `/` to see the commands. There are fourteen, listed in
+Type `/` to see the commands. There are ten, listed in
 [Reference › TUI](/reference/tui).
 
 ### `a flow is running; no choosing a flow`
@@ -193,6 +193,31 @@ without saving. Type the line again and save the menu this time.
 ### `say on or off, not 'yes'`
 
 `/afk` switches over when you give it nothing. Given a word, it takes only `on` or `off`.
+`/claim` is the same.
+
+### `reviewer is bob@tui's to answer, not yours`
+
+Another interface reading the same run, or an `hmz attach -c reviewer`, has
+[claimed](/reference/tui#several-people-on-one-run) that outworlder: what it asks is theirs
+alone to answer. Ask them to `/claim off`, or wait for them to leave, which gives it back.
+`reviewer is bob@tui's` says the same about a `/claim`, an `/afk` or an answer. Lines said to the
+agents are never refused this way.
+
+### `already answered by alice@tui`
+
+Nobody had claimed that outworlder, so its question went to whoever answered first, and that
+was somebody else. Their answer is in the transcript, marked ` · by alice@tui`.
+
+### `hmz: the runs in … are held by an older humanize (pid …); stop it with that version`
+
+A daemon an older humanize started still holds this directory: it held its run on a
+pseudoterminal, which this version cannot read. Open it with that version and stop it, or end
+the process named, then run `hmz` again. `hmz attach` says the same.
+
+### `hmz: too far behind; attach again`
+
+The interface stopped taking what the host sent until it was a whole run behind, and was let go
+of. The run is untouched: run `hmz` again, and it reads the run from the top.
 
 ### `/btw needs a coding agent to ask`
 
@@ -209,6 +234,10 @@ whichever has a turn open. Until that agent takes it, the line stays pinned abov
 - **Between turns**, it waits for the next turn to start.
 - **Several lines** go one at a time, so the later ones wait a turn or two.
 - **When the flow ends**, lines nobody took move into the transcript marked `never sent`.
+- **Somebody else's lines** wait beside yours, marked ` · by <name>`, where another interface
+  reads the same run.
+- **On an outworlder's transcript** a line answers its question and is not said to an agent;
+  with nothing asked, it is refused.
 
 To send it to another agent, press <kbd>shift+tab</kbd> to read that one first. See
 [Steering](/user/steering).

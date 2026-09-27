@@ -22,8 +22,9 @@ holds the same table, so an import that breaks it fails the run.
 | what a run writes down | `runtime/epic.py` |
 | reading a backend's logs back as a trace | `runtime/tracing/` |
 | anything two of `cli`, `tui` and `daemon` would each need | `runtime/doing/`, once |
-| a slash command, a key, a menu | `tui/` |
-| a run kept going after the terminal closes | `daemon/` |
+| who is outside a run: claims, away, questions, lines said to agents, asides | `runtime/doing/hosting.py` |
+| a slash command, a key, a menu; what the interface draws of a message | `tui/` |
+| runs kept going after the terminal closes, and the socket frontends reach them over | `daemon/` |
 | a new command | `cli/` |
 | the Python API another tool calls | `sdk/` |
 | a flow humanize offers | [humanfia/flowverse](https://github.com/humanfia/flowverse). `flows/builtin/` holds `chat` alone |
@@ -98,7 +99,7 @@ not edit a SPEC unless you were asked to. Propose a SPEC change separately.
 | `specs/cli.md` | Every command line |
 | `specs/tui.md` | Every behaviour the interface must have |
 | `specs/sdk.md` | How a tool that is not humanize reaches humanize |
-| `specs/daemon.md` | Holding a run apart from a terminal, and the terminals that read one |
+| `specs/daemon.md` | Holding a workspace's runs apart from a terminal, for the frontends that read them |
 | `specs/runtime/SPEC.md` | What a run is, and what humanize remembers of one |
 | `specs/runtime/doing.md` | humanize as one object: a workspace and everything doable in it |
 | `specs/runtime/flowing.md` | What humanize does to a flow: the engine, the drivers, refs, resuming |

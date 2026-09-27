@@ -161,6 +161,7 @@ def test_a_line_naming_no_command_opens_the_interface() -> None:
 def test_the_interface_is_opened_on_nothing_the_line_said() -> None:
     """What to run is chosen at the prompt, and read back from what was chosen there."""
     with unittest.mock.patch("hmz.tui.Humanize") as opened:
+        opened.return_value.return_code = 0
         assert cli.main([]) == 0
 
     assert opened.call_args.args == ()

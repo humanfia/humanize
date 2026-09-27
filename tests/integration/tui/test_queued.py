@@ -1,60 +1,45 @@
 """What was said to a running flow and has not been taken yet, and where it is shown.
 
-Everything typed at a running flow joins one queue and leaves it one line at a time: a line
-is a thing said, and two words handed to a backend together come back as one answer. Until a
-line goes it is pinned above the prompt rather than written into the transcript -- it has not
-been said to anybody yet. Which is what Claude Code does with a queued message, and for the
-same reason: a transcript is what happened, and this has not happened yet.
+A line typed at a running flow is said to the runs, which queue it and hand it to the agents
+one at a time -- that half is the host's, and `tests/integration/runtime/test_hosting.py`
+checks it. What is left here is the interface's half: which view a line is said to, and what
+it draws of what the runs say back. Until a line goes it is pinned above the prompt rather
+than written into the transcript -- it has not been said to anybody yet, which is what Claude
+Code does with a queued message too -- and once the runs say an agent has it, it is written
+down where it went, with who said it where that was another frontend.
 """
 
 from __future__ import annotations
 
-import asyncio
 import os
-import time
-from typing import TYPE_CHECKING
+import threading
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from textual.widgets import Static
 
-from hmz.coganchor.agents import AgentBase, AgentConfig
 from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
 from hmz.tui.app import _PINNED
 from hmz.tui.monitor import short
-from tests.stubs import ShellAgent, ShellSession, written
-from tests.tui.fixtures import event, holding, set_up, told, transcript
+from tests.stubs import written
+from tests.tui.fixtures import (
+    event,
+    link,
+    opened,
+    running,
+    set_up,
+    snapshot,
+    started,
+    told,
+    transcript,
+    until,
+)
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
     from pathlib import Path
 
     from textual.pilot import Pilot
-
-CONFIG = AgentConfig(model="m", effort="high")
-
-
-class Steerable(ShellSession):
-    """A session a word can be put into, which a shell-backed one has no process for."""
-
-    def __init__(
-        self, agent: AgentBase, cwd: str | os.PathLike[str] | None = None
-    ) -> None:
-        super().__init__(agent, cwd)
-        self.put_in: list[str] = []
-
-    def interject(self, text: str) -> None:
-        """Takes the word and says nothing about it, as a backend takes one off us."""
-        self.put_in.append(text)
-
-
-class SteerableAgent(ShellAgent):
-    """An agent whose sessions take a word put in rather than refusing it."""
-
-    def new(self, cwd: str | os.PathLike[str] | None = None) -> Steerable:
-        """Opens one."""
-        return Steerable(self, cwd)
-
 
 #: A flow that runs until a file appears, so that a line can be typed while it is up and the
 #: flow can then be let finish of its own accord.
@@ -77,36 +62,64 @@ async def run(task: str, *, agents: Agents, envs: EnvCollection, params: FlowPar
 """
 
 
-async def until(ready: Callable[[], bool], driver: Pilot[None]) -> None:
-    """Waits for the interface to catch up with what was asked of it."""
-    deadline = time.monotonic() + 10.0
-    while not ready() and time.monotonic() < deadline:
-        await driver.pause()
-        await asyncio.sleep(0.02)
-    await driver.pause()
-
-
 def _pinned(app: Humanize) -> str:
     """What is pinned above the prompt, as it reads, or "" with the pin not showing at all."""
     said = app.query_one("#queued", Static)
     return str(said.content) if said.has_class("waiting") else ""
 
 
-async def _running(app: Humanize, driver: Pilot[None], *agents: AgentBase) -> None:
-    """Puts the interface in the one state this is about: a flow up, and no turn open.
+def _line(
+    text: str, *, to: str = "", by: str = "you@tui", client: str = "c1"
+) -> dict[str, Any]:
+    """One line the runs hold queued, as their `waiting` snapshot lists it."""
+    return {"text": text, "by": by, "client": client, "to": to}
 
-    Which is a flow between two turns, or one inside a sleep of its own -- the moment a line
-    has nowhere to go but the queue.
+
+def _given(
+    text: str, agent: str = "coder", *, by: str = "you@tui", client: str = "c1"
+) -> dict[str, Any]:
+    """One line the runs have put into an agent's turn, which it has not said it has."""
+    return {"agent": agent, "text": text, "by": by, "client": client}
+
+
+def _waiting(
+    *queued: dict[str, Any], given: tuple[dict[str, Any], ...] = ()
+) -> dict[str, Any]:
+    """The `waiting` snapshot: what is given, and what is still queued behind it."""
+    return snapshot("waiting", queued=list(queued), given=list(given))
+
+
+def _said(
+    text: str, key: str = "coder/1", *, by: str = "you@tui", client: str = "c1"
+) -> dict[str, Any]:
+    """The runs saying a line has reached an agent, and who said it."""
+    return {
+        "type": "said",
+        "run": 0,
+        "text": text,
+        "key": key,
+        "by": by,
+        "client": client,
+    }
+
+
+async def _running(app: Humanize, driver: Pilot[None], *keys: str) -> None:
+    """Puts the interface in front of a run of one agent role, `coder`, going.
 
     Args:
       app: The interface.
       driver: What is pumping it.
-      agents: The agents whose conversations the flow has opened, none by default.
+      keys: The conversations the run has opened, none by default.
     """
-    app._flow_named, app._models = "flow", {"coder": Runs("claude/m:high")}
-    app._declared = None  # a flow nothing here loads, whose one role is `coder`
-    holding(app, *agents)
-    app._queued = []
+    record = started(roles=["coder"])
+    told(app, record, running(record), *(opened(key) for key in keys))
+    await driver.pause()
+
+
+async def _types(driver: Pilot[None], line: str) -> None:
+    """Types one line and sends it, as somebody at the prompt would."""
+    await driver.press(*line)
+    await driver.press("enter")
     await driver.pause()
 
 
@@ -126,6 +139,22 @@ def waiting(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 @pytest.mark.timeout(60)
+async def test_a_line_typed_at_a_running_flow_is_said_to_the_view_being_read() -> None:
+    """It is asked of the runs, and not written down: nothing has taken it yet."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _running(app, driver)
+
+        await _types(driver, "and fix the tests")
+        await until(lambda: bool(link(app).asked_for("say")), driver)
+
+        assert link(app).asked_for("say") == [
+            {"do": "say", "text": "and fix the tests", "to": ""}
+        ]
+        assert "and fix the tests" not in transcript(app)
+
+
+@pytest.mark.timeout(60)
 async def test_a_line_with_nowhere_to_go_yet_is_pinned_rather_than_written_down() -> (
     None
 ):
@@ -134,13 +163,11 @@ async def test_a_line_with_nowhere_to_go_yet_is_pinned_rather_than_written_down(
     async with app.run_test() as driver:
         await _running(app, driver)
 
-        await driver.press(*"and fix the tests")
-        await driver.press("enter")
-        await until(lambda: bool(_pinned(app)), driver)
+        told(app, _waiting(_line("and fix the tests")))
+        await driver.pause()
 
         assert "and fix the tests" in _pinned(app)
         assert "and fix the tests" not in transcript(app)
-        assert app._queued == ["and fix the tests"]
 
 
 @pytest.mark.timeout(60)
@@ -148,16 +175,19 @@ async def test_it_goes_into_the_transcript_at_the_moment_it_is_taken() -> None:
     """In front of the turn that took it, which is where it belongs -- and off the pin."""
     app = Humanize()
     async with app.run_test() as driver:
-        await _running(app, driver)
-        await driver.press(*"and fix the tests")
-        await driver.press("enter")
-        await until(lambda: bool(_pinned(app)), driver)
+        await _running(app, driver, "coder/1")
+        told(app, _waiting(_line("and fix the tests")))
+        await driver.pause()
+        assert "and fix the tests" in _pinned(app)
 
-        # Whichever turn starts next asks for it, which is what `waiting` is for.
-        assert app._take() == ["and fix the tests"]
-        await until(lambda: "and fix the tests" in transcript(app), driver)
+        told(app, _said("and fix the tests"), _waiting())
+        await driver.pause()
 
         assert _pinned(app) == ""
+        assert "and fix the tests" in transcript(app)
+        # On that conversation's own, as well as the one every agent is on.
+        app._now_reading("coder/1")
+        await driver.pause()
         assert "and fix the tests" in transcript(app)
 
 
@@ -169,34 +199,39 @@ async def test_a_line_into_a_turn_that_is_open_is_pinned_until_the_agent_has_it(
 
     Every one of them answers a word put into a turn twice: once to say it has been taken
     from us, and again -- a whole answer or a tool call later -- to say it is in front of the
-    model. Only the second is the agent having heard it, so only the second writes it down.
+    model. Only the runs saying the second writes it down.
     """
     app = Humanize()
     async with app.run_test() as driver:
-        agent = SteerableAgent(CONFIG)
-        session = agent.new()
-        await _running(app, driver, agent)
-        # A turn is open on that conversation, so there is one to steer -- and the interface
-        # reads the only conversation there is, which is where a typed line goes.
-        told(app, event(f"{agent.id}/1", "begins"))
-
-        await driver.press(*"and this")
-        await driver.press("enter")
-        await until(lambda: bool(_pinned(app)), driver)
+        await _running(app, driver, "coder/1")
+        told(app, event("coder/1", "begins"), _waiting(given=(_given("and this"),)))
+        await driver.pause()
 
         # Handed over, and not said: it is pinned against the agent that has it.
-        assert app._given == [(agent.id, "and this")]
-        assert app._queued == []
         assert "and this" not in transcript(app)
-        assert f"with {short(agent.id)}" in _pinned(app)
+        assert f"with {short('coder')}" in _pinned(app)
 
-        # And written down when that agent's own stream says the turn has taken it in.
-        told(app, event(f"{agent.id}/1", "took", "and this"))
-        await until(lambda: "and this" in transcript(app), driver)
+        told(app, _said("and this"), _waiting())
+        await driver.pause()
 
         assert _pinned(app) == ""
-        assert app._given == []
-        del session
+        assert "and this" in transcript(app)
+
+
+@pytest.mark.timeout(60)
+async def test_an_agent_saying_it_took_a_word_is_not_the_word_written_down() -> None:
+    """The runs say who took what, and once: the agent's own `took` draws nothing."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _running(app, driver, "coder/1")
+        told(
+            app, event("coder/1", "begins"), _waiting(given=(_given("for the coder"),))
+        )
+        told(app, event("coder/1", "took", "for the coder"))
+        await driver.pause()
+
+        assert "for the coder" not in transcript(app)
+        assert "for the coder" in _pinned(app)
 
 
 @pytest.mark.timeout(60)
@@ -208,62 +243,80 @@ async def test_a_turn_that_ended_without_saying_it_had_it_says_that_instead() ->
     """
     app = Humanize()
     async with app.run_test() as driver:
-        agent = SteerableAgent(CONFIG)
-        session = agent.new()
-        await _running(app, driver, agent)
-        told(app, event(f"{agent.id}/1", "begins"))
+        await _running(app, driver, "coder/1")
+        told(app, event("coder/1", "begins"), _waiting(given=(_given("take this"),)))
+        await driver.pause()
 
-        await driver.press(*"take this")
-        await driver.press("enter")
-        await until(lambda: bool(_pinned(app)), driver)
-
-        told(app, event(f"{agent.id}/1", "ends"))
-        await until(lambda: "take this" in transcript(app), driver)
+        told(
+            app,
+            event("coder/1", "ends"),
+            {"type": "unheld", "run": 0, "agent": "coder", "texts": ["take this"]},
+            _waiting(),
+        )
+        await driver.pause()
 
         assert _pinned(app) == ""
-        assert app._given == []
+        assert "take this" in transcript(app)
         assert "without saying it had it" in transcript(app)
-        del session
 
 
 @pytest.mark.timeout(60)
-async def test_a_word_the_backend_would_not_take_goes_back_in_the_queue() -> None:
-    """A steer codex drops or kimi refuses never went, so it waits for the next turn instead.
-
-    Back at the head of the queue, where it was: it was typed before everything still
-    waiting, and a queue that went out of order would answer the second thing first.
-    """
-    app = Humanize()
-    async with app.run_test() as driver:
-        await _running(app, driver)
-        with app._saying:
-            app._given.append(("coder", "never went"))
-            app._queued.append("typed after it")
-
-        app._unreached("coder", "never went", "no active turn to steer")
-        await driver.pause()
-
-        assert app._given == []
-        # Still on its way, by the other road, and still in front of what followed it.
-        assert app._queued == ["never went", "typed after it"]
-        assert "never went" in _pinned(app)
-        assert "no active turn to steer" in transcript(app)
-
-
-@pytest.mark.timeout(60)
-async def test_a_word_put_to_one_agent_is_not_taken_off_by_another() -> None:
-    """A flow drives several, and each answers only for what was put to it."""
+async def test_a_word_the_backend_would_not_take_is_said_and_stays_pinned() -> None:
+    """A steer codex drops or kimi refuses never went: the runs say why, and keep it."""
     app = Humanize()
     async with app.run_test() as driver:
         await _running(app, driver)
 
-        with app._saying:
-            app._given.append(("coder", "for the builder"))
-        told(app, event("reviewer/1", "took", "for the builder"))
+        told(
+            app,
+            {
+                "type": "refused",
+                "run": 0,
+                "agent": "coder",
+                "text": "never went",
+                "because": "no active turn to steer",
+            },
+            _waiting(_line("never went"), _line("typed after it")),
+        )
         await driver.pause()
 
-        assert app._given == [("coder", "for the builder")]
-        assert "for the builder" not in transcript(app)
+        # Still on its way, and still in front of what followed it.
+        first, second = _pinned(app).splitlines()
+        assert "never went" in first
+        assert "typed after it" in second
+        assert "hmz: no active turn to steer" in transcript(app)
+
+
+@pytest.mark.timeout(60)
+async def test_another_frontend_s_lines_are_pinned_and_written_down_as_theirs() -> None:
+    """Several may be saying things to one run, and which of them said a line is half of it."""
+    app = Humanize()
+    async with app.run_test(size=(120, 24)) as driver:
+        await _running(app, driver, "coder/1")
+        told(
+            app,
+            _waiting(
+                _line("mine"),
+                _line("theirs", by="bob@tui", client="c2"),
+            ),
+        )
+        await driver.pause()
+
+        mine, theirs = _pinned(app).splitlines()
+        assert "by" not in mine
+        assert theirs.endswith("theirs · by bob@tui")
+
+        told(
+            app,
+            _said("mine"),
+            _said("theirs", by="bob@tui", client="c2"),
+            _waiting(),
+        )
+        await driver.pause()
+
+        shown = transcript(app)
+        assert "mine · by" not in shown
+        assert "theirs · by bob@tui" in shown
 
 
 @pytest.mark.timeout(60)
@@ -273,16 +326,13 @@ async def test_more_than_a_few_are_counted_rather_than_all_pinned() -> None:
     async with app.run_test() as driver:
         await _running(app, driver)
 
-        for at in range(_PINNED + 3):
-            await driver.press(*f"line {at}")
-            await driver.press("enter")
-        await until(lambda: "more waiting" in _pinned(app), driver)
+        told(app, _waiting(*(_line(f"line {at}") for at in range(_PINNED + 3))))
+        await driver.pause()
 
         shown = _pinned(app)
         assert "line 0" in shown  # oldest first, since that is the order they go in
         assert len(shown.splitlines()) <= _PINNED + 1
         assert "3 more waiting" in shown
-        assert len(app._queued) == _PINNED + 3  # counted, not dropped
 
 
 @pytest.mark.timeout(60)
@@ -296,7 +346,12 @@ async def test_a_line_of_several_is_pinned_as_it_was_typed() -> None:
         await driver.press("ctrl+j")
         await driver.press(*"second")
         await driver.press("enter")
-        await until(lambda: bool(_pinned(app)), driver)
+        await until(lambda: bool(link(app).asked_for("say")), driver)
+        (said,) = link(app).asked_for("say")
+        assert said["text"] == "first\nsecond"
+
+        told(app, _waiting(_line(said["text"])))
+        await driver.pause()
 
         first, second = _pinned(app).splitlines()
         assert first.strip().startswith("❯")
@@ -310,17 +365,55 @@ async def test_what_the_stopped_flow_never_took_is_said_to_have_been_dropped() -
     app = Humanize()
     async with app.run_test() as driver:
         await _running(app, driver)
-        await driver.press(*"too late")
-        await driver.press("enter")
-        await until(lambda: bool(_pinned(app)), driver)
+        told(app, _waiting(_line("too late")))
+        await driver.pause()
 
         app.action_stop_flow()
+        await until(lambda: bool(link(app).asked_for("stop")), driver)
+        told(
+            app,
+            {
+                "type": "dropped",
+                "run": 0,
+                "given": [],
+                "queued": [_line("too late")],
+                "because": "stopped",
+            },
+            _waiting(),
+        )
         await driver.pause()
 
         assert _pinned(app) == ""
-        assert app._queued == []
         assert "too late" in transcript(app)
-        assert "never sent" in transcript(app)
+        assert "never sent: the flow stopped first" in transcript(app)
+
+
+@pytest.mark.timeout(60)
+async def test_what_was_put_to_an_agent_and_dropped_says_it_may_have_reached_it() -> (
+    None
+):
+    """Put to an agent that never said it had it: neither sent nor never sent."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _running(app, driver)
+        told(
+            app,
+            {
+                "type": "dropped",
+                "run": 0,
+                "given": [_given("half way")],
+                "queued": [_line("from bob", by="bob@tui", client="c2")],
+                "because": "ended",
+            },
+        )
+        await driver.pause()
+
+        shown = transcript(app)
+        assert "half way" in shown
+        assert "put to the agent, never taken back: the flow ended first" in shown
+        assert "from bob · by bob@tui" in shown
+        assert "never sent: the flow ended first" in shown
+        assert shown.index("half way") < shown.index("from bob")
 
 
 @pytest.mark.timeout(60)
@@ -328,11 +421,10 @@ async def test_nothing_is_pinned_with_no_flow_running() -> None:
     """The first thing said to a flow that is not running is the task, and it starts it."""
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"the task")
-        await driver.press("enter")
-        await driver.pause()
+        await _types(driver, "the task")
 
         assert _pinned(app) == ""
+        assert not link(app).asked_for("say")
 
 
 @pytest.mark.timeout(60)
@@ -344,14 +436,12 @@ async def test_one_that_will_not_fit_whole_is_counted_rather_than_shown_in_half(
     async with app.run_test() as driver:
         await _running(app, driver)
 
-        await driver.press(*"short")
-        await driver.press("enter")
-        for _ in range(_PINNED):  # a long one, which cannot follow it whole
-            await driver.press(*"long")
-            await driver.press("ctrl+j")
-        await driver.press(*"end")
-        await driver.press("enter")
-        await until(lambda: "more waiting" in _pinned(app), driver)
+        # A long one, which cannot follow the short one whole.
+        told(
+            app,
+            _waiting(_line("short"), _line("\n".join(["long"] * _PINNED + ["end"]))),
+        )
+        await driver.pause()
 
         shown = _pinned(app)
         assert "short" in shown
@@ -377,9 +467,11 @@ async def test_what_was_typed_is_pinned_as_text_rather_than_as_markup(
     async with app.run_test() as driver:
         await _running(app, driver)
 
-        await driver.press(*typed)
-        await driver.press("enter")
-        await until(lambda: bool(_pinned(app)), driver)
+        await _types(driver, typed)
+        await until(lambda: bool(link(app).asked_for("say")), driver)
+        assert link(app).asked_for("say")[0]["text"] == typed
+        told(app, _waiting(_line(typed)))
+        await driver.pause()
 
         assert typed in _pinned(app)
 
@@ -390,37 +482,31 @@ async def test_clearing_the_screen_leaves_what_is_waiting_where_it_is() -> None:
     app = Humanize()
     async with app.run_test() as driver:
         await _running(app, driver)
-        await driver.press(*"still coming")
-        await driver.press("enter")
-        await until(lambda: bool(_pinned(app)), driver)
-
-        await driver.press(*"/clear")
-        await driver.press("enter")
+        told(app, _waiting(_line("still coming")))
         await driver.pause()
 
+        await _types(driver, "/clear")
+
         assert "still coming" in _pinned(app)
-        assert app._queued == ["still coming"]
 
 
 @pytest.mark.timeout(90)
 async def test_what_a_flow_that_ended_never_took_is_said_to_have_been_dropped(
-    waiting: Path,
+    waiting: Path, hosting: None
 ) -> None:
     """A flow ends two ways, and both leave the pin holding a line on its way nowhere.
 
     Stopped by hand is the other test; this is the one that ends of its own accord, which is
-    how every flow that finishes ends -- and the one where the next thing typed would
-    otherwise quietly take the stranded line's place.
+    how every flow that finishes ends -- run for real, in this process, so that what the runs
+    say at the end is what they say rather than what a test told the interface.
     """
     app = Humanize()
     async with app.run_test() as driver:
         set_up(app, "flow")
-        await driver.press(*"the task")
-        await driver.press("enter")
+        await _types(driver, "the task")
         await until(lambda: app._run is not None, driver)
 
-        await driver.press(*"and this too")
-        await driver.press("enter")
+        await _types(driver, "and this too")
         await until(lambda: bool(_pinned(app)), driver)
 
         (waiting / "go.txt").write_text("")  # and the flow runs out of things to do
@@ -428,7 +514,6 @@ async def test_what_a_flow_that_ended_never_took_is_said_to_have_been_dropped(
         await until(lambda: "never sent" in transcript(app), driver)
 
         assert _pinned(app) == ""
-        assert app._queued == []
         assert "and this too" in transcript(app)
         assert "the flow ended first" in transcript(app)
 
@@ -440,14 +525,12 @@ async def test_a_pasted_paragraph_is_one_row_rather_than_twenty() -> None:
     async with app.run_test(size=(80, 24)) as driver:
         await _running(app, driver)
 
-        app._interject("please " * 200)  # one line, and far more than one row of it
-        await until(lambda: bool(_pinned(app)), driver)
+        told(app, _waiting(_line("please " * 200)))  # one line, and far more than a row
+        await driver.pause()
 
         assert len(_pinned(app).splitlines()) == 1
         assert app.query_one("#queued", Static).size.height == 1
         assert _pinned(app).endswith("…")
-        # And the whole of it still goes: what was cut is what is drawn, not what is held.
-        assert app._queued == ["please " * 200]
 
 
 @pytest.mark.timeout(60)
@@ -457,10 +540,10 @@ async def test_the_pin_never_takes_more_than_its_share_of_the_screen() -> None:
     async with app.run_test(size=(80, 24)) as driver:
         await _running(app, driver)
 
-        for at in range(_PINNED + 2):
-            app._interject(f"{at} " + "x" * 900)
-        await until(lambda: "more waiting" in _pinned(app), driver)
+        told(app, _waiting(*(_line(f"{at} " + "x" * 900) for at in range(_PINNED + 2))))
+        await driver.pause()
 
+        assert "more waiting" in _pinned(app)
         assert app.query_one("#queued", Static).size.height <= _PINNED + 1
         # The status line is still on the screen, which is what the cap is for.
         assert app.query_one("#status", Static).region.y < 24
@@ -473,8 +556,8 @@ async def test_a_message_too_long_to_show_whole_says_how_much_was_cut() -> None:
     async with app.run_test() as driver:
         await _running(app, driver)
 
-        app._interject("\n".join(f"line {at}" for at in range(10)))
-        await until(lambda: bool(_pinned(app)), driver)
+        told(app, _waiting(_line("\n".join(f"line {at}" for at in range(10)))))
+        await driver.pause()
 
         shown = _pinned(app)
         assert "line 0" in shown
@@ -489,9 +572,14 @@ async def test_what_is_cut_off_counts_the_lines_and_the_messages_apart() -> None
     async with app.run_test() as driver:
         await _running(app, driver)
 
-        app._interject("\n".join(f"line {at}" for at in range(10)))
-        app._interject("and another")
-        await until(lambda: bool(_pinned(app)), driver)
+        told(
+            app,
+            _waiting(
+                _line("\n".join(f"line {at}" for at in range(10))),
+                _line("and another"),
+            ),
+        )
+        await driver.pause()
 
         shown = _pinned(app)
         assert "6 more lines" in shown
@@ -499,82 +587,52 @@ async def test_what_is_cut_off_counts_the_lines_and_the_messages_apart() -> None
 
 
 @pytest.mark.timeout(60)
-async def test_it_reaches_the_transcript_from_the_thread_a_turn_runs_on() -> None:
-    """Which is the path every real run takes, and the one `call_from_thread` is there for."""
-    import threading
-
+async def test_it_reaches_the_transcript_from_the_thread_the_runs_tell_it_on() -> None:
+    """Which is the path every message takes: a link hands them over on a thread of its own."""
     app = Humanize()
     async with app.run_test() as driver:
-        await _running(app, driver)
-        await driver.press(*"from a turn")
-        await driver.press("enter")
-        await until(lambda: bool(_pinned(app)), driver)
+        await _running(app, driver, "coder/1")
 
-        # As a turn asks for it: off the event loop, which is the branch the tests that
-        # call `_take` directly never reach.
-        took: list[list[str]] = []
-        asking = threading.Thread(target=lambda: took.append(app._take()))
-        asking.start()
+        telling = threading.Thread(target=lambda: app._told(_said("from a turn")))
+        telling.start()
         await until(lambda: "from a turn" in transcript(app), driver)
-        asking.join(5)
+        telling.join(5)
 
-        assert took == [["from a turn"]]
-        assert _pinned(app) == ""
         assert "from a turn" in transcript(app)
 
 
 @pytest.mark.timeout(60)
-async def test_lines_typed_in_a_row_go_into_the_turn_one_at_a_time() -> None:
-    """Two words handed over in the same swallow come back as one answer, not two.
-
-    Which is the whole of the bug this is here for: five `hi` in a row, one reply. A backend
-    given a second word while it is still taking in the first runs the two together, so the
-    next one goes only once the turn has said it has this one.
-    """
-    app = Humanize()
-    async with app.run_test() as driver:
-        agent = SteerableAgent(CONFIG)
-        session = agent.new()
-        await _running(app, driver, agent)
-        told(app, event(f"{agent.id}/1", "begins"))
-
-        for said in ("hi", "hi again", "hi once more"):
-            app._interject(said)
-        await until(lambda: bool(session.put_in), driver)
-
-        # One has gone; the two behind it wait, in the order they were typed.
-        assert session.put_in == ["hi"]
-        assert app._given == [(agent.id, "hi")]
-        assert app._queued == ["hi again", "hi once more"]
-
-        told(app, event(f"{agent.id}/1", "took", "hi"))
-        await until(lambda: len(session.put_in) > 1, driver)
-
-        assert session.put_in == ["hi", "hi again"]
-        assert app._given == [(agent.id, "hi again")]
-        assert app._queued == ["hi once more"]
-
-
-@pytest.mark.timeout(60)
-async def test_a_turn_takes_one_waiting_line_and_leaves_the_rest() -> None:
-    """Three lines typed between turns are three things said, not one prompt of three.
-
-    Folding them all into the next turn is the same bug by the other road: the agent is told
-    everything at once and answers it once.
-    """
+async def test_lines_typed_in_a_row_are_said_in_the_order_they_were_typed() -> None:
+    """Each is asked of the runs in turn, on the one thread that asks them."""
     app = Humanize()
     async with app.run_test() as driver:
         await _running(app, driver)
 
         for said in ("hi", "hi again", "hi once more"):
-            app._interject(said)
-        await until(lambda: bool(_pinned(app)), driver)
+            await _types(driver, said)
+        await until(lambda: len(link(app).asked_for("say")) == 3, driver)
 
-        assert app._take() == ["hi"]
-        assert app._queued == ["hi again", "hi once more"]
-        assert app._take() == ["hi again"]
-        assert app._take() == ["hi once more"]
-        assert app._take() == []
+        assert [one["text"] for one in link(app).asked_for("say")] == [
+            "hi",
+            "hi again",
+            "hi once more",
+        ]
+
+
+@pytest.mark.timeout(60)
+async def test_a_line_typed_while_a_run_starts_is_said_to_it_rather_than_starting_one() -> (
+    None
+):
+    """The run asked for is the one it goes to, once the runs have started it."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        set_up(app, "chat", {"assistant": Runs("claude/m:high")})
+        await _types(driver, "the task")
+        await _types(driver, "and this")
+        await until(lambda: bool(link(app).asked_for("say")), driver)
+
+        assert [one["do"] for one in link(app).requests] == ["start", "say"]
+        assert link(app).asked_for("say")[0]["text"] == "and this"
 
 
 @pytest.mark.timeout(60)
@@ -583,92 +641,19 @@ async def test_what_went_to_an_agent_is_pinned_in_front_of_what_is_still_queued(
 ):
     """The pin reads oldest first, as the transcript does -- and what went, went first."""
     app = Humanize()
-    # Wide on purpose. The pin is cut to the room the block beside it leaves, and what
-    # sits in that block is the agent's codename -- which is minted per agent and is not
-    # always the same length. At the default width a long one cuts `gone` down to `go…`
-    # and fails a test that is about which line comes first rather than about where
-    # either is cut. The lines are short and the terminal is wide, so neither is cut.
     async with app.run_test(size=(120, 24)) as driver:
-        agent = SteerableAgent(CONFIG)
-        session = agent.new()
-        await _running(app, driver, agent)
-        told(app, event(f"{agent.id}/1", "begins"))
-
-        app._interject("gone")
-        app._interject("behind")
-        await until(lambda: len(_pinned(app).splitlines()) > 1, driver)
+        await _running(app, driver, "coder/1")
+        told(
+            app,
+            event("coder/1", "begins"),
+            _waiting(_line("behind"), given=(_given("gone"),)),
+        )
+        await driver.pause()
 
         first, second = _pinned(app).splitlines()
         assert "gone" in first
-        assert f"with {short(agent.id)}" in first  # since that is the one it is holding
+        assert f"with {short('coder')}" in first  # since that is the one it is holding
         assert "behind" in second
-        del session
-
-
-@pytest.mark.timeout(60)
-async def test_a_turn_started_on_a_line_does_not_swallow_the_one_behind_it() -> None:
-    """The other half of the same bug: chat asks the person, and the turn takes one more.
-
-    A flow with a person in it starts each turn on what they said, and a turn also folds in
-    whatever was waiting when it started. Both draining for the same burst would put two
-    lines in front of the agent at once and have them answered together.
-    """
-    app = Humanize()
-    async with app.run_test() as driver:
-        await _running(app, driver)
-
-        for said in ("hi", "hi again"):
-            app._interject(said)
-        await until(lambda: bool(_pinned(app)), driver)
-
-        # As chat does it: ask the person, then run a turn on what they answered.
-        answered = app._take()
-        with app._saying:
-            app._handed = True
-
-        assert answered == ["hi"]
-        assert (
-            app._at_turn_start() == []
-        )  # this turn's line is the one it was started on
-        assert app._queued == ["hi again"]  # and the next one is the next turn's
-        assert app._at_turn_start() == ["hi again"]
-
-
-@pytest.mark.timeout(60)
-async def test_three_lines_typed_in_a_row_are_three_turns_of_a_chat() -> None:
-    """The bug as it was reported: a handful of `hi` in a row, and one answer back.
-
-    Driven the way the chat flow drives it, from a thread of its own -- a turn, then asking
-    the person what to say next -- since it is the two hooks together that got this wrong.
-    """
-    import threading
-
-    app = Humanize()
-    async with app.run_test() as driver:
-        await _running(app, driver)
-        generation = app._generation
-        prompts: list[str] = []
-
-        def chatting() -> None:
-            said: str | None = "the task"
-            while said:
-                # What a session does on the way in, then what the flow does after.
-                prompts.append("\n\n".join([said, *app._at_turn_start()]))
-                said = app._listen(generation, "human")
-
-        talking = threading.Thread(target=chatting)
-        talking.start()
-        try:
-            for at in range(3):
-                await driver.press(*f"hi {at}")
-                await driver.press("enter")
-            await until(lambda: len(prompts) == 4, driver)
-        finally:
-            app._run = None  # which is what stopping the flow leaves behind
-            app._spoke.set()
-            talking.join(5)
-
-        assert prompts == ["the task", "hi 0", "hi 1", "hi 2"]
 
 
 @pytest.mark.timeout(60)
@@ -682,9 +667,8 @@ async def test_the_pin_sits_on_the_editor_beside_what_the_run_is_running_as() ->
     async with app.run_test(size=(80, 24)) as driver:
         await _running(app, driver)
         app._monitor.spend("coder", 12345, model="m")
-        app._interject("hi")
-        app._interject("hi again")
-        await until(lambda: bool(_pinned(app)), driver)
+        told(app, _waiting(_line("hi"), _line("hi again")))
+        await driver.pause()
 
         pin = app.query_one("#queued", Static).region
         beside = app.query_one("#above", Static).region
@@ -703,8 +687,8 @@ async def test_a_pinned_line_is_cut_to_what_is_left_beside_it() -> None:
     async with app.run_test(size=(80, 24)) as driver:
         await _running(app, driver)
 
-        app._interject("x" * 200)
-        await until(lambda: bool(_pinned(app)), driver)
+        told(app, _waiting(_line("x" * 200)))
+        await driver.pause()
 
         pin = app.query_one("#queued", Static).region
         beside = app.query_one("#above", Static).region

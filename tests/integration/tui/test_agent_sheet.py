@@ -516,6 +516,7 @@ async def test_walking_out_of_an_unchanged_sheet_asks_nothing(
 async def test_a_flow_given_no_budget_is_refused_where_it_is_started(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
     flows: Path,
+    hosting: None,
 ) -> None:
     """The refusal is the runtime's, and it is a line at this prompt rather than a traceback."""
     app = Humanize()

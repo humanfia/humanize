@@ -40,12 +40,20 @@ at once, it goes to whichever one has a turn open. See
 
 ## One line at a time
 
-Everything you type joins one queue. The next line goes only once the agent has said it has the
-one before, so three lines typed in a row are three things said, and get three answers.
+What you type queues for the view you typed it on. The next line goes only once the agent has
+said it has the one before, so three lines typed in a row are three things said, and get three
+answers.
 
 Until the agent has it, your line stays pinned above the prompt, marked with the agent it was
 handed to. It reaches the transcript only once the agent has it. If no turn is open, the line waits for the
 next one: a line typed at a running flow is never dropped.
+
+## Several people, one run
+
+The queue is the run's, not the interface's: everybody [reading the run](/features/daemon#several-people-on-one-run)
+sees every line waiting and every line taken, and a line somebody else said is marked
+` · by <name>`. Anybody may say anything to any agent; [claiming](/reference/tui#several-people-on-one-run)
+a role is about answering the questions it asks, not about steering.
 
 ## From a flow
 

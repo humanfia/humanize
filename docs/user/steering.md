@@ -125,6 +125,10 @@ To the conversation you are reading. <kbd>shift+tab</kbd> changes which one that
 Lines go **one at a time, in order**. The next one goes only after the agent has taken the one
 before it, so three lines typed in a row are three things said, each answered in turn.
 
+Where [somebody else reads the same run](/features/daemon#several-people-on-one-run), their
+lines wait on the same pin and land in the same transcripts, marked ` · by <name>`. Anybody may
+say anything to any agent.
+
 ## Which agents take a line mid-turn
 
 | Your line goes into | Backends |

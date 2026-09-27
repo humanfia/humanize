@@ -1,9 +1,7 @@
 # `daemon`
 
-A run held where a terminal closing cannot end it, and the terminals that come and go from
-it -- or a workspace's runs held that way for the frontends that come and go from them. How a
-run is opened is not this package's: what it holds is a callable that opens one and returns
-when it is over, or `hmz.runtime.Host`.
+A workspace's runs held where a terminal closing cannot end them, for the frontends that come
+and go from them. What a run is is not this package's: what it holds is `hmz.runtime.Host`.
 
 ## API
 
@@ -15,9 +13,8 @@ class Daemon:
     workspace: str
     pid: int
     started: str
-    protocol: int = 0  # the frontends' protocol a host speaks; 0 for a run held for a terminal
+    protocol: int = 0  # the frontends' protocol a host speaks; 0 for an older humanize's
     alive: bool    # property
-    def attach(self) -> int: ...
     def link(self, name: str = "", kind: str = "sdk", *, replay: bool = True) -> Link: ...
     def status(self) -> dict[str, Any]: ...
     def detach(self) -> int: ...
@@ -26,11 +23,9 @@ class Daemon:
     def asked(self, said: dict[str, Any]) -> dict[str, Any]: ...
 def running(workspace: str | os.PathLike[str] | None = None) -> Daemon | None: ...
 def daemons() -> list[Daemon]: ...
-def start(opens: Callable[[Held], object],
-          workspace: str | os.PathLike[str] | None = None,
-          *, columns: int = 0, rows: int = 0, seconds: float = 10.0) -> Daemon: ...
 def host(workspace: str | os.PathLike[str] | None = None, *, seconds: float = 10.0) -> Daemon: ...
-def __getattr__(name: str) -> object: ...  # `Hmz`, handed through from `hmz.runtime`
+def older(daemon: Daemon) -> str: ...  # what to say of a daemon of an older humanize
+def __getattr__(name: str) -> object: ...  # `Hmz` and `Host`, handed through from `hmz.runtime`
 # link.py -- one frontend's end of a workspace's runs, over a host's socket or in this process
 class Link:  # a context manager; iterable of messages until a listener is set
     client: str
@@ -61,25 +56,8 @@ class Carrier:
 class Printed(io.TextIOBase): ...  # what a host process prints, said to its frontends
 def serves(host: Host, at: Path, telling: int | None = None) -> None: ...
 def logged(at: Path, about: str) -> None: ...
-# session.py -- a run outliving its terminal, as whatever draws it sees it
-@runtime_checkable
-class Session(Protocol):
-    attached: int
-    def detach(self) -> int: ...
-# serve.py -- the run on its pseudoterminal, and the terminals reading it
-class Held:  # answers to `Session`
-    attached: int
-    def detach(self) -> int: ...
-    def redrawn(self, hook: Callable[[], None]) -> None: ...
-    def stopping(self, hook: Callable[[], None]) -> None: ...
-    def says(self, hook: Callable[[], dict[str, Any]]) -> None: ...
-    def start(self) -> None: ...
-    def close(self, why: str = "the run is over") -> None: ...
-def hosts(opens: Callable[[Held], object], at: Path, *, columns: int = 80,
-          rows: int = 24, telling: int | None = None) -> None: ...
-# proto.py -- the framed protocol between a run and whatever is reading it
-HELLO: bytes; INPUT: bytes; OUTPUT: bytes; RESIZE: bytes; GONE: bytes; CONTROL: bytes
-MESSAGE: bytes; PROTOCOL: int
+# proto.py -- the framed protocol between the runs and whatever is reading them
+GONE: bytes; CONTROL: bytes; MESSAGE: bytes; PROTOCOL: int
 def frame(kind: bytes, payload: bytes = b"") -> bytes: ...
 def spoken(kind: bytes, said: dict[str, Any]) -> bytes: ...
 def asked(payload: bytes) -> dict[str, Any]: ...
@@ -89,9 +67,9 @@ class Frames:
 
 ## Requirements
 
-- MUST hold whatever `opens` opens and MUST know nothing about how a run is opened.
-- MUST offer `Hmz` under this package, as the same object `hmz.runtime` holds and fetched when named;
-  what is held MUST reach the runtime by that name rather than over the socket.
+- MUST hold `hmz.runtime.Host` and MUST know nothing about how a run is opened.
+- MUST offer `Hmz` and `Host` under this package, as the same objects `hmz.runtime` holds and
+  fetched when named; what is held MUST reach the runtime by that name rather than over the socket.
 - MUST be one daemon per workspace, claimed against a race rather than by looking first, released
   however the process ends, and MUST read a workspace as holding nothing unless the process is there
   and something answers on its socket.
@@ -100,28 +78,21 @@ class Frames:
 - MUST outlive the terminal it was started from: no controlling terminal, unreachable by a hangup, and
   nothing left for whoever asked for it to wait on or reap. It MUST tell them whether it came up, and
   MUST report a failure to start rather than make them wait out a timeout.
-- MUST let go of terminals without stopping the run; stopping MUST be a separate request.
-- MUST draw for a terminal that has just arrived from the top, without holding up what the run is
-  drawing meanwhile, and MUST keep for it what was drawn before anybody was reading -- dropped whole
-  rather than in part once it is more than is worth keeping, and dropped outright once one has read.
-- MUST let go of a terminal that will not take what it is sent within a bounded time, MUST NOT let any
-  terminal, thread, hook or socket end the run -- what failed MUST be written down where it can be
-  read afterwards -- and MUST refuse a reported size of nothing or less.
-- MUST carry framed messages both ways so that a resize and a run letting go are said rather than
-  inferred, MUST refuse a length no frame of this protocol has, MUST NOT hand the same frame out
-  twice, and MUST answer a question about the run on the connection it was asked on and under this
-  same protocol.
-- MUST put this terminal back however a reading ended, and MUST say why only afterwards.
-- `Session` MUST be the whole of what an interface has to know about being held: how many terminals
-  are reading, and how to let go of them.
+- MUST let go of frontends without stopping the runs; stopping MUST be a separate request.
+- MUST NOT let any frontend, thread or socket end the runs -- what failed MUST be written down
+  where it can be read afterwards.
+- MUST carry framed messages both ways so that the runs letting go is said rather than inferred,
+  MUST refuse a length no frame of this protocol has, MUST NOT hand the same frame out twice, and
+  MUST answer a question about the runs on the connection it was asked on and under this same
+  protocol.
 
 ### Hosting
 
-- A daemon MUST hold a workspace's runs one way: for terminals, or as a `Host` for frontends. It
-  MUST write which beside its socket (`protocol`), and MUST answer a reader of the other kind with
-  `GONE`, saying which it holds, rather than leaving it waiting.
+- A daemon MUST write the protocol it speaks beside its socket (`protocol`), MUST answer a reader
+  speaking any other with `GONE` rather than leaving it waiting, and MUST read a daemon that wrote
+  none as one of an older humanize, which nothing here reaches.
 - `host` MUST find the host already holding a workspace's runs before it starts one, MUST start
-  one as `start` does, and MUST refuse a workspace whose run is held for a terminal. The host
+  one where none is, and MUST refuse a workspace an older humanize holds. The host
   process MUST read nothing, MUST write its own descriptors beside its socket, MUST say what is
   printed in it to its frontends a line at a time, MUST ignore an interrupt, MUST close its runs
   on a terminate, and MUST report its own failures where that has been answered yes.

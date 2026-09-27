@@ -991,6 +991,7 @@ async def test_the_key_that_used_to_take_an_account_away_takes_nothing_away() ->
 @unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
 async def test_an_agent_told_to_run_as_nobody_is_a_line_to_correct(
     _installed: unittest.mock.MagicMock,  # noqa: PT019  -- `mock.patch` hands it over
+    hosting: None,
 ) -> None:
     """An agent that cannot find its account must not quietly run as whoever started it."""
     app = Humanize()

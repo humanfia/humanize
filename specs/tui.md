@@ -14,15 +14,12 @@ class Humanize(App[None]):
         flow: str = "",
         agents: Mapping[str, Runs] | None = None,  # by role
         params: BaseModel | None = None,  # the flow's params
-        session: Session | None = None,
+        link: Link | None = None,  # the runs a host holds; None holds them in this process
     ) -> None: ...
-    def reattached(self) -> None: ...
     def action_quit(self) -> None: ...
-    def said(self) -> dict[str, Any]: ...  # the flow, its budget and usage, as JSON
 ```
 
-Textual's `run()` opens it; the other three are what a run held elsewhere calls to redraw, stop,
-or say what it is running.
+Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 
 ## Requirements
 
@@ -58,7 +55,7 @@ or say what it is running.
   turn open, holding it for the next turn otherwise, and keep it against the agent that took it.
 - MUST name what is running as the flow started and whatever it called, innermost last.
 - MUST offer exactly these commands, each doing what it says: `/flow`, `/btw`, `/epics`,
-  `/resume`, `/settings`, `/clear`, `/afk`, `/stop`, `/exit`. `/btw [question]` MUST enter btw
+  `/resume`, `/settings`, `/clear`, `/afk`, `/claim`, `/stop`, `/exit`. `/btw [question]` MUST enter btw
   mode, marked on the status line, in which every typed line is one more turn of one side
   conversation until `/btw` or esc leaves it and closes it; MUST NOT ask the flow's own sessions;
   MUST answer in cyan in the current view. In a session's view, ended ones included with no flow
@@ -89,10 +86,23 @@ or say what it is running.
 - MUST be whoever is outside a run, once per outworlder: a question one puts MUST be shown on
   its transcript and the shared one and answered with the next line typed on either -- the
   oldest of that outworlder's, or of any on the shared one -- an offered answer taken by its
-  number as well; `/afk` MUST make the outworlder read away, or every one elsewhere.
+  number as well; `/afk` MUST make the outworlder read away, or every one elsewhere that this
+  frontend may answer for, leaving the ones another holds as they were, and MUST outlive it.
+- MUST be one frontend of the runs it reads, whole and on its own: MUST ask for everything it
+  does to a run through its `link` -- starting, saying, answering, stopping, `/afk`, `/claim`,
+  the board, `/btw` -- and MUST draw a run from what it is told alone, reading one it arrives
+  late to from the top.
+- MUST let `/claim [on|off]` on an outworlder's transcript hold that outworlder for this
+  frontend alone, or give it back; MUST show beside each outworlder -- above the prompt, on the
+  monitor and under what it asks -- whether it is yours or whose it is; and MUST refuse a line
+  typed at an outworlder another frontend holds, saying whose it is.
+- MUST say who said, answered or started what another frontend did (`· by <name>`), and MUST
+  list on the monitor every frontend reading the runs.
+- `/exit` MUST let go of this frontend alone, offering to leave a running flow running where a
+  host holds it; `/stop` MUST stop it for every frontend.
 - MUST offer and run a command only where it works -- `/afk` anywhere but one agent's
-  transcript, `/stop` only on the monitor and the shared transcript -- and refuse it elsewhere,
-  saying where it works.
+  transcript, `/claim` only on an outworlder's, `/stop` only on the monitor and the shared
+  transcript -- and refuse it elsewhere, saying where it works.
 - MUST offer on the flowverses page of `/settings`, per place flows come from, what it holds,
   adding one, fetching it again and taking one away, against the same store the flows are read
   from, with any credential in a URL hidden.

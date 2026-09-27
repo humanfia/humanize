@@ -5337,8 +5337,10 @@ class Leaves(Popup):
 
     Closing the interface is not on its own a thing to do to a run. A flow is a loop and a
     turn thinks for minutes, so a day's work is behind the same three letters that close a
-    window -- and where the run is being held somewhere a terminal closing cannot reach, the
-    two are genuinely different things and only the person at the prompt knows which is meant.
+    window -- and where the runs are held by a host this interface closing cannot reach, the
+    two are genuinely different things and only the person at the prompt knows which is meant:
+    leaving lets go of this interface alone, and stopping stops the run for everybody reading
+    it.
 
     Drawn as a box in the middle of the screen rather than as a sheet, for the reason the
     question about a menu holding changes is: a sheet is a question somebody walked to, and
@@ -5355,8 +5357,8 @@ class Leaves(Popup):
         """Initializes the question.
 
         Args:
-          held: Whether this run is being held somewhere that outlives this terminal, which
-            is what makes leaving it running an answer there is.
+          held: Whether the runs are held by a host that outlives this interface, which is
+            what makes leaving it running an answer there is.
         """
         super().__init__()
         self._held = held
@@ -5365,9 +5367,9 @@ class Leaves(Popup):
         """The two answers, the second of which is whichever one is true here."""
         return [
             (STOPS, "stop it, then leave", ""),
-            # The one line worth a word: that the run outlives this terminal is the whole of
+            # The one line worth a word: that the run outlives this interface is the whole of
             # what makes letting go of it an answer rather than a way of abandoning it.
-            (DETACHES, "leave it running", "`hmz` opens it again")
+            (DETACHES, "leave it running", "`hmz` here reads it again")
             if self._held
             else (STAYS, "stay here", ""),
         ]

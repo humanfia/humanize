@@ -22,7 +22,7 @@ import pytest
 from hmz.runtime.epic import epics, state
 from hmz.tui import Humanize
 from tests.stubs import written
-from tests.tui.fixtures import Holding, holding, transcript, until
+from tests.tui.fixtures import holding, idle, link, told, transcript, until
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -123,7 +123,7 @@ def _began(epic: Path) -> dict[str, object]:
 
 
 @pytest.mark.timeout(90)
-async def test_the_last_run_here_is_carried_on(workspace: Path) -> None:
+async def test_the_last_run_here_is_carried_on(workspace: Path, hosting: None) -> None:
     """The whole of it: the flow goes on from where it stopped rather than starting over."""
     _ran("counts", "keep going")
     assert (workspace / "rounds.txt").read_text() == "1"
@@ -142,6 +142,29 @@ async def test_the_last_run_here_is_carried_on(workspace: Path) -> None:
     assert state(second) == {"rounds": 2}
     # A run of its own, saying which run it came from: an epic is never reopened.
     assert _began(second)["picked_up"] == first.name
+
+
+@pytest.mark.timeout(60)
+async def test_carrying_on_asks_the_runs_to_start_what_ran(workspace: Path) -> None:
+    """The flow, its roles and its task come from the run, and the journal it picks up is named.
+
+    Asked of the runs rather than started here: whoever holds them starts it, and every
+    frontend reading them reads it.
+    """
+    _ran("counts", "keep going")
+    (first,) = epics(workspace)
+
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _resumes(app, driver)
+        await until(lambda: bool(link(app).asked_for("start")), driver)
+
+        [start] = link(app).asked_for("start")
+        assert start["flow"] == "counts"
+        assert start["task"] == "keep going"
+        assert start["agents"] == {"worker": "claude/m:high"}
+        assert start["resume"] == str(first)
+        assert len(epics(workspace)) == 1  # nothing started here, in this process
 
 
 @pytest.mark.timeout(60)
@@ -251,7 +274,7 @@ async def test_carrying_on_is_refused_while_a_flow_is_running(workspace: Path) -
         assert "no picking a run up while a flow is running" in transcript(app)
         assert "ctrl+c twice stops it first" in transcript(app)
         assert len(epics(workspace)) == 1
-        app._run = None
+        assert not link(app).asked_for("start")
 
 
 @pytest.mark.timeout(60)
@@ -268,14 +291,13 @@ async def test_carrying_on_is_refused_while_the_flow_is_still_unwinding(
 
     app = Humanize()
     async with app.run_test() as driver:
-        # What `ctrl+c` twice leaves behind: let go of as the run going, kept as the one on
-        # its way out.
-        app._stopping = Holding()
+        # What `ctrl+c` twice leaves behind: nothing running, and one on its way out.
+        told(app, idle(stopping=0))
         await _resumes(app, driver)
 
         assert "while the flow is still stopping" in transcript(app)
         assert len(epics(workspace)) == 1
-        app._stopping = None
+        assert not link(app).asked_for("start")
 
 
 @pytest.mark.timeout(60)
