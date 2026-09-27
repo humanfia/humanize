@@ -474,6 +474,7 @@ async def test_detect_writes_in_what_the_daemon_has_to_be_typed_over(
     [
         ("memory", "64", "is not an amount"),
         ("cpus", "many", "cpus: 'many' is not a number"),
+        ("cpus", "nan", "cpus: 'nan' is not a number"),
         ("max_containers", "two", "is not a number of containers"),
         ("gpus", "0,0", "a GPU is named twice"),
         ("run_args", "--label 'x", "run args:"),
@@ -622,7 +623,7 @@ async def test_a_role_is_put_on_a_saved_host_and_remembered_as_e_spells_it(
     placed: Path,
     tmp_path: Path,
 ) -> None:
-    """Backend, host, workdir -- the host bringing its own -- and saved as `-e` spells it."""
+    """Backend, host, workdir -- the host bringing its own, which is then followed."""
     del placed
     store.add(SSHProvider(name="box", host="box.example", workdir="~/work"))
     store.add(SSHProvider(name="gpu", host="gpu.example"))
@@ -640,16 +641,17 @@ async def test_a_role_is_put_on_a_saved_host_and_remembered_as_e_spells_it(
         await driver.press("enter")
         await until(lambda: app.screen is form, driver)
 
+        # Its own workdir, shown and left out of the spelling: the role follows the host.
         assert form._typed_in["workdir"] == "~/work"
-        assert form._typed_in["spelled"] == "ssh@box/~/work"
+        assert form._typed_in["spelled"] == "ssh@box"
         assert form.under() == _DONE
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flows), driver)
-        assert "ssh@box/~/work" in _drawn(app)
+        assert "ssh@box" in _drawn(app)
         await _saves(app, driver)
 
-    assert app._envs == {"box": "ssh@box/~/work"}
-    assert Settings(tmp_path).envs("placed") == {"box": "ssh@box/~/work"}
+    assert app._envs == {"box": "ssh@box"}
+    assert Settings(tmp_path).envs("placed") == {"box": "ssh@box"}
 
 
 @pytest.mark.timeout(60)
@@ -678,6 +680,32 @@ async def test_a_remembered_role_opens_as_it_was_and_the_workdir_is_its_own(
         await _done(app, driver)
         await until(lambda: isinstance(app.screen, Flows), driver)
         assert "ssh@box/~/other" in _drawn(app)
+
+
+@pytest.mark.timeout(60)
+@unittest.mock.patch("hmz.tui.app.installed", return_value=CLAUDE)
+async def test_a_role_that_follows_its_host_s_workdir_goes_on_following_it(
+    _installed: unittest.mock.MagicMock,  # noqa: PT019 -- `mock.patch` hands it over
+    placed: Path,
+    tmp_path: Path,
+) -> None:
+    """`ssh@box` opens on the host's own workdir, and done hands back `ssh@box` unchanged."""
+    del placed
+    store.add(SSHProvider(name="box", host="box.example", workdir="~/work"))
+    Settings(tmp_path).remember(
+        "placed", {"builder": Runs("claude/claude-opus-5:max")}, envs={"box": "ssh@box"}
+    )
+    app = Humanize()
+    async with app.run_test() as driver:
+        form = await _placing(app, driver)
+        assert form._typed_in["workdir"] == "~/work"
+        assert form._typed_in["spelled"] == "ssh@box"
+        await _done(app, driver)
+        await until(lambda: isinstance(app.screen, Flows), driver)
+
+        flows = cast("Flows", app.screen)
+        assert flows._envs == {"box": "ssh@box"}
+        assert not flows._changed
 
 
 @pytest.mark.timeout(60)
@@ -733,7 +761,7 @@ async def test_a_host_added_from_the_role_is_saved_and_comes_back_chosen(
         await until(lambda: app.screen is form, driver)
 
         assert form._typed_in["provider"] == "new"
-        assert form._typed_in["spelled"] == "ssh@new/~/w"
+        assert form._typed_in["spelled"] == "ssh@new"
     assert store.find("ssh", "new") == SSHProvider(
         name="new", host="new.example", workdir="~/w"
     )
@@ -765,3 +793,111 @@ async def test_a_spec_typed_whole_sets_the_rows_and_one_that_does_not_read_is_re
         await _done(app, driver)
         await until(lambda: isinstance(app.screen, Flows), driver)
         assert f"local@{tmp_path}" in _drawn(app)
+
+
+@pytest.mark.timeout(60)
+async def test_a_config_under_a_home_nobody_has_is_said_rather_than_crashing(
+    standins: Path,
+) -> None:
+    del standins
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into_machines(app, driver)
+        await _opens(app, driver, _IMPORTS, Importing)
+        form = cast("Importing", app.screen)
+        await until(lambda: form._read is not None, driver)
+        await onto(app, driver, "config")
+        await driver.press(*"~nosuchuser9/config", "enter")
+        await until(lambda: form._read == "~nosuchuser9/config", driver)
+
+        assert app.is_running
+        assert "~nosuchuser9/config:" in _under(app)
+        assert rows(app) == ["config", _DONE]
+
+
+@pytest.mark.timeout(60)
+async def test_a_host_a_typed_one_is_saved_as_starts_off_and_says_why(
+    standins: Path, tmp_path: Path
+) -> None:
+    """An import writes over none it did not make, so the host it would be starts off."""
+    del standins
+    config = tmp_path / "config"
+    config.write_text(CONFIG)
+    store.add(SSHProvider(name="gpu", host="elsewhere"))
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into_machines(app, driver)
+        await _opens(app, driver, _IMPORTS, Importing)
+        form = cast("Importing", app.screen)
+        await onto(app, driver, "config")
+        await driver.press(*str(config), "enter")
+        await until(lambda: form._read == str(config) and not form._reading, driver)
+
+        assert not form._on("gpu")
+        assert form._on("builder")
+        assert "a host typed in is saved as gpu" in _drawn(app)
+
+
+@pytest.mark.timeout(60)
+async def test_an_option_whose_value_is_a_list_is_one_option(standins: Path) -> None:
+    """`Ciphers=a,b` is one option, which a comma before a keyword is what ends."""
+    del standins
+    app = Humanize()
+    async with app.run_test() as driver:
+        sheet = await _into_machines(app, driver)
+        await _opens(app, driver, _ADD, Hosting)
+        await driver.press(*"box", "enter")
+        await _types(
+            app, driver, "options", "Ciphers=aes128-ctr,aes256-ctr, Compression=yes"
+        )
+        await _done(app, driver)
+        await until(lambda: app.screen is sheet, driver)
+
+    saved = store.find("ssh", "box")
+    assert isinstance(saved, SSHProvider)
+    assert dict(saved.options) == {
+        "Ciphers": "aes128-ctr,aes256-ctr",
+        "Compression": "yes",
+    }
+
+
+@pytest.mark.timeout(60)
+async def test_correcting_one_row_of_a_daemon_changes_nothing_else(
+    standins: Path,
+) -> None:
+    """Memory saved as bytes that are no round number is read back as the very same bytes."""
+    del standins
+    store.add(DockerProvider(name="odd", memory=10**9))
+    app = Humanize()
+    async with app.run_test() as driver:
+        sheet = await _into_machines(app, driver)
+        await onto(app, driver, "docker/odd")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Machine), driver)
+        await _opens(app, driver, _CORRECTS, Docking)
+        await _types(app, driver, "image", "python:3.12")
+        await _done(app, driver)
+        await until(lambda: app.screen is sheet, driver)
+
+    assert store.find("docker", "odd") == DockerProvider(
+        name="odd", memory=10**9, image="python:3.12"
+    )
+
+
+@pytest.mark.timeout(60)
+async def test_a_tls_directory_under_a_home_nobody_has_is_refused_on_the_form(
+    standins: Path,
+) -> None:
+    del standins
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into_machines(app, driver)
+        await _opens(app, driver, _DOCKS, Docking)
+        await changes(app, driver, "endpoint", "right", "right")
+        await _types(app, driver, "address", "10.0.0.5:2376")
+        await _types(app, driver, "tls_dir", "~nosuchuser9/certs")
+        await _done(app, driver)
+
+        assert isinstance(app.screen, Docking)
+        assert "is under no home there is" in _under(app)
+    assert store.providers() == []

@@ -572,9 +572,9 @@ one form, whose rows are the parts of what `-e` takes after `<role>=`:
     1. backend  ssh ↔                   a machine reached over ssh
     2. host     gpu ▸                   as ~/.ssh/config says · works in ~/work
     3. workdir  ~/work                  blank for ~/work, where it is saved to work
-    4. as -e    ssh@gpu/~/work          all of it as -e spells it: typing one sets the rows above
+    4. as -e    ssh@gpu                 all of it as -e spells it: typing one sets the rows above
 
-  ❯    done                      holds box at ssh@gpu/~/work until the flow is saved
+  ❯    done                      holds box at ssh@gpu until the flow is saved
 
   enter done · esc back
 ```
@@ -582,8 +582,8 @@ one form, whose rows are the parts of what `-e` takes after `<role>=`:
 | Row | |
 | --- | --- |
 | `backend` ↔ | Every backend `-e` takes. It starts on the first one an [environment provider](#environments) is saved for, else on `local`. Changing it lets go of the host and the workdir. |
-| `host` ▸ | Not asked for `local`; `daemon` for docker. Opens the providers of that backend saved on [Environments](#environments), with `add an ssh host` (or `add a docker host`) above them, which saves one on the same form and comes back with it chosen, and, for ssh, `a host not saved`: `host`, `user@host`, `host:port` or an ssh config alias, saved nowhere. |
-| `workdir` | The directory there: absolute, or `~/…` under the ssh login's home. It starts from where the provider is saved to work, typed over for another; blank uses that one. |
+| `host` ▸ | Not asked for `local`; `daemon` for a docker backend, once `-e` takes one. Opens the providers of that backend saved on [Environments](#environments), with `add an ssh host` (or `add a docker host`) above them, which saves one on the same form and comes back with it chosen, and, for ssh, `a host not saved`: `host`, `user@host`, `host:port` or an ssh config alias, saved nowhere. |
+| `workdir` | The directory there: absolute, or `~/…` under the ssh login's home. It starts from where the provider is saved to work, and while it still says that, `as -e` leaves it out so the role follows the provider; typed over, it is spelled out. Blank is the provider's too. |
 | `as -e` | All of it, as `-e` spells it. Typing a whole spec there sets the rows above. |
 | `done` | Holds it with the rest of the menu, read the way `-e` reads it: one that does not read is refused under the form, in `-e`'s words. With nothing said, it leaves the role unsaid. |
 

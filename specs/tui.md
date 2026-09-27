@@ -104,11 +104,12 @@ or say what it is running.
   backend -- ssh hosts, and docker daemons with what each may hand out -- and offer making either
   on one form wherever one is asked for, importing the hosts an ssh config names -- the user's
   own or another file, switched on per host and saved already or not, never writing to it --
-  and per provider correcting it, checking it and taking it away; MUST ask one what it has as
-  it is made or corrected and when checked -- an ssh host its home, CPUs, memory and GPUs, a
-  docker daemon the same and what it is saved to hand out that it has not got -- off the drawing
-  path, saying why where it cannot be reached; MUST apply all of it at once, so that the page
-  holds nothing; and MUST NOT read a key it names.
+  and per provider correcting it, checking it and taking it away; MUST ask one what it has when
+  it is made or corrected on that page and when it is checked, an import asking none -- an ssh
+  host its home, CPUs, memory and GPUs, a docker daemon its CPUs, memory, GPUs and runtimes and
+  what it is saved to hand out that it has not got -- off the drawing path, saying why where it
+  cannot be reached; MUST apply all of it at once, so that the page holds nothing; and MUST NOT
+  read a key it names.
 - MUST list on the accounts page of `/settings` every account under its CLI and offer
   correcting, re-signing, what it fails over to and taking it away, never drawing a secret back
   onto the screen, a secret left blank while correcting keeping the one it has.

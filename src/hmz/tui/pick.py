@@ -7427,7 +7427,7 @@ _OWN_CONFIG = "~/.ssh/config"
 _CHECKS = "checks"
 
 #: What memory is written as on a form: a number and a unit, in docker's units of 1024.
-_SIZE = re.compile(r"(\d+(?:\.\d+)?)\s*([KMGTP])(?:I?B)?", re.IGNORECASE)
+_SIZE = re.compile(r"(\d+(?:\.\d+)?)\s*(?:([KMGTP])(?:I?B)?|B)", re.IGNORECASE)
 _UNITS = "KMGTP"
 
 
@@ -7456,16 +7456,24 @@ class _Had(Protocol):
     def short(self) -> tuple[str, ...]: ...
 
 
-def _sized(amount: int) -> str:
+def _sized(amount: int, *, exact: bool = False) -> str:
     """Bytes as a row says them and a form takes them back: `64G`, `512M`.
 
     Whole: the largest unit of a megabyte or more that divides it, else what it comes to in
     whole G -- or M, under one -- rounded down. A daemon's memory is not a round number, and
     one written in rounded up would be more than it has.
+
+    Args:
+      amount: The bytes.
+      exact: Whether it is to be read back as the very same amount -- a form correcting what
+        was saved, which must not change what nobody touched -- in the largest unit that
+        divides it, bytes and all.
     """
-    for at in range(len(_UNITS), 1, -1):
+    for at in range(len(_UNITS), 0 if exact else 1, -1):
         if amount and not amount % 1024**at:
             return f"{amount // 1024**at}{_UNITS[at - 1]}"
+    if exact:
+        return f"{amount}B"
     for at in (3, 2, 1):
         if amount >= 1024**at:
             return f"{amount // 1024**at}{_UNITS[at - 1]}"
@@ -7484,21 +7492,32 @@ def _bytes(said: str) -> int:
         raise ValueError(
             f"memory: {said!r} is not an amount: a number and a unit, as 64G or 512M"
         )
-    return int(float(read[1]) * 1024 ** (_UNITS.index(read[2].upper()) + 1))
+    unit = read[2] or ""
+    return int(float(read[1]) * 1024 ** (_UNITS.index(unit.upper()) + 1 if unit else 0))
 
 
 def _number(said: str, what: str) -> float:
     """A number a form was given, or 0 for none.
 
     Raises:
-      ValueError: For one that is not a number.
+      ValueError: For one that is not a number, `nan` and `inf` among them.
     """
+    import math
+
     if not said:
         return 0.0
     try:
-        return float(said)
+        value = float(said)
     except ValueError:
-        raise ValueError(f"{what}: {said!r} is not a number") from None
+        value = math.nan
+    if not math.isfinite(value):
+        raise ValueError(f"{what}: {said!r} is not a number")
+    return value
+
+
+#: Where one option ends and the next begins: a comma before a keyword, and not every comma --
+#: a value may be a list of its own, as `Ciphers=aes128-ctr,aes256-ctr` is.
+_OPTION = re.compile(r",\s*(?=[A-Za-z][A-Za-z0-9]*\s*[=\s])")
 
 
 def _options(said: str) -> dict[str, str]:
@@ -7508,7 +7527,7 @@ def _options(said: str) -> dict[str, str]:
       ValueError: For one that says no value.
     """
     held: dict[str, str] = {}
-    for one in (part.strip() for part in said.split(",")):
+    for one in (part.strip() for part in _OPTION.split(said)):
         if not one:
             continue
         key, _, value = one.partition("=") if "=" in one else one.partition(" ")
@@ -7602,12 +7621,6 @@ def _answered(one: EnvProvider, said: _Had) -> str:
     named = f"{one.backend}/{one.name}"
     if not said.reached:
         return bad(escape(f"{named} could not be reached: {said.said}"))
-    has = [f"{said.cpus:g} CPUs", _sized(said.memory)]
-    if said.gpus:
-        gpus = f"GPUs {', '.join(said.gpus)}"
-        has.append(
-            f"{gpus}, {_sized(said.gpu_memory)} each" if said.gpu_memory else gpus
-        )
     lead = (
         f": docker {said.version}"
         if said.version
@@ -7615,15 +7628,40 @@ def _answered(one: EnvProvider, said: _Had) -> str:
         if said.home
         else ""
     )
-    line = f"{named} answers{lead}; {', '.join(has)}"
-    if said.runtimes:
-        line += f"; runtimes {', '.join(said.runtimes)}"
-    line = escape(line)
+    line = escape(f"{named} answers{lead}; {_has(said)}")
     if said.short:
         line += "\n" + iffy(
             escape(f"short of what it is saved to hand out: {'; '.join(said.short)}")
         )
     return line
+
+
+async def _checked(one: EnvProvider) -> _Had | str:
+    """Asks a provider what it has, off the loop: what it said, or why asking went wrong.
+
+    Returns:
+      What it has, or -- where asking raised rather than answering, as a TLS directory under
+      a `~somebody` nobody is does -- why, in words.
+    """
+    import asyncio
+
+    envs = _hmz().environments
+    try:
+        return await asyncio.to_thread(envs.check, one)
+    except (OSError, ValueError, RuntimeError) as why:
+        return f"{one.backend}/{one.name} could not be asked: {why}"
+
+
+def _has(said: _Had) -> str:
+    """What a provider said it has, as one line: its CPUs, memory, GPUs and runtimes."""
+    has = [f"{said.cpus:g} CPUs", _sized(said.memory)]
+    if said.gpus:
+        gpus = f"GPUs {', '.join(said.gpus)}"
+        has.append(
+            f"{gpus}, {_sized(said.gpu_memory)} each" if said.gpu_memory else gpus
+        )
+    runs = f"; runtimes {', '.join(said.runtimes)}" if said.runtimes else ""
+    return f"{', '.join(has)}{runs}"
 
 
 async def provided(host: App[None], backend: str) -> tuple[EnvProvider | None, str]:
@@ -7931,6 +7969,8 @@ class Docking(Form["EnvProvider"]):
         #: What to say under the form, as markup: what detecting found, or that it is asking.
         self._noted = ""
         self._detecting = False
+        #: The ssh hosts the `on` row has named, read once apiece: it is redrawn per key.
+        self._vias: dict[str, EnvProvider | None] = {}
         if one is None:
             self._typed_in = {_ENDPOINT: "local"}
             self._names()
@@ -7942,7 +7982,7 @@ class Docking(Form["EnvProvider"]):
             _RUNTIME: one.runtime,
             _ARGS: shlex.join(one.run_args),
             _CPUS: f"{one.cpus:g}" if one.cpus else "",
-            _MEMORY: _sized(one.memory) if one.memory else "",
+            _MEMORY: _sized(one.memory, exact=True) if one.memory else "",
             _GPUS: ", ".join(one.gpus),
             _AT_ONCE: str(one.max_containers) if one.max_containers else "",
             _WORKDIR: one.workdir,
@@ -7971,6 +8011,13 @@ class Docking(Form["EnvProvider"]):
         )
         typed[_CALLED] = _unique(base, self._taken)
         self._fresh.add(_CALLED)
+
+    def _via_host(self) -> EnvProvider | None:
+        """The saved ssh host the `on` row names, or None where it names none."""
+        via = self._typed_in.get(_VIA, "")
+        if via not in self._vias:
+            self._vias[via] = _hmz().environments.find(_SSH, via) if via else None
+        return self._vias[via]
 
     def _endpoint(self) -> str:
         """Where the daemon is, spelled as a provider spells it."""
@@ -8014,7 +8061,7 @@ class Docking(Form["EnvProvider"]):
                     )
                 )
         elif kind == "saved ssh host":
-            via = _hmz().environments.find(_SSH, typed.get(_VIA, ""))
+            via = self._via_host()
             rows.append(
                 Question(
                     _VIA,
@@ -8133,6 +8180,7 @@ class Docking(Form["EnvProvider"]):
             return
         if chosen != self._typed_in.get(_VIA):
             self._typed_in[_VIA], self._wrong = chosen, ""
+            self._vias.clear()  # one may have been added on the way
             self._names()
             self.changed()
         self.kept(_VIA)
@@ -8159,8 +8207,6 @@ class Docking(Form["EnvProvider"]):
         what somebody wants is usually less than all of it, and now they can see how much all
         of it is.
         """
-        import asyncio
-
         if self._detecting:
             return
         envs = _hmz().environments
@@ -8180,10 +8226,14 @@ class Docking(Form["EnvProvider"]):
         self._detecting, self._wrong = True, ""
         self._noted = f"asking {escape(self._endpoint())} what it has…"
         self._fill()
-        said: _Had = await asyncio.to_thread(envs.check, probe)
+        said = await _checked(probe)
         self._detecting, self._noted = False, ""
-        if not said.reached:
-            self._wrong = f"the daemon did not answer: {said.said}"
+        if isinstance(said, str) or not said.reached:
+            self._wrong = (
+                said
+                if isinstance(said, str)
+                else f"the daemon did not answer: {said.said}"
+            )
             self._fill()
             return
         for held, value in (
@@ -8194,13 +8244,7 @@ class Docking(Form["EnvProvider"]):
             if value:
                 self._typed_in[held] = value
                 self._fresh.add(held)
-        has = [f"{said.cpus:g} CPUs", _sized(said.memory)]
-        if said.gpus:
-            has.append(f"GPUs {', '.join(said.gpus)}")
-        runs = f"; runtimes {', '.join(said.runtimes)}" if said.runtimes else ""
-        self._noted = escape(
-            f"it has {', '.join(has)}{runs}: written in, to type less over"
-        )
+        self._noted = escape(f"it has {_has(said)}: written in, to type less over")
         self.changed()
         self._fill()
         # On the first of them, for the typing over.
@@ -8259,7 +8303,13 @@ class Docking(Form["EnvProvider"]):
         Raises:
           ValueError: For an amount that is not one, or run args that do not split.
         """
-        most = typed.get(_AT_ONCE, "")
+        most, tls = typed.get(_AT_ONCE, ""), typed.get(_TLS, "")
+        try:
+            Path(tls).expanduser()
+        except (
+            RuntimeError
+        ):  # `~somebody` nobody is, which would crash whatever reads it
+            raise ValueError(f"tls: {tls!r} is under no home there is") from None
         if most and not most.isdigit():
             raise ValueError(f"at once: {most!r} is not a number of containers")
         try:
@@ -8268,7 +8318,7 @@ class Docking(Form["EnvProvider"]):
             raise ValueError(f"run args: {why}") from None
         return {
             "endpoint": self._endpoint(),
-            "tls_dir": typed.get(_TLS, "") if typed.get(_ENDPOINT) == "tcp" else "",
+            "tls_dir": tls if typed.get(_ENDPOINT) == "tcp" else "",
             "image": typed.get(_IMAGE, ""),
             "runtime": typed.get(_RUNTIME, ""),
             "run_args": argv,
@@ -8343,18 +8393,46 @@ class Importing(Form[Imported]):
         #: What the hosts were last read from, as the row said it, or None before they were.
         self._read: str | None = None
         self._reading = False
-        saved = [cast("SSHProvider", one) for one in _hmz().environments.all(_SSH)]
-        #: What is saved already, by name and by the `Host` it was imported as.
-        self._saved = frozenset(
-            {one.name for one in saved} | {one.alias for one in saved if one.alias}
-        )
+        #: The ssh hosts saved already, by name: what an import would write over.
+        self._saved = {one.name: one for one in _hmz().environments.all(_SSH)}
+        #: Why a host starts switched off, by its `Host`, for the ones that do.
+        self._off: dict[str, str] = {}
 
     def _config(self) -> str | None:
         """The config to read, or None for the user's own -- which ssh reads with the system's."""
         said = self._typed_in.get(_CONFIG, "").strip()
-        if not said or Path(said).expanduser() == Path(_OWN_CONFIG).expanduser():
-            return None
-        return said
+        try:
+            own = not said or Path(said).expanduser() == Path(_OWN_CONFIG).expanduser()
+        except (
+            RuntimeError
+        ):  # `~somebody` nobody is: a path that reads nothing, said so
+            own = False
+        return None if own else said
+
+    def _standing(self, found: Sequence[SSHHost]) -> dict[str, str]:
+        """Why each host that starts switched off does, by its `Host`.
+
+        Read as the store names an imported host -- its `Host`, anything a name cannot hold
+        made a dash -- since that name is what it would be saved under: a host saved under it
+        already, one typed in under it, and one an earlier host takes it from.
+        """
+        from hmz.coganchor.machines.store import IMPORTED
+
+        off: dict[str, str] = {}
+        taken: dict[str, str] = {}
+        for one in found:
+            name = re.sub(r"[^A-Za-z0-9._-]", "-", one.alias).lstrip("._-")
+            saved = self._saved.get(name)
+            if not name:
+                off[one.alias] = "no name a host can be saved under"
+            elif name in taken:
+                off[one.alias] = f"{taken[name]} is imported as {name}"
+            elif saved is not None and saved.made != IMPORTED:
+                off[one.alias] = f"a host typed in is saved as {name}"
+            elif saved is not None:
+                off[one.alias] = "saved already"
+            taken.setdefault(name, one.alias)
+        return off
 
     def _on(self, alias: str) -> bool:
         """Whether one host is switched on to be imported."""
@@ -8384,7 +8462,7 @@ class Importing(Form[Imported]):
             else f"{one.host}:{one.port}",
             *((f"key {', '.join(one.identity_files)}",) if one.identity_files else ()),
             *((f"through {one.proxy_jump}",) if one.proxy_jump else ()),
-            *(("saved already",) if one.alias in self._saved else ()),
+            *((self._off[one.alias],) if one.alias in self._off else ()),
         ]
         return _DOT.join(said)
 
@@ -8443,12 +8521,16 @@ class Importing(Form[Imported]):
         envs = _hmz().environments
         try:
             found = await asyncio.to_thread(envs.hosts, self._config())
-        except OSError as why:
-            found, self._wrong = [], str(why)
+        except (
+            OSError,
+            RuntimeError,
+        ) as why:  # no ssh, or a config nobody's home holds
+            found, self._wrong = [], f"{said}: {why}"
         self._reading, self._read, self._hosts = False, said, found
+        self._off = self._standing(found)
         for one in found:
             self._typed_in.setdefault(
-                f"{_HOSTED}{one.alias}", _NO if one.alias in self._saved else _YES
+                f"{_HOSTED}{one.alias}", _NO if one.alias in self._off else _YES
             )
         self._fill()
         if any(self._on(one.alias) for one in found):
@@ -8466,11 +8548,13 @@ class Importing(Form[Imported]):
             self._fill()
             return
         on = [one.alias for one in self._hosts if self._on(one.alias)]
+        # Switched on over one saved already is saving it again, which the store is told.
+        again = {alias for alias in on if alias in self._off}
         self.dismiss(
             Imported(
                 self._config(),
-                tuple(alias for alias in on if alias not in self._saved),
-                tuple(alias for alias in on if alias in self._saved),
+                tuple(alias for alias in on if alias not in again),
+                tuple(alias for alias in on if alias in again),
                 tuple(one.alias for one in self._hosts if not self._on(one.alias)),
             )
         )
@@ -8692,7 +8776,10 @@ def _spelled(role: str, spec: str) -> tuple[str, str, str] | None:
         (one,) = parse_envs([f"{role}={spec}"])
     except (SpecError, ValueError):
         return None
-    return one.backend.value, one.provider, str(one.workdir)
+    # A directory the spec leaves out is its provider's, followed rather than copied: `-e`
+    # fills it in from the provider, and a spec read back must not have it written in.
+    kept = "/" in spec.partition("@")[2]
+    return one.backend.value, one.provider, str(one.workdir) if kept else ""
 
 
 #: The rows of the form an environment role is placed on, besides its workdir.
@@ -8744,16 +8831,41 @@ class Placing(Form[str]):
                 self._kinds[0],
             )
             read = (backend, "", "")
-        self._typed_in = dict(zip((_BACKEND, _PROVIDER, _WORKDIR), read, strict=True))
-        #: The provider the machine row names, where one is saved under that name.
-        self._found = envs.find(read[0], read[1]) if read[1] else None
+        #: The providers looked up by the rows, by backend and name, read once apiece: the
+        #: form is redrawn per keystroke, and which one the rows name is read off them.
+        self._finds: dict[tuple[str, str], EnvProvider | None] = {}
+        self._reads_in(read)
         if raw:
             self._typed_in[_SPELLED] = raw
         else:
             self._spells()
 
+    def _reads_in(self, read: tuple[str, str, str]) -> None:
+        """Puts a backend, a machine and a directory in the rows, the provider's own if none.
+
+        Args:
+          read: The three, the directory "" for the one the provider is saved with.
+        """
+        self._typed_in |= dict(zip((_BACKEND, _PROVIDER, _WORKDIR), read, strict=True))
+        self._fresh.discard(_WORKDIR)
+        found = self._machine()
+        if not read[2] and found is not None and found.workdir:
+            self._typed_in[_WORKDIR] = found.workdir
+            self._fresh.add(_WORKDIR)
+
+    def _machine(self) -> EnvProvider | None:
+        """The provider the rows name, where one is saved under that name."""
+        key = (self._typed_in.get(_BACKEND, ""), self._typed_in.get(_PROVIDER, ""))
+        if key not in self._finds:
+            self._finds[key] = _hmz().environments.find(*key) if key[1] else None
+        return self._finds[key]
+
     def _composed(self) -> str:
-        """The rows, as `-e` spells them after `<role>=`, or "" where they say too little."""
+        """The rows, as `-e` spells them after `<role>=`, or "" where they say too little.
+
+        Where the directory is still the one the provider is saved with, it is left out, so
+        that the role goes on working wherever that provider is saved to.
+        """
         backend, provider, workdir = (
             self._typed_in.get(one, "").strip()
             for one in (_BACKEND, _PROVIDER, _WORKDIR)
@@ -8763,6 +8875,9 @@ class Placing(Form[str]):
         if not provider:
             return ""
         head = f"{backend}@{provider}"
+        found = self._machine()
+        if _WORKDIR in self._fresh and found is not None and workdir == found.workdir:
+            workdir = ""
         if not workdir:
             return head
         return head + (workdir if workdir.startswith("/") else f"/{workdir}")
@@ -8784,16 +8899,19 @@ class Placing(Form[str]):
                 _STEPS,
             )
         ]
-        saved = self._found.workdir if self._found is not None else ""
+        found = self._machine()
+        saved = found.workdir if found is not None else ""
         if backend != self._local:
             provider = typed.get(_PROVIDER, "").strip()
             rows.append(
                 Question(
                     _PROVIDER,
                     _ON_ROW.get(backend, "provider"),
-                    _machine_line(self._found)
-                    if self._found is not None
+                    _machine_line(found)
+                    if found is not None
                     else "not saved: ssh reaches it as it is written"
+                    if provider and backend == _SSH
+                    else "not saved here"
                     if provider
                     else "choose one saved here, or add one",
                     _OPENS_ONTO if backend in _KINDS else _WRITES,
@@ -8834,7 +8952,6 @@ class Placing(Form[str]):
         del held
         self._typed_in[_PROVIDER] = self._typed_in[_WORKDIR] = ""
         self._fresh.discard(_WORKDIR)
-        self._found = None
         self._spells()
 
     def _takes(self, provider: str) -> None:
@@ -8844,11 +8961,9 @@ class Placing(Form[str]):
           provider: The machine, by the name it is saved under or as it was typed.
         """
         self._typed_in[_PROVIDER] = provider
-        self._found = _hmz().environments.find(
-            self._typed_in.get(_BACKEND, ""), provider
-        )
         if not self._typed_in.get(_WORKDIR) or _WORKDIR in self._fresh:
-            saved = self._found.workdir if self._found is not None else ""
+            found = self._machine()
+            saved = found.workdir if found is not None else ""
             self._typed_in[_WORKDIR] = saved
             if saved:
                 self._fresh.add(_WORKDIR)
@@ -8886,6 +9001,7 @@ class Placing(Form[str]):
         if chosen is None:
             return
         if chosen != self._typed_in.get(_PROVIDER):
+            self._finds.clear()  # one may have been added on the way
             self._takes(chosen)
             self._wrong = ""
             self.changed()
@@ -8918,9 +9034,7 @@ class Placing(Form[str]):
         read = _spelled(self._role, self._typed_in.get(_SPELLED, "").strip())
         if read is None:
             return  # kept as written, and said what is wrong with it once it is answered
-        self._typed_in |= dict(zip((_BACKEND, _PROVIDER, _WORKDIR), read, strict=True))
-        self._fresh.discard(_WORKDIR)
-        self._found = _hmz().environments.find(read[0], read[1]) if read[1] else None
+        self._reads_in(read)
         self._spells()
 
     def done_about(self) -> str:
@@ -8991,7 +9105,7 @@ class Machines(Pages):
         super().__init__()
         self._saved_machines: list[EnvProvider] = []
         #: The ones being asked what they have, as `backend/name`, which their rows say.
-        self._checking: set[str] = set()
+        self._checking: dict[str, object] = {}
 
     def _read_machines(self) -> None:
         """Reads every provider off the disk, which is what the rows are drawn from."""
@@ -9205,16 +9319,19 @@ class Machines(Pages):
             return
         envs = _hmz().environments
         try:
+            # The ones imported again first: the one that is refused -- a host somebody typed
+            # in under that name -- is then refused before anything is written.
             made = [
-                *envs.import_ssh(chosen.config, chosen.names),
                 *(
                     envs.import_ssh(chosen.config, chosen.again, update=True)
                     if chosen.again
                     else ()
                 ),
+                *envs.import_ssh(chosen.config, chosen.names),
             ]
-        except (OSError, ValueError) as why:
+        except (OSError, ValueError, RuntimeError) as why:
             self._said = bad(escape(str(why)))
+            self._read_machines()
             self._fill()
             return
         names = ", ".join(one.name for one in made)
@@ -9243,18 +9360,20 @@ class Machines(Pages):
         Args:
           one: The provider.
         """
-        import asyncio
-
         keyed = self._machine_key(one)
-        if keyed in self._checking:
-            return
-        self._checking.add(keyed)
+        # This one's own, so that the answer to one asked before it was corrected is not
+        # taken for the answer to what it is now: the last asked is the one said.
+        turn = self._checking[keyed] = object()
         self._tell(_MACHINES, f"asking {escape(keyed)} what it has…")
         self._fill()
-        envs = _hmz().environments
-        said: _Had = await asyncio.to_thread(envs.check, one)
-        self._checking.discard(keyed)
-        self._tell(_MACHINES, _answered(one, said))
+        said = await _checked(one)
+        if self._checking.get(keyed) is not turn:
+            return
+        del self._checking[keyed]
+        self._tell(
+            _MACHINES,
+            bad(escape(said)) if isinstance(said, str) else _answered(one, said),
+        )
         self._fill()
 
 

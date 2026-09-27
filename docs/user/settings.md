@@ -624,9 +624,9 @@ At `/flow`, <kbd>enter</kbd> on an environment role opens where it is:
   <span class="d">1.</span> backend  <span class="a">ssh ↔</span>                   <span class="m">a machine reached over ssh</span>
   <span class="d">2.</span> host     <span class="a">gpu ▸</span>                   <span class="m">as ~/.ssh/config says · works in ~/work</span>
   <span class="d">3.</span> workdir  <span class="a">~/work</span>                  <span class="m">blank for ~/work, where it is saved to work</span>
-  <span class="d">4.</span> as -e    <span class="a">ssh@gpu/~/work</span>          <span class="m">all of it as -e spells it: typing one sets the rows above</span>
+  <span class="d">4.</span> as -e    <span class="a">ssh@gpu</span>                 <span class="m">all of it as -e spells it: typing one sets the rows above</span>
 
-<span class="p">❯</span>    <span class="p">done</span>                   <span class="m">holds box at ssh@gpu/~/work until the flow is saved</span>
+<span class="p">❯</span>    <span class="p">done</span>                   <span class="m">holds box at ssh@gpu until the flow is saved</span>
 
 <span class="d">enter done · esc back</span></pre>
 
@@ -634,11 +634,13 @@ At `/flow`, <kbd>enter</kbd> on an environment role opens where it is:
 
 - `backend` is every backend `-e` takes. It starts on the first one anything is saved for, and
   the cursor on the first thing still to answer.
-- `host` (`daemon` for docker) opens the providers of that backend saved here, with `add an
+- `host` (`daemon` for a docker backend, once `-e` takes one) opens the providers of that
+  backend saved here, with `add an
   ssh host` above them (the same form, and the new one comes back chosen) and, for ssh, `a host
   not saved`: any host `ssh` reaches, as you would type it, saved nowhere.
-- `workdir` starts from where the provider was saved to work. Type over it for another
-  directory there.
+- `workdir` starts from where the provider was saved to work. Left as it is, the spelling
+  leaves it out (`ssh@gpu`), so the role goes on following the provider when its workdir is
+  corrected; type over it for another directory there (`ssh@gpu/~/other`).
 - `as -e` is all of it, as `-e` spells it. Type a whole spec there instead and the rows above
   take it apart; one `-e` would refuse is refused on `done`, in the words `-e` refuses it in.
 
