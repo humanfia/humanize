@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -46,12 +46,12 @@ from hmz.tui.pick import Flows
 from hmz.tui.selecting import Transcript
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Iterable, Mapping
     from pathlib import Path
 
     from textual.pilot import Pilot
 
-    from hmz.coganchor.agents import AgentBase
+    from hmz.coganchor.agents import AgentBase, Event, SessionBase
     from hmz.flows import Budget
     from hmz.runtime.kept import Runs
     from hmz.tui import Humanize
@@ -205,12 +205,16 @@ def set_up(
 class Holding:
     """A run the interface is holding that runs nothing: for a test about that state alone.
 
+    It opens a session and says something in one only where a test says so, through `opens`
+    and `says`, and then tells whoever is following it just as a run does.
+
     Attributes:
       stopped: Whether it was told to stop.
       closed: Whether it was closed.
     """
 
     flow = "flow"
+    ref = "flow"
 
     def __init__(self) -> None:
         from hmz.flows import Budget, Usage
@@ -219,12 +223,37 @@ class Holding:
         self.usage = Usage()
         self.stopped = False
         self.closed = False
+        self._listeners: list[Callable[..., None]] = []
+        self._callbacks: list[Callable[..., None]] = []
 
-    def watch(self, listener: object) -> None:
-        """Hears nothing, there being nothing to hear."""
+    def watch(self, listener: Callable[..., None]) -> None:
+        """Keeps who hears what its turns say, which is nothing until a test says it."""
+        self._listeners.append(listener)
 
-    def opened(self, callback: object) -> None:
-        """Opens nothing, and so tells nothing."""
+    def opened(self, callback: Callable[..., None]) -> None:
+        """Keeps who is told of each session it opens."""
+        self._callbacks.append(callback)
+
+    def opens(self, agent: AgentBase, session: SessionBase | None = None) -> None:
+        """Opens one session for the role the agent is named for, as a run tells of one.
+
+        Args:
+          agent: The agent behind it.
+          session: Its conversation, or None for a person, who holds none.
+        """
+        for callback in list(self._callbacks):
+            callback(agent.id, agent, session)
+
+    def says(self, agent: AgentBase, session: SessionBase | None, event: Event) -> None:
+        """Has a turn say something, as a run's own sessions do.
+
+        Args:
+          agent: Whose turn.
+          session: Which of its conversations, or None for the agent's own.
+          event: What it says.
+        """
+        for listener in list(self._listeners):
+            listener(agent, session, event)
 
     def run(self) -> None:
         """Runs nothing."""
@@ -241,6 +270,11 @@ class Holding:
 def holding(app: Humanize, *agents: AgentBase) -> Holding:
     """Puts the interface in the state of holding a running flow, with these agents in it.
 
+    Every conversation each of them holds is opened in it, as a run tells the interface of
+    one: numbered for its role in the order given, which is the key its records name it by,
+    and kept as what a word typed at it reaches. A person holds none, and is told of as the
+    one the board is kept by.
+
     Args:
       app: The interface.
       agents: The agents behind the sessions the run has opened.
@@ -248,8 +282,111 @@ def holding(app: Humanize, *agents: AgentBase) -> Holding:
     Returns:
       The run it is holding.
     """
+    from hmz.coganchor.agents import HumanAgent
+
     run = Holding()
     app._run = run
-    app._agents = list(agents)
-    app._ran = app._agents
+    app._follow(run)
+    for agent in agents:
+        for session in [None] if isinstance(agent, HumanAgent) else agent.sessions:
+            run.opens(agent, session)
     return run
+
+
+def opened(
+    key: str,
+    *,
+    run: int = 0,
+    model: str = "m",
+    cli: str = "claude",
+    counts: Iterable[str] = (),
+) -> dict[str, Any]:
+    """A session a run has opened, as the record the interface is told of it by.
+
+    Args:
+      key: What it is read under, `<role>/<n>`.
+      run: The run it is of: 0 for the one an interface holds before it has started any.
+      model: What it runs at.
+      cli: What runs it.
+      counts: The kinds of token its backend reports.
+
+    Returns:
+      The record, as `hmz.tui.records.opened` makes one.
+    """
+    role = key.partition("/")[0]
+    return {
+        "type": "opened",
+        "run": run,
+        "role": role,
+        "key": key,
+        "agent": role,
+        "cli": cli,
+        "model": model,
+        "counts": sorted(counts),
+        "forks": False,
+        "person": False,
+        "mono": time.monotonic(),
+    }
+
+
+def event(
+    key: str,
+    kind: str,
+    text: str = "",
+    *,
+    run: int = 0,
+    session: bool = True,
+    whose: str = "",
+    tokens: Mapping[str, int] | None = None,
+    spent: Mapping[str, float] | None = None,
+    ident: str = "",
+    model: str = "m",
+    cli: str = "claude",
+) -> dict[str, Any]:
+    """Something a turn said, as the record the interface is told of it by.
+
+    Args:
+      key: The transcript it goes on, `<role>/<n>` -- whose role is the agent that said it.
+      kind: What kind of thing, as `Event.kind` says it.
+      text: What was said.
+      run: The run it is of: 0 for the one an interface holds before it has started any.
+      session: Whether it was said in that conversation, rather than by the agent for all of
+        its conversations and put on that one.
+      whose: Which of a turn's several things it is about.
+      tokens: What it cost, by model.
+      spent: The same, by kind of token.
+      ident: What the backend calls the conversation.
+      model: What the agent runs at.
+      cli: What runs it.
+
+    Returns:
+      The record, as `hmz.tui.records.record` makes one.
+    """
+    return {
+        "type": "event",
+        "run": run,
+        "key": key,
+        "session": key if session else "",
+        "agent": key.partition("/")[0],
+        "cli": cli,
+        "model": model,
+        "ident": ident,
+        "kind": kind,
+        "text": text,
+        "whose": whose,
+        "tokens": dict(tokens or {}),
+        "spent": dict(spent or {}),
+        "at": time.time(),
+        "mono": time.monotonic(),
+    }
+
+
+def told(app: Humanize, *records: dict[str, Any]) -> None:
+    """Tells the interface records of a run, in order, as a run it follows tells it them.
+
+    Args:
+      app: The interface.
+      records: What it is told, as `opened` and `event` make them.
+    """
+    for one in records:
+        app._told(one)

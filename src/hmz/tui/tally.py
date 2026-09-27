@@ -25,11 +25,9 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from pathlib import Path
 
-    from hmz.coganchor.agents import AgentBase
-
     from .monitor import Monitor
 
-__all__ = ["Tally", "reported"]
+__all__ = ["Seen", "Tally", "reported"]
 
 #: How often the logs are looked at. Often enough that a turn's spending shows while the turn
 #: is still running, and cheap because only what has been appended since is ever read.
@@ -190,6 +188,31 @@ def _spent(
 
 
 @dataclass
+class Seen:
+    """One session of a run, as what is said about it says it: whose it is and its logs.
+
+    Read off the records of the run rather than off the agent behind it, which a run held
+    somewhere else does not hand over. What the backend calls the session is only known once
+    a turn of it has said so, and a backend may call one session by more than one name, so
+    the names are gathered as the records bring them.
+
+    Attributes:
+      id: The role it was opened for, which is what its spending is reported under.
+      backend: The CLI that runs it, which is whose logs are read and how.
+      model: What it runs at, for a row of a log that does not say for itself.
+      counts: The kinds of token its backend reports, whether or not it has spent any.
+      idents: What the backend has called it so far, each a log to read. Replaced rather
+        than added to, since the logs are read on a thread of their own.
+    """
+
+    id: str
+    backend: str
+    model: str
+    counts: frozenset[str] = frozenset()
+    idents: frozenset[str] = frozenset()
+
+
+@dataclass
 class _Reading:
     """One log being read: how far into it we are, and what it has come to so far.
 
@@ -205,30 +228,30 @@ class _Reading:
 class Tally:
     """The logs of the sessions a flow has open, read as the agents write them."""
 
-    def __init__(self, agents: Sequence[AgentBase], monitor: Monitor) -> None:
+    def __init__(self, sessions: Sequence[Seen], monitor: Monitor) -> None:
         """Initializes a tally that has read nothing yet.
 
         Args:
-          agents: The agents of the flow, whose sessions are the logs to read.
+          sessions: The sessions of the flow, whose logs are the ones to read.
           monitor: What to tell, as the total each model has cost.
         """
-        self._agents = list(agents)
+        self._sessions = list(sessions)
         self._monitor = monitor
         self._read: dict[Path, _Reading] = {}
-        #: Which agents this has actually opened a log of, so that what the monitor is told a
+        #: Which roles this has actually opened a log of, so that what the monitor is told a
         #: backend reports is what the interface can in fact see. A rollout written on another
         #: machine, or in a container, is one nothing here reads -- and a kind claimed off a
         #: log nobody read would be a nought drawn as a fact.
         self._reading: set[str] = set()
         self._stop = threading.Event()
 
-    def add(self, agent: AgentBase) -> None:
-        """Reads the logs of one more agent, which a run opens a session at a time.
+    def add(self, session: Seen) -> None:
+        """Reads the logs of one more session, which a run opens one at a time.
 
         Args:
-          agent: The agent behind a session the run has just opened.
+          session: The session the run has just opened.
         """
-        self._agents.append(agent)
+        self._sessions.append(session)
 
     def watch(self) -> None:
         """Reads the logs for as long as the flow runs, on a thread of its own.
@@ -255,30 +278,25 @@ class Tally:
         business reading, a row half written. What a run costs is worth nothing at the price
         of the run, so anything that goes wrong is left for the next read to find gone.
         """
-        for agent in list(self._agents):
-            profile = backends.named(agent.backend)
+        for seen in list(self._sessions):
+            profile = backends.named(seen.backend)
             if profile is None:
                 continue
             home = profile.directory()
-            # Every session this agent has going, named as the backend names it -- which it
-            # does as the turn starts rather than when the turn lands -- and every one it has
-            # let go of, whose last rows are still worth reading.
-            idents = {
-                session.named for session in agent.sessions if session.named is not None
-            } | set(agent.opened)
+            # Every name the backend has given this session, which it does as the turn starts
+            # rather than when the turn lands -- and a session let go of keeps its names, its
+            # last rows being still worth reading.
             opened = False
-            for ident in sorted(idents):
+            for ident in sorted(seen.idents):
                 for pattern in profile.logs:
                     for path in sorted(home.glob(pattern.format(ident=ident))):
-                        opened |= self._take(path, profile.name, agent.config.model)
-            if opened and agent.id not in self._reading:
+                        opened |= self._take(path, profile.name, seen.model)
+            if opened and seen.id not in self._reading:
                 # Said once a log has been read rather than when the run started: what this
                 # reads is beside what the driver says, and only a log that is actually being
                 # read is a kind the interface can show.
-                self._reading.add(agent.id)
-                self._monitor.reporting(
-                    agent.id, type(agent).counts | reported(profile.name)
-                )
+                self._reading.add(seen.id)
+                self._monitor.reporting(seen.id, seen.counts | reported(profile.name))
         totals: dict[str, Counter[str]] = {}
         for reading in self._read.values():
             for model, broken in reading.spent.items():

@@ -99,7 +99,7 @@ async def test_the_key_that_leaves_asks_what_leaving_asks(workspace: Path) -> No
     async with app.run_test() as driver:
         set_up(app, "flow")
         await _says(app, driver, "start")
-        await until(lambda: any(agent.sessions for agent in app._agents), driver)
+        await until(lambda: bool(app._seen), driver)
         await driver.press("ctrl+q")
         await until(lambda: isinstance(app.screen, Leaves), driver)
 
@@ -124,7 +124,7 @@ async def _asks(app: Humanize, driver: Pilot[None]) -> None:
     """Starts the flow, waits for its turn to be open, and asks the interface to close."""
     set_up(app, "flow")
     await _says(app, driver, "start")
-    await until(lambda: any(agent.sessions for agent in app._agents), driver)
+    await until(lambda: bool(app._seen), driver)
     await _says(app, driver, "/exit")
     await until(lambda: isinstance(app.screen, Leaves), driver)
 

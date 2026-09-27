@@ -60,4 +60,4 @@ async def test_deepseek_chat_explains_a_missing_api_key_instead_of_staying_blank
         assert "DEEPSEEK_API_KEY" in said
 
         app.action_stop_flow()
-        await until(lambda: not app._agents, driver)
+        await until(lambda: app._run is None, driver)

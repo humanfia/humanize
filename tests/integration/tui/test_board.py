@@ -14,19 +14,14 @@ from typing import TYPE_CHECKING
 import pytest
 from textual.widgets import OptionList, Static
 
-from hmz.coganchor.agents import AgentConfig, Board, Event, HumanAgent, Refused
+from hmz.coganchor.agents import Board, HumanAgent, Refused
 from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
 from hmz.tui.monitoring import EVERY, OUTWORLDER, Entry, Monitoring
-from tests.integration.tui.test_attach import SteerableAgent
-from tests.tui.fixtures import until
+from tests.tui.fixtures import event, holding, opened, told, until
 
 if TYPE_CHECKING:
     from textual.pilot import Pilot
-
-    from hmz.coganchor.agents import AgentBase
-
-CONFIG = AgentConfig(model="m", effort="high")
 
 
 def _drawn(app: Humanize) -> str:
@@ -58,16 +53,20 @@ async def _opens(app: Humanize, driver: Pilot[None]) -> None:
     await driver.pause()
 
 
-def _two(app: Humanize) -> tuple[AgentBase, AgentBase]:
-    """Two agents of a flow, neither of which has taken a turn yet."""
-    one, two = SteerableAgent(CONFIG), SteerableAgent(CONFIG)
+def _two(app: Humanize) -> tuple[str, str]:
+    """Two agents of a flow, a session apiece and neither of which has taken a turn yet."""
     # Named for the roles they fill, as a run names the agent behind each session it opens.
-    one.rename("builder")
-    two.rename("reviewer")
-    app._agents = [one, two]
+    told(app, opened("builder/1"), opened("reviewer/1"))
     app._models = {"builder": Runs("claude/m:high"), "reviewer": Runs("codex/n:high")}
     app._declared = None  # a flow nothing here loads, whose roles are these two
-    return one, two
+    return "builder", "reviewer"
+
+
+def _person(app: Humanize) -> HumanAgent:
+    """The person of a run, who keeps its board with the flow."""
+    person = HumanAgent()
+    holding(app, person)
+    return person
 
 
 @pytest.mark.timeout(60)
@@ -76,15 +75,14 @@ async def test_an_agent_that_has_not_worked_is_not_drawn_yet() -> None:
     app = Humanize()
     async with app.run_test() as driver:
         one, _other = _two(app)
-        first = one.new()
-        app._heard(one, first, Event(kind="begins", text=""))
+        told(app, event("builder/1", "begins"))
         await driver.pause()
 
         await _opens(app, driver)
 
         # One box, for the one that has started. The other is a place the flow declared, not
         # something the run is doing.
-        assert _ids(app) == [EVERY, one.id]
+        assert _ids(app) == [EVERY, one]
         assert "0 of 1 working" not in _drawn(app)
         assert "1 of 1 working" in _drawn(app)
 
@@ -95,19 +93,18 @@ async def test_a_box_appears_as_its_agent_takes_its_first_turn() -> None:
     app = Humanize()
     async with app.run_test() as driver:
         one, two = _two(app)
-        first, second = one.new(), two.new()
-        app._heard(one, first, Event(kind="begins", text=""))
+        told(app, event("builder/1", "begins"))
         await driver.pause()
         await _opens(app, driver)
-        assert _ids(app) == [EVERY, one.id]
+        assert _ids(app) == [EVERY, one]
 
-        app._heard(two, second, Event(kind="begins", text=""))
-        await until(lambda: _ids(app) == [EVERY, one.id, two.id], driver)
+        told(app, event("reviewer/1", "begins"))
+        await until(lambda: _ids(app) == [EVERY, one, two], driver)
 
         # And it stays once its turn is over: what it did is still worth reading.
-        app._heard(two, second, Event(kind="ends", text=""))
+        told(app, event("reviewer/1", "ends"))
         await driver.pause()
-        assert _ids(app) == [EVERY, one.id, two.id]
+        assert _ids(app) == [EVERY, one, two]
 
 
 @pytest.mark.timeout(60)
@@ -116,11 +113,8 @@ async def test_an_agent_a_turn_started_of_its_own_is_drawn_under_it() -> None:
     app = Humanize()
     async with app.run_test() as driver:
         one, _other = _two(app)
-        first = one.new()
-        app._heard(one, first, Event(kind="begins", text=""))
-        app._heard(
-            one, first, Event(kind="subagent", text="Task read the tests", whose="c1")
-        )
+        told(app, event("builder/1", "begins"))
+        told(app, event("builder/1", "subagent", "Task read the tests", whose="c1"))
         await driver.pause()
 
         await _opens(app, driver)
@@ -129,12 +123,10 @@ async def test_an_agent_a_turn_started_of_its_own_is_drawn_under_it() -> None:
         assert "read the tests" in drawn
         assert "◆" in drawn  # working, and not the mark a flow's own agents wear
         # It is not a row to attach to: nobody chose what it runs and it has no transcript.
-        assert _ids(app) == [EVERY, one.id]
+        assert _ids(app) == [EVERY, one]
 
-        app._heard(
-            one,
-            first,
-            Event(kind="subagent-ends", text="Task read the tests", whose="c1"),
+        told(
+            app, event("builder/1", "subagent-ends", "Task read the tests", whose="c1")
         )
         await until(lambda: "◇" in _drawn(app), driver)
 
@@ -156,9 +148,8 @@ async def test_the_board_is_under_the_diagram_and_says_what_is_on_it() -> None:
     """Beside how far through the run is: a board somebody has to go and open is unread."""
     app = Humanize()
     async with app.run_test() as driver:
-        one, _other = _two(app)
-        person = HumanAgent()
-        app._agents = [one, person]
+        _two(app)
+        person = _person(app)
         person.board.put("todo", "fix the build", about="what there is to do")
         person.board.put("progress", "two of five", whose="flow")
 
@@ -176,9 +167,8 @@ async def test_a_line_the_flow_keeps_to_itself_is_not_one_to_change_here() -> No
     """A flow writing down how far through it is does not want that edited underneath it."""
     app = Humanize()
     async with app.run_test() as driver:
-        one, _other = _two(app)
-        person = HumanAgent()
-        app._agents = [one, person]
+        _two(app)
+        person = _person(app)
         person.board.put("progress", "two of five", whose="flow")
         await _opens(app, driver)
 
@@ -200,9 +190,8 @@ async def test_a_line_is_typed_onto_the_board_and_the_flow_reads_it_at_once() ->
     """Neither side waits at the board: what is written here is there the moment it is."""
     app = Humanize()
     async with app.run_test() as driver:
-        one, _other = _two(app)
-        person = HumanAgent()
-        app._agents = [one, person]
+        _two(app)
+        person = _person(app)
         await _opens(app, driver)
 
         # The last row is the one that puts a line up, and enter on it is a new line.
@@ -319,14 +308,13 @@ async def test_a_box_says_how_long_its_agent_has_been_at_what_it_is_doing() -> N
     app = Humanize()
     async with app.run_test() as driver:
         one, two = _two(app)
-        first, second = one.new(), two.new()
-        app._heard(one, first, Event(kind="begins", text=""))
-        app._heard(two, second, Event(kind="begins", text=""))
-        app._heard(two, second, Event(kind="ends", text=""))
+        told(app, event("builder/1", "begins"))
+        told(app, event("reviewer/1", "begins"))
+        told(app, event("reviewer/1", "ends"))
         await driver.pause()
         # Wound back, so that the clocks say something worth reading in a test.
-        app._monitor.opened[one.id] = time.monotonic() - 65.0
-        app._monitor.rested[two.id] = time.monotonic() - 130.0
+        app._monitor.opened[one] = time.monotonic() - 65.0
+        app._monitor.rested[two] = time.monotonic() - 130.0
 
         await _opens(app, driver)
 
@@ -343,9 +331,8 @@ async def test_a_box_says_when_its_agent_has_something_unread_on_it() -> None:
     app = Humanize()
     async with app.run_test() as driver:
         one, _other = _two(app)
-        first = one.new()
-        app._heard(one, first, Event(kind="begins", text=""))
-        app._keeping(one.id).unread = True
+        told(app, event("builder/1", "begins"))
+        app._keeping(one).unread = True
         await driver.pause()
 
         await _opens(app, driver)
@@ -358,10 +345,9 @@ async def test_the_box_under_the_cursor_says_so_on_the_box() -> None:
     """A picture cannot be highlighted: the markup inside it paints over the highlight."""
     app = Humanize()
     async with app.run_test() as driver:
-        one, two = _two(app)
-        first, second = one.new(), two.new()
-        app._heard(one, first, Event(kind="begins", text=""))
-        app._heard(two, second, Event(kind="begins", text=""))
+        _two(app)
+        told(app, event("builder/1", "begins"))
+        told(app, event("reviewer/1", "begins"))
         await driver.pause()
         await _opens(app, driver)
 
@@ -380,8 +366,7 @@ async def test_a_clock_ticking_puts_the_row_back_rather_than_the_whole_list() ->
     app = Humanize()
     async with app.run_test() as driver:
         one, _other = _two(app)
-        first = one.new()
-        app._heard(one, first, Event(kind="begins", text=""))
+        told(app, event("builder/1", "begins"))
         await driver.pause()
         await _opens(app, driver)
         sheet = app.screen
@@ -389,7 +374,7 @@ async def test_a_clock_ticking_puts_the_row_back_rather_than_the_whole_list() ->
         boxes = sheet.query_one("#graph", OptionList)
         held = boxes.get_option_at_index(1)
 
-        app._monitor.opened[one.id] = time.monotonic() - 91.0
+        app._monitor.opened[one] = time.monotonic() - 91.0
         sheet._fill()
         await driver.pause()
 
@@ -402,9 +387,8 @@ async def test_what_the_boxes_say_is_not_said_again_under_them() -> None:
     """The diagram is the sheet, so what is written under it is what a picture cannot say."""
     app = Humanize()
     async with app.run_test() as driver:
-        one, _other = _two(app)
-        first = one.new()
-        app._heard(one, first, Event(kind="begins", text=""))
+        _two(app)
+        told(app, event("builder/1", "begins"))
         await driver.pause()
 
         await _opens(app, driver)
@@ -435,9 +419,8 @@ async def test_a_line_written_down_empty_is_taken_off_the_board() -> None:
     """There is no key that takes a line away: saving it with nothing in it is how."""
     app = Humanize()
     async with app.run_test() as driver:
-        one, _other = _two(app)
-        person = HumanAgent()
-        app._agents = [one, person]
+        _two(app)
+        person = _person(app)
         person.board.put("todo", "fix the build")
         await _opens(app, driver)
 
@@ -496,26 +479,25 @@ async def test_ctrl_t_draws_a_node_per_session_and_enter_reads_one() -> None:
     app = Humanize()
     async with app.run_test() as driver:
         one, _other = _two(app)
-        first, second = one.new(), one.new()
-        app._heard(one, first, Event(kind="begins", text=""))
-        app._heard(one, first, Event(kind="ends", text=""))
-        app._heard(one, second, Event(kind="begins", text=""))
+        told(app, event("builder/1", "begins"))
+        told(app, event("builder/1", "ends"), opened("builder/2"))
+        told(app, event("builder/2", "begins"))
         await driver.pause()
         await _opens(app, driver)
-        assert _ids(app) == [EVERY, one.id]
+        assert _ids(app) == [EVERY, one]
 
         await driver.press("ctrl+t")
-        await until(lambda: _ids(app) == [EVERY, f"{one.id}/1", f"{one.id}/2"], driver)
+        await until(lambda: _ids(app) == [EVERY, f"{one}/1", f"{one}/2"], driver)
         assert "session 2" in _drawn(app)
         assert "↓ 1" in _drawn(app)  # the first session handed to the second
 
         await driver.press("down", "enter")
         await until(lambda: not isinstance(app.screen, Monitoring), driver)
-        assert app._attached == f"{one.id}/1"  # that session's own log
+        assert app._attached == f"{one}/1"  # that session's own log
 
         # And it opens the way it was left.
         await _opens(app, driver)
-        assert _ids(app) == [EVERY, f"{one.id}/1", f"{one.id}/2"]
+        assert _ids(app) == [EVERY, f"{one}/1", f"{one}/2"]
 
 
 @pytest.mark.timeout(60)
