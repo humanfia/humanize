@@ -1,0 +1,519 @@
+"""A flow's docker environment against a real daemon: a container of its own, and agents in it.
+
+`tests/integration/flows/test_docker_envs.py` runs the driver against a stand-in `docker`, which
+is everything but the daemon and the container. This is those two. The image is
+`python:3.12-slim`, which has no sshd: everything reaches into the container over `docker exec`.
+What is checked is where only a container could have answered -- `/.dockerenv`, which docker puts
+in every container and on no host, the container's own hostname, its cgroup's limits, the GPUs
+`nvidia-smi` sees in it -- and that the container is gone once the environment is closed.
+
+The daemon is reached as docker's default here, and again as a daemon elsewhere would be: over
+TCP through a port of the test's own, and over ssh through an ssh provider written down with
+everything an sshd of the test's own needs. Both are this machine's daemon, so the workdir is
+one path on both sides.
+
+With `--run-agents`, a real agent of every CLI installed here is put in a container and asked to
+run a command there and write what it said into the workdir -- on the cheapest model each takes,
+since that is one command a CLI.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import pytest
+
+from hmz.coganchor import backends
+from hmz.coganchor.machines import gpus_listed, store
+from hmz.flows import (
+    CPUEnvMixin,
+    Env,
+    EnvCollection,
+    FilesEnvMixin,
+    GPUEnvMixin,
+    HarnessError,
+    HarnessKind,
+    ImageEnvMixin,
+    MemoryEnvMixin,
+    ResourceUnmet,
+    ShellEnvMixin,
+)
+from hmz.runtime.flowing.declaring import env_roles
+from hmz.runtime.flowing.environments import open_env, probe
+from hmz.runtime.flowing.specs import AgentSpec, parse_envs
+from hmz.runtime.runner import Runner
+from tests.flows.contracts import check_env_driver
+from tests.machines.fixtures import IMAGE
+from tests.stubs import written
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from hmz.runtime.flowing.declaring import EnvRole
+    from hmz.runtime.flowing.spi import EnvDriver
+
+
+class Slim(Env, ShellEnvMixin, FilesEnvMixin, ImageEnvMixin):
+    _image = IMAGE
+
+
+class Full(Env, ShellEnvMixin, FilesEnvMixin, ImageEnvMixin):
+    _image = "python:3.12"
+
+
+class Limited(Env, ShellEnvMixin, CPUEnvMixin, MemoryEnvMixin, ImageEnvMixin):
+    _image = IMAGE
+    _cpu_count = 2
+    _memory = 1 << 30
+
+
+class OneGPU(Env, ShellEnvMixin, GPUEnvMixin, ImageEnvMixin):
+    _image = IMAGE
+    _gpu_count = 1
+
+
+class Envs(EnvCollection):
+    slim: Slim
+    full: Full
+    limited: Limited
+    gpu: OneGPU
+
+
+def _role(name: str) -> EnvRole:
+    (role,) = [one for one in env_roles(Envs, globals(), {}) if one.name == name]
+    return role
+
+
+def _ours() -> list[str]:
+    """Every container this process started that docker still has, running or not."""
+    said = subprocess.run(
+        [
+            "docker",
+            "ps",
+            "--all",
+            "--quiet",
+            "--filter",
+            "label=humanize",
+            "--filter",
+            f"label=humanize.pid={os.getpid()}",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return said.stdout.split()
+
+
+@pytest.fixture(autouse=True)
+def _leaves_no_container() -> Iterator[None]:
+    """Every test here takes down what it started: nothing of this process is left running."""
+    yield
+    left = _ours()
+    if left:
+        subprocess.run(
+            ["docker", "rm", "--force", *left], capture_output=True, check=False
+        )
+    assert not left, f"containers left behind: {left}"
+
+
+def _opened(spec: str, role: str) -> EnvDriver:
+    (said,) = parse_envs([spec])
+    return open_env(said, _role(role))
+
+
+def _git(cwd: Path, *argv: str) -> None:
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.email=tester@example.com",
+            "-c",
+            "user.name=tester",
+            "-c",
+            "commit.gpgsign=false",
+            *argv,
+        ],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+    )
+
+
+def _image(name: str) -> None:
+    held = subprocess.run(
+        ["docker", "image", "inspect", name], capture_output=True, check=False
+    )
+    if held.returncode:
+        pytest.skip(f"needs {name} pulled here")
+
+
+# ------------------------------------------------------------------------ a container here
+
+
+@pytest.mark.timeout(300)
+async def test_the_contract_holds_in_a_container_with_no_sshd(
+    daemon: None, tmp_path: Path
+) -> None:
+    work = tmp_path / "work"
+    work.mkdir()
+    driver = _opened(f"slim=docker@local{work}", "slim")
+
+    await probe(driver)
+    status, out, _ = await driver.exec(
+        [
+            "sh",
+            "-c",
+            (
+                "hostname; id -u; test -f /.dockerenv && echo inside; "
+                "command -v sshd || echo no-sshd"
+            ),
+        ],
+        timeout=60,
+    )
+    await check_env_driver(driver)
+
+    hostname, uid, inside, sshd = out.split()
+    assert status == 0
+    assert sshd == "no-sshd", "the image has an sshd, and the test would prove nothing"
+    assert (uid, inside) == (str(os.getuid()), "inside")
+    assert hostname != os.uname().nodename
+    assert (work / "contract" / "deep" / "a.bin").read_bytes() == b"bytes \x00\xff\n"
+    assert _ours() == []
+
+
+@pytest.mark.timeout(300)
+async def test_worktrees_are_added_in_a_container_that_has_git(
+    daemon: None, tmp_path: Path
+) -> None:
+    _image("python:3.12")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    (repo / "file.txt").write_text("x\n")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-q", "-m", "first")
+    driver = _opened(f"full=docker@local{repo}", "full")
+
+    await probe(driver)
+    await check_env_driver(driver, repo=True)
+
+
+@pytest.mark.timeout(300)
+async def test_what_a_role_declares_is_the_containers_limit(
+    daemon: None, tmp_path: Path
+) -> None:
+    driver = _opened(f"limited=docker@local{tmp_path}", "limited")
+    try:
+        await probe(driver)
+        status, out, err = await driver.exec(
+            ["cat", "/sys/fs/cgroup/cpu.max", "/sys/fs/cgroup/memory.max"], timeout=60
+        )
+    finally:
+        await driver.close()
+
+    assert status == 0, err
+    assert out.split() == ["200000", "100000", str(1 << 30)]
+    assert (driver.cpu_count, driver.memory, driver.gpu_count) == (2, 1 << 30, 0)
+
+
+# ------------------------------------------------------------------------------------ GPUs
+
+
+@pytest.fixture
+def gpubox(daemon: None) -> str:
+    """A provider handing out this machine's first two GPUs, or a skip where it has not two."""
+    said = subprocess.run(
+        ["docker", "info", "--format", "{{json .DiscoveredDevices}}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    listed = gpus_listed(json.loads(said.stdout or "null") or [])
+    if not {"0", "1"} <= set(listed):
+        pytest.skip("needs a daemon listing two NVIDIA GPUs by their CDI names")
+    name = f"gpubox-{os.getpid()}"
+    store.write(store.DockerProvider(name=name, gpus=("0", "1")))
+    return name
+
+
+@pytest.mark.timeout(300)
+async def test_a_role_asking_one_gpu_sees_exactly_one(
+    gpubox: str, tmp_path: Path
+) -> None:
+    driver = _opened(f"gpu=docker@{gpubox}{tmp_path}", "gpu")
+    try:
+        await probe(driver)
+        status, out, err = await driver.exec(["nvidia-smi", "-L"], timeout=60)
+    finally:
+        await driver.close()
+
+    assert status == 0, err
+    assert len(out.strip().splitlines()) == 1, out
+    assert (driver.gpu_count, driver.gpu_memory > 0) == (1, True)
+
+
+#: A flow holding a GPU until it is let go: it writes what `nvidia-smi` sees in its container,
+#: named for its task, and waits for `release` to appear in the workdir.
+_HOLDS = """
+from hmz.flows import AgentCollection, Env, EnvCollection, FlowParams, GPUEnvMixin
+from hmz.flows import BashEnvMixin, FilesEnvMixin, ImageEnvMixin, flow
+
+
+class Box(Env, BashEnvMixin, FilesEnvMixin, GPUEnvMixin, ImageEnvMixin):
+    _image = "python:3.12-slim"
+    _gpu_count = 1
+
+
+class Envs(EnvCollection):
+    box: Box
+
+
+@flow(agents=AgentCollection, envs=Envs, params=FlowParams)
+async def holds(task, *, agents, envs, params, ctx):
+    box = envs["box"]
+    status, out, err = await box.exec(["nvidia-smi", "-L"])
+    assert status == 0, err
+    await box.write(f"{task}.txt", out.encode())
+    await box.exec("while [ ! -e release ]; do sleep 0.2; done", timeout=240)
+"""
+
+
+def _hmz(flow: Path, spec: str, task: str, cwd: Path) -> subprocess.Popen[str]:
+    return subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "hmz",
+            "exec",
+            "-f",
+            str(flow),
+            "-e",
+            spec,
+            "-b",
+            "cost=1",
+            task,
+        ],
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+
+@pytest.mark.timeout(600)
+def test_runs_at_once_get_gpus_of_their_own_and_one_too_many_is_refused(
+    gpubox: str, tmp_path: Path
+) -> None:
+    flow = written(tmp_path / "flows", "holds", _HOLDS)
+    (Path(tmp_path) / "project").mkdir()
+    runs = [
+        _hmz(flow, f"box=docker@{gpubox}{tmp_path}", task, tmp_path / "project")
+        for task in ("first", "second")
+    ]
+    try:
+        deadline = time.monotonic() + 240
+        while not all(
+            (tmp_path / f"{one}.txt").exists() for one in ("first", "second")
+        ):
+            for run in runs:
+                if run.poll() is not None:
+                    _, err = run.communicate()
+                    pytest.fail(f"a run holding a GPU ended: {err}")
+            assert time.monotonic() < deadline, "the runs never got their GPUs"
+            time.sleep(0.5)
+
+        third = _hmz(
+            flow, f"box=docker@{gpubox}{tmp_path}", "third", tmp_path / "project"
+        )
+        _, refused = third.communicate(timeout=240)
+    finally:
+        (tmp_path / "release").touch()
+        ended = [run.communicate(timeout=240) for run in runs]
+
+    assert [run.returncode for run in runs] == [0, 0], ended
+    first, second = (
+        (tmp_path / f"{one}.txt").read_text() for one in ("first", "second")
+    )
+    assert len(first.splitlines()) == len(second.splitlines()) == 1
+    assert first != second, "two runs were given one GPU"
+    assert third.returncode == 2, refused
+    assert f"docker@{gpubox} has 0 of 2 GPUs free, and 'box' asks for 1" in refused
+    assert not (tmp_path / "third.txt").exists()
+    held = subprocess.run(
+        [
+            "docker",
+            "ps",
+            "--all",
+            "--quiet",
+            "--filter",
+            f"label=humanize.provider={gpubox}",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert held.stdout.split() == [], "a run left its container behind"
+
+
+async def test_a_role_asking_more_gpus_than_there_are_is_refused_before_starting(
+    gpubox: str, tmp_path: Path
+) -> None:
+    class Three(Env, ShellEnvMixin, GPUEnvMixin):
+        _gpu_count = 3
+
+    class Many(EnvCollection):
+        many: Three
+
+    (role,) = env_roles(Many, {}, {"Three": Three})
+    (spec,) = parse_envs([f"many=docker@{gpubox}{tmp_path}"])
+    driver = open_env(spec, role)
+    try:
+        with pytest.raises(ResourceUnmet, match=r"has 2 of 2 GPUs free.*asks for 3"):
+            await probe(driver)
+    finally:
+        await driver.close()
+    assert _ours() == []
+
+
+# ------------------------------------------------------------------------ daemons elsewhere
+
+
+@pytest.mark.timeout(300)
+@pytest.mark.parametrize("road", ["forwarded", "ssh_provider"])
+async def test_a_daemon_elsewhere_holds_the_container(
+    road: str, request: pytest.FixtureRequest, tmp_path: Path
+) -> None:
+    endpoint = str(request.getfixturevalue(road))
+    name = f"far-{road.replace('_', '-')}"
+    store.write(store.DockerProvider(name=name, endpoint=endpoint))
+    work = tmp_path / "work"
+    work.mkdir()
+    driver = _opened(f"slim=docker@{name}{work}", "slim")
+    try:
+        await probe(driver)
+        status, out, err = await driver.exec(
+            ["sh", "-c", "id -u; test -f /.dockerenv && echo inside"], timeout=120
+        )
+        await driver.write("there.txt", b"written in a container elsewhere\n")
+        sub = await driver.derive_subdir("deeper")
+        await sub.write("x.txt", b"x")
+    finally:
+        await driver.close()
+
+    assert status == 0, err
+    assert out.split() == [str(os.getuid()), "inside"]
+    assert (work / "there.txt").read_text() == "written in a container elsewhere\n"
+    assert (work / "deeper" / "x.txt").read_text() == "x"
+
+
+# ------------------------------------------------------------------ agents in a container
+
+#: A flow putting its one agent in a container, and writing down what the container is called.
+_BOXED = """
+from hmz.flows import Agent, AgentCollection, Env, EnvCollection, FilesEnvMixin
+from hmz.flows import FlowParams, ImageEnvMixin, ShellEnvMixin, flow
+
+
+class Box(Env, ShellEnvMixin, FilesEnvMixin, ImageEnvMixin):
+    _image = "python:3.12-slim"
+
+
+class Agents(AgentCollection):
+    coder: Agent
+
+
+class Envs(EnvCollection):
+    box: Box
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def boxed(task, *, agents, envs, params, ctx):
+    box = envs["box"]
+    _, name, _ = await box.exec(["hostname"])
+    await box.write("truth.txt", name.encode())
+    session = await agents["coder"].spawn(env=box)
+    return await agents["coder"].run(task, session=session)
+"""
+
+_ASKED = (
+    "Use your shell tool to run exactly this one command, then reply with the single word "
+    "done: cat /etc/os-release > os-release.txt; hostname > proof.txt; "
+    "test -f /.dockerenv && echo inside > dockerenv.txt"
+)
+
+
+def _cheapest(cli: str) -> tuple[str, str]:
+    """The model and effort a CLI is cheapest to ask here.
+
+    The one its driver tests pick where the CLI still offers it when asked now, and otherwise
+    the first it offers at the least effort that one takes: a catalogue written down a week ago
+    may name a model the account has since lost.
+    """
+    from hmz.coganchor import models
+    from tests.system.agents.test_harness_drivers import _model
+
+    model, effort = _model(HarnessKind(cli))
+    try:
+        offered = models.ask(cli)
+    except (ValueError, OSError, subprocess.TimeoutExpired):
+        return model, effort
+    if not offered or model in {one.name for one in offered}:
+        return model, effort
+    first = offered[0]
+    return first.name, first.efforts[-1] if first.efforts else ""
+
+
+def _boxed(cli: str, env: str, tmp_path: Path, model: str, effort: str) -> Path:
+    """Runs the flow once with its agent of this CLI and its environment as given."""
+    flow = written(tmp_path / "flows", "boxed", _BOXED)
+    work = tmp_path / "work"
+    work.mkdir()
+    Runner(
+        flow,
+        agents=[AgentSpec("coder", HarnessKind(cli), "", model, effort, cli)],
+        envs={"box": f"{env}{work}"},
+        budget={"cost": 1},
+        workspace=tmp_path,
+    ).run(_ASKED)
+    return work
+
+
+@pytest.mark.agent
+@pytest.mark.timeout(900)
+@pytest.mark.parametrize("cli", [one.name for one in backends.PROFILES], ids=str)
+def test_an_agent_of_every_cli_works_inside_its_container(
+    cli: str, daemon: None, asking: None, tmp_path: Path
+) -> None:
+    """A real turn in a container, checked where only the container could have answered.
+
+    A turn the CLI will not take is asked again with no container at all: one refused there
+    too is this machine's sign-in, and is skipped saying so; one taken there is humanize's to
+    answer for, and fails.
+    """
+    if backends.program(cli) is None:
+        pytest.skip(f"{cli} is not installed here")
+    released = Path("/etc/os-release")
+    if released.exists() and "Debian" in released.read_text():
+        pytest.skip("this machine is Debian, as the image is")
+    model, effort = _cheapest(cli)
+    try:
+        work = _boxed(cli, "docker@local", tmp_path / "boxed", model, effort)
+    except HarnessError as refused:
+        try:
+            _boxed(cli, "local@", tmp_path / "here", model, effort)
+        except HarnessError as here:
+            pytest.skip(f"{cli} will not take a turn on this machine at all: {here}")
+        raise AssertionError(
+            f"{cli} took a turn here and not in a container"
+        ) from refused
+
+    truth = (work / "truth.txt").read_text().strip()
+    assert (work / "proof.txt").read_text().strip() == truth
+    assert (work / "dockerenv.txt").read_text().strip() == "inside"
+    assert "Debian" in (work / "os-release.txt").read_text()

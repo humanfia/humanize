@@ -106,8 +106,10 @@ def tools(argv: list[str]) -> int: ...
   each be a usage error before any agent has started, as MUST a flow that is not there or will not
   load, and `--resume` of a flow that cannot be picked up or has no run to pick up.
 - An `ssh` `<provider>` MUST be the environment provider written down under that name where there
-  is one, reached as it says, and otherwise the destination `ssh` is handed; `/<workdir>` MAY be
-  left off only for a provider written down with one, and the run MUST record the workdir it took.
+  is one, reached as it says, and otherwise the destination `ssh` is handed; a `docker` one MUST
+  be the docker provider written down under that name, or `local` for docker's default here, and
+  anything else MUST be refused; `/<workdir>` MAY be left off only for a provider written down
+  with one, and the run MUST record the workdir it took.
 - `--resume` MUST pick up the newest run of that flow in this workspace that can be picked up;
   without it every run MUST start from the top.
 - MUST read `<cli>` from the front and `<effort>` from after the last colon so that a model's own

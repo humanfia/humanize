@@ -203,20 +203,25 @@ repo=ssh@gpu-box/home/me/repo
 repo=ssh@me@gpu-box:2222/~/repo
 repo=ssh@gpu
 data=local@/srv/data
+box=docker@gpubox/srv/repo
+box=docker@local/tmp/x
+box=docker@gpubox
 ```
 
 `<role>=<backend>@<provider>[/<workdir>]`, one per environment role the flow declares.
 
 | Part | |
 | --- | --- |
-| `<backend>` | `local` (this machine) or `ssh` (a host reached with ssh). |
-| `<provider>` | For `ssh`, the name of an [environment provider](/reference/machines#environment-providers) you saved, reached with everything it says (login, port, key, jump host, options). Any other name is the destination as `ssh` takes it: `host`, `user@host`, `host:port` or an alias from your ssh config. Empty for `local`: `local@/path`. |
-| `<workdir>` | Everything from the first `/` after the `@`. Absolute; `ssh@host/~/repo` is `repo` under the ssh login's home. Left off, as in `ssh@gpu`, it is the workdir that provider was saved with; a provider saved without one, or a plain host, needs it. |
+| `<backend>` | `local` (this machine), `ssh` (a host reached with ssh) or `docker` (a [container of its own](/reference/machines#docker-environments) on a docker daemon). |
+| `<provider>` | For `ssh`, the name of an [environment provider](/reference/machines#environment-providers) you saved, reached with everything it says (login, port, key, jump host, options). Any other name is the destination as `ssh` takes it: `host`, `user@host`, `host:port` or an alias from your ssh config. For `docker`, the name of a docker provider you saved, or `local` for docker's default here with none saved; any other name is refused. Empty for `local`: `local@/path`. |
+| `<workdir>` | Everything from the first `/` after the `@`. Absolute; `ssh@host/~/repo` is `repo` under the ssh login's home. For `docker`, a directory of the daemon's host, which the container is given at the same path; `~/` only where that daemon is this machine's. Left off, as in `ssh@gpu` or `docker@gpubox`, it is the workdir that provider was saved with; a provider saved without one, or a plain host, needs it. |
 
 A role typed as a `LocalEnv` is the directory `hmz exec` was started in, and is never given
 with `-e`. Most flows declare nothing else, so most lines have no `-e`. Every environment given
 is probed before the flow is called: one that cannot be reached, or whose machine is smaller
-than the role declares (fewer CPUs or GPUs, less memory), is refused.
+than the role declares (fewer CPUs or GPUs, less memory), is refused. A `docker` one has its
+container started then, sized by what the role declares, and is refused where its provider has
+not that much left to hand out.
 
 ### Writing params
 

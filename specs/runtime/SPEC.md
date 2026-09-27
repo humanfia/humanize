@@ -315,8 +315,8 @@ class Recorder:  # answers to runtime/flowing's Recorder, writing the epic
   no budget, except for a flow humanize ships, which runs under `Budget(cost=inf)`; and a
   run to pick up that is not there, or of a flow that is not resumable. What the flow itself
   raises as it is imported MUST be refused with its reason. `arun` MUST raise `Refused` too
-  for an environment that cannot be reached and for anything the engine refuses before the
-  flow is called.
+  for an environment that cannot be reached or whose provider cannot hold what its role asks,
+  and for anything the engine refuses before the flow is called.
 - `arun` MUST probe every environment it was given before the flow is called, MUST run the
   flow over the drivers with the workspace as every `LocalEnv` role and whoever is outside
   the run as every `Outworlder` role -- nobody, away, where none was given -- MUST write the

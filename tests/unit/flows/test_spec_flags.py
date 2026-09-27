@@ -187,6 +187,14 @@ def test_an_agent_is_written_back_as_it_is_read(written: str) -> None:
         ),
         ("root=local@/", EnvSpec("root", EnvBackendKind.LOCAL, "", PurePosixPath("/"))),
         (
+            "box=docker@gpubox/srv/x",
+            EnvSpec("box", EnvBackendKind.DOCKER, "gpubox", PurePosixPath("/srv/x")),
+        ),
+        (
+            "box=docker@local/tmp/x",
+            EnvSpec("box", EnvBackendKind.DOCKER, "local", PurePosixPath("/tmp/x")),
+        ),
+        (
             " spaced = local@/tmp/x ",
             EnvSpec("spaced", EnvBackendKind.LOCAL, "", PurePosixPath("/tmp/x")),
         ),
@@ -214,7 +222,10 @@ def test_a_workdir_may_hold_commas_where_no_key_follows() -> None:
         ("local@/x", "expected"),
         ("repo=local", "expected"),
         ("repo=ssh@host", "expected"),
-        ("repo=docker@/x", "not a backend"),
+        ("repo=docker@/x", "docker needs a provider"),
+        ("repo=docker/x", "docker needs a provider"),
+        ("repo=docker@local", "expected"),
+        ("repo=podman@local/x", "not a backend"),
         ("repo=ssh@/x", "needs a host"),
         ("repo=ssh/x", "needs a host"),
         ("repo=local@box/x", "takes no provider"),
@@ -236,7 +247,13 @@ def test_an_environment_role_given_twice_is_refused() -> None:
 
 @pytest.mark.parametrize(
     "written",
-    ["repo=local@/home/me", "repo=ssh@h/srv/x", "repo=ssh@me@h/~/x", "repo=local@/"],
+    [
+        "repo=local@/home/me",
+        "repo=ssh@h/srv/x",
+        "repo=ssh@me@h/~/x",
+        "repo=local@/",
+        "repo=docker@gpubox/srv/x",
+    ],
 )
 def test_an_environment_is_written_back_as_it_is_read(written: str) -> None:
     (spec,) = parse_envs([written])

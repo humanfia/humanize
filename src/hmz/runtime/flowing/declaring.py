@@ -35,6 +35,7 @@ from hmz.flows import (
     FlowParams,
     GPUEnvMixin,
     HarnessKind,
+    ImageEnvMixin,
     LocalEnv,
     MemoryEnvMixin,
     Outworlder,
@@ -165,6 +166,7 @@ class EnvRole:
       memory: The least memory, in bytes; 0 for none.
       gpu_count: The fewest GPUs; 0 for none.
       gpu_memory: The least memory of each GPU, in bytes; 0 for none.
+      image: What a container for it is started from; "" for the provider's.
       grant: What a view of an environment filling it is granted.
       resources: Whether it asks anything of the machine beyond one CPU.
     """
@@ -178,6 +180,7 @@ class EnvRole:
     memory: int
     gpu_count: int
     gpu_memory: int
+    image: str
     grant: Grant
     resources: bool
     _seen: dict[Grant, Refusal] = field(
@@ -382,7 +385,9 @@ def env_roles(
             raise FlowDefinitionError(
                 f"{collection.__qualname__}.{name}: {declared!r} is not an Env"
             )
-        auto, capabilities, cpus, memory, gpus, gpu_memory, grant = _env_type(declared)
+        auto, capabilities, cpus, memory, gpus, gpu_memory, image, grant = _env_type(
+            declared
+        )
         roles.append(
             EnvRole(
                 name=name,
@@ -394,6 +399,7 @@ def env_roles(
                 memory=memory,
                 gpu_count=gpus,
                 gpu_memory=gpu_memory,
+                image=image,
                 grant=grant,
                 resources=cpus > 1 or memory > 0 or gpus > 0 or gpu_memory > 0,
             )
@@ -486,7 +492,9 @@ _AGENT_TYPES: dict[
 ] = {}
 
 #: The same for environment types.
-_ENV_TYPES: dict[type, tuple[bool, frozenset[type], int, int, int, int, Grant]] = {}
+_ENV_TYPES: dict[
+    type, tuple[bool, frozenset[type], int, int, int, int, str, Grant]
+] = {}
 
 #: Each harness's own protocol, which a role typed as it asks for. `Agent` itself is the
 #: protocol of a CLI added by hand, and asks for nothing.
@@ -545,7 +553,7 @@ def _agent_type(
 
 def _env_type(
     declared: type,
-) -> tuple[bool, frozenset[type], int, int, int, int, Grant]:
+) -> tuple[bool, frozenset[type], int, int, int, int, str, Grant]:
     """What one environment type asks for, read off its bases and class attributes."""
     known = _ENV_TYPES.get(declared)
     if known is not None:
@@ -571,6 +579,9 @@ def _env_type(
                 )
             amounts.append(amount)
     cpus, memory, gpus, gpu_memory = amounts
+    image: object = getattr(declared, "_image", "") if ImageEnvMixin in mro else ""
+    if not isinstance(image, str) or not re.fullmatch(r"\S*", image):
+        raise FlowDefinitionError(f"{where}._image is not an image: {image!r}")
     known = (
         LocalEnv in mro,
         capabilities,
@@ -578,6 +589,7 @@ def _env_type(
         memory,
         gpus,
         gpu_memory,
+        image,
         Grant.of(capabilities),
     )
     _ENV_TYPES[declared] = known

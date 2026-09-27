@@ -277,7 +277,7 @@ class Runner:
         # Made last, once everything that could refuse the run has had its say: a driver
         # starts nothing as it is made, and none is made for a run that is refused.
         self._agents = _agent_drivers(agents_given)
-        self._envs = _env_drivers(envs_given)
+        self._envs = _env_drivers(envs_given, declared)
         self._recorder: Recorder | None = None
 
     # ------------------------------------------------------------------ what is checked
@@ -864,8 +864,10 @@ def _agent_drivers(
         raise Refused(str(why)) from why
 
 
-def _env_drivers(given: Mapping[str, EnvSpec | EnvDriver]) -> dict[str, EnvDriver]:
-    """A driver per environment role, made for each role given a spec.
+def _env_drivers(
+    given: Mapping[str, EnvSpec | EnvDriver], declared: Declaration
+) -> dict[str, EnvDriver]:
+    """A driver per environment role, made for each role given a spec as the role declares.
 
     Raises:
       Refused: For a spec whose machine is known not to have its workdir.
@@ -876,7 +878,9 @@ def _env_drivers(given: Mapping[str, EnvSpec | EnvDriver]) -> dict[str, EnvDrive
 
     try:
         return {
-            role: open_env(said) if isinstance(said, EnvSpec) else said
+            role: open_env(said, declared.env(role))
+            if isinstance(said, EnvSpec)
+            else said
             for role, said in given.items()
         }
     except FlowException as why:

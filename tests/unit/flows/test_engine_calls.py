@@ -466,11 +466,12 @@ async def test_a_local_role_is_the_run_s_workspace_unless_one_is_passed() -> Non
     assert said == ["/home/me/project", "/elsewhere"]
 
 
+@pytest.mark.parametrize("far", [("ssh", "box"), ("docker", "gpubox")])
 @pytest.mark.parametrize("declared", [HereEnvs, HereShellEnvs])
 async def test_a_local_role_refuses_an_environment_on_another_machine(
-    declared: type[EnvCollection],
+    declared: type[EnvCollection], far: tuple[str, str]
 ) -> None:
-    """A `LocalEnv` is this machine: one on an ssh host is refused, down either path."""
+    """A `LocalEnv` is this machine: one on an ssh host, or a container, is refused."""
 
     @flow(agents=AgentCollection, envs=declared, params=Nothing)
     async def inner(
@@ -510,7 +511,7 @@ async def test_a_local_role_refuses_an_environment_on_another_machine(
     said = await run_fake(
         outer,
         envs={
-            "remote": FakeEnvDriver(workdir="/far", backend="ssh", provider="box"),
+            "remote": FakeEnvDriver(workdir="/far", backend=far[0], provider=far[1]),
             "local": FakeEnvDriver(workdir="/near"),
         },
     )

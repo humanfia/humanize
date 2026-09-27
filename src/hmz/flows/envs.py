@@ -1,8 +1,9 @@
 """The environments a flow's agents work in, and what a flow may ask of each.
 
-An environment is a working directory on a machine: this one, or one reached over ssh. A flow
-declares the environments it needs as an :class:`EnvCollection`, one role apiece, and says
-what it will do in each by the mixins the role's type carries::
+An environment is a working directory on a machine: this one, one reached over ssh, or a
+container started for it on a docker daemon. A flow declares the environments it needs as an
+:class:`EnvCollection`, one role apiece, and says what it will do in each by the mixins the
+role's type carries::
 
     class Repo(Env, ShellEnvMixin, FilesEnvMixin, GitWorktreeEnvMixin): ...
 
@@ -37,6 +38,7 @@ __all__ = [
     "FilesEnvMixin",
     "GPUEnvMixin",
     "GitWorktreeEnvMixin",
+    "ImageEnvMixin",
     "LocalEnv",
     "MemoryEnvMixin",
     "ScratchDirEnvMixin",
@@ -53,6 +55,8 @@ class EnvBackendKind(StrEnum):
     LOCAL = auto()
     #: A machine reached over ssh, by a host name `ssh` itself resolves.
     SSH = auto()
+    #: A container of its own, on a docker daemon an environment provider names.
+    DOCKER = auto()
 
 
 class SequenceNotStr[T](Protocol):
@@ -91,7 +95,7 @@ class Env(Protocol):
 
     @property
     def provider(self) -> str:
-        """Which machine of that kind: the ssh host, or "" for this machine."""
+        """Which machine of that kind: the ssh host, the docker provider, or "" for this one."""
         ...
 
     @property
@@ -182,6 +186,22 @@ class GPUEnvMixin(Protocol):
 
     _gpu_count: ClassVar[int] = 1
     _gpu_memory: ClassVar[int] = 0
+
+
+class ImageEnvMixin(Protocol):
+    """Declares what a container for the role is started from.
+
+    Said of a docker environment only: one on this machine or over ssh is the machine it is,
+    and the image says nothing of it. The image needs `/bin/sh` and a Python of at least
+    3.12, which is what reaches into it; nothing else of humanize is put there, an sshd least
+    of all.
+
+    Attributes:
+      _image: The image, as `docker run` takes it; "" for the provider's own, or
+        `python:3.12-slim` where that says none either.
+    """
+
+    _image: ClassVar[str] = ""
 
 
 class ShellEnvMixin(Protocol):

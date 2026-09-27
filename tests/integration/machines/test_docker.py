@@ -17,117 +17,16 @@ from __future__ import annotations
 
 import json
 import os
-import sys
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import pytest
 
-from hmz.coganchor import transport
 from hmz.coganchor.machines import DockerConfig, Mapped, allocations
 from hmz.coganchor.transport import Endpoint, Road, Target
-from tests.machines.fixtures import IMAGE
+from tests.machines.fixtures import IMAGE, Standin
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-#: The stand-in itself. Global flags are skipped the way docker's parser reads them -- every
-#: one of them takes a value but `--tlsverify` -- so the subcommand is found wherever it is.
-_STANDIN = """\
-import json, os, sys
-argv = sys.argv[1:]
-with open(os.environ["STANDIN_LOG"], "a") as log:
-    log.write(json.dumps({"argv": argv, "DOCKER_HOST": os.environ.get("DOCKER_HOST")}))
-    log.write("\\n")
-at = 0
-while argv[at].startswith("-"):
-    at += 1 if argv[at] == "--tlsverify" else 2
-command, rest = argv[at], argv[at + 1 :]
-if command == "run" and "--rm" in rest:
-    if "STANDIN_UNPULLED" in os.environ:
-        sys.exit(
-            "docker: Error response from daemon: pull access denied for typo, "
-            "repository does not exist or may require 'docker login'"
-        )
-    if "STANDIN_OWNER" not in os.environ:
-        sys.exit(
-            'docker: Error response from daemon: invalid mount config for type "bind": '
-            "bind source path does not exist: " + rest[-1]
-        )
-    print(os.environ["STANDIN_OWNER"])
-elif command == "run":
-    if "STANDIN_TAKEN" in os.environ:
-        sys.exit("docker: Error response from daemon: Conflict. The name is in use")
-    with open(rest[rest.index("--cidfile") + 1], "w") as made:
-        made.write("c0ffee\\n")
-    if "STANDIN_REFUSE" in os.environ:
-        sys.exit("docker: Error response from daemon: failed to create task")
-    print("c0ffee")
-elif command == "info":
-    print(json.dumps({
-        "DiscoveredDevices": json.loads(os.environ.get("STANDIN_DEVICES", "null")),
-        "SecurityOptions": json.loads(os.environ.get("STANDIN_SECURITY", "[]")),
-    }))
-elif command == "exec":
-    if "STANDIN_STOPPED" in os.environ:
-        sys.exit("Error response from daemon: container c0ffee is not running")
-    moved = os.environ["STANDIN_ROOT"]
-    words = [word.replace("/tmp/humanize", moved) for word in rest[2:]]
-    os.execvp(words[0], words)
-elif command == "logs":
-    print("humanize: no python 3.12 or newer on this machine")
-elif command == "ps":
-    print(os.environ.get("STANDIN_PS", ""))
-elif command == "inspect":
-    print(os.environ.get("STANDIN_INSPECT", "[]"))
-    if "STANDIN_INSPECT_SAYS" in os.environ:
-        sys.exit(os.environ["STANDIN_INSPECT_SAYS"])
-"""
-
-
-@dataclass
-class Standin:
-    """The stand-in on `PATH`, and what it was asked."""
-
-    log: Path
-    monkeypatch: pytest.MonkeyPatch
-
-    def said(self) -> list[dict[str, Any]]:
-        """Every call so far, in order."""
-        if not self.log.exists():
-            return []
-        return [json.loads(line) for line in self.log.read_text().splitlines()]
-
-    def subcommands(self, endpoint: Endpoint) -> list[list[str]]:
-        """Every call's words after the global flags, each checked to have carried them."""
-        flags = endpoint.docker()[endpoint.docker().index("docker") + 1 :]
-        answered: list[list[str]] = []
-        for one in self.said():
-            argv: list[str] = one["argv"]
-            assert argv[: len(flags)] == flags, argv
-            answered.append(argv[len(flags) :])
-        return answered
-
-    def set(self, name: str, value: str) -> None:
-        self.monkeypatch.setenv(name, value)
-
-
-@pytest.fixture
-def standin(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Standin:
-    """A `docker` of the test's own, first on `PATH`."""
-    bin_ = tmp_path / "bin"
-    bin_.mkdir()
-    docker = bin_ / "docker"
-    docker.write_text(f"#!{sys.executable}\n{_STANDIN}")
-    docker.chmod(0o755)
-    monkeypatch.setenv("PATH", f"{bin_}{os.pathsep}{os.environ['PATH']}")
-    monkeypatch.setenv("STANDIN_LOG", str(tmp_path / "docker.log"))
-    monkeypatch.setenv("STANDIN_ROOT", str(tmp_path / "container-tmp"))
-    # Docker's default here is this machine's, whatever the machine running the tests says.
-    monkeypatch.delenv("DOCKER_HOST", raising=False)
-    # And a fresh memo of which machines hold the bundle, so each test pays for its own.
-    monkeypatch.setattr(transport, "_PUSHED", set[tuple[str, str]]())
-    return Standin(tmp_path / "docker.log", monkeypatch)
 
 
 def _workspace(tmp_path: Path) -> Path:
