@@ -1430,7 +1430,8 @@ class Host:
                 if asked.state == "answered":
                     if mode == "listen":
                         # Whatever turn this answer starts is that line's turn, and takes
-                        # nothing else out of the queue on the way in.
+                        # nothing said to the run at large out of the queue on the way in:
+                        # only a line said to its agent or its conversation by name.
                         self._handed = True
                     return asked.answer or None
                 if asked.state == "withdrawn":
