@@ -335,6 +335,7 @@ class Endpoint:              # the docker daemon a container is held by
     host: str = ""
     context: str = ""
     certs: str = ""
+    options: tuple[tuple[str, str], ...] = ()  # ssh://HOST?KEYWORD=VALUE&...; `F` the config
     @classmethod
     def parse(cls, spec: str) -> Endpoint: ...
     def __str__(self) -> str: ...
@@ -445,11 +446,12 @@ def dial(meeting: Meeting, role: str, *, timeout: float = PAIRING) -> socket.soc
   goes too. `check` MUST answer what a target is without running anything on it.
 - A target MUST be `ssh://[USER@]HOST[:PORT]`, `docker://CONTAINER[@ENDPOINT]`,
   `tcp://HOST:PORT`, `peer://TICKET@HOST:PORT` or `local[:DIR]`, and an endpoint `local`,
-  `unix:///PATH`, `tcp://HOST:PORT[?tls=DIR]`, `ssh://[USER@]HOST[:PORT]` or `context:NAME`; a
-  container naming none, or `local`, MUST be held by docker's default as this process's
-  environment leaves it. Every `docker` on a container's road MUST name any other endpoint on
-  its own command line and MUST be run without the variables that would take it elsewhere, and
-  nothing MUST be needed inside the container but `/bin/sh` and a Python of at least 3.12.
+  `unix:///PATH`, `tcp://HOST:PORT[?tls=DIR]`, `ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...]` or
+  `context:NAME`; a container naming none, or `local`, MUST be held by docker's default as this
+  process's environment leaves it. Every `docker` on a container's road MUST name any other
+  endpoint on its own command line and MUST be run without the variables that would take it
+  elsewhere, an `ssh://` one's options MUST reach the `ssh` docker dials with, and nothing MUST
+  be needed inside the container but `/bin/sh` and a Python of at least 3.12.
 - A supervised agent MUST start in the workspace, or the directory in it the session opened at,
   named as the target names it, and MUST see the target inside it: the same names, contents, sizes,
   modes and timestamps at the same paths, with failures answered by the target's own error.

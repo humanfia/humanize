@@ -3,8 +3,7 @@
 An environment provider is one machine an environment can be put on, named by what somebody
 called it rather than by how it is reached: an ssh host with the login, port, key and jump host
 it takes, or a docker daemon with the resources it may hand out. One directory per provider, under
-`~/.humanize/env-providers/<backend>/<name>/`, holding `provider.json` -- and, for an ssh host a
-docker daemon is reached through, the `ssh` that daemon's own ssh is to run.
+`~/.humanize/env-providers/<backend>/<name>/`, holding `provider.json`.
 
 Nothing here reaches a machine. What one is when it is asked is
 :mod:`hmz.runtime.doing.environments`'s, and reading the user's ssh config is
@@ -18,7 +17,6 @@ import dataclasses
 import json
 import os
 import re
-import shlex
 import shutil
 import tempfile
 from dataclasses import dataclass, field
@@ -28,7 +26,9 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 from hmz import home
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping, Sequence
+    from collections.abc import Iterable, Mapping
+
+    from hmz.coganchor.transport import Endpoint
 
 __all__ = [
     "BACKENDS",
@@ -36,7 +36,6 @@ __all__ = [
     "IMPORTED",
     "SSH",
     "TYPED",
-    "DockerDaemon",
     "DockerProvider",
     "EnvProvider",
     "SSHProvider",
@@ -280,8 +279,8 @@ class DockerProvider:
 
     def __post_init__(self) -> None:
         _named(self.name)
-        kind, _ = _endpoint(self.endpoint)
-        if self.tls_dir and kind != "tcp":
+        _endpoint(self.endpoint)
+        if self.tls_dir and not self.endpoint.startswith("tcp://"):
             raise ValueError(f"{self.name}: TLS certificates are for a tcp:// endpoint")
         _text(self.tls_dir, "the TLS directory")
         if self.image and not re.fullmatch(r"[^\s]+", self.image):
@@ -315,12 +314,11 @@ class DockerProvider:
         """The directory it is kept in."""
         return where(DOCKER, self.name)
 
-    def daemon(self) -> DockerDaemon:
-        """How the `docker` command line reaches this one's daemon.
+    def daemon(self) -> Endpoint:
+        """The daemon this one is, as every `docker` for it is pointed at it.
 
         Raises:
           ValueError: For `ssh:<name>` naming no stored ssh provider.
-          OSError: If what that provider's ssh is to run cannot be written.
         """
         return daemon_of(self.endpoint, self.tls_dir)
 
@@ -349,149 +347,82 @@ def _fields(provider: EnvProvider) -> dict[str, Any]:
 # ------------------------------------------------------------------------ docker endpoints
 
 
-@dataclass(frozen=True, slots=True)
-class DockerDaemon:
-    """How the `docker` command line is pointed at one daemon.
-
-    Attributes:
-      endpoint: The endpoint, as a provider spells it.
-      args: What `docker` is told before the command: `--host ...`, `--context ...`, and the
-        TLS flags for a tcp:// daemon.
-      env: What it has to run with on top of this process's environment, which is only ever
-        `PATH`, with the `ssh` of a stored ssh provider in front.
-    """
-
-    endpoint: str
-    args: tuple[str, ...] = ()
-    env: Mapping[str, str] = field(default_factory=dict[str, str], hash=False)
-
-    def command(self, argv: Sequence[str]) -> list[str]:
-        """The command that runs `docker <argv>` against this daemon, whole.
-
-        Args:
-          argv: The docker command and its arguments, e.g. `["info"]`.
-
-        Returns:
-          The argv to spawn, as it is: what it has to run with is on it, through `env`.
-        """
-        told = ["env", *(f"{key}={value}" for key, value in self.env.items())]
-        return [*(told if self.env else ()), "docker", *self.args, *argv]
-
-
-def _endpoint(endpoint: str) -> tuple[str, str]:
-    """An endpoint read: which kind, and what follows the kind.
+def _endpoint(endpoint: str) -> str:
+    """An endpoint as a provider spells it, checked: one `Endpoint` reads, or `ssh:<name>`.
 
     Raises:
-      ValueError: For one that is none of them.
+      ValueError: For one that is neither.
     """
-    if endpoint == "local":
-        return "local", ""
-    if endpoint.startswith("unix://") and endpoint[len("unix://") :].startswith("/"):
-        return "unix", endpoint[len("unix://") :]
-    if endpoint.startswith("tcp://"):
-        host, _, port = endpoint[len("tcp://") :].rpartition(":")
-        if host and port.isdigit() and 0 < int(port) <= _PORT_MAX:
-            return "tcp", endpoint[len("tcp://") :]
-    if endpoint.startswith("ssh://"):
-        login, _, where_ = endpoint[len("ssh://") :].rpartition("@")
-        host, _, port = where_.partition(":")
+    from hmz.coganchor.transport import Endpoint
+
+    if endpoint.startswith("ssh:") and not endpoint.startswith("ssh://"):
+        if _NAMED.match(endpoint[len("ssh:") :]):
+            return endpoint
+    elif endpoint.startswith("ssh://"):
+        # A word ssh reads as a login or a host, never as an option, and nothing after it:
+        # what else a daemon's host needs is said by an ssh provider, `ssh:<name>`.
+        login, _, at = endpoint[len("ssh://") :].rpartition("@")
+        host, _, port = at.partition(":")
         if (
             _WORD.match(host)
             and (not login or _WORD.match(login))
             and (not port or (port.isdigit() and 0 < int(port) <= _PORT_MAX))
         ):
-            return "ssh", endpoint[len("ssh://") :]
-    if endpoint.startswith("ssh:") and _NAMED.match(endpoint[len("ssh:") :]):
-        return "provider", endpoint[len("ssh:") :]
-    if endpoint.startswith("context:") and _NAMED.match(endpoint[len("context:") :]):
-        return "context", endpoint[len("context:") :]
+            return endpoint
+    else:
+        try:
+            read = Endpoint.parse(endpoint)
+        except ValueError:
+            pass
+        else:
+            port = (
+                read.host.rpartition(":")[2] if read.host.startswith("tcp://") else ""
+            )
+            if (
+                endpoint
+                and "?" not in endpoint
+                and (not port or 0 < int(port) <= _PORT_MAX)
+                and (not read.context or _NAMED.match(read.context))
+            ):
+                return endpoint
     raise ValueError(
         f"{endpoint!r} is not a docker endpoint: local, unix:///PATH, tcp://HOST:PORT, "
         "ssh://[USER@]HOST[:PORT], ssh:<ssh provider> or context:<docker context>"
     )
 
 
-def daemon_of(endpoint: str, tls_dir: str = "") -> DockerDaemon:
-    """How the `docker` command line reaches the daemon an endpoint names.
+def daemon_of(endpoint: str, tls_dir: str = "") -> Endpoint:
+    """The daemon an endpoint names, as a provider spells it, for `docker` to be pointed at.
 
-    The one place an endpoint becomes a command line, for whatever starts a container on one
-    and whatever asks one what it has.
+    What a provider adds to :class:`~hmz.coganchor.transport.Endpoint`, which is the one place
+    an endpoint becomes a command line: its certificates beside it rather than in it, and
+    `ssh:<name>` for the stored ssh provider a daemon's host is reached as -- dialled with
+    everything that provider says.
 
     Args:
       endpoint: As :attr:`DockerProvider.endpoint` spells it.
       tls_dir: For `tcp://`, the directory of its certificates, or "" for none.
 
     Returns:
-      The daemon, as `docker` is to be told it.
+      The daemon.
 
     Raises:
       ValueError: For an endpoint that is none of them, or `ssh:<name>` naming no stored
         ssh provider.
-      OSError: If the `ssh` that provider's options need cannot be written.
     """
-    kind, rest = _endpoint(endpoint)
-    if kind == "local":
-        return DockerDaemon(endpoint)
-    if kind == "context":
-        return DockerDaemon(endpoint, ("--context", rest))
-    if kind == "tcp" and tls_dir:
-        certs = Path(tls_dir).expanduser()
-        return DockerDaemon(
-            endpoint,
-            (
-                "--host",
-                endpoint,
-                "--tlsverify",
-                "--tlscacert",
-                str(certs / "ca.pem"),
-                "--tlscert",
-                str(certs / "cert.pem"),
-                "--tlskey",
-                str(certs / "key.pem"),
-            ),
-        )
-    if kind != "provider":
-        return DockerDaemon(endpoint, ("--host", endpoint))
-    found = find(SSH, rest)
+    from hmz.coganchor.transport import Endpoint
+
+    _endpoint(endpoint)
+    if not endpoint.startswith("ssh:") or endpoint.startswith("ssh://"):
+        certs = f"?tls={Path(tls_dir).expanduser().absolute()}" if tls_dir else ""
+        return Endpoint.parse(endpoint + certs)
+    name = endpoint[len("ssh:") :]
+    found = find(SSH, name)
     if found is None:
-        raise ValueError(f"{endpoint}: there is no ssh provider called {rest!r}")
+        raise ValueError(f"{endpoint}: there is no ssh provider called {name!r}")
     found = cast("SSHProvider", found)
-    url = f"ssh://{found.login()}" + (f":{found.port}" if found.port else "")
-    settings = found.settings()
-    if not settings:
-        return DockerDaemon(endpoint, ("--host", url))
-    # docker dials an ssh host with the `ssh` on its PATH and tells it only the login, the
-    # port and the host. The rest of what the provider says goes in an `ssh` of its own, put
-    # in front of the real one for the `docker` that is to dial it.
-    at = _shim(found, settings)
-    return DockerDaemon(
-        endpoint,
-        ("--host", url),
-        {"PATH": f"{at}{os.pathsep}{os.environ.get('PATH', os.defpath)}"},
-    )
-
-
-def _shim(provider: SSHProvider, settings: Sequence[tuple[str, str]]) -> Path:
-    """Writes the `ssh` a docker daemon behind this provider is dialled through.
-
-    Returns:
-      The directory it is in, which goes in front of `PATH`; it takes itself off again
-      before running the real one.
-    """
-    from hmz.coganchor.transport import ssh_flags
-
-    at = provider.at / "bin"
-    _kept(at)
-    flags = " ".join(shlex.quote(flag) for flag in ssh_flags(settings))
-    _writes(
-        at / "ssh",
-        "#!/bin/sh\n"
-        f"# The ssh docker dials {provider.name} through, told what it says.\n"
-        f"PATH=${{PATH#{shlex.quote(str(at) + os.pathsep)}}}\n"
-        f'exec ssh {flags} "$@"\n',
-        mode=0o700,
-    )
-    return at
+    port = f":{found.port}" if found.port else ""
+    return Endpoint(host=f"ssh://{found.login()}{port}", options=found.settings())
 
 
 # ---------------------------------------------------------------------------- the store

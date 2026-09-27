@@ -217,20 +217,26 @@ class Endpoint:
 
     Written the way docker's own `--host` and `--context` write one, so that what a setting
     says is what `docker` is told: `local` for docker's default here, `unix:///PATH`,
-    `tcp://HOST:PORT` with `?tls=DIR` for a verified one, `ssh://[USER@]HOST[:PORT]`, or
-    `context:NAME`. `ssh://` is docker's own transport, so it is the daemon's host that needs
-    an sshd and a `docker`, and never the container.
+    `tcp://HOST:PORT` with `?tls=DIR` for a verified one, `ssh://[USER@]HOST[:PORT]` with
+    `?KEYWORD=VALUE&...` for what its `ssh` is told besides, or `context:NAME`. `ssh://` is
+    docker's own transport, so it is the daemon's host that needs an sshd and a `docker`, and
+    never the container.
 
     Attributes:
       host: docker's `--host` for it, or "" for a context or for the default.
       context: The docker context it is reached by, or "".
       certs: For a `tcp://` host, the directory holding its `ca.pem`, `cert.pem` and `key.pem`
         -- docker's own `DOCKER_CERT_PATH` layout -- or "" for plain TCP.
+      options: For an `ssh://` host, what its `ssh` is told besides the login, the port and
+        the host, as :attr:`Target.options` holds them. Docker dials with the `ssh` on `PATH`
+        and tells it nothing else, so these reach it through an `ssh` of their own put in
+        front of the real one: see :meth:`docker`.
     """
 
     host: str = ""
     context: str = ""
     certs: str = ""
+    options: tuple[tuple[str, str], ...] = ()
 
     @classmethod
     def parse(cls, spec: str) -> Endpoint:
@@ -252,9 +258,14 @@ class Endpoint:
         if spec.startswith("unix:///"):
             return cls(host=spec)
         if spec.startswith("ssh://"):
-            authority = spec[len("ssh://") :]
-            if authority.rpartition("@")[2] and not set("/?#") & set(authority):
-                return cls(host=spec)
+            authority, _, query = spec[len("ssh://") :].partition("?")
+            if authority.rpartition("@")[2] and not set("/#") & set(authority):
+                try:
+                    options = _ssh_options(query, spec)
+                except ValueError:
+                    options = None
+                if options is not None:
+                    return cls(host=f"ssh://{authority}", options=options)
         if spec.startswith("tcp://"):
             address, asks, certs = spec[len("tcp://") :].partition("?tls=")
             host, _, port = address.rpartition(":")
@@ -262,7 +273,8 @@ class Endpoint:
                 return cls(host=f"tcp://{address}", certs=certs)
         raise ValueError(
             f"unsupported docker endpoint {spec!r}; expected local, unix:///PATH, "
-            "tcp://HOST:PORT[?tls=DIR], ssh://[USER@]HOST[:PORT] or context:NAME"
+            "tcp://HOST:PORT[?tls=DIR], ssh://[USER@]HOST[:PORT][?KEYWORD=VALUE&...] or "
+            "context:NAME"
         )
 
     def __str__(self) -> str:
@@ -271,6 +283,12 @@ class Endpoint:
             return f"context:{self.context}"
         if self.certs:
             return f"{self.host}?tls={self.certs}"
+        if self.options:
+            from urllib.parse import quote, urlencode
+
+            return f"{self.host}?" + urlencode(
+                self.options, quote_via=quote, safe="/~:@,"
+            )
         return self.host or "local"
 
     @property
@@ -292,13 +310,17 @@ class Endpoint:
         Docker's default is left to find itself, the way `docker` run by hand finds it. Any
         other is said on the command line, with the variables that would redirect it taken
         off on the way: every command for one container has to reach the daemon holding it,
-        whatever the environment of whichever process happens to be asking.
+        whatever the environment of whichever process happens to be asking. An `ssh://` one
+        with options is dialled through an `ssh` told them, first on the `PATH` it runs with.
 
         Args:
           argv: The docker subcommand and its arguments.
 
         Returns:
           The argv to run here.
+
+        Raises:
+          OSError: If the `ssh` an endpoint's options need cannot be written.
         """
         if not self.host and not self.context:
             return ["docker", *argv]
@@ -312,7 +334,62 @@ class Endpoint:
             ):
                 said += [flag, os.path.join(self.certs, f"{pem}.pem")]
         unset = [word for name in _DOCKER_AMBIENT for word in ("-u", name)]
+        if self.options:
+            shim = _ssh_shim(self.options)
+            unset.append(f"PATH={shim}{os.pathsep}{os.environ.get('PATH', os.defpath)}")
         return ["env", *unset, "docker", *said, *argv]
+
+
+def _ssh_shim(options: Sequence[tuple[str, str]]) -> str:
+    """The directory holding an `ssh` that tells the real one these options first.
+
+    Docker's own ssh transport runs whichever `ssh` is first on `PATH` and hands it the login,
+    the port and the host alone, so what else a daemon's host needs -- a key, a jump host, a
+    config of its own -- is said by one of these instead. One per set of options, named by
+    their digest under humanize's home and this user's alone, written once and whole; it takes
+    its own directory off `PATH` again before running the real one.
+
+    Args:
+      options: `(KEYWORD, VALUE)` pairs, as :attr:`Target.options` holds them.
+
+    Returns:
+      The directory, for the front of `PATH`.
+
+    Raises:
+      OSError: If it cannot be written.
+    """
+    from hmz import home
+
+    flags = " ".join(shlex.quote(flag) for flag in ssh_flags(options))
+    at = home() / "docker-ssh" / hashlib.sha256(flags.encode()).hexdigest()[:16]
+    if str(at) in _SHIMS:
+        return str(at)
+    script = (
+        "#!/bin/sh\n"
+        "# The ssh docker dials its daemon's host through, told what the endpoint says.\n"
+        f"PATH=${{PATH#{shlex.quote(str(at) + os.pathsep)}}}\n"
+        f'exec ssh {flags} "$@"\n'
+    )
+    ssh = at / "ssh"
+    if _read(ssh) == script.strip():
+        _SHIMS.add(str(at))
+        return str(at)
+    at.mkdir(mode=0o700, parents=True, exist_ok=True)
+    handle, staged = tempfile.mkstemp(dir=at, prefix=".ssh.", suffix=".new")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as writing:
+            writing.write(script)
+        os.chmod(staged, 0o700)
+        os.replace(staged, ssh)
+    except OSError:
+        Path(staged).unlink(missing_ok=True)
+        raise
+    _SHIMS.add(str(at))
+    return str(at)
+
+
+#: The `ssh` shims this process has written or found whole, so each is looked at once.
+_SHIMS: set[str] = set()
 
 
 @dataclass(frozen=True, slots=True)

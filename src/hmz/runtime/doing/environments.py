@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping
+    from collections.abc import Iterable
     from pathlib import Path
 
     from hmz.coganchor.machines.sshconfig import SSHHost
@@ -268,13 +268,13 @@ def _ssh(provider: SSHProvider, seconds: float) -> Checked:
 
 def _docker(provider: DockerProvider, seconds: float) -> Checked:
     """A docker daemon, asked `docker info`, and held up against what it was given."""
+    from hmz.coganchor.machines import gpus_listed
+
     try:
-        daemon = provider.daemon()
+        asking = provider.daemon().docker("info", "--format", "{{json .}}")
     except (ValueError, OSError) as error:
         return Checked(reached=False, said=str(error))
-    status, out, err = _asked(
-        daemon.command(["info", "--format", "{{json .}}"]), seconds
-    )
+    status, out, err = _asked(asking, seconds)
     try:
         said: object = json.loads(out) if out.strip() else {}
     except ValueError:
@@ -288,7 +288,7 @@ def _docker(provider: DockerProvider, seconds: float) -> Checked:
     if default in runtimes:
         runtimes.remove(default)
         runtimes.insert(0, default)
-    gpus = _gpus(cast("list[Any]", info.get("DiscoveredDevices") or []))
+    gpus = gpus_listed(cast("list[Any]", info.get("DiscoveredDevices") or []))
     cpus, memory = float(info.get("NCPU") or 0), int(info.get("MemTotal") or 0)
     short: list[str] = []
     if provider.cpus > cpus:
@@ -308,22 +308,3 @@ def _docker(provider: DockerProvider, seconds: float) -> Checked:
         version=str(info.get("ServerVersion") or ""),
         short=tuple(short),
     )
-
-
-def _gpus(devices: list[Any]) -> tuple[str, ...]:
-    """The GPUs a daemon's CDI devices name, by index where it names them by index.
-
-    A GPU is listed under several names -- its index, its UUID, and again under each vendor
-    that registered it -- so the indices are the answer where there are any, and the other
-    names, less `all`, where there are not.
-    """
-    names: list[str] = []
-    for device in devices:
-        said: Mapping[str, Any] = (
-            cast("Mapping[str, Any]", device) if isinstance(device, dict) else {}
-        )
-        kind, _, name = str(said.get("ID") or "").partition("=")
-        if kind.endswith("/gpu") and name and name != "all" and name not in names:
-            names.append(name)
-    indices = sorted((one for one in names if one.isdigit()), key=int)
-    return tuple(indices or names)
