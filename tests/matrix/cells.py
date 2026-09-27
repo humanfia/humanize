@@ -63,6 +63,7 @@ if TYPE_CHECKING:
     from hmz.runtime.flowing import OutworlderDriver
 
 __all__ = [
+    "ANY",
     "BUDGET",
     "CLIS",
     "FEATURES",
@@ -78,6 +79,10 @@ __all__ = [
 
 #: Every CLI humanize drives, in the order humanize lists them: the grid's columns.
 CLIS: Final = tuple(one.name for one in backends.PROFILES)
+
+#: The column of a row about no one CLI -- the settings pages, two interfaces on one run --
+#: which is run once rather than once per CLI, and drawn after every CLI's.
+ANY: Final = "any"
 
 #: Every feature, by name, in the order declared, with the first line of what it checks: the
 #: grid's rows.
@@ -177,6 +182,7 @@ def feature[F: Callable[..., object]](
     limits: Mapping[str, str] | None = None,
     xfail: Mapping[str, str | Unsettled] | None = None,
     timeout: float = 900,
+    once: bool = False,
 ) -> Callable[[F], F]:
     """Makes one test function a row of the matrix: the same scenario, for every CLI.
 
@@ -191,6 +197,9 @@ def feature[F: Callable[..., object]](
       xfail: Known humanize bugs, by CLI, each with the bug it is. Strict, so a fix turns the
         cell red until the mark comes off -- but for an :class:`Unsettled` one.
       timeout: The most one cell of it may take, in seconds.
+      once: Whether the row is about no one CLI, and is run once, in the column :data:`ANY`,
+        rather than once per CLI. Such a function takes no `cell`: there is no CLI to hand
+        it, and it settles whatever it needs for itself.
 
     Returns:
       What marks the function: parametrized over every CLI, gated behind `--run-agents`,
@@ -203,6 +212,11 @@ def feature[F: Callable[..., object]](
             raise ValueError(f"the matrix already has a feature called {name}")
         order = len(FEATURES)
         FEATURES[name] = _summary(test.__doc__)
+        if once:
+            marked = pytest.mark.xdist_group(ANY)(test)
+            marked = pytest.mark.matrix(name, order, ANY)(marked)
+            marked = pytest.mark.agent(marked)
+            return pytest.mark.timeout(timeout)(marked)
         cells: list[Any] = []
         for cli in CLIS:
             marks: list[pytest.MarkDecorator] = [pytest.mark.xdist_group(cli)]

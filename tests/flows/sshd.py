@@ -1,6 +1,6 @@
 """Hosts a real `ssh` reaches without a password, for the system tests that need one.
 
-Two of them, for two questions.
+Three of them, for three questions.
 
 `ssh_host` is this machine: `localhost` where ssh already answers there without a password, and
 otherwise an `sshd` of the test's own on a loopback port. It is what the ssh environment driver's
@@ -14,8 +14,13 @@ loopback host the copy and the host's directory are one directory, and every wri
 makes is replayed onto the file it was read from -- which truncates it. Only a host that is
 really somewhere else can say where the work landed.
 
-Either is reached through an `ssh` told about keys made for the test alone: nothing of the
-user's `~/.ssh` is read or written. A machine that can give neither skips, saying why.
+`docker_box` is another machine with a docker daemon of its own: docker's daemon in a container
+(`docker:dind`), with an sshd beside it for docker's own ssh transport to reach it by. It is what
+the matrix puts an agent's container on when the daemon is somewhere else -- a daemon whose
+directories are not this machine's, so a workdir that turns up here was never mounted there.
+
+Each is reached through an `ssh` told about keys made for the test alone: nothing of the user's
+`~/.ssh` is read or written. A machine that can give none of them skips, saying why.
 
 What lands in humanize's home on the far side goes, for `localhost`, into the real
 `~/.humanize` -- ssh carries none of this process's environment there -- so a test that derives
@@ -31,7 +36,7 @@ import socket
 import subprocess
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -41,7 +46,17 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
 
-__all__ = ["ALIAS", "BOX", "BOXED", "Box", "ssh_box", "ssh_host"]
+__all__ = [
+    "ALIAS",
+    "BOX",
+    "BOXED",
+    "DOCKED",
+    "Box",
+    "Docked",
+    "docker_box",
+    "ssh_box",
+    "ssh_host",
+]
 
 #: The name the sshd of the test's own is reached by.
 ALIAS = "hmz-sshd-test"
@@ -65,6 +80,19 @@ _RECIPE = (
 
 #: What a container host is labelled with, so that one a killed run left is found by name.
 _LABEL = "humanize-test-sshd"
+
+#: The image a docker host is run from: docker's own daemon in a container, and an sshd for
+#: docker's ssh transport to reach it by. Built from `_DIND` the first time it is asked for.
+DOCKED = "hmz-test-dind-sshd:1"
+
+#: What it is built from, pulled by hand as `_BASE` is.
+_DIND = "docker:dind"
+
+#: How it is built.
+_DOCKED_RECIPE = (
+    f"FROM {_DIND}\n"
+    "RUN apk add --no-cache openssh-server && mkdir -p /root/.ssh && chmod 700 /root/.ssh\n"
+)
 
 
 def _unreachable() -> str | None:
@@ -187,10 +215,13 @@ class Box:
     Attributes:
       alias: What `ssh` and `-e box=ssh@<alias>/...` call it.
       container: The container's id.
+      config: The ssh config naming `alias`, which the `ssh` first on `PATH` reads -- and
+        which is what an ssh provider is imported from.
     """
 
     alias: str
     container: str
+    config: Path
 
     def run(self, script: str) -> str:
         """Runs a shell script on the host, as whoever ssh logs in as, and answers its stdout.
@@ -198,9 +229,14 @@ class Box:
         Raises:
           AssertionError: If it failed, with what it said.
         """
-        done = _docker("exec", self.container, "sh", "-c", script)
-        assert done.returncode == 0, f"{script!r} on the host: {done.stderr.strip()}"
-        return done.stdout
+        return _run(self.container, script)
+
+
+def _run(container: str, script: str) -> str:
+    """Runs a shell script in a container host, and answers its stdout."""
+    done = _docker("exec", container, "sh", "-c", script)
+    assert done.returncode == 0, f"{script!r} on the host: {done.stderr.strip()}"
+    return done.stdout
 
 
 def _docker(*argv: str, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
@@ -220,17 +256,17 @@ def _docker(*argv: str, stdin: str | None = None) -> subprocess.CompletedProcess
         )
 
 
-def _built() -> str:
+def _built(image: str = BOXED, base: str = _BASE, recipe: str = _RECIPE) -> str:
     """Why there is no image to run a container host from, or "" once there is one."""
     if shutil.which("docker") is None:
         return "needs the docker command to run another machine"
-    if _docker("image", "inspect", BOXED).returncode == 0:
+    if _docker("image", "inspect", image).returncode == 0:
         return ""
-    if _docker("image", "inspect", _BASE).returncode != 0:
-        return f"needs a docker daemon holding {_BASE} to build a host from"
-    made = _docker("build", "--quiet", "-t", BOXED, "-", stdin=_RECIPE)
+    if _docker("image", "inspect", base).returncode != 0:
+        return f"needs a docker daemon holding {base} to build a host from"
+    made = _docker("build", "--quiet", "-t", image, "-", stdin=recipe)
     if made.returncode != 0:
-        return f"could not build {BOXED}: {made.stderr.strip()[-400:]}"
+        return f"could not build {image}: {made.stderr.strip()[-400:]}"
     return ""
 
 
@@ -295,6 +331,135 @@ def ssh_box(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Box]:
                 said = _docker("logs", container).stderr.strip()[-400:]
                 pytest.skip(f"a container host never answered ssh: {said}")
             time.sleep(0.5)
-        yield Box(BOX, container)
+        yield Box(BOX, container, at / "ssh_config")
     finally:
         _docker("rm", "--force", container)
+
+
+@dataclass(frozen=True)
+class Docked:
+    """Another machine with a docker daemon of its own, which a real `ssh` reaches.
+
+    Attributes:
+      container: The container the machine is, on this machine's own daemon.
+      port: The loopback port its sshd is published on.
+      key: The key it takes, which nothing but the test holds.
+      known: The known-hosts file its host key goes in, the test's own.
+    """
+
+    container: str
+    port: int
+    key: Path
+    known: Path
+
+    def ssh(self) -> dict[str, Any]:
+        """Everything `ssh` has to be told to reach it, as an ssh provider's fields."""
+        return {
+            "host": "127.0.0.1",
+            "port": self.port,
+            "user": "root",
+            "identity_file": str(self.key),
+            "options": {
+                "IdentitiesOnly": "yes",
+                "UserKnownHostsFile": str(self.known),
+                "StrictHostKeyChecking": "no",
+                "LogLevel": "ERROR",
+            },
+        }
+
+    def run(self, script: str) -> str:
+        """Runs a shell script on the machine, as root, and answers its stdout.
+
+        Raises:
+          AssertionError: If it failed, with what it said.
+        """
+        return _run(self.container, script)
+
+
+def _reached(docked: Docked) -> bool:
+    """Whether `ssh`, told everything it needs and nothing of the user's, reaches its daemon."""
+    said = docked.ssh()
+    argv = ["ssh", "-F", "/dev/null", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10"]
+    for keyword, value in said["options"].items():
+        argv += ["-o", f"{keyword}={value}"]
+    argv += ["-i", said["identity_file"], "-p", str(said["port"]), "root@127.0.0.1"]
+    try:
+        done = subprocess.run(
+            [*argv, "docker", "info"], capture_output=True, timeout=30, check=False
+        )
+    except subprocess.TimeoutExpired:
+        return False
+    return done.returncode == 0
+
+
+@pytest.fixture
+def docker_box(tmp_path: Path) -> Iterator[Docked]:
+    """Another machine with a docker daemon of its own, holding the image a container needs.
+
+    Docker's daemon in a privileged container, with an sshd beside it, and `python:3.12-slim`
+    loaded into it from this machine's daemon -- so nothing is fetched. Nothing is put on
+    `PATH`: whatever reaches it is told everything it needs, which is what an ssh provider is.
+    """
+    why = _built(DOCKED, _DIND, _DOCKED_RECIPE)
+    if why:
+        pytest.skip(why)
+    if _docker("image", "inspect", _BASE).returncode != 0:
+        pytest.skip(f"needs a docker daemon holding {_BASE} to hand the far daemon")
+    if shutil.which("ssh-keygen") is None:
+        pytest.skip("needs ssh-keygen to make the test's own keys")
+    at = tmp_path / "docker-box"
+    at.mkdir()
+    key = _keyed(at / "client_key")
+    started = _docker(
+        "run",
+        "--detach",
+        "--rm",
+        "--privileged",
+        "--label",
+        _LABEL,
+        "--publish",
+        "127.0.0.1::22",
+        # A daemon listening on its socket alone, which is what docker's ssh transport dials.
+        "--env",
+        "DOCKER_TLS_CERTDIR=",
+        "--env",
+        f"KEY={(at / 'client_key.pub').read_text().strip()}",
+        "--entrypoint",
+        "sh",
+        DOCKED,
+        "-c",
+        'printf "%s\\n" "$KEY" > /root/.ssh/authorized_keys'
+        " && chmod 600 /root/.ssh/authorized_keys && ssh-keygen -A >/dev/null"
+        " && /usr/sbin/sshd -e && exec dockerd-entrypoint.sh dockerd",
+    )
+    if started.returncode != 0:
+        pytest.skip(f"a docker host would not start: {started.stderr.strip()}")
+    container = started.stdout.strip()
+    try:
+        port = _docker("port", container, "22/tcp").stdout.strip().rpartition(":")[2]
+        docked = Docked(container, int(port), key, at / "known_hosts")
+        deadline = time.monotonic() + 90
+        while not _reached(docked):
+            if time.monotonic() > deadline:
+                said = _docker("logs", container).stderr.strip()[-400:]
+                pytest.skip(f"a docker host never answered over ssh: {said}")
+            time.sleep(0.5)
+        saving = subprocess.Popen(["docker", "save", _BASE], stdout=subprocess.PIPE)
+        try:
+            loaded = subprocess.run(
+                ["docker", "exec", "-i", container, "docker", "load"],
+                stdin=saving.stdout,
+                capture_output=True,
+                text=True,
+                timeout=600,
+                check=False,
+            )
+        finally:
+            if saving.stdout is not None:
+                saving.stdout.close()
+            saving.wait()
+        assert loaded.returncode == 0, f"{_BASE} would not load: {loaded.stderr}"
+        yield docked
+    finally:
+        # Its daemon keeps its images in an anonymous volume, which goes only when asked.
+        _docker("rm", "--force", "--volumes", container)

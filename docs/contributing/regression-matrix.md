@@ -2,8 +2,9 @@
 
 The regression matrix runs every feature humanize offers through every coding agent CLI it
 drives, on the real CLIs signed in on your machine, and prints one grid: a row per feature, a
-column per CLI. Run it before a release, and after any change that could reach more than one
-CLI.
+column per CLI. A feature that is about no one CLI, such as a page of `/settings`, is a row
+run once, in a last column called `any`. Run it before a release, and after any change that
+could reach more than one CLI.
 
 ## Run it
 
@@ -39,11 +40,12 @@ The grid is drawn at the foot of the run:
 
 ```text
 ======================= regression matrix: feature x CLI =======================
-| feature | claude | agy | codex | dsh | grok | kimi | pi | qwen | opencode | mimo | zcode | cursor-agent |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| plain_turn | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass |
-| steer | pass | n/a | pass | n/a | n/a | pass | pass | n/a | n/a | n/a | n/a | n/a |
+| feature | claude | agy | codex | dsh | grok | kimi | pi | qwen | opencode | mimo | zcode | cursor-agent | any |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| plain_turn | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | - |
+| steer | pass | n/a | pass | n/a | n/a | pass | pass | n/a | n/a | n/a | n/a | n/a | - |
 ...
+| settings_accounts | - | - | - | - | - | - | - | - | - | - | - | - | pass |
 ```
 
 | Mark | Means | What to do |
@@ -144,17 +146,39 @@ bite, so neither a lucky run nor the order two changes land in turns the grid re
 A scenario that needs something more of the machine takes a fixture for it, as `test_ssh_env`
 takes `ssh_box`. It skips, saying what was missing, where the machine has none.
 
+A feature that is about no one CLI -- a page of `/settings`, two interfaces sharing a run -- is
+run once rather than once per CLI, and drawn in the column `any`. Its function takes no
+`cell`, and settles for itself whatever it needs:
+
+```python
+@feature(once=True)  # [!code highlight]
+async def test_settings_accounts(asking: None) -> None:
+    """An account added on the one form of `/settings accounts` is one a real turn runs as."""
+```
+
 ## Add a CLI
 
 A CLI humanize drives is a column as soon as it is in `hmz.coganchor.backends.PROFILES`. Give
 it candidates in `tests/matrix/places.py`: its cheapest model as local, then an account.
 
-::: details The ssh row needs docker
-`test_ssh_env` runs its agent on another machine: an `sshd` in a container, built from
-`python:3.12-slim` the first time it is asked for (`ssh_box` in `tests/flows/sshd.py`). Pull
-that image once with `docker pull python:3.12-slim`; without docker, or without the image, the
-row skips and says so. A loopback `sshd` will not do here: an agent's copy of a host's
-directory sits at the host's own path on this machine, so on a loopback host the copy and the
-host's directory are one directory, and the agent's writes land on the file they were read
-from.
+::: details The rows about other machines need docker
+`test_ssh_env` and `test_ssh_provider` run their agent on another machine: an `sshd` in a
+container, built from `python:3.12-slim` the first time it is asked for (`ssh_box` in
+`tests/flows/sshd.py`). Pull that image once with `docker pull python:3.12-slim`; without
+docker, or without the image, the rows skip and say so. A loopback `sshd` will not do here: an
+agent's copy of a host's directory sits at the host's own path on this machine, so on a
+loopback host the copy and the host's directory are one directory, and the agent's writes land
+on the file they were read from.
+
+`test_docker_env` and `test_docker_gpu` put the agent's environment in a container of
+`python:3.12-slim` on docker's default here; the GPU row skips where that daemon lists no
+NVIDIA GPU by its CDI name. `test_docker_env_remote` puts it on a daemon somewhere else: docker's
+own daemon in a privileged container, `docker:dind` with an `sshd` added (`docker_box`), reached
+through a saved ssh provider, with `python:3.12-slim` loaded into it from here. Pull that one
+too with `docker pull docker:dind`. Its directories are not this machine's, so the row can tell
+a workdir that was mounted there from one that was not.
+
+`test_frontends_tui` drives two `hmz` interfaces in a tmux of its own, and skips without
+`tmux`. `test_settings_accounts` fills the accounts form in with the `dsh` gateway account in
+`~/.humanize/providers`, read and never written, and takes the new account off disk after.
 :::

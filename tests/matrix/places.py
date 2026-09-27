@@ -126,7 +126,10 @@ CANDIDATES: dict[str, tuple[Place, ...]] = {
         _at("dsh", "nvidia", "nvidia/deepseek-ai/deepseek-v4-flash", "off"),
     ),
     "grok": (
-        _at("grok", "", "grok-4.5"),
+        # 4.7 rather than 4.5, which grok no longer offers: asked for it, a turn of the CLI
+        # alone still answers -- on the default model -- while every turn of a flow is
+        # refused it (`Couldn't set model 'grok-4.5': unknown model id`).
+        _at("grok", "", "grok-4.7"),
         _at("grok", "nvidia", "azure/openai/gpt-5.4-mini"),
     ),
     "kimi": (
