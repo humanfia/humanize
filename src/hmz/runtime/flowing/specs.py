@@ -103,7 +103,8 @@ class EnvSpec:
     Attributes:
       role: The role it fills.
       backend: Which kind of machine.
-      provider: The ssh host -- `host` or `user@host` -- or "" for this machine.
+      provider: The ssh host -- the name of a stored provider, `host` or `user@host` -- or
+        "" for this machine.
       workdir: The directory there: absolute, or `~/...` under the home of whoever ssh
         logs in as.
     """
@@ -189,7 +190,8 @@ def parse_envs(values: Sequence[str]) -> list[EnvSpec]:
 
     `local@/home/me/repo` is a directory on this machine, and `local` takes no provider.
     `ssh@gpu-box/home/me/repo` is one on the host `gpu-box`, and `ssh@gpu-box/~/repo` one under
-    the home directory there.
+    the home directory there. `ssh@gpu-box` alone is the workdir the environment provider
+    called `gpu-box` was written down with.
 
     Args:
       values: What each `-e` was given.
@@ -206,7 +208,8 @@ def parse_envs(values: Sequence[str]) -> list[EnvSpec]:
     for item in _items(values, "-e", EnvSpecError):
         said = item.strip()
         read = _ENV.fullmatch(said)
-        if read is None or read["at"] is None:
+        at = None if read is None else read["at"] or _workdir_of(read)
+        if read is None or at is None:
             raise EnvSpecError(
                 f"-e {said!r}: expected <role>=<backend>[@<provider>]/<workdir>"
             )
@@ -226,13 +229,25 @@ def parse_envs(values: Sequence[str]) -> list[EnvSpec]:
             raise EnvSpecError(
                 f"-e {said!r}: local takes no provider, as in local@/workdir"
             )
-        at = read["at"]
         workdir = PurePosixPath(at[1:] if at[1:].startswith("~") else at)
         if role in roles:
             raise EnvSpecError(f"-e: the role {role!r} is given twice")
         roles.add(role)
         specs.append(EnvSpec(role, backend, provider, workdir))
     return specs
+
+
+def _workdir_of(read: re.Match[str]) -> str | None:
+    """The workdir the stored provider an `-e` names was written down with, as `/...`.
+
+    None where it names no provider, or one with no workdir of its own.
+    """
+    from hmz.coganchor.machines import store
+
+    found = store.find(read["backend"].strip(), (read["provider"] or "").strip())
+    if found is None or not found.workdir:
+        return None
+    return found.workdir if found.workdir.startswith("/") else f"/{found.workdir}"
 
 
 def parse_params(values: Sequence[str]) -> dict[str, str]:

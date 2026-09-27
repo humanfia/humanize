@@ -68,6 +68,7 @@ All of these import from `hmz.sdk`.
 | [`Refused`](#refused) | A run refused before anything of it ran. |
 | [`Flows`](#flows), [`Flowverses`](#flowverses) | The flows there are, and where they come from: `Hmz.flows` and `Hmz.verses`. |
 | [`Accounts`](#accounts), [`Fallbacks`](#fallbacks) | The accounts an agent runs as, and where a turn goes when its place cannot take it: `Hmz.accounts` and `Hmz.fallbacks`. |
+| [`Environments`](#environments) | The ssh hosts and docker daemons an environment may be put on, saved under names: `Hmz.environments`. |
 | [`Epics`](#epics) | The runs of a workspace that already happened: `Hmz.epics`. |
 | [`Daemons`](#daemons), [`Daemon`](#session), [`Held`](#session), [`Session`](#session) | Runs held apart from any terminal. |
 | [`fakes`](#fakes) | The in-memory kit a flow is tested on, as a module. |
@@ -104,6 +105,7 @@ Nothing is loaded until it is asked for.
 | `flows` | [`Flows`](#flows): the flows there are. |
 | `verses` | [`Flowverses`](#flowverses): where flows come from. The same object as `flows.verses`. |
 | `accounts` | [`Accounts`](#accounts). |
+| `environments` | [`Environments`](#environments). |
 | `fallbacks` | [`Fallbacks`](#fallbacks). |
 | `epics` | [`Epics`](#epics) of this workspace. |
 
@@ -384,6 +386,40 @@ its credentials are kept in.
 accounts = Hmz().accounts
 print([one.name for one in accounts.all("claude")])
 print(accounts.env("ANTHROPIC_BASE_URL=https://gateway.example\nTIMEOUT=60"))
+```
+
+## `Environments` {#environments}
+
+`Hmz().environments`: [the machines an environment may be put on](/reference/machines#environment-providers),
+saved under names that `-e <role>=ssh@<name>` then names. `backend` is `ssh` or `docker`.
+
+| Method | |
+| --- | --- |
+| `all(backend="") -> list[EnvProvider]` | Every provider saved, or one backend's: by backend, then name. |
+| `find(backend, name) -> EnvProvider \| None` | One provider. |
+| `where(backend, name) -> Path` | Where it is kept, saved or not. `ValueError` for a name no provider may have. |
+| `new(backend, name, **fields) -> EnvProvider` | One provider, checked and **not saved**. `ValueError` for a field that backend has not got or a value it cannot take. `new(**one.held())` is `one`. |
+| `add(provider) -> EnvProvider` | Saves a new one. `ValueError` if the name is taken. |
+| `write(provider) -> EnvProvider` | Saves one over whatever had its name. |
+| `remove(backend, name) -> bool` | Takes one away. |
+| `hosts(config=None) -> list[SSHHost]` | Every `Host` an ssh config names (yours by default), as `ssh -G` resolves it. |
+| `import_ssh(config=None, names=None, *, update=False) -> list[SSHProvider]` | Saves an ssh provider per `Host`, named after it. One already saved is left alone unless `update`. |
+| `resolve(provider) -> SSHHost` | What `ssh` makes of an ssh provider, reaching nothing. |
+| `check(provider, seconds=30.0) -> Checked` | **Reaches** it and asks what it has. Never raises. |
+
+`EnvProvider` is `SSHProvider` (`host`, `user`, `port`, `identity_file`, `proxy_jump`, `options`,
+`alias`, `config`) or `DockerProvider` (`endpoint`, `tls_dir`, `image`, `runtime`, `run_args`,
+`cpus`, `memory`, `gpus`, `gpu_memory`, `max_containers`), each with `backend`, `name`, `workdir`,
+`made` (`typed` or `imported`), `at` and `held()`. `SSHProvider.target()` is the coganchor target
+it is reached by, and `DockerProvider.daemon()` how `docker` reaches it. `SSHHost` has `alias`,
+`host`, `user`, `port`, `identity_files` and `proxy_jump`. `Checked` has `reached`, `said`,
+`home`, `cpus`, `memory`, `gpus`, `gpu_memory`, `runtimes`, `version` and `short`.
+
+```python
+envs = Hmz().environments
+envs.import_ssh()
+gpu = envs.find("ssh", "gpu")
+print(envs.resolve(gpu), envs.check(gpu))
 ```
 
 ## `Fallbacks` {#fallbacks}

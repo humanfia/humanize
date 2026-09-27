@@ -164,8 +164,12 @@ def _ran_now(client: RemoteClient, argv: list[str], cwd: str, within: float) -> 
     return b"".join(out).decode("utf-8", "replace")
 
 
-def _opened(provider: str) -> tuple[Transport, RemoteClient, _Facts]:
+def _opened(provider: str, target: str) -> tuple[Transport, RemoteClient, _Facts]:
     """Reaches a host and learns what it has, from a thread that may wait.
+
+    Args:
+      provider: The host as it was named, which is what an error says.
+      target: The coganchor target that reaches it.
 
     Raises:
       EnvUnavailable: If there is no such host.
@@ -176,7 +180,7 @@ def _opened(provider: str) -> tuple[Transport, RemoteClient, _Facts]:
     from hmz.coganchor.remote import RemoteClient
 
     try:
-        link = transport.connect(transport.Target.parse(f"ssh://{provider}"), ["/"])
+        link = transport.connect(transport.Target.parse(target), ["/"])
     except ValueError as error:
         raise EnvUnavailable(f"{provider!r} is not an ssh host: {error}") from error
     except OSError as error:
@@ -391,22 +395,26 @@ class SSHMachine(Machine):
 
     backend = EnvBackendKind.SSH
 
-    def __init__(self, provider: str) -> None:
+    def __init__(self, provider: str, target: str = "") -> None:
         """Initializes a machine that has not been reached.
 
         Args:
-          provider: The ssh destination: `[user@]host[:port]`, or an alias of ssh's config.
+          provider: The ssh destination: `[user@]host[:port]`, or an alias of ssh's config
+            -- or, with a target, the name of the stored provider that target is.
+          target: The coganchor target that reaches it, with whatever ssh is to be told on
+            the way, or "" for `ssh://<provider>`.
 
         Raises:
           EnvUnavailable: If that is not an ssh destination.
         """
         super().__init__()
-        if not _PROVIDER.fullmatch(provider):
+        if not target and not _PROVIDER.fullmatch(provider):
             raise EnvUnavailable(
                 f"{provider!r} is not an ssh host, as [user@]host[:port]"
             )
         self.provider = provider
-        self.identity = f"ssh:{provider}"
+        self.target = target or f"ssh://{provider}"
+        self.identity = "ssh:" + self.target.removeprefix("ssh://")
         self._link: Transport | None = None
         self._client: RemoteClient | None = None
         self._facts: _Facts | None = None
@@ -461,7 +469,9 @@ class SSHMachine(Machine):
         if stale != (None, None):
             await asyncio.to_thread(_shut, *stale)
         try:
-            link, client, facts = await asyncio.to_thread(_opened, self.provider)
+            link, client, facts = await asyncio.to_thread(
+                _opened, self.provider, self.target
+            )
         except EnvError:
             self._reached = False
             raise
@@ -518,7 +528,7 @@ class SSHMachine(Machine):
         from hmz.coganchor import AnchorConfig
         from hmz.coganchor.machines import AnchoredConfig
 
-        target = f"ssh://{self.provider}"
+        target = self.target
         facts = self._facts
         if workdir.is_absolute():
             anchor = AnchorConfig(target=target, workspace=str(workdir))

@@ -14,7 +14,7 @@ hmz exec -f|--flow <ref> [-a|--agents <agent>[,<agent>...]]... [-e|--envs <env>[
          [--resume] [--json] <task>
 <ref>    := [<flowverse>/]<flow>[:<name>] | <path> | git+<url>[@<rev>]#<flow>[:<name>]
 <agent>  := <role>=<cli>[@<provider>]/<model>:<effort>
-<env>    := <role>=<backend>@<provider>/<workdir>
+<env>    := <role>=<backend>@<provider>[/<workdir>]
 <limit>  := duration=<duration> | cost=<usd> | output_tokens=<count> | graceful=<bool>
 hmz internal <command> [<args>...]
 hmz internal anchor [<options>] <agent> [<args>...]
@@ -101,6 +101,9 @@ def tools(argv: list[str]) -> int: ...
   and a line with no `-b` -- for every flow but `chat`, which runs under `Budget(cost=inf)` -- MUST
   each be a usage error before any agent has started, as MUST a flow that is not there or will not
   load, and `--resume` of a flow that cannot be picked up or has no run to pick up.
+- An `ssh` `<provider>` MUST be the environment provider written down under that name where there
+  is one, reached as it says, and otherwise the destination `ssh` is handed; `/<workdir>` MAY be
+  left off only for a provider written down with one, and the run MUST record the workdir it took.
 - `--resume` MUST pick up the newest run of that flow in this workspace that can be picked up;
   without it every run MUST start from the top.
 - MUST read `<cli>` from the front and `<effort>` from after the last colon so that a model's own

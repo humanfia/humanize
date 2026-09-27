@@ -38,8 +38,8 @@ def open_env(spec: EnvSpec) -> EnvDriver:
 
     Args:
       spec: The environment: `local@/abs/path` for a directory here, `ssh@host/abs/path` or
-        `ssh@host/~/path` for one on a host `ssh` reaches -- `[user@]host[:port]` or an alias
-        of the ssh config.
+        `ssh@host/~/path` for one on a host `ssh` reaches -- a stored ssh provider by its
+        name, and otherwise `[user@]host[:port]` or an alias of the ssh config.
 
     Returns:
       A driver serving every environment capability.
@@ -49,11 +49,38 @@ def open_env(spec: EnvSpec) -> EnvDriver:
         looked at now -- or the host is no ssh destination.
     """
     if spec.backend is EnvBackendKind.SSH:
+        from hmz.coganchor.machines import store
+
         from .environing_ssh import SSHMachine
 
+        # A provider written down under that name is reached as it says; any other name is
+        # the destination `ssh` is handed as it is.
+        stored = store.find(store.SSH, spec.provider)
+        if stored is None and _unreadable(spec.provider):
+            raise EnvUnavailable(
+                f"the ssh provider {spec.provider!r} cannot be read; correct it or take "
+                f"it away: {store.where(store.SSH, spec.provider)}"
+            )
+        target = stored.target() if isinstance(stored, store.SSHProvider) else ""
         # One place, one name: what is derived from it is found by that name again.
-        return MachineEnvDriver(SSHMachine(spec.provider), tidy_workdir(spec.workdir))
+        return MachineEnvDriver(
+            SSHMachine(spec.provider, target), tidy_workdir(spec.workdir)
+        )
     return local_env(Path(spec.workdir).expanduser())
+
+
+def _unreadable(name: str) -> bool:
+    """Whether something is written down as the ssh provider of that name, and cannot be read.
+
+    Which is not a name to hand `ssh` instead: whatever it would reach is not what was written
+    down, and a run on it would be a run somewhere nobody meant.
+    """
+    from hmz.coganchor.machines import store
+
+    try:
+        return store.where(store.SSH, name).exists()
+    except ValueError:
+        return False  # a name no provider may have, which is a host
 
 
 def local_env(workdir: Path) -> EnvDriver:

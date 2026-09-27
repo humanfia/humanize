@@ -9,7 +9,7 @@ Mixin system is crucial to the flow system. It allows the flow to declare what i
 `hmz exec` should support these flags:
 
 - `-a|--agents <role>=<harness>@<provider>/<model>:<effort>`: specifying an agent spec;
-- `-e|--envs <role>=<backend>@<provider>/<workdir>`: specifying an env spec;
+- `-e|--envs <role>=<backend>@<provider>/<workdir>`: specifying an env spec; for `ssh`, `<provider>` is the name of an environment provider written down (`hmz.coganchor.machines.store`), or else a destination `ssh` itself resolves, and `/<workdir>` may be left off for a provider written down with one;
 - `-p|--params <key>=<value>`: specifying a flow param.
 
 All of the above supports comma-separated list and multiple flags. (e.g. `-a role1=... -a role2=...` or `-a role1=...,role2=...`)

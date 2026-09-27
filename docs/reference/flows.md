@@ -619,8 +619,10 @@ class EnvCollection(TypedDict, extra_items=ReadOnly[Env]): ...
 One key per environment role, each typed as `Env`, `LocalEnv`, or a subclass carrying
 mixins. `NotRequired` roles may be left out. Every role but a `LocalEnv` one is filled with
 `-e <role>=<backend>@<provider>/<workdir>`: `local@/srv/data` on this machine,
-`ssh@gpu-box/home/me/repo` on a host `ssh` reaches, `ssh@gpu-box/~/repo` under the home
-directory there. Full syntax in the [CLI reference](/reference/cli).
+`ssh@gpu-box/home/me/repo` on a host `ssh` reaches or an
+[environment provider](/reference/machines#environment-providers) saved as `gpu-box`,
+`ssh@gpu-box/~/repo` under the home directory there. Full syntax in the
+[CLI reference](/reference/cli).
 
 ### `Env` {#env}
 
