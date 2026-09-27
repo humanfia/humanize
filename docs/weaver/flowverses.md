@@ -69,7 +69,7 @@ git push -u origin main
 ::: code-group
 
 ```text [At the prompt]
-> /flowverses
+> /settings, tab to Flowverses
   a             add a flowverse
   repository    you/my-flowverse
   name          yours
@@ -118,8 +118,8 @@ URL: `-f 'git+https://github.com/you/my-flowverse#review'`.
 
 The docstring's first line is what somebody sees before they run anything:
 
-![what a flowverse holds in /flowverses: each flow's name, beside the first line of its
-docstring](/demo/flowverse-holds.png)
+![what a flowverse holds, on the Flowverses page of /settings: each flow's name, beside the
+first line of its docstring](/demo/flowverse-holds.png)
 
 **Keep a flow's own code in its own directory.** Besides installed packages, a flow can import
 only what sits beside its `__init__.py`, so a `_shared.py` at the top of `flows/` cannot be
@@ -141,7 +141,7 @@ flows/
 See [Skills](/user/skills) for what goes in `skills/`.
 
 **Do nothing at import time** beyond defining things: no network calls, no files written.
-humanize imports every flow it lists, in `/flow`, in `/flowverses` and as `$` completes a name,
+humanize imports every flow it lists, in `/flow`, in `/settings` and as `$` completes a name,
 so a flow that acts on import acts for somebody who was only looking.
 
 **Write the README for somebody deciding whether to trust it.** For each flow, say:
@@ -156,9 +156,10 @@ so a flow that acts on import acts for somebody who was only looking.
 
 ## Adding one
 
-The `/flowverses` command, or <kbd>v</kbd> in `/flow`, lists every place flows come from:
+The Flowverses page of `/settings` (type `/settings`, then <kbd>tab</kbd> to it), or <kbd>v</kbd>
+in `/flow`, lists every place flows come from:
 
-![/flowverses: every place flows come from, then enter on one to read what it
+![the Flowverses page of /settings: every place flows come from, then enter on one to read what it
 holds](/demo/flowverses.gif)
 
 | Key | |
@@ -216,8 +217,8 @@ humanize's by taking its name: `.humanize/flows/chat/` is what `-f chat` runs in
 [humanfia/flowverse](https://github.com/humanfia/flowverse). To hold a run to one version of a
 flow, name it by commit: `-f 'git+https://github.com/humanfia/flowverse@<sha>#rlar'`.
 
-If a flowverse has not been fetched yet, the error says so: open `/flowverses` and press
-<kbd>r</kbd> on it. `hmz exec` fetches nothing, so a fresh CI runner calls
+If a flowverse has not been fetched yet, the error says so: open the Flowverses page of
+`/settings` and press <kbd>r</kbd> on it. `hmz exec` fetches nothing, so a fresh CI runner calls
 `Hmz().verses.fetch("official")` first.
 
 ## Calling it from another flow

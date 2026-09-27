@@ -5,20 +5,20 @@ further back, and <kbd>↓</kbd> to come forward again. Whatever you were typing
 past the newest line and it comes back.
 
 ![hmz: three commands sent; then, with "fix the flaky" half typed, up brings back
-/details off, /afk on and /details on in turn, and down walks forward again until "fix the
+/afk off, /clear and /afk on in turn, and down walks forward again until "fix the
 flaky" is back at the prompt](/demo/history.gif)
 
 ## What a walk looks like
 
-Say you have sent two lines here, `/details on` and then `$ralph_loop fix the build`, and have
+Say you have sent two lines here, `/afk on` and then `$ralph_loop fix the build`, and have
 now typed `and the tests`:
 
 | You press | The prompt shows |
 | --- | --- |
 | (nothing yet) | `and the tests` |
 | <kbd>↑</kbd> | `$ralph_loop fix the build` |
-| <kbd>↑</kbd> | `/details on` |
-| <kbd>↑</kbd> | `/details on` (nothing older, so it stays) |
+| <kbd>↑</kbd> | `/afk on` |
+| <kbd>↑</kbd> | `/afk on` (nothing older, so it stays) |
 | <kbd>↓</kbd> | `$ralph_loop fix the build` |
 | <kbd>↓</kbd> | `and the tests`, your own line back |
 
@@ -51,7 +51,7 @@ Delete it to forget every line you have sent, everywhere. Nothing else is lost.
 ## See also
 
 - [Completion](/user/completion): finishing a word instead of typing it
-- [What a project remembers](/user/settings): the other thing kept between starts
+- [Settings](/user/settings): the other thing kept between starts
 - [Exporting a run](/user/export): for what actually happened in a run, not what you typed
 
 <style scoped>

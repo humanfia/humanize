@@ -7,8 +7,8 @@ import Term from '../.vitepress/theme/components/user-prompt/Term.vue'
 Type `/` or `$` at the prompt, and a list under it offers ways to finish the word. Take one
 with <kbd>tab</kbd> and keep typing.
 
-![hmz: typing / lists every command with what it takes; /fl narrows it to /flow and
-/flowverses; tab takes one; /afk shows what it takes; $ lists the flows, $lo narrows them to
+![hmz: typing / lists every command with what it takes; /s narrows it to /settings and
+/stop; tab takes one; /afk shows what it takes; $ lists the flows, $lo narrows them to
 the project's own, and tab finishes the name](/demo/completion.gif)
 
 ## What is offered
@@ -33,10 +33,10 @@ fetched here, and your own. Each is offered under one name:
 
 <Term>
 
-<pre><span class="p">/flow [flow]</span>       <span class="p">Switch flow</span>
-/flowverses        <span class="m">Manage the places flows come from</span>
+<pre><span class="p">/settings</span>          <span class="p">Every setting: here, everywhere, accounts, fallback, flowverses</span>
+/stop              <span class="m">Stop the flow; typed out, so not asked twice</span>
 <span class="d">────────────────────────────────────────────────────────────</span>
-<span class="d">❯</span> /fl
+<span class="d">❯</span> /s
 <span class="d">────────────────────────────────────────────────────────────</span>
 <span class="a">◉</span> <span class="d">twice · ~/code/app       ↑↓ move · tab take · esc dismiss</span></pre>
 

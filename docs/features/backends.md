@@ -43,7 +43,7 @@ than guesses:
   themselves.
 - **It asks once, when you make the account,** and keeps the answer with the account. Opening
   a menu never starts a CLI or reaches the network. The list is refreshed when you ask it
-  again, on [Providers](/user/providers).
+  again, on [Accounts](/user/settings#accounts).
 
 DeepSeek Harness and Qwen Code cannot list their models. Until an endpoint of theirs is asked,
 you are offered the short list each one ships pointed at.
@@ -79,13 +79,13 @@ Anything that speaks the Agent Client Protocol becomes a backend the moment you 
 named by the command that starts it. Its model and effort are whatever you configured it with,
 so humanize offers one rung, `as configured`, and sends nothing.
 
-From then on it is a backend like any other. A role can name it, and a [fallback](/user/fallback)
-step can point to it or away from it.
+From then on it is a backend like any other. A role can name it, and a
+[fallback](/user/settings#fallback) step can point to it or away from it.
 
 ## Where the detail is
 
 - [Efforts](/user/efforts) · [Permissions](/user/permissions) · [Skills](/user/skills) ·
-  [Providers](/user/providers)
+  [Accounts](/user/settings#accounts)
 - [Providers reference](/reference/providers): every way into each backend, and adding a CLI
 - [Agents reference](/reference/agents): what each backend does, exactly
 

@@ -31,7 +31,7 @@ Then take a whole piece of work start to finish:
 - [Talking to a running turn](/user/steering)
 - [Side questions (/btw)](/user/btw)
 - [Many conversations at once](/user/conversations)
-- [Showing the working (/details)](/user/details)
+- [Showing the working](/user/settings#details)
 - [Watching a run (/monitor)](/user/monitor)
 - [Being away (/afk)](/user/afk)
 - [Stopping](/user/stopping)
@@ -45,7 +45,7 @@ Then take a whole piece of work start to finish:
 
 - [Completion](/user/completion)
 - [History](/user/history)
-- [What a project remembers](/user/settings)
+- [Settings (/settings)](/user/settings)
 
 **Where the work lands**
 
@@ -57,9 +57,9 @@ Then take a whole piece of work start to finish:
 
 **Agents and accounts**
 
-- [Providers](/user/providers)
+- [Accounts](/user/settings#accounts)
 - [Efforts](/user/efforts)
-- [Falling back (/fallback)](/user/fallback)
+- [Falling back](/user/settings#fallback)
 - [Cost and rate](/user/tally)
 - [Permissions](/user/permissions)
 - [Skills](/user/skills)

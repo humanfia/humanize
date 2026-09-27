@@ -2,7 +2,7 @@
 // A turn asked for a shape answers in it, or fails. Pick the shape, pick the CLI, and say
 // whether the answer fits: the flow gets the fields back, or a failed turn. Which CLIs hold
 // the shape themselves is each backend's `shapes` in `hmz/coganchor/agents/`; the rest, CLIs
-// added at /providers among them, are asked for it in the prompt.
+// added in /settings among them, are asked for it in the prompt.
 import { computed, ref } from 'vue'
 
 interface Field {

@@ -108,7 +108,7 @@ A CLI that is not signed in is not caught before the run: each turn fails, and a
 Ralph loop goes on past failed turns and can still exit 0. Run the job by hand once and read
 its log before you leave it to the schedule.
 
-To run agents as named [accounts](/user/providers) on the runner instead, make them from
+To run agents as named [accounts](/user/settings#accounts) on the runner instead, make them from
 Python with `Hmz().accounts` before the run. See the [SDK reference](/reference/sdk).
 
 ## Name the flow by its repository
@@ -126,10 +126,10 @@ night. A flow of your own needs none of this: commit it to `.humanize/flows/` an
 
 ::: tip The line is the whole setup
 `hmz exec` does not open on what the interface was set up with in this directory. It still uses
-what the machine holds: the flowverses it has fetched, its [accounts](/user/providers), its
-[fallbacks](/user/fallback) and any CLI added at `/providers`, and it reads whether
-[reporting](/user/reporting) was answered yes and whether this directory's runs are
-[profiled](/user/tracing#profiling-a-run). A fresh runner holds none of these.
+what the machine holds: the flowverses it has fetched, its [accounts](/user/settings#accounts),
+its [fallbacks](/user/settings#fallback) and any CLI added on the Accounts page of `/settings`,
+and it reads whether [reporting](/user/reporting) was answered yes and whether this directory's
+runs are [profiled](/user/tracing#profiling-a-run). A fresh runner holds none of these.
 :::
 
 ## Bound the run twice
@@ -219,5 +219,5 @@ Leave it off in CI.
 
 - [Run it unattended](/user/unattended)
 - [Tracing a run](/user/tracing)
-- [Providers](/user/providers)
+- [Accounts](/user/settings#accounts)
 - [Permissions](/user/permissions)

@@ -113,23 +113,23 @@ async def test_enter_still_takes_what_is_offered() -> None:
 async def test_an_offer_that_no_longer_finishes_the_line_is_not_taken() -> None:
     """The list is drawn from a message, so it can be a keystroke behind what was typed.
 
-    `/f` offers `/fallback` first; the `l` that arrived with the enter makes it an offer
-    about a line nobody is typing any more, and enter over it must not put it in.
+    `/e` offers `/epics` first; the `x` that arrived with the enter makes it an offer about
+    a line nobody is typing any more, and enter over it must not put it in.
     """
     app = Humanize()
     async with app.run_test() as driver:
         editor = app.query_one(Editor)
-        await driver.press(*"/f")
+        await driver.press(*"/e")
         await driver.pause()
         offers = app.query_one("#offers", OptionList)
         under = offers.get_option_at_index(offers.highlighted or 0)
-        assert str(under.id) == "/fallback"
+        assert str(under.id) == "/epics"
 
-        await in_one_read(app, driver, ["l", "enter"])
+        await in_one_read(app, driver, ["x", "enter"])
 
-        assert "/fallback" not in editor.text
-        assert app.history.back("") == "/fl"  # sent as it stood instead
-        assert "no such command: /fl" in transcript(app)
+        assert "/epics" not in editor.text
+        assert app.history.back("") == "/ex"  # sent as it stood instead
+        assert "no such command: /ex" in transcript(app)
 
 
 @pytest.mark.timeout(60)

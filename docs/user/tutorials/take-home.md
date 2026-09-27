@@ -152,10 +152,11 @@ flows. `hmz` fetches flowverses in the background each time it opens. If one has
 yet, the run is refused:
 
 ```console
-hmz exec: error: flame_chase: the official flowverse has not been fetched yet -- open /flowverses and press r on it
+hmz exec: error: flame_chase: the official flowverse has not been fetched yet -- open the flowverses page of /settings and press r on it
 ```
 
-Run `hmz`, type `/flowverses`, press <kbd>r</kbd> on `official`, then run the line again.
+Run `hmz`, type `/settings`, press <kbd>tab</kbd> four times to reach Flowverses, press
+<kbd>r</kbd> on `official`, then run the line again.
 :::
 
 ## Step 4: watch the number

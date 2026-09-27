@@ -59,9 +59,9 @@ A file the run never wrote is left out: `resume.jsonl` only for a flow that
 can open the run as a [timeline](/user/tracing) without gathering anything themselves.
 
 **`sessions/`** holds the logs themselves, not links to them. Some CLIs keep no log file of a
-conversation to copy: opencode, mimo, cursor-agent, and CLIs you added at `/providers`. Their
-sessions have no directory here, and the manifest says why against each one. The trace still
-covers opencode and mimo sessions.
+conversation to copy: opencode, mimo, cursor-agent, and CLIs you added on the Accounts page of
+`/settings`. Their sessions have no directory here, and the manifest says why against each one.
+The trace still covers opencode and mimo sessions.
 
 ## What is never in it
 
@@ -69,8 +69,8 @@ An export sends your own run on purpose: the task, the prompts, what the agents 
 whatever of your files they wrote into a log. A credential is not part of that. Every file is
 scrubbed on the way in, and what was struck reads `[redacted]`:
 
-- **every value of every [account](/user/providers)** on this machine, wherever it appears: the
-  keys, and the endpoints too. The run's own model names are kept.
+- **every value of every [account](/user/settings#accounts)** on this machine, wherever it
+  appears: the keys, and the endpoints too. The run's own model names are kept.
 - **keys in the shapes vendors issue them**: `sk-…`, `sk-ant-…`, `ghp_…`, `AIza…`, a JWT, a
   bearer token.
 - **anything signed into a URL**: a user, a password, a token in the query string.

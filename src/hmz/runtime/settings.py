@@ -6,7 +6,8 @@ it was set up with and what a run of it may spend -- so a project driven by one 
 agents is driven by them again tomorrow, rather than falling back to the default every time it
 is opened. Beside those is the handful of settings
 that are not a workspace's at all, which is what `enable_sentry` is: whether humanize reports
-its own failures, answered once and true wherever it is run from.
+its own failures, answered once and true wherever it is run from -- and `details`, whether the
+interface shows the working of each turn.
 
 A leaf rather than part of the interface, for the reason the agents kept under a name are one:
 the interface writes these and a command line has to be able to read them without loading the
@@ -83,6 +84,25 @@ class Settings:
         """
         said = self._held.get("enable_sentry")
         return said if isinstance(said, bool) else None
+
+    @property
+    def details(self) -> bool:
+        """Whether the interface shows the working of each turn: its tool calls and thinking.
+
+        This machine's rather than a workspace's, as the reporting question is: it is how
+        whoever is at it likes to watch a flow, whichever project the flow is in. Off unless
+        somebody says otherwise, since what a flow is watched for is where it has got to.
+        """
+        return self._held.get("details") is True
+
+    def detailing(self, *, on: bool) -> None:
+        """Writes down whether the interface shows the working of each turn.
+
+        Args:
+          on: What was answered.
+        """
+        self._held["details"] = on
+        self._write()
 
     @property
     def profiling(self) -> bool:

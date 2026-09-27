@@ -285,7 +285,7 @@ class Reviewer(Agent):
 | `opencode` | opencode | | `zcode` | ZCode |
 | `mimo` | MiMo Code | | `agy` | Antigravity |
 | `qwen` | Qwen Code | | `dsh` | DeepSeek Harness |
-| `acp` | a CLI added at `/providers`, driven over the Agent Client Protocol | | | |
+| `acp` | a CLI added on the Accounts page of `/settings`, driven over the Agent Client Protocol | | | |
 
 ## Asking for an agent that can do something {#asking-for-an-agent-that-can-do-something}
 
@@ -1472,9 +1472,10 @@ whichever of its two places each is kept in; `official/rlar` also works. `local`
 are directories rather than repositories: nothing fetches them, and `add`, `fetch` and
 `remove` all refuse them.
 
-`/flowverses` is where they are managed: <kbd>a</kbd> adds one, <kbd>r</kbd> fetches the one
-under the cursor, and <kbd>enter</kbd> says what one holds.
-[`Hmz().verses`](/reference/sdk#flowverses) is the same store from Python.
+The [Flowverses page of `/settings`](/reference/tui#where-flows-come-from) is where they are
+managed: <kbd>a</kbd> adds one, <kbd>r</kbd> fetches the one under the cursor, and
+<kbd>enter</kbd> says what one holds. [`Hmz().verses`](/reference/sdk#flowverses) is the same
+store from Python.
 
 ::: warning A flowverse is code
 Listing what a flowverse holds imports the entry point of every flow in it. Adding one trusts
@@ -1499,9 +1500,9 @@ whatever it declares, since it talks to any harness; and it **runs with no budge
 ### The official flowverse {#the-official-flowverse}
 
 Everything else humanize offers is in
-[humanfia/flowverse](https://github.com/humanfia/flowverse), fetched in the background each
-time `hmz` starts, or with <kbd>r</kbd> at `/flowverses`. [Flows](/flows/) draws the shape of
-each.
+[humanfia/flowverse](https://github.com/humanfia/flowverse), fetched in the background each time
+`hmz` starts, or with <kbd>r</kbd> on the Flowverses page of `/settings`. [Flows](/flows/) draws
+the shape of each.
 
 | Flow | Agent roles | Roles need | Resumable |
 | --- | --- | --- | :-: |

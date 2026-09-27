@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Every way into each backend, as `/providers` offers them once `a` has been told which CLI.
+// Every way into each backend, as the Accounts page of `/settings` offers them once `a` has been told which CLI.
 // Read off the `ways` of each profile in `src/hmz/coganchor/backends.py`, in the order the
 // backends are listed there, plus `env` -- which `ways()` in
 // `src/hmz/coganchor/providers/store.py` adds to every backend but dsh, and which is the only
@@ -355,8 +355,8 @@ const open = computed(() => BACKENDS.find((one) => one.cli === chosen.value) ?? 
     </div>
 
     <p class="foot">
-      A lookup of what humanize offers, not a live screen. <code>/providers</code> on your
-      machine is the list to trust.
+      A lookup of what humanize offers, not a live screen. The Accounts page of <code>/settings</code>
+      on your machine is the list to trust.
     </p>
   </div>
 </template>

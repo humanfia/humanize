@@ -166,7 +166,8 @@ Command '['claude', …]' returned non-zero exit status 1. 429 rate limit exceed
 
 `Failed.fault` is that kind: `contended`, `throttled`, `refused`, `unlisted`, `retired`,
 `missing`, `sandboxed`, `killed` or `dropped`, or `""` for a failure nobody classified.
-`Failed.fix` is the advice. [Falling back](/user/fallback) has what each kind is answered with.
+`Failed.fix` is the advice. [Falling back](/user/settings#fallback) has what each kind is
+answered with.
 
 `suppress=True` turns a failed turn into `""`, or `None` with a
 [schema](#answering-in-a-shape):
@@ -371,7 +372,7 @@ A watcher sees the same, plus four kinds a stream does not carry:
 | --- | --- |
 | `begins`, `ends` | Bracket a turn. |
 | `asks` | The agent stopped to [ask its user something](#questions). |
-| `notice` | **humanize**, not the agent: a rate limit waited out, another account taken, a turn cut off, a wedged backend taken away. The interface shows it whatever `/details` says; with no watcher it goes to stderr. |
+| `notice` | **humanize**, not the agent: a rate limit waited out, another account taken, a turn cut off, a wedged backend taken away. The interface shows it whether details is on or off; with no watcher it goes to stderr. |
 
 ```python
 def looking(agent, session, event):
@@ -1259,7 +1260,7 @@ Hmz().fallbacks.retrying("claude@mine/claude-opus-5", 3, "exponential-jitter", 1
 ```
 
 The arguments are the place, the tries beyond the first, the wait policy, and a cap on the
-whole of it in seconds (`0` for none). `/fallback` at the prompt says the same. **Nothing is
+whole of it in seconds (`0` for none). The Fallback page of `/settings` says the same. **Nothing is
 retried by default**: a prompt the model refused is the same refusal every time.
 
 | Policy | Waits |
@@ -1276,7 +1277,7 @@ the CLI said, how it exited and, for Antigravity, its own log. It decides how ma
 failure is worth, the shortest wait, and whether another account can answer it at all. A 429
 waits half a minute and then moves account; a 401 moves account at once and says the one it
 left needs signing in; a model the account may not name moves account; a retired model skips
-the accounts entirely. The full table is in [Falling back](/user/fallback). An unclassified
+the accounts entirely. The full table is in [Falling back](/user/settings#fallback). An unclassified
 failure is retried as the step says. An `Unrecoverable` is never retried or carried.
 
 ### The account chain
@@ -1289,7 +1290,8 @@ Hmz().accounts.points("claude", "key", "gateway")
 Hmz().accounts.points("claude", "", "spare")   # your own login, then `spare`
 ```
 
-`/providers`, cursor on the account, then <kbd>enter</kbd>: *falls back to* says the same.
+The Accounts page of `/settings`, cursor on the account, then <kbd>enter</kbd>: *falls back to*
+says the same.
 
 - `""` is the login this machine already has (`claude/`). A chain may start there, and nothing
   may fall back to it. humanize keeps no credentials for it, and a turn under it is the CLI's
@@ -1307,7 +1309,8 @@ Hmz().accounts.points("claude", "", "spare")   # your own login, then `spare`
 ## When the place has nowhere left to run
 
 Some failures no account answers: a retired model, a CLI that will not start, a region gone
-dark. What answers those is another **place**, written down [between the two](/user/fallback):
+dark. What answers those is another **place**, written down [between the
+two](/user/settings#fallback):
 
 ```python
 Hmz().fallbacks.points("claude@work/claude-opus-5", "codex@key/gpt-5.6-sol")
@@ -1612,9 +1615,9 @@ from hmz.coganchor.agents import DshAgent, DshAgentConfig
 agent = DshAgent(DshAgentConfig(model="deepseek-v4-flash", effort="high"))
 ```
 
-It also offers `deepseek-v4-pro`. Leave `provider` empty to use the credentials and base URL
-dsh saved (or its environment), or make a `key` account at `/providers`, or a `gateway` account
-where the key belongs to somebody's endpoint.
+It also offers `deepseek-v4-pro`. Leave `provider` empty to use the credentials and base URL dsh
+saved (or its environment), or make a `key` account on the Accounts page of `/settings`, or a
+`gateway` account where the key belongs to somebody's endpoint.
 
 Every session starts from the composition the SDK applies when given none (the installed
 runtime's `runtime/cordis.yml`). humanize writes the effort onto it, and:
@@ -1794,8 +1797,9 @@ catalogue uses; `vendor/some-model` is sent to the endpoint as it stands.
 
 ### A CLI of your own
 
-Any coding agent that speaks the [Agent Client Protocol](https://agentclientprotocol.com) can
-be driven without humanize knowing anything else about it. Add one at `/providers`: press
+Any coding agent that speaks the [Agent Client Protocol](https://agentclientprotocol.com) can be
+driven without humanize knowing anything else about it. Add one on the Accounts page of
+`/settings`: press
 <kbd>a</kbd>, then pick *a CLI of your own*, the last row of the backends list, and give the
 command that starts it, such as `my-agent --acp` or `gemini --experimental-acp`. It is written
 down under humanize's home, and is a backend from the next prompt on, in every workspace:

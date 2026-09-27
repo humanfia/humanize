@@ -51,9 +51,9 @@ or say what it is running.
 - MUST send a typed line to the agent being read, to whichever of its conversations has a turn
   open and holding it for the next turn otherwise, and keep it against the agent that took it.
 - MUST name what is running as the flow started and whatever it called, innermost last.
-- MUST offer exactly these commands, each doing what it says: `/flow`, `/btw`, `/flowverses`,
-  `/providers`, `/fallback`, `/epics`, `/resume`, `/settings`, `/monitor`, `/clear`, `/details`,
-  `/afk`, `/stop`, `/exit`. `/btw` MUST be answered from a snapshot, not by asking the flow.
+- MUST offer exactly these commands, each doing what it says: `/flow`, `/btw`, `/epics`,
+  `/resume`, `/settings`, `/monitor`, `/clear`, `/afk`, `/stop`, `/exit`. `/btw` MUST be
+  answered from a snapshot, not by asking the flow.
 - MUST carry the last run of this directory of a flow that can be picked up on for `/resume` —
   its flow, roles, params, budget and task, picking up its journal, saying which — say why there
   is none to carry on, and refuse it, as it refuses picking any run up, while a flow is running
@@ -75,12 +75,15 @@ or say what it is running.
   environment role MUST take a spec as `-e` spells one.
 - MUST be whoever is outside a run: a question a flow puts to its outworlder MUST be asked at
   the prompt and answered with the next line typed, and `/afk` MUST make the outworlder away.
-- MUST offer, per place flows come from, what it holds, adding one, fetching it again and taking
-  one away, against the same store the flows are read from, with any credential in a URL hidden.
-- MUST list every account under its CLI and offer correcting, re-signing, what it falls back to
-  and taking it away, never drawing a secret back onto the screen.
-- MUST answer both scales of falling back — which agent takes over from which, and which account
-  a failing one falls back to — refusing anything that falls back to itself.
+- MUST offer on the flowverses page of `/settings`, per place flows come from, what it holds,
+  adding one, fetching it again and taking one away, against the same store the flows are read
+  from, with any credential in a URL hidden.
+- MUST list on the accounts page of `/settings` every account under its CLI and offer
+  correcting, re-signing, what it falls back to and taking it away, never drawing a secret back
+  onto the screen.
+- MUST answer both scales of falling back — which agent takes over from which, on the fallback
+  page of `/settings`, and which account a failing one falls back to, on its accounts page —
+  refusing anything that falls back to itself.
 - MUST list the runs of this directory newest first with when each began, its flow, its task, how
   it went and how many sessions it opened, marking which can be picked up, readable while one runs.
 - MUST offer per run where it is written down, carrying it on where its flow says so, and
@@ -95,7 +98,12 @@ or say what it is running.
   a figure that is only a floor, and the rate as output tokens a second.
 - MUST draw the board a flow and a person share under the diagram, applying changes at once while
   the flow runs and refusing, where the key was pressed, to edit a line the flow owns.
-- MUST make `/settings` two pages, this machine and this directory, and forget this one alone.
+- MUST make `/settings` the one menu of every setting, in five pages: this machine (reporting,
+  details, and the btw agent where there is one), this directory, accounts, fallback and
+  flowverses; forget this directory alone; and remember whether details are shown.
+- MUST apply each saved setting at once where it can, and otherwise say beside its row and in
+  the transcript when it lands: profiling from the next flow run, accounts from the next agent
+  session, forgetting from the next launch.
 - MUST ask once, at a first start and only with somebody there, whether humanize may report its
   own failures — what would be sent and what never would — unanswered if it is walked away from.
 - MUST hold what a menu changes until it is left and saving is confirmed, asking on the way out

@@ -38,6 +38,7 @@ from tests.integration.tui.test_app import (
     drops,
     into_agent,
     into_flows,
+    into_settings,
     keeps,
     onto,
     opens,
@@ -151,9 +152,7 @@ async def test_the_command_opens_the_sheet_of_accounts() -> None:
     _account()
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
         listing = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
         rows = [str(option.prompt) for option in listing.options]
@@ -176,9 +175,7 @@ async def test_an_account_made_on_the_sheet_lands_in_the_store(
     """Three questions, because each is only answerable once the one before it has been."""
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
 
         await driver.press("a")
         await until(lambda: isinstance(app.screen, Backends), driver)
@@ -222,9 +219,7 @@ async def test_an_account_made_on_the_sheet_lands_in_the_store(
 async def test_deepseek_offers_its_own_ways_and_no_env_from_providers() -> None:
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
         await driver.press("a")
         await until(lambda: isinstance(app.screen, Backends), driver)
         backends = app.screen.query_one("#choices", OptionList)
@@ -255,9 +250,7 @@ async def test_a_secret_is_never_drawn_back(signed_in: unittest.mock.MagicMock) 
     """It is on its way into a credential store, and a screen is somewhere it is read off."""
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
         await driver.press("a")
         await until(lambda: isinstance(app.screen, Backends), driver)
         await until(
@@ -302,9 +295,7 @@ async def test_a_secret_is_never_drawn_back(signed_in: unittest.mock.MagicMock) 
 async def test_a_pasted_secret_is_stored_without_its_trailing_newline() -> None:
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
         await driver.press("a")
         await until(lambda: isinstance(app.screen, Backends), driver)
         backends = app.screen.query_one("#choices", OptionList)
@@ -342,9 +333,7 @@ async def test_variables_of_your_own_are_given_a_line_apiece(
     del signed_in
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
         await driver.press("a")
         await until(lambda: isinstance(app.screen, Backends), driver)
         await until(
@@ -500,9 +489,7 @@ async def test_walking_out_of_the_ways_steps_back_into_the_backends() -> None:
     """Esc is the step before, and the step before the ways is which CLI they are of."""
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
         await driver.press("a")
         await until(lambda: isinstance(app.screen, Backends), driver)
         await driver.press("enter")
@@ -608,9 +595,7 @@ async def test_walking_out_of_the_accounts_makes_nothing_and_loses_nothing() -> 
     _account()
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
 
         await driver.press("a")
         await until(lambda: isinstance(app.screen, Backends), driver)
@@ -632,9 +617,7 @@ async def test_an_account_is_signed_in_again_by_the_way_it_was_made_with(
     providers.add("claude", "deepseek", way="login")
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
@@ -658,9 +641,7 @@ async def test_signing_in_again_asks_only_what_is_not_written_down(
     providers.add("codex", "work", way="key")
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
@@ -688,9 +669,7 @@ async def test_correcting_what_one_holds_is_held_until_the_menu_is_saved() -> No
     providers.add("codex", "work", way="key", env={"OPENAI_API_KEY": "old"})
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
@@ -734,9 +713,7 @@ async def test_where_one_falls_back_to_is_chosen_and_held_until_the_menu_is_save
     providers.add("codex", "spare", way="key", env={"OPENAI_API_KEY": "s"})
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
@@ -777,9 +754,7 @@ async def test_a_chain_pointed_at_an_account_the_same_save_takes_away_goes_nowhe
     providers.add("codex", "spare", way="key", env={"OPENAI_API_KEY": "s"})
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
         listing = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
         assert [str(one.id) for one in listing.options if one.id][:2] == [
@@ -814,9 +789,7 @@ async def test_taking_an_account_away_says_what_went_with_it() -> None:
     _account()
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
@@ -846,9 +819,7 @@ async def test_an_account_held_to_go_is_offered_the_way_back() -> None:
     _account()
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
@@ -882,9 +853,7 @@ async def test_an_account_held_to_go_stays_where_the_menu_is_not_saved() -> None
     _account()
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
@@ -903,9 +872,7 @@ async def test_the_key_that_used_to_take_an_account_away_takes_nothing_away() ->
     _account()
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
@@ -969,9 +936,7 @@ async def test_the_account_this_machine_is_signed_into_is_a_row_of_its_own() -> 
     providers.add("codex", "work", way="key", env={"OPENAI_API_KEY": "k"})
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
         listing = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
 
@@ -1036,9 +1001,7 @@ async def test_a_cli_of_your_own_is_written_down_where_the_cli_is_asked_for() ->
 
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
 
         await driver.press("a")
         await until(lambda: isinstance(app.screen, Backends), driver)
@@ -1074,9 +1037,7 @@ async def test_an_account_several_backends_could_run_asks_which_to_write_it_down
 
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
 
         await driver.press("a")
         await until(lambda: isinstance(app.screen, Backends), driver)
@@ -1120,9 +1081,7 @@ async def test_correcting_one_corrects_the_copies_it_was_made_for() -> None:
     providers.copies(one, "opencode")
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
@@ -1159,9 +1118,7 @@ async def test_an_account_that_travels_nowhere_is_not_asked_about() -> None:
 
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/providers")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Providers), driver)
+        await into_settings(app, driver, 2)
         await driver.press("a")
         await until(lambda: isinstance(app.screen, Backends), driver)
         await onto(app, driver, "dsh")

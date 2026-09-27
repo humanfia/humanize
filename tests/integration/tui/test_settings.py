@@ -11,7 +11,7 @@ from textual.widgets import Label, OptionList
 from hmz import home
 from hmz.runtime.kept import Runs
 from hmz.runtime.settings import Settings
-from tests.tui.fixtures import until
+from tests.tui.fixtures import transcript, until
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -344,7 +344,7 @@ async def test_a_machine_that_has_answered_is_not_asked_again(
 
 
 @pytest.mark.timeout(60)
-async def test_the_settings_menu_is_two_pages_and_turns_the_reporting_off(
+async def test_the_settings_menu_turns_the_reporting_off(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """One page for what is true of this machine, one for what this directory is set up as."""
@@ -361,11 +361,12 @@ async def test_the_settings_menu_is_two_pages_and_turns_the_reporting_off(
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Adjusts), driver)
         listing = app.screen.query_one("#choices", OptionList)
-        assert [str(one.id) for one in listing.options] == [
+        assert [str(one.id) for one in listing.options][:3] == [
             "=reports",
             "=sent",
-            f"={_SAVE}",
+            "=details",
         ]
+        assert str(listing.options[-1].id) == f"={_SAVE}"
         assert "on " in str(listing.get_option_at_index(0).prompt)
 
         await driver.press("right")  # off
@@ -423,9 +424,30 @@ async def test_whether_a_run_here_is_profiled_is_a_row_of_this_directory(
 
         # Held until the menu is saved, exactly as everything else on it is.
         assert not Settings(tmp_path).profiling
+        # Read as a run starts, so the row says when it lands while it is held.
+        assert "from the next flow run" in str(listing.get_option_at_index(2).prompt)
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Confirms), driver)
         await driver.press("enter")
         await until(lambda: not isinstance(app.screen, Adjusts), driver)
+        await driver.pause()
+
+        # And the transcript says it again once it is saved.
+        assert "from the next flow run" in transcript(app)
 
     assert Settings(tmp_path).profiling
+
+
+def test_whether_the_working_is_shown_is_remembered_for_the_machine(
+    tmp_path: Path,
+) -> None:
+    """Off until somebody says otherwise, and the same answer in every workspace."""
+    (mine := tmp_path / "mine").mkdir()
+    (theirs := tmp_path / "theirs").mkdir()
+    assert not Settings(mine).details
+
+    Settings(mine).detailing(on=True)
+
+    assert Settings(theirs).details
+    held = yaml.safe_load((home() / "settings.yaml").read_text())
+    assert held["details"] is True

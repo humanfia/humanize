@@ -30,7 +30,7 @@ Down
 Sleep 900ms
 
 # More letters narrow the list; tab takes the one under the cursor.
-Type "fl"
+Type "s"
 Sleep 1400ms
 Down
 Sleep 700ms

@@ -66,13 +66,13 @@ project's `.humanize/flows/`, where nothing fetches it, and runs as `$local/<flo
 | An agent runs as | humanize keeps |
 | --- | --- |
 | `as local`, the default | nothing. The CLI reads its own login, where it always keeps it. |
-| a login made at `/providers` | the files that CLI wrote when it signed in, under `~/.humanize/providers/<cli>/<name>/` |
-| a key or a gateway made at `/providers` | what you typed, the key and a gateway's URL, in `provider.json` in that same directory |
+| a login made on the Accounts page of `/settings` | the files that CLI wrote when it signed in, under `~/.humanize/providers/<cli>/<name>/` |
+| a key or a gateway made on the Accounts page of `/settings` | what you typed, the key and a gateway's URL, in `provider.json` in that same directory |
 
 - Those directories and files are readable by you alone.
-- `/providers` names the variables an account sets and never shows their values. A secret you
-  type is drawn as bullets.
-- A turn run as an account from `/providers` has the keys other accounts would use unset, so a
+- The Accounts page of `/settings` names the variables an account sets and never shows their
+  values. A secret you type is drawn as bullets.
+- A turn run as an account from `/settings` has the keys other accounts would use unset, so a
   key left in your shell profile cannot take its place.
 - Removing `~/.humanize` removes every account. The CLIs' own logins stay where they are.
 

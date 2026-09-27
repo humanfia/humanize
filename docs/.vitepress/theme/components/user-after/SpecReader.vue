@@ -6,7 +6,7 @@
 // `hmz.runtime.flowing.specs.parse_agents` over `hmz.coganchor.backends.read`, the ladders
 // are each profile's `efforts` in `hmz.coganchor.backends`, and every refusal below is the
 // line `hmz exec` prints for it. It knows the twelve CLIs humanize ships and no CLI added at
-// /providers, and it cannot know which roles a flow declares.
+// the accounts page of /settings, and it cannot know which roles a flow declares.
 import { computed, ref } from 'vue'
 
 interface Cli {
@@ -190,7 +190,7 @@ const reading = computed(() => read(said.value))
           </div>
           <div class="account">
             <dt>account</dt>
-            <dd v-if="one.account"><code>{{ one.account }}</code>, made at <code>/providers</code></dd>
+            <dd v-if="one.account"><code>{{ one.account }}</code>, made in <code>/settings</code></dd>
             <dd v-else>none — the CLI as this machine is signed in</dd>
           </div>
           <div class="model">

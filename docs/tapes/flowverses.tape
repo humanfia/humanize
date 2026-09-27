@@ -1,6 +1,6 @@
-# `/flowverses`: the places flows come from, and what one of them holds.
+# The Flowverses page of `/settings`: the places flows come from, and what one of them holds.
 #
-# The same menu `v` opens from `/flow`. Recorded from the command because opening the flows
+# The same page `v` opens from `/flow`. Recorded from `/settings` because opening the flows
 # fetches whatever has never been fetched, and nothing here reaches the network.
 #
 # Nothing is fetched here. The two that are always listed are the package's own flows and
@@ -26,8 +26,13 @@ Show
 Sleep 400ms
 
 # Every place there is, whether or not it has been fetched, and where each came from.
-Type "/flowverses" Enter
-Wait+Screen /Flowverses/
+Type "/settings" Enter
+Wait+Screen /Settings/
+Tab
+Tab
+Tab
+Tab
+Wait+Screen /not fetched yet|official/
 Sleep 1400ms
 Screenshot "/out/flowverses.png"
 Sleep 400ms

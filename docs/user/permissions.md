@@ -57,7 +57,7 @@ part of it:
 | `claude`, `codex`, `grok`, `kimi`, `mimo`, `opencode`, `qwen`, `zcode` | <Badge type="tip" text="read-only" /> | <Badge type="tip" text="web tools off" /> |
 | `agy`, `cursor-agent`, `pi` | <Badge type="tip" text="read-only" /> | <Badge type="warning" text="as the CLI has it" /> |
 | `dsh` | <Badge type="danger" text="full access" /> | <Badge type="tip" text="web tools off" /> |
-| a CLI added at `/providers` | <Badge type="danger" text="full access" /> | <Badge type="warning" text="as the CLI has it" /> |
+| a CLI added on the Accounts page of `/settings` | <Badge type="danger" text="full access" /> | <Badge type="warning" text="as the CLI has it" /> |
 
 A read-only agent can still read outside its workdir, and `local=NONE` runs the same as `READ`.
 

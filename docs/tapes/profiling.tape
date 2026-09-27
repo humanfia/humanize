@@ -25,7 +25,8 @@ Type "/settings" Enter
 Wait+Screen /Settings/
 Sleep 2s
 
-# Two pages: what is true of this machine, and what is remembered about this directory.
+# The first two of its five pages: what is true of this machine, and what is remembered about
+# this directory.
 Tab
 Wait+Screen /profile/
 Sleep 1400ms

@@ -172,7 +172,7 @@ git diff before
 | If | Then |
 | --- | --- |
 | `hmz` says `no such flow` | It downloads the official flows in the background as it starts. Give it a few seconds and send the line again. |
-| `hmz exec` says `not been fetched yet` | `hmz exec` downloads nothing. Open `hmz`, type `/flowverses`, and press <kbd>r</kbd> on `official`. |
+| `hmz exec` says `not been fetched yet` | `hmz exec` downloads nothing. Open `hmz`, type `/settings`, turn to its Flowverses page with <kbd>tab</kbd>, and press <kbd>r</kbd> on `official`. |
 | the model is refused | Model ids change with each CLI release, and your account decides which you may use. In `hmz`, type `/flow ralph_loop` and open the `agent` row: it lists the models your CLI offers. |
 | your CLI is not in the tabs | Every backend, and how to sign each one in, is on [Installation](/user/installation). |
 

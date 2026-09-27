@@ -1,11 +1,11 @@
-"""`/fallback`: where a turn goes when the place taking it cannot take it at all.
+"""The fallback page of `/settings`: where a turn goes when its place cannot take it.
 
 A place is a CLI, an account and a model, and a step is written between two of them. How many
 times over a failed turn is taken again before the step happens is written there too, both
 being answers to the one thing that went wrong.
 
 Not the accounts. An account that goes down is answered by another account of the same
-backend, inside the conversation that was running, and that is `/providers`.
+backend, inside the conversation that was running, and that is the accounts page.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from hmz.tui.pick import (
     Fallbacks,
     Retries,
 )
-from tests.integration.tui.test_app import drops, keeps, onto, rows
+from tests.integration.tui.test_app import drops, into_settings, keeps, onto, rows
 from tests.tui.fixtures import until
 
 if TYPE_CHECKING:
@@ -48,10 +48,8 @@ def _under(app: Humanize) -> str:
 
 
 async def _opens(app: Humanize, driver: Pilot[None]) -> None:
-    """Opens `/fallback` and waits for it to be up."""
-    await driver.press(*"/fallback")
-    await driver.press("enter")
-    await until(lambda: isinstance(app.screen, Fallbacks), driver)
+    """Opens the fallback page of `/settings` and waits for it to be up."""
+    await into_settings(app, driver, 3)
 
 
 async def _place(app: Humanize, driver: Pilot[None], cli: str) -> None:
@@ -89,7 +87,7 @@ def _installed(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.timeout(60)
 async def test_the_menu_is_the_steps_between_places() -> None:
-    """One page: a place is a CLI, an account and a model, and nothing else is asked."""
+    """A place is a CLI, an account and a model, and nothing else is asked."""
     fallbacks.points("claude/claude-opus-5", "codex/gpt-5.6-sol")
     app = Humanize()
     async with app.run_test() as driver:

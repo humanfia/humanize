@@ -360,8 +360,8 @@ def _unfetched(named_: str) -> str:
         return ""
     which = "flowverse has" if len(waiting) == 1 else "flowverses have"
     return (
-        f"the {' and '.join(waiting)} {which} not been fetched yet -- open /flowverses "
-        "and press r on it"
+        f"the {' and '.join(waiting)} {which} not been fetched yet -- open the flowverses "
+        "page of /settings and press r on it"
     )
 
 
