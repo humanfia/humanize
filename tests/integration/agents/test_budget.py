@@ -50,24 +50,41 @@ PAUSE = 0.15
 #: A `pi --mode rpc` that answers a prompt with a dozen requests to the model, saying what
 #: each of them cost as it lands -- which is what a budget read off the live meter is made
 #: of. It sleeps between them, so a turn that runs to the end takes visibly longer than one
-#: that is cut off part way.
+#: that is cut off part way. Told to abort, it stops where it is and says so, as pi does.
 _PI = f"""
-import json, sys, time
+import json, queue, sys, threading, time
 
-for line in sys.stdin:
-    told = json.loads(line)
+lines = queue.Queue()
+threading.Thread(target=lambda: [lines.put(one) for one in sys.stdin], daemon=True).start()
+
+
+def aborted():
+    try:
+        told = json.loads(lines.get_nowait())
+    except queue.Empty:
+        return False
+    return told["type"] == "abort"
+
+
+while True:
+    told = json.loads(lines.get())
     if told["type"] != "prompt":
         print(json.dumps({{"type": "response", "command": told["type"],
                           "success": True}}), flush=True)
         continue
     for at in range(1, {PIECES} + 1):
+        if aborted():
+            print(json.dumps({{"type": "response", "command": "abort",
+                              "success": True}}), flush=True)
+            break
         print(json.dumps({{"type": "message_update", "assistantMessageEvent":
                           {{"type": "text_end", "content": "part %d" % at}}}}), flush=True)
         print(json.dumps({{"type": "message_end", "message": {{"role": "assistant",
               "content": [{{"type": "text", "text": "part %d" % at}}],
               "usage": {{"input": 1, "output": 4}}}}}}), flush=True)
         time.sleep({PAUSE})
-    print(json.dumps({{"type": "agent_settled"}}), flush=True)
+    else:
+        print(json.dumps({{"type": "agent_settled"}}), flush=True)
 """
 
 #: An `opencode run` whose turn is a dozen steps, each saying what it came to -- the same

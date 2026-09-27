@@ -270,8 +270,10 @@ class PiSession(StreamSessionBase):
         #: What the process now up was last told to think at, so that a flow moving the
         #: effort mid-session is told to pi rather than left on the flag it was started with.
         self._at: str | None = None
-        #: Set once pi has answered an `abort`, which is once the run it was told to stop has.
+        #: Set once pi has answered an `abort`, which is once the run it was told to stop has,
+        #: and the thread that would read that answer.
         self._aborted = threading.Event()
+        self._reading = 0
         #: The calls this turn has already said, by pi's own id for each, so that the row goes
         #: out at the first fragment of the arguments that says anything and not again at
         #: every fragment after it.
@@ -421,9 +423,18 @@ class PiSession(StreamSessionBase):
             raise
 
     def _cuts(self) -> None:
-        """Has pi abort the run first, and then ends its process as every one held open is."""
+        """Has pi abort the run first, and then ends its process as every one held open is.
+
+        Not where the cut is made on the thread reading the turn -- a budget spent, read off
+        what the turn said -- since that thread is the one pi's answer would be read on, and
+        there the process is ended at once, as it always was.
+        """
         proc = self._proc
-        if proc is not None and proc.poll() is None:
+        if (
+            proc is not None
+            and proc.poll() is None
+            and threading.get_ident() != self._reading
+        ):
             self._aborted.clear()
             self._send(json.dumps({"type": "abort"}) + "\n")
             self._aborted.wait(_ABORTING)
@@ -446,6 +457,7 @@ class PiSession(StreamSessionBase):
           of a message still being written, a tool's result coming back, or an answer to a
           command nobody is waiting on.
         """
+        self._reading = threading.get_ident()
         try:
             said: dict[str, Any] = json.loads(line)
         except json.JSONDecodeError:
