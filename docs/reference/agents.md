@@ -724,8 +724,9 @@ starts the transport again and resumes it by id.
 | How the backend holds a turn | `interrupt` reaches | `cut` reaches |
 | --- | --- | --- |
 | One command per turn: `cursor-agent`, `opencode`, `mimo`, and the command-line turns of `agy`, `grok` and `qwen` | the command and its children | the same |
-| One process held open: `claude`, `pi`, and the ordinary turns of `agy`, `grok` and `qwen` | that process; the next turn starts another and resumes | the same |
-| A transport shared by the agent's sessions: `codex`, `kimi`, `zcode` (app server or daemon), `dsh` (SDK runtime) | nothing is taken down; the turn stops at the next thing the transport says | the transport, and every turn on it |
+| One process held open: `claude`, `pi`, and the ordinary turns of `agy`, `grok` and `qwen` | that process; the next turn starts another and resumes. `pi` is told to `abort` first and given up to 5 s to say it has, so the call it was in is recorded as aborted -- except where the cut is made on the thread reading the turn, a spent budget, which ends it at once | the same |
+| A transport shared by the agent's sessions: `codex`, `zcode` (app server), `dsh` (SDK runtime) | nothing is taken down; the turn stops at the next thing the transport says | the transport, and every turn on it |
+| `kimi` (daemon) | the prompt is aborted, which takes down a command it is in, and the turn ends at its next round | that, then the daemon and its whole process tree, and every turn on it |
 | An ACP CLI | `session/cancel` | the same |
 
 `agent.stop()` closes every session of the agent, which lets go of whatever holds each
@@ -973,8 +974,8 @@ How each backend says it, and what to know:
   print-mode run soft-denies what it was not permitted and names it under `denied_actions`.
   **Plan mode alone does not hold it to reading**: agy 1.2 writes the file it is asked to in
   it. So a `read-only` turn is also started as `--agent hmz-read-only`, an agent humanize
-  writes into a directory of its own and adds with `--add-dir`, whose only tools are
-  `view_file`, `grep_search`, `find_by_name` and `list_dir`. agy runs an `--agent` it cannot
+  writes under `~/.humanize/agy/` before each such turn and adds with `--add-dir`, whose only
+  tools are `view_file`, `grep_search`, `find_by_name` and `list_dir`. agy runs an `--agent` it cannot
   find as its default agent without saying so, and that directory is only on this machine, so
   `read-only` on another machine is refused with `Unserved`.
 - **Claude Code**: `--permission-mode`. **Its `bypass` is humanize answering, not Claude
