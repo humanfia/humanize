@@ -81,6 +81,7 @@ from .btw import (
 from .complete import VIEWS, Command, hinted, offered
 from .discover import installable, installed
 from .history import History
+from .keyboard import reads_long_reports
 from .monitor import Monitor, short, thousands
 from .monitoring import Drawn, Monitoring
 from .pick import (
@@ -117,6 +118,10 @@ if TYPE_CHECKING:
     from hmz.daemon import Session
     from hmz.flows import Budget, Usage
     from hmz.runtime.flowing.harnesses import Listener
+
+# Once, and before any terminal is read: an input method commits what was composed as one key
+# report, and Textual types out any longer than 32 characters as though it were keys.
+reads_long_reports()
 
 
 class _Running(Protocol):
