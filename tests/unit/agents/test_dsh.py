@@ -1172,6 +1172,39 @@ def test_the_composition_is_written_per_runtime_and_taken_away_with_it() -> None
     assert not written.exists()
 
 
+def test_a_runtime_put_down_while_the_next_turn_starts_leaves_that_turn_its_own() -> (
+    None
+):
+    """A cut puts the old runtime down on its own thread, which takes its time about it.
+
+    The flow is told the turn is over as soon as it has let go of the session, and its next
+    turn starts a runtime of its own while the old one is still closing -- from a
+    composition written for it, which the cut must not take away once the old one has gone.
+    """
+    Harness.next_scripts.extend(
+        [[assistant("one"), completed()], [assistant("two"), completed()]]
+    )
+    session = DshAgent(configured()).new()
+    session("first")
+    old = Harness.made[-1]
+    said: list[str] = []
+
+    def closing() -> None:
+        del old.close  # once
+        old.closed = True
+        said.append(session("second"))
+
+    old.close = closing  # type: ignore[method-assign]
+    session.cut(why="stopped")
+
+    (new,) = [one for one in Harness.made if one is not old]
+    assert said == ["two"]
+    assert Path(str(new.config["cordis"])).is_file()
+    assert not new.closed
+    assert session._harness is new
+    assert not Path(str(old.config["cordis"])).exists()
+
+
 def test_a_turn_already_running_cannot_be_talked_to() -> None:
     """A word for the running turn has nowhere to go, so asking must say so.
 

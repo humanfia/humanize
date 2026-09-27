@@ -602,7 +602,8 @@ class DshSession(SessionBase):
                     "env is required to isolate dsh provider credentials"
                 )
             launch = [env, *(part for name in hushed for part in ("-u", name)), *launch]
-        cordis = self._cordis(composition)
+        written = self._cordis(composition)
+        cordis = str(Path(written.name) / "cordis.yml")
         harness = harness_type(
             # The SDK's own default for this one; passed rather than left out so that the
             # provider a turn runs under is named where a reader looks for it. It stays this
@@ -644,17 +645,22 @@ class DshSession(SessionBase):
             # The composition belonged to a runtime that never came up, and the next try
             # writes its own. Taken away here rather than left for the garbage collector,
             # which would reclaim it at a moment nobody chose and warn about it on the way.
-            self._forget()
+            with contextlib.suppress(Exception):
+                written.cleanup()
             raise
-        self._harness = harness
+        # The two together, and only once the runtime is up: a cut puts down whatever runtime
+        # this session holds from a thread of its own, and one that found a composition here
+        # with no runtime beside it yet would take away the file this one is starting from.
+        self._harness, self._composition = harness, written
         self._runtime_effort = effort
         self._runtime_composition = composition
         self._as = self._agent.node().name
         self._reaper = weakref.finalize(self, harness.close)
         return harness
 
-    def _cordis(self, composition: str) -> str:
-        """Writes one composition out and says where it landed.
+    @staticmethod
+    def _cordis(composition: str) -> tempfile.TemporaryDirectory[str]:
+        """Writes one composition out, as `cordis.yml` in a directory of its own.
 
         Written per runtime rather than shipped, because it is the SDK's own default
         composition with this agent's settings applied to it: two agents of one flow may ask
@@ -665,25 +671,19 @@ class DshSession(SessionBase):
           composition: The YAML to write, as `_composed` built it.
 
         Returns:
-          The path to point `$DSH_CORDIS_CONFIG` at, which stands as long as the runtime
-          reading it does.
+          The directory, which stands as long as the runtime reading it does.
         """
-        self._forget()
-        self._composition = tempfile.TemporaryDirectory(prefix="hmz-dsh-")
-        written = Path(self._composition.name) / "cordis.yml"
-        written.write_text(composition, encoding="utf-8")
-        return str(written)
-
-    def _forget(self) -> None:
-        """Takes away the composition of a runtime that is no longer reading it."""
-        composition, self._composition = self._composition, None
-        if composition is not None:
-            with contextlib.suppress(Exception):
-                composition.cleanup()
+        written = tempfile.TemporaryDirectory(prefix="hmz-dsh-")
+        (Path(written.name) / "cordis.yml").write_text(composition, encoding="utf-8")
+        return written
 
     def _shut(self) -> None:
         """Closes this session's SDK runtime without ending the conversation."""
+        # Both let go of at once, before the runtime is closed: closing it takes its time,
+        # and the next turn may have started a runtime of its own from a composition of its
+        # own by the time it has -- which is not this one's to take away.
         harness, self._harness = self._harness, None
+        composition, self._composition = self._composition, None
         self._runtime_effort = None
         self._runtime_composition = None
         if self._reaper is not None:
@@ -694,7 +694,9 @@ class DshSession(SessionBase):
                 harness.close()
         # After the runtime rather than before it: the composition is the file that runtime
         # was started from, and a reload while it is still up would read it again.
-        self._forget()
+        if composition is not None:
+            with contextlib.suppress(Exception):
+                composition.cleanup()
 
 
 def _harness_type() -> Callable[..., _Harness]:
