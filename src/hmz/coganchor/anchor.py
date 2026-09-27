@@ -518,7 +518,11 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
         ),
         redirects=redirects,
     )
-    prepare_shadow_root(shadow_root, force=config.force, target=target.describe())
+    # The machine it mirrors, by its destination: what ssh is told on the way there -- a key,
+    # a keepalive -- is not another machine, and a mirror is not refused for being told it.
+    prepare_shadow_root(
+        shadow_root, force=config.force, target=replace(target, options=()).describe()
+    )
 
     link = transport.connect(target, [export], config.token)
     client = RemoteClient(link.channel)

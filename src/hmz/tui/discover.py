@@ -16,13 +16,14 @@ from __future__ import annotations
 
 import importlib.util
 import subprocess
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from hmz.coganchor.backends import named, profiles, program, speaking
 from hmz.daemon import Hmz
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from hmz.coganchor.backends import Model
 
 __all__ = ["installable", "installed", "machines", "ready_to_open"]
@@ -174,17 +175,6 @@ def _hosts() -> list[str]:
     A pattern is not a host: `Host *` is what the settings under it apply to rather than
     somewhere to send a turn, and choosing it would send one nowhere.
     """
-    named: list[str] = []
-    try:
-        written = (Path.home() / ".ssh" / "config").read_text(encoding="utf-8")
-    except OSError:
-        return []
-    for line in written.splitlines():
-        said = line.strip()
-        if said.lower().startswith("host ") and not said.startswith("#"):
-            named.extend(
-                host
-                for host in said.split()[1:]
-                if not set(host) & set("*?!") and host not in named
-            )
-    return named
+    from hmz.coganchor.machines import sshconfig
+
+    return sshconfig.aliases()

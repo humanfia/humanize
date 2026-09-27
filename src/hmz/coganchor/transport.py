@@ -25,6 +25,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import re
 import shlex
 import shutil
 import socket
@@ -55,6 +56,7 @@ __all__ = [
     "connect",
     "python_command",
     "serve_line",
+    "ssh_flags",
 ]
 
 log = logging.getLogger(__name__)
@@ -196,12 +198,20 @@ def python_command(
 
 @dataclass(frozen=True, slots=True)
 class Target:
-    """Where the target is."""
+    """Where the target is.
+
+    Attributes:
+      options: For an ssh target, what its `ssh` is told besides the destination, as
+        `(KEYWORD, VALUE)` pairs: each an ssh_config keyword, passed as `-o KEYWORD=VALUE`,
+        but for `F`, the config file ssh reads instead of the user's own (`-F VALUE`).
+        Spelled after a `?` in the target, `&` between them, each value URL-quoted.
+    """
 
     scheme: str
     host: str = ""
     port: int = 0
     path: str = ""
+    options: tuple[tuple[str, str], ...] = ()
 
     @classmethod
     def parse(cls, spec: str) -> Target:
@@ -220,11 +230,12 @@ class Target:
             _, _, path = spec.partition(":")
             return cls("local", path=path)
         if spec.startswith("ssh://"):
-            authority = spec[len("ssh://") :]
+            authority, _, query = spec[len("ssh://") :].partition("?")
+            options = _ssh_options(query, spec)
             host, _, port = authority.rpartition(":")
             if host and port.isdigit():
-                return cls("ssh", host=host, port=int(port))
-            return cls("ssh", host=authority)
+                return cls("ssh", host=host, port=int(port), options=options)
+            return cls("ssh", host=authority, options=options)
         if spec.startswith("docker://") and (container := spec[len("docker://") :]):
             return cls("docker", host=container)
         if spec.startswith("tcp://"):
@@ -245,7 +256,12 @@ class Target:
     def describe(self) -> str:
         """Its own spelling back, so that what is logged is what could be typed."""
         if self.scheme == "ssh":
-            return f"ssh://{self.host}" + (f":{self.port}" if self.port else "")
+            from urllib.parse import quote, urlencode
+
+            said = f"ssh://{self.host}" + (f":{self.port}" if self.port else "")
+            if self.options:
+                said += "?" + urlencode(self.options, quote_via=quote, safe="/~:@,")
+            return said
         if self.scheme == "docker":
             return f"docker://{self.host}"
         if self.scheme == "tcp":
@@ -266,6 +282,55 @@ class Target:
         from hmz.coganchor.rendezvous import Meeting
 
         return Meeting(self.path, self.host, self.port)
+
+
+#: What an ssh option may be called: an ssh_config keyword, or `F` for the config file.
+_KEYWORD = re.compile(r"[A-Za-z][A-Za-z0-9]*\Z")
+
+
+def _ssh_options(query: str, spec: str) -> tuple[tuple[str, str], ...]:
+    """The options after the `?` of an ssh target, read.
+
+    Raises:
+      ValueError: For one that is not `KEYWORD=VALUE`, or whose value is empty, would be
+        two lines, or holds a double quote, which ssh reads a value's quoting with.
+    """
+    from urllib.parse import parse_qsl
+
+    if not query:
+        return ()
+    try:
+        pairs = parse_qsl(query, keep_blank_values=True, strict_parsing=True)
+    except ValueError as error:
+        raise ValueError(
+            f"malformed target {spec!r}; expected ssh://HOST?KEYWORD=VALUE&..."
+        ) from error
+    for key, value in pairs:
+        if not _KEYWORD.match(key) or not value or set(value) & set('\n\r\0"'):
+            raise ValueError(
+                f"malformed target {spec!r}; {key}={value!r} is not an ssh option"
+            )
+    return tuple(pairs)
+
+
+def ssh_flags(options: Sequence[tuple[str, str]]) -> tuple[str, ...]:
+    """What `ssh` is told for a target's options, in the order they were written.
+
+    Args:
+      options: `(KEYWORD, VALUE)` pairs, as :attr:`Target.options` holds them.
+
+    Returns:
+      `-F FILE` for the config file, and `-o KEYWORD=VALUE` for each of the rest -- the value
+      in double quotes where it has a space in it, which ssh would otherwise read as two.
+    """
+    flags: list[str] = []
+    for key, value in options:
+        if key == "F":
+            flags += ["-F", value]
+        else:
+            said = f'"{value}"' if any(one.isspace() for one in value) else value
+            flags += ["-o", f"{key}={said}"]
+    return tuple(flags)
 
 
 @dataclass(frozen=True, slots=True)
@@ -312,9 +377,18 @@ class Road:
             return cls(target, (), quotes=False, cache="", mirrors="")
         if target.scheme == "ssh":
             port = ("-p", str(target.port)) if target.port else ()
+            # The target's own options first: ssh keeps the first value it is given for a
+            # setting, so what somebody wrote for this host wins over what humanize assumes.
             return cls(
                 target,
-                ("ssh", *_SSH_OPTIONS, *_reuse(), *port, target.host),
+                (
+                    "ssh",
+                    *ssh_flags(target.options),
+                    *_SSH_OPTIONS,
+                    *_reuse(target.options),
+                    *port,
+                    target.host,
+                ),
                 quotes=True,
                 cache=REMOTE_CACHE,
                 mirrors=REMOTE_MIRRORS,
@@ -514,29 +588,35 @@ def bundled() -> tuple[Path, str]:
 _reusing_held: tuple[str, ...] | None = None
 
 
-def _reuse() -> tuple[str, ...]:
+def _reuse(options: Sequence[tuple[str, str]] = ()) -> tuple[str, ...]:
     """The options that let the second `ssh` to a host ride the first one's connection.
 
     The socket lives under this user's runtime directory where there is one and in the
     temporary directory otherwise, named by `%C` -- ssh's own digest of host, port and user,
     which is short, which matters: a unix socket path has about a hundred bytes to live in and
     a home directory can spend most of them.
+
+    Args:
+      options: The target's own options. A digest of them joins the name where there are
+        any, so that two targets at one host and user told different things -- another key,
+        another jump host, another config -- do not ride one connection.
     """
     global _reusing_held  # noqa: PLW0603 -- one answer per process, for a question with one
-    if _reusing_held is not None:
-        return _reusing_held
-    if os.environ.get("HUMANIZE_SSH_REUSE", "1") in ("0", "no", "false", ""):
+    if _reusing_held is None:
         _reusing_held = ()
+        if os.environ.get("HUMANIZE_SSH_REUSE", "1") not in ("0", "no", "false", ""):
+            under = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
+            control = os.path.join(under, f"humanize-ssh-{os.getuid()}")
+            try:
+                os.makedirs(control, mode=0o700, exist_ok=True)
+            except OSError:
+                pass
+            else:
+                _reusing_held = (*_SSH_REUSE, "-o", f"ControlPath={control}/%C")
+    if not options or not _reusing_held:
         return _reusing_held
-    under = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
-    control = os.path.join(under, f"humanize-ssh-{os.getuid()}")
-    try:
-        os.makedirs(control, mode=0o700, exist_ok=True)
-    except OSError:
-        _reusing_held = ()
-    else:
-        _reusing_held = (*_SSH_REUSE, "-o", f"ControlPath={control}/%C")
-    return _reusing_held
+    told = hashlib.sha256(repr(tuple(options)).encode()).hexdigest()[:8]
+    return (*_reusing_held[:-1], f"{_reusing_held[-1]}-{told}")
 
 
 @dataclass(slots=True)
