@@ -642,14 +642,7 @@ async def guarded(task, *, agents, envs, params, ctx):
 '''
 
 
-@feature(
-    read_only,
-    xfail={
-        "agy": "READ is not enforced on agy: humanize holds an agent to READ with agy's"
-        " `--mode plan`, and agy 1.2 in plan mode writes the file it is asked to"
-        " (reproduced with `agy --mode plan --print=...` outside humanize)",
-    },
-)
+@feature(read_only)
 def test_permissions(cell: Cell) -> None:
     """An agent held to READ cannot write its workspace; one allowed ALL can.
 

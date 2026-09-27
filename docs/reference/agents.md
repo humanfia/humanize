@@ -953,7 +953,7 @@ turn.
 
 | Backend | `read-only` | `workspace-write` | `auto` | `bypass` |
 | --- | --- | --- | --- | --- |
-| `agy` | `plan` mode | `accept-edits` mode | skip permissions | — |
+| `agy` | `plan` mode, as an agent of four read tools; refused on another machine | `accept-edits` mode | skip permissions | — |
 | `claude` | `plan` mode | `acceptEdits` mode | `auto` mode | `manual` mode, answered here |
 | `codex` | `read-only` sandbox | `workspace-write` sandbox | `workspace-write`, `on-request` | `danger-full-access` |
 | `cursor-agent` | `plan` mode | sandbox on | `--auto-review` | sandbox off |
@@ -971,6 +971,12 @@ How each backend says it, and what to know:
 - **Antigravity**: `--mode plan`, `--mode accept-edits`, and `--dangerously-skip-permissions`
   for both `auto` and `bypass`. At `workspace-write` edits pass and commands are denied: a
   print-mode run soft-denies what it was not permitted and names it under `denied_actions`.
+  **Plan mode alone does not hold it to reading**: agy 1.2 writes the file it is asked to in
+  it. So a `read-only` turn is also started as `--agent hmz-read-only`, an agent humanize
+  writes into a directory of its own and adds with `--add-dir`, whose only tools are
+  `view_file`, `grep_search`, `find_by_name` and `list_dir`. agy runs an `--agent` it cannot
+  find as its default agent without saying so, and that directory is only on this machine, so
+  `read-only` on another machine is refused with `Unserved`.
 - **Claude Code**: `--permission-mode`. **Its `bypass` is humanize answering, not Claude
   skipping.** An account's managed settings can carry
   `"disableBypassPermissionsMode": "disable"`, and then `--dangerously-skip-permissions`

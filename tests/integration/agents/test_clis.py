@@ -17,9 +17,10 @@ import os
 import subprocess
 import sys
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
+import yaml
 from pydantic import BaseModel, ConfigDict
 
 from hmz.coganchor.agents import (
@@ -40,9 +41,6 @@ from hmz.coganchor.agents import (
 from hmz.coganchor.machines import AnchoredConfig
 from tests.agents import standins
 from tests.stubs import HereAnchor
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 PI = PiAgentConfig(model="openai-codex/gpt-5.5", effort="high")
 OPENCODE = OpencodeAgentConfig(model="opencode/big-pickle", effort="high")
@@ -1445,6 +1443,42 @@ def test_agy_runs_every_rung_of_the_ladder_as_its_own_flags(
     assert opened.argv[at : at + len(flags)] == flags
     if "--mode" in flags:
         assert "--dangerously-skip-permissions" not in opened.argv
+
+
+def test_agy_is_held_to_reading_as_an_agent_whose_tools_only_read(
+    stubs: _Stubs,
+) -> None:
+    """Plan mode alone is not reading: agy 1.2 in plan mode writes the file it is asked to.
+
+    So a turn at `read-only` is started as an agent of humanize's, found where agy finds a
+    project's own, whose tools read and do nothing else.
+    """
+    config = AntigravityCLIAgentConfig(
+        model="gemini-3.5-flash-medium", effort="high", permission="read-only"
+    )
+    assert AntigravityCLIAgent(config).new()("hi") == "hi"
+
+    (opened,) = stubs.calls()
+    assert opened.argv[opened.argv.index("--agent") + 1] == "hmz-read-only"
+    added = [
+        Path(opened.argv[at + 1])
+        for at, one in enumerate(opened.argv)
+        if one == "--add-dir"
+    ]
+    (defined,) = [
+        found
+        for one in added
+        if (found := one / ".agents" / "agents" / "hmz-read-only.md").is_file()
+    ]
+    front = yaml.safe_load(defined.read_text().split("---")[1])
+    assert front["name"] == "hmz-read-only"
+    assert front["excludeDefaultComponents"] is True
+    assert set(front["tools"]) <= {
+        "view_file",
+        "grep_search",
+        "find_by_name",
+        "list_dir",
+    }
 
 
 def test_agy_tells_the_cli_nothing_where_nothing_was_said_about_the_rung(
