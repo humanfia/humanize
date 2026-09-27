@@ -12,6 +12,8 @@ For code:
 - MUST run the system tier by hand when the change is one it covers: `uv run pytest
   tests/system --run-agents`. It drives real CLIs as `as local` and spends real tokens, so CI
   will not run it and nothing else will run it for you.
+- MUST run the regression matrix (every feature × every CLI) when a change could reach more
+  than one CLI, and add a row for a new feature: see `docs/contributing/regression-matrix.md`.
 - PREFER use popular and well-maintained libraries rather than custom implementations.
 - MUST also update `humanfia/flowverse` to ensure them working if any changes affect flow impl.
 

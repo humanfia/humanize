@@ -2,10 +2,16 @@
 
 `pytest_addoption` is honoured only in a root conftest, so `--run-agents` has to live
 here rather than beside the tests it gates; the `agent` marker it keys on is registered
-by `pytest_configure` below, and so are the three tier markers and the `node` marker that
-leaves out what needs a real Node on the machine -- every marker this suite has, registered
-in one place, next to the option that gates one of them. See `tests/tiers.py` for which tree
-is which tier and what a test in it may touch.
+by `pytest_configure` below, and so are the three tier markers, the `node` marker that
+leaves out what needs a real Node on the machine, and the `matrix` marker every cell of the
+regression matrix carries -- every marker this suite has, registered in one place, next to the
+option that gates one of them. See `tests/tiers.py` for which tree is which tier and what a
+test in it may touch.
+
+The regression matrix's hooks are here too: labelling its cells as they are collected, hearing
+what each came to, and drawing the grid at the end. Here because this is the one conftest the
+process drawing a summary always loads -- under xdist that process collects nothing, so a hook
+in a conftest deeper in the tree is never called on it. `tests/matrix/grid.py` is the rest.
 
 The autouse fixtures here are the switches that keep a run on the machine it was started on:
 nothing reports a crash, nothing fetches a price list, nothing starts a coding agent to ask
@@ -19,7 +25,7 @@ from __future__ import annotations
 
 import shutil
 import unittest.mock
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final, cast
 
 import pytest
 
@@ -38,7 +44,7 @@ if TYPE_CHECKING:
 
 # Asks back for what the subsystems lost when their `conftest.py` became a `fixtures.py`.
 # pytest rewrites the asserts in a conftest and in a test module, and in nothing else without
-# being told, so an `assert` in one of these five would have gone from naming the two values
+# being told, so an `assert` in one of these would have gone from naming the two values
 # it compared to a bare `AssertionError` -- in a fixture, where a failure is already reported
 # against whichever test happened to ask for it. Here because this is loaded before anything
 # imports them, which is the only time the request means anything. `tests/tiers.py` has why
@@ -49,6 +55,12 @@ pytest.register_assert_rewrite(
     "tests.machines.fixtures",
     "tests.tracing.fixtures",
     "tests.tui.fixtures",
+    # And the hosts ssh reaches, and the regression matrix's helpers, whose fixtures and
+    # scenarios assert inside modules no test is written in.
+    "tests.flows.sshd",
+    "tests.matrix.cells",
+    "tests.matrix.fixtures",
+    "tests.matrix.places",
 )
 
 #: Asking a backend what it runs, before the suite takes it away again. Held here so that a
@@ -321,6 +333,12 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers", "node: test that runs a real `node`, rather than a stand-in for one"
     )
+    config.addinivalue_line(
+        "markers",
+        "matrix(feature, order): a cell of the regression matrix in tests/system/matrix --"
+        " one feature, driven through one CLI",
+    )
+    _grouped(config)
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -330,6 +348,66 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=False,
         help="also run the tests that drive real coding agents, and spend real tokens",
     )
+    parser.addoption(
+        "--matrix-report",
+        default=None,
+        metavar="PATH",
+        help="also write the regression matrix's feature x CLI grid to PATH:"
+        " JSON for a `.json`, markdown otherwise",
+    )
+
+
+#: What a worker is told, through its `workerinput`, when the run hands its tests out a CLI at
+#: a time. A worker reads its own `--dist` rather than the controller's, so it is told.
+_GROUPED = "hmz_grouped"
+
+
+def _grouped(config: pytest.Config) -> None:
+    """Hands out a run that drives real agents a CLI at a time per worker, under `-n`.
+
+    A test that drives a real CLI shares that CLI's own store -- its sessions, its sign-in,
+    its rate limit -- with every other test driving it at the same moment, and several of
+    these CLIs answer two turns into one store with a lost write (`HarnessContended`) or a
+    provider with a `429`. So a run with `--run-agents` is `--dist loadgroup`, grouping by
+    `xdist_group`, which every cell of the regression matrix carries as its CLI: each CLI's
+    cells run one after another on one worker, and the CLIs run beside one another. A test
+    that carries no group is its own, and is handed out as `load` would hand it. A `--dist`
+    somebody asked for is theirs.
+
+    Two halves, because xdist decides twice: the controller picks the scheduler from its
+    `--dist`, and each worker decides from its own whether to tag what it collects with its
+    group -- without which every test is a group of one. `pytest_configure_node` below tells
+    each worker which way the controller went.
+    """
+    held = getattr(config, "workerinput", None)
+    if held is not None:
+        if cast("dict[str, Any]", held).get(_GROUPED):
+            config.option.loadgroup = True
+        return
+    if config.getoption("--run-agents") and config.getoption("dist", "no") == "load":
+        config.option.dist = "loadgroup"
+
+
+@pytest.hookimpl(optionalhook=True)
+def pytest_configure_node(node: Any) -> None:
+    """Tells each worker whether the run's tests are handed out a group at a time."""
+    node.workerinput[_GROUPED] = node.config.getoption("dist") == "loadgroup"
+
+
+def pytest_runtest_logreport(report: pytest.TestReport) -> None:
+    """Hears what each cell of the regression matrix came to, for the grid drawn at the end."""
+    from tests.matrix import grid
+
+    grid.heard(report)
+
+
+def pytest_terminal_summary(
+    terminalreporter: pytest.TerminalReporter, config: pytest.Config
+) -> None:
+    """Draws the regression matrix's grid under a run that ran any of it."""
+    from tests.matrix import grid
+
+    grid.reported(terminalreporter, config)
 
 
 def pytest_collection_modifyitems(
@@ -351,6 +429,11 @@ def pytest_collection_modifyitems(
             if any(mark.name == "node" for mark in item.iter_markers()):
                 item.add_marker(nodeless)
     COLLECTED[:] = items
+    # Each cell of the regression matrix says which feature and which CLI it is, on every
+    # report it makes: whatever process draws the grid hears the reports and nothing else.
+    from tests.matrix import grid
+
+    grid.labelled(items)
     if config.getoption("--run-agents"):
         return
     skip = pytest.mark.skip(

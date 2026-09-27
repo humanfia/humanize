@@ -47,6 +47,8 @@ real coding agent CLI wait for `--run-agents`.
 Run the system tier by hand when your change is one it covers. Its directories name the parts
 it drives for real: `agents/`, `coganchor/`, `machines/`, `providers/` and the rest. It drives
 the CLIs signed in on your machine and spends real tokens, so nothing else runs it for you.
+Before a release, or after a change that could reach more than one CLI, run
+[the regression matrix](/contributing/regression-matrix): every feature through every CLI.
 
 | | Your machine | CI |
 | --- | --- | --- |
