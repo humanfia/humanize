@@ -92,7 +92,7 @@ class Hmz:
 
     @property
     def verses(self) -> Flowverses:
-        """Where flows come from, which is the same store `/flowverses` walks."""
+        """Where flows come from, which is the same store `/settings flowverses` walks."""
         return self.flows.verses
 
     @property

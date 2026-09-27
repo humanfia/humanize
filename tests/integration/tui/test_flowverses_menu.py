@@ -27,7 +27,6 @@ from hmz.tui.pick import (
     _ADD,
     _AGAIN,
     _DONE,
-    _SAVE,
     _TAKES_AWAY,
     _WHENCE,
     Fetches,
@@ -35,7 +34,7 @@ from hmz.tui.pick import (
     Flowverses,
     Holds,
 )
-from tests.integration.tui.test_app import changes, into_settings, onto, rows
+from tests.integration.tui.test_app import changes, into_settings, onto, rows, under
 from tests.stubs import written
 from tests.tui.fixtures import until
 
@@ -128,7 +127,9 @@ async def test_every_place_flows_come_from_is_listed(theirs: Path) -> None:
     async with app.run_test() as driver:
         sheet = await _open(app, driver)
 
-        assert rows(app) == [OFFICIAL, "theirs", LOCAL, USER, _ADD, _SAVE]
+        # Adding one above them, as what is done about a list is on every page of
+        # `/settings`, and no row to save from: nothing on this page is held.
+        assert rows(app) == [_ADD, OFFICIAL, "theirs", LOCAL, USER]
         drawn = str(
             sheet.query_one("#choices", OptionList).get_option(f"={LOCAL}").prompt
         )
@@ -170,10 +171,13 @@ async def test_what_one_holds_is_read_when_it_is_asked_for(theirs: Path) -> None
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Holds), driver)
 
-        # The flows, and past them the two rows that are not a reading.
-        assert rows(app) == ["theirs/loop", _AGAIN, _TAKES_AWAY]
+        # The two rows that are not a reading, and under them the flows.
+        assert rows(app) == [_AGAIN, _TAKES_AWAY, "theirs/loop"]
+        assert under(app) == "theirs/loop"
         assert "Somebody else's loop" in str(
-            app.screen.query_one("#choices", OptionList).get_option_at_index(0).prompt
+            app.screen.query_one("#choices", OptionList)
+            .get_option("=theirs/loop")
+            .prompt
         )
 
 
@@ -194,7 +198,7 @@ async def test_one_that_has_not_been_fetched_says_so_where_its_flows_would_be() 
 
         # What it holds meanwhile is the half of it humanize keeps in the package, which is
         # there whatever has been downloaded -- and the row that fetches the rest.
-        assert rows(app) == ["chat", _AGAIN]
+        assert rows(app) == [_AGAIN, "chat"]
 
 
 @pytest.mark.timeout(60)
@@ -321,10 +325,9 @@ async def test_one_that_was_added_is_taken_away_from_inside_what_it_holds(
         await until(lambda: "no longer here" in _under(sheet), driver)
 
         assert [one.name for one in flowverses()] == [OFFICIAL, LOCAL, USER]
-        assert rows(app) == [OFFICIAL, LOCAL, USER, _ADD, _SAVE]
+        assert rows(app) == [_ADD, OFFICIAL, LOCAL, USER]
         # And the marker is on a row that is still there, rather than on the hole one left.
-        listing = sheet.query_one("#choices", OptionList)
-        assert listing.highlighted == 0
+        assert sheet.under() == OFFICIAL
 
 
 @pytest.mark.timeout(60)
@@ -371,7 +374,7 @@ async def test_none_of_the_ones_always_here_offer_to_be_taken_away(named: str) -
 
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Flowverses), driver)
-        assert rows(app) == [OFFICIAL, LOCAL, USER, _ADD, _SAVE]
+        assert rows(app) == [_ADD, OFFICIAL, LOCAL, USER]
 
 
 @pytest.mark.timeout(60)
@@ -418,7 +421,7 @@ async def test_the_places_are_walked_to_from_the_flows(theirs: Path) -> None:
         await onto(app, driver, _WHENCE)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flowverses), driver)
-        assert rows(app) == [OFFICIAL, "theirs", LOCAL, USER, _ADD, _SAVE]
+        assert rows(app) == [_ADD, OFFICIAL, "theirs", LOCAL, USER]
 
         places = app.screen
         await onto(app, driver, "theirs")
@@ -471,3 +474,21 @@ async def test_the_places_do_not_open_over_a_fetch_the_flows_started() -> None:
         )
 
         assert app.screen is menu  # and nothing opened over it
+
+
+@pytest.mark.timeout(60)
+async def test_keeping_the_repository_moves_on_to_the_name_it_may_be_given() -> None:
+    """A row nothing is in yet is the next thing to say, even one that may be left blank."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _open(app, driver)
+        sheet = await _adding(app, driver)
+
+        await driver.press(*"owner/repo", "enter")
+        await driver.pause()
+        assert sheet.under() == "name"
+        await driver.press(
+            "enter", "enter"
+        )  # begun and kept blank: the repository's own
+        await driver.pause()
+        assert sheet.under() == _DONE

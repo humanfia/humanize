@@ -8,7 +8,7 @@ with no provider runs its CLI signed in the way you signed it in yourself.
 | --- | --- |
 | **Named** | `<cli>/<name>`, such as `claude/work`. `<cli>/` with no name is the account this machine is already signed into. |
 | **Kept in** | `~/.humanize/providers/<cli>/<name>/`, or under `$HUMANIZE_HOME` where that is set |
-| **Made at** | the Accounts page of `/settings` and its `add` row, or [`Hmz().accounts`](/reference/sdk) from Python |
+| **Made at** | the Accounts page of `/settings` (`/settings accounts`) and its `add an account` row, or [`Hmz().accounts`](/reference/sdk) from Python |
 | **Chosen with** | `-a role=CLI@NAME/MODEL:EFFORT`, or `provider="NAME"` on an agent's config |
 | **A turn under one** | Gets the provider's variables and loses the backend's other account variables. Its credential paths are answered out of the provider's directory. |
 
@@ -231,31 +231,31 @@ base URL and nothing else.
 You type the names, because the lists are too long to keep. pi reads a variable for each
 provider it knows, and opencode one for each of about 180. Put one variable on each line.
 While writing that field, <kbd>shift+enter</kbd> or <kbd>ctrl+j</kbd> starts a new line and <kbd>enter</kbd> keeps it;
-`accept` submits the form. Blank lines and lines starting `#` are skipped.
+`done` submits the form. Blank lines and lines starting `#` are skipped.
 
 ## Making one
 
-At the prompt, open `/settings` and press <kbd>tab</kbd> twice to turn to its Accounts page:
+At the prompt, type `/settings accounts`:
 
 | Row | Does | When it lands |
 | --- | --- | --- |
-| `add` | Makes one. It asks which CLI, then which way in, then what that way asks, and hands the terminal to the CLI's own login where the way has one. | at once |
-| <kbd>enter</kbd> → **correct what it holds** | Asks the way's questions again. What it holds is replaced, not merged, and credentials a login left are kept. Secrets start blank. | when the menu is saved |
+| `add an account` | Makes one, on [one form](/reference/tui#making-an-account): the CLI, the way in, a name, what that way asks, and which other backends to write it down for. Hands the terminal to the CLI's own login where the way has one, then asks the CLI what it runs, in the background. | at once |
+| <kbd>enter</kbd> → **correct what it holds** | Asks the way's questions again. What it holds is replaced, not merged, and credentials a login left are kept. Secrets start blank, and a blank one keeps what it holds. | when the menu is saved |
 | <kbd>enter</kbd> → **sign in again** | Runs the way's own command again, under this account's paths. Only for a way that runs one. | at once |
-| <kbd>enter</kbd> → **falls back to** | Which account of this CLI a turn carries on under when this one fails. See [When an account goes down](#when-an-account-goes-down). | when the menu is saved |
+| <kbd>enter</kbd> → **fails over to** | Which account of this CLI a turn carries on as when this one fails. See [When an account goes down](#when-an-account-goes-down). | when the menu is saved |
 | <kbd>enter</kbd> → **take it away** | Deletes the account and its credentials. An account already marked shows **keep it after all**. | when the menu is saved |
 
 What lands when the menu is saved reaches an agent from its next session: a session already
 running keeps the account it started with, and the row says `from the next agent session` while
 the change is held.
 
-The same `add` row is on the `provider` list of an agent's sheet, and comes back with the
+The same `add` row is on the `account` list of an agent's sheet, and comes back with the
 new account chosen for that agent. The screens are in [TUI](/reference/tui).
 
 **Names** are letters, digits, `.`, `-` and `_`, starting with a letter or a digit: a name is a
 directory. **`<cli>/` with no name**, or `""` in Python, is the account this machine is already
-signed into. Every backend has one. humanize keeps no credentials for it, and only its
-**falls back to** can be set. Making it, signing it in or taking it away is refused.
+signed into. Every backend has one. humanize keeps no credentials for it, and only what it
+**fails over to** can be set. Making it, signing it in or taking it away is refused.
 
 From Python:
 
@@ -422,7 +422,7 @@ that ran out, a key refused, a gateway answering 503. That one can name the next
 **chain**. A turn walks the chain inside the conversation it was in, with the same agent and
 the same model.
 
-Set it with **falls back to** on the Accounts page of `/settings`, or from Python:
+Set it with **fails over to** on the Accounts page of `/settings`, or from Python:
 
 ```python
 accounts = Hmz().accounts
@@ -469,11 +469,12 @@ for cli in accounts.serves(one):
 - An account that is a login is the CLI's own store in its own format, so it copies nowhere.
   Neither does one holding a variable the other backend has no name for.
 
-At the prompt, making or correcting an account that other backends could run asks which of them
-to write it down for. The ones installed here are ticked to start with:
+At the prompt, the form an account is made or corrected on has an `also for …` row for each
+other backend that could run it. Making one, the ones installed here start on; correcting one,
+the ones already holding a copy do:
 
-![/settings, the Accounts page, a, claude, key: an account named and its key typed as bullets,
-then the question of which other backends to write it down for](/demo/alike.gif)
+![/settings accounts, add an account, claude, key: the key typed as bullets, and a row apiece
+for the other backends to write it down for](/demo/alike.gif)
 
 Each copy is then an account of its own, listed under its own backend:
 

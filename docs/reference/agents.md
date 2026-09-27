@@ -1290,7 +1290,7 @@ Hmz().accounts.points("claude", "key", "gateway")
 Hmz().accounts.points("claude", "", "spare")   # your own login, then `spare`
 ```
 
-The Accounts page of `/settings`, cursor on the account, then <kbd>enter</kbd>: *falls back to*
+The Accounts page of `/settings`, cursor on the account, then <kbd>enter</kbd>: *fails over to*
 says the same.
 
 - `""` is the login this machine already has (`claude/`). A chain may start there, and nothing
@@ -1799,8 +1799,8 @@ catalogue uses; `vendor/some-model` is sent to the endpoint as it stands.
 
 Any coding agent that speaks the [Agent Client Protocol](https://agentclientprotocol.com) can
 be driven without humanize knowing anything else about it. Add one on the Accounts page of
-`/settings`: choose `add`, then pick *a CLI of your own*, the last row of the backends list, and give the
-command that starts it, such as `my-agent --acp` or `gemini --experimental-acp`. It is written
+`/settings` (`/settings accounts`): choose `add a CLI of your own`, above the accounts, and give
+the command that starts it, such as `my-agent --acp` or `gemini --experimental-acp`. It is written
 down under humanize's home, and is a backend from the next prompt on, in every workspace:
 `-a my-agent/...` names it.
 

@@ -1,12 +1,12 @@
 """What the editor offers to finish, which is the only way anything is typed here.
 
-A command line is typed, never filled in on a form: `/` offers the commands, and `/flow`
-offers the flows there are -- the ones humanize ships, the ones every flowverse fetched here
-holds, and the ones under `.humanize/flows` here or in your home directory. So does `$`, which
-is the flow said outright rather than chosen from a menu: the same list, under the sigil that
-starts one. A flow anywhere else is a path, and a path is typed: looking for one would mean
-reading every Python file below here to see which declare a flow, which is a guess, and far
-too slow to make between keystrokes.
+A command line is typed, never filled in on a form: `/` offers the commands, `/settings`
+its pages, and `/flow` the flows there are -- the ones humanize ships, the ones every
+flowverse fetched here holds, and the ones under `.humanize/flows` here or in your home
+directory. So does `$`, which is the flow said outright rather than chosen from a menu: the
+same list, under the sigil that starts one. A flow anywhere else is a path, and a path is
+typed: looking for one would mean reading every Python file below here to see which declare a
+flow, which is a guess, and far too slow to make between keystrokes.
 
 `hmz internal anchor` is not offered: it is not something to do to a flow while it runs, and
 it takes a command line of its own. What a run left behind is `/epics`, which is where the runs are.
@@ -57,13 +57,17 @@ class Command:
     #: written and not only what may be started. A switch takes `on` or `off` as well as
     #: being flipped, and nothing says so unless the list does. "" takes none.
     takes: str = ""
+    #: The words it takes after its name, offered as they are typed: the pages `/settings`
+    #: opens on. Empty for a command whose argument is anything, or nothing.
+    offers: tuple[str, ...] = ()
     #: Which views it works in -- `monitor`, `aggregate` (the transcript every agent is
     #: on), `session` (one agent's or one conversation's) and `outworlder` (what one
     #: outworlder asks) -- offered in those and refused, saying where it works, in the rest.
     where: frozenset[str] = VIEWS
 
 
-#: `/flow` and the name being typed after it. A third word is a line that has moved on.
+#: A command and the word being typed after it -- `/flow` and a flow, `/settings` and a
+#: page. A third word is a line that has moved on.
 _FLOW_AND_NAME = 2
 
 
@@ -99,10 +103,18 @@ def offered(typed: str, commands: tuple[Command, ...]) -> list[str]:
         if any(tail.removeprefix("/") == one.name for one in commands):
             return []
         offers = sorted(f"/{one.name}" for one in commands)
-    # The flow is the one thing `/flow` takes, so it is offered while that word is the one
-    # being typed and not after it: a line that already names a flow is a finished line.
-    elif words[0] == "/flow" and len(words) == _FLOW_AND_NAME:
-        offers = [one.name for one in _flows()]
+    # The flow is the one thing `/flow` takes, and a page the one thing `/settings` does, so
+    # each is offered while that word is the one being typed and not after it: a line that
+    # already names one is a finished line.
+    elif len(words) == _FLOW_AND_NAME:
+        offers = (
+            [one.name for one in _flows()]
+            if words[0] == "/flow"
+            else next(
+                (list(one.offers) for one in commands if words[0] == f"/{one.name}"),
+                list[str](),
+            )
+        )
     else:
         return []
     if tail in offers:

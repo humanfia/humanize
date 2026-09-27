@@ -34,17 +34,17 @@ from hmz.tui.pick import (
     _WHENCE,
     Adjusts,
     Agent,
-    Alike,
     Confirms,
     Epics,
+    Failing,
     Falls,
     Fetches,
     Flows,
     Flowverses,
     Leaves,
     Reports,
-    Retries,
     Sheet,
+    Signing,
     Speaks,
 )
 from tests.integration.tui.test_app import (
@@ -66,8 +66,8 @@ if TYPE_CHECKING:
 #: list to pick from and a rung to step along.
 CLAUDE = {"claude": (Model("claude-opus-5", ("max", "high")),)}
 
-#: The keys a menu has, as its row of keys says them.
-_KEYS = {"←/→", "enter", "esc"}
+#: The keys a menu has, as its row of keys says them -- and typing, on a form's written rows.
+_KEYS = {"←/→", "enter", "esc", "type"}
 
 #: How a key reads when it is named in prose. The line about a sheet MUST NOT name one -- the
 #: row under the list is where the keys are said -- so this is what to look for up there.
@@ -125,9 +125,8 @@ def test_the_keys_are_written_in_one_place() -> None:
         pytest.param(Fetches, id="fetches"),
         pytest.param(Speaks, id="speaks"),
         pytest.param(partial(Falls, "claude", "one"), id="falls"),
-        pytest.param(
-            partial(Retries, "claude/m:high", 3, "exponential", 60.0), id="retries"
-        ),
+        pytest.param(partial(Failing, dict(CLAUDE)), id="failing"),
+        pytest.param(Signing, id="signing"),
         pytest.param(Epics, id="epics"),
         *(
             pytest.param(
@@ -288,10 +287,10 @@ async def test_a_search_is_a_row_and_says_what_the_keys_do_while_it_runs() -> No
 
         once(sheet)
         assert "esc leave search" in said(sheet)
-        # Nothing is called that, and the rows below the list are still there.
-        assert rows(app) == [_ADD, _SAVE]
+        # Nothing is called that, and the rows above the list are still there.
+        assert rows(app) == [_ADD]
         assert "zzzz" in str(
-            sheet.query_one("#choices", OptionList).get_option_at_index(0).prompt
+            sheet.query_one("#choices", OptionList).get_option(f"={_SEARCH}").prompt
         )
 
         await driver.press("escape")
@@ -368,27 +367,30 @@ async def test_the_settings_menu_turns_its_pages_and_changes_its_rows_the_same_w
 
 
 @pytest.mark.timeout(60)
-async def test_adding_is_a_row_of_every_list_that_is_added_to() -> None:
-    """A letter said only at the bottom of the screen is a letter nobody finds."""
+@pytest.mark.parametrize("page", [2, 3, 4])
+async def test_adding_is_the_first_row_of_every_page_that_is_a_list(page: int) -> None:
+    """Found in the same place on each of them, and on an empty one the whole of the page."""
     app = Humanize()
     async with app.run_test() as driver:
-        await app.push_screen(Adjusts({}, page=4))
-        await until(lambda: isinstance(app.screen, Flowverses), driver)
+        await app.push_screen(Adjusts({}, page=page))
+        await until(lambda: isinstance(app.screen, Adjusts), driver)
         await driver.pause()
 
-        assert rows(app)[-2:] == [_ADD, _SAVE]
+        assert rows(app)[0] == _ADD
+        # Saved from the last row where the page holds anything, and from nowhere where not.
+        assert (rows(app)[-1] == _SAVE) is (page != 4)
 
         # And the cursor walks on to it and stays there, it being a row like any other: the
-        # list is built again on every keystroke, off which flowverse the cursor is on.
+        # list is built again on every keystroke, off which row the cursor is on.
         listing = app.screen.query_one("#choices", OptionList)
         await onto(app, driver, _ADD)
         await driver.pause()
-        assert listing.highlighted == listing.option_count - 2
+        assert listing.highlighted == 0
 
 
 @pytest.mark.timeout(60)
-async def test_a_form_is_written_a_row_at_a_time_and_answered_from_a_row() -> None:
-    """Typing reaches a question only once enter has begun on it."""
+async def test_a_form_is_written_by_typing_and_answered_from_its_done_row() -> None:
+    """On a form a letter can only be an answer, so typing on a row writes it."""
     app = Humanize()
     async with app.run_test() as driver:
         await app.push_screen(Speaks())
@@ -397,20 +399,29 @@ async def test_a_form_is_written_a_row_at_a_time_and_answered_from_a_row() -> No
         assert isinstance(sheet, Speaks)
         await driver.pause()
         assert rows(app) == ["command", _DONE]
+        assert said(sheet) == "type to write · esc back"
 
-        await driver.press(*"nope")
+        await driver.press(*"my-agent")
         await driver.pause()
-        assert not sheet._typed_in.get("command")
+        assert sheet._editing == "command"
+        assert said(sheet) == "enter keep · esc undo"
+        # Kept, and on to the row that answers the form, nothing else being left to say.
+        await driver.press("enter")
+        await driver.pause()
+        assert sheet._typed_in["command"] == "my-agent"
+        assert sheet.under() == _DONE
 
-        await changes(app, driver, "command", *"my-agent")
-        assert sheet._typed_in["command"] == "my-agent"
-        # Begun again, written, and put back.
-        await driver.press("enter", *"--acp", "escape")
+        # Begun again by typing, written, and put back.
+        await onto(app, driver, "command")
+        await driver.press(*" --acp", "escape")
         await driver.pause()
         assert sheet._typed_in["command"] == "my-agent"
+        # Or begun with enter, which is the same thing the long way round.
+        await changes(app, driver, "command", *" --acp")
+        assert sheet._typed_in["command"] == "my-agent --acp"
 
         await onto(app, driver, _DONE)
-        assert "enter add" in said(sheet)
+        assert "enter done" in said(sheet)
         await driver.press("enter")
         await until(lambda: not isinstance(app.screen, Speaks), driver)
 
@@ -464,28 +475,25 @@ async def test_a_sheet_is_answered_once_however_fast_the_key_is_pressed(
 
 
 @pytest.mark.timeout(60)
-async def test_the_sheet_of_switches_is_flipped_the_way_every_row_is_changed() -> None:
-    """Which other backends an account could be run as is switches, changed as rows are."""
-    from hmz.coganchor.providers import Provider
-
-    one = Provider(cli="claude", name="shared", way="key", env={"K": "v"})
+async def test_the_switches_on_a_form_are_flipped_the_way_every_row_is_changed() -> (
+    None
+):
+    """Which other backends an account goes to is switches, changed as rows are."""
     app = Humanize()
     async with app.run_test() as driver:
-        await app.push_screen(Alike(one, ["codex", "pi"]))
-        await until(lambda: isinstance(app.screen, Alike), driver)
+        await app.push_screen(Signing("claude"))
+        await until(lambda: isinstance(app.screen, Signing), driver)
         sheet = app.screen
-        assert isinstance(sheet, Alike)
+        assert isinstance(sheet, Signing)
         await driver.pause()
+        await changes(app, driver, "way", "right", "right")  # login, token, key
         once(sheet)
 
         # Nothing is installed in a test, so every one of them starts off.
-        assert sheet._on == set()
-        await changes(app, driver, "codex", "right")
-        assert sheet._on == {"codex"}
-
-        await onto(app, driver, _DONE)
-        await driver.press("enter")
-        await until(lambda: not isinstance(app.screen, Alike), driver)
+        assert not sheet._also("pi")
+        await changes(app, driver, "also:pi", "right")
+        assert sheet._also("pi")
+        once(sheet)
 
 
 @pytest.mark.timeout(60)
@@ -512,3 +520,30 @@ async def test_the_flow_menu_is_saved_from_its_row(
         await until(lambda: not isinstance(app.screen, Flows), driver)
 
     assert app._models
+
+
+@pytest.mark.timeout(60)
+async def test_a_search_above_a_list_lands_on_the_first_thing_it_finds() -> None:
+    """The letters are seen landing on the search row, and enter takes the best of the rest."""
+    from hmz.runtime.flowing import OFFICIAL
+
+    app = Humanize()
+    async with app.run_test() as driver:
+        await app.push_screen(Adjusts({}, page=4))
+        await until(lambda: isinstance(app.screen, Flowverses), driver)
+        sheet = app.screen
+        assert isinstance(sheet, Flowverses)
+        await driver.pause()
+
+        await onto(app, driver, _SEARCH)
+        await driver.press("enter")
+        await until(lambda: sheet._searching, driver)
+        assert sheet.under() == _SEARCH
+        await driver.press(*"offi")
+        await driver.pause()
+        assert sheet.under() == OFFICIAL
+
+        # And out of it, back on the list as it was.
+        await driver.press("escape")
+        await driver.pause()
+        assert sheet.under() == OFFICIAL

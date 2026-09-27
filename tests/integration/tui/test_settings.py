@@ -451,3 +451,96 @@ def test_whether_the_working_is_shown_is_remembered_for_the_machine(
     assert Settings(theirs).details
     held = yaml.safe_load((home() / "settings.yaml").read_text())
     assert held["details"] is True
+
+
+def test_settings_offers_its_pages_by_name() -> None:
+    """The word typed after `/settings` is the word on the tab, offered as it is typed."""
+    from hmz.tui.app import _BY_NAME, _COMMANDS
+    from hmz.tui.complete import offered
+
+    assert _BY_NAME["settings"].takes == "[page]"
+    assert offered("/settings ", _COMMANDS) == [
+        "everywhere",
+        "directory",
+        "accounts",
+        "fallback",
+        "flowverses",
+    ]
+    assert offered("/settings ac", _COMMANDS) == ["accounts"]
+    # Written out in full, so enter over the list sends the line.
+    assert offered("/settings accounts", _COMMANDS) == []
+    assert offered("/settings accounts x", _COMMANDS) == []
+
+
+@pytest.mark.timeout(60)
+@pytest.mark.parametrize(
+    ("page", "tab"),
+    [("everywhere", 0), ("directory", 1), ("Accounts", 2), ("fallback", 3)],
+)
+async def test_settings_opens_straight_onto_the_page_it_is_given(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, page: str, tab: int
+) -> None:
+    """The page somebody came for is not three presses of an arrow away."""
+    from hmz.tui import Humanize
+    from hmz.tui.pick import Adjusts
+
+    monkeypatch.chdir(tmp_path)
+    app = Humanize()
+    async with app.run_test() as driver:
+        await driver.press(*f"/settings {page}")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Adjusts), driver)
+
+        sheet = app.screen
+        assert isinstance(sheet, Adjusts)
+        assert sheet._tab == tab
+
+
+@pytest.mark.timeout(60)
+async def test_a_page_settings_does_not_have_is_said_and_opens_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from hmz.tui import Humanize
+    from hmz.tui.pick import Adjusts
+
+    monkeypatch.chdir(tmp_path)
+    app = Humanize()
+    async with app.run_test() as driver:
+        await driver.press(*"/settings nosuch")
+        await driver.press("enter")
+        await until(lambda: "no page 'nosuch'" in transcript(app), driver)
+
+        assert not isinstance(app.screen, Adjusts)
+        assert "accounts" in transcript(app)
+
+
+@pytest.mark.timeout(60)
+async def test_what_a_page_said_is_still_said_when_it_is_turned_back_to(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A look at another page is not a reason to lose what became of something on this one."""
+    from hmz.tui import Humanize
+    from hmz.tui.pick import Adjusts
+
+    monkeypatch.chdir(tmp_path)
+    app = Humanize()
+    async with app.run_test() as driver:
+        await driver.press(*"/settings accounts")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Adjusts), driver)
+        sheet = app.screen
+        assert isinstance(sheet, Adjusts)
+        sheet._said = "something happened here"
+        sheet._fill()
+
+        await driver.press("right")
+        await until(lambda: sheet._tab == 3, driver)
+        assert "something happened here" not in str(
+            sheet.query_one("#tuning", Label).content
+        )
+        await driver.press("left")
+        await until(lambda: sheet._tab == 2, driver)
+
+        assert "something happened here" in str(
+            sheet.query_one("#tuning", Label).content
+        )

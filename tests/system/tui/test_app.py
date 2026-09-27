@@ -56,7 +56,7 @@ async def test_deepseek_chat_explains_a_missing_api_key_instead_of_staying_blank
         said = transcript(app)
 
         assert "signs in with a key rather than a login" in said
-        assert "press a on its" in said
+        assert "/settings accounts" in said
         assert "DEEPSEEK_API_KEY" in said
 
         app.action_stop_flow()

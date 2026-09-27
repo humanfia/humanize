@@ -69,11 +69,11 @@ git push -u origin main
 ::: code-group
 
 ```text [At the prompt]
-> /settings, tab to Flowverses
-  a             add a flowverse
+> /settings flowverses
+  enter         add a flowverse
   repository    you/my-flowverse
   name          yours
-  enter         clone it
+  enter         done: clones it
 ```
 
 ```python [From a script]
@@ -156,7 +156,7 @@ so a flow that acts on import acts for somebody who was only looking.
 
 ## Adding one
 
-The Flowverses page of `/settings` (type `/settings`, then <kbd>→</kbd> to it), or the
+The Flowverses page of `/settings` (type `/settings flowverses`), or the
 `where flows come from` row in `/flow`, lists every place flows come from:
 
 ![the Flowverses page of /settings: every place flows come from, then enter on one to read what it

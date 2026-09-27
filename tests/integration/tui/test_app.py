@@ -37,7 +37,6 @@ from hmz.tui.pick import (
     Accounts,
     Adjusts,
     Agent,
-    Alike,
     Catalogue,
     Clis,
     Configures,
@@ -45,7 +44,6 @@ from hmz.tui.pick import (
     Epics,
     Flows,
     Signing,
-    Ways,
 )
 from tests.stubs import events as recorded
 from tests.stubs import written
@@ -105,6 +103,15 @@ def ids(app: Humanize) -> list[str]:
         str(one.id or "").removeprefix("=")
         for one in app.screen.query_one("#choices", OptionList).options
     ]
+
+
+def under(app: Humanize) -> str:
+    """The row of the sheet on top the cursor is on, by the id it was put up under."""
+    from hmz.tui.pick import Sheet
+
+    sheet = app.screen
+    assert isinstance(sheet, Sheet)
+    return sheet.under()
 
 
 def rows(app: Humanize) -> list[str]:
@@ -231,7 +238,7 @@ async def changes(app: Humanize, driver: Pilot[None], held: str, *keys: str) -> 
 
 
 async def into_settings(app: Humanize, driver: Pilot[None], page: int = 0) -> None:
-    """Opens `/settings`, and turns to one of its pages.
+    """Opens `/settings` on one of its pages, by the name the command is given.
 
     Args:
       app: The interface.
@@ -239,13 +246,12 @@ async def into_settings(app: Humanize, driver: Pilot[None], page: int = 0) -> No
       page: Which page, counting from the first: everywhere, this directory, the accounts,
         the fallbacks and the flowverses.
     """
-    await driver.press(*"/settings")
+    from hmz.tui.pick import PAGES
+
+    await driver.press(*"/settings", *(f" {PAGES[page]}" if page else ""))
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Adjusts), driver)
     sheet = cast("Adjusts", app.screen)
-    for _ in range(page):
-        await driver.press("right")
-        await driver.pause()
     await until(lambda: sheet._tab == page, driver)
     await until(lambda: bool(sheet.query_one("#choices", OptionList).options), driver)
 
@@ -1226,8 +1232,10 @@ async def test_settings_is_one_menu_of_five_pages() -> None:
 
         await driver.press("left")
         await until(lambda: sheet._tab == len(sheet.TABS) - 1, driver)
-        assert _ADD in rows(app)
-        assert rows(app)[-1] == _SAVE
+        # What is done about the list is above it, and nothing on this page is held, so
+        # there is no row to save it from.
+        assert rows(app)[0] == _ADD
+        assert _SAVE not in rows(app)
 
 
 @pytest.mark.timeout(60)
@@ -2167,42 +2175,34 @@ async def test_deepseek_has_its_own_ways_after_switching_from_kimi(
 
         await onto(app, driver, _ADD)
         await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Ways), driver)
-        ways = app.screen.query_one("#choices", OptionList)
-        assert [str(option.id) for option in ways.options] == ["=key", "=gateway"]
+        await until(lambda: isinstance(app.screen, Signing), driver)
+        sheet = cast("Signing", app.screen)
+        form = app.screen.query_one("#choices", OptionList)
+        # No question of which CLI -- it is the one the agent is on -- and only dsh's own
+        # ways in, stepped where they stand.
+        assert rows(app)[:3] == ["way", "name", "DEEPSEEK_API_KEY"]
+        assert list(sheet.choices("way")) == ["key", "gateway"]
         shown = " ".join(
             [
                 str(app.screen.query_one("#asked", Label).content),
                 str(app.screen.query_one("#about", Label).content),
-                *(str(option.prompt) for option in ways.options),
+                *(str(option.prompt) for option in form.options),
             ]
         ).lower()
-        for stale in ("kimi", "subscription", "login", "env"):
+        for stale in ("kimi", "subscription", "login"):
             assert stale not in shown
 
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Signing), driver)
-        form = app.screen.query_one("#choices", OptionList)
-        assert [str(option.id) for option in form.options] == [
-            "=?",
-            "=?DEEPSEEK_API_KEY",
-            f"={_DONE}",
-        ]
-        await changes(app, driver, "?", *"mine")
-        await onto(app, driver, "?DEEPSEEK_API_KEY")
+        await changes(app, driver, "name", *"mine")
+        await onto(app, driver, "DEEPSEEK_API_KEY")
         await driver.press("enter")
         await driver.pause()
         form.post_message(events.Paste("test-key\n"))
         await driver.pause()
         await driver.press("enter")
+        # A DeepSeek key is a DeepSeek key wherever it is held, so the form asks which other
+        # backends to write it down for as well -- none, where none is installed.
         await onto(app, driver, _DONE)
         await driver.press("enter")
-
-        # A DeepSeek key is a DeepSeek key wherever it is held, so it is asked which other
-        # backends to write it down for as well. Not what this is about: esc copies it
-        # nowhere.
-        await until(lambda: isinstance(app.screen, Alike), driver)
-        await driver.press("escape")
 
         # Making one here is choosing it, so what comes back is the agent with it on.
         await until(lambda: isinstance(app.screen, Agent), driver)

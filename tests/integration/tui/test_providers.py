@@ -3,14 +3,15 @@
 An account is credentials rather than a way of running a model, so it is asked about where
 the agent is chosen and not where the flow is -- two agents of one CLI may be two accounts.
 Nothing here signs anything in: a CLI's own login is the only thing that can perform that
-CLI's login, so it is patched out and what is tested is the walk up to it.
+CLI's login, so it is patched out and what is tested is the walk up to it. And making one is
+one form -- its CLI, its way in, its name, what that way asks and where else it goes.
 """
 
 from __future__ import annotations
 
 import json
 import unittest.mock
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pytest
 from textual import events
@@ -23,18 +24,17 @@ from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.pick import (
     _ADD,
-    _ASKED,
     _DONE,
     _SAVE,
     _SEARCH,
+    _SPEAKS,
     _TAKES_AWAY,
     Account,
     Accounts,
     Agent,
-    Backends,
+    Confirms,
     Providers,
     Signing,
-    Ways,
     reads,
 )
 from tests.integration.tui.test_app import (
@@ -48,6 +48,7 @@ from tests.integration.tui.test_app import (
     onto,
     opens,
     rows,
+    under,
 )
 from tests.tui.fixtures import set_up, transcript, until
 
@@ -72,29 +73,11 @@ def _drawn(app: Humanize) -> str:
     )
 
 
-async def _no_copies(app: Humanize, driver: Pilot[None]) -> None:
-    """Walks past the question of which other backends to write the new account down for.
-
-    An account several CLIs could be run as is asked about at the moment it is made, so every
-    walk that makes one of those goes through it. Escape copies it nowhere, which is what a
-    test about something else wants.
-
-    Args:
-      app: The interface.
-      driver: What is pumping it.
-    """
-    from hmz.tui.pick import Alike
-
-    await until(lambda: isinstance(app.screen, Alike), driver)
-    await driver.press("escape")
-    await until(lambda: not isinstance(app.screen, Alike), driver)
-
-
 async def _doing(app: Humanize, driver: Pilot[None], held: str) -> None:
     """Opens what there is to do with the account under the cursor, and picks one of them.
 
     Which is what enter on an account is now: four questions about it -- correct it, sign it
-    in again, where it falls back to, be rid of it -- rather than four letter keys on the
+    in again, what it fails over to, be rid of it -- rather than four letter keys on the
     list of accounts.
 
     Args:
@@ -111,16 +94,47 @@ async def _doing(app: Humanize, driver: Pilot[None], held: str) -> None:
     await driver.press("enter")
 
 
-async def _adds(app: Humanize, driver: Pilot[None]) -> None:
-    """Makes one, from the row below the accounts that says so.
+async def _adds(app: Humanize, driver: Pilot[None]) -> Signing:
+    """Opens the form an account is made on, from the row above the accounts that says so.
 
     Args:
       app: The interface.
       driver: What is pumping it.
+
+    Returns:
+      The form.
     """
     await until(lambda: _ADD in ids(app), driver)
     await onto(app, driver, _ADD)
     await driver.press("enter")
+    await until(lambda: isinstance(app.screen, Signing), driver)
+    await until(
+        lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
+    )
+    return cast("Signing", app.screen)
+
+
+async def _chooses(app: Humanize, driver: Pilot[None], held: str, value: str) -> None:
+    """Steps one row of the form to a value where it stands, and keeps it.
+
+    Args:
+      app: The interface.
+      driver: What is pumping it.
+      held: The row -- `cli`, `way`.
+      value: What it is to say.
+    """
+    sheet = cast("Signing", app.screen)
+    await onto(app, driver, held)
+    await driver.press("enter")
+    await driver.pause()
+    for _ in range(len(sheet.choices(held))):
+        if sheet._typed_in.get(held) == value:
+            break
+        await driver.press("right")
+        await driver.pause()
+    assert sheet._typed_in.get(held) == value
+    await driver.press("enter")
+    await driver.pause()
 
 
 async def _writes(app: Humanize, driver: Pilot[None], held: str, *keys: str) -> None:
@@ -131,12 +145,12 @@ async def _writes(app: Humanize, driver: Pilot[None], held: str, *keys: str) -> 
     Args:
       app: The interface.
       driver: What is pumping it.
-      held: The question, by what the answer is kept under -- "" for the name.
+      held: The question, by what the answer is kept under -- `name` for the name.
       keys: What to type.
     """
     await until(lambda: isinstance(app.screen, Signing), driver)
-    await until(lambda: f"{_ASKED}{held}" in ids(app), driver)
-    await changes(app, driver, f"{_ASKED}{held}", *keys)
+    await until(lambda: held in ids(app), driver)
+    await changes(app, driver, held, *keys)
 
 
 async def _answers(app: Humanize, driver: Pilot[None]) -> None:
@@ -216,35 +230,32 @@ async def test_the_command_opens_the_sheet_of_accounts() -> None:
 async def test_an_account_made_on_the_sheet_lands_in_the_store(
     signed_in: unittest.mock.MagicMock,
 ) -> None:
-    """Three questions, because each is only answerable once the one before it has been."""
+    """One form: which CLI and which way in, stepped where they stand, and a name."""
     app = Humanize()
     async with app.run_test() as driver:
         await into_settings(app, driver, 2)
 
-        await _adds(app, driver)
-        await until(lambda: isinstance(app.screen, Backends), driver)
-        backends = app.screen.query_one("#choices", OptionList)
-        await until(lambda: bool(backends.options), driver)
-        assert str(backends.get_option_at_index(0).id) == "=claude"
-        await driver.press("enter")
+        form = await _adds(app, driver)
+        # The first CLI and its first way in, which for Claude Code is its own login: that
+        # asks nothing else, the CLI's own login being what asks the rest -- and nothing
+        # travels, so there is nothing to ask about where else it goes.
+        assert rows(app) == ["cli", "way", "name", _DONE]
+        assert form._typed_in["cli"] == "claude"
+        assert form._typed_in["way"] == "login"
+        # The name is written for you, and the cursor is on the first question.
+        assert form._typed_in["name"] == "login"
+        assert form.under() == "cli"
 
-        await until(lambda: isinstance(app.screen, Ways), driver)
-        ways = app.screen.query_one("#choices", OptionList)
-        await until(lambda: bool(ways.options), driver)
-        assert str(ways.get_option_at_index(0).id) == "=login"
-        await driver.press("enter")
-
-        # Only what to call it: the way that signs in to an account asks nothing else, the
-        # CLI's own login being what asks the rest.
-        await _writes(app, driver, "", *"mine")
+        await _writes(app, driver, "name", *"mine")
         await _answers(app, driver)
 
-        # And the sheet is still the sheet, with the new one on it.
+        # And the page is still the page, with the new one on it and the cursor on it.
         await until(lambda: isinstance(app.screen, Providers), driver)
         await until(
             lambda: "mine" in [one.name for one in providers.providers("claude")],
             driver,
         )
+        await until(lambda: under(app) == "claude/mine", driver)
         await driver.press("escape")
         await until(lambda: not isinstance(app.screen, Providers), driver)
         said = transcript(app)
@@ -263,25 +274,20 @@ async def test_deepseek_offers_its_own_ways_and_no_env_from_providers() -> None:
     app = Humanize()
     async with app.run_test() as driver:
         await into_settings(app, driver, 2)
-        await _adds(app, driver)
-        await until(lambda: isinstance(app.screen, Backends), driver)
-        await until(lambda: "dsh" in ids(app), driver)
-        await onto(app, driver, "dsh")
-        await driver.press("enter")
+        form = await _adds(app, driver)
+        await _chooses(app, driver, "cli", "dsh")
 
-        await until(lambda: isinstance(app.screen, Ways), driver)
-        ways = app.screen.query_one("#choices", OptionList)
-        # Its own two, and no `=env`: dsh is the one backend that takes no variables of
+        # Its own two, and no `env`: dsh is the one backend that takes no variables of
         # somebody's own, so the ways it names are the whole of what it offers.
-        assert [str(option.id) for option in ways.options] == ["=key", "=gateway"]
-        assert "DeepSeek API key" in str(ways.get_option_at_index(0).prompt)
-        assert "endpoint speaking" in str(ways.get_option_at_index(1).prompt)
+        assert list(form.choices("way")) == ["key", "gateway"]
+        assert form._typed_in["way"] == "key"
+        listing = app.screen.query_one("#choices", OptionList)
+        assert "DeepSeek API key" in str(listing.get_option("=way").prompt)
+        await _chooses(app, driver, "way", "gateway")
+        assert "endpoint speaking" in str(listing.get_option("=way").prompt)
 
         await driver.press("escape")
-        await until(lambda: isinstance(app.screen, Backends), driver)
-        await driver.press("escape")
-        await until(lambda: isinstance(app.screen, Providers), driver)
-        await driver.press("escape")
+        await until(lambda: isinstance(app.screen, Confirms | Providers), driver)
 
 
 @pytest.mark.timeout(60)
@@ -292,30 +298,17 @@ async def test_a_secret_is_never_drawn_back(signed_in: unittest.mock.MagicMock) 
     async with app.run_test() as driver:
         await into_settings(app, driver, 2)
         await _adds(app, driver)
-        await until(lambda: isinstance(app.screen, Backends), driver)
-        await until(
-            lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
-        )
-        await driver.press("enter")
 
         # `key`, which is a variable rather than a login: it asks, and nothing is run.
-        await until(lambda: isinstance(app.screen, Ways), driver)
-        ways = app.screen.query_one("#choices", OptionList)
-        await until(lambda: bool(ways.options), driver)
-        await driver.press("down", "down")
-        await driver.pause()
-        assert str(ways.get_option_at_index(ways.highlighted or 0).id) == "=key"
-        await driver.press("enter")
-
-        await _writes(app, driver, "", *"mine")
+        await _chooses(app, driver, "way", "key")
+        await _writes(app, driver, "name", *"mine")
         await _writes(app, driver, "ANTHROPIC_API_KEY", *"sk-secret")
         form = app.screen.query_one("#choices", OptionList)
-        rows = [str(option.prompt) for option in form.options]
-        assert all("sk-secret" not in row for row in rows)
-        assert any("•" * len("sk-secret") in row for row in rows)
+        drawn = [str(option.prompt) for option in form.options]
+        assert all("sk-secret" not in row for row in drawn)
+        assert any("•" * len("sk-secret") in row for row in drawn)
 
         await _answers(app, driver)
-        await _no_copies(app, driver)
         await until(lambda: isinstance(app.screen, Providers), driver)
         await driver.press("escape")
         await until(lambda: not isinstance(app.screen, Providers), driver)
@@ -333,25 +326,19 @@ async def test_a_pasted_secret_is_stored_without_its_trailing_newline() -> None:
     async with app.run_test() as driver:
         await into_settings(app, driver, 2)
         await _adds(app, driver)
-        await until(lambda: isinstance(app.screen, Backends), driver)
-        await until(lambda: "dsh" in ids(app), driver)
-        await onto(app, driver, "dsh")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Ways), driver)
-        await driver.press("enter")
-        await _writes(app, driver, "", *"mine")
+        await _chooses(app, driver, "cli", "dsh")
+        await _writes(app, driver, "name", *"mine")
         form = app.screen.query_one("#choices", OptionList)
-        # Pasted while the key is being written, which is where a paste lands.
-        await onto(app, driver, f"{_ASKED}DEEPSEEK_API_KEY")
-        await driver.press("enter")
-        await driver.pause()
+        # Pasted onto the row the key is kept under, which is where a paste lands: onto a
+        # written row, begun on as typing into one begins it.
+        await onto(app, driver, "DEEPSEEK_API_KEY")
         form.post_message(events.Paste("sk-pasted\r\nignored"))
         await driver.pause()
         await driver.press("enter")
         await driver.pause()
-        rows = [str(option.prompt) for option in form.options]
-        assert all("sk-pasted" not in row for row in rows)
-        assert any("•" * len("sk-pasted") in row for row in rows)
+        drawn = [str(option.prompt) for option in form.options]
+        assert all("sk-pasted" not in row for row in drawn)
+        assert any("•" * len("sk-pasted") in row for row in drawn)
         await _answers(app, driver)
         await until(lambda: isinstance(app.screen, Providers), driver)
 
@@ -377,21 +364,9 @@ async def test_variables_of_your_own_are_given_a_line_apiece(
     async with app.run_test() as driver:
         await into_settings(app, driver, 2)
         await _adds(app, driver)
-        await until(lambda: isinstance(app.screen, Backends), driver)
-        await until(
-            lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
-        )
-        await driver.press("enter")
         # `env`, the way every backend has: variables of its own, which is the last of them.
-        await until(lambda: isinstance(app.screen, Ways), driver)
-        ways = app.screen.query_one("#choices", OptionList)
-        await until(lambda: bool(ways.options), driver)
-        await driver.press("up")  # round the end of the list, onto the last row
-        await driver.pause()
-        assert str(ways.get_option_at_index(ways.highlighted or 0).id) == "=env"
-        await driver.press("enter")
-
-        await _writes(app, driver, "", *"mine")
+        await _chooses(app, driver, "way", "env")
+        await _writes(app, driver, "name", *"mine")
         # The variables, which is where a list goes.
         await _writes(
             app,
@@ -491,14 +466,15 @@ async def test_an_account_can_be_made_from_the_sheet_that_asks_for_one(
         # Nothing to choose but this machine's own, which is where somebody finds out.
         assert rows(app) == ["", _ADD]
 
-        await _adds(app, driver)
-        # Straight to the ways in: the backend is the one the agent is already on.
-        await until(lambda: isinstance(app.screen, Ways), driver)
-        await driver.press("down", "down", "enter")  # `key`, which asks for one thing
-        await _writes(app, driver, "", *"mine")
+        await onto(app, driver, _ADD)
+        await driver.press("enter")
+        # Straight to the form, less the question of which CLI: it is the one the agent is on.
+        await until(lambda: isinstance(app.screen, Signing), driver)
+        assert rows(app)[0] == "way"
+        await _chooses(app, driver, "way", "key")
+        await _writes(app, driver, "name", *"mine")
         await _writes(app, driver, "ANTHROPIC_API_KEY", *"not-a-key")
         await _answers(app, driver)
-        await _no_copies(app, driver)
 
         # Back to the agent, with the account made and given to it: making one here is
         # choosing it, so the row it was asked from is answered.
@@ -511,6 +487,10 @@ async def test_an_account_can_be_made_from_the_sheet_that_asks_for_one(
             ),
             driver,
         )
+        # And its CLI asked what it runs from here, without holding up the list it was
+        # chosen on: what the model row offers is that account's.
+        await until(lambda: ("claude", "mine") in asked, driver)
+        await until(lambda: not cast("Agent", app.screen)._said, driver)
         await keeps(app, driver)
         await keeps(app, driver)
         await driver.pause()
@@ -526,20 +506,12 @@ async def test_an_account_can_be_made_from_the_sheet_that_asks_for_one(
 
 
 @pytest.mark.timeout(60)
-async def test_walking_out_of_the_ways_steps_back_into_the_backends() -> None:
-    """Esc is the step before, and the step before the ways is which CLI they are of."""
+async def test_walking_out_of_the_form_makes_nothing() -> None:
+    """Esc off a form nothing was written into is the page again, with nothing written down."""
     app = Humanize()
     async with app.run_test() as driver:
         await into_settings(app, driver, 2)
         await _adds(app, driver)
-        await until(lambda: isinstance(app.screen, Backends), driver)
-        await until(
-            lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
-        )
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Ways), driver)
-        await driver.press("escape")
-        await until(lambda: isinstance(app.screen, Backends), driver)
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Providers), driver)
         await driver.press("escape")
@@ -562,8 +534,9 @@ async def test_making_one_and_walking_out_of_it_changes_nothing(
         await into_agent(app, driver)
         await opens(app, driver, "provider")
         await until(lambda: isinstance(app.screen, Accounts), driver)
-        await _adds(app, driver)
-        await until(lambda: isinstance(app.screen, Ways), driver)
+        await onto(app, driver, _ADD)
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Signing), driver)
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Accounts), driver)
         # And esc off the accounts is back on the agent, which was not changed by looking.
@@ -635,16 +608,18 @@ async def test_the_first_row_leaves_the_agent_running_as_this_machine(
 
 
 @pytest.mark.timeout(60)
-async def test_walking_out_of_the_accounts_makes_nothing_and_loses_nothing() -> None:
-    """Esc is the step before, and the step before the first one is out."""
+async def test_walking_out_of_a_form_written_into_asks_and_loses_nothing() -> None:
+    """What was typed took typing, so walking out of it asks -- and discarding keeps nothing."""
     _account()
     app = Humanize()
     async with app.run_test() as driver:
         await into_settings(app, driver, 2)
 
         await _adds(app, driver)
-        await until(lambda: isinstance(app.screen, Backends), driver)
+        await _writes(app, driver, "name", *"other")
         await driver.press("escape")
+        await until(lambda: isinstance(app.screen, Confirms), driver)
+        await driver.press("down", "enter")  # discard
         # Back to the accounts, which is where making one was asked for.
         await until(lambda: isinstance(app.screen, Providers), driver)
         await driver.press("escape")
@@ -695,8 +670,9 @@ async def test_signing_in_again_asks_only_what_is_not_written_down(
         await until(lambda: isinstance(app.screen, Signing), driver)
         form = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(form.options), driver)
-        # And only that: what to call an account that already has a name is not a question.
-        assert rows(app) == [f"{_ASKED}OPENAI_API_KEY", _DONE]
+        # And only that: what to call an account that already has a name is not a question,
+        # and nor is where else it goes.
+        assert rows(app) == ["OPENAI_API_KEY", _DONE]
 
         await _writes(app, driver, "OPENAI_API_KEY", *"sk-1")
         await _answers(app, driver)
@@ -724,12 +700,12 @@ async def test_correcting_what_one_holds_is_held_until_the_menu_is_saved() -> No
         form = app.screen.query_one("#choices", OptionList)
         # Only what the way asks, and a secret starts blank: it is on its way into a
         # credential store, and nothing reads one back out to be corrected in place.
-        assert rows(app) == [f"{_ASKED}OPENAI_API_KEY", _DONE]
+        assert rows(app)[0] == "OPENAI_API_KEY"
         assert "old" not in str(form.get_option_at_index(0).prompt)
+        assert "blank keeps the one it has" in str(form.get_option_at_index(0).prompt)
 
         await _writes(app, driver, "OPENAI_API_KEY", *"new")
         await _answers(app, driver)
-        await _no_copies(app, driver)
         await until(lambda: isinstance(app.screen, Providers), driver)
         await until(
             lambda: "is corrected when this menu is saved" in _under(app), driver
@@ -748,7 +724,46 @@ async def test_correcting_what_one_holds_is_held_until_the_menu_is_saved() -> No
 
 
 @pytest.mark.timeout(60)
-async def test_where_one_falls_back_to_is_chosen_and_held_until_the_menu_is_saved() -> (
+async def test_a_secret_left_blank_while_correcting_keeps_the_one_it_has() -> None:
+    """Correcting the endpoint of a gateway is not a reason to type its key again."""
+    providers.add(
+        "claude",
+        "gate",
+        way="gateway",
+        env={
+            "ANTHROPIC_AUTH_TOKEN": "sk-kept",
+            "ANTHROPIC_BASE_URL": "https://old.test",
+        },
+    )
+    app = Humanize()
+    async with app.run_test() as driver:
+        await into_settings(app, driver, 2)
+        await until(lambda: "claude/gate" in ids(app), driver)
+        await onto(app, driver, "claude/gate")
+
+        await _doing(app, driver, "corrects")
+        await until(lambda: isinstance(app.screen, Signing), driver)
+        form = cast("Signing", app.screen)
+        # What is not a secret is read back to be corrected where it stands.
+        assert form._typed_in["ANTHROPIC_BASE_URL"] == "https://old.test"
+        await onto(app, driver, "ANTHROPIC_BASE_URL")
+        await driver.press("enter", *["backspace"] * len("old.test"), *"new.test")
+        await driver.press("enter")
+        await driver.pause()
+        await _answers(app, driver)
+        await until(lambda: isinstance(app.screen, Providers), driver)
+        await keeps(app, driver)
+
+    corrected = providers.find("claude", "gate")
+    assert corrected is not None
+    assert dict(corrected.env) == {
+        "ANTHROPIC_AUTH_TOKEN": "sk-kept",
+        "ANTHROPIC_BASE_URL": "https://new.test",
+    }
+
+
+@pytest.mark.timeout(60)
+async def test_what_one_fails_over_to_is_chosen_and_held_until_the_menu_is_saved() -> (
     None
 ):
     """A name rather than a mark: each account names the next, so a turn walks a chain."""
@@ -767,11 +782,14 @@ async def test_where_one_falls_back_to_is_chosen_and_held_until_the_menu_is_save
         await until(lambda: isinstance(app.screen, Falls), driver)
         listing = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
-        # The end of the line first, and then that CLI's own other accounts -- never itself.
-        assert rows(app) == ["", "work"]
+        # A row to make one, then the end of the line, then that CLI's own other accounts
+        # -- never itself -- and the cursor on the one in force.
+        assert rows(app) == [_ADD, "", "work"]
+        assert under(app) == ""
 
         await driver.press("down", "enter")
         await until(lambda: isinstance(app.screen, Providers), driver)
+        assert "fails over to work" in _drawn(app)
         held = providers.find("codex", "spare")
         assert held is not None
         assert not held.fallback  # said, and held until the menu is saved
@@ -782,6 +800,40 @@ async def test_where_one_falls_back_to_is_chosen_and_held_until_the_menu_is_save
     chained = providers.find("codex", "spare")
     assert chained is not None
     assert chained.fallback == "work"
+
+
+@pytest.mark.timeout(60)
+async def test_an_account_to_fail_over_to_can_be_made_where_it_is_asked_for() -> None:
+    """Somebody who finds out there is no other account finds out on this sheet."""
+    from hmz.tui.pick import Falls
+
+    providers.add("codex", "work", way="key", env={"OPENAI_API_KEY": "k"})
+    app = Humanize()
+    async with app.run_test() as driver:
+        await into_settings(app, driver, 2)
+        await until(lambda: "codex/work" in ids(app), driver)
+        await onto(app, driver, "codex/work")
+        await _doing(app, driver, "falls")
+        await until(lambda: isinstance(app.screen, Falls), driver)
+        await until(lambda: "has no other account" in _under(app), driver)
+
+        await onto(app, driver, _ADD)
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Signing), driver)
+        await _chooses(app, driver, "way", "key")
+        await _writes(app, driver, "name", *"spare")
+        await _writes(app, driver, "OPENAI_API_KEY", *"sk-spare")
+        await _answers(app, driver)
+
+        # Made, and chosen: back on the page, holding the chain at it.
+        await until(lambda: isinstance(app.screen, Providers), driver)
+        await until(lambda: "codex/spare" in ids(app), driver)
+        assert "fails over to spare" in _drawn(app)
+        await keeps(app, driver)
+
+    chained = providers.find("codex", "work")
+    assert chained is not None
+    assert chained.fallback == "spare"
 
 
 @pytest.mark.timeout(60)
@@ -802,10 +854,11 @@ async def test_a_chain_pointed_at_an_account_the_same_save_takes_away_goes_nowhe
         await into_settings(app, driver, 2)
         listing = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
-        assert [str(one.id) for one in listing.options if one.id][:2] == [
-            "=codex/spare",
-            "=codex/work",
+        assert [one for one in rows(app) if "/" in one][:2] == [
+            "codex/spare",
+            "codex/work",
         ]
+        assert under(app) == "codex/spare"
 
         # `spare`, held to be taken away when this menu is saved.
         await _doing(app, driver, _TAKES_AWAY)
@@ -985,20 +1038,21 @@ async def test_the_account_this_machine_is_signed_into_is_a_row_of_its_own() -> 
         listing = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
 
-        # Last in its CLI's group: what somebody came here to read is the accounts they made.
+        # What is done about the list above it, saving below it, and in between, last in its
+        # CLI's group: what somebody came here to read is the accounts they made.
         assert [str(one.id) for one in listing.options if one.id] == [
+            f"={_ADD}",
+            f"={_SPEAKS}",
+            f"={_SEARCH}",
             "=codex/work",
             "=codex/",
-            f"={_SEARCH}",
-            f"={_ADD}",
             f"={_SAVE}",
         ]
-        # The three below them are about the list rather than accounts in it, so this
-        # machine's own is the last account rather than the last row.
-        assert "as local" in str(listing.options[-4].prompt)
-        assert "already signed in" in str(listing.options[-4].prompt)
+        mine = str(listing.get_option("=codex/").prompt)
+        assert "as local" in mine
+        assert "already signed in" in mine
 
-        await driver.press("down")  # onto it
+        await driver.press("down")  # onto it, from the first account
         await driver.pause()
 
         # Correcting it, signing it in and taking it away are not offered at all, with the
@@ -1018,12 +1072,12 @@ async def test_the_account_this_machine_is_signed_into_is_a_row_of_its_own() -> 
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Providers), driver)
 
-        # What it does take is where it falls back to.
+        # What it does take is what it fails over to.
         await _doing(app, driver, "falls")
         await until(lambda: isinstance(app.screen, Falls), driver)
         listed = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(listed.options), driver)
-        assert rows(app) == ["", "work"]
+        assert rows(app) == [_ADD, "", "work"]
 
         await driver.press("down", "enter")
         await until(lambda: isinstance(app.screen, Providers), driver)
@@ -1036,12 +1090,8 @@ async def test_the_account_this_machine_is_signed_into_is_a_row_of_its_own() -> 
 
 
 @pytest.mark.timeout(60)
-async def test_a_cli_of_your_own_is_written_down_where_the_cli_is_asked_for() -> None:
-    """Which is the moment somebody finds out their agent is not one humanize drives.
-
-    A row of the list of backends rather than a key on the list of accounts: the question it
-    answers is `which CLI`, and that is the sheet asking it.
-    """
+async def test_a_cli_of_your_own_is_written_down_from_a_row_of_its_own() -> None:
+    """Beside the row that adds an account, since what it adds is a backend rather than one."""
     from hmz.coganchor import backends
     from hmz.tui.pick import Speaks
 
@@ -1049,14 +1099,7 @@ async def test_a_cli_of_your_own_is_written_down_where_the_cli_is_asked_for() ->
     async with app.run_test() as driver:
         await into_settings(app, driver, 2)
 
-        await _adds(app, driver)
-        await until(lambda: isinstance(app.screen, Backends), driver)
-        await until(
-            lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
-        )
-        # Last, after every backend humanize drives.
-        assert rows(app)[-1].endswith("speaks")
-        await onto(app, driver, rows(app)[-1])
+        await onto(app, driver, _SPEAKS)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Speaks), driver)
 
@@ -1076,36 +1119,37 @@ async def test_an_account_several_backends_could_run_asks_which_to_write_it_down
 ):
     """One configuration, several CLIs: an Anthropic key is an Anthropic key.
 
-    Asked at the moment the account exists, since making the same key four times by hand is
-    four places to correct when it is rotated.
+    Asked on the form it is made on, since making the same key four times by hand is four
+    places to correct when it is rotated -- a row apiece, on for the ones installed here.
     """
-    from hmz.tui.pick import Alike
-
     app = Humanize()
     async with app.run_test() as driver:
         await into_settings(app, driver, 2)
 
-        await _adds(app, driver)
-        await until(lambda: isinstance(app.screen, Backends), driver)
-        await until(lambda: "claude" in ids(app), driver)
-        await onto(app, driver, "claude")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Ways), driver)
-        await onto(app, driver, "key")
-        await driver.press("enter")
-        await _writes(app, driver, "", *"shared")
+        form = await _adds(app, driver)
+        await _chooses(app, driver, "way", "key")
+        # Straight on to the one thing there is to type, past the name written for it.
+        assert form.under() == "ANTHROPIC_API_KEY"
+        await _writes(app, driver, "name", *"shared")
         await _writes(app, driver, "ANTHROPIC_API_KEY", *"sk-shared")
-        await _answers(app, driver)
 
         # And then the question this is about: which of the others hold it too.
-        await until(lambda: isinstance(app.screen, Alike), driver)
-        assert rows(app) == ["pi", "opencode", "mimo", "zcode", _DONE]
+        assert [one for one in rows(app) if one.startswith("also:")] == [
+            "also:pi",
+            "also:opencode",
+            "also:mimo",
+            "also:zcode",
+        ]
         # Nothing is installed in this suite, so nothing starts switched on.
-        await changes(app, driver, "opencode", "right")
+        assert not any(form._also(one) for one in ("pi", "opencode", "mimo", "zcode"))
+        await changes(app, driver, "also:opencode", "right")
+        assert "for opencode too" in str(
+            app.screen.query_one("#choices", OptionList).get_option(f"={_DONE}").prompt
+        )
         await _answers(app, driver)
 
         await until(lambda: isinstance(app.screen, Providers), driver)
-        await until(lambda: "runs opencode too" in _under(app), driver)
+        await until(lambda: "written down for opencode too" in _under(app), driver)
         await driver.press("escape")
         await until(lambda: not isinstance(app.screen, Providers), driver)
 
@@ -1118,26 +1162,26 @@ async def test_an_account_several_backends_could_run_asks_which_to_write_it_down
 
 @pytest.mark.timeout(60)
 async def test_correcting_one_corrects_the_copies_it_was_made_for() -> None:
-    """Which is the point of copying it: a key rotated is a key rotated everywhere, said once."""
-    from hmz.tui.pick import Alike
+    """Which is the point of copying it: a key rotated is a key rotated everywhere, said once.
 
+    The copies start switched on where a copy is: those are the ones holding the old key.
+    """
     one = providers.add("claude", "shared", "key", {"ANTHROPIC_API_KEY": "old"})
     providers.copies(one, "opencode")
     app = Humanize()
     async with app.run_test() as driver:
         await into_settings(app, driver, 2)
-        await until(
-            lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
-        )
+        await until(lambda: "claude/shared" in ids(app), driver)
         await onto(app, driver, "claude/shared")
 
         await _doing(app, driver, "corrects")
+        await until(lambda: isinstance(app.screen, Signing), driver)
+        form = cast("Signing", app.screen)
+        assert form._also("opencode")
+        assert not form._also("pi")
         await _writes(app, driver, "ANTHROPIC_API_KEY", *"new")
         await _answers(app, driver)
 
-        await until(lambda: isinstance(app.screen, Alike), driver)
-        await changes(app, driver, "opencode", "right")
-        await _answers(app, driver)
         await until(lambda: isinstance(app.screen, Providers), driver)
         # Held until the menu is saved, as every other correction is.
         held = providers.find("opencode", "shared")
@@ -1155,30 +1199,190 @@ async def test_correcting_one_corrects_the_copies_it_was_made_for() -> None:
 
 @pytest.mark.timeout(60)
 async def test_an_account_that_travels_nowhere_is_not_asked_about() -> None:
-    """A sheet with nothing on it is not a question, so a subscription is never asked."""
-    from hmz.tui.pick import Alike
-
+    """A subscription is never asked about, and one left switched off goes nowhere."""
     app = Humanize()
     async with app.run_test() as driver:
         await into_settings(app, driver, 2)
         await _adds(app, driver)
-        await until(lambda: isinstance(app.screen, Backends), driver)
-        await until(lambda: "dsh" in ids(app), driver)
-        await onto(app, driver, "dsh")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Ways), driver)
-        await driver.press("enter")  # its one way: a key
-        await _writes(app, driver, "", *"only")
+        # A login writes the CLI's own store, which nothing else reads.
+        assert not [one for one in rows(app) if one.startswith("also:")]
+
+        await _chooses(app, driver, "cli", "dsh")
+        # DeepSeek's key is read by pi and opencode, so those are asked about -- off, since
+        # neither is installed here -- and left off.
+        assert [one for one in rows(app) if one.startswith("also:")] == [
+            "also:pi",
+            "also:opencode",
+        ]
+        await _writes(app, driver, "name", *"only")
         await _writes(app, driver, "DEEPSEEK_API_KEY", *"sk-only")
         await _answers(app, driver)
-
-        # DeepSeek's key is read by pi and opencode, so that one is asked about; a
-        # subscription is not. Walk out of it, which copies it nowhere.
-        await until(lambda: isinstance(app.screen, Alike), driver)
-        await driver.press("escape")
         await until(lambda: isinstance(app.screen, Providers), driver)
         await driver.press("escape")
         await until(lambda: not isinstance(app.screen, Providers), driver)
 
     assert providers.find("dsh", "only") is not None
     assert providers.find("pi", "only") is None
+
+
+@pytest.mark.timeout(60)
+async def test_the_name_written_for_an_account_is_one_nothing_is_called() -> None:
+    """The way in, unless an account of any CLI is called that: a copy must not write over one."""
+    providers.add("pi", "key", way="env", env={"ANTHROPIC_API_KEY": "theirs"})
+    app = Humanize()
+    async with app.run_test() as driver:
+        await into_settings(app, driver, 2)
+        form = await _adds(app, driver)
+        await _chooses(app, driver, "way", "key")
+
+        assert form._typed_in["name"] == "key-2"
+        # And typing into it replaces what was written for it, rather than landing after it.
+        await onto(app, driver, "name")
+        await driver.press(*"work")
+        await driver.pause()
+        assert form._typed_in["name"] == "work"
+
+
+@pytest.mark.timeout(60)
+async def test_typing_on_a_row_of_the_form_writes_it_and_enter_moves_on() -> None:
+    """A form of questions takes letters as answers: no enter to begin each one."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        await into_settings(app, driver, 2)
+        form = await _adds(app, driver)
+        await _chooses(app, driver, "way", "key")
+        assert form.under() == "ANTHROPIC_API_KEY"
+        assert "type to write" in str(app.screen.query_one("#keys", Label).content)
+
+        await driver.press(*"sk-typed")
+        await driver.pause()
+        assert form._editing == "ANTHROPIC_API_KEY"
+        await driver.press("enter")
+        await driver.pause()
+
+        # Kept, and on to what is left, which is nothing but answering it.
+        assert form._typed_in["ANTHROPIC_API_KEY"] == "sk-typed"
+        assert form.under() == _DONE
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Providers), driver)
+
+    made = providers.find("claude", "key")
+    assert made is not None
+    assert dict(made.env) == {"ANTHROPIC_API_KEY": "sk-typed"}
+
+
+@pytest.mark.timeout(60)
+async def test_what_a_new_account_runs_is_asked_after_it_lands_and_said(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Asked without holding the page up, and what came of it -- and why -- said under it."""
+    import threading
+
+    import hmz.coganchor.models
+
+    let_go = threading.Event()
+
+    def refuses(
+        cli: str, provider: str = "", seconds: float = 0.0
+    ) -> tuple[Model, ...]:
+        let_go.wait(10)
+        message = f"{cli} exited 1: \x1b[31mnot signed in\x1b[0m"
+        raise RuntimeError(message)
+
+    monkeypatch.setattr(hmz.coganchor.models, "ask", refuses)
+    app = Humanize()
+    async with app.run_test() as driver:
+        await into_settings(app, driver, 2)
+        await _adds(app, driver)
+        await _chooses(app, driver, "way", "key")
+        await _writes(app, driver, "ANTHROPIC_API_KEY", *"sk-x")
+        await _answers(app, driver)
+
+        await until(lambda: isinstance(app.screen, Providers), driver)
+        await until(lambda: "asking claude what it runs as key" in _under(app), driver)
+        assert "asking what it runs" in _drawn(app)
+
+        # Read another page meanwhile: what it said lands on the page it was asked from.
+        sheet = app.screen
+        assert isinstance(sheet, Providers)
+        await driver.press("right")
+        await until(lambda: sheet._tab == 3, driver)
+        let_go.set()
+        await until(lambda: not sheet._asking, driver)
+        assert "did not say what it runs" not in _under(app)
+        await driver.press("left")
+        await until(lambda: "did not say what it runs" in _under(app), driver)
+
+        # The reason, as words rather than a terminal's colours.
+        assert "not signed in" in _under(app)
+        assert "\x1b" not in _under(app)
+        assert "asking what it runs" not in _drawn(app)
+
+
+@pytest.mark.timeout(60)
+async def test_variables_typed_for_one_way_are_not_written_down_for_another() -> None:
+    """What is on no row of the form when it is answered is not part of the answer."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        await into_settings(app, driver, 2)
+        await _adds(app, driver)
+        await _chooses(app, driver, "way", "env")
+        await _writes(app, driver, " ", *"FOO=bar")
+        await _chooses(app, driver, "way", "key")
+        assert " " not in rows(app)
+        await _writes(app, driver, "ANTHROPIC_API_KEY", *"sk-only")
+        await _answers(app, driver)
+        await until(lambda: isinstance(app.screen, Providers), driver)
+
+    made = providers.find("claude", "key")
+    assert made is not None
+    assert dict(made.env) == {"ANTHROPIC_API_KEY": "sk-only"}
+
+
+@pytest.mark.timeout(60)
+async def test_a_search_for_the_end_of_the_line_lands_on_it() -> None:
+    """`nowhere` answers with nothing, which a search must still be able to land on."""
+    from hmz.tui.pick import Falls
+
+    providers.add("codex", "work", way="key", env={"OPENAI_API_KEY": "k"})
+    app = Humanize()
+    async with app.run_test() as driver:
+        await into_settings(app, driver, 2)
+        await until(lambda: "codex/work" in ids(app), driver)
+        await onto(app, driver, "codex/work")
+        await _doing(app, driver, "falls")
+        await until(lambda: isinstance(app.screen, Falls), driver)
+        await until(lambda: _SEARCH in ids(app), driver)
+        await onto(app, driver, _SEARCH)
+        await driver.press("enter", *"nowh")
+        await driver.pause()
+
+        assert under(app) == ""
+
+
+@pytest.mark.timeout(60)
+@unittest.mock.patch("hmz.coganchor.providers.login.sign_in", return_value=1)
+async def test_an_account_to_fail_over_to_whose_login_failed_says_so(
+    signed_in: unittest.mock.MagicMock,
+) -> None:
+    """Written down, and not chosen: a login that exited badly is one to look at first."""
+    from hmz.tui.pick import Falls
+
+    del signed_in
+    providers.add("claude", "work", way="key", env={"ANTHROPIC_API_KEY": "k"})
+    app = Humanize()
+    async with app.run_test() as driver:
+        await into_settings(app, driver, 2)
+        await until(lambda: "claude/work" in ids(app), driver)
+        await onto(app, driver, "claude/work")
+        await _doing(app, driver, "falls")
+        await until(lambda: isinstance(app.screen, Falls), driver)
+        await onto(app, driver, _ADD)
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Signing), driver)
+        await _writes(app, driver, "name", *"sub")
+        await _answers(app, driver)
+
+        await until(lambda: isinstance(app.screen, Falls), driver)
+        await until(lambda: "signing it in exited 1" in _under(app), driver)
+        assert "sub" in rows(app)

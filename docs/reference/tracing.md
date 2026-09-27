@@ -199,7 +199,7 @@ call with what it called under `calls`.
 
 An agent's turn is mostly other programs: the tests, the build, a grep. None of that is in a
 backend's log, which records the tool call rather than the process. A workspace may have its
-runs **profiled** as well as traced, on the second page of `/settings`:
+runs **profiled** as well as traced, on the second page of `/settings` (`/settings directory`):
 
 ```
 3. profile          on   profile the programs a run here starts

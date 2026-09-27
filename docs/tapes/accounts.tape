@@ -1,4 +1,4 @@
-# The Accounts page of `/settings`: what there is to do with one account, and where a CLI of your own goes.
+# The Accounts page of `/settings`: what there is to do with one account, and the form a new one is made on.
 #
 # The account this walks over was made by `stage.py` at a reserved-invalid endpoint with the
 # words `not-a-real-token`. Nothing here signs in to anything, and no value is ever drawn.
@@ -21,12 +21,10 @@ Show
 
 Sleep 400ms
 
-# Every account there is, under a heading per CLI. The names of the variables each sets,
-# and never a value: this is drawn where somebody can read it.
-Type "/settings" Enter
-Wait+Screen /Settings/
-Tab
-Tab
+# Every account there is, under a heading per CLI, with what is done about the list above it.
+# The names of the variables each sets, and never a value: this is drawn where somebody can
+# read it.
+Type "/settings accounts" Enter
 Wait+Screen /as local/
 Sleep 1400ms
 
@@ -42,10 +40,12 @@ Sleep 400ms
 Escape
 Sleep 700ms
 
-# And `a` asks which CLI a new account is for -- which is also where a CLI of your own that
-# speaks ACP is written down, since that is the question it answers.
-Type "a"
-Wait+Screen /which coding agent/
+# And `add an account`, the top row, is one form: which CLI, which way in, a name written in
+# for you, and what that way asks. Nothing is typed into it here.
+Up 3
+Sleep 500ms
+Enter
+Wait+Screen /Add an account/
 Sleep 1400ms
-Screenshot "/out/account-backends.png"
+Screenshot "/out/account-form.png"
 Sleep 400ms
