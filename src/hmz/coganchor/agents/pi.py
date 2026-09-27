@@ -27,6 +27,8 @@ from .preload import preloaded
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
 
+    from pydantic import BaseModel
+
 #: What each kind of thing pi says a turn did reads as. A message is a list of parts and pi
 #: says each of them three times -- as it starts, once per fragment, and once with the whole
 #: of it -- and for words the end is the only one worth reading: a row per fragment is one
@@ -422,6 +424,16 @@ class PiSession(StreamSessionBase):
             self.unsteered(text)  # nothing is coming back for a word that never went in
             raise
 
+    def _stream(
+        self, prompt: str, *, schema: type[BaseModel] | None = None
+    ) -> Iterator[Event]:
+        """The turn, knowing which thread is taking it for as long as it does."""
+        self._reading = threading.get_ident()
+        try:
+            yield from super()._stream(prompt, schema=schema)
+        finally:
+            self._reading = 0
+
     def _cuts(self) -> None:
         """Has pi abort the run first, and then ends its process as every one held open is.
 
@@ -457,7 +469,6 @@ class PiSession(StreamSessionBase):
           of a message still being written, a tool's result coming back, or an answer to a
           command nobody is waiting on.
         """
-        self._reading = threading.get_ident()
         try:
             said: dict[str, Any] = json.loads(line)
         except json.JSONDecodeError:
