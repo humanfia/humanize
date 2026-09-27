@@ -363,7 +363,7 @@ async def test_an_outworlder_there_answers() -> None:
 
 async def test_an_outworlder_who_goes_away_while_asked_is_answered_for() -> None:
     class Leaving(FakeOutworlder):
-        async def run(self, prompt: str, output_schema: Any) -> Any:
+        async def run(self, prompt: str, output_schema: Any, role: str = "") -> Any:
             raise OutworlderAway("gone")
 
     assert await run_fake(ask_human, "hi?", outworlder=Leaving()) == [
@@ -387,13 +387,54 @@ async def test_an_outworlder_s_wrong_answer_is_refused() -> None:
             await human.run(task, session=session, output_schema=Required)
 
     class Wrong:
-        away = False
+        def away_for(self, role: str) -> bool:
+            del role
+            return False
 
-        async def run(self, prompt: str, output_schema: Any) -> Any:
-            del prompt, output_schema
+        async def run(self, prompt: str, output_schema: Any, role: str) -> Any:
+            del prompt, output_schema, role
             return {"x": 1}
 
     await run_fake(asking, outworlder=Wrong())
+
+
+async def test_an_outworlder_asks_as_the_role_the_run_filled() -> None:
+    """Handed on under another name, it is still the one person, away or here as that role."""
+
+    class Roles(AgentCollection):
+        guide: Outworlder
+
+    class Asked:
+        def __init__(self) -> None:
+            self.roles: list[str] = []
+
+        def away_for(self, role: str) -> bool:
+            return role != "guide"
+
+        async def run(self, prompt: str, output_schema: Any, role: str) -> Any:
+            del prompt, output_schema
+            self.roles.append(role)
+            return "here"
+
+    @flow(agents=Human, envs=Place, params=Nothing)
+    async def asking(
+        task: str, *, agents: Human, envs: Place, params: Nothing, ctx: FlowContext
+    ) -> list[Any]:
+        human = agents["human"]
+        session = await human.spawn(env=envs["env"])
+        return [human.away, await human.run(task, session=session)]
+
+    @flow(agents=Roles, envs=Place, params=Nothing)
+    async def handing(
+        task: str, *, agents: Roles, envs: Place, params: Nothing, ctx: FlowContext
+    ) -> list[Any]:
+        return await asking(
+            task, agents={"human": agents["guide"]}, envs=envs, params=params
+        )
+
+    person = Asked()
+    assert await run_fake(handing, "hi?", outworlder=person) == [False, "here"]
+    assert person.roles == ["guide"]
 
 
 async def test_an_outworlder_is_what_it_is() -> None:

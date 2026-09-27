@@ -776,7 +776,8 @@ class Monitoring(Screen[str | None]):
         if action == "turn":
             return True
         offering = any(
-            one.has_class("offering") for one in self.query("#offers").results(OptionList)
+            one.has_class("offering")
+            for one in self.query("#offers").results(OptionList)
         )
         return not (self._typed() or offering)
 

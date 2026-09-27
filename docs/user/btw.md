@@ -18,7 +18,7 @@ const below = [
   { rule: true },
   {
     l: '[c]·|·[/] actor… [m](51s · ctrl+c twice to stop)[/]',
-    keys: 'tab agent · / commands · shift+enter newline · ← monitor · ctrl+c stop',
+    keys: 'shift+tab view · / commands · shift+enter newline · ← monitor · ctrl+c stop',
   },
 ]
 

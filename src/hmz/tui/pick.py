@@ -525,8 +525,6 @@ class Sheet[T](ModalScreen[T | None]):
     #: Kept so that working it out again changes nothing where nothing has changed: setting
     #: it is what changes the height that asks for it to be worked out.
     _room: int | None = None
-    #: Which row a key that has to be pressed twice has been pressed once on, or "" for none.
-    _arming = ""
     #: Whether this sheet has answered already. A key pressed twice before the first press
     #: has been handled is two answers to one question, and the second of them pops the sheet
     #: underneath this one -- which is a crash on the first start, where the question about
@@ -1109,10 +1107,6 @@ class Sheet[T](ModalScreen[T | None]):
         if event.option_index == self._drawn:
             return
         self._drawn = event.option_index
-        # A key that has to be pressed twice is armed against the row it was pressed on, so
-        # moving off that row puts it down again: the second press must be a second press at
-        # the same thing, or it is a stray keypress taking something else away.
-        self._arming = ""
         self._fill()
 
     def under(self) -> str:
@@ -1140,33 +1134,6 @@ class Sheet[T](ModalScreen[T | None]):
         """
         held = self.under()
         return held if held in _APART else ""
-
-    def _armed(self, what: str) -> bool:
-        """Whether a key that has to be pressed twice has been pressed once already.
-
-        For a key that acts where it is pressed: the first press arms the row under the
-        cursor and says what the second one does, and the second one does it. Moving the
-        cursor puts it down again -- see :meth:`_moved` -- which is what makes a stray
-        keypress harmless.
-
-        Where a row opens onto what it is, taking it away is a row of that sheet instead of a
-        key of this one, and nothing here is armed: a row somebody walked to and chose has
-        already been chosen once, and asking a second time about a walk is asking twice about
-        a thing nobody pressed by accident. What is left is the board on `/monitor`, whose
-        rows are lines of text rather than menus and whose taking-away is on the spot and read
-        by a flow that may be looking at the board on its next line.
-
-        Args:
-          what: The row, by its id.
-
-        Returns:
-          True if this is the second press and the thing is to go.
-        """
-        if self._arming == what:
-            self._arming = ""
-            return True
-        self._arming = what
-        return False
 
     def opening(self) -> bool:
         """Whether a walk out of this sheet is already open, so this press is a second at it.
@@ -1329,6 +1296,8 @@ class Declared(NamedTuple):
       unbounded: Whether a run of it needs no budget: a flow humanize ships -- `chat`, a
         conversation, which stops when the person does.
       resumable: Whether a run of it can be picked up where it left off.
+      outworlders: The `Outworlder` roles, by name, in the order the flow declares them:
+        whoever is at this prompt, once apiece, each with a transcript of what it asks.
     """
 
     agents: tuple[AgentRole, ...]
@@ -1336,6 +1305,7 @@ class Declared(NamedTuple):
     params: type[BaseModel]
     unbounded: bool = False
     resumable: bool = False
+    outworlders: tuple[str, ...] = ()
 
     @property
     def roles(self) -> tuple[str, ...]:
@@ -1375,6 +1345,7 @@ def declared_of(flow: str) -> Declared | None:
         said.params,
         unbounded=unbounded,
         resumable=said.resumable,
+        outworlders=tuple(one.name for one in said.agents if one.auto),
     )
 
 
@@ -2048,7 +2019,7 @@ class Flows(Drafts[Chosen]):
         """
         self._inside = inside
         self._typed, self._searching = "", False
-        self._arming, self._said, self._below = "", "", ""
+        self._said, self._below = "", ""
         self.query_one("#choices", OptionList).highlighted = 0
         self._drawn = 0
         self._fill()
@@ -2180,7 +2151,7 @@ class Flows(Drafts[Chosen]):
         self._where = wheres[(at + by) % len(wheres)]
         # What a key was armed against and what a fetch had to say were both about the place
         # being stepped off, and neither is about the one being stepped on to.
-        self._was, self._arming, self._said = "", "", ""
+        self._was, self._said = "", ""
         self._fill()
 
     def _flows_page(self) -> None:

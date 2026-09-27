@@ -552,7 +552,7 @@ def _agent(
             raise CapabilityMissing(
                 f"{flow.ref}: {role.name!r} asks for what no outworlder can do"
             )
-        return OutworlderView(person._source, node, role.name)
+        return OutworlderView(person._source, node, role.name, person._asker)
     raise RequirementError(
         f"{flow.ref}: {role.name!r} was given {given!r}, which is not an agent the run "
         "handed out"

@@ -11,7 +11,7 @@ const below = [
   { rule: true },
   {
     l: '[c]·|·[/] builder, tester… [m](72s · ctrl+c twice to stop)[/]',
-    keys: 'tab agent · / commands · shift+enter newline · ← monitor · ctrl+c stop',
+    keys: 'shift+tab view · / commands · shift+enter newline · ← monitor · ctrl+c stop',
   },
 ]
 const said = {
@@ -53,9 +53,9 @@ const reading = [
       'Where the screen opens: every agent\'s work in the order it happens, with a <code>── name</code> line wherever the speaker changes.',
   },
   {
-    label: 'reading builder',
+    label: 'reading builder · conversation 1',
     lines: [
-      { t: '[dim]─ reading builder ─[/]', hl: true },
+      { t: '[dim]─ reading builder · conversation 1 ─[/]', hl: true },
       ...said.builder,
       '',
       { r: `[m]${b} · reading[/]`, hl: true },
@@ -63,33 +63,34 @@ const reading = [
       ...below,
     ],
     caption:
-      'One agent\'s own transcript, drawn from the top. <code>unread</code> marks the other agent: it has said something you have not seen.',
+      'One conversation\'s own transcript, drawn from the top. <code>unread</code> marks the other agent: it has said something you have not seen.',
   },
   {
-    label: 'reading tester',
+    label: 'reading tester · conversation 1',
     lines: [
-      { t: '[dim]─ reading tester ─[/]', hl: true },
+      { t: '[dim]─ reading tester · conversation 1 ─[/]', hl: true },
       ...said.tester,
       '',
       { r: `[m]${b}[/]` },
       { r: `[m]${t} · reading[/]`, hl: true },
       ...below,
     ],
-    caption: 'The next agent that is working. One more <kbd>tab</kbd> goes back to every agent.',
+    caption: 'The next conversation that is running. One more <kbd>shift+tab</kbd> goes back to every agent.',
   },
 ]
 </script>
 
 # Many conversations at once
 
-When a flow drives several agents, each one gets a transcript of its own, and there is one
-more where all their work appears together. The screen opens on that one. Press
-<kbd>tab</kbd> to read one agent at a time.
+When a flow drives several agents, each conversation they hold gets a transcript of its own,
+each [outworlder](/user/questions) gets one of what it asks you, and there is one more where
+all of it appears together. The screen opens on that one, and goes back to it when a flow
+starts. Press <kbd>shift+tab</kbd> to read one at a time.
 
 ## Try it
 
 A project flow runs a `builder` and a `tester` side by side. Press the keys to step through
-the transcripts, as <kbd>tab</kbd> does:
+the transcripts, as <kbd>shift+tab</kbd> does:
 
 <TermScreen title="hmz · local/pair" :frames="reading" :keys="['shift+tab', 'tab']" />
 
@@ -97,13 +98,17 @@ the transcripts, as <kbd>tab</kbd> does:
 
 | Key | Reads |
 | --- | --- |
-| <kbd>tab</kbd> | The next agent that is working, then round to every agent again. |
-| <kbd>shift+tab</kbd> | The one before. |
-| <kbd>←</kbd>, then <kbd>enter</kbd> on a box | Any agent, working or not, picked on [the monitor](/user/monitor). |
+| <kbd>shift+tab</kbd> | The next conversation that is running, then each outworlder of the flow, then round to every agent again. |
+| <kbd>tab</kbd> | The one before. |
+| <kbd>←</kbd>, then <kbd>enter</kbd> on a box | Any agent or conversation, working or not, picked on [the monitor](/user/monitor). |
 
-<kbd>tab</kbd> steps only between agents that are working, so with ten agents it skips the ones
-that are idle. Once you are reading an agent, you stay on it after its turn ends, until you
-press a key. To reach one that has stopped, or has not started yet, use the monitor.
+<kbd>shift+tab</kbd> steps only between conversations that are running, so with ten agents it
+skips the ones that are idle. Once you are reading a conversation, you stay on it after its
+turn ends, until you press a key. To reach one that has ended, or an agent that has not
+started yet, use the monitor.
+
+An outworlder's transcript holds only what that outworlder puts to you, and a line typed there
+answers it. See [Questions](/user/questions).
 
 ## What the lines above the editor say
 
@@ -129,15 +134,17 @@ Nothing is marked `unread` while you read every agent, since everything is on th
 ## One agent, many conversations
 
 An agent can hold many conversations. A Ralph loop opens a fresh one every round, and a
-fan-out holds several at once. They all run down that agent's one transcript, and the screen
-is never wiped when a new one opens. When an agent holds more than one, each turn says which:
+fan-out holds several at once. Each has a transcript of its own, numbered in the order the
+agent opened them, and they all run down that agent's one transcript too, which is never wiped
+when a new one opens. When an agent holds more than one, each turn says which:
 
 ```
 ● worker is working · conversation 2 of 3
 ```
 
 ::: details How much the screen keeps
-The last 16 transcripts, and the last 2,000 lines of each. Anything older is gone from the
+The last 32 transcripts, a conversation's going before an agent's, and the last 2,000 lines of
+each. Anything older is gone from the
 screen but not from the run's [trace](/user/tracing).
 :::
 

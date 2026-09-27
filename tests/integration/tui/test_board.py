@@ -511,7 +511,7 @@ async def test_ctrl_t_draws_a_node_per_session_and_enter_reads_one() -> None:
 
         await driver.press("down", "enter")
         await until(lambda: not isinstance(app.screen, Monitoring), driver)
-        assert app._attached == one.id  # the log of the role the session is of
+        assert app._attached == f"{one.id}/1"  # that session's own log
 
         # And it opens the way it was left.
         await _opens(app, driver)
@@ -539,10 +539,13 @@ async def test_the_person_is_a_node_of_their_own() -> None:
     """An outworlder is not an agent the flow drives, and it is read on a log of its own."""
     app = Humanize()
     async with app.run_test() as driver:
-        one, _other = _two(app)
-        person = HumanAgent()
-        app._agents = [one, person]
+        _two(app)
+        app._outworlders = ["human"]
         await _opens(app, driver)
 
-        assert _ids(app)[1] == f"{OUTWORLDER}{person.id}"
+        assert _ids(app)[1] == f"{OUTWORLDER}human"
         assert "outworlder" in _drawn(app)
+
+        await driver.press("down", "enter")
+        await until(lambda: not isinstance(app.screen, Monitoring), driver)
+        assert app._attached == f"{OUTWORLDER}human"  # what that outworlder asks

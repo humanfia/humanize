@@ -27,7 +27,11 @@ if TYPE_CHECKING:
 
     from .app import Humanize
 
-__all__ = ["Command", "hinted", "offered"]
+__all__ = ["VIEWS", "Command", "hinted", "offered"]
+
+#: Every view a command can be typed in: the monitor, the transcript every agent is on, one
+#: agent's or one conversation's, and what one outworlder asks.
+VIEWS = frozenset({"monitor", "aggregate", "session", "outworlder"})
 
 
 @dataclass(frozen=True)
@@ -53,6 +57,10 @@ class Command:
     #: written and not only what may be started. A switch takes `on` or `off` as well as
     #: being flipped, and nothing says so unless the list does. "" takes none.
     takes: str = ""
+    #: Which views it works in -- `monitor`, `aggregate` (the transcript every agent is
+    #: on), `session` (one agent's or one conversation's) and `outworlder` (what one
+    #: outworlder asks) -- offered in those and refused, saying where it works, in the rest.
+    where: frozenset[str] = VIEWS
 
 
 #: `/flow` and the name being typed after it. A third word is a line that has moved on.

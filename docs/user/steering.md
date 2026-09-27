@@ -15,7 +15,7 @@ const agents = [
 ]
 const spent = '[m]$4.12 · 38 out/s[/]'
 const status = '[c]·|·[/] actor… [m](43s · ctrl+c twice to stop)[/]'
-const keys = 'tab agent · / commands · shift+enter newline · ← monitor · ctrl+c stop'
+const keys = 'shift+tab view · / commands · shift+enter newline · ← monitor · ctrl+c stop'
 
 const steer = [
   {
@@ -30,7 +30,7 @@ const steer = [
       { rule: true },
       {
         l: status,
-        keys: 'enter say · tab agent · / commands · shift+enter newline · ← monitor · ctrl+c clear',
+        keys: 'enter say · shift+tab view · / commands · shift+enter newline · ← monitor · ctrl+c clear',
       },
     ],
     caption:
@@ -112,14 +112,15 @@ stays on the pin and goes into the next turn to start.
 
 ## Where your line goes
 
-To the agent you are reading. <kbd>tab</kbd> changes which one that is; see
+To the conversation you are reading. <kbd>shift+tab</kbd> changes which one that is; see
 [Many conversations at once](/user/conversations).
 
 | You are reading | Your line goes |
 | --- | --- |
-| an agent with a turn open | into that turn |
+| a conversation with a turn open | into that turn |
 | every agent, which is where the screen opens | into whichever turn is open |
-| an agent between turns, or nothing is working | onto the pin, then into the next turn to start |
+| a conversation between turns, or nothing is working | onto the pin, then into the next turn to start |
+| an outworlder, or every agent while a [question](/user/questions) is up | the answer to it |
 
 Lines go **one at a time, in order**. The next one goes only after the agent has taken the one
 before it, so three lines typed in a row are three things said, each answered in turn.

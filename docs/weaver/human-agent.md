@@ -124,8 +124,10 @@ can settle is settled once, in the model the flow runs on, rather than by parsin
 ## Away
 
 `human.away` says whether anybody is there to answer. A run of `hmz exec` is always away, since
-nobody is at a prompt. So is a run in the interface while [`/afk`](/user/afk) is on. An
-outworlder that is away answers at once, without asking anybody:
+nobody is at a prompt. So is a run in the interface while [`/afk`](/user/afk) is on for that
+role: each `Outworlder` role is away or here on its own, and one handed to a flow you call is
+still the role it was in yours. An outworlder that is away answers at once, without asking
+anybody:
 
 | Asked for | Answers |
 | --- | --- |

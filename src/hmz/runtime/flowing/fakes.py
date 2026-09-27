@@ -951,9 +951,18 @@ class FakeOutworlder:
         self.away = away
         self.asked: list[str] = []
 
+    def away_for(self, role: str) -> bool:
+        """Whether nobody is there, which is the same for every role."""
+        del role
+        return self.away
+
     async def run(
-        self, prompt: str, output_schema: type[pydantic.BaseModel] | None
+        self,
+        prompt: str,
+        output_schema: type[pydantic.BaseModel] | None,
+        role: str = "",
     ) -> Any:
+        del role
         self.asked.append(prompt)
         return await self._script.next(prompt, output_schema, "the outworlder")
 

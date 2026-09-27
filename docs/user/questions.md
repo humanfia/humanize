@@ -31,8 +31,13 @@ turn.
 
 ## Answering
 
-- **Any answer goes.** If the agent offered choices, they are listed with the question, but you
-  can type something else.
+- **Where you answer.** A question is shown on the transcript every agent is on and on the
+  asking outworlder's own, which <kbd>shift+tab</kbd> reaches and which holds nothing but what
+  it asks you. A line typed on either answers it: the oldest question up on the first, the
+  oldest that outworlder asks on the second. On one agent's transcript a line goes to the
+  agent instead. See [Many conversations at once](/user/conversations).
+- **Any answer goes.** If the agent offered choices, they are listed, numbered, with the
+  question, and a bare number picks one; but you can type something else.
 - **Nothing times out.** The agent waits for as long as you take.
 - **Stopping wins.** A question still up when the flow ends or is stopped ends with it.
 
@@ -55,14 +60,14 @@ what you say next. A flow that needs several answers asks for them one at a time
 
 ```text
 ● Which way should this be built?
-      · fast
-      · careful
+      1. fast
+      2. careful
    type an answer, or /afk to stop being asked
 ```
 
 | The question reads | Type |
 | --- | --- |
-| a list of choices under it | one of them |
+| a list of choices under it | one of them, or its number |
 | `yes` and `no` under it | `yes` or `no` |
 | `(a number)` | a number |
 | `(several, separated by commas)` | a list on one line: `api, cli, docs` |
@@ -73,7 +78,7 @@ If an answer is not one the flow can take, the question comes back with what was
 ## When nobody is there
 
 `/afk on` tells humanize you are away, and the status line starts with `afk` until you turn it
-off. `hmz exec` always runs this way, since nobody is at a prompt.
+off. On an outworlder's own transcript it says so for that outworlder alone. `hmz exec` always runs this way, since nobody is at a prompt.
 
 | | While you are away |
 | --- | --- |
