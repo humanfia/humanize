@@ -382,3 +382,40 @@ def test_a_run_ended_by_a_terminate_or_a_hangup_takes_its_container_down(
     assert run.returncode == 128 + ending, err
     assert "Traceback" not in err, err
     assert ["rm", "--force", "c0ffee"] in [one["argv"] for one in standin.said()]
+
+
+@pytest.mark.timeout(120)
+def test_a_hangup_somebody_chose_to_ignore_is_still_ignored(
+    standin: Standin, tmp_path: Path
+) -> None:
+    """A run started under `nohup` goes on when its terminal goes, and a terminate ends it."""
+    work = tmp_path / "work"
+    work.mkdir()
+    flow = written(tmp_path / "flows", "waits", _WAITS)
+    run = subprocess.Popen(
+        [
+            *("nohup", sys.executable, "-m", "hmz", "exec", "-f", str(flow)),
+            *("-e", f"box=docker@local{work}", "-b", "cost=1", "go"),
+        ],
+        cwd=tmp_path,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        deadline = time.monotonic() + 60
+        while not (work / "up.txt").exists():
+            assert run.poll() is None, run.communicate()
+            assert time.monotonic() < deadline, "the run never had its container"
+            time.sleep(0.1)
+        run.send_signal(signal.SIGHUP)
+        with pytest.raises(subprocess.TimeoutExpired):
+            run.wait(timeout=3)
+        run.send_signal(signal.SIGTERM)
+        _, err = run.communicate(timeout=60)
+    finally:
+        if run.poll() is None:
+            run.kill()
+
+    assert run.returncode == 128 + signal.SIGTERM, err
+    assert ["rm", "--force", "c0ffee"] in [one["argv"] for one in standin.said()]

@@ -195,22 +195,36 @@ def _ending(running: Run, ended: list[int]) -> Generator[None]:
     import signal
     import threading
 
+    # The stopping is done by a thread waiting for the word rather than on the signal's own
+    # frame, which may be holding a lock the stopping takes -- the run's, or the one
+    # threading takes to start a thread.
+    told = threading.Event()
+
+    def stops() -> None:
+        told.wait()
+        if ended:
+            running.stop()
+
     def ends(signum: int, _frame: object) -> None:
         # Once: a second is the run already letting go of what it made, which cancelling it
-        # again would cut short. Off the signal's frame, which may be holding the run's lock.
+        # again would cut short.
         if not ended:
             ended.append(signum)
-            threading.Thread(target=running.stop, daemon=True).start()
+            told.set()
 
     was: dict[int, Any] = {}
     for one in (signal.SIGTERM, signal.SIGHUP):
         with contextlib.suppress(ValueError):  # off the main thread, where none reaches
-            was[one] = signal.signal(one, ends)
+            # A signal somebody chose to have ignored -- a hangup under `nohup` -- stays so.
+            if signal.getsignal(one) != signal.SIG_IGN:
+                was[one] = signal.signal(one, ends)
+    threading.Thread(target=stops, daemon=True, name="humanize-ending").start()
     try:
         yield
     finally:
         for one, before in was.items():
             signal.signal(one, before)
+        told.set()
 
 
 def _attach(argv: list[str]) -> int:
