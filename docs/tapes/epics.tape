@@ -34,7 +34,7 @@ Sleep 400ms
 # do with it. What there is depends on the run: a flow that says it can be picked up is one
 # to carry on.
 Enter
-Wait+Screen /resume this run/
+Wait+Screen /resume run/
 Sleep 1400ms
 Screenshot "/out/epic-does.png"
 Sleep 400ms

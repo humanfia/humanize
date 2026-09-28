@@ -149,7 +149,7 @@ def test_nothing_held_here_is_said_and_nothing_is_started(
 ) -> None:
     assert cli.main(["attach"]) == 1
 
-    assert "nothing is being held in this directory" in capsys.readouterr().err
+    assert "nothing to attach to in this directory" in capsys.readouterr().err
     assert daemon.running() is None
 
 
@@ -246,7 +246,7 @@ def test_a_person_answers_what_is_theirs_by_typing_it(
     assert attaching.returncode == 0, err
     assert json.loads((workspace / "result.json").read_text())["plan"] == "a typed plan"
     assert "planner: what is the plan for the parser?" in err
-    assert "hmz attach: planner is yours to answer" in err
+    assert "hmz attach: planner is claimed by you" in err
     assert "❯ a typed plan · " in err
     assert "❯ fine · starter for reviewer" in err
     assert "— the flow is done —" in err
@@ -267,6 +267,6 @@ def test_a_person_stops_the_run_they_are_reading(starter: Starter) -> None:
 
     _, err = attaching.communicate(timeout=PATIENCE)
     assert attaching.returncode == 0, err
-    assert "no such command: /;" in err
+    assert "unknown command: /;" in err
     assert "is stopping the flow" in err
     assert "— the flow stopped —" in err

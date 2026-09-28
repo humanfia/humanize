@@ -268,8 +268,8 @@ class Runner:
         if budget is None:
             if not builtin(impl):
                 raise Refused(
-                    f"{self._named}: a run is given a budget -- -b duration=...,cost=...,"
-                    "output_tokens=... -- and this one was given none"
+                    f"{self._named} requires a budget: specify with -b "
+                    "duration=...,cost=...,output_tokens=..."
                 )
             budget = Budget(cost=math.inf)
         self._budget = budget if isinstance(budget, Budget) else _budget(budget)
@@ -300,16 +300,16 @@ class Runner:
             role = self._declared.agent(name)
             if role is None:
                 raise Refused(
-                    f"{named} has no agent role {name!r}; its agent roles are "
+                    f"{named} has no agent role {name!r}; available roles are "
                     f"{_roles(one.name for one in self._declared.agents if not one.auto)}"
                 )
             if role.auto:
                 raise Refused(
-                    f"{named}: {name!r} is filled by the runtime -- whoever is outside "
-                    "the run -- and is not given with -a"
+                    f"{named}: {name!r} is assigned automatically by the "
+                    "runtime and cannot be set with -a"
                 )
             if name in drivers:
-                raise Refused(f"{named}: the agent role {name!r} is given twice")
+                raise Refused(f"{named}: duplicate agent role {name!r}")
             try:
                 said = (
                     parse_agents([f"{name}={given_as}"])[0]
@@ -326,13 +326,13 @@ class Runner:
                 harness, capabilities = said.harness, said.capabilities
             if role.harness is not None and harness != role.harness:
                 raise Refused(
-                    f"{named}: {name!r} is {role.harness}, and {harness} was given"
+                    f"{named}: {name!r} requires {role.harness}, but got {harness}"
                 )
             if lacking := role.capabilities - capabilities:
                 raise Refused(
                     f"{named}: {name!r} needs "
-                    f"{', '.join(sorted(one.__name__ for one in lacking))}, which "
-                    f"{harness} does not do"
+                    f"{', '.join(sorted(one.__name__ for one in lacking))}, "
+                    f"which {harness} does not support"
                 )
             drivers[name] = said
             if isinstance(said, AgentSpec):
@@ -348,8 +348,8 @@ class Runner:
             if one.required and not one.auto and one.name not in drivers
         ]:
             raise Refused(
-                f"{named} needs an agent for {_roles(missing)}; give each with "
-                "-a ROLE=CLI/MODEL:EFFORT"
+                f"{named} needs an agent for {_roles(missing)}; specify each "
+                "with -a ROLE=CLI/MODEL:EFFORT"
             )
         return drivers, specs
 
@@ -370,16 +370,17 @@ class Runner:
             role = self._declared.env(name)
             if role is None:
                 raise Refused(
-                    f"{named} has no environment role {name!r}; its environment roles "
-                    f"are {_roles(one.name for one in self._declared.envs if not one.auto)}"
+                    f"{named} has no environment role {name!r}; available "
+                    "roles are "
+                    f"{_roles(one.name for one in self._declared.envs if not one.auto)}"
                 )
             if role.auto:
                 raise Refused(
-                    f"{named}: {name!r} is the workspace the run is started in, and is "
-                    "not given with -e"
+                    f"{named}: {name!r} is the workspace the run started in "
+                    "and cannot be set with -e"
                 )
             if name in drivers:
-                raise Refused(f"{named}: the environment role {name!r} is given twice")
+                raise Refused(f"{named}: duplicate environment role {name!r}")
             try:
                 said = (
                     parse_envs([f"{name}={given_as}"])[0]
@@ -403,8 +404,8 @@ class Runner:
             if one.required and not one.auto and one.name not in drivers
         ]:
             raise Refused(
-                f"{named} needs an environment for {_roles(missing)}; give each with "
-                "-e ROLE=BACKEND@PROVIDER/WORKDIR"
+                f"{named} needs an environment for {_roles(missing)}; specify "
+                "each with -e ROLE=BACKEND@PROVIDER/WORKDIR"
             )
         return drivers, specs
 
@@ -420,20 +421,18 @@ class Runner:
             return None
         if not self._impl.resumable:
             raise Refused(
-                f"{self._named} does not say it can be picked up, so there is no run of "
-                "it to resume"
+                f"{self._named} does not support resuming, so there is no run to resume"
             )
         if resume is True:
             found = resumed(self._impl.ref, self._workspace)
             if found is None:
                 raise Refused(
-                    f"{self._named} has no run here to pick up: none got as far as "
-                    "writing anything down"
+                    f"{self._named} has no run to resume here: none saved any progress"
                 )
             return found
         found = Path(resume)
         if not picks_up(found):
-            raise Refused(f"{found.name} holds nothing a run could be picked up from")
+            raise Refused(f"{found.name} has no saved progress to resume from")
         return found
 
     # ----------------------------------------------------------------------- what it is
@@ -931,4 +930,4 @@ def _budget(said: Mapping[str, Any]) -> Budget:
     try:
         return Budget.model_validate(dict(said))
     except pydantic.ValidationError as why:
-        raise Refused(f"the budget is not one: {why}") from why
+        raise Refused(f"the budget is invalid: {why}") from why

@@ -511,13 +511,13 @@ def _kinds(counted: Sequence[Counted]) -> list[str]:
       nobody has to read unless a figure has one.
     """
     if not counted:
-        return ["[$text-muted]nothing spent yet[/]"]
+        return ["[$text-muted]no tokens used yet[/]"]
     rows = [
         f"{escape(one.kind):<26}{thousands(one.tokens):>8}{'' if one.whole else '+'}"
         for one in counted
     ]
     if not all(one.whole for one in counted):
-        rows.append("[$text-muted]+ a floor: not every agent here reports that kind[/]")
+        rows.append("[$text-muted]+ is a minimum: not all agents report this kind[/]")
     return rows
 
 
@@ -557,10 +557,10 @@ class Entry(Sheet[tuple[str, str]]):
     def _ask(self) -> None:
         """Says what a line of the board is, and takes what is typed from here on."""
         self.query_one("#asked", Label).update(
-            "A line of the board" if self._naming else f"{escape(self._key)}"
+            "Board entry" if self._naming else f"{escape(self._key)}"
         )
         self.query_one("#about", Label).update(
-            "What you and the flow both write on. Neither of you waits on the other."
+            "Shared by you and the flow. Neither waits for the other."
         )
         self._fill()
         self.query_one("#choices", OptionList).focus()
@@ -568,7 +568,7 @@ class Entry(Sheet[tuple[str, str]]):
     def _fill(self) -> None:
         """Puts up what has been typed, which is the whole of what this sheet shows."""
         listing = self.query_one("#choices", OptionList)
-        asked = "what to call it" if self._naming else "what it says"
+        asked = "name" if self._naming else "value"
         listing.set_options(
             [
                 Option(
@@ -585,12 +585,10 @@ class Entry(Sheet[tuple[str, str]]):
         )
         self._footed(
             Key("type", "write"),
-            Key("backspace", "rub out"),
+            Key("backspace", "delete"),
             Key(
                 "enter",
-                "on to what it says"
-                if self._naming
-                else "write it down, or take it away if empty",
+                "continue to value" if self._naming else "save, or remove if empty",
             ),
             Key("esc", "back"),
         )
@@ -622,12 +620,12 @@ class Entry(Sheet[tuple[str, str]]):
             return
         named = self._typed.strip()
         if not named:
-            self._said = "a line of the board is named"
+            self._said = "a board entry needs a name"
             self._fill()
             return
         held = self._board.held(named)
         if held is not None and held.whose == FLOW:
-            self._said = f"{escape(named)} is the flow's to change, not yours"
+            self._said = f"{escape(named)} can only be changed by the flow"
             self._fill()
             return
         self._key, self._naming = named, False
@@ -704,7 +702,7 @@ class Monitoring(Screen[str | None]):
         # enter, and walks what was typed before with them.
         Binding("up", "step(-1)", "previous node", show=False, priority=True),
         Binding("down", "step(1)", "next node", show=False, priority=True),
-        Binding("enter", "open", "read it", show=False, priority=True),
+        Binding("enter", "open", "open", show=False, priority=True),
         Binding("right", "back", "back to the log", show=False, priority=True),
         Binding("ctrl+t", "turn", "agents or sessions", show=False, priority=True),
     ]
@@ -985,8 +983,11 @@ class Monitoring(Screen[str | None]):
         return [
             _Row(
                 key,
-                f"{_marked(here=self._was == key)}[$primary]◉[/] {escape(role)}"
-                f"{_DOT}[$text-muted]outworlder: what the flow says to you[/]"
+                (
+                    f"{_marked(here=self._was == key)}[$primary]◉[/] "
+                    f"{escape(role)}{_DOT}[$text-muted]outworlder: messages from "
+                    "the flow to you[/]"
+                )
                 + (f"{_DOT}[$text-muted]{escape(whose)}[/]" if whose else "")
                 + (f"{_DOT}[$primary]reading[/]" if self._reading() == key else ""),
             )
@@ -1010,8 +1011,8 @@ class Monitoring(Screen[str | None]):
             return [
                 _Row(
                     _NOTHING,
-                    f"{_INDENT}  [$text-muted]no agent has taken a turn yet; a box appears "
-                    f"as each one does[/]",
+                    f"{_INDENT}  [$text-muted]no agent has taken a turn yet; "
+                    "agents appear as they take turns[/]",
                     landing=False,
                 )
             ]
@@ -1083,7 +1084,7 @@ class Monitoring(Screen[str | None]):
                         f"   [$text-muted]{spend.rate:.0f} out/s[/]"
                         for spend in spending
                     ]
-                    or ["[$text-muted]nothing spent yet[/]"],
+                    or ["[$text-muted]no tokens used yet[/]"],
                 ),
                 # Under the models rather than beside them, because it is a different
                 # question: what a model cost is per model, and what a run spent its tokens
@@ -1122,17 +1123,14 @@ class Monitoring(Screen[str | None]):
         width = self.size.width
         for ruled in self.query(".rule").results(Static):
             ruled.update(_RULE * width)
-        said = f"monitor{_DOT}a node per {_BY[self._sessions]}"
-        left = (
-            f"[$secondary]▣[/] monitor[$text-muted]{_DOT}a node per "
-            f"{_BY[self._sessions]}[/]"
-        )
+        said = f"monitor{_DOT}by {_BY[self._sessions]}"
+        left = f"[$secondary]▣[/] monitor[$text-muted]{_DOT}by {_BY[self._sessions]}[/]"
         if self._typed():
             keys = ["enter send", "ctrl+c clear"]
         else:
             keys = [
                 "↑↓ node",
-                "enter read",
+                "enter open",
                 "→ back",
                 f"ctrl+t by {_BY[not self._sessions]}",
                 "/ commands",
@@ -1165,8 +1163,8 @@ class Monitoring(Screen[str | None]):
             _Row(f"{_BOARDED}{_NOTHING}", "", landing=False),
             _Row(
                 _BOARDED,
-                f"{_INDENT}[$primary]Board[/]"
-                f"{_DOT}[$text-muted]what you and the flow both write on[/]",
+                f"{_INDENT}[$primary]Board[/]{_DOT}[$text-muted]shared by you and "
+                "the flow[/]",
                 landing=False,
             ),
         ]
@@ -1198,7 +1196,7 @@ class Monitoring(Screen[str | None]):
             _Row(
                 _NEW,
                 f"{_marked(here=self._was == _NEW)}[$primary]+[/] "
-                f"[$text-muted]a new line[/]",
+                "[$text-muted]add entry[/]",
             )
         )
         return rows
@@ -1225,7 +1223,7 @@ class Monitoring(Screen[str | None]):
         board = self._boarding()
         held = board.held(key) if board is not None and key else None
         if held is not None and held.whose == FLOW:
-            self._said = f"{escape(key)} is the flow's to change, not yours"
+            self._said = f"{escape(key)} can only be changed by the flow"
             self._fill()
             return
         self._writes(key)
@@ -1253,13 +1251,13 @@ class Monitoring(Screen[str | None]):
         named, value = said
         if value:
             board.put(named, value)
-            self._said = f"{escape(named)} is on the board"
+            self._said = f"{escape(named)} saved to the board"
         elif board.held(named) is not None:
             # Written down as nothing, which is a line with nothing to say: taken off rather
             # than left up empty, there being no key of its own that does it.
             board.drop(named)
-            self._said = f"{escape(named)} is off the board"
+            self._said = f"{escape(named)} removed from the board"
         else:
-            self._said = "nothing was written, so nothing went up"
+            self._said = "nothing was entered, so nothing was saved"
         self._ids = []  # the rows have moved, so they are put up again
         self._fill()

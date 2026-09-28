@@ -151,7 +151,7 @@ from hmz.sdk import Hmz, Refused
 try:
     Hmz().run("goal", "fix the build", agents={"worker": "pi/gpt-5.5:high"}, budget={"cost": 5})
 except Refused as why:
-    print(why)   # goal: 'worker' needs GoalCommandAgentMixin, which pi does not do
+    print(why)   # goal: 'worker' needs GoalCommandAgentMixin, which pi does not support
 ```
 
 ### `Hmz.runner` {#hmz-runner}

@@ -71,7 +71,7 @@ fresh conversation, and it does not stop when the work is done: its budget stops
 <template #prompt>
 
 Open the terminal interface in the repository. Its first start asks once whether to report
-what goes wrong to humanize; answer as you like.
+errors to humanize; answer as you like.
 
 ```sh
 hmz
@@ -172,7 +172,7 @@ git diff before
 | If | Then |
 | --- | --- |
 | `hmz` says `no such flow` | It downloads the official flows in the background as it starts. Give it a few seconds and send the line again. |
-| `hmz exec` says `not been fetched yet` | `hmz exec` downloads nothing. Open `hmz`, type `/settings flowverses`, open `official` and choose `fetch it again`. |
+| `hmz exec` says `not been fetched yet` | `hmz exec` downloads nothing. Open `hmz`, type `/settings flowverses`, open `official` and choose `fetch`. |
 | the model is refused | Model ids change with each CLI release, and your account decides which you may use. In `hmz`, type `/flow ralph_loop` and open the `agent` row: it lists the models your CLI offers. |
 | your CLI is not in the tabs | Every backend, and how to sign each one in, is on [Installation](/user/installation). |
 

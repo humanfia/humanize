@@ -106,7 +106,7 @@ def test_a_backend_that_could_not_run_it_is_refused_rather_than_written_down() -
     """A copy that would be an account nothing can be run as is not a copy to make."""
     one = providers.add("claude", "signed-in", "login", {})
 
-    with pytest.raises(ValueError, match="not an account"):
+    with pytest.raises(ValueError, match="claude/signed-in cannot be used with codex"):
         providers.copies(one, "codex")
     assert providers.find("codex", "signed-in") is None
 
@@ -114,7 +114,9 @@ def test_a_backend_that_could_not_run_it_is_refused_rather_than_written_down() -
 def test_a_name_no_backend_answers_to_is_refused() -> None:
     one = providers.add("claude", "work", "key", {"ANTHROPIC_API_KEY": "sk-x"})
 
-    with pytest.raises(ValueError, match="not an account"):
+    with pytest.raises(
+        ValueError, match="claude/work cannot be used with not-a-backend"
+    ):
         providers.copies(one, "not-a-backend")
 
 

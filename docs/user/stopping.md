@@ -29,8 +29,8 @@ under the prompt always says what that is:
 | `ctrl+c clear` | Clears what you have typed. Nothing else happens. |
 | `ctrl+c stop` | Warns: `— press ctrl+c again to stop the flow —` |
 | `ctrl+c again to stop` | Stops the flow. |
-| `ctrl+c close them` | Closes the agents still in a turn, without waiting for the flow to wind down. |
-| `ctrl+c exit` | Warns: `— press ctrl+c again to leave —` |
+| `ctrl+c force stop` | Closes the agents still in a turn, without waiting for the flow to wind down. |
+| `ctrl+c exit` | Warns: `— press ctrl+c again to exit —` |
 | `ctrl+c again to exit` | Quits `hmz`. |
 
 A press more than 3 seconds after the last one starts over from the top, and so does a press
@@ -44,7 +44,7 @@ after a `/stop`.
 - **The turn is cut off where it is.** The agent's CLI stops, along with anything it had
   started. A file the agent was halfway through writing stays halfway written.
 - **The flow winds down in its own time.** A loop finishes its round and what it opened is
-  closed. Until it is done, the status line ends with `ctrl+c close them`, and one more press
+  closed. Until it is done, the status line ends with `ctrl+c force stop`, and one more press
   closes the agents without waiting.
 - **The run is recorded as stopped**, not as finished. [`/epics`](/user/tracing) lists it that
   way.
@@ -58,18 +58,18 @@ running, it asks first:
 
 <pre><span class="p b">A flow is running.</span>
 
-<span class="p">❯</span> <span class="d">1.</span> <span class="p">stop it, then leave</span>
-  <span class="d">2.</span> <span class="p">leave it running</span>          <span class="m">`hmz` here reads it again</span>
+<span class="p">❯</span> <span class="d">1.</span> <span class="p">stop the flow and exit</span>
+  <span class="d">2.</span> <span class="p">detach and exit</span>           <span class="m">run `hmz` here to reattach</span>
 
 <span class="d">enter choose · esc stay</span></pre>
 
 </Term>
 
-**leave it running** lets the flow carry on without your terminal, and without letting go of
-anybody else reading it. Run `hmz` again in the same directory to get back to it. **stop it,
-then leave** stops it for everybody, as `/stop` and <kbd>ctrl+c</kbd> twice do. When humanize cannot hold the run apart from the terminal
+**detach and exit** lets the flow carry on without your terminal, and without letting go of
+anybody else reading it. Run `hmz` again in the same directory to get back to it. **stop the flow
+and exit** stops it for everybody, as `/stop` and <kbd>ctrl+c</kbd> twice do. When humanize cannot hold the run apart from the terminal
 (input or output is not a terminal, or `HUMANIZE_DAEMON=off` is set), the second answer is
-**stay here** instead.
+**cancel** instead.
 
 ## After a stop
 
@@ -80,13 +80,13 @@ task, from where the stop left it. See [Picking a run up](/user/resuming).
 **Wait for the flow to finish stopping first.** Until then, `/resume` answers:
 
 ```
-hmz: no picking a run up while the flow is still stopping: it is closing out the turn it was in
+hmz: cannot resume a run while the flow is still stopping: it is finishing the turn it was in
 ```
 
 A third <kbd>ctrl+c</kbd> ends the wait.
 
 **Choose another flow once this one has stopped.** While a flow runs, `/flow <name>` and a
-`$name` line are refused with `hmz: a flow is running; no choosing a flow`. `/flow` on its own
+`$name` line are refused with `hmz: cannot choose a flow while one is running`. `/flow` on its own
 opens the agents of the running flow instead. What you save there is what the next run
 starts with; the running one keeps what it started with.
 

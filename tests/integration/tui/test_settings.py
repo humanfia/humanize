@@ -293,7 +293,7 @@ async def test_the_first_start_asks_whether_humanize_reports_itself(
         await until(lambda: isinstance(app.screen, Reports), driver)
         said = str(app.screen.query_one("#about", Label).content)
         # What goes and what does not, both, where the question is asked.
-        assert "crash nobody sees" in said
+        assert "reports to help fix bugs" in said
         assert "nothing you typed" in said
         # The answer that helps is the one the cursor opens on.
         listing = app.screen.query_one("#choices", OptionList)
@@ -425,7 +425,9 @@ async def test_whether_a_run_here_is_profiled_is_a_row_of_this_directory(
         # Held until the menu is saved, exactly as everything else on it is.
         assert not Settings(tmp_path).profiling
         # Read as a run starts, so the row says when it lands while it is held.
-        assert "from the next flow run" in str(listing.get_option_at_index(2).prompt)
+        assert "takes effect on next flow run" in str(
+            listing.get_option_at_index(2).prompt
+        )
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Confirms), driver)
         await driver.press("enter")

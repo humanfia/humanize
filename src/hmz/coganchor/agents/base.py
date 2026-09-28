@@ -1769,20 +1769,20 @@ class SessionBase(ABC):
         model = self._agent._config.model
         if not held:
             return (
-                "nothing has asked this account what it runs; the ask-it-again row "
-                "under its models asks it"
+                'this account has not been checked for models; the "check again" '
+                "row under its models checks it"
             )
         asked = f" (asked {when})" if when else ""
         if model in held:
             return (
-                f"the {len(held)} models this account was last offered{asked} still name it, "
-                "so that list is the stale part; the ask-it-again row under its models "
-                "asks again"
+                f"the {len(held)} models this account was last offered{asked} still list "
+                'it, so that list is stale; the "check again" row under its models '
+                "checks again"
             )
         return (
             f"it is not among the {len(held)} models this account was last offered"
-            f"{asked}; the ask-it-again row under its models asks again, and names "
-            "what it may run"
+            f'{asked}; the "check again" row under its models checks again, and '
+            "lists what it can run"
         )
 
     def _went(self, answer: Answer) -> str:

@@ -66,21 +66,21 @@ SAYS = "HUMANIZE_SENTRY"
 #: is the promise: whatever is not on this list does not leave the machine, and the scrubbing
 #: below is what keeps the list true rather than the list being what the scrubbing came to.
 SENT = (
-    "the error and where in humanize it happened",
-    "which flow was running, and what each of its agents was set up to run",
-    "which coding agents are installed here, and which accounts exist by name",
-    "which skills and flowverses are in play, by name",
-    "what humanize did that you then undid, refused or walked away from",
-    "the version of humanize, of Python, and the kind of machine this is",
+    "the error and where in humanize it occurred",
+    "which flow was running, and what each agent was configured to run",
+    "which coding agents are installed, and account names",
+    "which skills and flowverses are active, by name",
+    "what humanize did that you undid, refused, or canceled",
+    "the version of humanize, of Python, and the operating system and architecture",
 )
 
 #: And what is not, in the same words. Written down rather than left to be inferred from the
 #: first list: what somebody wants to know before answering is what humanize will not take.
 KEPT = (
-    "nothing you typed: no task, no prompt, no line at the prompt",
-    "nothing an agent said, and nothing out of any transcript or session log",
-    "no file, no path outside humanize itself, and no directory name",
-    "no key, no token and no account credential -- not even the names of the variables",
+    "nothing you typed: no task, prompt, or command",
+    "no agent output, and nothing from any transcript or session log",
+    "no files, directory names, or paths outside humanize itself",
+    "no keys, tokens, or account credentials -- not even environment variable names",
 )
 
 #: How much of a string may be a path, a key or a sentence somebody typed. Everything that

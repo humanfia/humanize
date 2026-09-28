@@ -317,7 +317,7 @@ async def test_explicit_flow_save_refuses_an_agent_with_no_model(
         await driver.pause()
 
         assert app.screen is sheet
-        assert "builder is not set up yet" in _said(app)
+        assert "builder is not configured yet" in _said(app)
 
 
 @pytest.mark.timeout(60)
@@ -339,13 +339,13 @@ async def test_a_flow_is_not_saved_until_a_run_of_it_is_given_a_budget(
         await until(lambda: isinstance(app.screen, Flows), driver)
         sheet = cast("Flows", app.screen)
         await until(lambda: sheet._inside, driver)
-        assert "none yet" in _value(app, _BUDGET)
+        assert "none set" in _value(app, _BUDGET)
 
         await onto(app, driver, _SAVE)
         await driver.press("enter")
         await driver.pause()
         assert app.screen is sheet
-        assert "given a budget" in _said(app)
+        assert "requires a budget" in _said(app)
 
         await onto(app, driver, _BUDGET)
         await driver.press("enter")
@@ -392,14 +392,14 @@ async def test_an_environment_role_is_a_row_where_its_place_is_said(
         sheet = cast("Flows", app.screen)
         await until(lambda: sheet._inside, driver)
         assert rows(app) == ["0", "@repo", _BUDGET, _SAVE]
-        assert "not said yet" in _value(app, "@repo")
+        assert "not set" in _value(app, "@repo")
 
         # Not said, so not saved: a run of it would be refused before it started.
         await _budgets(app, driver, "1h")
         await onto(app, driver, _SAVE)
         await driver.press("enter")
         await driver.pause()
-        assert "repo is not set up yet" in _said(app)
+        assert "repo is not configured yet" in _said(app)
 
         await onto(app, driver, "@repo")
         await driver.press("enter")
@@ -526,7 +526,7 @@ async def test_a_flow_given_no_budget_is_refused_where_it_is_started(
         await until(lambda: "hmz:" in transcript(app), driver)
         said = transcript(app)
 
-    assert "given a budget" in said
+    assert "requires a budget" in said
     assert "Traceback" not in said  # said at the prompt, not raised out of a thread
     assert app._run is None  # and nothing started
 
@@ -642,5 +642,5 @@ async def test_the_models_are_what_that_cli_last_said_and_are_asked_again_from_a
         assert rows(app)[-1] == _AGAIN
         listing = app.screen.query_one("#choices", OptionList)
         last = listing.get_option_at_index(listing.option_count - 1)
-        assert "ask it again" in str(last.prompt)
+        assert "check again" in str(last.prompt)
         assert "ctrl" not in keys.lower()

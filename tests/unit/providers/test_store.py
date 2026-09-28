@@ -131,18 +131,18 @@ def test_nothing_is_found_for_a_backend_there_is_not() -> None:
 @pytest.mark.parametrize("name", _NOT_NAMES)
 def test_a_name_that_is_not_a_name_is_refused(name: str) -> None:
     """A provider's name is a directory, and one that climbs out of this one is not a name."""
-    with pytest.raises(ValueError, match="is not a provider name"):
+    with pytest.raises(ValueError, match="is not a valid account name"):
         providers.where("claude", name)
-    with pytest.raises(ValueError, match="is not a provider name"):
+    with pytest.raises(ValueError, match="is not a valid account name"):
         providers.add("claude", name)
-    with pytest.raises(ValueError, match="is not a provider name"):
+    with pytest.raises(ValueError, match="is not a valid account name"):
         providers.remove("claude", name)
     assert not (home() / "providers" / "claude").exists()
 
 
 def test_a_backend_that_is_not_one_is_refused() -> None:
     for doing in (providers.where, providers.add, providers.remove):
-        with pytest.raises(ValueError, match="no such coding agent"):
+        with pytest.raises(ValueError, match="nope: unknown agent"):
             doing("nope", "mine")
 
 

@@ -8,7 +8,7 @@ wrote. It is a Chrome JSON trace, so [ui.perfetto.dev](https://ui.perfetto.dev) 
 ::: code-group
 
 ```console [/epics]
-/epics  →  the run  →  enter  →  export it
+/epics  →  the run  →  enter  →  export run
 
 /home/you/code/.humanize/20260809T014455.212Z-9f21ab.epic.tar.gz · 812 kB · 3 sessions, 412 slices
 ```
@@ -33,7 +33,7 @@ what the trace holds. A [profiled](#profiling-a-run) run adds a third count:
 
 | Call | Writes |
 | --- | --- |
-| **export it** on `/epics` | `traces/export.trace.json` in the run's directory, replaced each time, and the archive |
+| **export run** on `/epics` | `traces/export.trace.json` in the run's directory, replaced each time, and the archive |
 | [`Epics.traced(epic)`](#from-python) | `traces/<UTC datetime>.trace.json` in the run's directory, a new one each time |
 | `Epics.traced(epic, output=…)`, `Epics.trace(output=…)` | that file, its directory made if missing |
 | [`Epics.trace()`](#from-python) with no `output` | nothing: the document is returned |
@@ -211,7 +211,7 @@ backend's log, which records the tool call rather than the process. A workspace 
 runs **profiled** as well as traced, on the second page of `/settings` (`/settings directory`):
 
 ```
-3. profile          on   profile the programs a run here starts
+3. profile          on   profile programs started by runs here
 ```
 
 While the flow runs, the programs under it are sampled (what each was, what started it, how

@@ -40,18 +40,18 @@ def _line() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         prog="hmz attach",
-        description="Read the runs held in this directory as one more frontend of them: "
-        "what every agent says, every question the run asks, and who answered it. A line "
-        "typed answers the oldest question this frontend may answer, and is otherwise said "
-        "to the run; /afk [on|off] [ROLE], /claim ROLE, /release ROLE and /stop do what "
-        "they do at the interface. Nothing is started: this follows the run going, or the "
-        "next one, until it ends.",
+        description="Attach to runs in this directory as an additional frontend to "
+        "view agent messages, questions asked by the run, and who answered them. "
+        "Typing input answers the oldest question you can answer, or sends a "
+        "message to the run. The commands /afk [on|off] [ROLE], /claim ROLE, "
+        "/release ROLE, and /stop work as they do in the terminal interface. Does "
+        "not start a run; follows the current or next run until it ends.",
     )
     parser.add_argument(
         "--json",
         action="store_true",
-        help="write every message as it arrives, one JSON object a line, and read one "
-        "request object a line from stdin",
+        help="stream messages as newline-delimited JSON and read JSON requests from "
+        "stdin",
     )
     parser.add_argument(
         "-c",
@@ -59,7 +59,8 @@ def _line() -> argparse.ArgumentParser:
         action="append",
         default=[],
         metavar="ROLE",
-        help="answer for this Outworlder role, and nobody else may; may be given again",
+        help="answer exclusively for this Outworlder role; can be specified "
+        "multiple times",
     )
     return parser
 
@@ -124,7 +125,7 @@ class _Following:
         if kind == "event":
             self._shown.told(message)
         elif kind == "welcome":
-            line((f"hmz attach: reading as {message.get('name')}", "dim"))
+            line((f"hmz attach: connected as {message.get('name')}", "dim"))
         elif kind == "started":
             started = f"{message.get('flow')} started by {message.get('by')}"
             line((f"{_SAID} ", "dim"), (f"{started}: {message.get('task')}", "dim"))
@@ -137,7 +138,7 @@ class _Following:
                 (f"{_DOT}{message.get('by')} for {message.get('role')}", "dim"),
             )
         elif kind == "withdrawn":
-            line((f"   no longer asked: {message.get('why')}", "dim"))
+            line((f"   question withdrawn: {message.get('why')}", "dim"))
         elif kind == "said":
             line(
                 (f"{_YOURS} ", ""),
@@ -151,13 +152,16 @@ class _Following:
             line(
                 ("hmz: ", "red"),
                 (
-                    f"{message.get('agent')} did not take it: {message.get('because')}",
+                    (
+                        f"{message.get('agent')} rejected the message: "
+                        f"{message.get('because')}"
+                    ),
                     "red",
                 ),
             )
         elif kind == "unheld":
-            put = f"   put to {message.get('agent')}, which ended its turn"
-            line((f"{put} without saying it had it", "dim"))
+            put = f"   sent to {message.get('agent')}, which ended its turn"
+            line((f"{put} without acknowledging receipt", "dim"))
         elif kind == "dropped":
             held: list[dict[str, Any]] = [
                 *(message.get("given") or []),
@@ -184,11 +188,15 @@ class _Following:
         mine = self.link.client
         for role, owner in self._claims.items():
             if owner == mine and was.get(role) != mine:
-                self._out.line((f"hmz attach: {role} is yours to answer", "dim"))
+                self._out.line((f"hmz attach: {role} is claimed by you", "dim"))
         for role, owner in was.items():
             if owner == mine and self._claims.get(role) != mine:
                 now = self._claims.get(role)
-                taken = f"now {self._names.get(now, now)}'s" if now else "nobody's"
+                taken = (
+                    f"now claimed by {self._names.get(now, now)}"
+                    if now
+                    else "unclaimed"
+                )
                 self._out.line((f"hmz attach: {role} is {taken}", "dim"))
 
     def _asked(self, message: dict[str, Any]) -> None:
@@ -202,11 +210,11 @@ class _Following:
         whose = (
             ""
             if not live
-            else f"{_DOT}yours to answer"
+            else f"{_DOT}claimed by you"
             if owner == self.link.client
-            else f"{_DOT}{name}'s to answer"
+            else f"{_DOT}claimed by {name}"
             if owner
-            else f"{_DOT}anybody's to answer"
+            else f"{_DOT}unclaimed"
         )
         self._out.line(
             (f"{_SAID} ", "yellow"),
@@ -318,7 +326,7 @@ class _Following:
             takes = "/afk [on|off] [ROLE], /claim ROLE, /release ROLE and /stop"
             self._out.line(
                 ("hmz: ", "red"),
-                (f"no such command: {typed}; this takes {takes}", "red"),
+                (f"unknown command: {typed}; available commands: {takes}", "red"),
             )
 
 
@@ -340,7 +348,7 @@ def attach(argv: list[str]) -> int:
 
     found = daemon.running()
     if found is None:
-        print("hmz attach: nothing is being held in this directory", file=sys.stderr)
+        print("hmz attach: nothing to attach to in this directory", file=sys.stderr)
         return 1
     if not found.protocol:
         print(f"hmz attach: {daemon.older(found)}", file=sys.stderr)
@@ -365,5 +373,5 @@ def attach(argv: list[str]) -> int:
                 pass
         except KeyboardInterrupt:
             # Letting go, which leaves the run to whoever else is reading it.
-            print("hmz attach: let go", file=sys.stderr)
+            print("hmz attach: detached", file=sys.stderr)
     return 0

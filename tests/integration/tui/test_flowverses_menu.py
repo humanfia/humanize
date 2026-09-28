@@ -279,7 +279,9 @@ async def test_a_flowverse_with_no_repository_named_is_refused_where_it_was_type
         await driver.pause()
 
         assert isinstance(app.screen, Fetches)  # still asking, rather than gone
-        assert "none was named" in str(sheet.query_one("#tuning", Label).content)
+        assert "repository URL is required" in str(
+            sheet.query_one("#tuning", Label).content
+        )
 
 
 @pytest.mark.timeout(60)
@@ -322,7 +324,7 @@ async def test_one_that_was_added_is_taken_away_from_inside_what_it_holds(
 
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flowverses), driver)
-        await until(lambda: "no longer here" in _under(sheet), driver)
+        await until(lambda: "was removed" in _under(sheet), driver)
 
         assert [one.name for one in flowverses()] == [OFFICIAL, LOCAL, USER]
         assert rows(app) == [_ADD, OFFICIAL, LOCAL, USER]
@@ -370,7 +372,7 @@ async def test_none_of_the_ones_always_here_offer_to_be_taken_away(named: str) -
         await until(lambda: isinstance(app.screen, Holds), driver)
 
         assert _TAKES_AWAY not in rows(app)
-        assert "always here" in _under(app.screen)  # pyright: ignore[reportArgumentType]
+        assert "is always listed and cannot be removed" in _under(app.screen)  # pyright: ignore[reportArgumentType]
 
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Flowverses), driver)
@@ -397,7 +399,7 @@ async def test_what_happened_while_it_was_open_is_said_in_the_transcript(
         await driver.press("escape")
         await until(lambda: not isinstance(app.screen, Flowverses), driver)
 
-        assert "theirs is no longer here" in transcript(app)
+        assert "theirs was removed" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -432,7 +434,7 @@ async def test_the_places_are_walked_to_from_the_flows(theirs: Path) -> None:
         await until(lambda: app.screen is places, driver)
         await until(
             lambda: (
-                "no longer here" in str(app.screen.query_one("#tuning", Label).content)
+                "was removed" in str(app.screen.query_one("#tuning", Label).content)
             ),
             driver,
         )
@@ -440,9 +442,7 @@ async def test_the_places_are_walked_to_from_the_flows(theirs: Path) -> None:
         await until(lambda: app.screen is menu, driver)
 
         assert not menu._inside  # back on the flows, which is where it was opened from
-        assert "theirs is no longer here" in str(
-            menu.query_one("#tuning", Label).content
-        )
+        assert "theirs was removed" in str(menu.query_one("#tuning", Label).content)
         assert "theirs" not in str(menu.query_one("#tabs", Label).content)
 
 
@@ -468,7 +468,8 @@ async def test_the_places_do_not_open_over_a_fetch_the_flows_started() -> None:
         await driver.press("enter")
         await until(
             lambda: (
-                "open once it is done" in str(menu.query_one("#tuning", Label).content)
+                "open once the fetch completes"
+                in str(menu.query_one("#tuning", Label).content)
             ),
             driver,
         )

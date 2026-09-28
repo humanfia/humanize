@@ -231,11 +231,11 @@ def parse_envs(values: Sequence[str]) -> list[EnvSpec]:
             raise EnvSpecError(f"-e {said!r}: ssh needs a host, as in ssh@host/workdir")
         if backend is EnvBackendKind.DOCKER and not provider:
             raise EnvSpecError(
-                f"-e {said!r}: docker needs a provider, as in docker@local/workdir"
+                f"-e {said!r}: docker needs a host, as in docker@local/workdir"
             )
         if backend is EnvBackendKind.LOCAL and provider:
             raise EnvSpecError(
-                f"-e {said!r}: local takes no provider, as in local@/workdir"
+                f"-e {said!r}: local takes no host, as in local@/workdir"
             )
         workdir = PurePosixPath(at[1:] if at[1:].startswith("~") else at)
         if role in roles:
@@ -336,7 +336,7 @@ def parse_duration(text: str) -> datetime.timedelta:
         read = _iso().validate_python(said)
     except pydantic.ValidationError:
         raise ValueError(
-            f"{text!r} is not a duration: write seconds, 1h30m, or ISO 8601 like PT1H30M"
+            f"{text!r} is not a duration: use seconds, 1h30m, or ISO 8601 like PT1H30M"
         ) from None
     if read < datetime.timedelta(0):
         raise ValueError(f"{text!r} is negative")
@@ -346,11 +346,13 @@ def parse_duration(text: str) -> datetime.timedelta:
 def _seconds(seconds: float, text: str) -> datetime.timedelta:
     """A number of seconds as a duration, refusing what no duration is."""
     if not math.isfinite(seconds) or seconds < 0:
-        raise ValueError(f"{text!r} is not a duration: it is negative or not finite")
+        raise ValueError(
+            f"{text!r} is not a valid duration: must be finite and not negative"
+        )
     try:
         return datetime.timedelta(seconds=seconds)
     except OverflowError:
-        raise ValueError(f"{text!r} is too long a duration") from None
+        raise ValueError(f"duration {text!r} is too long") from None
 
 
 def _cost(text: str) -> float:
@@ -358,9 +360,9 @@ def _cost(text: str) -> float:
     try:
         cost = float(text.strip().removeprefix("$"))
     except ValueError:
-        raise ValueError(f"{text!r} is not a cost in USD") from None
+        raise ValueError(f"{text!r} is not a valid USD cost") from None
     if math.isnan(cost) or cost < 0:
-        raise ValueError(f"{text!r} is not a cost in USD")
+        raise ValueError(f"{text!r} is not a valid USD cost")
     return cost
 
 
@@ -369,11 +371,14 @@ def _tokens(text: str) -> int:
     said = text.strip().lower().replace("_", "")
     read = _TOKENS.fullmatch(said)
     if read is None:
-        raise ValueError(f"{text!r} is not a count of tokens, as in 200000 or 200k")
+        raise ValueError(
+            f"{text!r} is not a valid token count: expected a number like 200000 "
+            "or 200k"
+        )
     # Decimal rather than float, so that 1.001k is 1001 and a long count stays exact.
     count = decimal.Decimal(read[1]) * {"": 1, "k": 1_000, "m": 1_000_000}[read[2]]
     if count != count.to_integral_value():
-        raise ValueError(f"{text!r} is not a whole number of tokens")
+        raise ValueError(f"{text!r} must be a whole number of tokens")
     return int(count)
 
 
@@ -384,7 +389,7 @@ def _flag(text: str) -> bool:
         return True
     if said in _NO:
         return False
-    raise ValueError(f"{text!r} is not true or false")
+    raise ValueError(f"{text!r} must be true or false")
 
 
 def parse_budget(values: Sequence[str]) -> Budget:
@@ -407,10 +412,11 @@ def parse_budget(values: Sequence[str]) -> Budget:
         key = key.strip()
         if not written or key not in _BUDGET:
             raise BudgetSpecError(
-                f"-b {item!r}: expected one of {', '.join(_BUDGET)}, as key=value"
+                f"-b {item!r}: expected key=value where key is one of "
+                f"{', '.join(_BUDGET)}"
             )
         if key in said:
-            raise BudgetSpecError(f"-b: {key!r} is given twice")
+            raise BudgetSpecError(f"-b: duplicate key {key!r}")
         said[key] = value
     readers = {
         "duration": parse_duration,

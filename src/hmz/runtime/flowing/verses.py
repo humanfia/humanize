@@ -358,8 +358,7 @@ def fetch(name: str) -> Flowverse:
         said = (
             f"a directory of flows of your own, {MINE[name]}"
             if name in MINE
-            else "a directory here that is not a clone of anything; take it away and add it "
-            "again"
+            else "a directory that is not a clone of anything; remove it and add it again"
         )
         raise ValueError(f"{name} is {said}; there is nothing to fetch")
     if not one.fetched:

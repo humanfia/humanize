@@ -221,7 +221,9 @@ def test_an_account_that_could_not_run_another_backend_is_not_copied_to_it() -> 
     held = Hmz().accounts
     made = held.write("claude", "mine", env={"ANTHROPIC_API_KEY": "not-a-real-key"})
 
-    with pytest.raises(ValueError, match="not an account"):
+    with pytest.raises(
+        ValueError, match="cannot be used with definitely-not-a-backend"
+    ):
         held.copies(made, "definitely-not-a-backend")
 
 
@@ -242,7 +244,7 @@ def test_an_account_pointed_at_one_that_is_not_its_backend_s_is_refused() -> Non
     held = Hmz().accounts
     held.write("claude", "first")
 
-    with pytest.raises(ValueError, match="no claude account called"):
+    with pytest.raises(ValueError, match="claude account 'never-made' not found"):
         held.points("claude", "first", "never-made")
 
 
@@ -261,7 +263,7 @@ def test_an_account_taken_away_is_gone_and_taking_it_away_twice_says_so() -> Non
 
 def test_the_account_this_machine_is_signed_into_is_not_one_to_take_away() -> None:
     """Humanize did not make it and keeps no credentials for it."""
-    with pytest.raises(ValueError, match="is not a provider name"):
+    with pytest.raises(ValueError, match="is not a valid account name"):
         Hmz().accounts.remove("claude", "")
 
 

@@ -497,7 +497,7 @@ async def test_a_flow_is_copied_here_to_be_changed(
         await driver.press("enter")
         await until(lambda: "copied to" in _under(sheet), driver)
 
-        assert "chat now means it" in _under(sheet)
+        assert "chat now points to it" in _under(sheet)
         # And it is a flow of your own from here on, listed where your own are.
         await _steps(app, driver, "local")
         assert _rows(sheet) == ["local/chat"]
@@ -648,9 +648,9 @@ async def test_a_flow_that_will_not_load_says_why_it_would_not(tmp_path: Path) -
         await _steps(app, driver, "local")
         await onto(app, driver, "local\x1flocal/broken")
         await driver.press("enter")
-        await until(lambda: "will not load" in _under(sheet), driver)
+        await until(lambda: "failed to load" in _under(sheet), driver)
 
         said = _under(sheet)
-        assert "local/broken will not load" in said
+        assert "local/broken failed to load" in said
         # And what refused it, which is the half that says where to go and fix it.
         assert "a_module_that_is_not_installed_anywhere" in said

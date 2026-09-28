@@ -169,7 +169,7 @@ async def test_btw_mode_is_one_conversation_until_it_is_left() -> None:
         assert app._btw is None
         assert sides.closed == [one]
         assert "btw ·" not in status(app)
-        assert "btw: left" in transcript(app)
+        assert "btw: exited" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -405,7 +405,7 @@ async def test_the_btw_agent_set_in_settings_is_written_down_and_said_when() -> 
         await driver.pause()
 
         assert Settings().btw == "claude@work/m:high"
-        assert "from the next time btw mode is entered" in transcript(app)
+        assert "next time you enter btw mode" in transcript(app)
 
 
 @pytest.mark.timeout(60)

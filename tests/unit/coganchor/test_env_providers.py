@@ -167,11 +167,11 @@ def test_where_a_provider_is_kept_is_what_it_is() -> None:
 
 @pytest.mark.parametrize("name", _NOT_NAMES)
 def test_a_name_that_is_not_a_name_is_refused(name: str) -> None:
-    with pytest.raises(ValueError, match="is not an environment provider name"):
+    with pytest.raises(ValueError, match="invalid environment provider name"):
         store.where("ssh", name)
-    with pytest.raises(ValueError, match="is not an environment provider name"):
+    with pytest.raises(ValueError, match="invalid environment provider name"):
         SSHProvider(name=name, host="h")
-    with pytest.raises(ValueError, match="is not an environment provider name"):
+    with pytest.raises(ValueError, match="invalid environment provider name"):
         store.remove("docker", name)
     assert store.find("ssh", name) is None
     assert not store.under().exists()
@@ -187,7 +187,7 @@ def test_a_backend_that_is_not_one_is_refused() -> None:
 def test_adding_one_already_there_is_refused_and_writing_one_replaces_it() -> None:
     store.add(SSHProvider(name="gpu", host="a", workdir="/srv"))
 
-    with pytest.raises(ValueError, match="already has a provider called 'gpu'"):
+    with pytest.raises(ValueError, match="ssh host 'gpu' already exists"):
         store.add(SSHProvider(name="gpu", host="b"))
     assert store.write(SSHProvider(name="gpu", host="b")) == store.find("ssh", "gpu")
     assert store.find("ssh", "gpu") == SSHProvider(name="gpu", host="b")
@@ -204,21 +204,24 @@ def test_one_is_taken_away_whole() -> None:
 @pytest.mark.parametrize(
     ("fields", "said"),
     [
-        ({}, "needs a host or an alias"),
-        ({"host": "-oProxyCommand=evil"}, "is not an ssh host"),
-        ({"host": "a b"}, "is not an ssh host"),
-        ({"host": "h", "user": "-l"}, "is not an ssh user"),
-        ({"alias": "web-*"}, "is not an ssh alias"),
-        ({"host": "h", "port": 70000}, "is not a port"),
-        ({"host": "h", "proxy_jump": "-J x"}, "is not a jump host"),
-        ({"host": "h", "identity_file": "a\nb"}, "more than one line"),
-        ({"host": "h", "options": {"User": "root"}}, "is said with user"),
-        ({"host": "h", "options": {"F": "/x"}}, "is not an ssh option"),
-        ({"host": "h", "options": {"-o": "x"}}, "is not an ssh option"),
-        ({"host": "h", "options": {"LogLevel": ""}}, "says nothing"),
-        ({"host": "h", "options": {"SetEnv": 'A="b"'}}, "holds a quote"),
-        ({"host": "h", "workdir": "relative/path"}, "neither absolute nor under"),
-        ({"host": "h", "made": "guessed"}, "not typed or imported"),
+        ({}, "requires a hostname or an alias"),
+        ({"host": "-oProxyCommand=evil"}, "invalid ssh host"),
+        ({"host": "a b"}, "invalid ssh host"),
+        ({"host": "h", "user": "-l"}, "invalid ssh user"),
+        ({"alias": "web-*"}, "invalid ssh alias"),
+        ({"host": "h", "port": 70000}, "invalid port 70000"),
+        ({"host": "h", "proxy_jump": "-J x"}, "invalid jump host"),
+        (
+            {"host": "h", "identity_file": "a\nb"},
+            "identity file .* cannot contain newlines",
+        ),
+        ({"host": "h", "options": {"User": "root"}}, "must be set with user"),
+        ({"host": "h", "options": {"F": "/x"}}, "invalid ssh option 'F'"),
+        ({"host": "h", "options": {"-o": "x"}}, "invalid ssh option '-o'"),
+        ({"host": "h", "options": {"LogLevel": ""}}, "LogLevel cannot be empty"),
+        ({"host": "h", "options": {"SetEnv": 'A="b"'}}, "SetEnv .* newlines or quotes"),
+        ({"host": "h", "workdir": "relative/path"}, "must be absolute or under"),
+        ({"host": "h", "made": "guessed"}, "typed or imported, not 'guessed'"),
     ],
 )
 def test_what_no_ssh_provider_could_be_is_refused(
@@ -241,18 +244,18 @@ def test_what_no_ssh_provider_could_be_is_refused(
         ({"endpoint": "ssh://-oProxyCommand=x"}, "is not a docker endpoint"),
         ({"endpoint": "ssh:../x"}, "is not a docker endpoint"),
         ({"endpoint": "context:"}, "is not a docker endpoint"),
-        ({"tls_dir": "/certs"}, "for a tcp:// endpoint"),
-        ({"image": "two words"}, "is not an image"),
-        ({"runtime": "-x"}, "is not a runtime"),
-        ({"gpus": ["0", "0"]}, "named twice"),
-        ({"gpus": ["0,1"]}, "is not a GPU id"),
-        ({"cpus": -1}, "is not an amount of CPUs"),
-        ({"memory": -1}, "is not an amount of memory"),
-        ({"made": "imported"}, "only ever typed"),
-        ({"cpus": "many"}, "cannot be"),
-        ({"memory": True}, "cannot be"),
-        ({"gpus": "0"}, "cannot be"),
-        ({"host": "h"}, "has no 'host'"),
+        ({"tls_dir": "/certs"}, "require a tcp:// endpoint"),
+        ({"image": "two words"}, "invalid image"),
+        ({"runtime": "-x"}, "invalid runtime"),
+        ({"gpus": ["0", "0"]}, "duplicate GPU"),
+        ({"gpus": ["0,1"]}, "invalid GPU id"),
+        ({"cpus": -1}, "CPUs cannot be negative"),
+        ({"memory": -1}, "memory cannot be negative"),
+        ({"made": "imported"}, "made must be typed for a docker host"),
+        ({"cpus": "many"}, "cpus cannot be 'many'"),
+        ({"memory": True}, "memory cannot be True"),
+        ({"gpus": "0"}, "gpus cannot be '0'"),
+        ({"host": "h"}, "unknown docker host setting 'host'"),
     ],
 )
 def test_what_no_docker_provider_could_be_is_refused(
@@ -405,9 +408,9 @@ def test_a_path_under_no_home_there_is_is_refused_where_it_is_written_down() -> 
         SSHProvider(name="s", host="h", config=f"{_NOBODY}/config"),
         DockerProvider(name="d", endpoint="tcp://h:2376", tls_dir=f"{_NOBODY}/certs"),
     ):
-        with pytest.raises(ValueError, match="under no home there is"):
+        with pytest.raises(ValueError, match="home directory not found"):
             store.add(provider)
-        with pytest.raises(ValueError, match="under no home there is"):
+        with pytest.raises(ValueError, match="home directory not found"):
             store.write(provider)
     assert store.providers() == []
 
@@ -437,8 +440,8 @@ def test_a_provider_whose_home_has_gone_is_listed_and_checked_without_raising() 
         checked = Hmz().environments.check(provider, seconds=5)
 
         assert not checked.reached
-        assert "under no home there is" in checked.said
-    with pytest.raises(ValueError, match="under no home there is"):
+        assert "home directory not found" in checked.said
+    with pytest.raises(ValueError, match="home directory not found"):
         store.daemon_of("tcp://10.0.0.3:2376", f"{_NOBODY}/certs")
 
 
@@ -462,7 +465,7 @@ def test_a_daemon_behind_a_stored_ssh_host_is_dialled_as_that_host_says() -> Non
     # The same options are the same `ssh`, written once.
     assert [one for one in store.daemon_of("ssh:keyed").docker("ps") if "PATH=" in one]
     assert len(list((home() / "docker-ssh").iterdir())) == 1
-    with pytest.raises(ValueError, match="no ssh provider called 'ghost'"):
+    with pytest.raises(ValueError, match="ssh host 'ghost' not found"):
         store.daemon_of("ssh:ghost")
 
 

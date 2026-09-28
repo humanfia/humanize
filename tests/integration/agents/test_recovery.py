@@ -363,10 +363,10 @@ def test_a_model_refused_says_what_humanize_last_kept_and_when_it_kept_it(
     # The list still names the model the endpoint has just refused, so the list is the stale
     # part -- and saying when it was taken is what tells somebody that.
     assert (
-        "the 1 models this account was last offered (asked 2026-09-10) still name it"
+        "the 1 models this account was last offered (asked 2026-09-10) still list it"
         in said
     )
-    assert "the ask-it-again row under its models asks again" in said
+    assert 'the "check again" row under its models checks again' in said
 
 
 def test_a_model_no_catalogue_here_has_says_it_is_not_in_the_one_kept(

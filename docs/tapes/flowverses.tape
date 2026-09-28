@@ -1,6 +1,6 @@
 # The Flowverses page of `/settings`: the places flows come from, and what one of them holds.
 #
-# The same page `where flows come from` opens from `/flow`. Recorded from `/settings` because opening the flows
+# The same page `manage flowverses` opens from `/flow`. Recorded from `/settings` because opening the flows
 # fetches whatever has never been fetched, and nothing here reaches the network.
 #
 # Nothing is fetched here. The two that are always listed are the package's own flows and
@@ -37,7 +37,7 @@ Sleep 400ms
 # flows: what a place is, is what is in it. Not on this one -- the cursor opens on `official`,
 # which is always here -- so the sheet says why there instead.
 Enter
-Wait+Screen /What it holds, read from/
+Wait+Screen /Flows loaded from/
 Sleep 1400ms
 Screenshot "/out/flowverse-holds.png"
 Sleep 400ms

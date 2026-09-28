@@ -265,7 +265,7 @@ async def test_an_account_made_on_the_sheet_lands_in_the_store(
     assert made.way == "login"
     # The CLI's own way in ran, under this account's own paths, and nothing else did.
     assert signed_in.call_count == 1
-    assert "claude/mine is written down at" in said
+    assert "claude/mine saved to" in said
     assert "claude/mine is signed in" in said
 
 
@@ -566,7 +566,7 @@ async def test_a_cli_with_no_accounts_says_where_they_come_from(
         )
         said = str(app.screen.query_one("#tuning", Label).content)
 
-        assert "claude has no accounts here yet" in said
+        assert "claude has no saved accounts yet" in said
         # And offers one without sending anybody out of the question: the moment somebody
         # finds out they have none is the moment to be offered one. A row of the list rather
         # than a key, a key said at the bottom of the screen being one to go looking for.
@@ -702,13 +702,15 @@ async def test_correcting_what_one_holds_is_held_until_the_menu_is_saved() -> No
         # credential store, and nothing reads one back out to be corrected in place.
         assert rows(app)[0] == "OPENAI_API_KEY"
         assert "old" not in str(form.get_option_at_index(0).prompt)
-        assert "blank keeps the one it has" in str(form.get_option_at_index(0).prompt)
+        assert "leave blank to keep current value" in str(
+            form.get_option_at_index(0).prompt
+        )
 
         await _writes(app, driver, "OPENAI_API_KEY", *"new")
         await _answers(app, driver)
         await until(lambda: isinstance(app.screen, Providers), driver)
         await until(
-            lambda: "is corrected when this menu is saved" in _under(app), driver
+            lambda: "will be updated when this menu is saved" in _under(app), driver
         )
         # Held: what is on the disk is still what was there.
         held = providers.find("codex", "work")
@@ -916,7 +918,7 @@ async def test_taking_an_account_away_says_what_went_with_it() -> None:
         await until(lambda: not isinstance(app.screen, Providers), driver)
         said = transcript(app)
 
-    assert "claude/deepseek is gone, credentials and all" in said
+    assert "claude/deepseek and its credentials were removed" in said
     assert providers.find("claude", "deepseek") is None
 
 
@@ -932,7 +934,7 @@ async def test_an_account_held_to_go_is_offered_the_way_back() -> None:
         )
         await _doing(app, driver, _TAKES_AWAY)
         await until(lambda: isinstance(app.screen, Providers), driver)
-        assert "to be taken away" in _drawn(app)
+        assert "will be removed" in _drawn(app)
 
         # Open again and the row says the opposite, rather than offering the same thing.
         await driver.press("enter")
@@ -940,7 +942,7 @@ async def test_an_account_held_to_go_is_offered_the_way_back() -> None:
         await until(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
-        assert "keep it after all" in str(
+        assert "cancel removal" in str(
             app.screen.query_one("#choices", OptionList).options[-1].prompt
         )
         await onto(app, driver, _TAKES_AWAY)
@@ -989,7 +991,7 @@ async def test_the_key_that_used_to_take_an_account_away_takes_nothing_away() ->
         await driver.pause()
 
         assert "press d again" not in _under(app)
-        assert "to be taken away" not in _drawn(app)
+        assert "will be removed" not in _drawn(app)
         await keeps(app, driver)
         await until(lambda: not isinstance(app.screen, Providers), driver)
 
@@ -1060,7 +1062,7 @@ async def test_the_account_this_machine_is_signed_into_is_a_row_of_its_own() -> 
         ]
         mine = str(listing.get_option("=codex/").prompt)
         assert "as local" in mine
-        assert "already signed in" in mine
+        assert "signed in on this machine" in mine
 
         await driver.press("down")  # onto it, from the first account
         await driver.pause()
@@ -1078,7 +1080,7 @@ async def test_the_account_this_machine_is_signed_into_is_a_row_of_its_own() -> 
             for one in app.screen.query_one("#choices", OptionList).options
         ] == ["falls"]
         assert "keeps no credentials for it" in _under(app)
-        assert "take away" in _under(app)
+        assert "remove it" in _under(app)
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Providers), driver)
 
@@ -1116,7 +1118,7 @@ async def test_a_cli_of_your_own_is_written_down_from_a_row_of_its_own() -> None
         await changes(app, driver, "command", *"my-agent --acp")
         await _answers(app, driver)
         await until(lambda: isinstance(app.screen, Providers), driver)
-        assert "is a backend from here on" in _under(app)
+        assert "added as a backend" in _under(app)
         await driver.press("escape")
         await until(lambda: not isinstance(app.screen, Providers), driver)
 
@@ -1159,7 +1161,7 @@ async def test_an_account_several_backends_could_run_asks_which_to_write_it_down
         await _answers(app, driver)
 
         await until(lambda: isinstance(app.screen, Providers), driver)
-        await until(lambda: "written down for opencode too" in _under(app), driver)
+        await until(lambda: "also saved for opencode" in _under(app), driver)
         await driver.press("escape")
         await until(lambda: not isinstance(app.screen, Providers), driver)
 
@@ -1262,7 +1264,7 @@ async def test_typing_on_a_row_of_the_form_writes_it_and_enter_moves_on() -> Non
         form = await _adds(app, driver)
         await _chooses(app, driver, "way", "key")
         assert form.under() == "ANTHROPIC_API_KEY"
-        assert "type to write" in str(app.screen.query_one("#keys", Label).content)
+        assert "type to edit" in str(app.screen.query_one("#keys", Label).content)
 
         await driver.press(*"sk-typed")
         await driver.pause()
@@ -1309,8 +1311,11 @@ async def test_what_a_new_account_runs_is_asked_after_it_lands_and_said(
         await _answers(app, driver)
 
         await until(lambda: isinstance(app.screen, Providers), driver)
-        await until(lambda: "asking claude what it runs as key" in _under(app), driver)
-        assert "asking what it runs" in _drawn(app)
+        await until(
+            lambda: "checking available models for claude as key" in _under(app),
+            driver,
+        )
+        assert "checking models" in _drawn(app)
 
         # Read another page meanwhile: what it said lands on the page it was asked from.
         sheet = app.screen
@@ -1319,14 +1324,14 @@ async def test_what_a_new_account_runs_is_asked_after_it_lands_and_said(
         await until(lambda: sheet._tab == 3, driver)
         let_go.set()
         await until(lambda: not sheet._asking, driver)
-        assert "did not say what it runs" not in _under(app)
+        assert "could not get models" not in _under(app)
         await driver.press("left")
-        await until(lambda: "did not say what it runs" in _under(app), driver)
+        await until(lambda: "could not get models" in _under(app), driver)
 
         # The reason, as words rather than a terminal's colours.
         assert "not signed in" in _under(app)
         assert "\x1b" not in _under(app)
-        assert "asking what it runs" not in _drawn(app)
+        assert "checking models" not in _drawn(app)
 
 
 @pytest.mark.timeout(60)
@@ -1394,5 +1399,5 @@ async def test_an_account_to_fail_over_to_whose_login_failed_says_so(
         await _answers(app, driver)
 
         await until(lambda: isinstance(app.screen, Falls), driver)
-        await until(lambda: "signing it in exited 1" in _under(app), driver)
+        await until(lambda: "sign-in failed with exit code 1" in _under(app), driver)
         assert "sub" in rows(app)

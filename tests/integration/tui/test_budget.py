@@ -94,7 +94,7 @@ async def test_the_row_says_what_the_run_is_held_to_without_being_opened(
         await _into(app, driver, "local/quiet")
 
         assert rows(app) == ["0", _BUDGET, _SAVE]
-        assert "none yet" in _said(app)
+        assert "none set" in _said(app)
 
 
 @pytest.mark.timeout(60)
@@ -151,7 +151,7 @@ async def test_a_flow_is_not_saved_until_a_run_of_it_has_a_budget(
         await driver.pause()
 
         assert app.screen is sheet  # still here, holding everything it was holding
-        assert "given a budget" in _under(app)
+        assert "requires a budget" in _under(app)
         assert Settings(tmp_path).flow != "local/quiet"
 
 

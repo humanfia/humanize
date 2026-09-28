@@ -24,10 +24,10 @@ At the prompt, open `/flow`, then the flow, then the agent's role. The `effort` 
 ```text{6}
   Set up agent
 
-    1. cli          claude ▸                   which coding agent takes its turns
-    2. provider     as local ▸                 the account those turns run as
-    3. model        claude-opus-5 ▸            which of that CLI's models it runs
-  ❯ 4. effort       high ↔                     how hard it thinks
+    1. cli          claude ▸                   coding agent CLI to use
+    2. provider     as local ▸                 account to run as
+    3. model        claude-opus-5 ▸            model to use
+  ❯ 4. effort       high ↔                     reasoning effort
 
        save                                    this agent
 

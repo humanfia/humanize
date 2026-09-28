@@ -102,7 +102,9 @@ def test_listening_where_anything_can_reach_it_without_a_secret_is_refused(
 
     assert anchor(["serve", "--export", exported, f"--listen={EVERYWHERE}:8080"]) == 2
 
-    assert "refusing to listen" in capsys.readouterr().err
+    assert "cannot listen on a non-loopback address without --token" in (
+        capsys.readouterr().err
+    )
 
 
 def test_serving_over_a_pipe_and_over_a_port_at_once_is_refused(exported: str) -> None:

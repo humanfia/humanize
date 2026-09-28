@@ -310,11 +310,11 @@ def _info(endpoint: Endpoint, where: str) -> dict[str, Any]:
     from hmz.coganchor.machines import info
 
     if shutil.which("docker") is None:
-        raise EnvUnavailable(f"{where}: there is no docker here to reach it with")
+        raise EnvUnavailable(f"{where}: docker was not found on this machine")
     try:
         return info(str(endpoint), _ASKING)
     except OSError as error:
-        raise EnvConnectionError(f"could not reach {where}: {error}") from error
+        raise EnvConnectionError(f"could not connect to {where}: {error}") from error
 
 
 def _mirrors(name: str) -> Path:
@@ -442,7 +442,9 @@ class DockerMachine(SSHMachine):
                     str(endpoint), {PROVIDER: self.provider}, seconds=_ASKING
                 )
             except OSError as error:
-                raise EnvConnectionError(f"could not reach {where}: {error}") from error
+                raise EnvConnectionError(
+                    f"could not connect to {where}: {error}"
+                ) from error
             live: list[Allocation] = []
             for one in held:
                 if _stale(one):
@@ -484,8 +486,8 @@ class DockerMachine(SSHMachine):
                 docker.start()
             except FileNotFoundError as error:
                 raise EnvUnavailable(
-                    f"{where} has no {error.filename or 'docker'} to give a container: "
-                    f"{error.strerror or error}"
+                    f"{where} has no {error.filename or 'docker'} to run a "
+                    f"container: {error.strerror or error}"
                 ) from error
             except (RuntimeError, ValueError) as error:
                 raise EnvUnavailable(f"{where}: {error}") from error
@@ -498,7 +500,7 @@ class DockerMachine(SSHMachine):
         if self._docker is not None:
             return
         if self.closed:
-            raise EnvError(f"the container of docker@{self.provider} was taken down")
+            raise EnvError(f"the docker@{self.provider} container was stopped")
         starting = self._starting
         if starting is None:
             starting = asyncio.ensure_future(asyncio.to_thread(self._brought_up))

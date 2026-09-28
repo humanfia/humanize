@@ -249,7 +249,7 @@ function run() {
     log.value = [
       {
         moment: -1,
-        said: `demo: 'coder' needs ${lacking.value.join(', ')}, which ${cli.value.name} does not do`,
+        said: `demo: 'coder' needs ${lacking.value.join(', ')}, which ${cli.value.name} does not support`,
         kind: 'bad',
       },
       { moment: -1, said: 'refused before the run starts: nothing ran', kind: 'done' },

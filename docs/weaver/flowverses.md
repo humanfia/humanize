@@ -157,7 +157,7 @@ so a flow that acts on import acts for somebody who was only looking.
 ## Adding one
 
 The Flowverses page of `/settings` (type `/settings flowverses`), or the
-`where flows come from` row in `/flow`, lists every place flows come from:
+`manage flowverses` row in `/flow`, lists every place flows come from:
 
 ![the Flowverses page of /settings: every place flows come from, then enter on one to read what it
 holds](/demo/flowverses.gif)
@@ -165,7 +165,7 @@ holds](/demo/flowverses.gif)
 | Row | |
 | --- | --- |
 | `add` | Add one: a URL or an `owner/repo`, and a name to keep it under, then `fetch`. Leave the name blank for the repository's own |
-| a flowverse | What it holds. Below its flows, `fetch it again` fetches it again or for the first time, and the last row takes the whole flowverse away |
+| a flowverse | What it holds. Below its flows, `fetch again` (or `fetch`) fetches it again or for the first time, and the last row takes the whole flowverse away |
 
 `official`, `local` and `user` are always listed, and none of them can be taken away.
 
@@ -217,7 +217,7 @@ humanize's by taking its name: `.humanize/flows/chat/` is what `-f chat` runs in
 flow, name it by commit: `-f 'git+https://github.com/humanfia/flowverse@<sha>#rlar'`.
 
 If a flowverse has not been fetched yet, the error says so: open the Flowverses page of
-`/settings`, open it, and choose `fetch it again`. `hmz exec` fetches nothing, so a fresh CI runner calls
+`/settings`, open it, and choose `fetch`. `hmz exec` fetches nothing, so a fresh CI runner calls
 `Hmz().verses.fetch("official")` first.
 
 ## Calling it from another flow

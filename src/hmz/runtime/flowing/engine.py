@@ -1700,7 +1700,7 @@ async def run_flow(
                 raise CapabilityMissing(
                     f"{impl.ref}: {role.name!r} needs "
                     f"{', '.join(sorted(one.__name__ for one in lacking))}, which "
-                    f"{driver.backend}@{driver.provider}{driver.workdir} does not serve"
+                    f"{driver.backend}@{driver.provider}{driver.workdir} does not support"
                 )
             if role.resources:
                 _meets(role, driver, impl)
@@ -1813,12 +1813,12 @@ def _serves(flow: FlowImpl, role: AgentRole, driver: AgentDriver) -> None:
     """
     if role.harness is not None and driver.harness != role.harness:
         raise HarnessMismatch(
-            f"{flow.ref}: {role.name!r} is {role.harness}, and {driver.harness} was given"
+            f"{flow.ref}: {role.name!r} requires {role.harness}, but got {driver.harness}"
         )
     lacking = role.capabilities - driver.capabilities
     if lacking:
         raise CapabilityMissing(
             f"{flow.ref}: {role.name!r} needs "
             f"{', '.join(sorted(one.__name__ for one in lacking))}, which "
-            f"{driver.harness} does not serve"
+            f"{driver.harness} does not support"
         )

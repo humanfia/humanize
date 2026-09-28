@@ -29,10 +29,10 @@ Show
 Sleep 600ms
 
 # The flows, a list per place they come from: the arrows step between the places.
-Type "/flow"
+Type@10ms "/flow"
 Sleep 300ms
 Enter
-Wait+Screen /Which flow drives/
+Wait+Screen /Choose a flow to run/
 Sleep 1s
 Right
 Wait+Screen /local\/twice/
@@ -40,7 +40,7 @@ Sleep 700ms
 Down
 Sleep 600ms
 Enter
-Wait+Screen /What each of its roles/
+Wait+Screen /Configure each role/
 Sleep 1500ms
 
 # Its one role, `builder`: the CLI, the account, the model, and the effort.
@@ -51,7 +51,7 @@ Down
 Down
 Sleep 400ms
 Enter
-Wait+Screen /Select what claude runs/
+Wait+Screen /Select a model for claude/
 Sleep 1200ms
 Down
 Sleep 500ms
@@ -59,29 +59,44 @@ Enter
 Wait+Screen /claude-sonnet-4-8 /
 Sleep 500ms
 Down
-Sleep 500ms
+Sleep 400ms
+# The effort is changed where it stands: enter begins, the arrows step it, enter keeps it.
+Enter
+Sleep 300ms
 Left
 Wait+Screen /medium/
-Sleep 1200ms
-Ctrl+J
-Wait+Screen /none yet/
+Sleep 900ms
+Enter
+Sleep 300ms
+# And `save`, under the rows, hands the agent back to the menu.
+Down
+Sleep 400ms
+Enter
+Wait+Screen /none set/
 Sleep 1s
 
 # What a run of it may spend. A run of a flow like this one is given a budget.
 Down
 Sleep 400ms
 Enter
-Wait+Screen /may spend/
+Wait+Screen /Set budget for/
 Sleep 1s
+Enter
 Type "20m"
 Sleep 500ms
+Enter
+Sleep 300ms
+Down 4
+Sleep 400ms
 Enter
 Wait+Screen /stops at/
 Sleep 1500ms
 
-# Saved from anywhere on the menu.
-Ctrl+J
-Wait+Screen /say what to do/
+# Saved from the menu's own `save` row.
+Down
+Sleep 400ms
+Enter
+Wait+Screen /enter a task/
 Sleep 1500ms
 
 # The task is the next thing said. Typed here, and never sent.

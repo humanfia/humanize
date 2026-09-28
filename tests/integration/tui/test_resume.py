@@ -189,7 +189,7 @@ async def test_a_run_of_a_flow_that_cannot_be_picked_up_is_not_the_one_carried_o
     async with app.run_test() as driver:
         await _resumes(app, driver)
 
-        assert "no run here was of a flow that can be picked up" in transcript(app)
+        assert "no run here was of a flow that can be resumed" in transcript(app)
         assert len(epics(workspace)) == 1  # and nothing was started
 
 
@@ -214,7 +214,7 @@ async def test_a_run_that_left_nothing_behind_is_not_carried_on(
     async with app.run_test() as driver:
         await _resumes(app, driver)
 
-        assert "left nothing behind" in transcript(app)
+        assert "has no saved state to resume" in transcript(app)
         assert len(epics(workspace)) == 2
         assert (workspace / "rounds.txt").read_text() == "1"  # and nothing ran again
 
@@ -236,7 +236,7 @@ async def test_a_record_that_cannot_be_read_back_says_so(workspace: Path) -> Non
     async with app.run_test() as driver:
         await _resumes(app, driver)
 
-        assert "cannot be read back" in transcript(app)
+        assert "cannot be read, so there is nothing to resume" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -255,8 +255,8 @@ async def test_a_flow_marked_since_the_run_is_asked_of_the_flow(
     async with app.run_test() as driver:
         await _resumes(app, driver)
 
-        assert "does not say it can be picked up" not in transcript(app)
-        assert "left nothing behind" in transcript(app)
+        assert "does not support resuming" not in transcript(app)
+        assert "has no saved state to resume" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -271,8 +271,8 @@ async def test_carrying_on_is_refused_while_a_flow_is_running(workspace: Path) -
         holding(app, ClaudeCodeAgent(ClaudeCodeAgentConfig(model="m", effort="high")))
         await _resumes(app, driver)
 
-        assert "no picking a run up while a flow is running" in transcript(app)
-        assert "ctrl+c twice stops it first" in transcript(app)
+        assert "cannot resume a run while a flow is running" in transcript(app)
+        assert "press ctrl+c twice to stop it first" in transcript(app)
         assert len(epics(workspace)) == 1
         assert not link(app).asked_for("start")
 
@@ -314,7 +314,7 @@ async def test_a_line_that_named_a_run_is_said_back_rather_than_dropped(
         await driver.press("enter")
         await driver.pause()
 
-        assert "/resume takes nothing" in transcript(app)
+        assert "/resume takes no arguments" in transcript(app)
         assert len(epics(workspace)) == 1
 
 

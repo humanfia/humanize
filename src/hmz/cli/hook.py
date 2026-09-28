@@ -41,15 +41,15 @@ def hook(argv: list[str]) -> int:
     """
     parser = argparse.ArgumentParser(
         prog="hmz internal hook",
-        description="relay one hook call to the flow whose moment it is. humanize writes "
-        "this line into a coding agent's own hook table and the agent spawns it; it is "
-        "not one to type by hand",
+        description="relay one hook call to the active flow. humanize adds this "
+        "command to an agent's hook table and the agent runs it; do not run it "
+        "manually",
     )
     parser.add_argument(
         "--at",
         required=True,
         metavar="SOCKET",
-        help="the socket the flow is serving its moments on",
+        help="the socket the flow is listening on",
     )
     try:
         args = parser.parse_args(argv)

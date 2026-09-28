@@ -223,11 +223,11 @@ def where(cli: str, name: str) -> Path:
     """
     profile = backends.named(cli)
     if profile is None:
-        raise ValueError(f"{cli}: no such coding agent")
+        raise ValueError(f"{cli}: unknown agent")
     if not _NAMED.match(name):
         raise ValueError(
-            f"{name!r} is not a provider name: letters, digits, dot, dash and underscore, "
-            "starting with a letter or a digit"
+            f"{name!r} is not a valid account name: letters, digits, dot, dash "
+            "and underscore, starting with a letter or a digit"
         )
     return under() / profile.name / name
 
@@ -309,9 +309,7 @@ def copies(one: Provider, cli: str, name: str = "") -> Provider:
     """
     held = backends.serves(one.env, cli)
     if held is None:
-        raise ValueError(
-            f"{one.cli}/{one.name} is not an account {cli} could be run as"
-        )
+        raise ValueError(f"{one.cli}/{one.name} cannot be used with {cli}")
     return add(cli, name or one.name, _as_made(cli, held), held)
 
 
@@ -463,9 +461,9 @@ def points(cli: str, name: str, at: str) -> bool:
         return False
     if at:
         if at == name:
-            raise ValueError(f"{name} cannot fall back to itself")
+            raise ValueError(f"{name} cannot fail over to itself")
         if find(cli, at) is None:
-            raise ValueError(f"there is no {found.cli} account called {at!r}")
+            raise ValueError(f"{found.cli} account {at!r} not found")
     _write(replace(found, fallback=at))
     return True
 

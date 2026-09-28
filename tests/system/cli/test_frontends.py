@@ -242,11 +242,11 @@ def test_two_people_each_answer_for_their_own_part_while_a_third_watches(
     panes.waits(starter, "started 1")
 
     # The planner's question is alice's to answer, and bob is told so rather than asked.
-    panes.waits(alice, "planner: what is the plan for the parser? · yours to answer")
+    panes.waits(alice, "planner: what is the plan for the parser? · claimed by you")
     shown = panes.waits(bob, "planner: what is the plan for the parser?")
-    assert "planner: what is the plan for the parser? · alice@cli's to answer" in shown
+    assert "planner: what is the plan for the parser? · claimed by alice@cli" in shown
     panes.types(alice, "a plan from alice")
-    panes.waits(bob, "reviewer: is 'a plan from alice' good? · yours to answer")
+    panes.waits(bob, "reviewer: is 'a plan from alice' good? · claimed by you")
     # Somebody arriving halfway through, who reads what happened before and then the rest.
     panes.opens(_attach("late", "--json") + " > late.jsonl")
     _lands(workspace / "late.jsonl", "live")
@@ -293,14 +293,14 @@ def test_a_question_left_by_the_person_who_held_it_is_answered_by_another(
     _hosted(workspace)
     alice = panes.opens(_attach("alice", "-c", "planner"))
     bob = panes.opens(_attach("bob", "-c", "reviewer"))
-    panes.waits(alice, "planner: what is the plan for the parser? · yours to answer")
+    panes.waits(alice, "planner: what is the plan for the parser? · claimed by you")
 
     panes.presses(alice, "C-c")
-    panes.waits(alice, "hmz attach: let go")
+    panes.waits(alice, "hmz attach: detached")
     panes.types(bob, "/claim planner")
-    panes.waits(bob, "hmz attach: planner is yours to answer")
+    panes.waits(bob, "hmz attach: planner is claimed by you")
     panes.types(bob, "bob's plan")
-    panes.waits(bob, 'reviewer: is "bob\'s plan" good? · yours to answer')
+    panes.waits(bob, 'reviewer: is "bob\'s plan" good? · claimed by you')
     panes.types(bob, "and fine by bob")
 
     said = panes.waits(starter, "ended done")

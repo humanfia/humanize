@@ -1,15 +1,15 @@
 <script setup>
 import TermScreen from '../.vitepress/theme/components/user-running/TermScreen.vue'
 
-const heading = '   [b]Board[/] · [m]what you and the flow both write on[/]'
+const heading = '   [b]Board[/] · [m]shared by you and the flow[/]'
 const todo = ' [b]❯[/] [c]◈[/] todo                      [m]write the parser[/]'
 const doing = "   [m]◈[/] doing                     [m]tokenizer[/] · [m]flow's[/]"
-const add = ['   [m]+[/] [m]a new line[/]']
+const add = ['   [m]+[/] [m]add entry[/]']
 // What sits between is the rest of the monitor -- the flow, what it has cost -- left out here.
 const gap = ['', '   [m]⋮[/]', '']
 const said = (words) => [...gap, ...(words ? [`[m]${words}[/]`] : []), { rule: true }, { prompt: '' }, { rule: true }, {
-  l: '[c]▣[/] monitor[m] · a node per agent[/]',
-  keys: '↑↓ node · enter read · → back · ctrl+t by session · / commands',
+  l: '[c]▣[/] monitor[m] · by agent[/]',
+  keys: '↑↓ node · enter open · → back · ctrl+t by session · / commands',
 }]
 
 const board = [
@@ -20,8 +20,8 @@ const board = [
   },
   {
     label: 'enter, then empty it',
-    lines: [heading, doing, ...add, ...said('todo is off the board')],
-    caption: '<kbd>enter</kbd> opens the line; rub out what it says and <kbd>enter</kbd> again takes it off at once. There is nothing to save.',
+    lines: [heading, doing, ...add, ...said('todo removed from the board')],
+    caption: '<kbd>enter</kbd> opens the line; delete what it says and <kbd>enter</kbd> again takes it off at once. There is nothing to save.',
   },
 ]
 </script>
@@ -44,7 +44,7 @@ is under the drawing. Press the keys to see what they do:
 | Key | Does |
 | --- | --- |
 | <kbd>↑</kbd> <kbd>↓</kbd> | Move between the lines, as between the boxes above them. |
-| <kbd>enter</kbd> on `+ a new line` | Put up a line: type its name, <kbd>enter</kbd>, then what it says, <kbd>enter</kbd>. |
+| <kbd>enter</kbd> on `+ add entry` | Put up a line: type its name, <kbd>enter</kbd>, then what it says, <kbd>enter</kbd>. |
 | <kbd>enter</kbd> on a line | Change what it says, then <kbd>enter</kbd>. Saved empty, the line is taken off. |
 | <kbd>esc</kbd> | While writing a line: back, changing nothing. |
 | <kbd>→</kbd> | Back to the log. |

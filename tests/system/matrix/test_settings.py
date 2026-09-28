@@ -14,6 +14,7 @@ which those would take away.
 from __future__ import annotations
 
 import json
+import re
 import time
 from typing import TYPE_CHECKING, Any, cast
 
@@ -127,9 +128,8 @@ async def test_settings_accounts(asking: None) -> None:
             await until(lambda: isinstance(app.screen, Providers), driver)
             await until(lambda: accounts.find("dsh", MADE) is not None, driver)
             # Asked what it runs, for real, and it said.
-            said = await _says(app, driver, "says it runs", "did not say what it runs")
-            assert "dsh says it runs" in said, said
-            assert f"models as {MADE}" in said, said
+            said = await _says(app, driver, "dsh supports", "could not get models for")
+            assert re.search(rf"dsh supports \d+ models? as {MADE}", said), said
 
         made = accounts.find("dsh", MADE)
         assert made is not None

@@ -257,7 +257,7 @@ async def test_a_turn_that_ended_without_saying_it_had_it_says_that_instead() ->
 
         assert _pinned(app) == ""
         assert "take this" in transcript(app)
-        assert "without saying it had it" in transcript(app)
+        assert "ended its turn without acknowledging it" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -385,7 +385,7 @@ async def test_what_the_stopped_flow_never_took_is_said_to_have_been_dropped() -
 
         assert _pinned(app) == ""
         assert "too late" in transcript(app)
-        assert "never sent: the flow stopped first" in transcript(app)
+        assert "never sent: the flow stopped" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -410,9 +410,9 @@ async def test_what_was_put_to_an_agent_and_dropped_says_it_may_have_reached_it(
 
         shown = transcript(app)
         assert "half way" in shown
-        assert "put to the agent, never taken back: the flow ended first" in shown
+        assert "sent to the agent, not acknowledged: the flow ended" in shown
         assert "from bob · by bob@tui" in shown
-        assert "never sent: the flow ended first" in shown
+        assert "never sent: the flow ended" in shown
         assert shown.index("half way") < shown.index("from bob")
 
 
@@ -515,7 +515,7 @@ async def test_what_a_flow_that_ended_never_took_is_said_to_have_been_dropped(
 
         assert _pinned(app) == ""
         assert "and this too" in transcript(app)
-        assert "the flow ended first" in transcript(app)
+        assert "the flow ended" in transcript(app)
 
 
 @pytest.mark.timeout(60)

@@ -234,7 +234,7 @@ offer it for that role:
 ```console
 $ hmz exec -f gated -a builder=grok/grok-4.6:high \
     -a reviewer=codex/gpt-5.6-sol:high -b cost=10 "fix the build"
-hmz exec: error: gated: 'builder' needs PermissionRequestHookAgentMixin, which grok does not do
+hmz exec: error: gated: 'builder' needs PermissionRequestHookAgentMixin, which grok does not support
 ```
 
 A role that did not declare it cannot hang one: `on_permission_request` on a plain `Agent` is a

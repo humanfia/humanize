@@ -5,13 +5,13 @@ was undone or refused. It asks you once, the first time you open `hmz`, and send
 you say yes.
 
 ```text{9}
-   Report what goes wrong to humanize?
+   Report errors to humanize?
 
-   A crash nobody sees is a bug nobody fixes. Sent: the error
-   and where in humanize it happened; which flow was running,
-   and what each of its agents was set up to run; … Never:
-   nothing you typed: no task, no prompt, no line at the
-   prompt; … /settings changes it later.
+   Send error reports to help fix bugs. Sent: the error and
+   where in humanize it occurred; which flow was running, and
+   what each agent was configured to run; … Never sent:
+   nothing you typed: no task, prompt, or command; … You can
+   change this later in /settings.
 
  ❯ 1. yes
    2. no
@@ -25,29 +25,30 @@ you say yes.
 <div class="report-list sent">
 <p class="report-head"><span aria-hidden="true">↑</span> Sent, once you say yes</p>
 <ul>
-<li><strong>The error, and where in humanize it happened.</strong> Its type, its message, and
+<li><strong>The error, and where in humanize it occurred.</strong> Its type, its message, and
 each frame of the stack named by its place inside humanize or a library, such as
 <code>hmz/coganchor/agents/base.py</code>. A frame in your own code keeps its line number and
 nothing else.</li>
-<li><strong>Which flow was running, and what each agent was set up to run.</strong> The flow's
+<li><strong>Which flow was running, and what each agent was configured to run.</strong> The flow's
 name, how deep it was called and for how long; for each agent role, the CLI, the model, the
 effort, the account <em>by name</em>, what it may do, and its skills by name.</li>
-<li><strong>Which coding agents are installed, and which accounts exist</strong>, by name, and
-how each account was signed in.</li>
-<li><strong>Which skills and flowverses are in play</strong>, by name.</li>
-<li><strong>What humanize did that you then undid, refused or walked away from</strong>, as
+<li><strong>Which coding agents are installed, and account names</strong>, and how each
+account was signed in.</li>
+<li><strong>Which skills and flowverses are active</strong>, by name.</li>
+<li><strong>What humanize did that you undid, refused, or canceled</strong>, as
 <a href="#the-friction-it-counts">named events with counts</a>.</li>
-<li><strong>The versions of humanize and Python, and the kind of machine.</strong></li>
+<li><strong>The versions of humanize and Python, and the operating system and
+architecture.</strong></li>
 </ul>
 </div>
 <div class="report-list kept">
 <p class="report-head"><span aria-hidden="true">✕</span> Never sent</p>
 <ul>
-<li><strong>Nothing you typed.</strong> No task, no prompt, no line at the prompt.</li>
-<li><strong>Nothing an agent said.</strong> Nothing out of any transcript or session log.</li>
-<li><strong>No file, no path outside humanize itself, and no directory name.</strong></li>
-<li><strong>No key, no token and no account credential</strong>, not even the names of the
-variables an account sets.</li>
+<li><strong>Nothing you typed.</strong> No task, prompt, or command.</li>
+<li><strong>No agent output.</strong> Nothing from any transcript or session log.</li>
+<li><strong>No files, directory names, or paths outside humanize itself.</strong></li>
+<li><strong>No keys, tokens, or account credentials</strong>, not even the names of the
+environment variables an account sets.</li>
 </ul>
 </div>
 </div>
@@ -60,7 +61,7 @@ The machine's side, the installed agents, accounts, skills and flowverses, is de
 | Where | What happens |
 | --- | --- |
 | `hmz`, the first time | It asks. <kbd>esc</kbd> leaves the question unanswered, and it asks again next time. |
-| `hmz`, after that | It does what you answered. [`/settings`](/user/settings) changes it: **report what goes wrong to humanize**, on the first page. |
+| `hmz`, after that | It does what you answered. [`/settings`](/user/settings) changes it: **send error reports to humanize**, on the first page. |
 | `hmz exec` | It never asks. It reports only if you answered yes. |
 | a script using `hmz.sdk` | Nothing is reported unless the script calls `Hmz().reports()`, and then only if you answered yes. |
 | any of them, under `HUMANIZE_SENTRY` | `on` or `off` answers for that one process and writes nothing down. `/settings` says so while it is set. |

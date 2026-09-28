@@ -56,7 +56,7 @@ in, which is wherever you start the run. Every flag is in the [CLI reference](/r
 ::: tip On a fresh install, open `hmz` once first
 Every flow but `chat` comes from humanize's own flowverse, which `hmz` fetches in the
 background as it opens. Until then, `hmz exec` refuses the flow and tells you to open
-the Flowverses page of `/settings`, open `official` and choose `fetch it again`.
+the Flowverses page of `/settings`, open `official` and choose `fetch`.
 :::
 
 ::: warning Agents act without asking

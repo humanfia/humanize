@@ -80,7 +80,7 @@ The mixin is how the flow says so, and humanize holds the flow to it both ways.
 ```console
 $ hmz exec -f goal -a worker=pi/openai-codex/gpt-5.5:high -b cost=5 \
     "fix the build"
-hmz exec: error: goal: 'worker' needs GoalCommandAgentMixin, which pi does not do
+hmz exec: error: goal: 'worker' needs GoalCommandAgentMixin, which pi does not support
 ```
 
 At the prompt, `/flow` offers only the CLIs that have one for that role.

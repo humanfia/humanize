@@ -160,7 +160,7 @@ def test_runs_that_cannot_be_held_apart_are_held_here_instead(
 
     assert standing.made == {}  # opened on runs of its own, in this process
     said = capsys.readouterr().err
-    assert "cannot be held apart from the terminal" in said
+    assert "cannot be detached from the terminal" in said
     assert "no forking here" in said
 
 

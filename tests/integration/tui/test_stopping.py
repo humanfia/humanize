@@ -115,7 +115,7 @@ async def test_a_typed_stop_says_so_where_there_is_nothing_to_stop() -> None:
     app = Humanize()
     async with app.run_test() as driver:
         await _typed(driver, "/stop")
-        await until(lambda: "nothing to stop" in transcript(app), driver)
+        await until(lambda: "no flow is running" in transcript(app), driver)
 
         assert app.is_running
 
@@ -150,7 +150,7 @@ def test_stop_is_offered_among_the_commands_and_says_it_is_asked_once() -> None:
 
     assert "/stop" in offered("/", _COMMANDS)
     assert _BY_NAME["stop"].takes == ""  # there is nothing to write after it
-    assert "twice" in _BY_NAME["stop"].about
+    assert "without confirmation" in _BY_NAME["stop"].about
     # And it names no key: the row under the editor is where the keys are said, so a line
     # here naming the one this stands in for would be that key read twice on one screen.
     assert "ctrl" not in _BY_NAME["stop"].about
@@ -178,7 +178,7 @@ async def test_a_typed_stop_works_only_where_the_whole_run_is_watched() -> None:
             assert not app.query_one("#offers", OptionList).has_class("offering")
             app.query_one(Editor).text = ""
             await _typed(driver, "/stop")
-            await until(lambda: "/stop works on" in transcript(app), driver)
+            await until(lambda: "/stop is only available on" in transcript(app), driver)
             assert not run.stopped
 
         app._now_reading("")
@@ -202,7 +202,7 @@ async def test_a_typed_stop_leaves_no_half_made_gesture_behind_it() -> None:
         assert app._presses == 1  # the press that asks, and is then typed past
 
         await _typed(driver, "/stop")
-        await until(lambda: "nothing to stop" in transcript(app), driver)
+        await until(lambda: "no flow is running" in transcript(app), driver)
         assert (
             not app._presses
         )  # counted from nothing, so the next press is a first press
@@ -211,7 +211,7 @@ async def test_a_typed_stop_leaves_no_half_made_gesture_behind_it() -> None:
         await driver.pause()
 
         assert app._presses == 1
-        assert "press ctrl+c again to leave" in transcript(app)
+        assert "press ctrl+c again to exit" in transcript(app)
         assert app.is_running
 
 
@@ -242,7 +242,7 @@ async def test_the_press_after_a_typed_stop_does_not_close_the_interface(
         await driver.pause()
 
         assert app.is_running
-        assert "press ctrl+c again to leave" in transcript(app)
+        assert "press ctrl+c again to exit" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -263,5 +263,5 @@ async def test_the_keys_name_what_the_press_after_a_typed_stop_does() -> None:
         await _typed(driver, "/stop")
         await until(lambda: "already stopping" in transcript(app), driver)
 
-        assert "ctrl+c close them" in app._keys()
+        assert "ctrl+c force stop" in app._keys()
         assert "ctrl+c again to exit" not in app._keys()

@@ -128,7 +128,7 @@ async def test_an_empty_menu_opens_on_the_row_that_writes_one_down() -> None:
         # The row that writes one down, which is where to start, and the cursor on it.
         assert rows(app) == [_ADD, _SAVE]
         assert under(app) == _ADD
-        assert "nothing falls back anywhere yet" in _under(app)
+        assert "no fallback rules configured yet" in _under(app)
 
 
 @pytest.mark.timeout(90)
@@ -201,7 +201,7 @@ async def test_a_step_that_says_nothing_is_refused_where_it_was_written() -> Non
         await driver.pause()
 
         assert isinstance(app.screen, Failing)  # still asking, rather than gone
-        assert "says nothing" in _under(app)
+        assert "choose a fallback agent or set retries" in _under(app)
 
 
 @pytest.mark.timeout(60)
@@ -227,7 +227,7 @@ async def test_a_step_is_taken_away_from_its_own_form() -> None:
 
         # Gone from the list, and nothing on disk until the menu is saved.
         assert rows(app) == [_ADD, _SAVE]
-        assert "falls back nowhere when this menu is saved" in _under(app)
+        assert "has no fallback when this menu is saved" in _under(app)
         assert fallbacks.falls()
 
         await keeps(app, driver)
@@ -297,7 +297,7 @@ async def test_how_often_a_failed_turn_is_taken_again_is_on_the_same_form() -> N
 
         # Said, and held until the menu is saved.
         listing = app.screen.query_one("#choices", OptionList)
-        assert "1 more tries" in str(listing.get_option("=claude/claude-opus-5").prompt)
+        assert "1 retry" in str(listing.get_option("=claude/claude-opus-5").prompt)
         assert fallbacks.tried("claude/claude-opus-5").tries == 0
 
         await keeps(app, driver)
@@ -327,7 +327,7 @@ async def test_leaving_a_step_being_written_asks_whether_to_keep_it() -> None:
         await driver.press("enter")  # save, which is keeping the step as it now says
         await until(lambda: isinstance(app.screen, Fallbacks), driver)
 
-        assert "1 more tries" in str(
+        assert "1 retry" in str(
             app.screen.query_one("#choices", OptionList)
             .get_option("=claude/claude-opus-5")
             .prompt
@@ -369,7 +369,7 @@ async def test_a_step_added_for_a_place_that_has_one_starts_from_it() -> None:
         assert isinstance(sheet, Failing)
         assert sheet._typed_in["goes"] == "codex/gpt-5.6-sol"
         assert sheet._typed_in["tries"] == "3"
-        assert "has a step already" in _under(app)
+        assert "already has a fallback rule" in _under(app)
         await onto(app, driver, _DONE)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Fallbacks), driver)
@@ -391,7 +391,7 @@ async def test_choosing_an_account_that_has_not_said_what_it_runs_asks_and_stays
 
     app = Humanize()
     async with app.run_test() as driver:
-        sheet = Places({"claude": ()}, "Select the place that fails")
+        sheet = Places({"claude": ()}, "Select the agent that fails")
         monkeypatch.setattr(sheet, "_asks", asks)
         answered: list[str | None] = []
         app.push_screen(sheet, callback=answered.append)

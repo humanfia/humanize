@@ -35,15 +35,14 @@ def tools(argv: list[str]) -> int:
     """
     parser = argparse.ArgumentParser(
         prog="hmz internal tools",
-        description="relay the tool protocol to the flow whose callbacks these are. "
-        "humanize writes this line into a coding agent's own tool configuration and the "
-        "agent spawns it; it is not one to type by hand",
+        description="relay tool calls to the flow. humanize configures agents to run "
+        "this automatically; do not run it manually",
     )
     parser.add_argument(
         "--at",
         required=True,
         metavar="SOCKET",
-        help="the socket the flow is serving its callbacks on",
+        help="socket for flow callbacks",
     )
     args = parser.parse_args(argv)
     held = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

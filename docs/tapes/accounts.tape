@@ -32,7 +32,7 @@ Sleep 1400ms
 # account, taking it away among them, rather than four letters to read off the bottom of the
 # screen.
 Enter
-Wait+Screen /correct what it holds/
+Wait+Screen /edit settings/
 Sleep 1400ms
 Screenshot "/out/account-does.png"
 Sleep 400ms

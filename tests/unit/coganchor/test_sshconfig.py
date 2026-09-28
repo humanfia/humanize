@@ -186,7 +186,7 @@ def test_a_host_that_is_no_name_is_imported_under_one(tmp_path: Path) -> None:
         ("under", "_under"),
         ("box-1", "box%1"),
     ]
-    with pytest.raises(ValueError, match="is not an ssh alias"):
+    with pytest.raises(ValueError, match="invalid ssh alias"):
         store.imports(config, ["me@box"])
 
 
@@ -194,6 +194,6 @@ def test_importing_a_host_the_config_does_not_name_is_refused(tmp_path: Path) ->
     config = tmp_path / "config"
     config.write_text("Host gpu\n")
 
-    with pytest.raises(ValueError, match="names no host ghost"):
+    with pytest.raises(ValueError, match="ssh config has no host ghost"):
         store.imports(config, ["gpu", "ghost"])
     assert store.providers() == []

@@ -1,7 +1,7 @@
 # Leaving it running
 
 A run does not need your terminal. Close the window, lose the ssh connection, or `/exit` and
-choose to leave it running: the flow goes on taking its turns. Run `hmz` in the same directory
+choose `detach and exit`: the flow goes on taking its turns. Run `hmz` in the same directory
 and you are back in it.
 
 ## Try it
@@ -12,13 +12,13 @@ Start a flow, as in [Your first run](/user/first-run). Then type `/exit`, or pre
 ```text
 A flow is running.
 
-❯ 1. stop it, then leave
-  2. leave it running             `hmz` here reads it again
+❯ 1. stop the flow and exit
+  2. detach and exit              run `hmz` here to reattach
 
 enter choose · esc stay
 ```
 
-Choose `leave it running`. Your shell comes back, and the flow is still going.
+Choose `detach and exit`. Your shell comes back, and the flow is still going.
 
 Later, from any terminal on the same machine:
 
@@ -49,7 +49,7 @@ what it asked and who answered, as if you had never left.
 ## When it can't be left running
 
 Then the interface holds the run in its own process, and closing the terminal ends the run.
-`/exit` offers `stay here` in place of `leave it running`. That happens when:
+`/exit` offers `cancel` in place of `detach and exit`. That happens when:
 
 - **stdin or stdout is not a terminal**: output redirected to a file, or input from a pipe;
 - **`HUMANIZE_DAEMON` is `off`**, `0` or `no`, for a machine where a run should end with its
@@ -60,8 +60,8 @@ Then the interface holds the run in its own process, and closing the terminal en
   ```
 
 - **humanize could not set it up**, which it says as it opens:
-  `hmz: the runs here cannot be held apart from the terminal (…), so they are held in this
-  process instead`.
+  `hmz: runs cannot be detached from the terminal (…), so they will run in this process
+  instead`.
 
 A run nobody watches at all belongs on a command line: see [Run it
 unattended](/user/unattended). How a run outlives its terminal is on [The terminal can

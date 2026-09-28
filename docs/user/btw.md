@@ -18,7 +18,7 @@ const below = [
   { rule: true },
   {
     l: '[c]btw · btw agent[/] · [c]·|·[/] actor… [m](51s · ctrl+c twice to stop)[/]',
-    keys: 'shift+tab view · / commands · shift+enter newline · ← monitor · ctrl+c stop',
+    keys: 'shift+tab switch view · / commands · shift+enter newline · ← monitor · ctrl+c stop',
   },
 ]
 
@@ -27,7 +27,7 @@ const asking = [
     label: 'asked',
     lines: [
       ...before,
-      { t: '[c]btw · btw agent[/] [dim]each line is a question; /btw or esc leaves[/]', hl: true },
+      { t: '[c]btw · btw agent[/] [dim]each line is a question; /btw or esc to exit[/]', hl: true },
       ...below,
     ],
     caption: 'The run carries on. The actor never sees the question, and the status line says you are in btw mode.',
@@ -36,7 +36,7 @@ const asking = [
     label: 'answered',
     lines: [
       ...before,
-      '[c]btw · btw agent[/] [dim]each line is a question; /btw or esc leaves[/]',
+      '[c]btw · btw agent[/] [dim]each line is a question; /btw or esc to exit[/]',
       '',
       {
         t:
@@ -116,8 +116,8 @@ To tell the agent something rather than ask about it, leave btw mode and type th
 
 | You see | Because |
 | --- | --- |
-| `hmz: /btw needs a coding agent to ask` | No btw agent is set, and no flow is set up to copy one from. |
-| `hmz: /btw: <session> has no conversation to ask` | That session is gone. |
+| `hmz: /btw requires a coding agent` | No btw agent is set, and no flow is set up to copy one from. |
+| `hmz: /btw: no conversation found for <session>` | That session is gone. |
 | `hmz: btw is still answering the last question` | Wait for the answer, then ask again. |
 | `hmz: /btw: …` | The side question failed. The flow is not affected. |
 

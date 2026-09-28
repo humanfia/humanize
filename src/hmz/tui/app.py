@@ -192,7 +192,7 @@ _OUTWORLDER = "outworlder:"
 #: How each view is said where a command is refused in it, which is saying where it works.
 _VIEWED = {
     "monitor": "the monitor",
-    "aggregate": "the transcript every agent is on",
+    "aggregate": "the all-agents transcript",
     "session": "one agent's transcript",
     "outworlder": "an outworlder's transcript",
 }
@@ -206,7 +206,7 @@ _AGAIN = 3.0
 #: -- to `/stop`, and to everything `_mid_run` turns down. One state reads as one state only
 #: while it is said in one wording: two sentences for it are two states to whoever is at the
 #: prompt, and each of them one somebody has to work out for themselves.
-_UNWINDING = "it is closing out the turn it was in"
+_UNWINDING = "it is finishing the turn it was in"
 
 #: The flow the interface opens on, which is the one that is only talking to one agent.
 _STARTS_ON = "chat"
@@ -225,7 +225,7 @@ _PATIENCE = 10.0
 
 #: What a line left waiting when a run went is said to have been stopped by, as the host says
 #: why it let go of it.
-_FIRST = {"stopped": "the flow stopped first", "ended": "the flow ended first"}
+_FIRST = {"stopped": "the flow stopped", "ended": "the flow ended"}
 
 #: How much live activity a side question may carry into its isolated context: a bound on
 #: optional observation, since a day-long flow must not grow the interface without limit.
@@ -807,7 +807,7 @@ class Humanize(App[None]):
         elif self._presses > 1:
             self.action_quit()
         else:
-            self.show("[dim]— press ctrl+c again to leave —[/dim]")
+            self.show("[dim]— press ctrl+c again to exit —[/dim]")
         self._draw()
 
     def _prompt(self) -> Editor:
@@ -854,9 +854,7 @@ class Humanize(App[None]):
         """
         closed = answer.get("closed")
         if closed:
-            self.show(
-                f"[dim]— closed {closed} conversation(s) under their turns —[/dim]"
-            )
+            self.show(f"[dim]— closed {closed} conversation(s) mid-turn —[/dim]")
 
     def __init__(
         self,
@@ -1166,7 +1164,7 @@ class Humanize(App[None]):
           RuntimeError: If it is asked for before then.
         """
         if self._linked is None:
-            raise RuntimeError("the interface reaches the runs once it is mounted")
+            raise RuntimeError("cannot access runs before the interface is mounted")
         return self._linked
 
     def _links(self, host: Host) -> Link:
@@ -1207,7 +1205,7 @@ class Humanize(App[None]):
             except Exception as why:  # noqa: BLE001 -- a CLI that will not say what it runs
                 # Not raised at whoever opened the interface: nobody asked for this, and a
                 # backend that will not answer is one to ask again from the models.
-                self.log(f"{backend} did not say what it runs: {why}")
+                self.log(f"{backend} failed to report available models: {why}")
                 continue
             # Which may be the first model there is to open on, for an interface that opened
             # with nothing installed to talk to.
@@ -1271,7 +1269,7 @@ class Humanize(App[None]):
             except Exception as why:  # noqa: BLE001 -- a flowverse that would not fetch again
                 # Not raised at whoever opened the interface: nobody asked for this, and the
                 # flows that came down last time are still there to run.
-                self.log(f"{one.name} was not fetched again: {why}")
+                self.log(f"failed to update flowverse {one.name}: {why}")
             else:
                 # And only where something came down with it. Most of these bring nothing --
                 # the repository has not moved since the last start -- and reading a flow
@@ -1568,7 +1566,7 @@ class Humanize(App[None]):
           Its name as it is read.
         """
         if key == _EVERY:
-            return "every agent"
+            return "all agents"
         if key.startswith(_OUTWORLDER):
             return f"outworlder {key.removeprefix(_OUTWORLDER)}"
         role, _, count = key.partition("/")
@@ -1992,7 +1990,7 @@ class Humanize(App[None]):
         # with the conversations each of them is holding, since one of those is what is being
         # read and what a typed line goes to.
         lines = reads(self._named_by, self._in_order(), self._held()) or [
-            "no agent installed" if self._named_by else "no agent to choose"
+            "no agent installed" if self._named_by else "no agent available"
         ]
         lines.extend(self._outworlder_lines())
         if spent:
@@ -2214,7 +2212,7 @@ class Humanize(App[None]):
         if said in ("on", "off"):
             return said == "on"
         if said:
-            self.show(f"hmz: say on or off, not {argv[0]!r}", "red")
+            self.show(f"hmz: expected 'on' or 'off', not {argv[0]!r}", "red")
             return None
         return not now
 
@@ -2227,7 +2225,7 @@ class Humanize(App[None]):
         means something different for having just been pressed.
         """
         if self.query_one("#offers", OptionList).has_class("offering"):
-            return ["↑↓ move", "tab take", "esc dismiss"]
+            return ["↑↓ move", "tab select", "esc cancel"]
         keys: list[str] = []
         if self.query_one(Editor).text:
             # Enter does nothing with nothing typed, and a key that does nothing is not one
@@ -2235,14 +2233,14 @@ class Humanize(App[None]):
             keys.append(
                 "enter answer"
                 if self._answers_to() is not None
-                else "enter say"
+                else "enter send"
                 if self._run is not None
                 else "enter start"
             )
         if len(self._ring()) > 1:
             # Only with somewhere to step: with nothing working there is the one transcript
             # every agent is on, and a key that lands back where it started is not a key.
-            keys.append("shift+tab view")
+            keys.append("shift+tab switch view")
         keys.append("/ commands")
         keys.append("shift+enter newline")
         if not self.query_one(Editor).text:
@@ -2258,7 +2256,7 @@ class Humanize(App[None]):
         elif self._run is not None:
             keys.append("ctrl+c stop")
         elif self._stopping is not None:
-            keys.append("ctrl+c close them")
+            keys.append("ctrl+c force stop")
         else:
             keys.append("ctrl+c exit")
         return keys
@@ -2299,7 +2297,8 @@ class Humanize(App[None]):
         """
         if self._run is not None:
             self.show(
-                f"hmz: {what} while a flow is running: ctrl+c twice stops it first",
+                f"hmz: {what} while a flow is running: press ctrl+c twice to "
+                "stop it first",
                 "red",
             )
             return True
@@ -2510,7 +2509,10 @@ class Humanize(App[None]):
             works = " and ".join(
                 [", ".join(named[:-1]), named[-1]] if len(named) > 1 else named
             )
-            self.show(f"hmz: /{name} works on {works}, not on {_VIEWED[kind]}", "red")
+            self.show(
+                f"hmz: /{name} is only available on {works}, not on {_VIEWED[kind]}",
+                "red",
+            )
             return
         command.does(self, argv)
 
@@ -2530,9 +2532,9 @@ class Humanize(App[None]):
             if (switched := self._switched(argv, now=self._away(role))) is None:
                 return
             said = (
-                f"away as {role}: what it asks is told nobody is here"
+                f"away as {role}: agents that ask are told nobody is here"
                 if switched
-                else f"here as {role}: it may stop and ask you"
+                else f"here as {role}: agents may stop and ask you"
             )
             self._asks("afk", then=lambda _: self._says(said), on=switched, role=role)
             return
@@ -2540,7 +2542,7 @@ class Humanize(App[None]):
         if (switched := self._switched(argv, now=now)) is None:
             return
         said = (
-            "away: an agent that wants to ask is told nobody is here"
+            "away: agents that ask are told nobody is here"
             if switched
             else "here: an agent may stop and ask you"
         )
@@ -2564,10 +2566,10 @@ class Humanize(App[None]):
         if (switched := self._switched(argv, now=mine)) is None:
             return
         if switched:
-            said = f"{role} is yours to answer, and nobody else's"
+            said = f"only you can answer for {role}"
             self._asks("claim", then=lambda _: self._says(said), role=role)
         else:
-            said = f"{role} is anybody's to answer again"
+            said = f"anyone can answer for {role}"
             self._asks("release", then=lambda _: self._says(said), role=role)
 
     def _says(self, said: str) -> None:
@@ -2635,17 +2637,17 @@ class Humanize(App[None]):
         target = self._btw_target()
         if target:
             if target not in self._btw_sessions():
-                self.show(f"hmz: /btw: {target} has no conversation to ask", "red")
+                self.show(f"hmz: /btw: no conversation found for {target}", "red")
                 return None
         elif not (self.settings.btw or self._btw_sessions() or self._models):
-            self.show("hmz: /btw needs a coding agent to ask", "red")
+            self.show("hmz: /btw requires a coding agent", "red")
             return None
         mode = _Btw(target)
         with self._btw_lock:
             self._btw = mode
         self.show(
-            f"[cyan]btw · {escape(target or 'btw agent')}[/] [dim]each line is a question; "
-            "/btw or esc leaves[/dim]"
+            f"[cyan]btw · {escape(target or 'btw agent')}[/] [dim]each line is "
+            "a question; /btw or esc to exit[/dim]"
         )
         self._draw()
         return mode
@@ -2664,7 +2666,7 @@ class Humanize(App[None]):
           because: Why, where it was not asked for, or "" for `/btw` or esc.
         """
         self._close_btw()
-        self.show(f"[dim]btw: left{f' -- {because}' if because else ''}[/dim]")
+        self.show(f"[dim]btw: exited{f' -- {because}' if because else ''}[/dim]")
         self._draw()
 
     def _close_btw(self) -> None:
@@ -2856,7 +2858,7 @@ class Humanize(App[None]):
         if side is not None:
             return self._aside(side, format_turn(question))
         if key not in self._btw_sessions():
-            return f"(no session {key} to ask)"
+            return f"(session {key} not found)"
         opened = self._link.aside(key=key, fork=True)
         side = self._btw_kept(mode, key, str(opened["side"]))
         if opened.get("forked"):
@@ -2931,7 +2933,7 @@ class Humanize(App[None]):
                 answer = self._btw_turn(mode, mode.target, question, snapshot)
             else:
                 answer = self._btw_agent_turn(mode, question, snapshot)
-            failure = "" if answer else "the side agent returned no answer"
+            failure = "" if answer else "the agent returned no answer"
         except _BtwLeft:
             pass
         except Exception as why:  # noqa: BLE001 -- a backend may fail independently
@@ -3021,7 +3023,7 @@ class Humanize(App[None]):
         elif self._stopping is not None:
             self.show(f"hmz: the flow is already stopping: {_UNWINDING}", "red")
         else:
-            self.show("hmz: no flow is running, so there is nothing to stop", "red")
+            self.show("hmz: no flow is running", "red")
         self._presses = 0
         self._draw()  # rather than at the next tick: it was just typed
 
@@ -3118,7 +3120,7 @@ class Humanize(App[None]):
         """
         running = self._run is not None
         if named and running:
-            self.show("hmz: a flow is running; no choosing a flow", "red")
+            self.show("hmz: cannot choose a flow while one is running", "red")
             return
         chosen = await self._chooses(named, running=running)
         if chosen is None:
@@ -3197,7 +3199,7 @@ class Humanize(App[None]):
             # The same answer `/flow <name>` gives while one runs, since it is the same thing
             # being asked for: two ways of choosing a flow that did opposite things would be
             # one of them ending a day's work on a line meant to queue the next one up.
-            self.show("hmz: a flow is running; no choosing a flow", "red")
+            self.show("hmz: cannot choose a flow while one is running", "red")
             return
         chosen = self._remembered_for(named)
         if chosen is None:
@@ -3205,7 +3207,7 @@ class Humanize(App[None]):
             if chosen is None:
                 # Walked out of the menu, so nothing was chosen and nothing runs. Said, or a
                 # line that was typed to start something would have vanished without a word.
-                self.show("[dim]nothing was set up, so nothing was started[/dim]")
+                self.show("[dim]flow not set up; nothing started[/dim]")
                 return
         self._took_flow(chosen, running=False, starting=task)
 
@@ -3293,7 +3295,7 @@ class Humanize(App[None]):
         if running:
             self._reconfigured()
         elif not same and not starting:
-            self.show("[dim]say what to do, and the flow starts on it[/dim]")
+            self.show("[dim]enter a task to start the flow[/dim]")
         self._draw()
         if starting:
             # Said already, `$` and all, so it starts rather than being written down twice.
@@ -3308,8 +3310,8 @@ class Humanize(App[None]):
         noticing, so what was changed is written down and is what the next run starts on.
         """
         self.show(
-            "[dim]the roles of the run going now stay as it started; what was changed is "
-            "what the next run starts on[/dim]"
+            "[dim]the current run keeps its original roles; changes will apply "
+            "to the next run[/dim]"
         )
 
     @work
@@ -3335,9 +3337,9 @@ class Humanize(App[None]):
             return  # asked again next time: walking away is not an answer
         telemetry.asked(enable_sentry=said == "on")
         self.show(
-            "[dim]humanize reports what goes wrong; /settings turns it off[/dim]"
+            "[dim]error reporting enabled; use /settings to turn it off[/dim]"
             if said == "on"
-            else "[dim]humanize reports nothing; /settings turns it on[/dim]"
+            else "[dim]error reporting disabled; use /settings to turn it on[/dim]"
         )
 
     def action_settings(self, page: str = "") -> None:
@@ -3358,8 +3360,8 @@ class Humanize(App[None]):
         said = page.lower()
         if said and said not in _PAGES:
             self.show(
-                f"hmz: /settings has no page {page!r}: say {', '.join(_PAGES[:-1])} or "
-                f"{_PAGES[-1]}",
+                f"hmz: /settings has no page {page!r}: choose "
+                f"{', '.join(_PAGES[:-1])} or {_PAGES[-1]}",
                 "red",
             )
             return
@@ -3391,42 +3393,47 @@ class Humanize(App[None]):
             # rather than at the next start.
             telemetry.asked(enable_sentry=said.enable_sentry)
             self.show(
-                "[dim]humanize reports what goes wrong[/dim]"
+                "[dim]error reporting enabled[/dim]"
                 if said.enable_sentry
-                else "[dim]humanize reports nothing[/dim]"
+                else "[dim]error reporting disabled[/dim]"
             )
         if said.details is not None:
             self.settings.detailing(on=said.details)
             self._details = said.details
             self.show(
-                "[dim]showing the working: every tool call, all of the thinking, and "
-                "whatever a backend prints on its way past[/dim]"
+                "[dim]showing details: tool calls, thinking, and backend output[/dim]"
                 if said.details
-                else "[dim]showing what each turn said, and nothing of how it got there[/dim]"
+                else "[dim]showing turn responses only, without details[/dim]"
             )
             self._draw()  # and the status line says which mode this is in from now on
         if said.profile is not None:
             self.settings.profiles(on=said.profile)
             # Read as a run starts, so one running now carries on as it started.
             self.show(
-                "[dim]a run here profiles the programs it starts from the next flow run; "
-                "/epics collects the trace[/dim]"
+                (
+                    "[dim]runs will profile started programs from the next flow "
+                    "run; /epics collects the trace[/dim]"
+                )
                 if said.profile
-                else "[dim]a run here is traced and not profiled from the next flow run[/dim]"
+                else (
+                    "[dim]runs will be traced and not profiled from the next flow "
+                    "run[/dim]"
+                )
             )
         if said.btw is not None:
             self.settings.btw = said.btw
             # Not the one open now: a side conversation is one agent from its first turn on.
             self.show(
-                f"[dim]/btw asks {escape(said.btw or "the flow's first agent")} about the "
-                f"whole flow, from the next time btw mode is entered[/dim]"
+                "[dim]/btw will ask "
+                f"{escape(said.btw or "the flow's first agent")} about the "
+                "whole flow next time you enter btw mode[/dim]"
             )
         if said.forget and self.settings.forget():
             # What this interface opened on is already in hand, so it is the next one that
             # opens without it.
             self.show(
-                "[dim]what was remembered about this directory is forgotten; humanize "
-                "opens without it from the next launch[/dim]"
+                "[dim]cleared saved settings for this directory; humanize will "
+                "open without them on next launch[/dim]"
             )
 
     @work
@@ -3467,8 +3474,8 @@ class Humanize(App[None]):
         """
         if argv:
             self.show(
-                "hmz: /resume takes nothing: it carries the last run here on, and /epics "
-                "is where another one is named",
+                "hmz: /resume takes no arguments: it resumes the last run "
+                "here; use /epics to choose another run",
                 "red",
             )
             return
@@ -3476,7 +3483,7 @@ class Humanize(App[None]):
         runs = epics.all()  # oldest first, so the last of them is the last run
         if not runs:
             self.show(
-                "hmz: no flow has been run here, so there is nothing to carry on from",
+                "hmz: no flow has been run here, so there is nothing to resume",
                 "red",
             )
             return
@@ -3489,8 +3496,8 @@ class Humanize(App[None]):
                 break
         else:
             self.show(
-                "hmz: no run here was of a flow that can be picked up, so there is nothing "
-                "to carry on from",
+                "hmz: no run here was of a flow that can be resumed, so there "
+                "is nothing to resume",
                 "red",
             )
             return
@@ -3541,20 +3548,20 @@ class Humanize(App[None]):
         """
         # Before anything is read, since it is the one refusal that is about now rather than
         # about the record: a run picked up is a flow started, and there is one going.
-        if self._mid_run("no picking a run up"):
+        if self._mid_run("cannot resume a run"):
             return
         ran = self.hmz.epics.read(epic)
         if ran is None:
             self.show(
-                f"hmz: {escape(epic.name)} cannot be read back, so there is nothing to "
-                "carry on from",
+                f"hmz: {escape(epic.name)} cannot be read, so there is nothing "
+                "to resume",
                 "red",
             )
             return
         if not self._picks_up(ran.flow):
             self.show(
-                f"hmz: {escape(ran.flow)} does not say it can be picked up, so there is "
-                f"nothing to carry on from in {escape(ran.name)}",
+                f"hmz: {escape(ran.flow)} does not support resuming, so "
+                f"{escape(ran.name)} cannot be resumed",
                 "red",
             )
             return
@@ -3563,8 +3570,8 @@ class Humanize(App[None]):
         # says which run it came from -- a record of something that did not happen.
         if not self.hmz.epics.picks_up(epic):
             self.show(
-                f"hmz: {escape(ran.name)} left nothing behind, so there is nothing to "
-                "carry on from: say what to do and the flow starts from the top",
+                f"hmz: {escape(ran.name)} has no saved state to resume: enter "
+                "a task to start the flow from the beginning",
                 "red",
             )
             return
@@ -3594,8 +3601,8 @@ class Humanize(App[None]):
         except ValueError:
             self._budget = None
         self.show(
-            f"[dim]carrying on from {escape(ran.name)}: {escape(ran.flow)} on what that "
-            "run left behind[/dim]"
+            f"[dim]resuming {escape(ran.name)}: running {escape(ran.flow)} "
+            "from saved state[/dim]"
         )
         self._flow(ran.task, resume=epic)
 
@@ -3849,7 +3856,7 @@ class Humanize(App[None]):
         if self._quitting:
             return  # asked for, on the way out
         self._quitting = True
-        self.exit(return_code=1, message=f"hmz: {why or 'the runs let go of this'}")
+        self.exit(return_code=1, message=f"hmz: {why or 'disconnected from the runs'}")
 
     def _started(self, record: dict[str, Any]) -> None:
         """Takes a run that has just started as the one in front of us.
@@ -4280,7 +4287,7 @@ class Humanize(App[None]):
             # Typed a task and nothing at all happened, which is the worst of these: it is
             # somebody meeting humanize for the first time and getting a red line for it.
             telemetry.snag("nothing-started", because="no coding agent installed")
-            self.show("hmz: no coding agent is installed here", "red")
+            self.show("hmz: no coding agent is installed", "red")
             return
         self._flow(task)
 
@@ -4394,8 +4401,9 @@ class Humanize(App[None]):
         for text in held:
             self._said_by_you(text)
         self.show(
-            f"[dim]   put to {escape(short(str(record.get('agent'))))}, which ended its "
-            f"turn without saying it had {'them' if len(held) > 1 else 'it'}[/dim]"
+            f"[dim]   sent to {escape(short(str(record.get('agent'))))}, which "
+            "ended its turn without acknowledging "
+            f"{'them' if len(held) > 1 else 'it'}[/dim]"
         )
 
     def _never_sent(self, record: dict[str, Any]) -> None:
@@ -4419,7 +4427,7 @@ class Humanize(App[None]):
         if given:
             # Put to an agent, which never said it had it: it may well have reached the
             # model, and saying it never went would be as wrong as saying it landed.
-            self.show(f"[dim]   put to the agent, never taken back: {because}[/dim]")
+            self.show(f"[dim]   sent to the agent, not acknowledged: {because}[/dim]")
         for one in queued:
             self._said_by_you(str(one.get("text")), by=self._by(one))
         if queued:
@@ -4487,18 +4495,18 @@ _COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "btw",
-        "Ask side questions; again, or esc, to stop",
+        "Ask side questions; press esc or /btw to stop",
         lambda app, argv: app.action_btw(" ".join(argv).strip()),
         takes="[question]",
     ),
     Command(
         "epics",
-        "The runs of this directory, and what to do with one",
+        "View and manage runs in this directory",
         lambda app, _: app.action_epics(),
     ),
     Command(
         "resume",
-        "Carry the last run here on from where it stopped",
+        "Resume the last run in this directory",
         lambda app, argv: app.action_resume(argv),
     ),
     Command(
@@ -4521,7 +4529,7 @@ _COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "claim",
-        "Answer for this outworlder alone; off gives it back",
+        "Answer for this outworlder exclusively; off releases it",
         lambda app, argv: app.action_claim(argv),
         takes="[on|off]",
         # On the transcript of the one outworlder it holds, and nowhere else: which role is
@@ -4530,7 +4538,7 @@ _COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "stop",
-        "Stop the flow; typed out, so not asked twice",
+        "Stop the flow without confirmation",
         lambda app, _: app.action_stop(),
         # From where the whole run is watched, and not from one agent's transcript, where
         # stopping reads as stopping that agent.
@@ -4538,7 +4546,7 @@ _COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "exit",
-        "Leave; a flow that is running can be left running",
+        "Exit; a running flow can be left running",
         lambda app, _: app.action_exit(),
     ),
 )

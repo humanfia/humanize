@@ -320,11 +320,11 @@ def _internal(argv: list[str]) -> int:
         # out, and it is reached only when somebody asks about them.
         parser = argparse.ArgumentParser(
             prog="hmz internal",
-            description="What humanize spawns for itself: an agent's turn on another "
-            "machine, a turn under an account, and the two relays a coding agent reaches a "
-            "flow's own callbacks and hooks through. Each is a command line because a "
-            "process is started by one, and none of them is a line to type.",
-            epilog="Run `hmz internal COMMAND --help` for what a command takes.",
+            description="Internal commands used by humanize to run agent turns on "
+            "other machines, run programs with account credentials, and relay agent "
+            "hooks and tool calls to a flow. Not intended to be run directly.",
+            epilog="Run `hmz internal COMMAND --help` for more information on a "
+            "command.",
         )
         commands = parser.add_subparsers(metavar="COMMAND", required=True)
         for name, (_, summary) in INTERNAL.items():
@@ -351,9 +351,9 @@ def _line() -> ArgumentParser:
 
     return argparse.ArgumentParser(
         prog="hmz",
-        description="Orchestrate, execute, and observe agent flows. Naming no command opens "
-        "the terminal interface, as this directory left it.",
-        epilog="Run `hmz COMMAND --help` for what a command takes.",
+        description="Orchestrate, execute, and observe agent flows. Running without a "
+        "command opens the terminal interface where this directory left off.",
+        epilog="Run `hmz COMMAND --help` for more information on a command.",
     )
 
 
@@ -420,8 +420,8 @@ def opens() -> int:
         # that will not bind: none of those is a reason not to open the interface. What is
         # lost is being able to walk away from the runs, which is said and then done without.
         print(
-            f"hmz: the runs here cannot be held apart from the terminal ({failed}), "
-            "so they are held in this process instead",
+            f"hmz: runs cannot be detached from the terminal ({failed}), so "
+            "they will run in this process instead",
             file=sys.stderr,
         )
         return _here()
@@ -489,10 +489,10 @@ def _at_a_terminal() -> bool:
 #: these fails where a person is reading: a relay that could not reach a flow, a supervisor
 #: whose program was not there, a target that answered nothing.
 INTERNAL = {
-    "anchor": (_anchor, "take a turn whose work lands on another machine"),
-    "cred": (_cred, "run a program with its credentials answered from elsewhere"),
-    "hook": (_hook, "carry one moment of a coding agent's hook table to a flow"),
-    "tools": (_tools, "carry a coding agent's tool calls to the flow whose they are"),
+    "anchor": (_anchor, "run an agent turn on another machine"),
+    "cred": (_cred, "run a program with credentials from an account"),
+    "hook": (_hook, "relay agent hooks to a flow"),
+    "tools": (_tools, "relay agent tool calls to a flow"),
 }
 
 #: Each command, as what carries it out and the line a listing shows it as. Two are for
@@ -503,9 +503,9 @@ INTERNAL = {
 #: can read. There is no command for the terminal interface either: naming nothing at all is
 #: how it opens.
 COMMANDS = {
-    "attach": (_attach, "read the runs held in this directory as one more frontend"),
+    "attach": (_attach, "attach to runs in this directory"),
     "exec": (_exec, "run an agent flow in this directory"),
-    "internal": (_internal, "what humanize spawns for itself; not a line to type"),
+    "internal": (_internal, "internal commands used by humanize; do not run directly"),
 }
 
 
