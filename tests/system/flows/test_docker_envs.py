@@ -40,6 +40,8 @@ from hmz.flows import (
     GPUEnvMixin,
     HarnessError,
     HarnessKind,
+    HarnessRefused,
+    HarnessThrottled,
     ImageEnvMixin,
     MemoryEnvMixin,
     ResourceUnmet,
@@ -571,6 +573,11 @@ def test_an_agent_of_every_cli_works_inside_its_container(
     model, effort = _cheapest(cli)
     try:
         work = _boxed(cli, "docker@local", tmp_path / "boxed", model, effort)
+    except (HarnessThrottled, HarnessRefused) as spent:
+        # A quota spent or a sign-in refused is the account's wherever the turn was taken,
+        # and a turn taken here a moment later -- the next window of a rate limit -- would
+        # say nothing about the container.
+        pytest.skip(f"{cli}'s account would not take the turn: {spent}")
     except HarnessError as refused:
         try:
             _boxed(cli, "local@", tmp_path / "here", model, effort)

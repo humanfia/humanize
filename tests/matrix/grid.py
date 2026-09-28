@@ -102,6 +102,8 @@ def labelled(items: list[pytest.Item]) -> None:
         order = int(str(said[1])) if len(said) > 1 else 0
         callspec = getattr(item, "callspec", None)
         cli = str(callspec.params.get("cli", "")) if callspec is not None else ""
+        # A row run once says which column it is in, having no CLI to be parametrized by.
+        cli = str(said[2]) if len(said) > 2 else cli
         item.user_properties.append(
             (LABEL, {"feature": named, "cli": cli, "order": order})
         )

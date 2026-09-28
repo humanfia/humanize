@@ -10,7 +10,10 @@ asked to:
 - `Reply with the single word: <word>` answers the word, and a `JSON object whose "answer" is
   "ok"` answers that object.
 - A prompt starting `slow` keeps the turn going for half a minute, saying a word every tenth
-  of a second, and takes a word put in mid-turn as the end of it.
+  of a second, and takes a word put in mid-turn as the end of it. `claude` answers the turn
+  and then the word, each with an answer of its own -- but for `slow tool`, a turn in a tool
+  call, where it reads the word once the tool returns and answers both at once, as the real
+  one does. `merge` holds off two seconds, and answers a word put in meanwhile with the turn.
 - `use a tool` reaches for `Bash` -- asking permission where the CLI asks -- and answers
   `allowed` or `denied: <why>`; `ask me` asks its user `Which way?` and answers what it was
   told; `delegate` starts a subagent.
@@ -105,7 +108,6 @@ else:
 projects.mkdir(parents=True, exist_ok=True)
 transcript = projects / f"{session}.jsonl"
 note({"argv": argv, "cwd": os.getcwd(), "session": session})
-out({"type": "system", "subtype": "init", "session_id": session})
 
 lines = queue.Queue()
 
@@ -174,18 +176,65 @@ def turn(said):
              "session_id": session, "result": why})
         print(why, file=sys.stderr, flush=True)
         sys.exit(1)
+    if said.startswith("merge"):
+        # A word put in before the turn has started is merged into it, and the two are
+        # answered once -- as Claude merges what queues up before it begins.
+        more = take(2.0)
+        if more is None:
+            sys.exit(0)
+        if not more:
+            result("merge done")
+            return
+        words = more["message"]["content"][0]["text"]
+        # Said to have been taken before the answer that takes both opens.
+        out({"type": "command_lifecycle", "state": "started",
+             "command_uuid": more.get("uuid", "")})
+        out({"type": "system", "subtype": "init", "session_id": session})
+        speak("heard " + words)
+        result(answered(words))
+        return
+    if said.startswith("slow tool"):
+        # A word put in while a tool runs is read with what the tool returned, and answered
+        # in the same answer as the turn: one `result` for the two.
+        out({"type": "assistant", "message": {"id": str(uuid.uuid4()), "content": [
+            {"type": "tool_use", "id": "toolu_3", "name": "Bash",
+             "input": {"command": "sleep 30"}}],
+            "usage": {"input_tokens": 10, "output_tokens": 2}}})
+        for step in range(300):
+            more = take(0.1)
+            if more is None:
+                sys.exit(0)
+            if more:
+                break
+        out({"type": "user", "message": {"content": [
+            {"type": "tool_result", "tool_use_id": "toolu_3", "content": "slept"}]}})
+        if not more:
+            result("slow tool done")
+            return
+        words = more["message"]["content"][0]["text"]
+        ticket = more.get("uuid", "")
+        out({"type": "command_lifecycle", "state": "started", "command_uuid": ticket})
+        speak("heard " + words)
+        out({"type": "command_lifecycle", "state": "completed", "command_uuid": ticket})
+        result(answered(words))
+        return
     if said.startswith("slow"):
         for step in range(300):
             more = take(0.1)
             if more is None:
                 sys.exit(0)
             if more:
+                # The turn is answered, and the word put in is the next thing answered.
                 words = more["message"]["content"][0]["text"]
-                out({"type": "command_lifecycle", "state": "started",
-                     "command_uuid": more.get("uuid", "")})
+                ticket = more.get("uuid", "")
                 result("put aside")
+                out({"type": "command_lifecycle", "state": "started",
+                     "command_uuid": ticket})
+                out({"type": "system", "subtype": "init", "session_id": session})
                 speak("heard " + words)
                 result(answered(words))
+                out({"type": "command_lifecycle", "state": "completed",
+                     "command_uuid": ticket})
                 return
             speak(f"step {step}", 1)
         result("slow done")
@@ -232,6 +281,10 @@ while True:
         continue
     text = said["message"]["content"][0]["text"]
     note({"said": text, "session": session})
+    # Every answer opens with this, as the real one's does: not once for the process. The
+    # one that merges a word in opens once it has the word.
+    if not text.startswith("merge"):
+        out({"type": "system", "subtype": "init", "session_id": session})
     turn(text)
 """
 )

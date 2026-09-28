@@ -24,9 +24,29 @@ def kimi_runs(model: str) -> bool:
     return f'"{model}"' in written or f"'{model}'" in written
 
 
+def kimi_defaults() -> bool:
+    """Whether Kimi Code as signed in here has a model to run when it is named none."""
+    try:
+        written = (Path.home() / ".kimi-code" / "config.toml").read_text(
+            encoding="utf-8"
+        )
+    except OSError:
+        return False
+    return any(
+        line.strip().startswith("default_model") for line in written.splitlines()
+    )
+
+
 #: For a test of Kimi Code as local at `kimi-code/k3`.
 KIMI_K3 = pytest.mark.skipif(
     not kimi_runs("kimi-code/k3"),
     reason="kimi as signed in here has no kimi-code/k3 configured: its login writes the "
     "models into ~/.kimi-code/config.toml, and this one has none",
+)
+
+#: For a test of Kimi Code as local that names no model, and runs whatever it defaults to.
+KIMI_DEFAULT = pytest.mark.skipif(
+    not kimi_defaults(),
+    reason="kimi as signed in here has no default_model, so `kimi -p` says 'no model "
+    "configured': its login writes one into ~/.kimi-code/config.toml, and this one has none",
 )

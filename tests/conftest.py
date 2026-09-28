@@ -335,8 +335,9 @@ def pytest_configure(config: pytest.Config) -> None:
     )
     config.addinivalue_line(
         "markers",
-        "matrix(feature, order): a cell of the regression matrix in tests/system/matrix --"
-        " one feature, driven through one CLI",
+        "matrix(feature, order[, column]): a cell of the regression matrix in"
+        " tests/system/matrix -- one feature, driven through one CLI, or once for a feature"
+        " about none",
     )
     _grouped(config)
 

@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from tests.agents.signedin import KIMI_DEFAULT
+
 if TYPE_CHECKING:
     from tests.coganchor.fixtures import Anchorage
 
@@ -142,7 +144,15 @@ def _skip_unless_installed(agent: str) -> str:
     return path
 
 
-@pytest.mark.parametrize("agent", sorted(AGENT_COMMANDS), ids=str)
+#: Each agent a task is given to, as signed in here: one this machine never signed in has no
+#: model to answer with, which is the machine's rather than anything the anchor did.
+_SIGNED_IN = [
+    pytest.param(agent, marks=KIMI_DEFAULT) if agent == "kimi" else agent
+    for agent in sorted(AGENT_COMMANDS)
+]
+
+
+@pytest.mark.parametrize("agent", _SIGNED_IN, ids=str)
 @pytest.mark.parametrize("task", AGENT_TASKS, ids=lambda task: task.name)
 def test_agent_task(anchorage: Anchorage, agent: str, task: AgentTask) -> None:
     _skip_unless_installed(agent)

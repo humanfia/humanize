@@ -199,7 +199,14 @@ def test_a_real_session_is_kept_where_humanize_keeps_it_and_nothing_of_it_at_hom
 
         # The conversation carries on from where it was kept: another turn in it, and -- where
         # the CLI forks -- a second agent's process reading it back.
-        session(_ASKED)
+        try:
+            session(_ASKED)
+        except Failed as why:
+            # The account's -- a rate limit reached between two turns -- rather than where
+            # the session was kept, which a refusal would be no answer about either way.
+            if why.fault not in _ACCOUNTS:
+                raise
+            pytest.skip(f"{cli}'s account stopped taking turns after the first: {why}")
         forked, unforked = "", ""
         if session.forks:
             side = held[-1].clone()

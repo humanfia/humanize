@@ -335,6 +335,13 @@ class ClaudeCodeSession(StreamSessionBase):
         self._at: str | None = None
         #: The id Claude says this session has, taken only once a turn has landed in it.
         self._named: str | None = None
+        #: Whether an answer is owed and not yet given: from the turn's prompt, or a word put
+        #: in that Claude has taken, to the `result` that closes it. A word Claude says it
+        #: has taken while one is open -- read with what a tool returned, or merged into a
+        #: prompt it had not started on -- is answered in that one; a word it takes after a
+        #: `result` opens an answer of its own. Read off the order of those three, rather
+        #: than off the `system init` an answer may or may not open with.
+        self._answering = False
         #: Whether it has been said that Claude is running another model than it was told.
         self._substituted = False
         #: The agents this turn has started of its own, by the id of the call that started
@@ -632,6 +639,9 @@ class ClaudeCodeSession(StreamSessionBase):
         }
         if ticket:
             said["uuid"] = ticket
+        else:
+            # A turn's own prompt, which is an answer owed from here.
+            self._answering = True
         return json.dumps(said) + "\n"
 
     def _restarted(self) -> None:
@@ -640,6 +650,7 @@ class ClaudeCodeSession(StreamSessionBase):
         # And whatever was under the turn the last process was taking: it went with it.
         self._fleet = {}
         self._reaching, self._announced = {}, set()
+        self._answering = False
         self._at = self.effort
         self._offering = self._telling
         self._gated = self._gating
@@ -878,6 +889,14 @@ class ClaudeCodeSession(StreamSessionBase):
             if said.get("state") == "started":
                 words = self.took(str(said.get("command_uuid") or ""))
                 if words is not None:
+                    if self._answering:
+                        # Taken into the answer under way, which the `result` ending it is
+                        # the answer to as well: no answer of its own is coming.
+                        with self._writing:
+                            self._folded += 1
+                    else:
+                        # Taken after the last answer closed: the next is this one's.
+                        self._answering = True
                     yield Event(kind="took", text=words)
         elif said.get("type") == "system" and said.get("session_id"):
             # Noted, not taken: this is the first line out, said before anything can go
@@ -888,6 +907,7 @@ class ClaudeCodeSession(StreamSessionBase):
             ):
                 yield Event(kind="notice", text=instead)
         elif said.get("type") == "result":
+            self._answering = False
             if failure := _result_failure(said):
                 # Claude has emitted `subtype: success` with `is_error: true`, so neither
                 # field is sufficient alone. The remaining reasons also guard a malformed

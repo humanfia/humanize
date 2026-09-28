@@ -2857,6 +2857,11 @@ class StreamSessionBase(SessionBase):
         #: Answers still owed to us: the agent replies to each thing said with a turn of its
         #: own, so a word put in mid-turn adds one, and the turn is over when none are left.
         self._owed = 0
+        #: Words the agent has said it took into the answer it was already giving, rather
+        #: than answering each with one of its own -- Claude reads a word put in while a tool
+        #: runs once the tool returns, and answers it and the turn's prompt at once. The
+        #: answer that ends that one is theirs as well, and is counted for all of them.
+        self._folded = 0
         #: What the agent has complained about, which is what a failed turn is reported with.
         self._complaints: list[str] = []
         #: What ends the process if the session is dropped while it is still up.
@@ -2942,7 +2947,8 @@ class StreamSessionBase(SessionBase):
                             spent.update(event.tokens)
                             costing = costing + event.spent
                             with self._writing:
-                                self._owed -= 1
+                                self._owed -= 1 + self._folded
+                                self._folded = 0
                                 settled = self._owed <= 0
                             if settled:
                                 break
@@ -3038,7 +3044,7 @@ class StreamSessionBase(SessionBase):
         with self._writing:
             # Taken together, so that nothing is written to a process on its way out and no
             # answer is left owed by one that is gone.
-            proc, self._proc, self._owed = self._proc, None, 0
+            proc, self._proc, self._owed, self._folded = self._proc, None, 0, 0
         if proc is None:
             return
         with contextlib.suppress(OSError, ValueError):
@@ -3149,6 +3155,7 @@ class StreamSessionBase(SessionBase):
             # A new process owes nothing for what was said to the one before it. Left standing,
             # that count is an answer this session would wait for and never be given.
             self._proc, self._owed, self._complaints = started, 0, []
+            self._folded = 0
         self._restarted()
         # Drained for as long as the process lives: stderr is not the protocol, but a pipe
         # nobody reads fills and stops the agent writing to it, which would hang the turn.

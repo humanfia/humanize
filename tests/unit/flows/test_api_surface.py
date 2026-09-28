@@ -96,8 +96,12 @@ def test_importing_it_asks_for_nothing_of_humanize_and_nothing_heavy(
     """Every import statement the package runs, recorded as it runs, cached or not.
 
     On this thread alone: a thread another test left running imports what it imports, and
-    the package importing is what is being watched.
+    the package importing is what is being watched. And with the collector held off: a
+    finalizer of something another test in this process left for it -- a session's reaper,
+    which imports what it sweeps with -- runs on whichever thread the collector happens to
+    run on, which in a whole-suite run was this one, halfway through the import.
     """
+    import gc
     import threading
 
     asked: set[str] = set()
@@ -120,9 +124,14 @@ def test_importing_it_asks_for_nothing_of_humanize_and_nothing_heavy(
             asked.add(name)
         return importing(name, globals, locals, fromlist or (), level)
 
-    monkeypatch.setattr(builtins, "__import__", recorded)
-    importlib.import_module("hmz.flows")
-    monkeypatch.undo()
+    gc.collect()
+    gc.disable()
+    try:
+        monkeypatch.setattr(builtins, "__import__", recorded)
+        importlib.import_module("hmz.flows")
+        monkeypatch.undo()
+    finally:
+        gc.enable()
 
     humanize = {
         name
