@@ -199,7 +199,7 @@ async def test_a_line_the_flow_keeps_to_itself_is_not_one_to_change_here() -> No
         await driver.press("enter")
         await driver.pause()
 
-        assert "the flow's to change" in _under(app)
+        assert "can only be changed by the flow" in _under(app)
         assert isinstance(app.screen, Monitoring)
         assert not link(app).asked_for("board")  # refused here, never asked of the runs
 
@@ -459,7 +459,7 @@ async def test_a_line_written_down_empty_is_taken_off_the_board() -> None:
 
         [asked] = link(app).asked_for("board")
         assert (asked["key"], asked["value"]) == ("todo", "")
-        assert "off the board" in _under(app)
+        assert "removed from the board" in _under(app)
 
 
 @pytest.mark.timeout(60)

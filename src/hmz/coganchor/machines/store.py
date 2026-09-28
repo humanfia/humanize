@@ -96,7 +96,7 @@ def _text(value: str, what: str) -> str:
     tell it one that is part of a value.
     """
     if set(value) & set('\n\r\0"'):
-        raise ValueError(f"{what} {value!r} is more than one line, or holds a quote")
+        raise ValueError(f"{what} {value!r} cannot contain newlines or quotes")
     return value
 
 
@@ -108,7 +108,7 @@ def _here(value: str, what: str) -> str:
     """
     expanded = os.path.expanduser(value)  # noqa: PTH111 -- which raises for one
     if expanded.startswith("~"):
-        raise ValueError(f"{what} {value!r} is under no home there is")
+        raise ValueError(f"{what} {value!r}: home directory not found")
     return expanded
 
 
@@ -116,15 +116,16 @@ def _workdir(value: str) -> str:
     """A default workdir: absolute, or under the login's home, or none at all."""
     _text(value, "the workdir")
     if value and value != "~" and not value.startswith(("/", "~/")):
-        raise ValueError(f"the workdir {value!r} is neither absolute nor under ~/")
+        raise ValueError(f"the workdir {value!r} must be absolute or under ~/")
     return value
 
 
 def _named(name: str) -> str:
     if not _NAMED.match(name):
         raise ValueError(
-            f"{name!r} is not an environment provider name: letters, digits, dot, dash "
-            "and underscore, starting with a letter or a digit"
+            f"invalid environment provider name {name!r}: must start with a "
+            "letter or digit and contain only letters, digits, dots, dashes, "
+            "and underscores"
         )
     return name
 
@@ -171,34 +172,37 @@ class SSHProvider:
     def __post_init__(self) -> None:
         _named(self.name)
         if not self.host and not self.alias:
-            raise ValueError(f"{self.name}: an ssh provider needs a host or an alias")
+            raise ValueError(
+                f"{self.name}: an ssh host requires a hostname or an alias"
+            )
         for value, what in (
             (self.host, "host"),
             (self.alias, "alias"),
             (self.user, "user"),
         ):
             if value and not _WORD.match(value):
-                raise ValueError(f"{self.name}: {value!r} is not an ssh {what}")
+                raise ValueError(f"{self.name}: invalid ssh {what} {value!r}")
         if not 0 <= self.port <= _PORT_MAX:
-            raise ValueError(f"{self.name}: {self.port} is not a port")
+            raise ValueError(f"{self.name}: invalid port {self.port}")
         if self.proxy_jump and not _JUMP.match(self.proxy_jump):
-            raise ValueError(f"{self.name}: {self.proxy_jump!r} is not a jump host")
+            raise ValueError(f"{self.name}: invalid jump host {self.proxy_jump!r}")
         _text(self.identity_file, "the identity file")
         _text(self.config, "the config file")
         _workdir(self.workdir)
         if self.made not in (TYPED, IMPORTED):
             raise ValueError(
-                f"{self.name}: made {self.made!r}, not {TYPED} or {IMPORTED}"
+                f"{self.name}: made must be {TYPED} or {IMPORTED}, not {self.made!r}"
             )
         for key, value in self.options.items():
             if not _KEYWORD.match(key) or key == "F":
-                raise ValueError(f"{self.name}: {key!r} is not an ssh option")
+                raise ValueError(f"{self.name}: invalid ssh option {key!r}")
             if key.lower() in _FIELDS:
                 raise ValueError(
-                    f"{self.name}: {key} is said with {_FIELDS[key.lower()]}, not as an option"
+                    f"{self.name}: {key} must be set with "
+                    f"{_FIELDS[key.lower()]}, not as an option"
                 )
             if not value:
-                raise ValueError(f"{self.name}: the option {key} says nothing")
+                raise ValueError(f"{self.name}: option {key} cannot be empty")
             _text(value, f"the option {key}")
 
     @property
@@ -296,22 +300,22 @@ class DockerProvider:
         _named(self.name)
         _endpoint(self.endpoint)
         if self.tls_dir and not self.endpoint.startswith("tcp://"):
-            raise ValueError(f"{self.name}: TLS certificates are for a tcp:// endpoint")
+            raise ValueError(f"{self.name}: TLS certificates require a tcp:// endpoint")
         _text(self.tls_dir, "the TLS directory")
         if self.image and not re.fullmatch(r"[^\s]+", self.image):
-            raise ValueError(f"{self.name}: {self.image!r} is not an image")
+            raise ValueError(f"{self.name}: invalid image {self.image!r}")
         if self.runtime and not _WORD.match(self.runtime):
-            raise ValueError(f"{self.name}: {self.runtime!r} is not a runtime")
+            raise ValueError(f"{self.name}: invalid runtime {self.runtime!r}")
         for said in self.run_args:
             if set(said) & set("\n\r\0"):
                 raise ValueError(
-                    f"{self.name}: the argument {said!r} is more than one line"
+                    f"{self.name}: argument {said!r} cannot contain newlines"
                 )
         for gpu in self.gpus:
             if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]*", gpu):
-                raise ValueError(f"{self.name}: {gpu!r} is not a GPU id")
+                raise ValueError(f"{self.name}: invalid GPU id {gpu!r}")
         if len(set(self.gpus)) != len(self.gpus):
-            raise ValueError(f"{self.name}: a GPU is named twice")
+            raise ValueError(f"{self.name}: duplicate GPU specified")
         for amount, what in (
             (self.cpus, "CPUs"),
             (self.memory, "memory"),
@@ -319,10 +323,12 @@ class DockerProvider:
             (self.max_containers, "containers"),
         ):
             if amount < 0:
-                raise ValueError(f"{self.name}: {amount} is not an amount of {what}")
+                raise ValueError(f"{self.name}: {what} cannot be negative: {amount}")
         _workdir(self.workdir)
         if self.made != TYPED:
-            raise ValueError(f"{self.name}: a docker provider is only ever {TYPED}")
+            raise ValueError(
+                f"{self.name}: made must be {TYPED} for a docker host, not {self.made!r}"
+            )
 
     @property
     def at(self) -> Path:
@@ -401,8 +407,9 @@ def _endpoint(endpoint: str) -> str:
             ):
                 return endpoint
     raise ValueError(
-        f"{endpoint!r} is not a docker endpoint: local, unix:///PATH, tcp://HOST:PORT, "
-        "ssh://[USER@]HOST[:PORT], ssh:<ssh provider> or context:<docker context>"
+        f"{endpoint!r} is not a docker endpoint: local, unix:///PATH, "
+        "tcp://HOST:PORT, ssh://[USER@]HOST[:PORT], ssh:<ssh host> or "
+        "context:<docker context>"
     )
 
 
@@ -438,7 +445,7 @@ def daemon_of(endpoint: str, tls_dir: str = "") -> Endpoint:
     name = endpoint[len("ssh:") :]
     found = find(SSH, name)
     if found is None:
-        raise ValueError(f"{endpoint}: there is no ssh provider called {name!r}")
+        raise ValueError(f"{endpoint}: ssh host {name!r} not found")
     found = cast("SSHProvider", found)
     port = f":{found.port}" if found.port else ""
     return Endpoint(host=f"ssh://{found.login()}{port}", options=found.settings())
@@ -498,7 +505,7 @@ def new(backend: str, name: str, **fields: Any) -> EnvProvider:
     given: dict[str, Any] = {"name": name}
     for key, value in fields.items():
         if key not in known or key == "name":
-            raise ValueError(f"{name}: a {backend} provider has no {key!r}")
+            raise ValueError(f"{name}: unknown {backend} host setting {key!r}")
         given[key] = _typed(key, known[key].default, value, name)
     return kind(**given)
 
@@ -604,9 +611,7 @@ def add(provider: EnvProvider) -> EnvProvider:
       OSError: If it cannot be written.
     """
     if find(provider.backend, provider.name) is not None:
-        raise ValueError(
-            f"{provider.backend} already has a provider called {provider.name!r}"
-        )
+        raise ValueError(f"{provider.backend} host {provider.name!r} already exists")
     return write(provider)
 
 
@@ -711,7 +716,7 @@ def imports(
     found = sshconfig.aliases(config)
     wanted = found if names is None else list(names)
     if missing := [one for one in wanted if one not in found]:
-        raise ValueError(f"the ssh config names no host {', '.join(missing)}")
+        raise ValueError(f"ssh config has no host {', '.join(missing)}")
     own = config is not None and Path(_here(str(config), "the config")).resolve() != (
         sshconfig.default().resolve()
     )

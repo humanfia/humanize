@@ -241,7 +241,7 @@ def test_a_docker_environment_names_a_provider_written_down(tmp_path: Path) -> N
 def test_a_docker_provider_nobody_wrote_down_is_refused() -> None:
     (spec,) = parse_envs(["box=docker@nowhere/srv/x"])
 
-    with pytest.raises(EnvUnavailable, match="no docker provider called 'nowhere'"):
+    with pytest.raises(EnvUnavailable, match="docker host 'nowhere' not found"):
         open_env(spec)
 
 
@@ -260,7 +260,9 @@ def test_a_workdir_under_home_is_only_this_machines() -> None:
     (far,) = parse_envs(["box=docker@far/~/x"])
     (near,) = parse_envs(["box=docker@local/~/x"])
 
-    with pytest.raises(EnvUnavailable, match="absolute path there"):
+    with pytest.raises(
+        EnvUnavailable, match="remote docker host, so it must be an absolute path"
+    ):
         open_env(far)
     assert open_env(near).workdir == PurePosixPath(Path.home() / "x")
 

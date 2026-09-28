@@ -161,9 +161,9 @@ def test_making_a_provider_makes_the_places_its_login_will_write_to(
 
 
 def test_a_provider_that_could_not_be_named_is_not_made(house: Path) -> None:
-    with pytest.raises(ValueError, match="is not a provider name"):
+    with pytest.raises(ValueError, match="is not a valid account name"):
         login.make("claude", "../evil", way("claude", "login"))
-    with pytest.raises(ValueError, match="no such coding agent"):
+    with pytest.raises(ValueError, match="nope: unknown agent"):
         login.make("nope", "mine", providers.ENV)
 
 

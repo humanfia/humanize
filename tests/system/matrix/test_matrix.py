@@ -1880,12 +1880,12 @@ def test_frontends_tui(
         panes.presses(alice, "BTab")
         panes.waits(alice, "reading outworlder planner")
         panes.types(alice, "/claim")
-        panes.waits(alice, "planner is yours to answer")
+        panes.waits(alice, "only you can answer for planner")
         panes.presses(bob, "BTab")
         panes.presses(bob, "BTab")
         panes.waits(bob, "reading outworlder reviewer")
         panes.types(bob, "/claim")
-        panes.waits(bob, "reviewer is yours to answer")
+        panes.waits(bob, "only you can answer for reviewer")
         panes.waits(alice, "reviewer · outworlder · bob@tui's")
 
         panes.types(alice, word)
@@ -1900,7 +1900,7 @@ def test_frontends_tui(
         # and says a word into it.
         panes.presses(bob, "BTab")
         # Told by the lines it heads with whose they are rather than by the status line, whose
-        # "reading every agent" gives way to the worker's spinner once the worker is working --
+        # "reading all agents" gives way to the worker's spinner once the worker is working --
         # which, a turn opening as fast as it may, it can already be by the time bob gets here.
         panes.waits(bob, "── worker", 180)
         panes.waits(bob, "worker is working", 180)

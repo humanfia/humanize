@@ -201,7 +201,7 @@ async def test_a_run_of_a_flow_that_can_be_picked_up_says_so(workspace: Path) ->
         shown = str(
             app.screen.query_one("#choices", OptionList).get_option_at_index(0).prompt
         )
-        assert "can be picked up" in shown
+        assert "resumable" in shown
 
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Does), driver)
@@ -223,7 +223,7 @@ async def test_a_run_of_a_flow_that_says_nothing_is_a_run_to_read(
         await until(lambda: isinstance(app.screen, Does), driver)
 
         assert rows(app) == ["export"]
-        assert "does not say it can be picked up" in str(
+        assert "is not resumable" in str(
             app.screen.query_one("#tuning", Label).render()
         )
 
@@ -415,7 +415,7 @@ async def test_a_run_of_a_flow_marked_since_can_be_picked_up_too(
     app = Humanize()
     async with app.run_test() as driver:
         await _open(app, driver)
-        assert "can be picked up" not in str(
+        assert "resumable" not in str(
             app.screen.query_one("#choices", OptionList).get_option_at_index(0).prompt
         )
 
@@ -449,9 +449,9 @@ async def test_resuming_from_inside_a_run_is_what_the_command_is(
         await onto(app, driver, "resume")
         await driver.press("enter")
         await until(lambda: app.screen is not sheet, driver)
-        await until(lambda: "left nothing behind" in transcript(app), driver)
+        await until(lambda: "has no saved state to resume" in transcript(app), driver)
 
-        assert "starts from the top" in transcript(app)
+        assert "start the flow from the beginning" in transcript(app)
 
     assert len(epics(workspace)) == 1  # and nothing was started
 

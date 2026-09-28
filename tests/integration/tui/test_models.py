@@ -141,8 +141,8 @@ async def test_a_cli_that_has_not_said_what_it_runs_says_which_row_asks_it(
         await _to_the_models(app, driver)
 
         assert _rows(app) == 0
-        await until(lambda: "has not said what it runs" in _under(app), driver)
-        assert "asking it again asks it" in _under(app)
+        await until(lambda: "has not reported any models" in _under(app), driver)
+        assert "select check again" in _under(app)
         assert _AGAIN in rows(app)
         assert "ctrl" not in _under(app)
 

@@ -31,9 +31,8 @@ def cred(argv: list[str]) -> int:
 
     parser = argparse.ArgumentParser(
         prog="hmz internal cred",
-        description="Run a coding agent whose credentials are kept somewhere else. "
-        "humanize renders this line for every turn taken as an account; it is not one to "
-        "type by hand.",
+        description="Run an agent with an account's credentials. humanize runs this "
+        "command for every turn taken as an account; do not run it manually.",
     )
     parser.add_argument(
         "--map",
@@ -41,8 +40,8 @@ def cred(argv: list[str]) -> int:
         action="append",
         default=[],
         dest="maps",
-        help="answer FROM with TO for everything below, as absolute paths; repeatable, and "
-        "a directory names everything inside it",
+        help="map absolute path FROM to TO; repeatable, and a directory includes "
+        "everything inside it",
     )
     parser.add_argument(
         "--keep",
@@ -50,8 +49,8 @@ def cred(argv: list[str]) -> int:
         action="append",
         default=[],
         dest="keeps",
-        help="answer FROM with TO as --map does, and never with a copy: a session the CLI "
-        "appends to while it reads it back; repeatable",
+        help="map FROM to TO as --map does, but never by copying, for a session the "
+        "CLI appends to while reading it back; repeatable",
     )
     parser.add_argument(
         "command",

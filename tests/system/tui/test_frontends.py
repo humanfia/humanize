@@ -101,7 +101,7 @@ def test_two_interfaces_each_answer_for_their_own_part(
     panes.presses(bob, "BTab")
     panes.waits(bob, "reading outworlder reviewer")
     panes.types(bob, "/claim")
-    panes.waits(bob, "reviewer is yours to answer")
+    panes.waits(bob, "only you can answer for reviewer")
     panes.waits(alice, "reviewer · outworlder · bob@tui's")
 
     panes.types(alice, "a plan from alice")
@@ -139,7 +139,7 @@ def test_one_leaves_it_running_comes_back_and_the_other_stops_it(
 
     # Alice leaves, and leaves the run running: her interface goes, the run does not.
     panes.types(alice, "/exit")
-    panes.waits(alice, "leave it running")
+    panes.waits(alice, "detach and exit")
     panes.presses(alice, "Down")
     panes.presses(alice, "Enter")
     time.sleep(2.0)

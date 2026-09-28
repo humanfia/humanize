@@ -57,9 +57,9 @@ def test_an_account_says_which_one_it_falls_back_to(accounts: None) -> None:
 
 def test_a_chain_that_points_nowhere_or_at_itself_is_refused(accounts: None) -> None:
     """Both are a chain that goes nowhere, said where it is written rather than on the turn."""
-    with pytest.raises(ValueError, match="cannot fall back to itself"):
+    with pytest.raises(ValueError, match="cannot fail over to itself"):
         providers.points("shell", "main", "main")
-    with pytest.raises(ValueError, match="no shell account called 'nonesuch'"):
+    with pytest.raises(ValueError, match="shell account 'nonesuch' not found"):
         providers.points("shell", "main", "nonesuch")
     assert not providers.points("shell", "nobody", "spare")
 

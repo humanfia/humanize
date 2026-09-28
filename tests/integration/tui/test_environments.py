@@ -205,7 +205,7 @@ async def test_the_page_brings_machines_in_from_its_top_rows_and_holds_nothing(
         assert rows(app) == [_ADD, _DOCKS, _IMPORTS]
         assert _SEARCH in ids(app)
         assert sheet.under() == _ADD
-        assert "nothing saved yet" in _under(app)
+        assert "no machines saved yet" in _under(app)
         assert "add an ssh host" in _drawn(app)
         assert "add a docker host" in _drawn(app)
 
@@ -250,7 +250,7 @@ async def test_an_ssh_host_is_added_on_one_form_and_asked_what_it_has(
         assert f"{len(os.sched_getaffinity(0))} CPUs" in _under(app)
         assert sheet.under() == "ssh/gpu"
         assert "me@gpu.example:2200 · key ~/.ssh/gpu" in _drawn(app)
-        assert "ssh/gpu is saved at" in "\n".join(sheet._told)
+        assert "ssh/gpu saved to" in "\n".join(sheet._told)
     assert "-o ServerAliveInterval=15" in _asked(standins)
 
 
@@ -276,17 +276,17 @@ async def test_what_the_store_refuses_is_said_on_the_form_and_saves_nothing(
 
         await _types(app, driver, "options", "HostName=x")
         await _done(app, driver)
-        assert "HostName is said with host" in _under(app)
+        assert "HostName must be set with host" in _under(app)
 
         await _types(app, driver, "options", "")
         await _types(app, driver, "port", "22x")
         await _done(app, driver)
-        assert "is not a port" in _under(app)
+        assert "port: '22x' must be a number" in _under(app)
 
         await _types(app, driver, "port", "")
         await _types(app, driver, "name", "gpu")
         await _done(app, driver)
-        assert "saved as gpu already" in _under(app)
+        assert "named gpu already exists" in _under(app)
 
     assert [one.name for one in store.providers()] == ["gpu"]
 
@@ -310,7 +310,7 @@ async def test_the_hosts_of_another_config_are_imported_and_theirs_is_never_writ
         form = cast("Importing", app.screen)
         await until(lambda: form._read is not None, driver)
         assert form._typed_in["config"] == "~/.ssh/config"
-        assert "names no host" in _under(app)
+        assert "contains no hosts" in _under(app)
 
         # Typed over what it guessed, which is what the first letter does.
         await onto(app, driver, "config")
@@ -322,7 +322,7 @@ async def test_the_hosts_of_another_config_are_imported_and_theirs_is_never_writ
         assert not form._on("builder")
         # What `ssh -G` said of it, which the stand-in says of any host.
         assert "me@gpu.example:22" in _drawn(app)
-        assert "saved already" in _drawn(app)
+        assert "already imported" in _drawn(app)
         # And the cursor is on the row that imports them.
         assert form.under() == _DONE
         assert "imports gpu" in _drawn(app)
@@ -360,7 +360,7 @@ async def test_a_host_switched_off_is_not_imported(
         await changes(app, driver, "host:builder", "right")
         assert "imports nothing" in _drawn(app)
         await _done(app, driver)
-        assert "no host is switched on" in _under(app)
+        assert "select at least one host" in _under(app)
 
         await changes(app, driver, "host:builder", "right")
         await _done(app, driver)
@@ -460,7 +460,7 @@ async def test_detect_writes_in_what_the_daemon_has_to_be_typed_over(
         await driver.press("enter")
         await until(lambda: app.screen is sheet, driver)
         await until(lambda: "answers" in _under(app), driver)
-        assert "short of" not in _under(app)
+        assert "lacks configured resources" not in _under(app)
         assert "16 CPUs, 64G, GPUs 0" in _drawn(app)
 
     assert store.find("docker", "local") == DockerProvider(
@@ -472,13 +472,13 @@ async def test_detect_writes_in_what_the_daemon_has_to_be_typed_over(
 @pytest.mark.parametrize(
     ("held", "said", "why"),
     [
-        ("memory", "64", "is not an amount"),
+        ("memory", "64", "must be a number and unit"),
         ("cpus", "many", "cpus: 'many' is not a number"),
         ("cpus", "nan", "cpus: 'nan' is not a number"),
-        ("max_containers", "two", "is not a number of containers"),
-        ("gpus", "0,0", "a GPU is named twice"),
+        ("max_containers", "two", "max containers: 'two' must be a number"),
+        ("gpus", "0,0", "duplicate GPU"),
         ("run_args", "--label 'x", "run args:"),
-        ("workdir", "work", "neither absolute nor under ~/"),
+        ("workdir", "work", "must be absolute or under ~/"),
     ],
 )
 async def test_what_a_daemon_cannot_be_given_is_refused_on_the_form(
@@ -511,7 +511,7 @@ async def test_what_a_daemon_is_saved_to_hand_out_and_has_not_got_is_said_in_yel
         await until(lambda: isinstance(app.screen, Machine), driver)
         await onto(app, driver, _CHECKS)
         await driver.press("enter")
-        await until(lambda: "short of" in _under(app), driver)
+        await until(lambda: "lacks configured resources" in _under(app), driver)
 
         assert "[yellow]" in _under(app)
         assert "128 CPUs and has 64" in _under(app)
@@ -558,13 +558,13 @@ async def test_a_machine_is_corrected_and_taken_away_from_its_own_menu(
         # Correcting one asks all of it but the name it is saved under.
         assert "name" not in rows(app)
         await _types(app, driver, "workdir", "~/b")
-        assert "corrects ssh/gpu" in _drawn(app)
+        assert "updates ssh/gpu" in _drawn(app)
         await _done(app, driver)
         await until(lambda: app.screen is sheet, driver)
         stored = store.find("ssh", "gpu")
         assert stored is not None
         assert stored.workdir == "~/b"
-        assert "ssh/gpu is corrected" in "\n".join(sheet._told)
+        assert "ssh/gpu updated" in "\n".join(sheet._told)
 
         await until(lambda: "answers" in _under(app), driver)
         await onto(app, driver, "ssh/gpu")
@@ -576,9 +576,9 @@ async def test_a_machine_is_corrected_and_taken_away_from_its_own_menu(
 
         assert store.find("ssh", "gpu") is None
         assert "ssh/gpu" not in ids(app)
-        assert "no longer saved" in _under(app)
+        assert "ssh/gpu removed" in _under(app)
         # And what reached its daemon through it is said, in yellow.
-        assert "far reached its daemon through it" in _under(app)
+        assert "far reached docker through this host" in _under(app)
         assert _SAVE not in ids(app)
 
 
@@ -633,7 +633,7 @@ async def test_a_role_is_put_on_a_saved_host_and_remembered_as_e_spells_it(
         # On ssh, there being hosts saved for it, and on the one thing still to answer.
         assert form._typed_in["backend"] == "ssh"
         assert form.under() == "provider"
-        assert "leaves box unsaid" in _drawn(app)
+        assert "leaves box unset" in _drawn(app)
 
         await _opens(app, driver, "provider", Hosts)
         assert rows(app)[:2] == [_ADD, _UNSAVED]
@@ -735,7 +735,7 @@ async def test_a_role_is_put_on_a_host_nobody_saved(
         # No workdir of its own, so that is what is asked next -- and asked for, on done.
         assert form.under() == "workdir"
         await _done(app, driver)
-        assert "say the workdir as well" in _under(app) or "expected" in _under(app)
+        assert "fill in the workdir as well" in _under(app) or "expected" in _under(app)
         await _types(app, driver, "workdir", "/srv")
         await _done(app, driver)
         await until(lambda: isinstance(app.screen, Flows), driver)
@@ -812,7 +812,7 @@ async def test_a_config_under_a_home_nobody_has_is_said_rather_than_crashing(
 
         assert app.is_running
         # Read as ssh reads it: a file that is not there, which names no host.
-        assert "~nosuchuser9/config names no host" in _under(app)
+        assert "~nosuchuser9/config contains no hosts" in _under(app)
         assert rows(app) == ["config", _DONE]
 
 
@@ -836,7 +836,7 @@ async def test_a_host_a_typed_one_is_saved_as_starts_off_and_says_why(
 
         assert not form._on("gpu")
         assert form._on("builder")
-        assert "a host typed in is saved as gpu" in _drawn(app)
+        assert "a manually added host is already saved as gpu" in _drawn(app)
 
 
 @pytest.mark.timeout(60)
@@ -900,5 +900,5 @@ async def test_a_tls_directory_under_a_home_nobody_has_is_refused_on_the_form(
         await _done(app, driver)
 
         assert isinstance(app.screen, Docking)
-        assert "is under no home there is" in _under(app)
+        assert "home directory does not exist" in _under(app)
     assert store.providers() == []

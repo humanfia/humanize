@@ -305,7 +305,7 @@ async def test_a_search_is_a_row_and_says_what_the_keys_do_while_it_runs() -> No
         await driver.pause()
 
         once(sheet)
-        assert "esc leave search" in said(sheet)
+        assert "esc cancel search" in said(sheet)
         # Nothing is called that, and the rows above the list are still there.
         assert rows(app) == [_ADD]
         assert "zzzz" in str(
@@ -418,7 +418,7 @@ async def test_a_form_is_written_by_typing_and_answered_from_its_done_row() -> N
         assert isinstance(sheet, Speaks)
         await driver.pause()
         assert rows(app) == ["command", _DONE]
-        assert said(sheet) == "type to write · esc back"
+        assert said(sheet) == "type to edit · esc back"
 
         await driver.press(*"my-agent")
         await driver.pause()

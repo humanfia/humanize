@@ -275,7 +275,7 @@ def test_a_param_is_read_as_the_flow_declared_it(
     [
         (["-p", "nope=1"], "nope"),
         (["-p", "rounds=many"], "rounds"),
-        (["-a", "human=claude/m:high"], "filled by the runtime"),
+        (["-a", "human=claude/m:high"], "assigned automatically by the runtime"),
         (["-e", "here=local@/tmp"], "is the workspace"),
         (["-a", "nobody=claude/m:high"], "has no agent role 'nobody'"),
         (["-e", "nowhere=local@/tmp"], "has no environment role 'nowhere'"),
@@ -314,7 +314,7 @@ def test_a_run_is_given_a_budget_or_is_not_started(
 ) -> None:
     error = _refused(capsys, "-f", _flow(tmp_path), "-a", BUILDER, "task")
 
-    assert "is given a budget" in error
+    assert "requires a budget" in error
     assert epics() == []
 
 
@@ -323,7 +323,7 @@ def test_a_run_is_given_a_budget_or_is_not_started(
     [
         (
             ["claude=codex/gpt-5.5:low", "pursuer=claude/m:high"],
-            "'claude' is claude, and codex was given",
+            "'claude' requires claude, but got codex",
         ),
         (
             ["claude=claude/m:high", "pursuer=opencode/opencode/big-pickle:high"],
@@ -445,7 +445,7 @@ def test_resume_picks_up_the_newest_run_and_only_of_a_flow_that_can_be(
 ) -> None:
     keeps = _flow(tmp_path, KEEPS, "keeps")
 
-    assert "no run here to pick up" in _refused(
+    assert "has no run to resume here" in _refused(
         capsys, "-f", keeps, *BUDGET, "--resume", "task"
     )
     main(["exec", "-f", keeps, *BUDGET, "task"])
@@ -453,7 +453,7 @@ def test_resume_picks_up_the_newest_run_and_only_of_a_flow_that_can_be(
     main(["exec", "-f", keeps, *BUDGET, "task"])
 
     assert capsys.readouterr().out.split("\n")[:3] == ["run 1", "run 2", "run 1"]
-    assert "does not say it can be picked up" in _refused(
+    assert "does not support resuming" in _refused(
         capsys, "-f", _flow(tmp_path), "-a", BUILDER, *BUDGET, "--resume", "task"
     )
 

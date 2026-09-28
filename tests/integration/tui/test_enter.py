@@ -58,7 +58,7 @@ async def test_a_whole_line_and_its_enter_in_one_read_is_still_sent() -> None:
 
         assert editor.text == ""  # nothing left behind for a second enter to send
         assert app.history.back("") == "paste this"  # all of it, not a tail of it
-        assert "no coding agent is installed here" in transcript(app)
+        assert "no coding agent is installed" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -88,7 +88,7 @@ async def test_a_line_typed_a_key_at_a_time_is_still_sent() -> None:
 
         assert editor.text == ""
         assert app.history.back("") == "typed out"
-        assert "no coding agent is installed here" in transcript(app)
+        assert "no coding agent is installed" in transcript(app)
 
 
 @pytest.mark.timeout(60)

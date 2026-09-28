@@ -365,7 +365,7 @@ async def test_a_line_with_nothing_to_run_it_on_says_so_rather_than_vanishing() 
         await driver.pause()
 
         assert app._models == {}  # nothing installed, so nothing was set up to run
-        assert "no coding agent is installed here" in transcript(app)
+        assert "no coding agent is installed" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -1096,7 +1096,7 @@ async def test_the_kinds_group_on_the_monitor_says_what_a_run_spent_its_tokens_o
 
     assert "Kinds" in said
     assert "cache_read" in said
-    assert "a floor: not every agent here reports that kind" in said
+    assert "minimum: not all agents report this kind" in said
 
 
 @pytest.mark.timeout(60)
@@ -1166,9 +1166,7 @@ async def test_a_flow_is_opened_to_reach_its_agents_and_esc_comes_back() -> None
             # nobody's to choose -- what a run may spend, and the row the lot is saved from.
             assert rows(app) == ["0", _BUDGET, _SAVE]
             assert "chat" in str(sheet.query_one("#asked", Label).content)
-            assert "esc back to the flows" in str(
-                sheet.query_one("#keys", Label).content
-            )
+            assert "esc back to flows" in str(sheet.query_one("#keys", Label).content)
 
             await driver.press("escape")
             await until(lambda: not sheet._inside, driver)
@@ -1420,7 +1418,7 @@ async def test_two_ctrl_c_leave_when_there_is_nothing_running() -> None:
         await driver.pause()
 
         assert app.is_running
-        assert "press ctrl+c again to leave" in transcript(app)
+        assert "press ctrl+c again to exit" in transcript(app)
 
         await driver.press("ctrl+c")
         await driver.pause()
@@ -2576,7 +2574,7 @@ async def test_a_switch_takes_on_and_off_as_well_as_being_flipped() -> None:
         await driver.pause()
         assert app._afk is False  # unchanged, and said so rather than guessed at
         assert len(link(app).asked_for("afk")) == 3  # and nothing asked of the runs
-        assert "say on or off" in transcript(app)
+        assert "expected 'on' or 'off'" in transcript(app)
 
 
 @pytest.mark.timeout(60)
@@ -2671,7 +2669,7 @@ async def test_afk_is_one_outworlder_on_its_own_transcript_and_every_one_elsewhe
         app.query_one(Editor).text = ""
         await send("/afk on")
         assert not app._away("human")
-        assert "/afk works on" in transcript(app)
+        assert "/afk is only available on" in transcript(app)
         assert len(link(app).asked_for("afk")) == 3  # nothing asked of the runs for it
 
 

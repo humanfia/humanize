@@ -128,9 +128,9 @@ def _serve(argv: list[str]) -> int:
 
     parser = argparse.ArgumentParser(
         prog="hmz internal anchor serve",
-        description="Replay an `hmz internal anchor` session's operations on this "
-        "machine. The zipapp bootstrapped onto a target runs this line to answer a "
-        "session; it is not one to type by hand.",
+        description="Run operations for an `hmz internal anchor` session on this "
+        "machine. The zipapp bootstrapped onto a target runs this command to handle "
+        "a session; do not run it manually.",
     )
     parser.add_argument(
         "--export",
@@ -138,7 +138,7 @@ def _serve(argv: list[str]) -> int:
         action="append",
         default=[],
         required=True,
-        help="expose a directory; VIRTUAL is the path the agent believes it uses",
+        help="expose a directory; VIRTUAL is the path seen by the agent",
     )
     where = parser.add_mutually_exclusive_group(required=True)
     where.add_argument(
@@ -150,8 +150,8 @@ def _serve(argv: list[str]) -> int:
     where.add_argument(
         "--peer",
         metavar="TICKET@HOST:PORT",
-        help="serve one session to whoever presents this ticket at that rendezvous, "
-        "which is how the other half reaches this machine when it cannot dial it",
+        help="serve one session through the rendezvous server using this ticket "
+        "when this machine cannot be reached directly",
     )
     parser.add_argument(
         "--token",
@@ -219,7 +219,7 @@ def _serve(argv: list[str]) -> int:
     host, port = where
     if host not in _LOOPBACK_HOSTS and not args.token:
         print(
-            "hmz: refusing to listen on a non-loopback address without --token",
+            "hmz: cannot listen on a non-loopback address without --token",
             file=sys.stderr,
         )
         return 2
@@ -251,22 +251,22 @@ def _rendezvous(argv: list[str]) -> int:
 
     parser = argparse.ArgumentParser(
         prog="hmz internal anchor rendezvous",
-        description="Hold the meetings two halves of a session are introduced at: "
-        "tell each what it looks like from outside, start them at each other, and "
-        "carry the bytes where they cannot reach each other at all.",
+        description="Rendezvous server for anchor sessions: discover external "
+        "addresses, establish peer connections, and relay traffic when direct "
+        "connection fails.",
     )
     parser.add_argument(
         "--listen",
         metavar="[HOST:]PORT",
         default="0.0.0.0:0",
-        help="the address to hold meetings on (default: every interface, any port)",
+        help="the address to listen on (default: all interfaces, any port)",
     )
     parser.add_argument(
         "--punching",
         metavar="SECONDS",
         type=float,
         default=None,
-        help="how long two halves are given to reach each other before being carried",
+        help="how long to wait for a direct connection before relaying traffic",
     )
     parser.add_argument(
         "--log-level",

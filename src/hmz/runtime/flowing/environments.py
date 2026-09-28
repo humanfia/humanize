@@ -67,8 +67,8 @@ def open_env(spec: EnvSpec, role: EnvRole | None = None) -> EnvDriver:
         stored = store.find(store.SSH, spec.provider)
         if stored is None and _unreadable(spec.provider):
             raise EnvUnavailable(
-                f"the ssh provider {spec.provider!r} cannot be read; correct it or take "
-                f"it away: {store.where(store.SSH, spec.provider)}"
+                f"the ssh host {spec.provider!r} cannot be read; fix or remove "
+                f"it: {store.where(store.SSH, spec.provider)}"
             )
         target = stored.target() if isinstance(stored, store.SSHProvider) else ""
         # One place, one name: what is derived from it is found by that name again.
@@ -95,12 +95,12 @@ def _docker_env(spec: EnvSpec, role: EnvRole | None) -> EnvDriver:
     if stored is None and spec.provider != LOCAL:
         if _unreadable(spec.provider, store.DOCKER):
             raise EnvUnavailable(
-                f"the docker provider {spec.provider!r} cannot be read; correct it or "
-                f"take it away: {store.where(store.DOCKER, spec.provider)}"
+                f"the docker host {spec.provider!r} cannot be read; fix or "
+                f"remove it: {store.where(store.DOCKER, spec.provider)}"
             )
         raise EnvUnavailable(
-            f"there is no docker provider called {spec.provider!r}: write one down, or "
-            f"name docker's default here as docker@{LOCAL}"
+            f"docker host {spec.provider!r} not found: add one, or use the "
+            f"default docker@{LOCAL}"
         )
     workdir = tidy_workdir(spec.workdir)
     if not workdir.is_absolute():
@@ -114,8 +114,7 @@ def _docker_env(spec: EnvSpec, role: EnvRole | None) -> EnvDriver:
             here = False
         if not here:
             raise EnvUnavailable(
-                f"{workdir} is a directory of the docker daemon's host, which is not this "
-                "machine, so it is written as an absolute path there"
+                f"{workdir} is on a remote docker host, so it must be an absolute path"
             )
         workdir = PurePosixPath(Path(str(workdir)).expanduser())
     machine = DockerMachine(

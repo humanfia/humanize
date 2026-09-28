@@ -165,12 +165,12 @@ def test_a_called_flow_keeps_its_own_state_under_its_own_name(counts: str) -> No
 
 
 def test_a_flow_that_is_not_resumable_is_not_picked_up(counts: str) -> None:
-    with pytest.raises(Refused, match="does not say it can be picked up"):
+    with pytest.raises(Refused, match="does not support resuming"):
         Runner("counts:once", budget=BUDGET, resume=True)
 
 
 def test_a_run_with_nothing_to_pick_up_says_so(counts: str) -> None:
-    with pytest.raises(Refused, match="no run here to pick up"):
+    with pytest.raises(Refused, match="has no run to resume here"):
         Runner("counts", budget=BUDGET, resume=True)
 
 

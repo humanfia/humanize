@@ -166,7 +166,7 @@ def resolve(
         )
     except subprocess.TimeoutExpired as error:
         raise TimeoutError(
-            f"ssh -G {destination} took longer than {seconds:g}s"
+            f"ssh -G {destination} timed out after {seconds:g}s"
         ) from error
     if said.returncode:
         raise OSError(f"ssh -G {destination}: {said.stderr.strip() or said.returncode}")

@@ -199,7 +199,7 @@ def test_a_run_given_no_budget_is_not_started(
     ran = _ran(tmp_path, stand_in, "")
 
     assert ran.returncode == 2
-    assert "is given a budget" in ran.stderr
+    assert "requires a budget" in ran.stderr
     assert _how(stand_in) == []  # nothing ran at all
 
 

@@ -45,7 +45,7 @@ def test_a_name_already_taken_is_refused_by_add_and_written_over_by_write() -> N
     envs = Hmz().environments
     envs.add(envs.new("ssh", "gpu", host="a"))
 
-    with pytest.raises(ValueError, match="already has"):
+    with pytest.raises(ValueError, match="already exists"):
         envs.add(envs.new("ssh", "gpu", host="b"))
     envs.write(envs.new("ssh", "gpu", host="b"))
     assert envs.find("ssh", "gpu") == envs.new("ssh", "gpu", host="b")

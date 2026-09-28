@@ -294,7 +294,7 @@ async def test_walking_out_of_the_menu_starts_nothing_and_says_so(
         await until(lambda: isinstance(app.screen, Flows), driver)
         await driver.press("escape")  # out again, having answered nothing
         await until(lambda: not isinstance(app.screen, Flows), driver)
-        await until(lambda: "nothing was set up" in transcript(app), driver)
+        await until(lambda: "nothing started" in transcript(app), driver)
 
         assert not started
 
@@ -426,7 +426,7 @@ async def test_a_dollar_naming_a_flow_and_nothing_else_chooses_it_and_waits(
         await until(lambda: app._flow_named == "chat", driver)
 
         assert not started
-        assert "say what to do" in transcript(app)
+        assert "enter a task to start the flow" in transcript(app)
 
 
 def test_the_flows_there_are_are_offered_under_the_sigil_that_starts_one() -> None:
