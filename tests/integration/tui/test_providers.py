@@ -803,8 +803,16 @@ async def test_what_one_fails_over_to_is_chosen_and_held_until_the_menu_is_saved
 
 
 @pytest.mark.timeout(60)
-async def test_an_account_to_fail_over_to_can_be_made_where_it_is_asked_for() -> None:
-    """Somebody who finds out there is no other account finds out on this sheet."""
+@unittest.mock.patch("hmz.coganchor.providers.login.sign_in", return_value=0)
+async def test_an_account_to_fail_over_to_can_be_made_where_it_is_asked_for(
+    signed_in: unittest.mock.MagicMock,
+) -> None:
+    """Somebody who finds out there is no other account finds out on this sheet.
+
+    Signing it in is codex's own `login`, which is no program of this repository's: stood in
+    for, as every other account made here has it, so that what is tested is this sheet and
+    not whether codex is installed.
+    """
     from hmz.tui.pick import Falls
 
     providers.add("codex", "work", way="key", env={"OPENAI_API_KEY": "k"})
@@ -834,6 +842,7 @@ async def test_an_account_to_fail_over_to_can_be_made_where_it_is_asked_for() ->
     chained = providers.find("codex", "work")
     assert chained is not None
     assert chained.fallback == "spare"
+    signed_in.assert_called_once()
 
 
 @pytest.mark.timeout(60)
