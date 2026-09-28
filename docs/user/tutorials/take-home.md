@@ -156,7 +156,7 @@ hmz exec: error: flame_chase: the official flowverse has not been fetched yet --
 ```
 
 Run `hmz`, type `/settings flowverses`, open `official`,
-choose `fetch it again`, then run the line again.
+choose `fetch`, then run the line again.
 :::
 
 ## Step 4: watch the number
@@ -235,13 +235,13 @@ the top one, the loop you just stopped:
 ```
 2026-08-17 14:02 · flame_chase
 /home/you/.humanize/epics/…/20260817T140233.512Z-4c1e9a
-It was stopped, driving 2 agents through 12 sessions.
+It stopped with 2 agents in 12 sessions.
 
-❯ 1. resume this run
-  2. export it
+❯ 1. resume run
+  2. export run
 ```
 
-Choose **export it**. The line under the list says where the archive went. The trace is also at
+Choose **export run**. The line under the list says where the archive went. The trace is also at
 `traces/export.trace.json` inside the directory named under the screen's title. Drag it into
 [ui.perfetto.dev](https://ui.perfetto.dev):
 

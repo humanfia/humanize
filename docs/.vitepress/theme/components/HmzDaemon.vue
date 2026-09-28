@@ -194,7 +194,7 @@ const runLabel = computed(() => {
           </div>
           <template v-if="term.on">
             <button type="button" :disabled="!alive" @click="leave(term)">
-              /exit → leave it running
+              /exit → detach and exit
             </button>
             <button type="button" @click="close(term)">close the window</button>
           </template>

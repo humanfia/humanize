@@ -22,7 +22,7 @@ match.
 `hmz exec` prints these after `hmz exec: error:` and exits with status 2. Nothing has run. At
 the prompt, the same words follow `hmz:`.
 
-### `rlar needs an agent for 'actor', 'reviewer'; give each with -a ROLE=CLI/MODEL:EFFORT`
+### `rlar needs an agent for 'actor', 'reviewer'; specify each with -a ROLE=CLI/MODEL:EFFORT` {#rlar-needs-an-agent-for-actor-reviewer-give-each-with-a-role-cli-model-effort}
 
 The flow has agent roles that nothing on the line fills. Give one `-a` per role, named after
 the role:
@@ -32,16 +32,16 @@ hmz exec -f rlar -a actor=claude/claude-opus-5:high -a reviewer=codex/gpt-5.6-so
     -b cost=20 "fix the build"
 ```
 
-### `ralph_loop has no agent role 'builder'; its agent roles are 'agent'`
+### `ralph_loop has no agent role 'builder'; available roles are 'agent'` {#ralph-loop-has-no-agent-role-builder-its-agent-roles-are-agent}
 
 The line names a role the flow does not have: a typo, or another flow's role. Use a name from
 the list at the end of the message. `chat` has `assistant`, `ralph_loop` has `agent`, and
 `rlar` has `actor` and `reviewer`.
 
-### `…: 'human' is filled by the runtime -- whoever is outside the run -- and is not given with -a`
+### `…: 'human' is assigned automatically by the runtime and cannot be set with -a` {#human-is-filled-by-the-runtime-whoever-is-outside-the-run-and-is-not-given-with-a}
 
 That role is the person outside the run, and humanize fills it. Take it off the line.
-`… is the workspace the run is started in, and is not given with -e` is the same for an
+`… is the workspace the run started in and cannot be set with -e` is the same for an
 environment: it is the directory you ran `hmz exec` in.
 
 ### `-a 'claude/claude-opus-5:high': expected <role>=<harness>[@<provider>]/<model>:<effort>`
@@ -59,7 +59,7 @@ that asks for none:
 -a agent=opencode/anthropic/claude-opus-5:auto   # a model may hold slashes
 ```
 
-### `ralph_loop: a run is given a budget -- -b duration=...,cost=...,output_tokens=... -- and this one was given none`
+### `ralph_loop requires a budget: specify with -b duration=...,cost=...,output_tokens=...` {#ralph-loop-a-run-is-given-a-budget-b-duration-cost-output-tokens-and-this-one-was-given-none}
 
 Every flow except `chat` runs under a budget. Give it one with `-b`:
 
@@ -80,13 +80,13 @@ you added on [the Accounts page of `/settings`](/user/settings#accounts) takes a
 cursor-agent writes the effort into the model's id, and this account does not offer the model
 at that effort. Pick an effort the message lists.
 
-### `…: 'reviewer' needs GoalCommandAgentMixin, which pi does not do`
+### `…: 'reviewer' needs GoalCommandAgentMixin, which pi does not support` {#reviewer-needs-goalcommandagentmixin-which-pi-does-not-do}
 
 The role asks for something that CLI cannot do: pursue a goal, be steered, or answer a hook.
 Give the role a CLI that can. [Reference › Flows](/reference/flows) has the table of which CLI
 does what.
 
-### `…: 'builder' is claude, and codex was given`
+### `…: 'builder' requires claude, but got codex` {#builder-is-claude-and-codex-was-given}
 
 The role is written for one CLI only. Give it that CLI.
 
@@ -101,7 +101,7 @@ then in `~/.humanize/flows`, then among humanize's own flows and every
 The name is right, but the flowverse has not been downloaded yet. `hmz` fetches flowverses in
 the background every time it starts. To fetch one now, open `/settings`, turn to its
 [Flowverses](/user/settings#flowverses) page with <kbd>→</kbd>, open it, and choose
-`fetch it again`.
+`fetch`.
 
 ### `… holds gen-idea, gen-plan, rlcr and none is called 'humanize1'; name one as humanize1:<flow>`
 
@@ -122,11 +122,11 @@ foo
 
 Fix the value, or leave the key off to get its default.
 
-### `ralph_loop has no run here to pick up: none got as far as writing anything down`
+### `ralph_loop has no run to resume here: none saved any progress` {#ralph-loop-has-no-run-here-to-pick-up-none-got-as-far-as-writing-anything-down}
 
 `--resume` found no run of this flow in this directory that saved anything to pick up from.
-Run it without `--resume`. `… does not say it can be picked up, so there is no run of it to
-resume` means the flow cannot be resumed at all.
+Run it without `--resume`. `… does not support resuming, so there is no run to resume` means
+the flow cannot be resumed at all.
 
 ### `hmz exec: nobody lists a price for my-model, so cost=5 cannot stop what it spends`
 
@@ -141,7 +141,7 @@ never fills. Cap something it can count as well:
 
 The interface prints most of these in red, after `hmz:`.
 
-### `no coding agent is installed here`
+### `no coding agent is installed` {#no-coding-agent-is-installed-here}
 
 You typed a task, and the flow has no agent to run it on. humanize looks for a coding agent CLI
 on your `PATH` and in the directories installers use, such as `~/.local/bin` and
@@ -166,31 +166,31 @@ A `$` line names a flow by the name it is offered under:
 | another flowverse's | `$<flowverse>/name` |
 
 A flowverse not fetched yet offers nothing: open the [Flowverses page of
-`/settings`](/user/settings#flowverses), open it, and choose `fetch it again`.
+`/settings`](/user/settings#flowverses), open it, and choose `fetch`.
 
 ### `no such command: /foo`
 
 Type `/` to see the commands. There are ten, listed in
 [Reference › TUI](/reference/tui).
 
-### `a flow is running; no choosing a flow`
+### `cannot choose a flow while one is running` {#a-flow-is-running-no-choosing-a-flow}
 
 A `/flow <name>` or a `$` line while a flow runs. Starting another flow would stop this one, so
 humanize refuses. Stop it first with [`/stop`](/user/stopping), or <kbd>ctrl+c</kbd> twice on
 an empty line. `/flow` on its own still opens, on the roles of the flow that is running.
 `a flow is already running` has the same cause.
 
-### `reviewer is not set up yet`
+### `reviewer is not configured yet` {#reviewer-is-not-set-up-yet}
 
 Said in `/flow` when you save. The role has no CLI and model yet. Open it and choose both.
-`a run of this flow is given a budget: set what it may spend first` is the same for the budget.
+`this flow requires a budget: set the budget first` is the same for the budget.
 
-### `nothing was set up, so nothing was started`
+### `flow not set up; nothing started` {#nothing-was-set-up-so-nothing-was-started}
 
 A `$` line named a flow this directory has never set up, so `/flow` opened on it, and you left
 without saving. Type the line again and save the menu this time.
 
-### `say on or off, not 'yes'`
+### `expected 'on' or 'off', not 'yes'` {#say-on-or-off-not-yes}
 
 `/afk` switches over when you give it nothing. Given a word, it takes only `on` or `off`.
 `/claim` is the same.
@@ -219,7 +219,7 @@ the process named, then run `hmz` again. `hmz attach` says the same.
 The interface stopped taking what the host sent until it was a whole run behind, and was let go
 of. The run is untouched: run `hmz` again, and it reads the run from the top.
 
-### `/btw needs a coding agent to ask`
+### `/btw requires a coding agent` {#btw-needs-a-coding-agent-to-ask}
 
 In the view of every agent, [`/btw`](/user/btw) asks the btw agent. None is set in `/settings`
 and no flow is set up to copy one from. Choose a flow, or set the **btw agent** in `/settings`.
@@ -301,18 +301,18 @@ The account is signed in, but it may not use that model. The bracket says whethe
 list of this account's models is out of date:
 
 ```
-(unlisted: the 3 models this account was last offered (asked 2026-09-10) still name it, so
-that list is the stale part; the ask-it-again row under its models asks again)
+(unlisted: the 3 models this account was last offered (asked 2026-09-10) still list it, so
+that list is stale; the "check again" row under its models checks again)
 ```
 
 humanize never asks an account again on its own. In `/flow`, open the agent, open its `model`
-row, and choose `ask it again` to ask the CLI what this account runs now. Then choose one of
+row, and choose `check again` to ask the CLI what this account runs now. Then choose one of
 those.
 
 ### `(retired: the model is gone or was never this account's; another place is what answers it)`
 
 The CLI says there is no such model. No account of that CLI has it, so the turn goes straight to
-the next [fallback](/user/settings#fallback). Choose another model: `ask it again` under the
+the next [fallback](/user/settings#fallback). Choose another model: `check again` under the
 agent's `model` row shows what the CLI runs.
 
 ### `(missing: npm i -g @anthropic-ai/claude-code)`
@@ -368,7 +368,7 @@ workspace, and humanize says yes. The work goes on.
 
 ### `… · 0 sessions, 0 slices` {#_0-sessions-0-slices}
 
-[**export it**](/user/export) in `/epics` wrote the archive, but its trace holds nothing. In
+[**export run**](/user/export) in `/epics` wrote the archive, but its trace holds nothing. In
 order of likelihood:
 
 1. **The run ended before its first turn.** `/epics` says how many sessions each run opened.
@@ -432,7 +432,7 @@ read. A socket path and a `?tls=` directory must be absolute. See
 A container on a daemon elsewhere is given the workspace at the path it has on *that* host, and
 that host has no such directory. Make it there, or name one it has.
 
-### `refusing to listen on a non-loopback address without --token`
+### `cannot listen on a non-loopback address without --token` {#refusing-to-listen-on-a-non-loopback-address-without-token}
 
 A target listening on the network is a shell on that machine for anyone who reaches it. Give
 `--token` a real secret, or use `ssh://` or `docker://`, which open no port at all.

@@ -33,7 +33,7 @@ Sleep 400ms
 
 # Enter opens what there is to do with the one under the cursor, taking it away last.
 Enter
-Wait+Screen /check it/
+Wait+Screen /check host resources/
 Sleep 1400ms
 Escape
 Sleep 700ms

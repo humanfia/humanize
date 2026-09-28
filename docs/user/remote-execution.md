@@ -45,9 +45,9 @@ hmz exec -f onbox \
 
    ❯ 1. builder                  claude/claude-opus-5:high
      2. reviewer                 codex/gpt-5.6-sol:high
-     3. box                      not said yet
+     3. box                      not set
 
-enter on box asks "Where box is". Type it as -e spells it after the =:
+enter on box asks "Environment for box". Type it as -e spells it after the =:
 
      ssh@build-box/home/me/build/myproject
 ```
@@ -183,11 +183,11 @@ and the python.org installer put one, and says what it looked for if it finds no
 Most of these stop `hmz exec` before anything runs, as `hmz exec: error: …`, with exit
 status 2.
 
-- `onbox needs an environment for 'box'; give each with -e ROLE=BACKEND@PROVIDER/WORKDIR`\
+- `onbox needs an environment for 'box'; specify each with -e ROLE=BACKEND@PROVIDER/WORKDIR`\
   Say where `box` is, with `-e` or at `/flow`.
-- `ralph_loop has no environment role 'box'; its environment roles are none`\
+- `ralph_loop has no environment role 'box'; available roles are none`\
   That flow only works in the directory you start it in.
-- `onbox: 'workspace' is the workspace the run is started in, and is not given with -e`\
+- `onbox: 'workspace' is the workspace the run started in and cannot be set with -e`\
   Start `hmz` in that directory instead.
 - `there is no ssh host build-box: …`\
   Nothing resolves the name. Check your ssh config.

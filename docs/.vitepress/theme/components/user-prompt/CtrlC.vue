@@ -87,7 +87,7 @@ function press() {
   }
   if (phase.value === 'stopping') {
     disarm()
-    put('— closing 1 conversation(s) under their turns —', 'note')
+    put('— closed 1 conversation(s) mid-turn —', 'note')
     phase.value = 'idle'
     said.value =
       'The third press closed the agent still in its turn. Nothing is running now; ' +
@@ -101,7 +101,7 @@ function press() {
     return
   }
   arm()
-  put('— press ctrl+c again to leave —', 'note')
+  put('— press ctrl+c again to exit —', 'note')
   said.value = 'Nothing is running, so the next press, within 3 seconds, quits hmz.'
 }
 
@@ -117,10 +117,10 @@ function slashStop() {
     stopFlow()
     said.value = '/stop is typed out on purpose, so it stops the flow at once.'
   } else if (phase.value === 'stopping') {
-    put('hmz: the flow is already stopping: it is closing out the turn it was in', 'error')
+    put('hmz: the flow is already stopping: it is finishing the turn it was in', 'error')
     said.value = 'A second /stop does not hurry it. A ctrl+c does.'
   } else {
-    put('hmz: no flow is running, so there is nothing to stop', 'error')
+    put('hmz: no flow is running', 'error')
     said.value = '/stop says so when there is nothing to stop. It never quits.'
   }
   disarm()
@@ -159,13 +159,13 @@ const counting = computed(() => presses.value > 0)
 // The keys the status line offers, in the order `_keys` puts them.
 const keys = computed(() => {
   const held: string[] = []
-  if (typed.value) held.push(phase.value === 'running' ? 'enter say' : 'enter start')
+  if (typed.value) held.push(phase.value === 'running' ? 'enter send' : 'enter start')
   held.push('/ commands', 'shift+enter newline', '← monitor')
   if (typed.value) held.push('ctrl+c clear')
   else if (counting.value)
     held.push(phase.value === 'running' ? 'ctrl+c again to stop' : 'ctrl+c again to exit')
   else if (phase.value === 'running') held.push('ctrl+c stop')
-  else if (phase.value === 'stopping') held.push('ctrl+c close them')
+  else if (phase.value === 'stopping') held.push('ctrl+c force stop')
   else held.push('ctrl+c exit')
   return held
 })

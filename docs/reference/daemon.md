@@ -29,7 +29,7 @@ For what this means day to day, see [The terminal can leave](/features/daemon).
 | | |
 | --- | --- |
 | `hmz` | Opens an interface on the runs a host holds in this directory, starting a host where none is. Every `hmz` is a whole interface of its own on the same runs. |
-| `/exit`, <kbd>ctrl+q</kbd> | With a flow running, asks: **stop it, then leave**, which stops it for everybody, or **leave it running**, which lets go of this interface alone. With nothing running, leaves. |
+| `/exit`, <kbd>ctrl+q</kbd> | With a flow running, asks: **stop the flow and exit**, which stops it for everybody, or **detach and exit**, which lets go of this interface alone. With nothing running, leaves. |
 | <kbd>ctrl+c</kbd> twice | Stops the flow, for everybody reading it. It never lets go of the interface. |
 
 ## When runs are not held
@@ -42,7 +42,7 @@ The interface holds its runs in its own process, as a host nobody else reaches, 
 | `HUMANIZE_DAEMON` is `off`, `0` or `no` | This repository's test suite sets it. `hmz.daemon.host` starts a host whatever it says. |
 | The runs cannot be held | No fork, no writable home, no socket. Said on stderr, then done without. |
 
-Then `/exit` offers **stay here** in place of **leave it running**: closing that interface
+Then `/exit` offers **cancel** in place of **detach and exit**: closing that interface
 closes the run.
 
 A directory whose runs are held by a daemon of an older humanize -- one that held a run on a

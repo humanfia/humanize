@@ -32,8 +32,8 @@ When a flow is running, `/exit` (or <kbd>ctrl+q</kbd>) asks what you mean:
 
 | You choose | What happens |
 | --- | --- |
-| **leave it running** | This interface lets go, and nothing else does. The run carries on, and `hmz` reads it again. |
-| **stop it, then leave** | The flow stops for everybody reading it, and this interface closes. |
+| **detach and exit** | This interface lets go, and nothing else does. The run carries on, and `hmz` reads it again. |
+| **stop the flow and exit** | The flow stops for everybody reading it, and this interface closes. |
 
 The other ways to stop a run are on [Stopping](/user/stopping).
 
@@ -75,8 +75,8 @@ it is killed, the run ends. What it wrote down is still there, and a flow that c
 
 ::: details When a run is not held apart from the terminal
 Only the terminal interface, started at a real terminal, holds its runs apart. Otherwise the
-interface holds them in its own process, the run lives and ends with it, and `/exit` offers to
-stay rather than to leave it running:
+interface holds them in its own process, the run lives and ends with it, and `/exit` offers
+**cancel** in place of **detach and exit**:
 
 - **`hmz exec`** runs in the process you started. For a run with no terminal at all, see
   [Run it unattended](/user/unattended).

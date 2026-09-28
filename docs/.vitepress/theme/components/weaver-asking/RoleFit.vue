@@ -129,7 +129,7 @@ const bases = computed(() => {
       <div class="said" aria-live="polite">
         <template v-if="missing.length">
           <pre><code><span class="dim">$ hmz exec -f gated -a builder={{ written }}/… …</span>
-<span class="err">hmz exec: error: gated: 'builder' needs {{ missing.join(', ') }}, which {{ chosen.cli }} does not do</span></code></pre>
+<span class="err">hmz exec: error: gated: 'builder' needs {{ missing.join(', ') }}, which {{ chosen.cli }} does not support</span></code></pre>
         </template>
         <p v-else class="ok">
           <strong>{{ named(chosen) }}</strong> can fill it. <code>hmz exec</code> takes it, and

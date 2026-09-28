@@ -84,7 +84,7 @@ a role:
 The agent sheet does not offer the others, and `hmz exec` refuses them before anything runs:
 
 ```
-hmz exec: error: humanize1:rlcr: 'builder' needs PermissionRequestHookAgentMixin, which grok does not do
+hmz exec: error: humanize1:rlcr: 'builder' needs PermissionRequestHookAgentMixin, which grok does not support
 ```
 
 ## On a machine somebody else manages

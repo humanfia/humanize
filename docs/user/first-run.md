@@ -61,8 +61,8 @@ out or you stop it. See [ralph_loop](/flows/ralph-loop).
 The rest of humanize's flows are in a git repository, the official
 [flowverse](/weaver/flowverses). `hmz` fetches it in the background every time it opens, and
 `/flow` fetches it if that has not happened yet. If the fetch fails, `/flow` says why under the
-list. The `where flows come from` row below the flows opens the flowverses; open one and
-choose `fetch it again`.
+list. The `manage flowverses` row below the flows opens the flowverses; open one and
+choose `fetch again`.
 :::
 
 ## 4. Give the role an agent
@@ -77,23 +77,22 @@ Press <kbd>enter</kbd> on `agent`. An agent is four rows:
 
 ```text [The roles]
 ralph_loop
-What each of its roles is given: an agent -- the CLI that
-takes its turns, the account they run as, and the model at
-an effort -- or where an environment is.
+Configure each role: an agent (CLI, account, model and effort)
+or an environment.
 
 ❯ 1. agent     claude/claude-opus-4-8:high
 
-     budget    none yet; a run is given one
+     budget    none set; a run needs one
 
-     save      the flow and its roles
+     save      flow and roles
 
-enter open · esc back to the flows
+enter open · esc back to flows
 ```
 
 ```text [One agent]
 Set up agent
-What this one agent is: the CLI that takes its turns, the
-account they run as, and the model at an effort.
+Configure this agent: select its CLI, account, model, and
+reasoning effort.
 
   1. cli          claude ▸
   2. provider     as local ▸
@@ -106,16 +105,16 @@ enter change · esc close
 ```
 
 ```text [The budget]
-What a run of ralph_loop may spend
+Set budget for ralph_loop
 A run stops at whichever limit it reaches first; at least
-one is set. Empty or 0 is no limit on that one.
+one limit is required. Leave empty or 0 for no limit.
 
 ❯ 1. duration        20m
   2. cost            0.0 ↔
   3. output_tokens   0 ↔
   4. graceful        on ↔
 
-     set             all of them
+     set             all of the above
 
 enter change · esc back
 ```
@@ -126,7 +125,7 @@ enter change · esc back
 | --- | --- | --- |
 | `cli` | The coding agent CLI that takes its turns. Only CLIs that can fill this role are listed. | <kbd>enter</kbd>, then pick |
 | `provider` | The account. `as local` is the CLI as you signed it in. | <kbd>enter</kbd>, then pick, or `add` to add one |
-| `model` | One of the models that CLI said it runs. | <kbd>enter</kbd>, then pick; `ask it again` asks the CLI again |
+| `model` | One of the models that CLI said it runs. | <kbd>enter</kbd>, then pick; `check again` asks the CLI again |
 | `effort` | How hard it thinks, from the model's own list. | <kbd>enter</kbd>, <kbd>←</kbd> <kbd>→</kbd>, <kbd>enter</kbd> |
 
 Choosing another CLI clears the account and the model, since both belong to a CLI. Press
@@ -152,7 +151,7 @@ is running finish; off cuts it off. Every flow except `chat` needs a budget. See
 ## 6. Save
 
 Press <kbd>enter</kbd> on `save`, the last row under the roles. The status line
-now reads `◉ ralph_loop`, and humanize says `say what to do, and the flow starts on it`.
+now reads `◉ ralph_loop`, and humanize says `enter a task to start the flow`.
 
 Nothing is applied before you save. <kbd>esc</kbd> steps back, and leaving a menu with changes
 in it asks `Save?`. If a role has no agent or the flow has no budget yet, saving says which
@@ -226,7 +225,7 @@ line:
 
 A flow that is set up here starts at once. One that is not opens the menu on its roles, holding
 your line, and saving starts it. `$ralph_loop` with nothing after it only chooses the flow.
-While a flow is running, a `$` line is refused with `a flow is running; no choosing a flow`.
+While a flow is running, a `$` line is refused with `cannot choose a flow while one is running`.
 
 [Settings](/user/settings) shows how to change or forget this.
 

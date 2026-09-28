@@ -34,11 +34,11 @@ fetched here, and your own. Each is offered under one name:
 <Term>
 
 <pre><span class="p">/settings</span> <span class="m">[page]</span>   <span class="p">Every setting: everywhere, this directory, accounts, environments, fallback, flowverses</span>
-/stop              <span class="m">Stop the flow; typed out, so not asked twice</span>
+/stop              <span class="m">Stop the flow without confirmation</span>
 <span class="d">────────────────────────────────────────────────────────────</span>
 <span class="d">❯</span> /s
 <span class="d">────────────────────────────────────────────────────────────</span>
-<span class="a">◉</span> <span class="d">twice · ~/code/app       ↑↓ move · tab take · esc dismiss</span></pre>
+<span class="a">◉</span> <span class="d">twice · ~/code/app       ↑↓ move · tab select · esc cancel</span></pre>
 
 </Term>
 

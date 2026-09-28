@@ -10,7 +10,7 @@ each CLI was, with every credential struck out.
 
 ## Try it
 
-Open `/epics`, press <kbd>enter</kbd> on the run, then choose **export it**.
+Open `/epics`, press <kbd>enter</kbd> on the run, then choose **export run**.
 
 ![/epics listing the runs of this directory, newest first; enter on one shows where it is
 written down and offers to resume it or export it; export it reports where the archive

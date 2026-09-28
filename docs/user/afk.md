@@ -25,7 +25,7 @@ const afk = [
   },
   {
     label: '/afk on',
-    lines: screen('on', 'away: an agent that wants to ask is told nobody is here', '[y]afk[/] · '),
+    lines: screen('on', 'away: agents that ask are told nobody is here', '[y]afk[/] · '),
     caption:
       'Away. The status line says <code>afk</code>, in yellow, in front of everything else, for as long as it is on.',
   },

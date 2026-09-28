@@ -59,7 +59,7 @@ holds the runs in this process instead when:
 | --- | --- |
 | stdin or stdout is not a terminal | nothing |
 | `HUMANIZE_DAEMON` is `off`, `0` or `no` | nothing |
-| the runs cannot be held (no fork, no writable home, no socket) | `hmz: the runs here cannot be held apart from the terminal (…), so they are held in this process instead` |
+| the runs cannot be held (no fork, no writable home, no socket) | `hmz: runs cannot be detached from the terminal (…), so they will run in this process instead` |
 
 Runs held here by a daemon of an older humanize are not opened on: `hmz` says
 `hmz: the runs in <dir> are held by an older humanize (pid <n>); stop it with that version` and
@@ -330,13 +330,13 @@ exit status 2, with nothing started:
 | Refused | Says |
 | --- | --- |
 | no such flow | `nosuch: no flow is called 'nosuch', and it is not a path` |
-| a role the flow does not declare | `chat has no agent role 'helper'; its agent roles are 'assistant'` |
-| a required role left out | `rlar needs an agent for 'reviewer'; give each with -a ROLE=CLI/MODEL:EFFORT` |
-| a role the runtime fills | `<flow>: '<role>' is filled by the runtime -- whoever is outside the run -- and is not given with -a` |
-| a CLI that cannot do what the role needs | `<flow>: '<role>' needs SteeringAgentMixin, which zcode does not do` |
-| a role typed as another CLI's own | `<flow>: '<role>' is codex, and claude was given` |
+| a role the flow does not declare | `chat has no agent role 'helper'; available roles are 'assistant'` |
+| a required role left out | `rlar needs an agent for 'reviewer'; specify each with -a ROLE=CLI/MODEL:EFFORT` |
+| a role the runtime fills | `<flow>: '<role>' is assigned automatically by the runtime and cannot be set with -a` |
+| a CLI that cannot do what the role needs | `<flow>: '<role>' needs SteeringAgentMixin, which zcode does not support` |
+| a role typed as another CLI's own | `<flow>: '<role>' requires codex, but got claude` |
 | an effort off the ladder | `assistant=claude/claude-opus-5:turbo: claude cannot be asked to think at 'turbo'; expected one of ultracode, max, xhigh, high, medium, low` |
-| no `-b` | `rlar: a run is given a budget -- -b duration=...,cost=...,output_tokens=... -- and this one was given none` |
+| no `-b` | `rlar requires a budget: specify with -b duration=...,cost=...,output_tokens=...` |
 | params the flow refuses | the flow's own validation error, naming the field |
 | an environment short of its role, or unreachable | why, naming the role |
 | a skill a role names that cannot be found or fetched | why, naming the skill |
@@ -367,8 +367,8 @@ and records which epic it `picked_up` from.
 
 | Refused | Says |
 | --- | --- |
-| the flow is not resumable | `chat does not say it can be picked up, so there is no run of it to resume` |
-| no run of it here left a journal | `<flow> has no run here to pick up: none got as far as writing anything down` |
+| the flow is not resumable | `chat does not support resuming, so there is no run to resume` |
+| no run of it here left a journal | `<flow> has no run to resume here: none saved any progress` |
 
 Without `--resume` every run starts afresh.
 
@@ -502,10 +502,10 @@ hmz internal anchor serve --export VIRTUAL[:REAL] (--stdio | --listen [HOST:]POR
 
 | Flag | |
 | --- | --- |
-| `--export VIRTUAL[:REAL]` | **Required, repeatable.** Expose a directory: `VIRTUAL` is the path the agent believes it uses, `REAL` where it is here. |
+| `--export VIRTUAL[:REAL]` | **Required, repeatable.** Expose a directory: `VIRTUAL` is the path seen by the agent, `REAL` where it is here. |
 | `--stdio` | Serve one session over stdin/stdout. What a bootstrapped target runs. |
 | `--listen [HOST:]PORT` | Serve TCP connections. A bare port listens on `127.0.0.1`. |
-| `--peer TICKET@HOST:PORT` | Serve one session to whoever presents this ticket at that rendezvous. humanize writes this one. |
+| `--peer TICKET@HOST:PORT` | Serve one session through the rendezvous server using this ticket. humanize writes this one. |
 | `--token TOKEN` | Shared secret required from clients. Defaults to `$HUMANIZE_TOKEN`. |
 | `--log-level` | As for `hmz internal anchor`. |
 
@@ -578,7 +578,7 @@ spawns it once per moment.
 
 | Flag | |
 | --- | --- |
-| `--at PATH` | **Required.** The unix socket the flow serves its moments on. |
+| `--at PATH` | **Required.** The unix socket the flow is listening on. |
 
 It exits 0 whatever the flow said, and never with the status a CLI reads as the hook refusing.
 A socket that is not there lets the tool through and says so on stderr.
@@ -692,7 +692,7 @@ with everything but letters and digits turned into `-`.
 
 | Elsewhere | Written by | |
 | --- | --- | --- |
-| `.humanize/<run>.epic.tar.gz` | **export it**, on a run in `/epics` | One whole run to send: its records, its session logs in full, a manifest. `0600`. |
+| `.humanize/<run>.epic.tar.gz` | **export run**, on a run in `/epics` | One whole run to send: its records, its session logs in full, a manifest. `0600`. |
 | `~/.humanize/sessions/<cli>/` | a turn of an agent no run drives, from Python | Its sessions, as an epic's `sessions/` keeps a run's. |
 
 ### Flows
@@ -712,11 +712,11 @@ with everything but letters and digits turned into `-`.
 | --- | --- | --- |
 | `~/.humanize/providers/<cli>/<name>/provider.json` | `add an account` on `/settings accounts` | How a [provider](/reference/providers) was made and what its turns run with. `0600`, in a `0700` directory. |
 | `~/.humanize/providers/<cli>/<name>/{home,user}/…` | the CLI's own login | That account's credentials, at the names the CLI keeps its own under. |
-| `~/.humanize/providers/<cli>/<name>/models.json` | `add an account` on `/settings accounts`; **ask it again** on a model list | What that account may name. Never the credential it was asked with. |
+| `~/.humanize/providers/<cli>/<name>/models.json` | `add an account` on `/settings accounts`; **check again** on a model list | What that account may name. Never the credential it was asked with. |
 | `~/.humanize/local/<cli>.json` | **fails over to** on "as local", on `/settings accounts` | What the account this machine is signed into fails over to. |
-| `~/.humanize/models/<cli>.json` | the interface; **ask it again** on a model list | What the CLI as you run it may name. |
+| `~/.humanize/models/<cli>.json` | the interface; **check again** on a model list | What the CLI as you run it may name. |
 | `~/.humanize/fallbacks.json` | `/settings fallback` | Where a turn goes when its place cannot take it, and how often it is tried again first. |
-| `~/.humanize/acp.json` | `add a CLI of your own` on `/settings accounts` | Your [ACP CLIs](/reference/agents#a-cli-of-your-own), as `{name: [argv…]}`. |
+| `~/.humanize/acp.json` | `add a custom CLI` on `/settings accounts` | Your [ACP CLIs](/reference/agents#a-cli-of-your-own), as `{name: [argv…]}`. |
 | `~/.humanize/prices.json` | the interface, as it opens | Model prices from `HUMANIZE_PRICES`, refreshed when older than a day. `hmz exec` reads what is kept. |
 
 ### The interface and the daemon

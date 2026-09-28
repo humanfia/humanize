@@ -66,7 +66,7 @@ Sleep 500ms
 Enter
 
 # And they are accounts of their own from here on, under the same name.
-Wait+Screen /written down for/
+Wait+Screen /also saved for/
 Sleep 2s
 Screenshot "/out/alike-copied.png"
 Sleep 400ms

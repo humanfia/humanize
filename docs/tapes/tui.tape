@@ -14,7 +14,10 @@ Set Framerate 20
 Set TypingSpeed 50ms
 
 Hide
-Type "cd /work/demo && clear" Enter
+# Opening the flows fetches whatever has never been fetched, and this image has no git to fetch
+# with, which `/flow` would say in red on camera: so `official` is marked as fetched out of frame,
+# as first-run.tape does.
+Type "cd /work/demo && mkdir -p /root/.humanize/flowverses/official/.git && clear" Enter
 Show
 
 Sleep 500ms
@@ -31,8 +34,6 @@ Sleep 500ms
 # The flows there are, a tab per place they come from.
 Type "/flow"
 Sleep 1500ms
-Enter
-Sleep 700ms
 Enter
 Sleep 3s
 

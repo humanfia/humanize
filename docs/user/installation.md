@@ -162,7 +162,7 @@ Once one has answered, the line above the prompt names the agent it would start:
 
 If that line still reads only `assistant`, no CLI has answered: humanize found none, or the one
 it found is not signed in and cannot say what it runs. Typing a task then says
-`hmz: no coding agent is installed here`. humanize looks on your `PATH`, then in
+`hmz: no coding agent is installed`. humanize looks on your `PATH`, then in
 `~/.local/bin`, `/usr/local/bin`, `/opt/homebrew/bin`, `/usr/bin` and `/bin`. See which ones a
 shell finds:
 

@@ -16,13 +16,13 @@ const graph = (top, actor, reviewer) => [
   '[m]Kinds:            [/]input                        61.3k',
   '[m]                  [/]output                       22.8k',
   '[m]                  [/]cache_read                   2.14M+',
-  '[m]                  + a floor: not every agent here reports that kind[/]',
+  '[m]                  + is a minimum: not all agents report this kind[/]',
   { rule: true },
   { prompt: '' },
   { rule: true },
   {
-    l: '[c]▣[/] monitor[m] · a node per agent[/]',
-    keys: '↑↓ node · enter read · → back · ctrl+t by session · / commands',
+    l: '[c]▣[/] monitor[m] · by agent[/]',
+    keys: '↑↓ node · enter open · → back · ctrl+t by session · / commands',
   },
 ]
 
@@ -69,7 +69,7 @@ const read = [
   { rule: true },
   {
     l: '[c]·|·[/] actor… [m](43s · ctrl+c twice to stop)[/]',
-    keys: 'shift+tab view · / commands · shift+enter newline · ← monitor · ctrl+c stop',
+    keys: 'shift+tab switch view · / commands · shift+enter newline · ← monitor · ctrl+c stop',
   },
 ]
 
@@ -156,8 +156,8 @@ lists the agents that are set up instead.
 <kbd>ctrl+t</kbd> draws a box per session instead of per agent, and back again. A loop that
 opens a new session each round is one agent and many sessions: `actor · session 1`,
 `actor · session 2`, with the handovers between them. A session that has ended stays, and can
-still be read. The status line says which you are looking at: `a node per agent` or
-`a node per session`, and the monitor opens again the way you left it.
+still be read. The status line says which you are looking at: `by agent` or
+`by session`, and the monitor opens again the way you left it.
 
 ## Under the drawing
 

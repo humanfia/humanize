@@ -114,8 +114,8 @@ The agent takes two turns in one conversation, and the run ends when the functio
 ::: details If it is refused
 | `hmz exec: error: …` | Why |
 | --- | --- |
-| `twice needs an agent for 'builder'; give each with -a ROLE=CLI/MODEL:EFFORT` | No `-a builder=…` on the line. |
-| `twice: a run is given a budget -- -b duration=...,cost=...,output_tokens=... -- and this one was given none` | No `-b`. |
+| `twice needs an agent for 'builder'; specify each with -a ROLE=CLI/MODEL:EFFORT` | No `-a builder=…` on the line. |
+| `twice requires a budget: specify with -b duration=...,cost=...,output_tokens=...` | No `-b`. |
 | `twice: no flow is called 'twice', and it is not a path` | You are not in the project that holds `.humanize/flows/twice/`. |
 | `importing the flow at … failed: …` | Python could not import the file: a typo, or a name used and never imported. |
 :::

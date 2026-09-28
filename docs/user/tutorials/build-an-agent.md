@@ -248,7 +248,7 @@ of its hands. That is why the builder must be Claude Code, Codex, Kimi Code or Z
 other backend is refused before anything runs:
 
 ```console
-hmz exec: error: humanize1:rlcr: 'builder' needs PermissionRequestHookAgentMixin, which dsh does not do
+hmz exec: error: humanize1:rlcr: 'builder' needs PermissionRequestHookAgentMixin, which dsh does not support
 ```
 
 The flow has a third role, `human`, which is you. It is never given with `-a`. Under `hmz exec`
@@ -334,7 +334,7 @@ implemented. That is the two planning phases earning their time.
 - **Build from a plan you wrote.** Phase 3 needs a plan, not the first two phases:
   `-p plan_file=…` names it. The [`humanize1`](/flows/humanize1) page has more of the
   phases' params.
-- **Read it back.** `/epics` in `hmz` lists the three runs, one per phase. **Export it** on any
+- **Read it back.** `/epics` in `hmz` lists the three runs, one per phase. **Export run** on any
   of them gives you its trace. See [Tracing](/user/tracing).
 - **Write a flow of your own.** You have now run three that somebody else wrote. Whoever writes
   one is a **weaver**, and the [Weaver Guide](/weaver/) starts with [Build under

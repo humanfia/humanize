@@ -22,7 +22,7 @@ hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high -b duration=2h \
 At the prompt, `/resume` first says which run it carries on:
 
 ```console
-carrying on from 20260910T021407.882Z-a3f19c: ralph_loop on what that run left behind
+resuming 20260910T021407.882Z-a3f19c: running ralph_loop from saved state
 ```
 
 A Ralph loop picks up its count of rounds and goes on from the next one.
@@ -39,25 +39,25 @@ When it cannot carry a run on, it says why:
 | It says | Means |
 | --- | --- |
 | `no flow has been run here` | Nothing has run in this directory. |
-| `no run here was of a flow that can be picked up` | Every run here was of a flow that cannot be. |
-| `<flow> does not say it can be picked up` | The flow has been changed since that run and no longer can be. |
-| `<run> left nothing behind` | The run was killed before it saved anything. Say what to do, and the flow starts from the top. |
-| `<run> cannot be read back` | The run's record is damaged. |
-| `no picking a run up while a flow is running` | [Stop](/user/stopping) the running flow first. |
-| `no picking a run up while the flow is still stopping` | The flow is closing out its turn. Wait for it to finish. |
+| `no run here was of a flow that can be resumed` | Every run here was of a flow that cannot be. |
+| `<flow> does not support resuming` | The flow has been changed since that run and no longer can be. |
+| `<run> has no saved state to resume` | The run was killed before it saved anything. Say what to do, and the flow starts from the top. |
+| `<run> cannot be read` | The run's record is damaged. |
+| `cannot resume a run while a flow is running` | [Stop](/user/stopping) the running flow first. |
+| `cannot resume a run while the flow is still stopping` | The flow is closing out its turn. Wait for it to finish. |
 
 ## An older run: `/epics`
 
-To carry on a run other than the last, type `/epics`. Runs you can pick up are marked **can be
-picked up**:
+To carry on a run other than the last, type `/epics`. Runs you can pick up are marked
+**resumable**:
 
-![The /epics list: two runs, newest first, the newer marked "can be picked
-up"](/demo/epics.png)
+![The /epics list: two runs, newest first, the newer marked
+"resumable"](/demo/epics.png)
 
-Press <kbd>enter</kbd> on one and choose **resume this run**:
+Press <kbd>enter</kbd> on one and choose **resume run**:
 
 ![Inside one run from /epics: when it ran and which flow, where it is kept, how it ended, and
-two rows, resume this run and export it](/demo/epic-does.png)
+two rows, resume run and export run](/demo/epic-does.png)
 
 The row is there only when the flow, as it is today, can be picked up. The same reasons as
 above are given when it cannot.
@@ -72,9 +72,9 @@ When there is nothing to carry on, the line is refused with exit status 2:
 
 ```console
 $ hmz exec -f goal … --resume "…"
-hmz exec: error: goal does not say it can be picked up, so there is no run of it to resume
+hmz exec: error: goal does not support resuming, so there is no run to resume
 $ hmz exec -f ralph_loop … --resume "…"
-hmz exec: error: ralph_loop has no run here to pick up: none got as far as writing anything down
+hmz exec: error: ralph_loop has no run to resume here: none saved any progress
 ```
 
 ## What carries over

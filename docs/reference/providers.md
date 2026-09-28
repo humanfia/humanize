@@ -240,10 +240,10 @@ At the prompt, type `/settings accounts`:
 | Row | Does | When it lands |
 | --- | --- | --- |
 | `add an account` | Makes one, on [one form](/reference/tui#making-an-account): the CLI, the way in, a name, what that way asks, and which other backends to write it down for. Hands the terminal to the CLI's own login where the way has one, then asks the CLI what it runs, in the background. | at once |
-| <kbd>enter</kbd> → **correct what it holds** | Asks the way's questions again. What it holds is replaced, not merged, and credentials a login left are kept. Secrets start blank, and a blank one keeps what it holds. | when the menu is saved |
+| <kbd>enter</kbd> → **edit settings** | Asks the way's questions again. What it holds is replaced, not merged, and credentials a login left are kept. Secrets start blank, and a blank one keeps what it holds. | when the menu is saved |
 | <kbd>enter</kbd> → **sign in again** | Runs the way's own command again, under this account's paths. Only for a way that runs one. | at once |
 | <kbd>enter</kbd> → **fails over to** | Which account of this CLI a turn carries on as when this one fails. See [When an account goes down](#when-an-account-goes-down). | when the menu is saved |
-| <kbd>enter</kbd> → **take it away** | Deletes the account and its credentials. An account already marked shows **keep it after all**. | when the menu is saved |
+| <kbd>enter</kbd> → **remove** | Deletes the account and its credentials. An account already marked shows **cancel removal**. | when the menu is saved |
 
 What lands when the menu is saved reaches an agent from its next session: a session already
 running keeps the account it started with, and the row says `from the next agent session` while

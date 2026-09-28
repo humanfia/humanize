@@ -143,7 +143,7 @@ there when you turn back to the page.
 
 What every page holds lands together, when you save: choose the **save** row. Leave with
 <kbd>esc</kbd> and unsaved changes, and it asks **save** or **discard**; <kbd>esc</kbd> on that
-question takes you back into the menu. The `save` row says `nothing held yet` until something
+question takes you back into the menu. The `save` row says `no changes yet` until something
 is.
 
 A few things happen as you ask rather than on save: making an account, signing one in, and
@@ -167,7 +167,7 @@ What is true of this machine, for every project on it.
 | reports | whether humanize [reports what goes wrong](/user/reporting) to its developers |
 | sent | what a report carries and what it never does. <kbd>enter</kbd> reads it out. |
 | details | whether the screen [shows the working](#details): every tool call and all of the thinking |
-| btw | the agent [`/btw`](/user/btw) talks to outside a session. <kbd>enter</kbd> chooses its CLI, account, model and effort; `back to the flow's first agent`, under it once one is chosen, undoes that. It takes effect the next time you enter btw mode. |
+| btw | the agent [`/btw`](/user/btw) talks to outside a session. <kbd>enter</kbd> chooses its CLI, account, model and effort; `reset to the flow's first agent`, under it once one is chosen, undoes that. It takes effect the next time you enter btw mode. |
 
 ### Details
 
@@ -334,9 +334,9 @@ the key itself: <kbd>enter</kbd>, <kbd>enter</kbd> on `add an account`, <kbd>↓
 ```text [at the prompt]
 /flow, choose the flow, enter on a role, then its account row:
 
-   Select the account its turns run as
+   Select the account to run as
 
-   ❯ 1. as local                  signed in as you signed it in
+   ❯ 1. as local                  use the account signed in on this machine
      2. deepseek                  gateway · ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL
      3. work                      login
 
@@ -381,7 +381,7 @@ variables you type, one `NAME=VALUE` per line.
 
 The Accounts page lists every account under a heading per CLI: its name, the way it was made
 by, and the names of the variables it sets. It never shows a value. Above the list are
-`add an account`, `add a CLI of your own` (one that [speaks ACP](/reference/agents#a-cli-of-your-own)),
+`add an account`, `add a custom CLI` (one that [speaks ACP](/reference/agents#a-cli-of-your-own)),
 and `search…`.
 
 ![the Accounts page of /settings listing a claude account and as local, enter opening what can
@@ -391,10 +391,10 @@ be done with the account](/demo/accounts.gif)
 
 | On the menu | What it does |
 | --- | --- |
-| **correct what it holds** | Asks its way's questions again, on the same form it was made on. Secrets are never shown back: leave one blank to keep it, or type a new one. |
+| **edit settings** | Asks its way's questions again, on the same form it was made on. Secrets are never shown back: leave one blank to keep it, or type a new one. |
 | **sign in again** | Runs its login again. It owns the terminal while it does. |
 | **fails over to** | The account a turn carries on as when this one fails. The list it opens has `add an account` at the top, for when the one you want is not there yet. |
-| **take it away** | The account and its credentials. |
+| **remove** | The account and its credentials. |
 
 Making an account and signing one in happen at once. Correcting, failing over and taking away
 are held until you [save the menu](#saving), and while one is held its row says `from the next
@@ -428,11 +428,11 @@ because it is installed here](/demo/alike.png)
 
 Which models a turn may name depends on the subscription, key or gateway behind it, so a new
 account's CLI is asked what it runs as soon as the account is made. On the Accounts page that
-happens in the background: the account's row says `asking what it runs…`, you can carry on,
+happens in the background: the account's row says `checking models…`, you can carry on,
 and the line under the list says how many models it named, or why it named none (a login that
 has not finished, a key it refused). A gateway account lists what the gateway itself serves.
 
-The list is what the `model` row offers at `/flow`. `ask it again` there asks again: do it when
+The list is what the `model` row offers at `/flow`. `check again` there asks again: do it when
 the model you want is missing, or when a failed turn says the list is out of date.
 
 ### When an account fails
@@ -501,24 +501,24 @@ Type `/settings environments`:
 
 <pre><span class="p b">Settings</span>
 
-<span class="m">The machines a flow's environments can be put on, saved under a name that -e and
-/flow name: ssh hosts, and docker daemons with what each may hand out.</span>
+<span class="m">Saved machines for flow environments, used by name in -e and /flow: ssh hosts,
+and docker daemons with the resources each may hand out. Changes take effect immediately.</span>
 
 <span class="m">Everywhere · This directory · Accounts ·</span> <span class="p b">Environments</span> <span class="m">· Fallback · Flowverses</span>
 
      <span class="p">add an ssh host</span>           <span class="m">a machine reached over ssh</span>
-     <span class="p">add a docker host</span>         <span class="m">a docker daemon, here or elsewhere</span>
-     <span class="p">import ~/.ssh/config</span>      <span class="m">the hosts it names, or another's</span>
+     <span class="p">add a docker host</span>         <span class="m">a local or remote docker daemon</span>
+     <span class="p">import ~/.ssh/config</span>      <span class="m">hosts from this or another config file</span>
      <span class="p">search…</span>
 
   <span class="p">ssh</span>
-<span class="p">❯</span> <span class="d">1.</span> <span class="p">box</span>                       <span class="m">me@box.example.com:2200 · key ~/.ssh/id_box · works in ~/proj</span>
-  <span class="d">2.</span> <span class="p">gpu</span>                       <span class="m">as ~/.ssh/config says · works in ~/work</span>
+<span class="p">❯</span> <span class="d">1.</span> <span class="p">box</span>                       <span class="m">me@box.example.com:2200 · key ~/.ssh/id_box · working directory: ~/proj</span>
+  <span class="d">2.</span> <span class="p">gpu</span>                       <span class="m">from ~/.ssh/config · working directory: ~/work</span>
 
   <span class="p">docker</span>
   <span class="d">3.</span> <span class="p">local</span>                     <span class="m">local · 16 CPUs, 64G, GPUs 0</span>
 
-<span class="d">enter what to do · ←/→ page · esc close</span></pre>
+<span class="d">enter open · ←/→ page · esc close</span></pre>
 
 </Term>
 
@@ -564,7 +564,7 @@ Whatever is set is passed to `ssh` ahead of your own config, so what is written 
 
 - `from` is your own config. Type another file's path over it to read that one instead; its
   hosts are then saved with that file named, and `ssh` is told to read it for them.
-- A host already saved starts switched off and says `saved already`; switched on, it is
+- A host already saved starts switched off and says `already imported`; switched on, it is
   imported again, keeping its workdir. One you typed in by hand is never written over.
 - An imported host is saved under its `Host` and keeps pointing at it, so `ssh` resolves it
   through the config every time: editing the config edits the host. Nothing here writes to the
@@ -590,7 +590,7 @@ what it may hand out last, over detect and done](/demo/docker-form.png)
 
 Then `name`, `image` (what a container starts from when the flow names none), `runtime`
 (`nvidia`; blank for the daemon's own), `run args` (anything else `docker run` is told),
-`at once` (how many containers it may run together), `workdir`, and what it may hand out:
+`max containers` (how many containers it may run together), `workdir`, and what it may hand out:
 
 | Row | Takes | Blank is |
 | --- | --- | --- |
@@ -609,9 +609,9 @@ not offer), the line under the list says so in yellow when it is checked.
 
 | On the menu | What it does |
 | --- | --- |
-| **correct it** | Its form again, less the name. An imported host also has an `alias` row, the `Host` it is resolved through. It is checked again as it lands. |
-| **check it** | An ssh host is reached the way a run reaches it, with nobody there to type a password, and says its home, CPUs, memory and GPUs. A docker daemon is asked `docker info`. Either is given 30 seconds. |
-| **take it away** | It is saved no more. A run already on it keeps what it read as it started. A docker host that reached its daemon through it is named, since it now reaches nothing. |
+| **edit** | Its form again, less the name. An imported host also has an `alias` row, the `Host` it is resolved through. It is checked again as it lands. |
+| **check** | An ssh host is reached the way a run reaches it, with nobody there to type a password, and says its home, CPUs, memory and GPUs. A docker daemon is asked `docker info`. Either is given 30 seconds. |
+| **remove** | It is saved no more. A run already on it keeps what it read as it started. A docker host that reached its daemon through it is named, since it now reaches nothing. |
 
 ### Choosing one for a role {#choosing-one-for-a-role}
 
@@ -619,14 +619,14 @@ At `/flow`, <kbd>enter</kbd> on an environment role opens where it is:
 
 <Term title="/flow · onbox">
 
-<pre><span class="p b">Where box is</span>
+<pre><span class="p b">Environment for box</span>
 
   <span class="d">1.</span> backend  <span class="a">ssh ↔</span>                   <span class="m">a machine reached over ssh</span>
-  <span class="d">2.</span> host     <span class="a">gpu ▸</span>                   <span class="m">as ~/.ssh/config says · works in ~/work</span>
-  <span class="d">3.</span> workdir  <span class="a">~/work</span>                  <span class="m">blank for ~/work, where it is saved to work</span>
-  <span class="d">4.</span> as -e    <span class="a">ssh@gpu</span>                 <span class="m">all of it as -e spells it: typing one sets the rows above</span>
+  <span class="d">2.</span> host     <span class="a">gpu ▸</span>                   <span class="m">from ~/.ssh/config · working directory: ~/work</span>
+  <span class="d">3.</span> workdir  <span class="a">~/work</span>                  <span class="m">leave blank to use saved default: ~/work</span>
+  <span class="d">4.</span> as -e    <span class="a">ssh@gpu</span>                 <span class="m">full -e spec: typing one sets the rows above</span>
 
-<span class="p">❯</span>    <span class="p">done</span>                   <span class="m">holds box at ssh@gpu until the flow is saved</span>
+<span class="p">❯</span>    <span class="p">done</span>                   <span class="m">sets box to ssh@gpu when the flow is saved</span>
 
 <span class="d">enter done · esc back</span></pre>
 
@@ -636,8 +636,8 @@ At `/flow`, <kbd>enter</kbd> on an environment role opens where it is:
   the cursor on the first thing still to answer.
 - `host` (`daemon` for a docker backend, once `-e` takes one) opens the providers of that
   backend saved here, with `add an
-  ssh host` above them (the same form, and the new one comes back chosen) and, for ssh, `a host
-  not saved`: any host `ssh` reaches, as you would type it, saved nowhere.
+  ssh host` above them (the same form, and the new one comes back chosen) and, for ssh, `unsaved
+  host`: any host `ssh` reaches, as you would type it, saved nowhere.
 - `workdir` starts from where the provider was saved to work. Left as it is, the spelling
   leaves it out (`ssh@gpu`), so the role goes on following the provider when its workdir is
   corrected; type over it for another directory there (`ssh@gpu/~/other`).
@@ -677,26 +677,26 @@ Type `/settings fallback`:
 
 <pre><span class="p b">Settings</span>
 
-<span class="m">Where a turn goes when the place taking it cannot take it at all.
-A place is a CLI, an account and a model.</span>
+<span class="m">Where a turn falls back when an agent fails. An agent is a CLI, an
+account and a model. Saved rules apply from the next failed turn.</span>
 
 <span class="m">Everywhere · This directory · Accounts ·</span> <span class="p b">Fallback</span> <span class="m">· Flowverses</span>
 
-     <span class="p">add a step</span>                 <span class="m">a place that fails, and where it goes</span>
+     <span class="p">add fallback rule</span>          <span class="m">an agent that fails, and its fallback</span>
      <span class="p">search…</span>
 
-<span class="p">❯</span> <span class="d">1.</span> <span class="p">claude@work/claude-opus-5</span>  <span class="m">2 more tries, linear · falls back to codex/gpt-5.6</span>
+<span class="p">❯</span> <span class="d">1.</span> <span class="p">claude@work/claude-opus-5</span>  <span class="m">2 retries, linear · falls back to codex/gpt-5.6</span>
   <span class="d">2.</span> <span class="p">codex/gpt-5.6</span>              <span class="m">falls back to dsh/deepseek-v4-flash</span>
 
-     <span class="p">save</span>                       <span class="m">what every page holds</span>
+     <span class="p">save</span>                       <span class="m">all changes</span>
 
-<span class="d">enter what happens · ←/→ page · esc close</span></pre>
+<span class="d">enter edit · ←/→ page · esc close</span></pre>
 
 </Term>
 
-1. Choose **add a step**. One form opens: the place that fails, where it falls back to, and how
+1. Choose **add fallback rule**. One form opens: the place that fails, where it falls back to, and how
    it is tried again first.
-2. <kbd>enter</kbd> on `fails at` opens every place there is in one list: each installed CLI, as
+2. <kbd>enter</kbd> on `fails on` opens every place there is in one list: each installed CLI, as
    each of its accounts, at each model it runs. `search…` narrows it by any of the three
    (`opus`, `work`, `codex`). Choose one, and the cursor moves to `falls back to`.
 3. <kbd>enter</kbd> there and choose the place that takes its turns. The place that fails is
@@ -706,7 +706,7 @@ A place is a CLI, an account and a model.</span>
 5. Save: choose **save**. Leaving with <kbd>esc</kbd> asks whether to save or discard. Once
    saved, the next turn that fails reads it.
 
-<kbd>enter</kbd> on a step opens the same form for it, with `take it away` above `done`.
+<kbd>enter</kbd> on a step opens the same form for it, with `remove` above `done`.
 
 Steps chain. Above, a turn that fails at `claude@work/claude-opus-5` is tried twice more
 there, then moves to `codex/gpt-5.6`, and if it fails there too, on to
@@ -722,7 +722,7 @@ before it moves on. Change each value with <kbd>enter</kbd>, <kbd>←</kbd> <kbd
 | --- | --- | --- |
 | tries | none, 1, 2, 3, 5, 8, 13, 21 | how many more times a failed turn is taken here |
 | policy | the six below | how long to wait between tries |
-| timeout | as long as it takes, 30s, 1m, 5m, 15m, 60m | the longest the retrying may go on |
+| timeout | no limit, 30s, 1m, 5m, 15m, 60m | the longest the retrying may go on |
 
 Nothing is retried unless you set **tries**: a prompt the model refused is refused every time,
 and only you know which of your places fail the other way. The exceptions are the failures in
@@ -773,7 +773,7 @@ claude is rate-limited (this account has spent its quota; another one, or a wait
 ```
 
 Where there is something to do about it, the line says so in brackets: an account that needs
-signing in again, a CLI to install, or a model list to refresh with `ask it again`. Under
+signing in again, a CLI to install, or a model list to refresh with `check again`. Under
 `hmz exec --json`, these lines are `notice` events.
 
 ::: details Antigravity (agy) fails with nothing said
@@ -832,7 +832,7 @@ The rest is in the [SDK reference](/reference/sdk).
 
 A [flowverse](/weaver/flowverses) is a git repository of flows. The last page lists every place
 flows come from: `official`, the package's own, your `local` and `user` flows, and every
-flowverse you have added. Type `/settings flowverses`, or choose `where flows come from` below
+flowverse you have added. Type `/settings flowverses`, or choose `manage flowverses` below
 the flows of `/flow`, which opens `/settings` on this page.
 
 ![the Flowverses page of /settings: every place flows come from, then enter on one to read what
@@ -842,7 +842,7 @@ it holds](/demo/flowverses.gif)
 | --- | --- |
 | `add a flowverse` | Adds one: a URL or `owner/repo`, then a name to keep it under (blank for the repository's own), then `done` clones it. |
 | `search…` | Narrows the list by what you type. |
-| a flowverse | <kbd>enter</kbd> says what it holds, under `fetch it again` and `take … away`. |
+| a flowverse | <kbd>enter</kbd> says what it holds, under `fetch again` and `remove …`. |
 
 Everything here happens as you ask, not on save, so the page has no `save` row. `hmz` also
 fetches every flowverse that has a URL in the background each time it starts. A flowverse never

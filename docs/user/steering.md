@@ -15,7 +15,7 @@ const agents = [
 ]
 const spent = '[m]$4.12 · 38 out/s[/]'
 const status = '[c]·|·[/] actor… [m](43s · ctrl+c twice to stop)[/]'
-const keys = 'shift+tab view · / commands · shift+enter newline · ← monitor · ctrl+c stop'
+const keys = 'shift+tab switch view · / commands · shift+enter newline · ← monitor · ctrl+c stop'
 
 const steer = [
   {
@@ -30,7 +30,7 @@ const steer = [
       { rule: true },
       {
         l: status,
-        keys: 'enter say · shift+tab view · / commands · shift+enter newline · ← monitor · ctrl+c clear',
+        keys: 'enter send · shift+tab switch view · / commands · shift+enter newline · ← monitor · ctrl+c clear',
       },
     ],
     caption:
@@ -145,13 +145,13 @@ An agent working on [another machine](/user/remote-execution) takes a line durin
 same way it would locally. Between its turns, your line waits on the pin like any other.
 
 ::: details If a turn ends before it takes your line
-The screen says `put to actor, which ended its turn without saying it had it`, and your line
+The screen says `sent to actor, which ended its turn without acknowledging it`, and your line
 goes into the transcript. It may or may not have reached the agent, so say it again if it
 matters.
 
 If the flow ends first, pinned lines go into the transcript too. A line still waiting is marked
 `never sent`. A line an agent had but never confirmed is marked
-`put to the agent, never taken back`: it may have reached the agent.
+`sent to the agent, not acknowledged`: it may have reached the agent.
 :::
 
 ## When a line is not enough

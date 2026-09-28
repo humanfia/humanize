@@ -213,7 +213,7 @@ class Agents(AgentCollection):
   agents` says whether it was given.
 - **A required role left out** is refused before anything starts: `MissingRole` from a
   calling flow, and from `hmz exec`
-  `rlar needs an agent for 'reviewer'; give each with -a ROLE=CLI/MODEL:EFFORT`.
+  `rlar needs an agent for 'reviewer'; specify each with -a ROLE=CLI/MODEL:EFFORT`.
 - **A role typed `Outworlder`** is [the person at the prompt](#the-person-at-the-prompt).
   The runtime fills it, and `-a` naming it is refused.
 
@@ -323,7 +323,7 @@ an hour in. `/flow` offers only the harnesses that would do.
 
 ```console
 $ hmz exec -f goal -a worker=pi/gpt-5.5:high -b cost=5 "fix the build"
-hmz exec: error: goal: 'worker' needs GoalCommandAgentMixin, which pi does not do
+hmz exec: error: goal: 'worker' needs GoalCommandAgentMixin, which pi does not support
 ```
 
 A calling flow that passes an agent lacking a mixin gets `CapabilityMissing` instead.
@@ -362,7 +362,7 @@ protocol, and `acp` to plain `Agent`.
 
 A role typed as one of them asks for **that harness** and everything it serves. Any other
 harness given for it is refused before anything starts: from `hmz exec` as
-`twice: 'builder' is claude, and codex was given`, and from a calling flow as
+`twice: 'builder' requires claude, but got codex`, and from a calling flow as
 `HarnessMismatch`. Use it only where the flow really is written for one CLI: a role declared
 by its mixins is one more harnesses can fill.
 
@@ -1125,7 +1125,7 @@ said = [one.result() for one in fixing]
 ## Resumable flows {#a-flow-that-can-be-picked-up}
 
 A flow declared `resumable=True` keeps a journal while it runs. `hmz exec --resume` and
-`/resume` pick the newest run of it up where it stopped, and *resume this run* on `/epics` the
+`/resume` pick the newest run of it up where it stopped, and *resume run* on `/epics` the
 run under the cursor.
 
 ```python
@@ -1512,8 +1512,8 @@ are directories rather than repositories: nothing fetches them, and `add`, `fetc
 `remove` all refuse them.
 
 The [Flowverses page of `/settings`](/reference/tui#where-flows-come-from) is where they are
-managed: the `add` row adds one, and <kbd>enter</kbd> says what one holds, with `fetch it again`
-and `take … away` below its flows. [`Hmz().verses`](/reference/sdk#flowverses) is the same
+managed: the `add` row adds one, and <kbd>enter</kbd> says what one holds, with `fetch again`
+and `remove …` below its flows. [`Hmz().verses`](/reference/sdk#flowverses) is the same
 store from Python.
 
 ::: warning A flowverse is code
@@ -1540,7 +1540,7 @@ whatever it declares, since it talks to any harness; and it **runs with no budge
 
 Everything else humanize offers is in
 [humanfia/flowverse](https://github.com/humanfia/flowverse), fetched in the background each time
-`hmz` starts, or with `fetch it again` on the Flowverses page of `/settings`. [Flows](/flows/)
+`hmz` starts, or with `fetch again` on the Flowverses page of `/settings`. [Flows](/flows/)
 draws the shape of each.
 
 | Flow | Agent roles | Roles need | Resumable |

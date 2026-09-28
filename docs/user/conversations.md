@@ -11,7 +11,7 @@ const below = [
   { rule: true },
   {
     l: '[c]·|·[/] builder, tester… [m](72s · ctrl+c twice to stop)[/]',
-    keys: 'shift+tab view · / commands · shift+enter newline · ← monitor · ctrl+c stop',
+    keys: 'shift+tab switch view · / commands · shift+enter newline · ← monitor · ctrl+c stop',
   },
 ]
 const said = {
