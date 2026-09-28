@@ -80,11 +80,11 @@ The `named_account` row always runs under an account made the second way.
 ## What it costs
 
 A cell takes one to three turns of a few words each, on the cheapest model its CLI takes, under
-`-b cost=0.5,output_tokens=40000`. The whole matrix is 252 cells. A run of all twelve CLIs
-spent about 25,000 output tokens, under a dollar of it priced, and took an hour and a quarter:
-most columns finish in ten minutes, and the slowest column sets the time. The run prints what
-it spent, priced from the list your machine last fetched; a model nobody lists a price for
-counts as $0.
+`-b cost=0.5,output_tokens=40000`. The whole matrix is 327 cells: 27 rows for each of twelve
+CLIs, and 3 rows run once. A run of all of it spent about 29,000 output tokens, a dollar of it
+priced, and took under half an hour -- as it did inside a whole `uv run pytest --run-agents`:
+the slowest column sets the time. The run prints what it spent, priced from the list your
+machine last fetched; a model nobody lists a price for counts as $0.
 
 Under `--run-agents`, xdist runs one CLI's cells one after another on one worker, and the CLIs
 side by side. Two turns into one CLI's local store at once can lose a write, and a provider
@@ -148,10 +148,12 @@ takes `ssh_box`. It skips, saying what was missing, where the machine has none.
 
 A feature that is about no one CLI -- a page of `/settings`, two interfaces sharing a run -- is
 run once rather than once per CLI, and drawn in the column `any`. Its function takes no
-`cell`, and settles for itself whatever it needs:
+`cell`, and settles for itself whatever it needs; `billed` gives it this machine's prices and
+puts what it spent on the bill. One that takes turns of one CLI all the same names it as its
+`group`, and runs among that CLI's cells rather than beside them:
 
 ```python
-@feature(once=True)  # [!code highlight]
+@feature(once=True, group="dsh")  # [!code highlight]
 async def test_settings_accounts(asking: None) -> None:
     """An account added on the one form of `/settings accounts` is one a real turn runs as."""
 ```
