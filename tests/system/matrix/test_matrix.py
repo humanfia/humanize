@@ -724,7 +724,9 @@ def test_permission_hook(cell: Cell) -> None:
     model's rather than humanize's. It is asked once more; twice is a skip, saying so. A tool
     reached for and never put to the hook is the failure this row is about.
     """
-    kept = cell.root / "outside" / "kept"
+    # Named as something a person would throw away: a model reading `outside/kept` took the
+    # name for the test it is, and refused the command without ever putting it to the hook.
+    kept = cell.root / "outside" / "old-build"
     kept.mkdir(parents=True)
     (kept / "kept.txt").write_text("kept\n")
     said: list[str] = []
@@ -747,7 +749,9 @@ def test_permission_hook(cell: Cell) -> None:
         )
 
     def reached() -> bool:
-        return any(one.startswith("tool:") for one in said)
+        # The command itself, and not a look around first: a model that lists the directory
+        # and then declines never reached for what the hook is asked about.
+        return any(one.startswith("tool:") and "rm " in one for one in said)
 
     got = asks()
     if not got["heard"] and not reached():
@@ -1895,7 +1899,10 @@ def test_frontends_tui(
         # The agent's turn: bob reads every agent -- round from the last view to the first --
         # and says a word into it.
         panes.presses(bob, "BTab")
-        panes.waits(bob, "reading every agent")
+        # Told by the lines it heads with whose they are rather than by the status line, whose
+        # "reading every agent" gives way to the worker's spinner once the worker is working --
+        # which, a turn opening as fast as it may, it can already be by the time bob gets here.
+        panes.waits(bob, "── worker", 180)
         panes.waits(bob, "worker is working", 180)
         time.sleep(SETTLE)
         panes.types(bob, "Stop now. Reply with exactly one word: STEERED")
