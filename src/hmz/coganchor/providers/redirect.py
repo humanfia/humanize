@@ -196,7 +196,8 @@ def supervises() -> bool:
     import subprocess
 
     try:
-        importlib.import_module("hmz.coganchor.linux")
+        for binding in ("procfs", "ptrace", "seccomp"):
+            importlib.import_module(f"hmz.coganchor.linux.{binding}")
     except (ImportError, OSError, RuntimeError):
         _SUPERVISES.append((False, float("inf")))
         return False
