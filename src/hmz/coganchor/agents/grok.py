@@ -13,10 +13,10 @@ profile, a plugin directory and the leader, beside the debugging and the endpoin
 `--no-subagents` and no `--rules` -- each of those seven refused outright, `error: unexpected
 argument` -- so a rung that takes tools away, an agent told not to search the web or fenced off
 the network, a turn held to a shape and four of the five settings on `GrokBuildAgentConfig` are
-settings only `grok -p` carries. Those run the command they always did, resuming the same conversation with
-`--resume` -- the id is Grok Build's own either way, and each transport picks up what the
-other opened. Nothing is served looser for the transport's sake: what moves is which of the
-two a turn is taken on.
+settings only `grok -p` carries. Those run the command they always did, resuming the same
+conversation with `--resume` -- the id is Grok Build's own either way, and each transport picks
+up what the other opened. Nothing is served looser for the transport's sake: what moves is
+which of the two a turn is taken on.
 
 The prompt goes on the command line for that run because that is the only way in: Grok Build
 does not read a piped stdin as the prompt, and the two other ways it offers are a JSON literal
@@ -42,13 +42,13 @@ never Grok Build's to hold. What it is told instead, wherever a fence cuts the n
 run at the model's host, which the fence's proxy lets through, and `web_fetch` would be one
 more thing refused by the proxy rather than never tried. `grok agent` refuses that flag, and
 has no other switch for it -- `GROK_DISABLE_WEB_FETCH` takes the fetch and leaves the search --
-so an offline conversation takes every turn with `grok -p`. Every profile it has -- the four built in, and a custom one, which
-only extends one of those -- lets `/tmp` and `/var/tmp` be written and the working directory
-too, so none is as narrow as a fence that grants neither. A custom profile is read only out of
-the person's `~/.grok/sandbox.toml` or a `.grok/sandbox.toml` in the directory worked in, which
-are theirs, not humanize's, to write. And on a machine whose kernel gives unprivileged users
-no user namespace, 1.0.24 does not start under any profile at all, built-ins included: `bwrap:
-setting up uid map: Permission denied`.
+so an offline conversation takes every turn with `grok -p`. Every profile it has -- the four
+built in, and a custom one, which only extends one of those -- lets `/tmp` and `/var/tmp` be
+written and the working directory too, so none is as narrow as a fence that grants neither. A
+custom profile is read only out of the person's `~/.grok/sandbox.toml` or a `.grok/sandbox.toml`
+in the directory worked in, which are theirs, not humanize's, to write. And on a machine whose
+kernel gives unprivileged users no user namespace, 1.0.24 does not start under any profile at
+all, built-ins included: `bwrap: setting up uid map: Permission denied`.
 
 What a fence does change here is the leader. Grok Build hands a conversation to a shared
 leader process where it is told to, and that process is whoever started it -- outside the

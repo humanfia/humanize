@@ -92,7 +92,10 @@ def test_a_cut_network_turns_off_what_openai_runs_whatever_web_search_says(
     argv = agent._argv(())
 
     assert argv[argv.index("-c") + 1] == 'web_search="disabled"'
-    assert ["--disable", "apps"] == argv[argv.index("apps") - 1 : argv.index("apps") + 1]
+    assert argv[argv.index("apps") - 1 : argv.index("apps") + 1] == [
+        "--disable",
+        "apps",
+    ]
     assert argv.count("apps") == 1
 
 

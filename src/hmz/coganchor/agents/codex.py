@@ -51,10 +51,11 @@ start there, and the Landlock backend 0.153.4 falls back to (:data:`_LANDLOCK`) 
 but `read-only`. What the fence does lean on Codex for is what no wall around a process can
 stop, being run by OpenAI rather than here: its web search, and the ChatGPT apps an account
 has connected. A fence that cuts the network turns both off, whatever `web_search` says --
-``-c web_search="disabled"``, which is the setting that does, and ``--disable apps``. And a
-fence that grants it is not cut by Codex instead: its `read-only` sandbox cuts a command's
+``-c web_search="disabled"``, which is the setting that does, and ``--disable apps``. And at
+`read-only` a fence that grants it is not cut by Codex instead: that sandbox cuts a command's
 network with its writes, so a `read-only` turn whose fence grants the network is sent that
-sandbox with the network left on (:data:`_REACHING`).
+sandbox with the network left on (:data:`_REACHING`). `workspace-write` needs no such thing
+inside a fence, where it is not held at all: see :data:`_LANDLOCK`.
 
 What the app server is started with -- the web search, the fence, the features, the overrides
 -- it reads once, so an agent set up as something else there runs its next turn on a server
@@ -562,6 +563,9 @@ class _AppServer:
         self._held: list[weakref.ref[AgentBase]] = []
         self._stopping = threading.Lock()
         self._stopped = False
+        #: Whether its agent has been moved off what it was started with, and so whether it
+        #: goes down once no turn is running on it. Written under `_routing`.
+        self._retired = False
         self._proc = subprocess.Popen(
             argv,
             stdin=subprocess.PIPE,
@@ -627,21 +631,26 @@ class _AppServer:
             self._turns += 1
             return True
 
-    def retire(self) -> None:
-        """Takes this server down if no turn is running on it, and leaves it be if one is.
+    def retire(self) -> bool:
+        """Says this server is to go down as soon as no turn is running on it.
 
-        For a server started with settings its agent has since been moved off. One with no
-        turn is stopped, so that a conversation it holds is picked up on the next server
+        For a server started with settings its agent has since been moved off: it is stopped
+        rather than left up, so that a conversation it holds is picked up on the next server
         rather than held open on this one -- Codex picks a thread up nowhere else while the
-        first server holds its rollout -- and one with a turn is let go of, that turn keeping
-        what it started with, to be stopped with the agent.
+        first server holds its rollout. A turn running on it keeps what it started with, and
+        the server goes down as the last such turn hands it back (:meth:`give`).
+
+        Returns:
+          Whether it is idle now, and so the caller's to stop -- which it does once it has let
+          go of whatever lock it holds, stopping being a wait of up to :data:`_STOP_SECONDS`.
         """
         with self._routing:
+            self._retired = True
             if self._turns:
-                return
+                return False
             # Counted as taken, so that nothing takes it between here and its going down.
             self._turns += 1
-        self.stop()
+            return True
 
     def share(self) -> None:
         """Takes it for a turn of a conversation that already lives here.
@@ -655,9 +664,17 @@ class _AppServer:
             self._turns += 1
 
     def give(self) -> None:
-        """Hands one turn's hold back, so an idle server can take the next conversation."""
+        """Hands one turn's hold back, so an idle server can take the next conversation.
+
+        Or, for one retired while the turn ran (:meth:`retire`), so that it goes down.
+        """
         with self._routing:
             self._turns = max(0, self._turns - 1)
+            last = self._retired and not self._turns
+            if last:
+                self._turns += 1
+        if last:
+            self.stop()
 
     def holds(self, thread: str, rung: Mapping[str, Any]) -> bool:
         """Whether this server already has that thread open, at that rung.
@@ -1921,6 +1938,9 @@ class CodexAgent(AgentBase):
         #: nothing is running on, so a flow taking its turns one after another has exactly one
         #: however many sessions it opens and drops.
         self._servers: list[_AppServer] = []
+        #: The servers retired with a turn still running on them (:meth:`_knowing`), which go
+        #: down as that turn ends -- or with the rest, where the agent is taken down first.
+        self._retiring: list[_AppServer] = []
         #: Whether this agent has ever started one, which a server let go of is not enough to
         #: say: what goals cannot be disabled after is a server having run with them on, and
         #: one dropped for an account that moved is still up and still holding conversations.
@@ -1952,10 +1972,11 @@ class CodexAgent(AgentBase):
         :meth:`_taken`, which is what says a server is busy for as long as the turn takes.
         """
         with self._serving:
-            knows = self._knowing()
-            if self._servers:
-                return self._servers[0]
-        return self._start(knows)
+            knows, going = self._knowing()
+            first = self._servers[0] if self._servers else None
+        for one in going:
+            one.stop()
+        return first if first is not None else self._start(knows)
 
     def _taken(self, held: _AppServer | None = None) -> _AppServer:
         """The app server a turn about to start runs on, started if none of this agent's is free.
@@ -1982,18 +2003,19 @@ class CodexAgent(AgentBase):
           The server, held for one turn until :meth:`_AppServer.give` hands it back.
         """
         with self._serving:
-            knows = self._knowing()
+            knows, going = self._knowing()
             if held is not None and held in self._servers:
                 held.share()
-                return held
-            for one in self._servers:
-                if one.take():
-                    return one
-        server = self._start(knows)
-        server.share()
-        return server
+                taken: _AppServer | None = held
+            else:
+                taken = next((one for one in self._servers if one.take()), None)
+        # Outside the lock, and before anything is started or picked up: a thread the retired
+        # server still holds is one no other server can pick up until it is down.
+        for one in going:
+            one.stop()
+        return taken if taken is not None else self._start(knows, taking=True)
 
-    def _knowing(self) -> _Knows:
+    def _knowing(self) -> tuple[_Knows, list[_AppServer]]:
         """What a server started now would know, dropping this agent's that know otherwise.
 
         Held with :attr:`_serving`. Read once for both the deciding and the starting: what a
@@ -2011,12 +2033,14 @@ class CodexAgent(AgentBase):
 
         Returns:
           The account to start one as, the names of the flow's own callbacks to tell it about,
-          the command that starts it and the fence it is started inside. A server started as
-          an account this agent has since left, or knowing a list of callbacks that is not the
-          list it is offering now, is let go of rather than taken down: a turn on another
-          thread may still be talking to it, and it is stopped by its own finalizer when the
-          agent is collected either way. One started with settings the agent has since been
-          moved off is taken down where no turn is running on it (:meth:`_AppServer.retire`).
+          the command that starts it and the fence it is started inside -- and the servers the
+          caller is to stop once it has let go of the lock. A server started as an account
+          this agent has since left, or knowing a list of callbacks that is not the list it is
+          offering now, is let go of rather than taken down: a turn on another thread may
+          still be talking to it, and it is stopped by its own finalizer when the agent is
+          collected either way. One started with settings the agent has since been moved off
+          is retired (:meth:`_AppServer.retire`): among those returned where no turn is
+          running on it, and taken down by the last turn that is where one is.
         """
         offering = tuple(sorted(one.name for one in self.toolbox.offered()))
         # Read before the environment is built out of it: a fallback landing between the two
@@ -2028,16 +2052,18 @@ class CodexAgent(AgentBase):
             tuple(self._argv(offering)),
             self.config.fence,
         )
+        self._retiring = [one for one in self._retiring if not one._stopped]
         kept: list[_AppServer] = []
+        going: list[_AppServer] = []
         for one in self._servers:
             if one.knows == knows:
                 kept.append(one)
             elif one.knows[2:] != knows[2:]:
-                one.retire()
+                (going if one.retire() else self._retiring).append(one)
         self._servers = kept
-        return knows
+        return knows, going
 
-    def _start(self, knows: _Knows) -> _AppServer:
+    def _start(self, knows: _Knows, *, taking: bool = False) -> _AppServer:
         """Starts one more app server for this agent and remembers it.
 
         Called with :attr:`_serving` let go of: a server takes a moment to answer for the
@@ -2046,14 +2072,20 @@ class CodexAgent(AgentBase):
 
         Args:
           knows: The account to start it as, the callbacks to tell it about and the command
-            to start it with, as :meth:`_knowing` read them. Kept on the server rather than on the agent, so that
-            two starting at once cannot leave the agent believing either is the other's.
+            to start it with, as :meth:`_knowing` read them. Kept on the server rather than
+            on the agent, so that two starting at once cannot leave the agent believing
+            either is the other's.
+          taking: Whether it is started for a turn, and so taken for it before anything else
+            can see it: a server listed with no turn on it is one another thread's
+            :meth:`_knowing` may retire and stop under the turn it was started for.
 
         Returns:
-          The server, which no turn has taken yet.
+          The server, taken for one turn where `taking` says so and by no turn otherwise.
         """
         server = _AppServer(self.spawned(list(knows[2])), self._environ())
         server.knows = knows
+        if taking:
+            server.share()
         with self._serving:
             self._servers.append(server)
             self._ever = True
@@ -2184,6 +2216,8 @@ class CodexAgent(AgentBase):
         """
         with self._serving:
             servers, self._servers = self._servers, []
+            servers += self._retiring
+            self._retiring = []
         for server in servers:
             server.stop()
 

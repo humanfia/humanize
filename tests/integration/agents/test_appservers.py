@@ -2221,7 +2221,9 @@ def test_a_read_only_codex_turn_keeps_the_network_its_permission_grants(
     )
     agent("hi")
 
-    (started,) = [call for call in working.calls() if call.get("method") == "turn/start"]
+    (started,) = [
+        call for call in working.calls() if call.get("method") == "turn/start"
+    ]
     policy = started["params"].get("sandboxPolicy")
     if reaching:
         assert policy == {"type": "readOnly", "networkAccess": True}
@@ -2275,11 +2277,38 @@ def test_a_codex_set_up_as_what_its_server_reads_at_start_starts_it_again(
     assert _starts(working) == 2
     assert first._stopped
     assert first not in agent._servers
-    resumed = [call for call in working.calls() if call.get("method") == "thread/resume"]
+    resumed = [
+        call for call in working.calls() if call.get("method") == "thread/resume"
+    ]
     assert [call["params"]["threadId"] for call in resumed] == ["thread_fake"]
     if "web_search" in moved or "fence" in moved:
         (now,) = agent._servers
         assert 'web_search="disabled"' in now._argv
+
+
+def test_a_codex_server_moved_off_under_a_running_turn_goes_down_as_the_turn_ends(
+    working: _FakeServer,
+) -> None:
+    """The turn keeps what it started with, and the server is not left up after it."""
+    from dataclasses import replace
+
+    was = CodexAgentConfig(model="gpt-5.6-sol", effort="high")
+    agent = CodexAgent(was)
+    agent.new()("one")
+    (first,) = agent._servers
+    first.share()  # a turn of another conversation, running on it
+
+    agent.reconfigure(replace(was, web_search=False))
+    other = agent._taken()
+
+    assert other is not first
+    assert not first._stopped
+    assert agent._retiring == [first]
+    first.give()
+    assert first._stopped
+    other.give()
+    agent.stop()
+    assert other._stopped
 
 
 def test_a_codex_moved_on_what_a_turn_carries_keeps_its_server(
