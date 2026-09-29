@@ -1124,7 +1124,7 @@ everywhere:
 
 | Backend | How it is said |
 | --- | --- |
-| `claude` | `--disallowedTools WebSearch,WebFetch` when off |
+| `claude` | `--disallowedTools WebSearch,WebFetch` when off, or when its `fence` cuts the network |
 | `codex` | `-c tools.web_search=true\|false`, both ways |
 | `dsh` | the `dsh-web` plugin, its search and fetch providers and `dsh-tool-web` mounted when on; the bundled composition has no web |
 | `grok` | `--disable-web-search` when off |

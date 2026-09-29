@@ -18,6 +18,8 @@ from .hooks import EVERYWHERE, SUBAGENTS, WAITING, Moment, about, arriving
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
+    from hmz.coganchor.fence import Fence
+
 #: The tool Claude reaches for when it wants a person rather than a file. Its input is a list
 #: of questions and its answer is that same input with the answers written into it, which is
 #: what the permission prompt of an interactive Claude fills in.
@@ -49,6 +51,13 @@ _CONTINUATION_TOOLS = (
 #: Withheld where the answer is no and nowhere else. Silence is not a no: an agent nobody said
 #: anything about is one Claude ships these two to, so a rule written for it would be humanize
 #: taking a tool away in the name of a question it was never asked.
+#:
+#: And withheld from an agent whose fence cuts the network, which is a no said another way --
+#: and the one way a fence from outside cannot say it. `WebSearch` is a server tool: the
+#: search is run by the model API, which is the one host such a fence still lets through, so
+#: a 2.1.284 held offline by the wall alone searches the web and quotes what it found.
+#: `WebFetch` fetches from Claude's own process and would be stopped at the proxy, but a tool
+#: refused by rule is one the model is told it cannot use rather than one that fails on it.
 _WEB_TOOLS = ("WebSearch", "WebFetch")
 
 #: The tools Claude starts an agent of its own with. A turn that reaches for one of these has
@@ -364,8 +373,8 @@ class ClaudeCodeSession(StreamSessionBase):
         self._gating = False
         #: What of the config the process now up was built with, out of the settings only a
         #: command line can carry, or None while nothing is up. `reconfigure` says that every
-        #: turn from then on runs at the new one, and these two are read when Claude starts.
-        self._built: tuple[tuple[str, ...], bool] | None = None
+        #: turn from then on runs at the new one, and these are read when Claude starts.
+        self._built: tuple[tuple[str, ...], bool, bool] | None = None
         #: The tool calls whose arguments are still arriving, by the block of the message each
         #: is being written into. The index is Claude's own numbering of the blocks of one
         #: message, under the call the message belongs to: an agent this one started writes
@@ -503,8 +512,9 @@ class ClaudeCodeSession(StreamSessionBase):
             denied += _CONTINUATION_TOOLS
         # `is False` rather than falsy, because the answer has three states and the third is
         # nobody having been asked: a rule written for that one would take the two tools away
-        # in the name of a question this flow never put.
-        if self._agent.config.web_search is False:
+        # in the name of a question this flow never put. A fence that cuts the network is
+        # asked, whatever `web_search` says.
+        if self._offline():
             denied += _WEB_TOOLS
         if denied:
             argv += ["--disallowedTools", ",".join(denied)]
@@ -656,20 +666,36 @@ class ClaudeCodeSession(StreamSessionBase):
         self._gated = self._gating
         self._built = self._configured()
 
-    def _configured(self) -> tuple[tuple[str, ...], bool]:
+    def _configured(self) -> tuple[tuple[str, ...], bool, bool]:
         """What of the config a Claude started now would be built with and cannot be told.
 
-        Claude's own tool rules and whether it says a reach as it happens are arguments of the
-        process, the way the effort is: read when it starts and held for its life. So they are
-        read here, once, and compared against what the process up was built with.
+        Claude's own tool rules -- the allow rules, and the web tools withheld -- and whether
+        it says a reach as it happens are arguments of the process, the way the effort is:
+        read when it starts and held for its life. So they are read here, once, and compared
+        against what the process up was built with.
 
         Returns:
-          The allow rules and whether the fragments were asked for, as one value to compare.
+          The allow rules, whether the fragments were asked for and whether the web tools are
+          withheld, as one value to compare.
         """
         config = self._agent.config
         return (
             tuple(getattr(config, "allowed_tools", ())),
             bool(getattr(config, "partial_messages", True)),
+            self._offline(),
+        )
+
+    def _offline(self) -> bool:
+        """Whether a Claude started now is to be refused the web.
+
+        Returns:
+          True where the flow said no to web search, or its fence cuts the network: see
+          :data:`_WEB_TOOLS`. The config's own fence, not the one widened for the account,
+          since what is widened is paths and the model's hosts and never the network itself.
+        """
+        config = self._agent.config
+        return config.web_search is False or (
+            config.fence is not None and not config.fence.online
         )
 
     def _offered(self) -> tuple[str, ...]:
@@ -702,8 +728,9 @@ class ClaudeCodeSession(StreamSessionBase):
         relay still being spawned before every tool for nobody. The first turn after either
         runs in a process told which it is.
 
-        And so are the two settings of the config that only a command line carries -- the
-        native allow rules and whether the reach is said as it happens. `reconfigure` is the
+        And so are the settings of the config that only a command line carries -- the native
+        allow rules, the web tools withheld for a flow's `web_search` or its fence, and
+        whether the reach is said as it happens. `reconfigure` is the
         one thing that changes a frozen config, and what it says is that every turn from then
         on runs at the new one; a process built under the old one would go on running at it
         until something else happened to end it.
@@ -1229,6 +1256,35 @@ class ClaudeCodeAgent(AgentBase):
     #: What it counts, read off the same table its driver reads a usage with, so that
     #: what a run is told this backend reports is what its driver actually parses.
     counts: ClassVar[frozenset[str]] = frozenset(_KINDS)
+
+    def natively(self, fence: Fence) -> Fence:
+        """None of it: Claude is fenced from outside, on every machine.
+
+        Claude Code has a sandbox of its own -- `sandbox` in its settings, with paths to read
+        and write and domains to reach, and `failIfUnavailable` to refuse to start without it
+        -- and it does not hold what a fence has to. It is put around the commands the Bash
+        tool runs and nothing else: Claude's own process, the MCP servers it starts, and the
+        hooks and status line a user's settings name all run outside it, reaching every path
+        and host the user can. Its file tools are held by permission rules instead, which are
+        a check in the process a tool runs in and not a wall. A fence is the CLI and
+        everything it starts, so the sandbox enforces no part of one.
+
+        Nor can it be turned on beneath the fence from outside for good measure. On Linux it
+        is bubblewrap, which builds its view of the filesystem by mounting, and a process
+        Landlock holds may not mount. Nor can it start at all on a host that gives no
+        unprivileged process a user namespace, or that lacks the `socat` it relays the
+        network through -- which a 2.1.284 told `failIfUnavailable` answers by not starting.
+
+        What Claude is told is the web tools taken away where the fence cuts the network (see
+        :data:`_WEB_TOOLS`), which the wall cannot do for it.
+
+        Args:
+          fence: The fence this agent is held to.
+
+        Returns:
+          `fence`, unchanged.
+        """
+        return fence
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> ClaudeCodeSession:
         """Opens a new Claude Code session, in the directory it is given or in this one."""
