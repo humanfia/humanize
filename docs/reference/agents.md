@@ -1146,7 +1146,7 @@ everywhere:
 | `dsh` | the `dsh-web` plugin, its search and fetch providers and `dsh-tool-web` mounted when on; the bundled composition has no web |
 | `grok` | `--disable-web-search` when off |
 | `kimi` | `disabled_tools` on the prompt: `WebSearch` and `FetchURL` when off, empty when on |
-| `qwen` | `--exclude-tools web_search,web_fetch` when off |
+| `qwen` | `--exclude-tools web_search,web_fetch` when off, or when the fence cuts the network: `web_search` runs at DashScope, a host the cut network still reaches |
 | `opencode` | `webfetch: deny` and `websearch: deny` in its permission table when off |
 | `mimo` | the same two and `codesearch: deny` |
 | `zcode` | `WebSearch` and `WebFetch` in the session's `toolDenylist` when off |
@@ -1863,6 +1863,15 @@ input; anchored turns end their process so the workspace is synchronised.
   them. They are excluded from the restart check; a `QWEN_CODE_SYSTEM_DEFAULTS_PATH` you name
   is watched like any settings file. Settings the driver cannot read, such as JSON with
   comments, keep a fresh process per turn.
+- **A fence is held entirely from outside.** Qwen's `--sandbox` is a container or macOS
+  Seatbelt, and its `permissions` rules hold its own tools and what it can read off a command
+  line, not what a command goes on to do. A rule is also matched against a command line whole,
+  so `echo a > here; echo b > there` is refused outright rather than half run. So `natively`
+  enforces none of the fence and `hmz internal fence` holds all of it; with the network cut,
+  `web_search` and `web_fetch` are also withheld. Every generated settings file lives under
+  one `hmz-qwen-*` directory in the system's temporary directory, which the fence lets the CLI
+  read and not write, so `system` `NONE` still reads it and the agent cannot rewrite its
+  hooks.
 - **It names its conversation up front**: the opening turn is given `--session-id` with a fresh
   UUID, and a fork resumes its parent with `--fork-session`. Qwen refuses an id already used in
   the project, so a failed opening turn is retried under a new one.

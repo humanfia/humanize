@@ -461,7 +461,7 @@ Only `local`, `user` and `system` all `ALL` with `online` `ALL` fences nothing.
 | `cursor-agent` | external (Landlock + proxy); its own sandbox holds only its shell commands, and cannot start without a user namespace | external (Landlock + proxy); its web search and fetch run on Cursor's servers, past the proxy |
 | `opencode` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `mimo` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `qwen` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `qwen` | external (Landlock + proxy) | external (Landlock + proxy); `web_search` and `web_fetch` withheld |
 | `kimi` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `grok` | external (Landlock + proxy); its own sandbox writes `/tmp` | external (Landlock + proxy); its own sandbox leaves `web_fetch` online |
 | `pi` | external (Landlock + proxy) | external (Landlock + proxy), started `--offline`; the gateways its `models.json` declares stay reachable |
