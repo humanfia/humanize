@@ -7,20 +7,29 @@ the program, and exiting with the program's own status once it is done.
 
 The wall is put up in the child, just before ``execve``, because that is the only place it can
 be: Landlock and seccomp restrict the thread that asks and everything it later starts, and
-nothing already running can be restricted from outside. In order: the environment is settled,
-the socket filter is loaded where the network is cut, the Landlock ruleset is applied, and the
-program is run. A step that fails is a program that does not run -- never one that runs with
-less of the wall than was asked for.
+nothing already running can be restricted from outside. In order: the environment is settled;
+where the network is cut, the socket filter is loaded and so is the filter that stops every
+``bind`` and ``listen`` for the parent to answer (:mod:`hmz.coganchor.fence.loopback`), whose
+descriptor is handed up to it; the Landlock ruleset is applied; and the program is run. A step
+that fails is a program that does not run -- never one that runs with less of the wall than
+was asked for.
+
+Where the network is cut the parent is also the subreaper of everything inside: a process
+that left its parent behind -- a daemon that forked twice -- is still one of the wrapper's
+descendants, which is what this kernel asks of a process before it lets another read its
+memory or take one of its descriptors, and so still one whose ``listen`` can be answered.
 """
 
 from __future__ import annotations
 
 import contextlib
 import ctypes
+import errno
 import importlib
 import os
 import shutil
 import signal
+import socket
 import sys
 import tempfile
 from pathlib import Path
@@ -30,6 +39,8 @@ from hmz.coganchor.fence import Fence, Proxy
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+
+    from hmz.coganchor.fence.loopback import Supervisor
 
 __all__ = ["CACHES", "PROXIES", "environ", "run"]
 
@@ -62,6 +73,9 @@ _UNFENCED: Final = 126
 
 #: `prctl`'s option for the signal a process is sent when its parent dies.
 _PR_SET_PDEATHSIG: Final = 1
+
+#: `prctl`'s option that makes a process the one its orphaned descendants are handed to.
+_PR_SET_CHILD_SUBREAPER: Final = 36
 
 
 def environ(
@@ -131,22 +145,40 @@ def run(fence: Fence, argv: Sequence[str]) -> int:
     tmp = fence.tmp or tempfile.mkdtemp(prefix="hmz-fence-")
     Path(tmp).mkdir(mode=0o700, parents=True, exist_ok=True)
     proxy = None if fence.online else Proxy(fence.hosts)
+    supervisor: Supervisor | None = None
     try:
         if proxy is not None:
             proxy.start()
+            if libc.prctl(_PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0:
+                code = ctypes.get_errno()
+                raise OSError(code, os.strerror(code), "prctl(PR_SET_CHILD_SUBREAPER)")
         port = proxy.port if proxy is not None else None
         env = environ(fence, os.environ, tmp=tmp, port=port)
         parent = os.getpid()
+        ours, theirs = socket.socketpair() if proxy is not None else (None, None)
         pid = os.fork()
         if not pid:
-            _become(fence, argv, env, tmp, port, (parent, libc))
+            _become(fence, argv, env, tmp, (port, theirs), (parent, libc))
         try:
+            if ours is not None and theirs is not None:
+                theirs.close()
+                with ours:
+                    # Nothing where the child failed before it could hand the listener up,
+                    # and then it exits unfenced rather than runs: it is waited for as it is.
+                    _, handed, _, _ = socket.recv_fds(ours, 1, 1)
+                if handed:
+                    from hmz.coganchor.fence.loopback import Supervisor
+
+                    supervisor = Supervisor(handed[0])
+                    supervisor.start()
             return failed(_waited(pid))
         finally:
             # What a supervisor inside left of a credential in memory, where the program
             # was `hmz internal cred` and was killed before it could take it away itself.
             swept(pid)
     finally:
+        if supervisor is not None:
+            supervisor.stop()
         if proxy is not None:
             proxy.stop()
         if made:
@@ -158,7 +190,7 @@ def _become(
     argv: Sequence[str],
     env: dict[str, str],
     tmp: str,
-    port: int | None,
+    offline: tuple[int | None, socket.socket | None],
     orphaned: tuple[int, ctypes.CDLL],
 ) -> None:
     """The child's half: wall itself in and become the program. Never returns.
@@ -170,6 +202,7 @@ def _become(
     try:
         from hmz.coganchor.linux import landlock
 
+        port, handoff = offline
         parent, libc = orphaned
         libc.prctl(_PR_SET_PDEATHSIG, signal.SIGKILL, 0, 0, 0)
         if os.getppid() != parent:  # the wrapper went before that was said
@@ -179,6 +212,23 @@ def _become(
             from hmz.coganchor.linux import seccomp
 
             seccomp.install_socket_filter()
+            try:
+                listener = seccomp.install_listener()
+            except OSError as why:
+                if why.errno != errno.EBUSY:
+                    raise
+                # A thread answers to one supervisor, and this one already has: it is inside
+                # a fence that cut the network, whose wrapper already keeps it on loopback.
+                raise RuntimeError(
+                    "it is already inside a fence that cuts the network"
+                ) from why
+            if handoff is None:
+                raise RuntimeError("nobody to answer its binds")  # noqa: TRY301
+            socket.send_fds(handoff, [b"!"], [listener])
+            # Closed before the program runs, not merely on exec: a program holding the
+            # listener could answer its own calls.
+            os.close(listener)
+            handoff.close()
         landlock.Ruleset(
             read=fence.read,
             write=(*fence.write, tmp),
@@ -224,12 +274,14 @@ def _waited(pid: int) -> int:
             signal.signal(said, passed)
     while True:
         try:
-            _, status = os.waitpid(pid, 0)
+            # Any child rather than the program alone: an orphan handed to this subreaper is
+            # collected as it exits, rather than left a zombie until the wrapper goes.
+            done, status = os.waitpid(-1, 0)
         except InterruptedError:  # pragma: no cover -- retried
             continue
         except ChildProcessError:
             return 1 << 8
-        if os.WIFEXITED(status) or os.WIFSIGNALED(status):
+        if done == pid and (os.WIFEXITED(status) or os.WIFSIGNALED(status)):
             return status
 
 

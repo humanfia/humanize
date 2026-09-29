@@ -446,11 +446,13 @@ is a real fence: the CLI writes the workdir and the minimum, and reads everythin
 
 A CLI that can enforce part of the fence itself is told to. humanize enforces the rest from
 outside with `hmz internal fence`, which uses Landlock for paths and TCP, a seccomp filter that
-refuses every other kind of socket, and a proxy on loopback that passes only the listed hosts.
+refuses every other kind of socket, another that lets a socket listen on loopback only, and a
+proxy on loopback that passes only the listed hosts.
 humanize never runs a session wider than its permission. If neither the CLI nor this machine
 can hold the fence, the session is refused with `HarnessSandboxed` when it opens. That happens
 with no Landlock (macOS, or a Linux kernel older than 5.13), with a kernel older than 6.7 when
-`online` is `NONE`, or when the work lands on another machine (a docker or ssh environment).
+`online` is `NONE`, with `online` `NONE` where the wrapper may not reach into the processes it
+starts (a container's default seccomp profile, Yama `ptrace_scope` 2 or 3), or when the work lands on another machine (a docker or ssh environment).
 Only `local`, `user` and `system` all `ALL` with `online` `ALL` fences nothing.
 
 <!-- Each per-CLI unit updates its own row when its driver enforces part of the fence natively. -->
@@ -470,13 +472,18 @@ Only `local`, `user` and `system` all `ALL` with `online` `ALL` fences nothing.
 | `dsh` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `acp` | external (Landlock + proxy), plus the `state` declared for it | external (Landlock + proxy), to the `hosts` declared for it; `NONE` with none declared is refused |
 
-The fence leaves three gaps, all from the kernel. Landlock does not govern connecting to a
+With the network cut, a program inside may still listen on loopback, which a CLI serving
+itself there (agy's language server, kimi's daemon) needs to start. It may not listen anywhere
+else. A `bind` to an address that is not loopback (`127.0.0.0/8`, `::1`, or IPv4 loopback
+mapped into IPv6) fails with `EACCES`. So does a `listen` on a socket bound anywhere else, and
+that is the check that holds: the wrapper makes the `listen` call itself, on the socket it
+checked. A process that makes itself undumpable (`ssh-agent`) cannot have its socket checked,
+so it cannot listen at all.
+
+The fence leaves two gaps, both from the kernel. Landlock does not govern connecting to a
 Unix socket, so a socket another process listens on (a docker daemon's, a session bus) is
 still a way out. With the network cut, the proxy's port is reachable on any address, but only
-by number, since nothing inside the fence can resolve a name. And a port the kernel picks may
-still be listened on, which a CLI serving itself on loopback (agy) needs to start. Landlock
-cannot tell loopback from any other address, so a program that listens on every address can
-be connected to from outside.
+by number, since nothing inside the fence can resolve a name.
 
 **The rung.**
 

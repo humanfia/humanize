@@ -12,6 +12,7 @@ from __future__ import annotations
 import dataclasses
 import itertools
 import os
+import socket
 import sys
 from pathlib import Path
 
@@ -214,19 +215,41 @@ def test_the_wrapper_binds_only_the_ports_it_is_told_and_only_offline(
     monkeypatch.setattr(os, "execvpe", became)
 
     monkeypatch.setattr(os, "_exit", exited)
+    handed: list[tuple[object, list[int]]] = []
+    closed: list[int] = []
+    monkeypatch.setattr(seccomp, "install_listener", lambda: 97)
+
+    def sent(to: object, _: object, fds: list[int]) -> None:
+        handed.append((to, list(fds)))
+
+    monkeypatch.setattr(socket, "send_fds", sent)
+    monkeypatch.setattr(os, "close", closed.append)
     fence = dataclasses.replace(_of(ALL, READ, NONE, online=online), listen=(41234,))
+    handoff = _Handoff()
     with pytest.raises(_Exec):
         wrap._become(
             fence,
             ["kimi"],
             {},
             "/tmp/scratch",
-            None if online else 5555,
+            (None, None) if online else (5555, handoff),  # pyright: ignore[reportArgumentType]
             (1, _Libc()),  # pyright: ignore[reportArgumentType]
         )
     (ruleset,) = made
     assert tuple(ruleset.bind_ports) == bound
     assert tuple(ruleset.connect_ports) == (() if online else (5555,))
+    # Offline, the listener is handed up to the wrapper and let go of before the program
+    # runs, so that nothing inside holds it to answer its own calls.
+    assert handed == ([] if online else [(handoff, [97])])
+    assert closed == ([] if online else [97])
+    assert handoff.closed is not online
+
+
+class _Handoff:
+    closed = False
+
+    def close(self) -> None:
+        self.closed = True
 
 
 def test_the_wrapper_is_humanize_itself_with_the_policy_on_the_line() -> None:
