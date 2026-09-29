@@ -109,6 +109,8 @@ class Numbers:
     # Networking.
     CONNECT: int
     SOCKET: int
+    BIND: int
+    LISTEN: int
     IO_URING_SETUP: int
 
     # Helpers invoked by the supervisor itself.
@@ -200,6 +202,8 @@ X86_64_NUMBERS = Numbers(
     UTIMES=235,
     CONNECT=42,
     SOCKET=41,
+    BIND=49,
+    LISTEN=50,
     IO_URING_SETUP=425,
     SECCOMP=317,
     PIDFD_OPEN=434,
@@ -250,6 +254,8 @@ AARCH64_NUMBERS = Numbers(
     UTIMES=_absent(),
     CONNECT=203,
     SOCKET=198,
+    BIND=200,
+    LISTEN=201,
     IO_URING_SETUP=425,
     SECCOMP=277,
     PIDFD_OPEN=434,

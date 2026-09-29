@@ -1106,7 +1106,10 @@ agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-opus-5", effort="hig
   `python -m hmz internal fence --policy=JSON -- CLI...` is put outermost around the turn.
   It uses Landlock for paths and TCP, a seccomp filter that refuses every other kind of
   socket, and a proxy on loopback, handed to the CLI as `HTTPS_PROXY` and the rest, that
-  passes only `hosts`. Build caches the fence would not let be written are pointed into
+  passes only `hosts`. With `online=False`, seccomp also stops every `bind` and `listen`
+  for the wrapper to answer, and it lets a socket listen on loopback and nowhere else
+  (`EACCES`). One offline fence cannot be put up inside another, since a process answers to
+  one such supervisor at most. Build caches the fence would not let be written are pointed into
   `tmp`.
 - **Codex enforces none of it itself.** Its sandbox holds the commands its agent runs, not
   Codex's own process (which also reaches `ab.chatgpt.com`) and not the MCP servers and hooks
@@ -1115,13 +1118,12 @@ agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-opus-5", effort="hig
   ChatGPT apps its account has connected), whatever `web_search` says.
 - **A fence that cannot be held is refused**, with `Unfenced`, where the config arrives:
   on a machine with no Landlock (macOS, Linux before 5.13), with `online=False` on a kernel
-  before 6.7, or on an agent whose `machine` is set. A flow reads that as
+  before 6.7 or where the wrapper may not take a descriptor from its children (a container's
+  default seccomp profile, Yama `ptrace_scope` 2 or 3), or on an agent whose `machine` is set. A flow reads that as
   `HarnessSandboxed`. A fence with `/` in `write` and `online=True` fences nothing, and
   nothing is put around the CLI.
-- **Three gaps are the kernel's.** Landlock does not govern connecting to a Unix socket.
-  With the network cut, the proxy's port is reachable on any address, by number only. And a
-  port the kernel picks may be listened on, on any address, so a program that listens on all
-  of them can be reached from outside.
+- **Two gaps are the kernel's.** Landlock does not govern connecting to a Unix socket. And
+  with the network cut, the proxy's port is reachable on any address, by number only.
 
 ## Whether an agent may search the web
 

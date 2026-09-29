@@ -10,23 +10,21 @@ else that drives a CLI through coganchor may build one by hand.
 A CLI that can be told what it may reach is told natively, and the part it was told is taken
 off the fence by its driver (:meth:`hmz.coganchor.agents.AgentBase.natively`). Whatever is
 left is put around it from outside by ``hmz internal fence`` (:mod:`hmz.coganchor.fence.wrap`):
-Landlock for the filesystem and for TCP, a seccomp filter for every other kind of socket, and
-for the network exactly one gate -- :class:`Proxy`, which passes a connection only to the hosts
-the backend cannot run without.
+Landlock for the filesystem and for TCP, a seccomp filter for every other kind of socket, a
+supervisor that lets a socket listen on loopback and nowhere else
+(:mod:`~hmz.coganchor.fence.loopback`), and for the network exactly one gate --
+:class:`Proxy`, which passes a connection only to the hosts the backend cannot run without.
 
 What cannot be fenced is refused rather than run wider. A host with no Landlock -- macOS, a
 kernel older than 5.13 or booted without it, one older than 6.7 where the network is to be cut
 -- enforces nothing, and :func:`enforceable` is what says so before a session is opened.
 
-Three holes are left by the kernel rather than by this module, and are said here so that
+Two holes are left by the kernel rather than by this module, and are said here so that
 nobody reads the fence as closing them. Landlock does not govern connecting to a Unix socket, so a
 socket some other process listens on -- a container daemon's, a session bus -- is a way to ask
 that process to act for the agent, whatever the fence says. And where the network is cut, TCP
 is cut by port rather than by address: the proxy's port is reachable on any address, which is
 reachable by number only, there being no name resolution left inside the fence to find one.
-And a port the kernel picks may still be bound, which a CLI serving itself on loopback cannot
-start without: Landlock cannot tell loopback from any other address, so a program listening
-on every address there can be reached from outside.
 """
 
 from __future__ import annotations
@@ -195,8 +193,9 @@ class Fence:
         CLI that serves itself to its driver over loopback was told to listen on, never 0 and
         never a range. Binding is not a way out -- what is inside still connects to nothing
         but the proxy -- and a port the CLI itself holds before anything it runs has started
-        is not one a command inside can take to be reached from outside instead. Meaningless
-        while `online` is True, when every port may be bound.
+        is not one a command inside can take to be reached from outside instead. Bound on
+        loopback, like every port while `online` is False. Meaningless while `online` is
+        True, when every port may be bound on every address.
     """
 
     read: tuple[str, ...] = ()
@@ -410,7 +409,9 @@ def enforceable(*, net: bool) -> bool:
 
     Returns:
       Whether Landlock is here -- at an ABI that governs TCP where `net` is asked for, with
-      the socket filter that shuts every other protocol loadable beside it.
+      the socket filter that shuts every other protocol loadable beside it, and seccomp able
+      to stop a call for a supervisor to answer, and this process let take a descriptor out
+      of the processes it starts: that is how a listener is kept on loopback.
     """
     from hmz.coganchor.linux import landlock
 
@@ -419,10 +420,14 @@ def enforceable(*, net: bool) -> bool:
     if not net:
         return True
     try:
-        importlib.import_module("hmz.coganchor.linux.seccomp")
+        seccomp = importlib.import_module("hmz.coganchor.linux.seccomp")
     except (ImportError, OSError, RuntimeError):
         return False
-    return True
+    if not seccomp.notifiable():
+        return False
+    from hmz.coganchor.fence.loopback import supervisable
+
+    return supervisable()
 
 
 def wrapper(fence: Fence) -> list[str]:

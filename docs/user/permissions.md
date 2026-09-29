@@ -60,7 +60,8 @@ outside:
   temporary directory of its own.
 - **`online` of `NONE`** cuts the network. The agent can still reach the hosts its model and
   its login are at, and nothing else: no web search, no package index, no host a command
-  names.
+  names. Nothing from outside reaches it either: a program it runs may serve on this
+  machine's loopback address and on no other.
 
 So the default grant is a real limit: an agent changes its workdir and nothing else of yours.
 
@@ -87,7 +88,9 @@ humanize never runs an agent with more than its grant. A role is refused before 
 
 - **this machine has no Landlock:** macOS, or a Linux kernel older than 5.13 or booted
   without it. A kernel older than 6.7 cannot cut the network, so `online` of `NONE` is
-  refused there.
+  refused there. So is a machine where humanize may not look into the programs it starts
+  (inside a container with its default seccomp profile, or with Yama's `ptrace_scope` at 2
+  or 3): it could not keep what they listen on to this machine.
 - **the work lands on another machine:** a [container](/user/containers) or an ssh host. A
   role runs there only with `ALL` in every scope, `online` included.
 
