@@ -22,24 +22,48 @@ chat and ending on the `result` that carries the answer. That last line says wha
 cost as well, under `usage`, with the cache counted beside the input rather than inside it --
 the same reckoning as everywhere else here. A turn whose model said nothing about tokens
 writes no `usage` at all, and is counted for nothing rather than guessed at.
+
+A fence is held from outside, all of it, and its own sandbox is left out of it. That sandbox
+is `cursorsandbox`, a helper shipped beside the CLI, and three things keep it from holding a
+fence. It is put around the shell commands a turn runs and nothing else: the CLI's own
+process -- whose tools read and write files themselves -- and the MCP servers it starts are
+outside it. It opens a user namespace before it does anything, Landlock included, so on a
+machine that gives an unprivileged process none it does not start at all. And what it is
+told is a file written under `~/.cursor` or the workspace's own `.cursor`, which is somebody
+else's to write. So Cursor is fenced as every CLI with no sandbox is, from outside.
+
+Except for the network, which cannot be cut around it at all, and so a fence that cuts it is
+refused. Its web search and web fetch are not run here: the model asks for them and Cursor's
+own servers run them, reached through the same `*.cursor.sh` hosts the model is at -- so a
+proxy letting the model through lets them through too, and cannot tell one request from the
+other. Nothing a driver owns switches them off. Its command line has no flag for it, and the
+permission rules that could deny them are `~/.cursor/cli-config.json`, the person at this
+machine's file. The one knob in the bundle that rejects them, `CURSOR_FORCED_SHELL_EGRESS`, is
+an internal one for Cursor's cloud workers: it also forces every shell command into
+`cursorsandbox`, which does not start where no user namespace can be opened, and it only
+rejects what the server asks the client about first. A turn at a permission granting no
+network would reach the web through Cursor all the same, so rather than run wider than it
+was told, the agent is refused and the permission is to grant online ALL.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from hmz.coganchor import backends, models
 
 from .base import AgentBase, CommandSessionBase
-from .config import UNSAID, AgentConfig, Unserved
+from .config import UNSAID, AgentConfig, Unfenced, Unserved
 from .event import Event, Failed, Usage
 from .hooks import EVERYWHERE, SUBAGENTS, Moment
 
 if TYPE_CHECKING:
-    import os
     from collections.abc import Iterator
+
+    from hmz.coganchor.fence import Fence
 
 #: What the CLI is installed as. Its installer writes two names and this is the one that can
 #: only be this CLI: `agent` is a name anything on a machine could have taken.
@@ -572,6 +596,46 @@ class CursorAgent(AgentBase):
             fast=config.service_tier == _FAST,
             listed=_listed(config.provider),
         )
+
+    def _fences(self, config: AgentConfig) -> None:
+        """Refuses a fence as the base class does, and every one that cuts the network.
+
+        Asked of the fence as it was written rather than of what it comes to once Cursor's own
+        hosts are let through, because those hosts are exactly where its web tools run: see
+        the module. A fence with no network is one this CLI would reach the web around.
+
+        Args:
+          config: What the agent is to run at.
+
+        Raises:
+          Unfenced: If the base class refuses it, or if it cuts the network.
+        """
+        super()._fences(config)
+        if config.fence is not None and not config.fence.online:
+            raise Unfenced(
+                f"{_COMMAND}: this permission cuts the network, and {_COMMAND}'s web search "
+                "and web fetch run on Cursor's own servers, through the same hosts as its "
+                "model, where nothing here can tell them apart or switch them off; grant "
+                f"it online ALL to use {_COMMAND}"
+            )
+
+    def natively(self, fence: Fence) -> Fence:
+        """The whole fence, to be held from outside, with where Cursor keeps its sign-in.
+
+        Nothing is enforced natively, for the reasons the module says. What is added is the
+        one place a turn writes that the fence does not already grant: on Linux the sign-in
+        is not under `~/.cursor` but in `auth.json` under the directory every program keeps
+        its configuration in, and a token refreshed mid-turn is written back there. A home
+        the fence only lets be read would fail that write, and the turn with it.
+
+        Args:
+          fence: The fence this agent is held to.
+
+        Returns:
+          `fence`, with that directory to write.
+        """
+        configs = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")  # noqa: PTH111
+        return fence.granting(write=[os.path.join(configs, "cursor")])  # noqa: PTH118
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> CursorSession:
         """Opens a new Cursor chat, in the directory it is given or in this one."""

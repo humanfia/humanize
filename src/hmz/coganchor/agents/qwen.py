@@ -35,9 +35,11 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import tempfile
 import threading
 import uuid
+import weakref
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
@@ -55,6 +57,8 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from pydantic import BaseModel
+
+    from hmz.coganchor.fence import Fence
 
 # : What the CLI is installed as, and the variable that points one run at a settings file of : ours.
 # The system layer rather than the user's own: it is read for this process only, and : what it says
@@ -187,6 +191,10 @@ _WITHHELD = {
 #: for an agent told not to search it rather than only at the one that already refuses them.
 #: Told so, rather than left unsaid: an agent nobody has been asked about carries None here
 #: and not False, and silence is not a no -- it leaves both tools where `qwen` leaves them.
+#:
+#: And taken away for an agent whose fence cuts the network, whatever it was told about the
+#: web: `web_search` is not a request of the CLI's own but a search agent DashScope runs, on
+#: the very host a cut network still lets through for the model, so the proxy would pass it.
 _WEB_TOOLS = ("web_search", "web_fetch")
 
 #: What Qwen Code answers with when the request behind the turn never landed: the provider's
@@ -253,13 +261,35 @@ _A_SECOND = 1000
 _EFFORTS: dict[tuple[str, bool], Path] = {}
 _EFFORT_LOCK = threading.Lock()
 
+#: The one directory every settings file of this process is kept under, made the first time
+#: one is asked for. One directory rather than one per effort and one per gate, because a
+#: fenced CLI has to be let read it: under `system=none` the system's temporary directory is
+#: not the CLI's to read, and a settings file it cannot read is a turn run at none of what it
+#: says. So :meth:`QwenCodeAgent.natively` grants this, to read -- and to read only, which is
+#: why it is not the fence's own `tmp`: a file the agent may write is a file whose hook table
+#: the agent may take out of its own way.
+_ROOT: list[Path] = []
+
 #: What the directory is called when the headless defaults are *not* written into it, the
 #: plain effort being the name when they are: the default keeps the name it had, and the
 #: other is a name of its own rather than the same one holding different bytes.
 _AS_CONFIGURED = ".as-configured"
 
 
-def _thinking(effort: str, gate: Gate | None = None, *, headless: bool = True) -> Path:
+def _root() -> Path:
+    """The directory every settings file of this process is kept under, made once."""
+    with _EFFORT_LOCK:
+        if not _ROOT:
+            _ROOT.append(Path(tempfile.mkdtemp(prefix="hmz-qwen-")))
+        return _ROOT[0]
+
+
+def _thinking(
+    effort: str,
+    gate: Gate | None = None,
+    *,
+    headless: bool = True,
+) -> Path:
     """The settings file a turn at one effort is run against, written once.
 
     Qwen Code has no flag for how hard to think: it is a setting of its own `settings.json`,
@@ -282,6 +312,7 @@ def _thinking(effort: str, gate: Gate | None = None, *, headless: bool = True) -
     Returns:
       The file's path.
     """
+    root = _root()
     # Asked once, and outside the lock: a gate that could not be served answers with "", and
     # that turn wants the same file a turn with no gate at all wants rather than one written
     # beside a socket that is not there -- `Path("").parent` being this directory, which is
@@ -290,19 +321,24 @@ def _thinking(effort: str, gate: Gate | None = None, *, headless: bool = True) -
     named = effort if headless else f"{effort}{_AS_CONFIGURED}"
     with _EFFORT_LOCK:
         if gate is not None and at:
-            # Under the gate's own directory, so that the file goes when the agent does: what
-            # is in it names that agent's socket, so it is no more reusable than the socket
-            # is, and a table kept in a dictionary here would be an entry per agent for as
-            # long as this process ran. The path is the gate and the effort, so it is the same
-            # path every time -- a settings file that moved would restart an unchanged CLI.
-            held = _writing(Path(at).parent / named, effort, gate, headless=headless)
+            # Named for the gate's own directory, and gone when the gate is, so that the file
+            # goes when the agent does: what is in it names that agent's socket, so it is no
+            # more reusable than the socket is, and a table kept in a dictionary here would be
+            # an entry per agent for as long as this process ran. The path is the gate and the
+            # effort, so it is the same path every time -- a settings file that moved would
+            # restart an unchanged CLI. Not in the gate's directory itself, which is in the
+            # system's temporary directory where a fenced CLI may not read it.
+            where = root / Path(at).parent.name
+            if not where.exists():
+                weakref.finalize(gate, shutil.rmtree, where, ignore_errors=True)
+            held = _writing(where / named, effort, gate, headless=headless)
         else:
             held = _EFFORTS.get((effort, headless))
             if held is None:
                 # Concurrent first turns must agree on the path as well as its contents: a
                 # changed path would make the next turn restart an otherwise unchanged CLI.
                 held = _writing(
-                    Path(tempfile.mkdtemp(prefix="hmz-qwen-")),
+                    Path(tempfile.mkdtemp(prefix=f"{named}-", dir=root)),
                     effort,
                     None,
                     headless=headless,
@@ -312,7 +348,11 @@ def _thinking(effort: str, gate: Gate | None = None, *, headless: bool = True) -
 
 
 def _writing(
-    where: Path, effort: str, gate: Gate | None, *, headless: bool = True
+    where: Path,
+    effort: str,
+    gate: Gate | None,
+    *,
+    headless: bool = True,
 ) -> Path:
     """Writes the files a turn is run against, and says where the first of them is.
 
@@ -676,7 +716,10 @@ class QwenCodeSession(StreamSessionBase):
             # itself does. On, the words arrive as the model writes them.
             argv += ["--include-partial-messages"]
         withheld = list(_WITHHELD.get(self._agent.config.permission, ()))
-        if self._agent.config.web_search is False:
+        fence = self._agent.config.fence
+        if self._agent.config.web_search is False or (
+            fence is not None and not fence.online
+        ):
             withheld += [one for one in _WEB_TOOLS if one not in withheld]
         if withheld:
             argv += ["--exclude-tools", ",".join(withheld)]
@@ -745,7 +788,13 @@ class QwenCodeSession(StreamSessionBase):
         self._tabled = gate is not None and gate.serving
         held = {
             **super()._environment(),
-            _SETTINGS: str(_thinking(self.effort, gate, headless=self._headless())),
+            _SETTINGS: str(
+                _thinking(
+                    self.effort,
+                    gate,
+                    headless=self._headless(),
+                )
+            ),
         }
         # Whoever said where, said it: the provider's own variables are in `held` and the
         # flow's are in this process's environment, and either outranks a cache of ours.
@@ -1032,3 +1081,31 @@ class QwenCodeAgent(AgentBase):
     def new(self, cwd: str | os.PathLike[str] | None = None) -> QwenCodeSession:
         """Opens a new Qwen Code session, in the directory it is given or in this one."""
         return QwenCodeSession(self, cwd)
+
+    def natively(self, fence: Fence) -> Fence:
+        """Enforces none of the fence, and lets the CLI read the settings it is run against.
+
+        Qwen Code has two things that look like a way to hold itself to a fence, and neither
+        is one. Its `--sandbox` is a container, docker or podman, or Seatbelt on a Mac: never
+        the process tree it runs in here, and not there to start on a machine with neither.
+        And its `permissions` rules hold its own tools and the commands whose paths and hosts
+        it can read off the command line, and nothing a command it runs goes on to do -- a
+        script, an interpreter, a build. They are not even worth saying the fence again in:
+        a rule is matched against a command line whole, so `echo a > here; echo b > there`
+        with `there` outside the fence is refused entirely rather than half run, which is a
+        command the fence itself lets do what it may. So nothing of the fence is said to the
+        CLI but its web tools, taken off the command line where the network is cut.
+
+        What it does need from outside is the settings files this driver writes for it, which
+        are in the system's temporary directory: granted to read, since `system=none` would
+        otherwise keep from the CLI the file that says its effort and its hooks.
+
+        Args:
+          fence: The fence this agent is held to.
+
+        Returns:
+          The fence, with the settings files granted to read.
+        """
+        if fence.open:
+            return fence
+        return fence.granting(read=[_root()])

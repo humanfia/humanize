@@ -977,10 +977,13 @@ How each backend says it, and what to know:
   print-mode run soft-denies what it was not permitted and names it under `denied_actions`.
   **Plan mode alone does not hold it to reading**: agy 1.2 writes the file it is asked to in
   it. So a `read-only` turn is also started as `--agent hmz-read-only`, an agent humanize
-  writes under `~/.humanize/agy/` before each such turn and adds with `--add-dir`, whose only
-  tools are `view_file`, `grep_search`, `find_by_name` and `list_dir`. agy runs an `--agent` it cannot
-  find as its default agent without saying so, and that directory is only on this machine, so
-  `read-only` on another machine is refused with `Unserved`.
+  writes under agy's own `~/.gemini/antigravity-cli/agents/` before each such turn, whose only
+  tools are `view_file`, `grep_search`, `find_by_name` and `list_dir`. Not in a directory added
+  with `--add-dir`: agy runs commands in the first of those by name, which could then be
+  humanize's rather than the session's. agy runs an `--agent` it cannot find as its default
+  agent without saying so, and that file is only on this machine, so `read-only` on another
+  machine is refused with `Unserved`. So is `web_search=False` there, which is said with an
+  agent from the same directory.
 - **Claude Code**: `--permission-mode`. **Its `bypass` is humanize answering, not Claude
   skipping.** An account's managed settings can carry
   `"disableBypassPermissionsMode": "disable"`, and then `--dangerously-skip-permissions`
@@ -1054,9 +1057,20 @@ flow hangs.
   approval policy `untrusted`. An `ASK_USER` hook turns on Codex's
   `default_mode_request_user_input` feature, without which its agent cannot ask anything
   outside plan mode. Either takes hold from the session's next turn.
+- **Codex's `read-only` sandbox starts where bubblewrap cannot.** Inside a fence, and on a
+  machine that lends no user namespace (an unprivileged container, Ubuntu's
+  `apparmor_restrict_unprivileged_userns`), every command of a `read-only` Codex turn would
+  fail with `bwrap: ...`. There humanize starts the app server with
+  `--enable use_legacy_landlock`, which holds that rung with Landlock instead; it asks Codex
+  once per process whether bubblewrap starts here. Codex 0.153.4 cannot hold
+  `workspace-write` that way, and a flow never asks for it. Codex's `read-only` also cuts a
+  command's network, so where the fence has `online` `ALL` each turn is sent
+  `sandboxPolicy: {"type": "readOnly", "networkAccess": true}`: commands still write nothing,
+  and reach the network the permission grants.
 - **`online` is also the CLI's own web tools**: on for `ALL`, off for `NONE` where the CLI
-  can be told, and left as the CLI has it where it cannot (cursor-agent, pi, agy, ACP CLIs).
-  There the fence's cut network is what stops them.
+  can be told, and left as the CLI has it where it cannot (pi, agy, ACP CLIs). There the
+  fence's cut network is what stops them. `cursor-agent`'s web tools run on Cursor's servers,
+  past the cut, so `online` `NONE` refuses it.
 
 ### The fence
 
@@ -1079,6 +1093,7 @@ agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-opus-5", effort="hig
 | `online` | `True` leaves the network alone. `False` cuts it to `hosts`. |
 | `hosts` | What stays reachable with `online=False`: an exact host, `*.suffix`, or `host:port`. |
 | `tmp` | The agent's scratch directory, its `TMPDIR`; `""` for one made per agent. |
+| `listen` | The exact TCP ports that may be bound with `online=False`, for a CLI its driver reaches over loopback. Binding doesn't open a way out, because connecting is still limited to the proxy. |
 
 - **`Fence.of`** maps each scope to a root: `system` is `/`, `user` the home directory, and
   `local` the workdir (and `cwd`, where the session works somewhere else). `"read"` puts a
@@ -1096,8 +1111,16 @@ agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-opus-5", effort="hig
   `python -m hmz internal fence --policy=JSON -- CLI...` is put outermost around the turn.
   It uses Landlock for paths and TCP, a seccomp filter that refuses every other kind of
   socket, and a proxy on loopback, handed to the CLI as `HTTPS_PROXY` and the rest, that
-  passes only `hosts`. Build caches the fence would not let be written are pointed into
+  passes only `hosts`. With `online=False`, seccomp also stops every `bind` and `listen`
+  for the wrapper to answer, and it lets a socket listen on loopback and nowhere else
+  (`EACCES`). One offline fence cannot be put up inside another, since a process answers to
+  one such supervisor at most. Build caches the fence would not let be written are pointed into
   `tmp`.
+- **Codex enforces none of it itself.** Its sandbox holds the commands its agent runs, not
+  Codex's own process (which also reaches `ab.chatgpt.com`) and not the MCP servers and hooks
+  it starts, so the whole fence is held from outside. What only Codex can stop is what
+  OpenAI runs for it: `online=False` is `-c web_search="disabled"` and `--disable apps` (the
+  ChatGPT apps its account has connected), whatever `web_search` says.
 - **An agent whose `machine` is set is fenced by its anchor**, on both machines, and not by
   a wrapper around the anchor. `AnchorConfig.fence` is `fenced()`, and the anchor
   (`hmz internal anchor --fence=JSON`) holds it in two places:
@@ -1119,11 +1142,15 @@ agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-opus-5", effort="hig
   from before fences says nothing and is refused too.
 - **A fence that cannot be held is refused**, with `Unfenced`, where the config arrives:
   on a machine with no Landlock (macOS, Linux before 5.13), with `online=False` on a kernel
-  before 6.7, for a fence built path by path (no `scopes`) on an agent whose `machine` is set,
-  or for a harness on another machine. A flow reads that as `HarnessSandboxed`. A fence with
-  `/` in `write` and `online=True` fences nothing, and nothing is put around the CLI.
-- **Two gaps are the kernel's.** Landlock does not govern connecting to a Unix socket, and
-  with the network cut the proxy's port is reachable on any address, by number only.
+  before 6.7 or where the wrapper may not take a descriptor from its children (a container's
+  default seccomp profile, Yama `ptrace_scope` 2 or 3), for a fence built path by path (no
+  `scopes`) on an agent whose `machine` is set, or for a harness on another machine. The same
+  holds on a target: a container under docker's default seccomp profile can hold `online=True`
+  but not `online=False`, and says so at the handshake. A flow reads that as
+  `HarnessSandboxed`. A fence with `/` in `write` and `online=True` fences nothing, and
+  nothing is put around the CLI.
+- **Two gaps are the kernel's.** Landlock does not govern connecting to a Unix socket. And
+  with the network cut, the proxy's port is reachable on any address, by number only.
 
 ## Whether an agent may search the web
 
@@ -1144,16 +1171,17 @@ everywhere:
 
 | Backend | How it is said |
 | --- | --- |
-| `claude` | `--disallowedTools WebSearch,WebFetch` when off |
-| `codex` | `-c tools.web_search=true\|false`, both ways |
+| `claude` | `--disallowedTools WebSearch,WebFetch` when off, or when its `fence` cuts the network |
+| `codex` | `-c web_search="live"\|"disabled"`, both ways; `tools.web_search=false` does not stop it |
 | `dsh` | the `dsh-web` plugin, its search and fetch providers and `dsh-tool-web` mounted when on; the bundled composition has no web |
-| `grok` | `--disable-web-search` when off |
+| `grok` | `--disable-web-search` when off, or when its `fence` cuts the network: its `web_search` may run at xAI, a host the cut network still reaches |
 | `kimi` | `disabled_tools` on the prompt: `WebSearch` and `FetchURL` when off, empty when on |
-| `qwen` | `--exclude-tools web_search,web_fetch` when off |
+| `qwen` | `--exclude-tools web_search,web_fetch` when off, or when the fence cuts the network: `web_search` runs at DashScope, a host the cut network still reaches |
 | `opencode` | `webfetch: deny` and `websearch: deny` in its permission table when off |
 | `mimo` | the same two and `codesearch: deny` |
 | `zcode` | `WebSearch` and `WebFetch` in the session's `toolDenylist` when off |
-| `agy`, `cursor-agent`, `pi`, an ACP CLI | no way of being told: off is refused |
+| `agy` | when off, `--agent hmz-offline`: its default tools less `read_url_content`, `search_web` and the subagent tools. At `read-only`, `hmz-read-only-web` when on |
+| `cursor-agent`, `pi`, an ACP CLI | no way of being told: off is refused |
 
 - The refusal comes where the config arrives: where the agent is made, and where one already
   running is reconfigured. `None` is refused nowhere.
@@ -1595,10 +1623,21 @@ process; an anchored turn always ends it, for filesystem synchronisation.
 | `add_workspace` | `True` | Pin the session's directory with `--add-dir`, so the CLI does not pick a scratch project of its own. |
 | `print_timeout` | `86400.0` | `--print-timeout`, in seconds. Since 1.1.28 a turn that reaches that clock exits successfully with a partial answer, so the CLI's own five minutes is raised to a day; humanize's [watchdog](#when-a-cli-stops-answering) and budget are the clocks that decide. |
 | `disable_slash_commands` | `False` | `--disable-slash-commands`: a prompt opening with `/deploy` reaches the model as words. |
-| `sandbox` | `False` | `--sandbox`: the CLI's own terminal restrictions. |
+| `sandbox` | `False` | `--sandbox`: the CLI's own terminal restrictions. Not how a [fence](#the-fence) is held. |
 
 Native usage is cumulative across a conversation; each result reports its own turn's increment.
 Shaped answers validate the native final `structured_output`.
+
+**A fence is held from outside in full.** `--sandbox` confines the commands the agent runs and
+nothing else: agy's own file tools run outside it (a sandboxed turn still wrote the home
+directory with `write_to_file`). It also cannot start where unprivileged user namespaces are
+restricted, Ubuntu's default, and then every command fails. Its network and command allow-lists
+are desktop-app settings the CLI takes no flag or file for. So `hmz internal fence` holds the
+paths and the network. With `online` cut, agy still reaches the hosts its eligibility check
+needs, the account's profile picture on `lh3.googleusercontent.com` among them, and still
+starts its loopback language server on a port the kernel picks. Its page fetcher runs at the
+far end of its model API, where no fence reaches, so a fence that cuts the network also starts
+the turn as `hmz-offline`, without its web tools, whatever `web_search` says.
 
 ### Claude Code
 
@@ -1655,6 +1694,12 @@ CodexAgentConfig(
 `-a` names only the place, model and effort, so these are set where an agent is made, from
 Python. `-p/--profile` and `--add-dir` are not offered: `codex app-server` does not take them.
 
+The app server reads `overrides`, `features`, `strict_config`, `web_search` and the fence once,
+as it starts. An agent `reconfigure`d onto others starts a new one for its next turn, and the
+old one is taken down unless a turn is still running on it. Each conversation is picked back
+up on the new server by its id. The model, the effort, the rung and `approvals` go with each
+call and start nothing.
+
 ### Cursor Agent
 
 `cursor-agent`. One run per turn.
@@ -1678,6 +1723,14 @@ stands.
   refuses nothing.
 - No bracket syntax is built: a signed-in account answers `Cannot use this model` to
   `gpt-5.2[effort=low]`. A model you write with brackets is passed as written.
+- **A fence is held from outside, all of it.** Its own sandbox, `cursorsandbox`, wraps only
+  the shell commands a turn runs, not the CLI's own file tools or the MCP servers it starts;
+  it needs a user namespace to start at all; and it reads its policy from a file under
+  `~/.cursor` or the workspace. The fence adds `$XDG_CONFIG_HOME/cursor` (else
+  `~/.config/cursor`) to write, where Linux keeps its sign-in and a refreshed token goes.
+  Its web search and fetch are calls to Cursor's servers, which nothing here can switch off or
+  tell apart from its model, so a fence that cuts the network is refused with `Unfenced`:
+  grant `online` `ALL` to use `cursor-agent`.
 - The separately distributed `cursor-agent-local` runtime, pointed at an OpenAI-compatible
   endpoint with `CURSOR_LOCAL_AGENT_BASE_URL`, `CURSOR_LOCAL_AGENT_API_KEY` and
   `CURSOR_ENABLE_AUTHLESS=1`, takes the id it serves. A turn under an hmz provider runs without
@@ -1716,6 +1769,13 @@ up.
 - Its `Unrecoverable` failures are the length refusal and a session id the runtime will not
   answer under.
 - It takes only `bypass` or no rung; see [What an agent may do](#what-an-agent-may-do).
+- A fence is held entirely from outside: `hmz internal fence` wraps the runtime the SDK
+  launches, so the runtime's own tools and every shell it starts are inside it. The bundle has
+  no confining shell executor, and the Landlock profile of its `dsh-sandbox-local` reads all of
+  `/`, writes all of `/tmp` and leaves the network alone, so none of the fence is handed to dsh.
+  A `local` of `READ` runs at `bypass` with the workdir readable and not writable. A fenced
+  runtime gets its composition file, and the native modules it unpacks (`PKG_NATIVE_CACHE_PATH`,
+  otherwise `~/.cache/pkg`), in the fence's own temporary directory.
 - `interject` is unsupported: the SDK's `session/prompt` queues a turn behind the running one,
   and the runtime's `steer` is not on the SDK's JSON-RPC surface.
 
@@ -1723,7 +1783,8 @@ up.
 
 `grok`. Ordinary turns are `session/prompt` on a held-open `grok agent stdio`. That transport
 takes a model, an effort, an approval, an agent profile, a plugin directory and the leader, and
-nothing else. So a rung that takes tools away, `web_search=False`, a shaped turn, a fork, and
+nothing else. So a rung that takes tools away, `web_search=False`, a fence that cuts the
+network, a shaped turn, a fork, and
 any field below except `leader` set away from its default send the turn to
 `grok -p --output-format streaming-json`, resuming the same conversation. The session id is
 Grok Build's own on both transports.
@@ -1738,6 +1799,17 @@ Grok Build's own on both transports.
 
 Every field but `leader` defaults to the flag not written at all. `leader` defaults to `False`
 so that a `use_leader = true` in your config cannot put every session of a flow on one process.
+
+- **A [fence](#the-fence) is held whole from outside**, never by Grok Build's own `--sandbox`
+  (or `GROK_SANDBOX`, which `grok agent stdio` does read). Its network setting blocks only the
+  commands' network, not the process's own `web_fetch`; every profile writes `/tmp` and
+  `/var/tmp`; a custom profile lives only in your `sandbox.toml`; and on a kernel that gives
+  unprivileged users no user namespace, 1.0.24 does not start under any profile. A fence
+  that cuts the network also sends `--disable-web-search`, whatever `web_search` says, so every
+  turn of that conversation runs on `grok -p`.
+- **A fenced conversation never joins the leader**, which is a process started outside the
+  fence and would run its tools there: `leader=None` is sent as `--no-leader`, and
+  `leader=True` is refused with `Unfenced`. A fence that fences nothing changes neither.
 
 - On the command line the prompt is one argument, `--single=…`. Linux caps one argument at 32
   pages, which leaves 131062 bytes of prompt (about 32 thousand tokens); a longer prompt raises
@@ -1787,6 +1859,23 @@ How a turn is followed:
   of its own, out of reach of the daemon's process group. Putting the daemon down takes the
   whole process tree with it, and a turn cut off asks no daemon started after it went.
 
+How it is fenced:
+
+- Kimi holds none of the [fence](#the-fence) itself. 0.42 has no sandbox, and its permission
+  modes decide what is asked about, not what can be reached. Session `permission_rules` can
+  only approve, and the workspace path guard its file tools use can't be configured and never
+  sees `Bash`. So the whole fence is put around the daemon from outside, and every session
+  and command runs inside it.
+- The fence goes up once, when the daemon starts. An agent that is reconfigured with another
+  fence, or that falls back to another account, starts a new daemon. It doesn't keep running
+  turns on the old one.
+- With `online=False`, the fence also limits which TCP ports may be bound. So `port` `0`
+  becomes a free port chosen before the daemon starts, and that port (or the one `port`
+  names) is the only one granted in `listen`.
+- With `online=False`, `WebSearch` and `FetchURL` are also in `disabled_tools`, whatever
+  `web_search` says. Kimi's search is a service on the same hosts the fence keeps open for
+  the model, so the fence alone would not stop it.
+
 ### pi
 
 `pi`. One `pi --mode rpc` held open for the session. It is started with `--session-id`
@@ -1804,6 +1893,13 @@ effort, and `--exclude-tools` at `read-only`.
 
 pi has no permission gate and no sandbox: `--no-approve` is a project-trust guard, and a turn
 under it still runs `bash`. See [What an agent may do](#what-an-agent-may-do).
+
+So the whole [fence](/reference/flows#permission) is held from outside it. Under `online` of
+`NONE` it is started `--offline` whatever `offline` says, and the providers its own
+`models.json` declares stay reachable: the one the model is named under (`gw/model`), or every
+one for a model named without a provider. Their `baseUrl` is in no variable, so the fence
+could not otherwise keep a gateway declared there open. pi 0.85.1 has no web tools of its own;
+an extension's are cut with the rest of the network.
 
 ### Qwen Code
 
@@ -1824,6 +1920,15 @@ input; anchored turns end their process so the workspace is synchronised.
   them. They are excluded from the restart check; a `QWEN_CODE_SYSTEM_DEFAULTS_PATH` you name
   is watched like any settings file. Settings the driver cannot read, such as JSON with
   comments, keep a fresh process per turn.
+- **A fence is held entirely from outside.** Qwen's `--sandbox` is a container or macOS
+  Seatbelt, and its `permissions` rules hold its own tools and what it can read off a command
+  line, not what a command goes on to do. A rule is also matched against a command line whole,
+  so `echo a > here; echo b > there` is refused outright rather than half run. So `natively`
+  enforces none of the fence and `hmz internal fence` holds all of it; with the network cut,
+  `web_search` and `web_fetch` are also withheld. Every generated settings file lives under
+  one `hmz-qwen-*` directory in the system's temporary directory, which the fence lets the CLI
+  read and not write, so `system` `NONE` still reads it and the agent cannot rewrite its
+  hooks.
 - **It names its conversation up front**: the opening turn is given `--session-id` with a fresh
   UUID, and a fork resumes its parent with `--fork-session`. Qwen refuses an id already used in
   the project, so a failed opening turn is retried under a new one.
@@ -1854,6 +1959,21 @@ agent = OpencodeAgent(
 
 The table is written for the turn, never into your settings file.
 
+**Under a fence.** Neither CLI confines its shell or its own process, so the whole fence is held
+from outside by `hmz internal fence`. The table also tells the CLI's own tools where they may
+reach, so that the agent is refused in words rather than by the kernel:
+
+- `edit` is denied outside what the fence lets be written.
+- `read` and `external_directory` are denied outside what it lets be read. This is said only
+  where `system` is `NONE`.
+- `webfetch`, `websearch` and mimocode's `codesearch` are denied where `online` is `NONE`,
+  whatever `web_search` says. `permission_table=False` is refused beside such a fence.
+
+The `read` and `edit` rules are relative to the top of the git checkout the session works in,
+or to `/` outside one, because that is how opencode asks them. mimocode reads Claude Code's
+`~/.claude.json` as it starts. Where the fence does not let that file be read, mimocode runs
+with `MIMOCODE_DISABLE_CLAUDE_CODE=1` instead of being granted the file.
+
 ### ZCode
 
 `zcode`. Every turn is a session on `zcode app-server --stdio`, one server per agent.
@@ -1882,6 +2002,23 @@ hmz exec -f ralph_loop -a 'agent=zcode@work/gw/vendor/some-model:high' -b cost=5
 
 The first segment is the name the session declares the endpoint under, and `gw` is the one the
 catalogue uses; `vendor/some-model` is sent to the endpoint as it stands.
+
+**Under a fence.** ZCode has no sandbox of its own, so a [permission](/reference/flows) short of
+everything is held from outside, in full, by `hmz internal fence`. The fence also lets it read
+`/opt/ZCode`, where the official package installs the Electron binary that the `zcode` command
+line runs in Node mode. Its model requests go through the fence's proxy (Node 24 honours
+`HTTPS_PROXY` under `NODE_USE_ENV_PROXY=1`), so a turn at `online=NONE` still reaches its model.
+On top of that, and not instead of it:
+
+- `online=NONE` sends `toolDenylist: ["WebFetch", "WebSearch"]` on the session, whatever
+  `web_search` says.
+- An approval ZCode asks for a `Write` or `Edit` to an absolute path the fence does not let be
+  written is answered `deny`, saying the path is outside what the agent may write. ZCode asks at
+  the `auto` rung (its `build` mode) and not at `bypass`, where the fence alone holds.
+
+ZCode's own permission rules are not used for this: they are kept per project in its database,
+`yolo` ignores them, and a deny outranks every allow, so they cannot say "everything outside the
+workdir".
 
 ### A CLI of your own
 
@@ -1936,6 +2073,34 @@ added to whatever the CLI already has, and started by the agent, so for an agent
 land [elsewhere](#where-the-turns-land) they are named on that machine. The first three are
 refused for an agent reached through an anchor that drives the target's own CLI, since what
 this client reads and runs is this machine.
+
+**Under a flow's permission** an added CLI is fenced from outside, whole: nothing is known of a
+sandbox of its own, so `hmz internal fence` holds every scope. Nor is anything known of the
+hosts its model is at or where it keeps its state, so both are declared beside its command in
+`acp.json` under humanize's home, by editing the entry into an object:
+
+```json
+{
+  "my-agent": {
+    "command": ["my-agent", "--acp"],
+    "hosts": ["api.my-agent.example"],
+    "state": ["~/.my-agent"]
+  }
+}
+```
+
+- `hosts` are what `online` of `NONE` still lets it reach, spelled as `Profile.hosts` spells
+  them (`api.example.com`, `*.example.com`, `gw.example:8443`). With none declared, a
+  permission that cuts the network is refused (`HarnessSandboxed`) naming what to declare,
+  since a CLI that cannot reach its model takes no turn.
+- `state` is written whatever `user` says. With none declared, nothing of the home is, and a
+  CLI that must write its state fails on its own terms.
+- What this client does itself is held to the same fence: a file read or written for the
+  agent, and a tool call naming a path in its `locations` or raw input, that the fence would
+  not let the agent reach is refused (a tool call with `reject_once`), and a terminal's command
+  is run inside the fence too.
+
+`backends.declared(name)` reads both back.
 
 ## Reaching into a bundled CLI
 

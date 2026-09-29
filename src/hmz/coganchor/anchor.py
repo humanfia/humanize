@@ -682,6 +682,7 @@ class _Walls:
                 read=self.fence.read,
                 write=(*self.fence.write, self.tmp),
                 connect_ports=() if port is None else (port,),
+                bind_ports=() if port is None else self.fence.listen,
                 net=port is not None,
             ),
             sockets=port is not None,

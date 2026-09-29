@@ -22,7 +22,7 @@ this driver would have written on a ``codex exec`` command line is sent as a par
 thread or the turn instead, where it belongs to this agent alone.
 
 What this driver writes that a bare ``codex app-server`` would not, each reachable and each
-declared so a flow can ask beforehand: ``-c tools.web_search=`` in both directions, which
+declared so a flow can ask beforehand: ``-c web_search=`` in both directions, which
 :attr:`hmz.coganchor.agents.config.AgentConfig.web_search` says and `search` names;
 ``--disable goals`` when :attr:`~hmz.coganchor.agents.config.AgentConfig.goals` is off, which
 `pursue` and `goal` name; a ``serviceTier`` of ``priority`` when
@@ -36,6 +36,30 @@ this driver saying nothing, and the app server left wherever it leaves itself. C
 settings that none of those already answer are :class:`CodexAgentConfig`'s, and every one of
 them defaults to whatever the bare CLI does: an install that sets nothing runs the command
 line Codex would have run for itself.
+
+A fence (:attr:`~hmz.coganchor.agents.config.AgentConfig.fence`) is held from outside, all of
+it, although Codex is the one CLI here with a sandbox that speaks of writable roots, read
+restrictions and allowed domains. That sandbox is put around the commands the agent runs and
+around nothing else: not around Codex's own process, which reaches `ab.chatgpt.com` beside
+its model on every turn (seen refused by the fence's proxy on codex-cli 0.153.4, the turn
+going on without it), and not around the MCP servers and hooks it starts -- humanize's own
+callbacks, and whatever the person at this machine's `config.toml` names -- which run as
+Codex runs. A fence claimed natively would be one those reach straight past, so
+:meth:`~hmz.coganchor.agents.AgentBase.natively` is left saying Codex enforces none of it. And
+on a machine that lends no user namespace the claim would be empty besides: bubblewrap cannot
+start there, and the Landlock backend 0.153.4 falls back to (:data:`_LANDLOCK`) holds nothing
+but `read-only`. What the fence does lean on Codex for is what no wall around a process can
+stop, being run by OpenAI rather than here: its web search, and the ChatGPT apps an account
+has connected. A fence that cuts the network turns both off, whatever `web_search` says --
+``-c web_search="disabled"``, which is the setting that does, and ``--disable apps``. And at
+`read-only` a fence that grants it is not cut by Codex instead: that sandbox cuts a command's
+network with its writes, so a `read-only` turn whose fence grants the network is sent that
+sandbox with the network left on (:data:`_REACHING`). `workspace-write` needs no such thing
+inside a fence, where it is not held at all: see :data:`_LANDLOCK`.
+
+What the app server is started with -- the web search, the fence, the features, the overrides
+-- it reads once, so an agent set up as something else there runs its next turn on a server
+started again, as :meth:`CodexAgent._knowing` says.
 """
 
 # A session and the agent holding it are two halves of one object declared in one
@@ -45,6 +69,7 @@ line Codex would have run for itself.
 from __future__ import annotations
 
 import contextlib
+import functools
 import itertools
 import json
 import os
@@ -68,6 +93,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Iterator, Mapping, Sequence
 
     from pydantic import BaseModel
+
+    from hmz.coganchor.fence import Fence
 
 #: `-c` keys this driver may take. They are process configuration of the app server, and
 #: none of them is already a field of AgentConfig -- model, effort and permission are asked
@@ -210,6 +237,78 @@ _GRANTED = frozenset(rung for rung, settings in _PERMITTED.items() if settings)
 #: driver says that at every thread call. What a turn does still carry is the approval policy
 #: and the service tier, both of which `turn/start` names and reads.
 _THREAD_ONLY = ("sandbox",)
+
+#: The feature that has Codex hold a sandboxed command with Landlock rather than with
+#: bubblewrap, which is the one of its two sandboxes that starts where the kernel lends no
+#: user namespace -- `apparmor_restrict_unprivileged_userns`, an unprivileged container.
+#: There, on codex-cli 0.153.4, every command of a `read-only` thread answers `bwrap: loopback:
+#: Failed RTM_NEWADDR: Operation not permitted` and never runs; with this on, the same command
+#: runs, reading what it likes and writing nothing and reaching no network. It holds nothing
+#: else: `workspace-write` needs bubblewrap for the parts of the workspace it keeps read-only,
+#: and 0.153.4 given this and that sandbox panics with `permission profiles requiring direct
+#: runtime enforcement are incompatible with --use-legacy-landlock` -- which is no worse than
+#: the bubblewrap error it would have answered with, and a thread stepped down from it to
+#: `read-only` is then held. So it is asked for only where bubblewrap cannot start: inside a
+#: fence, or at a rung with a sandbox where :func:`_landlocked` found it cannot.
+_LANDLOCK = "use_legacy_landlock"
+
+#: The feature that offers the agent the ChatGPT apps its account has connected, as tools
+#: `chatgpt.com` serves and runs: a connector reaches whatever service it connects to from
+#: OpenAI's side, where no fence around the CLI is. On by default on codex-cli 0.153.4, and
+#: switched off for a fence that cuts the network, as the web search is.
+_APPS = "apps"
+
+#: A turn's `sandboxPolicy` for a `read-only` rung whose fence grants the network: the
+#: filesystem read-only, as the rung says, and the network the permission grants left to the
+#: commands. `turn/start` takes it and keeps it for every turn after, and it is sent with each.
+_REACHING = {"type": "readOnly", "networkAccess": True}
+
+#: What an app server knows and cannot be told again: the account it was started as, the
+#: names of the flow's own callbacks it was told about, the command it was started with and
+#: the fence it was started inside. See :meth:`CodexAgent._knowing`.
+type _Knows = tuple[str, tuple[str, ...], tuple[str, ...], Fence | None]
+
+#: The sandboxes a rung may ask for that confine a command at all, and so the ones
+#: :data:`_LANDLOCK` has anything to do with.
+_SANDBOXED = ("read-only", "workspace-write")
+
+
+@functools.cache
+def _landlocked() -> bool:
+    """Whether this machine's Codex holds a read-only command only with :data:`_LANDLOCK` on.
+
+    Asked of Codex itself rather than of the kernel, the sandbox being Codex's to start: one
+    sandboxed `true` as the rung would run it, and again with the feature on where that one
+    failed. Each is a tenth of a second, and it is asked once per process.
+
+    Returns:
+      True where bubblewrap cannot start and Landlock can, and False where bubblewrap starts
+      -- which is the better sandbox, and the one Codex picks by itself -- or where neither
+      does, which the feature would not mend.
+    """
+    from hmz.coganchor.backends import elsewhere
+
+    codex = elsewhere("codex") or "codex"
+
+    def runs(*flags: str) -> bool:
+        rung = ("-c", 'sandbox_mode="read-only"')
+        try:
+            return (
+                subprocess.run(
+                    [codex, "sandbox", *flags, *rung, "--", "true"],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=10,
+                    check=False,
+                ).returncode
+                == 0
+            )
+        except (OSError, subprocess.SubprocessError):
+            return False
+
+    return not runs() and runs("--enable", _LANDLOCK)
+
 
 #: What each kind of token is called in the totals the server states. Cached input is counted
 #: inside the input rather than beside it, so it is not a kind of its own here: adding it would
@@ -450,12 +549,13 @@ class _AppServer:
             it would have been asked for failing at the first one instead.
         """
         self._argv = argv
-        #: The account this server was started as and the names of the flow's own callbacks it
-        #: was told about, written by whoever started it: an agent that has fallen back since,
-        #: or whose flow offers another list now, starts another rather than going on talking
-        #: to this one. Kept here rather than on the agent, so that two starting at once cannot
-        #: leave the agent believing either of them is the other.
-        self.knows: tuple[str, tuple[str, ...]] = ("", ())
+        #: The account this server was started as, the names of the flow's own callbacks it
+        #: was told about, and what it was started with and inside, written by whoever started
+        #: it: an agent that has fallen back since, whose flow offers another list now, or that
+        #: has been set up as something its server reads only as it starts, starts another
+        #: rather than going on talking to this one. Kept here rather than on the agent, so
+        #: that two starting at once cannot leave the agent believing either is the other.
+        self.knows: _Knows = ("", (), (), None)
         #: Whose turns run here, so that what is teed can be what nobody is watching. Held
         #: weakly: the agent holds the server, and the finalizer that takes the server down is
         #: the agent's -- so a server holding its agent back would be an agent nothing could
@@ -463,6 +563,9 @@ class _AppServer:
         self._held: list[weakref.ref[AgentBase]] = []
         self._stopping = threading.Lock()
         self._stopped = False
+        #: Whether its agent has been moved off what it was started with, and so whether it
+        #: goes down once no turn is running on it. Written under `_routing`.
+        self._retired = False
         self._proc = subprocess.Popen(
             argv,
             stdin=subprocess.PIPE,
@@ -528,6 +631,27 @@ class _AppServer:
             self._turns += 1
             return True
 
+    def retire(self) -> bool:
+        """Says this server is to go down as soon as no turn is running on it.
+
+        For a server started with settings its agent has since been moved off: it is stopped
+        rather than left up, so that a conversation it holds is picked up on the next server
+        rather than held open on this one -- Codex picks a thread up nowhere else while the
+        first server holds its rollout. A turn running on it keeps what it started with, and
+        the server goes down as the last such turn hands it back (:meth:`give`).
+
+        Returns:
+          Whether it is idle now, and so the caller's to stop -- which it does once it has let
+          go of whatever lock it holds, stopping being a wait of up to :data:`_STOP_SECONDS`.
+        """
+        with self._routing:
+            self._retired = True
+            if self._turns:
+                return False
+            # Counted as taken, so that nothing takes it between here and its going down.
+            self._turns += 1
+            return True
+
     def share(self) -> None:
         """Takes it for a turn of a conversation that already lives here.
 
@@ -540,9 +664,17 @@ class _AppServer:
             self._turns += 1
 
     def give(self) -> None:
-        """Hands one turn's hold back, so an idle server can take the next conversation."""
+        """Hands one turn's hold back, so an idle server can take the next conversation.
+
+        Or, for one retired while the turn ran (:meth:`retire`), so that it goes down.
+        """
         with self._routing:
             self._turns = max(0, self._turns - 1)
+            last = self._retired and not self._turns
+            if last:
+                self._turns += 1
+        if last:
+            self.stop()
 
     def holds(self, thread: str, rung: Mapping[str, Any]) -> bool:
         """Whether this server already has that thread open, at that rung.
@@ -1578,7 +1710,7 @@ class CodexSession(SessionBase):
                                 if schema is not None
                                 else {}
                             ),
-                            **turning(self._permitted(server)),
+                            **self._turned(server),
                         },
                         self._running,
                     ):
@@ -1652,6 +1784,32 @@ class CodexSession(SessionBase):
         if asked and "approvalPolicy" in rung:
             rung["approvalPolicy"] = asked
         return rung
+
+    def _turned(self, server: _AppServer) -> dict[str, Any]:
+        """What a turn of this session tells the server the agent may do.
+
+        The rung's settings less those only a thread takes (:func:`turning`), and one more
+        where the rung is `read-only` and the fence it is held to grants the network. Codex's
+        `read-only` sandbox cuts a command's network as well as its writes, which is narrower
+        than a permission that reads its workdir and reaches the web: so such a turn is sent
+        :data:`_REACHING`, the same sandbox with the network left to its commands. Held by the
+        Landlock sandbox a fenced thread runs (:data:`_LANDLOCK`) as it holds the bare rung --
+        on codex-cli 0.153.4 a `curl` under it answers 200 and a `touch` is refused.
+
+        Args:
+          server: The server the turn is taken on.
+
+        Returns:
+          The settings to send with `turn/start`.
+        """
+        rung = self._permitted(server)
+        said = turning(rung)
+        fence = self._agent.config.fence
+        # Read off the rung as this server runs it, after any step down: a rung stepped down
+        # to `read-only` is one whose network the permission may still grant.
+        if rung.get("sandbox") == "read-only" and fence is not None and fence.online:
+            said["sandboxPolicy"] = dict(_REACHING)
+        return said
 
     def _thread(self, server: _AppServer) -> str:
         """The thread this session is, started or picked back up as needed.
@@ -1734,7 +1892,7 @@ class CodexSession(SessionBase):
                         "input": [{"type": "text", "text": objective}],
                         "model": config.model,
                         **_thinking(self.effort),
-                        **turning(self._permitted(server)),
+                        **self._turned(server),
                     },
                     self._spends,
                 )
@@ -1780,6 +1938,9 @@ class CodexAgent(AgentBase):
         #: nothing is running on, so a flow taking its turns one after another has exactly one
         #: however many sessions it opens and drops.
         self._servers: list[_AppServer] = []
+        #: The servers retired with a turn still running on them (:meth:`_knowing`), which go
+        #: down as that turn ends -- or with the rest, where the agent is taken down first.
+        self._retiring: list[_AppServer] = []
         #: Whether this agent has ever started one, which a server let go of is not enough to
         #: say: what goals cannot be disabled after is a server having run with them on, and
         #: one dropped for an account that moved is still up and still holding conversations.
@@ -1811,10 +1972,11 @@ class CodexAgent(AgentBase):
         :meth:`_taken`, which is what says a server is busy for as long as the turn takes.
         """
         with self._serving:
-            knows = self._knowing()
-            if self._servers:
-                return self._servers[0]
-        return self._start(knows)
+            knows, going = self._knowing()
+            first = self._servers[0] if self._servers else None
+        for one in going:
+            one.stop()
+        return first if first is not None else self._start(knows)
 
     def _taken(self, held: _AppServer | None = None) -> _AppServer:
         """The app server a turn about to start runs on, started if none of this agent's is free.
@@ -1841,40 +2003,67 @@ class CodexAgent(AgentBase):
           The server, held for one turn until :meth:`_AppServer.give` hands it back.
         """
         with self._serving:
-            knows = self._knowing()
+            knows, going = self._knowing()
             if held is not None and held in self._servers:
                 held.share()
-                return held
-            for one in self._servers:
-                if one.take():
-                    return one
-        server = self._start(knows)
-        server.share()
-        return server
+                taken: _AppServer | None = held
+            else:
+                taken = next((one for one in self._servers if one.take()), None)
+        # Outside the lock, and before anything is started or picked up: a thread the retired
+        # server still holds is one no other server can pick up until it is down.
+        for one in going:
+            one.stop()
+        return taken if taken is not None else self._start(knows, taking=True)
 
-    def _knowing(self) -> tuple[str, tuple[str, ...]]:
+    def _knowing(self) -> tuple[_Knows, list[_AppServer]]:
         """What a server started now would know, dropping this agent's that know otherwise.
 
         Held with :attr:`_serving`. Read once for both the deciding and the starting: what a
         running server can be wrong about is which callbacks it enumerated, and a flow that
         builds an equal list of them afresh each turn has changed nothing.
 
+        And what it was started with, as :meth:`_argv` writes it, and the fence it was started
+        inside. The web search, the fence's network, the features, the overrides and the
+        config's strictness are the server's command line and are read once, as it starts,
+        so an agent :meth:`reconfigure`-d onto others is one whose server has to start again
+        for its next turn to run at them -- a fence cut while the server that searched stayed
+        up would be a fence that cut nothing. Restarted as the one that was said to stop
+        asking is (:meth:`_down`), the threads staying on disk and each picked back up on the
+        next server by the id it already has.
+
         Returns:
-          The account to start one as, and the names of the flow's own callbacks to tell it
-          about. A server started as an account this agent has since left, or knowing a list
-          of callbacks that is not the list it is offering now, is let go of rather than taken
-          down: a turn on another thread may still be talking to it, and it is stopped by its
-          own finalizer when the agent is collected either way.
+          The account to start one as, the names of the flow's own callbacks to tell it about,
+          the command that starts it and the fence it is started inside -- and the servers the
+          caller is to stop once it has let go of the lock. A server started as an account
+          this agent has since left, or knowing a list of callbacks that is not the list it is
+          offering now, is let go of rather than taken down: a turn on another thread may
+          still be talking to it, and it is stopped by its own finalizer when the agent is
+          collected either way. One started with settings the agent has since been moved off
+          is retired (:meth:`_AppServer.retire`): among those returned where no turn is
+          running on it, and taken down by the last turn that is where one is.
         """
         offering = tuple(sorted(one.name for one in self.toolbox.offered()))
         # Read before the environment is built out of it: a fallback landing between the two
         # reads would name the account the new server is *not* signed into, and a server that
         # believes it is already elsewhere is one nothing ever starts again.
-        knows = (self.node().name, offering)
-        self._servers = [one for one in self._servers if one.knows == knows]
-        return knows
+        knows: _Knows = (
+            self.node().name,
+            offering,
+            tuple(self._argv(offering)),
+            self.config.fence,
+        )
+        self._retiring = [one for one in self._retiring if not one._stopped]
+        kept: list[_AppServer] = []
+        going: list[_AppServer] = []
+        for one in self._servers:
+            if one.knows == knows:
+                kept.append(one)
+            elif one.knows[2:] != knows[2:]:
+                (going if one.retire() else self._retiring).append(one)
+        self._servers = kept
+        return knows, going
 
-    def _start(self, knows: tuple[str, tuple[str, ...]]) -> _AppServer:
+    def _start(self, knows: _Knows, *, taking: bool = False) -> _AppServer:
         """Starts one more app server for this agent and remembers it.
 
         Called with :attr:`_serving` let go of: a server takes a moment to answer for the
@@ -1882,15 +2071,21 @@ class CodexAgent(AgentBase):
         queue, each session waiting out every start before its own.
 
         Args:
-          knows: The account to start it as and the callbacks to tell it about, as
-            :meth:`_knowing` read them. Kept on the server rather than on the agent, so that
-            two starting at once cannot leave the agent believing either is the other's.
+          knows: The account to start it as, the callbacks to tell it about and the command
+            to start it with, as :meth:`_knowing` read them. Kept on the server rather than
+            on the agent, so that two starting at once cannot leave the agent believing
+            either is the other's.
+          taking: Whether it is started for a turn, and so taken for it before anything else
+            can see it: a server listed with no turn on it is one another thread's
+            :meth:`_knowing` may retire and stop under the turn it was started for.
 
         Returns:
-          The server, which no turn has taken yet.
+          The server, taken for one turn where `taking` says so and by no turn otherwise.
         """
-        server = _AppServer(self.spawned(self._argv(knows[1])), self._environ())
+        server = _AppServer(self.spawned(list(knows[2])), self._environ())
         server.knows = knows
+        if taking:
+            server.share()
         with self._serving:
             self._servers.append(server)
             self._ever = True
@@ -1920,30 +2115,53 @@ class CodexAgent(AgentBase):
             # Per server rather than in config, so this flow changes no other Codex
             # session belonging to the user.
             argv += ["--disable", "goals"]
-        for name, on in getattr(self.config, "features", ()):
+        fence = self.config.fence
+        offline = fence is not None and not fence.online
+        features = getattr(self.config, "features", ())
+        for name, on in features:
             # The rest of Codex's own switches, beside the one goals is. `codex features
             # list` is where the names and the defaults come from, and nothing is said here
             # for a feature nobody named -- so an agent configured with none of them starts
             # a server at exactly the defaults that command prints.
-            argv += ["--enable" if on else "--disable", name]
-        if self.config.web_search is not None:
-            # Said in both directions rather than only when it is off: Codex searches
-            # nothing until it is asked to, so an agent that may search the web has to
-            # say so here for `web_search` to mean on every backend what it says. Still the
-            # live spelling on codex-cli 0.153.4, which is checkable rather than assumed:
-            # `--strict-config -c tools.web_search=true` is taken, and the same run answers
-            # `unknown configuration field` for a key that has gone. The features named
-            # `web_search_cached` and `web_search_request` are deprecated and `search_tool`
-            # and `tool_search` are removed, and none of the four was ever this setting's
-            # name. Both directions, and neither of them where nobody said one: an agent no
-            # flow was asked about starts a server told nothing about searching at all, and
-            # on 0.153.4 that leaves it where a bare `codex` leaves it -- searching nothing
-            # until it is asked to. Which is why a stated `True` still goes out: of the three
-            # answers it is the one Codex would never have arrived at by itself.
-            argv += [
-                "-c",
-                f"tools.web_search={'true' if self.config.web_search else 'false'}",
-            ]
+            if not (offline and name == _APPS):
+                argv += ["--enable" if on else "--disable", name]
+        if offline:
+            # Off whatever the flow said of it, for the reason the web search is below.
+            argv += ["--disable", _APPS]
+        sandboxed = _PERMITTED.get(self.config.permission, {}).get("sandbox")
+        if (
+            self.config.machine is None
+            and _LANDLOCK not in dict(features)
+            and (
+                (fence is not None and not self.natively(fence).open)
+                or (sandboxed in _SANDBOXED and _landlocked())
+            )
+        ):
+            # Inside the fence, at every rung: a process Landlock holds may not mount
+            # anything, and bubblewrap cannot build its sandbox without mounting, so there it
+            # fails wherever it runs -- at the rung asked for, or at the one a Codex whose
+            # requirements forbid it steps a thread down to, `bypass` included. Outside it,
+            # at a rung with a sandbox, where this machine lends bubblewrap no user namespace.
+            # Either way a `read-only` thread would otherwise refuse every command it holds.
+            # Not said where the flow named the feature either way, nor for a turn that lands
+            # on another machine, whose sandbox is that machine's to start.
+            argv += ["--enable", _LANDLOCK]
+        # Off where the fence cuts the network, whatever `web_search` says: the one tool the
+        # fence cannot stop, left on beside a network it has cut, would be the network.
+        searching = False if offline else self.config.web_search
+        if searching is not None:
+            # Said in both directions, and as the top-level `web_search` mode rather than
+            # `tools.web_search`: on codex-cli 0.153.4 a bare Codex searches -- its default
+            # mode is `cached` -- and a turn told `-c tools.web_search=false` was seen to
+            # search all the same, where the same turn told `-c web_search="disabled"` said
+            # it had no such tool. The web search is run by the model's own API rather than
+            # by a process here, so no fence around the CLI can stop it: this is the only
+            # thing that does. `live` is the other direction, being what an agent that may
+            # search is asked to do. Neither where nobody said one: an agent no flow was
+            # asked about starts a server told nothing about searching at all, which leaves
+            # it wherever the person at this machine's `config.toml` leaves it.
+            mode = "live" if searching else "disabled"
+            argv += ["-c", f'web_search="{mode}"']
         # Which is what `--listen stdio://` already is on 0.153.4, so this changes nothing
         # about how the server behaves -- it is said because this client can speak over one
         # transport and no other, and a default is a thing a CLI is free to move. A day when
@@ -1998,6 +2216,8 @@ class CodexAgent(AgentBase):
         """
         with self._serving:
             servers, self._servers = self._servers, []
+            servers += self._retiring
+            self._retiring = []
         for server in servers:
             server.stop()
 

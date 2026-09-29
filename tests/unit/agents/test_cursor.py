@@ -11,12 +11,19 @@ Driving the same backend against a stand-in that prints what it prints is next d
 
 from __future__ import annotations
 
+import sys
+from typing import TYPE_CHECKING
+
 import pytest
 
 from hmz.coganchor import backends
 from hmz.coganchor.agents import CursorAgent, CursorAgentConfig
 from hmz.coganchor.agents.cursor import _COMMAND, spelled
+from hmz.coganchor.fence import ALL, NONE, READ, Fence
 from tests.agents import cursors
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_the_cli_is_named_by_what_it_is_installed_as() -> None:
@@ -140,3 +147,118 @@ def test_a_root_that_is_not_one_is_refused_where_it_is_written() -> None:
 
     with pytest.raises(ValueError, match="add_dirs"):
         replace(cursors.CURSOR, add_dirs=("  ",))
+
+
+def _able(*, net: bool) -> bool:
+    del net
+    return True
+
+
+def test_a_fence_is_held_from_outside_with_its_sign_in_to_write(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Its own sandbox holds its shell commands and not itself, so all of it is held outside.
+
+    And the directory its Linux sign-in is kept in is let be written, a token refreshed
+    mid-turn being written back there, whatever the fence says of the home around it.
+    """
+    from dataclasses import replace
+
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", _able)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.delenv("CURSOR_CONFIG_DIR", raising=False)
+    home = tmp_path / "home"
+    fence = Fence.of(
+        local=ALL,
+        user=READ,
+        system=NONE,
+        online=True,
+        workdir=tmp_path / "work",
+        home=home,
+    )
+    agent = CursorAgent(replace(cursors.CURSOR, fence=fence))
+
+    argv = agent.spawned(["cursor-agent", "--print"])
+
+    assert argv[:5] == [sys.executable, "-m", "hmz", "internal", "fence"]
+    assert argv[argv.index("--") + 1 :] == ["cursor-agent", "--print"]
+    policy = Fence.loads(argv[5].removeprefix("--policy="))
+    assert policy.online
+    assert policy.allows(home / ".config/cursor/auth.json", write=True)
+    assert policy.allows(home / ".cursor/cli-config.json", write=True)
+    assert not policy.allows(home / ".bashrc", write=True)
+    assert not policy.allows("/etc/machine-id")
+    # Only its sign-in is added: a fence that grants everything still puts nothing around it.
+    everything = Fence.of(
+        local=ALL, user=ALL, system=ALL, online=True, workdir=tmp_path, home=home
+    )
+    assert CursorAgent(replace(cursors.CURSOR, fence=everything)).spawned(
+        ["cursor-agent"]
+    ) == ["cursor-agent"]
+
+
+@pytest.mark.parametrize("scopes", [(ALL, ALL, ALL), (ALL, READ, NONE)])
+def test_a_fence_that_cuts_the_network_is_refused(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, scopes: tuple[str, str, str]
+) -> None:
+    """Its web search and fetch run on Cursor's servers, through the hosts its model is at.
+
+    So a proxy that lets the model through lets them through too, and nothing a driver owns
+    switches them off: a permission granting no network is refused, whatever it says of the
+    disk, rather than run with the web still in reach -- where the agent is made, and where
+    one already made is set up again.
+    """
+    from dataclasses import replace
+
+    from hmz.coganchor.agents import Unfenced
+
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", _able)
+    local, user, system = scopes
+    offline = Fence.of(
+        local=local,
+        user=user,
+        system=system,
+        online=False,
+        workdir=tmp_path,
+        home=tmp_path / "home",
+    )
+
+    with pytest.raises(Unfenced, match="grant it online ALL"):
+        CursorAgent(replace(cursors.CURSOR, fence=offline))
+    agent = CursorAgent(cursors.CURSOR)
+    with pytest.raises(Unfenced, match="web search and web fetch"):
+        agent.reconfigure(replace(cursors.CURSOR, fence=offline))
+    # A fence that is let reach the network is not.
+    CursorAgent(replace(cursors.CURSOR, fence=replace(offline, online=True)))
+
+
+def test_a_provider_sign_in_lands_where_the_cli_reads_it(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """On Linux `auth.json` is under `$XDG_CONFIG_HOME/cursor`; on macOS under `~/.cursor`.
+
+    Neither is under the home `CURSOR_CONFIG_DIR` moves, so a provider pointing only that
+    home's `auth.json` elsewhere would leave the machine's own sign-in to answer its turns and
+    let its login overwrite it. Both are pointed at the provider's own copy.
+    """
+    from hmz.coganchor import providers
+
+    house = tmp_path / "house"
+    monkeypatch.setenv("HOME", str(house))
+    monkeypatch.setenv("CURSOR_CONFIG_DIR", str(tmp_path / "moved"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    provider = providers.add(_COMMAND, "mine")
+
+    swaps = dict(provider.swaps())
+
+    assert swaps[str(tmp_path / "xdg" / "cursor" / "auth.json")] == str(
+        provider.at / "config" / "cursor" / "auth.json"
+    )
+    assert swaps[str(house / ".cursor" / "auth.json")] == str(
+        provider.at / "user" / ".cursor" / "auth.json"
+    )
+    assert swaps[str(tmp_path / "moved" / "cli-config.json")] == str(
+        provider.at / "home" / "cli-config.json"
+    )
+    assert str(tmp_path / "moved" / "auth.json") not in swaps

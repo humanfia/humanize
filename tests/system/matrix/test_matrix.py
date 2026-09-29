@@ -670,13 +670,27 @@ def test_permissions(cell: Cell) -> None:
     )
 
 
-FENCED = '''"""One turn at the default permission, asked to write in and out of its workdir."""
+#: One turn of one agent held to a permission the row writes in for `PERMISSION`.
+FENCED = '''"""One turn of one agent, held to the permission a row of the fence gives it."""
 
-from hmz.flows import Agent, AgentCollection, EnvCollection, FlowParams, LocalEnv, flow
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    EnvCollection,
+    FlowParams,
+    LocalEnv,
+    Permission,
+    PermissionKind,
+    flow,
+)
+
+
+class Fenced(Agent):
+    _permission = PERMISSION
 
 
 class Agents(AgentCollection):
-    worker: Agent
+    worker: Fenced
 
 
 class Envs(EnvCollection):
@@ -690,29 +704,223 @@ async def fenced(task, *, agents, envs, params, ctx):
     return await worker.run(task, session=session)
 '''
 
+#: The line of a process that is the fence's wrapper, as `/proc/<pid>/cmdline` spells it.
+WRAPPER = "hmz internal fence"
+
+#: A script that writes every process from itself up to the test's own, one command line a line:
+#: the shell the agent runs it in, the CLI, and whatever the CLI was started under -- and not what
+#: the test was, which may have been run inside a fence of its own.
+ANCESTRY = """p=$$
+while [ "$p" -gt 1 ] && [ "$p" != TEST ]; do
+  tr '\\0' ' ' < /proc/$p/cmdline; echo
+  p=$(awk '/^PPid:/ {print $2}' /proc/$p/status)
+done
+"""
+
+#: A page no model knows by heart, and the one word of it a turn is asked to report: the tree of
+#: a CPython commit, which only a fetch that reached GitHub can say.
+FETCHED = (
+    "https://api.github.com/repos/python/cpython/git/commits/"
+    "333071231d3a46cccc32d7f44b99328c3299d0b1"
+)
+TREE = "5fbef832d8b8f83abb43ab19c2b5ab79f9af5d65"
+
+
+def _fenced(cell: Cell, permission: str, script: str, *, then: str = "") -> Any:
+    """Runs one turn at a permission, asked to run one script of the row's with its shell.
+
+    The script is the whole of what the agent does to the machine, written by the row into the
+    workspace and run by its whole path: a model asked to type the commands out itself types
+    them out its own way, and one asked to run a file runs that file. Whether each command got
+    through is then read off the disk, not out of what the agent says.
+
+    Args:
+      cell: The cell.
+      permission: The `Permission(...)` the agent is held to, as the flow spells it.
+      script: What the agent runs, as `sh` reads it.
+      then: What else it is asked, after the script, before it answers.
+
+    Returns:
+      What the turn answered.
+    """
+    ran = cell.workspace / "fence.sh"
+    ran.write_text(script)
+    source = FENCED.replace("PERMISSION", permission)
+    return cell.run(
+        cell.flow("fenced", source),
+        f"Use your shell tool to run exactly this command: sh {ran} -- "
+        f"{then}then reply with exactly one word: DONE",
+    )
+
+
+def _probe(cell: Cell, where: Path) -> Path:
+    """A path of this cell's own under a directory, so that no two cells run at once share one."""
+    return where / f".hmz-fence-{cell.cli}-{secrets.token_hex(4)}"
+
+
+def _status(path: Path) -> str:
+    """What one command's `$?`, written to a file, was: "" where it was never written."""
+    return path.read_text().strip() if path.is_file() else ""
+
+
+@contextlib.contextmanager
+def _removed(*paths: Path) -> Generator[None]:
+    """Takes each path off disk as the block ends, however it ends."""
+    try:
+        yield
+    finally:
+        for one in paths:
+            one.unlink(missing_ok=True)
+
 
 @feature()
-def test_fence(cell: Cell) -> None:
-    """An agent at the default permission writes its workdir, and nothing outside it.
+def test_fence_default(cell: Cell) -> None:
+    """At the default permission an agent writes its workdir, and nothing outside it.
 
-    Asked for both with its shell, which no CLI's own rung would stop: what stops the second is
-    the fence around the CLI and every command it runs.
+    Asked for all three with its shell, which no CLI's own rung would stop: what stops the
+    two outside is the fence around the CLI and every command it runs. One is the home
+    directory, the other a directory of the system's, neither under the workdir.
     """
-    outside = cell.root / "outside"
-    outside.mkdir(exist_ok=True)
-    said = cell.run(
-        cell.flow("fenced", FENCED),
-        "Use your shell tool to run exactly this command: "
-        f"echo IN > {cell.workspace}/inside.txt; echo OUT > {outside}/outside.txt "
-        "-- then reply with exactly one word: DONE",
+    outside = Path(tempfile.mkdtemp(prefix=f"hmz-matrix-{cell.cli}-"))
+    home = _probe(cell, Path.home())
+    work = cell.workspace
+    try:
+        said = _fenced(
+            cell,
+            "Permission()",
+            f"echo IN > {work}/ok\n"
+            f"echo OUT > {outside}/outside; echo $? > {work}/outside.status\n"
+            f"echo OUT > {home}; echo $? > {work}/home.status\n",
+        )
+        assert (work / "ok").is_file(), f"the workdir was not written: {said}"
+        assert not (outside / "outside").exists(), (
+            f"an agent at the default permission wrote the system: {said}"
+        )
+        assert not home.exists(), (
+            f"an agent at the default permission wrote the home directory: {said}"
+        )
+        for status in ("outside", "home"):
+            assert _status(work / f"{status}.status") != "0", (
+                f"the write to the {status} exited 0 without landing: {said}"
+            )
+    finally:
+        home.unlink(missing_ok=True)
+        shutil.rmtree(outside, ignore_errors=True)
+
+
+def _read(cell: Cell, probe: Path, permission: str) -> None:
+    """Has an agent copy a file it may not read, and one of its workdir it may, into its workdir.
+
+    What the probe holds is a word no model would guess, and it must turn up nowhere: not in
+    the copy, and not in what the agent says.
+    """
+    word, given = _word(), _word()
+    work = cell.workspace
+    probe.write_text(word)
+    (work / "given.txt").write_text(given)
+    said = _fenced(
+        cell,
+        permission,
+        f"cat {probe} > {work}/probe.txt; echo $? > {work}/probe.status\n"
+        f"cat {work}/given.txt > {work}/copied.txt\n",
+    )
+    copied = work / "copied.txt"
+    assert copied.is_file(), f"the workdir was not written: {said}"
+    assert _says(copied.read_text(), given), f"the workdir was not read: {said}"
+    got = work / "probe.txt"
+    assert not _says(got.read_text() if got.is_file() else "", word), (
+        f"an agent read {probe}, which its permission does not let it read: {said}"
+    )
+    assert not _says(said, word), f"an agent said what {probe} holds: {said}"
+    assert _status(work / "probe.status") != "0", f"reading {probe} exited 0: {said}"
+
+
+@feature()
+def test_fence_system_none(cell: Cell) -> None:
+    """An agent held to NONE of the system reads nothing outside its home and its workdir.
+
+    And its turn is taken all the same: the minimum a CLI needs to run is left to it.
+    """
+    # The system's, and neither the home directory nor the workdir.
+    probe = _probe(cell, Path("/var/tmp"))
+    with _removed(probe):
+        _read(
+            cell,
+            probe,
+            "Permission(user=PermissionKind.READ, system=PermissionKind.NONE)",
+        )
+
+
+@feature()
+def test_fence_user_none(cell: Cell) -> None:
+    """An agent held to NONE of the home directory reads nothing in it, and works its workdir."""
+    probe = _probe(cell, Path.home())
+    with _removed(probe):
+        _read(
+            cell,
+            probe,
+            "Permission(local=PermissionKind.ALL, user=PermissionKind.NONE,"
+            " system=PermissionKind.NONE)",
+        )
+
+
+@feature(
+    limits={
+        "cursor-agent": "online NONE is refused, its web tools running on Cursor's own "
+        "servers (docs/user/permissions.md)"
+    }
+)
+def test_fence_offline(cell: Cell) -> None:
+    """An agent held offline reaches no host but its model's: neither its shell nor its web tool.
+
+    That the turn is taken at all is what says the model's host was left to it. What its web
+    tool is asked for is a page no model knows by heart, so an answer that has the page's word
+    in it is one that was fetched.
+    """
+    work = cell.workspace
+    said = _fenced(
+        cell,
+        "Permission(online=PermissionKind.NONE)",
+        "curl -sS -m 20 -o "
+        f"{work}/page.html https://example.com; echo $? > {work}/curl.status\n",
+        then=(
+            f"then, if you have a web fetch tool, use it (not your shell) to fetch {FETCHED} "
+            "and write down the sha of its `tree`, or the word NOFETCH if you have no such "
+            "tool or it fails -- "
+        ),
     )
 
-    assert (cell.workspace / "inside.txt").is_file(), (
-        f"the workdir was not written: {said}"
+    assert _status(work / "curl.status") not in ("", "0"), (
+        f"curl reached example.com from an agent held offline, or never ran: {said}"
     )
-    assert not (outside / "outside.txt").exists(), (
-        f"an agent at the default permission wrote outside its workdir: {said}"
+    page = work / "page.html"
+    assert "Example Domain" not in (page.read_text() if page.is_file() else ""), said
+    assert TREE[:12] not in str(said), (
+        f"the web tool of an agent held offline fetched a page: {said}"
     )
+
+
+@feature()
+def test_fence_open(cell: Cell) -> None:
+    """An agent granted everything is put under no fence at all, and writes the home directory."""
+    work = cell.workspace
+    home = _probe(cell, Path.home())
+    (work / "ancestry.sh").write_text(ANCESTRY.replace("TEST", str(os.getpid())))
+    with _removed(home):
+        said = _fenced(
+            cell,
+            "Permission(local=PermissionKind.ALL, user=PermissionKind.ALL,"
+            " system=PermissionKind.ALL, online=PermissionKind.ALL)",
+            f"echo HOME > {home}\nsh {work}/ancestry.sh > {work}/ancestry.txt\n",
+        )
+        assert home.is_file(), (
+            f"an agent granted everything could not write home: {said}"
+        )
+    ancestry = work / "ancestry.txt"
+    assert ancestry.is_file(), f"the agent ran nothing: {said}"
+    lines = ancestry.read_text()
+    assert lines.strip(), f"the agent's processes were not listed: {said}"
+    assert WRAPPER not in lines, f"an agent granted everything was fenced:\n{lines}"
 
 
 ASKED = '''"""One turn, with every tool it asks to run refused by the flow."""

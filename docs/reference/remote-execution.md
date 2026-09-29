@@ -319,7 +319,10 @@ its [permission](/user/permissions). Each machine holds its own half, around its
 A target without Landlock (a kernel before 5.13, or 6.7 where the network is cut, macOS, or a
 container whose seccomp profile refuses the calls) says so when it is reached, and the session
 is refused. A command sent with a fence to such a target is refused too, and never runs.
-Docker's default seccomp profile allows Landlock.
+Docker's default seccomp profile allows Landlock, so a container holds a fence that leaves
+the network on (the default). It does not allow the seccomp listener and `pidfd_getfd` that
+cutting the network also takes, so a container under it refuses a fence with the network cut.
+Run the container with a profile that allows them, or `--security-opt seccomp=unconfined`.
 
 ## Where the harness runs
 

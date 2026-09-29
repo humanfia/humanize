@@ -37,6 +37,7 @@ from hmz.coganchor.agents import (
 from hmz.coganchor.agents import codex as appservers
 from hmz.coganchor.agents import kimi as kimicode
 from hmz.coganchor.agents.config import UNSAID
+from hmz.coganchor.fence import Fence
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -782,6 +783,39 @@ def test_kimi_opens_then_resumes(kimi: _FakeServer) -> None:
     # changes nothing is a call the others queue behind.
     assert len(_bodies(kimi, "/profile")) == 1
     assert all(call["token"] == "Bearer secret" for call in calls)
+
+
+def test_a_kimi_daemon_offline_is_fenced_and_told_the_one_port_it_may_bind(
+    kimi: _FakeServer, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dataclasses import replace
+
+    from hmz.coganchor.fence import ALL, NONE, READ, Fence
+    from tests import fencing
+
+    log = tmp_path / "fences.log"
+    monkeypatch.setenv(fencing.LOG, str(log))
+    fence = Fence.of(
+        local=ALL,
+        user=READ,
+        system=NONE,
+        online=False,
+        workdir=tmp_path,
+        home=Path.home(),
+    )
+    agent = KimiCodeCLIAgent(replace(_agent().config, fence=fence))
+    session = agent.new()
+    assert session("hi") == "answered"
+    session("again")
+
+    started, *_ = kimi.calls()
+    port = int(started["body"][started["body"].index("--port") + 1])
+    assert port != 0
+    # One daemon for both turns, spawned once inside the fence, which lets it bind that port.
+    (policy,) = fencing.policies(log)
+    held = Fence.loads(json.dumps(policy))
+    assert not held.online
+    assert held.listen == (port,)
 
 
 def test_a_kimi_turn_says_what_it_is_doing_and_what_it_came_to(
@@ -1817,11 +1851,10 @@ def test_codex_starts_the_command_line_codex_would_have_started_for_itself(
 ) -> None:
     """Nothing this driver writes is a setting the flow did not ask for.
 
-    Not even `-c tools.web_search=`, which used to be the one exception: Codex searches
-    nothing until it is asked to, so an agent that may search the web says so here for
-    `web_search` to mean the same thing everywhere -- and an agent nobody said either way
-    about says neither, which leaves Codex reading its own `config.toml` as a bare app server
-    does. Every other field is absent unless something asked for it.
+    Not even `-c web_search=`, which a flow's `web_search` is said with in both directions:
+    an agent nobody said either way about says neither, which leaves Codex reading its own
+    `config.toml` as a bare app server does. Every other field is absent unless something
+    asked for it.
     """
     started: list[list[str]] = []
 
@@ -1861,6 +1894,85 @@ def test_codex_takes_its_own_features_by_name_for_this_agent_alone(
             "--stdio",
         ]
     ]
+
+
+@pytest.mark.parametrize(("searching", "mode"), [(True, "live"), (False, "disabled")])
+def test_codex_is_told_about_the_web_as_its_web_search_mode(
+    monkeypatch: pytest.MonkeyPatch, *, searching: bool, mode: str
+) -> None:
+    """`tools.web_search=false` does not stop a codex-cli 0.153.4 searching; this does."""
+    started: list[list[str]] = []
+
+    monkeypatch.setattr(appservers, "_AppServer", _recording(started))
+    agent = CodexAgent(
+        CodexAgentConfig(model="gpt-5.6-sol", effort="high", web_search=searching)
+    )
+
+    assert agent.server is not None
+    assert [_named(argv) for argv in started] == [
+        ["codex", "app-server", "-c", f'web_search="{mode}"', "--stdio"]
+    ]
+
+
+def _enforceable(*, net: bool) -> bool:
+    """Takes this machine to be one that can fence a process, whatever machine it is."""
+    del net
+    return True
+
+
+@pytest.mark.parametrize(
+    ("permission", "features", "landlocked", "fenced", "enabled"),
+    [
+        ("read-only", (), True, False, True),
+        ("read-only", (), False, False, False),
+        ("read-only", (), False, True, True),
+        ("read-only", (("use_legacy_landlock", False),), True, True, False),
+        ("workspace-write", (), True, False, True),
+        ("bypass", (), True, True, True),
+        ("bypass", (), True, False, False),
+        (UNSAID, (), True, False, False),
+    ],
+)
+def test_codex_holds_its_sandbox_with_landlock_where_bubblewrap_cannot_start(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    permission: str,
+    features: tuple[tuple[str, bool], ...],
+    landlocked: bool,
+    fenced: bool,
+    enabled: bool,
+) -> None:
+    """Inside a fence, which forbids bubblewrap's mounts, or where the probe said so.
+
+    The probe only for a rung with a sandbox, and never over the flow's own word.
+    """
+    started: list[list[str]] = []
+
+    monkeypatch.setattr(appservers, "_AppServer", _recording(started))
+    monkeypatch.setattr(appservers, "_landlocked", lambda: landlocked)
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", _enforceable)
+    fence = Fence.of(
+        local="all",
+        user="read",
+        system="read",
+        online=True,
+        workdir=tmp_path,
+        home=tmp_path,
+    )
+    agent = CodexAgent(
+        CodexAgentConfig(
+            model="gpt-5.6-sol",
+            effort="high",
+            permission=permission,
+            features=features,
+            fence=fence if fenced else None,
+        )
+    )
+
+    assert agent.server is not None
+    (argv,) = started
+    assert (argv[-3:-1] == ["--enable", "use_legacy_landlock"]) is enabled
 
 
 def test_codex_refuses_a_feature_that_is_already_a_setting_of_the_agent() -> None:
@@ -2061,6 +2173,158 @@ def test_a_codex_thread_nobody_said_a_rung_for_carries_neither(
     assert [call["method"] for call in started] == ["turn/start"]
     assert not any("sandbox" in call["params"] for call in opened + started)
     assert not any("approvalPolicy" in call["params"] for call in opened + started)
+
+
+def _codex_fence(tmp_path: Path, *, online: bool) -> Fence:
+    """The permission a role that reads its workdir is held to, with or without the network."""
+    return Fence.of(
+        local="read",
+        user="read",
+        system="read",
+        online=online,
+        workdir=tmp_path / "work",
+        home=tmp_path / "home",
+    )
+
+
+@pytest.mark.parametrize(
+    ("permission", "online", "reaching"),
+    [
+        ("read-only", True, True),
+        ("read-only", False, False),
+        ("read-only", None, False),
+        ("workspace-write", True, False),
+    ],
+)
+def test_a_read_only_codex_turn_keeps_the_network_its_permission_grants(
+    working: _FakeServer,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    permission: str,
+    online: bool | None,
+    reaching: bool,
+) -> None:
+    """Codex's `read-only` sandbox cuts a command's network, which the permission may not.
+
+    So a turn at that rung whose fence grants the network is sent the same sandbox with the
+    network left on -- `sandboxPolicy` being the one field a turn takes for it -- and a turn
+    whose fence cuts it, or that has no fence at all, is sent the rung as it stands.
+    """
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("CODEX_HOME", raising=False)
+    fence = None if online is None else _codex_fence(tmp_path, online=online)
+    agent = CodexAgent(
+        CodexAgentConfig(
+            model="gpt-5.6-sol", effort="high", permission=permission, fence=fence
+        )
+    )
+    agent("hi")
+
+    (started,) = [
+        call for call in working.calls() if call.get("method") == "turn/start"
+    ]
+    policy = started["params"].get("sandboxPolicy")
+    if reaching:
+        assert policy == {"type": "readOnly", "networkAccess": True}
+    else:
+        assert policy is None
+
+
+def _starts(server: _FakeServer) -> int:
+    """How many app servers the stand-in was started as, each introduced to once."""
+    return sum(call.get("method") == "initialize" for call in server.calls())
+
+
+@pytest.mark.parametrize(
+    "moved",
+    [
+        {"web_search": False},
+        {"features": (("memories", False),)},
+        {"strict_config": True},
+        {"overrides": (("model_context_window", "1000"),)},
+        {"fence": "offline"},
+    ],
+    ids=["web_search", "features", "strict_config", "overrides", "fence"],
+)
+def test_a_codex_set_up_as_what_its_server_reads_at_start_starts_it_again(
+    working: _FakeServer,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    moved: dict[str, Any],
+) -> None:
+    """Its server's command line is read once, so the next turn runs on a server started anew.
+
+    The one it was on is taken down rather than left holding the conversation, which the new
+    one picks back up by its id -- as the claude driver starts its process again.
+    """
+    from dataclasses import replace
+
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("CODEX_HOME", raising=False)
+    online = _codex_fence(tmp_path, online=True)
+    was = CodexAgentConfig(model="gpt-5.6-sol", effort="high", fence=online)
+    agent = CodexAgent(was)
+    session = agent.new()
+    session("one")
+    (first,) = agent._servers
+
+    if moved.get("fence") == "offline":
+        moved = {"fence": replace(online, online=False)}
+    agent.reconfigure(replace(was, **moved))
+    session("two")
+
+    assert _starts(working) == 2
+    assert first._stopped
+    assert first not in agent._servers
+    resumed = [
+        call for call in working.calls() if call.get("method") == "thread/resume"
+    ]
+    assert [call["params"]["threadId"] for call in resumed] == ["thread_fake"]
+    if "web_search" in moved or "fence" in moved:
+        (now,) = agent._servers
+        assert 'web_search="disabled"' in now._argv
+
+
+def test_a_codex_server_moved_off_under_a_running_turn_goes_down_as_the_turn_ends(
+    working: _FakeServer,
+) -> None:
+    """The turn keeps what it started with, and the server is not left up after it."""
+    from dataclasses import replace
+
+    was = CodexAgentConfig(model="gpt-5.6-sol", effort="high")
+    agent = CodexAgent(was)
+    agent.new()("one")
+    (first,) = agent._servers
+    first.share()  # a turn of another conversation, running on it
+
+    agent.reconfigure(replace(was, web_search=False))
+    other = agent._taken()
+
+    assert other is not first
+    assert not first._stopped
+    assert agent._retiring == [first]
+    first.give()
+    assert first._stopped
+    other.give()
+    agent.stop()
+    assert other._stopped
+
+
+def test_a_codex_moved_on_what_a_turn_carries_keeps_its_server(
+    working: _FakeServer,
+) -> None:
+    """The model, the effort and the rung go with each call, so nothing is started again."""
+    from dataclasses import replace
+
+    was = CodexAgentConfig(model="gpt-5.6-sol", effort="high")
+    agent = CodexAgent(was)
+    session = agent.new()
+    session("one")
+    agent.reconfigure(replace(was, model="gpt-5.6-sol-mini", effort="low"))
+    session("two")
+
+    assert _starts(working) == 1
 
 
 @pytest.mark.parametrize(

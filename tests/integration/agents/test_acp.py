@@ -18,6 +18,7 @@ import subprocess
 import sys
 import threading
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import pytest
@@ -28,15 +29,18 @@ from hmz.coganchor.agents import (
     AcpAgentConfig,
     AgentConfig,
     McpServer,
+    Unfenced,
+    acp,
     driver,
 )
+from hmz.coganchor.fence import ALL, NONE, Fence
 from hmz.flows import HarnessKind
 from hmz.runtime.runner import Runner, read_line
+from tests import fencing
 from tests.stubs import ShellAgent, written
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from pathlib import Path
 
     from hmz.coganchor.agents.acp import AcpSession
 
@@ -136,6 +140,18 @@ for line in sys.stdin:
                        {"sessionId": session, "path": path, "content": content})
             update(session, {"sessionUpdate": "agent_message_chunk",
                              "content": {"type": "text", "text": said_by(back, "")}})
+            answer(at, {"stopReason": "end_turn"})
+        elif said.startswith("touch "):
+            # A tool call that names the file it would change, as `locations` says one.
+            back = ask("session/request_permission",
+                       {"sessionId": session,
+                        "toolCall": {"toolCallId": "call_2", "kind": "edit",
+                                     "locations": [{"path": said[len("touch "):]}]},
+                        "options": [
+                            {"optionId": "go-on", "name": "yes", "kind": "allow_once"},
+                            {"optionId": "no-thanks", "name": "no", "kind": "reject_once"}]})
+            update(session, {"sessionUpdate": "agent_message_chunk",
+                             "content": {"type": "text", "text": said_by(back, "outcome")}})
             answer(at, {"stopReason": "end_turn"})
         elif said.startswith("run "):
             back = ask("terminal/create",
@@ -662,3 +678,150 @@ def test_a_turn_is_cut_off_by_the_protocols_own_word_for_it(added: str) -> None:
     assert not turn.is_alive()
     assert answered == [""]
     assert held._link is not None  # cancelled rather than thrown away
+
+
+# ------------------------------------------------------------------------------ the fence
+
+
+def _fenced(tmp_path: Path, *, online: bool = True) -> Fence:
+    """A fence of the workdir alone, with nothing of the home or the rest to reach."""
+    return Fence.of(
+        local=ALL,
+        user=NONE,
+        system=NONE,
+        online=online,
+        workdir=tmp_path / "work",
+        home=tmp_path / "someone",
+    )
+
+
+def _policy(argv: list[str]) -> Fence:
+    """What a turn spawned under the stand-in wrapper would have been held to."""
+    return Fence.loads(argv[2].removeprefix("--policy="))
+
+
+def test_an_added_cli_is_fenced_from_outside_whole(added: str, tmp_path: Path) -> None:
+    """Nothing is known of a sandbox of its own, so the wrapper holds all of it."""
+    fence = _fenced(tmp_path, online=False).granting(hosts=["m.test"])
+    agent = _agent(added, fence=fence)
+
+    assert agent.natively(fence) == fence
+    argv = agent.spawned(list(agent.command))
+    assert argv[:2] == [sys.executable, fencing.HERE]
+    assert argv[argv.index("--") + 1 :] == ["my-agent", "--acp"]
+    policy = _policy(argv)
+    assert not policy.online
+    assert policy.hosts == ("m.test",)
+    # Not the whole of the home, which is what an added CLI's unknown home would come to.
+    assert not policy.allows(Path.home() / "anything", write=True)
+
+
+def test_a_cut_network_with_no_host_to_leave_is_refused_saying_what_to_declare(
+    added: str, tmp_path: Path
+) -> None:
+    """A CLI that cannot reach its own model takes no turn: refused where it is made."""
+    with pytest.raises(Unfenced, match='"hosts"') as raised:
+        _agent(added, fence=_fenced(tmp_path, online=False))
+
+    assert "acp.json" in str(raised.value)
+    # Online, there is no host to know.
+    assert _agent(added, fence=_fenced(tmp_path)).fenced() is not None
+
+
+def test_the_hosts_and_state_declared_where_it_was_added_are_what_the_fence_leaves(
+    added: str, tmp_path: Path
+) -> None:
+    backends._spoken().write_text(
+        json.dumps(
+            {
+                added: {
+                    "command": [added, "--acp"],
+                    "hosts": ["api.mine.test"],
+                    "state": ["~/.my-agent"],
+                }
+            }
+        )
+    )
+    assert backends.speaking()[added] == (added, "--acp")
+    profile = backends.named(added)
+    assert profile is not None
+    assert profile.hosts == ("api.mine.test",)
+
+    agent = _agent(added, fence=_fenced(tmp_path, online=False))
+    policy = _policy(agent.spawned(list(agent.command)))
+
+    assert policy.hosts == ("api.mine.test",)
+    assert policy.allows(Path("~/.my-agent/state.json").expanduser(), write=True)
+    # And what was declared outlives another CLI being added beside it.
+    backends.remember("", ["other-agent"])
+    assert backends.declared(added) == (("api.mine.test",), ("~/.my-agent",))
+
+
+def test_a_file_the_fence_keeps_from_the_agent_is_not_read_or_written_for_it(
+    added: str, tmp_path: Path
+) -> None:
+    """The client is outside the wall, so it holds itself to the fence it put around it."""
+    (tmp_path / "work").mkdir()
+    inside, outside = tmp_path / "work" / "in.txt", tmp_path / "someone" / "secret"
+    inside.write_text("mine")
+    outside.parent.mkdir()
+    outside.write_text("theirs")
+    # A link in the workdir to a file outside it is the file outside it.
+    (tmp_path / "work" / "link").symlink_to(outside)
+    agent = _agent(added, fence=_fenced(tmp_path), reads_files=True, writes_files=True)
+
+    assert "mine" in agent.new()(f"read {inside}")
+    assert "outside what this agent may read" in agent.new()(f"read {outside}")
+    assert "outside" in agent.new()(f"read {tmp_path / 'work' / 'link'}")
+    agent.new()(f"write {outside} changed")
+    assert outside.read_text() == "theirs"
+    agent.new()(f"write {tmp_path / 'work' / 'made.txt'} made")
+    assert (tmp_path / "work" / "made.txt").read_text() == "made"
+
+
+def test_a_tool_call_naming_a_file_outside_the_fence_is_refused(
+    added: str, tmp_path: Path
+) -> None:
+    agent = _agent(added, fence=_fenced(tmp_path))
+
+    assert "no-thanks" in agent.new()(f"touch {tmp_path / 'someone' / '.bashrc'}")
+    assert "go-on" in agent.new()(f"touch {tmp_path / 'work' / 'a.py'}")
+    # And granted as ever to an agent held to no fence.
+    assert "go-on" in _agent(added).new()(f"touch {tmp_path / 'someone' / '.bashrc'}")
+
+
+def test_a_command_run_for_the_agent_is_run_inside_its_fence(
+    added: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A terminal is this client's process, which the wall around the agent does not hold."""
+    log = tmp_path / "fences.jsonl"
+    monkeypatch.setenv(fencing.LOG, str(log))
+    agent = _agent(added, fence=_fenced(tmp_path), terminals=True)
+
+    assert "4711" in agent.new()("run echo 4711")
+
+    agents, command = fencing.policies(log)
+    assert command["write"] == agents["write"]
+    assert not Fence.loads(json.dumps(command)).allows(tmp_path / "someone")
+    # What the agent names for its environment is set inside the wall, not on the wrapper.
+    walled = agent.new()._walled(["make"], {"PYTHONPATH": "/x"})
+    assert walled[walled.index("--") + 1 :] == ["env", "PYTHONPATH=/x", "make"]
+
+
+def test_a_directory_swapped_for_a_link_after_the_check_is_not_followed(
+    tmp_path: Path,
+) -> None:
+    """The client opens what it checked or nothing: a link met on the way is refused."""
+    (tmp_path / "work").mkdir()
+    (tmp_path / "away").mkdir()
+    (tmp_path / "work" / "d").symlink_to(tmp_path / "away")
+
+    with pytest.raises(OSError, match=r"symbolic links|Not a directory"):
+        acp._held(str(tmp_path / "work" / "d" / "f"), os.O_WRONLY | os.O_CREAT)
+    assert not (tmp_path / "away" / "f").exists()
+    os.close(
+        acp._held(
+            str(tmp_path / "work" / "new" / "f"), os.O_WRONLY | os.O_CREAT, making=True
+        )
+    )
+    assert (tmp_path / "work" / "new" / "f").exists()

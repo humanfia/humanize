@@ -24,6 +24,16 @@ itself. Each of the three the protocol names -- reading a file, writing one, hol
 terminal -- is a field on :class:`AcpAgentConfig` for the turn that wants it, and is served
 here when it is asked for, since a client that declared a capability and refused it where it
 was asked would be worse than one that never offered.
+
+A flow's permission is held around such a CLI from outside and nowhere else: nothing is known
+of a sandbox it may have, so :meth:`AcpAgent.natively` claims none of the fence and ``hmz
+internal fence`` holds the whole of it. Nor is anything known of where it keeps its state or
+which hosts its model is at, which is what a fence has to leave it -- so both are declared
+where the CLI was added (:func:`hmz.coganchor.backends.declared`), and a permission that cuts
+the network from a CLI nobody declared a host for is refused rather than run into a turn that
+cannot reach its own model. What this client does itself for the agent is held to the same
+fence: a file it reads or writes, and a tool call it permits, that the fence would not let the
+agent reach is refused, and a command it holds as a terminal is run inside the fence too.
 """
 
 # The teardown every driver shares is base's, and reaching for it is what grok, agy, qwen
@@ -42,8 +52,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
-from .base import AgentBase, SessionBase, _ended
-from .config import AgentConfig
+from .base import AgentBase, SessionBase, _ended, _programs
+from .config import AgentConfig, Unfenced
 from .event import Event, Failed, Saying
 from .watchdog import Watchdog
 
@@ -52,6 +62,8 @@ if TYPE_CHECKING:
     from io import BufferedReader
 
     from pydantic import BaseModel
+
+    from hmz.coganchor.fence import Fence
 
 #: The version of the protocol this speaks, as an integer. Sent on the way in and read back
 #: out of the answer: an agent answers with the version it will actually speak, which is the
@@ -78,6 +90,19 @@ _CAPABILITIES: dict[str, Any] = {
 #: own word -- one calls it `proceed_once`, another `allow-once` -- and a client that matched
 #: on those would work with the agent it was written against and no other.
 _GRANTS = ("allow_always", "allow_once")
+
+#: How a tool call reaching past the fence is refused: the one kind that refuses without the
+#: agent writing a rule down for the next time, which is what `reject_always` does in the one
+#: ACP server whose behaviour it was checked against (see grok's `_REFUSES`).
+_REFUSES = ("reject_once",)
+
+#: The kinds of tool call that change what they name, which the fence has to let be written
+#: rather than only read.
+_CHANGES = ("edit", "delete", "move")
+
+#: The keys a tool call's raw input names a file under, across the servers that say one: read
+#: beside its `locations`, which is where the protocol itself puts them.
+_NAMED = ("path", "file_path", "filePath", "abs_path", "absolute_path")
 
 #: What each thing said in a turn reads as, by the name ACP gives that kind of update. Two of
 #: the many an agent sends: the rest say a state moved along rather than a thing said -- a
@@ -110,6 +135,42 @@ _ANSWERED = ("end_turn", "max_tokens")
 #: What ACP says a backend runs and how hard it thinks, which is nothing at all. One of each
 #: is offered so that an agent can be configured; both are the agent's own to know.
 UNSAID = "as configured"
+
+
+def _held(real: str, flags: int, *, making: bool = False) -> int:
+    """Opens a path this client has checked, refusing it if it has moved since.
+
+    One directory at a time from the root, following no link: the path is one whose links were
+    resolved where the fence was asked about it, so a link met now is one somebody put there
+    since -- the agent swapping a directory it may write for a link out of the fence -- and
+    the open fails rather than following it out.
+
+    Args:
+      real: The path, absolute and with its links already resolved.
+      flags: How to open the file at the end of it.
+      making: Whether to make the directories it is under that are not there yet.
+
+    Returns:
+      The descriptor, the caller's to close.
+
+    Raises:
+      OSError: If it cannot be opened, a link on the way included.
+    """
+    parts = Path(real).parts
+    at = os.open(parts[0], os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for part in parts[1:-1]:
+            if making:
+                with contextlib.suppress(FileExistsError):
+                    os.mkdir(part, dir_fd=at)
+            inner = os.open(
+                part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=at
+            )
+            os.close(at)
+            at = inner
+        return os.open(parts[-1], flags | os.O_NOFOLLOW, 0o666, dir_fd=at)
+    finally:
+        os.close(at)
 
 
 class _Stopped(Exception):  # noqa: N818 -- not an error of ours: the agent went away
@@ -670,8 +731,14 @@ class AcpSession(SessionBase):
             part of the file rather than all of it.
         """
         path = str(params.get("path") or "")
+        if self._outside(path, write=False):
+            link.refuse(at, f"{path}: outside what this agent may read", _FAILED)
+            return
         try:
-            held = Path(path).read_text(encoding="utf-8")
+            with open(
+                _held(os.path.realpath(path), os.O_RDONLY), encoding="utf-8"
+            ) as reading:
+                held = reading.read()
         except (OSError, ValueError) as why:
             # A file that is not there, and one that is not text: this call is for text, and
             # what cannot be read is answered where it was asked rather than raised into the
@@ -697,9 +764,15 @@ class AcpSession(SessionBase):
           params: What it asked for: the path, and the whole of what is to be in it.
         """
         path = Path(str(params.get("path") or ""))
+        if self._outside(path, write=True):
+            link.refuse(at, f"{path}: outside what this agent may write", _FAILED)
+            return
         try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(str(params.get("content") or ""), encoding="utf-8")
+            flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+            with open(
+                _held(os.path.realpath(path), flags, making=True), "w", encoding="utf-8"
+            ) as writing:
+                writing.write(str(params.get("content") or ""))
         except OSError as why:
             link.refuse(at, f"{path}: {why}", _FAILED)
             return
@@ -761,16 +834,20 @@ class AcpSession(SessionBase):
         # a command run beside the agent is one run as the agent, which is what an account
         # signed in for these turns has to reach.
         environ = dict(self._environ() or os.environ)
+        asked: dict[str, str] = {}
         for one in cast("list[Any]", params.get("env") or []):
             if isinstance(one, dict):
                 held = cast("dict[str, Any]", one)
-                environ[str(held.get("name") or "")] = str(held.get("value") or "")
+                asked[str(held.get("name") or "")] = str(held.get("value") or "")
+        walled = self._walled(argv, asked)
+        if walled == argv:
+            environ |= asked
         # Nothing and nothing at all are the same answer: a client holding none of what a
         # command said is a client the agent asked for output it cannot use.
         limit = _counted(params.get("outputByteLimit")) or _OUTPUT
         try:
             proc = subprocess.Popen(
-                argv,
+                walled,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 # Together, because a terminal is one screen: a command's complaints belong
@@ -799,21 +876,137 @@ class AcpSession(SessionBase):
         with contextlib.suppress(_Stopped):
             link.reply(at, ended)
 
+    def _fence(self) -> Fence | None:
+        """The fence this agent is held to, as the files it names lie on disk.
+
+        Each path it grants with its links followed, because this client is not inside the
+        wall and follows them itself where it opens a file: a link in the workdir to a file
+        in the home is a file the fence keeps the agent from, and Landlock, holding the file
+        a path leads to rather than the path, would say so too.
+
+        Returns:
+          The fence, or None where there is none or it fences nothing.
+        """
+        fence = self._agent.fenced()
+        if fence is None or fence.open:
+            return None
+        from hmz.coganchor.fence import Fence
+
+        # With its scratch, which the wall lets be written beside the paths it names.
+        writes = (*fence.write, fence.tmp) if fence.tmp else fence.write
+        return Fence(
+            read=tuple(os.path.realpath(one) for one in fence.read),
+            write=tuple(os.path.realpath(one) for one in writes),
+        )
+
+    def _outside(self, path: str | os.PathLike[str], *, write: bool) -> bool:
+        """Whether the fence keeps the agent from a path this client was asked to touch.
+
+        Args:
+          path: The path, as the agent named it.
+          write: Whether it is to be changed as well as read.
+
+        Returns:
+          Whether it is out of reach, which is never for an agent held to no fence.
+        """
+        fence = self._fence()
+        return fence is not None and not fence.allows(
+            os.path.realpath(path), write=write
+        )
+
+    def _walled(self, argv: list[str], named: dict[str, str]) -> list[str]:
+        """A command this client runs for the agent, inside the fence the agent is in.
+
+        A terminal is this client's own process rather than the agent's, and so is outside
+        the wall :meth:`~hmz.coganchor.agents.base.AgentBase.spawned` put around the agent:
+        a command the agent could not run itself would otherwise be one it had this client
+        run for it. So it is put inside the same one -- with what the agent named for its
+        environment set by `env` inside the wall rather than on the wrapper outside it, since
+        a `PYTHONPATH` or an `LD_PRELOAD` the agent chose is code the wrapper would otherwise
+        run before the wall is up.
+
+        Args:
+          argv: The command, as the agent asked for it.
+          named: What the agent asked for it to be run with.
+
+        Returns:
+          The command to run: `argv` itself for an agent held to no fence.
+        """
+        fence = self._agent.fenced()
+        if fence is None:
+            return argv
+        rest = self._agent.natively(fence)
+        if rest.open:
+            return argv
+        from hmz.coganchor.fence import wrapper
+
+        setting = [
+            f"{one}={value}" for one, value in named.items() if one and "=" not in one
+        ]
+        return [
+            *wrapper(rest.granting(read=_programs(argv[0]))),
+            "env",
+            *setting,
+            *argv,
+        ]
+
+    def _reaches(self, params: dict[str, Any]) -> bool:
+        """Whether a tool call names a file the fence keeps the agent from.
+
+        Read off what the call says it touches -- its `locations`, and the path its raw input
+        names where it names one -- and only where that is an absolute path: a call that says
+        nothing, or says something relative, is left to the wall around the agent, which is
+        what holds it whatever this answers.
+
+        Args:
+          params: What was asked, which carries the tool call.
+
+        Returns:
+          Whether one of the files it names is out of reach.
+        """
+        call: object = params.get("toolCall")
+        if not isinstance(call, dict):
+            return False
+        told = cast("dict[str, Any]", call)
+        named = [
+            cast("dict[str, Any]", one).get("path")
+            for one in cast("list[Any]", told.get("locations") or [])
+            if isinstance(one, dict)
+        ]
+        raw: object = told.get("rawInput")
+        if isinstance(raw, dict):
+            named += [cast("dict[str, Any]", raw).get(key) for key in _NAMED]
+        write = told.get("kind") in _CHANGES
+        return any(
+            self._outside(one, write=write)
+            for one in named
+            if isinstance(one, str) and Path(one).is_absolute()
+        )
+
     def _permits(self, params: dict[str, Any]) -> dict[str, Any]:
         """Grants a tool call, by the kind of the option rather than by its name.
+
+        Refused instead where the call names a file the fence keeps the agent from: the wall
+        around the agent would stop it anyway, and saying no here is the agent told why
+        rather than left to read a permission error off its own tool.
 
         Args:
           params: What was asked, which carries the options the agent offers.
 
         Returns:
           The outcome to answer with, which is the chosen option or a refusal where the agent
-          offered nothing that would allow it.
+          offered nothing that would allow it or the call reaches past the fence.
         """
         offered = [
             cast("dict[str, Any]", one)
             for one in cast("list[Any]", params.get("options") or [])
             if isinstance(one, dict)
         ]
+        if self._reaches(params):
+            for one in offered:
+                if one.get("kind") in _REFUSES:
+                    return {"outcome": "selected", "optionId": str(one.get("optionId"))}
+            return {"outcome": "cancelled"}
         for kind in _GRANTS:
             for one in offered:
                 if one.get("kind") == kind:
@@ -1031,6 +1224,11 @@ class AcpAgentConfig(AgentConfig):
       mcp_servers: The MCP servers each conversation of this agent is opened with, on top of
         whatever the CLI is already configured with. Nothing at all by default, which is what
         a client hands over when it has none of its own to add.
+
+    What such a CLI needs under a flow's permission -- the hosts its model is at, the paths it
+    keeps its state at -- is not here but where it was added, beside its command
+    (:func:`hmz.coganchor.backends.declared`): it is a fact about the CLI installed on this
+    machine rather than about one agent made of it.
     """
 
     cli: str = ""
@@ -1118,3 +1316,54 @@ class AcpAgent(AgentBase):
     def new(self, cwd: str | os.PathLike[str] | None = None) -> AcpSession:
         """Opens a new conversation, in the directory it is given or in this one."""
         return AcpSession(self, cwd)
+
+    def fenced(self) -> Fence | None:
+        """The fence, with the state this CLI was declared to keep let be written.
+
+        Nothing else knows where an added CLI keeps its state -- the protocol does not say,
+        and it has no home humanize can find -- so it is what whoever added it wrote down,
+        and nothing where they wrote nothing: a CLI that then cannot write its state fails on
+        its own terms, which is narrower than guessing a directory for it.
+        """
+        fence = super().fenced()
+        if fence is None:
+            return None
+        from hmz.coganchor import backends
+
+        _, state = backends.declared(self.backend)
+        return fence.granting(
+            write=[os.path.expanduser(one) for one in state]  # noqa: PTH111
+        )
+
+    def _fences(self, config: AgentConfig) -> None:
+        """Refuses a fence as the base class does, and one that would cut this CLI's model.
+
+        A fence that grants no network lets through only the hosts the CLI cannot run
+        without, and of a CLI known only by the protocol it speaks nothing says which those
+        are unless whoever added it declared them. With none, the fence would let it reach
+        nothing -- a CLI that cannot reach its own model, which takes no turn at all -- so it is
+        refused where the agent is made, saying what to declare.
+
+        Args:
+          config: What the agent is to run at.
+
+        Raises:
+          Unfenced: If the base class refuses it, or if the network is cut and no host is
+            known for this CLI to reach.
+        """
+        super()._fences(config)
+        fence = config.fence
+        if fence is None or fence.online or fence.hosts:
+            return
+        from hmz.coganchor import backends
+
+        cli = getattr(config, "cli", "") or self.backend
+        if backends.declared(cli)[0]:
+            return
+        raise Unfenced(
+            f"{cli}: this permission cuts the network, and nothing says which hosts {cli}'s "
+            f"model is at to leave it; declare them where it was added, in "
+            f"{backends._spoken()}, as "  # noqa: SLF001 -- where it was added
+            f'"{cli}": {{"command": [...], "hosts": ["api.example.com"], '
+            f'"state": ["~/.{cli}"]}} -- or grant it online ALL'
+        )

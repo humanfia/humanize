@@ -1313,3 +1313,94 @@ def test_an_anchored_runtime_is_started_where_there_is_a_directory(
     assert Path(str(made.config["cwd"])) == (mirror / under).resolve()
     assert Path(str(made.config["runtime_cwd"])) == tmp_path
     assert not mirror.exists(), "the mirror is the anchor's to make"
+
+
+def _fenced(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, local: str) -> DshAgent:
+    """A dsh agent held to a fence, on a machine taken to be able to put one up."""
+    from hmz.coganchor.fence import READ, Fence
+
+    def able(*, net: bool) -> bool:
+        del net
+        return True
+
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", able)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    fence = replace(
+        Fence.of(
+            local=local,
+            user=READ,
+            system=READ,
+            online=False,
+            workdir=tmp_path / "work",
+            home=tmp_path / "home",
+        ),
+        tmp=str(tmp_path / "scratch"),
+    )
+    (tmp_path / "scratch").mkdir()
+    (tmp_path / "work").mkdir()
+    return DshAgent(replace(configured(), fence=fence))
+
+
+def test_a_fenced_runtime_is_spawned_inside_the_wrapper_with_its_files_in_reach(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The SDK launches what the driver hands it, and that is the wrapper around the runtime.
+
+    dsh enforces none of the fence itself, so all of it is put around the runtime -- and
+    what the driver writes for it goes where that fence lets it be read: the composition and
+    the runtime's unpacked native modules both into the fence's own scratch directory, since
+    the one is under the system's temporary directory and the other under a home the fence
+    keeps from being written.
+    """
+    from hmz.coganchor.fence import Fence
+
+    Harness.next_scripts.append([assistant("done"), completed()])
+    agent = _fenced(tmp_path, monkeypatch, local="all")
+
+    assert agent.natively(agent.fenced() or Fence()) == agent.fenced()
+    agent.new(tmp_path / "work")("work")
+
+    (made,) = Harness.made
+    launch = cast("tuple[str, ...]", made.config["launch_args_override"])
+    assert list(launch[:5]) == [sys.executable, "-m", "hmz", "internal", "fence"]
+    assert launch[launch.index("--") + 1 :] == ("/opt/dsh-runtime",)
+    policy = Fence.loads(launch[5].removeprefix("--policy="))
+    assert not policy.online
+    assert "api.deepseek.com" in policy.hosts
+    # The fence's `tmp`, which the wrapper grants whatever the scopes are.
+    assert policy.tmp == str(tmp_path / "scratch")
+    assert Path(str(made.config["cordis"])).is_relative_to(policy.tmp)
+    env = cast("dict[str, str]", made.config["env"])
+    assert env["PKG_NATIVE_CACHE_PATH"] == policy.tmp
+
+
+def test_an_unfenced_runtime_is_launched_as_the_sdk_would_launch_it() -> None:
+    Harness.next_scripts.append([assistant("done"), completed()])
+
+    DshAgent(configured()).new()("work")
+
+    (made,) = Harness.made
+    assert made.config["launch_args_override"] == ("/opt/dsh-runtime",)
+    assert "PKG_NATIVE_CACHE_PATH" not in cast("dict[str, str]", made.config["env"])
+
+
+def test_a_read_only_workdir_is_the_fences_to_hold_at_the_one_rung_dsh_takes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """local=read runs at `bypass`, and the workdir is left out of what may be written.
+
+    The rung is still the only one dsh takes -- its shell executor confines nothing -- and
+    what keeps the workdir read-only is the fence around the whole runtime, shell and all.
+    """
+    from hmz.coganchor.fence import Fence
+
+    Harness.next_scripts.append([assistant("done"), completed()])
+    agent = _fenced(tmp_path, monkeypatch, local="read")
+    assert agent.config.permission == "bypass"
+
+    agent.new(tmp_path / "work")("work")
+
+    launch = cast("tuple[str, ...]", Harness.made[0].config["launch_args_override"])
+    policy = Fence.loads(launch[5].removeprefix("--policy="))
+    assert policy.allows(tmp_path / "work" / "a.py")
+    assert not policy.allows(tmp_path / "work" / "a.py", write=True)

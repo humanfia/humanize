@@ -11,12 +11,12 @@ what `grok agent` carries of an agent is a short list: a model, an effort, an ap
 profile, a plugin directory and the leader, beside the debugging and the endpoints. It has no
 `--tools`, no `--disable-web-search`, no `--json-schema`, no `--sandbox`, no `--max-turns`, no
 `--no-subagents` and no `--rules` -- each of those seven refused outright, `error: unexpected
-argument` -- so a rung that takes tools away, an agent told not to search the web, a turn held
-to a shape and four of the five settings on `GrokBuildAgentConfig` are settings only `grok -p`
-carries. Those run the command they always did, resuming the same conversation with
-`--resume` -- the id is Grok Build's own either way, and each transport picks up what the
-other opened. Nothing is served looser for the transport's sake: what moves is which of the
-two a turn is taken on.
+argument` -- so a rung that takes tools away, an agent told not to search the web or fenced off
+the network, a turn held to a shape and four of the five settings on `GrokBuildAgentConfig` are
+settings only `grok -p` carries. Those run the command they always did, resuming the same
+conversation with `--resume` -- the id is Grok Build's own either way, and each transport picks
+up what the other opened. Nothing is served looser for the transport's sake: what moves is
+which of the two a turn is taken on.
 
 The prompt goes on the command line for that run because that is the only way in: Grok Build
 does not read a piped stdin as the prompt, and the two other ways it offers are a JSON literal
@@ -30,6 +30,32 @@ rather than a comfort. It stays on the command line because the alternative is a
 write, to keep for the length of the turn and to clear up after a turn that may have been cut
 off, and this transport has nowhere to hang that clearing up: a turn is `_turn` returning an
 argv and nothing runs after the process ends.
+
+A fence is held from outside, whole, and never by Grok Build's own sandbox -- which is the
+finding :meth:`GrokBuildAgent.natively` is left at its default for. The sandbox is real and
+reaches both transports: `GROK_SANDBOX` is read by `grok agent stdio` though `--sandbox` is
+refused there, and it confines the whole process with Landlock rather than its commands
+alone. But it cannot say a fence. Its network setting blocks the *commands'* network with
+seccomp and leaves the process's own untouched, `web_fetch` included, so a cut network is
+never Grok Build's to hold. What it is told instead, wherever a fence cuts the network, is
+`--disable-web-search`, whatever `web_search` says: its `web_search` may be xAI's own search,
+run at the model's host, which the fence's proxy lets through, and `web_fetch` would be one
+more thing refused by the proxy rather than never tried. `grok agent` refuses that flag, and
+has no other switch for it -- `GROK_DISABLE_WEB_FETCH` takes the fetch and leaves the search --
+so an offline conversation takes every turn with `grok -p`. Every profile it has -- the four
+built in, and a custom one, which only extends one of those -- lets `/tmp` and `/var/tmp` be
+written and the working directory too, so none is as narrow as a fence that grants neither. A
+custom profile is read only out of the person's `~/.grok/sandbox.toml` or a `.grok/sandbox.toml`
+in the directory worked in, which are theirs, not humanize's, to write. And on a machine whose
+kernel gives unprivileged users no user namespace, 1.0.24 does not start under any profile at
+all, built-ins included: `bwrap: setting up uid map: Permission denied`.
+
+What a fence does change here is the leader. Grok Build hands a conversation to a shared
+leader process where it is told to, and that process is whoever started it -- outside the
+fence, reached over a Unix socket the fence does not govern -- so a fenced conversation that
+joined it would run its tools unfenced. Grok Build's own sandbox refuses the leader for the
+same reason; a fenced conversation here is always started with `--no-leader`, and one told to
+join the leader is refused (:meth:`GrokBuildAgent._serves`).
 """
 
 # pyright: reportPrivateUsage=false
@@ -55,7 +81,7 @@ from .base import (
     StreamSessionBase,
     _ended,
 )
-from .config import UNSAID, AgentConfig
+from .config import UNSAID, AgentConfig, Unfenced
 from .event import Event, Failed, Saying, Unrecoverable, Usage
 from .hooks import EVERYWHERE, Moment
 
@@ -345,7 +371,8 @@ class GrokBuildSession(StreamSessionBase):
         on the process already up.
 
         Returns:
-          Whether the rung takes a tool away, the agent is told not to search the web, or any
+          Whether the rung takes a tool away, the agent is told not to search the web -- or
+          is fenced off the network, which says the same whatever it was told -- or any
           of the settings only the top-level command has been asked for -- a sandbox profile,
           a cap on the turns under this one, subagents switched off, rules to append. Every
           one of them is refused by `grok agent` with `error: unexpected argument`, and an
@@ -358,7 +385,7 @@ class GrokBuildSession(StreamSessionBase):
         # for a flag it was never going to write.
         return bool(
             config.permission not in _HELD_OPEN
-            or config.web_search is False
+            or not _searches(config)
             or _extras(config)
         )
 
@@ -409,7 +436,7 @@ class GrokBuildSession(StreamSessionBase):
             # is better off saying nothing than saying "".
             *(["--effort", self.effort] if self.effort else []),
             *_PERMITTED[self._agent.config.permission],
-            *_LEADING.get(getattr(self._agent.config, "leader", False), ()),
+            *_LEADING.get(_leads(self._agent), ()),
             "stdio",
         ]
 
@@ -780,7 +807,7 @@ class GrokBuildSession(StreamSessionBase):
         # False` rather than `not`, since None is the agent nobody was asked about and `not
         # None` is true: an agent nothing was said about would otherwise be told not to search
         # the web, which is humanize settling the one thing it was meant to leave alone.
-        if config.web_search is False and _NO_WEB not in argv:
+        if not _searches(config) and _NO_WEB not in argv:
             argv.append(_NO_WEB)
         argv += _extras(config)
         if (schema := self._shaping) is not None:
@@ -1043,6 +1070,59 @@ def _called(said: dict[str, Any]) -> str:
     return f"{named} {about}".strip()[:120]
 
 
+def _fenced(agent: AgentBase, config: AgentConfig) -> bool:
+    """Whether an agent at this config is put inside ``hmz internal fence`` as it is spawned.
+
+    Args:
+      agent: The agent, which says what of a fence its CLI holds itself.
+      config: What it is to run at.
+
+    Returns:
+      Whether there is a fence and something of it is left for the wrapper to hold.
+    """
+    return config.fence is not None and not agent.natively(config.fence).open
+
+
+def _searches(config: AgentConfig) -> bool:
+    """Whether a turn at this config is let keep its web tools, rather than told to drop them.
+
+    Not where the agent was told not to search -- `is False` rather than `not`, the web being
+    three answers and None the agent nobody was asked about, which is said with no flag at all
+    -- and not where the fence it was given cuts the network, whatever `web_search` says. Its
+    `web_search` may be xAI's own search, run at the model's host rather than from this
+    machine, which is a host the fence leaves open: the proxy would let the search through, so
+    the tool is taken away instead. Asked of the fence as it was written, before the hosts the
+    CLI needs are let through, since those are exactly where such a search would go.
+
+    Args:
+      config: What the agent is to run at.
+
+    Returns:
+      Whether nothing says to disable its web tools.
+    """
+    offline = config.fence is not None and not config.fence.online
+    return config.web_search is not False and not offline
+
+
+def _leads(agent: AgentBase) -> bool | None:
+    """What the held-open process is told about the leader.
+
+    What the agent was set up with, except that a fenced one is never left to the person's
+    `[cli] use_leader`: a leader is a process started outside the fence, and a conversation
+    that joined it would run its tools there. One set up to join it outright never gets this
+    far, :meth:`GrokBuildAgent._serves` having refused it.
+
+    Args:
+      agent: The agent whose conversation this is.
+
+    Returns:
+      The key into :data:`_LEADING`.
+    """
+    config = agent.config
+    leader: bool | None = getattr(config, "leader", False)
+    return False if _fenced(agent, config) else leader
+
+
 def _extras(config: AgentConfig) -> list[str]:
     """What this agent was set up with that only the top-level command line carries.
 
@@ -1153,6 +1233,29 @@ class GrokBuildAgent(AgentBase):
     #: `grok -p` run having no client to ask; a rung that falls to the command line is a rung
     #: `--always-approve` already settled, so there is nothing there to be asked about.
     moments: ClassVar[frozenset[Moment]] = EVERYWHERE | {Moment.PERMISSION_REQUEST}
+
+    def _serves(self, config: AgentConfig) -> None:
+        """Refuses what the base class refuses, and a fenced agent set up to join the leader.
+
+        The leader is one backend process shared by every client that joins it, started by
+        whichever came first and reached over a Unix socket, which the fence does not govern.
+        A conversation that joined it would be a fenced client handing its tools to a process
+        outside the fence. Left unsaid, the question is answered `--no-leader` for a fenced
+        agent (:func:`_leads`); said outright, it is refused rather than overruled.
+
+        Args:
+          config: What the agent is to run at.
+
+        Raises:
+          Unserved: For whatever the base class refuses.
+          Unfenced: If the agent is fenced and set up to join the leader.
+        """
+        super()._serves(config)
+        if getattr(config, "leader", False) is True and _fenced(self, config):
+            raise Unfenced(
+                f"{type(self).__name__}: a fenced conversation cannot join the leader, "
+                "which runs its tools outside the fence; set leader to False or None"
+            )
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> GrokBuildSession:
         """Opens a new Grok Build session, in the directory it is given or in this one."""

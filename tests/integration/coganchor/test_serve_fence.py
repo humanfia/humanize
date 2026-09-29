@@ -145,6 +145,7 @@ def test_a_target_that_cannot_fence_refuses_the_command(
     link: Link, log: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     ran = link.target / "ran"
+
     def only_the_filesystem(*, net: bool) -> bool:
         return not net
 

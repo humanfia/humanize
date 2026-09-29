@@ -71,7 +71,8 @@ PROFILES: tuple[AgentProfile, ...] = (
     ),
     # opencode and mimocode are one program under two names, and each keeps its install, its
     # settings, its cached model catalogue and the database its sessions are rows of in four
-    # directories of its own.
+    # directories of its own -- and the locks it takes around refreshing that catalogue in a
+    # fifth.
     AgentProfile(
         name="opencode",
         state_paths=(
@@ -79,6 +80,7 @@ PROFILES: tuple[AgentProfile, ...] = (
             "~/.config/opencode",
             "~/.local/share/opencode",
             "~/.cache/opencode",
+            "~/.local/state/opencode",
         ),
     ),
     AgentProfile(
@@ -88,6 +90,7 @@ PROFILES: tuple[AgentProfile, ...] = (
             "~/.config/mimocode",
             "~/.local/share/mimocode",
             "~/.cache/mimocode",
+            "~/.local/state/mimocode",
         ),
     ),
     # One directory, holding both halves of ZCode: `cli/` is the command line's own settings,

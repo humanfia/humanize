@@ -46,3 +46,13 @@ def _fences_with_a_stand_in(monkeypatch: pytest.MonkeyPatch) -> None:
     runs it unfenced; `tests/system/coganchor/test_fence.py` is where the wall goes up.
     """
     fencing.standing_in(monkeypatch)
+
+
+@pytest.fixture(autouse=True)
+def _asks_codex_nothing_of_its_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Takes bubblewrap to start, rather than asking whatever `codex` is on `PATH`.
+
+    The answer is cached for the process, so a probe that ran here would pin every later
+    test's command line to this machine's kernel and to whichever test asked first.
+    """
+    monkeypatch.setattr("hmz.coganchor.agents.codex._landlocked", lambda: False)

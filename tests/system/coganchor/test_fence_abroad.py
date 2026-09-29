@@ -3,12 +3,14 @@
 Each test runs `sh` as the agent under a real supervisor, with its commands run on a real
 target -- a stand-in directory on this machine, an sshd in a container reached by a real
 `ssh`, a container reached through docker -- and asks each of them for what a flow's default
-permission with the network cut forbids: to write the target's `$HOME`, and to reach a host.
+permission forbids, to write the target's `$HOME`, and with the network cut, to reach a host.
 What the agent's own shell does (a redirect is a builtin, and runs here) is walled in by this
 machine's Landlock; what it runs (`touch`, `python3`) is walled in by the target's.
 
 A target that cannot fence is refused: a container whose seccomp profile turns Landlock away
-says so at the handshake, and a fenced session there runs nothing.
+says so at the handshake, and a fenced session there runs nothing. So is a cut network in a
+container under docker's default profile, which lets Landlock through but not the seccomp
+listener and `pidfd_getfd` that cutting the network also takes.
 """
 
 from __future__ import annotations
@@ -60,7 +62,10 @@ PROBE = (
 )
 
 #: And what the agent's own shell is asked, which is this machine's to refuse.
-HERE = 'echo here > "$HOME/hmz-fence-local" 2>/dev/null && echo LOCAL-WRITTEN || echo LOCAL-REFUSED\n'
+HERE = (
+    'echo here > "$HOME/hmz-fence-local" 2>/dev/null'
+    " && echo LOCAL-WRITTEN || echo LOCAL-REFUSED\n"
+)
 
 
 def _default(*, online: bool = False) -> Fence:
@@ -137,8 +142,10 @@ def test_a_stand_in_target_holds_the_agents_commands_to_the_default(
 def test_a_stand_in_target_granted_more_lets_the_agent_have_it(
     anchorage: Anchorage, home: Path, echo_server: tuple[str, int]
 ) -> None:
-    """The same probe, at a permission that grants the home and the network: nothing refused
-    but the system, which proves the refusals above are the fence's and not the probe's."""
+    """The same probe, granted the home and the network: nothing refused but the system.
+
+    Which proves the refusals above are the fence's and not the probe's.
+    """
     host, port = echo_server
     ran = anchorage.run(
         "/bin/sh", "-c", HERE + PROBE.format(host=host, port=port), fence=_everything()
@@ -181,23 +188,31 @@ def test_a_native_cli_is_walled_in_on_the_target(
 def test_a_command_on_another_machine_over_ssh_is_held_there(
     ssh_box: Box, tmp_path: Path, echo_server: tuple[str, int]
 ) -> None:
+    """At the default permission the host's home is read-only to what the agent runs there.
+
+    The host is a container under docker's default seccomp profile, which holds a fence but
+    not one that cuts the network (see `test_a_default_container_refuses_a_cut_network`), so
+    the network is left as the default leaves it.
+    """
     host, port = echo_server
     there = tmp_path / "box"
     ssh_box.run(f"mkdir -p {there} && rm -f /root/hmz-fence-probe")
     config = AnchorConfig(
-        target=f"ssh://{ssh_box.alias}", workspace=str(there), fence=_default()
+        target=f"ssh://{ssh_box.alias}",
+        workspace=str(there),
+        fence=_default(online=True),
     )
 
     ran = _turn(config, PROBE.format(host=host, port=port))
 
     said = _said(ran)
-    assert {"WORKDIR-WRITTEN", "HOME-REFUSED", "NET-REFUSED", "WEB-REFUSED"} <= said, (
+    assert {"WORKDIR-WRITTEN", "HOME-REFUSED", "NET-REACHED"} <= said, (
         ran.stdout + ran.stderr
     )
     assert ssh_box.run(f"cat {there}/made.txt").strip() == "in"
     assert ssh_box.run("ls /root/hmz-fence-probe 2>/dev/null || true").strip() == ""
 
-    # And the same host, granted the home and the network, lets the same commands have both.
+    # And the same host, granted the home, lets the same commands have it.
     config = AnchorConfig(
         target=f"ssh://{ssh_box.alias}", workspace=str(there), fence=_everything()
     )
@@ -245,6 +260,14 @@ def box(daemon: None, tmp_path: Path) -> Iterator[str]:
 
 
 @pytest.fixture
+def unconfined(daemon: None, tmp_path: Path) -> Iterator[str]:
+    """A container with no seccomp profile, which can cut the network as this machine can."""
+    del daemon
+    (tmp_path / "work").mkdir()
+    yield from _container(tmp_path / "work", "--security-opt", "seccomp=unconfined")
+
+
+@pytest.fixture
 def unlandlocked(daemon: None, tmp_path: Path) -> Iterator[str]:
     """A container whose seccomp profile turns every Landlock call away, as a strict one may."""
     del daemon
@@ -271,30 +294,78 @@ def unlandlocked(daemon: None, tmp_path: Path) -> Iterator[str]:
     yield from _container(tmp_path / "work", "--security-opt", f"seccomp={profile}")
 
 
+def _in(container: str, tmp_path: Path, fence: Fence) -> AnchorConfig:
+    return AnchorConfig(
+        target=f"docker://{container}",
+        workspace=str(tmp_path / "work"),
+        shadow=str(tmp_path / "mirror"),
+        fence=fence,
+    )
+
+
+def _homed(container: str) -> bool:
+    """Whether the probe was written into the container's own home."""
+    return (
+        subprocess.run(
+            ["docker", "exec", container, "sh", "-c", 'ls "$HOME/hmz-fence-probe"'],
+            capture_output=True,
+            check=False,
+        ).returncode
+        == 0
+    )
+
+
 def test_a_command_in_a_container_is_held_there(
     box: str, tmp_path: Path, echo_server: tuple[str, int]
 ) -> None:
+    """The default permission, which leaves the network on, in a container as docker runs one."""
     host, port = echo_server
-    config = AnchorConfig(
-        target=f"docker://{box}",
-        workspace=str(tmp_path / "work"),
-        shadow=str(tmp_path / "mirror"),
-        fence=_default(),
+
+    ran = _turn(
+        _in(box, tmp_path, _default(online=True)), PROBE.format(host=host, port=port)
     )
 
-    ran = _turn(config, PROBE.format(host=host, port=port))
+    said = _said(ran)
+    assert {"WORKDIR-WRITTEN", "HOME-REFUSED", "NET-REACHED"} <= said, (
+        ran.stdout + ran.stderr
+    )
+    assert (tmp_path / "work" / "made.txt").read_text() == "in\n"
+    assert not _homed(box), "the container's home was written"
+
+
+def test_a_cut_network_is_cut_in_a_container_that_can_cut_it(
+    unconfined: str, tmp_path: Path, echo_server: tuple[str, int]
+) -> None:
+    host, port = echo_server
+
+    ran = _turn(
+        _in(unconfined, tmp_path, _default()), PROBE.format(host=host, port=port)
+    )
 
     said = _said(ran)
     assert {"WORKDIR-WRITTEN", "HOME-REFUSED", "NET-REFUSED", "WEB-REFUSED"} <= said, (
         ran.stdout + ran.stderr
     )
-    assert (tmp_path / "work" / "made.txt").read_text() == "in\n"
-    probe = subprocess.run(
-        ["docker", "exec", box, "sh", "-c", 'ls "$HOME/hmz-fence-probe"'],
-        capture_output=True,
-        check=False,
-    )
-    assert probe.returncode != 0, "the container's home was written"
+    assert not _homed(unconfined), "the container's home was written"
+
+
+def test_a_default_container_refuses_a_cut_network(box: str, tmp_path: Path) -> None:
+    """A container under docker's default seccomp profile cannot cut the network.
+
+    The profile lets Landlock through, and not what cutting the network also takes: the
+    handshake says so, and a session that asks runs nothing.
+    """
+    config = _in(box, tmp_path, _default())
+    said = check(config)
+    assert hello_fences(said, net=False)
+    assert not hello_fences(said, net=True)
+
+    ran = _turn(config, "touch made.txt; echo RAN")
+
+    assert ran.returncode != 0
+    assert "RAN" not in ran.stdout
+    assert "cannot fence" in ran.stderr, ran.stderr
+    assert not (tmp_path / "work" / "made.txt").exists()
 
 
 def test_a_container_that_cannot_fence_refuses_the_session(

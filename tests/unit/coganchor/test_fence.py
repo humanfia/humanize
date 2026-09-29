@@ -12,6 +12,7 @@ from __future__ import annotations
 import dataclasses
 import itertools
 import os
+import socket
 import sys
 from pathlib import Path
 
@@ -152,7 +153,7 @@ def test_a_fence_survives_being_written_down() -> None:
         home=HOME,
         hosts=["api.anthropic.com", "*.example.com", "gw.example:8443"],
     )
-    fence = dataclasses.replace(fence, tmp="/tmp/scratch")
+    fence = dataclasses.replace(fence, tmp="/tmp/scratch", listen=(41234,))
     assert Fence.loads(fence.dumps()) == fence
 
 
@@ -164,6 +165,9 @@ def test_a_fence_survives_being_written_down() -> None:
         '{"read": [1]}',
         '{"online": "no"}',
         '{"tmp": 3}',
+        '{"listen": ["80"]}',
+        '{"listen": [true]}',
+        '{"listen": 80}',
         '{"elsewhere": []}',
         "not json",
     ],
@@ -171,6 +175,81 @@ def test_a_fence_survives_being_written_down() -> None:
 def test_what_is_not_a_fence_is_refused(said: str) -> None:
     with pytest.raises(ValueError):  # noqa: PT011 -- json's own error is one too
         Fence.loads(said)
+
+
+def test_granting_a_port_to_listen_on_only_widens() -> None:
+    fence = _of(ALL, READ, NONE, online=False).granting(listen=[41234])
+    assert fence.granting(listen=[41234, 41235]).listen == (41234, 41235)
+
+
+class _Exec(BaseException):
+    pass
+
+
+class _Libc:
+    def prctl(self, *_: object) -> int:
+        return 0
+
+
+@pytest.mark.parametrize(("online", "bound"), [(False, (0, 41234)), (True, ())])
+def test_the_wrapper_binds_only_the_ports_it_is_told_and_only_offline(
+    monkeypatch: pytest.MonkeyPatch, online: bool, bound: tuple[int, ...]
+) -> None:
+    from hmz.coganchor.fence import wrap
+    from hmz.coganchor.linux import seccomp
+
+    made: list[landlock.Ruleset] = []
+
+    def restricted(ruleset: landlock.Ruleset) -> None:
+        made.append(ruleset)
+
+    def became(*_: object) -> None:
+        pass
+
+    def exited(code: int) -> None:
+        raise _Exec(code)
+
+    monkeypatch.setattr(landlock.Ruleset, "restrict_self", restricted)
+    monkeypatch.setattr(seccomp, "install_socket_filter", lambda: None)
+    monkeypatch.setattr(os, "getppid", lambda: 1)
+    monkeypatch.setattr(os, "execvpe", became)
+
+    monkeypatch.setattr(os, "_exit", exited)
+    handed: list[tuple[object, list[int]]] = []
+    closed: list[int] = []
+    monkeypatch.setattr(seccomp, "install_listener", lambda: 97)
+
+    def sent(to: object, _: object, fds: list[int]) -> None:
+        handed.append((to, list(fds)))
+
+    monkeypatch.setattr(socket, "send_fds", sent)
+    monkeypatch.setattr(os, "close", closed.append)
+    fence = dataclasses.replace(_of(ALL, READ, NONE, online=online), listen=(41234,))
+    handoff = _Handoff()
+    with pytest.raises(_Exec):
+        wrap._become(
+            fence,
+            ["kimi"],
+            {},
+            "/tmp/scratch",
+            (None, None) if online else (5555, handoff),  # pyright: ignore[reportArgumentType]
+            (1, _Libc()),  # pyright: ignore[reportArgumentType]
+        )
+    (ruleset,) = made
+    assert tuple(ruleset.bind_ports) == bound
+    assert tuple(ruleset.connect_ports) == (() if online else (5555,))
+    # Offline, the listener is handed up to the wrapper and let go of before the program
+    # runs, so that nothing inside holds it to answer its own calls.
+    assert handed == ([] if online else [(handoff, [97])])
+    assert closed == ([] if online else [97])
+    assert handoff.closed is not online
+
+
+class _Handoff:
+    closed = False
+
+    def close(self) -> None:
+        self.closed = True
 
 
 def test_the_wrapper_is_humanize_itself_with_the_policy_on_the_line() -> None:
@@ -403,3 +482,24 @@ def test_the_program_the_cli_is_is_read_with_its_install_tree(tmp_path: Path) ->
     assert str(script) in held
     assert os.sep not in held
     assert str(Path.home()) not in held
+
+
+@pytest.mark.parametrize(
+    ("path", "directory"),
+    [
+        ("/home/me/.claude", True),
+        ("/home/me/.local/share/claude", True),
+        ("/home/me/.cache/tool-1.2", True),
+        ("/home/me/.config/vendor.name", True),
+        ("/home/me/.claude.json", False),
+        ("/home/me/.config/cursor/auth.json", False),
+        ("/home/me/.kimi/credentials.toml", False),
+        ("/home/me/.pi/auth.lock", False),
+    ],
+)
+def test_a_state_path_not_there_yet_is_a_directory_unless_named_like_a_file(
+    path: str, directory: bool
+) -> None:
+    from hmz.coganchor.agents.base import _directory
+
+    assert _directory(path) is directory

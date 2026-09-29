@@ -48,6 +48,7 @@ __all__ = [
     "Sign",
     "Way",
     "alike",
+    "declared",
     "elsewhere",
     "forget",
     "installing",
@@ -1132,15 +1133,21 @@ PROFILES = (
         name="agy",
         # Its log is every request going to `daily-cloudcode-pa`, the binary names the plain
         # one beside it, the sign-in is refreshed at `oauth2` and read back at `www`'s
-        # userinfo, and the key way talks to the Gemini API. The feature-flag host it also
-        # names is left out: nothing it does fails without it.
+        # userinfo, and the key way talks to the Gemini API. Its eligibility check fetches the
+        # account's profile picture from `lh3` and refuses to start a turn when it cannot
+        # (agy 1.2.12). The feature-flag host it also names is left out: nothing it does fails
+        # without it.
         hosts=(
             "cloudcode-pa.googleapis.com",
             "daily-cloudcode-pa.googleapis.com",
             "oauth2.googleapis.com",
             "www.googleapis.com",
             "generativelanguage.googleapis.com",
+            "lh3.googleusercontent.com",
         ),
+        # Told by the agent a turn is started as, which is one of humanize's without the web's
+        # two tools where it may not search: agy has no flag or setting that takes one away.
+        searches=True,
         aliases=("agy", "antigravity"),
         # `--conversation` picks one back up and that is the whole of what it offers: there
         # is no flag that says carry this one into another. Still true of agy 1.2.2, checked
@@ -1250,10 +1257,9 @@ PROFILES = (
         # at `auth.openai.com/oauth/token`; a key's go to the API.
         hosts=("chatgpt.com", "auth.openai.com", "api.openai.com"),
         installs="npm i -g @openai/codex",
-        # `tools.web_search` is a setting of the app server, and is sent in both
-        # directions: Codex searches nothing until it is asked to. Still that key on
-        # codex-cli 0.153.4, which `--strict-config` is what says: a key it has stopped
-        # knowing is answered `unknown configuration field` rather than passed over.
+        # `web_search` is a setting of the app server, `disabled` or `live`, and is sent in
+        # both directions: a bare codex-cli 0.153.4 searches its cached index, and the older
+        # `tools.web_search=false` it still takes does not stop it.
         searches=True,
         # And that app server is one per agent, not one per conversation: every thread of it
         # goes down together, which is what a watchdog has to say before it puts one down.
@@ -2225,8 +2231,12 @@ PROFILES = (
         config=("cursor/skills/*/SKILL.md",),
         works=(".cursor/skills/*/SKILL.md",),
         mounts=".cursor/skills",
-        # What a login leaves behind, beside the settings it keeps in the same directory.
-        creds=("cli-config.json", "auth.json"),
+        # What a login leaves behind: the account it shows, in the settings file, and the
+        # tokens, which are not under its home at all. `cursor-agent` puts `auth.json` under
+        # the directory every program keeps its configuration in on Linux, and under
+        # `~/.cursor` on macOS whatever `CURSOR_CONFIG_DIR` says -- both spelled here, since
+        # a path nobody reads on this machine costs nothing to point somewhere else.
+        creds=("cli-config.json", "config/cursor/auth.json", "~/.cursor/auth.json"),
         # `CURSOR_LOCAL_AGENT_API_KEY` because the key its own local runtime is served under
         # is still a key, read whoever exported it: one left in a shell profile is the account
         # a turn under a provider would be answered as. Its endpoint and its authless switch
@@ -2267,6 +2277,12 @@ PROFILES = (
 #: Where the CLIs somebody added themselves are written down, under humanize's own home. A
 #: file rather than a setting of one workspace: a CLI is installed on a machine, and a flow
 #: run in the next directory along is run against the same one.
+#:
+#: One entry per CLI, by name: the command that starts it, as a list -- or, for a CLI to be
+#: held to a flow's permission, an object whose `command` is that list, whose `hosts` are
+#: what it cannot take a turn without reaching while the flow grants no network, and whose
+#: `state` is where it keeps what it writes as it runs. The protocol says neither, so they are
+#: the person's to write down; see :func:`declared`.
 _SPOKEN = "acp.json"
 
 
@@ -2284,6 +2300,15 @@ def _spoken() -> Path:
 #: what `remember` and `forget` do -- the only two things that write it.
 _added: dict[str, tuple[str, ...]] | None = None
 _added_at: tuple[int, int] | None = None
+#: What each of those was declared to reach and to keep, read in the same pass.
+_declared: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {}
+
+
+def _strings(said: object) -> tuple[str, ...]:
+    """A list of strings out of a file, and nothing for anything that is not one."""
+    if not isinstance(said, list):
+        return ()
+    return tuple(str(one) for one in cast("list[object]", said) if str(one).strip())
 
 
 def speaking() -> dict[str, tuple[str, ...]]:
@@ -2296,34 +2321,83 @@ def speaking() -> dict[str, tuple[str, ...]]:
     """
     import json
 
-    global _added, _added_at
+    global _added, _added_at, _declared
     at = _spoken()
     try:
         moved = at.stat()
         stamp = (moved.st_mtime_ns, moved.st_size)
     except OSError:
         # No file is an answer, and a cheap one: nothing has been added.
-        _added, _added_at = {}, None
+        _added, _added_at, _declared = {}, None, {}
         return {}
     if _added is not None and stamp == _added_at:
         return _added
     try:
         held = json.loads(at.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        _added, _added_at = {}, stamp
+        _added, _added_at, _declared = {}, stamp, {}
         return {}
     if not isinstance(held, dict):
-        _added, _added_at = {}, stamp
+        _added, _added_at, _declared = {}, stamp, {}
         return {}
     found: dict[str, tuple[str, ...]] = {}
-    for name, argv in cast("dict[str, object]", held).items():
+    declared: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {}
+    for name, entry in cast("dict[str, object]", held).items():
+        said = (
+            cast("dict[str, object]", entry)
+            if isinstance(entry, dict)
+            else {"command": entry}
+        )
+        argv = said.get("command")
         if not isinstance(argv, list):
             continue
         given = tuple(str(one) for one in cast("list[object]", argv))
         if given:
             found[name] = given
-    _added, _added_at = found, stamp
+            declared[name] = (_strings(said.get("hosts")), _strings(said.get("state")))
+    _added, _added_at, _declared = found, stamp, declared
     return found
+
+
+def declared(name: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """What an added CLI was declared to need under a flow's permission.
+
+    A CLI known only by the protocol it speaks is one nothing here knows the model API or the
+    state directory of, and a flow that grants it no network or no home to write would
+    otherwise leave it no way to take a turn. So both are written down beside its command,
+    by whoever added it.
+
+    Args:
+      name: What it was added under.
+
+    Returns:
+      The hosts it may still reach while the network is cut -- each as
+      :attr:`Profile.hosts` spells one -- and the paths it keeps its state at, as written,
+      `~` and all. Nothing for either where nothing was declared.
+    """
+    speaking()
+    return _declared.get(name, ((), ()))
+
+
+def _write(held: Mapping[str, Sequence[str]]) -> None:
+    """Writes the added CLIs down, keeping what each was declared to need."""
+    import json
+
+    entries: dict[str, object] = {}
+    for one, argv in held.items():
+        hosts, state = declared(one)
+        entries[one] = (
+            {"command": list(argv), "hosts": list(hosts), "state": list(state)}
+            if hosts or state
+            else list(argv)
+        )
+    at = _spoken()
+    at.parent.mkdir(parents=True, exist_ok=True)
+    # Whole and then moved into place, so that a list read while it is being written is
+    # either the old one or the new one and never half of each.
+    beside = at.parent / f".{at.name}.new"
+    beside.write_text(json.dumps(entries, indent=2) + "\n", encoding="utf-8")
+    beside.replace(at)
 
 
 def remember(name: str, command: Sequence[str]) -> str:
@@ -2352,8 +2426,6 @@ def remember(name: str, command: Sequence[str]) -> str:
         it would shadow a backend humanize already drives -- two backends answering to one
         name is a name nobody can resolve.
     """
-    import json
-
     named_as = name.strip()
     argv = [str(one) for one in command if str(one).strip()]
     if not argv:
@@ -2372,18 +2444,9 @@ def remember(name: str, command: Sequence[str]) -> str:
             f"an added CLI is called what it runs, so {argv[0]} is added as {runs} "
             f"rather than as {named_as}"
         )
-    held = speaking()
+    held = dict(speaking())
     held[named_as] = tuple(argv)
-    at = _spoken()
-    at.parent.mkdir(parents=True, exist_ok=True)
-    # Whole and then moved into place, so that a list read while it is being written is
-    # either the old one or the new one and never half of each.
-    beside = at.parent / f".{at.name}.new"
-    beside.write_text(
-        json.dumps({one: list(argv) for one, argv in held.items()}, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    beside.replace(at)
+    _write(held)
     return named_as
 
 
@@ -2396,17 +2459,11 @@ def forget(name: str) -> bool:
     Returns:
       Whether there was one to take away.
     """
-    import json
-
-    held = speaking()
+    held = dict(speaking())
     if name not in held:
         return False
     del held[name]
-    at = _spoken()
-    at.write_text(
-        json.dumps({one: list(argv) for one, argv in held.items()}, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    _write(held)
     return True
 
 
@@ -2476,6 +2533,9 @@ def _speaks(name: str) -> Profile:
         # it is asked rather than here -- which is still a refusal, and still not two flows
         # sharing one conversation.
         forks=True,
+        # Whatever whoever added it declared it cannot take a turn without reaching, which
+        # is all that can be known of its model API: see :func:`declared`.
+        hosts=declared(name)[0],
     )
 
 

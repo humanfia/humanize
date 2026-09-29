@@ -24,7 +24,9 @@ from hmz import home
 from hmz.coganchor.agents import Failed, QwenCodeAgent, QwenCodeAgentConfig
 from hmz.coganchor.agents import qwen as backend
 from hmz.coganchor.agents.skills import Loaded
+from hmz.coganchor.fence import ALL, NONE, READ, Fence
 from hmz.coganchor.machines import AnchoredConfig
+from tests import fencing
 from tests.agents import standins
 from tests.stubs import HereAnchor
 
@@ -61,7 +63,8 @@ def turn(prompt):
         log.write(json.dumps({"pid": os.getpid(), "argv": sys.argv[1:],
           "prompt": prompt, "effort": settings["model"]["reasoningEffort"],
           "session": ident, "skills": skills, "defaults": defaults,
-          "compiled": os.environ.get("NODE_COMPILE_CACHE")}) + "\n")
+          "compiled": os.environ.get("NODE_COMPILE_CACHE"), "settings": str(system),
+          "denied": settings.get("permissions", {}).get("deny")}) + "\n")
     emit({"type": "system", "subtype": "init"})
     ledger = pathlib.Path(LOG).with_name(ident + ".usage.json")
     previous = json.loads(ledger.read_text()) if ledger.exists() else {}
@@ -658,3 +661,64 @@ def test_words_arrive_as_they_are_written_only_for_an_agent_that_asked(
     assert [one.kind for one in told] == ["text", "result"]
     assert [one.text for one in told if one.kind == "text"] == ["loud-one"]
     streaming.stop()
+
+
+# --------------------------------------------------------------------------------- the fence
+
+
+def test_a_fenced_turn_can_read_its_settings_and_not_change_them(
+    qwen: _Qwen, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Under `system=none` the settings file is granted to read, and to read only.
+
+    It is in the system's temporary directory, which such a fence keeps the CLI from; and it
+    holds the hook table, which an agent that could write it could take out of its own way.
+    """
+    log = tmp_path / "fences.log"
+    monkeypatch.setenv(fencing.LOG, str(log))
+    fence = Fence.of(
+        local=ALL,
+        user=READ,
+        system=NONE,
+        online=False,
+        workdir=tmp_path,
+        home=tmp_path / "home",
+    )
+    fenced = QwenCodeAgent(
+        QwenCodeAgentConfig(model="test-model", effort="low", fence=fence)
+    )
+    fenced.new()("first")
+
+    (call,) = qwen.calls()
+    (policy,) = fencing.policies(log)
+    held = Fence.loads(json.dumps(policy))
+    assert held.allows(call["settings"])
+    assert not held.allows(call["settings"], write=True)
+    # Nothing of the fence is said as a rule: Qwen matches one against a command line whole.
+    assert call["denied"] is None
+    fenced.stop()
+
+
+def test_a_cut_network_takes_the_web_tools_off_whatever_web_search_says(
+    qwen: _Qwen, tmp_path: Path
+) -> None:
+    """`web_search` is a search DashScope runs, on the host a cut network still reaches."""
+    fence = Fence.of(
+        local=ALL,
+        user=READ,
+        system=READ,
+        online=False,
+        workdir=tmp_path,
+        home=tmp_path / "home",
+    )
+    fenced = QwenCodeAgent(
+        QwenCodeAgentConfig(
+            model="test-model", effort="low", fence=fence, web_search=True
+        )
+    )
+    fenced.new()("first")
+
+    (call,) = qwen.calls()
+    argv = call["argv"]
+    assert argv[argv.index("--exclude-tools") + 1] == "web_search,web_fetch"
+    fenced.stop()

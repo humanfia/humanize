@@ -446,12 +446,14 @@ is a real fence: the CLI writes the workdir and the minimum, and reads everythin
 
 A CLI that can enforce part of the fence itself is told to. humanize enforces the rest from
 outside with `hmz internal fence`, which uses Landlock for paths and TCP, a seccomp filter that
-refuses every other kind of socket, and a proxy on loopback that passes only the listed hosts.
+refuses every other kind of socket, another that lets a socket listen on loopback only, and a
+proxy on loopback that passes only the listed hosts.
 humanize never runs a session wider than its permission. If neither the CLI nor this machine
 can hold the fence, the session is refused with `HarnessSandboxed` when it opens. That happens
-with no Landlock (macOS, or a Linux kernel older than 5.13), or with a kernel older than 6.7
-when `online` is `NONE`. Only `local`, `user` and `system` all `ALL` with `online` `ALL`
-fences nothing.
+with no Landlock (macOS, or a Linux kernel older than 5.13), with a kernel older than 6.7 when
+`online` is `NONE`, or with `online` `NONE` where the wrapper may not reach into the processes
+it starts (a container's default seccomp profile, Yama `ptrace_scope` 2 or 3). Only `local`,
+`user` and `system` all `ALL` with `online` `ALL` fences nothing.
 
 When the work lands on another machine (a docker or ssh environment), the fence is held on
 both machines, each around its own paths. The CLI still runs here, walled in by this machine's
@@ -459,31 +461,41 @@ Landlock, with the environment's mirror as its workdir. Every command it runs la
 target, which runs it under `hmz internal fence` too: the target draws the same fence again,
 from the same four scopes, around its own workdir, its own `$HOME` and its own minimum. With
 `online` `NONE`, a command on the target reaches no host at all; only the CLI here reaches its
-model. If the target cannot hold the fence (no Landlock there, including a container whose
-seccomp profile refuses the calls), the session is refused with `HarnessSandboxed` on its first
-turn.
+model. If the target cannot hold the fence, the session is refused with `HarnessSandboxed` on its
+first turn. That is a target with no Landlock (including a container whose seccomp profile
+refuses the calls), and, with `online` `NONE`, one the wrapper may not reach into: a
+container under docker's default seccomp profile runs a role at `online` `ALL` (the
+default) but refuses one at `NONE`.
 
 <!-- Each per-CLI unit updates its own row when its driver enforces part of the fence natively. -->
 | CLI | Filesystem | Network |
 | --- | --- | --- |
-| `claude` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `codex` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `cursor-agent` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `opencode` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `mimo` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `qwen` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `kimi` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `grok` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `pi` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `zcode` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `agy` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `claude` | external (Landlock + proxy); its own sandbox holds only its Bash tool, so it is not used | external (Landlock + proxy), and `WebSearch`, `WebFetch` refused by rule, since the search runs at the model API |
+| `codex` | external (Landlock + proxy) | external (Landlock + proxy); web search and ChatGPT apps off natively; at `local` `READ` with `online` `ALL`, its `read-only` sandbox is told to leave commands the network |
+| `cursor-agent` | external (Landlock + proxy); its own sandbox holds only its shell commands, and cannot start without a user namespace | `NONE` is refused: its web search and fetch run on Cursor's servers, through the hosts its model is at, and cannot be switched off |
+| `opencode` | external (Landlock + proxy); its file tools also refuse outside the fence | external (Landlock + proxy); its web tools are taken away offline |
+| `mimo` | external (Landlock + proxy); its file tools also refuse outside the fence | external (Landlock + proxy); its web tools are taken away offline |
+| `qwen` | external (Landlock + proxy) | external (Landlock + proxy); `web_search` and `web_fetch` withheld |
+| `kimi` | external (Landlock + proxy) | external (Landlock + proxy; its daemon may bind its one port) |
+| `grok` | external (Landlock + proxy); its own sandbox writes `/tmp` | external (Landlock + proxy); its own sandbox cannot hold it, and `--disable-web-search` takes its web tools away offline |
+| `pi` | external (Landlock + proxy) | external (Landlock + proxy), started `--offline`; the gateways its `models.json` declares stay reachable |
+| `zcode` | external (Landlock + proxy); a write outside it refused at approval | external (Landlock + proxy); web tools denied |
+| `agy` | external (Landlock + proxy); its `--sandbox` holds only its commands | external (Landlock + proxy), and its web tools taken away |
 | `dsh` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `acp` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `acp` | external (Landlock + proxy), plus the `state` declared for it | external (Landlock + proxy), to the `hosts` declared for it; `NONE` with none declared is refused |
 
-The fence leaves two gaps, both from the kernel. Landlock does not govern connecting to a Unix
-socket, so a socket another process listens on (a docker daemon's, a session bus) is still a
-way out. With the network cut, the proxy's port is reachable on any address, but only by
-number, since nothing inside the fence can resolve a name.
+With the network cut, a program inside may still listen on loopback, which a CLI serving
+itself there (agy's language server, kimi's daemon) needs to start. It may not listen anywhere
+else. A `bind` to an address that is not loopback (`127.0.0.0/8`, `::1`, or IPv4 loopback
+mapped into IPv6) fails with `EACCES`. So does a `listen` on a socket bound anywhere else, and
+that is the check that holds: the wrapper makes the `listen` call itself, on the socket it
+checked. A process that makes itself undumpable (`ssh-agent`) cannot have its socket checked,
+so it cannot listen at all.
+
+The fence leaves two gaps, both from the kernel. Landlock does not govern connecting to a
+Unix socket, so a socket another process listens on (a docker daemon's, a session bus) is
+still a way out. With the network cut, the proxy's port is reachable on any address, but only
+by number, since nothing inside the fence can resolve a name.
 
 **The rung.**
 
@@ -494,8 +506,9 @@ number, since nothing inside the fence can resolve a name.
 
 - **`dsh` and `acp`** can be held to no rung but `bypass`. The fence holds them to the scopes.
 - **`online`** also switches the CLI's own web tools: on for `ALL`, and off for `NONE` where
-  the CLI can be told. Where it cannot (cursor-agent, pi, Antigravity, ACP), the cut network
-  is what stops them.
+  the CLI can be told. Where it cannot (cursor-agent, pi, ACP), the cut network is what stops
+  them. Antigravity fetches pages at the far end of its model API, where the cut network does
+  not reach, so with `online` `NONE` it is always started without its web tools.
 - **Nothing-asked mode** is `danger-full-access` with approval `never` on Codex. On Claude
   Code, whose `bypassPermissions` a managed policy may forbid, it is `manual` with humanize
   answering every request yes.

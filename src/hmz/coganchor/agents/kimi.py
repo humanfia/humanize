@@ -63,6 +63,8 @@ if TYPE_CHECKING:
     from pydantic import BaseModel
     from websockets.sync.client import ClientConnection
 
+    from hmz.coganchor.fence import Fence
+
 #: What to say when the websocket client a session is told about its own turn over is not
 #: in this Python environment. Kimi Code is an extra rather than part of every install, so
 #: this is a choice somebody made rather than an install gone wrong, and the way back is
@@ -1372,7 +1374,16 @@ class KimiCodeCLISession(SessionBase):
         # And whether the web is the agent's, where anybody said. An agent nobody was asked
         # about sends neither the key nor an empty list: the session is then left carrying
         # whatever it already carried, which for one this driver opened is nothing.
+        #
+        # A fence that cuts the network takes the web away whatever was said about searching.
+        # `FetchURL` is stopped by the proxy, but `WebSearch` is a search a Kimi install asks
+        # its own service for, and that service is on the hosts the fence has to keep open for
+        # the model. So a search from inside the fence would get out through the one door that
+        # was left. Saying the tools are disabled closes that door.
         searching = self._agent.config.web_search
+        fence = self._agent.config.fence
+        if fence is not None and not fence.online:
+            searching = False
         web: dict[str, Any] = (
             {}
             if searching is None
@@ -1700,6 +1711,20 @@ class KimiCodeCLISession(SessionBase):
                 self._running = _Running()
 
 
+def _free() -> int:
+    """A TCP port on loopback that nothing is listening on as this is asked.
+
+    Asked of the system rather than guessed, and let go of at once for the daemon to take. A
+    port some other process takes in between is a daemon that fails to bind, which fails the
+    turn that started it rather than a turn run anywhere but where it was told.
+    """
+    import socket
+
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return int(probe.getsockname()[1])
+
+
 class KimiCodeCLIAgent(AgentBase):
     """Kimi Code, driven through an app server of its own so a whole session is settable.
 
@@ -1750,11 +1775,19 @@ class KimiCodeCLIAgent(AgentBase):
           config: The model and effort every session of this agent runs at.
           name: What to call this agent, defaulting to one nothing else answers to.
         """
+        #: The one port the daemon starting now was told to listen on inside a fence that
+        #: cuts the network, which :meth:`natively` hands the wrapper to let it bind. Set
+        #: before the base class is, which asks :meth:`natively` about the fence it is given.
+        self._listening: int | None = None
         super().__init__(config, name=name)
         self._server: _AppServer | None = None
-        #: Which account the daemon up now was started as: an agent that has fallen back
-        #: starts another rather than going on submitting turns as somebody else.
-        self._server_as = ""
+        #: Which account the daemon up now was started as, and inside which fence: an agent
+        #: that has fallen back starts another rather than going on submitting turns as
+        #: somebody else, and one set up with another fence starts another rather than going
+        #: on running turns inside the walls the old one was put up with -- the fence is put
+        #: around the daemon once, where it starts, and every session of the agent is a
+        #: session of that one process.
+        self._server_as: tuple[str, Fence | None] | None = None
         self._serving = threading.Lock()
 
     def environment(self) -> Mapping[str, str]:
@@ -1776,6 +1809,31 @@ class KimiCodeCLIAgent(AgentBase):
         """
         return preloaded(self, super().environment())
 
+    def natively(self, fence: Fence) -> Fence:
+        """None of the fence, which Kimi has no way of holding itself to; plus its port.
+
+        Kimi Code 0.42 has no sandbox. Its permission modes decide what is asked about rather
+        than what can be reached -- a session's `permission_rules` can only approve -- and the
+        one guard that reads paths, the workspace access policy its file tools consult, is a
+        constant the CLI does not let be configured and that neither `Bash` nor anything
+        `Bash` starts ever passes through. So the whole fence is put around it from outside.
+
+        What the driver adds is the port. The daemon is reached over loopback, and a fence
+        that cuts the network governs what may be bound as well as what may be connected to,
+        so the one port :attr:`server` told it to listen on is granted to bind -- that port
+        and no other, and nothing where the network is left alone.
+
+        Args:
+          fence: The fence this agent is held to.
+
+        Returns:
+          `fence`, with the daemon's port to bind where the network is cut and one is
+          starting.
+        """
+        if self._listening is None or fence.online:
+            return fence
+        return fence.granting(listen=[self._listening])
+
     @property
     def server(self) -> _AppServer:
         """The daemon this agent's turns are submitted to, started the first time it is asked for.
@@ -1789,11 +1847,15 @@ class KimiCodeCLIAgent(AgentBase):
         with (
             self._serving
         ):  # two sessions of one agent share the server rather than start two
-            if self._server is not None and self._server_as != self.node().name:
-                # Started as an account this agent has since left. Let go of rather than
-                # taken down: a turn on another thread may still be talking to it, and its
-                # own finalizer stops it when the agent is collected either way.
-                self._server, self._server_as = None, ""
+            if self._server is not None and self._server_as != (
+                self.node().name,
+                self.config.fence,
+            ):
+                # Started as an account this agent has since left, or inside a fence it has
+                # since been set up with another of. Let go of rather than taken down: a turn
+                # on another thread may still be talking to it, and its own finalizer stops it
+                # when the agent is collected either way.
+                self._server, self._server_as = None, None
             if self._server is None:
                 # Read off the config with defaults beside them, because an agent may be
                 # given the common `AgentConfig` rather than Kimi's own: a flow that never
@@ -1803,9 +1865,16 @@ class KimiCodeCLIAgent(AgentBase):
                 argv = ["kimi", "web"]
                 if not getattr(self.config, "open_browser", False):
                     argv.append("--no-open")
+                port: int = getattr(self.config, "port", 0)
+                fence = self.config.fence
+                if fence is not None and not fence.online:
+                    # A fence that cuts the network lets bind only the ports it names, and
+                    # "any" is not one of them: the port is chosen here, before the daemon is
+                    # spawned, so that the one it binds is the one the wrapper was told.
+                    port = port or _free()
                 argv += [
                     "--port",
-                    str(getattr(self.config, "port", 0)),
+                    str(port),
                     "--log-level",
                     getattr(self.config, "log_level", "error"),
                 ]
@@ -1816,8 +1885,13 @@ class KimiCodeCLIAgent(AgentBase):
                 # into, and a server that believes it is already elsewhere is one nothing ever
                 # starts again.
                 account = self.node().name
-                self._server = _AppServer(self.spawned(argv), self._environ())
-                self._server_as = account
+                self._listening = port or None
+                try:
+                    spawned = self.spawned(argv)
+                finally:
+                    self._listening = None
+                self._server = _AppServer(spawned, self._environ())
+                self._server_as = (account, fence)
                 # Held by the finalizer alone, which is what takes the daemon down: when the
                 # agent is collected, and at exit for one held to the end.
                 weakref.finalize(self, self._server.stop)
@@ -1831,7 +1905,7 @@ class KimiCodeCLIAgent(AgentBase):
     def _down(self) -> None:
         """Takes down the daemon this agent holds, if it is holding one."""
         with self._serving:
-            server, self._server, self._server_as = self._server, None, ""
+            server, self._server, self._server_as = self._server, None, None
         if server is not None:
             server.stop()
 

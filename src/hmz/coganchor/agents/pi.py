@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+import urllib.parse
 import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
@@ -28,6 +29,8 @@ if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
 
     from pydantic import BaseModel
+
+    from hmz.coganchor.fence import Fence
 
 #: What each kind of thing pi says a turn did reads as. A message is a list of parts and pi
 #: says each of them three times -- as it starts, once per fragment, and once with the whole
@@ -121,6 +124,23 @@ _CHANGING = ("bash", "edit", "write", "powershell")
 #: pi's own `No result provided` for it -- which some models read as the prompt before still
 #: being theirs to answer, and answer that instead of their own.
 _ABORTING = 5.0
+
+
+def _host(url: str) -> str:
+    """The host a `baseUrl` names, as the fence's allow-list writes one.
+
+    Returns:
+      The hostname, with `:port` after it where the URL names a port -- in brackets first, for
+      an IPv6 address -- or "" for one that names no host.
+    """
+    try:
+        split = urllib.parse.urlsplit(url.strip())
+        host, port = (split.hostname or "").rstrip("."), split.port
+    except ValueError:
+        return ""
+    if not host or port is None:
+        return host
+    return f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
 
 
 def _about(called: dict[str, Any]) -> str:
@@ -343,7 +363,14 @@ class PiSession(StreamSessionBase):
             argv.append("--no-context-files")
         if not getattr(config, "extensions", True):
             argv.append("--no-extensions")
-        if getattr(config, "offline", False):
+        # Also wherever the fence cuts the network, which is where startup network work would
+        # only be refused: not needed for a turn in 0.85.1, whose print and RPC modes do none,
+        # but the grep and find tools fetch `rg` and `fd` from GitHub where this machine has
+        # neither, and offline they say so at once rather than retrying into a wall.
+        fence = config.fence
+        if getattr(config, "offline", False) or (
+            fence is not None and not fence.online
+        ):
             argv.append("--offline")
         return argv
 
@@ -721,6 +748,60 @@ class PiAgent(AgentBase):
     #: What it counts, read off the same table its driver reads a usage with. Its reasoning
     #: is counted inside the output rather than beside it, so it is not a kind of its own.
     counts: ClassVar[frozenset[str]] = frozenset(_KINDS)
+
+    def fenced(self) -> Fence | None:
+        """The fence, with the model APIs this machine's `models.json` points pi at let through.
+
+        pi has no sandbox -- no mode, no flag, nothing its security notes will call one -- so
+        every scope of the fence is held from outside, and :meth:`natively` is left as it is.
+        What this adds is the one thing the fence cannot read off the backend's table: pi takes
+        providers of its own from `models.json` in its home, each at a `baseUrl` written there
+        and in no variable, and a turn on one of them talks to that host and no other. So a
+        machine whose pi runs on a gateway declared there would have its every turn cut at
+        `online=NONE`, which is the model API the scope promises to leave.
+
+        Only the provider the model is named under: that provider's `baseUrl` and any of its
+        models', and nothing where the file does not declare it -- a built-in provider's hosts
+        are the backend's own. A model named without a provider is one pi matches across all
+        of them, so every one declared is let through.
+
+        Returns:
+          The fence, or None for an agent nobody said one for.
+        """
+        fence = super().fenced()
+        if fence is None:
+            return None
+        from hmz.coganchor import backends
+
+        profile = backends.named(self.backend)
+        if profile is None:
+            return fence
+        try:
+            said = json.loads(
+                (profile.directory(self._environ()) / "models.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            declared = cast("dict[str, dict[str, Any]]", said["providers"])
+            named, _, rest = self.config.model.partition("/")
+            if not rest:
+                chosen = list(declared.values())
+            else:
+                chosen = [declared[named]] if named in declared else []
+            urls = [
+                url
+                for one in chosen
+                for url in (
+                    one.get("baseUrl"),
+                    *(model.get("baseUrl") for model in one.get("models") or ()),
+                )
+                if isinstance(url, str)
+            ]
+        # A file that is not there, or not what pi reads, is one pi falls back from too.
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+            return fence
+        hosts = [host for url in urls if (host := _host(url))]
+        return fence.granting(hosts=hosts) if hosts else fence
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> PiSession:
         """Opens a new pi session, in the directory it is given or in this one."""

@@ -60,17 +60,28 @@ outside:
   temporary directory of its own.
 - **`online` of `NONE`** cuts the network. The agent can still reach the hosts its model and
   its login are at, and nothing else: no web search, no package index, no host a command
-  names.
+  names. Nothing from outside reaches it either: a program it runs may serve on this
+  machine's loopback address and on no other.
 
 So the default grant is a real limit: an agent changes its workdir and nothing else of yours.
 
 | Backend | `local`, `user`, `system` | `online` of `NONE` |
 | --- | --- | --- |
 | every CLI | <Badge type="tip" text="held by Landlock" /> | <Badge type="tip" text="cut but for its model" /> |
+| `cursor-agent` | <Badge type="tip" text="held by Landlock" /> | <Badge type="danger" text="refused" /> |
+| a CLI added over ACP | <Badge type="tip" text="held by Landlock" /> | <Badge type="warning" text="cut but for the hosts declared for it" /> |
 
 A role whose `local` is `READ` or `NONE` also runs in its CLI's read-only mode, where the CLI
 has one (every CLI but `dsh` and CLIs added over the Agent Client Protocol). Where a CLI can
-be told, `online` of `NONE` also switches its web tools off.
+be told, `online` of `NONE` also switches its web tools off. Cursor's web search and fetch
+cannot be switched off and run on Cursor's own servers, which it reaches for its model, so a
+cut network would not stop them: a `cursor-agent` role with `online` of `NONE` is refused, and
+needs `online` of `ALL`. ZCode also refuses, when it asks for approval, a write outside
+the grant, and tells the model why.
+
+humanize knows nothing of a CLI you added over the Agent Client Protocol: not the hosts its
+model is at, and not where it keeps its state. Declare both where it was added, or a role that
+grants it `online` of `NONE` is refused (see [A CLI of your own](/reference/agents#a-cli-of-your-own)).
 
 ::: warning Where a grant cannot be held, the role does not start
 humanize never runs an agent with more than its grant. A role is refused before it starts
@@ -78,7 +89,10 @@ humanize never runs an agent with more than its grant. A role is refused before 
 
 - **this machine has no Landlock:** macOS, or a Linux kernel older than 5.13 or booted
   without it. A kernel older than 6.7 cannot cut the network, so `online` of `NONE` is
-  refused there.
+  refused there. So is a machine where humanize may not look into the programs it starts
+  (inside a container with its default seccomp profile, or with Yama's `ptrace_scope` at 2
+  or 3): it could not keep what they listen on to this machine.
+- **the CLI would reach the web around the cut:** `cursor-agent` with `online` of `NONE`.
 - **the work lands on another machine that has no Landlock:** a [container](/user/containers)
   or an ssh host whose kernel is too old, or a container whose seccomp profile refuses
   Landlock. Docker's own default profile allows it.
@@ -86,7 +100,8 @@ humanize never runs an agent with more than its grant. A role is refused before 
 A container or an ssh host is held to the same grant as this machine. The agent's CLI still
 runs here, fenced here. Every command it runs lands on the other machine and is fenced there,
 around that machine's own workdir and `$HOME`. With `online` of `NONE`, those commands reach
-no host at all.
+no host at all, and a container under docker's default seccomp profile refuses such a role
+for the reason above.
 
 Only a grant of `ALL` everywhere is enforced by nothing, because there is nothing to hold.
 :::

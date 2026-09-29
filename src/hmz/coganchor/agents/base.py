@@ -21,7 +21,17 @@ import weakref
 from abc import ABC, abstractmethod
 from collections import Counter, deque
 from concurrent.futures import ThreadPoolExecutor
-from typing import IO, TYPE_CHECKING, Any, ClassVar, Literal, Protocol, Self, overload
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    Final,
+    Literal,
+    Protocol,
+    Self,
+    overload,
+)
 
 from hmz.coganchor.backends import AUTO
 
@@ -3491,13 +3501,42 @@ def _ready(fence: Fence) -> None:
 def _directory(path: str) -> bool:
     """Whether a state path that is not there yet is a directory rather than a file.
 
-    Read off its name, which is all there is to read: `~/.claude` and `~/.local/share/claude`
-    are directories, `~/.claude.json` is a file -- a name with an extension after whatever
-    dot it begins with.
+    Read off its name, which is all there is to read: `~/.claude`, `~/.local/share/claude` and
+    a versioned `~/.cache/tool-1.2` are directories, `~/.claude.json` is a file. A dot alone
+    does not make a file -- directories are named with versions and dotted vendors too -- so
+    what does is an extension that state files are written with.
     """
     from pathlib import Path
 
-    return "." not in Path(path).name.lstrip(".")
+    return Path(Path(path).name.lstrip(".")).suffix.lower() not in _FILE_SUFFIXES
+
+
+#: The extensions a CLI's state *files* are written with, which is how :func:`_directory` tells
+#: a file that is not there yet from a directory that is not there yet.
+_FILE_SUFFIXES: Final = frozenset(
+    {
+        ".json",
+        ".jsonc",
+        ".json5",
+        ".jsonl",
+        ".toml",
+        ".yaml",
+        ".yml",
+        ".ini",
+        ".cfg",
+        ".conf",
+        ".env",
+        ".lock",
+        ".db",
+        ".sqlite",
+        ".sqlite3",
+        ".log",
+        ".txt",
+        ".md",
+        ".key",
+        ".pem",
+    }
+)
 
 
 def _swept(scratch: str) -> None:
@@ -3754,9 +3793,11 @@ class AgentBase(ABC):
         if self._opened:
             raise RuntimeError(f"{self._id} has already opened a session")
         was, self._config = self._config, replace(self._config, machine=machine)
+        # Put back on anything, not only a refusal: a check that failed some other way has
+        # accepted nothing either, and the config is still the one it was.
         try:
             self._fences(self._config)
-        except Unserved:
+        except BaseException:
             self._config = was
             raise
 
@@ -3789,7 +3830,7 @@ class AgentBase(ABC):
         was, self._config = self._config, config
         try:
             self._serves(config)
-        except Unserved:
+        except BaseException:
             self._config = was
             raise
 
@@ -4075,7 +4116,10 @@ class AgentBase(ABC):
         writes.append(self.keeps / (profile.name if profile else self.backend))
         hosts: tuple[str, ...] = ()
         if profile is not None:
-            writes.append(profile.directory(environ))
+            # Only for a backend that has a home: one whose home is not known -- a CLI somebody
+            # added -- would otherwise be read as the whole of the user's own.
+            if profile.home_dir or profile.home_var:
+                writes.append(profile.directory(environ))
             # Wherever else it keeps its sign-in, which a token refreshed mid-turn is written
             # back to: Claude's `~/.config/anthropic` beside its home, among them.
             writes.extend(path for path, _ in profile.credentials())

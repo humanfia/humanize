@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     import os
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import ClassVar
 
 from .opencode import OpencodeAgent, OpencodeAgentConfig, OpencodeSession
@@ -41,8 +42,18 @@ class MimoCodeSession(OpencodeSession):
         launcher and the one spawn it makes -- which is the whole of what a runtime can be asked
         about a program that has none. :mod:`hmz.coganchor.agents.preload` decides whether one is
         wanted at all.
+
+        And one thing opencode does not do: mimocode reads Claude Code's `~/.claude.json` as it
+        starts, for the MCP servers configured there, and dies where it may not -- which a fence
+        that keeps the home from being read is. That file is another CLI's, secrets and all, so
+        it is not granted; mimocode is told to leave Claude Code's settings alone instead, which
+        where the fence would have refused it reading them is nothing it could have had.
         """
-        return preloaded(self._agent, super()._environment())
+        environment = preloaded(self._agent, super()._environment())
+        fence = self._agent.config.fence
+        if fence is not None and not fence.allows(Path.home() / ".claude.json"):
+            environment["MIMOCODE_DISABLE_CLAUDE_CODE"] = "1"
+        return environment
 
     def _unattended(self) -> list[str]:
         """What tells mimocode that nobody is there to answer it.
