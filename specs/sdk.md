@@ -37,4 +37,4 @@ class Daemons:
   `Daemons.host` MUST raise `OSError` where they could not be held.
 - `Daemons.host` MUST answer with the daemon hosting a workspace's runs for frontends, started
   where none is, and a tool MUST be one of those frontends through the same `Link` an interface
-  and `hmz attach` hold.
+  holds.

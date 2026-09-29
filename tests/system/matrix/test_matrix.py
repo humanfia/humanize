@@ -1607,68 +1607,13 @@ def _hosted(workspace: Path) -> Daemon:
     return found
 
 
-class _Attached:
-    """`hmz attach --json` as a process of its own: requests a line in, messages a line out."""
-
-    def __init__(self, workspace: Path, name: str, *argv: str) -> None:
-        self.heard: list[dict[str, Any]] = []
-        self._replies: queue.Queue[dict[str, Any]] = queue.Queue()
-        # Its stderr into a file rather than a pipe, so that nothing but the one thread
-        # below reads its stdout, and a pipe nobody reads never holds it up.
-        self._err = workspace.parent / f"attach-{name}.err"
-        with self._err.open("w") as err:
-            self.running = subprocess.Popen(
-                [sys.executable, "-m", "hmz", "attach", "--json", *argv],
-                cwd=workspace,
-                env={**os.environ, "HUMANIZE_NAME": name},
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=err,
-                text=True,
-            )
-        self._reading = threading.Thread(target=self._reads, daemon=True)
-        self._reading.start()
-
-    def _reads(self) -> None:
-        assert self.running.stdout is not None
-        with contextlib.suppress(OSError, ValueError):
-            for line in self.running.stdout:
-                with contextlib.suppress(ValueError):
-                    said = cast("dict[str, Any]", json.loads(line))
-                    (
-                        self._replies.put
-                        if said.get("type") == "reply"
-                        else self.heard.append
-                    )(said)
-
-    def asks(self, **said: Any) -> dict[str, Any]:
-        """One request, and its reply."""
-        assert self.running.stdin is not None
-        self.running.stdin.write(json.dumps({**said, "id": "matrix"}) + "\n")
-        self.running.stdin.flush()
-        return self._replies.get(timeout=60)
-
-    def close(self) -> str:
-        """Lets go, however it stands, having read all it said, and answers its stderr."""
-        with contextlib.suppress(subprocess.TimeoutExpired):
-            self.running.wait(30)
-        if self.running.poll() is None:
-            self.running.kill()
-            self.running.wait()
-        # Its stdout ends with it, so the reader has had the last line once it is done.
-        self._reading.join(30)
-        if self.running.stdin is not None:
-            with contextlib.suppress(OSError):
-                self.running.stdin.close()
-        return self._err.read_text(errors="replace")
-
-
 @feature(timeout=900)
 def test_frontends(cell: Cell) -> None:
     """One run held by a host, three frontends: each part answered only by who claimed it.
 
-    Started from an SDK link that claims nothing and watches. `hmz attach -c planner` holds
-    the planner, a second SDK link the reviewer, and each is refused the other's question. A
+    Started from an SDK link that claims nothing and watches. A second link holds the
+    planner and a third the reviewer, each over the host's socket as any frontend is, and
+    each is refused the other's question. A
     word from the second link reaches the agent: into its turn where the CLI steers -- the
     agent saying it has it, and the turn still ending -- and else folded into the prompt of
     the turn it starts next, which the answer then follows.
@@ -1690,14 +1635,19 @@ def test_frontends(cell: Cell) -> None:
     flow = cell.flow("fronted", FRONTED)
     host = _hosted(cell.workspace)
     heard: queue.Queue[dict[str, Any]] = queue.Queue()
-    alice: _Attached | None = None
+    theirs: list[dict[str, Any]] = []
     records: list[dict[str, Any]] = []
     refused: dict[str, str] = {}
     try:
-        with host.link(name="watcher") as watcher, host.link(name="bob") as bob:
+        with (
+            host.link(name="watcher") as watcher,
+            host.link(name="bob") as bob,
+            host.link(name="alice") as alice,
+        ):
             watcher.heard(heard.put)
+            alice.heard(theirs.append)
             bob.claim("reviewer")
-            alice = _Attached(cell.workspace, "alice", "-c", "planner")
+            alice.claim("planner")
             deadline = time.monotonic() + 60
             while True:
                 said = heard.get(timeout=max(0.1, deadline - time.monotonic()))
@@ -1726,12 +1676,12 @@ def test_frontends(cell: Cell) -> None:
                         bob.answer(said["question"], "not bob's to say")
                     except Refused as why:
                         refused["planner"] = str(why)
-                    assert alice.asks(
-                        do="answer", question=said["question"], text=word
-                    )["ok"]
+                    alice.answer(said["question"], word)
                 elif kind == "asked" and said["role"] == "reviewer":
-                    got = alice.asks(do="answer", question=said["question"], text="red")
-                    refused["reviewer"] = "" if got["ok"] else str(got.get("why"))
+                    try:
+                        alice.answer(said["question"], "red")
+                    except Refused as why:
+                        refused["reviewer"] = str(why)
                     if not steers:
                         bob.say(told, to="worker")
                     bob.answer(said["question"], "blue")
@@ -1746,7 +1696,6 @@ def test_frontends(cell: Cell) -> None:
                 elif kind == "ended":
                     break
     finally:
-        err = alice.close() if alice is not None else ""
         with contextlib.suppress(Exception):
             host.kill()
 
@@ -1756,12 +1705,12 @@ def test_frontends(cell: Cell) -> None:
         with cell.environmental():
             _raised(ended["why"])
     assert ended["how"] == "done", ended
-    assert refused.get("planner", "").startswith("planner is alice@cli's"), refused
+    assert refused.get("planner", "").startswith("planner is alice's"), refused
     assert refused.get("reviewer", "").startswith("reviewer is bob's"), refused
     answered = [
         (one["role"], one["by"]) for one in records if one["type"] == "answered"
     ]
-    assert answered == [("planner", "alice@cli"), ("reviewer", "bob")], answered
+    assert answered == [("planner", "alice"), ("reviewer", "bob")], answered
     spoken = [
         (one["text"], one["by"], one["key"]) for one in records if one["type"] == "said"
     ]
@@ -1787,12 +1736,9 @@ def test_frontends(cell: Cell) -> None:
     else:
         assert _says(kept["said"], word), kept
         assert _says(kept["said"], second), kept
-    # And `hmz attach` read the same answers, said by who gave them.
-    assert alice is not None
-    theirs = [
-        (one["role"], one["by"]) for one in alice.heard if one["type"] == "answered"
-    ]
-    assert theirs == answered, f"{alice.heard[-5:]}\n{err}"
+    # And the planner's own frontend read the same answers, said by who gave them.
+    read = [(one["role"], one["by"]) for one in theirs if one["type"] == "answered"]
+    assert read == answered, theirs[-5:]
 
 
 def _raised(why: str) -> None:
@@ -1832,7 +1778,7 @@ def test_frontends_tui(
     from hmz.runtime.kept import Runs
     from tests.matrix import places
     from tests.stubs import written
-    from tests.system.cli.test_frontends import Panes
+    from tests.tui.panes import Panes
 
     if shutil.which("tmux") is None:
         pytest.skip("environment: drives tmux, which is not installed here")

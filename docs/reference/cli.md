@@ -15,7 +15,6 @@ a lookup, start at the [quickstart](/#run-a-flow).
 | --- | --- |
 | [`hmz`](#hmz) | Opens the [terminal interface](/reference/tui) in this directory. |
 | [`hmz exec …`](#hmz-exec) | Runs one flow here, to its end, with no interface. |
-| [`hmz attach …`](#hmz-attach) | Reads the runs held here as one more frontend of them, answering for the roles it claims. |
 | [`hmz --version`](#hmz) | Prints `hmz <version>`. |
 | [`hmz --help`](#hmz) | Lists the commands. `hmz <command> --help` lists what one takes. |
 | [`hmz internal …`](#hmz-internal) <Badge type="warning" text="not typed by hand" /> | The processes humanize spawns for itself. |
@@ -376,51 +375,6 @@ A run its budget stops lets the turn under way finish (unless `graceful=false`),
 `hmz exec: stopped -- …` naming the limit, and exits 0. A resumable one carries on from there
 with `--resume` and a fresh `-b`.
 
-## `hmz attach` {#hmz-attach}
-
-```sh
-hmz attach                    # read the runs held here, and type at them
-hmz attach -c reviewer        # and answer for the reviewer, which nobody else may
-hmz attach --json             # every message as NDJSON; one request a line on stdin
-```
-
-```text
-hmz attach [--json] [-c|--claim <role>]...
-```
-
-One more frontend of the runs a [host](/reference/daemon#hosting) is holding in this directory:
-what every agent says, every question the run asks, and who answered it. Several can read one
-run at once, each answering for its own part, beside every interface `hmz` opens there. It
-starts nothing: an interface or a program on the [SDK](/reference/sdk#link) starts the run, and
-this follows the run going -- or the next one to start -- until it ends.
-
-| Flag | |
-| --- | --- |
-| `-c`, `--claim ROLE` | Answer for this `Outworlder` role, and nobody else may. May be given again. |
-| `--json` | Write every [message](/reference/daemon#protocol) to stdout as it arrives, one object a line, and read one [request](/reference/daemon#protocol) object a line from stdin. |
-
-Without `--json`, agents' events are drawn as [`hmz exec`](#watching-a-run) draws them, and the
-rest as lines saying who did what: `❯ the plan · alice@cli for planner`. A question says whose
-it is to answer. A line you type answers the oldest question you may answer, and is otherwise
-said to the run, into the turn that is open or the next one. These lines are commands:
-
-| Line | |
-| --- | --- |
-| `/afk [on\|off] [ROLE]` | Away, or back, for one role you may speak for or for every one. Without `on` or `off` it switches. |
-| `/claim ROLE`, `/release ROLE` | Hold a role, or give it back. |
-| `/stop` | Stop the run. |
-
-With `--json`, each request's reply is written as `{"type": "reply", "to": <its id>, ...}`.
-
-The end of stdin is not the end of reading. <kbd>ctrl+c</kbd> lets go, and leaves the run to
-whoever else is reading it.
-
-| Exit | |
-| --- | --- |
-| `0` | The run it followed ended, or the host let go of it. |
-| `1` | Nothing is held here, or an older humanize holds it. |
-| `2` | A `-c` role is somebody else's. |
-
 ## `hmz internal` <Badge type="warning" text="not typed by hand" /> {#hmz-internal}
 
 ```
@@ -608,7 +562,7 @@ A socket that is not there exits 1, which the CLI reads as tools being unavailab
 | --- | --- |
 | `HUMANIZE_HOME` | Where humanize keeps what outlives a run. Defaults to `~/.humanize`. Every path under [Files](#files) moves with it. |
 | `HUMANIZE_DAEMON` | `off`, `0` or `no`: the interface holds its runs in its own process rather than [apart from the terminal](/reference/daemon). Anything else, empty included, holds them apart. |
-| `HUMANIZE_NAME` | What a frontend of a [host](/reference/daemon#hosting) is called, ahead of `@tui`, `@cli` or `@sdk`. Defaults to your login. |
+| `HUMANIZE_NAME` | What a frontend of a [host](/reference/daemon#hosting) is called, ahead of `@tui` or `@sdk`. Defaults to your login. |
 | `HUMANIZE_SENTRY` | `on` or `off`: answers the [reporting](/user/reporting) question for this process without writing anything down. |
 | `HUMANIZE_WATCHDOG` | Seconds a turn may say nothing before [the watchdog looks at it](/reference/agents#when-a-cli-stops-answering), overriding every backend's own. `0` or less turns it off. |
 | `HUMANIZE_SESSIONS` | `off`, `0` or `no`: every CLI keeps its sessions in its own home, and a turn is supervised only for an [account](/reference/providers). Anything else keeps them in the run, or in `~/.humanize/sessions/` for an agent driven by hand. |

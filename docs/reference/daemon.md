@@ -16,7 +16,7 @@ turns, and `hmz` in the same directory opens another interface on it, read from 
 ```text
  hmz (alice@tui) ──────┐                       ┌── daemon, one per directory ───────┐
  hmz (bob@tui) ────────┤                       │  the host: the run going, claims,  │
- hmz attach -c planner ┼── daemon.sock ───────▶│  away, lines, questions, history   │
+ hmz (carol@tui) ──────┼── daemon.sock ───────▶│  away, lines, questions, history   │
  a bot on the SDK ─────┘  JSON requests in,    │        │                           │
                           messages out         │     the flow and its agents        │
                                                └────────────────────────────────────┘
@@ -47,7 +47,7 @@ closes the run.
 
 A directory whose runs are held by a daemon of an older humanize -- one that held a run on a
 pseudoterminal -- is refused: `hmz: the runs in <dir> are held by an older humanize (pid <n>);
-stop it with that version`. `hmz attach` says the same and exits `1`.
+stop it with that version`.
 
 ## One per directory
 
@@ -60,16 +60,15 @@ started with.
 ## Runs held for frontends {#hosting}
 
 The host holds a workspace's runs for any number of **frontends** at once. A frontend is
-anything that attaches: an [interface](/reference/tui#several-people-on-one-run),
-[`hmz attach`](/reference/cli#hmz-attach), or a program written against the
-[SDK](/reference/sdk#link). Each gets its own stream of what the runs do, and each asks for what
+anything that attaches: an [interface](/reference/tui#several-people-on-one-run) -- every
+`hmz` in the directory is one -- or a program written against the [SDK](/reference/sdk#link). Each gets its own stream of what the runs do, and each asks for what
 it wants done.
 
 Several people can then share one run, each answering for a different part of it:
 
-- **Claims.** An `Outworlder` role a frontend claims -- `/claim` at the interface, `-c` on
-  `hmz attach` -- is that frontend's alone to answer. Claiming
-  one somebody else holds is refused (`reviewer is alice@cli's`) unless it takes it over, and the
+- **Claims.** An `Outworlder` role a frontend claims -- `/claim` at the interface, `claim` on
+  an SDK link -- is that frontend's alone to answer. Claiming
+  one somebody else holds is refused (`reviewer is alice@tui's`) unless it takes it over, and the
   old owner is told. A claim is given back when its frontend lets go; claims are not written down.
 - **Questions.** A question is shown to every frontend, with its owner: the claimant, or nobody.
   A frontend may answer one whose owner is nobody or itself, and the first answer wins; a later
@@ -158,7 +157,7 @@ Snapshots say how one thing stands; only the latest of each is kept:
 | `board` | `items`, or `null` for a run with no board |
 
 The last message a frontend is told is `gone`, with `why`: `let go`, `the host was closed`, or
-`too far behind; attach again` for one that stopped taking what it was sent and fell further
+`fell too far behind; open it again` for one that stopped taking what it was sent and fell further
 behind than a whole run.
 
 A reader that sends a host any other kind of frame -- an older humanize's terminal, reaching for

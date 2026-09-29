@@ -48,9 +48,6 @@ COMMANDS = [
             "hmz.runtime.telemetry",
         },
     ),
-    # Reading the runs held here, which a line asking only for its help must not pay for:
-    # the daemon and the runtime are reached once there is something held to read.
-    ("attach", set[str]()),
     ("internal anchor", {"hmz.coganchor"}),
     # The other three the door opens onto, each of which must cost its own module and
     # nothing else at all. They are here rather than left to the anchor's entry because a
@@ -228,7 +225,7 @@ def test_the_help_lists_every_command(
 
 def test_the_listing_shows_every_command_there_is() -> None:
     """Nothing is routed that the help does not name."""
-    assert set(cli.COMMANDS) == {"attach", "exec", "internal"}
+    assert set(cli.COMMANDS) == {"exec", "internal"}
 
 
 @pytest.mark.parametrize("spawned", ["anchor", "cred", "hook", "tools"])

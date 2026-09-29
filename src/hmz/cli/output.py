@@ -340,9 +340,9 @@ class Shown:
     order. Watching a session is also what stops its CLI teeing its own raw progress to
     stderr, so this replaces that tee rather than being printed beside it.
 
-    Or handed the records a host says about a run, which are the same events written down
-    once by the runtime: `hmz attach` reads a run that way, and `hmz exec` writes its own
-    events through the same record, so the two say one thing the same way.
+    Each event is written down through the runtime's own record, the one shape every
+    frontend of a held run is told it in, so that this and the interface say one thing the
+    same way.
     """
 
     def __init__(self, out: Out) -> None:
@@ -399,15 +399,6 @@ class Shown:
         # apart: nothing here numbers conversations, and nothing written shows the key.
         key = agent.id if session is None else f"{agent.id}#{id(session)}"
         self._shows(record(agent, session, event, key=key), _where(agent, session))
-
-    def told(self, said: dict[str, Any]) -> None:
-        """Shows one event record, as a host says one, in whichever language is being read.
-
-        Args:
-          said: The record. Anything that is not an `event` is not this to show.
-        """
-        if said.get("type") == "event":
-            self._shows(said, "")
 
     def _shows(self, said: dict[str, Any], where: str) -> None:
         if self._out.as_json:

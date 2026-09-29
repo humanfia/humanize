@@ -2,10 +2,8 @@
 
     hmz
     hmz exec -f ralph_loop -a coder=claude/MODEL:high -b cost=5 "$(cat TASK.md)"
-    hmz attach -c reviewer
 
-There are two commands anybody types -- running a flow, and reading the runs held in this
-directory as one more frontend of them -- and everything else humanize keeps is walked at the
+There is one command anybody types, and everything else humanize keeps is walked at the
 prompt: a listing with a noun in it for every store would be a second interface to learn, and
 the one with the sheets in it is the interface.
 
@@ -227,20 +225,6 @@ def _ending(running: Run, ended: list[int]) -> Generator[None]:
         told.set()
 
 
-def _attach(argv: list[str]) -> int:
-    """Reads the runs held in this directory as one more frontend of them.
-
-    Args:
-      argv: What followed the command name.
-
-    Returns:
-      Zero once the run it followed has ended or the host let go of it.
-    """
-    from .attach import attach
-
-    return attach(argv)
-
-
 def _anchor(argv: list[str]) -> int:
     """Runs the agent named on the command line, with its work landing on another machine.
 
@@ -385,7 +369,7 @@ def opens() -> int:
     each its own. So a line that opens the interface reads the runs a host already holds
     here, and starts a host where none is.
 
-    A terminal on both ends is what makes that worth doing. With nothing to attach -- output
+    A terminal on both ends is what makes that worth doing. With nobody to read it -- output
     going to a file, a test driving the interface itself -- the runs are held in this process
     instead, and go with it.
 
@@ -495,15 +479,14 @@ INTERNAL = {
     "tools": (_tools, "relay agent tool calls to a flow"),
 }
 
-#: Each command, as what carries it out and the line a listing shows it as. Two are for
-#: anybody: running a flow in a directory, and reading the runs held there as one more
-#: frontend of them -- everything else humanize keeps is walked at the prompt rather than
-#: typed. The other is the door onto :data:`INTERNAL` -- one entry rather than four, so that
-#: what a person may type stays two lines long while what humanize runs stays something they
-#: can read. There is no command for the terminal interface either: naming nothing at all is
-#: how it opens.
+#: Each command, as what carries it out and the line a listing shows it as. One is for
+#: anybody: running a flow in a directory is what a line is for, and everything else humanize
+#: keeps is walked at the prompt rather than typed -- a run already held here included, which
+#: `hmz` with no command opens. The other is the door onto :data:`INTERNAL` -- one entry
+#: rather than four, so that what a person may type stays one line long while what humanize
+#: runs stays something they can read. There is no command for the terminal interface either:
+#: naming nothing at all is how it opens.
 COMMANDS = {
-    "attach": (_attach, "attach to runs in this directory"),
     "exec": (_exec, "run an agent flow in this directory"),
     "internal": (_internal, "internal commands used by humanize; do not run directly"),
 }

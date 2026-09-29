@@ -19,7 +19,7 @@ runs somebody else started asks: what is being held here, what it is running, le
 the frontends on it, stopping it. Runs held that way outlive the program that asked for them.
 
 A workspace's runs are :class:`Host`, and a tool is one of their frontends through a
-:class:`Link` -- the same one an interface or `hmz attach` holds -- claiming the roles it
+:class:`Link` -- the same one an interface holds -- claiming the roles it
 answers for and saying what the others type:
 
     with (Daemons().here() or Daemons().host()).link(name="ci") as link:

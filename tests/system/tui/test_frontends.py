@@ -25,7 +25,7 @@ from hmz import daemon
 from hmz.runtime import Hmz
 from hmz.runtime.kept import Runs
 from tests.stubs import written
-from tests.system.cli.test_frontends import ASKS, Panes
+from tests.tui.panes import ASKS, Panes
 
 if TYPE_CHECKING:
     from collections.abc import Iterator

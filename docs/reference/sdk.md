@@ -3,7 +3,7 @@
 `hmz.sdk` is how a program that is not humanize drives humanize. It offers two ways into a
 run: [`Hmz`](#hmz) runs one in your own process, and [`Daemons`](#daemons) holds a workspace's
 runs in a process of their own, where a terminal closing cannot end them -- and a program is
-one of several [frontends](#link) sharing them, beside every interface and `hmz attach` there.
+one of several [frontends](#link) sharing them, beside every interface there.
 
 ::: code-group
 

@@ -39,9 +39,10 @@ The other ways to stop a run are on [Stopping](/user/stopping).
 
 ## Several people on one run
 
-Every interface on a run is one **frontend** of it, and so is
-[`hmz attach`](/reference/cli#hmz-attach) and a program on the [SDK](/reference/sdk#link). Each
-takes the part of the run that is its own:
+Every interface on a run is one **frontend** of it, and so is a program on the
+[SDK](/reference/sdk#link). Run `hmz` in the same directory while a run is going and it opens
+on that run instead of starting another. Each frontend takes the part of the run that is its
+own:
 
 ```sh
 # pane A: start a flow whose outworlders are a planner and a reviewer
@@ -51,11 +52,11 @@ HUMANIZE_NAME=alice hmz
 HUMANIZE_NAME=bob hmz            # tab to the reviewer's transcript, then /claim
 
 # pane C: one more, answering for the planner alone
-hmz attach -c planner
+HUMANIZE_NAME=carol hmz          # tab to the planner's transcript, then /claim
 ```
 
-- **Each answers for their own part.** `/claim` on an outworlder's transcript, or
-  `hmz attach -c reviewer`, makes that role's questions yours alone. Everybody else sees it
+- **Each answers for their own part.** `/claim` on an outworlder's transcript makes that
+  role's questions yours alone. Everybody else sees it
   marked `bob@tui's`. A question nobody claimed goes to whoever answers first.
 - **Everybody sees who did what.** Every answer, every line said to an agent and every run
   started says who did it (` · by alice@tui`), and the monitor lists who is reading.
@@ -64,7 +65,7 @@ hmz attach -c planner
 - **Leaving hands your part back.** A frontend that goes gives its roles back, and whatever it
   was asked waits for somebody else. `/afk` stays said after you have gone.
 
-A name is `HUMANIZE_NAME`, else your login, then what the frontend is: `alice@tui`, `bob@cli`.
+A name is `HUMANIZE_NAME`, else your login, then what the frontend is: `alice@tui`, `bob@sdk`.
 The details are in the [daemon reference](/reference/daemon#hosting).
 
 ## What it does not survive

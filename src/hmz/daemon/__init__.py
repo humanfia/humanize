@@ -8,8 +8,8 @@
 One daemon per workspace. It holds :class:`hmz.runtime.Host` -- the runs of a workspace and who
 is outside them -- the way `screen` holds a shell: a process of its own, in a session of its
 own, that a terminal closing cannot reach. Any number of frontends read it at once, each a
-:class:`Link` of its own saying JSON over the socket beside it: the interface, `hmz attach`, a
-program written against the SDK. Letting go of one is not stopping the run: the flow goes on
+:class:`Link` of its own saying JSON over the socket beside it: an interface, or a program
+written against the SDK. Letting go of one is not stopping the run: the flow goes on
 taking its turns, and the next frontend to arrive is told it from the top.
 
 What the runs *are* is the runtime's, and it is reached from here: :class:`Hmz` and
