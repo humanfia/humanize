@@ -458,7 +458,7 @@ Only `local`, `user` and `system` all `ALL` with `online` `ALL` fences nothing.
 | --- | --- | --- |
 | `claude` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `codex` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `cursor-agent` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `cursor-agent` | external (Landlock + proxy); its own sandbox holds only its shell commands, and cannot start without a user namespace | external (Landlock + proxy); its web search and fetch run on Cursor's servers, past the proxy |
 | `opencode` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `mimo` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `qwen` | external (Landlock + proxy) | external (Landlock + proxy) |
