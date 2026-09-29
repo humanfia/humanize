@@ -12,13 +12,16 @@ from __future__ import annotations
 
 import dataclasses
 import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from hmz.coganchor.agents import ZcodeAgent, ZcodeAgentConfig
 from hmz.coganchor.agents.zcode import _outside
 from hmz.coganchor.fence import ALL, NONE, READ, Fence
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _able(*, net: bool) -> bool:
@@ -105,5 +108,10 @@ def test_an_approval_to_write_outside_the_fence_names_the_path(tmp_path: Path) -
     assert asked("Read", str(home)) == ""
     assert asked("Write", "relative.txt") == ""
     assert asked("Write", None) == ""
-    assert _outside([_agent(None)], {"toolName": "Write", "input": {"file_path": str(home)}}) == ""
+    assert (
+        _outside(
+            [_agent(None)], {"toolName": "Write", "input": {"file_path": str(home)}}
+        )
+        == ""
+    )
     assert _outside([], {"toolName": "Write", "input": {"file_path": str(home)}}) == ""

@@ -78,7 +78,11 @@ class _Asks(BaseHTTPRequestHandler):
             {
                 **chunk,
                 "choices": [{"index": 0, "delta": {}, "finish_reason": finish}],
-                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                "usage": {
+                    "prompt_tokens": 1,
+                    "completion_tokens": 1,
+                    "total_tokens": 2,
+                },
             },
         ]
         self.send_response(200)

@@ -10,7 +10,6 @@ whether its model still has the tool, and only the real kernel whether the rest 
 from __future__ import annotations
 
 import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -59,8 +58,7 @@ def test_agy_offline_has_no_web_tool_and_still_writes_its_workdir(
                 "run the command `echo hi > ok.txt` with your terminal tool. Reply DONE."
             )
         )
-    except subprocess.CalledProcessError as why:
-        assert isinstance(why, Failed), "a turn that failed must say why"
+    except Failed as why:
         pytest.skip(f"agy would not take a turn on this machine: {why}")
 
     assert said[-1].kind == "result"

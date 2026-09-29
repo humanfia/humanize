@@ -10,12 +10,15 @@ from __future__ import annotations
 
 import dataclasses
 import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from hmz.coganchor.agents import ClaudeCodeAgent, ClaudeCodeAgentConfig
 from hmz.coganchor.fence import ALL, READ, Fence
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _able(*, net: bool) -> bool:
