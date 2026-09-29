@@ -1703,6 +1703,13 @@ up.
 - Its `Unrecoverable` failures are the length refusal and a session id the runtime will not
   answer under.
 - It takes only `bypass` or no rung; see [What an agent may do](#what-an-agent-may-do).
+- A fence is held entirely from outside: `hmz internal fence` wraps the runtime the SDK
+  launches, so the runtime's own tools and every shell it starts are inside it. The bundle has
+  no confining shell executor, and the Landlock profile of its `dsh-sandbox-local` reads all of
+  `/`, writes all of `/tmp` and leaves the network alone, so none of the fence is handed to dsh.
+  A `local` of `READ` runs at `bypass` with the workdir readable and not writable. A fenced
+  runtime gets its composition file, and the native modules it unpacks (`PKG_NATIVE_CACHE_PATH`,
+  otherwise `~/.cache/pkg`), in the fence's own temporary directory.
 - `interject` is unsupported: the SDK's `session/prompt` queues a turn behind the running one,
   and the runtime's `steer` is not on the SDK's JSON-RPC surface.
 
