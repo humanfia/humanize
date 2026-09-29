@@ -152,7 +152,7 @@ def test_a_fence_survives_being_written_down() -> None:
         home=HOME,
         hosts=["api.anthropic.com", "*.example.com", "gw.example:8443"],
     )
-    fence = dataclasses.replace(fence, tmp="/tmp/scratch")
+    fence = dataclasses.replace(fence, tmp="/tmp/scratch", listen=(41234,))
     assert Fence.loads(fence.dumps()) == fence
 
 
@@ -164,6 +164,9 @@ def test_a_fence_survives_being_written_down() -> None:
         '{"read": [1]}',
         '{"online": "no"}',
         '{"tmp": 3}',
+        '{"listen": ["80"]}',
+        '{"listen": [true]}',
+        '{"listen": 80}',
         '{"elsewhere": []}',
         "not json",
     ],
@@ -171,6 +174,59 @@ def test_a_fence_survives_being_written_down() -> None:
 def test_what_is_not_a_fence_is_refused(said: str) -> None:
     with pytest.raises(ValueError):  # noqa: PT011 -- json's own error is one too
         Fence.loads(said)
+
+
+def test_granting_a_port_to_listen_on_only_widens() -> None:
+    fence = _of(ALL, READ, NONE, online=False).granting(listen=[41234])
+    assert fence.granting(listen=[41234, 41235]).listen == (41234, 41235)
+
+
+class _Exec(BaseException):
+    pass
+
+
+class _Libc:
+    def prctl(self, *_: object) -> int:
+        return 0
+
+
+@pytest.mark.parametrize(("online", "bound"), [(False, (0, 41234)), (True, ())])
+def test_the_wrapper_binds_only_the_ports_it_is_told_and_only_offline(
+    monkeypatch: pytest.MonkeyPatch, online: bool, bound: tuple[int, ...]
+) -> None:
+    from hmz.coganchor.fence import wrap
+    from hmz.coganchor.linux import seccomp
+
+    made: list[landlock.Ruleset] = []
+
+    def restricted(ruleset: landlock.Ruleset) -> None:
+        made.append(ruleset)
+
+    def became(*_: object) -> None:
+        pass
+
+    def exited(code: int) -> None:
+        raise _Exec(code)
+
+    monkeypatch.setattr(landlock.Ruleset, "restrict_self", restricted)
+    monkeypatch.setattr(seccomp, "install_socket_filter", lambda: None)
+    monkeypatch.setattr(os, "getppid", lambda: 1)
+    monkeypatch.setattr(os, "execvpe", became)
+
+    monkeypatch.setattr(os, "_exit", exited)
+    fence = dataclasses.replace(_of(ALL, READ, NONE, online=online), listen=(41234,))
+    with pytest.raises(_Exec):
+        wrap._become(
+            fence,
+            ["kimi"],
+            {},
+            "/tmp/scratch",
+            None if online else 5555,
+            (1, _Libc()),  # pyright: ignore[reportArgumentType]
+        )
+    (ruleset,) = made
+    assert tuple(ruleset.bind_ports) == bound
+    assert tuple(ruleset.connect_ports) == (() if online else (5555,))
 
 
 def test_the_wrapper_is_humanize_itself_with_the_policy_on_the_line() -> None:

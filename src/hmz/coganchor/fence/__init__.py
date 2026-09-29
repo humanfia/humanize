@@ -191,6 +191,12 @@ class Fence:
         exported as `TMPDIR`, `TMP` and `TEMP`, and where caches the fence would not let it
         write at home are pointed -- or "" for the wrapper to make one for the one run and
         remove it after.
+      listen: TCP ports the program may bind while `online` is False: the one exact port a
+        CLI that serves itself to its driver over loopback was told to listen on, never 0 and
+        never a range. Binding is not a way out -- what is inside still connects to nothing
+        but the proxy -- and a port the CLI itself holds before anything it runs has started
+        is not one a command inside can take to be reached from outside instead. Meaningless
+        while `online` is True, when every port may be bound.
     """
 
     read: tuple[str, ...] = ()
@@ -198,6 +204,7 @@ class Fence:
     online: bool = True
     hosts: tuple[str, ...] = ()
     tmp: str = ""
+    listen: tuple[int, ...] = ()
 
     def __post_init__(self) -> None:
         write = _normal(self.write)
@@ -206,6 +213,7 @@ class Fence:
             self, "read", tuple(one for one in _normal(self.read) if one not in write)
         )
         object.__setattr__(self, "hosts", tuple(dict.fromkeys(self.hosts)))
+        object.__setattr__(self, "listen", tuple(dict.fromkeys(self.listen)))
 
     @classmethod
     def of(
@@ -292,6 +300,7 @@ class Fence:
         read: Iterable[str | os.PathLike[str]] = (),
         write: Iterable[str | os.PathLike[str]] = (),
         hosts: Iterable[str] = (),
+        listen: Iterable[int] = (),
     ) -> Fence:
         """This fence with more let through.
 
@@ -299,6 +308,7 @@ class Fence:
           read: Paths to read as well.
           write: Paths to write as well.
           hosts: Hosts the proxy passes as well.
+          listen: TCP ports that may be bound as well.
 
         Returns:
           The wider fence, which is this one where nothing was named.
@@ -308,6 +318,7 @@ class Fence:
             read=(*self.read, *_normal(read)),
             write=(*self.write, *_normal(write)),
             hosts=(*self.hosts, *hosts),
+            listen=(*self.listen, *listen),
         )
 
     def without(self, *, filesystem: bool = False, network: bool = False) -> Fence:
@@ -378,6 +389,12 @@ class Fence:
             ):
                 raise ValueError(f"a fence's {name} is a list of strings")
             held[name] = tuple(cast("list[str]", listed))
+        ports: object = held.get("listen", [])
+        if not isinstance(ports, list) or not all(
+            type(one) is int for one in cast("list[object]", ports)
+        ):
+            raise ValueError("a fence's listen is a list of ports")
+        held["listen"] = tuple(cast("list[int]", ports))
         if not isinstance(held.get("online", True), bool):
             raise ValueError("a fence's online is true or false")  # noqa: TRY004
         if not isinstance(held.get("tmp", ""), str):

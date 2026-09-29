@@ -1089,6 +1089,7 @@ agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-opus-5", effort="hig
 | `online` | `True` leaves the network alone. `False` cuts it to `hosts`. |
 | `hosts` | What stays reachable with `online=False`: an exact host, `*.suffix`, or `host:port`. |
 | `tmp` | The agent's scratch directory, its `TMPDIR`; `""` for one made per agent. |
+| `listen` | The exact TCP ports that may be bound with `online=False`, for a CLI its driver reaches over loopback. Binding doesn't open a way out, because connecting is still limited to the proxy. |
 
 - **`Fence.of`** maps each scope to a root: `system` is `/`, `user` the home directory, and
   `local` the workdir (and `cwd`, where the session works somewhere else). `"read"` puts a
@@ -1818,6 +1819,23 @@ How a turn is followed:
   down, which is how Kimi takes down a command the turn is in: it starts each one in a session
   of its own, out of reach of the daemon's process group. Putting the daemon down takes the
   whole process tree with it, and a turn cut off asks no daemon started after it went.
+
+How it is fenced:
+
+- Kimi holds none of the [fence](#the-fence) itself. 0.42 has no sandbox, and its permission
+  modes decide what is asked about, not what can be reached. Session `permission_rules` can
+  only approve, and the workspace path guard its file tools use can't be configured and never
+  sees `Bash`. So the whole fence is put around the daemon from outside, and every session
+  and command runs inside it.
+- The fence goes up once, when the daemon starts. An agent that is reconfigured with another
+  fence, or that falls back to another account, starts a new daemon. It doesn't keep running
+  turns on the old one.
+- With `online=False`, the fence also limits which TCP ports may be bound. So `port` `0`
+  becomes a free port chosen before the daemon starts, and that port (or the one `port`
+  names) is the only one granted in `listen`.
+- With `online=False`, `WebSearch` and `FetchURL` are also in `disabled_tools`, whatever
+  `web_search` says. Kimi's search is a service on the same hosts the fence keeps open for
+  the model, so the fence alone would not stop it.
 
 ### pi
 

@@ -184,8 +184,10 @@ def _become(
             write=(*fence.write, tmp),
             connect_ports=() if port is None else (port,),
             # A port the kernel picks is a listener only, which reaches nothing: a CLI that
-            # serves itself on loopback (agy's language server) cannot start without one.
-            bind_ports=() if port is None else (0,),
+            # serves itself on loopback (agy's language server) cannot start without one. A
+            # CLI that has to be found at a port of its own (kimi's daemon) names it in
+            # `listen`.
+            bind_ports=() if port is None else (0, *fence.listen),
             net=port is not None,
         ).restrict_self()
     # Everything, deliberately: this is the forked child, and anything escaping here would run

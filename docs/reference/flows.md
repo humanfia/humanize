@@ -462,7 +462,7 @@ Only `local`, `user` and `system` all `ALL` with `online` `ALL` fences nothing.
 | `opencode` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `mimo` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `qwen` | external (Landlock + proxy) | external (Landlock + proxy); `web_search` and `web_fetch` withheld |
-| `kimi` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `kimi` | external (Landlock + proxy) | external (Landlock + proxy; its daemon may bind its one port) |
 | `grok` | external (Landlock + proxy); its own sandbox writes `/tmp` | external (Landlock + proxy); its own sandbox leaves `web_fetch` online |
 | `pi` | external (Landlock + proxy) | external (Landlock + proxy), started `--offline`; the gateways its `models.json` declares stay reachable |
 | `zcode` | external (Landlock + proxy); a write outside it refused at approval | external (Landlock + proxy); web tools denied |
