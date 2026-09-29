@@ -864,7 +864,12 @@ def test_fence_user_none(cell: Cell) -> None:
         )
 
 
-@feature()
+@feature(
+    limits={
+        "cursor-agent": "online NONE is refused, its web tools running on Cursor's own "
+        "servers (docs/user/permissions.md)"
+    }
+)
 def test_fence_offline(cell: Cell) -> None:
     """An agent held offline reaches no host but its model's: neither its shell nor its web tool.
 

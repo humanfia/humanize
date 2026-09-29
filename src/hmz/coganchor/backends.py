@@ -2231,8 +2231,12 @@ PROFILES = (
         config=("cursor/skills/*/SKILL.md",),
         works=(".cursor/skills/*/SKILL.md",),
         mounts=".cursor/skills",
-        # What a login leaves behind, beside the settings it keeps in the same directory.
-        creds=("cli-config.json", "auth.json"),
+        # What a login leaves behind: the account it shows, in the settings file, and the
+        # tokens, which are not under its home at all. `cursor-agent` puts `auth.json` under
+        # the directory every program keeps its configuration in on Linux, and under
+        # `~/.cursor` on macOS whatever `CURSOR_CONFIG_DIR` says -- both spelled here, since
+        # a path nobody reads on this machine costs nothing to point somewhere else.
+        creds=("cli-config.json", "config/cursor/auth.json", "~/.cursor/auth.json"),
         # `CURSOR_LOCAL_AGENT_API_KEY` because the key its own local runtime is served under
         # is still a key, read whoever exported it: one left in a shell profile is the account
         # a turn under a provider would be answered as. Its endpoint and its authless switch

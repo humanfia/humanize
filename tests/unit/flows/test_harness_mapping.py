@@ -406,9 +406,9 @@ async def test_a_session_opens_without_starting_its_cli(tmp_path: Path) -> None:
     made = open_agent(_spec(HarnessKind.CURSOR_AGENT))
     made._installed = True
     placement = Placement(EnvBackendKind.LOCAL, "", PurePosixPath(str(tmp_path)))
-    handle = await made.open(
-        placement, permission=WORKDIR, skills=(), hooks=HookTable()
-    )
+    # Online, since cursor-agent is refused a cut network: its web tools run past it.
+    online = Permission(local=ALL, user=READ, system=NONE, online=ALL)
+    handle = await made.open(placement, permission=online, skills=(), hooks=HookTable())
     assert handle.id is None
     assert handle.usage.output_tokens == 0
     assert handle.agent.config.permission == "bypass"
@@ -417,12 +417,12 @@ async def test_a_session_opens_without_starting_its_cli(tmp_path: Path) -> None:
     handle.interrupt()
     with pytest.raises(SessionError):
         await made.open(
-            placement, permission=WORKDIR, skills=(), hooks=HookTable(), fork_of=handle
+            placement, permission=online, skills=(), hooks=HookTable(), fork_of=handle
         )
     await made.close()
     assert handle.closed
     with pytest.raises(SessionError):
-        await made.open(placement, permission=WORKDIR, skills=(), hooks=HookTable())
+        await made.open(placement, permission=online, skills=(), hooks=HookTable())
 
 
 # ---------------------------------------------------------------------------------- hooks

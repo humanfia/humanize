@@ -67,14 +67,15 @@ So the default grant is a real limit: an agent changes its workdir and nothing e
 | Backend | `local`, `user`, `system` | `online` of `NONE` |
 | --- | --- | --- |
 | every CLI | <Badge type="tip" text="held by Landlock" /> | <Badge type="tip" text="cut but for its model" /> |
-| `cursor-agent` | <Badge type="tip" text="held by Landlock" /> | <Badge type="warning" text="cut but for its model and its web tools" /> |
+| `cursor-agent` | <Badge type="tip" text="held by Landlock" /> | <Badge type="danger" text="refused" /> |
 | a CLI added over ACP | <Badge type="tip" text="held by Landlock" /> | <Badge type="warning" text="cut but for the hosts declared for it" /> |
 
 A role whose `local` is `READ` or `NONE` also runs in its CLI's read-only mode, where the CLI
 has one (every CLI but `dsh` and CLIs added over the Agent Client Protocol). Where a CLI can
 be told, `online` of `NONE` also switches its web tools off. Cursor's web search and fetch
 cannot be switched off and run on Cursor's own servers, which it reaches for its model, so a
-cut network does not stop them. ZCode also refuses, when it asks for approval, a write outside
+cut network would not stop them: a `cursor-agent` role with `online` of `NONE` is refused, and
+needs `online` of `ALL`. ZCode also refuses, when it asks for approval, a write outside
 the grant, and tells the model why.
 
 humanize knows nothing of a CLI you added over the Agent Client Protocol: not the hosts its
@@ -88,6 +89,7 @@ humanize never runs an agent with more than its grant. A role is refused before 
 - **this machine has no Landlock:** macOS, or a Linux kernel older than 5.13 or booted
   without it. A kernel older than 6.7 cannot cut the network, so `online` of `NONE` is
   refused there.
+- **the CLI would reach the web around the cut:** `cursor-agent` with `online` of `NONE`.
 - **the work lands on another machine:** a [container](/user/containers) or an ssh host. A
   role runs there only with `ALL` in every scope, `online` included.
 

@@ -457,13 +457,13 @@ Only `local`, `user` and `system` all `ALL` with `online` `ALL` fences nothing.
 | CLI | Filesystem | Network |
 | --- | --- | --- |
 | `claude` | external (Landlock + proxy); its own sandbox holds only its Bash tool, so it is not used | external (Landlock + proxy), and `WebSearch`, `WebFetch` refused by rule, since the search runs at the model API |
-| `codex` | external (Landlock + proxy) | external (Landlock + proxy); web search and ChatGPT apps off natively |
-| `cursor-agent` | external (Landlock + proxy); its own sandbox holds only its shell commands, and cannot start without a user namespace | external (Landlock + proxy); its web search and fetch run on Cursor's servers, past the proxy |
+| `codex` | external (Landlock + proxy) | external (Landlock + proxy); web search and ChatGPT apps off natively; at `local` `READ` with `online` `ALL`, its `read-only` sandbox is told to leave commands the network |
+| `cursor-agent` | external (Landlock + proxy); its own sandbox holds only its shell commands, and cannot start without a user namespace | `NONE` is refused: its web search and fetch run on Cursor's servers, through the hosts its model is at, and cannot be switched off |
 | `opencode` | external (Landlock + proxy); its file tools also refuse outside the fence | external (Landlock + proxy); its web tools are taken away offline |
 | `mimo` | external (Landlock + proxy); its file tools also refuse outside the fence | external (Landlock + proxy); its web tools are taken away offline |
 | `qwen` | external (Landlock + proxy) | external (Landlock + proxy); `web_search` and `web_fetch` withheld |
 | `kimi` | external (Landlock + proxy) | external (Landlock + proxy; its daemon may bind its one port) |
-| `grok` | external (Landlock + proxy); its own sandbox writes `/tmp` | external (Landlock + proxy); its own sandbox leaves `web_fetch` online |
+| `grok` | external (Landlock + proxy); its own sandbox writes `/tmp` | external (Landlock + proxy); its own sandbox cannot hold it, and `--disable-web-search` takes its web tools away offline |
 | `pi` | external (Landlock + proxy) | external (Landlock + proxy), started `--offline`; the gateways its `models.json` declares stay reachable |
 | `zcode` | external (Landlock + proxy); a write outside it refused at approval | external (Landlock + proxy); web tools denied |
 | `agy` | external (Landlock + proxy); its `--sandbox` holds only its commands | external (Landlock + proxy), and its web tools taken away |

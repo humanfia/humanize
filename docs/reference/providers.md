@@ -58,7 +58,7 @@ it goes with it. The home is read from humanize's own environment.
 | `agy` | `~/.gemini/antigravity-cli` | `antigravity-oauth-token` |
 | `claude` | `$CLAUDE_CONFIG_DIR`, else `~/.claude` | `.credentials.json`<br>`.claude.json`<br>`~/.claude.json`<br>`config/anthropic/` |
 | `codex` | `$CODEX_HOME`, else `~/.codex` | `auth.json` |
-| `cursor-agent` | `$CURSOR_CONFIG_DIR`, else `~/.cursor` | `cli-config.json`<br>`auth.json` |
+| `cursor-agent` | `$CURSOR_CONFIG_DIR`, else `~/.cursor` | `cli-config.json`<br>`config/cursor/auth.json`<br>`~/.cursor/auth.json` |
 | `dsh` | `$DSH_HOME`, else `~/.dsh` | none: its accounts are variables |
 | `grok` | `$GROK_HOME`, else `~/.grok` | `auth.json`<br>`mcp_credentials.json` |
 | `kimi` | `$KIMI_CODE_HOME`, else `~/.kimi-code` | `credentials/`<br>`oauth/` |
@@ -74,7 +74,8 @@ it goes with it. The home is read from humanize's own environment.
 - `agy`'s token file is what a sign-in leaves where there is no keyring to put it in.
 - `codex`'s `auth.json` holds subscription tokens and an API key alike.
 - `cursor-agent`'s `cli-config.json` also holds its settings, such as what the agent may
-  reach for, so a provider of it keeps settings of its own.
+  reach for, so a provider of it keeps settings of its own. Its tokens are in `auth.json`,
+  which it reads under `$XDG_CONFIG_HOME/cursor` on Linux and under `~/.cursor` on macOS.
 - `grok`'s `mcp_credentials.json` holds the tokens its MCP servers handed back.
 - `zcode`'s file is shared with the ZCode desktop app, and encrypted with a key derived from
   this machine and this user.

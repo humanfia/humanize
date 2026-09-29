@@ -515,8 +515,8 @@ def test_a_fenced_turn_runs_inside_the_whole_fence(
 ) -> None:
     """Its own sandbox is not asked for: every scope is held from outside, its sign-in let in.
 
-    The turn is spawned under the wrapper with the whole fence -- the network cut to Cursor's
-    own hosts, the home read-only but for where it keeps its state and its sign-in -- and the
+    The turn is spawned under the wrapper with the whole fence -- the home read-only but for
+    where it keeps its state and its sign-in, the system out of reach -- and the
     command line inside it is the one an unfenced turn has, with no `--sandbox` of its own.
     """
     from dataclasses import replace
@@ -534,7 +534,7 @@ def test_a_fenced_turn_runs_inside_the_whole_fence(
         local="all",
         user="read",
         system="none",
-        online=False,
+        online=True,
         workdir=work,
         home=home,
     )
@@ -544,8 +544,7 @@ def test_a_fenced_turn_runs_inside_the_whole_fence(
 
     (policy,) = fencing.policies(log)
     held = Fence.loads(json.dumps(policy))
-    assert not held.online
-    assert "*.cursor.sh" in held.hosts
+    assert held.online
     assert held.allows(home / ".config" / "cursor" / "auth.json", write=True)
     assert held.allows(work / "ok.txt", write=True)
     assert not held.allows(home / "fence-probe", write=True)
