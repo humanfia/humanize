@@ -50,8 +50,8 @@ def told(fence: Fence, *, home: str, native: bool) -> dict[str, Any]:
     Returns:
       The levels as `local`, `user` and `system`, and `online`; for a native CLI, `hosts`, the
       state it writes under its home as `write` -- each as `~/...`, to which a caller may add
-      a path of the target's own -- and `programs`, which has the target let the CLI read its
-      own install tree.
+      a path of the target's own -- `programs`, which has the target let the CLI read its
+      own install tree, and where it names any, the ports it may `listen` on.
 
     Raises:
       ValueError: If the fence was drawn path by path, and so has no levels to say.
@@ -76,6 +76,8 @@ def told(fence: Fence, *, home: str, native: bool) -> dict[str, Any]:
             if one.startswith(root.rstrip(os.sep) + os.sep)
         ]
         said["programs"] = True
+        if fence.listen:
+            said["listen"] = list(fence.listen)
     return said
 
 
@@ -126,6 +128,12 @@ def drawn(
     first, *rest = workdirs
     widened = [*rest] if local == ALL else []
     seen = [*rest] if local == READ else []
+    listen: object = said.get("listen", [])
+    if not isinstance(listen, list) or not all(
+        isinstance(one, int) and not isinstance(one, bool) and 0 < one < 65536  # noqa: PLR2004
+        for one in cast("list[object]", listen)
+    ):
+        raise ValueError("a fence's listen is a list of ports")
     return Fence.of(
         local=local,
         user=str(levels[1]),
@@ -145,7 +153,7 @@ def drawn(
                 if homed and one.startswith(HOME)
             ),
         ],
-    )
+    ).granting(listen=cast("list[int]", listen))
 
 
 def ready(fence: Fence, home: str) -> None:

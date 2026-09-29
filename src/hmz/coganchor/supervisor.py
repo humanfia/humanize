@@ -15,17 +15,20 @@ selectable alongside a completion pipe.
 from __future__ import annotations
 
 import contextlib
+import ctypes
 import errno
 import logging
 import os
 import queue
 import select
 import signal
+import socket
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from hmz.coganchor import standin
 from hmz.coganchor.execproxy import ExecProxy, ExecResult
+from hmz.coganchor.fence.loopback import Supervisor as Listens
 from hmz.coganchor.handlers import STALL, Action, SyscallDispatcher
 from hmz.coganchor.linux import landlock, procfs, ptrace, seccomp
 from hmz.coganchor.linux.syscalls import NR, TRAPPED_SYSCALLS, syscall_name
@@ -43,6 +46,9 @@ if TYPE_CHECKING:
 __all__ = ["Launch", "Supervisor", "Tracee"]
 
 log = logging.getLogger(__name__)
+
+#: `prctl`'s option that makes a process the one its orphaned descendants are handed to.
+_PR_SET_CHILD_SUBREAPER = 36
 
 #: How long the loop sleeps before re-checking stalled tracees for signals.
 _IDLE_SECONDS = 0.2
@@ -87,7 +93,10 @@ class Launch:
         place it can be: a wall goes up in the process it holds, and the ruleset's own calls
         must not be trapped.
       sockets: Whether every socket but a TCP one is refused it, beside `walled`'s TCP rule --
-        which is what cutting its network comes to.
+        which is what cutting its network comes to. And with it, every ``bind`` and ``listen``
+        it makes is stopped for the supervisor to answer, as ``hmz internal fence`` answers
+        them (:mod:`hmz.coganchor.fence.loopback`): a socket may listen on loopback and
+        nowhere else.
     """
 
     program: str
@@ -151,6 +160,12 @@ class Supervisor:
         self._signal_write = -1
         self._root_pid = 0
         self._exit_status = 1
+        #: The descriptor every ``bind`` and ``listen`` of an agent whose network is cut is
+        #: stopped at, as the forked child hands it up, until :attr:`_listens` answers it.
+        self._listener: int | None = None
+        #: What answers those, from the moment the agent is stopped and safe to start a
+        #: thread beside to the moment the session ends.
+        self._listens: Listens | None = None
         #: Whether the agent's own process is still its launcher -- a shell running the
         #: script it was installed as, or `env` finding the interpreter one names -- rather
         #: than the agent it is about to become. Only ever a script the agent was started as:
@@ -165,6 +180,7 @@ class Supervisor:
         try:
             self._root_pid = self._fork_tracee()
             self._await_initial_stop()
+            self._answer_listens()
             # The tracee is parked at SIGSTOP, so it is safe to start threads
             # now; forking a multi-threaded process is not.
             try:
@@ -234,6 +250,11 @@ class Supervisor:
 
     def _teardown(self) -> None:
         signal.set_wakeup_fd(-1)
+        if self._listens is not None:
+            self._listens.stop()
+        elif self._listener is not None:
+            os.close(self._listener)
+        self._listens = self._listener = None
         for tracee in self._tracees.values():
             if tracee.proxy is not None:
                 tracee.proxy.abandon()
@@ -255,16 +276,50 @@ class Supervisor:
         Must run while this process is single-threaded: everything between
         ``fork`` and ``execve`` shares the parent's memory, and a lock held by
         another thread at fork time would never be released here.
+
+        An agent whose network is cut hands up the descriptor its ``bind`` and ``listen``
+        calls are stopped at before it stops itself, which this takes into
+        :attr:`_listener`. And this process becomes the subreaper of everything under it, as
+        the wrapper does: a daemon that forked twice to leave its parent is still one of this
+        process's descendants, which is what Yama asks of a process before it lets another
+        take one of its descriptors -- and so still one whose ``listen`` can be answered.
         """
         launch = self._launch
-        pid = os.fork()
+        if launch.sockets:
+            libc = ctypes.CDLL(None, use_errno=True)
+            if libc.prctl(_PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0:
+                code = ctypes.get_errno()
+                raise OSError(code, os.strerror(code), "prctl(PR_SET_CHILD_SUBREAPER)")
+        ours, theirs = socket.socketpair() if launch.sockets else (None, None)
+        try:
+            pid = os.fork()
+        except OSError:
+            for one in (ours, theirs):
+                if one is not None:
+                    one.close()
+            raise
         if pid:
+            if ours is not None and theirs is not None:
+                theirs.close()
+                with ours:
+                    # Nothing where the child failed before it could hand it up, and then
+                    # it exits rather than stops, which the initial stop says.
+                    _, handed, _, _ = socket.recv_fds(ours, 1, 1)
+                self._listener = handed[0] if handed else None
             return pid
         try:
             os.chdir(launch.cwd)
             ptrace.traceme()
             if launch.sockets:
                 seccomp.install_socket_filter()
+                listener = seccomp.install_listener()
+                if theirs is None:  # pragma: no cover -- made above wherever sockets is
+                    raise RuntimeError("nobody to answer its binds")  # noqa: TRY301
+                socket.send_fds(theirs, [b"!"], [listener])
+                # Closed before the agent runs, not merely on exec: an agent holding the
+                # listener could answer its own calls.
+                os.close(listener)
+                theirs.close()
             if launch.walled is not None:
                 launch.walled.restrict_self()
             seccomp.install(TRAPPED_SYSCALLS)
@@ -277,6 +332,20 @@ class Supervisor:
         except BaseException as exc:  # noqa: BLE001
             os.write(2, f"hmz: cannot launch {launch.program}: {exc}\n".encode())
         os._exit(127)
+
+    def _answer_listens(self) -> None:
+        """Starts answering the agent's ``bind`` and ``listen`` calls, where it handed them up.
+
+        Once the agent is stopped, which is when this process may start a thread: the filter
+        that stops them is stacked beneath the one that traps the calls :data:`TRAPPED_SYSCALLS`
+        names, neither of which is ``bind`` or ``listen``, and a call the kernel stops for a
+        supervisor is never also stopped for a tracer.
+        """
+        if self._listener is None:
+            return
+        self._listens = Listens(self._listener)
+        self._listener = None
+        self._listens.start()
 
     def _await_initial_stop(self) -> None:
         _, status = os.waitpid(self._root_pid, 0)

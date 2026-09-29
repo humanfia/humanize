@@ -308,13 +308,22 @@ its [permission](/user/permissions). Each machine holds its own half, around its
 - **Supervised.** The agent process here is walled in by this machine's Landlock before it
   runs, with the mirror as its workdir. The supervisor, its link to the target and the mirror
   stay outside the wall. Where the network is cut, a proxy in the anchor's own process is the
-  agent's one way out, to its model's hosts. Every command the agent runs lands on the target
+  agent's one way out, to its model's hosts. It may still listen on loopback, as under
+  `hmz internal fence`: the supervisor answers its every `bind` and `listen`, at a port the
+  kernel picks or one its driver named, and refuses any address but loopback. Every command the agent runs lands on the target
   with the fence's levels, `local`, `user` and `system`. The target draws the fence again
   around the directory it exports, its own `$HOME` and its own minimum. It runs the command
   under its own `hmz internal fence`, which reaches no host at all where the network is cut.
 - **`native`.** The CLI on the target is walled in the same way there. It is also let reach
   its model's hosts, write the state it keeps under the target's home and the turn's
-  credential directory, and read its own install tree.
+  credential directory, read its own install tree, and bind the port its driver named.
+
+Whatever a driver lets its CLI past the wall here (a port it serves itself on, a sign-in kept
+outside its home) it is let past the wall on both machines. A CLI's own sandbox is not used:
+it wraps each command in a helper here (`bwrap`, `cursorsandbox`), and the command runs on the
+target. Where the fence holds what the CLI's rung asks for, the rung is left to the fence:
+Codex is told its sandbox is an external one, and Cursor's `workspace-write` runs without
+`cursorsandbox`.
 
 A target without Landlock (a kernel before 5.13, or 6.7 where the network is cut, macOS, or a
 container whose seccomp profile refuses the calls) says so when it is reached, and the session

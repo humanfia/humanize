@@ -71,7 +71,9 @@ def test_levels_that_are_not_three_of_a_fences_are_refused() -> None:
 
 
 def test_a_supervised_agents_commands_are_told_only_the_levels() -> None:
-    fence = _of(ALL, READ, READ, hosts=["api.example.com"], write=["/home/here/.cli"])
+    fence = _of(
+        ALL, READ, READ, hosts=["api.example.com"], write=["/home/here/.cli"]
+    ).granting(listen=[4321])
     assert told(fence, home=HOME, native=False) == {
         "local": ALL,
         "user": READ,
@@ -86,12 +88,27 @@ def test_a_native_cli_is_told_its_hosts_and_the_state_it_keeps_at_home() -> None
         online=False,
         hosts=("api.example.com",),
         write=("/home/here/.cli", "/home/here/.config/cli", "/tmp/scratch"),
+        listen=(4321,),
     )
     said = told(fence, home=HOME, native=True)
     assert said["hosts"] == ["api.example.com"]
     # Relative to the home, which is another directory there; nothing else of this machine's.
     assert said["write"] == ["~/.cli", "~/.config/cli"]
     assert said["programs"] is True
+    # The port it serves itself on, which it binds there as it would here.
+    assert said["listen"] == [4321]
+    assert "listen" not in told(
+        dataclasses.replace(fence, listen=()), home=HOME, native=True
+    )
+
+
+def test_the_target_lets_a_native_cli_listen_where_it_was_told(tmp_path: Path) -> None:
+    said = told(
+        Fence(scopes=(ALL, READ, READ), online=False, listen=(4321,)),
+        home=HOME,
+        native=True,
+    )
+    assert drawn(said, workdirs=[str(tmp_path)], home=str(tmp_path)).listen == (4321,)
 
 
 def test_a_fence_drawn_path_by_path_cannot_cross() -> None:
@@ -162,8 +179,10 @@ def test_a_native_clis_state_lands_under_the_targets_home(tmp_path: Path) -> Non
         {"local": ALL, "user": READ, "system": READ, "write": ["relative"]},
         {"local": ALL, "user": READ, "system": READ, "write": ["~/../escape"]},
         {"local": ALL, "user": READ, "system": READ, "hosts": "one"},
+        {"local": ALL, "user": READ, "system": READ, "listen": [0]},
+        {"local": ALL, "user": READ, "system": READ, "listen": ["80"]},
     ],
-    ids=["level", "online", "relative", "climbing", "hosts"],
+    ids=["level", "online", "relative", "climbing", "hosts", "any-port", "port"],
 )
 def test_what_is_not_a_fences_levels_is_refused(
     tmp_path: Path, said: dict[str, Any]
@@ -389,3 +408,66 @@ def test_a_gpu_is_there_to_use_whatever_the_levels(tmp_path: Path) -> None:
     assert fence.allows("/dev/dri/renderD128", write=True)
     assert fence.allows("/dev/kfd", write=True)
     assert not fence.allows("/dev/sda", write=True)
+
+
+class _Granting(ClaudeCodeAgent):
+    """A driver that lets its CLI past the wall what only it knows the CLI needs."""
+
+    def natively(self, fence: Fence) -> Fence:
+        return fence.granting(write=["/opt/sign-in"], listen=[4321])
+
+
+class _Holding(ClaudeCodeAgent):
+    """A driver whose CLI holds the filesystem itself, where it runs here."""
+
+    def natively(self, fence: Fence) -> Fence:
+        return fence.without(filesystem=True).granting(listen=[4321])
+
+
+@pytest.mark.usefixtures("target")
+def test_an_anchored_agent_is_let_what_its_driver_grants_it() -> None:
+    """A port it serves itself on (Kimi), a sign-in outside its home (Cursor), on both sides.
+
+    And no more than that: what a CLI would hold natively here it holds nothing of on another
+    machine, so a driver taking the filesystem off takes nothing off an anchored fence.
+    """
+    anchor = AnchorConfig(target="ssh://box", workspace="/srv/w")
+    config = ClaudeCodeAgentConfig(
+        model="m",
+        effort="high",
+        fence=_of(ALL, READ, READ),
+        machine=AnchoredConfig(anchor=anchor),
+    )
+
+    held = _told(_Granting(config).spawned(["claude"]))
+    assert held.listen == (4321,)
+    assert held.allows("/opt/sign-in", write=True)
+
+    held = _told(_Holding(config).spawned(["claude"]))
+    assert held.listen == (4321,)
+    assert not held.allows("/etc/machine-id", write=True)
+    assert held.scopes == (ALL, READ, READ)
+
+
+@pytest.mark.usefixtures("target")
+def test_an_agent_walled_in_here_offline_listens_as_the_wrapper_lets_it(
+    tmp_path: Path,
+) -> None:
+    """A port the kernel picks, and the fence's own; each held to loopback by the supervisor."""
+    from hmz.coganchor.anchor import _Walls
+    from hmz.coganchor.supervisor import Launch
+
+    fence = dataclasses.replace(
+        _of(ALL, READ, READ).granting(listen=[4321]), tmp=str(tmp_path / "scratch")
+    )
+    walls = _Walls(fence, str(tmp_path / "mirror"))
+    try:
+        launch = walls.around(
+            Launch(program="/bin/true", argv=["true"], env={}, cwd="/")
+        )
+    finally:
+        walls.stop()
+
+    assert launch.sockets
+    assert launch.walled is not None
+    assert tuple(launch.walled.bind_ports) == (0, 4321)

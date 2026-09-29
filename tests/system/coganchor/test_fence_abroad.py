@@ -18,7 +18,9 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import socket
 import subprocess
+import sys
 from typing import TYPE_CHECKING
 
 import pytest
@@ -385,3 +387,112 @@ def test_a_container_that_cannot_fence_refuses_the_session(
     assert "RAN" not in ran.stdout
     assert "cannot fence" in ran.stderr, ran.stderr
     assert not (tmp_path / "work" / "made.txt").exists()
+
+
+#: Binds and listens on loopback, on every address, and on none, at a port the kernel picks
+#: and at the one given, saying what each came to on a line of its own under a tag.
+LISTENS = """
+import errno, socket, sys
+def said(host, port):
+    held = socket.socket()
+    try:
+        if host:
+            held.bind((host, port))
+        held.listen()
+        return "listening"
+    except OSError as why:
+        return "refused-" + errno.errorcode.get(why.errno, str(why.errno))
+    finally:
+        held.close()
+tag, named = sys.argv[1], int(sys.argv[2])
+for host, port in (
+    ("127.0.0.1", 0), ("0.0.0.0", 0), ("", 0), ("127.0.0.1", named), ("0.0.0.0", named)
+):
+    print(f"{tag}:{host or 'unbound'}:{'named' if port else 0}:{said(host, port)}", flush=True)
+"""
+
+#: The agent: the probe in its own process, which is walled in here, then as a command, which
+#: is run on the target and walled in there.
+LISTENER = (
+    LISTENS
+    + "import subprocess\n"
+    + f"subprocess.run(['python3', '-c', {LISTENS!r}, 'THERE', str(named)], check=False)\n"
+)
+
+
+def _listened(ran: subprocess.CompletedProcess[str], where: str) -> list[str]:
+    return [one for one in ran.stdout.split() if one.startswith(f"{where}:")]
+
+
+def _loopback(where: str, *, named: str) -> list[str]:
+    """What a cut network lets a socket do: listen on loopback, at a port it may bind."""
+    return [
+        f"{where}:127.0.0.1:0:listening",
+        f"{where}:0.0.0.0:0:refused-EACCES",
+        f"{where}:unbound:0:refused-EACCES",
+        f"{where}:127.0.0.1:named:{named}",
+        f"{where}:0.0.0.0:named:refused-EACCES",
+    ]
+
+
+def _free() -> int:
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return int(probe.getsockname()[1])
+
+
+def _listening(config: AnchorConfig, port: int) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        config.command([sys.executable, "-c", LISTENER, "HERE", str(port)]),
+        capture_output=True,
+        text=True,
+        timeout=DEFAULT_TIMEOUT * 2,
+        cwd=str(REPO_ROOT),
+        env={**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")},
+        check=False,
+    )
+
+
+def test_a_cut_network_lets_an_anchored_agent_listen_on_loopback_only(
+    anchorage: Anchorage, home: Path
+) -> None:
+    """A supervised agent listens as `hmz internal fence` would let it, on both machines.
+
+    Here, at a port the kernel picks -- agy's language server -- and at the one its fence
+    names -- kimi's daemon -- on loopback and nowhere else. There, what it runs likewise, but
+    for the named port: that is the CLI's own, which no command it runs is let bind.
+    """
+    del home
+    port = _free()
+    ran = _listening(
+        AnchorConfig(
+            target=f"local:{anchorage.target}",
+            workspace=anchorage.workspace,
+            shadow=str(anchorage.mirror),
+            fence=_default().granting(listen=[port]),
+        ),
+        port,
+    )
+
+    assert _listened(ran, "HERE") == _loopback("HERE", named="listening"), (
+        ran.stdout + ran.stderr
+    )
+    assert _listened(ran, "THERE") == _loopback("THERE", named="refused-EACCES"), (
+        ran.stdout + ran.stderr
+    )
+
+
+def test_a_cut_network_in_a_container_lets_what_runs_there_listen_on_loopback_only(
+    unconfined: str, tmp_path: Path
+) -> None:
+    port = _free()
+    ran = _listening(
+        _in(unconfined, tmp_path, _default().granting(listen=[port])), port
+    )
+
+    assert _listened(ran, "HERE") == _loopback("HERE", named="listening"), (
+        ran.stdout + ran.stderr
+    )
+    assert _listened(ran, "THERE") == _loopback("THERE", named="refused-EACCES"), (
+        ran.stdout + ran.stderr
+    )

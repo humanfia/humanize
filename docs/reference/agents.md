@@ -1700,6 +1700,12 @@ old one is taken down unless a turn is still running on it. Each conversation is
 up on the new server by its id. The model, the effort, the rung and `approvals` go with each
 call and start nothing.
 
+On another machine, a rung with a sandbox (`read-only`, `workspace-write`, `auto`) is left to
+the anchor's fence where that fence is at least as narrow: each turn is sent `sandboxPolicy`
+`externalSandbox`, with the network the fence leaves. Codex's own sandbox wraps each command
+in `bwrap` or `codex-linux-sandbox`, and under an anchor that helper would run on the target.
+A fence wider than the rung, or none, leaves Codex's sandbox in place.
+
 ### Cursor Agent
 
 `cursor-agent`. One run per turn.
@@ -1731,6 +1737,9 @@ stands.
   Its web search and fetch are calls to Cursor's servers, which nothing here can switch off or
   tell apart from its model, so a fence that cuts the network is refused with `Unfenced`:
   grant `online` `ALL` to use `cursor-agent`.
+- **On another machine, `workspace-write` runs without `cursorsandbox`** where the fence
+  writes nothing of the home or the system: the sandbox would open here around a command the
+  anchor runs on the target, and the anchor's fence holds the rung there instead.
 - The separately distributed `cursor-agent-local` runtime, pointed at an OpenAI-compatible
   endpoint with `CURSOR_LOCAL_AGENT_BASE_URL`, `CURSOR_LOCAL_AGENT_API_KEY` and
   `CURSOR_ENABLE_AUTHLESS=1`, takes the id it serves. A turn under an hmz provider runs without
