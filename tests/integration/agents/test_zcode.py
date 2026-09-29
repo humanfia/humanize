@@ -34,6 +34,8 @@ from hmz.coganchor.agents import (
     ZcodeAgent,
     ZcodeAgentConfig,
 )
+from hmz.coganchor.fence import ALL, NONE, READ, Fence
+from tests import fencing
 from tests.supervising import traced
 
 #: A `zcode app-server --stdio` of our own. It speaks ZCode's protocol rather than JSON-RPC --
@@ -41,8 +43,9 @@ from tests.supervising import traced
 #: client the two things the real one asks: what the runtime may do before it will open a
 #: session at all, and, at a rung that asks, whether a high-risk tool is allowed.
 #:
-#: A prompt of `boom` is a turn that failed, `asking` a turn that stopped on a question and
-#: `approving` one that asked to be allowed to do something. Everything else is answered the
+#: A prompt of `boom` is a turn that failed, `asking` a turn that stopped on a question,
+#: `approving` one that asked to be allowed to do something and `writing:PATH` one that asked
+#: to be allowed to write PATH. Everything else is answered the
 #: way a working turn answers: it thinks, it reaches for something, it says what that request
 #: cost, and only then does it end.
 _ZCODE = """
@@ -73,6 +76,12 @@ def turn(prompt, session=None):
             "sessionId": SESSION, "toolName": "AskUserQuestion", "toolCallId": "tu_a",
             "questions": [{"header": "Way", "question": "Which way?",
                            "options": [{"label": "left"}, {"label": "right"}]}]}})
+        return
+    if prompt.startswith("writing:"):
+        send({"id": "server-7", "method": "interaction/requestPermission", "params": {
+            "sessionId": SESSION, "toolName": "Write", "riskLevel": "medium",
+            "reason": "Tool has side effects and requires approval", "toolCallId": "tu_w",
+            "input": {"file_path": prompt.removeprefix("writing:"), "content": "x"}}})
         return
     if prompt == "approving":
         send({"id": "server-8", "method": "interaction/requestPermission", "params": {
@@ -433,6 +442,74 @@ def test_an_agent_that_may_not_search_the_web_is_denied_the_tools_that_reach_it(
     denied = server.named("session/create")[-1]
 
     assert denied["toolDenylist"] == ["WebFetch", "WebSearch"]
+    agent.stop()
+
+
+def _fence(tmp_path: Path, *, online: bool) -> Fence:
+    return Fence.of(
+        local=ALL,
+        user=READ,
+        system=NONE,
+        online=online,
+        workdir=tmp_path,
+        home=tmp_path / "home",
+    )
+
+
+def test_a_fenced_server_is_spawned_inside_the_fence_with_its_install_to_read(
+    server: _FakeServer, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ZCode has no sandbox of its own, so the whole fence is put around its server."""
+    install = tmp_path / "ZCode"
+    install.mkdir()
+    monkeypatch.setattr("hmz.coganchor.agents.zcode._INSTALL", str(install))
+    log = tmp_path / "fence.log"
+    monkeypatch.setenv(fencing.LOG, str(log))
+    agent = _agent(fence=_fence(tmp_path, online=False))
+
+    assert agent.new(tmp_path)("hello") == "hello"
+
+    (policy,) = fencing.policies(log)
+    assert policy["online"] is False
+    assert "api.z.ai" in policy["hosts"]
+    assert str(install) in policy["read"]
+    agent.stop()
+
+
+def test_a_fence_that_cuts_the_network_denies_the_tools_that_reach_it(
+    server: _FakeServer, tmp_path: Path
+) -> None:
+    """Said to the session whatever the agent was told about the web, and only offline."""
+    agent = _agent(fence=_fence(tmp_path, online=True))
+    agent.new(tmp_path)("hello")
+    assert "toolDenylist" not in server.named("session/create")[-1]
+    agent.stop()
+
+    agent = _agent(fence=_fence(tmp_path, online=False), web_search=True)
+    agent.new(tmp_path)("hello")
+    assert server.named("session/create")[-1]["toolDenylist"] == [
+        "WebFetch",
+        "WebSearch",
+    ]
+    agent.stop()
+
+
+def test_an_approval_to_write_outside_the_fence_is_refused_saying_why(
+    server: _FakeServer, tmp_path: Path
+) -> None:
+    """At the rung that grants what it is asked, a write the fence would stop is said no to."""
+    agent = _agent(permission="auto", fence=_fence(tmp_path, online=True))
+    outside = "/etc/fence-probe-zcode"
+
+    assert agent.new(tmp_path)(f"writing:{outside}") == json.dumps(
+        {
+            "decision": "deny",
+            "reason": f"{outside} is outside what this agent may write",
+        }
+    )
+    assert agent.new(tmp_path)(f"writing:{tmp_path / 'ok.txt'}") == json.dumps(
+        {"decision": "allow", "reason": "run unattended"}
+    )
     agent.stop()
 
 

@@ -74,7 +74,8 @@ A role whose `local` is `READ` or `NONE` also runs in its CLI's read-only mode, 
 has one (every CLI but `dsh` and CLIs added over the Agent Client Protocol). Where a CLI can
 be told, `online` of `NONE` also switches its web tools off. Cursor's web search and fetch
 cannot be switched off and run on Cursor's own servers, which it reaches for its model, so a
-cut network does not stop them.
+cut network does not stop them. ZCode also refuses, when it asks for approval, a write outside
+the grant, and tells the model why.
 
 humanize knows nothing of a CLI you added over the Agent Client Protocol: not the hosts its
 model is at, and not where it keeps its state. Declare both where it was added, or a role that

@@ -1893,6 +1893,23 @@ hmz exec -f ralph_loop -a 'agent=zcode@work/gw/vendor/some-model:high' -b cost=5
 The first segment is the name the session declares the endpoint under, and `gw` is the one the
 catalogue uses; `vendor/some-model` is sent to the endpoint as it stands.
 
+**Under a fence.** ZCode has no sandbox of its own, so a [permission](/reference/flows) short of
+everything is held from outside, in full, by `hmz internal fence`. The fence also lets it read
+`/opt/ZCode`, where the official package installs the Electron binary that the `zcode` command
+line runs in Node mode. Its model requests go through the fence's proxy (Node 24 honours
+`HTTPS_PROXY` under `NODE_USE_ENV_PROXY=1`), so a turn at `online=NONE` still reaches its model.
+On top of that, and not instead of it:
+
+- `online=NONE` sends `toolDenylist: ["WebFetch", "WebSearch"]` on the session, whatever
+  `web_search` says.
+- An approval ZCode asks for a `Write` or `Edit` to an absolute path the fence does not let be
+  written is answered `deny`, saying the path is outside what the agent may write. ZCode asks at
+  the `auto` rung (its `build` mode) and not at `bypass`, where the fence alone holds.
+
+ZCode's own permission rules are not used for this: they are kept per project in its database,
+`yolo` ignores them, and a deny outranks every allow, so they cannot say "everything outside the
+workdir".
+
 ### A CLI of your own
 
 Any coding agent that speaks the [Agent Client Protocol](https://agentclientprotocol.com) can

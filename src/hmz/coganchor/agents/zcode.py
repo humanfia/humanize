@@ -74,6 +74,8 @@ if TYPE_CHECKING:
 
     from pydantic import BaseModel
 
+    from hmz.coganchor.fence import Fence
+
 #: How long a server being taken down is given to go before it is left to the operating system.
 _STOP_SECONDS = 5.0
 
@@ -127,6 +129,15 @@ _GRANTS = ("build", "yolo")
 #: rather than in anybody's settings file: two agents of one flow may be told different things,
 #: and neither is a reason to change what the person at this machine has configured.
 _WEB = ("WebFetch", "WebSearch")
+
+#: Where ZCode's official Linux package installs the desktop app, whose own binary the `zcode`
+#: command line runs in Node mode (`hmz.coganchor.backends` writes that launcher down). What
+#: a fence adds to read for this CLI, since nothing the launcher names on its own leads here.
+_INSTALL = "/opt/ZCode"
+
+#: The tools that change a file, and so the ones an approval is checked against the fence's
+#: writes for, by the `file_path` each names it in.
+_WRITES = ("Write", "Edit")
 
 #: What each kind of token is called in the counts the server states. Reasoning and the cached
 #: part of the input are counted inside these two rather than beside them -- the server's own
@@ -993,6 +1004,13 @@ class _AppServer:
                     "decision": "deny",
                     "reason": asking.because or "refused by a hook",
                 }
+            elif outside := _outside(agents, told):
+                # Refused here as well as below: the fence outside would fail the write on its
+                # way to the disk, and a refusal that says why is one the model can act on.
+                answer = {
+                    "decision": "deny",
+                    "reason": f"{outside} is outside what this agent may write",
+                }
             elif mode in _GRANTS:
                 answer = {"decision": "allow", "reason": "run unattended"}
             else:
@@ -1048,6 +1066,40 @@ class _AppServer:
         if (refused := message.get("error")) is not None:
             raise Failed(1, self._argv, said, json.dumps(refused))
         return message.get("result")
+
+
+def _outside(agents: list[AgentBase], told: dict[str, Any]) -> str:
+    """The file an approval asks to change that the agent's fence does not let it write.
+
+    ZCode's own permission rules are no place to say this. They are kept per project in its
+    database and outlive the run that added them, they are added only as the answer to an
+    approval, `yolo` passes over them without reading them, and they cannot say "outside":
+    a rule matches a path by pattern, a deny outranks every allow, and so no set of them
+    denies the home directory while leaving a workdir inside it open. So the fence is read
+    here, per request, where the answer is this client's to give -- which is every approval
+    ZCode asks, and none at `yolo`, where the fence outside is the whole of it.
+
+    Args:
+      agents: Whose turns this server runs, the first of which is the one fenced.
+      told: The approval's params, as read.
+
+    Returns:
+      The path, or "" for a request that is not a write, names no absolute path, or names
+      one the fence lets be written. ZCode's file tools take absolute paths; one that is not
+      is left to the fence outside, which holds whatever this does not.
+    """
+    given: object = told.get("input")
+    if not agents or str(told.get("toolName") or "") not in _WRITES:
+        return ""
+    path = (
+        cast("dict[str, Any]", given).get("file_path")
+        if isinstance(given, dict)
+        else None
+    )
+    if not isinstance(path, str) or not os.path.isabs(path):  # noqa: PTH117 -- a string, as a fence holds it
+        return ""
+    fence = agents[0].fenced()
+    return "" if fence is None or fence.allows(path, write=True) else path
 
 
 def _forget(waiting: queue.Queue[dict[str, Any] | None]) -> None:
@@ -1545,8 +1597,13 @@ class ZcodeSession(SessionBase):
         self._held.mode = _PERMITTED.get(config.permission, _PERMITTED[UNSAID])
         # A config that says nothing about the web is carried down as None rather than
         # normalised here: the denylist is written only where searching was taken away, so
-        # every place that reaches for it asks whether the answer was `False`.
-        searches = config.web_search
+        # every place that reaches for it asks whether the answer was `False`. A fence that
+        # cuts the network says it too: the proxy outside would refuse those tools anyway, and
+        # a tool that is not there is one the model does not spend a request finding refused.
+        fence = config.fence
+        searches = (
+            False if fence is not None and not fence.online else config.web_search
+        )
         # Read off whatever config this agent was made with, since an agent of this backend
         # may be handed the common one: what is not there is what the driver has always sent.
         titles = bool(getattr(config, "titles", _TITLES))
@@ -1620,6 +1677,14 @@ class ZcodeAgent(AgentBase):
     more than it has, the server asks and waits for the answer -- so that is the one place a
     hook here can say no to something and have the agent hear it. At `bypass` it is never
     asked, and a hook hung on that moment never fires.
+
+    Its fence is held from outside, whole: ZCode has no sandbox of its own, so
+    :meth:`natively` is left enforcing nothing. Its model requests go by the fence's proxy --
+    they are Node's own `fetch`, which the Node 24 inside ZCode's Electron sends through
+    `HTTPS_PROXY` once the wrapper has set `NODE_USE_ENV_PROXY` -- so a turn cut off the
+    network still reaches its model. What the session is told on top is narrower and no
+    substitute: a fence that cuts the network denies the web tools, and an approval to write
+    outside it is refused by :func:`_outside`.
     """
 
     moments: ClassVar[frozenset[Moment]] = EVERYWHERE | {Moment.PERMISSION_REQUEST}
@@ -1681,6 +1746,24 @@ class ZcodeAgent(AgentBase):
                 # agent is collected, and at exit for one held to the end.
                 weakref.finalize(self, self._server.stop)
             return self._server
+
+    def fenced(self) -> Fence | None:
+        """The fence this agent is held to, with the Electron its command line runs on to read.
+
+        The `zcode` a shell finds is a launcher that runs the desktop app's own binary in Node
+        mode, and what the fence is told a CLI is made of is found from the command alone: the
+        launcher, its `/bin/sh`, and the tree it sits in. The binary and the bundle it runs are
+        under :data:`_INSTALL`, which no scope grants -- `/opt` is not part of anybody's
+        minimum -- so a fence at `system=none` would start the launcher and then refuse it the
+        one program it runs. Read, not written: an install tree is nothing a turn changes.
+
+        Returns:
+          The fence, or None for an agent nobody said one for.
+        """
+        fence = super().fenced()
+        if fence is None or not os.path.isdir(_INSTALL):  # noqa: PTH112
+            return fence
+        return fence.granting(read=[_INSTALL])
 
     def stop(self) -> None:
         """Takes no further turn, and takes down the server the turn under way is waiting on."""
