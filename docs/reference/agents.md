@@ -1719,6 +1719,15 @@ Grok Build's own on both transports.
 Every field but `leader` defaults to the flag not written at all. `leader` defaults to `False`
 so that a `use_leader = true` in your config cannot put every session of a flow on one process.
 
+- **A [fence](#the-fence) is held whole from outside**, never by Grok Build's own `--sandbox`
+  (or `GROK_SANDBOX`, which `grok agent stdio` does read). Its network setting blocks only the
+  commands' network, not the process's own `web_fetch`; every profile writes `/tmp` and
+  `/var/tmp`; a custom profile lives only in your `sandbox.toml`; and on a kernel that gives
+  unprivileged users no user namespace, 1.0.24 does not start under any profile.
+- **A fenced conversation never joins the leader**, which is a process started outside the
+  fence and would run its tools there: `leader=None` is sent as `--no-leader`, and
+  `leader=True` is refused with `Unfenced`. A fence that fences nothing changes neither.
+
 - On the command line the prompt is one argument, `--single=…`. Linux caps one argument at 32
   pages, which leaves 131062 bytes of prompt (about 32 thousand tokens); a longer prompt raises
   before the process starts.

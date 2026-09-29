@@ -30,6 +30,27 @@ rather than a comfort. It stays on the command line because the alternative is a
 write, to keep for the length of the turn and to clear up after a turn that may have been cut
 off, and this transport has nowhere to hang that clearing up: a turn is `_turn` returning an
 argv and nothing runs after the process ends.
+
+A fence is held from outside, whole, and never by Grok Build's own sandbox -- which is the
+finding :meth:`GrokBuildAgent.natively` is left at its default for. The sandbox is real and
+reaches both transports: `GROK_SANDBOX` is read by `grok agent stdio` though `--sandbox` is
+refused there, and it confines the whole process with Landlock rather than its commands
+alone. But it cannot say a fence. Its network setting blocks the *commands'* network with
+seccomp and leaves the process's own untouched, `web_fetch` included, so a cut network is
+never Grok Build's to hold. Every profile it has -- the four built in, and a custom one, which
+only extends one of those -- lets `/tmp` and `/var/tmp` be written and the working directory
+too, so none is as narrow as a fence that grants neither. A custom profile is read only out of
+the person's `~/.grok/sandbox.toml` or a `.grok/sandbox.toml` in the directory worked in, which
+are theirs, not humanize's, to write. And on a machine whose kernel gives unprivileged users
+no user namespace, 1.0.24 does not start under any profile at all, built-ins included: `bwrap:
+setting up uid map: Permission denied`.
+
+What a fence does change here is the leader. Grok Build hands a conversation to a shared
+leader process where it is told to, and that process is whoever started it -- outside the
+fence, reached over a Unix socket the fence does not govern -- so a fenced conversation that
+joined it would run its tools unfenced. Grok Build's own sandbox refuses the leader for the
+same reason; a fenced conversation here is always started with `--no-leader`, and one told to
+join the leader is refused (:meth:`GrokBuildAgent._serves`).
 """
 
 # pyright: reportPrivateUsage=false
@@ -55,7 +76,7 @@ from .base import (
     StreamSessionBase,
     _ended,
 )
-from .config import UNSAID, AgentConfig
+from .config import UNSAID, AgentConfig, Unfenced
 from .event import Event, Failed, Saying, Unrecoverable, Usage
 from .hooks import EVERYWHERE, Moment
 
@@ -409,7 +430,7 @@ class GrokBuildSession(StreamSessionBase):
             # is better off saying nothing than saying "".
             *(["--effort", self.effort] if self.effort else []),
             *_PERMITTED[self._agent.config.permission],
-            *_LEADING.get(getattr(self._agent.config, "leader", False), ()),
+            *_LEADING.get(_leads(self._agent), ()),
             "stdio",
         ]
 
@@ -1043,6 +1064,38 @@ def _called(said: dict[str, Any]) -> str:
     return f"{named} {about}".strip()[:120]
 
 
+def _fenced(agent: AgentBase, config: AgentConfig) -> bool:
+    """Whether an agent at this config is put inside ``hmz internal fence`` as it is spawned.
+
+    Args:
+      agent: The agent, which says what of a fence its CLI holds itself.
+      config: What it is to run at.
+
+    Returns:
+      Whether there is a fence and something of it is left for the wrapper to hold.
+    """
+    return config.fence is not None and not agent.natively(config.fence).open
+
+
+def _leads(agent: AgentBase) -> bool | None:
+    """What the held-open process is told about the leader.
+
+    What the agent was set up with, except that a fenced one is never left to the person's
+    `[cli] use_leader`: a leader is a process started outside the fence, and a conversation
+    that joined it would run its tools there. One set up to join it outright never gets this
+    far, :meth:`GrokBuildAgent._serves` having refused it.
+
+    Args:
+      agent: The agent whose conversation this is.
+
+    Returns:
+      The key into :data:`_LEADING`.
+    """
+    config = agent.config
+    leader: bool | None = getattr(config, "leader", False)
+    return False if _fenced(agent, config) else leader
+
+
 def _extras(config: AgentConfig) -> list[str]:
     """What this agent was set up with that only the top-level command line carries.
 
@@ -1153,6 +1206,29 @@ class GrokBuildAgent(AgentBase):
     #: `grok -p` run having no client to ask; a rung that falls to the command line is a rung
     #: `--always-approve` already settled, so there is nothing there to be asked about.
     moments: ClassVar[frozenset[Moment]] = EVERYWHERE | {Moment.PERMISSION_REQUEST}
+
+    def _serves(self, config: AgentConfig) -> None:
+        """Refuses what the base class refuses, and a fenced agent set up to join the leader.
+
+        The leader is one backend process shared by every client that joins it, started by
+        whichever came first and reached over a Unix socket, which the fence does not govern.
+        A conversation that joined it would be a fenced client handing its tools to a process
+        outside the fence. Left unsaid, the question is answered `--no-leader` for a fenced
+        agent (:func:`_leads`); said outright, it is refused rather than overruled.
+
+        Args:
+          config: What the agent is to run at.
+
+        Raises:
+          Unserved: For whatever the base class refuses.
+          Unfenced: If the agent is fenced and set up to join the leader.
+        """
+        super()._serves(config)
+        if getattr(config, "leader", False) is True and _fenced(self, config):
+            raise Unfenced(
+                f"{type(self).__name__}: a fenced conversation cannot join the leader, "
+                "which runs its tools outside the fence; set leader to False or None"
+            )
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> GrokBuildSession:
         """Opens a new Grok Build session, in the directory it is given or in this one."""
