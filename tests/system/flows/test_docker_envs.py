@@ -291,7 +291,7 @@ def _hmz(flow: Path, spec: str, task: str, cwd: Path) -> subprocess.Popen[str]:
     return subprocess.Popen(
         [
             sys.executable,
-            "-m",
+            "-Pm",
             "hmz",
             "exec",
             "-f",

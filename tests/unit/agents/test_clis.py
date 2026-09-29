@@ -273,7 +273,7 @@ def test_agy_enforces_none_of_its_fence_itself(
     assert agent.natively(fence) is fence
 
     argv = agent.spawned(["agy", "--print", "hi"])
-    assert argv[:5] == [sys.executable, "-m", "hmz", "internal", "fence"]
+    assert argv[:5] == [sys.executable, "-Pm", "hmz", "internal", "fence"]
     policy = Fence.loads(argv[5].removeprefix("--policy="))
     assert not policy.online
     assert "cloudcode-pa.googleapis.com" in policy.hosts

@@ -181,7 +181,7 @@ def test_a_fence_is_held_from_outside_with_its_sign_in_to_write(
 
     argv = agent.spawned(["cursor-agent", "--print"])
 
-    assert argv[:5] == [sys.executable, "-m", "hmz", "internal", "fence"]
+    assert argv[:5] == [sys.executable, "-Pm", "hmz", "internal", "fence"]
     assert argv[argv.index("--") + 1 :] == ["cursor-agent", "--print"]
     policy = Fence.loads(argv[5].removeprefix("--policy="))
     assert policy.online

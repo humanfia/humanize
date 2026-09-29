@@ -760,7 +760,15 @@ class Gate:
         """
         import sys
 
-        return [sys.executable, "-m", "hmz", "internal", "hook", "--at", self.address()]
+        return [
+            sys.executable,
+            "-Pm",
+            "hmz",
+            "internal",
+            "hook",
+            "--at",
+            self.address(),
+        ]
 
     def table(self, wait: int) -> dict[str, Any]:
         """These moments as the hook table a CLI's own settings hold.

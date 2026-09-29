@@ -56,7 +56,7 @@ def cred(
       What the run came to, with its output read back.
     """
     return subprocess.run(
-        [sys.executable, "-m", "hmz", "internal", "cred", *argv],
+        [sys.executable, "-Pm", "hmz", "internal", "cred", *argv],
         input=stdin,
         capture_output=True,
         text=True,

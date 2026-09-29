@@ -128,7 +128,7 @@ def _ran(
     return subprocess.run(
         [
             sys.executable,
-            "-m",
+            "-Pm",
             "hmz",
             "exec",
             "-f",

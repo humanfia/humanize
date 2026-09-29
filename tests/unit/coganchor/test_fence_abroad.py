@@ -301,7 +301,7 @@ def test_an_anchored_agent_is_fenced_by_its_anchor_not_around_it(
 
     argv = agent.spawned(["claude", "--print"])
 
-    assert argv[:5] == [sys.executable, "-m", "hmz", "internal", "anchor"]
+    assert argv[:5] == [sys.executable, "-Pm", "hmz", "internal", "anchor"]
     assert "fence" not in argv[:6]
     held = _told(argv)
     assert held.scopes == (ALL, READ, READ)

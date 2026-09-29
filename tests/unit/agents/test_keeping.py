@@ -63,7 +63,7 @@ def test_an_agent_nobody_gave_an_account_is_supervised_for_its_sessions(
 
     argv = agent.spawned(["claude", "--print"])
 
-    assert argv[:5] == [sys.executable, "-m", "hmz", "internal", "cred"]
+    assert argv[:5] == [sys.executable, "-Pm", "hmz", "internal", "cred"]
     # And then the CLI's own line, as it would have been run: wherever PATH names it.
     assert argv[argv.index("--") + 2 :] == ["--print"]
     kept = home() / "sessions" / "claude"

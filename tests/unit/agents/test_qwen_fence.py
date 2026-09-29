@@ -75,7 +75,15 @@ def test_a_fenced_turn_is_spawned_inside_the_wrapper(
 
     argv = _agent(_fence(tmp_path, system=NONE, online=False)).spawned(["qwen"])
 
-    assert argv[:7] == [sys.executable, "-m", "hmz", "internal", "fence", argv[5], "--"]
+    assert argv[:7] == [
+        sys.executable,
+        "-Pm",
+        "hmz",
+        "internal",
+        "fence",
+        argv[5],
+        "--",
+    ]
     policy = Fence.loads(argv[5].removeprefix("--policy="))
     assert not policy.online
     assert policy.allows(backend._root())

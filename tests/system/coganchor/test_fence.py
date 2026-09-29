@@ -64,7 +64,7 @@ def _run(fence: Fence, script: str, cwd: Path) -> subprocess.CompletedProcess[st
     return subprocess.run(
         [
             sys.executable,
-            "-m",
+            "-Pm",
             "hmz",
             "internal",
             "fence",
@@ -446,7 +446,7 @@ def test_a_fence_this_kernel_cannot_hold_runs_nothing(home: Path) -> None:
 
 def test_the_wrapper_needs_a_program(home: Path) -> None:
     done = subprocess.run(
-        [sys.executable, "-m", "hmz", "internal", "fence", "--policy={}"],
+        [sys.executable, "-Pm", "hmz", "internal", "fence", "--policy={}"],
         capture_output=True,
         text=True,
         check=False,

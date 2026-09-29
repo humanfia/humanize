@@ -77,7 +77,7 @@ def test_claude_holds_none_of_its_fence_itself(tmp_path: Path, online: bool) -> 
 def test_the_whole_fence_is_put_around_claude(tmp_path: Path, online: bool) -> None:
     argv = _agent(_fence(tmp_path, online=online)).spawned(["claude", "--print"])
 
-    assert argv[:5] == [sys.executable, "-m", "hmz", "internal", "fence"]
+    assert argv[:5] == [sys.executable, "-Pm", "hmz", "internal", "fence"]
     policy = Fence.loads(argv[5].removeprefix("--policy="))
     assert policy.online is online
     assert not policy.allows(tmp_path / "home" / "x", write=True)

@@ -469,14 +469,17 @@ def wrapper(fence: Fence) -> list[str]:
       ``hmz internal fence --policy=... --``, run by the Python running this, to be followed
       by the program and its arguments. Run from the archive this process was loaded from,
       where it was: a target humanize was bootstrapped onto has no installed `hmz` for `-m`
-      to find, and it is there that the serving half fences the commands it runs.
+      to find, and it is there that the serving half fences the commands it runs. With `-P` beside
+      `-m`: the wrapper is started in the workdir, before the wall is up, and a
+      Python that looked in its working directory first would run an `hmz` the agent wrote
+      there instead of this one.
     """
     from hmz import coganchor
 
     archive = getattr(getattr(coganchor, "__loader__", None), "archive", "")
     return [
         sys.executable,
-        *((str(archive),) if archive else ("-m", "hmz")),
+        *((str(archive),) if archive else ("-Pm", "hmz")),
         "internal",
         "fence",
         f"--policy={fence.dumps()}",

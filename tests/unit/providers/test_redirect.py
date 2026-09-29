@@ -115,7 +115,7 @@ def test_the_command_names_every_swap_and_then_the_program() -> None:
 
     assert rendered == [
         sys.executable,
-        "-m",
+        "-Pm",
         "hmz",
         "internal",
         "cred",

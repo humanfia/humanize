@@ -64,7 +64,7 @@ def test_a_rendered_command_is_parsed_back_as_the_settings_it_came_from(
     monkeypatch.setattr("hmz.coganchor.anchor.connect", record)
     rendered = FULL.command(["claude", "--print"])
     # The interpreter running the flow, so the child is the one humanize is installed in.
-    assert rendered[:5] == [sys.executable, "-m", "hmz", "internal", "anchor"]
+    assert rendered[:5] == [sys.executable, "-Pm", "hmz", "internal", "anchor"]
 
     assert cli.main(rendered[3:]) == 0
 

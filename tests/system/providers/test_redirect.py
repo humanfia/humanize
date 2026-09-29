@@ -450,7 +450,7 @@ def test_two_runs_at_once_do_not_see_each_others_accounts(tmp_path: Path) -> Non
             subprocess.Popen(
                 [
                     sys.executable,
-                    "-m",
+                    "-Pm",
                     "hmz",
                     "internal",
                     "cred",

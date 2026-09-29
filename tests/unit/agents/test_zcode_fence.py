@@ -68,7 +68,7 @@ def test_a_fenced_server_is_spawned_inside_the_wrapper_with_its_install_to_read(
 ) -> None:
     argv = _agent(_fence(tmp_path)).spawned(["zcode", "app-server", "--stdio"])
 
-    assert argv[:5] == [sys.executable, "-m", "hmz", "internal", "fence"]
+    assert argv[:5] == [sys.executable, "-Pm", "hmz", "internal", "fence"]
     assert argv[-3:] == ["zcode", "app-server", "--stdio"]
     policy = Fence.loads(argv[5].removeprefix("--policy="))
     assert not policy.online

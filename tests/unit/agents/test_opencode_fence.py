@@ -113,7 +113,7 @@ def test_neither_cli_holds_its_own_fence(home: Path) -> None:
     ):
         assert agent.natively(fence) is fence
         argv = agent.spawned(["opencode", "run"])
-        assert argv[:5] == [sys.executable, "-m", "hmz", "internal", "fence"]
+        assert argv[:5] == [sys.executable, "-Pm", "hmz", "internal", "fence"]
         assert argv[argv.index("--") + 1 :][-2:] == ["opencode", "run"]
 
 

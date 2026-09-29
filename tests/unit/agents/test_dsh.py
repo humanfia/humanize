@@ -1362,7 +1362,7 @@ def test_a_fenced_runtime_is_spawned_inside_the_wrapper_with_its_files_in_reach(
 
     (made,) = Harness.made
     launch = cast("tuple[str, ...]", made.config["launch_args_override"])
-    assert list(launch[:5]) == [sys.executable, "-m", "hmz", "internal", "fence"]
+    assert list(launch[:5]) == [sys.executable, "-Pm", "hmz", "internal", "fence"]
     assert launch[launch.index("--") + 1 :] == ("/opt/dsh-runtime",)
     policy = Fence.loads(launch[5].removeprefix("--policy="))
     assert not policy.online

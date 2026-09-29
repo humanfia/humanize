@@ -261,7 +261,7 @@ def render(config: AnchorConfig, argv: Sequence[str]) -> list[str]:
     Returns:
       The command to spawn, which exits with the agent's own status.
     """
-    return [sys.executable, "-m", "hmz", "internal", "anchor", *options(config), *argv]
+    return [sys.executable, "-Pm", "hmz", "internal", "anchor", *options(config), *argv]
 
 
 def options(config: AnchorConfig) -> list[str]:

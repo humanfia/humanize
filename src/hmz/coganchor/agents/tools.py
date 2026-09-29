@@ -222,7 +222,7 @@ class Toolbox:
 
         return [
             sys.executable,
-            "-m",
+            "-Pm",
             "hmz",
             "internal",
             "tools",

@@ -359,7 +359,7 @@ def test_a_run_ended_by_a_terminate_or_a_hangup_takes_its_container_down(
     flow = written(tmp_path / "flows", "waits", _WAITS)
     run = subprocess.Popen(
         [
-            *(sys.executable, "-m", "hmz", "exec", "-f", str(flow)),
+            *(sys.executable, "-Pm", "hmz", "exec", "-f", str(flow)),
             *("-e", f"box=docker@local{work}", "-b", "cost=1", "go"),
         ],
         cwd=tmp_path,
@@ -394,7 +394,7 @@ def test_a_hangup_somebody_chose_to_ignore_is_still_ignored(
     flow = written(tmp_path / "flows", "waits", _WAITS)
     run = subprocess.Popen(
         [
-            *("nohup", sys.executable, "-m", "hmz", "exec", "-f", str(flow)),
+            *("nohup", sys.executable, "-Pm", "hmz", "exec", "-f", str(flow)),
             *("-e", f"box=docker@local{work}", "-b", "cost=1", "go"),
         ],
         cwd=tmp_path,

@@ -404,7 +404,7 @@ class Cell:
           What it came to. Under `as_json`, every stdout line has been read as an object
           already: a line that is not one fails the cell, since `--json` promises nothing else.
         """
-        argv = [sys.executable, "-m", "hmz", "exec", "-f", str(flow)]
+        argv = [sys.executable, "-Pm", "hmz", "exec", "-f", str(flow)]
         for one in agents or (self.agent(),):
             argv += ["-a", one]
         for one in envs:

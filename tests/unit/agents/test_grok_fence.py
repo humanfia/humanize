@@ -67,7 +67,7 @@ def test_a_fenced_turn_is_held_whole_from_outside(tmp_path: Path, online: bool) 
 
     argv = agent.spawned(session._command())
 
-    assert argv[:5] == [sys.executable, "-m", "hmz", "internal", "fence"]
+    assert argv[:5] == [sys.executable, "-Pm", "hmz", "internal", "fence"]
     policy = Fence.loads(argv[5].removeprefix("--policy="))
     assert policy.online is online
     assert not policy.allows("/tmp/x", write=True)

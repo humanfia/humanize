@@ -78,7 +78,7 @@ def _port(argv: list[str]) -> int:
 
 
 def _policy(argv: list[str]) -> Fence:
-    assert argv[:5] == [sys.executable, "-m", "hmz", "internal", "fence"]
+    assert argv[:5] == [sys.executable, "-Pm", "hmz", "internal", "fence"]
     return Fence.loads(argv[5].removeprefix("--policy="))
 
 

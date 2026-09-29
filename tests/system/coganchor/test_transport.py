@@ -92,7 +92,7 @@ def test_ssh_transport_bootstraps_and_runs(tmp_path: Path) -> None:
     result = subprocess.run(
         [
             sys.executable,
-            "-m",
+            "-Pm",
             "hmz",
             "internal",
             "anchor",

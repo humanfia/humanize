@@ -369,7 +369,7 @@ def test_claude_is_told_about_the_callbacks_on_its_own_command_line(
     held = json.loads(argv[argv.index("--mcp-config") + 1])
     assert list(held["mcpServers"]) == ["humanize"]
     assert held["mcpServers"]["humanize"]["args"][:4] == [
-        "-m",
+        "-Pm",
         "hmz",
         "internal",
         "tools",

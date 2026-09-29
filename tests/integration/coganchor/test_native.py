@@ -427,7 +427,7 @@ def test_a_native_turn_is_spawned_as_the_anchor_line_and_looks_for_no_local_cli(
 
     rendered = agent.spawned(["claude", "--print"], "/work/sub")
 
-    assert rendered[1:5] == ["-m", "hmz", "internal", "anchor"]
+    assert rendered[1:5] == ["-Pm", "hmz", "internal", "anchor"]
     assert "--native" in rendered
     assert "--chdir=/work/sub" in rendered
     # The CLI is named as it was written. Where claude is installed is a fact about the

@@ -63,7 +63,15 @@ def test_a_fenced_codex_offline_is_wrapped_and_told_not_to_search(
 
     argv = agent.spawned(agent._argv(()))
 
-    assert argv[:7] == [sys.executable, "-m", "hmz", "internal", "fence", argv[5], "--"]
+    assert argv[:7] == [
+        sys.executable,
+        "-Pm",
+        "hmz",
+        "internal",
+        "fence",
+        argv[5],
+        "--",
+    ]
     policy = Fence.loads(argv[5].removeprefix("--policy="))
     assert not policy.online
     assert "chatgpt.com" in policy.hosts

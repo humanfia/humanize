@@ -255,7 +255,7 @@ class _Handoff:
 def test_the_wrapper_is_humanize_itself_with_the_policy_on_the_line() -> None:
     fence = _of(ALL, READ, READ)
     said = wrapper(fence)
-    assert said[:5] == [sys.executable, "-m", "hmz", "internal", "fence"]
+    assert said[:5] == [sys.executable, "-Pm", "hmz", "internal", "fence"]
     assert said[-1] == "--"
     assert Fence.loads(said[5].removeprefix("--policy=")) == fence
 
@@ -362,7 +362,7 @@ def test_a_fenced_turn_is_spawned_inside_the_wrapper(tmp_path: Path) -> None:
 
     argv = agent.spawned(["claude", "--print"])
 
-    assert argv[:5] == [sys.executable, "-m", "hmz", "internal", "fence"]
+    assert argv[:5] == [sys.executable, "-Pm", "hmz", "internal", "fence"]
     rest = argv[argv.index("--") + 1 :]
     assert rest[1:] == ["--print"]
     policy = _policy(argv)
@@ -384,9 +384,9 @@ def test_the_fence_is_outside_the_supervisor_that_keeps_sessions(
 
     argv = agent.spawned(["claude", "--print"])
 
-    assert argv[:5] == [sys.executable, "-m", "hmz", "internal", "fence"]
+    assert argv[:5] == [sys.executable, "-Pm", "hmz", "internal", "fence"]
     inner = argv[argv.index("--") + 1 :]
-    assert inner[:5] == [sys.executable, "-m", "hmz", "internal", "cred"]
+    assert inner[:5] == [sys.executable, "-Pm", "hmz", "internal", "cred"]
     assert _policy(argv).allows(agent.keeps / "claude", write=True)
     assert not _policy(argv).allows(agent.keeps / "codex", write=True)
 
@@ -425,7 +425,7 @@ def test_a_cli_that_cuts_its_own_network_leaves_the_paths_to_the_wrapper(
 ) -> None:
     monkeypatch.setattr(ClaudeCodeAgent, "natively", _cuts_its_network)
     argv = _agent(_fence(tmp_path)).spawned(["claude"])
-    assert argv[:5] == [sys.executable, "-m", "hmz", "internal", "fence"]
+    assert argv[:5] == [sys.executable, "-Pm", "hmz", "internal", "fence"]
     assert _policy(argv).online
 
 
