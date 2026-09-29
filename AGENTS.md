@@ -26,10 +26,7 @@ For `specs/*.md`:
 For version control:
 
 - MUST adhere to [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
-- MUST NOT let a commit reach the default branch until CI has passed on exactly that commit:
-  merge a PR only once every check on it is green, and put a merge made locally up as a PR of
-  its own and wait for its checks before the default branch is moved to it. A green run here
-  is not a green run in CI, whose machine is smaller and has no agent CLIs.
+- MUST NOT claim done before CI in default branch is confirmed green; instead, MUST fix any failing tests and re-run CI until green.
 - MUST delete local branches or worktrees once merged.
 
 For docs:
