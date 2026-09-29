@@ -1063,10 +1063,14 @@ flow hangs.
   fail with `bwrap: ...`. There humanize starts the app server with
   `--enable use_legacy_landlock`, which holds that rung with Landlock instead; it asks Codex
   once per process whether bubblewrap starts here. Codex 0.153.4 cannot hold
-  `workspace-write` that way, and a flow never asks for it.
+  `workspace-write` that way, and a flow never asks for it. Codex's `read-only` also cuts a
+  command's network, so where the fence has `online` `ALL` each turn is sent
+  `sandboxPolicy: {"type": "readOnly", "networkAccess": true}`: commands still write nothing,
+  and reach the network the permission grants.
 - **`online` is also the CLI's own web tools**: on for `ALL`, off for `NONE` where the CLI
-  can be told, and left as the CLI has it where it cannot (cursor-agent, pi, agy, ACP CLIs).
-  There the fence's cut network is what stops them.
+  can be told, and left as the CLI has it where it cannot (pi, agy, ACP CLIs). There the
+  fence's cut network is what stops them. `cursor-agent`'s web tools run on Cursor's servers,
+  past the cut, so `online` `NONE` refuses it.
 
 ### The fence
 
@@ -1664,6 +1668,12 @@ CodexAgentConfig(
 
 `-a` names only the place, model and effort, so these are set where an agent is made, from
 Python. `-p/--profile` and `--add-dir` are not offered: `codex app-server` does not take them.
+
+The app server reads `overrides`, `features`, `strict_config`, `web_search` and the fence once,
+as it starts. An agent `reconfigure`d onto others starts a new one for its next turn, and the
+old one is taken down unless a turn is still running on it. Each conversation is picked back
+up on the new server by its id. The model, the effort, the rung and `approvals` go with each
+call and start nothing.
 
 ### Cursor Agent
 

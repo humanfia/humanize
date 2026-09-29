@@ -51,7 +51,14 @@ start there, and the Landlock backend 0.153.4 falls back to (:data:`_LANDLOCK`) 
 but `read-only`. What the fence does lean on Codex for is what no wall around a process can
 stop, being run by OpenAI rather than here: its web search, and the ChatGPT apps an account
 has connected. A fence that cuts the network turns both off, whatever `web_search` says --
-``-c web_search="disabled"``, which is the setting that does, and ``--disable apps``.
+``-c web_search="disabled"``, which is the setting that does, and ``--disable apps``. And a
+fence that grants it is not cut by Codex instead: its `read-only` sandbox cuts a command's
+network with its writes, so a `read-only` turn whose fence grants the network is sent that
+sandbox with the network left on (:data:`_REACHING`).
+
+What the app server is started with -- the web search, the fence, the features, the overrides
+-- it reads once, so an agent set up as something else there runs its next turn on a server
+started again, as :meth:`CodexAgent._knowing` says.
 """
 
 # A session and the agent holding it are two halves of one object declared in one
@@ -85,6 +92,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Iterator, Mapping, Sequence
 
     from pydantic import BaseModel
+
+    from hmz.coganchor.fence import Fence
 
 #: `-c` keys this driver may take. They are process configuration of the app server, and
 #: none of them is already a field of AgentConfig -- model, effort and permission are asked
@@ -247,6 +256,16 @@ _LANDLOCK = "use_legacy_landlock"
 #: OpenAI's side, where no fence around the CLI is. On by default on codex-cli 0.153.4, and
 #: switched off for a fence that cuts the network, as the web search is.
 _APPS = "apps"
+
+#: A turn's `sandboxPolicy` for a `read-only` rung whose fence grants the network: the
+#: filesystem read-only, as the rung says, and the network the permission grants left to the
+#: commands. `turn/start` takes it and keeps it for every turn after, and it is sent with each.
+_REACHING = {"type": "readOnly", "networkAccess": True}
+
+#: What an app server knows and cannot be told again: the account it was started as, the
+#: names of the flow's own callbacks it was told about, the command it was started with and
+#: the fence it was started inside. See :meth:`CodexAgent._knowing`.
+type _Knows = tuple[str, tuple[str, ...], tuple[str, ...], Fence | None]
 
 #: The sandboxes a rung may ask for that confine a command at all, and so the ones
 #: :data:`_LANDLOCK` has anything to do with.
@@ -529,12 +548,13 @@ class _AppServer:
             it would have been asked for failing at the first one instead.
         """
         self._argv = argv
-        #: The account this server was started as and the names of the flow's own callbacks it
-        #: was told about, written by whoever started it: an agent that has fallen back since,
-        #: or whose flow offers another list now, starts another rather than going on talking
-        #: to this one. Kept here rather than on the agent, so that two starting at once cannot
-        #: leave the agent believing either of them is the other.
-        self.knows: tuple[str, tuple[str, ...]] = ("", ())
+        #: The account this server was started as, the names of the flow's own callbacks it
+        #: was told about, and what it was started with and inside, written by whoever started
+        #: it: an agent that has fallen back since, whose flow offers another list now, or that
+        #: has been set up as something its server reads only as it starts, starts another
+        #: rather than going on talking to this one. Kept here rather than on the agent, so
+        #: that two starting at once cannot leave the agent believing either is the other.
+        self.knows: _Knows = ("", (), (), None)
         #: Whose turns run here, so that what is teed can be what nobody is watching. Held
         #: weakly: the agent holds the server, and the finalizer that takes the server down is
         #: the agent's -- so a server holding its agent back would be an agent nothing could
@@ -606,6 +626,22 @@ class _AppServer:
                 return False
             self._turns += 1
             return True
+
+    def retire(self) -> None:
+        """Takes this server down if no turn is running on it, and leaves it be if one is.
+
+        For a server started with settings its agent has since been moved off. One with no
+        turn is stopped, so that a conversation it holds is picked up on the next server
+        rather than held open on this one -- Codex picks a thread up nowhere else while the
+        first server holds its rollout -- and one with a turn is let go of, that turn keeping
+        what it started with, to be stopped with the agent.
+        """
+        with self._routing:
+            if self._turns:
+                return
+            # Counted as taken, so that nothing takes it between here and its going down.
+            self._turns += 1
+        self.stop()
 
     def share(self) -> None:
         """Takes it for a turn of a conversation that already lives here.
@@ -1657,7 +1693,7 @@ class CodexSession(SessionBase):
                                 if schema is not None
                                 else {}
                             ),
-                            **turning(self._permitted(server)),
+                            **self._turned(server),
                         },
                         self._running,
                     ):
@@ -1731,6 +1767,32 @@ class CodexSession(SessionBase):
         if asked and "approvalPolicy" in rung:
             rung["approvalPolicy"] = asked
         return rung
+
+    def _turned(self, server: _AppServer) -> dict[str, Any]:
+        """What a turn of this session tells the server the agent may do.
+
+        The rung's settings less those only a thread takes (:func:`turning`), and one more
+        where the rung is `read-only` and the fence it is held to grants the network. Codex's
+        `read-only` sandbox cuts a command's network as well as its writes, which is narrower
+        than a permission that reads its workdir and reaches the web: so such a turn is sent
+        :data:`_REACHING`, the same sandbox with the network left to its commands. Held by the
+        Landlock sandbox a fenced thread runs (:data:`_LANDLOCK`) as it holds the bare rung --
+        on codex-cli 0.153.4 a `curl` under it answers 200 and a `touch` is refused.
+
+        Args:
+          server: The server the turn is taken on.
+
+        Returns:
+          The settings to send with `turn/start`.
+        """
+        rung = self._permitted(server)
+        said = turning(rung)
+        fence = self._agent.config.fence
+        # Read off the rung as this server runs it, after any step down: a rung stepped down
+        # to `read-only` is one whose network the permission may still grant.
+        if rung.get("sandbox") == "read-only" and fence is not None and fence.online:
+            said["sandboxPolicy"] = dict(_REACHING)
+        return said
 
     def _thread(self, server: _AppServer) -> str:
         """The thread this session is, started or picked back up as needed.
@@ -1813,7 +1875,7 @@ class CodexSession(SessionBase):
                         "input": [{"type": "text", "text": objective}],
                         "model": config.model,
                         **_thinking(self.effort),
-                        **turning(self._permitted(server)),
+                        **self._turned(server),
                     },
                     self._spends,
                 )
@@ -1931,29 +1993,51 @@ class CodexAgent(AgentBase):
         server.share()
         return server
 
-    def _knowing(self) -> tuple[str, tuple[str, ...]]:
+    def _knowing(self) -> _Knows:
         """What a server started now would know, dropping this agent's that know otherwise.
 
         Held with :attr:`_serving`. Read once for both the deciding and the starting: what a
         running server can be wrong about is which callbacks it enumerated, and a flow that
         builds an equal list of them afresh each turn has changed nothing.
 
+        And what it was started with, as :meth:`_argv` writes it, and the fence it was started
+        inside. The web search, the fence's network, the features, the overrides and the
+        config's strictness are the server's command line and are read once, as it starts,
+        so an agent :meth:`reconfigure`-d onto others is one whose server has to start again
+        for its next turn to run at them -- a fence cut while the server that searched stayed
+        up would be a fence that cut nothing. Restarted as the one that was said to stop
+        asking is (:meth:`_down`), the threads staying on disk and each picked back up on the
+        next server by the id it already has.
+
         Returns:
-          The account to start one as, and the names of the flow's own callbacks to tell it
-          about. A server started as an account this agent has since left, or knowing a list
-          of callbacks that is not the list it is offering now, is let go of rather than taken
-          down: a turn on another thread may still be talking to it, and it is stopped by its
-          own finalizer when the agent is collected either way.
+          The account to start one as, the names of the flow's own callbacks to tell it about,
+          the command that starts it and the fence it is started inside. A server started as
+          an account this agent has since left, or knowing a list of callbacks that is not the
+          list it is offering now, is let go of rather than taken down: a turn on another
+          thread may still be talking to it, and it is stopped by its own finalizer when the
+          agent is collected either way. One started with settings the agent has since been
+          moved off is taken down where no turn is running on it (:meth:`_AppServer.retire`).
         """
         offering = tuple(sorted(one.name for one in self.toolbox.offered()))
         # Read before the environment is built out of it: a fallback landing between the two
         # reads would name the account the new server is *not* signed into, and a server that
         # believes it is already elsewhere is one nothing ever starts again.
-        knows = (self.node().name, offering)
-        self._servers = [one for one in self._servers if one.knows == knows]
+        knows: _Knows = (
+            self.node().name,
+            offering,
+            tuple(self._argv(offering)),
+            self.config.fence,
+        )
+        kept: list[_AppServer] = []
+        for one in self._servers:
+            if one.knows == knows:
+                kept.append(one)
+            elif one.knows[2:] != knows[2:]:
+                one.retire()
+        self._servers = kept
         return knows
 
-    def _start(self, knows: tuple[str, tuple[str, ...]]) -> _AppServer:
+    def _start(self, knows: _Knows) -> _AppServer:
         """Starts one more app server for this agent and remembers it.
 
         Called with :attr:`_serving` let go of: a server takes a moment to answer for the
@@ -1961,14 +2045,14 @@ class CodexAgent(AgentBase):
         queue, each session waiting out every start before its own.
 
         Args:
-          knows: The account to start it as and the callbacks to tell it about, as
-            :meth:`_knowing` read them. Kept on the server rather than on the agent, so that
+          knows: The account to start it as, the callbacks to tell it about and the command
+            to start it with, as :meth:`_knowing` read them. Kept on the server rather than on the agent, so that
             two starting at once cannot leave the agent believing either is the other's.
 
         Returns:
           The server, which no turn has taken yet.
         """
-        server = _AppServer(self.spawned(self._argv(knows[1])), self._environ())
+        server = _AppServer(self.spawned(list(knows[2])), self._environ())
         server.knows = knows
         with self._serving:
             self._servers.append(server)
