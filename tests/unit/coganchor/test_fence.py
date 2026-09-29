@@ -473,3 +473,24 @@ def test_the_program_the_cli_is_is_read_with_its_install_tree(tmp_path: Path) ->
     assert str(script) in held
     assert os.sep not in held
     assert str(Path.home()) not in held
+
+
+@pytest.mark.parametrize(
+    ("path", "directory"),
+    [
+        ("/home/me/.claude", True),
+        ("/home/me/.local/share/claude", True),
+        ("/home/me/.cache/tool-1.2", True),
+        ("/home/me/.config/vendor.name", True),
+        ("/home/me/.claude.json", False),
+        ("/home/me/.config/cursor/auth.json", False),
+        ("/home/me/.kimi/credentials.toml", False),
+        ("/home/me/.pi/auth.lock", False),
+    ],
+)
+def test_a_state_path_not_there_yet_is_a_directory_unless_named_like_a_file(
+    path: str, directory: bool
+) -> None:
+    from hmz.coganchor.agents.base import _directory
+
+    assert _directory(path) is directory

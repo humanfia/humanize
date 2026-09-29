@@ -114,3 +114,21 @@ def test_a_fence_moved_offline_ends_the_process_that_was_told_otherwise(
     )
 
     assert session._stale()
+
+
+def test_a_reconfigure_that_fails_other_than_by_refusal_keeps_the_config_it_had(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    agent = _agent(_fence(tmp_path, online=True))
+    was = agent.config
+
+    def broken(fence: Fence) -> Fence:
+        raise OSError(fence.tmp)
+
+    monkeypatch.setattr(agent, "natively", broken)
+    with pytest.raises(OSError):  # noqa: PT011
+        agent.reconfigure(
+            dataclasses.replace(was, fence=_fence(tmp_path, online=False))
+        )
+
+    assert agent.config is was
