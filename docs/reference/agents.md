@@ -1692,9 +1692,10 @@ stands.
   the shell commands a turn runs, not the CLI's own file tools or the MCP servers it starts;
   it needs a user namespace to start at all; and it reads its policy from a file under
   `~/.cursor` or the workspace. The fence adds `$XDG_CONFIG_HOME/cursor` (else
-  `~/.config/cursor`) to write, where Linux keeps its sign-in and a refreshed token goes. Its
-  HTTP/2 client tunnels through `HTTPS_PROXY`, so a cut network still reaches `*.cursor.sh`.
-  Its web search and fetch are calls to Cursor's servers, so a cut network does not stop them.
+  `~/.config/cursor`) to write, where Linux keeps its sign-in and a refreshed token goes.
+  Its web search and fetch are calls to Cursor's servers, which nothing here can switch off or
+  tell apart from its model, so a fence that cuts the network is refused with `Unfenced`:
+  grant `online` `ALL` to use `cursor-agent`.
 - The separately distributed `cursor-agent-local` runtime, pointed at an OpenAI-compatible
   endpoint with `CURSOR_LOCAL_AGENT_BASE_URL`, `CURSOR_LOCAL_AGENT_API_KEY` and
   `CURSOR_ENABLE_AUTHLESS=1`, takes the id it serves. A turn under an hmz provider runs without

@@ -458,7 +458,7 @@ Only `local`, `user` and `system` all `ALL` with `online` `ALL` fences nothing.
 | --- | --- | --- |
 | `claude` | external (Landlock + proxy); its own sandbox holds only its Bash tool, so it is not used | external (Landlock + proxy), and `WebSearch`, `WebFetch` refused by rule, since the search runs at the model API |
 | `codex` | external (Landlock + proxy) | external (Landlock + proxy); web search and ChatGPT apps off natively |
-| `cursor-agent` | external (Landlock + proxy); its own sandbox holds only its shell commands, and cannot start without a user namespace | external (Landlock + proxy); its web search and fetch run on Cursor's servers, past the proxy |
+| `cursor-agent` | external (Landlock + proxy); its own sandbox holds only its shell commands, and cannot start without a user namespace | `NONE` is refused: its web search and fetch run on Cursor's servers, through the hosts its model is at, and cannot be switched off |
 | `opencode` | external (Landlock + proxy); its file tools also refuse outside the fence | external (Landlock + proxy); its web tools are taken away offline |
 | `mimo` | external (Landlock + proxy); its file tools also refuse outside the fence | external (Landlock + proxy); its web tools are taken away offline |
 | `qwen` | external (Landlock + proxy) | external (Landlock + proxy); `web_search` and `web_fetch` withheld |

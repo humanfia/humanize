@@ -30,9 +30,20 @@ process -- whose tools read and write files themselves -- and the MCP servers it
 outside it. It opens a user namespace before it does anything, Landlock included, so on a
 machine that gives an unprivileged process none it does not start at all. And what it is
 told is a file written under `~/.cursor` or the workspace's own `.cursor`, which is somebody
-else's to write. So Cursor is fenced as every CLI with no sandbox is, from outside; its
-HTTP/2 client takes `HTTPS_PROXY` as a tunnel, which is how a turn reaches `*.cursor.sh`
-through the proxy of a fence that cut the network.
+else's to write. So Cursor is fenced as every CLI with no sandbox is, from outside.
+
+Except for the network, which cannot be cut around it at all, and so a fence that cuts it is
+refused. Its web search and web fetch are not run here: the model asks for them and Cursor's
+own servers run them, reached through the same `*.cursor.sh` hosts the model is at -- so a
+proxy letting the model through lets them through too, and cannot tell one request from the
+other. Nothing a driver owns switches them off. Its command line has no flag for it, and the
+permission rules that could deny them are `~/.cursor/cli-config.json`, the person at this
+machine's file. The one knob in the bundle that rejects them, `CURSOR_FORCED_SHELL_EGRESS`, is
+an internal one for Cursor's cloud workers: it also forces every shell command into
+`cursorsandbox`, which does not start where no user namespace can be opened, and it only
+rejects what the server asks the client about first. A turn at a permission granting no
+network would reach the web through Cursor all the same, so rather than run wider than it
+was told, the agent is refused and the permission is to grant online ALL.
 """
 
 from __future__ import annotations
@@ -45,7 +56,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 from hmz.coganchor import backends, models
 
 from .base import AgentBase, CommandSessionBase
-from .config import UNSAID, AgentConfig, Unserved
+from .config import UNSAID, AgentConfig, Unfenced, Unserved
 from .event import Event, Failed, Usage
 from .hooks import EVERYWHERE, SUBAGENTS, Moment
 
@@ -585,6 +596,28 @@ class CursorAgent(AgentBase):
             fast=config.service_tier == _FAST,
             listed=_listed(config.provider),
         )
+
+    def _fences(self, config: AgentConfig) -> None:
+        """Refuses a fence as the base class does, and every one that cuts the network.
+
+        Asked of the fence as it was written rather than of what it comes to once Cursor's own
+        hosts are let through, because those hosts are exactly where its web tools run: see
+        the module. A fence with no network is one this CLI would reach the web around.
+
+        Args:
+          config: What the agent is to run at.
+
+        Raises:
+          Unfenced: If the base class refuses it, or if it cuts the network.
+        """
+        super()._fences(config)
+        if config.fence is not None and not config.fence.online:
+            raise Unfenced(
+                f"{_COMMAND}: this permission cuts the network, and {_COMMAND}'s web search "
+                "and web fetch run on Cursor's own servers, through the same hosts as its "
+                "model, where nothing here can tell them apart or switch them off; grant "
+                f"it online ALL to use {_COMMAND}"
+            )
 
     def natively(self, fence: Fence) -> Fence:
         """The whole fence, to be held from outside, with where Cursor keeps its sign-in.
