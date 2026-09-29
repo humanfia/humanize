@@ -30,7 +30,7 @@ read it in the flow before you run the flow. It has four scopes:
 | `local` | the working directory of the session | `ALL`: read and write |
 | `user` | the rest of the home directory the agent runs as | `READ` |
 | `system` | everything else on the machine | `READ` |
-| `online` | the CLI's own web search and fetch | `NONE` |
+| `online` | the CLI's own web search and fetch | `ALL` |
 
 What that comes to in practice:
 

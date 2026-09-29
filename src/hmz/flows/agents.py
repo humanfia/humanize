@@ -160,7 +160,8 @@ class Permission:
     """What an agent may touch, scope by scope.
 
     Scopes nest, and a wider one may never be granted more than a narrower one inside it:
-    `local >= user >= system`. `online` is all or nothing.
+    `local >= user >= system`. `online` is all or nothing. Left alone, an agent may change
+    its workdir, read the rest of the machine, and go online.
 
     Whatever is granted, an agent's actions are never put to anybody for approval: every
     harness runs with approvals bypassed, or where a managed policy refuses that, in the most
@@ -181,7 +182,7 @@ class Permission:
     local: PermissionKind = PermissionKind.ALL
     user: PermissionKind = PermissionKind.READ
     system: PermissionKind = PermissionKind.READ
-    online: PermissionKind = PermissionKind.NONE
+    online: PermissionKind = PermissionKind.ALL
 
     def __post_init__(self) -> None:
         for scope in ("local", "user", "system", "online"):

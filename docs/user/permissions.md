@@ -15,7 +15,7 @@ from you or from the model. What limits an agent is the grant on this page. Read
 A grant has four scopes, each `NONE`, `READ` or `ALL` (read and write). Here is what a role
 gets when its flow says nothing:
 
-<div class="perm-scopes" role="img" aria-label="The default grant: local ALL inside user READ inside system READ, and online NONE beside them">
+<div class="perm-scopes" role="img" aria-label="The default grant: local ALL inside user READ inside system READ, and online ALL beside them">
   <div class="perm-box perm-system">
     <p><code>system</code> <b class="perm-read">READ</b><span>everything else on the machine</span></p>
     <div class="perm-box perm-user">
@@ -26,11 +26,11 @@ gets when its flow says nothing:
     </div>
   </div>
   <div class="perm-box perm-online">
-    <p><code>online</code> <b class="perm-none">NONE</b><span>web search and fetching</span></p>
+    <p><code>online</code> <b class="perm-all">ALL</b><span>web search and fetching</span></p>
   </div>
 </div>
 
-So by default an agent changes its workdir, reads around it, and does not search the web. An
+So by default an agent changes its workdir, reads around it, and searches the web. An
 outer scope never gets more than the one inside it, and `online` is either `NONE` or `ALL`.
 
 ## What the official flows declare
@@ -39,8 +39,7 @@ Most roles run at that default. These are the ones that do not:
 
 | Flow | Role | Grant |
 | --- | --- | --- |
-| [`chat`](/flows/chat) | `assistant` | the default, with `online=ALL` |
-| [`aot`](/flows/aot) | `critic` | `local=READ`: it reads the draft and never writes |
+| [`aot`](/flows/aot) | `critic` | `local=READ`, `online=NONE`: it reads the draft and never writes |
 | [`parallel_flame_chase`](/flows/parallel-flame-chase) | every agent | `ALL` in every scope, `online` included |
 | [`parallel_flame_chase_git_pr`](/flows/parallel-flame-chase-git-pr) | the lane agents | the default, with `user=ALL` |
 | [`recursive_lean_prover`](/flows/recursive-lean-prover) | `worker`, `reviewer` | `local=ALL`, `user=ALL`, `system=READ`, `online=ALL` |
@@ -178,11 +177,6 @@ grant in the copy, as [Writing a flow](/weaver/writing-a-flow) shows.
 .perm-read {
   background: var(--vp-c-warning-soft);
   color: var(--vp-c-warning-1);
-}
-
-.perm-none {
-  background: var(--vp-c-default-soft);
-  color: var(--vp-c-text-2);
 }
 
 @media (max-width: 560px) {

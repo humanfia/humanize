@@ -47,8 +47,6 @@ from hmz.flows import (
     HookFn,
     LocalEnv,
     Outworlder,
-    Permission,
-    PermissionKind,
     Session,
     flow,
 )
@@ -56,8 +54,6 @@ from hmz.flows import (
 
 class Assistant(Agent):
     """Whichever agent was chosen, allowed the web as a person talking to one would expect."""
-
-    _permission = Permission(online=PermissionKind.ALL)
 
 
 class Agents(AgentCollection):
