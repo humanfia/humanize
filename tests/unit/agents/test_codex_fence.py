@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import dataclasses
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
 from hmz.coganchor.agents import CodexAgent, CodexAgentConfig
-from hmz.coganchor.fence import ALL, READ, Fence
+from hmz.coganchor.agents.codex import unattended
+from hmz.coganchor.agents.config import anchored
+from hmz.coganchor.fence import ALL, NONE, READ, Fence
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -117,3 +119,80 @@ def test_an_open_network_leaves_both_as_the_flow_said(tmp_path: Path) -> None:
 
     assert argv[argv.index("-c") + 1] == 'web_search="live"'
     assert "apps" not in argv
+
+
+class _Server:
+    """The one thing a turn asks of its server about the rung: what it runs it at."""
+
+    @staticmethod
+    def permitted(permission: str, service_tier: str) -> dict[str, Any]:
+        return unattended(permission, service_tier)
+
+
+@pytest.mark.parametrize(
+    ("permission", "scopes", "online", "policy"),
+    [
+        ("read-only", (READ, READ, READ), True, "enabled"),
+        ("read-only", (READ, NONE, NONE), False, "restricted"),
+        ("workspace-write", (ALL, READ, NONE), True, "enabled"),
+        # A fence wider than the rung leaves the rung to Codex's own sandbox.
+        ("read-only", (ALL, READ, READ), True, None),
+        ("workspace-write", (ALL, ALL, READ), True, None),
+        # And a rung with no sandbox has none to leave out.
+        ("bypass", (ALL, READ, READ), True, None),
+    ],
+)
+def test_an_anchored_turn_leaves_its_sandbox_to_the_anchors_fence(
+    tmp_path: Path,
+    *,
+    permission: str,
+    scopes: tuple[str, str, str],
+    online: bool,
+    policy: str | None,
+) -> None:
+    """Codex's sandbox wraps a command in a helper, which an anchor would run on the target.
+
+    Where the fence the anchor holds on both machines is the rung, the turn is told its
+    commands are sandboxed from outside instead, with the network the fence leaves them.
+    """
+    local, user, system = scopes
+    fence = Fence.of(
+        local=local,
+        user=user,
+        system=system,
+        online=online,
+        workdir=tmp_path / "work",
+        home=tmp_path / "home",
+    )
+    agent = CodexAgent(
+        CodexAgentConfig(
+            model="m",
+            effort="high",
+            permission=permission,
+            fence=fence,
+            machine=anchored("ssh://box"),
+        )
+    )
+
+    said = agent.new()._turned(cast("Any", _Server()))
+
+    if policy is None:
+        assert said.get("sandboxPolicy", {}).get("type") != "externalSandbox"
+    else:
+        assert said["sandboxPolicy"] == {
+            "type": "externalSandbox",
+            "networkAccess": policy,
+        }
+    # Nor is Landlock asked for, which would be this machine's sandbox and not the target's.
+    assert "use_legacy_landlock" not in agent._argv(())
+
+
+def test_a_turn_on_this_machine_keeps_its_own_sandbox(tmp_path: Path) -> None:
+    fence = dataclasses.replace(_fence(tmp_path), online=True)
+    agent = CodexAgent(
+        CodexAgentConfig(model="m", effort="high", permission="read-only", fence=fence)
+    )
+
+    said = agent.new()._turned(cast("Any", _Server()))
+
+    assert said["sandboxPolicy"] == {"type": "readOnly", "networkAccess": True}

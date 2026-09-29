@@ -461,7 +461,8 @@ Landlock, with the environment's mirror as its workdir. Every command it runs la
 target, which runs it under `hmz internal fence` too: the target draws the same fence again,
 from the same four scopes, around its own workdir, its own `$HOME` and its own minimum. With
 `online` `NONE`, a command on the target reaches no host at all; only the CLI here reaches its
-model. If the target cannot hold the fence, the session is refused with `HarnessSandboxed` on its
+model, and it may listen on loopback only, as below. A CLI's own sandbox rung is left to the
+fence there ([remote execution](/reference/remote-execution#a-fence-on-both-machines)). If the target cannot hold the fence, the session is refused with `HarnessSandboxed` on its
 first turn. That is a target with no Landlock (including a container whose seccomp profile
 refuses the calls), and, with `online` `NONE`, one the wrapper may not reach into: a
 container under docker's default seccomp profile runs a role at `online` `ALL` (the

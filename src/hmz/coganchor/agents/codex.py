@@ -263,6 +263,18 @@ _APPS = "apps"
 #: commands. `turn/start` takes it and keeps it for every turn after, and it is sent with each.
 _REACHING = {"type": "readOnly", "networkAccess": True}
 
+#: A turn's `sandboxPolicy` for a rung with a sandbox whose turns land on another machine, where
+#: the fence holds what the rung does: Codex's own sandbox left out, and the model told the
+#: commands it runs are held by one from outside. Codex wraps a sandboxed command in a helper
+#: -- `bwrap`, or itself as `codex-linux-sandbox` -- and under an anchor that helper is a
+#: command like any other, run on the target where it may not be installed, cannot start, and
+#: would be handed this machine's paths besides: on codex-cli 0.153.4 every command of a
+#: `read-only` thread under a supervised anchor answered `bwrap: setting up uid map:
+#: Permission denied` and never ran. The anchor holds the fence on both machines instead
+#: (:meth:`~hmz.coganchor.agents.AgentBase._abroad`), and :func:`_abroad` says where that holds
+#: the rung. `networkAccess` is filled in from the fence.
+_EXTERNAL = {"type": "externalSandbox"}
+
 #: What an app server knows and cannot be told again: the account it was started as, the
 #: names of the flow's own callbacks it was told about, the command it was started with and
 #: the fence it was started inside. See :meth:`CodexAgent._knowing`.
@@ -271,6 +283,36 @@ type _Knows = tuple[str, tuple[str, ...], tuple[str, ...], Fence | None]
 #: The sandboxes a rung may ask for that confine a command at all, and so the ones
 #: :data:`_LANDLOCK` has anything to do with.
 _SANDBOXED = ("read-only", "workspace-write")
+
+
+def _abroad(config: AgentConfig, sandbox: object) -> bool:
+    """Whether a rung's sandbox is held by the anchor's fence rather than by Codex.
+
+    Where the agent's turns land on another machine and its fence -- held there by the
+    anchor, on both machines -- is at least as narrow as the rung: nothing of the workdir,
+    the home or the system written at `read-only`, nothing of the home or the system at
+    `workspace-write`. A fence wider than the rung, or none, leaves the rung to Codex's own
+    sandbox, which is what it always was.
+
+    Args:
+      config: What the agent runs at.
+      sandbox: The sandbox of the rung a turn runs at, as the server may have stepped it
+        down.
+
+    Returns:
+      True where the turn is to be told its commands are sandboxed from outside
+      (:data:`_EXTERNAL`).
+    """
+    from hmz.coganchor.fence import ALL
+
+    fence = config.fence
+    if config.machine is None or fence is None or fence.open:
+        return False
+    if sandbox not in _SANDBOXED or len(fence.scopes) != 3:  # noqa: PLR2004
+        return False
+    local, user, system = fence.scopes
+    written = (local, user, system) if sandbox == "read-only" else (user, system)
+    return ALL not in written
 
 
 @functools.cache
@@ -1789,7 +1831,9 @@ class CodexSession(SessionBase):
         """What a turn of this session tells the server the agent may do.
 
         The rung's settings less those only a thread takes (:func:`turning`), and one more
-        where the rung is `read-only` and the fence it is held to grants the network. Codex's
+        where the turn lands on another machine whose fence holds the rung -- the sandbox
+        left to that fence (:data:`_EXTERNAL`) -- or where the rung is `read-only` and the
+        fence it is held to grants the network. Codex's
         `read-only` sandbox cuts a command's network as well as its writes, which is narrower
         than a permission that reads its workdir and reaches the web: so such a turn is sent
         :data:`_REACHING`, the same sandbox with the network left to its commands. Held by the
@@ -1804,10 +1848,15 @@ class CodexSession(SessionBase):
         """
         rung = self._permitted(server)
         said = turning(rung)
-        fence = self._agent.config.fence
+        config = self._agent.config
+        fence = config.fence
         # Read off the rung as this server runs it, after any step down: a rung stepped down
         # to `read-only` is one whose network the permission may still grant.
-        if rung.get("sandbox") == "read-only" and fence is not None and fence.online:
+        if _abroad(config, rung.get("sandbox")) and fence is not None:
+            said["sandboxPolicy"] = _EXTERNAL | {
+                "networkAccess": "enabled" if fence.online else "restricted"
+            }
+        elif rung.get("sandbox") == "read-only" and fence is not None and fence.online:
             said["sandboxPolicy"] = dict(_REACHING)
         return said
 

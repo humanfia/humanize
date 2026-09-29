@@ -198,6 +198,41 @@ def test_a_fence_is_held_from_outside_with_its_sign_in_to_write(
     ) == ["cursor-agent"]
 
 
+@pytest.mark.parametrize(
+    ("permission", "user", "anchored", "left"),
+    [
+        ("workspace-write", READ, True, True),
+        ("workspace-write", ALL, True, False),
+        ("workspace-write", READ, False, False),
+        ("read-only", READ, True, False),
+    ],
+)
+def test_a_turn_on_another_machine_leaves_its_sandbox_to_the_anchors_fence(
+    *, permission: str, user: str, anchored: bool, left: bool
+) -> None:
+    """`cursorsandbox` is opened here around a command the anchor runs on the target.
+
+    So where the fence the anchor holds on both machines writes nothing of the home or the
+    system, `workspace-write` is run without it; anywhere else the rung is Cursor's own.
+    """
+    from dataclasses import replace
+
+    from hmz.coganchor.agents.config import anchored as reaching
+    from hmz.coganchor.agents.cursor import _abroad
+
+    fence = Fence.of(
+        local=ALL, user=user, system=READ, online=True, workdir="/w", home="/h"
+    )
+    config = replace(
+        cursors.CURSOR,
+        permission=permission,
+        fence=fence,
+        machine=reaching("ssh://box") if anchored else None,
+    )
+
+    assert _abroad(config) is left
+
+
 @pytest.mark.parametrize("scopes", [(ALL, ALL, ALL), (ALL, READ, NONE)])
 def test_a_fence_that_cuts_the_network_is_refused(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, scopes: tuple[str, str, str]

@@ -4958,6 +4958,17 @@ class AgentBase(ABC):
         from dataclasses import replace
 
         self._reached(anchor, fence)
+        # What the driver lets the CLI past a wall that it knows the CLI needs -- a port it
+        # serves itself on (Kimi's), a sign-in kept outside its home (Cursor's), settings it
+        # was written into the system's temporary directory (Qwen's) -- which a wall on
+        # either machine needs as the wall here does. Not what the CLI would hold natively:
+        # it holds nothing of the commands it runs on another machine (`_abroad`).
+        granted = self.natively(fence)
+        fence = fence.granting(
+            read=() if os.sep in granted.write else granted.read,
+            write=() if os.sep in granted.write else granted.write,
+            listen=granted.listen,
+        )
         if anchor.native:
             # Its levels, its hosts, and the state it keeps: what `fenced` added, which the
             # target keeps under its own home. The roots of this machine's are not the

@@ -88,6 +88,14 @@ _PERMITTED = {
     UNSAID: (),
 }
 
+#: What `workspace-write` is run as where the agent's turns land on another machine and its
+#: fence writes nothing of the home or the system there: Run Everything, without Cursor's
+#: sandbox. That sandbox is `cursorsandbox` wrapped around each command, and under an anchor
+#: the command it wraps is run on the target while the wrapper opens its user namespace here,
+#: which this machine may not lend and which holds nothing of the target either way. The
+#: anchor holds the fence on both machines instead, and that fence is the rung.
+_ANCHORED = ("--force", "--sandbox", "disabled")
+
 #: The tools it starts a fleet of its own with, by the names its stream calls them. A turn
 #: that reaches for one of these is a turn with agents under it, which is worth showing as
 #: what it is rather than as another tool call.
@@ -112,6 +120,28 @@ _KINDS = {
     "cache_read": "cacheReadTokens",
     "cache_write": "cacheWriteTokens",
 }
+
+
+def _abroad(config: AgentConfig) -> bool:
+    """Whether a `workspace-write` turn is held by its anchor's fence (:data:`_ANCHORED`).
+
+    Args:
+      config: What the agent runs at.
+
+    Returns:
+      True at `workspace-write` on another machine, under a fence that writes neither the
+      home nor the system; False wherever Cursor's own sandbox is still the rung.
+    """
+    from hmz.coganchor.fence import ALL
+
+    fence = config.fence
+    return (
+        config.permission == "workspace-write"
+        and config.machine is not None
+        and fence is not None
+        and len(fence.scopes) == 3  # noqa: PLR2004
+        and ALL not in fence.scopes[1:]
+    )
 
 
 def _about(given: dict[str, Any]) -> str:
@@ -328,7 +358,7 @@ class CursorSession(CommandSessionBase):
             # it as a flag rather than reading the directory it was started in.
             "--workspace",
             self.cwd,
-            *_PERMITTED[configured.permission],
+            *(_ANCHORED if _abroad(configured) else _PERMITTED[configured.permission]),
         ]
         if getattr(configured, "trust", True):
             # It asks before it trusts a workspace it has not seen, and there is nobody at a
