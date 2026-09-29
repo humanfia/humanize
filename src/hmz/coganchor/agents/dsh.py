@@ -35,6 +35,8 @@ if TYPE_CHECKING:
 
     from pydantic import BaseModel
 
+    from hmz.coganchor.fence import Fence
+
 __all__ = ["DshAgent", "DshAgentConfig", "DshSession", "native_ready"]
 
 _EFFORT_ENV = "HMZ_DSH_EFFORT"
@@ -93,6 +95,10 @@ _WEB = (
 #: the write untouched rather than resolved.
 _JS_TAG = "tag:yaml.org,2002:js"
 _API_KEY_ENV = "DEEPSEEK_API_KEY"
+
+#: Where the packed runtime copies a native module to before loading it, read by the `pkg`
+#: bootstrap it is built with; `~/.cache` when unset.
+_NATIVE_CACHE_ENV = "PKG_NATIVE_CACHE_PATH"
 _BASE_URL_ENV = "DEEPSEEK_BASE_URL"
 
 #: Where the search provider mounted for an agent that may search sends its requests, which
@@ -287,6 +293,18 @@ class DshAgent(AgentBase):
     #: this tuple should widen to all but `auto` -- but only on a host where
     #: `dsh-sandbox-local` finds a runner, since it fails closed with `SANDBOX_UNAVAILABLE`
     #: where there is neither bwrap nor a Landlock-enforcing kernel.
+    #:
+    #: None of which leaves a flow's permission unenforced, because a flow's permission is not
+    #: held by the rung. It is held by the fence (:attr:`AgentConfig.fence`), and dsh enforces
+    #: none of a fence itself: :meth:`~AgentBase.natively` is left as the base class has it,
+    #: and the whole fence is put around the runtime the SDK launches -- the runtime's own
+    #: file and web tools and every shell it starts alike. So a flow at `local=read` runs here
+    #: at `bypass` inside a fence whose workdir is readable and not writable, which is a
+    #: read-only agent in fact rather than in name; a narrower rung would add nothing to it.
+    #: Nor is `dsh-sandbox-local` a way to enforce part of the fence natively were it
+    #: composable: its Landlock profile grants reading the whole of `/` and writing the whole
+    #: of `/tmp`, it says nothing of the network, and it confines only the commands a
+    #: confining executor hands it, never the runtime's own process.
     rungs: ClassVar[tuple[str, ...]] = ("bypass",)
 
     #: What it counts. Its reasoning is already inside the output on the dsh contract, so
@@ -588,6 +606,17 @@ class DshSession(SessionBase):
         # for, and the SDK would carry it all the way to the request.
         if effort:
             environment[_EFFORT_ENV] = effort
+        # And, for an agent held to a fence, where the runtime unpacks its native modules.
+        # The runtime is a Node program packed into one executable, which cannot load a
+        # native module out of itself: it copies each -- `node-pty`, which the shell executor
+        # is built on -- to `~/.cache/pkg` first and loads the copy. Under any fence that
+        # keeps the home from being written, which the default one does, that copy fails and
+        # the runtime never comes up; and a cache there that the agent could write would be
+        # code every later dsh run on this machine loads. So a fenced runtime unpacks into the
+        # fence's own scratch directory instead, which is the agent's and goes with it.
+        fence = self._agent.fenced()
+        if fence is not None:
+            environment[_NATIVE_CACHE_ENV] = fence.tmp
         # And what this machine left lying about that the account did not answer for, taken
         # away on the way in. Less what is being set above: `hushed()` already leaves out
         # what the account named, and a variable this driver is about to hand the runtime is
@@ -602,7 +631,7 @@ class DshSession(SessionBase):
                     "env is required to isolate dsh provider credentials"
                 )
             launch = [env, *(part for name in hushed for part in ("-u", name)), *launch]
-        written = self._cordis(composition)
+        written = self._cordis(composition, fence)
         cordis = str(Path(written.name) / "cordis.yml")
         harness: _Harness | None = None
         try:
@@ -661,7 +690,9 @@ class DshSession(SessionBase):
         return harness
 
     @staticmethod
-    def _cordis(composition: str) -> tempfile.TemporaryDirectory[str]:
+    def _cordis(
+        composition: str, fence: Fence | None = None
+    ) -> tempfile.TemporaryDirectory[str]:
         """Writes one composition out, as `cordis.yml` in a directory of its own.
 
         Written per runtime rather than shipped, because it is the SDK's own default
@@ -669,13 +700,24 @@ class DshSession(SessionBase):
         for different ones, and neither is a file in this repository to drift from the
         harness.
 
+        Written into the fence's own scratch directory where the agent is held to one, rather
+        than the system's: the runtime reads this file from inside the fence, which grants
+        its `tmp` and not the rest of `/tmp` -- so a composition written beside everybody
+        else's would be one the runtime it was written for could not open, under
+        `system=none`, and one it could open only for reading everybody else's under the
+        default `system=read`.
+
         Args:
           composition: The YAML to write, as `_composed` built it.
+          fence: What the agent is held to, as :meth:`AgentBase.fenced` widens it, or None
+            for an agent held to nothing.
 
         Returns:
           The directory, which stands as long as the runtime reading it does.
         """
-        written = tempfile.TemporaryDirectory(prefix="hmz-dsh-")
+        written = tempfile.TemporaryDirectory(
+            prefix="hmz-dsh-", dir=fence.tmp if fence is not None else None
+        )
         (Path(written.name) / "cordis.yml").write_text(composition, encoding="utf-8")
         return written
 
