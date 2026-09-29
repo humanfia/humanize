@@ -1,8 +1,8 @@
-"""Landlock: an unprivileged allow-list of the paths and ports a process tree may use.
+r"""Landlock: an unprivileged allow-list of the paths and ports a process tree may use.
 
 A :class:`Ruleset` names what may be read, what may be written and which TCP ports may be
 connected to or bound, and :meth:`Ruleset.restrict_self` makes that the whole of what the
-calling thread -- and everything it later ``execve``\\ s or forks -- is allowed.  It is
+calling thread -- and everything it later ``execve``\ s or forks -- is allowed.  It is
 called in a forked child just before ``execve``, the same place
 :func:`~hmz.coganchor.linux.seccomp.install` is: Landlock restricts a thread, not a
 process, and a freshly forked child has only the one.
@@ -77,7 +77,9 @@ NET_ABI: Final = 4
 
 #: Why a path is left out of a ruleset rather than failing it: what cannot be reached
 #: needs no grant, and leaving a grant out only ever denies more.
-_UNREACHABLE: Final = frozenset({errno.ENOENT, errno.ENOTDIR, errno.EACCES, errno.ELOOP})
+_UNREACHABLE: Final = frozenset(
+    {errno.ENOENT, errno.ENOTDIR, errno.EACCES, errno.ELOOP}
+)
 
 
 @functools.cache
@@ -131,7 +133,7 @@ def abi() -> int:
         return 0
 
 
-def available(net: bool = False) -> bool:
+def available(*, net: bool = False) -> bool:
     """Whether a ruleset can be enforced here at all.
 
     Args:
@@ -153,11 +155,11 @@ def handled_fs(version: int) -> int:
       The mask a ruleset for that version handles, and so denies wherever no rule grants.
     """
     mask = _FS_ABI1 if version >= 1 else 0
-    if version >= 2:
+    if version >= 2:  # noqa: PLR2004 -- the ABI that added it
         mask |= _FS_REFER
-    if version >= 3:
+    if version >= 3:  # noqa: PLR2004
         mask |= _FS_TRUNCATE
-    if version >= 5:
+    if version >= 5:  # noqa: PLR2004
         mask |= _FS_IOCTL_DEV
     return mask
 
@@ -227,11 +229,13 @@ class Ruleset:
         connect, bind = list(self.connect_ports), list(self.bind_ports)
         if (connect or bind) and not self.net:
             raise ValueError("ports were given for a ruleset that does not govern TCP")
-        if not all(0 <= port <= 0xFFFF for port in (*connect, *bind)):
+        if not all(0 <= port <= 0xFFFF for port in (*connect, *bind)):  # noqa: PLR2004
             raise ValueError(f"a TCP port is out of range: {connect + bind}")
         if not available(net=self.net):
             needs = f"ABI {NET_ABI} to govern TCP" if self.net else "Landlock"
-            raise RuntimeError(f"this kernel speaks Landlock ABI {version}; needs {needs}")
+            raise RuntimeError(
+                f"this kernel speaks Landlock ABI {version}; needs {needs}"
+            )
         handled_net = _NET_BIND_TCP | _NET_CONNECT_TCP if self.net else 0
         attr = struct.pack("<QQ", handled_fs(version), handled_net)
         size = len(attr) if self.net else 8

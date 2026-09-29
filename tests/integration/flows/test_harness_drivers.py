@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 import pydantic
 import pytest
 
+from hmz.coganchor.fence import Fence
 from hmz.flows import (
     AskUserHookResult,
     CostExceeded,
@@ -26,6 +27,7 @@ from hmz.flows import (
     HarnessKind,
     HarnessNotInstalled,
     HarnessRefused,
+    HarnessSandboxed,
     HookKind,
     HookResult,
     ModelUnavailable,
@@ -50,6 +52,7 @@ from hmz.runtime.flowing import harnesses
 from hmz.runtime.flowing.harnesses import HarnessSession, open_agent, open_outworlder
 from hmz.runtime.flowing.specs import AgentSpec
 from hmz.runtime.flowing.spi import HookTable, Limits, Placement, Skill, TurnRequest
+from tests import fencing
 from tests.flows import standins
 from tests.flows.contracts import RecordingSink, check_agent_driver
 
@@ -814,6 +817,91 @@ async def test_a_read_only_session_runs_at_the_read_only_rung(
     argv = clis.of("claude")[0]["argv"]
     assert argv[argv.index("--permission-mode") + 1] == "plan"
     assert argv[argv.index("--disallowedTools") + 1] == "WebSearch,WebFetch"
+
+
+# --------------------------------------------------------------------------------- the fence
+
+
+@pytest.fixture
+def fences(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Where the stand-in for `hmz internal fence` writes what each turn was held to."""
+    log = tmp_path / "fences.log"
+    monkeypatch.setenv(fencing.LOG, str(log))
+    return log
+
+
+@pytest.mark.parametrize("harness", sorted(SPECS), ids=str)
+async def test_a_session_at_the_default_permission_is_spawned_inside_its_fence(
+    clis: Logs, work: Placement, fences: Path, harness: HarnessKind, tmp_path: Path
+) -> None:
+    del clis
+    driver = open_agent(SPECS[harness])
+    try:
+        handle = await _open(driver, work)
+        await handle.turn(
+            TurnRequest("Reply with the single word: ok"), RecordingSink()
+        )
+    finally:
+        await driver.close()
+    (policy, *_) = fencing.policies(fences)
+    held = Fence.loads(json.dumps(policy))
+    # The workdir and the CLI's own state may be written; the rest of the home only read.
+    assert held.allows(str(work.workdir / "a.py"), write=True)
+    assert held.allows(tmp_path / "home" / "notes")
+    assert not held.allows(tmp_path / "home" / "notes", write=True)
+    assert not held.allows("/etc/hostname", write=True)
+    assert held.online
+    assert held.tmp
+
+
+async def test_a_session_offline_is_held_to_its_models_hosts(
+    clis: Logs, claude: HarnessDriver, work: Placement, fences: Path, tmp_path: Path
+) -> None:
+    handle = await _open(
+        claude,
+        work,
+        permission=Permission(
+            user=PermissionKind.NONE,
+            system=PermissionKind.NONE,
+            online=PermissionKind.NONE,
+        ),
+    )
+    await handle.turn(TurnRequest("Reply with the single word: ok"), RecordingSink())
+    held = Fence.loads(json.dumps(fencing.policies(fences)[0]))
+    assert not held.online
+    assert "api.anthropic.com" in held.hosts
+    assert not held.allows(tmp_path / "home" / "notes")
+    assert not held.allows("/etc/hostname")
+    # The CLI's own home, which the stand-in keeps its transcripts in, may still be written.
+    assert held.allows(tmp_path / "claude-home" / "projects", write=True)
+    # And web search is switched off where the CLI can be told, as well as the network cut.
+    argv = clis.of("claude")[0]["argv"]
+    assert argv[argv.index("--disallowedTools") + 1] == "WebSearch,WebFetch"
+
+
+async def test_a_session_granted_everything_is_spawned_with_no_fence(
+    claude: HarnessDriver, work: Placement, fences: Path
+) -> None:
+    everything = PermissionKind.ALL
+    handle = await _open(
+        claude,
+        work,
+        permission=Permission(local=everything, user=everything, system=everything),
+    )
+    await handle.turn(TurnRequest("Reply with the single word: ok"), RecordingSink())
+    assert fencing.policies(fences) == []
+
+
+async def test_a_session_this_machine_cannot_fence_is_refused_as_sandboxed(
+    claude: HarnessDriver, work: Placement, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def unable(*, net: bool) -> bool:
+        del net
+        return False
+
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", unable)
+    with pytest.raises(HarnessSandboxed, match="Landlock"):
+        await _open(claude, work)
 
 
 # ------------------------------------------------------------------------------ outworlder

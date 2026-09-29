@@ -7,7 +7,7 @@ There is one command anybody types, and everything else humanize keeps is walked
 prompt: a listing with a noun in it for every store would be a second interface to learn, and
 the one with the sheets in it is the interface.
 
-The other command in the listing is `hmz internal`, which is the four lines humanize spawns
+The other command in the listing is `hmz internal`, which is the five lines humanize spawns
 for itself gathered under one name. They are listed rather than hidden because a command
 nobody can discover is a command nobody can debug, and a listing that leaves out half of what
 a program runs says something untrue about it. What they are is said instead of concealed:
@@ -20,8 +20,8 @@ on that: `hmz exec` must not pay for the terminal interface it is not opening, a
 coganchor is the only layer present and the architecture is whatever the target happens to be.
 
 A command whose line takes a parser of its own has a module of its own here, so that reaching
-one of them costs nothing for the others -- which is what `anchor.py`, `cred.py`, `hook.py` and
-`tools.py`, the four under `hmz internal`, are. `exec` has none: the line it takes is
+one of them costs nothing for the others -- which is what `anchor.py`, `cred.py`, `fence.py`,
+`hook.py` and `tools.py`, the five under `hmz internal`, are. `exec` has none: the line it takes is
 read by :func:`hmz.runtime.runner.read_line`, since the terminal interface starts a flow from
 the same parts.
 
@@ -253,6 +253,20 @@ def _cred(argv: list[str]) -> int:
     return cred(argv)
 
 
+def _fence(argv: list[str]) -> int:
+    """Runs a program walled in to what its flow's permission lets it reach.
+
+    Args:
+      argv: What followed the command name.
+
+    Returns:
+      The program's exit status, or one of our own if it never ran.
+    """
+    from .fence import fence
+
+    return fence(argv)
+
+
 def _tools(argv: list[str]) -> int:
     """Carries the tool protocol between a coding agent and the flow whose callbacks it is.
 
@@ -288,7 +302,7 @@ def _internal(argv: list[str]) -> int:
     it knows is handed the rest of the line untouched, so that `hmz internal anchor --help` is
     answered by the anchor's own parser rather than eaten by this one, and reaching one of
     them loads no module of any other. Anything else -- a name nobody has, or nothing at all
-    -- is answered by a parser built here, which lists the four and exits.
+    -- is answered by a parser built here, which lists the five and exits.
 
     Args:
       argv: What followed `internal`, beginning with the name of one of them.
@@ -300,7 +314,7 @@ def _internal(argv: list[str]) -> int:
         import argparse
 
         # Its own parser rather than a subparser of the one at the top: the top-level help
-        # names the commands and not what they take, so this is where the four are written
+        # names the commands and not what they take, so this is where the five are written
         # out, and it is reached only when somebody asks about them.
         parser = argparse.ArgumentParser(
             prog="hmz internal",
@@ -465,7 +479,9 @@ def _at_a_terminal() -> bool:
 #: starting a program and waiting for what it says, which is the one place a `PreToolUse` can
 #: be refused rather than watched. An anchored turn is the fourth: `AnchorConfig.command()`
 #: renders one for every turn whose work lands on another machine, and the zipapp
-#: bootstrapped onto a target answers it by running `hmz internal anchor serve`. All four are
+#: bootstrapped onto a target answers it by running `hmz internal anchor serve`. A fenced turn
+#: is the fifth, and the same shape as the first: the wall around a CLI is put up by the
+#: process it walls in, and the one serving its proxy has to stay outside it. All five are
 #: a command line because there is no other way to start a process, and none of them is a line
 #: anybody types -- which is a reason to keep them together under one name and behind one
 #: sentence saying so, and not a reason to keep them out of the listing. A command that is not
@@ -475,6 +491,7 @@ def _at_a_terminal() -> bool:
 INTERNAL = {
     "anchor": (_anchor, "run an agent turn on another machine"),
     "cred": (_cred, "run a program with credentials from an account"),
+    "fence": (_fence, "run a program held to what its flow permits"),
     "hook": (_hook, "relay agent hooks to a flow"),
     "tools": (_tools, "relay agent tool calls to a flow"),
 }

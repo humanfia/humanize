@@ -67,6 +67,7 @@ from hmz.flows import (
     GoalCommandAgentMixin,
     HarnessKind,
     HarnessNotInstalled,
+    HarnessSandboxed,
     HarnessUnrecoverable,
     HookKind,
     OutputTokensExceeded,
@@ -276,6 +277,11 @@ class HarnessDriver:
         return self._spec
 
     @property
+    def profile(self) -> Profile | None:
+        """What coganchor knows of the CLI, or None for one it knows nothing of."""
+        return self._profile
+
+    @property
     def tellable(self) -> bool:
         """Whether the CLI can be told whether its agent may use the web."""
         return self._profile is not None and self._profile.searches
@@ -320,6 +326,7 @@ class HarnessDriver:
           HarnessNotInstalled: If the CLI is not installed on this machine and the session
             works here.
           HarnessUnrecoverable: If the CLI cannot be configured as the session asks.
+          HarnessSandboxed: If its permission can be held neither by the CLI nor here.
         """
         if self._closed:
             raise SessionError("the agent's driver is closed")
@@ -439,6 +446,8 @@ class HarnessDriver:
             hung,
             tellable=self.tellable,
             machine=placement.machine,
+            workdir=str(placement.workdir),
+            profile=self._profile,
         )
 
     def _made(
@@ -452,13 +461,17 @@ class HarnessDriver:
 
         Raises:
           HarnessUnrecoverable: If the agent cannot be built as configured.
+          HarnessSandboxed: If its fence can be held neither by the CLI nor here.
           UnsupportedOperation: If the CLI will not fork into `cwd`.
           SessionError: If the session to fork cannot be carried on from.
         """
+        from hmz.coganchor.agents import Unfenced
         from hmz.coganchor.agents.skills import Loaded
 
         try:
             agent = self._kind(config)
+        except Unfenced as refused:
+            raise HarnessSandboxed(f"{self._spec}: {refused}") from refused
         except ValueError as refused:
             raise HarnessUnrecoverable(f"{self._spec}: {refused}") from refused
         agent.loads(Loaded(name=one.name, at=one.at) for one in skills)
@@ -493,6 +506,8 @@ def settled(
     *,
     tellable: bool,
     machine: MachineConfig | None = None,
+    workdir: str = "",
+    profile: Profile | None = None,
 ) -> AgentConfig:
     """A driver's config, set up for one session given the hooks hung on it now.
 
@@ -504,6 +519,9 @@ def settled(
       hung: The hooks among :data:`_STARTING` hung on the agent.
       tellable: Whether the CLI can be told about the web.
       machine: The machine its turns land on, or None for this one.
+      workdir: Where the session works, which the fence is drawn around: `~/...` is the
+        home of whoever runs the CLI. "" for the directory this process is in.
+      profile: What coganchor knows of the CLI, for the hosts a fence lets it reach.
 
     Returns:
       The config.
@@ -513,10 +531,21 @@ def settled(
     """
     from hmz.coganchor.agents import CodexAgentConfig
 
+    try:
+        fence = harnessing.fenced(
+            permission,
+            workdir=os.path.expanduser(workdir or os.getcwd()),  # noqa: PTH109, PTH111
+            home=os.path.expanduser("~"),  # noqa: PTH111
+            profile=profile,
+            environ=_environ(config, profile),
+        )
+    except ValueError as refused:
+        raise HarnessUnrecoverable(str(refused)) from refused
     changes: dict[str, Any] = {
         "permission": harnessing.rung(harness, permission, rungs=kind.rungs, hung=hung),
         "web_search": harnessing.searching(permission, tellable=tellable),
         "machine": machine,
+        "fence": fence,
     }
     if isinstance(config, CodexAgentConfig):
         feature = harnessing.ASKING_FEATURE
@@ -528,6 +557,21 @@ def settled(
         return dataclasses.replace(config, **changes)
     except ValueError as refused:
         raise HarnessUnrecoverable(str(refused)) from refused
+
+
+def _environ(config: AgentConfig, profile: Profile | None) -> Mapping[str, str]:
+    """The environment a session's turns run under, its account's variables included.
+
+    What says where an account points its CLI's model, which the fence has to let through: a
+    gateway's endpoint is a variable its account sets. An account that is not there is this
+    process's own environment here, and is refused where the agent is made.
+    """
+    from hmz.coganchor import providers
+
+    if profile is None or not config.provider:
+        return os.environ
+    found = providers.find(profile.name, config.provider)
+    return os.environ | providers.environ(found) if found is not None else os.environ
 
 
 class HarnessSession:
@@ -995,6 +1039,8 @@ class HarnessSession:
             hung,
             tellable=driver.tellable,
             machine=self._placement.machine,
+            workdir=str(self._placement.workdir),
+            profile=driver.profile,
         )
         if now == was:
             self._hung = hung

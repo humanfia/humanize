@@ -26,7 +26,7 @@ from typing import IO, TYPE_CHECKING, Any, ClassVar, Literal, Protocol, Self, ov
 from hmz.coganchor.backends import AUTO
 
 from .codenames import codename
-from .config import PERMISSIONS, UNSAID, Unserved
+from .config import PERMISSIONS, UNSAID, Unfenced, Unserved
 from .event import Event, Failed, Question, Stopped, Unrecoverable, Usage, say
 from .hooks import EVERYWHERE, Hooks, Moment, Occasion, Verdict
 from .skills import Loaded, mount, unmount
@@ -43,6 +43,7 @@ if TYPE_CHECKING:
     from hmz.coganchor import AnchorConfig
     from hmz.coganchor.backends import Profile
     from hmz.coganchor.fallbacks import Answer
+    from hmz.coganchor.fence import Fence
     from hmz.coganchor.machines import MachineConfig
     from hmz.coganchor.providers import Provider
 
@@ -3411,6 +3412,82 @@ def identifying(config: type[AgentConfig], backend: str) -> dict[str, Any]:
     return {"cli": backend} if issubclass(config, AcpAgentConfig) else {}
 
 
+def _programs(name: str) -> list[str]:
+    """What a fence has to let a CLI read for it to run: its programs and where they live.
+
+    The programs :func:`hmz.coganchor.statepaths.resolve` finds the CLI is made of -- the
+    command, the file its links lead to, the interpreter its first line names -- and, for
+    each, the tree it was installed as a part of: the npm package it is in, the install prefix
+    a `bin` directory with a `lib` beside it is part of, or the directory it sits in, which is
+    where a CLI that re-executes a native binary of its own keeps it. Never the home directory
+    or `/` themselves, which a program kept loose in either would otherwise hand the whole of
+    to read.
+
+    Args:
+      name: The CLI's command, as its driver runs it.
+
+    Returns:
+      The paths, or nothing for a command that is not there -- which then fails to start as
+      it would have unfenced, rather than failing here.
+    """
+    from hmz.coganchor import statepaths
+    from hmz.coganchor.backends import elsewhere
+
+    try:
+        resolved = statepaths.resolve([elsewhere(name) or name])
+    except (FileNotFoundError, ValueError):
+        return []
+    from pathlib import Path
+
+    never = {Path(os.sep), Path.home()}
+    # The CLI's state directories, which `resolve` counts among its programs, are written by
+    # the fence already, and are not programs whose parent is an install tree.
+    state = set(resolved.local_paths)
+    held: list[str] = []
+    for program in resolved.local_programs:
+        held.append(program)
+        if program in state:
+            continue
+        real = Path(program).resolve()
+        if not real.exists():
+            continue
+        held.append(str(real))
+        parts = real.parts
+        if "node_modules" in parts:
+            # The package: `node_modules/NAME`, or `node_modules/@SCOPE/NAME`.
+            at = len(parts) - parts[::-1].index("node_modules")
+            width = 2 if at < len(parts) and parts[at].startswith("@") else 1
+            held.append(str(Path(*parts[: at + width])))
+            continue
+        directory = real.parent
+        if directory.name == "bin" and (directory.parent / "lib").is_dir():
+            # An install prefix, `bin` beside the `lib` its programs load from -- which is
+            # where node keeps the packages a CLI installed with npm is made of.
+            directory = directory.parent
+        if directory not in never:
+            held.append(str(directory))
+    return held
+
+
+def _directory(path: str) -> bool:
+    """Whether a state path that is not there yet is a directory rather than a file.
+
+    Read off its name, which is all there is to read: `~/.claude` and `~/.local/share/claude`
+    are directories, `~/.claude.json` is a file -- a name with an extension after whatever
+    dot it begins with.
+    """
+    from pathlib import Path
+
+    return "." not in Path(path).name.lstrip(".")
+
+
+def _swept(scratch: str) -> None:
+    """Takes away a fenced agent's scratch directory, and everything its turns left there."""
+    import shutil
+
+    shutil.rmtree(scratch, ignore_errors=True)
+
+
 def _rung(was: Profile | None, now: Profile, effort: str) -> str:
     """How hard the agent taking a turn over thinks, in the words its own backend has.
 
@@ -3617,6 +3694,11 @@ class AgentBase(ABC):
         # What is serving them goes when the agent does, and at exit for one held to the end:
         # a socket nothing is behind is a socket nothing can answer on.
         weakref.finalize(self, self._toolbox.close)
+        #: The scratch directory a fenced agent's processes are given as their `TMPDIR`, made
+        #: the first time a fenced turn is spawned and taken away with the agent. One per
+        #: agent rather than per process, so that what a turn leaves there -- a build's
+        #: cache, a file it means to read back -- is there for the next turn of the session.
+        self._scratch: str | None = None
 
     @property
     def id(self) -> str:
@@ -3652,7 +3734,12 @@ class AgentBase(ABC):
 
         if self._opened:
             raise RuntimeError(f"{self._id} has already opened a session")
-        self._config = replace(self._config, machine=machine)
+        was, self._config = self._config, replace(self._config, machine=machine)
+        try:
+            self._fences(self._config)
+        except Unserved:
+            self._config = was
+            raise
 
     def reconfigure(self, config: AgentConfig) -> None:
         """Sets this agent up as something else, from its next turn on.
@@ -3677,8 +3764,15 @@ class AgentBase(ABC):
             refusal as at construction, and for the same reason: a tier that cannot be sent
             must be said no to rather than silently served at another one.
         """
-        self._serves(config)
-        self._config = config
+        # Put in place before it is checked, and put back where it is refused: what a CLI
+        # enforces natively is read off the config the driver would build its command from,
+        # which is this one and not the one it is replacing.
+        was, self._config = self._config, config
+        try:
+            self._serves(config)
+        except Unserved:
+            self._config = was
+            raise
 
     def _serves(self, config: AgentConfig) -> None:
         """Refuses a config this backend has no way of expressing.
@@ -3728,6 +3822,174 @@ class AgentBase(ABC):
                 f"{type(self).__name__} has no way of being told not to search the web; "
                 "web_search must be on for it"
             )
+        self._fences(config)
+
+    def _fences(self, config: AgentConfig) -> None:
+        """Refuses a fence that neither the CLI nor this machine can hold the agent to.
+
+        Asked where the config arrives rather than where a turn is spawned, so that a flow is
+        refused when it opens the session and not an hour into it. What is asked is whether
+        what is left once the CLI has enforced its own part (:meth:`natively`) can be put
+        around it from outside here: by Landlock, at an ABI that can cut the network where
+        the network is to be cut, beside a seccomp filter for every protocol Landlock cannot.
+
+        An agent whose turns land on another machine is refused any fence its CLI does not
+        hold entirely by itself. A wall is put up where the process it holds runs, and an
+        anchored turn's commands run on the target -- under a supervisor there, or under the
+        target's own CLI -- where nothing of this machine's reaches to put one up. Refused
+        rather than held here around the half of the turn that is not where the work is,
+        which would be a fence that holds the agent's reading and none of its commands.
+
+        Args:
+          config: What the agent is to run at.
+
+        Raises:
+          Unfenced: If the fence is not held natively in full, and either the agent's work
+            lands on another machine or this machine has no Landlock to hold the rest with.
+        """
+        if config.fence is None:
+            return
+        from hmz.coganchor.fence import enforceable
+
+        rest = self.natively(config.fence)
+        if rest.open:
+            return
+        if config.machine is not None:
+            raise Unfenced(
+                f"{type(self).__name__}: a session whose work lands on another machine "
+                "cannot be fenced there; grant it everything (local, user and system ALL, "
+                "online ALL), or run it on this machine"
+            )
+        if not enforceable(net=not rest.online):
+            needs = (
+                "Landlock ABI 4 (Linux 6.7 or later) and seccomp to cut the network"
+                if not rest.online
+                else "Landlock (Linux 5.13 or later, with landlock in its lsm= list)"
+            )
+            raise Unfenced(
+                f"{type(self).__name__} cannot be held to its permission on this machine: "
+                f"it does not enforce it natively, and fencing it from outside needs {needs}"
+            )
+
+    def natively(self, fence: Fence) -> Fence:
+        """What is left of a fence once this agent's CLI has enforced its own part of it.
+
+        The hook a driver overrides where its CLI has a sandbox of its own that can hold part
+        of :attr:`AgentConfig.fence <hmz.coganchor.agents.config.AgentConfig.fence>`. The
+        driver enforces that part where it builds its command line and settings -- reading
+        :meth:`fenced`, which is the fence with everything the agent itself needs added, or
+        ``self.config.fence`` where those additions do not matter to it -- and returns here
+        what it did not enforce. :meth:`spawned` puts ``hmz internal fence`` around the CLI to
+        hold that rest, and nothing at all where the rest is
+        :attr:`~hmz.coganchor.fence.Fence.open`. The default enforces nothing and returns
+        `fence` as given, so every CLI is fenced from outside until its driver says otherwise.
+
+        A driver claims a part only where every one of these holds, and returns `fence`
+        unchanged where any does not:
+
+        - *Everything the CLI runs is held, not only the CLI.* A sandbox that confines the
+          CLI's own file tools but not the shell commands its agent runs -- or its commands
+          but not its own process, or not the subagents and MCP servers it starts -- enforces
+          nothing, since what is left out reaches what the rest was kept from. The CLI's
+          process and every process it starts must be inside it.
+        - *It is at least as narrow as the fence, for the part claimed.* A sandbox that lets
+          the agent write its home when the fence says read, read what the fence does not
+          grant, or reach a host that `hosts` does not name, has not enforced this fence; it
+          has enforced another. What the fence lets be written -- the CLI's own state, the
+          scratch in `tmp`, the devices -- is what may be written, and all that may.
+        - *It starts here, and this was checked.* A sandbox is a claim about this machine as
+          much as about the CLI: one built on bubblewrap cannot start in a container that
+          gives it no user namespace, and Seatbelt exists only on a Mac. Probe the host --
+          cheaply, once, cached -- and claim nothing where the probe fails: a CLI whose every
+          command is refused by a sandbox that could not start is not a fenced CLI but a
+          broken one, and the fence from outside is still there to do the job.
+        - *Its answer does not depend on grants being added.* It is asked of the bare fence
+          where the agent is built, to decide whether it can be served here at all, and of the
+          widened one from :meth:`fenced` where a turn is spawned; the two must agree about
+          what the CLI enforces.
+
+        What is returned must be `fence` or wider, never narrower, and is best said with
+        :meth:`Fence.without <hmz.coganchor.fence.Fence.without>`:
+        ``fence.without(network=True)`` for a CLI that cuts its own network to exactly the
+        hosts named, ``fence.without(filesystem=True)`` for one that holds its paths, and both
+        for one that holds everything. It may also be widened with
+        :meth:`Fence.granting <hmz.coganchor.fence.Fence.granting>` for what only the driver
+        knows the CLI needs from outside -- a settings file it wrote to the system's temporary
+        directory, which the fence would otherwise not let the CLI read.
+
+        Called while the agent is being built and wherever its config changes, with the new
+        config already in place as :attr:`config`: it may read that and the class, and
+        nothing else :meth:`__init__` has not set up by then.
+
+        Args:
+          fence: The fence this agent is held to.
+
+        Returns:
+          What is left to hold from outside: `fence` itself where the CLI enforces none of it.
+        """
+        return fence
+
+    def fenced(self) -> Fence | None:
+        """The whole of what this agent's processes may reach, or None for no fence at all.
+
+        :attr:`AgentConfig.fence <hmz.coganchor.agents.config.AgentConfig.fence>`, widened by
+        what the agent itself needs whatever the scopes are: the CLI's own state and home to
+        write, the directory its sessions are kept in, the account's directory and the hosts
+        its model and sign-in are at -- read off the account it is on now, which a step down
+        its chain changes -- and the skills it is given, to read. With the scratch directory
+        its processes are given as their temporary directory. Not humanize's own home: its
+        settings, and every account's credentials, are no agent's to write.
+
+        This is what a driver that enforces a fence natively builds its sandbox from, and what
+        is left of it once :meth:`natively` has taken its part is what :meth:`spawned` puts
+        around the CLI.
+
+        Returns:
+          The fence, or None for an agent nobody said one for.
+        """
+        fence = self._config.fence
+        if fence is None:
+            return None
+        import tempfile
+        from dataclasses import replace
+
+        from hmz.coganchor import backends, statepaths
+
+        environ = self._environ()
+        profile = backends.named(self.backend)
+        writes: list[str | os.PathLike[str]] = [
+            os.path.expanduser(one)  # noqa: PTH111 -- a string, as a fence holds it
+            for one in (
+                *statepaths.profile_for(self.backend).state_paths,
+                "~/.cache/humanize",
+            )
+        ]
+        # Its own backend's directory of the sessions kept, not every agent's.
+        writes.append(self.keeps / (profile.name if profile else self.backend))
+        hosts: tuple[str, ...] = ()
+        if profile is not None:
+            writes.append(profile.directory(environ))
+            # Wherever else it keeps its sign-in, which a token refreshed mid-turn is written
+            # back to: Claude's `~/.config/anthropic` beside its home, among them.
+            writes.extend(path for path, _ in profile.credentials())
+            hosts = backends.reachable(
+                profile, os.environ if environ is None else environ
+            )
+        if (provider := self.provider) is not None:
+            writes.append(provider.at)
+        tmp = fence.tmp
+        if not tmp:
+            with self._starting:
+                if self._scratch is None:
+                    self._scratch = tempfile.mkdtemp(prefix="hmz-fence-")
+                    weakref.finalize(self, _swept, self._scratch)
+                tmp = self._scratch
+        return replace(
+            fence.granting(
+                read=[one.at for one in self._loads], write=writes, hosts=hosts
+            ),
+            tmp=tmp,
+        )
 
     def _thinks(self, effort: str) -> None:
         """Refuses a rung this backend has no word for, wherever the rung arrives.
@@ -4435,6 +4697,13 @@ class AgentBase(ABC):
         would answer a path with, are put on the target instead, there being no tracer there
         to answer anything.
 
+        Outermost of all is the fence, for an agent held to one its CLI does not enforce in
+        full by itself: ``hmz internal fence`` around everything else, so that the supervisor
+        answering a provider's paths is inside the wall with the CLI it supervises, and the
+        wall is put up before anything of the turn has run. What it is told is
+        :meth:`natively`'s rest of :meth:`fenced`, with the programs the CLI is made of
+        added to read -- the CLI itself, its interpreter, and the install trees of both.
+
         Args:
           argv: The backend's own command for this turn.
           cwd: Where the session it is a turn of works, as the machine it lands on names it,
@@ -4443,8 +4712,42 @@ class AgentBase(ABC):
             the anchor's to work out.
 
         Returns:
-          The command to spawn, which is `argv` itself for an agent that is neither anchored
-          nor run under a provider, and whose sessions stay where its CLI keeps them.
+          The command to spawn, which is `argv` itself for an agent that is neither anchored,
+          fenced, nor run under a provider, and whose sessions stay where its CLI keeps them.
+
+        Raises:
+          Unfenced: If the agent is fenced and its turns land on another machine, which
+            :meth:`_serves` has refused already for any config that says so.
+        """
+        wrapped = self._wrapped(argv, cwd)
+        fence = self.fenced()
+        if fence is None:
+            return wrapped
+        rest = self.natively(fence)
+        if rest.open:
+            return wrapped
+        if self._config.machine is not None:
+            raise Unfenced(f"{self._id}: a fence cannot be put up on another machine")
+        from hmz.coganchor.fence import wrapper
+
+        # A grant of a path that is not there yet is no grant at all -- Landlock can hold only
+        # what exists -- so the directories a CLI keeps its state in are made before it is
+        # spawned into a fence that would stop it making them itself on its first run.
+        for path in rest.write:
+            if not os.path.lexists(path) and _directory(path):
+                with contextlib.suppress(OSError):
+                    os.makedirs(path, mode=0o700, exist_ok=True)  # noqa: PTH103
+        return [*wrapper(rest.granting(read=_programs(argv[0]))), *wrapped]
+
+    def _wrapped(self, argv: list[str], cwd: str = "") -> list[str]:
+        """:meth:`spawned`, short of the fence: the CLI under its account and its anchor.
+
+        Args:
+          argv: The backend's own command for this turn.
+          cwd: Where the session works, as :meth:`spawned` takes it.
+
+        Returns:
+          The command to spawn, before a fence is put around it.
         """
         from hmz.coganchor.backends import elsewhere
 

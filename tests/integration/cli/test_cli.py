@@ -228,12 +228,12 @@ def test_the_listing_shows_every_command_there_is() -> None:
     assert set(cli.COMMANDS) == {"exec", "internal"}
 
 
-@pytest.mark.parametrize("spawned", ["anchor", "cred", "hook", "tools"])
+@pytest.mark.parametrize("spawned", ["anchor", "cred", "fence", "hook", "tools"])
 def test_what_humanize_spawns_for_itself_is_listed_under_the_one_name(
     spawned: str,
 ) -> None:
     """A turn taken as an account is spawned as one of these; nobody types one by hand."""
-    # Not a command of its own at the top: four more entries there would read as four more
+    # Not a command of its own at the top: five more entries there would read as five more
     # things to do with humanize, which is what gathering them behind one door answers.
     assert spawned not in cli.COMMANDS
     assert spawned in cli.INTERNAL
@@ -243,7 +243,7 @@ def test_what_humanize_spawns_for_itself_is_listed_under_the_one_name(
     assert stopped.value.code == 0
 
 
-def test_the_internal_listing_names_all_four(
+def test_the_internal_listing_names_all_five(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """What the door opens onto is written down, which is the whole point of opening it."""
@@ -255,7 +255,9 @@ def test_the_internal_listing_names_all_four(
     # Written out rather than read off the table the help is built from: an assertion that
     # iterates `INTERNAL` cannot fail whatever is in it, which is a check that would go on
     # passing through the very change it exists to catch.
-    assert all(spawned in shown for spawned in ("anchor", "cred", "hook", "tools"))
+    assert all(
+        spawned in shown for spawned in ("anchor", "cred", "fence", "hook", "tools")
+    )
 
 
 def test_a_line_naming_no_internal_command_is_a_usage_error(
