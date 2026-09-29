@@ -90,6 +90,14 @@ class Wants(AgentCollection):
     agent: Goal
 
 
+class Offline(Agent):
+    _permission = Permission(online=PermissionKind.NONE)
+
+
+class SoloOffline(AgentCollection):
+    agent: Offline
+
+
 class Online(Agent):
     _permission = Permission(online=PermissionKind.ALL)
 
@@ -162,11 +170,11 @@ async def wants_big(
     del task, agents, envs, params, ctx
 
 
-@flow(agents=Solo, envs=Place, params=Nothing)
+@flow(agents=SoloOffline, envs=Place, params=Nothing)
 async def calling(
-    task: str, *, agents: Solo, envs: Place, params: Nothing, ctx: FlowContext
+    task: str, *, agents: SoloOffline, envs: Place, params: Nothing, ctx: FlowContext
 ) -> None:
-    """Calls the flow its task names with its own agent and env, and nothing else."""
+    """Calls the flow its task names with its own offline agent and env, and nothing else."""
     callee: Any = load(task)
     await callee(
         "go",
@@ -1153,7 +1161,9 @@ async def test_a_derived_agent_passed_on_is_checked_once_per_kind() -> None:
     from hmz.flows import Permission, PermissionKind
     from hmz.runtime.flowing.declaring import Grant
 
-    reader = Permission(local=PermissionKind.READ, user=PermissionKind.READ)
+    reader = Permission(
+        local=PermissionKind.READ, user=PermissionKind.READ, online=PermissionKind.NONE
+    )
     assert Grant.of(frozenset(), reader) is Grant.of(frozenset(), reader)
 
     class Reader(Agent):

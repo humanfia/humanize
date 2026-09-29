@@ -147,7 +147,7 @@ class Permission:
     local: PermissionKind = PermissionKind.ALL
     user: PermissionKind = PermissionKind.READ
     system: PermissionKind = PermissionKind.READ
-    online: PermissionKind = PermissionKind.NONE # Can only be NONE or ALL.
+    online: PermissionKind = PermissionKind.ALL # Can only be NONE or ALL.
 
     def __post_init__(self) -> None: ...
         # Ensure local >= user >= system.

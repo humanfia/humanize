@@ -804,7 +804,11 @@ async def test_a_read_only_session_runs_at_the_read_only_rung(
     handle = await _open(
         claude,
         work,
-        permission=Permission(local=PermissionKind.READ, user=PermissionKind.READ),
+        permission=Permission(
+            local=PermissionKind.READ,
+            user=PermissionKind.READ,
+            online=PermissionKind.NONE,
+        ),
     )
     await handle.turn(TurnRequest("Reply with the single word: ok"), RecordingSink())
     argv = clis.of("claude")[0]["argv"]

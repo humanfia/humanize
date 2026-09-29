@@ -42,13 +42,13 @@ def test_a_kind_is_still_the_string_it_is_written_as() -> None:
     assert [one.value for one in PermissionKind] == ["none", "read", "all"]
 
 
-def test_the_default_is_the_workdir_whole_the_rest_read_and_no_network() -> None:
+def test_the_default_is_the_workdir_whole_the_rest_read_and_the_network() -> None:
     granted = Permission()
     assert (granted.local, granted.user, granted.system, granted.online) == (
         ALL,
         READ,
         READ,
-        NONE,
+        ALL,
     )
 
 

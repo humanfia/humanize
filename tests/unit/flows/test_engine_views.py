@@ -400,7 +400,9 @@ DERIVING = """
     @flow(agents=Agents, envs=Envs, params=FlowParams)
     async def deriving(task, *, agents, envs, params, ctx) -> list[Any]:
         agent = agents["agent"]
-        narrow = agent.derive(permission=Permission(), skills=("a",))
+        narrow = agent.derive(
+            permission=Permission(online=PermissionKind.NONE), skills=("a",)
+        )
         same = agent.derive()
         with pytest.raises(CapabilityNotGranted):
             narrow.derive(permission=Permission(online=PermissionKind.ALL))
@@ -431,7 +433,7 @@ async def test_derive_only_narrows(tmp_path: Path) -> None:
     )
     driver = FakeAgentDriver()
     (narrow, same) = await run_fake(str(flows / "deriving"), agents={"agent": driver})
-    assert narrow == (Permission(), ("a",))
+    assert narrow == (Permission(online=PermissionKind.NONE), ("a",))
     assert same == (Permission(online=PermissionKind.ALL), ("a", "b"))
     given = [[skill.name for skill in one.skills] for one in driver.sessions]
     assert given == [["a"], ["a", "b"]]

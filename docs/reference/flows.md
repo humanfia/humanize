@@ -393,7 +393,7 @@ class Permission:
     local: PermissionKind = PermissionKind.ALL
     user: PermissionKind = PermissionKind.READ
     system: PermissionKind = PermissionKind.READ
-    online: PermissionKind = PermissionKind.NONE
+    online: PermissionKind = PermissionKind.ALL
 
     def covers(self, other: Permission) -> bool: ...
 ```
@@ -403,7 +403,7 @@ class Permission:
 | `local` | the environment's workdir the session works in | `ALL` |
 | `user` | the rest of the home directory of the user the agent runs as | `READ` |
 | `system` | everything else on the machine | `READ` |
-| `online` | the CLI's own web search and fetching | `NONE` |
+| `online` | the CLI's own web search and fetching | `ALL` |
 
 - Scopes nest: `local >= user >= system`. `online` is `NONE` or `ALL`, never `READ`. A
   `Permission` that breaks either raises `ValueError` where it is made: `a wider scope may not

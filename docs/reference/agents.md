@@ -1092,7 +1092,7 @@ everywhere:
   running is reconfigured. `None` is refused nowhere.
 - It composes with the [rung](#what-an-agent-may-do): a rung that already withholds the web
   tools goes on withholding them.
-- Under a flow, a role's `online` scope says it: `ALL` is on, `NONE` (the default) is off. On a
+- Under a flow, a role's `online` scope says it: `ALL` (the default) is on, `NONE` is off. On a
   backend that cannot be told, the flow's agent is left as its CLI has it, which may be wider.
 - A shell command the agent runs reaches the network whatever this says.
 

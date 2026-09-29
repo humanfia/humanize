@@ -73,8 +73,9 @@ if TYPE_CHECKING:
 NONE, READ, ALL = PermissionKind.NONE, PermissionKind.READ, PermissionKind.ALL
 
 #: The permissions the table is read at: looking only, the workdir alone, the whole machine.
-LOOKING = Permission(local=READ, user=READ, system=READ)
-WORKDIR = Permission(local=ALL, user=READ, system=NONE)
+#: The first two are offline, so that the web is said off where they are.
+LOOKING = Permission(local=READ, user=READ, system=READ, online=NONE)
+WORKDIR = Permission(local=ALL, user=READ, system=NONE, online=NONE)
 EVERYTHING = Permission(local=ALL, user=ALL, system=ALL, online=ALL)
 
 #: The rung each harness runs at for each of them, with no hook hung.
