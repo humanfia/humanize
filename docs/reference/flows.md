@@ -468,7 +468,7 @@ Only `local`, `user` and `system` all `ALL` with `online` `ALL` fences nothing.
 | `zcode` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `agy` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `dsh` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `acp` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `acp` | external (Landlock + proxy), plus the `state` declared for it | external (Landlock + proxy), to the `hosts` declared for it; `NONE` with none declared is refused |
 
 The fence leaves two gaps, both from the kernel. Landlock does not govern connecting to a Unix
 socket, so a socket another process listens on (a docker daemon's, a session bus) is still a
