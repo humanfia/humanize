@@ -964,12 +964,13 @@ def _composed(config: DshAgentConfig) -> str:
     # The web, where the agent is to have it. Said by mounting rather than by asking, which
     # is the only way this backend can be told at all -- and so it has to be said in the `on`
     # direction as well: the bundled composition mounts none of :data:`_WEB`, so a dsh turn
-    # searches nothing until it is composed to, the way a Codex turn searches nothing until
-    # `-c tools.web_search=true` asks it to. An agent nobody was asked about is left where the
-    # bare SDK leaves one, which is with no web at all. `is True` rather than a truth test for
-    # that last reason: `False` and nobody-said both leave these out, but they are two answers
-    # and not one, and a test that could not tell them apart would mount the web for a turn
-    # nobody had asked about the moment the other two branches grew.
+    # searches nothing until it is composed to -- unlike a bare Codex, which searches from its
+    # own cache until `-c web_search="disabled"` tells it not to. An agent nobody was asked
+    # about is left where the bare SDK leaves one, which is with no web at all. `is True`
+    # rather than a truth test for that last reason: `False` and nobody-said both leave these
+    # out, but they are two answers and not one, and a test that could not tell them apart
+    # would mount the web for a turn nobody had asked about the moment the other two branches
+    # grew.
     if config.web_search is True:
         composed.extend(dict(plugin) for plugin in _WEB)
     return yaml.dump(
