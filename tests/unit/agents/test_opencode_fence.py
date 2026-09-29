@@ -14,8 +14,7 @@ import json
 import os
 import re
 import sys
-from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
@@ -27,6 +26,9 @@ from hmz.coganchor.agents import (
     Unserved,
 )
 from hmz.coganchor.fence import ALL, NONE, READ, Fence
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _able(*, net: bool) -> bool:
@@ -150,7 +152,7 @@ def test_with_the_system_untouchable_its_tools_read_only_what_the_fence_grants(
 
 
 def test_in_a_checkout_the_rules_are_relative_to_its_top(home: Path) -> None:
-    """opencode asks about `edit` in paths relative to the checkout, so the rules are too."""
+    """Opencode asks about `edit` in paths relative to the checkout, so the rules are too."""
     top = home / "repo"
     (top / ".git").mkdir(parents=True)
     work = top / "pkg"
@@ -181,7 +183,12 @@ def test_a_rung_that_denies_editing_stays_denying(home: Path) -> None:
 
 def test_a_fence_that_grants_everything_says_nothing_about_paths(home: Path) -> None:
     table = _table(home, ALL, ALL, ALL)
-    assert table == {"edit": "allow", "bash": "allow", "webfetch": "allow", "websearch": "allow"}
+    assert table == {
+        "edit": "allow",
+        "bash": "allow",
+        "webfetch": "allow",
+        "websearch": "allow",
+    }
 
 
 def test_mimocode_takes_the_same_rules_and_loses_its_third_web_tool(
@@ -189,12 +196,16 @@ def test_mimocode_takes_the_same_rules_and_loses_its_third_web_tool(
 ) -> None:
     work = _work(home)
     fence = _fence(home, work, ALL, READ, READ, online=False)
-    config = MimoCodeAgentConfig(model="p/m", effort="high", permission="bypass", fence=fence)
+    config = MimoCodeAgentConfig(
+        model="p/m", effort="high", permission="bypass", fence=fence
+    )
     session = MimoCodeAgent(config).new(work)
 
     table = json.loads(session._environment()["MIMOCODE_PERMISSION"])
 
-    assert [table[one] for one in ("webfetch", "websearch", "codesearch")] == ["deny"] * 3
+    assert [table[one] for one in ("webfetch", "websearch", "codesearch")] == [
+        "deny"
+    ] * 3
     assert _decides(table["edit"], _asked(home / "fence-probe")) == "deny"
 
 
@@ -212,7 +223,9 @@ def test_an_offline_fence_takes_the_web_tools_away_whatever_web_search_says(
         )
     # Online, the table may be withheld: the fence is still held whole from outside.
     online = dataclasses.replace(fence, online=True)
-    OpencodeAgentConfig(model="p/m", effort="high", fence=online, permission_table=False)
+    OpencodeAgentConfig(
+        model="p/m", effort="high", fence=online, permission_table=False
+    )
 
 
 def test_mimocode_leaves_claude_codes_settings_alone_where_it_may_not_read_them(
@@ -227,3 +240,20 @@ def test_mimocode_leaves_claude_codes_settings_alone_where_it_may_not_read_them(
         ).new(work)
         assert session._environment().get("MIMOCODE_DISABLE_CLAUDE_CODE") == told
         assert not fence.allows(home / ".claude.json") or told is None
+
+
+def test_the_fence_loosens_nothing_opencode_asks_about_itself(home: Path) -> None:
+    """Its own table asks before a `.env` is read, and the fence's comes after it and wins."""
+    work = _work(home)
+    table = _table(home, ALL, READ, NONE, work=work)
+
+    read = table["read"]
+    assert _decides(read, _asked(work / ".env")) == "ask"
+    assert _decides(read, _asked(work / "a.env.local")) == "ask"
+    assert _decides(read, _asked(work / ".env.example")) == "allow"
+    assert _decides(read, _asked(work / "a.py")) == "allow"
+    assert _decides(read, _asked("/etc/app/.env")) == "deny"
+    # A single file the fence grants is no directory to reach into.
+    outside = table["external_directory"]
+    assert isinstance(outside, dict)
+    assert "/etc/passwd/*" not in outside

@@ -23,7 +23,7 @@ from .config import UNSAID, AgentConfig, Unserved
 from .event import Event, Failed, Usage
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
+    from collections.abc import Iterator
 
     from hmz.coganchor.fence import Fence
 
@@ -107,6 +107,11 @@ def _tabled(config: AgentConfig) -> bool:
     )
 
 
+#: What opencode's own `read` table says about particular names beneath everything it lets be
+#: read: a file of secrets is asked about first, and the example of one is not.
+_GUARDED = (("*.env", "ask"), ("*.env.*", "ask"), ("*.env.example", "allow"))
+
+
 def _worktree(directory: str) -> str:
     """The directory opencode reads the paths its file tools are asked about relative to.
 
@@ -129,7 +134,13 @@ def _worktree(directory: str) -> str:
     return os.sep
 
 
-def _beneath(roots: Iterable[str], worktree: str, inside: str) -> str | dict[str, str]:
+def _beneath(
+    roots: tuple[str, ...],
+    worktree: str,
+    inside: str,
+    *,
+    guarded: tuple[tuple[str, str], ...] = (),
+) -> str | dict[str, str]:
     """A `read` or `edit` permission that answers `inside` beneath the roots and `deny` elsewhere.
 
     Written in the patterns opencode asks those two in, which are paths relative to
@@ -139,10 +150,17 @@ def _beneath(roots: Iterable[str], worktree: str, inside: str) -> str | dict[str
     out of it, so it is said as the whole of the worktree less what climbs further than the
     root is above it; every other root is said as the path to it and everything beneath it.
 
+    A table here comes after opencode's own and wins over it wherever both match, so what its
+    own says about particular names beneath what is let through -- that a `.env` is asked
+    about before it is read -- is said again after each root, or the fence would have
+    loosened it.
+
     Args:
       roots: The absolute paths the answer is `inside` beneath.
       worktree: What the patterns are relative to.
       inside: The answer beneath them.
+      guarded: Names, as patterns of their own, and what is answered for them beneath each
+        root instead of `inside`.
 
     Returns:
       The permission: `inside` alone where a root is `/`, and a table of patterns otherwise.
@@ -151,24 +169,34 @@ def _beneath(roots: Iterable[str], worktree: str, inside: str) -> str | dict[str
     if os.sep in held:
         return inside
     rules = {"*": "deny"}
+
+    def let(under: str) -> None:
+        rules[f"{under}*"] = inside
+        rules.update((f"{under}{name}", said) for name, said in guarded)
+
     if held:
         above = max(len(Path(os.path.relpath(worktree, one)).parts) for one in held)
-        rules["*"] = inside
+        del rules["*"]
+        let("")
         rules["../" * (above + 1) + "*"] = "deny"
     for one in roots:
         if one not in held:
             relative = os.path.relpath(one, worktree)
-            rules |= {relative: inside, f"{relative}/*": inside}
+            rules[relative] = inside
+            let(f"{relative}/")
     return rules
 
 
-def _outside(roots: Iterable[str]) -> str | dict[str, str]:
+def _outside(roots: tuple[str, ...]) -> str | dict[str, str]:
     """The `external_directory` permission that lets a tool reach beneath the roots and no further.
 
     Asked, unlike `read` and `edit`, in absolute patterns: a file tool reaching outside the
     session's project asks it with the directory it reaches into and a `/*`, and the shell asks
     it the same way for each directory a command it runs names. One permission for reading and
-    writing both, which is why it is only as narrow as what may be read.
+    writing both, which is why it is only as narrow as what may be read. A root that is a
+    single file -- `/etc/passwd`, `/dev/null` -- has nothing to say here, since what is asked
+    is the directory it is in and that is more than the fence grants: a tool reaching for one
+    is refused, and the shell and the kernel are what let a command read it.
 
     Args:
       roots: The absolute paths that may be reached.
@@ -176,10 +204,13 @@ def _outside(roots: Iterable[str]) -> str | dict[str, str]:
     Returns:
       `allow` where one of them is `/`, and a table denying everything else otherwise.
     """
-    listed = list(roots)
-    if os.sep in listed:
+    if os.sep in roots:
         return "allow"
-    return {"*": "deny"} | {f"{one.rstrip(os.sep)}/*": "allow" for one in listed}
+    return {"*": "deny"} | {
+        f"{one}/*": "allow"
+        for one in roots
+        if not os.path.isfile(one)  # noqa: PTH113
+    }
 
 
 def _flagged(config: AgentConfig) -> bool:
@@ -402,7 +433,7 @@ class OpencodeSession(CommandSessionBase):
         if os.sep not in writable and rung.get("edit") != "deny":
             said["edit"] = _beneath(writable, worktree, rung.get("edit", "allow"))
         if os.sep not in readable:
-            said["read"] = _beneath(readable, worktree, "allow")
+            said["read"] = _beneath(readable, worktree, "allow", guarded=_GUARDED)
             said["external_directory"] = _outside(readable)
         if not fence.online:
             said |= dict.fromkeys(type(self).reaches, "deny")
