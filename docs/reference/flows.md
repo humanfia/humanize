@@ -465,7 +465,7 @@ Only `local`, `user` and `system` all `ALL` with `online` `ALL` fences nothing.
 | `kimi` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `grok` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `pi` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `zcode` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `zcode` | external (Landlock + proxy); a write outside it refused at approval | external (Landlock + proxy); web tools denied |
 | `agy` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `dsh` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `acp` | external (Landlock + proxy) | external (Landlock + proxy) |

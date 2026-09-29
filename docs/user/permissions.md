@@ -70,7 +70,8 @@ So the default grant is a real limit: an agent changes its workdir and nothing e
 
 A role whose `local` is `READ` or `NONE` also runs in its CLI's read-only mode, where the CLI
 has one (every CLI but `dsh` and CLIs added over the Agent Client Protocol). Where a CLI can
-be told, `online` of `NONE` also switches its web tools off.
+be told, `online` of `NONE` also switches its web tools off. ZCode also refuses, when it asks
+for approval, a write outside the grant, and tells the model why.
 
 ::: warning Where a grant cannot be held, the role does not start
 humanize never runs an agent with more than its grant. A role is refused before it starts
