@@ -1917,6 +1917,34 @@ land [elsewhere](#where-the-turns-land) they are named on that machine. The firs
 refused for an agent reached through an anchor that drives the target's own CLI, since what
 this client reads and runs is this machine.
 
+**Under a flow's permission** an added CLI is fenced from outside, whole: nothing is known of a
+sandbox of its own, so `hmz internal fence` holds every scope. Nor is anything known of the
+hosts its model is at or where it keeps its state, so both are declared beside its command in
+`acp.json` under humanize's home, by editing the entry into an object:
+
+```json
+{
+  "my-agent": {
+    "command": ["my-agent", "--acp"],
+    "hosts": ["api.my-agent.example"],
+    "state": ["~/.my-agent"]
+  }
+}
+```
+
+- `hosts` are what `online` of `NONE` still lets it reach, spelled as `Profile.hosts` spells
+  them (`api.example.com`, `*.example.com`, `gw.example:8443`). With none declared, a
+  permission that cuts the network is refused (`HarnessSandboxed`) naming what to declare,
+  since a CLI that cannot reach its model takes no turn.
+- `state` is written whatever `user` says. With none declared, nothing of the home is, and a
+  CLI that must write its state fails on its own terms.
+- What this client does itself is held to the same fence: a file read or written for the
+  agent, and a tool call naming a path in its `locations` or raw input, that the fence would
+  not let the agent reach is refused (a tool call with `reject_once`), and a terminal's command
+  is run inside the fence too.
+
+`backends.declared(name)` reads both back.
+
 ## Reaching into a bundled CLI
 
 Claude Code and opencode each ship as one [Bun](https://bun.sh) standalone executable: the

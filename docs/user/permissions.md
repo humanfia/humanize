@@ -67,10 +67,15 @@ So the default grant is a real limit: an agent changes its workdir and nothing e
 | Backend | `local`, `user`, `system` | `online` of `NONE` |
 | --- | --- | --- |
 | every CLI | <Badge type="tip" text="held by Landlock" /> | <Badge type="tip" text="cut but for its model" /> |
+| a CLI added over ACP | <Badge type="tip" text="held by Landlock" /> | <Badge type="warning" text="cut but for the hosts declared for it" /> |
 
 A role whose `local` is `READ` or `NONE` also runs in its CLI's read-only mode, where the CLI
 has one (every CLI but `dsh` and CLIs added over the Agent Client Protocol). Where a CLI can
 be told, `online` of `NONE` also switches its web tools off.
+
+humanize knows nothing of a CLI you added over the Agent Client Protocol: not the hosts its
+model is at, and not where it keeps its state. Declare both where it was added, or a role that
+grants it `online` of `NONE` is refused (see [A CLI of your own](/reference/agents#a-cli-of-your-own)).
 
 ::: warning Where a grant cannot be held, the role does not start
 humanize never runs an agent with more than its grant. A role is refused before it starts
