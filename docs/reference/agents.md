@@ -977,10 +977,13 @@ How each backend says it, and what to know:
   print-mode run soft-denies what it was not permitted and names it under `denied_actions`.
   **Plan mode alone does not hold it to reading**: agy 1.2 writes the file it is asked to in
   it. So a `read-only` turn is also started as `--agent hmz-read-only`, an agent humanize
-  writes under `~/.humanize/agy/` before each such turn and adds with `--add-dir`, whose only
-  tools are `view_file`, `grep_search`, `find_by_name` and `list_dir`. agy runs an `--agent` it cannot
-  find as its default agent without saying so, and that directory is only on this machine, so
-  `read-only` on another machine is refused with `Unserved`.
+  writes under agy's own `~/.gemini/antigravity-cli/agents/` before each such turn, whose only
+  tools are `view_file`, `grep_search`, `find_by_name` and `list_dir`. Not in a directory added
+  with `--add-dir`: agy runs commands in the first of those by name, which could then be
+  humanize's rather than the session's. agy runs an `--agent` it cannot find as its default
+  agent without saying so, and that file is only on this machine, so `read-only` on another
+  machine is refused with `Unserved`. So is `web_search=False` there, which is said with an
+  agent from the same directory.
 - **Claude Code**: `--permission-mode`. **Its `bypass` is humanize answering, not Claude
   skipping.** An account's managed settings can carry
   `"disableBypassPermissionsMode": "disable"`, and then `--dangerously-skip-permissions`
@@ -1114,8 +1117,10 @@ agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-opus-5", effort="hig
   before 6.7, or on an agent whose `machine` is set. A flow reads that as
   `HarnessSandboxed`. A fence with `/` in `write` and `online=True` fences nothing, and
   nothing is put around the CLI.
-- **Two gaps are the kernel's.** Landlock does not govern connecting to a Unix socket, and
-  with the network cut the proxy's port is reachable on any address, by number only.
+- **Three gaps are the kernel's.** Landlock does not govern connecting to a Unix socket.
+  With the network cut, the proxy's port is reachable on any address, by number only. And a
+  port the kernel picks may be listened on, on any address, so a program that listens on all
+  of them can be reached from outside.
 
 ## Whether an agent may search the web
 
@@ -1145,7 +1150,8 @@ everywhere:
 | `opencode` | `webfetch: deny` and `websearch: deny` in its permission table when off |
 | `mimo` | the same two and `codesearch: deny` |
 | `zcode` | `WebSearch` and `WebFetch` in the session's `toolDenylist` when off |
-| `agy`, `cursor-agent`, `pi`, an ACP CLI | no way of being told: off is refused |
+| `agy` | when off, `--agent hmz-offline`: its default tools less `read_url_content`, `search_web` and the subagent tools. At `read-only`, `hmz-read-only-web` when on |
+| `cursor-agent`, `pi`, an ACP CLI | no way of being told: off is refused |
 
 - The refusal comes where the config arrives: where the agent is made, and where one already
   running is reconfigured. `None` is refused nowhere.
@@ -1587,10 +1593,21 @@ process; an anchored turn always ends it, for filesystem synchronisation.
 | `add_workspace` | `True` | Pin the session's directory with `--add-dir`, so the CLI does not pick a scratch project of its own. |
 | `print_timeout` | `86400.0` | `--print-timeout`, in seconds. Since 1.1.28 a turn that reaches that clock exits successfully with a partial answer, so the CLI's own five minutes is raised to a day; humanize's [watchdog](#when-a-cli-stops-answering) and budget are the clocks that decide. |
 | `disable_slash_commands` | `False` | `--disable-slash-commands`: a prompt opening with `/deploy` reaches the model as words. |
-| `sandbox` | `False` | `--sandbox`: the CLI's own terminal restrictions. |
+| `sandbox` | `False` | `--sandbox`: the CLI's own terminal restrictions. Not how a [fence](#the-fence) is held. |
 
 Native usage is cumulative across a conversation; each result reports its own turn's increment.
 Shaped answers validate the native final `structured_output`.
+
+**A fence is held from outside in full.** `--sandbox` confines the commands the agent runs and
+nothing else: agy's own file tools run outside it (a sandboxed turn still wrote the home
+directory with `write_to_file`). It also cannot start where unprivileged user namespaces are
+restricted, Ubuntu's default, and then every command fails. Its network and command allow-lists
+are desktop-app settings the CLI takes no flag or file for. So `hmz internal fence` holds the
+paths and the network. With `online` cut, agy still reaches the hosts its eligibility check
+needs, the account's profile picture on `lh3.googleusercontent.com` among them, and still
+starts its loopback language server on a port the kernel picks. Its page fetcher runs at the
+far end of its model API, where no fence reaches, so a fence that cuts the network also starts
+the turn as `hmz-offline`, without its web tools, whatever `web_search` says.
 
 ### Claude Code
 

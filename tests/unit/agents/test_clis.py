@@ -12,9 +12,12 @@ in `tests/integration/agents/test_clis.py`.
 
 from __future__ import annotations
 
+import sys
 from dataclasses import replace
+from typing import TYPE_CHECKING
 
 import pytest
+import yaml
 
 from hmz.coganchor.agents import (
     UNSAID,
@@ -28,6 +31,10 @@ from hmz.coganchor.agents import (
     PiAgent,
     PiAgentConfig,
 )
+from hmz.coganchor.fence import ALL, NONE, READ, Fence
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 PI = PiAgentConfig(model="openai-codex/gpt-5.5", effort="high")
 OPENCODE = OpencodeAgentConfig(model="opencode/big-pickle", effort="high")
@@ -140,9 +147,139 @@ def test_agy_refuses_to_read_only_on_another_machine() -> None:
     elsewhere = AnchoredConfig(anchor=AnchorConfig(target="ssh://gpu-box"))
     told = AntigravityCLIAgentConfig(model="m", effort="high", machine=elsewhere)
 
-    with pytest.raises(ValueError, match="read-only on another machine"):
+    with pytest.raises(ValueError, match="on another machine"):
         AntigravityCLIAgent(replace(told, permission="read-only"))
+    # Kept off the web is the same: what takes its web tools away is an agent here too.
+    with pytest.raises(ValueError, match="on another machine"):
+        AntigravityCLIAgent(replace(told, permission="bypass", web_search=False))
     assert AntigravityCLIAgent(replace(told, permission="bypass"))
+    assert AntigravityCLIAgent(replace(told, permission="bypass", web_search=True))
+
+
+@pytest.fixture
+def agy_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A home of the test's own, where agy's own home and humanize's agents in it are."""
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    return tmp_path / "home"
+
+
+def _started_as(config: AntigravityCLIAgentConfig) -> str | None:
+    """The agent a turn at this config is started as, or None for agy's own default."""
+    argv = AntigravityCLIAgent(config).new()._turn("hi")[0]
+    return argv[argv.index("--agent") + 1] if "--agent" in argv else None
+
+
+def _offline(home: Path, *, online: bool = False) -> Fence:
+    return Fence.of(
+        local=ALL,
+        user=READ,
+        system=NONE,
+        online=online,
+        workdir=home / "work",
+        home=home,
+    )
+
+
+@pytest.mark.usefixtures("agy_home")
+@pytest.mark.parametrize(
+    ("permission", "web_search", "agent"),
+    [
+        ("bypass", None, None),
+        ("bypass", True, None),
+        ("bypass", False, "hmz-offline"),
+        ("workspace-write", False, "hmz-offline"),
+        ("read-only", None, "hmz-read-only"),
+        ("read-only", False, "hmz-read-only"),
+        ("read-only", True, "hmz-read-only-web"),
+    ],
+)
+def test_agy_is_told_about_the_web_by_the_agent_it_is_started_as(
+    permission: str, web_search: bool | None, agent: str | None
+) -> None:
+    """Agy has no flag that takes a tool away, so its web tools go with an agent that lacks them.
+
+    And nothing is said where nothing was: an agent nobody asked about the web is agy's own.
+    """
+    config = AntigravityCLIAgentConfig(
+        model="m", effort="high", permission=permission, web_search=web_search
+    )
+    assert _started_as(config) == agent
+
+
+def test_agy_fenced_off_the_network_is_started_without_its_web_tools(
+    agy_home: Path,
+) -> None:
+    """Its page fetcher runs at the far end of its model API, which no fence here can hold.
+
+    So a fence that cuts the network takes the tools away whatever web search was said to be.
+    """
+    config = AntigravityCLIAgentConfig(
+        model="m", effort="high", permission="bypass", web_search=True
+    )
+    assert _started_as(replace(config, fence=_offline(agy_home))) == "hmz-offline"
+    assert _started_as(replace(config, fence=_offline(agy_home, online=True))) is None
+    read_only = replace(config, permission="read-only", fence=_offline(agy_home))
+    assert _started_as(read_only) == "hmz-read-only"
+
+
+def test_agy_offline_agent_has_no_tool_that_reaches_the_web(agy_home: Path) -> None:
+    """Nor one that starts an agent of its own, which would be one with the web's tools.
+
+    Put where agy finds its own agents rather than in a directory added to the turn, which
+    agy would run the agent's commands in whenever it sorted before the session's own.
+    """
+    argv = (
+        AntigravityCLIAgent(
+            AntigravityCLIAgentConfig(model="m", effort="high", web_search=False)
+        )
+        .new()
+        ._turn("hi")[0]
+    )
+    assert "--add-dir" not in argv[: argv.index("--agent")]
+    defined = agy_home / ".gemini" / "antigravity-cli" / "agents" / "hmz-offline.md"
+    front = yaml.safe_load(defined.read_text().split("---")[1])
+    assert front["name"] == "hmz-offline"
+    assert "run_command" in front["tools"]
+    assert "write_to_file" in front["tools"]
+    assert not set(front["tools"]) & {
+        "read_url_content",
+        "search_web",
+        "invoke_subagent",
+        "define_subagent",
+    }
+    # Its own prompt kept: the tools are all this takes away.
+    assert "excludeDefaultComponents" not in front
+
+
+def _able(*, net: bool) -> bool:
+    del net
+    return True
+
+
+def test_agy_enforces_none_of_its_fence_itself(
+    agy_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--sandbox` holds its terminal alone, and does not start where user namespaces are shut.
+
+    So the whole fence is put around it from outside, and humanize's agents are where every
+    fence already lets agy read: its own home.
+    """
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", _able)
+    fence = _offline(agy_home)
+    agent = AntigravityCLIAgent(
+        AntigravityCLIAgentConfig(model="m", effort="high", fence=fence)
+    )
+
+    assert agent.natively(fence) is fence
+
+    argv = agent.spawned(["agy", "--print", "hi"])
+    assert argv[:5] == [sys.executable, "-m", "hmz", "internal", "fence"]
+    policy = Fence.loads(argv[5].removeprefix("--policy="))
+    assert not policy.online
+    assert "cloudcode-pa.googleapis.com" in policy.hosts
+    native = agy_home / ".gemini" / "antigravity-cli"
+    assert policy.allows(native / "agents" / "hmz-offline.md")
+    assert policy.allows(native, write=True)
 
 
 @pytest.mark.parametrize("waiting", [0.0, -1.0, float("nan"), float("inf"), 1e16])

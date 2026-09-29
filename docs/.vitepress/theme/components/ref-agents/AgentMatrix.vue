@@ -49,7 +49,7 @@ const PERM = 'Permission'
 const SUB = 'Subagent'
 
 const ROWS: Row[] = [
-  { name: 'agy', product: 'Antigravity', steers: no, goal: no, schema: held, fork: no, web: no, rungs: four, moments: [], fast: no, trace: yes },
+  { name: 'agy', product: 'Antigravity', steers: no, goal: no, schema: held, fork: no, web: yes, rungs: four, moments: [], fast: no, trace: yes },
   { name: 'claude', product: 'Claude Code', steers: yes, goal: yes, schema: held, fork: yes, web: yes, rungs: four, moments: [PERM, SUB], fast: yes, trace: yes },
   { name: 'codex', product: 'Codex', steers: yes, goal: yes, schema: held, fork: yes, web: yes, rungs: four, moments: [PERM, SUB], fast: yes, trace: yes },
   { name: 'cursor-agent', product: 'Cursor Agent', steers: no, goal: no, schema: prompt, fork: no, web: no, rungs: four, moments: [SUB], fast: yes, trace: no },

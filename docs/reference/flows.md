@@ -466,14 +466,17 @@ Only `local`, `user` and `system` all `ALL` with `online` `ALL` fences nothing.
 | `grok` | external (Landlock + proxy); its own sandbox writes `/tmp` | external (Landlock + proxy); its own sandbox leaves `web_fetch` online |
 | `pi` | external (Landlock + proxy) | external (Landlock + proxy), started `--offline`; the gateways its `models.json` declares stay reachable |
 | `zcode` | external (Landlock + proxy); a write outside it refused at approval | external (Landlock + proxy); web tools denied |
-| `agy` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `agy` | external (Landlock + proxy); its `--sandbox` holds only its commands | external (Landlock + proxy), and its web tools taken away |
 | `dsh` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `acp` | external (Landlock + proxy), plus the `state` declared for it | external (Landlock + proxy), to the `hosts` declared for it; `NONE` with none declared is refused |
 
-The fence leaves two gaps, both from the kernel. Landlock does not govern connecting to a Unix
-socket, so a socket another process listens on (a docker daemon's, a session bus) is still a
-way out. With the network cut, the proxy's port is reachable on any address, but only by
-number, since nothing inside the fence can resolve a name.
+The fence leaves three gaps, all from the kernel. Landlock does not govern connecting to a
+Unix socket, so a socket another process listens on (a docker daemon's, a session bus) is
+still a way out. With the network cut, the proxy's port is reachable on any address, but only
+by number, since nothing inside the fence can resolve a name. And a port the kernel picks may
+still be listened on, which a CLI serving itself on loopback (agy) needs to start. Landlock
+cannot tell loopback from any other address, so a program that listens on every address can
+be connected to from outside.
 
 **The rung.**
 
@@ -484,8 +487,9 @@ number, since nothing inside the fence can resolve a name.
 
 - **`dsh` and `acp`** can be held to no rung but `bypass`. The fence holds them to the scopes.
 - **`online`** also switches the CLI's own web tools: on for `ALL`, and off for `NONE` where
-  the CLI can be told. Where it cannot (cursor-agent, pi, Antigravity, ACP), the cut network
-  is what stops them.
+  the CLI can be told. Where it cannot (cursor-agent, pi, ACP), the cut network is what stops
+  them. Antigravity fetches pages at the far end of its model API, where the cut network does
+  not reach, so with `online` `NONE` it is always started without its web tools.
 - **Nothing-asked mode** is `danger-full-access` with approval `never` on Codex. On Claude
   Code, whose `bypassPermissions` a managed policy may forbid, it is `manual` with humanize
   answering every request yes.

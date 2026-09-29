@@ -1133,15 +1133,21 @@ PROFILES = (
         name="agy",
         # Its log is every request going to `daily-cloudcode-pa`, the binary names the plain
         # one beside it, the sign-in is refreshed at `oauth2` and read back at `www`'s
-        # userinfo, and the key way talks to the Gemini API. The feature-flag host it also
-        # names is left out: nothing it does fails without it.
+        # userinfo, and the key way talks to the Gemini API. Its eligibility check fetches the
+        # account's profile picture from `lh3` and refuses to start a turn when it cannot
+        # (agy 1.2.12). The feature-flag host it also names is left out: nothing it does fails
+        # without it.
         hosts=(
             "cloudcode-pa.googleapis.com",
             "daily-cloudcode-pa.googleapis.com",
             "oauth2.googleapis.com",
             "www.googleapis.com",
             "generativelanguage.googleapis.com",
+            "lh3.googleusercontent.com",
         ),
+        # Told by the agent a turn is started as, which is one of humanize's without the web's
+        # two tools where it may not search: agy has no flag or setting that takes one away.
+        searches=True,
         aliases=("agy", "antigravity"),
         # `--conversation` picks one back up and that is the whole of what it offers: there
         # is no flag that says carry this one into another. Still true of agy 1.2.2, checked
