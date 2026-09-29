@@ -3968,7 +3968,10 @@ class AgentBase(ABC):
         writes.append(self.keeps / (profile.name if profile else self.backend))
         hosts: tuple[str, ...] = ()
         if profile is not None:
-            writes.append(profile.directory(environ))
+            # Only for a backend that has a home: one whose home is not known -- a CLI somebody
+            # added -- would otherwise be read as the whole of the user's own.
+            if profile.home_dir or profile.home_var:
+                writes.append(profile.directory(environ))
             # Wherever else it keeps its sign-in, which a token refreshed mid-turn is written
             # back to: Claude's `~/.config/anthropic` beside its home, among them.
             writes.extend(path for path, _ in profile.credentials())
