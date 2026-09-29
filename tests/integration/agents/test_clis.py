@@ -1513,26 +1513,25 @@ def test_agy_is_held_to_reading_as_an_agent_whose_tools_only_read(
 ) -> None:
     """Plan mode alone is not reading: agy 1.2 in plan mode writes the file it is asked to.
 
-    So a turn at `read-only` is started as an agent of humanize's, found where agy finds a
-    project's own, whose tools read and do nothing else.
+    So a turn at `read-only` is started as an agent of humanize's, found where agy finds its
+    own, whose tools read and do nothing else. Not in a directory added to the turn: agy runs
+    in the first of those by name, which would then be humanize's rather than the session's.
     """
     config = AntigravityCLIAgentConfig(
         model="gemini-3.5-flash-medium", effort="high", permission="read-only"
     )
-    assert AntigravityCLIAgent(config).new()("hi") == "hi"
+    session = AntigravityCLIAgent(config).new()
+    assert session("hi") == "hi"
 
     (opened,) = stubs.calls()
     assert opened.argv[opened.argv.index("--agent") + 1] == "hmz-read-only"
     added = [
-        Path(opened.argv[at + 1])
-        for at, one in enumerate(opened.argv)
-        if one == "--add-dir"
+        opened.argv[at + 1] for at, one in enumerate(opened.argv) if one == "--add-dir"
     ]
-    (defined,) = [
-        found
-        for one in added
-        if (found := one / ".agents" / "agents" / "hmz-read-only.md").is_file()
-    ]
+    assert added == [session._workspace()]
+    defined = (
+        Path.home() / ".gemini" / "antigravity-cli" / "agents" / "hmz-read-only.md"
+    )
     front = yaml.safe_load(defined.read_text().split("---")[1])
     assert front["name"] == "hmz-read-only"
     assert front["excludeDefaultComponents"] is True

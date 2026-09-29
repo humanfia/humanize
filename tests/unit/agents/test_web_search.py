@@ -35,6 +35,7 @@ from hmz.coganchor.agents import (
 # as : everything else reads it, so a backend that gains a way of being told is a backend this :
 # notices rather than a list to remember.
 TELLABLE = (
+    "agy",
     "claude",
     "codex",
     "dsh",
