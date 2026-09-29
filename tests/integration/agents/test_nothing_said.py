@@ -50,7 +50,7 @@ _GATING = frozenset(
 
 #: The one `-c` key Codex is told about the web on, which is a word rather than a flag: the
 #: flag before it is the same `-c` that carries every other override.
-_SEARCHING = "tools.web_search="
+_SEARCHING = "web_search="
 
 
 def _table(driver: type) -> dict[str, Any]:

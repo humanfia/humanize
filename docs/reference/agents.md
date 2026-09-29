@@ -1054,6 +1054,13 @@ flow hangs.
   approval policy `untrusted`. An `ASK_USER` hook turns on Codex's
   `default_mode_request_user_input` feature, without which its agent cannot ask anything
   outside plan mode. Either takes hold from the session's next turn.
+- **Codex's `read-only` sandbox starts where bubblewrap cannot.** Inside a fence, and on a
+  machine that lends no user namespace (an unprivileged container, Ubuntu's
+  `apparmor_restrict_unprivileged_userns`), every command of a `read-only` Codex turn would
+  fail with `bwrap: ...`. There humanize starts the app server with
+  `--enable use_legacy_landlock`, which holds that rung with Landlock instead; it asks Codex
+  once per process whether bubblewrap starts here. Codex 0.153.4 cannot hold
+  `workspace-write` that way, and a flow never asks for it.
 - **`online` is also the CLI's own web tools**: on for `ALL`, off for `NONE` where the CLI
   can be told, and left as the CLI has it where it cannot (cursor-agent, pi, agy, ACP CLIs).
   There the fence's cut network is what stops them.
@@ -1097,6 +1104,11 @@ agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-opus-5", effort="hig
   socket, and a proxy on loopback, handed to the CLI as `HTTPS_PROXY` and the rest, that
   passes only `hosts`. Build caches the fence would not let be written are pointed into
   `tmp`.
+- **Codex enforces none of it itself.** Its sandbox holds the commands its agent runs, not
+  Codex's own process (which also reaches `ab.chatgpt.com`) and not the MCP servers and hooks
+  it starts, so the whole fence is held from outside. What only Codex can stop is what
+  OpenAI runs for it: `online=False` is `-c web_search="disabled"` and `--disable apps` (the
+  ChatGPT apps its account has connected), whatever `web_search` says.
 - **A fence that cannot be held is refused**, with `Unfenced`, where the config arrives:
   on a machine with no Landlock (macOS, Linux before 5.13), with `online=False` on a kernel
   before 6.7, or on an agent whose `machine` is set. A flow reads that as
@@ -1125,7 +1137,7 @@ everywhere:
 | Backend | How it is said |
 | --- | --- |
 | `claude` | `--disallowedTools WebSearch,WebFetch` when off, or when its `fence` cuts the network |
-| `codex` | `-c tools.web_search=true\|false`, both ways |
+| `codex` | `-c web_search="live"\|"disabled"`, both ways; `tools.web_search=false` does not stop it |
 | `dsh` | the `dsh-web` plugin, its search and fetch providers and `dsh-tool-web` mounted when on; the bundled composition has no web |
 | `grok` | `--disable-web-search` when off |
 | `kimi` | `disabled_tools` on the prompt: `WebSearch` and `FetchURL` when off, empty when on |
