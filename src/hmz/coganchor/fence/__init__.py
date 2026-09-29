@@ -18,12 +18,15 @@ What cannot be fenced is refused rather than run wider. A host with no Landlock 
 kernel older than 5.13 or booted without it, one older than 6.7 where the network is to be cut
 -- enforces nothing, and :func:`enforceable` is what says so before a session is opened.
 
-Two holes are left by the kernel rather than by this module, and are said here so that nobody
-reads the fence as closing them. Landlock does not govern connecting to a Unix socket, so a
+Three holes are left by the kernel rather than by this module, and are said here so that
+nobody reads the fence as closing them. Landlock does not govern connecting to a Unix socket, so a
 socket some other process listens on -- a container daemon's, a session bus -- is a way to ask
 that process to act for the agent, whatever the fence says. And where the network is cut, TCP
 is cut by port rather than by address: the proxy's port is reachable on any address, which is
 reachable by number only, there being no name resolution left inside the fence to find one.
+And a port the kernel picks may still be bound, which a CLI serving itself on loopback cannot
+start without: Landlock cannot tell loopback from any other address, so a program listening
+on every address there can be reached from outside.
 """
 
 from __future__ import annotations

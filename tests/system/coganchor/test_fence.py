@@ -206,6 +206,41 @@ def test_a_cut_network_reaches_only_the_hosts_it_was_left(
     assert said[3].startswith("refused PermissionError"), said
 
 
+#: A listener inside the fence: on a port the kernel picks, and on one it was told.
+LISTENER = """
+import socket, sys
+held = socket.socket()
+try:
+    held.bind(("127.0.0.1", int(sys.argv[1])))
+    held.listen()
+    print("listening")
+except OSError as why:
+    print("refused", type(why).__name__)
+"""
+
+
+@networked
+def test_a_cut_network_still_lets_a_program_listen_where_the_kernel_says(
+    home: Path,
+) -> None:
+    """A CLI that serves itself on loopback -- agy's language server -- starts offline.
+
+    A port the kernel picks is a listener and reaches nothing. A port the program names is
+    still refused, being one somebody outside could be waiting to be served on.
+    """
+    listener = home / "work" / "listener.py"
+    listener.write_text(LISTENER)
+    python = sys.executable
+    done = _run(
+        _fence(home, ALL, READ, READ, online=False),
+        f"{python} listener.py 0; {python} listener.py 45679",
+        home / "work",
+    )
+    assert done.stdout.splitlines() == ["listening", "refused PermissionError"], (
+        done.stderr
+    )
+
+
 @networked
 def test_offline_a_real_host_that_is_not_listed_is_refused(home: Path) -> None:
     fence = harnessing.fenced(
