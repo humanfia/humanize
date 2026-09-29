@@ -39,7 +39,9 @@ from hmz.coganchor.agents import (
     QwenCodeAgentConfig,
     Unrecoverable,
 )
+from hmz.coganchor.fence import Fence
 from hmz.coganchor.machines import AnchoredConfig
+from tests import fencing
 from tests.agents import standins
 from tests.stubs import HereAnchor
 
@@ -702,6 +704,45 @@ def test_pi_takes_what_a_flow_asks_of_it_and_nothing_it_did_not(stubs: _Stubs) -
     ] * 2
     assert argv[argv.index("--skill") + 1] == "/flow/skills/review"
     assert {"--no-context-files", "--no-extensions", "--offline"} <= set(argv)
+
+
+def test_a_pi_offline_is_fenced_with_its_gateway_let_through(
+    stubs: _Stubs, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No sandbox in pi: the whole fence goes around it, with the gateway it runs on open.
+
+    That gateway is one `models.json` declares, which no variable names, and pi is started
+    `--offline` since its startup network work would only be refused.
+    """
+    log = tmp_path / "fences.log"
+    monkeypatch.setenv(fencing.LOG, str(log))
+    monkeypatch.delenv("PI_CODING_AGENT_DIR", raising=False)
+    home = tmp_path / "home"
+    (home / ".pi" / "agent").mkdir(parents=True)
+    (home / ".pi" / "agent" / "models.json").write_text(
+        json.dumps({"providers": {"gw": {"baseUrl": "https://gw.example:8443/v1"}}})
+    )
+    fence = Fence.of(
+        local="all",
+        user="read",
+        system="none",
+        online=False,
+        workdir=tmp_path / "work",
+        home=home,
+    )
+
+    assert (
+        PiAgent(PiAgentConfig(model="gw/m", effort="high", fence=fence)).new()("hi")
+        == "hi"
+    )
+
+    (policy,) = fencing.policies(log)
+    held = Fence.loads(json.dumps(policy))
+    assert not held.online
+    assert "gw.example:8443" in held.hosts
+    assert held.allows(home / ".pi" / "agent" / "sessions", write=True)
+    assert not held.allows(home / "notes", write=True)
+    assert "--offline" in stubs.calls()[0].argv
 
 
 def test_pi_reports_a_refused_prompt_as_a_failed_turn(stubs: _Stubs) -> None:

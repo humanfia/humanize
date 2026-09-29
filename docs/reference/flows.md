@@ -464,7 +464,7 @@ Only `local`, `user` and `system` all `ALL` with `online` `ALL` fences nothing.
 | `qwen` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `kimi` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `grok` | external (Landlock + proxy); its own sandbox writes `/tmp` | external (Landlock + proxy); its own sandbox leaves `web_fetch` online |
-| `pi` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `pi` | external (Landlock + proxy) | external (Landlock + proxy), started `--offline`; the gateways its `models.json` declares stay reachable |
 | `zcode` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `agy` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `dsh` | external (Landlock + proxy) | external (Landlock + proxy) |

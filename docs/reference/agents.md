@@ -1808,6 +1808,13 @@ effort, and `--exclude-tools` at `read-only`.
 pi has no permission gate and no sandbox: `--no-approve` is a project-trust guard, and a turn
 under it still runs `bash`. See [What an agent may do](#what-an-agent-may-do).
 
+So the whole [fence](/reference/flows#permission) is held from outside it. Under `online` of
+`NONE` it is started `--offline` whatever `offline` says, and the providers its own
+`models.json` declares stay reachable: the one the model is named under (`gw/model`), or every
+one for a model named without a provider. Their `baseUrl` is in no variable, so the fence
+could not otherwise keep a gateway declared there open. pi 0.85.1 has no web tools of its own;
+an extension's are cut with the rest of the network.
+
 ### Qwen Code
 
 `qwen`. Ordinary turns in one session reuse the CLI process through its stream-json input.
