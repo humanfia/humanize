@@ -456,7 +456,7 @@ Only `local`, `user` and `system` all `ALL` with `online` `ALL` fences nothing.
 <!-- Each per-CLI unit updates its own row when its driver enforces part of the fence natively. -->
 | CLI | Filesystem | Network |
 | --- | --- | --- |
-| `claude` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `claude` | external (Landlock + proxy); its own sandbox holds only its Bash tool, so it is not used | external (Landlock + proxy), and `WebSearch`, `WebFetch` refused by rule, since the search runs at the model API |
 | `codex` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `cursor-agent` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `opencode` | external (Landlock + proxy) | external (Landlock + proxy) |
