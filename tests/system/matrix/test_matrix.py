@@ -1390,8 +1390,6 @@ from hmz.flows import (
     FilesEnvMixin,
     FlowParams,
     LocalEnv,
-    Permission,
-    PermissionKind,
     ShellEnvMixin,
     flow,
 )
@@ -1403,20 +1401,8 @@ class Box(Env, ShellEnvMixin): ...
 class Workspace(LocalEnv, FilesEnvMixin): ...
 
 
-#: What an agent whose work lands on another machine is granted: everything. A fence is put up
-#: where the process it holds runs, and humanize puts none up on another machine, so anything
-#: narrower is refused there as `HarnessSandboxed` rather than run wider than it says.
-class Anywhere(Agent):
-    _permission = Permission(
-        local=PermissionKind.ALL,
-        user=PermissionKind.ALL,
-        system=PermissionKind.ALL,
-        online=PermissionKind.ALL,
-    )
-
-
 class Agents(AgentCollection):
-    worker: Anywhere
+    worker: Agent
 
 
 class Envs(EnvCollection):
@@ -1517,8 +1503,6 @@ from hmz.flows import (
     FlowParams,
     ImageEnvMixin,
     LocalEnv,
-    Permission,
-    PermissionKind,
     ShellEnvMixin,
     flow,
 )
@@ -1531,20 +1515,8 @@ class Box(Env, ShellEnvMixin, FilesEnvMixin, ImageEnvMixin):
 class Workspace(LocalEnv, FilesEnvMixin): ...
 
 
-#: What an agent whose work lands on another machine is granted: everything. A fence is put up
-#: where the process it holds runs, and humanize puts none up on another machine, so anything
-#: narrower is refused there as `HarnessSandboxed` rather than run wider than it says.
-class Anywhere(Agent):
-    _permission = Permission(
-        local=PermissionKind.ALL,
-        user=PermissionKind.ALL,
-        system=PermissionKind.ALL,
-        online=PermissionKind.ALL,
-    )
-
-
 class Agents(AgentCollection):
-    worker: Anywhere
+    worker: Agent
 
 
 class Envs(EnvCollection):
@@ -1639,6 +1611,86 @@ def test_docker_env_remote(cell: Cell, docker_box: Docked) -> None:
     landed = docker_box.run(f"cat {there}/proof.txt 2>/dev/null || true")
     assert landed.strip() == seen["hostname"], f"the far host holds {landed!r}\n{ran}"
     assert not Path(there).exists(), f"{there} is on this machine too: proves nothing"
+
+
+FENCED_BOX = '''"""One turn at the default permission in a container, and what it kept."""
+
+import json
+
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    Env,
+    EnvCollection,
+    FilesEnvMixin,
+    FlowParams,
+    ImageEnvMixin,
+    LocalEnv,
+    ShellEnvMixin,
+    flow,
+)
+
+
+class Box(Env, ShellEnvMixin, FilesEnvMixin, ImageEnvMixin):
+    _image = "python:3.12-slim"
+
+
+class Workspace(LocalEnv, FilesEnvMixin): ...
+
+
+class Agents(AgentCollection):
+    worker: Agent
+
+
+class Envs(EnvCollection):
+    box: Box
+    workspace: Workspace
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def fencedbox(task, *, agents, envs, params, ctx):
+    worker, box = agents["worker"], envs["box"]
+    session = await worker.spawn(env=box)
+    said = await worker.run(task, session=session)
+    _, inside, _ = await box.exec(["sh", "-c", "cat inside.txt || true"])
+    _, home, _ = await box.exec(["sh", "-c", 'cat "$HOME/outside.txt" || echo none'])
+    seen = {"inside": inside.strip(), "home": home.strip()}
+    await envs["workspace"].write("seen.json", json.dumps(seen).encode())
+    return said
+'''
+
+
+@feature(timeout=900)
+def test_fence_docker(cell: Cell, daemon: None) -> None:
+    """An agent at the default permission in a container writes its workdir there only.
+
+    Not the container's home. The command runs in the container, so it is the container's
+    kernel that walls it in: the fence is drawn again there around the container's own
+    workdir and `$HOME`.
+    """
+    del daemon
+    there = cell.root / "box"
+    there.mkdir()
+
+    flow = cell.flow("fencedbox", FENCED_BOX)
+    asked = (
+        "Use your shell tool to run exactly this one command in your working directory, "
+        'then reply with exactly one word, DONE: echo IN > inside.txt; echo OUT > "$HOME/'
+        'outside.txt"'
+    )
+    ran = cell.exec(flow, asked, envs=[f"box=docker@local{there}"], timeout=600)
+    if not (there / "inside.txt").exists():
+        # Once more where the agent reached for no tool at all, as `docker_gpu` does: the
+        # cheapest models sometimes answer DONE and do nothing else.
+        ran = cell.exec(flow, asked, envs=[f"box=docker@local{there}"], timeout=600)
+
+    seen = cast(
+        "dict[str, Any]", json.loads((cell.workspace / "seen.json").read_text())
+    )
+    assert seen["inside"] == "IN", f"the workdir was not written: {seen}\n{ran}"
+    assert seen["home"] == "none", (
+        f"an agent at the default permission wrote the container's home: {seen}\n{ran}"
+    )
 
 
 #: Where the cells asking for a GPU take turns, one lock file per GPU: the daemon here has

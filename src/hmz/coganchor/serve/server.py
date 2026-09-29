@@ -25,7 +25,7 @@ from hmz.coganchor.proto import (
     ProtocolError,
     Stream,
 )
-from hmz.coganchor.serve import fsops
+from hmz.coganchor.serve import fencing, fsops
 from hmz.coganchor.serve.sessions import ExecSession, Session, TunnelSession
 
 if TYPE_CHECKING:
@@ -210,6 +210,7 @@ class Server:
                 exports=[
                     {"virtual": e.virtual, "real": e.real} for e in self._table.exports
                 ],
+                fence=fencing.able(),
             )
         )
 

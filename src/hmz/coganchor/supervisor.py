@@ -27,8 +27,9 @@ from typing import TYPE_CHECKING, Any
 from hmz.coganchor import standin
 from hmz.coganchor.execproxy import ExecProxy, ExecResult
 from hmz.coganchor.handlers import STALL, Action, SyscallDispatcher
-from hmz.coganchor.linux import procfs, ptrace, seccomp
+from hmz.coganchor.linux import landlock, procfs, ptrace, seccomp
 from hmz.coganchor.linux.syscalls import NR, TRAPPED_SYSCALLS, syscall_name
+from hmz.coganchor.proto import hello_fences
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -73,12 +74,28 @@ _FATAL_SIGNALS = frozenset(
 
 @dataclass(slots=True)
 class Launch:
-    """The agent invocation coganchor is wrapping."""
+    """The agent invocation coganchor is wrapping.
+
+    Attributes:
+      program: What to run.
+      argv: Its arguments, its name first.
+      env: What it runs with.
+      cwd: Where it starts.
+      walled: The Landlock ruleset it is confined to on this machine, for an agent held to a
+        fence, or None for one held to nothing here. Put up in the forked child after it has
+        asked to be traced and before the filter that traps its syscalls, which is the one
+        place it can be: a wall goes up in the process it holds, and the ruleset's own calls
+        must not be trapped.
+      sockets: Whether every socket but a TCP one is refused it, beside `walled`'s TCP rule --
+        which is what cutting its network comes to.
+    """
 
     program: str
     argv: list[str]
     env: dict[str, str]
     cwd: str
+    walled: landlock.Ruleset | None = None
+    sockets: bool = False
 
 
 @dataclass(slots=True)
@@ -107,8 +124,13 @@ class Supervisor:
         netproxy: NetProxy | None = None,
         token: str | None = None,
         private: Iterable[str] = (),
+        fence: dict[str, Any] | None = None,
     ) -> None:
         self.client = client
+        #: The levels every command the agent runs on the target is fenced at, as
+        #: :func:`hmz.coganchor.fence.abroad.told` says them, or None for commands run as
+        #: they are.
+        self.fence = fence
         self.router = router
         self.shadow = shadow
         self.netproxy = netproxy
@@ -147,6 +169,18 @@ class Supervisor:
             # now; forking a multi-threaded process is not.
             try:
                 self.client.start(self._token)
+                if self.fence is not None and not hello_fences(
+                    self.client.info, net=self.fence.get("online") is False
+                ):
+                    raise PermissionError(  # noqa: TRY301 -- the tracee goes with it
+                        errno.EPERM,
+                        "the target cannot fence the commands it runs: it needs Landlock"
+                        + (
+                            " ABI 4 and seccomp"
+                            if self.fence.get("online") is False
+                            else ""
+                        ),
+                    )
             except BaseException:
                 # The agent exists but is not yet traced, so letting it run
                 # would leave it seccomp-filtered with nobody servicing the
@@ -229,6 +263,10 @@ class Supervisor:
         try:
             os.chdir(launch.cwd)
             ptrace.traceme()
+            if launch.sockets:
+                seccomp.install_socket_filter()
+            if launch.walled is not None:
+                launch.walled.restrict_self()
             seccomp.install(TRAPPED_SYSCALLS)
             os.kill(os.getpid(), signal.SIGSTOP)
             # Becoming the traced program is the whole errand of this fork, and it is an
@@ -512,6 +550,7 @@ class Supervisor:
             self._on_exec_finished,
             program=remote_program,
             tty=stdio[0] >= 0 and os.isatty(stdio[0]),
+            fence=self.fence,
         )
         tracee.proxy = proxy
         proxy.start()

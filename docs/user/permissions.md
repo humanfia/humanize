@@ -93,8 +93,15 @@ humanize never runs an agent with more than its grant. A role is refused before 
   (inside a container with its default seccomp profile, or with Yama's `ptrace_scope` at 2
   or 3): it could not keep what they listen on to this machine.
 - **the CLI would reach the web around the cut:** `cursor-agent` with `online` of `NONE`.
-- **the work lands on another machine:** a [container](/user/containers) or an ssh host. A
-  role runs there only with `ALL` in every scope, `online` included.
+- **the work lands on another machine that has no Landlock:** a [container](/user/containers)
+  or an ssh host whose kernel is too old, or a container whose seccomp profile refuses
+  Landlock. Docker's own default profile allows it.
+
+A container or an ssh host is held to the same grant as this machine. The agent's CLI still
+runs here, fenced here. Every command it runs lands on the other machine and is fenced there,
+around that machine's own workdir and `$HOME`. With `online` of `NONE`, those commands reach
+no host at all, and a container under docker's default seccomp profile refuses such a role
+for the reason above.
 
 Only a grant of `ALL` everywhere is enforced by nothing, because there is nothing to hold.
 :::

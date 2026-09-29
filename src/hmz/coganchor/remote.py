@@ -140,12 +140,16 @@ class RemoteClient:
         program: str | None = None,
         tty: bool = False,
         winsize: tuple[int, int] | None = None,
+        fence: dict[str, Any] | None = None,
     ) -> ExecHandle:
         """Launch a command on the target; callbacks fire on the reader thread.
 
         ``program`` is the path the tracee passed to ``execve``, which may
         differ from ``argv[0]``; the target falls back to a ``PATH`` lookup if
-        that exact path does not exist on the target.
+        that exact path does not exist on the target.  ``fence`` is the levels
+        the command is held to, as :func:`hmz.coganchor.fence.abroad.told` says
+        them, which the target draws again around its own paths -- or refuses
+        the command where it cannot.
         """
         msg_id, _ = self._register(on_output, on_exit)
         self._send(
@@ -158,6 +162,7 @@ class RemoteClient:
                 env=env,
                 tty=tty,
                 winsize=list(winsize) if winsize else None,
+                fence=fence,
             )
         )
         return ExecHandle(self, msg_id)

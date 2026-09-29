@@ -132,6 +132,7 @@ connect(["claude"], config)
 | `projects` | `--project NAME=DIR`, repeated | `()` | With `native`: credential directories put on the target for the turn, with `NAME` set to where each landed. |
 | `carries` | `--carry DIR=PATH`, repeated | `()` | With `native`: directories put in the target's workspace at `PATH` for the turn. |
 | `installs` | `--installs LINE` | `""` | With `native`: the install line to show when the target has no CLI. |
+| `fence` | `--fence JSON` | `None` | What the agent may reach, held on both machines. See [A fence on both machines](#a-fence-on-both-machines). |
 
 `--check` and `--log-level` belong to the command line only. On the command line, `--target`,
 `--harness`, `--shadow`, `--token` and `--log-level` default to `$HUMANIZE_TARGET`,
@@ -152,6 +153,9 @@ fails as the agent is configured, not hours into a loop. On the command line it 
 | A hush that is empty or holds `=` | |
 | A projection that is not `NAME` and an absolute path | |
 | A carry whose source is not absolute, or whose `PATH` is absolute or holds `..` | What is carried goes inside the workspace. |
+| A `fence` built path by path, not from its levels with `Fence.of` | The target draws it again from the levels. |
+| A `fence` with a `harness` on another machine | Its paths are this machine's. |
+| A `fence` that cuts the network, with `net="remote"` | The agent's own connections would go past the proxy. |
 
 One is not caught until the first turn: a `harness` on a `tcp://` or `peer://` machine, or
 `same` with such a target. Nothing can be started on the far side of either, so the turn fails
@@ -296,6 +300,30 @@ program here speaking to a socket in this process, so a native turn offering the
 `127.0.0.1` dials the *target's* loopback. A gateway for a native turn must be reachable under
 a name the target resolves.
 
+## A fence on both machines
+
+`fence` holds the session to a [fence](/reference/agents#the-fence), the one a flow draws from
+its [permission](/user/permissions). Each machine holds its own half, around its own paths:
+
+- **Supervised.** The agent process here is walled in by this machine's Landlock before it
+  runs, with the mirror as its workdir. The supervisor, its link to the target and the mirror
+  stay outside the wall. Where the network is cut, a proxy in the anchor's own process is the
+  agent's one way out, to its model's hosts. Every command the agent runs lands on the target
+  with the fence's levels, `local`, `user` and `system`. The target draws the fence again
+  around the directory it exports, its own `$HOME` and its own minimum. It runs the command
+  under its own `hmz internal fence`, which reaches no host at all where the network is cut.
+- **`native`.** The CLI on the target is walled in the same way there. It is also let reach
+  its model's hosts, write the state it keeps under the target's home and the turn's
+  credential directory, and read its own install tree.
+
+A target without Landlock (a kernel before 5.13, or 6.7 where the network is cut, macOS, or a
+container whose seccomp profile refuses the calls) says so when it is reached, and the session
+is refused. A command sent with a fence to such a target is refused too, and never runs.
+Docker's default seccomp profile allows Landlock, so a container holds a fence that leaves
+the network on (the default). It does not allow the seccomp listener and `pidfd_getfd` that
+cutting the network also takes, so a container under it refuses a fence with the network cut.
+Run the container with a profile that allows them, or `--security-opt seccomp=unconfined`.
+
 ## Where the harness runs
 
 The **harness** is the agent process and the supervisor tracing it. `--harness` moves it:
@@ -424,7 +452,7 @@ AnchorConfig(harness="ssh://runner", target="ssh://build-box")
 | Where | Needs |
 | --- | --- |
 | **The harness's machine**: here, unless `harness` moves it | Linux on x86-64 or aarch64, and Python ≥ 3.12. Any other architecture is refused at start-up, with where it can run instead. Here needs none of it to place a harness somewhere that has it. |
-| **The target** | A POSIX system with Python ≥ 3.12. No root, no compiler, no kernel module, nothing installed. |
+| **The target** | A POSIX system with Python ≥ 3.12. No root, no compiler, no kernel module, nothing installed. A session with a `fence` also needs Linux with Landlock there, at ABI 4 (Linux 6.7) where the network is cut. |
 | **A `native` target** | The CLI installed there. Nothing here is traced, so this machine needs no Linux. |
 | **A harness elsewhere** | An `ssh://` or `docker://` machine meeting the first row, with the CLI installed. |
 
@@ -434,6 +462,8 @@ Each of these is deliberate.
 
 - **Serving is not a sandbox.** An export bounds which files a request may name. It does not
   confine what the commands it runs can do, and a symlink pointing out of the tree is followed.
+  A session given a [`fence`](#a-fence-on-both-machines) is the exception: its commands are
+  confined by Landlock.
 - **Mirrored directories are the mirror's.** A directory in the mirror carries this machine's
   permissions and the time the mirror was made.
 - **Only file contents are pushed.** A mode change made through an already-open descriptor

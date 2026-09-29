@@ -9,11 +9,14 @@ other tiers that share them; this names the ones the anchored tier needs.
 `daemon` comes from the other direction and for the same reason: the containers the topology
 tests put a harness and its work into need a docker daemon holding the image, which is the
 skip `tests/machines/fixtures.py` words once for every test in this repository that wants one.
+And `ssh_box`, another machine a real `ssh` reaches, which is where a fence is shown held on a
+machine that is not this one (`test_fence_abroad.py`).
 """
 
 from __future__ import annotations
 
 from tests.coganchor.fixtures import anchorage, echo_server
+from tests.flows.sshd import ssh_box
 from tests.machines.fixtures import daemon
 
-__all__ = ["anchorage", "daemon", "echo_server"]
+__all__ = ["anchorage", "daemon", "echo_server", "ssh_box"]

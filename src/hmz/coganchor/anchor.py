@@ -27,7 +27,9 @@ from .places import AFAR, NATIVE_CLI, SUPERVISED
 if TYPE_CHECKING:
     from collections.abc import Generator, Mapping, Sequence
 
+    from hmz.coganchor.fence import Fence
     from hmz.coganchor.remote import RemoteClient
+    from hmz.coganchor.supervisor import Launch
     from hmz.coganchor.transport import Target
 
 __all__ = ["AnchorConfig", "NotInstalled", "check", "connect", "drive"]
@@ -184,6 +186,15 @@ class AnchorConfig:
       installs: The one line that puts this CLI on the target, said when it is not there.
         Handed in rather than looked up: which line installs a backend is a fact about that
         backend, and coganchor is underneath the layer those are written down in.
+      fence: What the agent may reach, or None for a session held to nothing. Held on both
+        machines, each around its own paths. Supervised, the agent process here is walled in
+        by Landlock -- the workspace it is given being this machine's mirror of it -- with a
+        proxy in this process as its one way out where the network is cut, and every command
+        it has run on the target is run there under ``hmz internal fence``, drawn again from
+        the fence's levels around the target's workspace, its home and its minimum
+        (:mod:`hmz.coganchor.fence.abroad`), with no way out at all where the network is cut.
+        Native, the CLI itself is run so on the target, with the hosts its model is at and the
+        state it keeps under its home. A target that cannot hold it refuses the session.
     """
 
     target: str = "local"
@@ -206,6 +217,7 @@ class AnchorConfig:
     projects: tuple[tuple[str, str], ...] = ()
     carries: tuple[tuple[str, str], ...] = ()
     installs: str = ""
+    fence: Fence | None = None
 
     def __post_init__(self) -> None:
         """Refuses what the command line refuses, so both spellings mean the same thing.
@@ -216,8 +228,9 @@ class AnchorConfig:
         Raises:
           ValueError: If the target cannot be read, the work's own connections are neither
             kept local nor sent to the target, a path is answered with something that is not
-            a path, a variable to run without is not a variable name, or a credential or a
-            directory is to be put somewhere that is not a place.
+            a path, a variable to run without is not a variable name, a credential or a
+            directory is to be put somewhere that is not a place, or a fence is one that
+            cannot be held where this session runs.
         """
         from hmz.coganchor.elsewhere import harnessed
         from hmz.coganchor.transport import Target
@@ -257,6 +270,8 @@ class AnchorConfig:
                     f"unsupported projection {name}={whence!r}; expected a variable name "
                     "and an absolute path"
                 )
+        if self.fence is not None and not self.fence.open:
+            self._fenceable(where.scheme)
         for whence, where in self.carries:
             # Relative on the target's side, and only downwards: what is carried goes inside
             # the workspace, and a `..` in it would be a flow writing outside the project.
@@ -269,6 +284,31 @@ class AnchorConfig:
                     f"unsupported carry {whence}={where!r}; expected a path inside "
                     "the workspace"
                 )
+
+    def _fenceable(self, harness: str) -> None:
+        """Refuses a fence this session could not hold, as the settings are read.
+
+        Raises:
+          ValueError: If the fence was drawn path by path, and so has no levels to draw it
+            again on the target with; if the harness is on another machine, whose paths the
+            fence does not name; or if the agent's own connections are sent to the target
+            while its network is to be cut here, which would send them past the proxy.
+        """
+        if not self.fence or not self.fence.scopes:
+            raise ValueError(
+                "a fence drawn path by path cannot be held on another machine; draw it "
+                "from its levels with Fence.of"
+            )
+        if harness != "local":
+            raise ValueError(
+                "a fence is drawn around this machine's paths, and cannot hold a harness "
+                "on another machine"
+            )
+        if self.net == "remote" and not self.fence.online:
+            raise ValueError(
+                "a fence that cuts the network keeps the agent's own connections here; "
+                "--net remote would send them past it"
+            )
 
     @property
     def capabilities(self) -> frozenset[str]:
@@ -547,37 +587,120 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     # and left empty; the first thing the agent does in it is what fills it in, and a
     # directory the target does not have is emptied again by the same reconciliation.
     os.makedirs(started_in, exist_ok=True)
+    launch = Launch(
+        program=agent.program,
+        argv=agent.argv,
+        env=dict(os.environ)
+        | {
+            "HUMANIZE": __version__,
+            "HUMANIZE_TARGET": target.describe(),
+            "PWD": started_in,
+            # Agents surface this to the model; being explicit beats it guessing.
+            "HUMANIZE_WORKSPACE": workspace,
+        },
+        cwd=started_in,
+    )
+    walls = _Walls(config.fence, shadow_root) if config.fence else None
     supervisor = Supervisor(
         client,
         router,
         ShadowTree(client, router),
-        Launch(
-            program=agent.program,
-            argv=agent.argv,
-            env=dict(os.environ)
-            | {
-                "HUMANIZE": __version__,
-                "HUMANIZE_TARGET": target.describe(),
-                "PWD": started_in,
-                # Agents surface this to the model; being explicit beats it guessing.
-                "HUMANIZE_WORKSPACE": workspace,
-            },
-            cwd=started_in,
-        ),
+        walls.around(launch) if walls is not None else launch,
         netproxy=netproxy,
         token=config.token,
         private=config.private,
+        fence=walls.told if walls is not None else None,
     )
     log.info("running %s against %s", agent.profile.name, target.describe())
     try:
         if netproxy is not None:
             netproxy.start()
+        if walls is not None:
+            walls.start()
         return supervisor.run()
     finally:
+        if walls is not None:
+            walls.stop()
         if netproxy is not None:
             netproxy.close()
         client.close()
         link.close()
+
+
+class _Walls:
+    """The fence around a supervised agent, on both sides of the anchor.
+
+    Here, the agent process itself: the fence as it was drawn on this machine, with the
+    mirror granted as the workspace is -- the mirror being the workspace, to a process whose
+    every path into it is rewritten into the mirror -- put up in the forked child
+    (:class:`~hmz.coganchor.supervisor.Launch`), with the proxy that is its one way out
+    served by this process, outside the wall. There, every command the agent has run: the
+    fence's levels, :attr:`told` with each one, for the target to draw the fence again around
+    its own paths. The supervisor, its link to the target and its mirror are all outside it,
+    which is what lets a session reach a target over ssh while its agent reaches no host but
+    its model's.
+
+    Args:
+      fence: What the agent may reach.
+      mirror: This machine's mirror of the workspace.
+
+    Raises:
+      PermissionError: If this machine cannot put the wall up.
+    """
+
+    def __init__(self, fence: Fence, mirror: str) -> None:
+        import tempfile
+
+        from hmz.coganchor.fence import ALL, READ, Proxy, abroad, enforceable
+
+        if not enforceable(net=not fence.online):
+            raise PermissionError(
+                "this machine cannot fence the agent: it needs Landlock"
+                + ("" if fence.online else " ABI 4 and seccomp")
+            )
+        level = fence.scopes[0] if fence.scopes else ""
+        self.fence = fence.granting(
+            read=[mirror] if level == READ else [],
+            write=[mirror] if level == ALL else [],
+        )
+        self.told = abroad.told(fence, home=os.path.expanduser("~"), native=False)
+        self._made = not fence.tmp
+        self.tmp = fence.tmp or tempfile.mkdtemp(prefix="hmz-fence-")
+        os.makedirs(self.tmp, mode=0o700, exist_ok=True)
+        self._proxy = None if fence.online else Proxy(fence.hosts)
+
+    def around(self, launch: Launch) -> Launch:
+        """The launch, walled in, with the environment a fenced program runs with."""
+        from hmz.coganchor.fence.wrap import environ
+        from hmz.coganchor.linux import landlock
+
+        port = self._proxy.port if self._proxy is not None else None
+        return replace(
+            launch,
+            env=environ(self.fence, launch.env, tmp=self.tmp, port=port),
+            walled=landlock.Ruleset(
+                read=self.fence.read,
+                write=(*self.fence.write, self.tmp),
+                connect_ports=() if port is None else (port,),
+                bind_ports=() if port is None else self.fence.listen,
+                net=port is not None,
+            ),
+            sockets=port is not None,
+        )
+
+    def start(self) -> None:
+        """Serves the proxy, where there is one."""
+        if self._proxy is not None:
+            self._proxy.start()
+
+    def stop(self) -> None:
+        """Stops the proxy, and takes away the scratch this made."""
+        import shutil
+
+        if self._proxy is not None:
+            self._proxy.stop()
+        if self._made:
+            shutil.rmtree(self.tmp, ignore_errors=True)
 
 
 def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
@@ -639,19 +762,54 @@ def drive(command: Sequence[str], config: AnchorConfig | None = None) -> int:
                 # Agents surface this to the model; being explicit beats it guessing.
                 "HUMANIZE_WORKSPACE": workspace,
             }
+            fence = _fenced(client, config)
             if config.projects:
                 session = _session(client, workspace)
                 said |= _projected(client, config.projects, session, workspace)
+                if fence is not None:
+                    fence["write"] = [*fence["write"], session]
             _carried(client, config.carries, workspace, whose, kept, making)
             log.info("driving %s on %s", program, target.describe())
             argv = [*_wrapping(config.hushes, said), program, *command[1:]]
-            return _drives(client, argv, started_in, dict(os.environ))
+            return _drives(client, argv, started_in, dict(os.environ), fence)
         finally:
             # Inside the channel rather than beside it: what this takes off the target is
             # taken off *through* that channel, so it has to happen while there is one.
             _swept(
                 client, session, kept, sorted(making, reverse=True), workspace, whose
             )
+
+
+def _fenced(client: RemoteClient, config: AnchorConfig) -> dict[str, Any] | None:
+    """What the target is told to hold a native CLI to, having said it can.
+
+    Args:
+      client: The open connection, past its handshake.
+      config: The settings, whose `fence` is what the CLI may reach.
+
+    Returns:
+      The fence's levels, with the hosts the CLI's model is at and the state it keeps under
+      its home, or None for a session held to nothing.
+
+    Raises:
+      PermissionError: If the target said at the handshake that it cannot fence, or said
+        nothing, which a target of a build before fences does.
+    """
+    import errno
+
+    from hmz.coganchor.fence import abroad
+    from hmz.coganchor.proto import hello_fences
+
+    fence = config.fence
+    if fence is None or fence.open:
+        return None
+    if not hello_fences(client.info, net=not fence.online):
+        raise PermissionError(
+            errno.EPERM,
+            "the target cannot fence the CLI: it needs Landlock"
+            + ("" if fence.online else " ABI 4 and seccomp"),
+        )
+    return abroad.told(fence, home=os.path.expanduser("~"), native=True)
 
 
 def _ran(
@@ -1036,7 +1194,11 @@ def _wrapping(hushes: Sequence[str], said: Mapping[str, str]) -> list[str]:
 
 
 def _drives(
-    client: RemoteClient, argv: list[str], cwd: str, environ: Mapping[str, str]
+    client: RemoteClient,
+    argv: list[str],
+    cwd: str,
+    environ: Mapping[str, str],
+    fence: dict[str, Any] | None = None,
 ) -> int:
     """Runs the CLI on the target with this process's own streams, and waits for it.
 
@@ -1048,6 +1210,7 @@ def _drives(
       argv: The CLI and its arguments, as the target is to run them.
       cwd: Where it works, as the target names it.
       environ: What to run it with, on top of the target's own.
+      fence: What the target holds it to, as :func:`_fenced` says it, or None.
 
     Returns:
       Its exit status, or 128 plus the signal that killed it.
@@ -1070,7 +1233,9 @@ def _drives(
         held["result"], held["error"] = result, error
         done.set()
 
-    handle = client.start_exec(argv, cwd, dict(environ), on_output, on_exit)
+    handle = client.start_exec(
+        argv, cwd, dict(environ), on_output, on_exit, fence=fence
+    )
 
     def upward() -> None:
         """Carries what this process is given to the CLI, and says when there is no more.

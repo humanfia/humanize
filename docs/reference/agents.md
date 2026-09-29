@@ -1100,7 +1100,8 @@ agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-opus-5", effort="hig
   root in `read`, `"all"` in `write`, and `"none"` leaves it out. The scopes must nest. It
   always adds the minimum a program needs: the system's programs, libraries and certificates,
   a resolver's files under `/etc`, `/proc` and `/sys`, the Python running humanize, and the
-  devices and `/dev/shm` to write.
+  devices, `/dev/shm` and the GPUs' device nodes (`/dev/nvidia*`, `/dev/dri`, `/dev/kfd`)
+  to write.
 - **The agent adds what it needs** wherever it spawns a turn: its CLI's state and sign-in
   directories and its sessions' directory to write, the account's directory, the hosts its
   model and sign-in are at under the account it runs as, the skills it carries, and its
@@ -1120,10 +1121,32 @@ agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-opus-5", effort="hig
   it starts, so the whole fence is held from outside. What only Codex can stop is what
   OpenAI runs for it: `online=False` is `-c web_search="disabled"` and `--disable apps` (the
   ChatGPT apps its account has connected), whatever `web_search` says.
+- **An agent whose `machine` is set is fenced by its anchor**, on both machines, and not by
+  a wrapper around the anchor. `AnchorConfig.fence` is `fenced()`, and the anchor
+  (`hmz internal anchor --fence=JSON`) holds it in two places:
+  - **Supervised**, the agent process here is walled in by this machine's Landlock, with
+    the mirror granted as the workdir. Where the network is cut, a proxy in the anchor's
+    process is its one way out. Every command it runs on the target is sent with the
+    fence's levels (`Fence.scopes`, which `Fence.of` records). The target's serving half
+    draws the fence again around its own exported workdir, its own `$HOME` and its own
+    minimum (`hmz.coganchor.fence.abroad.drawn`). It runs the command under its own
+    `hmz internal fence`, which lets no host through where the network is cut.
+  - **Native** (`AnchorConfig.native`), the CLI on the target is run that way. It is also
+    given the hosts its model is at, the state it keeps under its home as `~/...`, the
+    turn's credential directory, and its own install tree to read.
+
+  The whole fence is held this way, whatever `natively` claims: a CLI's own sandbox holds
+  the commands it starts on this machine, and a supervised CLI's commands start on another.
+  The target says whether it can at the handshake (`fence` in the reply to `hello`). The
+  first turn asks, and a target that cannot is refused with `Unfenced`. A target of a build
+  from before fences says nothing and is refused too.
 - **A fence that cannot be held is refused**, with `Unfenced`, where the config arrives:
   on a machine with no Landlock (macOS, Linux before 5.13), with `online=False` on a kernel
   before 6.7 or where the wrapper may not take a descriptor from its children (a container's
-  default seccomp profile, Yama `ptrace_scope` 2 or 3), or on an agent whose `machine` is set. A flow reads that as
+  default seccomp profile, Yama `ptrace_scope` 2 or 3), for a fence built path by path (no
+  `scopes`) on an agent whose `machine` is set, or for a harness on another machine. The same
+  holds on a target: a container under docker's default seccomp profile can hold `online=True`
+  but not `online=False`, and says so at the handshake. A flow reads that as
   `HarnessSandboxed`. A fence with `/` in `write` and `online=True` fences nothing, and
   nothing is put around the CLI.
 - **Two gaps are the kernel's.** Landlock does not govern connecting to a Unix socket. And

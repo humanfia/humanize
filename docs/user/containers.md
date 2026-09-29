@@ -124,7 +124,8 @@ in the image. That is Python below the flow API: see the [Machines reference](/r
 
 ::: warning A container is not a permission boundary
 An agent can still rewrite whatever is mounted into its container, your project included.
-Narrowing what an agent may do is [permissions](/user/permissions). Read
+Narrowing what an agent may do is [permissions](/user/permissions). The agent's commands are
+held to its role's permission inside the container too, by the container's own Landlock. Read
 [Security](/user/security).
 :::
 
