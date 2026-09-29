@@ -22,6 +22,7 @@ import os
 import re
 import shutil
 import time
+import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path, PurePath
 from typing import TYPE_CHECKING, Literal, cast
@@ -55,6 +56,7 @@ __all__ = [
     "permitted",
     "profiles",
     "program",
+    "reachable",
     "read",
     "remember",
     "serves",
@@ -662,6 +664,13 @@ class Profile:
         is nothing to run. A turn that fails for a missing CLI is a turn whose whole answer is
         that line, and a person reading `agy: not installed` should not also have to go and
         look it up. Empty for a backend whose install nobody has written down here.
+      hosts: The hosts this CLI cannot take a turn without reaching, each exact or a
+        `*.suffix` wildcard: its model API, where its sign-in is refreshed, and telemetry only
+        where the CLI refuses to run without it. What a flow granting no network still lets
+        it reach, through the fence's proxy -- see :func:`reachable`, which adds whatever an
+        account points it at instead. Read off each CLI's own bundle rather than off its
+        documentation. Empty for a backend nothing is written down about, which such a flow
+        then lets reach nothing at all.
     """
 
     name: str
@@ -697,6 +706,7 @@ class Profile:
     signs: tuple[Sign, ...] = ()
     journal: tuple[str, ...] = ()
     installs: str = ""
+    hosts: tuple[str, ...] = ()
 
     def takes(self, effort: str) -> bool:
         """Whether this backend has a word for a rung by that name.
@@ -957,6 +967,12 @@ _ZCODE = ("max", "xhigh", "high", "medium", "low", "enabled", "nothink", "disabl
 PROFILES = (
     Profile(
         name="claude",
+        # The API, where a subscription's sign-in is refreshed -- `TOKEN_URL` in the binary's
+        # own OAuth block is `platform.claude.com/v1/oauth/token` -- and the subscription's
+        # origin, which the same block names. Bedrock and Vertex are a cloud's hosts rather
+        # than Anthropic's, and :func:`reachable` names them from the region an account of
+        # either was made with.
+        hosts=("api.anthropic.com", "platform.claude.com", "claude.ai"),
         installs="npm i -g @anthropic-ai/claude-code",
         # `WebSearch` and `WebFetch` are tools like any other to Claude, and
         # `--disallowedTools` is the flag that takes a tool away.
@@ -1114,6 +1130,17 @@ PROFILES = (
     ),
     Profile(
         name="agy",
+        # Its log is every request going to `daily-cloudcode-pa`, the binary names the plain
+        # one beside it, the sign-in is refreshed at `oauth2` and read back at `www`'s
+        # userinfo, and the key way talks to the Gemini API. The feature-flag host it also
+        # names is left out: nothing it does fails without it.
+        hosts=(
+            "cloudcode-pa.googleapis.com",
+            "daily-cloudcode-pa.googleapis.com",
+            "oauth2.googleapis.com",
+            "www.googleapis.com",
+            "generativelanguage.googleapis.com",
+        ),
         aliases=("agy", "antigravity"),
         # `--conversation` picks one back up and that is the whole of what it offers: there
         # is no flag that says carry this one into another. Still true of agy 1.2.2, checked
@@ -1219,6 +1246,9 @@ PROFILES = (
     ),
     Profile(
         name="codex",
+        # A ChatGPT sign-in's turns go to `chatgpt.com/backend-api/codex` and are refreshed
+        # at `auth.openai.com/oauth/token`; a key's go to the API.
+        hosts=("chatgpt.com", "auth.openai.com", "api.openai.com"),
         installs="npm i -g @openai/codex",
         # `tools.web_search` is a setting of the app server, and is sent in both
         # directions: Codex searches nothing until it is asked to. Still that key on
@@ -1347,6 +1377,9 @@ PROFILES = (
     ),
     Profile(
         name="dsh",
+        # The model adapter's `PUBLIC_BASE_URL`, which its web search's endpoint is under too.
+        # Its telemetry is sent only when feedback is, so nothing needs it.
+        hosts=("api.deepseek.com",),
         # By composition, which is this backend's only way of saying anything: there is no
         # command line to put a flag on, and what an agent may reach for is what its
         # `cordis.yml` mounts. `dsh-web` and the two providers under it are what the
@@ -1431,6 +1464,9 @@ PROFILES = (
     ),
     Profile(
         name="grok",
+        # Its log is two hosts: the OIDC issuer a sign-in is refreshed at, and the chat proxy
+        # every turn goes to. The API is the key way's.
+        hosts=("cli-chat-proxy.grok.com", "auth.x.ai", "api.x.ai"),
         installs="npm i -g @xai-official/grok",
         # `--disable-web-search`, which Grok Build documents as `Disable web search and web
         # fetch tools` -- the one flag for the two tools a rung takes away where what is
@@ -1552,6 +1588,16 @@ PROFILES = (
     ),
     Profile(
         name="kimi",
+        # Two regions, each an OAuth host and a coding API -- `.com` mainland, `.ai` global --
+        # and the Moonshot platform's own two for a key.
+        hosts=(
+            "api.kimi.com",
+            "auth.kimi.com",
+            "api.kimi.ai",
+            "auth.kimi.ai",
+            "api.moonshot.ai",
+            "api.moonshot.cn",
+        ),
         # One daemon per agent serves every conversation with it, as Codex's app server does.
         # That daemon is `kimi web`, and not `kimi -p --output-format stream-json`, which
         # 0.42.0 does have: the prompt mode has no route into a turn already running, no
@@ -1648,6 +1694,23 @@ PROFILES = (
     ),
     Profile(
         name="pi",
+        # Its one way is a sign-in, and the providers it signs in to are these: Anthropic,
+        # ChatGPT, GitHub Copilot (whose token is traded for at `api.github.com`), xAI, Kimi
+        # and OpenRouter -- each one's API and where it is refreshed. Signing in itself, at
+        # `github.com` and the like, is done before a turn rather than during one.
+        hosts=(
+            "api.anthropic.com",
+            "platform.claude.com",
+            "chatgpt.com",
+            "auth.openai.com",
+            "api.github.com",
+            "api.individual.githubcopilot.com",
+            "api.x.ai",
+            "auth.x.ai",
+            "api.kimi.com",
+            "auth.kimi.com",
+            "openrouter.ai",
+        ),
         installs="npm i -g @earendil-works/pi-coding-agent",
         # A Node script under a `node` shebang, bundle and all, so `NODE_OPTIONS` is read
         # before it starts.
@@ -1753,6 +1816,15 @@ PROFILES = (
     ),
     Profile(
         name="qwen",
+        # The Qwen OAuth host, which issues and refreshes the token, and the DashScope API a
+        # token's `resource_url` names -- `portal.qwen.ai` for most, DashScope's own for the
+        # rest, in either region.
+        hosts=(
+            "chat.qwen.ai",
+            "portal.qwen.ai",
+            "dashscope.aliyuncs.com",
+            "dashscope-intl.aliyuncs.com",
+        ),
         installs="npm i -g @qwen-code/qwen-code",
         # A Node script rather than a binary with a runtime inside it. Its entry point starts a
         # second `node` on its own bundle -- whichever copy of itself its updater has newest --
@@ -1830,6 +1902,14 @@ PROFILES = (
     ),
     Profile(
         name="opencode",
+        # Zen, and the two subscriptions it signs in to itself: ChatGPT's and Copilot's. The
+        # model catalogue it fetches falls back to a snapshot it ships, so it is not needed.
+        hosts=(
+            "opencode.ai",
+            "chatgpt.com",
+            "auth.openai.com",
+            "api.githubcopilot.com",
+        ),
         installs="npm i -g opencode-ai",
         # Two reaching-out tools it names -- the one that fetches a page and the one that
         # searches for pages -- and its permission table is where each is allowed or denied.
@@ -1918,6 +1998,14 @@ PROFILES = (
     ),
     Profile(
         name="mimo",
+        # MiMo's API, which serves both the free default and a key, and its token plan's
+        # three regions.
+        hosts=(
+            "api.xiaomimimo.com",
+            "token-plan-cn.xiaomimimo.com",
+            "token-plan-sgp.xiaomimimo.com",
+            "token-plan-ams.xiaomimimo.com",
+        ),
         installs="npm i -g @mimo-ai/cli",
         # The one place mimocode differs from opencode in a way that matters here: what it is
         # installed as is a Node script, where opencode is a single-file Bun executable with
@@ -1979,6 +2067,9 @@ PROFILES = (
     ),
     Profile(
         name="zcode",
+        # Its own origin, which signs in and serves the plan's turns, and the coding plan's
+        # API hosts, global and mainland.
+        hosts=("zcode.z.ai", "api.z.ai", "open.bigmodel.cn", "bigmodel.cn"),
         # The vendor ships one Linux package and it is the desktop app, with the command line
         # bundled inside it at `resources/glm/zcode.cjs` and no launcher of its own. What the
         # package puts on `PATH` as `zcode` is the Electron app, which on a machine with no
@@ -2104,6 +2195,9 @@ PROFILES = (
         # this name, because a backend here is called what it is installed as, so that `-a`
         # takes the word somebody would type at a shell to run the thing itself.
         name="cursor-agent",
+        # `api2.cursor.sh` signs in and configures; the host a turn then goes to is one the
+        # server names at run time, under `cursor.sh` rather than written in the bundle.
+        hosts=("*.cursor.sh",),
         installs="curl https://cursor.com/install -fsS | bash",
         # Its own command line has no way of taking a tool away: what an agent may reach for
         # is `~/.cursor/cli-config.json`, which is the person at this machine's file and not
@@ -2471,6 +2565,119 @@ def named(backend: str) -> Profile | None:
       Its profile, or None for a name no backend answers to.
     """
     return next((one for one in profiles() if backend in one.aliases), None)
+
+
+#: The endings of the variables, among a backend's `ambient`, whose value says where it goes:
+#: a base URL or an endpoint however it is spelled, or the host or issuer a sign-in is
+#: refreshed at.
+_ROUTING = ("_URL", "_BASE", "_HOST", "_ENDPOINT", "_ORIGIN", "_ISSUER")
+
+
+def reachable(profile: Profile, environ: Mapping[str, str]) -> tuple[str, ...]:
+    """The hosts a turn of this backend may still reach when a flow grants it no network.
+
+    This is the one hole `online=NONE` leaves, and it is left on purpose. A coding agent CLI
+    thinks on somebody else's machine: with its model API cut it is not an agent working
+    offline but a process that cannot take a turn at all, and a scope that made every turn
+    fail would be a scope nobody could use. So the fence lets through exactly what the CLI
+    cannot run without -- its model API, and where its sign-in is refreshed -- and nothing
+    else: not the web its agent would search, not a package index, not a host a command it
+    runs names.
+
+    Those are the profile's `hosts`, and whatever the environment the turn runs under points
+    it at instead: the value of its `endpoint`, and of each of its `ambient` variables that
+    names a base URL, an endpoint, an OAuth host or issuer. An account made for a gateway
+    routes every request of its turns there, and the fence has to follow it or it would cut
+    the one connection the turn is made of. It adds that host rather than replacing the
+    vendor's with it: a CLI pointed elsewhere for its model may still refresh its sign-in at
+    home. An account that switches the backend onto a cloud -- Bedrock, Vertex, Foundry --
+    adds that cloud's hosts, for the same reason.
+
+    Args:
+      profile: The backend.
+      environ: The environment a turn of it runs under -- the provider's, rather than this
+        process's own.
+
+    Returns:
+      The hosts, in the order first named and each once. Each is exact or a `*.suffix`
+      wildcard, reachable on the usual ports; one an account names with a port of its own --
+      a gateway at `https://gw.example:8443` -- is written `host:port`, and reachable on that
+      port alone. Empty for a backend nothing is written down about, which the fence then
+      lets reach nothing: one it knows no hosts for is one it cannot keep a hole open for.
+    """
+    routing = [profile.endpoint] if profile.endpoint else []
+    routing += [one for one in profile.ambient if one.endswith(_ROUTING)]
+    said = [environ.get(one, "") for one in routing]
+    for switch, (spelled, hosts, overrides) in _CLOUDS.items():
+        if switch not in profile.ambient or not environ.get(switch):
+            continue
+        said += [environ.get(one, "") for one in overrides]
+        values = {
+            name: environ.get(name) or default for name, default in spelled.items()
+        }
+        # A region or a resource is one DNS label; anything else would be spelling a host
+        # of the value's own choosing into the allow-list.
+        if all(_LABEL.fullmatch(value) for value in values.values()):
+            said += [host.format_map(values) for host in hosts]
+    pointed = (_place(one) for one in said)
+    return tuple(dict.fromkeys((*profile.hosts, *(one for one in pointed if one))))
+
+
+_LABEL = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?")
+
+
+#: The clouds a backend can be switched onto, by the variable that switches it: the
+#: variables its hosts are spelled out of, with what each is taken to be where the account
+#: says nothing; the hosts the cloud's model API and its credentials are at; and the
+#: variables that move that API somewhere else instead. Claude's Bedrock, Vertex and Foundry
+#: ways, the accounts whose model API is a cloud's rather than Anthropic's, and whose host is
+#: made of a region or a resource rather than written anywhere.
+_CLOUDS: dict[str, tuple[dict[str, str], tuple[str, ...], tuple[str, ...]]] = {
+    "CLAUDE_CODE_USE_BEDROCK": (
+        {"AWS_REGION": "us-east-1"},
+        (
+            "bedrock-runtime.{AWS_REGION}.amazonaws.com",
+            "bedrock.{AWS_REGION}.amazonaws.com",
+            "sts.{AWS_REGION}.amazonaws.com",
+        ),
+        ("ANTHROPIC_BEDROCK_BASE_URL",),
+    ),
+    "CLAUDE_CODE_USE_VERTEX": (
+        {"CLOUD_ML_REGION": "us-east5"},
+        (
+            "{CLOUD_ML_REGION}-aiplatform.googleapis.com",
+            "aiplatform.googleapis.com",
+            "oauth2.googleapis.com",
+        ),
+        ("ANTHROPIC_VERTEX_BASE_URL",),
+    ),
+    "CLAUDE_CODE_USE_FOUNDRY": (
+        {"ANTHROPIC_FOUNDRY_RESOURCE": ""},
+        ("{ANTHROPIC_FOUNDRY_RESOURCE}.services.ai.azure.com",),
+        ("ANTHROPIC_FOUNDRY_BASE_URL",),
+    ),
+}
+
+
+def _place(value: str) -> str:
+    """The host a variable's value names, whether it is written as a URL or as a bare host.
+
+    Returns:
+      The hostname, lower case and without a trailing dot, with `:port` after it where the
+      value names a port -- in brackets first, for an IPv6 address -- or "" for a value that
+      names no host.
+    """
+    value = value.strip()
+    if not value:
+        return ""
+    try:
+        split = urllib.parse.urlsplit(value if "://" in value else f"//{value}")
+        host, port = (split.hostname or "").rstrip("."), split.port
+    except ValueError:
+        return ""
+    if not host or port is None:
+        return host
+    return f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
 
 
 #: What a process's exit status says on its own, before anything it wrote is read. A shell
