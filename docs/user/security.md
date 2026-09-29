@@ -34,15 +34,18 @@ read it in the flow before you run the flow. It has four scopes:
 
 What that comes to in practice:
 
-- **An agent that may write its working directory may write anything its user can.** `user` and
-  `system` are not enforced once `local` is `ALL`.
-- **A read-only role** (`local` of `READ` or `NONE`) runs in its CLI's read-only mode. It can
-  still read outside its working directory.
-- **`online` of `NONE`** turns off the CLI's web tools where the CLI can be told to. It is
-  ignored by cursor-agent, pi and agy, and a shell command the agent runs reaches the network
-  either way.
-- **DeepSeek Harness** (`dsh`) and CLIs added over the Agent Client Protocol run every role
-  with full access, whatever the flow declares.
+- **Every scope is enforced** on the agent and on every command it runs, by Landlock on
+  Linux. An agent at the default writes its working directory and nothing else of yours:
+  its CLI's own settings, login and sessions, and a temporary directory of its own.
+- **A read-only role** (`local` of `READ` or `NONE`) also runs in its CLI's read-only mode.
+- **`online` of `NONE`** cuts the network, except the hosts the agent's model and login are
+  at. The CLI's web tools are switched off too, where it can be told.
+- **A grant that cannot be held is refused, not widened.** On macOS, on a Linux kernel
+  without Landlock, and for work in a container or on an ssh host, a role runs only with
+  `ALL` in every scope.
+- **Two ways out remain.** Landlock does not govern Unix sockets, so an agent can still talk
+  to a socket another program listens on, a docker daemon's among them. And whatever an
+  agent can write, a later run can read.
 
 [Permissions](/user/permissions) shows how a flow declares one.
 

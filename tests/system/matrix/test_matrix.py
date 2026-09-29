@@ -670,6 +670,51 @@ def test_permissions(cell: Cell) -> None:
     )
 
 
+FENCED = '''"""One turn at the default permission, asked to write in and out of its workdir."""
+
+from hmz.flows import Agent, AgentCollection, EnvCollection, FlowParams, LocalEnv, flow
+
+
+class Agents(AgentCollection):
+    worker: Agent
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def fenced(task, *, agents, envs, params, ctx):
+    worker = agents["worker"]
+    session = await worker.spawn(env=envs["workspace"])
+    return await worker.run(task, session=session)
+'''
+
+
+@feature()
+def test_fence(cell: Cell) -> None:
+    """An agent at the default permission writes its workdir, and nothing outside it.
+
+    Asked for both with its shell, which no CLI's own rung would stop: what stops the second is
+    the fence around the CLI and every command it runs.
+    """
+    outside = cell.root / "outside"
+    outside.mkdir(exist_ok=True)
+    said = cell.run(
+        cell.flow("fenced", FENCED),
+        "Use your shell tool to run exactly this command: "
+        f"echo IN > {cell.workspace}/inside.txt; echo OUT > {outside}/outside.txt "
+        "-- then reply with exactly one word: DONE",
+    )
+
+    assert (cell.workspace / "inside.txt").is_file(), (
+        f"the workdir was not written: {said}"
+    )
+    assert not (outside / "outside.txt").exists(), (
+        f"an agent at the default permission wrote outside its workdir: {said}"
+    )
+
+
 ASKED = '''"""One turn, with every tool it asks to run refused by the flow."""
 
 from hmz.flows import (
@@ -1137,6 +1182,8 @@ from hmz.flows import (
     FilesEnvMixin,
     FlowParams,
     LocalEnv,
+    Permission,
+    PermissionKind,
     ShellEnvMixin,
     flow,
 )
@@ -1148,8 +1195,20 @@ class Box(Env, ShellEnvMixin): ...
 class Workspace(LocalEnv, FilesEnvMixin): ...
 
 
+#: What an agent whose work lands on another machine is granted: everything. A fence is put up
+#: where the process it holds runs, and humanize puts none up on another machine, so anything
+#: narrower is refused there as `HarnessSandboxed` rather than run wider than it says.
+class Anywhere(Agent):
+    _permission = Permission(
+        local=PermissionKind.ALL,
+        user=PermissionKind.ALL,
+        system=PermissionKind.ALL,
+        online=PermissionKind.ALL,
+    )
+
+
 class Agents(AgentCollection):
-    worker: Agent
+    worker: Anywhere
 
 
 class Envs(EnvCollection):
@@ -1250,6 +1309,8 @@ from hmz.flows import (
     FlowParams,
     ImageEnvMixin,
     LocalEnv,
+    Permission,
+    PermissionKind,
     ShellEnvMixin,
     flow,
 )
@@ -1262,8 +1323,20 @@ class Box(Env, ShellEnvMixin, FilesEnvMixin, ImageEnvMixin):
 class Workspace(LocalEnv, FilesEnvMixin): ...
 
 
+#: What an agent whose work lands on another machine is granted: everything. A fence is put up
+#: where the process it holds runs, and humanize puts none up on another machine, so anything
+#: narrower is refused there as `HarnessSandboxed` rather than run wider than it says.
+class Anywhere(Agent):
+    _permission = Permission(
+        local=PermissionKind.ALL,
+        user=PermissionKind.ALL,
+        system=PermissionKind.ALL,
+        online=PermissionKind.ALL,
+    )
+
+
 class Agents(AgentCollection):
-    worker: Agent
+    worker: Anywhere
 
 
 class Envs(EnvCollection):

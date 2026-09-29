@@ -29,7 +29,9 @@ DENY = 0x00050000 | errno.EACCES
 def run(program: bytes, nr: int, *args: int, arch: int = ARCH.audit_arch) -> int:
     """What the filter returns for one syscall, by the handful of cBPF opcodes it uses."""
     data = struct.pack("<iIQ6Q", nr, arch, 0, *args, *[0] * (6 - len(args)))
-    insns = [struct.unpack("HBBI", program[i : i + 8]) for i in range(0, len(program), 8)]
+    insns = [
+        struct.unpack("HBBI", program[i : i + 8]) for i in range(0, len(program), 8)
+    ]
     pc, acc = 0, 0
     while True:
         code, jt, jf, k = insns[pc]
@@ -107,7 +109,9 @@ def test_io_uring_is_refused_because_a_ring_makes_sockets_of_its_own(
 
 def test_a_foreign_architecture_and_an_x32_number_are_refused(program: bytes) -> None:
     assert run(program, 359, socket.AF_INET, socket.SOCK_DGRAM, arch=0x40000003) == DENY
-    assert run(program, NR.SOCKET | 0x40000000, socket.AF_INET, socket.SOCK_DGRAM) == DENY
+    assert (
+        run(program, NR.SOCKET | 0x40000000, socket.AF_INET, socket.SOCK_DGRAM) == DENY
+    )
 
 
 def test_the_trap_filter_is_unchanged_by_it() -> None:

@@ -389,10 +389,11 @@ which is what `hmz internal anchor --check` is for.
 | --- | --- |
 | [`hmz internal anchor`](#hmz-internal-anchor) | A turn whose work lands on another machine; under `serve`, the half that lands it. |
 | [`hmz internal cred`](#hmz-internal-cred) | A program run with its credential files answered from an account's own directory, and its sessions from where humanize keeps them. |
+| [`hmz internal fence`](#hmz-internal-fence) | A program walled in to the paths and hosts its flow's permission grants. |
 | [`hmz internal hook`](#hmz-internal-hook) | One moment of a coding agent's hook table, carried to the flow it belongs to. |
 | [`hmz internal tools`](#hmz-internal-tools) | A coding agent's tool calls, carried to the process whose callbacks they are. |
 
-`hmz internal --help` lists these four. With no command, or one it does not know, it prints its
+`hmz internal --help` lists these five. With no command, or one it does not know, it prints its
 usage and exits 2.
 
 ### `hmz internal anchor`
@@ -518,6 +519,28 @@ directory they are kept in.
 
 A line with nothing to map or keep, or nothing to run, is a usage error. A program that could not be
 supervised exits 1 rather than running unsupervised as whoever is at this machine.
+
+### `hmz internal fence`
+
+```
+hmz internal fence --policy=JSON -- COMMAND [ARGS...]
+```
+
+Runs a program inside a [fence](/reference/agents#the-fence), and exits with its status. What
+every turn of an agent held to a permission it does not grant in full is spawned as, outermost
+of whatever else wraps the turn: the program runs here, on this terminal, walled in by Landlock.
+Where the fence cuts the network, a seccomp filter refuses every socket but TCP and Unix ones,
+and the program is handed a proxy on loopback (`HTTPS_PROXY` and the rest, with `NO_PROXY`
+emptied) that passes only the fence's hosts. Its `TMPDIR` is the fence's scratch directory.
+
+| Flag | |
+| --- | --- |
+| `--policy JSON` | **Required.** The fence, as JSON, or `@PATH` for a file holding it. |
+| `--` | Ends the flags. Everything after it is the program and its arguments. |
+
+A line with nothing to run is a usage error. A fence this machine cannot put up (no Landlock, or
+a kernel that cannot cut TCP where the network is cut) exits 126 without running the program,
+rather than running it unfenced.
 
 ### `hmz internal hook`
 
@@ -700,10 +723,11 @@ What an anchor keeps on a target is in [Remote execution](/reference/remote-exec
 | `0` | It did what it was asked, a run its budget stopped included. |
 | `1` | It could not: a flow that raised, a target that could not be reached, a listener that could not start, a turn that could not be supervised. |
 | `2` | The line was wrong: argparse's own rejections, and everything [refused before anything runs](#what-is-refused-before-anything-runs), a malformed listen address and a non-loopback listener with no token among them. |
+| `126` | `hmz internal fence`: the fence could not be put up, and the program never ran. |
 | `127` | `hmz internal anchor --native`: the target has no such CLI. |
 | `130` | Interrupted. |
 | `143`, `129` | `hmz exec` terminated (`SIGTERM`) or hung up on (`SIGHUP`). The run is stopped as an interrupt stops it, and exits only once it has let go of everything it made: its sessions closed, its containers removed. A second signal while it does is ignored. |
-| *the program's own* | `hmz internal anchor` exits with the agent's status, `hmz internal cred` with the supervised program's. |
+| *the program's own* | `hmz internal anchor` exits with the agent's status, `hmz internal cred` and `hmz internal fence` with the program's. |
 
 ## Python entry points
 

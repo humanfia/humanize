@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     # Named for the type only: a flow that runs its agents here is the common one, and it
     # should not pay to import the half of coganchor that runs a session, nor the docker
     # client behind a container.
+    from hmz.coganchor.fence import Fence
     from hmz.coganchor.machines import MachineConfig
 
 __all__ = [
@@ -25,6 +26,7 @@ __all__ = [
     "UNSAID",
     "AgentConfig",
     "Budget",
+    "Unfenced",
     "Unserved",
     "anchored",
 ]
@@ -63,6 +65,16 @@ _SAYABLE = (*PERMISSIONS, UNSAID)
 
 class Unserved(ValueError):  # noqa: N818  -- what the setting is here, not what went wrong
     """Raised for a setting this backend has no way of carrying."""
+
+
+class Unfenced(Unserved):
+    """Raised for a fence that neither the CLI nor this machine can hold an agent to.
+
+    Its own kind of refusal rather than any other setting's, because what it means to a flow
+    is different: not a CLI that has no word for something, but a sandbox that cannot be put up
+    here -- no Landlock, a kernel too old to cut the network, an agent whose work lands on
+    another machine -- which a flow reads as `HarnessSandboxed`.
+    """
 
 
 #: How quickly a provider is asked to serve one agent, independent of how hard its model
@@ -251,6 +263,17 @@ class AgentConfig:
         to send refuses `fast` -- an agent that quietly went on searching would be a setting
         that lies -- and refuses nothing where nothing was said, there being nothing then to
         lie about.
+      fence: What this agent's processes may reach -- the paths they may read and write, and
+        whether they may go online -- or None, which is what it comes at, for an agent
+        nobody has said anything about: it reaches whatever the CLI and the user running it
+        let it, as it always has. A flow says one for every session, read off the
+        :class:`~hmz.flows.Permission` it runs under beside `permission` and `web_search`.
+        Where one is said it is held to, never run wider: the part of it the CLI can enforce
+        itself it is told natively (:meth:`~hmz.coganchor.agents.AgentBase.natively`), and
+        the rest is put around it from outside by ``hmz internal fence``. A fence neither can
+        hold here refuses the agent with :class:`Unfenced`. The rung and web search are
+        what the CLI's own tools are told; the fence is what its process, and every command
+        it runs, cannot get past whatever it was told.
       budget: What each turn of each session of this agent may spend before it is cut off, or
         None for a turn that runs until it is done -- which is what an agent nobody has been
         asked about runs at, because a cap nobody chose is a cap that would truncate the one
@@ -286,6 +309,7 @@ class AgentConfig:
     provider: str = ""
     goals: bool = True
     web_search: bool | None = None
+    fence: Fence | None = None
     budget: Budget | None = None
 
     def __post_init__(self) -> None:

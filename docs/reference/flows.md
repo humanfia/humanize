@@ -424,20 +424,68 @@ Permission().covers(Permission(local=PermissionKind.READ))   # True
 (`PermissionKind.NONE < PermissionKind.READ`).
 
 ::: details How a permission reaches each CLI
+A permission reaches a CLI twice: as a **fence** that its process, and every command it runs,
+cannot get past, and as a **rung** for its own tools.
+
+**The fence.** `system` is `/`, `user` is the home directory, `local` is the workdir. `READ`
+lets a scope be read, `ALL` lets it be written, and `NONE` lets it be neither. Whatever the
+scopes say, a CLI can also:
+
+- read the minimum any program needs to run: `/usr`, `/bin`, `/lib*`, the few files under
+  `/etc` a resolver and a TLS stack read, `/proc` and `/sys`. It can also read its own
+  programs and their install trees, and the Python that runs humanize.
+- write the devices (`/dev/null`, `/dev/tty`, `/dev/pts`, `/dev/shm` and the rest), its own
+  state and sign-in directories, the directory its sessions are kept in, and a scratch
+  directory of its own that is its `TMPDIR`. Build caches (`XDG_CACHE_HOME`, `UV_CACHE_DIR`,
+  `npm_config_cache`, `PIP_CACHE_DIR`, `GOCACHE`) are pointed into that scratch directory
+  wherever the fence would not let them be written.
+
+`online` `NONE` cuts the network. The only hosts left are the ones the CLI's model and sign-in
+are at, plus whatever the session's account points the CLI at instead. The default permission
+is a real fence: the CLI writes the workdir and the minimum, and reads everything else.
+
+A CLI that can enforce part of the fence itself is told to. humanize enforces the rest from
+outside with `hmz internal fence`, which uses Landlock for paths and TCP, a seccomp filter that
+refuses every other kind of socket, and a proxy on loopback that passes only the listed hosts.
+humanize never runs a session wider than its permission. If neither the CLI nor this machine
+can hold the fence, the session is refused with `HarnessSandboxed` when it opens. That happens
+with no Landlock (macOS, or a Linux kernel older than 5.13), with a kernel older than 6.7 when
+`online` is `NONE`, or when the work lands on another machine (a docker or ssh environment).
+Only `local`, `user` and `system` all `ALL` with `online` `ALL` fences nothing.
+
+<!-- Each per-CLI unit updates its own row when its driver enforces part of the fence natively. -->
+| CLI | Filesystem | Network |
+| --- | --- | --- |
+| `claude` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `codex` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `cursor-agent` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `opencode` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `mimo` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `qwen` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `kimi` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `grok` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `pi` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `zcode` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `agy` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `dsh` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `acp` | external (Landlock + proxy) | external (Landlock + proxy) |
+
+The fence leaves two gaps, both from the kernel. Landlock does not govern connecting to a Unix
+socket, so a socket another process listens on (a docker daemon's, a session bus) is still a
+way out. With the network cut, the proxy's port is reachable on any address, but only by
+number, since nothing inside the fence can resolve a name.
+
+**The rung.**
+
 | `local` | every harness but `dsh` and `acp` | `dsh`, `acp` |
 | --- | --- | --- |
 | `READ` or `NONE` | the CLI's read-only rung: Claude Code's `plan`, Codex's read-only sandbox, a tool list with nothing that writes | `bypass` |
 | `ALL` | `bypass` | `bypass` |
 
-- **`user` and `system` are not fenced.** A session that may write its workdir may write
-  anywhere its user can. Codex's `workspace-write` and cursor-agent's `--sandbox enabled` could
-  fence it, and neither is used: both are bubblewrap, which cannot start where it is given no
-  user namespace, as in most containers.
-- **`local` `READ` reads outside the workdir too**, which is wider than a `user` or `system` of
-  `NONE`. `dsh` and `acp` can be held to nothing but `bypass`.
-- **`online`** is on for `ALL` and off for `NONE` where the CLI can be told, and left as the
-  CLI has it where it cannot (cursor-agent, pi, Antigravity, ACP). A shell command the agent
-  runs reaches the network whatever this says.
+- **`dsh` and `acp`** can be held to no rung but `bypass`. The fence holds them to the scopes.
+- **`online`** also switches the CLI's own web tools: on for `ALL`, and off for `NONE` where
+  the CLI can be told. Where it cannot (cursor-agent, pi, Antigravity, ACP), the cut network
+  is what stops them.
 - **Nothing-asked mode** is `danger-full-access` with approval `never` on Codex. On Claude
   Code, whose `bypassPermissions` a managed policy may forbid, it is `manual` with humanize
   answering every request yes.

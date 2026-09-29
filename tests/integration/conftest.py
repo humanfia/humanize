@@ -17,7 +17,7 @@ from __future__ import annotations
 import pytest
 
 from hmz.coganchor.agents import KEEPING
-from tests import tiers
+from tests import fencing, tiers
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
@@ -34,3 +34,15 @@ def _keeps_no_session(monkeypatch: pytest.MonkeyPatch) -> None:
     has, and `tests/system` is where they are kept in the run.
     """
     monkeypatch.setenv(KEEPING, "off")
+
+
+@pytest.fixture(autouse=True)
+def _fences_with_a_stand_in(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Spawns every fenced turn under a stand-in for `hmz internal fence`, on any machine.
+
+    For the reason sessions are kept nowhere: a fence is Landlock and seccomp, which this
+    tier must not need -- a stand-in CLI walled in by a real kernel here would be a system
+    test that CI runs. The stand-in writes down what the turn would have been held to and
+    runs it unfenced; `tests/system/coganchor/test_fence.py` is where the wall goes up.
+    """
+    fencing.standing_in(monkeypatch)

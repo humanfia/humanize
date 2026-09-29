@@ -24,6 +24,7 @@ from hmz.coganchor.agents import (
     Moment,
     Occasion,
     Stopped,
+    Unfenced,
     Unrecoverable,
     Verdict,
     driver,
@@ -139,17 +140,25 @@ def test_no_rung_is_ever_a_model_reviewing_itself(harness: HarnessKind) -> None:
 
 
 @pytest.mark.parametrize("harness", sorted(RUNGS), ids=str)
-def test_a_session_that_may_write_its_workdir_is_fenced_nowhere(
-    harness: HarnessKind,
+def test_a_session_that_may_write_its_workdir_is_held_by_its_fence_not_its_rung(
+    harness: HarnessKind, tmp_path: Path
 ) -> None:
-    # Pinned on purpose: `user` and `system` are not held below ALL once `local` is, since
-    # the only fences there are -- Codex's and cursor-agent's sandboxes -- cannot start where
-    # there is no user namespace, and the flow API calls Codex's BYPASS full access.
-    assert frozenset() == harnessing.FENCED
+    # `user` and `system` below ALL are the fence's to hold, not the rung's: the rung stays
+    # the CLI's nothing-asked mode, and what the session may write is the workdir.
     rungs = _kind(harness).rungs
     for user in (NONE, READ, ALL):
         narrow = Permission(local=ALL, user=user, system=NONE)
         assert harnessing.rung(harness, narrow, rungs=rungs) == "bypass"
+        fence = harnessing.fenced(
+            narrow,
+            workdir=str(tmp_path / "work"),
+            home=str(tmp_path),
+            profile=None,
+            environ={},
+        )
+        assert fence.allows(tmp_path / "work" / "x", write=True)
+        assert fence.allows(tmp_path / "x", write=True) is (user == ALL)
+        assert not fence.allows("/etc/machine-id")
 
 
 @pytest.mark.parametrize(
@@ -190,6 +199,82 @@ def test_the_web_is_said_where_the_cli_can_be_told_and_left_where_it_cannot() ->
     assert harnessing.searching(EVERYTHING, tellable=True) is True
     assert harnessing.searching(WORKDIR, tellable=True) is False
     assert harnessing.searching(WORKDIR, tellable=False) is None
+
+
+@pytest.mark.parametrize(
+    ("permission", "home", "work", "system", "online"),
+    [
+        (Permission(), "read", "write", "read", True),
+        (Permission(local=ALL, user=ALL, system=ALL), "write", "write", "write", True),
+        (WORKDIR, "read", "write", "", False),
+        (LOOKING, "read", "read", "read", False),
+        (Permission(local=READ, user=NONE, system=NONE), "", "read", "", True),
+        (Permission(local=NONE, user=NONE, system=NONE), "", "", "", True),
+    ],
+    ids=["default", "everything", "workdir", "looking", "workdir-read", "nothing"],
+)
+def test_a_permission_comes_to_the_fence_its_scopes_say(
+    permission: Permission,
+    home: str,
+    work: str,
+    system: str,
+    online: bool,
+    tmp_path: Path,
+) -> None:
+    fence = harnessing.fenced(
+        permission,
+        workdir=str(tmp_path / "home" / "work"),
+        home=str(tmp_path / "home"),
+        profile=backends.named("claude"),
+        environ={},
+    )
+
+    def level(path: Path | str) -> str:
+        if fence.allows(path, write=True):
+            return "write"
+        return "read" if fence.allows(path) else ""
+
+    assert level(tmp_path / "home" / "notes") == home
+    assert level(tmp_path / "home" / "work" / "a.py") == work
+    assert level("/etc/machine-id") == system
+    assert fence.online is online
+    assert fence.open is (permission == Permission(local=ALL, user=ALL, system=ALL))
+    # The model API is always let through, and nothing else is on the list.
+    assert "api.anthropic.com" in fence.hosts
+    assert "example.com" not in fence.hosts
+
+
+def test_the_default_permission_is_a_real_fence(tmp_path: Path) -> None:
+    fence = harnessing.fenced(
+        Permission(),
+        workdir=str(tmp_path / "work"),
+        home=str(Path.home()),
+        profile=None,
+        environ={},
+    )
+    assert not fence.open
+    assert not fence.allows(Path.home() / ".bashrc", write=True)
+    assert not fence.allows("/etc/passwd", write=True)
+    assert fence.allows(tmp_path / "work" / "x", write=True)
+    assert fence.allows("/dev/null", write=True)
+
+
+def test_a_session_config_carries_its_fence(tmp_path: Path) -> None:
+    config = CodexAgentConfig(model="m", effort="low")
+    made = settled(
+        config,
+        HarnessKind.CODEX,
+        CodexAgent,
+        WORKDIR,
+        frozenset(),
+        tellable=True,
+        workdir=str(tmp_path),
+        profile=backends.named("codex"),
+    )
+    assert made.fence is not None
+    assert made.fence.allows(tmp_path / "x", write=True)
+    assert not made.fence.online
+    assert "api.openai.com" in made.fence.hosts
 
 
 def test_a_session_config_carries_the_rung_the_web_and_codex_asking() -> None:
@@ -413,6 +498,7 @@ def _failed(fault: str = "", status: int = 1) -> Failed:
         (ConnectionResetError("reset"), HarnessDropped),
         (RuntimeError("forked from somewhere else"), SessionError),
         (ValueError("no such provider"), HarnessUnrecoverable),
+        (Unfenced("no Landlock here"), HarnessSandboxed),
         (
             subprocess.CalledProcessError(1, ["cli"], "", "429 Too Many Requests"),
             HarnessThrottled,

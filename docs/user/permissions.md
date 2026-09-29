@@ -30,7 +30,8 @@ gets when its flow says nothing:
   </div>
 </div>
 
-So by default an agent changes its workdir, reads around it, and searches the web. An
+So by default an agent changes its workdir, reads around it, and searches the web, and
+cannot change anything else of yours. An
 outer scope never gets more than the one inside it, and `online` is either `NONE` or `ALL`.
 
 ## What the official flows declare
@@ -48,25 +49,40 @@ A flow's own page says what its roles are granted.
 
 ## How each CLI holds to it
 
-A grant is carried out by the CLI that fills the role, and not every CLI can be held to every
-part of it:
+Every grant below everything is enforced on the agent's process and on every command it runs.
+Where a CLI can hold part of a grant itself, it is told to. humanize holds the rest from
+outside:
 
-| Backend | `local` of `READ` or `NONE` | `online` of `NONE` |
+- **`local`, `user` and `system`** are held by Landlock, a Linux kernel feature. An agent
+  cannot write outside what its grant lets it write, or read outside what it lets it read.
+  Every agent can still read what any program needs to run (the system's programs,
+  libraries and certificates), and write its own settings and login, its sessions, and a
+  temporary directory of its own.
+- **`online` of `NONE`** cuts the network. The agent can still reach the hosts its model and
+  its login are at, and nothing else: no web search, no package index, no host a command
+  names.
+
+So the default grant is a real limit: an agent changes its workdir and nothing else of yours.
+
+| Backend | `local`, `user`, `system` | `online` of `NONE` |
 | --- | --- | --- |
-| `claude`, `codex`, `grok`, `kimi`, `mimo`, `opencode`, `qwen`, `zcode` | <Badge type="tip" text="read-only" /> | <Badge type="tip" text="web tools off" /> |
-| `agy`, `cursor-agent`, `pi` | <Badge type="tip" text="read-only" /> | <Badge type="warning" text="as the CLI has it" /> |
-| `dsh` | <Badge type="danger" text="full access" /> | <Badge type="tip" text="web tools off" /> |
-| a CLI added on the Accounts page of `/settings` | <Badge type="danger" text="full access" /> | <Badge type="warning" text="as the CLI has it" /> |
+| every CLI | <Badge type="tip" text="held by Landlock" /> | <Badge type="tip" text="cut but for its model" /> |
 
-A read-only agent can still read outside its workdir, and `local=NONE` runs the same as `READ`.
+A role whose `local` is `READ` or `NONE` also runs in its CLI's read-only mode, where the CLI
+has one (every CLI but `dsh` and CLIs added over the Agent Client Protocol). Where a CLI can
+be told, `online` of `NONE` also switches its web tools off.
 
-::: warning Two things no CLI fences
-- **`user` and `system` are not enforced.** An agent that may write its workdir may write
-  anywhere your user can, whatever those two scopes say.
-- **`online` only switches the CLI's own web tools.** A shell command the agent runs reaches
-  the network either way.
+::: warning Where a grant cannot be held, the role does not start
+humanize never runs an agent with more than its grant. A role is refused before it starts
+(`HarnessSandboxed`) when:
 
-For a real fence, run the flow in a [container](/user/containers).
+- **this machine has no Landlock:** macOS, or a Linux kernel older than 5.13 or booted
+  without it. A kernel older than 6.7 cannot cut the network, so `online` of `NONE` is
+  refused there.
+- **the work lands on another machine:** a [container](/user/containers) or an ssh host. A
+  role runs there only with `ALL` in every scope, `online` included.
+
+Only a grant of `ALL` everywhere is enforced by nothing, because there is nothing to hold.
 :::
 
 ## Roles that check each tool

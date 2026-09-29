@@ -88,6 +88,7 @@ Every config takes these fields. Each backend's config adds fields of its own, l
 | `provider` | `""` | The [account](#which-account-it-runs-as) to run as, or `""` for the CLI as you already run it. |
 | `goals` | `True` | Whether [goals](#goals) are available to the agent. |
 | `web_search` | `None` | `True`, `False`, or `None` to say nothing. See [Whether an agent may search the web](#whether-an-agent-may-search-the-web). |
+| `fence` | `None` | What the agent's processes may reach, as a `hmz.coganchor.fence.Fence`, or `None` for no fence. See [The fence](#the-fence). |
 | `budget` | `None` | What each turn may spend. See [Cutting a turn off](#cutting-a-turn-off-and-what-one-turn-may-spend). |
 
 ```python
@@ -101,6 +102,8 @@ config its backend cannot carry, with `hmz.coganchor.agents.Unserved` (a `ValueE
 - a rung the backend does not take;
 - a service tier it cannot send;
 - `web_search=False` on a backend that cannot be told;
+- a `fence` neither the CLI nor this machine can hold, with `Unfenced`, a kind of
+  `Unserved`. See [The fence](#the-fence);
 - a combination one backend cannot carry: Antigravity's `disable_slash_commands=True` at
   `read-only`, a Cursor model the account lists at no such rung or tier, or opencode's and
   mimocode's `permission_table=False` beside a rung that withholds anything or
@@ -1038,13 +1041,10 @@ flow hangs.
 | `READ` or `NONE` | `read-only` | `bypass` |
 | `ALL` | `bypass` | `bypass` |
 
-- **`local` `ALL` fences nothing else.** `user` and `system` are not held to `READ` or `NONE`:
-  a session that may write its workdir may write anywhere its user can. Codex's
-  `workspace-write` and cursor-agent's `--sandbox enabled` could fence it but are not used:
-  both are bubblewrap, which cannot start without a user namespace, as in many containers.
-- **`local` `READ` is the CLI's own read-only rung.** It reads outside the workdir too, which
-  is wider than a `user` or `system` of `NONE`. `local` `NONE` is the same rung.
-- **`dsh` and ACP CLIs run at `bypass`**, wider than any permission below `ALL`.
+- **`user`, `system` and `online` are held by the [fence](#the-fence)**, not by the rung.
+  So is `local` itself: a session at `read-only` cannot write its workdir from a shell either.
+- **`local` `READ` is also the CLI's own read-only rung.** `local` `NONE` is the same rung.
+- **`dsh` and ACP CLIs run at `bypass`.** The fence holds them to the scopes.
 - **`auto` is used only on Kimi Code and ZCode, and only while a hook is hung** on
   `PERMISSION_REQUEST` or `ASK_USER`. There `auto` (Kimi's `yolo`, ZCode's `build`) is the mode
   where the CLI asks about what it deems risky, and on Kimi the mode where its agent may ask
@@ -1054,9 +1054,56 @@ flow hangs.
   approval policy `untrusted`. An `ASK_USER` hook turns on Codex's
   `default_mode_request_user_input` feature, without which its agent cannot ask anything
   outside plan mode. Either takes hold from the session's next turn.
-- **`online` is the CLI's own web tools**: on for `ALL`, off for `NONE` where the CLI can be
-  told, and left as the CLI has it where it cannot (cursor-agent, pi, agy, ACP CLIs), which may
-  be wider. A shell command reaches the network whatever this says.
+- **`online` is also the CLI's own web tools**: on for `ALL`, off for `NONE` where the CLI
+  can be told, and left as the CLI has it where it cannot (cursor-agent, pi, agy, ACP CLIs).
+  There the fence's cut network is what stops them.
+
+### The fence
+
+`AgentConfig.fence` is what an agent's processes may reach: the CLI's own process and every
+command it runs. A flow sets one on every session from its `Permission`. Code that drives an
+agent directly may build one with `Fence.of`:
+
+```python
+from hmz.coganchor.fence import Fence
+
+fence = Fence.of(local="all", user="read", system="read", online=False,
+                 workdir="/src/project", home="/home/me", hosts=["api.anthropic.com"])
+agent = ClaudeCodeAgent(ClaudeCodeAgentConfig(model="claude-opus-5", effort="high", fence=fence))
+```
+
+| Field | What it is |
+| --- | --- |
+| `read` | Absolute paths that may be read, listed and run. |
+| `write` | Absolute paths that may be read and changed. A path in both is written. |
+| `online` | `True` leaves the network alone. `False` cuts it to `hosts`. |
+| `hosts` | What stays reachable with `online=False`: an exact host, `*.suffix`, or `host:port`. |
+| `tmp` | The agent's scratch directory, its `TMPDIR`; `""` for one made per agent. |
+
+- **`Fence.of`** maps each scope to a root: `system` is `/`, `user` the home directory, and
+  `local` the workdir (and `cwd`, where the session works somewhere else). `"read"` puts a
+  root in `read`, `"all"` in `write`, and `"none"` leaves it out. The scopes must nest. It
+  always adds the minimum a program needs: the system's programs, libraries and certificates,
+  a resolver's files under `/etc`, `/proc` and `/sys`, the Python running humanize, and the
+  devices and `/dev/shm` to write.
+- **The agent adds what it needs** wherever it spawns a turn: its CLI's state and sign-in
+  directories and its sessions' directory to write, the account's directory, the hosts its
+  model and sign-in are at under the account it runs as, the skills it carries, and its
+  programs and their install trees to read. `agent.fenced()` is the whole of it.
+- **A CLI that can enforce part of the fence itself does**, and its driver's
+  `natively(fence)` returns the rest. The rest is held from outside:
+  `python -m hmz internal fence --policy=JSON -- CLI...` is put outermost around the turn.
+  It uses Landlock for paths and TCP, a seccomp filter that refuses every other kind of
+  socket, and a proxy on loopback, handed to the CLI as `HTTPS_PROXY` and the rest, that
+  passes only `hosts`. Build caches the fence would not let be written are pointed into
+  `tmp`.
+- **A fence that cannot be held is refused**, with `Unfenced`, where the config arrives:
+  on a machine with no Landlock (macOS, Linux before 5.13), with `online=False` on a kernel
+  before 6.7, or on an agent whose `machine` is set. A flow reads that as
+  `HarnessSandboxed`. A fence with `/` in `write` and `online=True` fences nothing, and
+  nothing is put around the CLI.
+- **Two gaps are the kernel's.** Landlock does not govern connecting to a Unix socket, and
+  with the network cut the proxy's port is reachable on any address, by number only.
 
 ## Whether an agent may search the web
 

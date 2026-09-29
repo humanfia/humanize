@@ -37,6 +37,7 @@ from .config import (
     UNSAID,
     AgentConfig,
     Budget,
+    Unfenced,
     Unserved,
     anchored,
 )
@@ -201,6 +202,7 @@ __all__ = [
     "StreamSessionBase",
     "Tool",
     "Toolbox",
+    "Unfenced",
     "Unhooked",
     "Unrecoverable",
     "Unserved",
