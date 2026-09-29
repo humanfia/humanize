@@ -37,6 +37,7 @@ from hmz.coganchor.agents import (
 from hmz.coganchor.agents import codex as appservers
 from hmz.coganchor.agents import kimi as kimicode
 from hmz.coganchor.agents.config import UNSAID
+from hmz.coganchor.fence import Fence
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -1817,11 +1818,10 @@ def test_codex_starts_the_command_line_codex_would_have_started_for_itself(
 ) -> None:
     """Nothing this driver writes is a setting the flow did not ask for.
 
-    Not even `-c tools.web_search=`, which used to be the one exception: Codex searches
-    nothing until it is asked to, so an agent that may search the web says so here for
-    `web_search` to mean the same thing everywhere -- and an agent nobody said either way
-    about says neither, which leaves Codex reading its own `config.toml` as a bare app server
-    does. Every other field is absent unless something asked for it.
+    Not even `-c web_search=`, which a flow's `web_search` is said with in both directions:
+    an agent nobody said either way about says neither, which leaves Codex reading its own
+    `config.toml` as a bare app server does. Every other field is absent unless something
+    asked for it.
     """
     started: list[list[str]] = []
 
@@ -1861,6 +1861,85 @@ def test_codex_takes_its_own_features_by_name_for_this_agent_alone(
             "--stdio",
         ]
     ]
+
+
+@pytest.mark.parametrize(("searching", "mode"), [(True, "live"), (False, "disabled")])
+def test_codex_is_told_about_the_web_as_its_web_search_mode(
+    monkeypatch: pytest.MonkeyPatch, *, searching: bool, mode: str
+) -> None:
+    """`tools.web_search=false` does not stop a codex-cli 0.153.4 searching; this does."""
+    started: list[list[str]] = []
+
+    monkeypatch.setattr(appservers, "_AppServer", _recording(started))
+    agent = CodexAgent(
+        CodexAgentConfig(model="gpt-5.6-sol", effort="high", web_search=searching)
+    )
+
+    assert agent.server is not None
+    assert [_named(argv) for argv in started] == [
+        ["codex", "app-server", "-c", f'web_search="{mode}"', "--stdio"]
+    ]
+
+
+def _enforceable(*, net: bool) -> bool:
+    """Takes this machine to be one that can fence a process, whatever machine it is."""
+    del net
+    return True
+
+
+@pytest.mark.parametrize(
+    ("permission", "features", "landlocked", "fenced", "enabled"),
+    [
+        ("read-only", (), True, False, True),
+        ("read-only", (), False, False, False),
+        ("read-only", (), False, True, True),
+        ("read-only", (("use_legacy_landlock", False),), True, True, False),
+        ("workspace-write", (), True, False, True),
+        ("bypass", (), True, True, True),
+        ("bypass", (), True, False, False),
+        (UNSAID, (), True, False, False),
+    ],
+)
+def test_codex_holds_its_sandbox_with_landlock_where_bubblewrap_cannot_start(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    permission: str,
+    features: tuple[tuple[str, bool], ...],
+    landlocked: bool,
+    fenced: bool,
+    enabled: bool,
+) -> None:
+    """Inside a fence, which forbids bubblewrap's mounts, or where the probe said so.
+
+    The probe only for a rung with a sandbox, and never over the flow's own word.
+    """
+    started: list[list[str]] = []
+
+    monkeypatch.setattr(appservers, "_AppServer", _recording(started))
+    monkeypatch.setattr(appservers, "_landlocked", lambda: landlocked)
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", _enforceable)
+    fence = Fence.of(
+        local="all",
+        user="read",
+        system="read",
+        online=True,
+        workdir=tmp_path,
+        home=tmp_path,
+    )
+    agent = CodexAgent(
+        CodexAgentConfig(
+            model="gpt-5.6-sol",
+            effort="high",
+            permission=permission,
+            features=features,
+            fence=fence if fenced else None,
+        )
+    )
+
+    assert agent.server is not None
+    (argv,) = started
+    assert (argv[-3:-1] == ["--enable", "use_legacy_landlock"]) is enabled
 
 
 def test_codex_refuses_a_feature_that_is_already_a_setting_of_the_agent() -> None:

@@ -22,7 +22,7 @@ this driver would have written on a ``codex exec`` command line is sent as a par
 thread or the turn instead, where it belongs to this agent alone.
 
 What this driver writes that a bare ``codex app-server`` would not, each reachable and each
-declared so a flow can ask beforehand: ``-c tools.web_search=`` in both directions, which
+declared so a flow can ask beforehand: ``-c web_search=`` in both directions, which
 :attr:`hmz.coganchor.agents.config.AgentConfig.web_search` says and `search` names;
 ``--disable goals`` when :attr:`~hmz.coganchor.agents.config.AgentConfig.goals` is off, which
 `pursue` and `goal` name; a ``serviceTier`` of ``priority`` when
@@ -36,6 +36,22 @@ this driver saying nothing, and the app server left wherever it leaves itself. C
 settings that none of those already answer are :class:`CodexAgentConfig`'s, and every one of
 them defaults to whatever the bare CLI does: an install that sets nothing runs the command
 line Codex would have run for itself.
+
+A fence (:attr:`~hmz.coganchor.agents.config.AgentConfig.fence`) is held from outside, all of
+it, although Codex is the one CLI here with a sandbox that speaks of writable roots, read
+restrictions and allowed domains. That sandbox is put around the commands the agent runs and
+around nothing else: not around Codex's own process, which reaches `ab.chatgpt.com` beside
+its model on every turn (seen refused by the fence's proxy on codex-cli 0.153.4, the turn
+going on without it), and not around the MCP servers and hooks it starts -- humanize's own
+callbacks, and whatever the person at this machine's `config.toml` names -- which run as
+Codex runs. A fence claimed natively would be one those reach straight past, so
+:meth:`~hmz.coganchor.agents.AgentBase.natively` is left saying Codex enforces none of it. And
+on a machine that lends no user namespace the claim would be empty besides: bubblewrap cannot
+start there, and the Landlock backend 0.153.4 falls back to (:data:`_LANDLOCK`) holds nothing
+but `read-only`. What the fence does lean on Codex for is what no wall around a process can
+stop, being run by OpenAI rather than here: its web search, and the ChatGPT apps an account
+has connected. A fence that cuts the network turns both off, whatever `web_search` says --
+``-c web_search="disabled"``, which is the setting that does, and ``--disable apps``.
 """
 
 # A session and the agent holding it are two halves of one object declared in one
@@ -45,6 +61,7 @@ line Codex would have run for itself.
 from __future__ import annotations
 
 import contextlib
+import functools
 import itertools
 import json
 import os
@@ -210,6 +227,68 @@ _GRANTED = frozenset(rung for rung, settings in _PERMITTED.items() if settings)
 #: driver says that at every thread call. What a turn does still carry is the approval policy
 #: and the service tier, both of which `turn/start` names and reads.
 _THREAD_ONLY = ("sandbox",)
+
+#: The feature that has Codex hold a sandboxed command with Landlock rather than with
+#: bubblewrap, which is the one of its two sandboxes that starts where the kernel lends no
+#: user namespace -- `apparmor_restrict_unprivileged_userns`, an unprivileged container.
+#: There, on codex-cli 0.153.4, every command of a `read-only` thread answers `bwrap: loopback:
+#: Failed RTM_NEWADDR: Operation not permitted` and never runs; with this on, the same command
+#: runs, reading what it likes and writing nothing and reaching no network. It holds nothing
+#: else: `workspace-write` needs bubblewrap for the parts of the workspace it keeps read-only,
+#: and 0.153.4 given this and that sandbox panics with `permission profiles requiring direct
+#: runtime enforcement are incompatible with --use-legacy-landlock` -- which is no worse than
+#: the bubblewrap error it would have answered with, and a thread stepped down from it to
+#: `read-only` is then held. So it is asked for only where bubblewrap cannot start: inside a
+#: fence, or at a rung with a sandbox where :func:`_landlocked` found it cannot.
+_LANDLOCK = "use_legacy_landlock"
+
+#: The feature that offers the agent the ChatGPT apps its account has connected, as tools
+#: `chatgpt.com` serves and runs: a connector reaches whatever service it connects to from
+#: OpenAI's side, where no fence around the CLI is. On by default on codex-cli 0.153.4, and
+#: switched off for a fence that cuts the network, as the web search is.
+_APPS = "apps"
+
+#: The sandboxes a rung may ask for that confine a command at all, and so the ones
+#: :data:`_LANDLOCK` has anything to do with.
+_SANDBOXED = ("read-only", "workspace-write")
+
+
+@functools.cache
+def _landlocked() -> bool:
+    """Whether this machine's Codex holds a read-only command only with :data:`_LANDLOCK` on.
+
+    Asked of Codex itself rather than of the kernel, the sandbox being Codex's to start: one
+    sandboxed `true` as the rung would run it, and again with the feature on where that one
+    failed. Each is a tenth of a second, and it is asked once per process.
+
+    Returns:
+      True where bubblewrap cannot start and Landlock can, and False where bubblewrap starts
+      -- which is the better sandbox, and the one Codex picks by itself -- or where neither
+      does, which the feature would not mend.
+    """
+    from hmz.coganchor.backends import elsewhere
+
+    codex = elsewhere("codex") or "codex"
+
+    def runs(*flags: str) -> bool:
+        rung = ("-c", 'sandbox_mode="read-only"')
+        try:
+            return (
+                subprocess.run(
+                    [codex, "sandbox", *flags, *rung, "--", "true"],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=10,
+                    check=False,
+                ).returncode
+                == 0
+            )
+        except (OSError, subprocess.SubprocessError):
+            return False
+
+    return not runs() and runs("--enable", _LANDLOCK)
+
 
 #: What each kind of token is called in the totals the server states. Cached input is counted
 #: inside the input rather than beside it, so it is not a kind of its own here: adding it would
@@ -1920,30 +1999,53 @@ class CodexAgent(AgentBase):
             # Per server rather than in config, so this flow changes no other Codex
             # session belonging to the user.
             argv += ["--disable", "goals"]
-        for name, on in getattr(self.config, "features", ()):
+        fence = self.config.fence
+        offline = fence is not None and not fence.online
+        features = getattr(self.config, "features", ())
+        for name, on in features:
             # The rest of Codex's own switches, beside the one goals is. `codex features
             # list` is where the names and the defaults come from, and nothing is said here
             # for a feature nobody named -- so an agent configured with none of them starts
             # a server at exactly the defaults that command prints.
-            argv += ["--enable" if on else "--disable", name]
-        if self.config.web_search is not None:
-            # Said in both directions rather than only when it is off: Codex searches
-            # nothing until it is asked to, so an agent that may search the web has to
-            # say so here for `web_search` to mean on every backend what it says. Still the
-            # live spelling on codex-cli 0.153.4, which is checkable rather than assumed:
-            # `--strict-config -c tools.web_search=true` is taken, and the same run answers
-            # `unknown configuration field` for a key that has gone. The features named
-            # `web_search_cached` and `web_search_request` are deprecated and `search_tool`
-            # and `tool_search` are removed, and none of the four was ever this setting's
-            # name. Both directions, and neither of them where nobody said one: an agent no
-            # flow was asked about starts a server told nothing about searching at all, and
-            # on 0.153.4 that leaves it where a bare `codex` leaves it -- searching nothing
-            # until it is asked to. Which is why a stated `True` still goes out: of the three
-            # answers it is the one Codex would never have arrived at by itself.
-            argv += [
-                "-c",
-                f"tools.web_search={'true' if self.config.web_search else 'false'}",
-            ]
+            if not (offline and name == _APPS):
+                argv += ["--enable" if on else "--disable", name]
+        if offline:
+            # Off whatever the flow said of it, for the reason the web search is below.
+            argv += ["--disable", _APPS]
+        sandboxed = _PERMITTED.get(self.config.permission, {}).get("sandbox")
+        if (
+            self.config.machine is None
+            and _LANDLOCK not in dict(features)
+            and (
+                (fence is not None and not self.natively(fence).open)
+                or (sandboxed in _SANDBOXED and _landlocked())
+            )
+        ):
+            # Inside the fence, at every rung: a process Landlock holds may not mount
+            # anything, and bubblewrap cannot build its sandbox without mounting, so there it
+            # fails wherever it runs -- at the rung asked for, or at the one a Codex whose
+            # requirements forbid it steps a thread down to, `bypass` included. Outside it,
+            # at a rung with a sandbox, where this machine lends bubblewrap no user namespace.
+            # Either way a `read-only` thread would otherwise refuse every command it holds.
+            # Not said where the flow named the feature either way, nor for a turn that lands
+            # on another machine, whose sandbox is that machine's to start.
+            argv += ["--enable", _LANDLOCK]
+        # Off where the fence cuts the network, whatever `web_search` says: the one tool the
+        # fence cannot stop, left on beside a network it has cut, would be the network.
+        searching = False if offline else self.config.web_search
+        if searching is not None:
+            # Said in both directions, and as the top-level `web_search` mode rather than
+            # `tools.web_search`: on codex-cli 0.153.4 a bare Codex searches -- its default
+            # mode is `cached` -- and a turn told `-c tools.web_search=false` was seen to
+            # search all the same, where the same turn told `-c web_search="disabled"` said
+            # it had no such tool. The web search is run by the model's own API rather than
+            # by a process here, so no fence around the CLI can stop it: this is the only
+            # thing that does. `live` is the other direction, being what an agent that may
+            # search is asked to do. Neither where nobody said one: an agent no flow was
+            # asked about starts a server told nothing about searching at all, which leaves
+            # it wherever the person at this machine's `config.toml` leaves it.
+            mode = "live" if searching else "disabled"
+            argv += ["-c", f'web_search="{mode}"']
         # Which is what `--listen stdio://` already is on 0.153.4, so this changes nothing
         # about how the server behaves -- it is said because this client can speak over one
         # transport and no other, and a default is a thing a CLI is free to move. A day when

@@ -457,7 +457,7 @@ Only `local`, `user` and `system` all `ALL` with `online` `ALL` fences nothing.
 | CLI | Filesystem | Network |
 | --- | --- | --- |
 | `claude` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `codex` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `codex` | external (Landlock + proxy) | external (Landlock + proxy); web search and ChatGPT apps off natively |
 | `cursor-agent` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `opencode` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `mimo` | external (Landlock + proxy) | external (Landlock + proxy) |
