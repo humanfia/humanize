@@ -54,7 +54,7 @@ from .hooks import WAITING, Gate, Moment
 from .preload import preloaded
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
+    from collections.abc import Iterator
 
     from pydantic import BaseModel
 
@@ -261,32 +261,14 @@ _A_SECOND = 1000
 _EFFORTS: dict[tuple[str, bool], Path] = {}
 _EFFORT_LOCK = threading.Lock()
 
-#: Where the settings files of a fenced agent with no gate are kept, one directory an agent.
-#: Not shared the way the plain efforts are: what is in them is the agent's fence, which names
-#: its own scratch directory, so no two agents have the same file to share -- and a table of
-#: them kept for as long as this process ran would be an entry per agent that ever ran. So the
-#: directory goes when its agent does.
-_FENCED: weakref.WeakKeyDictionary[object, Path] = weakref.WeakKeyDictionary()
-
 #: The one directory every settings file of this process is kept under, made the first time
 #: one is asked for. One directory rather than one per effort and one per gate, because a
 #: fenced CLI has to be let read it: under `system=none` the system's temporary directory is
 #: not the CLI's to read, and a settings file it cannot read is a turn run at none of what it
 #: says. So :meth:`QwenCodeAgent.natively` grants this, to read -- and to read only, which is
-#: why it is not the fence's own `tmp`: a file the agent may write is a file whose deny rules
-#: and hook table the agent may take out of its own way.
+#: why it is not the fence's own `tmp`: a file the agent may write is a file whose hook table
+#: the agent may take out of its own way.
 _ROOT: list[Path] = []
-
-#: What a path is written with in a rule, where the character in it would otherwise be read
-#: as a glob's: Qwen Code matches a path rule with picomatch, which takes a backslash before
-#: any of these as the character itself.
-_GLOBBED = re.compile(r"[\\*?\[\](){}!+@|,$^]")
-
-#: What the rules leave alone whatever the fence says, being where a command's streams are
-#: and not files: Qwen Code reads `> /dev/stderr` off a command line as a file written, and
-#: checks it where its links lead as well, which is a pipe under `/proc`. The kernel does not
-#: hold a stream either, and the fence is still around `/proc` from outside, read-only.
-_STREAMS = ("/dev/stdin", "/dev/stdout", "/dev/stderr", "/dev/fd", "/proc")
 
 #: What the directory is called when the headless defaults are *not* written into it, the
 #: plain effort being the name when they are: the default keeps the name it had, and the
@@ -302,100 +284,11 @@ def _root() -> Path:
         return _ROOT[0]
 
 
-def _escaped(name: str) -> str:
-    """One name in a path, as a path rule spells it: every glob character as itself."""
-    return _GLOBBED.sub(lambda found: "\\" + found[0], name)
-
-
-def _outside(granted: Iterable[str]) -> list[str]:
-    """Patterns that between them match every path not beneath one of `granted`, and none that is.
-
-    Qwen Code's permission rules only deny: there is no rule for "anything but these". So the
-    complement is spelled out, one pattern for each directory on the way down to a grant --
-    everything in it but the names that lead on to one -- which is a handful of patterns for
-    a fence that grants a handful of trees. Each is a picomatch negation of the whole name,
-    and of everything beneath it, in one extglob: `!(a)/**` would read `ab/c` as beneath `a`,
-    its lookahead having no end to it where it is not the last part of the pattern.
-
-    A grant is taken both as written and as its links lead, since Qwen Code checks a path it
-    matches both ways and the kernel holds a grant where the link leads: a workdir reached
-    through a link is a workdir, not somewhere outside it.
-
-    Args:
-      granted: Absolute paths.
-
-    Returns:
-      The patterns, as absolute paths; none where `/` itself is granted.
-    """
-    held = {
-        Path(one).parts[1:]
-        for root in granted
-        for one in {root, os.path.realpath(root)}
-    }
-    if () in held:
-        return []
-    said: list[str] = []
-    ahead: list[tuple[str, ...]] = [()]
-    while ahead:
-        at = ahead.pop(0)
-        names = sorted(
-            {
-                one[len(at)]
-                for one in held
-                if len(one) > len(at) and one[: len(at)] == at
-            }
-        )
-        spelled = "|".join(_escaped(name) for name in names)
-        said.append(
-            "".join(f"/{_escaped(one)}" for one in at)
-            + f"/!({spelled}|@({spelled})/**)"
-        )
-        ahead += [(*at, name) for name in names if (*at, name) not in held]
-    return said
-
-
-def _denied(fence: Fence | None) -> tuple[str, ...]:
-    """The deny rules a fence comes to, in the words of Qwen Code's own `permissions`.
-
-    Defence in depth rather than the fence: these hold Qwen Code's own tools, and a command
-    its shell runs only as far as Qwen Code can read the paths and hosts off the command line,
-    so the fence is still put around the whole process tree from outside. What they add is a
-    tool call refused by the CLI, with the rule that refused it named to the model, before
-    anything reaches the kernel's refusal.
-
-    `Read` for what may not be read, `Edit` for what may not be changed -- each the whole of
-    the filesystem but what the fence grants, and the CLI's own programs, which the fence is
-    given where the turn is spawned, and the scratch directory, which is the wrapper's to grant
-    rather than a path in `write`. And where the network is cut, both of the tools that reach
-    the web, whatever the host: the hosts a cut network still reaches are the model API's and
-    the sign-in's, which are nothing for an agent to fetch.
-
-    Args:
-      fence: What the agent's processes may reach, or None for no fence.
-
-    Returns:
-      The rules, or none for no fence.
-    """
-    if fence is None:
-        return ()
-    from .base import _programs
-
-    writing = (*fence.write, *([fence.tmp] if fence.tmp else []), *_STREAMS)
-    reading = (*fence.read, *writing, *_programs(_COMMAND))
-    said = [f"Read(/{one})" for one in _outside(reading)]
-    said += [f"Edit(/{one})" for one in _outside(writing)]
-    if not fence.online:
-        said += ["WebFetch", "WebSearch"]
-    return tuple(said)
-
-
 def _thinking(
     effort: str,
     gate: Gate | None = None,
     *,
     headless: bool = True,
-    denied: tuple[str, ...] = (),
-    owner: object = None,
 ) -> Path:
     """The settings file a turn at one effort is run against, written once.
 
@@ -415,8 +308,6 @@ def _thinking(
         the socket is not.
       headless: Whether to say beside it what a turn nobody is watching defaults to, or leave
         the layer unwritten so that the CLI's own answer stands.
-      denied: The deny rules the agent's fence comes to, from :func:`_denied`.
-      owner: The agent, whose directory the file goes in where it has rules and no gate.
 
     Returns:
       The file's path.
@@ -440,18 +331,7 @@ def _thinking(
             where = root / Path(at).parent.name
             if not where.exists():
                 weakref.finalize(gate, shutil.rmtree, where, ignore_errors=True)
-            held = _writing(
-                where / named, effort, gate, headless=headless, denied=denied
-            )
-        elif denied and owner is not None:
-            where = _FENCED.get(owner)
-            if where is None:
-                where = Path(tempfile.mkdtemp(prefix="fenced-", dir=root))
-                weakref.finalize(owner, shutil.rmtree, where, ignore_errors=True)
-                _FENCED[owner] = where
-            held = _writing(
-                where / named, effort, None, headless=headless, denied=denied
-            )
+            held = _writing(where / named, effort, gate, headless=headless)
         else:
             held = _EFFORTS.get((effort, headless))
             if held is None:
@@ -473,7 +353,6 @@ def _writing(
     gate: Gate | None,
     *,
     headless: bool = True,
-    denied: tuple[str, ...] = (),
 ) -> Path:
     """Writes the files a turn is run against, and says where the first of them is.
 
@@ -487,7 +366,6 @@ def _writing(
       gate: Where this agent's moments are served, or None for a turn with nowhere to serve
         them -- and one serving nothing writes no table either.
       headless: Whether the defaults layer is written beside the settings one at all.
-      denied: The deny rules the agent's fence comes to, written only where there are any.
 
     Returns:
       The settings file's path.
@@ -510,11 +388,6 @@ def _writing(
         # is this run's alone: what they configured is untouched, and is theirs again the
         # moment the run ends.
         said |= {"hooks": table, "disableAllHooks": False}
-    if denied:
-        # At the system layer, whose rules are added to every other layer's rather than
-        # replacing them, and a deny is the rule that outranks every allow and every mode --
-        # `yolo` among them.
-        said["permissions"] = {"deny": list(denied)}
     held = where / "settings.json"
     _wholly(held, json.dumps(said))
     if headless:
@@ -920,8 +793,6 @@ class QwenCodeSession(StreamSessionBase):
                     self.effort,
                     gate,
                     headless=self._headless(),
-                    denied=_denied(self._agent.fenced()),
-                    owner=self._agent,
                 )
             ),
         }
@@ -1215,17 +1086,19 @@ class QwenCodeAgent(AgentBase):
         """Enforces none of the fence, and lets the CLI read the settings it is run against.
 
         Qwen Code has two things that look like a way to hold itself to a fence, and neither
-        is one. Its `permissions` rules hold its own tools and the commands whose paths and
-        hosts it can read off the command line, and nothing a command it runs goes on to do --
-        a script, an interpreter, a build -- so they are written from the fence all the same
-        (:func:`_denied`), as a refusal the model is told the reason for, and the fence is put
-        around it from outside. And its `--sandbox` is a container, docker or podman, or
-        Seatbelt on a Mac: never the process tree it runs in here, and not there to start on a
-        machine with neither.
+        is one. Its `--sandbox` is a container, docker or podman, or Seatbelt on a Mac: never
+        the process tree it runs in here, and not there to start on a machine with neither.
+        And its `permissions` rules hold its own tools and the commands whose paths and hosts
+        it can read off the command line, and nothing a command it runs goes on to do -- a
+        script, an interpreter, a build. They are not even worth saying the fence again in:
+        a rule is matched against a command line whole, so `echo a > here; echo b > there`
+        with `there` outside the fence is refused entirely rather than half run, which is a
+        command the fence itself lets do what it may. So nothing of the fence is said to the
+        CLI but its web tools, taken off the command line where the network is cut.
 
         What it does need from outside is the settings files this driver writes for it, which
         are in the system's temporary directory: granted to read, since `system=none` would
-        otherwise keep from the CLI the file that says its effort, its hooks and these rules.
+        otherwise keep from the CLI the file that says its effort and its hooks.
 
         Args:
           fence: The fence this agent is held to.

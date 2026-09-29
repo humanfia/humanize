@@ -666,14 +666,13 @@ def test_words_arrive_as_they_are_written_only_for_an_agent_that_asked(
 # --------------------------------------------------------------------------------- the fence
 
 
-def test_a_fenced_turn_can_read_its_settings_and_is_told_the_fence_as_deny_rules(
+def test_a_fenced_turn_can_read_its_settings_and_not_change_them(
     qwen: _Qwen, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Under `system=none` the settings file is granted to read, and to read only.
 
     It is in the system's temporary directory, which such a fence keeps the CLI from; and it
-    holds the deny rules and the hook table, which an agent that could write it could take out
-    of its own way.
+    holds the hook table, which an agent that could write it could take out of its own way.
     """
     log = tmp_path / "fences.log"
     monkeypatch.setenv(fencing.LOG, str(log))
@@ -695,10 +694,8 @@ def test_a_fenced_turn_can_read_its_settings_and_is_told_the_fence_as_deny_rules
     held = Fence.loads(json.dumps(policy))
     assert held.allows(call["settings"])
     assert not held.allows(call["settings"], write=True)
-    assert "WebFetch" in call["denied"]
-    assert "WebSearch" in call["denied"]
-    assert any(one.startswith("Edit(//") for one in call["denied"])
-    assert any(one.startswith("Read(//") for one in call["denied"])
+    # Nothing of the fence is said as a rule: Qwen matches one against a command line whole.
+    assert call["denied"] is None
     fenced.stop()
 
 
@@ -725,10 +722,3 @@ def test_a_cut_network_takes_the_web_tools_off_whatever_web_search_says(
     argv = call["argv"]
     assert argv[argv.index("--exclude-tools") + 1] == "web_search,web_fetch"
     fenced.stop()
-
-
-def test_an_unfenced_turn_is_told_no_deny_rules(qwen: _Qwen) -> None:
-    qwen.agent.new()("first")
-
-    (call,) = qwen.calls()
-    assert call["denied"] is None

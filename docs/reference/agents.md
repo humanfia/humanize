@@ -1800,22 +1800,19 @@ input; anchored turns end their process so the workspace is synchronised.
 
 - **The effort has no flag.** A turn is pointed at a settings file of humanize's own through
   `QWEN_CODE_SYSTEM_SETTINGS_PATH`, one per effort, shared by concurrent sessions at that
-  effort; a fenced agent has its own. Both generated files carry the settings format version, so Qwen does not rewrite
+  effort. Both generated files carry the settings format version, so Qwen does not rewrite
   them. They are excluded from the restart check; a `QWEN_CODE_SYSTEM_DEFAULTS_PATH` you name
   is watched like any settings file. Settings the driver cannot read, such as JSON with
   comments, keep a fresh process per turn.
-- **A fence is held from outside, and repeated inside.** Qwen's `permissions` rules hold its
-  own tools and the commands whose paths and hosts it can read off the command line, not what
-  a command goes on to do, and its `--sandbox` is a container or macOS Seatbelt. So
-  `natively` enforces none of the fence, and `hmz internal fence` holds all of it. The
-  settings file also carries the fence as `permissions.deny` rules: `Read` and `Edit` for
-  everything the fence does not grant (a command's streams, `/dev/std*`, `/dev/fd` and
-  `/proc`, aside), and `WebFetch` and `WebSearch` when the network is cut, which also
-  withholds both tools on the command line. A tool call they catch is refused with the rule
-  named, before it reaches the kernel. Every generated settings file lives under one
-  `hmz-qwen-*` directory in the system's temporary directory, which the fence lets the CLI
-  read and not write, so `system` `NONE` still reads it and the agent cannot rewrite its own
-  rules or hooks.
+- **A fence is held entirely from outside.** Qwen's `--sandbox` is a container or macOS
+  Seatbelt, and its `permissions` rules hold its own tools and what it can read off a command
+  line, not what a command goes on to do. A rule is also matched against a command line whole,
+  so `echo a > here; echo b > there` is refused outright rather than half run. So `natively`
+  enforces none of the fence and `hmz internal fence` holds all of it; with the network cut,
+  `web_search` and `web_fetch` are also withheld. Every generated settings file lives under
+  one `hmz-qwen-*` directory in the system's temporary directory, which the fence lets the CLI
+  read and not write, so `system` `NONE` still reads it and the agent cannot rewrite its
+  hooks.
 - **It names its conversation up front**: the opening turn is given `--session-id` with a fresh
   UUID, and a fork resumes its parent with `--fork-session`. Qwen refuses an id already used in
   the project, so a failed opening turn is retried under a new one.

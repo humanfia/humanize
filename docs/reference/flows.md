@@ -461,7 +461,7 @@ Only `local`, `user` and `system` all `ALL` with `online` `ALL` fences nothing.
 | `cursor-agent` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `opencode` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `mimo` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `qwen` | external (Landlock + proxy); its own `Read`/`Edit` deny rules repeat it | external (Landlock + proxy); `web_search` and `web_fetch` withheld and denied |
+| `qwen` | external (Landlock + proxy) | external (Landlock + proxy); `web_search` and `web_fetch` withheld |
 | `kimi` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `grok` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `pi` | external (Landlock + proxy) | external (Landlock + proxy) |
