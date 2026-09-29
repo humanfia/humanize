@@ -459,8 +459,8 @@ Only `local`, `user` and `system` all `ALL` with `online` `ALL` fences nothing.
 | `claude` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `codex` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `cursor-agent` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `opencode` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `mimo` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `opencode` | external (Landlock + proxy); its file tools also refuse outside the fence | external (Landlock + proxy); its web tools are taken away offline |
+| `mimo` | external (Landlock + proxy); its file tools also refuse outside the fence | external (Landlock + proxy); its web tools are taken away offline |
 | `qwen` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `kimi` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `grok` | external (Landlock + proxy) | external (Landlock + proxy) |

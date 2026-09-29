@@ -13,7 +13,9 @@ the command is called and which of its own variables it takes.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from .base import AgentBase, CommandSessionBase
@@ -21,8 +23,9 @@ from .config import UNSAID, AgentConfig, Unserved
 from .event import Event, Failed, Usage
 
 if TYPE_CHECKING:
-    import os
-    from collections.abc import Iterator
+    from collections.abc import Iterable, Iterator
+
+    from hmz.coganchor.fence import Fence
 
 #: What each kind of event reads as. A step beginning or ending is the turn's own plumbing,
 #: and is read for what it cost rather than shown. `reasoning` arrives only where the turn was
@@ -79,11 +82,12 @@ _UNNARROWED = (UNSAID, "auto", "bypass")
 def _tabled(config: AgentConfig) -> bool:
     """Whether the variable this backend carries a rung in is written for this turn.
 
-    Two answers go in it -- what the agent may do, and whether it may read the web -- and the
-    variable is the only place this backend has to say either, so either of them said is a
-    table to write. Neither said is nothing to put in one, and a variable set to that would be
-    humanize answering a question nobody put to it: the turn runs at whatever the person at
-    this machine has configured, as a bare ``opencode run`` does.
+    Three answers go in it -- what the agent may do, whether it may read the web, and where
+    its tools may reach under a fence -- and the variable is the only place this backend has
+    to say any of them, so any of them said is a table to write. None said is nothing to put
+    in one, and a variable set to that would be humanize answering a question nobody put to
+    it: the turn runs at whatever the person at this machine has configured, as a bare
+    ``opencode run`` does.
 
     Args:
       config: What the agent is configured with.
@@ -96,7 +100,86 @@ def _tabled(config: AgentConfig) -> bool:
     said: bool | None = getattr(config, "permission_table", None)
     if said is not None:
         return said
-    return config.permission != UNSAID or config.web_search is not None
+    return (
+        config.permission != UNSAID
+        or config.web_search is not None
+        or config.fence is not None
+    )
+
+
+def _worktree(directory: str) -> str:
+    """The directory opencode reads the paths its file tools are asked about relative to.
+
+    The top of the git checkout a session works in, found as opencode finds it -- the nearest
+    `.git` above the directory, a file in a linked worktree and a directory in any other -- and
+    `/` where there is none, which is where opencode puts a session outside every repository.
+    A path a file tool is asked about is written relative to this in the `read` and `edit`
+    permissions, so it is what a rule about an absolute path has to be written relative to too.
+
+    Args:
+      directory: Where the session works, absolute.
+
+    Returns:
+      The checkout's top, or `/`.
+    """
+    at = Path(directory)
+    for one in (at, *at.parents):
+        if (one / ".git").exists():
+            return str(one)
+    return os.sep
+
+
+def _beneath(roots: Iterable[str], worktree: str, inside: str) -> str | dict[str, str]:
+    """A `read` or `edit` permission that answers `inside` beneath the roots and `deny` elsewhere.
+
+    Written in the patterns opencode asks those two in, which are paths relative to
+    :func:`_worktree` rather than absolute ones, and read last rule first: the first key is
+    what every path gets that nothing after it matches, and a `*` there matches across `/` as
+    well as within a name. A root that holds the worktree holds everything that does not climb
+    out of it, so it is said as the whole of the worktree less what climbs further than the
+    root is above it; every other root is said as the path to it and everything beneath it.
+
+    Args:
+      roots: The absolute paths the answer is `inside` beneath.
+      worktree: What the patterns are relative to.
+      inside: The answer beneath them.
+
+    Returns:
+      The permission: `inside` alone where a root is `/`, and a table of patterns otherwise.
+    """
+    held = [one for one in roots if Path(worktree).is_relative_to(one)]
+    if os.sep in held:
+        return inside
+    rules = {"*": "deny"}
+    if held:
+        above = max(len(Path(os.path.relpath(worktree, one)).parts) for one in held)
+        rules["*"] = inside
+        rules["../" * (above + 1) + "*"] = "deny"
+    for one in roots:
+        if one not in held:
+            relative = os.path.relpath(one, worktree)
+            rules |= {relative: inside, f"{relative}/*": inside}
+    return rules
+
+
+def _outside(roots: Iterable[str]) -> str | dict[str, str]:
+    """The `external_directory` permission that lets a tool reach beneath the roots and no further.
+
+    Asked, unlike `read` and `edit`, in absolute patterns: a file tool reaching outside the
+    session's project asks it with the directory it reaches into and a `/*`, and the shell asks
+    it the same way for each directory a command it runs names. One permission for reading and
+    writing both, which is why it is only as narrow as what may be read.
+
+    Args:
+      roots: The absolute paths that may be reached.
+
+    Returns:
+      `allow` where one of them is `/`, and a table denying everything else otherwise.
+    """
+    listed = list(roots)
+    if os.sep in listed:
+        return "allow"
+    return {"*": "deny"} | {f"{one.rstrip(os.sep)}/*": "allow" for one in listed}
 
 
 def _flagged(config: AgentConfig) -> bool:
@@ -268,15 +351,62 @@ class OpencodeSession(CommandSessionBase):
             if config.web_search is False
             else rung.get("reach") or ("allow" if config.web_search else "")
         )
-        allowed = {named: rung[named] for named in ("edit", "bash") if named in rung}
+        allowed: dict[str, str | dict[str, str]] = {
+            named: rung[named] for named in ("edit", "bash") if named in rung
+        }
         if reaching:
             allowed |= dict.fromkeys(type(self).reaches, reaching)
+        if (fence := self._agent.fenced()) is not None:
+            allowed |= self._fenced(fence, rung)
         if not allowed:
             return dict(super()._environment())
         return {
             **super()._environment(),
             type(self).permits: json.dumps(allowed),
         }
+
+    def _fenced(
+        self, fence: Fence, rung: dict[str, str]
+    ) -> dict[str, str | dict[str, str]]:
+        """What the table says about where the agent's own tools may reach under a fence.
+
+        Not what holds the agent to the fence. opencode puts nothing around the commands its
+        shell runs or around its own process, so those are held from outside by
+        ``hmz internal fence`` whatever is written here -- which is why this driver leaves
+        :meth:`~hmz.coganchor.agents.AgentBase.natively` as it is. What this is for is the
+        agent being refused by its tool, in words it can read, rather than by the kernel in an
+        error it may take for something else: its file tools told not to change what the fence
+        does not let be written, not to read what it does not let be read, and its web tools
+        taken away where the network is cut.
+
+        Only ever narrower than the rung. An edit the rung already denies stays denied outright,
+        and what the fence lets be written is answered as the rung answers it -- `allow` where
+        the rung is unsaid, since a fence is itself a permission said and grants what is inside
+        it. Reading is narrowed only where the fence does not let the whole system be read, and
+        writing only where it does not let the whole of it be written, so the default permission
+        says nothing here about reading at all.
+
+        Args:
+          fence: The whole of what the agent may reach, from
+            :meth:`~hmz.coganchor.agents.AgentBase.fenced`.
+          rung: The rung's row of :data:`_PERMITTED`.
+
+        Returns:
+          The permissions to write over the rung's.
+        """
+        said: dict[str, str | dict[str, str]] = {}
+        scratch = (fence.tmp,) if fence.tmp else ()
+        writable = (*fence.write, *scratch)
+        readable = (*fence.read, *writable)
+        worktree = _worktree(self._workspace())
+        if os.sep not in writable and rung.get("edit") != "deny":
+            said["edit"] = _beneath(writable, worktree, rung.get("edit", "allow"))
+        if os.sep not in readable:
+            said["read"] = _beneath(readable, worktree, "allow")
+            said["external_directory"] = _outside(readable)
+        if not fence.online:
+            said |= dict.fromkeys(type(self).reaches, "deny")
+        return said
 
     def _reads(self, line: str, *, error: bool) -> Iterator[Event]:
         """Reads one event opencode wrote, as the things it says the agent did.
@@ -478,7 +608,10 @@ class OpencodeAgentConfig(AgentConfig):
         with `unattended` still deciding what becomes of anything that table leaves to be
         asked about. Off leaves this backend no way of saying either of the two, so a rung
         that withholds anything and web search switched off are both refused beside it: a
-        setting the CLI never hears is a setting that lies.
+        setting the CLI never hears is a setting that lies. So is a fence that cuts the
+        network, whose web tools are taken away in this table and nowhere else; a fence that
+        does not is still held whole from outside, and only loses the rules that let its
+        tools refuse in words.
     """
 
     cli_agent: str = ""
@@ -506,10 +639,15 @@ class OpencodeAgentConfig(AgentConfig):
                 # three-answer `web_search` by.
                 "permission": self.permission not in _UNNARROWED,
                 "web_search": self.web_search is False,
+                # A fence that cuts the network takes the web tools away natively, whatever
+                # `web_search` says: a tool that runs at a host the fence still passes would
+                # otherwise be a way out of it.
+                "fence": self.fence is not None and not self.fence.online,
             }
             said = {
                 "permission": f"permission={self.permission!r}",
                 "web_search": "web_search=False",
+                "fence": "a fence that cuts the network",
             }
             if unsayable := [
                 field for field, narrowed in narrowing.items() if narrowed

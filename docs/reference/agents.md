@@ -1834,6 +1834,21 @@ agent = OpencodeAgent(
 
 The table is written for the turn, never into your settings file.
 
+**Under a fence.** Neither CLI confines its shell or its own process, so the whole fence is held
+from outside by `hmz internal fence`. The table also tells the CLI's own tools where they may
+reach, so that the agent is refused in words rather than by the kernel:
+
+- `edit` is denied outside what the fence lets be written.
+- `read` and `external_directory` are denied outside what it lets be read. This is said only
+  where `system` is `NONE`.
+- `webfetch`, `websearch` and mimocode's `codesearch` are denied where `online` is `NONE`,
+  whatever `web_search` says. `permission_table=False` is refused beside such a fence.
+
+The `read` and `edit` rules are relative to the top of the git checkout the session works in,
+or to `/` outside one, because that is how opencode asks them. mimocode reads Claude Code's
+`~/.claude.json` as it starts. Where the fence does not let that file be read, mimocode runs
+with `MIMOCODE_DISABLE_CLAUDE_CODE=1` instead of being granted the file.
+
 ### ZCode
 
 `zcode`. Every turn is a session on `zcode app-server --stdio`, one server per agent.
