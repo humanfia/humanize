@@ -107,3 +107,34 @@ def test_a_fence_that_fences_nothing_leaves_the_leader_as_it_was_said(
     assert "--leader" in agent.new()._command()
     assert agent.spawned(["grok"])[:1] != [sys.executable]
     assert "--no-leader" not in _agent(fence, leader=None).new()._command()
+
+
+@pytest.mark.usefixtures("enforceable")
+@pytest.mark.parametrize("web_search", [None, True, False])
+def test_a_fence_that_cuts_the_network_takes_the_web_tools_away(
+    tmp_path: Path, web_search: bool | None
+) -> None:
+    """Its search may run at xAI's own host, which the proxy lets through, so it is not given.
+
+    Whatever `web_search` says: the one flag that says it is refused by `grok agent`, so every
+    turn of such a conversation is taken with `grok -p`, which takes it.
+    """
+    session = _agent(_fence(tmp_path), web_search=web_search).new(tmp_path / "work")
+
+    assert session._commanded()
+    argv = session._turn("hi")[0]
+    assert argv.count("--disable-web-search") == 1
+    assert "--disable-web-search" not in session._command()
+
+
+@pytest.mark.usefixtures("enforceable")
+@pytest.mark.parametrize("web_search", [None, True])
+def test_a_fence_that_leaves_the_network_leaves_the_web_tools(
+    tmp_path: Path, web_search: bool | None
+) -> None:
+    """Granted the network, a conversation searches as it was told and stays held open."""
+    agent = _agent(_fence(tmp_path, online=True), web_search=web_search)
+    session = agent.new(tmp_path / "work")
+
+    assert not session._commanded()
+    assert "--disable-web-search" not in session._turn("hi")[0]

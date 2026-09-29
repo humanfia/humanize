@@ -1145,7 +1145,7 @@ everywhere:
 | `claude` | `--disallowedTools WebSearch,WebFetch` when off, or when its `fence` cuts the network |
 | `codex` | `-c web_search="live"\|"disabled"`, both ways; `tools.web_search=false` does not stop it |
 | `dsh` | the `dsh-web` plugin, its search and fetch providers and `dsh-tool-web` mounted when on; the bundled composition has no web |
-| `grok` | `--disable-web-search` when off |
+| `grok` | `--disable-web-search` when off, or when its `fence` cuts the network: its `web_search` may run at xAI, a host the cut network still reaches |
 | `kimi` | `disabled_tools` on the prompt: `WebSearch` and `FetchURL` when off, empty when on |
 | `qwen` | `--exclude-tools web_search,web_fetch` when off, or when the fence cuts the network: `web_search` runs at DashScope, a host the cut network still reaches |
 | `opencode` | `webfetch: deny` and `websearch: deny` in its permission table when off |
@@ -1748,7 +1748,8 @@ up.
 
 `grok`. Ordinary turns are `session/prompt` on a held-open `grok agent stdio`. That transport
 takes a model, an effort, an approval, an agent profile, a plugin directory and the leader, and
-nothing else. So a rung that takes tools away, `web_search=False`, a shaped turn, a fork, and
+nothing else. So a rung that takes tools away, `web_search=False`, a fence that cuts the
+network, a shaped turn, a fork, and
 any field below except `leader` set away from its default send the turn to
 `grok -p --output-format streaming-json`, resuming the same conversation. The session id is
 Grok Build's own on both transports.
@@ -1768,7 +1769,9 @@ so that a `use_leader = true` in your config cannot put every session of a flow 
   (or `GROK_SANDBOX`, which `grok agent stdio` does read). Its network setting blocks only the
   commands' network, not the process's own `web_fetch`; every profile writes `/tmp` and
   `/var/tmp`; a custom profile lives only in your `sandbox.toml`; and on a kernel that gives
-  unprivileged users no user namespace, 1.0.24 does not start under any profile.
+  unprivileged users no user namespace, 1.0.24 does not start under any profile. A fence
+  that cuts the network also sends `--disable-web-search`, whatever `web_search` says, so every
+  turn of that conversation runs on `grok -p`.
 - **A fenced conversation never joins the leader**, which is a process started outside the
   fence and would run its tools there: `leader=None` is sent as `--no-leader`, and
   `leader=True` is refused with `Unfenced`. A fence that fences nothing changes neither.

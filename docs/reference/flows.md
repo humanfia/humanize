@@ -463,7 +463,7 @@ Only `local`, `user` and `system` all `ALL` with `online` `ALL` fences nothing.
 | `mimo` | external (Landlock + proxy); its file tools also refuse outside the fence | external (Landlock + proxy); its web tools are taken away offline |
 | `qwen` | external (Landlock + proxy) | external (Landlock + proxy); `web_search` and `web_fetch` withheld |
 | `kimi` | external (Landlock + proxy) | external (Landlock + proxy; its daemon may bind its one port) |
-| `grok` | external (Landlock + proxy); its own sandbox writes `/tmp` | external (Landlock + proxy); its own sandbox leaves `web_fetch` online |
+| `grok` | external (Landlock + proxy); its own sandbox writes `/tmp` | external (Landlock + proxy); its own sandbox cannot hold it, and `--disable-web-search` takes its web tools away offline |
 | `pi` | external (Landlock + proxy) | external (Landlock + proxy), started `--offline`; the gateways its `models.json` declares stay reachable |
 | `zcode` | external (Landlock + proxy); a write outside it refused at approval | external (Landlock + proxy); web tools denied |
 | `agy` | external (Landlock + proxy); its `--sandbox` holds only its commands | external (Landlock + proxy), and its web tools taken away |
