@@ -197,7 +197,7 @@ without saving. Type the line again and save the menu this time.
 
 ### `reviewer is bob@tui's to answer, not yours`
 
-Another interface reading the same run, or an `hmz attach -c reviewer`, has
+Another interface reading the same run, or a program on the SDK, has
 [claimed](/reference/tui#several-people-on-one-run) that outworlder: what it asks is theirs
 alone to answer. Ask them to `/claim off`, or wait for them to leave, which gives it back.
 `reviewer is bob@tui's` says the same about a `/claim`, an `/afk` or an answer. Lines said to the
@@ -212,9 +212,9 @@ was somebody else. Their answer is in the transcript, marked ` · by alice@tui`.
 
 A daemon an older humanize started still holds this directory: it held its run on a
 pseudoterminal, which this version cannot read. Open it with that version and stop it, or end
-the process named, then run `hmz` again. `hmz attach` says the same.
+the process named, then run `hmz` again.
 
-### `hmz: too far behind; attach again`
+### `hmz: fell too far behind; open it again` {#hmz-too-far-behind-attach-again}
 
 The interface stopped taking what the host sent until it was a whole run behind, and was let go
 of. The run is untouched: run `hmz` again, and it reads the run from the top.

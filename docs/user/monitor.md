@@ -166,7 +166,7 @@ still be read. The status line says which you are looking at: `by agent` or
 | `Flow` | The flow running, and any flow it called, innermost last, each with how long it has run. |
 | `Set` | The flow's settings that differ from its defaults. |
 | `Also` | Handovers the arrows could not show. |
-| `Reading` | Where more than one interface, `hmz attach` or program reads the run: each by name, yours marked `you`. |
+| `Reading` | Where more than one interface or program reads the run: each by name, yours marked `you`. |
 | `Tokens` | Tokens and money per model, and the output tokens a second each is producing. |
 | `Kinds` | Tokens by kind for the whole run. A `+` marks a floor, because some agent's CLI does not report that kind. See [Cost and rate](/user/tally). |
 

@@ -1,6 +1,6 @@
 """One frontend's end of a workspace's runs: requests out, and messages about the runs in.
 
-A frontend -- an interface, `hmz attach`, a program -- reaches the runs of a workspace one of
+A frontend -- an interface or a program -- reaches the runs of a workspace one of
 two ways: over the socket of the host holding them where a terminal closing cannot end them,
 or in its own process, holding them itself. Both are this, so that a frontend is written once
 and is told which of the two it has been handed where it asks for one.

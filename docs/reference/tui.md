@@ -419,9 +419,9 @@ Where the runs are held in this process (output not a terminal, or
 ### Several people on one run
 
 Every `hmz` in a directory is a whole interface of its own -- its own views, monitor and
-prompt -- over the same runs, and so is [`hmz attach`](/reference/cli#hmz-attach) and a program
-on the [SDK](/reference/daemon#link). Each is named for `HUMANIZE_NAME`, else your login, then
-what it is: `alice@tui`, `bob@cli`; a name already reading gets `#2`.
+prompt -- over the same runs, and so is a program on the [SDK](/reference/daemon#link). Each
+is named for `HUMANIZE_NAME`, else your login, then what it is: `alice@tui`, `bob@sdk`; a name
+already reading gets `#2`.
 
 - **Claims.** `/claim` on an outworlder's transcript makes what it asks yours alone to answer.
   Another interface sees it marked `alice@tui's` above its prompt, on the monitor and under the

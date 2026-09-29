@@ -8,7 +8,7 @@ each of those things has to be answered once rather than once per frontend or th
 disagree about what the run is doing.
 
 So they are answered here, where the run is. A frontend is anything that attaches: an
-interface, `hmz attach`, a program written against the SDK. It is handed everything as
+interface, or a program written against the SDK. It is handed everything as
 messages -- what the run's agents said, what was asked and answered, who holds which role --
 and asks for everything as requests, one reply apiece. Nothing here knows whether a frontend
 is in this process or on the other end of a socket: the daemon carries the same messages both
@@ -633,7 +633,7 @@ class Host:
             if client != but and not self._post(frontend, message, size)
         ]
         for frontend in behind:
-            self._let_go(frontend, "too far behind; attach again", keep=False)
+            self._let_go(frontend, "fell too far behind; open it again", keep=False)
 
     def _record(self, message: dict[str, Any]) -> None:
         """Says one thing that happened, and keeps it for whoever arrives later."""

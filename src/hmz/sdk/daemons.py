@@ -50,7 +50,7 @@ class Daemons:
         """The daemon hosting a workspace's runs for frontends, started where none is.
 
         What a tool reaches to be one of a run's frontends: its `link()` is a
-        :class:`hmz.daemon.Link`, the same one an interface or `hmz attach` holds.
+        :class:`hmz.daemon.Link`, the same one an interface holds.
 
         Args:
           workspace: The project directory, or None for wherever this is being run.

@@ -239,7 +239,7 @@ def test_a_frontend_that_stops_taking_what_it_is_told_holds_up_nobody(
     deadline = time.monotonic() + PATIENCE
     while time.monotonic() < deadline and blocked[-1]["type"] != "gone":
         time.sleep(0.01)
-    assert blocked[-1] == {"type": "gone", "why": "too far behind; attach again"}
+    assert blocked[-1] == {"type": "gone", "why": "fell too far behind; open it again"}
 
 
 # ------------------------------------------------------------------------ claims
