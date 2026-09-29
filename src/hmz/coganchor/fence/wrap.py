@@ -183,6 +183,7 @@ def _become(
             read=fence.read,
             write=(*fence.write, tmp),
             connect_ports=() if port is None else (port,),
+            bind_ports=() if port is None else fence.listen,
             net=port is not None,
         ).restrict_self()
     # Everything, deliberately: this is the forked child, and anything escaping here would run
