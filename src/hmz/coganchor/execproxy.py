@@ -74,8 +74,10 @@ class ExecProxy:
         *,
         program: str | None = None,
         tty: bool = False,
+        fence: dict[str, Any] | None = None,
     ) -> None:
         self._client = client
+        self._fence = fence
         self.pid = pid
         self._argv = argv
         self._program = program
@@ -113,6 +115,7 @@ class ExecProxy:
                 tty=self._tty,
                 winsize=_window_size(self._stdin_fd) if self._tty else None,
                 program=self._program,
+                fence=self._fence,
             )
         except OSError:
             self._close_stdio()

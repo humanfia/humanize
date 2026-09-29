@@ -117,6 +117,21 @@ DEVICES: Final = (
 )
 
 
+def _accelerators() -> tuple[str, ...]:
+    """The GPUs' device nodes on this machine, to write however little else is.
+
+    A device rather than a file, as :data:`DEVICES` are: using a GPU is opening its node to
+    read and write, which a program given one -- a command in a container started with GPUs,
+    say -- does without changing anything anybody keeps. Looked for rather than listed, since
+    NVIDIA numbers one node per GPU; `/dev/dri` and AMD's `/dev/kfd` are the rest.
+    """
+    return (
+        *sorted(str(one) for one in Path("/dev").glob("nvidia*")),
+        "/dev/dri",
+        "/dev/kfd",
+    )
+
+
 def _rank(level: str) -> int:
     try:
         return LEVELS.index(str(level))
@@ -188,6 +203,10 @@ class Fence:
         exported as `TMPDIR`, `TMP` and `TEMP`, and where caches the fence would not let it
         write at home are pointed -- or "" for the wrapper to make one for the one run and
         remove it after.
+      scopes: The levels it was drawn from, as `(local, user, system)`, or `()` for a fence
+        drawn path by path. What another machine draws the same fence again from, around
+        its own workdir and home (:mod:`hmz.coganchor.fence.abroad`): the paths are this
+        machine's, and the levels are what they mean anywhere.
     """
 
     read: tuple[str, ...] = ()
@@ -195,6 +214,7 @@ class Fence:
     online: bool = True
     hosts: tuple[str, ...] = ()
     tmp: str = ""
+    scopes: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         write = _normal(self.write)
@@ -203,6 +223,13 @@ class Fence:
             self, "read", tuple(one for one in _normal(self.read) if one not in write)
         )
         object.__setattr__(self, "hosts", tuple(dict.fromkeys(self.hosts)))
+        object.__setattr__(self, "scopes", tuple(str(one) for one in self.scopes))
+        if self.scopes and (
+            len(self.scopes) != len(LEVELS) or not set(self.scopes) <= set(LEVELS)
+        ):
+            raise ValueError(
+                f"a fence's scopes are three of {', '.join(LEVELS)}, not {self.scopes!r}"
+            )
 
     @classmethod
     def of(
@@ -225,7 +252,7 @@ class Fence:
         workdir and the directory the session works in where that is somewhere else -- and a
         level: `read` puts the root in :attr:`read`, `all` puts it in :attr:`write`, and `none`
         leaves it out. Then the minimum is added, whatever the levels were: :data:`SYSTEM` and
-        the Python humanize runs on to read, :data:`DEVICES` to write.
+        the Python humanize runs on to read, :data:`DEVICES` and the GPUs' nodes to write.
 
         The scopes must nest, `local` at least `user` and `user` at least `system`, because
         a root is granted with everything beneath it and nothing beneath a grant can be taken
@@ -268,9 +295,10 @@ class Fence:
         writing = [root for root, level in scopes if str(level) == ALL]
         return cls(
             read=_normal((*SYSTEM, *_ours(), *reading, *read)),
-            write=_normal((*DEVICES, *writing, *write)),
+            write=_normal((*DEVICES, *_accelerators(), *writing, *write)),
             online=online,
             hosts=tuple(hosts),
+            scopes=(str(local), str(user), str(system)),
         )
 
     @property
@@ -327,6 +355,7 @@ class Fence:
             read=() if filesystem else self.read,
             write=(os.sep,) if filesystem else self.write,
             online=self.online or network,
+            scopes=(ALL,) * len(LEVELS) if filesystem and self.scopes else self.scopes,
         )
 
     def allows(self, path: str | os.PathLike[str], *, write: bool = False) -> bool:
@@ -368,7 +397,7 @@ class Fence:
         names = {one.name for one in dataclasses.fields(cls)}
         if unknown := set(held) - names:
             raise ValueError(f"not a fence's: {', '.join(sorted(unknown))}")
-        for name in ("read", "write", "hosts"):
+        for name in ("read", "write", "hosts", "scopes"):
             listed: object = held.get(name, [])
             if not isinstance(listed, list) or not all(
                 isinstance(one, str) for one in cast("list[object]", listed)
@@ -413,12 +442,16 @@ def wrapper(fence: Fence) -> list[str]:
 
     Returns:
       ``hmz internal fence --policy=... --``, run by the Python running this, to be followed
-      by the program and its arguments.
+      by the program and its arguments. Run from the archive this process was loaded from,
+      where it was: a target humanize was bootstrapped onto has no installed `hmz` for `-m`
+      to find, and it is there that the serving half fences the commands it runs.
     """
+    from hmz import coganchor
+
+    archive = getattr(getattr(coganchor, "__loader__", None), "archive", "")
     return [
         sys.executable,
-        "-m",
-        "hmz",
+        *((str(archive),) if archive else ("-m", "hmz")),
         "internal",
         "fence",
         f"--policy={fence.dumps()}",

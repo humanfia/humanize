@@ -22,6 +22,7 @@ import pytest
 from hmz import cli
 from hmz.coganchor import AnchorConfig
 from hmz.coganchor.argv import parser
+from hmz.coganchor.fence import ALL, READ, Fence
 
 #: Every setting at once, none of them left at its default. The token is spelled the way one
 #: in eighty of `secrets.token_urlsafe`'s are, and the paths hold a space, because a setting
@@ -39,6 +40,14 @@ FULL = AnchorConfig(
     net_allow=("api.anthropic.com:443",),
     token="-Vx9nQs3cret",
     force=True,
+    fence=Fence.of(
+        local=ALL,
+        user=READ,
+        system=READ,
+        online=True,
+        workdir="/srv/a project",
+        home="/home/me",
+    ),
 )
 
 

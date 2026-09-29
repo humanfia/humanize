@@ -180,6 +180,13 @@ def parser() -> ArgumentParser:
         "nothing to run",
     )
     built.add_argument(
+        "--fence",
+        metavar="JSON",
+        default=None,
+        help="hold the agent to this fence, on this machine and on the target: what "
+        "`hmz internal fence --policy` takes, drawn from its levels",
+    )
+    built.add_argument(
         "--check",
         action="store_true",
         help="connect to the target, report what was found, and exit",
@@ -214,6 +221,7 @@ def settings(args: Namespace) -> AnchorConfig:
         reports as the bad arguments they are.
     """
     from .anchor import AnchorConfig
+    from .fence import Fence
 
     return AnchorConfig(
         target=args.target,
@@ -236,6 +244,7 @@ def settings(args: Namespace) -> AnchorConfig:
         projects=tuple(_pair(said) for said in args.project),
         carries=tuple(_pair(said) for said in args.carry),
         installs=args.installs,
+        fence=Fence.loads(args.fence) if args.fence else None,
     )
 
 
@@ -281,6 +290,7 @@ def options(config: AnchorConfig) -> list[str]:
         # than to None, and an empty line would read as a CLI nothing installs.
         ("--installs", config.installs or None),
         ("--broker", config.broker or None),
+        ("--fence", config.fence.dumps() if config.fence is not None else None),
     ):
         if value is not None:
             written.append(f"{flag}={value}")

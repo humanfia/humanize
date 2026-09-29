@@ -57,8 +57,17 @@ ALLOWED: dict[str, set[str]] = {
     # Except the target half, which is held apart from the rest of its own package. It runs
     # on the target, which may be any architecture and has only what the bundle carried, so
     # it may name the wire and nothing else -- not even the package it sits in, whose name
-    # would be leave to name every driver in it.
-    "hmz.coganchor.serve": {"hmz.coganchor.proto"},
+    # would be leave to name every driver in it. Except the fence, which a target puts up
+    # around the commands a fenced agent has run there: the fence itself and the Landlock and
+    # socket-filter bindings it is put up with, each of which names nothing past the wire and
+    # each other, and each of which is loaded only where a fence is asked about.
+    "hmz.coganchor.serve": {
+        "hmz.coganchor.proto",
+        "hmz.coganchor.fence",
+        "hmz.coganchor.linux.landlock",
+        "hmz.coganchor.linux.seccomp",
+        "hmz.coganchor.linux.syscalls",
+    },
     # What a run is: driving one, writing it down as it happens, and reading it back
     # afterwards. Held open as its own modules rather than closed as one layer, because what
     # humanize reports about itself lives here and every layer may reach for it -- including

@@ -429,6 +429,7 @@ Everything after the agent's name is the agent's own.
 | `--project NAME=DIR` | — | With `--native`, put this directory of credentials on the target for the turn and set `NAME` to where it landed. Readable only by the target's user; removed after. Repeatable. |
 | `--carry DIR=PATH` | — | With `--native`, put this directory into the target's workspace at `PATH` for the turn. How a flow's own [skills](/reference/flows#the-skills-a-flow-brings) get there. Nothing already at `PATH` is overwritten. Repeatable. |
 | `--installs LINE` | — | With `--native`, the line that installs this CLI, said where the target has none. |
+| `--fence JSON` | — | Hold the agent to this [fence](/reference/agents#the-fence), on both machines: the agent process here by this machine's Landlock, and every command it runs by the target's, drawn again from the fence's levels around the target's own workdir and home. A fence built path by path, or one with a harness elsewhere, exits 2. A target that cannot hold it refuses the session. |
 | `--check` | off | Connect, report what was found, and exit without running anything. |
 | `--log-level {debug,info,warning,error}` | `$HUMANIZE_LOG`, else `warning` | Logging to stderr. |
 
@@ -465,6 +466,11 @@ hmz internal anchor serve --export VIRTUAL[:REAL] (--stdio | --listen [HOST:]POR
 | `--log-level` | As for `hmz internal anchor`. |
 
 One of `--stdio`, `--listen` and `--peer` is required, and only one.
+
+A command sent with a fence runs under this machine's own `hmz internal fence`, drawn around
+the exported directories, this user's `$HOME` and this machine's minimum. On a machine that has
+no Landlock, the command is refused and never runs. The machine says whether it can fence when
+a client connects.
 
 ::: danger
 Listening on anything but loopback without `--token` is refused. An open port is a shell on

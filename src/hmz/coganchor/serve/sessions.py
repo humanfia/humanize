@@ -166,6 +166,8 @@ class ExecSession(Session):
         self._env: dict[str, str] = dict(request.get("env") or {})
         self._tty: bool = bool(request.get("tty"))
         self._winsize: list[int] | None = request.get("winsize")
+        #: The levels the client's agent is fenced at, or None for a command run as it is.
+        self._fence: dict[str, Any] | None = request.get("fence")
         self._stdin: queue.Queue[bytes | None] = queue.Queue()
         self._process: subprocess.Popen[bytes] | None = None
         self._started = threading.Event()
@@ -213,6 +215,13 @@ class ExecSession(Session):
         self._program = self._table.rewrite(self._program) if self._program else None
         self._env = {name: self._table.rewrite(v) for name, v in self._env.items()}
         env = compose_env(self._env, cwd, tty=self._tty)
+        if self._fence is not None:
+            from hmz.coganchor.serve.fencing import fenced
+
+            self._argv = fenced(
+                self._fence, self._table, self._argv, self._program, env
+            )
+            self._program = None
         master, slave = pty.openpty() if self._tty else (None, None)
         if master is not None and self._winsize:
             rows, cols = self._winsize

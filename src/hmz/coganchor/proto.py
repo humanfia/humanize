@@ -55,6 +55,7 @@ __all__ = [
     "RemoteOSError",
     "Stream",
     "hello_capabilities",
+    "hello_fences",
     "path_key",
     "path_within",
     "rewrite_path_prefix",
@@ -105,7 +106,9 @@ class Op(enum.Enum):
     UTIME = "utime"
 
     # Process execution.  EXEC opens a stream that CHUNK/END frames feed;
-    # SIGNAL is a separate request naming that stream.
+    # SIGNAL is a separate request naming that stream.  An EXEC carrying a
+    # ``fence`` runs its command inside that fence, drawn again on the target
+    # (:mod:`hmz.coganchor.fence.abroad`), or not at all.
     EXEC = "exec"
     SIGNAL = "signal"
 
@@ -144,6 +147,27 @@ def hello_capabilities(said: dict[str, Any]) -> frozenset[str]:
       something nothing here has a name for.
     """
     return PLATFORMS & {str(said.get("platform", ""))}
+
+
+def hello_fences(said: dict[str, Any], *, net: bool) -> bool:
+    """Whether a target said at the handshake that it can fence the commands it runs.
+
+    A target of a build that predates fences says nothing, which reads as a target that
+    cannot: it would run a fenced command as though no fence had been asked for.
+
+    Args:
+      said: The meta of the reply to :attr:`Op.HELLO`.
+      net: Whether the fence cuts the network as well as the filesystem.
+
+    Returns:
+      Whether it has Landlock, and where `net` is asked for, the ABI and the socket filter
+      that cut the network too.
+    """
+    able = said.get("fence")
+    if not isinstance(able, dict):
+        return False
+    held = cast("dict[str, Any]", able)
+    return held.get("fs") is True and (not net or held.get("net") is True)
 
 
 class Stream(enum.IntEnum):

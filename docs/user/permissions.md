@@ -79,8 +79,14 @@ humanize never runs an agent with more than its grant. A role is refused before 
 - **this machine has no Landlock:** macOS, or a Linux kernel older than 5.13 or booted
   without it. A kernel older than 6.7 cannot cut the network, so `online` of `NONE` is
   refused there.
-- **the work lands on another machine:** a [container](/user/containers) or an ssh host. A
-  role runs there only with `ALL` in every scope, `online` included.
+- **the work lands on another machine that has no Landlock:** a [container](/user/containers)
+  or an ssh host whose kernel is too old, or a container whose seccomp profile refuses
+  Landlock. Docker's own default profile allows it.
+
+A container or an ssh host is held to the same grant as this machine. The agent's CLI still
+runs here, fenced here. Every command it runs lands on the other machine and is fenced there,
+around that machine's own workdir and `$HOME`. With `online` of `NONE`, those commands reach
+no host at all.
 
 Only a grant of `ALL` everywhere is enforced by nothing, because there is nothing to hold.
 :::

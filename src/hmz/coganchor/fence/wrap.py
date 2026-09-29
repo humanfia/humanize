@@ -112,7 +112,6 @@ def run(fence: Fence, argv: Sequence[str]) -> int:
       RuntimeError: If this host cannot enforce the fence, said before anything is started.
     """
     from hmz.coganchor.fence import enforceable
-    from hmz.coganchor.providers.redirect import failed, swept
 
     if not argv:
         raise ValueError("no program to run")
@@ -141,16 +140,32 @@ def run(fence: Fence, argv: Sequence[str]) -> int:
         if not pid:
             _become(fence, argv, env, tmp, port, (parent, libc))
         try:
-            return failed(_waited(pid))
+            status = _waited(pid)
         finally:
-            # What a supervisor inside left of a credential in memory, where the program
-            # was `hmz internal cred` and was killed before it could take it away itself.
-            swept(pid)
+            _swept(pid)
+        if os.WIFEXITED(status):
+            return os.WEXITSTATUS(status)
+        return 128 + os.WTERMSIG(status) if os.WIFSIGNALED(status) else 1
     finally:
         if proxy is not None:
             proxy.stop()
         if made:
             shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _swept(pid: int) -> None:
+    """Takes away what a supervisor inside left of a credential in memory.
+
+    Where the program was `hmz internal cred` and was killed before it could take it away
+    itself. Nothing where there are no providers to have supervised one: a target humanize was
+    bootstrapped onto fences the commands it runs with this same wrapper, and carries no
+    accounts -- the bundle it runs from leaves them out.
+    """
+    try:
+        from hmz.coganchor.providers.redirect import swept
+    except ImportError:
+        return
+    swept(pid)
 
 
 def _become(

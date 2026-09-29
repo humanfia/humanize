@@ -379,20 +379,6 @@ def test_without_landlock_a_cli_that_enforces_everything_itself_is_still_served(
     _agent(_fence(tmp_path))
 
 
-@pytest.mark.usefixtures("enforceable")
-def test_a_fence_is_refused_where_the_work_lands_on_another_machine(
-    tmp_path: Path,
-) -> None:
-    from hmz.coganchor.agents.config import anchored
-
-    with pytest.raises(Unfenced, match="another machine"):
-        _agent(_fence(tmp_path), machine=anchored("ssh://somewhere"))
-    everything = Fence.of(
-        local=ALL, user=ALL, system=ALL, online=True, workdir=tmp_path, home=tmp_path
-    )
-    _agent(everything, machine=anchored("ssh://somewhere"))
-
-
 def test_a_config_refused_its_fence_leaves_the_agent_as_it_was(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

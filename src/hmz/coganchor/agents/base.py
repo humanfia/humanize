@@ -3412,6 +3412,11 @@ def identifying(config: type[AgentConfig], backend: str) -> dict[str, Any]:
     return {"cli": backend} if issubclass(config, AcpAgentConfig) else {}
 
 
+#: The targets that have said they can fence the commands run on them, each with whether it
+#: was asked about the network too: see :meth:`AgentBase._reached`.
+_FENCING: set[tuple[str, bool]] = set()
+
+
 def _programs(name: str) -> list[str]:
     """What a fence has to let a CLI read for it to run: its programs and where they live.
 
@@ -3467,6 +3472,20 @@ def _programs(name: str) -> list[str]:
         if directory not in never:
             held.append(str(directory))
     return held
+
+
+def _ready(fence: Fence) -> None:
+    """Makes the directories a fence lets be written, where they are not there yet.
+
+    A grant of a path that is not there yet is no grant at all -- Landlock can hold only what
+    exists -- so the directories a CLI keeps its state in, and the one its sessions are kept
+    in, are made before it is spawned into a fence that would stop it making them itself on
+    its first run.
+    """
+    for path in fence.write:
+        if not os.path.lexists(path) and _directory(path):
+            with contextlib.suppress(OSError):
+                os.makedirs(path, mode=0o700, exist_ok=True)  # noqa: PTH103
 
 
 def _directory(path: str) -> bool:
@@ -3833,33 +3852,28 @@ class AgentBase(ABC):
         around it from outside here: by Landlock, at an ABI that can cut the network where
         the network is to be cut, beside a seccomp filter for every protocol Landlock cannot.
 
-        An agent whose turns land on another machine is refused any fence its CLI does not
-        hold entirely by itself. A wall is put up where the process it holds runs, and an
-        anchored turn's commands run on the target -- under a supervisor there, or under the
-        target's own CLI -- where nothing of this machine's reaches to put one up. Refused
-        rather than held here around the half of the turn that is not where the work is,
-        which would be a fence that holds the agent's reading and none of its commands.
+        An agent whose turns land on another machine is fenced by its anchor, on both
+        machines and whatever its CLI enforces natively (:meth:`_abroad`), and is refused here
+        what that cannot hold.
 
         Args:
           config: What the agent is to run at.
 
         Raises:
-          Unfenced: If the fence is not held natively in full, and either the agent's work
-            lands on another machine or this machine has no Landlock to hold the rest with.
+          Unfenced: If the fence is not held natively in full and this machine has no
+            Landlock to hold the rest with, or the agent's work lands on another machine
+            and the fence cannot be held there.
         """
         if config.fence is None:
             return
         from hmz.coganchor.fence import enforceable
 
+        if config.machine is not None:
+            self._abroad(config)
+            return
         rest = self.natively(config.fence)
         if rest.open:
             return
-        if config.machine is not None:
-            raise Unfenced(
-                f"{type(self).__name__}: a session whose work lands on another machine "
-                "cannot be fenced there; grant it everything (local, user and system ALL, "
-                "online ALL), or run it on this machine"
-            )
         if not enforceable(net=not rest.online):
             needs = (
                 "Landlock ABI 4 (Linux 6.7 or later) and seccomp to cut the network"
@@ -3870,6 +3884,99 @@ class AgentBase(ABC):
                 f"{type(self).__name__} cannot be held to its permission on this machine: "
                 f"it does not enforce it natively, and fencing it from outside needs {needs}"
             )
+
+    def _abroad(self, config: AgentConfig) -> None:
+        """Refuses a fence an anchored agent cannot be held to, as its config arrives.
+
+        An anchored turn is two halves on two machines and the fence is held on both, by the
+        anchor rather than around it (:attr:`~hmz.coganchor.anchor.AnchorConfig.fence`).
+        Supervised, the agent process here is walled in by this machine's Landlock and the
+        commands it has run on the target by the target's; driven natively, the CLI is walled
+        in on the target alone. Whether the target can is asked of the target, as the first
+        turn reaches it (:meth:`_reached`); what can be answered before a machine is up is
+        answered here.
+
+        The whole fence, rather than what :meth:`natively` leaves of it: what a CLI enforces
+        natively it enforces around the commands it starts on this machine, and a supervised
+        CLI's commands are started on another one.
+
+        Args:
+          config: What the agent is to run at, whose `machine` is set.
+
+        Raises:
+          Unfenced: If the fence was drawn path by path and so cannot be drawn again on the
+            target, the harness runs on another machine, the agent's own connections are
+            sent to the target past a cut network, or this machine cannot wall in an agent
+            supervised here.
+        """
+        from hmz.coganchor.elsewhere import elsewhere
+        from hmz.coganchor.fence import enforceable
+
+        fence = config.fence
+        if fence is None or fence.open:
+            return
+        name = type(self).__name__
+        anchor: AnchorConfig | None = getattr(config.machine, "anchor", None)
+        if not fence.scopes:
+            raise Unfenced(
+                f"{name}: a fence drawn path by path cannot be held on another machine"
+            )
+        if anchor is not None and elsewhere(anchor):
+            raise Unfenced(
+                f"{name}: a fence cannot hold a harness that runs on another machine"
+            )
+        if anchor is not None and anchor.native:
+            return
+        if anchor is not None and anchor.net == "remote" and not fence.online:
+            raise Unfenced(
+                f"{name}: an agent whose own connections are sent to the target cannot "
+                "have its network cut here"
+            )
+        if not enforceable(net=not fence.online):
+            raise Unfenced(
+                f"{name} cannot be held to its permission: it is supervised on this "
+                "machine, which has no Landlock"
+                + ("" if fence.online else " ABI 4 and seccomp to cut the network")
+            )
+
+    def _reached(self, anchor: AnchorConfig, fence: Fence) -> None:
+        """Refuses a target that cannot fence the commands run on it, asked once per target.
+
+        The target's own answer, which it gives at the handshake: a machine without Landlock
+        -- a kernel before 5.13 or booted without it, a Mac, a container whose seccomp profile
+        refuses the calls -- or older than 6.7 where the network is to be cut, cannot, and
+        neither can one running a humanize from before fences, which says nothing. A target
+        that could is remembered for the life of this process; one that could not is asked
+        again, being a machine somebody may yet fix.
+
+        Args:
+          anchor: What reaches it.
+          fence: What the agent is held to.
+
+        Raises:
+          Unfenced: If it cannot.
+          OSError: If it cannot be reached at all.
+        """
+        from hmz.coganchor import check
+        from hmz.coganchor.proto import hello_fences
+
+        net = not fence.online
+        key = (anchor.target, net)
+        if key in _FENCING:
+            return
+        if not hello_fences(check(anchor), net=net):
+            raise Unfenced(
+                f"{self._id}: {anchor.target} cannot fence the commands the agent runs "
+                "there: it needs Landlock (Linux 5.13 or later, not refused by a "
+                "container's seccomp profile)"
+                + (
+                    ", at ABI 4 (Linux 6.7) with seccomp, to cut the network"
+                    if net
+                    else ""
+                )
+                + "; grant the agent everything, or run it where it can be fenced"
+            )
+        _FENCING.add(key)
 
     def natively(self, fence: Fence) -> Fence:
         """What is left of a fence once this agent's CLI has enforced its own part of it.
@@ -4716,43 +4823,47 @@ class AgentBase(ABC):
           fenced, nor run under a provider, and whose sessions stay where its CLI keeps them.
 
         Raises:
-          Unfenced: If the agent is fenced and its turns land on another machine, which
-            :meth:`_serves` has refused already for any config that says so.
+          Unfenced: If the agent is fenced, its turns land on another machine, and that
+            machine cannot fence the commands run on it.
         """
-        wrapped = self._wrapped(argv, cwd)
         fence = self.fenced()
+        if fence is not None and self._config.machine is not None:
+            # Held by the anchor rather than around it, on both machines: see `_abroad`.
+            return self._wrapped(argv, cwd, fence)
+        wrapped = self._wrapped(argv, cwd)
         if fence is None:
             return wrapped
         rest = self.natively(fence)
         if rest.open:
             return wrapped
-        if self._config.machine is not None:
-            raise Unfenced(f"{self._id}: a fence cannot be put up on another machine")
         from hmz.coganchor.fence import wrapper
 
-        # A grant of a path that is not there yet is no grant at all -- Landlock can hold only
-        # what exists -- so the directories a CLI keeps its state in are made before it is
-        # spawned into a fence that would stop it making them itself on its first run.
-        for path in rest.write:
-            if not os.path.lexists(path) and _directory(path):
-                with contextlib.suppress(OSError):
-                    os.makedirs(path, mode=0o700, exist_ok=True)  # noqa: PTH103
+        _ready(rest)
         return [*wrapper(rest.granting(read=_programs(argv[0]))), *wrapped]
 
-    def _wrapped(self, argv: list[str], cwd: str = "") -> list[str]:
+    def _wrapped(
+        self, argv: list[str], cwd: str = "", fence: Fence | None = None
+    ) -> list[str]:
         """:meth:`spawned`, short of the fence: the CLI under its account and its anchor.
 
         Args:
           argv: The backend's own command for this turn.
           cwd: Where the session works, as :meth:`spawned` takes it.
+          fence: What an anchored agent is held to, which its anchor is told to hold it to;
+            None for an agent that is not anchored, or not fenced.
 
         Returns:
           The command to spawn, before a fence is put around it.
+
+        Raises:
+          Unfenced: If the anchor cannot hold `fence`.
         """
         from hmz.coganchor.backends import elsewhere
 
         provider = self.provider
         anchor = self.anchor
+        if anchor is not None and fence is not None and not fence.open:
+            anchor = self._walled(anchor, fence, argv[0])
         native = anchor is not None and anchor.native
         # A command this machine's PATH does not name is run by the path it is installed at
         # instead: a flow started by something with a PATH of its own -- a notebook kernel, a
@@ -4785,6 +4896,38 @@ class AgentBase(ABC):
         return self._reaching(anchor, provider).command(
             argv, swaps=(*swaps, *kept), private=private, chdir=cwd
         )
+
+    def _walled(self, anchor: AnchorConfig, fence: Fence, cli: str) -> AnchorConfig:
+        """The anchor, told to hold this agent to its fence -- having asked the target it can.
+
+        Args:
+          anchor: What reaches the target.
+          fence: What the agent is held to, as :meth:`fenced` widened it.
+          cli: The CLI's command, whose programs a CLI supervised here has to be let read.
+
+        Returns:
+          The anchor, with its `fence`.
+
+        Raises:
+          Unfenced: If the target cannot fence, or the anchor cannot hold this fence.
+        """
+        from dataclasses import replace
+
+        self._reached(anchor, fence)
+        if anchor.native:
+            # Its levels, its hosts, and the state it keeps: what `fenced` added, which the
+            # target keeps under its own home. The roots of this machine's are not the
+            # target's, which draws its own again from the levels.
+            raw = self._config.fence
+            added = [one for one in fence.write if raw is None or one not in raw.write]
+            held = replace(fence, read=(), write=tuple(added))
+        else:
+            _ready(fence)
+            held = fence.granting(read=_programs(cli))
+        try:
+            return replace(anchor, fence=held)
+        except ValueError as refused:
+            raise Unfenced(f"{self._id}: {refused}") from refused
 
     def _reaching(
         self, anchor: AnchorConfig, provider: Provider | None = None

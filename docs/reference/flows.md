@@ -434,9 +434,9 @@ scopes say, a CLI can also:
 - read the minimum any program needs to run: `/usr`, `/bin`, `/lib*`, the few files under
   `/etc` a resolver and a TLS stack read, `/proc` and `/sys`. It can also read its own
   programs and their install trees, and the Python that runs humanize.
-- write the devices (`/dev/null`, `/dev/tty`, `/dev/pts`, `/dev/shm` and the rest), its own
-  state and sign-in directories, the directory its sessions are kept in, and a scratch
-  directory of its own that is its `TMPDIR`. Build caches (`XDG_CACHE_HOME`, `UV_CACHE_DIR`,
+- write the devices (`/dev/null`, `/dev/tty`, `/dev/pts`, `/dev/shm`, the GPUs' nodes and
+  the rest), its own state and sign-in directories, the directory its sessions are kept in,
+  and a scratch directory of its own that is its `TMPDIR`. Build caches (`XDG_CACHE_HOME`, `UV_CACHE_DIR`,
   `npm_config_cache`, `PIP_CACHE_DIR`, `GOCACHE`) are pointed into that scratch directory
   wherever the fence would not let them be written.
 
@@ -449,9 +449,19 @@ outside with `hmz internal fence`, which uses Landlock for paths and TCP, a secc
 refuses every other kind of socket, and a proxy on loopback that passes only the listed hosts.
 humanize never runs a session wider than its permission. If neither the CLI nor this machine
 can hold the fence, the session is refused with `HarnessSandboxed` when it opens. That happens
-with no Landlock (macOS, or a Linux kernel older than 5.13), with a kernel older than 6.7 when
-`online` is `NONE`, or when the work lands on another machine (a docker or ssh environment).
-Only `local`, `user` and `system` all `ALL` with `online` `ALL` fences nothing.
+with no Landlock (macOS, or a Linux kernel older than 5.13), or with a kernel older than 6.7
+when `online` is `NONE`. Only `local`, `user` and `system` all `ALL` with `online` `ALL`
+fences nothing.
+
+When the work lands on another machine (a docker or ssh environment), the fence is held on
+both machines, each around its own paths. The CLI still runs here, walled in by this machine's
+Landlock, with the environment's mirror as its workdir. Every command it runs lands on the
+target, which runs it under `hmz internal fence` too: the target draws the same fence again,
+from the same four scopes, around its own workdir, its own `$HOME` and its own minimum. With
+`online` `NONE`, a command on the target reaches no host at all; only the CLI here reaches its
+model. If the target cannot hold the fence (no Landlock there, including a container whose
+seccomp profile refuses the calls), the session is refused with `HarnessSandboxed` on its first
+turn.
 
 <!-- Each per-CLI unit updates its own row when its driver enforces part of the fence natively. -->
 | CLI | Filesystem | Network |

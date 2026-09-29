@@ -40,9 +40,12 @@ What that comes to in practice:
 - **A read-only role** (`local` of `READ` or `NONE`) also runs in its CLI's read-only mode.
 - **`online` of `NONE`** cuts the network, except the hosts the agent's model and login are
   at. The CLI's web tools are switched off too, where it can be told.
+- **Work in a container or on an ssh host is fenced there too.** Every command the agent
+  runs on that machine is held by that machine's own Landlock, around its own working
+  directory and home.
 - **A grant that cannot be held is refused, not widened.** On macOS, on a Linux kernel
-  without Landlock, and for work in a container or on an ssh host, a role runs only with
-  `ALL` in every scope.
+  without Landlock, and for work on a machine without it, a role runs only with `ALL` in
+  every scope.
 - **Two ways out remain.** Landlock does not govern Unix sockets, so an agent can still talk
   to a socket another program listens on, a docker daemon's among them. And whatever an
   agent can write, a later run can read.
