@@ -784,6 +784,39 @@ def test_kimi_opens_then_resumes(kimi: _FakeServer) -> None:
     assert all(call["token"] == "Bearer secret" for call in calls)
 
 
+def test_a_kimi_daemon_offline_is_fenced_and_told_the_one_port_it_may_bind(
+    kimi: _FakeServer, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dataclasses import replace
+
+    from hmz.coganchor.fence import ALL, NONE, READ, Fence
+    from tests import fencing
+
+    log = tmp_path / "fences.log"
+    monkeypatch.setenv(fencing.LOG, str(log))
+    fence = Fence.of(
+        local=ALL,
+        user=READ,
+        system=NONE,
+        online=False,
+        workdir=tmp_path,
+        home=Path.home(),
+    )
+    agent = KimiCodeCLIAgent(replace(_agent().config, fence=fence))
+    session = agent.new()
+    assert session("hi") == "answered"
+    session("again")
+
+    started, *_ = kimi.calls()
+    port = int(started["body"][started["body"].index("--port") + 1])
+    assert port != 0
+    # One daemon for both turns, spawned once inside the fence, which lets it bind that port.
+    (policy,) = fencing.policies(log)
+    held = Fence.loads(json.dumps(policy))
+    assert not held.online
+    assert held.listen == (port,)
+
+
 def test_a_kimi_turn_says_what_it_is_doing_and_what_it_came_to(
     kimi: _FakeServer,
 ) -> None:

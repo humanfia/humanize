@@ -462,7 +462,7 @@ Only `local`, `user` and `system` all `ALL` with `online` `ALL` fences nothing.
 | `opencode` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `mimo` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `qwen` | external (Landlock + proxy) | external (Landlock + proxy) |
-| `kimi` | external (Landlock + proxy) | external (Landlock + proxy) |
+| `kimi` | external (Landlock + proxy) | external (Landlock + proxy; its daemon may bind its one port) |
 | `grok` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `pi` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `zcode` | external (Landlock + proxy) | external (Landlock + proxy) |
