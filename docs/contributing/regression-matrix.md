@@ -61,7 +61,9 @@ The grid is drawn at the foot of the run:
 Under the grid the run lists where each column ran, what the run spent, and why each cell that
 did not pass did not. A `skip` names what was missing: a CLI that is not installed, an account
 that would not take a turn, a provider that refused or throttled one, no docker for the ssh
-row.
+row. A turn the kernel refused a file or a socket (`EACCES`, `EPERM`, `permission
+denied`) is never a `skip`, whatever its CLI's error was taken for: that is a fence held too
+tightly, and humanize's.
 
 ## Where each column runs
 
@@ -80,7 +82,7 @@ The `named_account` row always runs under an account made the second way.
 ## What it costs
 
 A cell takes one to three turns of a few words each, on the cheapest model its CLI takes, under
-`-b cost=0.5,output_tokens=40000`. The whole matrix is 339 cells: 28 rows for each of twelve
+`-b cost=0.5,output_tokens=40000`. The whole matrix is 387 cells: 32 rows for each of twelve
 CLIs, and 3 rows run once. A run of all of it spent about 29,000 output tokens, a dollar of it
 priced, and took under half an hour -- as it did inside a whole `uv run pytest --run-agents`:
 the slowest column sets the time. The run prints what it spent, priced from the list your
@@ -162,6 +164,19 @@ async def test_settings_accounts(asking: None) -> None:
 
 A CLI humanize drives is a column as soon as it is in `hmz.coganchor.backends.PROFILES`. Give
 it candidates in `tests/matrix/places.py`: its cheapest model as local, then an account.
+
+::: details The fence rows write outside the test's own directory
+Five rows hold an agent to a `Permission` and check each scope on disk: `fence_default`,
+`fence_system_none`, `fence_user_none`, `fence_offline` and `fence_open`. The agent runs one
+script the row wrote into its workdir, and each row checks what landed on disk rather than
+what the agent said. To have something to refuse, they write outside the test's directory:
+a file in your home directory named `.hmz-fence-<cli>-<random>`, one of the same name under
+`/var/tmp`, and a `hmz-matrix-<cli>-*` directory in the system's temporary directory. Every
+cell has its own names, and removes them when it ends. `fence_open` also writes such a file
+to your home directory, as an agent granted everything may. `fence_offline` asks the agent's
+web tool for a page on `api.github.com` that no model knows by heart. If the answer quotes
+that page, the network was not cut.
+:::
 
 ::: details The rows about other machines need docker
 `test_ssh_env` and `test_ssh_provider` run their agent on another machine: an `sshd` in a

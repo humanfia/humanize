@@ -20,7 +20,8 @@ reads the same for "cannot" and "did not" is a matrix nobody can act on:
   limitation written on the feature;
 - **environment** -- skipped with a reason beginning `environment:`, because this machine could
   not give the cell what it needs: the CLI is not installed, no account answers, the provider
-  refused or throttled the turn, there is no sshd. Said with what was missing;
+  refused or throttled the turn, there is no sshd. Said with what was missing. Not a turn the
+  kernel refused a file or a socket, which is a fence held too tightly, and humanize's;
 - **failed** -- anything else, which is humanize's to answer for. A failure that is known and
   not fixed yet is an `xfail(strict=True)` written on the feature, naming the bug, so that the
   day it is fixed the cell goes red until somebody takes the mark off.
@@ -108,6 +109,15 @@ _ENVIRONMENTAL: Final = (HarnessThrottled, HarnessRefused, HarnessSandboxed)
 #: The same failures as `hmz exec` prints them, at the foot of the traceback it exits with.
 _SAID: Final = re.compile(
     r"\b(" + "|".join(one.__name__ for one in _ENVIRONMENTAL) + r")\b: (.*)"
+)
+
+#: What a CLI says when this machine refused it a file or a socket: the kernel's own words for
+#: it, as Node, Go and Bun spell them. A turn that dies of one is a turn a fence held too
+#: tightly, whatever the driver made of it -- it may well read the CLI's exit as a sign-in
+#: refused -- so it is humanize's to answer for, and fails its cell rather than skipping it.
+#: Not where it was refused as sandboxed: that is a machine that can put up no fence at all.
+_DENIED: Final = re.compile(
+    r"\bEACCES\b|\bEPERM\b|PermissionDenied: FileSystem|: permission denied\b"
 )
 
 #: How much of a stream a failure quotes: the end, which is where a traceback says what.
@@ -451,6 +461,8 @@ class Cell:
         found = _SAID.findall(err)
         if found:
             kind, why = found[-1]
+            if kind != HarnessSandboxed.__name__ and _DENIED.search(why):
+                return
             pytest.skip(f"environment: {self.place} -- {kind}: {_told(why)}")
 
     def run(
@@ -522,6 +534,8 @@ class Cell:
         try:
             yield
         except _ENVIRONMENTAL as why:
+            if not isinstance(why, HarnessSandboxed) and _DENIED.search(str(why)):
+                raise
             pytest.skip(
                 f"environment: {self.place} -- {type(why).__name__}: {_told(str(why))}"
             )
