@@ -11,12 +11,19 @@ Driving the same backend against a stand-in that prints what it prints is next d
 
 from __future__ import annotations
 
+import sys
+from typing import TYPE_CHECKING
+
 import pytest
 
 from hmz.coganchor import backends
 from hmz.coganchor.agents import CursorAgent, CursorAgentConfig
 from hmz.coganchor.agents.cursor import _COMMAND, spelled
+from hmz.coganchor.fence import ALL, NONE, READ, Fence
 from tests.agents import cursors
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_the_cli_is_named_by_what_it_is_installed_as() -> None:
@@ -140,3 +147,53 @@ def test_a_root_that_is_not_one_is_refused_where_it_is_written() -> None:
 
     with pytest.raises(ValueError, match="add_dirs"):
         replace(cursors.CURSOR, add_dirs=("  ",))
+
+
+def _able(*, net: bool) -> bool:
+    del net
+    return True
+
+
+def test_a_fence_is_held_from_outside_with_its_sign_in_to_write(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Its own sandbox holds its shell commands and not itself, so all of it is held outside.
+
+    And the directory its Linux sign-in is kept in is let be written, a token refreshed
+    mid-turn being written back there, whatever the fence says of the home around it.
+    """
+    from dataclasses import replace
+
+    monkeypatch.setattr("hmz.coganchor.fence.enforceable", _able)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.delenv("CURSOR_CONFIG_DIR", raising=False)
+    home = tmp_path / "home"
+    fence = Fence.of(
+        local=ALL,
+        user=READ,
+        system=NONE,
+        online=False,
+        workdir=tmp_path / "work",
+        home=home,
+    )
+    agent = CursorAgent(replace(cursors.CURSOR, fence=fence))
+
+    argv = agent.spawned(["cursor-agent", "--print"])
+
+    assert argv[:5] == [sys.executable, "-m", "hmz", "internal", "fence"]
+    assert argv[argv.index("--") + 1 :] == ["cursor-agent", "--print"]
+    policy = Fence.loads(argv[5].removeprefix("--policy="))
+    assert not policy.online
+    assert "*.cursor.sh" in policy.hosts
+    assert policy.allows(home / ".config/cursor/auth.json", write=True)
+    assert policy.allows(home / ".cursor/cli-config.json", write=True)
+    assert not policy.allows(home / ".bashrc", write=True)
+    assert not policy.allows("/etc/machine-id")
+    # Only its sign-in is added: a fence that grants everything still puts nothing around it.
+    everything = Fence.of(
+        local=ALL, user=ALL, system=ALL, online=True, workdir=tmp_path, home=home
+    )
+    assert CursorAgent(replace(cursors.CURSOR, fence=everything)).spawned(
+        ["cursor-agent"]
+    ) == ["cursor-agent"]

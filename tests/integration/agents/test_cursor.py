@@ -30,6 +30,7 @@ from hmz.coganchor.agents import (
     Occasion,
     Verdict,
 )
+from tests import fencing
 from tests.agents import cursors, standins
 
 if TYPE_CHECKING:
@@ -507,3 +508,46 @@ def test_a_provider_that_is_the_local_runtime_keeps_what_it_set(
     assert environment is not None
     assert environment["CURSOR_LOCAL_AGENT_BASE_URL"] == "http://127.0.0.1:1/v1"
     assert environment["CURSOR_LOCAL_AGENT_API_KEY"] == "the-provider-key"
+
+
+def test_a_fenced_turn_runs_inside_the_whole_fence(
+    cursor: _Calls, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Its own sandbox is not asked for: every scope is held from outside, its sign-in let in.
+
+    The turn is spawned under the wrapper with the whole fence -- the network cut to Cursor's
+    own hosts, the home read-only but for where it keeps its state and its sign-in -- and the
+    command line inside it is the one an unfenced turn has, with no `--sandbox` of its own.
+    """
+    from dataclasses import replace
+
+    from hmz.coganchor.fence import Fence
+
+    log = tmp_path / "fences.jsonl"
+    monkeypatch.setenv(fencing.LOG, str(log))
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.delenv("CURSOR_CONFIG_DIR", raising=False)
+    home, work = tmp_path / "home", tmp_path / "work"
+    monkeypatch.setenv("HOME", str(home))
+    work.mkdir()
+    fence = Fence.of(
+        local="all",
+        user="read",
+        system="none",
+        online=False,
+        workdir=work,
+        home=home,
+    )
+    session = CursorAgent(replace(cursors.CURSOR, fence=fence)).new(work)
+
+    assert session("hello") == "hello"
+
+    (policy,) = fencing.policies(log)
+    held = Fence.loads(json.dumps(policy))
+    assert not held.online
+    assert "*.cursor.sh" in held.hosts
+    assert held.allows(home / ".config" / "cursor" / "auth.json", write=True)
+    assert held.allows(work / "ok.txt", write=True)
+    assert not held.allows(home / "fence-probe", write=True)
+    (argv,) = cursor.argv()
+    assert "--sandbox" not in argv

@@ -22,11 +22,23 @@ chat and ending on the `result` that carries the answer. That last line says wha
 cost as well, under `usage`, with the cache counted beside the input rather than inside it --
 the same reckoning as everywhere else here. A turn whose model said nothing about tokens
 writes no `usage` at all, and is counted for nothing rather than guessed at.
+
+A fence is held from outside, all of it, and its own sandbox is left out of it. That sandbox
+is `cursorsandbox`, a helper shipped beside the CLI, and three things keep it from holding a
+fence. It is put around the shell commands a turn runs and nothing else: the CLI's own
+process -- whose tools read and write files themselves -- and the MCP servers it starts are
+outside it. It opens a user namespace before it does anything, Landlock included, so on a
+machine that gives an unprivileged process none it does not start at all. And what it is
+told is a file written under `~/.cursor` or the workspace's own `.cursor`, which is somebody
+else's to write. So Cursor is fenced as every CLI with no sandbox is, from outside; its
+HTTP/2 client takes `HTTPS_PROXY` as a tunnel, which is how a turn reaches `*.cursor.sh`
+through the proxy of a fence that cut the network.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
@@ -38,8 +50,9 @@ from .event import Event, Failed, Usage
 from .hooks import EVERYWHERE, SUBAGENTS, Moment
 
 if TYPE_CHECKING:
-    import os
     from collections.abc import Iterator
+
+    from hmz.coganchor.fence import Fence
 
 #: What the CLI is installed as. Its installer writes two names and this is the one that can
 #: only be this CLI: `agent` is a name anything on a machine could have taken.
@@ -572,6 +585,24 @@ class CursorAgent(AgentBase):
             fast=config.service_tier == _FAST,
             listed=_listed(config.provider),
         )
+
+    def natively(self, fence: Fence) -> Fence:
+        """The whole fence, to be held from outside, with where Cursor keeps its sign-in.
+
+        Nothing is enforced natively, for the reasons the module says. What is added is the
+        one place a turn writes that the fence does not already grant: on Linux the sign-in
+        is not under `~/.cursor` but in `auth.json` under the directory every program keeps
+        its configuration in, and a token refreshed mid-turn is written back there. A home
+        the fence only lets be read would fail that write, and the turn with it.
+
+        Args:
+          fence: The fence this agent is held to.
+
+        Returns:
+          `fence`, with that directory to write.
+        """
+        configs = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")  # noqa: PTH111
+        return fence.granting(write=[os.path.join(configs, "cursor")])  # noqa: PTH118
 
     def new(self, cwd: str | os.PathLike[str] | None = None) -> CursorSession:
         """Opens a new Cursor chat, in the directory it is given or in this one."""
