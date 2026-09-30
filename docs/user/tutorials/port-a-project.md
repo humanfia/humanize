@@ -96,7 +96,7 @@ finishes a turn, the **reviewer** opens a fresh one, reads the repository with `
 the tests, and answers two things: `done`, true or false, and `notes`. The notes become the
 actor's next prompt, word for word.
 
-<HmzFlowShape flow="rlar" />
+<HmzFlow flow="rlar" />
 
 Pick the tab for the backends you have:
 

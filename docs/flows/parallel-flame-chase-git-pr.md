@@ -26,7 +26,7 @@ hmz exec -f parallel_flame_chase_git_pr \
 
 :::
 
-<HmzFlowShape flow="parallel_flame_chase_git_pr" />
+<HmzFlow flow="parallel_flame_chase_git_pr" />
 
 ## When to use it
 

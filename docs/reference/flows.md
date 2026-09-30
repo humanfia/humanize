@@ -1628,8 +1628,8 @@ draws the shape of each.
 | [`humanize1:rlcr`](/flows/humanize1) | `builder`, `reviewer`, `human` | `builder`: `PermissionRequestHookAgentMixin` | ✓ |
 | [`parallel_flame_chase`](/flows/parallel-flame-chase) | `coordinator`, `lane_1_actor_a` … `lane_3_actor_b`, `human` | | ✓ |
 | [`parallel_flame_chase_git_pr`](/flows/parallel-flame-chase-git-pr) | `orchestrator`, `lane_1_actor_a` … `lane_3_actor_b`, `human` | | ✓ |
-| [`ralph_loop_agent_cleanup`](/flows/agent-cleanup) | `agent`, `cleaner`, `human` | `SteeringAgentMixin` on both agents | ✓ |
-| [`flame_chase_agent_cleanup`](/flows/agent-cleanup) | `first_chaser`, `second_chaser`, `cleaner`, `human` | `SteeringAgentMixin` on all three agents | ✓ |
+| [`ralph_loop_agent_cleanup`](/flows/ralph-loop-agent-cleanup) | `agent`, `cleaner`, `human` | `SteeringAgentMixin` on both agents | ✓ |
+| [`flame_chase_agent_cleanup`](/flows/flame-chase-agent-cleanup) | `first_chaser`, `second_chaser`, `cleaner`, `human` | `SteeringAgentMixin` on all three agents | ✓ |
 | [`recursive_lean_prover`](/flows/recursive-lean-prover) | `worker`, `reviewer` | `worker`: `PermissionRequestHookAgentMixin` | ✓ |
 | [`aot`](/flows/aot) | `writer`, `critic`, `human` | | |
 

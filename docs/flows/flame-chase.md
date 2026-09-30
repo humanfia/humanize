@@ -22,7 +22,7 @@ hmz exec -f flame_chase \
 
 :::
 
-<HmzFlowShape flow="flame_chase" />
+<HmzFlow flow="flame_chase" />
 
 ## When to use it
 
@@ -55,5 +55,5 @@ it keeps counting rounds: a round is one turn each. See [Picking a run up](/user
 
 ## See also
 
-- [flame_chase_agent_cleanup](/flows/agent-cleanup): this loop, with a cleaner between turns
+- [flame_chase_agent_cleanup](/flows/flame-chase-agent-cleanup): this loop, with a cleaner between turns
 - [parallel_flame_chase](/flows/parallel-flame-chase): three of these at once, in three lanes

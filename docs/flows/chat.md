@@ -21,7 +21,7 @@ hmz exec -f chat -a assistant=claude/claude-opus-5:high "what does this reposito
 
 :::
 
-<HmzFlowShape flow="chat" />
+<HmzFlow flow="chat" />
 
 Under `hmz exec` nobody is at the prompt to answer, so a run is a single turn: one question
 answered, or one task done.

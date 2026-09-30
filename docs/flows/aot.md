@@ -21,7 +21,7 @@ hmz exec -f aot -a writer=claude/claude-opus-5:high -a critic=codex/gpt-5.6-sol:
 
 :::
 
-<HmzFlowShape flow="aot" />
+<HmzFlow flow="aot" />
 
 When it lands, it prints what the new flow drives, takes and ends on, and the line that runs
 it:

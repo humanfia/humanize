@@ -9,13 +9,25 @@ it stops. Pick the one that fits your job, give each of its roles an agent, and 
 
 <HmzFlows />
 
+## Reading the diagrams
+
+Every flow's page plays a simulated run of it, and every one is drawn with the same few marks.
+A mark means one thing, in every diagram:
+
+<HmzFlowLegend />
+
+The camera follows the run: it closes in on each turn as it starts, cranes up while lanes run
+at once, drops a level where the work splits, and pulls back for the loop and the finish. Pause
+it, step a moment at a time, or drag the bar. With reduced motion set, the whole run is drawn at
+rest instead.
+
 ## The loops, side by side
 
 Most of these flows differ in one thing: what an agent has in front of it when a round starts.
-A **new** box is a session opened for that turn, and a **held** box is one more turn of a
-session the flow already had. Play them, or step through a turn at a time:
+Play them one after another and watch for the spark of a new session against the thread of a
+held one:
 
-<HmzFlowShape pick="ralph_loop,stateful_ralph,continue_loop,goal,flame_chase,rlar" />
+<HmzFlow pick="ralph_loop,stateful_ralph,continue_loop,goal,flame_chase,rlar" />
 
 These six are the loops [FlowBench](https://humanfia.ai/projects/flowbench) scores, under the
 same names, so a result there tells you which flow to reach for here.

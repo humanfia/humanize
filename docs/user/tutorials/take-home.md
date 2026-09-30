@@ -95,7 +95,7 @@ every turn opens a fresh **session**, a conversation with the model that has see
 before. What passes from one turn to the next is the repository and `NOTES.md`, not a
 transcript.
 
-<HmzFlowShape flow="flame_chase" />
+<HmzFlow flow="flame_chase" />
 
 Start it. Pick the tab for the backends you have:
 
