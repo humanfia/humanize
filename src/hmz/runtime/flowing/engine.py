@@ -53,6 +53,7 @@ from hmz.flows import (
     FlowDepthExceeded,
     FlowParams,
     FlowRuntimeError,
+    GitEnvMixin,
     HarnessMismatch,
     MissingRole,
     OutputTokensExceeded,
@@ -635,6 +636,26 @@ def _narrowed(
     if role.resources:
         _meets(role, driver, flow)
     return EnvView(driver, role.grant, node, role.name, chain)
+
+
+def _serves_env(flow: FlowImpl, role: EnvRole, driver: EnvDriver) -> None:
+    """Refuses an environment whose driver cannot do what a role declares.
+
+    Raises:
+      CapabilityMissing: If it cannot, saying why where the machine is what is short.
+    """
+    lacking = role.capabilities - driver.capabilities
+    if lacking:
+        why = (
+            ": GitEnvMixin needs git on the machine's PATH, and it has none"
+            if GitEnvMixin in lacking
+            else ""
+        )
+        raise CapabilityMissing(
+            f"{flow.ref}: {role.name!r} needs "
+            f"{', '.join(sorted(one.__name__ for one in lacking))}, which "
+            f"{driver.backend}@{driver.provider}{driver.workdir} does not support{why}"
+        )
 
 
 def _meets(role: EnvRole, driver: EnvDriver, flow: FlowImpl) -> None:
@@ -1377,6 +1398,10 @@ class Run:
             self.here_chain = f"{driver.backend}@{driver.provider}{driver.workdir}"
         grant = self.here_grant
         assert grant is not None  # noqa: S101 -- set with the driver
+        if not role.capabilities <= grant.capabilities:
+            # What the workspace lacks is the machine's to say, not a grant's. Asked here
+            # first, without building a set, since nearly every role lacks nothing.
+            _serves_env(flow, role, driver)
         return _narrowed(role, driver, grant, self.here_chain, node, flow)
 
     def spec_of(self, view: AgentView | OutworlderView) -> str:
@@ -1695,13 +1720,7 @@ async def run_flow(
     for role in eroles:
         driver = envs.get(role.name)
         if driver is not None:
-            lacking = role.capabilities - driver.capabilities
-            if lacking:
-                raise CapabilityMissing(
-                    f"{impl.ref}: {role.name!r} needs "
-                    f"{', '.join(sorted(one.__name__ for one in lacking))}, which "
-                    f"{driver.backend}@{driver.provider}{driver.workdir} does not support"
-                )
+            _serves_env(impl, role, driver)
             if role.resources:
                 _meets(role, driver, impl)
     said = impl.params_of(params)
