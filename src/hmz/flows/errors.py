@@ -57,6 +57,7 @@ __all__ = [
     "PermissionTooNarrow",
     "RequirementError",
     "ResourceUnmet",
+    "RewindError",
     "ScratchError",
     "SessionError",
     "StateNotSerializable",
@@ -295,3 +296,7 @@ class TempCloneBusy(EnvError):
 
 class ScratchError(EnvError):
     """A scratch directory could not be made or removed."""
+
+
+class RewindError(EnvError):
+    """A snapshot or rewind failed: not a git worktree, an unknown ref, or what git said."""

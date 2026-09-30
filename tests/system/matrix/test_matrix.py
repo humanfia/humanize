@@ -1379,6 +1379,79 @@ def test_trace(cell: Cell) -> None:
     assert spans, f"the trace read nothing of session {session.ident} back"
 
 
+REWOUND = '''"""One turn in a repository, rewound away after: what it wrote, and what is left."""
+
+import json
+
+from hmz.flows import Agent, AgentCollection, EnvCollection, FilesEnvMixin, FlowParams
+from hmz.flows import GitEnvMixin, LocalEnv, flow
+
+
+class Agents(AgentCollection):
+    worker: Agent
+
+
+class Workspace(LocalEnv, FilesEnvMixin, GitEnvMixin): ...
+
+
+class Envs(EnvCollection):
+    workspace: Workspace
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def rewound(task, *, agents, envs, params, ctx):
+    worker, workspace = agents["worker"], envs["workspace"]
+    before = await workspace.snapshot()
+    session = await worker.spawn(env=workspace)
+    said = await worker.run(task, session=session)
+    written = (await workspace.read("proof.txt")).decode()
+    await workspace.rewind(before)
+    await workspace.write("seen.json", json.dumps({"written": written}).encode())
+    return said
+'''
+
+
+@feature()
+def test_rewind(cell: Cell) -> None:
+    """What an agent wrote in a `GitEnvMixin` workspace is gone once the flow rewinds it.
+
+    The workspace is a repository with one commit and one untracked file; the snapshot is
+    taken before the agent is spawned, and the rewind after its turn leaves the repository
+    as it was, less nothing and plus only what the flow wrote after.
+    """
+    word = _word()
+    here = cell.workspace
+
+    def git(*argv: str) -> str:
+        return subprocess.run(
+            ["git", "-c", "user.name=t", "-c", "user.email=t@t", *argv],
+            cwd=here,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    git("init", "-q")
+    (here / "kept.txt").write_text("kept\n")
+    git("add", ".")
+    git("-c", "commit.gpgsign=false", "commit", "-qm", "first")
+    (here / "untracked.txt").write_text("untracked\n")
+    head = git("rev-parse", "HEAD")
+
+    cell.exec(
+        cell.flow("rewound", REWOUND),
+        f"Create a file named proof.txt in the current directory containing exactly "
+        f"{word}, then reply with exactly one word: DONE",
+    )
+
+    seen = json.loads((here / "seen.json").read_text())
+    assert _says(seen["written"], word), f"the agent wrote no proof: {seen}"
+    assert not (here / "proof.txt").exists(), "the rewind left the agent's file"
+    assert (here / "untracked.txt").read_text() == "untracked\n"
+    assert git("rev-parse", "HEAD") == head
+    assert git("diff", "HEAD", "--name-only") == "", "a tracked file is not as it was"
+
+
 # ------------------------------------------------------------------ another machine
 
 

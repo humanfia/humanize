@@ -30,6 +30,7 @@ from hmz.flows import (
     OutputSchemaError,
     Outworlder,
     Permission,
+    RewindError,
     SessionError,
     TempCloneBusy,
     UnsupportedOperation,
@@ -271,6 +272,23 @@ async def test_a_fake_env_lets_go_of_a_copy_as_it_is_closed_and_keeps_it() -> No
     assert env.clones == ["c"]
     await env.destroy_temp_clone("c")
     assert (env.clones, list(env.machine)) == ([], ["/work/a.txt"])
+
+
+async def test_a_fake_env_rewinds_to_a_snapshot_or_to_what_it_was_made_with() -> None:
+    env = FakeEnvDriver({"a.txt": "A"})
+    await env.write("b.txt", b"B")
+    ref = await env.snapshot("b")
+    await env.write("a.txt", b"changed")
+    await env.write("c.txt", b"C")
+    await env.rewind(ref)
+    assert env.files == {"a.txt": b"A", "b.txt": b"B"}
+    await env.rewind("main")
+    assert env.files == {"a.txt": b"A"}
+    assert await env.snapshots() == ["refs/hmz/snapshots/b"]
+    with pytest.raises(RewindError):
+        await env.rewind("no-such-ref")
+    with pytest.raises(RewindError):
+        await FakeEnvDriver(repo=False).snapshot(None)
 
 
 async def test_a_fake_env_refuses_a_worktree_where_one_is() -> None:

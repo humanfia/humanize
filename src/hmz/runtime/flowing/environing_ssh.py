@@ -14,8 +14,8 @@ Exported whole, `/` to `/`: the paths a driver names are the host's own, and a f
 any file the user there may.
 
 Nothing here touches the network until something is asked of the machine; :meth:`probe`
-connects, asks where home is and what the host has -- CPUs, memory, GPUs by `nvidia-smi` --
-in one command, and those answers are kept.
+connects, asks where home is and what the host has -- CPUs, memory, GPUs by `nvidia-smi`, and
+`git` -- in one command, and those answers are kept.
 """
 
 from __future__ import annotations
@@ -69,7 +69,8 @@ _NO_SUCH_HOST = ("Could not resolve hostname", "Name or service not known")
 _PROBE_WITHIN = 60.0
 
 #: What a host is asked when it is first reached, in POSIX sh, as `key=value` lines: its home,
-#: humanize's home there, its CPUs, memory and GPUs, and `CUDA_VISIBLE_DEVICES` if it is set.
+#: humanize's home there, its CPUs, memory and GPUs, `CUDA_VISIBLE_DEVICES` if it is set, and
+#: whether `git` is on its PATH.
 PROBE_SCRIPT = rf"""
 printf 'home=%s\n' "$HOME"
 printf 'state=%s\n' "${{HUMANIZE_HOME:-$HOME/.humanize}}"
@@ -84,6 +85,7 @@ fi
 if command -v nvidia-smi >/dev/null 2>&1; then
   {shlex.join(GPU_QUERY)} 2>/dev/null | sed 's/^/gpu=/'
 fi
+if command -v git >/dev/null 2>&1; then printf 'git=1\n'; else printf 'git=0\n'; fi
 exit 0
 """
 
@@ -95,6 +97,8 @@ class _Facts:
     home: PurePosixPath
     state: PurePosixPath
     resources: Resources
+    #: Whether `git` is on its PATH; None where it did not say.
+    git: bool | None = None
 
 
 def facts_of(said: str) -> _Facts:
@@ -125,6 +129,7 @@ def facts_of(said: str) -> _Facts:
         PurePosixPath(home),
         PurePosixPath(posixpath.normpath(str(state))),
         Resources(max(cpus, 1), memory, count, least),
+        {"1": True, "0": False}.get(values.get("git", "")),
     )
 
 
@@ -519,6 +524,11 @@ class SSHMachine(Machine):
         del gpus
         facts = self._facts
         return facts.resources if facts is not None else Resources()
+
+    def has_git(self) -> bool | None:
+        """Whether the host said `git` is on its PATH; None before it was reached."""
+        facts = self._facts
+        return facts.git if facts is not None else None
 
     def available(self, workdir: PurePosixPath, *, seen: bool | None) -> bool:
         """Whether the host answered, the connection holds, and the workdir was there."""

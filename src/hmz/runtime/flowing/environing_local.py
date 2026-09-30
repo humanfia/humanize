@@ -325,6 +325,11 @@ class LocalMachine(Machine):
     provider = ""
     identity = "local"
 
+    def __init__(self) -> None:
+        """Initializes this machine, before anything has been looked for on it."""
+        super().__init__()
+        self._git: bool | None = None
+
     def resources(self, *, gpus: bool) -> Resources:
         """What this machine has; the first ask for GPUs runs `nvidia-smi` if not probed."""
         cpus, memory = _cpus_and_memory()
@@ -338,6 +343,13 @@ class LocalMachine(Machine):
 
     def placement(self, workdir: PurePosixPath) -> Placement:
         return Placement(EnvBackendKind.LOCAL, "", workdir, None)
+
+    def has_git(self) -> bool:
+        """Whether `git` is on this process's PATH, looked for the first time it is asked."""
+        found = self._git
+        if found is None:
+            found = self._git = shutil.which("git") is not None
+        return found
 
     async def probe(self) -> None:
         if _gpus is None:
