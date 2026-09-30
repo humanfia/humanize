@@ -397,3 +397,97 @@ def test_how_long_two_halves_are_given_is_the_line_s_to_say(broker: _Held) -> No
     assert anchor(["rendezvous", "--punching", "0.5"]) == 0
 
     assert broker.made[0][2] == 0.5
+
+
+# ------------------------------------------------------------ how loudly it logs
+
+
+@pytest.fixture
+def logged(monkeypatch: pytest.MonkeyPatch) -> list[object]:
+    """Every level logging was set up at, instead of it being set up for this process."""
+    import logging
+
+    levels: list[object] = []
+
+    def configured(**said: object) -> None:
+        levels.append(said.get("level"))
+
+    monkeypatch.setattr(logging, "basicConfig", configured)
+    return levels
+
+
+@pytest.fixture
+def lines(
+    tmp_path: Path,
+    exported: str,
+    listened: _Listened,
+    broker: _Held,
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, list[str]]:
+    """Each of the three lines that logs, reaching no target, port or broker for real."""
+    from hmz.coganchor import anchor as connecting
+
+    def answers(*_: Any, **__: Any) -> dict[str, Any]:
+        return {"target": "local", "workspace": "/project", "entries": 0}
+
+    monkeypatch.setattr(connecting, "check", answers)
+    return {
+        "anchor": ["--target", f"local:{tmp_path}", "--check"],
+        "serve": ["serve", "--export", exported, "--listen", "8080"],
+        "rendezvous": ["rendezvous"],
+    }
+
+
+#: The level each line logs at where neither the line nor the environment says one.
+_QUIETEST = {"anchor": "WARNING", "serve": "WARNING", "rendezvous": "INFO"}
+
+
+@pytest.mark.parametrize("line", ["anchor", "serve", "rendezvous"])
+def test_a_log_level_the_environment_does_not_have_is_ignored_and_said_to_be(
+    lines: dict[str, list[str]],
+    logged: list[object],
+    line: str,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rather than every line humanize spawns failing at start with a traceback."""
+    monkeypatch.setenv("HUMANIZE_LOG", "bogus")
+
+    assert anchor(lines[line]) == 0
+
+    assert logged == [_QUIETEST[line]]
+    assert "hmz: ignoring HUMANIZE_LOG='bogus'" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("line", ["anchor", "serve", "rendezvous"])
+def test_a_log_level_in_the_environment_is_read_in_any_case_and_trimmed(
+    lines: dict[str, list[str]],
+    logged: list[object],
+    line: str,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HUMANIZE_LOG", " Debug ")
+
+    assert anchor(lines[line]) == 0
+
+    assert logged == ["DEBUG"]
+    assert "HUMANIZE_LOG" not in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("line", ["anchor", "serve", "rendezvous"])
+def test_a_log_level_on_the_line_is_the_one_whatever_the_environment_says(
+    lines: dict[str, list[str]],
+    logged: list[object],
+    line: str,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HUMANIZE_LOG", "bogus")
+    argv = lines[line]
+    at = 0 if line == "anchor" else 1
+
+    assert anchor([*argv[:at], "--log-level", "error", *argv[at:]]) == 0
+
+    assert logged == ["ERROR"]
+    assert "HUMANIZE_LOG" not in capsys.readouterr().err

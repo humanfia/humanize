@@ -493,8 +493,12 @@ nobody. `asks` events still appear in the output.
 
 | Signal | Effect | Exit |
 | --- | --- | --- |
-| `SIGINT` | `KeyboardInterrupt` in the run; the flow unwinds. | `130` |
-| `SIGTERM`, `SIGHUP` | The run is stopped as by `Run.stop()` (from a helper thread). The process waits until the run has let go of what it made — sessions closed, containers removed. A second signal while it does is ignored. A signal already set to `SIG_IGN` (a hangup under `nohup`) stays ignored. | `128 + signum`: `143`, `129` |
+| `SIGINT`, `SIGTERM`, `SIGHUP` | The run is stopped as by `Run.stop()` (from a helper thread). The process waits until the run has let go of what it made — sessions closed, containers removed. `hmz exec` prints no traceback of its own. A signal already set to `SIG_IGN` (a hangup under `nohup`, an interrupt to a background job of a non-interactive shell) stays ignored. | `128 + signum` of the first: `130`, `143`, `129` |
+| a second `SIGTERM` or `SIGHUP` | Ignored while the run lets go. | as the first |
+| a second `SIGINT` | Ends the process at once, by `SIGINT` itself, without waiting for the run to let go: what it made may be left behind. | `130` (killed by `SIGINT`) |
+
+An interrupt that arrives while the flow is still being loaded, or after the run has ended,
+also exits `130` without a traceback.
 
 A run that ends because its budget was reached is not a failure: stderr gets
 `hmz exec: stopped -- <why>` naming the limit, and the exit status is `0`.
@@ -698,7 +702,7 @@ Carries the tool protocol both ways at once between stdin/stdout and the Unix so
 | `2` | all | The line was wrong: argparse rejections and everything in [What is refused](#what-is-refused-before-anything-runs). |
 | `126` | `internal fence` | The fence could not be put up; the program never ran. |
 | `127` | `internal anchor --native` | The target has no such CLI. |
-| `130` | `hmz exec`, `internal anchor` | Interrupted (`SIGINT`). |
+| `130` | `hmz exec`, `internal anchor` | Interrupted (`SIGINT`); for `hmz exec`, after the run has let go of what it made. |
 | `129`, `143` | `hmz exec` | `SIGHUP`, `SIGTERM`, after the run has let go of what it made. |
 | *program's* | `internal anchor`, `cred`, `fence` | The wrapped program's own status. |
 
@@ -721,7 +725,7 @@ Variables these commands read. The complete list, with every layer's, is
 | `HUMANIZE_SHADOW` | `internal anchor` | a path | Default `--shadow`. |
 | `HUMANIZE_RENDEZVOUS` | `internal anchor` | a host | Default `--broker`. |
 | `HUMANIZE_TOKEN` | `internal anchor`, `anchor serve` | a secret | Default `--token`. |
-| `HUMANIZE_LOG` | `internal anchor`, `serve`, `rendezvous` | `debug` `info` `warning` `error` | Default `--log-level`. |
+| `HUMANIZE_LOG` | `internal anchor`, `serve`, `rendezvous` | `debug` `info` `warning` `error` (case-insensitive, stripped) | Default `--log-level`. Any other value is ignored with `hmz: ignoring HUMANIZE_LOG='<value>', which is not one of debug, info, warning, error` on stderr. |
 
 Set by `hmz internal anchor` inside the agent it runs: `HUMANIZE` (the launching half's
 version), `HUMANIZE_TARGET`, `HUMANIZE_WORKSPACE`.

@@ -950,6 +950,18 @@ it.
 
 **Verify.** The target listens, and an agent given the token reaches it.
 
+### `hmz: ignoring HUMANIZE_LOG='verbose', which is not one of debug, info, warning, error`
+
+**Symptom.** A turn on another machine, or `hmz internal anchor` run by hand, starts with this
+line on stderr.
+
+**Cause.** [`HUMANIZE_LOG`](/reference/environment#humanize-log) is set to something that is not
+a log level. It is ignored, and the command logs at its default level.
+
+**Fix.** Set it to `debug`, `info`, `warning` or `error`, or unset it.
+
+**Verify.** The line is gone.
+
 ### `… already contains files and is not an humanize mirror. …`
 
 **Symptom.** An agent whose work lands elsewhere will not start.
@@ -1003,8 +1015,10 @@ create it, owned by root.
 
 **Symptom.** `docker ps` lists containers from runs that are over.
 
-**Cause.** The run was killed before it could take them down. The next run on the same daemon
-takes down those whose run has gone.
+**Cause.** The run was killed before it could take them down: <kbd>ctrl+c</kbd>, `kill` and a
+hangup all let it take them down first, but a second <kbd>ctrl+c</kbd>, `kill -9` or a machine
+that went down do not. The
+next run on the same daemon takes down those whose run has gone.
 
 **Fix.** Every container humanize starts is labelled with your uid, so this removes yours and
 nobody else's:
