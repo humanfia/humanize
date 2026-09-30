@@ -211,7 +211,7 @@ def pinned(url: str, rev: str | None) -> Path: ...
 
 # fakes.py -- in-memory drivers, for testing a flow
 class FakeAgentDriver: ...  # (harness, *, reply, model, effort, provider, capabilities,
-                            #  cost, output_tokens, seconds, forks)
+                            #  cost, output_tokens, seconds, forks, names_late)
 class FakeSession: ...  # until_steered, tool, ask, notify, subagent
 class FakeEnvDriver: ...  # (files, *, workdir, backend, provider, capabilities, cpu_count,
                           #  memory, gpu_count, gpu_memory, run, refs, repo)

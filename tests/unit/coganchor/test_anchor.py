@@ -89,6 +89,20 @@ def test_a_default_anchor_says_only_where_the_work_lands() -> None:
     ]
 
 
+def test_the_help_names_every_target_the_parser_takes(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A `peer://` target is one humanize renders, so the help says it is one."""
+    with pytest.raises(SystemExit) as stopped:
+        cli.main(["internal", "anchor", "--help"])
+    assert stopped.value.code == 0
+    shown = " ".join(capsys.readouterr().out.split())
+    assert all(
+        scheme in shown
+        for scheme in ("ssh://", "docker://", "tcp://", "peer://", "local[:DIR]")
+    )
+
+
 def test_a_target_nobody_can_read_is_refused_the_way_argparse_refuses_an_argument() -> (
     None
 ):

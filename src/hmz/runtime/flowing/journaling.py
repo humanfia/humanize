@@ -7,7 +7,8 @@ rewritten while the run goes. Each line is one record::
     {"t": "call", "id": 7, "parent": 3, "digest": "…", "seq": 0, "ref": "humanize1:rlcr"}
     {"t": "set", "id": 7, "key": "round", "value": 2}
     {"t": "del", "id": 7, "key": "draft"}
-    {"t": "session", "id": 7, "role": "builder", "harness": "claude", "session": "…"}
+    {"t": "session", "id": 7, "role": "builder", "harness": "claude", "model": "opus",
+     "session": "…"}
     {"t": "tmp", "id": 7, "env": "workspace", "kind": "temp_clone", "name": "try-1",
      "chain": "local@/repo#temp_clone(try-1)"}
     {"t": "end", "id": 7, "ok": true}
@@ -22,8 +23,9 @@ picks up one apiece.
 
 A `session` is one session a call opened, written once its CLI has named it -- as it opens
 for a harness that names a session up front, as its first turn goes for one that names it
-then -- so that `session` is the id the CLI logs it under. A session never named, one whose
-CLI never started, is not written down.
+then -- so that `session` is the id the CLI logs it under, beside the harness and the model
+the role's agent was driving it with. A session never named, one whose CLI never started, is
+not written down.
 
 A state write is flushed as it is made: it is what the flow will read back, and a run killed
 the moment after it must still have it. Everything else is batched -- written within a tenth
