@@ -402,8 +402,8 @@ def test_stop(cell: Cell) -> None:
     running = cell.start(_one(cell), SLOW)
     opened = threading.Event()
 
-    def told(role: str, agent: AgentBase, session: SessionBase) -> None:
-        del role, agent, session
+    def told(role: str, agent: AgentBase, session: SessionBase, where: object) -> None:
+        del role, agent, session, where
         opened.set()
 
     running.opened(told)

@@ -37,6 +37,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import contextvars
+import dataclasses
 import logging
 import threading
 import time
@@ -365,7 +366,9 @@ class AgentView:
         if run.dropped:
             run.drain()
         handle = await self._driver.open(
-            env._driver.placement(),
+            # Named for the role it fills, so that whoever watches the run can say which of
+            # the flow's environments a session works in and not only which machine.
+            dataclasses.replace(env._driver.placement(), env=env._role),
             permission=self._grant.permission,
             skills=self._brought(),
             hooks=line.hooks,
