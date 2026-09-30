@@ -247,3 +247,132 @@ async def test_the_conversation_humanize_ships_is_never_asked_for_one(
 
     assert Settings(tmp_path).flow == "chat"
     assert app._budget is None
+
+
+async def _sets(app: Humanize, driver: Pilot[None]) -> Flows:
+    """Answers the budget sheet from its last row, back on to the menu."""
+    await onto(app, driver, _DONE)
+    await driver.press("enter")
+    await until(lambda: isinstance(app.screen, Flows), driver)
+    return cast("Flows", app.screen)
+
+
+async def _reopens(app: Humanize, driver: Pilot[None]) -> Configures:
+    """Opens the budget sheet from its row on the menu."""
+    await opens(app, driver, _BUDGET)
+    await until(lambda: isinstance(app.screen, Configures), driver)
+    return cast("Configures", app.screen)
+
+
+@pytest.mark.timeout(60)
+@pytest.mark.parametrize(
+    ("typed", "shown", "held"),
+    [
+        ("12d", "12d", datetime.timedelta(days=12)),
+        ("400d", "400d", datetime.timedelta(days=400)),
+        ("2w", "14d", datetime.timedelta(weeks=2)),
+        ("90", "1m30s", datetime.timedelta(seconds=90)),
+        ("PT1H30M", "1h30m", datetime.timedelta(hours=1, minutes=30)),
+        ("1d0.5s", "1d0.5s", datetime.timedelta(days=1, seconds=0.5)),
+    ],
+)
+async def test_a_duration_set_there_opens_again_as_it_was_written(
+    flows: Path, typed: str, shown: str, held: datetime.timedelta
+) -> None:
+    """In the units `-b duration=` reads, however long it is.
+
+    A duration of a million seconds or more once reopened as `1.0368e+06s`, which the sheet
+    it was opened on then refused -- and the interface fell over opening it.
+    """
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into(app, driver, "local/quiet")
+        await _reopens(app, driver)
+        await changes(app, driver, "duration", *typed)
+        menu = await _sets(app, driver)
+        assert menu._budget == Budget(duration=held)
+        assert f"stops at {shown}" in _said(app)  # and the row says it the same way
+
+        sheet = await _reopens(app, driver)
+        assert sheet._typed_in["duration"] == shown
+
+        # And set again untouched, it is the same budget.
+        menu = await _sets(app, driver)
+        assert menu._budget == Budget(duration=held)
+
+
+@pytest.mark.timeout(60)
+async def test_a_budget_kept_with_a_long_duration_opens(
+    flows: Path, tmp_path: Path
+) -> None:
+    """Read back from the settings file, as the next interface reads it.
+
+    Even one whose only other limit is a cost of nothing, which the sheet would not have set.
+    """
+    Settings(tmp_path).remember(
+        "local/quiet",
+        {"worker": Runs("claude/m:high")},
+        budget={"duration": "P12DT3H", "cost": 0},
+    )
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into(app, driver, "local/quiet")
+        sheet = await _reopens(app, driver)
+
+        assert sheet._typed_in["duration"] == "12d3h"
+        assert sheet._typed_in["cost"] == "0.0"
+
+
+@pytest.mark.timeout(60)
+@pytest.mark.parametrize(
+    ("held", "keys", "written"),
+    [
+        ("cost", "5", "5"),
+        ("cost", "2.5", "2.5"),
+        ("output_tokens", "1000", "1000"),
+        ("duration", "12d", "12d"),
+    ],
+)
+async def test_what_is_typed_into_a_limit_is_what_it_holds(
+    flows: Path, tmp_path: Path, held: str, keys: str, written: str
+) -> None:
+    """The value a row is begun on is selected whole, and the first key replaces it.
+
+    Typing `5` into a cost of `0.0` once made it `0.05`.
+    """
+    Settings(tmp_path).remember(
+        "local/quiet",
+        {"worker": Runs("claude/m:high")},
+        budget={"duration": "PT1H", "cost": 0.5, "output_tokens": 7},
+    )
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into(app, driver, "local/quiet")
+        sheet = await _reopens(app, driver)
+
+        await changes(app, driver, held, *keys)
+        assert sheet._typed_in[held] == written
+
+
+@pytest.mark.timeout(60)
+async def test_a_limit_is_still_edited_after_the_first_key(flows: Path) -> None:
+    """Only the first key replaces: backspace after it takes one letter, and an arrow steps."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        await _into(app, driver, "local/quiet")
+        sheet = await _reopens(app, driver)
+
+        await changes(app, driver, "cost", *"25", "backspace")
+        assert sheet._typed_in["cost"] == "2"
+
+        await changes(app, driver, "cost", "backspace")  # the whole value, selected
+        assert sheet._typed_in["cost"] == ""
+
+        await changes(app, driver, "output_tokens", "right", *"5")  # 0 -> 1, then 15
+        assert sheet._typed_in["output_tokens"] == "15"
+
+        # And esc puts back what was there before the row was begun on.
+        await onto(app, driver, "duration")
+        await driver.press("enter", *"9h", "escape")
+        await driver.pause()
+        assert sheet._typed_in["duration"] == ""
