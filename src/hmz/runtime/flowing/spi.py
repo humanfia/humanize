@@ -160,12 +160,15 @@ class Placement:
         whoever ssh logs in as.
       machine: How coganchor reaches that machine for an agent whose turns land there, or
         None for this machine.
+      env: The environment role of the flow the session was opened in, or "" where nothing
+        said -- which is what tells two places on one machine apart to whoever watches.
     """
 
     backend: EnvBackendKind
     provider: str
     workdir: PurePosixPath
     machine: MachineConfig | None = None
+    env: str = ""
 
 
 @dataclass(frozen=True, slots=True)

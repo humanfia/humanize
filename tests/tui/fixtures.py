@@ -472,6 +472,7 @@ def opened(
     cli: str = "claude",
     counts: Iterable[str] = (),
     person: bool = False,
+    env: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """A session a run has opened, as the record the interface is told of it by.
 
@@ -482,6 +483,8 @@ def opened(
       cli: What runs it.
       counts: The kinds of token its backend reports.
       person: Whether it is the person, who holds the board rather than a conversation.
+      env: Where it works -- its environment role, `kind`, `target`, `workdir` and whether
+        it is `anchored` -- or None for a run that did not say.
 
     Returns:
       The record, as `hmz.runtime.doing.hosting.Host` says one.
@@ -499,6 +502,7 @@ def opened(
         "forks": False,
         "person": person,
         "kept": "",
+        "env": dict(env) if env is not None else None,
         "mono": time.monotonic(),
     }
 

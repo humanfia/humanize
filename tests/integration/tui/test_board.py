@@ -17,7 +17,7 @@ from textual.widgets import OptionList, Static
 from hmz.coganchor.agents import Board, Refused
 from hmz.runtime.kept import Runs
 from hmz.tui import Humanize
-from hmz.tui.monitoring import EVERY, OUTWORLDER, Entry, Monitoring
+from hmz.tui.monitoring import EVERY, OUTWORLDER, Entry, Monitoring, Place
 from tests.tui.fixtures import event, link, opened, snapshot, told, until
 
 if TYPE_CHECKING:
@@ -41,6 +41,11 @@ def _ids(app: Humanize) -> list[str]:
 def _under(app: Humanize) -> str:
     """What the monitor says under the graph."""
     return str(app.screen.query_one("#under", Static).content)
+
+
+def _status(app: Humanize) -> str:
+    """What the monitor's status line says."""
+    return str(app.screen.query_one("#status", Static).content)
 
 
 async def _opens(app: Humanize, driver: Pilot[None]) -> None:
@@ -497,8 +502,8 @@ async def test_left_off_an_empty_prompt_is_the_monitor_and_right_comes_back() ->
 
 
 @pytest.mark.timeout(60)
-async def test_ctrl_t_draws_a_node_per_session_and_enter_reads_one() -> None:
-    """A loop that opens a session a turn is one agent and many sessions; both are drawn."""
+async def test_space_opens_an_agent_out_to_its_sessions_and_enter_reads_one() -> None:
+    """A loop that opens a session a turn is one agent, opened out to its many sessions."""
     app = Humanize()
     async with app.run_test() as driver:
         one, _other = _two(app)
@@ -508,19 +513,164 @@ async def test_ctrl_t_draws_a_node_per_session_and_enter_reads_one() -> None:
         await driver.pause()
         await _opens(app, driver)
         assert _ids(app) == [EVERY, one]
+        assert "▸" in _drawn(app)
 
-        await driver.press("ctrl+t")
-        await until(lambda: _ids(app) == [EVERY, f"{one}/1", f"{one}/2"], driver)
+        await driver.press("down", "space")
+        await until(lambda: _ids(app) == [EVERY, one, f"{one}/1", f"{one}/2"], driver)
+        assert _ids(app) == [EVERY, one, f"{one}/1", f"{one}/2"]
+        assert "▾" in _drawn(app)
         assert "session 2" in _drawn(app)
-        assert "↓ 1" in _drawn(app)  # the first session handed to the second
+        assert "space shut" in _status(app)
 
         await driver.press("down", "enter")
         await until(lambda: not isinstance(app.screen, Monitoring), driver)
+        assert not isinstance(app.screen, Monitoring)
         assert app._attached == f"{one}/1"  # that session's own log
 
         # And it opens the way it was left.
         await _opens(app, driver)
-        assert _ids(app) == [EVERY, f"{one}/1", f"{one}/2"]
+        assert _ids(app) == [EVERY, one, f"{one}/1", f"{one}/2"]
+
+
+@pytest.mark.timeout(60)
+async def test_space_on_a_session_shuts_the_agent_it_hangs_under() -> None:
+    """The way back up a branch is the key that went down it, landing on the agent."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        one, _other = _two(app)
+        told(app, event("builder/1", "begins"))
+        await driver.pause()
+        await _opens(app, driver)
+        await driver.press("down", "space")
+        await until(lambda: _ids(app) == [EVERY, one, f"{one}/1"], driver)
+        assert _ids(app) == [EVERY, one, f"{one}/1"]
+
+        await driver.press("down", "space")
+        await until(lambda: _ids(app) == [EVERY, one], driver)
+        assert _ids(app) == [EVERY, one]
+        graph = app.screen.query_one("#graph", OptionList)
+        assert _ids(app)[graph.highlighted or 0] == one
+
+
+@pytest.mark.timeout(60)
+async def test_a_click_on_the_edge_of_an_agent_opens_it_and_two_read_it() -> None:
+    """Where its `▸` is, a click opens it out; elsewhere two clicks read it, as enter does."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        one, _other = _two(app)
+        told(app, event("builder/1", "begins"))
+        await driver.pause()
+        await _opens(app, driver)
+        graph = app.screen.query_one("#graph", OptionList)
+
+        # Row nought is every agent's log, and the agent's name is two rows under it.
+        await driver.click(graph, offset=(5, 2))
+        await until(lambda: _ids(app) == [EVERY, one, f"{one}/1"], driver)
+        assert _ids(app) == [EVERY, one, f"{one}/1"]
+        await driver.click(graph, offset=(5, 2))  # on it already, so shut again
+        await until(lambda: _ids(app) == [EVERY, one], driver)
+        assert _ids(app) == [EVERY, one]
+
+        await driver.double_click(graph, offset=(30, 2))
+        await until(lambda: not isinstance(app.screen, Monitoring), driver)
+        assert not isinstance(app.screen, Monitoring)
+        assert app._attached == one
+
+
+@pytest.mark.timeout(60)
+async def test_ctrl_t_lists_the_nodes_with_the_working_ones_on_top() -> None:
+    """A list says nothing of who handed to whom, and puts what is working first."""
+    app = Humanize()
+    async with app.run_test() as driver:
+        one, two = _two(app)
+        told(app, event("builder/1", "begins"), event("builder/1", "ends"))
+        told(app, event("reviewer/1", "begins"))
+        await driver.pause()
+        await _opens(app, driver)
+        assert _ids(app) == [EVERY, one, two]  # the flow's order, drawn
+        assert "↓ 1" in _drawn(app)
+
+        await driver.press("ctrl+t")
+        await until(lambda: two in _ids(app) and _ids(app).index(two) == 2, driver)
+        assert _ids(app).index(two) == 2
+        assert _ids(app)[3] == one  # the one working floated above the one that is not
+        assert "↓" not in _drawn(app)
+        assert "· list" in _status(app)
+        assert "ctrl+t graph" in _status(app)
+
+        # And the switch above it turns it back, as a click.
+        await driver.click("#as-graph")
+        await until(lambda: _ids(app) == [EVERY, one, two], driver)
+        assert _ids(app) == [EVERY, one, two]
+        assert not app._monitor_listed
+
+
+@pytest.mark.timeout(60)
+async def test_an_environment_hangs_under_its_session_and_opens_to_a_page() -> None:
+    """Where a session works is a node of its own, which opens for what it is."""
+    app = Humanize()
+    async with app.run_test(size=(120, 40)) as driver:
+        where = {
+            "role": "repo",
+            "kind": "docker",
+            "target": "builders",
+            "workdir": "/work",
+            "anchored": True,
+        }
+        told(app, opened("builder/1", env=where), opened("reviewer/1"))
+        app._models = {"builder": Runs("claude/m:high")}
+        app._declared = None
+        app._envs = {"repo": "docker@builders/work"}
+        told(app, event("builder/1", "begins"))
+        await driver.pause()
+        await _opens(app, driver)
+        assert "▤ repo docker" in _drawn(app)  # said on the box while it is shut
+
+        await driver.press("down", "space")
+        await until(lambda: len(_ids(app)) == 4, driver)
+        assert len(_ids(app)) == 4
+        assert _ids(app)[3].startswith("\x03")
+        assert "builders · /work" in _drawn(app)
+
+        await driver.press("down", "down", "enter")
+        await until(lambda: isinstance(app.screen, Place), driver)
+        assert isinstance(app.screen, Place)
+        await driver.pause()
+        page = app.screen.query_one("#choices", OptionList)
+        said = "\n".join(
+            str(page.get_option_at_index(at).prompt) for at in range(page.option_count)
+        )
+        assert "DOCKER" in said
+        assert "builders" in said
+        assert "docker@builders/work" in said
+        assert "1 of 1 session working" in said
+
+        await driver.press("enter")  # on the session working there, which reads it
+        await until(lambda: app._attached == "builder/1", driver)
+        assert app._attached == "builder/1"
+        assert not isinstance(app.screen, (Place, Monitoring))
+
+
+@pytest.mark.timeout(60)
+async def test_the_list_holds_the_environments_as_nodes_of_their_own() -> None:
+    """Every environment is a row of the list, working where a session in it is."""
+    app = Humanize()
+    async with app.run_test(size=(120, 40)) as driver:
+        where = {"role": "workspace", "kind": "local", "workdir": "/proj"}
+        told(app, opened("builder/1", env=where), opened("reviewer/1", env=where))
+        app._models = {"builder": Runs("claude/m:high"), "reviewer": Runs("codex/n")}
+        app._declared = None
+        told(app, event("builder/1", "begins"), event("builder/1", "ends"))
+        told(app, event("reviewer/1", "begins"))
+        await driver.pause()
+        app._monitor_listed = True
+        await _opens(app, driver)
+
+        ids = _ids(app)
+        places = [one for one in ids if one.startswith("\x03")]
+        assert len(places) == 1  # one place, however many sessions work in it
+        assert ids.index(places[0]) < ids.index("builder")  # working, so above
+        assert "2 sessions" in _drawn(app)
 
 
 @pytest.mark.timeout(60)

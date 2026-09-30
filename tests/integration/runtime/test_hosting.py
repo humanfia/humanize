@@ -422,6 +422,28 @@ def test_a_line_waiting_when_the_question_comes_is_its_answer(
     assert (answered["by"], answered["client"]) == ("alice", alice.client)
 
 
+# ------------------------------------------------------------------ what opened
+
+
+@pytest.mark.timeout(60)
+def test_a_session_opened_says_which_environment_it_works_in(
+    host: Host, workspace: Path
+) -> None:
+    """What the monitor hangs a session's environment under it by: the role, and where."""
+    alice = Told(host, "alice")
+    _steers(alice)
+    (workspace / "start").write_text("")
+
+    opened = alice.told("opened", key="coder/1")
+    assert opened["env"] == {
+        "role": "workspace",
+        "kind": "local",
+        "target": "",
+        "workdir": str(workspace),
+        "anchored": False,
+    }
+
+
 # ------------------------------------------------------------------------ lines
 
 
