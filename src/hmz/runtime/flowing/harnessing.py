@@ -53,16 +53,15 @@ humanize answers.
   let the workdir be read either.
 - dsh and ACP CLIs can be held to no rung but `bypass`; the fence holds them to the scopes.
 
-While a hook is hung on a moment only asking reaches, three CLIs are started so that they
+While a hook is hung on a moment only asking reaches, two CLIs are started so that they
 ask, and humanize answers every request yes unless the hook says no -- never a model:
 
 - Codex, a PERMISSION_REQUEST hook: the rung's sandbox, and approval policy `untrusted`, so
   every command but a known-safe read is asked about. An ASK_USER hook switches on Codex's
   `default_mode_request_user_input` feature instead, without which its agent cannot ask its
   user anything outside plan mode.
-- Kimi Code and ZCode, either hook: coganchor's `auto` -- Kimi's `yolo`, ZCode's `build` --
-  which asks about what the CLI deems risky, and on Kimi is the mode where the agent may
-  ask its user at all.
+- Kimi Code, either hook: coganchor's `auto` -- Kimi's `yolo` -- which asks about what the
+  CLI deems risky, and is the mode where the agent may ask its user at all.
 
 `online` is also the CLI's own web tools: on for ALL, off for NONE where the CLI can be told,
 and left as the CLI has it where it cannot (cursor-agent, pi, agy, acp) -- where the fence's
@@ -143,7 +142,6 @@ BYPASS: Final = "bypass"
 ASKS: Mapping[HarnessKind, frozenset[HookKind]] = MappingProxyType(
     {
         HarnessKind.KIMI: frozenset({HookKind.PERMISSION_REQUEST, HookKind.ASK_USER}),
-        HarnessKind.ZCODE: frozenset({HookKind.PERMISSION_REQUEST, HookKind.ASK_USER}),
     }
 )
 

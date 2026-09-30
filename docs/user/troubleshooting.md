@@ -148,7 +148,7 @@ on your `PATH` and in the directories installers use, such as `~/.local/bin` and
 `/usr/local/bin`. Check what it can find:
 
 ```sh
-command -v agy claude codex cursor-agent grok kimi mimo opencode pi qwen zcode
+command -v agy claude codex cursor-agent grok kimi mimo opencode pi qwen
 ```
 
 Install one from [Installation](/user/installation), then open `hmz` again. If one is
@@ -170,8 +170,15 @@ A flowverse not fetched yet offers nothing: open the [Flowverses page of
 
 ### `no such command: /foo`
 
-Type `/` to see the commands. There are ten, listed in
+Type `/` to see the commands that would do something now. There are ten, listed in
 [Reference › TUI](/reference/tui).
+
+### `no flow is running`, `the flow is already stopping` {#nothing-to-stop}
+
+A `/stop` typed with nothing to stop. It is listed only while a flow runs and has not already
+been told to stop; typed out otherwise, it says why it did nothing. The same goes for every
+command the list leaves out: `/resume` with a flow going or nothing here to carry on, `/btw`
+with nobody to ask.
 
 ### `cannot choose a flow while one is running` {#a-flow-is-running-no-choosing-a-flow}
 
@@ -200,8 +207,10 @@ without saving. Type the line again and save the menu this time.
 Another interface reading the same run, or a program on the SDK, has
 [claimed](/reference/tui#several-people-on-one-run) that outworlder: what it asks is theirs
 alone to answer. Ask them to `/claim off`, or wait for them to leave, which gives it back.
-`reviewer is bob@tui's` says the same about a `/claim`, an `/afk` or an answer. Lines said to the
-agents are never refused this way.
+`reviewer is bob@tui's` says the same about an answer, and `reviewer is bob@tui's: cannot claim
+it` or `…: cannot say whether it is away` about a `/claim` or an `/afk` typed on its transcript,
+where neither is offered while somebody else holds it. Lines said to the agents are never refused
+this way.
 
 ### `already answered by alice@tui`
 
@@ -250,13 +259,13 @@ with too little contrast between two of them. Change the terminal's theme, or ru
 
 ### The token count sits still, then jumps
 
-Claude Code, Codex, Kimi Code, ZCode and DeepSeek Harness count as they go. The other backends
+Claude Code, Codex, Kimi Code and DeepSeek Harness count as they go. The other backends
 report at the end of each turn, so their count jumps. An agent working on another machine
 reports at the end of each turn too.
 
-If one of those five sits still, it is writing its log somewhere `hmz` is not looking. `hmz`
-looks where its own `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIMI_CODE_HOME` or `DSH_HOME` points,
-and in `~/.zcode` under its own `HOME`. Start `hmz` with the same values the CLI runs with.
+If one of those four sits still, it is writing its log somewhere `hmz` is not looking. `hmz`
+looks where its own `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIMI_CODE_HOME` or `DSH_HOME` points.
+Start `hmz` with the same values the CLI runs with.
 
 ## Agents, accounts and models
 

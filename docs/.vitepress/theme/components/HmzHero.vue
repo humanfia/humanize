@@ -61,7 +61,7 @@ onUnmounted(() => clearTimeout(clearing))
       </nav>
 
       <p class="under">
-        Python ≥ 3.12 · 12 coding agents, plus any CLI that speaks ACP · reuses your CLI logins
+        Python ≥ 3.12 · 11 coding agents, plus any CLI that speaks ACP · reuses your CLI logins
       </p>
 
       <a class="cue" href="#how-it-fits-together" aria-label="How it fits together">

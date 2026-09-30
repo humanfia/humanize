@@ -1497,9 +1497,9 @@ async def remote(task, *, agents, envs, params, ctx):
 @feature(
     timeout=900,
     xfail={
-        # The docker-envs change fixed the launcher as it fixed codex's, dsh's, mimo's and
-        # zcode's, which pass here now; cursor-agent is signed out on the machine this was
-        # last run on, so its cell has not been seen to pass.
+        # The docker-envs change fixed the launcher as it fixed codex's, dsh's and mimo's,
+        # which pass here now; cursor-agent is signed out on the machine this was last run
+        # on, so its cell has not been seen to pass.
         "cursor-agent": Unsettled(
             "anchored turn bug: cursor-agent's launcher ran `realpath` on the target and"
             " exited 127; fixed by the docker-envs PR (U8), not yet seen to pass"

@@ -152,10 +152,6 @@ CANDIDATES: dict[str, tuple[Place, ...]] = {
         _at("mimo", "nvidia", "nvgw/nvidia/minimaxai/minimax-m3"),
         _at("mimo", "nvidia", "anthropic/claude-haiku-4-5"),
     ),
-    "zcode": (
-        _at("zcode", "nvidia", "gw/nvidia/zai-org/glm-5.3-flash"),
-        _at("zcode", "nvidia", "gw/azure/openai/gpt-5.4-mini"),
-    ),
     "cursor-agent": (
         _at("cursor-agent", "", "auto", ""),
         _at("cursor-agent", "nvidia", "auto", ""),

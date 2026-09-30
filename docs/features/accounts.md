@@ -36,7 +36,7 @@ added and nothing taken away.
 ## One key, several CLIs
 
 A vendor's key belongs to the vendor, not to one CLI. An Anthropic key works in Claude Code,
-pi, opencode, mimocode and ZCode alike, so an account made for one of them can be copied to the
+pi, opencode and mimocode alike, so an account made for one of them can be copied to the
 others. humanize spells it the way each one reads it. A subscription cannot travel: it lives in
 one CLI's own credential store, in that CLI's own format.
 

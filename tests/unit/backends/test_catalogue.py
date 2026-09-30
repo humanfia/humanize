@@ -93,7 +93,6 @@ _COUNTING: dict[str, set[str]] = {
     "opencode": {"input", "output", "cache_read", "cache_write", "reasoning"},
     "pi": {"input", "output", "cache_read", "cache_write"},
     "qwen": {"input", "output", "cache_read", "cache_write"},
-    "zcode": {"input", "output"},
 }
 
 

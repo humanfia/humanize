@@ -245,25 +245,6 @@ const BACKENDS: Backend[] = [
     ],
   },
   {
-    cli: 'zcode',
-    called: 'ZCode',
-    ways: [
-      { name: 'login', about: 'sign in to a Z.AI account, in a browser', runs: 'zcode login' },
-      { name: 'device', about: BROWSERLESS, runs: 'zcode login --no-browser' },
-      {
-        name: 'key',
-        about: 'a Z.AI or BigModel coding plan key, which its own models run on',
-        asks: [{ env: 'ZCODE_API_KEY', secret: true }],
-      },
-      {
-        name: 'gateway',
-        about: GATEWAY,
-        asks: [{ env: 'ZCODE_BASE_URL' }, { env: 'ZCODE_API_KEY', secret: true }],
-      },
-      ENV,
-    ],
-  },
-  {
     cli: 'cursor-agent',
     called: 'Cursor Agent',
     ways: [

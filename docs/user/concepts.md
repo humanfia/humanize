@@ -36,7 +36,7 @@ opens runs at. Two agents set up alike are still two agents. Set one up in `/flo
 ## Backend
 
 A coding agent CLI that humanize drives: `agy`, `claude`, `codex`, `cursor-agent`, `dsh`,
-`grok`, `kimi`, `mimo`, `opencode`, `pi`, `qwen` or `zcode`. It is the `cli` row of an agent.
+`grok`, `kimi`, `mimo`, `opencode`, `pi` or `qwen`. It is the `cli` row of an agent.
 See [Installation](/user/installation) and [Many backends, one agent](/features/backends).
 
 ## Budget

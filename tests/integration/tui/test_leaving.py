@@ -66,16 +66,25 @@ async def _says(app: Humanize, driver: Pilot[None], line: str) -> None:
     await driver.pause()
 
 
-def test_the_one_way_out_says_that_a_flow_goes_on_running() -> None:
+@pytest.mark.timeout(60)
+async def test_the_one_way_out_says_that_a_flow_goes_on_running() -> None:
     """The list is where somebody reads what a command does before they type it.
 
     Leaving with a flow running is the one thing here that does not end what it closes, so
     the line beside `/exit` has to say so: a person who reads `Exit humanize` and means to
-    leave the run going has no way of knowing from there that they can.
+    leave the run going has no way of knowing from there that they can. With nothing running
+    there is nothing to say about it, and the line says only what the command does.
     """
     from hmz.tui.app import _BY_NAME
 
-    assert "running" in _BY_NAME["exit"].about
+    app = Humanize(link=FakeLink())
+    async with app.run_test() as driver:
+        assert app._about(_BY_NAME["exit"]) == "Exit"
+
+        holding(app, "coder/1")
+        await driver.pause()
+
+        assert "left running" in app._about(_BY_NAME["exit"])
 
 
 @pytest.mark.timeout(60)

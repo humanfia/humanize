@@ -381,8 +381,8 @@ def test_auto_and_the_absence_of_a_rung_are_one_value() -> None:
     """Normalised on the way in and written back on the way out, so nothing carries two.
 
     A driver asks one question -- is there a rung? -- and `effort == ""` is the whole of the
-    answer. Were `auto` to reach that far it would be a second thing every one of twelve
-    drivers had to know, which is how a value ends up meaning one thing in eleven of them.
+    answer. Were `auto` to reach that far it would be a second thing every one of eleven
+    drivers had to know, which is how a value ends up meaning one thing in ten of them.
     """
     assert ClaudeCodeAgentConfig(model="m", effort=backends.AUTO).effort == ""
     assert backends.written("") == backends.AUTO

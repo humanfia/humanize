@@ -249,7 +249,6 @@ directory humanize kept is read as that backend's home is, `sessions/<cli>/` sta
 | opencode | `XDG_DATA_HOME`, as `$XDG_DATA_HOME/opencode` | `~/.local/share/opencode` |
 | MiMo Code | `XDG_DATA_HOME`, as `$XDG_DATA_HOME/mimocode` | `~/.local/share/mimocode` |
 | Antigravity | nothing | `~/.gemini/antigravity-cli` |
-| ZCode | nothing | `~/.zcode` |
 | Cursor Agent | <Badge type="warning" text="no reader" /> | nothing is collected |
 
 Every backend but Cursor Agent has a reader; opencode, MiMo Code and Antigravity keep their
