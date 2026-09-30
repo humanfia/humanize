@@ -1,7 +1,49 @@
+<script setup>
+import Term from '../.vitepress/theme/components/user-prompt/Term.vue'
+</script>
+
 # Installation
 
-Three steps: install humanize, sign in to one coding agent CLI, and check that humanize can see
-it. You need **Python 3.12 or newer**.
+Install humanize, sign in to one coding agent CLI, and check that humanize can see it. It takes
+a few minutes, most of it the CLI's own sign-in.
+
+::: info At a glance
+- **You will** have the `hmz` command on your `PATH`, and at least one coding agent it can
+  drive.
+- **Use it when** you are setting humanize up on a machine for the first time, or adding a
+  backend to one that has it.
+- **You need** **Python 3.12 or newer**, and `npm` for most of the coding agent CLIs.
+:::
+
+## Try it
+
+With Claude Code, the whole thing is:
+
+```sh
+uv tool install git+https://github.com/humanfia/humanize.git
+npm i -g @anthropic-ai/claude-code && claude auth login
+hmz --version
+```
+
+The steps below say what each line does, give the other ways to install, and show every
+backend's sign-in.
+
+## How it works
+
+humanize does not talk to a model itself. It drives **coding agent CLIs** that you already use,
+such as Claude Code or Codex, the way a person would: it starts them, gives them a task, and
+reads what they do. Each CLI humanize can drive is a **backend**.
+
+So there are two installs, and they are independent:
+
+| You install | Who signs it in | What it gives you |
+| --- | --- | --- |
+| humanize, once | nobody: it holds no account of its own | the `hmz` command |
+| one or more coding agent CLIs | you, with the CLI's own login | the agents a flow runs |
+
+humanize runs each CLI **as you signed it in**. The agent menu calls that `as local`. Nothing
+is copied: your login stays where the CLI keeps it. To run a CLI as another account, see
+[Accounts](/user/settings#accounts).
 
 ## 1. Install humanize
 
@@ -22,7 +64,8 @@ pip install git+https://github.com/humanfia/humanize.git
 :::
 
 Each one gives you the `hmz` command. `uv tool` and `pipx` put it in an environment of its own,
-on your `PATH` from every directory. `pip` installs into whichever environment is active.
+on your `PATH` from every directory. `pip` installs into whichever environment is active, so
+`hmz` is there only while that environment is.
 
 ### Two backends need an extra {#the-two-backends-that-are-extras}
 
@@ -123,13 +166,12 @@ export DEEPSEEK_API_KEY=sk-…
 
 :::
 
-If you are already signed in, there is nothing to do. humanize runs each CLI as you signed it
-in, which the agent menu calls `as local`.
+If you are already signed in, there is nothing to do.
 
 ::: tip An API key, or two accounts of one CLI
 Make an account on [the Accounts page of `/settings`](/user/settings#accounts) inside `hmz`. It
-can hold a login, an API key, or a gateway of your own, and one flow can run two accounts of the
-same CLI at once.
+can hold a login, an API key, or a gateway of your own, and one flow can run two accounts of
+the same CLI at once.
 :::
 
 ## 3. Check it works {#check-what-you-have}
@@ -148,27 +190,49 @@ Then open the interface in any directory:
 hmz
 ```
 
+## Example: the first time `hmz` opens
+
 The first time, humanize asks each CLI it found which models it runs. That can take a minute.
-It asks again, in the background, when what a CLI said is more than a week old.
-Once one has answered, the line above the prompt names the agent it would start:
+It then asks one question of its own. Here it is on a machine with Claude Code, Codex and
+Qwen Code signed in:
 
-```text
-                  assistant · claude/claude-opus-4-8:high
-─────────────────────────────────────────────────────────
-❯
-─────────────────────────────────────────────────────────
- ◉ chat · ~/src/demo      ← monitor · ctrl+c exit
-```
+<Term title="hmz · the first launch">
 
-If that line still reads only `assistant`, no CLI has answered: humanize found none, or the one
-it found is not signed in and cannot say what it runs. Typing a task then says
-`hmz: no coding agent is installed`. humanize looks on your `PATH`, then in
-`~/.local/bin`, `/usr/local/bin`, `/opt/homebrew/bin`, `/usr/bin` and `/bin`. See which ones a
-shell finds:
+<pre>  <span class="p b">Report errors to humanize?</span> <span class="n">1</span>
+  <span class="m">Send error reports to help fix bugs. Sent: the error and where in humanize
+  it occurred; … Never sent: nothing you typed: no task, prompt, or command; …
+  You can change this later in /settings.</span>
 
-```sh
-command -v agy claude codex cursor-agent grok kimi mcode mimo opencode pi qwen
-```
+     <span class="p">❯ 1. yes</span>
+       <span class="d">2.</span> no
+
+  <span class="d">enter choose · esc ask again next time</span>
+
+                                  <span class="m">assistant · qwen/qwen3-coder-plus:high</span> <span class="n">2</span>
+<span class="d">──────────────────────────────────────────────────────────────────────</span>
+<span class="p">❯</span>
+<span class="d">──────────────────────────────────────────────────────────────────────</span>
+  <span class="a">◉</span> chat · ~/src/demo <span class="n">3</span>   <span class="d">/ commands · shift+enter newline · ← monitor · ctrl+c exit</span></pre>
+
+</Term>
+
+What to look at, by number:
+
+1. **The reporting question.** It says in full what a report carries and what it never does.
+   Answer either way: `/settings` changes it later, and <kbd>esc</kbd> asks again next time.
+   See [Reporting](/user/reporting).
+2. **The line above the prompt** names the agent humanize would start:
+   `role · cli/model:effort`. Here the role is `assistant`, and the CLI is the first one
+   humanize found that could say what it runs. Seeing a CLI and a model here is the proof that
+   humanize can drive it.
+3. **The status line** says which [flow](/user/concepts#flow) is chosen, `chat`, and the
+   directory. On the right are the keys that work right now.
+
+### Check it worked
+
+- `hmz --version` prints a version.
+- The line above the prompt reads `assistant · <cli>/<model>:<effort>`, not only `assistant`.
+- `/flow`, then <kbd>enter</kbd> on a role, lists your CLI on its `cli` row.
 
 Leave with `/exit`. Now make your [first run](/user/first-run).
 
@@ -212,6 +276,39 @@ up to run, your accounts, and the flowverses it fetched. Set `HUMANIZE_HOME` to 
 somewhere else. A project's own flows, and the runs you export from it, are in `.humanize/` in
 that project. The full list is in the [CLI reference](/reference/cli).
 
+## Troubleshooting
+
+### The line above the prompt reads only `assistant`
+
+No CLI has answered: humanize found none, or the one it found is not signed in and cannot say
+what it runs. Typing a task then says `hmz: no coding agent is installed`.
+
+humanize looks on your `PATH`, then in `~/.local/bin`, `/usr/local/bin`, `/opt/homebrew/bin`,
+`/usr/bin` and `/bin`. See which ones a shell finds:
+
+```sh
+command -v agy claude codex cursor-agent grok kimi mcode mimo opencode pi qwen
+```
+
+A CLI that is listed but still not offered is usually not signed in: run its sign-in from
+[step 2](#signing-each-backend-in) again, then open `hmz` again.
+
+### `hmz: command not found`
+
+`pip` installed into an environment that is not active, or `uv tool`'s and `pipx`'s directory
+is not on your `PATH`. Run `uv tool update-shell` or `pipx ensurepath`, and open a new shell.
+
+### A model I expected is missing
+
+What a CLI runs is asked once and remembered for a week, then asked again in the background. To
+ask now, open `/flow`, <kbd>enter</kbd> on a role, then on its `model` row, and choose
+`check again`.
+
+### `dsh` or `kimi` is listed with an install command
+
+Its extra is missing. Run the command on its row, or reinstall with the extra from
+[Two backends need an extra](#the-two-backends-that-are-extras).
+
 ## Uninstall
 
 Stop any run you left running first: `hmz` in its directory, then `/exit`.
@@ -240,3 +337,11 @@ rm -rf ~/.humanize
 ```
 
 The coding agent CLIs and their own logins stay as they are.
+
+## Next steps
+
+- [Your first run](/user/first-run): choose a flow, give it an agent and a budget, and watch it
+  work.
+- [Security](/user/security): what to check before a flow touches work you care about.
+- [Accounts](/user/settings#accounts): run a CLI as an API key, a gateway or a second login.
+- [Many backends, one agent](/features/backends): what each backend can and cannot do.
