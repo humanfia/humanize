@@ -979,7 +979,7 @@ class Humanize(App[None]):
         self._run: _RunSeen | None = None
         #: And the last one that went, kept once it is over: its sessions are still drawn on
         #: the monitor, and what their environments are is what that run was given.
-        self._last_run: _RunSeen | None = None
+        self._seen_last: _RunSeen | None = None
         #: Which run is the one in front of us, as the runs number them: a record of a run
         #: that has since been replaced is one about a run nobody is watching.
         self._generation = 0
@@ -2699,7 +2699,7 @@ class Humanize(App[None]):
         """
         # The run's own, while there is one to read it off: another frontend may have started
         # a flow this one never set up, and the menu may have set up another since.
-        ran = self._run or self._last_run
+        ran = self._run or self._seen_last
         declared = {
             one.name: one
             for one in declared_places(ran.flow if ran else self._flow_named)
@@ -4175,7 +4175,7 @@ class Humanize(App[None]):
         self._run = _RunSeen.of(message) if message.get("state") == "running" else None
         if self._run is not None:
             self._starting = False
-            self._last_run = self._run
+            self._seen_last = self._run
         stopping = message.get("stopping")
         self._stopping = stopping if isinstance(stopping, int) else None
 
