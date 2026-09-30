@@ -76,8 +76,7 @@ has one (every CLI but `dsh` and CLIs added over the Agent Client Protocol). Whe
 be told, `online` of `NONE` also switches its web tools off. Cursor's web search and fetch
 cannot be switched off and run on Cursor's own servers, which it reaches for its model, so a
 cut network would not stop them: a `cursor-agent` role with `online` of `NONE` is refused, and
-needs `online` of `ALL`. ZCode also refuses, when it asks for approval, a write outside
-the grant, and tells the model why.
+needs `online` of `ALL`.
 
 humanize knows nothing of a CLI you added over the Agent Client Protocol: not the hosts its
 model is at, and not where it keeps its state. Declare both where it was added, or a role that
@@ -113,9 +112,9 @@ builder of [`humanize1:rlcr`](/flows/humanize1) and the worker of
 [`recursive_lean_prover`](/flows/recursive-lean-prover) are two. Only these CLIs can fill such
 a role:
 
-| `claude` | `codex` | `kimi` | `zcode` | every other |
-| --- | --- | --- | --- | --- |
-| <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> | <Badge type="danger" text="refused" /> |
+| `claude` | `codex` | `kimi` | every other |
+| --- | --- | --- | --- |
+| <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> | <Badge type="danger" text="refused" /> |
 
 The agent sheet does not offer the others, and `hmz exec` refuses them before anything runs:
 

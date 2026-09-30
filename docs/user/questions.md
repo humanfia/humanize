@@ -50,9 +50,9 @@ turn.
 An agent asks only if its CLI can, and only if the flow passes its questions on to you. `chat`
 passes every one on.
 
-| `claude` | `codex` | `kimi` | `pi` | `zcode` | every other |
-| --- | --- | --- | --- | --- | --- |
-| <Badge type="tip" text="asks" /> | <Badge type="tip" text="asks" /> | <Badge type="tip" text="asks" /> | <Badge type="tip" text="asks" /> | <Badge type="tip" text="asks" /> | <Badge type="info" text="never stops to ask" /> |
+| `claude` | `codex` | `kimi` | `pi` | every other |
+| --- | --- | --- | --- | --- |
+| <Badge type="tip" text="asks" /> | <Badge type="tip" text="asks" /> | <Badge type="tip" text="asks" /> | <Badge type="tip" text="asks" /> | <Badge type="info" text="never stops to ask" /> |
 
 A flow may also answer an agent's question itself, without asking you. When it does neither,
 the agent is told nobody answered, and carries on.

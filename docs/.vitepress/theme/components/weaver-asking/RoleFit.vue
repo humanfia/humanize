@@ -38,7 +38,6 @@ const CLIS: Cli[] = [
   { cli: 'claude', serves: [G, L, S, P, SS, SE, A] },
   { cli: 'codex', serves: [G, S, P, SS, SE, A] },
   { cli: 'kimi', serves: [G, S, P, A] },
-  { cli: 'zcode', serves: [G, P, A] },
   { cli: 'pi', serves: [S, A] },
   { cli: 'cursor-agent', serves: [SS, SE] },
   { cli: 'dsh', serves: [G] },

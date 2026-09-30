@@ -641,18 +641,6 @@ class Profile:
         ids a turn of it could name -- one that spells a model `provider/id` out of several
         endpoints at once, or one whose endpoint speaks a protocol of its own -- whose own
         answer is already the account's. :mod:`hmz.coganchor.models` is what reads it.
-      fronted: The word this backend's models are written under when they came from an
-        endpoint rather than from its own configuration, for a CLI that spells a model
-        `provider/id`. Empty for every CLI that names a model on its own.
-
-        An endpoint answers with ids and nothing else -- `nvidia/zai-org/glm-5.3-flash` --
-        and a CLI that reads a model as a pair would take that whole string for the pair,
-        leaving a provider it has never heard of in front of a model the gateway does not
-        serve. So the half the endpoint cannot supply is written here: the provider a turn
-        on that account actually runs on is the account's own endpoint, and this is the name
-        it goes under. Any word would do, which is exactly why it has to be one word and
-        written down once -- what a catalogue offers and what a session is opened with have
-        to agree, and they are read in two different modules.
       signs: What this CLI says when a turn stops that no other one says, and which kind of
         failure each of those makes it. Read before :data:`SIGNS`, which is what every one of
         them says. Empty for a backend whose failures read like everybody else's.
@@ -703,7 +691,6 @@ class Profile:
     ways: tuple[Way, ...] = ()
     ambient: tuple[str, ...] = ()
     endpoint: str = ""
-    fronted: str = ""
     signs: tuple[Sign, ...] = ()
     journal: tuple[str, ...] = ()
     installs: str = ""
@@ -952,16 +939,6 @@ _AGY = ("high", "medium", "low")
 #: ladder is the vocabulary, and `hmz.coganchor.models` narrows it per model to the ids the
 #: account was offered.
 _CURSOR = ("max", "xhigh", "extra-high", "high", "medium", "low", "minimal", "none")
-
-#: What ZCode calls a thought level, hardest first. Several ladders rather than one, because
-#: its models have several, and 0.16.5's own capability table is where these were read off:
-#: GLM 5.3, Kimi K3 and its preview model take `low`, `high` or `max`; Claude and GPT through
-#: it take `low`, `medium`, `high` or `xhigh`, and Opus 4.7 that ladder with `max` on top;
-#: DeepSeek V4 takes `high` or `max`; GLM 5.2 takes `max`, `high` or `nothink`; and the models
-#: that only take thinking or no thinking take `enabled` or `disabled`. They are one list here
-#: because a backend's efforts are one list, and a model narrows it to the rungs it answered
-#: with -- which the server states per session, as `thoughtLevel.available`.
-_ZCODE = ("max", "xhigh", "high", "medium", "low", "enabled", "nothink", "disabled")
 
 #: Every backend humanize drives, as each of them reported itself. Codex says which efforts
 #: each of its models takes and they differ, so they are written down as it gave them.
@@ -2068,129 +2045,6 @@ PROFILES = (
                 name="key",
                 about="a MiMo key, which its own models run on",
                 asks=(Asked(env="XIAOMI_API_KEY", about="the key", secret=True),),
-            ),
-        ),
-    ),
-    Profile(
-        name="zcode",
-        # Its own origin, which signs in and serves the plan's turns, and the coding plan's
-        # API hosts, global and mainland.
-        hosts=("zcode.z.ai", "api.z.ai", "open.bigmodel.cn", "bigmodel.cn"),
-        # The vendor ships one Linux package and it is the desktop app, with the command line
-        # bundled inside it at `resources/glm/zcode.cjs` and no launcher of its own. What the
-        # package puts on `PATH` as `zcode` is the Electron app, which on a machine with no
-        # display exits before it draws anything -- so a `zcode` that is the CLI is the third
-        # part of this line, and without it the first two install a name that will not take a
-        # turn. It runs the bundled file through the app's own Electron binary in Node mode,
-        # which wants no system node and moves with the package it came from; `/usr/local/bin`
-        # precedes `/usr/bin`, so that is the `zcode` a shell then finds, for any user.
-        #
-        # The version is in the URL because the vendor publishes no `latest`: a newer release
-        # is the same path with the number changed, and the `.rpm`, the `.AppImage` and the
-        # arm64 builds sit in that same directory under their own names.
-        installs=(
-            "curl -fsSLO https://cdn-zcode.z.ai/zcode/electron/releases/3.11.2/linux-x64"
-            "/ZCode-3.11.2-linux-x64.deb"
-            " && sudo apt install -y ./ZCode-3.11.2-linux-x64.deb"
-            " && printf '#!/bin/sh\\nELECTRON_RUN_AS_NODE=1"
-            ' exec /opt/ZCode/zcode /opt/ZCode/resources/glm/zcode.cjs "$@"\\n\''
-            " | sudo tee /usr/local/bin/zcode >/dev/null"
-            " && sudo chmod +x /usr/local/bin/zcode"
-        ),
-        # `WebFetch` and `WebSearch` are the two tools it reaches outside the workspace with,
-        # and a session may be opened with a denylist naming them.
-        searches=True,
-        # One app server per agent holds every session of it, as Codex's and Kimi's do.
-        shares=True,
-        # `session/fork`, which is the call: it answers with a session id of its own holding
-        # the messages the named one had got to, and a turn sent there knows what that
-        # conversation knew and nothing this one is told afterwards. Written down off 0.16.5
-        # rather than guessed at -- the guess this replaces was that there was no such call.
-        forks=True,
-        aliases=("zcode", "zcode-cli"),
-        # None: its configuration, its sessions and its skills are all under `~/.zcode`, found
-        # from the home directory itself and from no variable at all. `ZCODE_DATA_BASE_DIR`
-        # moves only the credential the desktop app shares -- `<it>/.zcode/v2` -- and leaves
-        # `cli/`, which is the part a turn runs out of, where it was. What moves the whole of
-        # it is `HOME`.
-        home_var="",
-        home_dir=".zcode",
-        # One file per session, a line per request the turn made: what was sent, what came
-        # back and what it cost. Under `cli/`, which is where the command line keeps what is
-        # its own rather than the desktop app's.
-        logs=("cli/rollout/model-io-{ident}.jsonl",),
-        # A turn and another on the same app server: the database a session is rows of, the
-        # rollouts, and the directories it keeps per session -- its sub-agents, artifacts and
-        # the output of what it ran. `v2/` is the account's and the desktop app's.
-        sessions=("cli/db", "cli/rollout", "cli/agents", "cli/artifacts", "cli/exec"),
-        efforts=_ZCODE,
-        # Four places: its own directory and the shared one under your home, and the same pair
-        # under the project. Both tiers, and no flag to turn either off. `zcode skills list`
-        # says these four and a fifth -- the roots of whatever plugins are enabled, which are
-        # the CLI's own and are read last, so nothing here mounts one.
-        skills=("skills/*/SKILL.md",),
-        shared=(".agents/skills/*/SKILL.md",),
-        works=(".zcode/skills/*/SKILL.md", ".agents/skills/*/SKILL.md"),
-        # The shared one of its two, being the directory more than one of these CLIs has
-        # agreed to read: a skill mounted there is a skill Codex and Kimi read too.
-        mounts=".agents/skills",
-        # One file, and the desktop app's rather than the command line's: a login is shared
-        # between them, encrypted with a key derived from this machine and this user. It is
-        # the one path `ZCODE_DATA_BASE_DIR` moves.
-        creds=("v2/credentials.json",),
-        # Its app server has no catalogue of its own to ask for an account on a gateway: what
-        # `workspace/readState` answers with is the providers the person's own configuration
-        # file names, which for an agent handed an account is the wrong file's answer. So the
-        # endpoint is asked instead, as every other backend on a gateway is.
-        endpoint="ZCODE_BASE_URL",
-        # And its ids are written back under a provider, because ZCode reads a model as
-        # `provider/id` and an endpoint answers with the id alone. `gw` is that word: the
-        # provider a turn on such an account runs on *is* the endpoint, and this is what the
-        # session declares it under. The driver reads the provider back off the model, so the
-        # catalogue and the session agree by construction.
-        fronted="gw",
-        ambient=(
-            # Its own, which outrank the file whichever way it was signed in. `ZCODE_API_KEY`
-            # is the last candidate it tries for any provider's key, and the ones before it
-            # are spelled out of the provider's own name -- `NVIDIA_API_KEY` for a provider
-            # called `nvidia` -- so they are names no list here could hold. What closes that
-            # is the driver, which puts the account's own key on the session rather than
-            # leaving ZCode to go looking for one.
-            "ZCODE_API_KEY",
-            "ZCODE_BASE_URL",
-            "ZCODE_CREDENTIAL_SECRET",
-            "ZCODE_DATA_BASE_DIR",
-            "ZCODE_ENDPOINT_ORIGIN",
-            # And the vendors' own names, which it reads a key under for a provider speaking
-            # that vendor's protocol -- which the Z.AI plan it ships with is one of. `kind`
-            # is what decides which of the two it asks for, and no other vendor name is read:
-            # `ZAI_API_KEY` was here and 0.16.5 has no such variable in it anywhere.
-            "ANTHROPIC_API_KEY",
-            "OPENAI_API_KEY",
-        ),
-        ways=(
-            Way(
-                name="login",
-                about="sign in to a Z.AI account, in a browser",
-                argv=("zcode", "login"),
-            ),
-            Way(
-                name="device",
-                about="the same, from a machine with no browser on it",
-                argv=("zcode", "login", "--no-browser"),
-            ),
-            Way(
-                name="key",
-                about="a Z.AI or BigModel coding plan key, which its own models run on",
-                asks=(Asked(env="ZCODE_API_KEY", about="the API key", secret=True),),
-            ),
-            Way(
-                name="gateway",
-                about=_GATEWAY,
-                asks=(
-                    Asked(env="ZCODE_BASE_URL", about="where it is, as a URL"),
-                    Asked(env="ZCODE_API_KEY", about="the key it takes", secret=True),
-                ),
             ),
         ),
     ),

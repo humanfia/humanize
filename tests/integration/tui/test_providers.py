@@ -1150,10 +1150,9 @@ async def test_an_account_several_backends_could_run_asks_which_to_write_it_down
             "also:pi",
             "also:opencode",
             "also:mimo",
-            "also:zcode",
         ]
         # Nothing is installed in this suite, so nothing starts switched on.
-        assert not any(form._also(one) for one in ("pi", "opencode", "mimo", "zcode"))
+        assert not any(form._also(one) for one in ("pi", "opencode", "mimo"))
         await changes(app, driver, "also:opencode", "right")
         assert "for opencode too" in str(
             app.screen.query_one("#choices", OptionList).get_option(f"={_DONE}").prompt

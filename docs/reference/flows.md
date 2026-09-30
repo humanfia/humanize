@@ -72,7 +72,7 @@ All of these import from `hmz.flows`.
 | Group | Names |
 | --- | --- |
 | Defining a flow | [`flow`](#flow), [`Flow`](#flow-protocol), [`FlowFn`](#flowfn), [`load`](#load), [`FlowParams`](#flowparams), [`FlowContext`](#flowcontext), [`FlowState`](#flowstate) |
-| Agents | [`AgentCollection`](#agentcollection), [`Agent`](#agent), [`Session`](#session), [`Outworlder`](#outworlder), [`HarnessKind`](#harnesskind), [`HARNESS_AGENTS`](#harness-agents) and the twelve harness protocols, from [`ClaudeCodeAgent`](#what-each-harness-serves) to `DeepSeekHarnessAgent` |
+| Agents | [`AgentCollection`](#agentcollection), [`Agent`](#agent), [`Session`](#session), [`Outworlder`](#outworlder), [`HarnessKind`](#harnesskind), [`HARNESS_AGENTS`](#harness-agents) and the eleven harness protocols, from [`ClaudeCodeAgent`](#what-each-harness-serves) to `DeepSeekHarnessAgent` |
 | Agent mixins | [`GoalCommandAgentMixin`, `LoopCommandAgentMixin`, `SteeringAgentMixin`, `PermissionRequestHookAgentMixin`, `SubagentStartHookAgentMixin`, `SubagentStopHookAgentMixin`, `AskUserHookAgentMixin`](#asking-for-an-agent-that-can-do-something) |
 | Permissions | [`Permission`](#permission), [`PermissionKind`](#permissionkind) |
 | Budgets | [`Budget`](#budget), [`Usage`](#usage) |
@@ -282,9 +282,9 @@ class Reviewer(Agent):
 | `claude` | Claude Code | | `kimi` | Kimi Code |
 | `codex` | Codex | | `grok` | Grok Build |
 | `cursor-agent` | Cursor Agent | | `pi` | pi |
-| `opencode` | opencode | | `zcode` | ZCode |
-| `mimo` | MiMo Code | | `agy` | Antigravity |
-| `qwen` | Qwen Code | | `dsh` | DeepSeek Harness |
+| `opencode` | opencode | | `agy` | Antigravity |
+| `mimo` | MiMo Code | | `dsh` | DeepSeek Harness |
+| `qwen` | Qwen Code | | | |
 | `acp` | a CLI added on the Accounts page of `/settings`, driven over the Agent Client Protocol | | | |
 
 ## Asking for an agent that can do something {#asking-for-an-agent-that-can-do-something}
@@ -345,7 +345,6 @@ agent: steer needs SteeringAgentMixin on the role
 | `claude` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | any workdir |
 | `codex` | ✓ | | ✓ | ✓ | ✓ | ✓ | any workdir |
 | `kimi` | ✓ | | ✓ | ✓ | | ✓ | any workdir |
-| `zcode` | ✓ | | | ✓ | | ✓ | any workdir |
 | `pi` | | | ✓ | | | ✓ | same workdir |
 | `dsh` | ✓ | | | | | | no |
 | `cursor-agent` | | | | | ✓ | | no |
@@ -355,7 +354,7 @@ agent: steer needs SteeringAgentMixin on the role
 </div>
 
 <span id="harness-agents"></span>Each harness also has a protocol of its own that declares
-exactly that row: `ClaudeCodeAgent`, `CodexAgent`, `KimiCodeAgent`, `ZCodeAgent`, `PiAgent`,
+exactly that row: `ClaudeCodeAgent`, `CodexAgent`, `KimiCodeAgent`, `PiAgent`,
 `DeepSeekHarnessAgent`, `CursorAgent`, `GrokBuildAgent`, `OpenCodeAgent`, `MiMoCodeAgent`,
 `QwenCodeAgent` and `AntigravityAgent`. `HARNESS_AGENTS` maps each `HarnessKind` to its
 protocol, and `acp` to plain `Agent`.
@@ -480,7 +479,6 @@ default) but refuses one at `NONE`.
 | `kimi` | external (Landlock + proxy) | external (Landlock + proxy; its daemon may bind its one port) |
 | `grok` | external (Landlock + proxy); its own sandbox writes `/tmp` | external (Landlock + proxy); its own sandbox cannot hold it, and `--disable-web-search` takes its web tools away offline |
 | `pi` | external (Landlock + proxy) | external (Landlock + proxy), started `--offline`; the gateways its `models.json` declares stay reachable |
-| `zcode` | external (Landlock + proxy); a write outside it refused at approval | external (Landlock + proxy); web tools denied |
 | `agy` | external (Landlock + proxy); its `--sandbox` holds only its commands | external (Landlock + proxy), and its web tools taken away |
 | `dsh` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `acp` | external (Landlock + proxy), plus the `state` declared for it | external (Landlock + proxy), to the `hosts` declared for it; `NONE` with none declared is refused |
@@ -516,8 +514,7 @@ by number, since nothing inside the fence can resolve a name.
 - **A hook only an asking CLI reaches** starts the CLI so that it asks, and humanize answers
   yes unless the hook says no. Codex runs with approval policy `untrusted` while an
   `on_permission_request` hook is hung, and turns on its `default_mode_request_user_input`
-  feature for an `on_ask_user` one. Kimi Code and ZCode run at their asking rung while either
-  is hung.
+  feature for an `on_ask_user` one. Kimi Code runs at its asking rung while either is hung.
 
 [Agents](/reference/agents) has the rungs themselves.
 :::
@@ -620,8 +617,8 @@ async def fork(self, session: Session, *, env: Env) -> Session
 ```
 
 Opens a second session that carries on from where `session` is, and leaves `session` as it
-was. `env` is where the new one works: another workdir only on Claude Code, Codex, Kimi Code
-and ZCode, the same workdir on every other harness that forks, and never another machine.
+was. `env` is where the new one works: another workdir only on Claude Code, Codex and Kimi
+Code, the same workdir on every other harness that forks, and never another machine.
 cursor-agent, Antigravity and dsh do not fork. Either refusal raises `UnsupportedOperation`.
 
 A session is forked from a turn it has taken: forking one that has taken none raises
@@ -928,7 +925,7 @@ nothing, so a hook that only watches returns one.
   turn goes on. `on_ask_user` is the exception: a question waits for its answer.
 - **A hook hung mid-turn** reaches that turn's later moments, except the ones that decide how
   a CLI is started, which take hold from the next turn: `on_pre_tool_use` on a CLI that gates
-  its tools, and `on_permission_request` or `on_ask_user` on Codex, Kimi Code and ZCode.
+  its tools, and `on_permission_request` or `on_ask_user` on Codex and Kimi Code.
 
 See [Hooks](/weaver/hooks) for the guide, and [The agent asking the flow](/weaver/tools) for
 `on_ask_user`.

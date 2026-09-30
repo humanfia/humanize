@@ -24,7 +24,6 @@ from .readers import (
     opencode,
     pi,
     qwen,
-    zcode,
 )
 
 if TYPE_CHECKING:
@@ -46,7 +45,6 @@ _READERS = {
     "opencode": opencode.collect,
     "pi": pi.collect,
     "qwen": qwen.collect,
-    "zcode": zcode.collect,
 }
 
 

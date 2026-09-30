@@ -51,7 +51,6 @@ const CLIS: Cli[] = [
   { name: 'claude', reaches: ['perm', 'ask', 'sub'], gates: true },
   { name: 'codex', reaches: ['perm', 'ask', 'sub'], gates: false },
   { name: 'kimi', reaches: ['perm', 'ask'], gates: false },
-  { name: 'zcode', reaches: ['perm', 'ask'], gates: false },
   { name: 'pi', reaches: ['ask'], gates: false },
   { name: 'cursor-agent', reaches: ['sub'], gates: false },
   { name: 'qwen', reaches: [], gates: true },
@@ -168,13 +167,13 @@ function script(): Beat[] {
   let stopped = false
   const guard = hookOn('on_pre_tool_use')
   const perm = hookOn('on_permission_request')
-  // Where the CLI asks first -- claude always, codex, kimi and zcode while a hook is hung
+  // Where the CLI asks first -- claude always, codex and kimi while a hook is hung
   // there -- the question comes before the tool starts. A CLI that gates on its own hook
   // table asks that before it asks for permission; the others only say what they reached for
   // once the tool is under way.
   const answer = hookOn('on_ask_user')
   const either = Boolean(perm || answer)
-  const rung = c.name === 'kimi' || c.name === 'zcode'
+  const rung = c.name === 'kimi'
   const asks =
     c.reaches.includes('perm') && (c.name === 'claude' || Boolean(perm) || (rung && either))
   const permission = () => {
@@ -212,7 +211,7 @@ function script(): Beat[] {
     push('on_subagent_stop', 'Explore said: “three callers”', 'told')
   }
   // Claude and pi may ask whether or not a hook is there; codex only while one is hung on
-  // this moment, kimi and zcode while either asking hook is (`hmz/runtime/flowing/harnessing.py`).
+  // this moment, kimi while either asking hook is (`hmz/runtime/flowing/harnessing.py`).
   const free = c.name === 'claude' || c.name === 'pi'
   if (c.reaches.includes('ask') && (answer || free || (rung && either))) {
     push('on_ask_user', 'asks: “shall I drop the old column?”', 'told')

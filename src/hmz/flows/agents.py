@@ -93,7 +93,6 @@ __all__ = [
     "SubagentStartHookAgentMixin",
     "SubagentStopHookAgentMixin",
     "Usage",
-    "ZCodeAgent",
 ]
 
 
@@ -109,7 +108,6 @@ class HarnessKind(StrEnum):
     KIMI = "kimi"
     GROK = "grok"
     PI = "pi"
-    ZCODE = "zcode"
     AGY = "agy"
     DSH = "dsh"
     #: A CLI somebody added by hand, driven over the Agent Client Protocol.
@@ -664,16 +662,6 @@ class PiAgent(Agent, SteeringAgentMixin, AskUserHookAgentMixin, Protocol):
     """pi, with everything it can do."""
 
 
-class ZCodeAgent(
-    Agent,
-    GoalCommandAgentMixin,
-    PermissionRequestHookAgentMixin,
-    AskUserHookAgentMixin,
-    Protocol,
-):
-    """ZCode, with everything it can do."""
-
-
 class AntigravityAgent(Agent, Protocol):
     """Antigravity, with everything it can do."""
 
@@ -696,7 +684,6 @@ HARNESS_AGENTS: Mapping[HarnessKind, type] = MappingProxyType(
         HarnessKind.KIMI: KimiCodeAgent,
         HarnessKind.GROK: GrokBuildAgent,
         HarnessKind.PI: PiAgent,
-        HarnessKind.ZCODE: ZCodeAgent,
         HarnessKind.AGY: AntigravityAgent,
         HarnessKind.DSH: DeepSeekHarnessAgent,
         HarnessKind.ACP: Agent,

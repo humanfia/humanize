@@ -66,7 +66,6 @@ from hmz.flows import (
     SubagentStopHookAgentMixin,
     TemporaryClonedDirEnvMixin,
     UnsupportedOperation,
-    ZCodeAgent,
     flow,
 )
 from hmz.runtime.flowing.engine import Call, FlowImpl
@@ -98,7 +97,6 @@ _qwen: type[QwenCodeAgent] = AgentView
 _kimi: type[KimiCodeAgent] = AgentView
 _grok: type[GrokBuildAgent] = AgentView
 _pi: type[PiAgent] = AgentView
-_zcode: type[ZCodeAgent] = AgentView
 _agy: type[AntigravityAgent] = AgentView
 _dsh: type[DeepSeekHarnessAgent] = AgentView
 _outworlder: type[Outworlder] = OutworlderView

@@ -100,22 +100,17 @@ def test_an_account_on_an_endpoint_is_asked_the_endpoint_under_its_own_credentia
 def test_every_backend_that_names_an_endpoint_is_answered_by_this_one(
     cli: str, llm: Serving, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """One service, and all eight accounts that point somewhere are asked it.
+    """One service, and all seven accounts that point somewhere are asked it.
 
     Which is the point of the whole file: a catalogue for any backend, in CI, without a key
     and without a token spent.
     """
     monkeypatch.setenv("PATH", str(tmp_path))
-    profile = backends.named(cli)
-    assert profile is not None
     llm.account(cli)
 
     found = models.ask(cli, MOCKED)
 
-    # With the word the session declares the endpoint under written back on, for the CLIs
-    # that spell a model `provider/id`: what is offered and what is opened are one string.
-    under = f"{profile.fronted}/" if profile.fronted else ""
-    assert [model.name for model in found] == [f"{under}{one}" for one in llm.serves]
+    assert [model.name for model in found] == llm.serves
     assert [(took.method, took.path) for took in llm.taken] == [("GET", "/v1/models")]
 
 
