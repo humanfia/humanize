@@ -77,9 +77,9 @@ All of these import from `hmz.flows`.
 | Permissions | [`Permission`](#permission), [`PermissionKind`](#permissionkind) |
 | Budgets | [`Budget`](#budget), [`Usage`](#usage) |
 | Environments | [`EnvCollection`](#envcollection), [`Env`](#env), [`LocalEnv`](#localenv), [`EnvBackendKind`](#envbackendkind), [`SequenceNotStr`](#sequencenotstr) |
-| Environment mixins | [`ShellEnvMixin`, `BashEnvMixin`, `FilesEnvMixin`](#what-an-environment-can-do), [`GitWorktreeEnvMixin`, `TemporaryClonedDirEnvMixin`, `ScratchDirEnvMixin`](#worktrees-copies-and-scratch-directories), [`CPUEnvMixin`, `MemoryEnvMixin`, `GPUEnvMixin`, `ImageEnvMixin`](#what-a-machine-must-have) |
+| Environment mixins | [`ShellEnvMixin`, `BashEnvMixin`, `FilesEnvMixin`](#what-an-environment-can-do), [`GitWorktreeEnvMixin`, `TemporaryClonedDirEnvMixin`, `ScratchDirEnvMixin`](#worktrees-copies-and-scratch-directories), [`RewindableEnvMixin`, `GitEnvMixin`](#snapshots-and-rewinding), [`CPUEnvMixin`, `MemoryEnvMixin`, `GPUEnvMixin`, `ImageEnvMixin`](#what-a-machine-must-have) |
 | Hooks | [`HookKind`](#hookkind), [`HookFn`](#hookfn), [`HookParams`, `HookResult`](#hookparams-and-hookresult), [`HOOK_TYPES`](#hook-types), and a [`<Moment>HookParams` and `<Moment>HookResult`](#hooks-in-a-flow) pair per moment |
-| Errors | [`FlowException`](#when-something-goes-wrong) and the 44 classes under it |
+| Errors | [`FlowException`](#when-something-goes-wrong) and the 45 classes under it |
 
 **Agents, environments, sessions and the context are protocols**, not base classes. At run
 time a flow is handed the runtime's own object for each role, granted exactly what the role
@@ -330,7 +330,7 @@ A calling flow that passes an agent lacking a mixin gets `CapabilityMissing` ins
 
 **At every use.** Using what the role did not declare raises `CapabilityNotGranted`, whatever
 the harness could do: a `/goal` or `/loop` prompt, `steer`, one of the four mixin hooks, a
-script `exec`, files, worktrees, copies or scratch directories.
+script `exec`, files, worktrees, snapshots, copies or scratch directories.
 
 ```
 agent: steer needs SteeringAgentMixin on the role
@@ -840,6 +840,53 @@ every call it started, unless the run is [resumable](#a-flow-that-can-be-picked-
 are kept for `--resume` to find. A worktree is left where it is. All three live under
 `~/.humanize/envs/` on that machine, named after the workdir and the id. See
 [Worktrees, copies and scratch](/weaver/worktrees).
+
+### Snapshots and rewinding {#snapshots-and-rewinding}
+
+| Mixin | Methods |
+| --- | --- |
+| `RewindableEnvMixin` | `async snapshot(name: str \| None = None) -> str`, `async rewind(ref: str) -> None`, `async snapshots() -> list[str]` |
+| `GitEnvMixin` | the same, done with git. Includes `RewindableEnvMixin`. |
+
+```python
+class Repo(Env, GitEnvMixin): ...
+
+before = await repo.snapshot()          # refs/hmz/snapshots/<when it was taken>
+...                                     # an agent tries something
+await repo.rewind(before)               # and it is as if it never had
+await repo.rewind("HEAD~1")             # or back to any commit git knows
+```
+
+`RewindableEnvMixin` is an interface only: declared by itself it grants nothing, and
+`snapshot` on it raises `CapabilityNotGranted`. Write a helper against it, and declare
+`GitEnvMixin` on the role.
+
+- **`snapshot(name)`** records the git worktree the workdir is in, untracked files
+  included, as a commit kept under `refs/hmz/snapshots/<name>`, and answers that ref.
+  Nothing is touched: not the branch, the index, or a file. `name` replaces a snapshot
+  of that name; leave it out for a fresh one named for when it was taken.
+- **`rewind(ref)`** puts the worktree back. To a snapshot, whole: the commit that was
+  checked out, the index, and the files, untracked ones as untracked. To any other ref
+  git knows, as `git reset --hard` and `git clean` would. Either way the branch checked
+  out is moved rather than another checked out, and files that are neither in it nor
+  ignored are removed.
+- **`snapshots()`** lists the snapshot refs, the oldest first.
+
+It is the whole worktree, whatever directory of it the workdir is. Ignored files, and a
+`.humanize/` at its top where your own flows are kept, are neither recorded nor removed.
+A rewind also forgets a merge, cherry-pick or revert under way, and moves what is checked
+out last, so one git refuses partway leaves it where it was. Snapshots are the
+repository's, shared by its worktrees, and stay until removed with `git update-ref -d
+refs/hmz/snapshots/<name>`. A workdir outside a worktree, a ref git does not know, a name
+git will not keep a ref under, or a snapshot from before the first commit rewound on a
+detached `HEAD` raises `RewindError`.
+
+The machine needs `git` on its PATH. A flow declaring `GitEnvMixin` for an environment
+on one without is refused before anything runs, with `CapabilityMissing`:
+
+```
+hmz exec: error: tries: 'repo' needs GitEnvMixin, which docker@local/srv/repo does not support: GitEnvMixin needs git on the machine's PATH, and it has none
+```
 
 ## Hooks {#hooks-in-a-flow}
 
@@ -1415,7 +1462,7 @@ FlowException
 └── EnvError                          an environment could not do what it was asked
     └── EnvUnavailable · EnvConnectionError (ConnectionError) · EnvCommandTimeout (TimeoutError)
         EnvFileNotFound (FileNotFoundError) · EnvPermissionDenied (PermissionError)
-        WorktreeError · TempCloneBusy · ScratchError
+        WorktreeError · TempCloneBusy · ScratchError · RewindError
 ```
 
 Where a builtin names the kind of failure, the leaf is that builtin too: `except
@@ -1480,6 +1527,7 @@ next attempt fails the same way.
 | <code id="worktreeerror">WorktreeError</code> | `derive_worktree` failed: not a repository, an unknown ref, or a taken directory |
 | <code id="tempclonebusy">TempCloneBusy</code> | `derive_temp_clone` asked for an id another environment holds |
 | <code id="scratcherror">ScratchError</code> | a scratch directory could not be made or removed |
+| <code id="rewinderror">RewindError</code> | `snapshot`, `rewind` or `snapshots` failed: not a git worktree, an unknown ref, or what git said |
 
 ## Where flows live {#where-flows-live}
 

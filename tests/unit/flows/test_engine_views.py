@@ -24,6 +24,7 @@ from hmz.flows import (
     AskUserHookParams,
     AskUserHookResult,
     BashEnvMixin,
+    CapabilityMissing,
     CapabilityNotGranted,
     ClaudeCodeAgent,
     CodexAgent,
@@ -37,6 +38,7 @@ from hmz.flows import (
     FlowContext,
     FlowParams,
     FlowState,
+    GitEnvMixin,
     GitWorktreeEnvMixin,
     GoalCommandAgentMixin,
     GPUEnvMixin,
@@ -55,6 +57,7 @@ from hmz.flows import (
     PermissionRequestHookAgentMixin,
     PiAgent,
     QwenCodeAgent,
+    RewindableEnvMixin,
     ScratchDirEnvMixin,
     Session,
     SessionError,
@@ -72,6 +75,7 @@ from hmz.flows import (
 from hmz.runtime.flowing.engine import Call, FlowImpl
 from hmz.runtime.flowing.fakes import FakeAgentDriver, FakeEnvDriver, run_fake
 from hmz.runtime.flowing.journaling import FlowStateImpl
+from hmz.runtime.flowing.spi import ENV_CAPABILITIES
 from hmz.runtime.flowing.viewing import AgentView, EnvView, OutworlderView, SessionView
 from tests.flows.kit import flowverse
 
@@ -110,6 +114,8 @@ _shell: type[ShellEnvMixin] = EnvView
 _bash: type[BashEnvMixin] = EnvView
 _files: type[FilesEnvMixin] = EnvView
 _worktree: type[GitWorktreeEnvMixin] = EnvView
+_rewindable: type[RewindableEnvMixin] = EnvView
+_git: type[GitEnvMixin] = EnvView
 _clone: type[TemporaryClonedDirEnvMixin] = EnvView
 _scratch: type[ScratchDirEnvMixin] = EnvView
 _cpu: type[CPUEnvMixin] = EnvView
@@ -152,6 +158,8 @@ ENV_PROTOCOLS = [
     BashEnvMixin,
     FilesEnvMixin,
     GitWorktreeEnvMixin,
+    RewindableEnvMixin,
+    GitEnvMixin,
     TemporaryClonedDirEnvMixin,
     ScratchDirEnvMixin,
     CPUEnvMixin,
@@ -232,6 +240,9 @@ ENV_REFUSALS: dict[str, Callable[[Any], Awaitable[Any]]] = {
     "read": lambda env: env.read("a"),
     "write": lambda env: env.write("a", b"a"),
     "derive_worktree": lambda env: env.derive_worktree(),
+    "snapshot": lambda env: env.snapshot(),
+    "rewind": lambda env: env.rewind("HEAD"),
+    "snapshots": lambda env: env.snapshots(),
     "derive_temp_clone": lambda env: env.derive_temp_clone("a"),
     "destroy_temp_clone": lambda env: env.destroy_temp_clone("a"),
     "derive_scratch": lambda env: env.derive_scratch("a"),
@@ -276,6 +287,70 @@ async def test_a_plain_env_is_refused_what_it_did_not_declare(refused: str) -> N
     assert env.commands == []
 
 
+class Rewindable(Env, RewindableEnvMixin): ...
+
+
+class RewindableOnly(EnvCollection):
+    env: Rewindable
+
+
+@pytest.mark.parametrize("refused", ["snapshot", "rewind", "snapshots"])
+async def test_rewindable_alone_grants_nothing(refused: str) -> None:
+    @flow(agents=Plain, envs=RewindableOnly, params=Nothing)
+    async def rewinds(
+        task: str,
+        *,
+        agents: Plain,
+        envs: RewindableOnly,
+        params: Nothing,
+        ctx: FlowContext,
+    ) -> None:
+        await ENV_REFUSALS[refused](envs["env"])
+
+    with pytest.raises(CapabilityNotGranted, match="needs GitEnvMixin"):
+        await run_fake(rewinds, envs={"env": FakeEnvDriver()})
+
+
+class Repo(Env, GitEnvMixin): ...
+
+
+class Repos(EnvCollection):
+    repo: Repo
+
+
+class Here(LocalEnv, GitEnvMixin): ...
+
+
+class Heres(EnvCollection):
+    here: Here
+
+
+@flow(agents=Plain, envs=Repos, params=Nothing)
+async def snapshots_one(
+    task: str, *, agents: Plain, envs: Repos, params: Nothing, ctx: FlowContext
+) -> str:
+    return await envs["repo"].snapshot()
+
+
+@flow(agents=Plain, envs=Heres, params=Nothing)
+async def snapshots_here(
+    task: str, *, agents: Plain, envs: Heres, params: Nothing, ctx: FlowContext
+) -> str:
+    return await envs["here"].snapshot()
+
+
+async def test_git_is_refused_up_front_where_the_machine_has_none() -> None:
+    gitless = ENV_CAPABILITIES - {GitEnvMixin}
+
+    with pytest.raises(CapabilityMissing, match="needs git on the machine's PATH"):
+        await run_fake(
+            snapshots_one, envs={"repo": FakeEnvDriver(capabilities=gitless)}
+        )
+    with pytest.raises(CapabilityMissing, match="needs git on the machine's PATH"):
+        await run_fake(snapshots_here, local=FakeEnvDriver(capabilities=gitless))
+    assert await run_fake(snapshots_one) == "refs/hmz/snapshots/1"
+
+
 async def test_a_script_needs_bash_where_an_argv_needs_only_a_shell() -> None:
     @flow(agents=Plain, envs=ShellOnly, params=Nothing)
     async def shell(
@@ -298,6 +373,7 @@ class Anything(
     BashEnvMixin,
     FilesEnvMixin,
     GitWorktreeEnvMixin,
+    GitEnvMixin,
     TemporaryClonedDirEnvMixin,
     ScratchDirEnvMixin,
 ): ...
@@ -343,6 +419,9 @@ async def test_what_is_declared_is_granted() -> None:
         said.extend(one.workdir.as_posix() for one in (tree, clone, scratch, sub))
         await env.destroy_temp_clone("c")
         await env.destroy_scratch("s")
+        said.append(await env.snapshot("s"))
+        said.append(await env.snapshots())
+        await env.rewind("refs/hmz/snapshots/s")
         return said
 
     scripted = FakeEnvDriver(run=lambda command, env: (0, str(command), ""))
@@ -353,6 +432,7 @@ async def test_what_is_declared_is_granted() -> None:
     assert said[5] == (0, "('echo', 'x')", "")
     assert said[6] == (0, "more", "")
     assert said[10] == "/work/deeper"
+    assert said[11:] == ["refs/hmz/snapshots/s", ["refs/hmz/snapshots/s"]]
 
 
 async def test_exec_takes_one_command() -> None:
