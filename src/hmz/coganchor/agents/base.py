@@ -1751,11 +1751,11 @@ class SessionBase(ABC):
         asked this account what it runs, and nothing asks again on its own: asking means
         starting a coding agent or reaching somebody's gateway, and neither is a thing to do
         while a sheet is being drawn or a turn is failing. So a catalogue a vendor has moved
-        under is wrong for as long as nobody presses `r`, and every id in it is refused the
-        same way -- which is a wall of `403`s with no hint that humanize's own list is the
-        stale part. Found driving codex on a gateway whose catalogue had been taken from the
-        CLI before the endpoint was ever asked: three ids it shipped with, none of them ones
-        that gateway serves.
+        under is wrong for as long as nobody chooses `check again`, and every id in it is
+        refused the same way -- which is a wall of `403`s with no hint that humanize's own
+        list is the stale part. Found driving codex on a gateway whose catalogue had been
+        taken from the CLI before the endpoint was ever asked: three ids it shipped with, none
+        of them ones that gateway serves.
 
         So the failure says it. When the list was taken and whether the refused id is even in
         it are the two facts that tell a stale catalogue from a model this account genuinely

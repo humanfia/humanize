@@ -320,8 +320,9 @@ def _internal(argv: list[str]) -> int:
         parser = argparse.ArgumentParser(
             prog="hmz internal",
             description="Internal commands used by humanize to run agent turns on "
-            "other machines, run programs with account credentials, and relay agent "
-            "hooks and tool calls to a flow. Not intended to be run directly.",
+            "other machines, run programs with account credentials or held to what "
+            "their flow permits, and relay agent hooks and tool calls to a flow. Not "
+            "intended to be run directly.",
             epilog="Run `hmz internal COMMAND --help` for more information on a "
             "command.",
         )
