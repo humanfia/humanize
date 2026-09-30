@@ -2,12 +2,12 @@
 pageClass: hmz-feature
 ---
 
-# ralph_loop_agent_cleanup · flame_chase_agent_cleanup
+# ralph_loop_agent_cleanup
 
-Keep a long run's workspace tidy. [ralph_loop](/flows/ralph-loop) and
-[flame_chase](/flows/flame-chase), with a `cleaner` that steps in every few turns: it keeps the
-work, deletes what strayed, writes down what is next, and the repository's history becomes one
-commit of what survived.
+Keep a long run's workspace tidy. [ralph_loop](/flows/ralph-loop), with a `cleaner` that
+steps in every few turns: it keeps the work, deletes what strayed, writes down what is next,
+and the repository's history becomes one commit of what survived. The same cleaner between two
+agents taking turns is [flame_chase_agent_cleanup](/flows/flame-chase-agent-cleanup).
 
 <Badge type="warning" text="every role: claude · codex · kimi · pi" />
 
@@ -15,28 +15,23 @@ commit of what survived.
 
 ```text [at the prompt]
 ❯ $ralph_loop_agent_cleanup make every test in tests/ pass
-❯ $flame_chase_agent_cleanup make every test in tests/ pass
 ```
 
 ```sh [hmz exec]
 hmz exec -f ralph_loop_agent_cleanup \
     -a agent=claude/claude-opus-5:high -a cleaner=claude/claude-opus-5:high \
     -p work_paths=src -b duration=12h,cost=100 "$(cat TASK.md)"
-hmz exec -f flame_chase_agent_cleanup \
-    -a first_chaser=claude/claude-opus-5:high -a second_chaser=codex/gpt-5.6-sol:high \
-    -a cleaner=claude/claude-opus-5:high \
-    -p work_paths=src -b duration=12h,cost=100 "$(cat TASK.md)"
 ```
 
 :::
 
-<HmzFlowShape pick="ralph_loop_agent_cleanup,flame_chase_agent_cleanup" />
+<HmzFlow flow="ralph_loop_agent_cleanup" />
 
 ::: danger Each cleaning rewrites your git history
 Every cleaning replaces the repository's history with a single commit, `epoch N: distilled
 tree`. The history it replaces is archived outside the repository, never deleted; the flow's
 [README](https://github.com/humanfia/flowverse/blob/main/flows/ralph_loop_agent_cleanup/_ralph_loop_agent_cleanup/README.md#history-archive)
-says how to read it back. Run these on a clone you are willing to have rewritten.
+says how to read it back. Run this on a clone you are willing to have rewritten.
 :::
 
 ## When to use it
@@ -49,7 +44,7 @@ reads again. Each fresh session then starts from a tree that holds only the work
 
 | Role | |
 | --- | --- |
-| `agent`, or `first_chaser` and `second_chaser` | The coding turns, each in a fresh session. The chasers alternate. |
+| `agent` | The coding turns, each in a fresh session. |
 | `cleaner` | One cleaning at a time, in a fresh session that it keeps through its repairs. |
 | `human` | You, filled in by humanize. Asked only whether to start on a very large workspace. |
 
@@ -77,7 +72,7 @@ change the work, as `-p work_paths=src,include` or a JSON list. The rest have de
 
 - **The [budget](/features/allowances).** A cleaning it interrupts puts the tree back first.
 - **Three turns in a row that come to nothing.** A turn that answered nothing, or whose backend
-  failed, is taken again by the same agent; the third in a row stops the run.
+  failed, is taken again; the third in a row stops the run.
 
 ## Picking it up
 
@@ -86,6 +81,7 @@ when it would have. See [Picking a run up](/user/resuming).
 
 ## See also
 
-- [ralph_loop](/flows/ralph-loop) · [flame_chase](/flows/flame-chase): the loops, without the
-  cleaning
+- [ralph_loop](/flows/ralph-loop): the loop, without the cleaning
+- [flame_chase_agent_cleanup](/flows/flame-chase-agent-cleanup): the same cleaning, between two
+  chasers
 - [Talking to a running turn](/user/steering): what telling a turn to wrap up is

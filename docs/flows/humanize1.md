@@ -39,7 +39,7 @@ start the next, and put each phase on whichever models suit it.
 
 ## 1 · gen-idea {#gen-idea}
 
-<HmzFlowShape flow="humanize1-gen-idea" />
+<HmzFlow flow="humanize1-gen-idea" />
 
 One `drafter` picks `n` different directions for the idea, explores each against this
 repository, and writes a draft with one main direction and the rest as alternatives. It writes
@@ -52,7 +52,7 @@ no code. The run ends when the draft is written.
 
 ## 2 · gen-plan {#gen-plan}
 
-<HmzFlowShape flow="humanize1-gen-plan" />
+<HmzFlow flow="humanize1-gen-plan" />
 
 The `analyst` first checks the draft is about this repository and lists its risks. The
 `planner` writes the plan in one session; the analyst reviews it, fresh each time, for up to
@@ -75,7 +75,7 @@ file, or run `gen-plan` again with somebody at the prompt to be asked.
 
 ## 3 · rlcr {#rlcr}
 
-<HmzFlowShape flow="humanize1-rlcr" />
+<HmzFlow flow="humanize1-rlcr" />
 
 The `builder` works in one session until it believes the whole plan is done. The round's checks
 run, then a fresh `reviewer` reviews what landed, and its findings are what the builder hears

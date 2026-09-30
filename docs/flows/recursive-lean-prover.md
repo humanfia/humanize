@@ -26,7 +26,7 @@ hmz exec -f recursive_lean_prover \
 
 :::
 
-<HmzFlowShape flow="recursive_lean_prover" />
+<HmzFlow flow="recursive_lean_prover" />
 
 ## Before you run it
 

@@ -20,7 +20,7 @@ hmz exec -f stateful_ralph -a agent=kimi/kimi-code/k3:high \
 
 :::
 
-<HmzFlowShape flow="stateful_ralph" />
+<HmzFlow flow="stateful_ralph" />
 
 ## When to use it
 
