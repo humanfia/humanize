@@ -67,7 +67,7 @@ The right side lists only keys that work now, in this order:
 | Key hint | Shown when |
 | --- | --- |
 | `↑↓ move · tab select · esc cancel` | The offers list is open. Nothing else is shown then. |
-| `enter start`, `enter send`, `enter answer` | Something is typed: no flow running, a flow running, a question up. |
+| `enter run`, `enter ask`, `enter answer`, `enter send`, `enter start` | Something is typed: a `/` command that would run here (nothing, for one that would only be refused), a side question in [btw mode](#btw), an answer to a question up, a line to a running flow, a task with nothing running. |
 | `shift+tab switch view` | There is another transcript to step to. |
 | `/ commands`, `shift+enter newline` | Always. |
 | `← monitor` | Nothing is typed. |
@@ -159,22 +159,26 @@ the last is a first press again; the third press has no time limit. <kbd>esc</kb
 
 A line starting with `/` is a command, a line starting with `$` [starts a
 flow](#starting-a-flow-outright), and any other line is said to the flow. Type `/` to see the
-list, with a line about each.
+list, with a line about each. It holds only the commands that would do something here and now:
+`/stop` appears while a flow runs and goes once it is stopping, `/resume` appears with nothing
+running and a run here to carry on. The list and the line beside each command change the moment
+the run or the view does, without a key being pressed. A command typed out while it is not
+listed does nothing and says why, in red.
 
 <RefFilter label="Filter commands">
 
 | Command | While a flow runs | Does |
 | --- | --- | --- |
-| <span id="cmd-flow"></span>`/flow [flow]` | <Badge type="warning" text="roles only" /> | [Chooses the flow](#choosing-a-flow) and sets up its roles, params and budget. With a name, opens inside that flow. |
-| <span id="cmd-btw"></span>`/btw [question]` | <Badge type="tip" text="yes" /> | [Enters or leaves btw mode](#btw): side questions about the flow, answered read-only beside it. |
+| <span id="cmd-flow"></span>`/flow [flow]` | <Badge type="warning" text="roles only" /> | [Chooses the flow](#choosing-a-flow) and sets up its roles, params and budget. With a name, opens inside that flow. While a flow runs it reads `Set up the running flow's agents`, and no flow is offered after it. |
+| <span id="cmd-btw"></span>`/btw [question]` | <Badge type="tip" text="yes" /> | [Enters or leaves btw mode](#btw): side questions about the flow, answered read-only beside it. Listed only with somebody to ask: the conversation being read, or an agent. |
 | <span id="cmd-epics"></span>`/epics` | <Badge type="warning" text="read only" /> | [The runs of this directory](#the-runs-that-have-already-happened): go into one, export it, resume it. |
-| <span id="cmd-resume"></span>`/resume` | <Badge type="danger" text="refused" /> | [Picks up the last run here](#carrying-the-last-one-on-outright) of a flow that can be picked up. |
+| <span id="cmd-resume"></span>`/resume` | <Badge type="danger" text="refused" /> | [Picks up the last run here](#carrying-the-last-one-on-outright) of a flow that can be picked up. Listed only with nothing running or stopping and such a run here, which is looked for as the interface opens, as a run ends and as a menu closes; typed anyway, it looks again. |
 | <span id="cmd-settings"></span>`/settings [page]` | <Badge type="tip" text="yes" /> | [Everything humanize remembers](#what-humanize-remembers), in six pages: `everywhere`, `directory`, [`accounts`](#the-accounts-themselves), [`environments`](#environments), [`fallback`](#where-a-turn-goes-when-it-cannot-be-taken) and [`flowverses`](#where-flows-come-from). With a page, opens on it. |
 | <span id="cmd-clear"></span>`/clear` | <Badge type="tip" text="yes" /> | Clears the transcript being read and draws the opening box again. Nothing else. |
 | <span id="cmd-afk"></span>`/afk [on\|off]` | <Badge type="tip" text="yes" /> | [Says you are away](#questions-and-being-away): nothing waits on you. On an outworlder's transcript, as that outworlder alone; not on one agent's. Off at start. |
-| <span id="cmd-claim"></span>`/claim [on\|off]` | <Badge type="tip" text="yes" /> | [Holds the outworlder being read](#several-people-on-one-run) for this interface alone; `off` gives it back. Only on an outworlder's transcript. |
-| <span id="cmd-stop"></span>`/stop` | <Badge type="info" text="needs one" /> | [Stops the flow](#stop) for everybody reading it, asked once. Only on the transcript every agent is on and on the monitor. |
-| <span id="cmd-exit"></span>`/exit` | <Badge type="warning" text="asks" /> | [Leaves](#leaving-and-letting-go): this interface, and nobody else's. Asks first if a flow is running. Also <kbd>ctrl+q</kbd>. |
+| <span id="cmd-claim"></span>`/claim [on\|off]` | <Badge type="tip" text="yes" /> | [Holds the outworlder being read](#several-people-on-one-run) for this interface alone; `off` gives it back. Only on an outworlder's transcript, and not on one another frontend holds -- nor is `/afk` there. |
+| <span id="cmd-stop"></span>`/stop` | <Badge type="info" text="needs one" /> | [Stops the flow](#stop) for everybody reading it, asked once. Only on the transcript every agent is on and on the monitor, and only while a flow runs and is not already stopping. |
+| <span id="cmd-exit"></span>`/exit` | <Badge type="warning" text="asks" /> | [Leaves](#leaving-and-letting-go): this interface, and nobody else's. Asks first if a flow is running, and says so beside it then. Also <kbd>ctrl+q</kbd>. |
 
 </RefFilter>
 
@@ -186,6 +190,9 @@ command is shown in red and nothing happens:
 | `/afk maybe` | `hmz: expected 'on' or 'off', not 'maybe'` |
 | `/settings nosuch` | `hmz: /settings has no page 'nosuch': choose everywhere, directory, accounts, environments, fallback or flowverses` |
 | `/nosuch` | `hmz: no such command: /nosuch` |
+| `/stop`, nothing running | `hmz: no flow is running` |
+| `/resume`, a flow running | `hmz: cannot resume a run while a flow is running: press ctrl+c twice to stop it first` |
+| `/claim`, on an outworlder bob holds | `hmz: human is bob's: cannot claim it` |
 | `/resume last` | `hmz: /resume takes no arguments: it resumes the last run here; use /epics to choose another run` |
 | `/btw what's left` | `hmz: No closing quotation`: arguments are split like a shell line |
 
@@ -383,6 +390,7 @@ once. The turn under way is interrupted and the flow unwinds from where it stand
 run however many are reading it, so it stops for all of them, and each is told who stopped it:
 `— alice@tui is stopping the flow —`.
 
+- Listed only while a flow runs and has not been told to stop. Typed out anyway, it says why.
 - With a flow already stopping: `hmz: the flow is already stopping: it is finishing the turn it
   was in`. The next <kbd>ctrl+c</kbd> closes its conversations without waiting.
 - With nothing running: `hmz: no flow is running`.
@@ -1055,9 +1063,9 @@ A half-typed line is offered what it could become, in a list above the editor:
 
 | Typed | Offered |
 | --- | --- |
-| `/` | The commands, each with what it takes and a line about it. |
-| `/flow ` | Every flow: humanize's own, every fetched flowverse's, and your `local/` and `user/` ones. |
-| `$` | The same flows, while the word after `$` is being typed. What follows is the task, and is not completed. |
+| `/` | The commands that would do something now, each with what it takes and a line about it. See [Slash commands](#commands). |
+| `/flow ` | Every flow: humanize's own, every fetched flowverse's, and your `local/` and `user/` ones. Nothing while a flow runs. |
+| `$` | The same flows, while the word after `$` is being typed. What follows is the task, and is not completed. Nothing while a flow runs. |
 
 - A word already written out in full is offered nothing, so <kbd>enter</kbd> sends `/settings`
   as it is.
