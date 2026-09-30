@@ -1,8 +1,15 @@
 # Working on these docs
 
-The site is [VitePress](https://vitepress.dev/) under `docs/`.
-[Add a page to these docs](/contributing/tutorials/a-page-of-docs) walks one page through from
-start to pull request. This page is the rules a page is held to.
+This page is the rules a page of these docs is held to, and how to check a page meets them
+before a reader does: where it goes, the shape a guide takes, how it is written, what a
+component on it must do, and how to look at it. [Add a page to these
+docs](/contributing/tutorials/a-page-of-docs) walks one page through from start to pull
+request.
+
+::: info Before you start
+Node and [pnpm](https://pnpm.io/). The site is [VitePress](https://vitepress.dev/) under
+`docs/`, and builds without humanize installed.
+:::
 
 ## Run it
 
@@ -28,13 +35,82 @@ Each section answers one kind of question. A page that answers two is two pages.
 | --- | --- | --- |
 | **Features** | to understand | One feature, built around a diagram the reader can push. **No commands and no code**: a guide is one click away |
 | **Flows** | to pick a flow | One flow, opening with its `hmz exec` line and the shape of its loop |
-| **User Guide** | to do something | One task for the person running flows, opening with a `## Try it` short enough to paste. No Python |
-| **Weaver Guide** | to write a flow | The same, for whoever writes the flow. Python throughout |
-| **Contributing** | to change humanize | Setup, checks, the layers, and this |
+| **User Guide** | to do something | One task for the person running flows, as a [guide page](#the-shape-of-a-guide-page). No Python |
+| **Weaver Guide** | to write a flow | The same, for whoever writes the flow. Every example a complete flow that runs |
+| **Contributing** | to change humanize | Setup, checks, the layers, and this, as guide pages too |
 | **Reference** | to look something up | Exact, complete and scannable: every flag, key, argument and return |
 
 The three guide sections open with a **Tutorials** group: taken in order, every command
 written out, nothing for the reader to choose.
+
+### The shape of a guide page
+
+Every page in the User Guide, the Weaver Guide and Contributing is a guide: it gets one reader
+to one result. It has these parts, in this order, and drops the ones it has nothing for:
+
+````md
+# Hooks
+
+In this guide you hang your own code on the moments of an agent's sessions. You build
+`watched`, which prints every tool its agent reaches for. <!-- ① -->
+
+Reach for a hook to watch an agent, or to refuse something it reaches for.
+
+::: info Before you start <!-- ② -->
+- A flow of your own running: [Your first flow](/weaver/writing-a-flow).
+:::
+
+## How it works <!-- ③ -->
+
+## Example: watch the agent <!-- ④ -->
+
+```python
+# .humanize/flows/watched/__init__.py
+async def seen(params: PreToolUseHookParams) -> PreToolUseHookResult:  # ①
+```
+
+### What each part does <!-- ⑤ -->
+
+1. **`seen`** is a hook for the moment a tool is about to run.
+
+### Run it <!-- ⑥ -->
+
+### Check it worked <!-- ⑦ -->
+
+## Variations <!-- ⑧ -->
+
+## Pitfalls
+
+## Next steps <!-- ⑨ -->
+````
+
+1. **The goal.** What the reader will have done or built by the end, then when to reach for
+   it. The first screen answers "is this the page I need?".
+2. **Before you start.** What the reader needs already, each with a link to where they get it.
+3. **How it works.** The idea, with its terms introduced where they are used: enough to read
+   the example, and no more. A table of options goes here.
+4. **A worked example.** Complete: a flow, a test, a command, never a fragment the reader has
+   to finish. A file's path is its first line, as a comment. Mark each line worth explaining
+   with a circled number, `# ①`, in a comment at its end.
+5. **What each part does.** A numbered list, one item per circled number, in the same order:
+   what that decorator, mixin, argument or return is, and why it is there.
+6. **Run it.** The command, and what it really printed, copied from a real run. Cut long agent
+   prose with `…` and put scratch paths under `/home/you/`, and change nothing else. Then say
+   how to read the output.
+7. **Check it worked.** How the reader proves it: a file to look at, a command whose output
+   says so, and, in the Weaver Guide, a test on the fake kit with its own callouts and its real
+   pytest output.
+8. **Variations and pitfalls.** The other ways to do it, and what goes wrong, each with the
+   error it prints where there is one.
+9. **Next steps.** Where to go from here, ending with the Reference page that has every
+   argument.
+
+A tutorial is the same, with the example cut into numbered steps (`## Step 1: …`) the reader
+takes in order.
+
+**Every example runs.** Before you push, write each file on the page into a scratch project,
+run it the way the page says, and run its tests. A flow's example runs on a real agent, on a
+small `-b`, and on the fake kit.
 
 ## The writing rules
 
@@ -123,8 +199,9 @@ Add a Vue component only where a control settles a real question, not as decorat
   always on the page. Put sparks and light trails on the canvas from `fx.ts`, keep a second
   layout for phone width with `useNarrow`, and take GSAP from `motion()` rather than importing
   it bare. A screen that holds links or controls sets `interactive`, so it is a group rather
-  than a picture to a screen reader. Never tween the `x`, `y` or `scale` of an SVG element placed by a `transform`
-  attribute: GSAP replaces the attribute. Place it with an outer `<g>`, and move an inner one.
+  than a picture to a screen reader. Never tween the `x`, `y` or `scale` of an SVG element
+  placed by a `transform` attribute: GSAP replaces the attribute. Place it with an outer `<g>`,
+  and move an inner one.
 - **A feature page is short.** A title, one `hmz-tagline` line, the scene, three to five
   `hmz-facts` the motion cannot say, the per-backend badges, and three `hmz-paths` cards on to
   the guides. Whatever the scene shows is not written out again.
@@ -209,3 +286,9 @@ has the rest.
 
 The site deploys to [docs.humanfia.ai/humanize](https://docs.humanfia.ai/humanize/) from
 `main`, through `.github/workflows/build-docs.yml`.
+
+## Next steps
+
+- [Add a page to these docs](/contributing/tutorials/a-page-of-docs), the tutorial
+- [Your first flow](/weaver/writing-a-flow), a guide page in the shape above
+- [Contributing](/contributing/), for the checks the rest of the repository is held to
