@@ -76,6 +76,7 @@ hmz exec -f|--flow <ref>
          [-e|--envs <role>=<backend>@<provider>[/<workdir>][,...]] [-e ...]
          [-p|--params <key>=<value>[,...]] [-p ...]
          -b|--budget <key>=<value>[,...] [-b ...]
+         [-H|--harness adaptive|local|env|standalone:<env>]
          [--resume] [--json] [--] <task>
 ```
 
@@ -86,6 +87,7 @@ hmz exec -f|--flow <ref>
 | <span id="exec-envs"></span>`-e`, `--envs <spec>` | One environment per environment role. See [Writing an environment](#writing-an-environment). |
 | <span id="exec-params"></span>`-p`, `--params <key>=<value>` | The flow's [params](/reference/flows#settings-of-the-flow-s-own). See [Writing params](#writing-params). |
 | <span id="exec-budget"></span>`-b`, `--budget <key>=<value>` | **Required**, except for `chat`. What the run may spend. See [Writing a budget](#writing-a-budget). |
+| <span id="exec-harness"></span>`-H`, `--harness <where>` | Where each agent's harness runs; `adaptive` if not given. Said once. See [Choosing where the harness runs](#choosing-where-the-harness-runs). |
 | <span id="exec-resume"></span>`--resume` | Pick up the newest run of this flow here instead of starting afresh. See [Picking a run up](#picking-a-run-up). |
 | <span id="exec-json"></span>`--json` | Write the run as NDJSON on stdout. See [Watching a run](#watching-a-run). |
 | <span id="exec-task"></span>`<task>` | **Required.** What the flow is to do, as the text itself. Put `--` before it if it starts with a dash. |
@@ -260,6 +262,34 @@ budget of its own.
 A `cost` limit over a model nobody prices cannot stop anything. The run starts anyway, and says
 so first: `hmz exec: nobody lists a price for <model>, so cost=5 cannot stop what it spends`.
 
+### Choosing where the harness runs
+
+```
+-H adaptive
+-H env
+-H standalone:ssh@gpu-box
+-H standalone:docker@local/srv/scratch
+```
+
+The **harness** is an agent's CLI and whatever supervises it. For work on this machine it is
+here whatever `-H` says, except `standalone`. For work in an `ssh` or `docker` environment:
+
+| `-H` | The harness runs |
+| --- | --- |
+| `adaptive` *(default)* | On the environment's machine where the agent's CLI is installed there (and can be fenced to the role's permission), and here otherwise -- here too for a role with a hook hung that gates its tools, which a CLI on another machine can only watch. Decided once per role and machine. |
+| `local` | Here, supervised, reaching the environment through the anchor. |
+| `env` | On the environment's machine, as the CLI installed there. Refused, naming the machine and the line that installs the CLI, where it is not. |
+| `standalone:<env>` | On a machine of its own, reaching the environment through the anchor. `<env>` is spelled as `-e` spells one after `<role>=` (`ssh@HOST[/DIR]`, `docker@PROVIDER[/DIR]`), or is a saved environment provider's name. The CLI must be installed there. |
+
+A machine left without a directory, and saved with none, is worked in at the login's home over
+ssh, and at `~/.humanize/harness` on docker's default here (`docker@local`); any other daemon
+needs one said. A docker one is a container of its own,
+started from the provider's image and taken down with the run. See
+[Remote execution › Where the harness runs](/reference/remote-execution#where-the-harness-runs).
+
+Where each session's harness went is written into the run's epic beside the session, as
+`local`, `env` or `standalone:<target>`.
+
 ### Watching a run
 
 At a terminal:
@@ -336,6 +366,7 @@ exit status 2, with nothing started:
 | a role typed as another CLI's own | `<flow>: '<role>' requires codex, but got claude` |
 | an effort off the ladder | `assistant=claude/claude-opus-5:turbo: claude cannot be asked to think at 'turbo'; expected one of ultracode, max, xhigh, high, medium, low` |
 | no `-b` | `rlar requires a budget: specify with -b duration=...,cost=...,output_tokens=...` |
+| an `-H` that is none of the four | `-H 'somewhere': expected adaptive, local, env or standalone:<backend>@<provider>[/<workdir>]` |
 | params the flow refuses | the flow's own validation error, naming the field |
 | an environment short of its role, or unreachable | why, naming the role |
 | a skill a role names that cannot be found or fetched | why, naming the skill |
@@ -347,7 +378,8 @@ task, an `-a`, `-e`, `-p` or `-b` that is not one) prints the usage line first:
 ```console
 $ hmz exec -f rlar -a actor=opus -b cost=20 "fix the build"
 usage: hmz exec [-h] -f FLOW [-a ROLE=SPEC[,...]] [-e ROLE=SPEC[,...]]
-                [-p KEY=VALUE[,...]] [-b KEY=VALUE[,...]] [--resume] [--json]
+                [-p KEY=VALUE[,...]] [-b KEY=VALUE[,...]] [-H WHERE]
+                [--resume] [--json]
                 task
 hmz exec: error: -a 'actor=opus': expected [NAME=]CLI[@PROVIDER]/MODEL:EFFORT
 ```

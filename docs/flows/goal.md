@@ -23,7 +23,7 @@ hmz exec -f goal -a worker=claude/claude-opus-5:max \
 
 :::
 
-<HmzFlowShape flow="goal" />
+<HmzFlow flow="goal" />
 
 ## When to use it
 

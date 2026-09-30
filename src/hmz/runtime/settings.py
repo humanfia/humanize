@@ -247,6 +247,29 @@ class Settings:
         """
         return self._kept(flow, "budget")
 
+    def harness(self, flow: str) -> str:
+        """Where the agents of one flow here were last said to have their harnesses run.
+
+        Beside the budget and for the same reason: it is not the flow's to say, but the
+        person's who runs it here -- which machine has the CLI installed and signed in is a
+        fact about their machines, not about the flow.
+
+        Args:
+          flow: The flow it was set for.
+
+        Returns:
+          It as `-H` spells it, and "" for a flow nobody has said it for here -- which runs
+          adaptive.
+        """
+        flows: dict[str, Any] = self._mine().get("flows") or {}
+        kept = flows.get(flow)
+        held = (
+            cast("dict[str, Any]", kept).get("harness")
+            if isinstance(kept, dict)
+            else ""
+        )
+        return held if isinstance(held, str) else ""
+
     def _kept(self, flow: str, under: str) -> dict[str, Any]:
         """One of the things remembered about a flow here, as a mapping.
 
@@ -271,6 +294,7 @@ class Settings:
         envs: Mapping[str, str] | None = None,
         params: dict[str, Any] | None = None,
         budget: dict[str, Any] | None = None,
+        harness: str | None = None,
     ) -> None:
         """Writes down what this workspace is set up to run, so that it opens that way.
 
@@ -285,7 +309,10 @@ class Settings:
             kept. The same asymmetry as the rest and for the same reason: the flow's whole
             entry is replaced below, so what is not handed in has to be read back or it is
             forgotten. A value that is empty erases it.
+          harness: Where its agents' harnesses run, as `-H` spells it, or None to leave
+            whatever was kept; "" erases it, which is adaptive.
         """
+        was = self.harness(flow)
         mine = self._mine()
         mine["flow"] = flow
         kept: dict[str, Any] = {
@@ -295,6 +322,9 @@ class Settings:
             held = dict(given) if given is not None else self._kept(flow, under)
             if held:
                 kept[under] = held
+        where = harness if harness is not None else was
+        if where:
+            kept["harness"] = where
         mine.setdefault("flows", {})[flow] = kept
         self._write()
 

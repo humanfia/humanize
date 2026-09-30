@@ -30,6 +30,7 @@ from hmz.tui.pick import (
     _AGAIN,
     _BUDGET,
     _DONE,
+    _HARNESS,
     _SAVE,
     Agent,
     Catalogue,
@@ -215,7 +216,7 @@ async def test_the_roles_the_runtime_fills_are_no_rows_of_the_menu(
         await until(lambda: sheet._inside, driver)
 
         # `builder` and nothing of `human` or `workspace`.
-        assert rows(app) == ["0", _BUDGET, _SAVE]
+        assert rows(app) == ["0", _BUDGET, _HARNESS, _SAVE]
         assert "builder" in _value(app, "0")
 
 
@@ -238,7 +239,7 @@ async def test_two_agents_are_two_rows_and_a_sheet_apiece(
         listing = sheet.query_one("#choices", OptionList)
         await until(lambda: len(listing.options) == 4, driver)
 
-        assert rows(app) == ["0", "1", _BUDGET, _SAVE]
+        assert rows(app) == ["0", "1", _BUDGET, _HARNESS, _SAVE]
         assert "builder" in str(listing.get_option_at_index(0).prompt)
         assert "reviewer" in str(listing.get_option_at_index(1).prompt)
 
@@ -270,7 +271,7 @@ async def test_explicit_saves_accept_two_agents_then_apply_the_complete_flow(
 
         await opens(app, driver, _SAVE)
         await until(lambda: isinstance(app.screen, Flows), driver)
-        assert rows(app) == ["0", "1", _BUDGET, _SAVE]
+        assert rows(app) == ["0", "1", _BUDGET, _HARNESS, _SAVE]
 
         await onto(app, driver, "1")
         await driver.press("enter")
@@ -391,7 +392,7 @@ async def test_an_environment_role_is_a_row_where_its_place_is_said(
         await until(lambda: isinstance(app.screen, Flows), driver)
         sheet = cast("Flows", app.screen)
         await until(lambda: sheet._inside, driver)
-        assert rows(app) == ["0", "@repo", _BUDGET, _SAVE]
+        assert rows(app) == ["0", "@repo", _BUDGET, _HARNESS, _SAVE]
         assert "not set" in _value(app, "@repo")
 
         # Not said, so not saved: a run of it would be refused before it started.

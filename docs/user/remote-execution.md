@@ -3,6 +3,8 @@
 Point one of a flow's environments at another machine with `-e`, and every agent the flow
 opens there runs **here** while its work happens **there**. Reach for it when the build, the
 tests or the GPUs are on another machine, and the agent's CLI and your sign-in are on this one.
+Where that machine has the agent's CLI installed itself, the agent runs there instead, by
+default: see [Where the agent runs](#where-the-agent-runs).
 
 <div class="re-split">
   <div class="re-side">
@@ -166,6 +168,28 @@ A docker daemon is saved the same way, with `envs.new("docker", …)`, and named
 `-e box=docker@<name>/…`: see [Containers](/user/containers#try-it-a-container-per-environment).
 Its `endpoint` may be `ssh:gpu`, the daemon on the host saved as `gpu`, reached with everything
 that host says.
+
+## Where the agent runs
+
+The agent's CLI, and whatever supervises it, is its **harness**. `-H` says where it runs, and
+so does the `harness` row of `/flow`, kept per flow like the budget:
+
+| `-H` | The agent runs |
+| --- | --- |
+| `adaptive` *(default)* | On the host, as the CLI installed and signed in there, where there is one; here otherwise. |
+| `local` | Here, always, as above. |
+| `env` | On the host, always. A host without the CLI is refused: `claude is not installed on ssh@build-box: … there, or run its harness here with -H local`. |
+| `standalone:ssh@other-box` | On a third machine, which reaches the host's work through humanize. The CLI must be installed there. |
+
+```sh
+hmz exec -f onbox -a coder=claude/claude-opus-5:high \
+    -e box=ssh@build-box/home/me/build/myproject -H env -b cost=20 "fix the build"
+```
+
+An agent run on the host is signed in as the host's CLI is, keeps its sessions there, and
+cannot be offered the flow's own callbacks. As each agent starts, the interface says where it
+went -- `coder's harness runs on its environment's machine (env)` -- and the flow menu says what
+`adaptive` came to on the last run.
 
 ## What it needs
 

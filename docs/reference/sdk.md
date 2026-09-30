@@ -123,6 +123,7 @@ def run(
     budget: Budget | Mapping[str, Any] | None = None,
     resume: bool | str | os.PathLike[str] = False,
     outworlder: OutworlderDriver | None = None,
+    harness: str | HarnessSpec | None = None,
 ) -> Run
 ```
 
@@ -136,6 +137,7 @@ def run(
 | `budget` | A [`Budget`](/reference/flows#budget), or a mapping validated into one: `{"cost": 5}`, `{"duration": 3600}` or `{"duration": "PT1H"}`. Unlike `-b`, a mapping does not read `"1h"`. Required for every flow but `chat`. |
 | `resume` | `True` for the newest run of this flow here that can be picked up, or the epic directory to pick up. |
 | `outworlder` | Who fills the flow's `Outworlder` roles, such as a [`fakes.FakeOutworlder`](/reference/flows#fakeoutworlder). `None` for nobody: always away, as under `hmz exec`. |
+| `harness` | Where each agent's harness runs, as [`-H`](/reference/cli#choosing-where-the-harness-runs) spells it (`"env"`, `"standalone:ssh@gpu-box"`), or `Line.harness`. `None` for `adaptive`. |
 
 Returns a [`Run`](#run). Nothing has started.
 
@@ -143,7 +145,8 @@ Raises [`Refused`](#refused) for everything that can be checked without reaching
 machine: a flow that is not there; a role it does not declare, one the runtime fills, or one
 given twice; a required role left out; a harness that is not the one a role names, or does not
 serve what it asks; a spec no driver can be made for, such as an effort off the harness's
-ladder; params the flow does not take; no budget; a run to pick up that is not there.
+ladder; params the flow does not take; no budget; a run to pick up that is not there; a `harness` that
+is none of the places a harness runs.
 
 ```python
 from hmz.sdk import Hmz, Refused
@@ -157,7 +160,8 @@ except Refused as why:
 ### `Hmz.runner` {#hmz-runner}
 
 ```python
-def runner(self, flow, *, agents=(), envs=(), params=None, budget=None, resume=False) -> Runner
+def runner(self, flow, *, agents=(), envs=(), params=None, budget=None, resume=False,
+           harness=None) -> Runner
 ```
 
 The same parameters and refusals as [`run`](#hmz-run), without the task: the flow loaded,
@@ -172,7 +176,7 @@ def read(self, argv: list[str]) -> Line
 ```
 
 Reads an `hmz exec` line, without loading the flow. A line argparse will not accept, or an
-`-a`, `-e`, `-p` or `-b` that cannot be read, raises `SystemExit`.
+`-a`, `-e`, `-p`, `-b` or `-H` that cannot be read, raises `SystemExit`.
 
 | `Line` field | |
 | --- | --- |
@@ -183,13 +187,15 @@ Reads an `hmz exec` line, without loading the flow. A line argparse will not acc
 | `budget: Budget \| None` | The `-b`, read, or `None`. |
 | `resume: bool` | `--resume`. |
 | `as_json: bool` | `--json`. |
+| `harness: HarnessSpec \| None` | The `-H`, read, or `None`. |
 
 ```python
 hmz = Hmz()
 line = hmz.read(["-f", "ralph_loop", "-a", "agent=claude/claude-opus-5:high",
                  "-b", "duration=6h,cost=50", "fix the build"])
 run = hmz.run(line.flow, line.task, agents=line.agents, envs=line.envs,
-              params=line.params, budget=line.budget, resume=line.resume)
+              params=line.params, budget=line.budget, resume=line.resume,
+              harness=line.harness)
 ```
 
 ### `Hmz.exec` {#hmz-exec}
@@ -466,8 +472,9 @@ run is named by its directory, an `epic: Path`.
 | `bundled(epic, *, output=None, transcript=None)` | Packs one whole run into one archive, credentials struck out. Returns where it went and its manifest. See [Exporting a run](/user/export). |
 
 `Ran` has `at`, `name`, `flow`, `ref`, `task`, `workspace`, `began`, `ended`, `how` (`done`,
-`failed` or `stopped`), `agents`, `envs`, `params`, `budget`, `sessions`, `called`, `resumable`
-and `picked_up`, as the [epic's own record](/reference/tracing#epics) says them.
+`failed` or `stopped`), `agents`, `envs`, `params`, `budget`, `sessions`, `called`, `resumable`,
+`picked_up` and `harness`, as the [epic's own record](/reference/tracing#epics) says them. A
+session's `harness` is where its harness went, for one whose work was on another machine.
 
 ```python
 runs = Hmz().epics

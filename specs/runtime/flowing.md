@@ -48,17 +48,26 @@ class EnvDriver(Protocol): ...  # backend, provider, workdir, capabilities, reso
                                # snapshots, placement, close
 class OutworlderDriver(Protocol): ...  # away_for(role), run(prompt, schema, role)
 
-# specs.py -- what -a, -e, -p and -b say
+# specs.py -- what -a, -e, -p, -b and -H say
 @dataclass(frozen=True, slots=True)
 class AgentSpec: ...  # role, harness, provider, model, effort, cli
 @dataclass(frozen=True, slots=True)
 class EnvSpec: ...  # role, backend, provider (a stored provider's name, a host, or
                     # `local` for docker's default here), workdir
+ADAPTIVE, LOCAL, ENV, STANDALONE = "adaptive", "local", "env", "standalone"
+HARNESS_MODES = (ADAPTIVE, LOCAL, ENV, STANDALONE)
+@dataclass(frozen=True, slots=True)
+class HarnessSpec: ...  # mode, on (the EnvSpec a standalone harness's machine is, else None)
 def parse_agents(values: Sequence[str]) -> list[AgentSpec]: ...
 def parse_envs(values: Sequence[str]) -> list[EnvSpec]: ...
 def parse_params(values: Sequence[str]) -> dict[str, str]: ...
 def parse_budget(values: Sequence[str]) -> Budget: ...
 def parse_duration(text: str) -> timedelta: ...
+def parse_harness(value: str) -> HarnessSpec: ...
+
+# harnesses.py -- the agent drivers
+def open_agent(spec: AgentSpec, harness: str = ADAPTIVE,
+               on: EnvDriver | None = None) -> HarnessDriver: ...
 
 # engine.py -- defining, loading and running flows
 DEPTH = 64
@@ -420,10 +429,25 @@ def under() -> Path: ...
   nobody holds, and GPU memory the provider's where it says it. What is short MUST raise
   `ResourceUnmet` saying how much of what is free and which container holds the rest, and no
   two runs on this machine MUST work it out for one provider at once.
-- An agent working in one MUST be anchored to its container, supervised on this machine in a
-  mirror of its own and reaching the container by `docker exec` alone.
+- An agent working in one MUST be anchored to its container, reaching it by `docker exec` alone,
+  its harness put where the next section says: supervised on this machine in a mirror of its
+  own, or the container's own CLI driven natively.
 - Its container MUST be taken down when the environment is closed, and one whose process on
   this host has gone MUST be taken down by the next run on its provider.
+
+### Where the harness runs
+
+- A driver MUST put each session's harness where its `-H` says, settled once per machine a role
+  works on: `local` here -- spawned directly for work here, anchored to the machine otherwise;
+  `env` natively on the environment's machine, refused with `HarnessNotInstalled` naming the
+  machine where its CLI is not there; `adaptive` as `env` where the machine has the CLI and can
+  hold its fence and no hook that gates the CLI is hung, and as `local` otherwise;
+  `standalone:<env>` on that machine, opened as an environment of its own and probed and closed
+  with the run's, acting on the work through the anchor. Work on this machine MUST have its
+  harness here in every mode but `standalone`.
+- The machine MUST be asked whether it has the CLI down the road a native turn takes, one
+  question at a time, and a run stopped while it asks MUST take the asking down with it; where
+  the harness went MUST be written down with each session whose work is elsewhere.
 
 ### Fakes
 

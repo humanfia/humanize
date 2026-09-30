@@ -12,8 +12,9 @@ import HmzArch from './components/HmzArch.vue'
 import HmzBackends from './components/HmzBackends.vue'
 import HmzDaemon from './components/HmzDaemon.vue'
 import HmzFeatures from './components/HmzFeatures.vue'
-import HmzFlowShape from './components/HmzFlowShape.vue'
-import HmzFlows from './components/HmzFlows.vue'
+import HmzFlow from './components/flow/FlowPlayer.vue'
+import HmzFlowLegend from './components/flow/FlowLegend.vue'
+import HmzFlows from './components/flow/FlowCatalogue.vue'
 import HmzGoal from './components/HmzGoal.vue'
 import HmzHero from './components/HmzHero.vue'
 import HmzLoops from './components/HmzLoops.vue'
@@ -40,7 +41,8 @@ export default {
     app.component('HmzBackends', HmzBackends)
     app.component('HmzDaemon', HmzDaemon)
     app.component('HmzFeatures', HmzFeatures)
-    app.component('HmzFlowShape', HmzFlowShape)
+    app.component('HmzFlow', HmzFlow)
+    app.component('HmzFlowLegend', HmzFlowLegend)
     app.component('HmzFlows', HmzFlows)
     app.component('HmzGoal', HmzGoal)
     app.component('HmzHero', HmzHero)

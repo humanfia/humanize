@@ -32,6 +32,7 @@ from hmz.tui.pick import (
     _AGAIN,
     _BUDGET,
     _DONE,
+    _HARNESS,
     _SAVE,
     _SEARCH,
     Accounts,
@@ -1277,7 +1278,7 @@ async def test_a_flow_is_opened_to_reach_its_agents_and_esc_comes_back() -> None
             await until(lambda: sheet._inside, driver)
             # The role the person chooses an agent for -- the person being the other, and
             # nobody's to choose -- what a run may spend, and the row the lot is saved from.
-            assert rows(app) == ["0", _BUDGET, _SAVE]
+            assert rows(app) == ["0", _BUDGET, _HARNESS, _SAVE]
             assert "chat" in str(sheet.query_one("#asked", Label).content)
             assert "esc back to flows" in str(sheet.query_one("#keys", Label).content)
 

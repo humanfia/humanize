@@ -1,0 +1,430 @@
+/* The colours of the flow grammar (see grammar.ts): one per kind of role, one per way a run
+   ends, and nothing else. A role's colour says what it is -- does the work, takes turns with the
+   one that does, judges, or plans and cleans -- so a reviewer is the same violet in every
+   diagram. You are drawn in ink and a program in slate: neither is a model. The four endings
+   are the only greens, reds and ambers, and each also carries a glyph, so no colour is the
+   only thing that says it. */
+
+.hmz-flow {
+  --flow-maker: #2f7fe0;
+  --flow-partner: #0891b2;
+  --flow-checker: #7c3aed;
+  --flow-steward: #db2777;
+  --flow-human: var(--vp-c-text-1);
+  --flow-program: #64748b;
+
+  --flow-done: #16a34a;
+  --flow-fail: #dc2626;
+  --flow-budget: #ca8a04;
+  --flow-you: var(--vp-c-text-1);
+
+  --flow-plate: rgba(96, 138, 177, 0.07);
+  --flow-plate-edge: rgba(96, 138, 177, 0.28);
+  --flow-rail: rgba(96, 138, 177, 0.22);
+  --flow-ink: var(--vp-c-text-1);
+  --flow-ink-2: var(--vp-c-text-2);
+  --flow-ink-3: var(--vp-c-text-3);
+  --flow-card: var(--vp-c-bg);
+  --flow-dust: rgba(96, 138, 177, 0.5);
+}
+
+.dark .hmz-flow {
+  --flow-maker: #60a5fa;
+  --flow-partner: #22d3ee;
+  --flow-checker: #a78bfa;
+  --flow-steward: #f472b6;
+  --flow-program: #94a3b8;
+
+  --flow-done: #4ade80;
+  --flow-fail: #f87171;
+  --flow-budget: #facc15;
+
+  --flow-plate: rgba(140, 184, 222, 0.06);
+  --flow-plate-edge: rgba(140, 184, 222, 0.24);
+  --flow-rail: rgba(140, 184, 222, 0.18);
+  --flow-card: #1b1b20;
+  --flow-dust: rgba(140, 184, 222, 0.55);
+}
+
+.hmz-flow .k-maker { --hue: var(--flow-maker); }
+.hmz-flow .k-partner { --hue: var(--flow-partner); }
+.hmz-flow .k-checker { --hue: var(--flow-checker); }
+.hmz-flow .k-steward { --hue: var(--flow-steward); }
+.hmz-flow .k-human { --hue: var(--flow-human); }
+.hmz-flow .k-program { --hue: var(--flow-program); }
+.hmz-flow .o-done { --hue: var(--flow-done); }
+.hmz-flow .o-fail { --hue: var(--flow-fail); }
+.hmz-flow .o-budget { --hue: var(--flow-budget); }
+.hmz-flow .o-you { --hue: var(--flow-you); }
+
+/* Text is drawn under the camera's transforms, scaled and skewed; geometric precision keeps its
+   letters where they belong at any scale, rather than snapped to a pixel grid one by one. */
+.hmz-flow text {
+  font-family: var(--vp-font-family-base);
+  text-rendering: geometricPrecision;
+}
+
+.hmz-flow .mono {
+  font-family: var(--vp-font-family-mono);
+}
+
+/* ---- the primitives ------------------------------------------------------------------- */
+
+.hmz-flow .f-glyph {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hmz-flow .f-glyph.filled {
+  fill: currentColor;
+  stroke: none;
+}
+
+.hmz-flow .f-mote {
+  fill: var(--flow-dust);
+}
+
+/* a workspace */
+.hmz-flow .f-plate .floor {
+  fill: var(--flow-plate);
+  stroke: var(--flow-plate-edge);
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+}
+
+.hmz-flow .f-plate.lit .floor {
+  stroke-dasharray: none;
+}
+
+.hmz-flow .f-plate .tab {
+  color: var(--flow-ink-3);
+}
+
+.hmz-flow .f-plate .name {
+  fill: var(--flow-ink-3);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+/* a lane */
+.hmz-flow .f-rail {
+  stroke: var(--flow-rail);
+  stroke-width: 1;
+}
+
+.hmz-flow .f-now {
+  stroke: var(--hmz-accent);
+  stroke-width: 1.6;
+  opacity: 0.7;
+}
+
+.hmz-flow .f-head {
+  color: var(--hue);
+}
+
+.hmz-flow .f-head .halo,
+.hmz-flow .f-head .disc {
+  fill: var(--hue);
+}
+
+.hmz-flow .f-head .ring {
+  fill: var(--flow-card);
+  stroke: var(--hue);
+  stroke-width: 1.8;
+}
+
+.hmz-flow .f-head .on-disc {
+  color: var(--flow-card);
+}
+
+.hmz-flow .f-head .name {
+  fill: var(--flow-ink);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.hmz-flow .f-head .note {
+  fill: var(--flow-ink-3);
+  font-size: 10.5px;
+}
+
+/* a held session */
+.hmz-flow .f-thread {
+  fill: none;
+  stroke: var(--hue);
+  stroke-linecap: round;
+  opacity: 0.14;
+}
+
+.hmz-flow .f-thread.on {
+  opacity: 0.5;
+}
+
+/* a turn */
+.hmz-flow .f-turn {
+  color: var(--hue);
+}
+
+.hmz-flow .f-turn.waiting {
+  opacity: 0.3;
+}
+
+.hmz-flow .f-turn .aura {
+  fill: none;
+  stroke: var(--hue);
+  stroke-width: 7;
+}
+
+.hmz-flow .f-turn .shell {
+  fill: var(--flow-card);
+  stroke: var(--hue);
+  stroke-width: 1.6;
+}
+
+.hmz-flow .f-turn.running .shell {
+  stroke-width: 2.2;
+}
+
+.hmz-flow .f-turn .fill {
+  fill: var(--hue);
+  opacity: 0.16;
+}
+
+.hmz-flow .f-turn .inner {
+  fill: none;
+  stroke: var(--hue);
+  stroke-width: 1;
+  opacity: 0.7;
+}
+
+.hmz-flow .f-turn .spark .dot,
+.hmz-flow .f-turn .tick.on {
+  fill: var(--hue);
+}
+
+.hmz-flow .f-turn .spark .core {
+  fill: var(--flow-card);
+}
+
+.hmz-flow .f-turn .spark .burst {
+  fill: none;
+  stroke: var(--hue);
+  stroke-width: 2;
+}
+
+.hmz-flow .f-turn .label {
+  fill: var(--flow-ink);
+  font-size: 12px;
+  font-weight: 500;
+  text-anchor: middle;
+}
+
+.hmz-flow .f-turn .calls {
+  fill: var(--hue);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.hmz-flow .f-turn .tick {
+  fill: var(--flow-ink-3);
+  opacity: 0.3;
+}
+
+.hmz-flow .f-turn .tick.on {
+  opacity: 1;
+}
+
+/* a pass */
+.hmz-flow .f-wire .track {
+  fill: none;
+  stroke: var(--hue);
+  stroke-width: 1.3;
+  opacity: 0.22;
+}
+
+.hmz-flow .f-wire .lit {
+  fill: none;
+  stroke: var(--hue);
+  stroke-width: 1.8;
+  opacity: 0.85;
+}
+
+.hmz-flow .f-wire.tree .track,
+.hmz-flow .f-wire.tree .lit {
+  stroke-dasharray: 1.5 4;
+  stroke-linecap: round;
+  stroke-width: 2.1;
+}
+
+.hmz-flow .f-wire .halo,
+.hmz-flow .f-loop .halo {
+  fill: var(--hue);
+  opacity: 0.22;
+}
+
+.hmz-flow .f-wire .comet,
+.hmz-flow .f-wire .trail,
+.hmz-flow .f-wire .spark,
+.hmz-flow .f-loop .comet {
+  fill: var(--hue);
+}
+
+.hmz-flow .f-wire .said rect,
+.hmz-flow .f-loop .said rect {
+  fill: var(--flow-card);
+  stroke: var(--hue);
+  stroke-width: 1;
+  stroke-opacity: 0.55;
+}
+
+.hmz-flow .f-wire .said text,
+.hmz-flow .f-loop .said text {
+  fill: var(--flow-ink);
+  font-size: 10.5px;
+  text-anchor: middle;
+}
+
+/* a loop */
+.hmz-flow .f-loop {
+  --hue: var(--hmz-accent);
+  color: var(--flow-ink-3);
+}
+
+.hmz-flow .f-loop .track {
+  fill: none;
+  stroke: var(--flow-ink-3);
+  stroke-width: 1.3;
+  stroke-dasharray: 5 4;
+  opacity: 0.6;
+}
+
+.hmz-flow .f-loop .lit {
+  fill: none;
+  stroke: var(--hue);
+  stroke-width: 2;
+}
+
+.hmz-flow .f-loop .tip {
+  fill: var(--flow-ink-3);
+}
+
+.hmz-flow .f-loop.live {
+  color: var(--hue);
+}
+
+.hmz-flow .f-loop.live .tip {
+  fill: var(--hue);
+}
+
+.hmz-flow .f-loop .said rect {
+  stroke: var(--flow-ink-3);
+}
+
+.hmz-flow .f-loop.live .said rect {
+  stroke: var(--hue);
+}
+
+/* the finish */
+.hmz-flow .f-gate .post {
+  stroke: var(--flow-ink-3);
+  stroke-width: 2;
+  opacity: 0.5;
+}
+
+.hmz-flow .f-gate .flag {
+  fill: var(--flow-ink-3);
+  opacity: 0.5;
+}
+
+.hmz-flow .f-gate.on .post {
+  stroke: var(--hue);
+  opacity: 1;
+}
+
+.hmz-flow .f-gate.on .flag {
+  fill: var(--hue);
+  opacity: 1;
+}
+
+.hmz-flow .f-gate .burst {
+  fill: none;
+  stroke: var(--hue);
+  stroke-width: 2.5;
+}
+
+.hmz-flow .f-gate .end {
+  color: var(--hue);
+}
+
+.hmz-flow .f-gate .end .chip {
+  fill: var(--flow-card);
+  stroke: var(--flow-rail);
+  stroke-width: 1;
+}
+
+.hmz-flow .f-gate .end .said {
+  fill: var(--flow-ink-2);
+  font-size: 11px;
+}
+
+.hmz-flow .f-gate .end.lit .chip {
+  fill: color-mix(in srgb, var(--flow-card) 84%, var(--hue));
+  stroke: var(--hue);
+  stroke-width: 1.6;
+}
+
+.hmz-flow .f-gate .end.lit .said {
+  fill: var(--flow-ink);
+  font-weight: 700;
+}
+
+/* the budget */
+.hmz-flow .f-meter {
+  color: var(--hue);
+}
+
+.hmz-flow .f-meter .name {
+  fill: var(--flow-ink-2);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.hmz-flow .f-meter .trough {
+  fill: var(--flow-rail);
+}
+
+.hmz-flow .f-meter .poured {
+  fill: var(--hue);
+  opacity: 0.85;
+}
+
+.hmz-flow .f-meter .read {
+  fill: var(--flow-ink-3);
+  font-size: 10px;
+  text-anchor: end;
+}
+
+/* a split's copies */
+.hmz-flow .f-kid .floor {
+  fill: var(--flow-plate);
+  stroke: var(--flow-checker);
+  stroke-opacity: 0.45;
+  stroke-dasharray: 5 4;
+}
+
+.hmz-flow .f-kid .drop {
+  fill: none;
+  stroke: var(--flow-ink-3);
+  stroke-width: 1.2;
+  stroke-dasharray: 2 4;
+}
+
+.hmz-flow .f-kid .name {
+  fill: var(--flow-ink-2);
+  font-size: 10.5px;
+  font-weight: 600;
+}

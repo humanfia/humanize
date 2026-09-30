@@ -17,12 +17,15 @@ from hmz.runtime.flowing.specs import (
     BudgetSpecError,
     EnvSpec,
     EnvSpecError,
+    HarnessSpec,
+    HarnessSpecError,
     ParamSpecError,
     SpecError,
     parse_agents,
     parse_budget,
     parse_duration,
     parse_envs,
+    parse_harness,
     parse_params,
 )
 
@@ -388,3 +391,60 @@ def test_every_spec_error_is_a_value_error() -> None:
     for kind in (AgentSpecError, EnvSpecError, ParamSpecError, BudgetSpecError):
         assert issubclass(kind, SpecError)
         assert issubclass(kind, ValueError)
+
+
+# ------------------------------------------------------------------------------------ -H
+
+
+@pytest.mark.parametrize("mode", ["adaptive", "local", "env"])
+def test_a_harness_is_one_of_the_places_it_may_run(mode: str) -> None:
+    spec = parse_harness(f" {mode} ")
+    assert (spec.mode, spec.on, str(spec)) == (mode, None, mode)
+    assert HarnessSpec() == parse_harness("adaptive")
+
+
+def test_a_standalone_harness_names_its_machine_as_an_environment() -> None:
+    spec = parse_harness("standalone:ssh@gpu-box/~/scratch")
+    assert spec.mode == "standalone"
+    assert spec.on == EnvSpec(
+        "harness", EnvBackendKind.SSH, "gpu-box", PurePosixPath("~/scratch")
+    )
+    # Written back as `-H` takes it, and read back as the same thing.
+    assert parse_harness(str(spec)) == spec
+
+
+def test_a_machine_left_without_a_directory_is_given_one() -> None:
+    from hmz import home
+
+    ssh = parse_harness("standalone:ssh@gpu-box")
+    assert ssh.on is not None
+    assert ssh.on.workdir == PurePosixPath("~")
+    docker = parse_harness("standalone:docker@local")
+    assert docker.on is not None
+    assert docker.on.workdir == PurePosixPath(home() / "harness")
+
+
+def test_a_saved_provider_is_named_by_its_name_alone() -> None:
+    from hmz.coganchor.machines import store
+
+    store.add(store.SSHProvider(name="gpu-box", host="10.0.0.2", workdir="/srv"))
+    spec = parse_harness("standalone:gpu-box")
+    assert spec.on == EnvSpec(
+        "harness", EnvBackendKind.SSH, "gpu-box", PurePosixPath("/srv")
+    )
+
+
+@pytest.mark.parametrize(
+    ("written", "says"),
+    [
+        ("somewhere", "expected adaptive"),
+        ("env:box", "expected adaptive"),
+        ("standalone:", "expected adaptive"),
+        ("standalone:local@/tmp", "on another machine"),
+        ("standalone:ftp@box/x", "not a backend"),
+    ],
+)
+def test_what_is_not_a_harness_is_refused_saying_why(written: str, says: str) -> None:
+    with pytest.raises(HarnessSpecError, match=says):
+        parse_harness(written)
+    assert issubclass(HarnessSpecError, SpecError)

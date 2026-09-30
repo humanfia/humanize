@@ -1688,6 +1688,41 @@ def test_docker_env_remote(cell: Cell, docker_box: Docked) -> None:
     assert not Path(there).exists(), f"{there} is on this machine too: proves nothing"
 
 
+@feature(timeout=900)
+def test_harness_placement(cell: Cell, daemon: None) -> None:
+    """Where the harness runs is what `-H` says, for a container that has no CLI of its own.
+
+    `-H env` is refused before a turn, naming the container and saying how to install the CLI
+    there. `adaptive`, said by saying nothing, finds no CLI there and runs the harness here, as
+    every docker row always has -- and the run writes down that it did.
+    """
+    from hmz.runtime.epic import epics, read
+
+    del daemon
+    there = cell.root / "box"
+    there.mkdir()
+    boxed = cell.flow("boxed", BOXED)
+
+    refused = cell.exec(
+        boxed,
+        CONTAINED,
+        envs=[f"box=docker@local{there}"],
+        harness="env",
+        check=False,
+        timeout=600,
+    )
+    assert refused.status, f"-H env ran with no CLI in the container\n{refused}"
+    assert "is not installed on docker@local" in refused.err, refused
+
+    ran = cell.exec(boxed, CONTAINED, envs=[f"box=docker@local{there}"], timeout=600)
+
+    _contained(cell, ran)
+    run = read(epics(cell.workspace)[-1])
+    assert run is not None
+    assert run.harness == "adaptive"
+    assert [one.harness for one in run.sessions] == ["local"], run.sessions
+
+
 FENCED_BOX = '''"""One turn at the default permission in a container, and what it kept."""
 
 import json

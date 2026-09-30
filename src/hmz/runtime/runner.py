@@ -49,7 +49,7 @@ if TYPE_CHECKING:
         SessionHandle,
     )
     from hmz.runtime.flowing.harnesses import Listener
-    from hmz.runtime.flowing.specs import AgentSpec, EnvSpec
+    from hmz.runtime.flowing.specs import AgentSpec, EnvSpec, HarnessSpec
     from hmz.runtime.flowing.spi import Placement
 
     from .epic import Drove, Epic
@@ -81,6 +81,8 @@ class Line(NamedTuple):
       budget: What the run may spend, or None where the line said nothing.
       resume: Whether to pick up the newest run of the flow here that can be.
       as_json: Whether a program is reading the run rather than a person.
+      harness: Where the agents' harnesses run, or None where the line said nothing --
+        which is adaptive.
     """
 
     flow: str
@@ -91,6 +93,7 @@ class Line(NamedTuple):
     budget: Budget | None = None
     resume: bool = False
     as_json: bool = False
+    harness: HarnessSpec | None = None
 
 
 def read_line(argv: list[str]) -> Line:
@@ -165,6 +168,15 @@ def read_line(argv: list[str]) -> Line:
         "graceful=false to stop a turn mid-way. Required, except for chat",
     )
     parser.add_argument(
+        "-H",
+        "--harness",
+        metavar="WHERE",
+        help="where each agent's harness runs: adaptive (the default) on an environment's "
+        "own machine where its CLI is installed there and here otherwise, local here, env "
+        "on the environment's machine, or standalone:ENV on a machine of its own named as "
+        "-e names one (ssh@HOST, docker@PROVIDER) or by a saved provider's name",
+    )
+    parser.add_argument(
         "--resume",
         action="store_true",
         help="pick up the newest run of this flow here, for a flow that can be picked up",
@@ -187,6 +199,7 @@ def read_line(argv: list[str]) -> Line:
         parse_agents,
         parse_budget,
         parse_envs,
+        parse_harness,
         parse_params,
     )
 
@@ -200,6 +213,7 @@ def read_line(argv: list[str]) -> Line:
             budget=parse_budget(args.budget) if args.budget else None,
             resume=args.resume,
             as_json=args.as_json,
+            harness=parse_harness(args.harness) if args.harness is not None else None,
         )
     except SpecError as bad:
         parser.error(str(bad))
@@ -223,6 +237,7 @@ class Runner:
         budget: Budget | Mapping[str, Any] | None = None,
         resume: bool | str | os.PathLike[str] = False,
         workspace: str | os.PathLike[str] | None = None,
+        harness: str | HarnessSpec | None = None,
     ) -> None:
         """Loads the flow and checks what it is given against what it declares.
 
@@ -241,6 +256,8 @@ class Runner:
           resume: Whether to pick up the newest run of this flow in the workspace that can
             be picked up, or the epic to pick up.
           workspace: Where the run happens, defaulting to this directory.
+          harness: Where each agent's harness runs, as `-H` says it, or None for adaptive:
+            on its environment's machine where its CLI is there, and here otherwise.
 
         Raises:
           Refused: For a flow that cannot be loaded; a role given that it does not declare,
@@ -275,10 +292,14 @@ class Runner:
                 )
             budget = Budget(cost=math.inf)
         self._budget = budget if isinstance(budget, Budget) else _budget(budget)
+        self._harness = _harness(harness)
         self._picked_up = self._picks_up(resume)
         # Made last, once everything that could refuse the run has had its say: a driver
         # starts nothing as it is made, and none is made for a run that is refused.
-        self._agents = _agent_drivers(agents_given)
+        #: The machine a standalone harness runs on, opened the way an environment is --
+        #: probed with them, and closed with them -- or None for every other harness.
+        self._harness_on = _harness_on(self._harness)
+        self._agents = _agent_drivers(agents_given, self._harness, self._harness_on)
         self._envs = _env_drivers(envs_given, declared)
         self._recorder: Recorder | None = None
 
@@ -475,6 +496,11 @@ class Runner:
         return self._budget
 
     @property
+    def harness(self) -> HarnessSpec:
+        """Where the agents' harnesses run."""
+        return self._harness
+
+    @property
     def picked_up(self) -> Path | None:
         """The epic this run picks up, or None for a run from the top."""
         return self._picked_up
@@ -568,6 +594,8 @@ class Runner:
         try:
             for driver in self._envs.values():
                 await probe(driver)
+            if self._harness_on is not None:
+                await probe(self._harness_on)
             local = local_env(self._workspace)
         except BaseException as why:
             # Stopped, or refused, before the run began: what it was given goes either way.
@@ -587,6 +615,7 @@ class Runner:
             # float: `Budget(cost=inf)` is written as the string it reads back from.
             params=json.loads(self._params.model_dump_json()),
             budget=json.loads(self._budget.model_dump_json()),
+            harness=str(self._harness),
             resumable=impl.resumable,
             picked_up=self._picked_up,
             profile=Settings(self._workspace).profiling,
@@ -639,7 +668,12 @@ class Runner:
 
     async def _closed(self, local: EnvDriver | None) -> None:
         """Closes every driver the run was given, and the workspace's, however it ended."""
-        for driver in (*self._agents.values(), *self._envs.values(), local):
+        for driver in (
+            *self._agents.values(),
+            *self._envs.values(),
+            self._harness_on,
+            local,
+        ):
             if driver is None:
                 continue
             with contextlib.suppress(Exception):
@@ -846,8 +880,10 @@ telemetry.about("flow", _about)
 
 def _agent_drivers(
     given: Mapping[str, AgentSpec | AgentDriver],
+    harness: HarnessSpec,
+    on: EnvDriver | None,
 ) -> dict[str, AgentDriver]:
-    """A driver per agent role, made for each role given a spec.
+    """A driver per agent role, made for each role given a spec, its harness put as said.
 
     Raises:
       Refused: For a spec its CLI cannot be configured at.
@@ -858,9 +894,50 @@ def _agent_drivers(
 
     try:
         return {
-            role: open_agent(said) if isinstance(said, AgentSpec) else said
+            role: open_agent(said, harness.mode, on)
+            if isinstance(said, AgentSpec)
+            else said
             for role, said in given.items()
         }
+    except FlowException as why:
+        raise Refused(str(why)) from why
+
+
+def _harness(said: str | HarnessSpec | None) -> HarnessSpec:
+    """Where the agents' harnesses run, read as `-H` reads it.
+
+    Raises:
+      Refused: For one that cannot be read.
+    """
+    from hmz.runtime.flowing.specs import HarnessSpec, SpecError, parse_harness
+
+    if isinstance(said, HarnessSpec):
+        return said
+    try:
+        return parse_harness(said) if said else HarnessSpec()
+    except SpecError as why:
+        raise Refused(str(why)) from why
+
+
+def _harness_on(harness: HarnessSpec) -> EnvDriver | None:
+    """The machine a standalone harness runs on, as an environment of its own.
+
+    A directory humanize keeps for one on docker's host is made here, for the container to be
+    given it: it is humanize's to make, being nobody else's.
+
+    Raises:
+      Refused: For a machine no driver can be made for.
+    """
+    from hmz import home
+    from hmz.flows import FlowException
+    from hmz.runtime.flowing.environments import open_env
+
+    if harness.on is None:
+        return None
+    if Path(str(harness.on.workdir)) == home() / "harness":
+        (home() / "harness").mkdir(parents=True, exist_ok=True)
+    try:
+        return open_env(harness.on)
     except FlowException as why:
         raise Refused(str(why)) from why
 

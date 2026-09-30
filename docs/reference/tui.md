@@ -517,7 +517,8 @@ lands on its roles:
 | one per agent role | What fills it, or `not set`. <kbd>enter</kbd> opens [the agent's sheet](#what-each-agent-is). |
 | one per environment role | [Where it is](#where-each-agent-works), or `not set`. |
 | `budget` | [What a run may spend](#what-a-run-of-it-may-spend). |
-| `save` | Checks every role against what the flow declares, and applies the flow, its roles, its params and its budget together. |
+| `harness` | [Where its agents' harnesses run](#where-the-harness-runs). |
+| `save` | Checks every role against what the flow declares, and applies the flow, its roles, its params, its budget and its harness together. |
 
 Roles the runtime fills are not rows: an `Outworlder` is you, and a `LocalEnv` is the directory
 the interface was started in. <kbd>esc</kbd> goes back to the flows.
@@ -694,6 +695,18 @@ The `budget` row sits under the roles and says what the run is held to without o
 
 **Every flow but `chat` needs one.** The menu will not save a flow whose budget sets none of
 the three, as `hmz exec` will not run one without a `-b`.
+
+#### Harness {#where-the-harness-runs}
+
+The `harness` row sits under `budget` and says where each agent's CLI runs and what that comes
+to: `adaptive → local: the work is on this machine`, `adaptive → env where its CLI is installed,
+else local`, or, once a run has found out, `adaptive → env (last run)`. <kbd>enter</kbd> opens a
+form whose `harness` row steps through `adaptive`, `local`, `env` and `standalone`, as
+[`hmz exec -H`](/reference/cli#choosing-where-the-harness-runs) takes them; `standalone` adds a
+`machine` row that opens the same form an [environment role](#where-each-agent-works) is placed
+on. It is kept per flow, beside the budget. As each role's first session opens on another
+machine, the transcript says where its harness went: `coder's harness runs on its environment's
+machine (env)`.
 
 ### `/settings` {#what-humanize-remembers}
 
@@ -1186,7 +1199,7 @@ you let go. The status line says `copied` for two seconds.
 
 Opening the interface again in the same directory finds it as you left it: the flow last set
 up, and for each flow this directory has run, what fills each agent role and as which account,
-where each environment role is, its params and its budget. It is kept in
+where each environment role is, its params, its budget and where its harnesses run. It is kept in
 `~/.humanize/settings.yaml` (see [Files](/reference/cli#files)).
 
 - **Per flow**, keyed by the name the flow is offered under: `chat`, `local/<flow>`,
