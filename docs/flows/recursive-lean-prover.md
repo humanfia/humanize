@@ -8,7 +8,7 @@ Prove a theorem in Lean by splitting it up. Each lemma is planned, proved in pro
 child lemmas where it needs to be, and formalized in a git worktree of its own. Every lemma
 your comparator and a fresh reviewer accept is written to a Markdown wiki as it lands.
 
-<Badge type="warning" text="worker: claude · codex · kimi · zcode" />
+<Badge type="warning" text="worker: claude · codex · kimi" />
 <Badge type="info" text="meant for codex in both roles" />
 
 ::: code-group
@@ -67,7 +67,7 @@ run prints its directory as it starts; watch the graph of lemmas grow in the `DA
 
 | Role | |
 | --- | --- |
-| `worker` | Writes every plan, proof and Lean formalization. Must be `claude`, `codex`, `kimi` or `zcode`: `rlcr`'s guards work through its permission requests. |
+| `worker` | Writes every plan, proof and Lean formalization. Must be `claude`, `codex` or `kimi`: `rlcr`'s guards work through its permission requests. |
 | `reviewer` | Checks every proof and candidate, and reruns the comparator itself. |
 
 Every turn is a fresh session. Both roles may write across your home directory and use the web.

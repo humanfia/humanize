@@ -31,6 +31,7 @@ from hmz.flows import (
     Flow,
     FlowContext,
     FlowParams,
+    GitEnvMixin,
     GitWorktreeEnvMixin,
     GoalCommandAgentMixin,
     GPUEnvMixin,
@@ -48,6 +49,7 @@ from hmz.flows import (
     PermissionRequestHookResult,
     PreToolUseHookParams,
     PreToolUseHookResult,
+    RewindableEnvMixin,
     ScratchDirEnvMixin,
     Session,
     ShellEnvMixin,
@@ -98,6 +100,7 @@ class Workspace(
     LocalEnv,
     BashEnvMixin,
     FilesEnvMixin,
+    GitEnvMixin,
     GitWorktreeEnvMixin,
     TemporaryClonedDirEnvMixin,
     ScratchDirEnvMixin,
@@ -149,6 +152,11 @@ class ReviewEnvs(EnvCollection):
 
 class ReviewParams(FlowParams):
     strict: bool = True
+
+
+async def back_to(env: RewindableEnvMixin, ref: str) -> None:
+    """Written against the interface, whatever rewinds underneath."""
+    await env.rewind(ref)
 
 
 async def refuse_rm(params: PermissionRequestHookParams) -> PermissionRequestHookResult:
@@ -259,6 +267,11 @@ async def everything(
     scratch = await workspace.derive_scratch("notes")
     await scratch.write("a.txt", b"a")
     await workspace.destroy_scratch("notes")
+    before = await workspace.snapshot("before")
+    assert_type(before, str)
+    assert_type(await workspace.snapshots(), list[str])
+    await workspace.rewind("HEAD~1")
+    await back_to(workspace, before)
     sub = await workspace.derive_subdir(subdir="docs")
     assert_type(sub, Env)
 
@@ -313,6 +326,9 @@ async def misuse(agents: Agents, envs: Envs, session: Session) -> None:
         await trainer.exec("nvidia-smi | head")  # pyright: ignore[reportArgumentType]
         await trainer.read("x")  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
     await envs["plain"].exec(["ls"])  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
+
+    # A rewind where it was not declared.
+    await envs["plain"].rewind("HEAD")  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType]
 
     # A permission written as strings, and an outworlder hook on an agent that is not one.
     Permission(local="all")  # pyright: ignore[reportArgumentType]

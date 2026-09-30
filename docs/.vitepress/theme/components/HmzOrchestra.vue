@@ -59,7 +59,7 @@ const PLAYS: Play[] = [
         tone: 3,
         idle: 'b’s turn',
       },
-      { role: 'lane_3_actor_b', agent: 'zcode/zai/glm-5.3:high', tone: 3, idle: 'a’s turn' },
+      { role: 'lane_3_actor_b', agent: 'qwen/qwen3-coder-plus:high', tone: 3, idle: 'a’s turn' },
     ],
     first: [0],
     // The coordinator hands over to the three a's at once; inside a lane, a and b alternate.

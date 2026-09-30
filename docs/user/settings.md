@@ -408,10 +408,10 @@ to**.
 ### One account, several CLIs
 
 An API key belongs to the vendor, not to the CLI. An Anthropic key works in Claude Code, pi,
-opencode, mimocode and ZCode alike. So when the account you are making is one other CLIs could
+opencode and mimocode alike. So when the account you are making is one other CLIs could
 run as, the form has a row for each of them, `also for pi`, `also for opencode` and so on:
 
-![the add-an-account form for a Claude API key: also for pi, opencode, mimo and zcode, each on
+![the add-an-account form for a Claude API key: also for pi, opencode and mimo, each on
 because it is installed here](/demo/alike.png)
 
 - Each starts **on** where that CLI is installed here, and off where it is not. Change one as any
@@ -468,7 +468,7 @@ shared = accounts.make("claude", "shared", accounts.way("claude", "key"), {
     "ANTHROPIC_API_KEY": key,
 })
 
-accounts.serves(shared)                     # ('pi', 'opencode', 'mimo', 'zcode')
+accounts.serves(shared)                     # ('pi', 'opencode', 'mimo')
 accounts.copies(shared, "pi")               # pi/shared, holding the same key
 accounts.points("claude", "work", "shared")  # work fails over to shared
 ```

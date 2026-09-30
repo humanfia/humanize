@@ -89,7 +89,6 @@ const BACKENDS: Backend[] = [
   { name: 'mimo', held: false },
   { name: 'opencode', held: false },
   { name: 'pi', held: false },
-  { name: 'zcode', held: false },
   { name: 'a CLI you added', held: false },
 ]
 

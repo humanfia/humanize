@@ -92,6 +92,20 @@ class GitWorktreeEnvMixin:
     ) -> Self:
         ...
 
+class RewindableEnvMixin:
+    # A pure interface, with no implementation of its own: no role is granted it by itself,
+    # only by a mixin deriving it.
+    async def snapshot(self, name: str | None = None) -> str: ...
+        # Record the workdir as it is; returns a ref `rewind` takes. None names it anew.
+    async def rewind(self, ref: str) -> None: ...
+        # Put the workdir back as a ref has it, removing what the ref does not have.
+    async def snapshots(self) -> list[str]: ...
+        # The refs of the snapshots kept, oldest first.
+
+class GitEnvMixin(RewindableEnvMixin):
+    # Implemented with git over the git worktree the workdir is in, which the target machine must have on its PATH: a flow declaring it on a machine without is refused before it runs, with `CapabilityMissing`. A workdir outside a worktree raises `RewindError`; it is not made one.
+    # `snapshot` records the commit checked out, the index and every file git does not ignore as a commit under `refs/hmz/snapshots/<name>`, touching none of them. `rewind` takes that or any ref git knows of a commit: the branch checked out, if any, is moved to it as `git reset --hard` would, the index is put back, and files neither in it nor ignored are removed. A `.humanize/` at the top of the worktree is treated as ignored by both.
+
 class TemporaryClonedDirEnvMixin:
     async def derive_temp_clone(self, id: str) -> Self: ...
         # Derive an env at a temporary dir with the same content as the current env. The temporary dir will be automatically cleaned up when the flow ends and the flow is not resumable. Same ID refers to the same temporary dir. But if another env holds it, an exception will be raised.

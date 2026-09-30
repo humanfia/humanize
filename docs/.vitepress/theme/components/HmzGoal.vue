@@ -17,7 +17,6 @@ const HAVE = [
   { name: 'codex', has: true },
   { name: 'dsh', has: true },
   { name: 'kimi', has: true },
-  { name: 'zcode', has: true },
   { name: 'agy', has: false },
   { name: 'cursor-agent', has: false },
   { name: 'grok', has: false },

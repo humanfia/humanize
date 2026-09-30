@@ -44,7 +44,6 @@ TELLABLE = (
     "qwen",
     "opencode",
     "mimo",
-    "zcode",
 )
 
 

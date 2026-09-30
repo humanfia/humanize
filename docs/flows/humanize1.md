@@ -9,7 +9,7 @@ the Claude Code plugin humanize grew out of, as three flows you run one after an
 `gen-idea` opens a loose idea into a draft, `gen-plan` turns the draft into a plan two agents
 agreed on, and `rlcr` builds that plan under review until nothing is left to say.
 
-<Badge type="warning" text="rlcr builder: claude · codex · kimi · zcode" />
+<Badge type="warning" text="rlcr builder: claude · codex · kimi" />
 <Badge type="info" text="rlcr needs a git repository" />
 
 ::: code-group
@@ -86,7 +86,7 @@ line is not read.
 - **You are quizzed on the plan first,** if you are at the prompt: two questions the reviewer
   writes, to check you have read what is about to be built. Under `hmz exec` or `/afk` it is
   skipped.
-- **The builder must be `claude`, `codex`, `kimi` or `zcode`.** The loop's guards, which keep
+- **The builder must be `claude`, `codex` or `kimi`.** The loop's guards, which keep
   the builder from editing the plan or its own state, work by answering its permission
   requests, and only those backends ask.
 - **It needs a git repository.** Every review reads the work since the commit the plan was

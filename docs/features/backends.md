@@ -4,7 +4,7 @@ pageClass: hmz-feature
 
 # Many backends, one agent
 
-humanize drives twelve coding agent CLIs, and any other CLI that speaks the Agent Client
+humanize drives eleven coding agent CLIs, and any other CLI that speaks the Agent Client
 Protocol. Each one runs under a login you already have, so most need no API key. A flow names
 its **roles**, and you pick the backend that plays each one. If the backend cannot do what the
 role needs, the run is refused before it starts, not an hour in.

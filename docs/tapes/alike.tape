@@ -51,7 +51,7 @@ Screenshot "/out/alike.png"
 Sleep 800ms
 
 # The ones this machine has installed start on; the rest are a keypress away.
-Up 4
+Up 3
 Sleep 500ms
 Enter
 Right
@@ -61,7 +61,7 @@ Enter
 Right
 Enter
 Sleep 1200ms
-Down 2
+Down
 Sleep 500ms
 Enter
 

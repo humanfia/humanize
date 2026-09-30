@@ -119,7 +119,6 @@ const BANDS: Band[] = [
           { text: 'opencode' },
           { text: 'pi' },
           { text: 'qwen' },
-          { text: 'zcode' },
           { text: 'any ACP CLI', href: '/user/settings#accounts', tag: '/settings', apart: true },
         ],
       },
