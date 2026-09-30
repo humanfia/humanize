@@ -406,6 +406,14 @@ export default defineConfig({
             { text: 'Tracing', link: '/reference/tracing' },
           ],
         },
+        {
+          text: 'State',
+          items: [
+            { text: 'Files', link: '/reference/files' },
+            { text: 'Settings', link: '/reference/settings' },
+            { text: 'Environment variables', link: '/reference/environment' },
+          ],
+        },
       ],
     },
 
