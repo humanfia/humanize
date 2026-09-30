@@ -182,7 +182,10 @@ diff --git a/calc.py b/calc.py
 - `/epics` lists the run, and [a trace](/user/tracing) of it shows the builder's sessions like
   any other.
 - On `/flow`, the flow's `harness` row now says what `adaptive` came to:
-  `adaptive → local (last run)`.
+  `adaptive → local (last run)`, whether the run was made at the prompt or with `hmz exec`.
+- While a run goes, the monitor's page for `box` says the same on its `harness` row:
+  `adaptive → local: on this machine; what it runs lands here`. See [the monitor's environment
+  page](/user/monitor#environments).
 - `/home/me/build/myproject` also exists **here**: it is the copy the agent read and wrote
   through, kept at the same path. See [the path is taken here
   too](#the-path-is-taken-here-too).
@@ -320,6 +323,9 @@ The `harness` row says what it comes to:
 | `adaptive → env where its CLI is installed, else local` | one is, and no run has told yet |
 | `adaptive → local (last run)` | the last run here put every such role's CLI here |
 | `adaptive → env (last run)` | it put them on the host (`env, local` where roles went both ways) |
+
+The last run is read from the flow's record in this directory, so it counts a run made with
+`hmz exec` or before `hmz` was last opened as much as one made at this prompt.
 
 Nothing to do when it goes either way: the run is the same run. Pick one of the others only to
 insist.

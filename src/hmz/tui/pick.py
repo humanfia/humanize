@@ -1830,6 +1830,35 @@ def harnessing(held: str, envs: Iterable[str], ran: Mapping[str, str]) -> str:
     }.get(mode, f"{mode} → on the environment's machine")
 
 
+def last_harnessed(flow: str) -> dict[str, str]:
+    """Where each role's harness went the last time a flow ran here, as its epic says it.
+
+    Read off the run's own record rather than kept by whichever interface watched it, so that
+    a run `hmz exec` made, or one made before this interface was opened, says it too.
+
+    Args:
+      flow: The flow, by its canonical ref or as it was named when it ran.
+
+    Returns:
+      Where each role's harness went, by role, for a role whose work was on another machine;
+      empty where the flow never ran here, or its last run worked only here.
+    """
+    from hmz.runtime.flowing import resolved
+
+    if not flow:
+        return {}
+    # By its canonical ref as well as by name: `hmz exec` may have named it another way.
+    ref = ""
+    with contextlib.suppress(Exception):  # a flow that will not load has only its name
+        ref = resolved(flow).ref
+    epics = _hmz().epics
+    for epic in reversed(epics.all()):
+        ran = epics.read(epic)
+        if ran is not None and (ran.flow == flow or (ref and ran.ref == ref)):
+            return {one.agent: one.harness for one in ran.sessions if one.harness}
+    return {}
+
+
 def settled(
     runs: Mapping[str, Runs],
     roles: Sequence[AgentRole],
@@ -2044,8 +2073,9 @@ class Flows(Drafts[Chosen]):
         self._harness = (
             harness if harness is not None else _hmz().settings.harness(flow)
         )
-        #: Where each role's harness went the last time the flow in force ran here.
-        self._harnessed = dict(harnessed or {})
+        #: Where each role's harness went the last time the flow in force ran here: as the
+        #: run going says it while there is one, and as the last run's record says it else.
+        self._harnessed = dict(harnessed) if harnessed else last_harnessed(flow)
         #: Every flow there is, read once: this is redrawn on every keystroke, and reading it
         #: means importing each flow to see what it holds. Cleared when a flowverse is
         #: fetched or taken away, which is when the list is something else.
@@ -2837,8 +2867,9 @@ class Flows(Drafts[Chosen]):
             self._params = params_of(name, self._held(name).get("params") or {})
             self._budget = budget_of(name)
             self._harness = _hmz().settings.harness(name)
-            # What the last run of the flow in force found says nothing of this one.
-            self._harnessed = {}
+            # What the last run of the flow in force found says nothing of this one; what
+            # the last run of this one found does.
+            self._harnessed = last_harnessed(name)
             self.changed()
         # On to what the flow itself takes, where it takes anything, and then to its roles:
         # things about one flow, asked in the order they depend on nothing.

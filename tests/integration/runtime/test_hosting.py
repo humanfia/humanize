@@ -628,6 +628,28 @@ def test_a_late_frontend_reads_the_run_exactly_as_the_first_did(
 
 
 @pytest.mark.timeout(60)
+def test_a_late_frontend_is_told_where_the_run_put_its_harnesses(
+    host: Host, workspace: Path
+) -> None:
+    """As `-H` spells it, on the run's start and on the snapshot of it: adaptive unsaid."""
+    alice = Told(host, "alice")
+    _asks(alice)
+    assert alice.told("started")["harness"] == "adaptive"
+    for role, text in (("planner", "a plan"), ("reviewer", "fine")):
+        alice.asks(do="answer", question=alice.asked(role)["question"], text=text)
+    alice.told("ended")
+
+    said = alice.asks(
+        do="start", flow="asks", task="again", budget={"cost": 1}, harness="local"
+    )
+    assert said["ok"], said
+    alice.told("started", harness="local")
+
+    late = Told(host, "late", replay=False)
+    assert late.told("run", state="running")["harness"] == "local"
+
+
+@pytest.mark.timeout(60)
 def test_a_frontend_whose_listener_blocks_holds_up_neither_the_run_nor_the_others(
     host: Host, workspace: Path
 ) -> None:
