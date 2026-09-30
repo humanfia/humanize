@@ -116,7 +116,7 @@ conversation), `outworlder` and `monitor`.
 | `hmz: <why>` (a failed turn) | red | always |
 | `✻ Worked for <s>s · <agent>` | dim | always |
 | `❯ <task> · by <name>` | | a run another frontend started |
-| `<role>'s harness runs here` / `on its environment's machine` / `on <machine> (<kind>)` | | once per role per run, for a session working on another machine |
+| `<role>'s harness runs here (local)` / `<role>'s harness runs on its environment's machine (env)` / `<role>'s harness runs on <target> (standalone)` | dim | once per role per run, where the session reports a harness placement (`opened.harness` not empty) |
 | `— stopping the flow —` / `— <name> is stopping the flow —` | | this / another frontend stopped the run |
 | `hmz: <why>` / `hmz: stopped -- <why>` / `— the flow is done —` | red / yellow / — | run ended refused-failed-crashed / by its budget / normally |
 
@@ -833,12 +833,12 @@ budget.
 
 | Row summary | When |
 | --- | --- |
-| `<mode> → local: the work is on this machine` | no `ssh`/`docker` environment role set |
+| `standalone → <machine spec>` | standalone (whatever the environment roles) |
+| `<mode> → local: the work is on this machine` | adaptive, local or env, and no `ssh`/`docker` environment role set |
 | `adaptive → <values> (last run)` | adaptive, after a run this session reported placements (distinct, sorted) |
 | `adaptive → env where its CLI is installed, else local` | adaptive |
 | `local → here, anchored to the environment` | local |
 | `env → on the environment's machine` | env |
-| `standalone → <machine spec>` | standalone |
 
 ## `/epics` {#the-runs-that-have-already-happened}
 
