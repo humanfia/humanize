@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
 
 #: Every flag by which one of these CLIs is told what its agent may do or whether it may read
-#: the internet, across all twelve of them. A command line carrying any of these is humanize
+#: the internet, across all eleven of them. A command line carrying any of these is humanize
 #: having answered a question nobody asked it. Written out rather than read off the drivers,
 #: because a driver that stopped emitting a flag by forgetting it is the bug this is for.
 _GATING = frozenset(

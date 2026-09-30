@@ -12,7 +12,7 @@ is a flow of its own, and each hands the next a file you can read and edit:
 
 ::: tip Before you start
 Do the [quickstart on the home page](/#run-a-flow) first. Phase 3's builder must be Claude
-Code, Codex, Kimi Code or ZCode. Every other role runs on any backend, DeepSeek Harness
+Code, Codex or Kimi Code. Every other role runs on any backend, DeepSeek Harness
 included.
 :::
 
@@ -244,7 +244,7 @@ fixes whatever it marks `[P0]` to `[P9]`. The loop ends when a code review finds
 after 42 rounds (`-p max=` changes that).
 
 The flow guards the builder while it works, keeping the plan fixed and the loop's own files out
-of its hands. That is why the builder must be Claude Code, Codex, Kimi Code or ZCode, and any
+of its hands. That is why the builder must be Claude Code, Codex or Kimi Code, and any
 other backend is refused before anything runs:
 
 ```console

@@ -39,10 +39,10 @@ class Command:
     """One command of the editor, declared once and whole.
 
     Everything there is to know about a command is here: what it is called, what it is for,
-    what may be written after its name, and what carries it out. Three of those used to be
-    declared in three files that a test kept in step, which is a command added in two of them
-    and missing from the third until somebody ran the suite -- offered but doing nothing, or
-    working but offered to nobody.
+    what may be written after its name, what carries it out, and when there is anything for
+    it to carry out. Three of those used to be declared in three files that a test kept in
+    step, which is a command added in two of them and missing from the third until somebody
+    ran the suite -- offered but doing nothing, or working but offered to nobody.
     """
 
     #: What is typed after the slash.
@@ -64,6 +64,20 @@ class Command:
     #: on), `session` (one agent's or one conversation's) and `outworlder` (what one
     #: outworlder asks) -- offered in those and refused, saying where it works, in the rest.
     where: frozenset[str] = VIEWS
+    #: Why it cannot be run as things stand, given the interface, or "" where it can: `/stop`
+    #: with no flow running, `/resume` with one. Asked before the list is drawn as well as
+    #: before a sent line is carried out, so that a command is offered exactly while it would
+    #: do something and is turned down, saying why, the rest of the time. None for one that
+    #: works whatever is happening.
+    refuses: Callable[[Humanize], str] | None = None
+    #: Whether it is left out of the list though a line naming it is still carried out: for
+    #: one whose having nothing to do is only known as of a while ago, and which looks again
+    #: for itself when it is run. None for one listed whenever it is not refused.
+    unlisted: Callable[[Humanize], bool] | None = None
+    #: What it is for as things stand, where that changes with them, or "" for `about`: the
+    #: flow menu opened during a run sets up that run's agents rather than switching flows.
+    #: None for one whose line never changes.
+    now: Callable[[Humanize], str] | None = None
 
 
 #: A command and the word being typed after it -- `/flow` and a flow, `/settings` and a
@@ -71,12 +85,16 @@ class Command:
 _FLOW_AND_NAME = 2
 
 
-def offered(typed: str, commands: tuple[Command, ...]) -> list[str]:
+def offered(
+    typed: str, commands: tuple[Command, ...], *, flows: bool = True
+) -> list[str]:
     """What the line being typed could be finished with.
 
     Args:
       typed: The line as it stands.
       commands: The commands there are.
+      flows: Whether a flow may be chosen now, which is what the flows are offered for --
+        after a `$` and after `/flow`. Not while one runs: both are refused then.
 
     Returns:
       Everything the last word could become, in full, so that taking one replaces what was
@@ -94,7 +112,7 @@ def offered(typed: str, commands: tuple[Command, ...]) -> list[str]:
     # that first word is the one being typed: everything after it is the prompt, which is
     # prose and has nothing to finish it with.
     if typed.startswith("$"):
-        if len(words) > 1:
+        if len(words) > 1 or not flows:
             return []
         offers = [f"${one.name}" for one in _flows()]
     elif not typed.startswith("/"):
@@ -108,7 +126,7 @@ def offered(typed: str, commands: tuple[Command, ...]) -> list[str]:
     # already names one is a finished line.
     elif len(words) == _FLOW_AND_NAME:
         offers = (
-            [one.name for one in _flows()]
+            ([one.name for one in _flows()] if flows else [])
             if words[0] == "/flow"
             else next(
                 (list(one.offers) for one in commands if words[0] == f"/{one.name}"),

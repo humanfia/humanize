@@ -69,7 +69,6 @@ from .agents import (
     SubagentStartHookAgentMixin,
     SubagentStopHookAgentMixin,
     Usage,
-    ZCodeAgent,
 )
 from .defining import Flow, FlowContext, FlowFn, FlowParams, FlowState, flow, load
 from .envs import (
@@ -287,7 +286,6 @@ __all__ = [
     "UserPromptSubmitHookParams",
     "UserPromptSubmitHookResult",
     "WorktreeError",
-    "ZCodeAgent",
     "flow",
     "load",
 ]

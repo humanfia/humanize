@@ -87,13 +87,6 @@ const BACKENDS: Backend[] = [
     note: 'none is a rung, and the one a model with no reasoning setting runs at.',
   },
   {
-    cli: 'zcode',
-    called: 'ZCode',
-    ladder: ['max', 'xhigh', 'high', 'medium', 'low', 'enabled', 'nothink', 'disabled'],
-    marks: { enabled: 'thinks', nothink: 'does not think', disabled: 'does not think' },
-    note: 'Each model takes a few: GLM 5.3 takes low, high and max; a model that only thinks or not takes enabled and disabled. The agent sheet offers each model its own.',
-  },
-  {
     cli: 'agy',
     called: 'Antigravity',
     ladder: ['high', 'medium', 'low'],

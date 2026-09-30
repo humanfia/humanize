@@ -107,6 +107,12 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST offer and run a command only where it works -- `/afk` anywhere but one agent's
   transcript, `/claim` only on an outworlder's, `/stop` only on the monitor and the shared
   transcript -- and refuse it elsewhere, saying where it works.
+- MUST offer and run a command only while it would do something -- `/stop` while a flow runs
+  and is not stopping, `/resume` while none is going and there is a run here to carry on,
+  `/btw` while there is somebody to ask, `/claim` and `/afk` not on an outworlder another
+  frontend holds, a flow to choose while none runs -- and refuse it otherwise, saying why; MUST
+  say what a command does, and which keys work, as things stand, and reconsider both the moment
+  the run or the view changes.
 - MUST offer on the flowverses page of `/settings`, per place flows come from, what it holds,
   adding one, fetching it again and taking one away, against the same store the flows are read
   from, with any credential in a URL hidden.

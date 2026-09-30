@@ -122,6 +122,7 @@ if TYPE_CHECKING:
 
     from hmz.daemon import Host, Link
     from hmz.flows import Budget
+    from hmz.runtime.epic import Ran
 
 # Once, and before any terminal is read: an input method commits what was composed as one key
 # report, and Textual types out any longer than 32 characters as though it were keys.
@@ -552,6 +553,10 @@ class Editor(TextArea):
             return False
         return super().check_consume_key(key, character)
 
+    #: Whether the offers were put away with esc and nothing has been typed since, which is
+    #: a list not to bring back when what it offers changes under it.
+    dismissed = False
+
     async def _on_key(self, event: events.Key) -> None:
         """Gives tab and the arrows to the offers, but only while there are any.
 
@@ -616,6 +621,7 @@ class Editor(TextArea):
             event.stop()
             # Positional because textual's is: the class names follow it as *args.
             listing.set_class(False, "offering")  # noqa: FBT003
+            self.dismissed = True
 
     def on_mouse_up(self) -> None:
         """Copies what was just dragged across in the editor, as everywhere else does.
@@ -1115,6 +1121,17 @@ class Humanize(App[None]):
         #: last left it, and which agents it has opened out to their sessions.
         self._monitor_listed = False
         self._monitor_opened: set[str] = set()
+        #: Why there is no run here for `/resume` to carry on, as it was last looked for, or
+        #: "" where there is one or it has not been looked for yet. What the list goes by, and
+        #: how many times it has been looked for, so that a slow look lands only if no later
+        #: one has.
+        self._no_resume = ""
+        self._resume_looks = 0
+        #: The commands the list was last worked out against, and what each was said to be
+        #: for, with whether a flow could be chosen: what the offers and the keys are drawn
+        #: from, compared at every redraw so that both change the moment what they are drawn
+        #: from does, rather than at the next keystroke.
+        self._standing: tuple[object, ...] = ()
 
     @property
     def _named_by(self) -> tuple[str, ...]:
@@ -1186,6 +1203,7 @@ class Humanize(App[None]):
         self._asks_what_runs()
         self._asks_about_reports()
         self._freshens_flows()
+        self._looks_for_resume()
         # What a token costs in money, fetched here and nowhere else: this is the one part of
         # humanize that shows a bill, and it is asked for once on a thread of its own so that
         # nothing drawn afterwards ever waits on a network. What is already kept is served
@@ -1325,6 +1343,9 @@ class Humanize(App[None]):
                     # closed and opened again -- which is the fetch working and nobody being
                     # able to tell.
                     self._flows_changed()
+        # And once they have all landed, whether or not anything came down: the look as the
+        # interface opened may have read a flow out of a clone halfway through being reset.
+        self._looks_for_resume()
 
     def _flows_changed(self) -> None:
         """Tells whatever is drawn that the flows on the disk are not the ones it read.
@@ -1344,6 +1365,9 @@ class Humanize(App[None]):
         for screen in self.screen_stack:
             if isinstance(screen, Lists):
                 screen.reread()
+        # And whether the last run here is of a flow that can be picked up, which is a
+        # question about a flow.
+        self._looks_for_resume()
 
     def _welcome(self) -> None:
         """The box this opens with: what this is, and how to begin.
@@ -1884,9 +1908,26 @@ class Humanize(App[None]):
         Args:
           event: What changed, which says which prompt it was.
         """
-        editor = event.text_area
-        if not isinstance(editor, Editor):
-            return
+        if isinstance(editor := event.text_area, Editor):
+            editor.dismissed = (
+                False  # typed at since, so what esc put away is asked again
+            )
+            self._offers_on(editor)
+
+    def _offers_on(self, editor: Editor, *, keeping: bool = False) -> None:
+        """Works out what one prompt's line could be finished with, and lists it above it.
+
+        Args:
+          editor: The prompt.
+          keeping: Whether to keep the cursor on the offer it was on, where that is still
+            offered: for a list worked out again under somebody who has not typed anything.
+        """
+        listing = editor.screen.query_one("#offers", OptionList)
+        was = (
+            listing.get_option_at_index(listing.highlighted).id
+            if keeping and listing.highlighted is not None and listing.option_count
+            else None
+        )
         typed = editor.text
         # At the end of what is being typed, and being typed rather than walked to.
         at_end = editor.cursor_location == editor.document.end and not editor.walking
@@ -1894,15 +1935,19 @@ class Humanize(App[None]):
         # typed is that answer, whatever it begins with, so a list that took the enter would
         # finish a flow's name over an answer nobody ever gave.
         answering = self._answers_to() is not None and typed.startswith("$")
-        # Only what works in the view in front of the person: a command offered where it is
-        # refused is one offered to be told off for.
+        # Only what works in the view in front of the person, and as things stand: a command
+        # offered where it is refused is one offered to be told off for. The flows likewise,
+        # which are offered to be chosen, and are not while one runs.
         here = self._commands_here()
-        offers = offered(typed, here) if at_end and not answering else []
+        offers = (
+            offered(typed, here, flows=self._run is None)
+            if at_end and not answering
+            else []
+        )
         # Nothing left to finish, but a command still being written: its own line stays up,
         # since what it takes after its name is written there and is what is wanted just
         # then. Shown and not offered -- `offering` is what says a key is the list's.
         hint = hinted(typed, here) if at_end and not offers else ""
-        listing = editor.screen.query_one("#offers", OptionList)
         listing.clear_options()
         listing.set_class(bool(offers), "offering")
         listing.set_class(bool(hint), "hinting")
@@ -1915,15 +1960,58 @@ class Humanize(App[None]):
             # name is the option's id, since that is what replaces the text: taking an offer
             # must not type the arguments in as well.
             listing.add_options([self._offer_of(offer) for offer in offers])
-            listing.highlighted = 0
+            listing.highlighted = offers.index(was) if was in offers else 0
 
     def _commands_here(self) -> tuple[Command, ...]:
-        """The commands that work in the view in front of the person."""
+        """The commands that work in the view in front of the person, and would do so now."""
         kind = self._view_kind()
-        return tuple(one for one in _COMMANDS if kind in one.where)
+        return tuple(
+            one
+            for one in _COMMANDS
+            if kind in one.where
+            and not (one.refuses is not None and one.refuses(self))
+            and not (one.unlisted is not None and one.unlisted(self))
+        )
 
-    @staticmethod
-    def _offer_of(offer: str) -> Option:
+    def _about(self, command: Command) -> str:
+        """What one command is said to be for, as things stand.
+
+        Args:
+          command: The command.
+
+        Returns:
+          What its row says beside its name.
+        """
+        return (command.now(self) if command.now is not None else "") or command.about
+
+    def _reconsiders(self) -> None:
+        """Offers and binds again where what either is worked out from has moved.
+
+        Asked at every redraw, which is twice a second and after anything the runs say: a run
+        starting, stopping or ending, a view stepped to, btw mode entered or left. A list that
+        went on offering `/stop` after the flow ended, or not offering it once one started,
+        would be a list true as of the last key pressed rather than as of now -- so it is
+        worked out again the moment it differs, and left alone, cursor and all, while not.
+        """
+        here = self._commands_here()
+        standing = (
+            self._run is None,
+            self._answers_to() is None,
+            self.screen,
+            *((one.name, self._about(one)) for one in here),
+        )
+        if standing == self._standing:
+            return
+        self._standing = standing
+        # Not one somebody put away with esc since they last typed: a list that came back
+        # of its own accord would take the enter that was meant to send the line. Nor an
+        # empty prompt, which has nothing to finish and so nothing listed to change.
+        for editor in self.screen.query(Editor):
+            if editor.text and not editor.dismissed:
+                self._offers_on(editor, keeping=True)
+        self.refresh_bindings()
+
+    def _offer_of(self, offer: str) -> Option:
         """One row of the list: what would be typed, and what it is for.
 
         Args:
@@ -1937,7 +2025,7 @@ class Humanize(App[None]):
         # `/` names a command, so a flow that happens to be called `monitor` is not one.
         command = _BY_NAME.get(offer[1:]) if offer.startswith("/") else None
         takes = command.takes if command else ""
-        about = command.about if command else ""
+        about = self._about(command) if command else ""
         # Escaped: what a command takes is written in brackets, and a bracket left as it is
         # would be read as markup and swallowed -- which is what `[path]` did. Padded first,
         # since the escaping adds characters that are not columns.
@@ -1955,6 +2043,8 @@ class Humanize(App[None]):
         """
         if not self.is_running:
             return
+        # First, since the keys drawn below are read off whether anything is offered.
+        self._reconsiders()
         spending = self._monitor.spending()
         spent = sum(spend.tokens for spend in spending)
         rate = sum(spend.rate for spend in spending)
@@ -2268,11 +2358,25 @@ class Humanize(App[None]):
         if self.query_one("#offers", OptionList).has_class("offering"):
             return ["↑↓ move", "tab select", "esc cancel"]
         keys: list[str] = []
-        if self.query_one(Editor).text:
+        typed = self.query_one(Editor).text
+        named = _BY_NAME.get(typed[1:].partition(" ")[0]) if typed[:1] == "/" else None
+        if typed.startswith("/"):
+            # A command is run whatever else is going on -- and only one that would be: a
+            # line naming one that is turned down here, or none at all, is only told off.
+            if (
+                named is not None
+                and self._view_kind() in named.where
+                and not (named.refuses is not None and named.refuses(self))
+            ):
+                keys.append("enter run")
+        elif typed:
             # Enter does nothing with nothing typed, and a key that does nothing is not one
-            # to offer: what it would do next is what it is called here.
+            # to offer: what it would do next is what it is called here. In btw mode every
+            # line is a side question.
             keys.append(
-                "enter answer"
+                "enter ask"
+                if self._btw is not None
+                else "enter answer"
                 if self._answers_to() is not None
                 else "enter send"
                 if self._run is not None
@@ -2336,23 +2440,93 @@ class Humanize(App[None]):
         Returns:
           True if a flow is running or on its way out, having said which.
         """
-        if self._run is not None:
-            self.show(
-                f"hmz: {what} while a flow is running: press ctrl+c twice to "
-                "stop it first",
-                "red",
-            )
+        if why := self._mid_run_why(what):
+            self.show(f"hmz: {why}", "red")
             return True
+        return False
+
+    def _mid_run_why(self, what: str) -> str:
+        """What `_mid_run` would say, without saying it: "" with nothing going.
+
+        Args:
+          what: The command being turned down, so that the line says which one.
+
+        Returns:
+          Why it is turned down, or "" where it is not.
+        """
+        if self._run is not None:
+            return (
+                f"{what} while a flow is running: press ctrl+c twice to stop it first"
+            )
         # Told to stop and not yet gone. A flow unwinds in its own time -- a loop sleeps off
         # its round, a turn is closed out -- and it writes down where it got to as it goes,
         # so a run picked up from a state that is still moving is a round done twice. And
         # `ctrl+c twice` is not the answer here: it has already been pressed.
         if self._stopping is not None:
-            self.show(
-                f"hmz: {what} while the flow is still stopping: {_UNWINDING}", "red"
-            )
-            return True
-        return False
+            return f"{what} while the flow is still stopping: {_UNWINDING}"
+        return ""
+
+    def flow_running(self) -> bool:
+        """Whether a flow is running, as the rows of the command table read it."""
+        return self._run is not None
+
+    def held_apart(self) -> bool:
+        """Whether the runs are held by a host this interface closing leaves running."""
+        return self._host is None
+
+    def refused_stop(self) -> str:
+        """Why `/stop` has nothing to do now, or "" while a flow runs for it to stop.
+
+        A flow already told to stop is said to be stopping rather than told again: stopping
+        hands the agents it is holding on to the ones on their way out, and running it over an
+        empty list would hand nothing on and drop the ones already there -- which is the third
+        press losing its only way to the conversations still open under their turns.
+
+        Nothing running at all is said as well. The key never says that, because with nothing
+        running it is the key that leaves and what it says is about leaving; `/stop` has only
+        the one thing to mean, and a command typed on purpose that answers with nothing reads
+        as a command that did not work.
+        """
+        if self._run is not None:
+            return ""
+        if self._stopping is not None:
+            return f"the flow is already stopping: {_UNWINDING}"
+        return "no flow is running"
+
+    def refused_resume(self) -> str:
+        """Why `/resume` cannot run now, which is a flow still going, or "" where it can."""
+        return self._mid_run_why("cannot resume a run")
+
+    def nothing_to_resume(self) -> bool:
+        """Whether there was no run here to carry on, as it was last looked for.
+
+        As it was last looked for, which is off the screen and not as the list is drawn:
+        finding the run means reading the flow it was of, and reading a flow is running it.
+        Looked for again whenever what it depends on may have moved -- as the interface opens,
+        as a run ends, as a menu closes, as a fetch lands -- and by `/resume` itself, which is
+        why this leaves it out of the list and does not turn it down: a run another terminal
+        left here since is one it finds.
+        """
+        return bool(self._no_resume)
+
+    def held_elsewhere(self, doing: str) -> str:
+        """Why the outworlder being read is not this interface's to do something about.
+
+        Args:
+          doing: What would be done about it, said after `cannot`.
+
+        Returns:
+          Whose it is where another frontend holds it -- the runs refuse both `/claim` and
+          `/afk` on a role somebody else holds -- or "" where it is this one's or nobody's,
+          and anywhere but on an outworlder's transcript.
+        """
+        if self._view_kind() != "outworlder":
+            return ""
+        role = self._attached.removeprefix(_OUTWORLDER)
+        whose = self._whose(role)
+        if whose in ("", "yours"):
+            return ""
+        return f"{role} is {whose}: cannot {doing}"
 
     def action_monitor(self) -> None:
         """Goes up to the monitor, the run drawn, which is what `←` off an empty prompt is.
@@ -2617,6 +2791,16 @@ class Humanize(App[None]):
                 "red",
             )
             return
+        # And only while there is something for it to do, which is when it is offered. Said
+        # rather than done, and in the words the command would have used: a command typed out
+        # while it is not offered is somebody asking why not.
+        if command.refuses is not None and (why := command.refuses(self)):
+            self.show(f"hmz: {why}", "red")
+            # Nor is a press made before it left standing: a line typed in between is two
+            # gestures, and the press after it is a first press -- not one that leaves.
+            self._presses = 0
+            self._draw()
+            return
         command.does(self, argv)
 
     def action_afk(self, argv: Sequence[str] = ()) -> None:
@@ -2735,16 +2919,33 @@ class Humanize(App[None]):
         """
         return list(self._seen)
 
-    def _enter_btw(self) -> _Btw | None:
-        """Starts btw mode against whatever is on the screen, saying so."""
+    def in_btw(self) -> bool:
+        """Whether btw mode is on, as the rows of the command table read it."""
+        return self._btw is not None
+
+    def refused_btw(self) -> str:
+        """Why btw mode cannot be entered here, or "" where it can -- and always to leave it.
+
+        Returns:
+          Why there is nobody to ask: the conversation on the screen gone, or no agent to
+          ask at all.
+        """
+        if self._btw is not None:
+            return ""
         target = self._btw_target()
         if target:
             if target not in self._btw_sessions():
-                self.show(f"hmz: /btw: no conversation found for {target}", "red")
-                return None
+                return f"/btw: no conversation found for {target}"
         elif not (self.settings.btw or self._btw_sessions() or self._models):
-            self.show("hmz: /btw requires a coding agent", "red")
+            return "/btw requires a coding agent"
+        return ""
+
+    def _enter_btw(self) -> _Btw | None:
+        """Starts btw mode against whatever is on the screen, saying so."""
+        if why := self.refused_btw():
+            self.show(f"hmz: {why}", "red")
             return None
+        target = self._btw_target()
         mode = _Btw(target)
         with self._btw_lock:
             self._btw = mode
@@ -3104,29 +3305,15 @@ class Humanize(App[None]):
         deliberation the second press stands in for, so asking again would be a question with
         one answer.
 
-        A flow already told to stop is said to be stopping rather than told again: stopping
-        hands the agents it is holding on to the ones on their way out, and running it over an
-        empty list would hand nothing on and drop the ones already there -- which is the third
-        press losing its only way to the conversations still open under their turns.
+        Reached only while a flow runs: with none, or with one already stopping, the command
+        is not offered and a line naming it is turned down saying which (`refused_stop`).
 
-        Nothing running at all is said as well. The key never says that, because with nothing
-        running it is the key that leaves and what it says is about leaving; `/stop` has only
-        the one thing to mean, and a command typed on purpose that answers with nothing reads
-        as a command that did not work.
-
-        Whatever it found, the count of presses goes back to nothing, which is what the second
-        press does after it stops a flow. A `/stop` is not a press and must not be counted as
-        one -- but neither may it leave a press made before it standing, or the press made
-        after it would be the second of a gesture the command interrupted: with the flow by
-        then unwound, that is the interface closing on one key after a line that said there
-        was nothing to stop.
+        The count of presses goes back to nothing, which is what the second press does after
+        it stops a flow. A `/stop` is not a press and must not be counted as one -- but
+        neither may it leave a press made before it standing, or the press made after it
+        would be the second of a gesture the command interrupted.
         """
-        if self._run is not None:
-            self.action_stop_flow()
-        elif self._stopping is not None:
-            self.show(f"hmz: the flow is already stopping: {_UNWINDING}", "red")
-        else:
-            self.show("hmz: no flow is running", "red")
+        self.action_stop_flow()
         self._presses = 0
         self._draw()  # rather than at the next tick: it was just typed
 
@@ -3550,6 +3737,9 @@ class Humanize(App[None]):
         rather than handed over, since this list outlives the run it was opened during.
         """
         said = await self.push_screen_wait(Epics(running=lambda: self._run is not None))
+        # Whatever was done there -- a run taken away, a run exported -- the last run here
+        # may be another one now.
+        self._looks_for_resume()
         if said is None:
             return
         for one in said.said:
@@ -3582,32 +3772,75 @@ class Humanize(App[None]):
                 "red",
             )
             return
+        # Looked for again rather than taken from what the list was drawn from: that is as
+        # it was, and this is somebody asking about now.
+        # And what it finds is what the list goes by from now, over anything still looking.
+        self._resume_looks += 1
+        epic, ran, self._no_resume = self._last_run()
+        if epic is None:
+            self.show(f"hmz: {self._no_resume}", "red")
+            return
+        self._carries_on(epic, ran)
+
+    def _last_run(self) -> tuple[Path | None, Ran | None, str]:
+        """The last run here that `/resume` would carry on, or why there is none.
+
+        Past every run of a flow that neither was nor is one to pick up -- a conversation had
+        since -- and no further: a run of one that was or is, or a record that cannot be
+        read, is the one this settles on, and says for itself what stands in its way.
+
+        Returns:
+          The run, by the directory it is written in, what it was, and "" -- or None, None
+          and why not, in the words `/resume` says it in.
+        """
         epics = self.hmz.epics
         runs = epics.all()  # oldest first, so the last of them is the last run
         if not runs:
-            self.show(
-                "hmz: no flow has been run here, so there is nothing to resume",
-                "red",
+            return (
+                None,
+                None,
+                "no flow has been run here, so there is nothing to resume",
             )
-            return
-        # Past every run of a flow that neither was nor is one to pick up -- a conversation
-        # had since -- and no further: a run of one that was or is, or a record that cannot
-        # be read, is the one this settles on, and says for itself what stands in its way.
         for epic in reversed(runs):
             ran = epics.read(epic)
             if ran is None or ran.resumable or self._picks_up(ran.flow):
                 break
         else:
-            self.show(
-                "hmz: no run here was of a flow that can be resumed, so there "
-                "is nothing to resume",
-                "red",
+            return (
+                None,
+                None,
+                (
+                    "no run here was of a flow that can be resumed, so there is nothing "
+                    "to resume"
+                ),
             )
-            return
-        # Which run is the whole of what this command settles. Why a run cannot be carried
-        # on is settled in one place for both ways in, so that a run walked into on `/epics`
-        # is turned down for the same reasons in the same words.
-        self._carries_on(epic)
+        # Why a run cannot be carried on is settled in one place for both ways in, so that a
+        # run walked into on `/epics` is turned down for the same reasons in the same words.
+        ran, why = self._unresumable(epic)
+        return (None, None, why) if why else (epic, ran, "")
+
+    @work(group="resume", exclusive=True)
+    async def _looks_for_resume(self) -> None:
+        """Looks for the run `/resume` would carry on, off the screen, for the list to offer it.
+
+        Off the screen because finding it reads the flow it was of, and reading a flow is
+        running it. Whatever it finds is what the list goes by until it is looked for again.
+        Only the list: a line naming the command looks again for itself, since what this
+        found may be from before a run somebody else started here.
+
+        And only if nothing looked since it began: a look that took longer than a later one
+        found out less.
+        """
+        self._resume_looks += 1
+        looking = self._resume_looks
+        try:
+            *_, why = await asyncio.to_thread(self._last_run)
+        except Exception as failed:  # noqa: BLE001 -- a store that cannot be read is said on use
+            self.log(f"failed to look for a run to resume: {failed}")
+            why = ""
+        if looking == self._resume_looks:
+            self._no_resume = why
+            self._draw()
 
     def _picks_up(self, flow: str) -> bool:
         """Whether one flow says now that it can be picked up.
@@ -3630,7 +3863,34 @@ class Humanize(App[None]):
         except Exception:  # noqa: BLE001 -- a flow is a file, and reading one runs it
             return False
 
-    def _carries_on(self, epic: Path) -> None:
+    def _unresumable(self, epic: Path) -> tuple[Ran | None, str]:
+        """What one run was, and what stands in the way of carrying it on, if anything does.
+
+        Args:
+          epic: The run, by the directory it is written in.
+
+        Returns:
+          The run as it was written down, or None where it cannot be read, and why it cannot
+          be carried on, or "" where it can.
+        """
+        ran = self.hmz.epics.read(epic)
+        if ran is None:
+            return None, f"{epic.name} cannot be read, so there is nothing to resume"
+        if not self._picks_up(ran.flow):
+            return ran, (
+                f"{ran.flow} does not support resuming, so {ran.name} cannot be resumed"
+            )
+        # A journal with nothing in it is a run killed before it wrote down where it had got
+        # to, and carrying it on would be a run starting from the top wearing a line that
+        # says which run it came from -- a record of something that did not happen.
+        if not self.hmz.epics.picks_up(epic):
+            return ran, (
+                f"{ran.name} has no saved state to resume: enter a task to start the "
+                "flow from the beginning"
+            )
+        return ran, ""
+
+    def _carries_on(self, epic: Path, ran: Ran | None = None) -> None:
         """Runs the flow of one run again, picking up what that run left behind.
 
         Which is a run of its own: an epic is one run and is never reopened, so this is the
@@ -3648,36 +3908,18 @@ class Humanize(App[None]):
 
         Args:
           epic: The run to pick up, by the directory it is written in.
+          ran: What it was, where `_unresumable` has just said nothing stands in its way --
+            reading it again would be running its flow again -- or None to find out.
         """
         # Before anything is read, since it is the one refusal that is about now rather than
         # about the record: a run picked up is a flow started, and there is one going.
         if self._mid_run("cannot resume a run"):
             return
-        ran = self.hmz.epics.read(epic)
         if ran is None:
-            self.show(
-                f"hmz: {escape(epic.name)} cannot be read, so there is nothing "
-                "to resume",
-                "red",
-            )
-            return
-        if not self._picks_up(ran.flow):
-            self.show(
-                f"hmz: {escape(ran.flow)} does not support resuming, so "
-                f"{escape(ran.name)} cannot be resumed",
-                "red",
-            )
-            return
-        # A journal with nothing in it is a run killed before it wrote down where it had got
-        # to, and carrying it on would be a run starting from the top wearing a line that
-        # says which run it came from -- a record of something that did not happen.
-        if not self.hmz.epics.picks_up(epic):
-            self.show(
-                f"hmz: {escape(ran.name)} has no saved state to resume: enter "
-                "a task to start the flow from the beginning",
-                "red",
-            )
-            return
+            ran, why = self._unresumable(epic)
+            if ran is None or why:
+                self.show(f"hmz: {why}", "red")
+                return
         # Named here rather than at the top of the file: `backends` is a local elsewhere in
         # this class, and an agent at no rung has to be written back out as `auto` or the
         # spec it goes into is `MODEL:`, which nothing can read again.
@@ -4031,6 +4273,10 @@ class Humanize(App[None]):
         # so already, and one still unwinding behind the next is no run anybody is watching.
         if record["run"] == self._generation and record["run"] not in self._halted:
             self.show("[dim]— the flow is done —[/dim]")
+        # The run in front of us is the last run here, and may be the one to carry on now.
+        # Only that one: a frontend arriving late is told of every run before it as well.
+        if record["run"] == self._generation:
+            self._looks_for_resume()
 
     def _opened(self, record: dict[str, Any]) -> None:
         """Takes one session a run has just opened as one of the run's own.
@@ -4600,12 +4846,21 @@ _COMMANDS: tuple[Command, ...] = (
         "Switch flow",
         lambda app, argv: app.action_flow(argv[0] if argv else ""),
         takes="[flow]",
+        # Never refused -- the agents of a run are set up whatever is happening -- but only
+        # that while one runs: no flow is offered after it, and one named is turned down.
+        now=lambda app: (
+            "Set up the running flow's agents" if app.flow_running() else ""
+        ),
     ),
     Command(
         "btw",
         "Ask side questions; press esc or /btw to stop",
         lambda app, argv: app.action_btw(" ".join(argv).strip()),
         takes="[question]",
+        refuses=lambda app: app.refused_btw(),
+        now=lambda app: (
+            "Ask one more; alone, leave btw mode (esc too)" if app.in_btw() else ""
+        ),
     ),
     Command(
         "epics",
@@ -4616,6 +4871,11 @@ _COMMANDS: tuple[Command, ...] = (
         "resume",
         "Resume the last run in this directory",
         lambda app, argv: app.action_resume(argv),
+        # Turned down with a flow going. And left out of the list with nothing here to carry
+        # on, which is looked for off the screen, reading a flow being running it -- and so
+        # only left out: typed, it looks again for itself, and says what it found.
+        refuses=lambda app: app.refused_resume(),
+        unlisted=lambda app: app.nothing_to_resume(),
     ),
     Command(
         "settings",
@@ -4634,6 +4894,7 @@ _COMMANDS: tuple[Command, ...] = (
         # Every outworlder from where all of them are, one from its own transcript, and
         # nothing from an agent's, which asks nobody anything.
         where=VIEWS - {"session"},
+        refuses=lambda app: app.held_elsewhere("say whether it is away"),
     ),
     Command(
         "claim",
@@ -4643,6 +4904,7 @@ _COMMANDS: tuple[Command, ...] = (
         # On the transcript of the one outworlder it holds, and nowhere else: which role is
         # meant is the one being read.
         where=frozenset({"outworlder"}),
+        refuses=lambda app: app.held_elsewhere("claim it"),
     ),
     Command(
         "stop",
@@ -4651,11 +4913,20 @@ _COMMANDS: tuple[Command, ...] = (
         # From where the whole run is watched, and not from one agent's transcript, where
         # stopping reads as stopping that agent.
         where=frozenset({"monitor", "aggregate"}),
+        refuses=lambda app: app.refused_stop(),
     ),
     Command(
         "exit",
-        "Exit; a running flow can be left running",
+        "Exit",
         lambda app, _: app.action_exit(),
+        # What becomes of the run is asked, and which answers there are is where it is held.
+        now=lambda app: (
+            ""
+            if not app.flow_running()
+            else "Exit; a running flow can be left running"
+            if app.held_apart()
+            else "Exit; asks before stopping the running flow"
+        ),
     ),
 )
 

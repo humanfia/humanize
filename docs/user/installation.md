@@ -111,11 +111,6 @@ npm i -g @earendil-works/pi-coding-agent
 pi                             # then /login, and /exit once you are signed in
 ```
 
-```sh [ZCode]
-# Linux: install the package and add a launcher, as in "ZCode" below. Then:
-zcode login                    # no browser here? zcode login --no-browser
-```
-
 ```sh [DeepSeek Harness]
 # no CLI: install the [dsh] extra, above, and give it a DeepSeek API key
 export DEEPSEEK_API_KEY=sk-…
@@ -167,32 +162,12 @@ it found is not signed in and cannot say what it runs. Typing a task then says
 shell finds:
 
 ```sh
-command -v agy claude codex cursor-agent grok kimi mimo opencode pi qwen zcode
+command -v agy claude codex cursor-agent grok kimi mimo opencode pi qwen
 ```
 
 Leave with `/exit`. Now make your [first run](/user/first-run).
 
 ## Notes on particular backends
-
-<div id="zcode-wants-a-launcher-of-its-own"></div>
-
-::: details ZCode: the command line needs a launcher
-ZCode's Linux package installs the desktop app. The command line is bundled inside it, so add
-a launcher that runs it:
-
-```sh
-curl -fsSLO https://cdn-zcode.z.ai/zcode/electron/releases/3.11.2/linux-x64/ZCode-3.11.2-linux-x64.deb
-sudo apt install -y ./ZCode-3.11.2-linux-x64.deb
-printf '#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec /opt/ZCode/zcode /opt/ZCode/resources/glm/zcode.cjs "$@"\n' \
-  | sudo tee /usr/local/bin/zcode >/dev/null
-sudo chmod +x /usr/local/bin/zcode
-zcode --version
-```
-
-A newer release is the same URL with the version changed. The `.rpm`, the `.AppImage` and the
-arm64 builds are in the same directory. Without `apt`, install one of those and point the
-launcher at wherever `resources/glm/zcode.cjs` landed.
-:::
 
 ::: details DeepSeek Harness: the key, the models and the platforms
 The `[dsh]` extra installs on Linux (x86-64 and arm64) and on macOS (arm64).
@@ -222,7 +197,7 @@ A `dsh` agent works with full access whatever its flow declares. See
 
 ::: details Any other CLI that speaks the Agent Client Protocol
 Add it on the Accounts page of [`/settings`](/user/settings#accounts), and it is offered beside
-the twelve above. See [Many backends, one agent](/features/backends).
+the eleven above. See [Many backends, one agent](/features/backends).
 :::
 
 ## Where humanize keeps things

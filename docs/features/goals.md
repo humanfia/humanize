@@ -33,7 +33,7 @@ that stopped early.
 ## Only on CLIs that have one
 
 <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" />
-<Badge type="tip" text="dsh" /> <Badge type="tip" text="kimi" /> <Badge type="tip" text="zcode" />
+<Badge type="tip" text="dsh" /> <Badge type="tip" text="kimi" />
 
 A flow built on a goal says so when it declares the agent. At the prompt, only these CLIs are
 offered for that agent, and a run started any other way with another CLI is refused before its

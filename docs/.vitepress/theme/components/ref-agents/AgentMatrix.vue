@@ -60,7 +60,6 @@ const ROWS: Row[] = [
   { name: 'opencode', product: 'opencode', steers: no, goal: no, schema: prompt, fork: yes, web: yes, rungs: four, moments: [], fast: no, trace: yes },
   { name: 'pi', product: 'pi', steers: yes, goal: no, schema: prompt, fork: yes, web: no, rungs: four, moments: [], fast: no, trace: yes },
   { name: 'qwen', product: 'Qwen Code', steers: no, goal: no, schema: held, fork: yes, web: yes, rungs: four, moments: [], fast: no, trace: yes },
-  { name: 'zcode', product: 'ZCode', steers: no, goal: yes, schema: prompt, fork: yes, web: yes, rungs: four, moments: [PERM], fast: no, trace: yes },
   {
     name: 'an ACP CLI',
     product: 'added in /settings',

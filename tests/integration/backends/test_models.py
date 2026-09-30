@@ -33,7 +33,6 @@ from tests.answering import (
     OPENCODE,
     PI,
     SERVED,
-    ZCODE,
     endpoint,
     no_endpoint,  # pyright: ignore[reportUnusedImport]  # noqa: F401
     seen,
@@ -57,7 +56,6 @@ pytestmark = pytest.mark.usefixtures("asking")
         ("opencode", OPENCODE, ["opencode/big-pickle", "opencode/small-pickle"]),
         ("mimo", MIMO, ["mimo/mimo-auto", "openai/gpt-nine"]),
         ("agy", AGY, ["gemini-nine-high", "gemini-nine-low", "claude-sonnet-nine"]),
-        ("zcode", ZCODE, ["zai/glm-nine", "zai/glm-quick"]),
     ],
 )
 def test_every_backend_is_asked_the_way_that_backend_answers(

@@ -35,7 +35,7 @@ def test_every_backend_is_called_the_command_it_is_installed_as() -> None:
 
 
 def test_what_coganchor_keeps_on_this_machine_is_kept_under_the_same_names() -> None:
-    """The two tables of twelve are one list of backends, written down in two places.
+    """The two tables of eleven are one list of backends, written down in two places.
 
     `hmz.coganchor.statepaths` says which of an agent's directories stay on this machine when
     its turn lands on another, and it is keyed by the command a turn was spawned as. A name

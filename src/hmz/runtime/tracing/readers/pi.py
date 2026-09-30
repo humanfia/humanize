@@ -23,7 +23,7 @@ What a request cost hangs on the assistant message, under names of Pi's own, and
 with a `cost` in dollars beside it that Pi worked out itself. Across all 6326 usages
 on this machine `input + output + cacheRead + cacheWrite` is exactly `totalTokens`,
 so the cached read sits beside what was read rather than inside it -- the opposite of
-Grok Build and ZCode, and the difference between a bill and one several times it.
+Grok Build, and the difference between a bill and one several times it.
 `reasoning` never exceeds `output`, so the thinking is part of what was written.
 """
 
