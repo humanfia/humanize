@@ -1934,6 +1934,27 @@ def _model(runs: Runs) -> str:
     return runs.spec.partition("/")[2].rpartition(":")[0]
 
 
+def _standing_on(spec: str) -> str:
+    """What is wrong with the machine a standalone harness was said to run on, or "".
+
+    Read the way `-H` reads what follows `standalone:`, so that what the menu takes is what a
+    command line would.
+
+    Args:
+      spec: The machine, as `-e` spells one after `<role>=`, or a saved one's name.
+
+    Returns:
+      Why it is not one, in words, or "" for a machine that reads.
+    """
+    from hmz.runtime.flowing import SpecError, parse_harness
+
+    try:
+        parse_harness(f"standalone:{spec}")
+    except SpecError as why:
+        return str(why)
+    return ""
+
+
 def placed(role: str, spec: str) -> str:
     """What is wrong with where an environment role was said to be, or "" for nothing.
 
@@ -9057,20 +9078,29 @@ class Unsaved(Form[str]):
         self.dismiss(said)
 
 
-def _spelled(role: str, spec: str) -> tuple[str, str, str] | None:
+def _spelled(
+    role: str, spec: str, *, harness: bool = False
+) -> tuple[str, str, str] | None:
     """What an `-e` spec comes to -- its backend, its machine, its directory -- read as `-e` is.
 
     Args:
       role: The role it is for.
       spec: What follows `<role>=`.
+      harness: Whether it is the machine a standalone harness runs on, read as `-H` reads
+        what follows `standalone:` -- a directory left off being the login's home over ssh.
 
     Returns:
       The three, or None for a spec that does not read.
     """
-    from hmz.runtime.flowing import SpecError, parse_envs
+    from hmz.runtime.flowing import SpecError, parse_envs, parse_harness
 
     try:
-        (one,) = parse_envs([f"{role}={spec}"])
+        if harness:
+            one = parse_harness(f"standalone:{spec}").on
+            if one is None:
+                return None
+        else:
+            (one,) = parse_envs([f"{role}={spec}"])
     except (SpecError, ValueError):
         return None
     # A directory the spec leaves out is its provider's, followed rather than copied: `-e`
@@ -9107,22 +9137,30 @@ class Placing(Form[str]):
     #: Stepped along where it stands, as the rest of the flow menu it is opened from is.
     DROPS: ClassVar = False
 
-    def __init__(self, role: str, spec: str = "") -> None:
+    def __init__(self, role: str, spec: str = "", *, harness: bool = False) -> None:
         """Initializes the form on where the role is now.
 
         Args:
           role: The environment role.
           spec: Where it is now, as `-e` spells it after `<role>=`, or "" for nowhere yet --
             which starts on the first backend anything is saved for.
+          harness: Whether this is the machine a standalone harness runs on rather than an
+            environment role: read as `-H` reads what follows `standalone:`, which takes no
+            `local` and fills in a directory left off as the command line does.
         """
         from hmz.flows import EnvBackendKind
 
         super().__init__()
         self._role = role
-        self._kinds = [kind.value for kind in EnvBackendKind]
+        self._harness = harness
         self._local = EnvBackendKind.LOCAL.value
+        self._kinds = [
+            kind.value
+            for kind in EnvBackendKind
+            if not harness or kind is not EnvBackendKind.LOCAL
+        ]
         envs = _hmz().environments
-        read = _spelled(role, spec) if spec else None
+        read = _spelled(role, spec, harness=harness) if spec else None
         # One that does not read is kept as it was written, for somebody to correct.
         raw = spec if read is None else ""
         if read is None:
@@ -9218,6 +9256,7 @@ class Placing(Form[str]):
                     needed=not provider,
                 )
             )
+        filled = self._filled_in()
         rows.append(
             Question(
                 _WORKDIR,
@@ -9226,18 +9265,38 @@ class Placing(Form[str]):
                 if backend == self._local
                 else f"leave blank to use saved default: {saved}"
                 if saved
+                else f"leave blank for {filled}"
+                if filled
                 else "remote working directory: /path or ~/path under home",
-                needed=not typed.get(_WORKDIR, "").strip() and not saved,
+                needed=not typed.get(_WORKDIR, "").strip() and not saved and not filled,
             )
         )
         rows.append(
             Question(
                 _SPELLED,
-                "as -e",
-                "full -e spec: typing one sets the rows above",
+                "as -H" if self._harness else "as -e",
+                "what follows standalone: in -H; typing one sets the rows above"
+                if self._harness
+                else "full -e spec: typing one sets the rows above",
             )
         )
         return rows
+
+    def _filled_in(self) -> str:
+        """Where a standalone harness's machine left without a directory works, or "".
+
+        What `-H` fills in for one that says none and was saved with none: the login's home
+        over ssh, and on docker's default here a directory humanize keeps. An environment
+        role is filled in with nothing.
+        """
+        if not self._harness:
+            return ""
+        backend = self._typed_in.get(_BACKEND, "")
+        if backend == _SSH:
+            return "the login's home"
+        if backend == _DOCKER and self._typed_in.get(_PROVIDER, "").strip() == "local":
+            return "a directory humanize keeps"
+        return ""
 
     def choices(self, held: str) -> Sequence[str]:
         """Every backend `-e` takes."""
@@ -9331,7 +9390,11 @@ class Placing(Form[str]):
         if _SPELLED in self._fresh:
             self._spells()  # something above it moved, pasted in or walked off
             return
-        read = _spelled(self._role, self._typed_in.get(_SPELLED, "").strip())
+        read = _spelled(
+            self._role,
+            self._typed_in.get(_SPELLED, "").strip(),
+            harness=self._harness,
+        )
         if read is None:
             return  # kept as written, and said what is wrong with it once it is answered
         self._reads_in(read)
@@ -9346,10 +9409,17 @@ class Placing(Form[str]):
 
     def _ask(self) -> None:
         """Says which role this is, and lands on the first thing still to be answered."""
-        self.query_one("#asked", Label).update(escape(f"Environment for {self._role}"))
+        self.query_one("#asked", Label).update(
+            escape(
+                "Machine for the standalone harness"
+                if self._harness
+                else f"Environment for {self._role}"
+            )
+        )
         self.query_one("#about", Label).update(
-            "The machine and working directory for this environment role. "
-            "Choosing a machine saved on the environments page of /settings by "
+            "The machine and working directory for "
+            + ("the harness. " if self._harness else "this environment role. ")
+            + "Choosing a machine saved on the environments page of /settings by "
             "name includes its saved working directory."
         )
         self._fill()
@@ -9373,7 +9443,9 @@ class Placing(Form[str]):
                 else "specify an environment"
             )
         elif spec:
-            self._wrong = placed(self._role, spec)
+            self._wrong = (
+                _standing_on(spec) if self._harness else placed(self._role, spec)
+            )
         if self._wrong:
             self._fill()
             return
@@ -9474,7 +9546,7 @@ class Harnessing(Form[str]):
         )
         try:
             chosen = await showing.push_screen_wait(
-                Placing("harness", self._typed_in.get(_STANDS_ON, ""))
+                Placing("harness", self._typed_in.get(_STANDS_ON, ""), harness=True)
             )
         finally:
             self.opened()

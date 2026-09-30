@@ -215,10 +215,10 @@ agent's account off an image you did not build.
 and a sign-in there: an agent with an `@account` has the account's variables and credential
 files sent in for each turn, and one without runs as the image's CLI is signed in, which a
 fresh image is not. Its sessions are kept in the container, and go with it. On an image without
-the CLI, the role's first session is refused and the run fails with exit status 1:
+the CLI, the run is refused before the flow starts, with exit status 2:
 
 ```text
-hmz.flows.errors.HarnessNotInstalled: claude is not installed on docker@local: npm i -g @anthropic-ai/claude-code there, or run its harness here with -H local
+hmz exec: error: claude is not installed on docker@local: npm i -g @anthropic-ai/claude-code there, or run its harness here with -H local
 ```
 
 **`standalone:docker@local`** starts one more container just for the CLI, from the saved
@@ -228,12 +228,13 @@ said, as `standalone:docker@gpubox/srv/scratch`. It is only for a role granted e
 the image must have the CLI:
 
 ```text
-… a fence cannot hold a harness that runs on another machine
+hmz exec: error: coder=claude/claude-haiku-4-5-20251001:low: ClaudeCodeAgent: a fence cannot hold a harness that runs on another machine
 … hmz: claude: not found on PATH
 ```
 
-The first is a role at the default grant; the second, a role granted everything on an image
-with no `claude`.
+The first is a role at the default grant, refused before the flow starts with exit status 2;
+the second, a role granted everything on an image with no `claude`, which fails its first
+turn.
 
 ## Variations
 

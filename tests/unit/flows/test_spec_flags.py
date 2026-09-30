@@ -442,9 +442,15 @@ def test_a_saved_provider_is_named_by_its_name_alone() -> None:
         ("standalone:", "expected adaptive"),
         ("standalone:local@/tmp", "on another machine"),
         ("standalone:ftp@box/x", "not a backend"),
+        ("standalone:bogus@x", "'bogus' is not a backend; one of ssh, docker"),
+        ("standalone:bogus", "no environment provider is saved as 'bogus'"),
+        ("standalone:docker@gpubox", "expected standalone:docker@gpubox/<workdir>"),
+        ("standalone:local@", "on another machine"),
     ],
 )
 def test_what_is_not_a_harness_is_refused_saying_why(written: str, says: str) -> None:
-    with pytest.raises(HarnessSpecError, match=says):
+    with pytest.raises(HarnessSpecError, match=says) as refused:
         parse_harness(written)
     assert issubclass(HarnessSpecError, SpecError)
+    # In `-H`'s own words: a standalone machine has no role to spell.
+    assert "<role>" not in str(refused.value)

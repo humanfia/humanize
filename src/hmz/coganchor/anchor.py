@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from hmz.coganchor.supervisor import Launch
     from hmz.coganchor.transport import Target
 
-__all__ = ["AnchorConfig", "NotInstalled", "check", "connect", "drive"]
+__all__ = ["AnchorConfig", "NotInstalled", "Unmirrored", "check", "connect", "drive"]
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +47,31 @@ class NotInstalled(FileNotFoundError):  # noqa: N818 -- what it is, not what wen
     `ssh` this machine has not got -- is a different thing gone wrong and must not be read as
     this one.
     """
+
+
+class Unmirrored(OSError):  # noqa: N818 -- what it is, not what went wrong
+    """The copy of the target's workspace kept on this machine could not be made where it goes.
+
+    Its own kind, and its own words, because what went wrong is this machine's filesystem
+    rather than anything the turn was to reach: a path that may not be created here, or one
+    that is not a directory. Said as the error underneath says it, a path
+    that may not be created reads `Permission denied` -- which is also what a credential
+    that was refused reads, and a person sent to sign an account in again is a person sent
+    to fix something that was never broken.
+    """
+
+
+#: What a copy of the workspace that could not be made is said as, which is also what a
+#: turn that failed for one is known by (:data:`hmz.coganchor.backends.SIGNS`).
+UNMIRRORED = "cannot keep the local copy of the work at"
+
+
+def _unmirrored(path: str, why: OSError) -> Unmirrored:
+    """The copy of the workspace that could not be made at `path`, and why, in words."""
+    said = why.strerror or str(why)
+    if why.filename and str(why.filename) != path and str(why.filename) not in said:
+        said = f"{said}: {why.filename}"
+    return Unmirrored(f"{UNMIRRORED} {path}: {said}")
 
 
 #: How long the short commands a native session settles itself with may take. Generous, since
@@ -504,7 +529,9 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     Raises:
       ValueError: If the target cannot be read, or no agent was named.
       FileNotFoundError: If the agent is not on PATH.
-      OSError: If the mirror cannot be prepared or the target cannot be reached.
+      Unmirrored: If the mirror's path cannot be made a directory here.
+      FileExistsError: If the mirror's directory holds other files, or mirrors another target.
+      OSError: If the target cannot be reached.
     """
     config = config or AnchorConfig()
     # Answered before anything below is imported, and before a mirror is so much as looked
@@ -568,9 +595,18 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     )
     # The machine it mirrors, by its destination: what ssh is told on the way there -- a key,
     # a keepalive -- is not another machine, and a mirror is not refused for being told it.
-    prepare_shadow_root(
-        shadow_root, force=config.force, target=replace(target, options=()).describe()
-    )
+    try:
+        prepare_shadow_root(
+            shadow_root,
+            force=config.force,
+            target=replace(target, options=()).describe(),
+        )
+    except FileExistsError:
+        # A directory that is somebody's, or another target's mirror: a path that was made,
+        # whose own words say what to do about it -- another directory, or `--force`.
+        raise
+    except OSError as why:
+        raise _unmirrored(shadow_root, why) from why
 
     link = transport.connect(target, [export], config.token)
     client = RemoteClient(link.channel)

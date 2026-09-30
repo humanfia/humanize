@@ -157,6 +157,9 @@ class Way:
 #: - `sandboxed`: the machine, not the account. A CLI that confines its own tool calls could
 #:   not set that confinement up -- an unprivileged container with no user namespace to give
 #:   bubblewrap -- and it says `Permission denied` while having been refused nothing at all.
+#: - `unmirrored`: this machine's filesystem, not the account. The copy of another machine's
+#:   workspace a harness here works in could not be made at its path -- one that may not be
+#:   created here, or that is not a directory -- and it says `Permission denied` too.
 #: - `killed`: the process died rather than answered -- a signal, an out-of-memory kill.
 #: - `dropped`: the wire. A connection reset, a broken pipe, a gateway that went away.
 FAULTS = (
@@ -167,6 +170,7 @@ FAULTS = (
     "retired",
     "missing",
     "sandboxed",
+    "unmirrored",
     "killed",
     "dropped",
 )
@@ -206,6 +210,11 @@ class Sign:
 #: credential's own words would otherwise swallow are written where they are -- after the
 #: quota and the busy store, whose signatures are nobody else's, and before the 401.
 SIGNS: tuple[Sign, ...] = (
+    # This machine rather than anything a turn reached for, and first because the words
+    # underneath it are a credential's: the anchor could not make the copy of the target's
+    # workspace a harness here works in, and says so in these words
+    # (`hmz.coganchor.anchor.UNMIRRORED`) ahead of why -- often `Permission denied`.
+    Sign("unmirrored", r"cannot keep the local copy of the work at"),
     # Two turns at one store rather than anything to do with an account: opencode keeps its
     # sessions in a SQLite database shared across workspaces, and the loser of that race is
     # told so before it has spoken to a provider at all. Transient, and nothing else fixes it.

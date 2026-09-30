@@ -1692,9 +1692,10 @@ def test_docker_env_remote(cell: Cell, docker_box: Docked) -> None:
 def test_harness_placement(cell: Cell, daemon: None) -> None:
     """Where the harness runs is what `-H` says, for a container that has no CLI of its own.
 
-    `-H env` is refused before a turn, naming the container and saying how to install the CLI
-    there. `adaptive`, said by saying nothing, finds no CLI there and runs the harness here, as
-    every docker row always has -- and the run writes down that it did.
+    `-H env` is refused before the run, as a line to correct, naming the container and saying
+    how to install the CLI there. `adaptive`, said by saying nothing, finds no CLI there and
+    runs the harness here, as every docker row always has -- and the run writes down that it
+    did.
     """
     from hmz.runtime.epic import epics, read
 
@@ -1711,8 +1712,9 @@ def test_harness_placement(cell: Cell, daemon: None) -> None:
         check=False,
         timeout=600,
     )
-    assert refused.status, f"-H env ran with no CLI in the container\n{refused}"
+    assert refused.status == 2, f"-H env was not refused before the run\n{refused}"
     assert "is not installed on docker@local" in refused.err, refused
+    assert "Traceback" not in refused.err, refused
 
     ran = cell.exec(boxed, CONTAINED, envs=[f"box=docker@local{there}"], timeout=600)
 

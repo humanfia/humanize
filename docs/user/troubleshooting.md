@@ -241,6 +241,22 @@ runs](/user/remote-execution#where-the-agent-runs).
 
 **Verify.** The usage line is gone.
 
+### `-H 'standalone:bogus@x': 'bogus' is not a backend; one of ssh, docker`
+
+**Symptom.** `hmz exec` prints its usage, then this, or
+`no environment provider is saved as '<name>'` for a bare name, or
+`docker@gpubox is not saved with a workdir of its own` for a docker daemon.
+
+**Cause.** What follows `standalone:` is a machine: `ssh@<host>[/<workdir>]`,
+`docker@<provider>[/<workdir>]`, or the name of an environment provider saved on the
+[Environments page](/user/settings#environments). A docker daemon nobody saved needs its
+directory said.
+
+**Fix.** Write it as one of those, such as `-H standalone:ssh@gpu-box` or
+`-H standalone:docker@gpubox/srv/scratch`, or save the machine first.
+
+**Verify.** The usage line is gone.
+
 ### `ralph_loop has no run to resume here: none saved any progress` {#ralph-loop-has-no-run-here-to-pick-up-none-got-as-far-as-writing-anything-down}
 
 **Symptom.** A `--resume` line is refused.
@@ -617,6 +633,21 @@ CLI.
 
 **Verify.** The turn starts.
 
+### `(unmirrored: that path cannot be made here; …)`
+
+**Symptom.** A turn fails with this bracket, after
+`cannot keep the local copy of the work at <path>: Permission denied: …`.
+
+**Cause.** The agent's CLI runs here and works in a copy of another machine's directory, kept
+at that directory's own path for an `ssh` environment, and that path cannot be made on this
+machine: a parent you may not write, or a file where a directory should be. No account was
+refused, and signing in again changes nothing.
+
+**Fix.** Use a workdir whose path you can create here, or run the CLI on that machine with
+`-H env`. See [The path is taken here too](/user/remote-execution#the-path-is-taken-here-too).
+
+**Verify.** The turn starts.
+
 ### `(contended: two turns of it are sharing one database)`
 
 **Symptom.** A turn of opencode or mimocode fails with this bracket.
@@ -807,7 +838,8 @@ so: list its GPUs there.
 
 ### `claude is not installed on ssh@build-box: npm i -g @anthropic-ai/claude-code there, or run its harness here with -H local`
 
-**Symptom.** A role's first session on another machine fails with this, under `-H env`.
+**Symptom.** `hmz exec` refuses the run with this under `-H env`, before the flow starts, with
+exit status 2.
 
 **Cause.** `-H env` runs the agent's CLI on the environment's machine, and that machine does not
 have it on the `PATH` its shell gives a command. `adaptive`, the default, would have run it
@@ -821,7 +853,7 @@ says `builder's harness runs on its environment's machine (env)`.
 
 ### `ssh@build-box cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or run its harness here with -H local`
 
-**Symptom.** A role's first session on another machine fails with this, under `-H env`.
+**Symptom.** `hmz exec` refuses the run with this under `-H env`, before the flow starts.
 `… cannot fence the commands the agent runs there: it needs Landlock …` is the same, for an
 agent whose CLI runs here.
 
@@ -836,7 +868,8 @@ the flow and grant the role everything. Docker's default seccomp profile allows 
 
 ### `… a fence cannot hold a harness that runs on another machine`
 
-**Symptom.** A role is refused under `-H standalone:…`.
+**Symptom.** `hmz exec` refuses the run with this under `-H standalone:…`, before the flow
+starts, with exit status 2.
 
 **Cause.** A standalone harness runs on a third machine, where humanize cannot hold a
 permission narrower than everything. Only a role granted `ALL` in every scope can run that way.
@@ -844,7 +877,7 @@ permission narrower than everything. Only a role granted `ALL` in every scope ca
 **Fix.** Use `-H local` or `-H env` for this flow, or copy the flow and grant the role
 everything.
 
-**Verify.** The role's first turn starts.
+**Verify.** The run starts.
 
 ### `humanize: no python 3.12 or newer on this machine; looked for: …`
 
