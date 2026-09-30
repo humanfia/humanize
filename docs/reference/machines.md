@@ -648,7 +648,7 @@ Every variable humanize reads is listed in [Environment variables](/reference/en
 | `DOCKER_HOST`, `DOCKER_CONTEXT` | Used by the `local` endpoint; `DOCKER_HOST` decides whether `local` counts as here. Removed from every `docker` sent to any other endpoint, with `DOCKER_TLS`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`. |
 | `DOCKER_CONFIG` | Where docker reads `context:NAME` contexts (docker's own). |
 | `CUDA_VISIBLE_DEVICES` | Narrows the GPUs counted on a local or ssh machine, as CUDA does. |
-| `HUMANIZE_SSH_REUSE` | `0`, `no`, `false` or empty disables ssh connection sharing. |
+| `HUMANIZE_SSH_REUSE` | `off`, `0`, `no`, `false` (any case, trimmed) or empty disables ssh connection sharing. |
 | `SSH_ASKPASS_REQUIRE` | Set to `never` for `check()` of an ssh provider. |
 
 ## API summary

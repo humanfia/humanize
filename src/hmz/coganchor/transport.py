@@ -135,7 +135,8 @@ _SSH_OPTIONS = ("-T", "-o", "BatchMode=no", "-o", "ServerAliveInterval=30")
 #: key exchange and an authentication of its own. A turn against a remote target opens several
 #: -- install the bundle, start the serving half, and whatever the harness itself needs -- so
 #: this is most of the difference between an anchored turn starting now and starting in a
-#: second. Unset `HUMANIZE_SSH_REUSE` to a falsy value on a host whose sshd refuses multiplexing.
+#: second. It is on unless `HUMANIZE_SSH_REUSE` says `off`, `0`, `no` or `false` -- trimmed and in
+#: any case -- or is set and empty, which is for a machine whose sshd refuses multiplexing.
 _SSH_REUSE = ("-o", "ControlMaster=auto", "-o", "ControlPersist=120")
 
 #: Finding an interpreter, in POSIX sh, because this runs on the target before anything of
@@ -830,7 +831,8 @@ def _reuse(options: Sequence[tuple[str, str]] = ()) -> tuple[str, ...]:
     global _reusing_held  # noqa: PLW0603 -- one answer per process, for a question with one
     if _reusing_held is None:
         _reusing_held = ()
-        if os.environ.get("HUMANIZE_SSH_REUSE", "1") not in ("0", "no", "false", ""):
+        said = os.environ.get("HUMANIZE_SSH_REUSE", "on").strip().lower()
+        if said not in ("off", "0", "no", "false", ""):
             under = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
             control = os.path.join(under, f"humanize-ssh-{os.getuid()}")
             try:

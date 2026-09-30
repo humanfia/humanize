@@ -107,6 +107,26 @@ def _exec(argv: list[str]) -> int:
     Returns:
       Zero, once the flow has returned.
     """
+    import signal
+
+    try:
+        return _executes(argv)
+    except KeyboardInterrupt:
+        # An interrupt that came before the run was there to stop -- or after it had let go
+        # of everything -- which leaves nothing to unwind. It is somebody stopping the line,
+        # and it exits as the interrupt would have had it, without a traceback.
+        raise SystemExit(128 + signal.SIGINT) from None
+
+
+def _executes(argv: list[str]) -> int:
+    """What :func:`_exec` does, before an interrupt anywhere in it is made an exit status.
+
+    Args:
+      argv: What followed the command name.
+
+    Returns:
+      Zero, once the flow has returned.
+    """
     from hmz.runtime import Hmz, Refused, telemetry
 
     from .output import Out, Shown
@@ -141,16 +161,21 @@ def _exec(argv: list[str]) -> int:
             # own rejections do. What the flow raises for itself is the flow's.
             print(f"hmz exec: error: {error}", file=sys.stderr)
             raise SystemExit(2) from error
-        running.watch(shown.heard)
-        # Said and then run, never asked: a command line has nobody to ask, so what it can
-        # do is say so plainly, on the stream that is not the answer.
-        if blind := running.unreadable():
-            out.aside(f"hmz exec: {blind}")
         ended: list[int] = []
         try:
+            # From the moment there is a run to stop: stopped before it has started, it lets
+            # go of the drivers it was given all the same.
             with _ending(running, ended):
+                running.watch(shown.heard)
+                # Said and then run, never asked: a command line has nobody to ask, so what
+                # it can do is say so plainly, on the stream that is not the answer.
+                if blind := running.unreadable():
+                    out.aside(f"hmz exec: {blind}")
                 running.run()
         except Refused as error:
+            if ended:
+                # Refused only because the signal reached what it was asking too.
+                raise SystemExit(128 + ended[0]) from None
             # An environment that could not be reached, or one short of what its role
             # needs, which is only known once it has been asked -- still before the flow ran.
             print(f"hmz exec: error: {error}", file=sys.stderr)
@@ -166,8 +191,8 @@ def _exec(argv: list[str]) -> int:
             out.aside(f"hmz exec: stopped -- {why}")
         except BaseException as why:
             if ended:
-                # Nor is one a terminate or a hangup stopped, once it has let go of what it
-                # made: it exits as the signal would have had it.
+                # Nor is one an interrupt, a terminate or a hangup stopped, once it has let go
+                # of what it made: it exits as the signal would have had it.
                 raise SystemExit(128 + ended[0]) from None
             # Reported and then raised on exactly as it was: what a flow does when it fails
             # is the flow's business and the person at the terminal's, and this is only
@@ -181,16 +206,24 @@ def _exec(argv: list[str]) -> int:
 
 @contextlib.contextmanager
 def _ending(running: Run, ended: list[int]) -> Generator[None]:
-    """Stops a run on a terminate or a hangup as an interrupt stops it, while it runs.
+    """Stops a run on an interrupt, a terminate or a hangup, while it runs.
 
-    Left to themselves either would end the process where it stood, and what the run made
-    would outlive it -- a container going on running until the next run on its provider
-    found it. Stopped instead, the run unwinds and lets go of all of it first.
+    Left to themselves a terminate or a hangup would end the process where it stood, and what
+    the run made would outlive it -- a container going on running until the next run on its
+    provider found it. An interrupt left to itself is asyncio's, which cancels the flow and
+    then raises on whatever the flow's cancelling ended in, as a traceback. Stopped here
+    instead, all three the same way, the run unwinds and lets go of everything it made first.
+
+    A second terminate or hangup while it does is ignored. A second interrupt is not: it is
+    somebody at a terminal whose run is not letting go, and it ends the process there and
+    then, as the interrupt would have without any of this -- which is the one way out of an
+    unwinding that hangs that does not need another terminal.
 
     Args:
       running: The run.
       ended: Where the signal that stopped it is written, once one has.
     """
+    import os
     import signal
     import threading
 
@@ -206,15 +239,19 @@ def _ending(running: Run, ended: list[int]) -> Generator[None]:
 
     def ends(signum: int, _frame: object) -> None:
         # Once: a second is the run already letting go of what it made, which cancelling it
-        # again would cut short.
+        # again would cut short -- but for an interrupt, which is asked to cut it short.
         if not ended:
             ended.append(signum)
             told.set()
+        elif signum == signal.SIGINT:
+            signal.signal(signal.SIGINT, signal.SIG_DFL)
+            os.kill(os.getpid(), signal.SIGINT)
 
     was: dict[int, Any] = {}
-    for one in (signal.SIGTERM, signal.SIGHUP):
+    for one in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
         with contextlib.suppress(ValueError):  # off the main thread, where none reaches
-            # A signal somebody chose to have ignored -- a hangup under `nohup` -- stays so.
+            # A signal somebody chose to have ignored -- a hangup under `nohup`, an interrupt
+            # to a job a script put in the background -- stays so.
             if signal.getsignal(one) != signal.SIG_IGN:
                 was[one] = signal.signal(one, ends)
     threading.Thread(target=stops, daemon=True, name="humanize-ending").start()
@@ -222,7 +259,9 @@ def _ending(running: Run, ended: list[int]) -> Generator[None]:
         yield
     finally:
         for one, before in was.items():
-            signal.signal(one, before)
+            # None for a handler that was not put there from Python, which is put back as the
+            # default it most likely was.
+            signal.signal(one, signal.SIG_DFL if before is None else before)
         told.set()
 
 
