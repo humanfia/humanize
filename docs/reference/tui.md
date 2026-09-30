@@ -1,5 +1,6 @@
 ---
 pageClass: hmz-ref
+outline: [2, 3]
 ---
 
 <script setup>
@@ -9,20 +10,50 @@ import RefFilter from '../.vitepress/theme/components/ref-cli/RefFilter.vue'
 
 # TUI reference
 
-`hmz` with no command opens the terminal interface: a transcript, a multi-line editor under it,
-and a status line under that, driving a [flow](/user/concepts#flow) rather than one agent.
+The terminal interface `hmz` opens with no command: its screens, views, commands, keys, menus,
+settings, monitor and messages. Package `hmz.tui`, class `Humanize` (a Textual `App`).
+Notation: [Conventions](/reference/#conventions). In this page, `●` is `⏺` on macOS, and
+*red*, *yellow*, *cyan* and *dim* are the terminal's own palette entries (see
+[Colours](#colours)).
 
-**Look up:** [keys](#keys) · [slash commands](#commands) · [`$`
-lines](#starting-a-flow-outright) · [menus](#menus) · [what it remembers](#what-it-remembers)
+## Launch {#launch}
 
-## The screen
+```python
+class Humanize(App[None]):
+    def __init__(self, flow: str = "", agents: Mapping[str, Runs] | None = None,
+                 params: BaseModel | None = None, link: Link | None = None) -> None
+    def action_quit(self) -> None
+```
+
+| Argument | Default | Meaning |
+| --- | --- | --- |
+| `flow` | `""` | The flow to open on. `""`: the flow remembered for this directory, else `chat`. |
+| `agents` | `None` | What each agent role runs. `None`: what is remembered for the flow, with unremembered roles [filled by default](#default-fill). |
+| `params` | `None` | The flow's params. `None`: remembered, else the flow's defaults. |
+| `link` | `None` | The [link](/reference/daemon#link) to a host. `None`: a `Host` in this process, linked as `kind="tui"`. |
+
+`hmz` constructs `Humanize(link=…)` or `Humanize()` as described in
+[CLI › Where the runs are held](/reference/cli#where-runs-are-held); `app.return_code or 0` is
+the exit status. There is no command palette (`ctrl+p` does nothing).
+
+At mount, in the background, the interface:
+
+| Task | Detail |
+| --- | --- |
+| Asks installed backends for models | Each installed CLI's own account whose model list was never fetched or is older than 7 days. Failures are logged only. |
+| Fetches flowverses | Every flowverse with a URL whose clone holds no local edits, one at a time; stops if a run starts. A fetch that brings new commits makes open flow lists re-read. |
+| Looks for a run to resume | Decides whether [`/resume`](#resume) is listed. |
+| Refreshes prices | `$HUMANIZE_HOME/prices.json` from `HUMANIZE_PRICES` (default `https://openllmprices.com/data/prices.json`) when older than 24 h; at most one attempt an hour, 20 s timeout. |
+| Asks the reporting question | Only where unanswered: [First start](#first-start). |
+
+## Screen {#the-screen}
 
 ```text
 ╭─ humanize v0.1.0 ──────────────────────────────────╮
 │                                                    │
 │    HUMANIZE, drawn large                           │
 │                                                    │
-│    Orchestrate, execute, and observe agent flows   │
+│    The agent flow system for token maxxing.        │
 ╰────────────────────────────────────────────────────╯
 ● builder is working
 ● Bash(pytest -q tests/)
@@ -36,382 +67,282 @@ lines](#starting-a-flow-outright) · [menus](#menus) · [what it remembers](#wha
   ·|· builder… (73s · ctrl+c twice to stop)      ← monitor · ctrl+c stop
 ```
 
-| Part | Shows |
+| Region | Content |
 | --- | --- |
-| **Opening box** | `humanize v<version>` in its top border, the name drawn large (smaller on a narrow terminal), and the package's one-line summary. [`/clear`](#commands) draws it again. |
-| **Transcript** | One agent's, one conversation's, one outworlder's, or the one every agent's work appears on, which it opens on. See [Reading one agent](#reading-one-agent). |
-| **Above the editor, right** | One line per agent role: `role · cli/model:effort`, the account where it is not this machine's own, then `●` (a turn open) or `○`, how many conversations it holds, and `reading` or `unread`. While a flow runs, one line per outworlder: `human · outworlder`, then who [holds it](#several-people-on-one-run) -- `yours` or `<name>'s` -- where somebody does, `away`, `asking`, and `reading` or `unread`. Under them, [the run's cost](#the-cost-readout). |
-| **Above the editor, left** | Lines typed and not yet taken, pinned. See [Talking to a running flow](#talking-to-a-running-flow). |
-| **Editor** | Multi-line, up to ten rows, behind `❯`. |
-| **Status line, left** | The modes, then what is running. See below. |
-| **Status line, right** | The keys that do something right now. See below. |
+| Opening box | Rounded dim border, title `humanize v<version>`; the word `humanize` in blue, figlet font `ansi_shadow` where it fits the width minus 10, else `small`; a blank line; the package summary. Redrawn by [`/clear`](#cmd-clear). |
+| Transcript | The [view](#views) being read. Follows the end until scrolled up; follows again once back at the bottom. |
+| Offers list | Above the editor, at most 10 rows: [completion](#completion) offers or one hint row. |
+| Right of the pin area | [Agent lines](#agent-lines), [outworlder lines](#outworlder-lines), [cost readout](#cost-readout). |
+| Pin area (left) | [Lines waiting](#talking-to-a-running-flow) to be taken. |
+| Editor | Multi-line, at most 10 rows, prompt `❯`, between full-width `─` rules. Always focused. |
+| Status line | [Left: modes and state; right: key hints](#the-status-line). Redrawn every 0.5 s. |
 
-### The status line
+## Views {#views}
 
-The left side is the first of these that holds:
+<span id="reading-one-agent"></span>
 
-| State | Left side |
-| --- | --- |
-| A flow waiting for you to say something | `·\|· waiting for you · ctrl+c twice to stop`, or `waiting for <name>` where the role asking is another frontend's. |
-| A turn open | `·\|· builder… (73s · ctrl+c twice to stop)`: who is working, and for how long. |
-| A flow between turns | The same, naming the flow and how long the run has gone. A flow that [called another](/reference/flows#a-flow-that-calls-another-flow) names both, innermost last: `chat ▸ rlar`. |
-| Nothing running | `◉ <flow> · <directory>`, with your home as `~`. |
-
-In front of it go the modes: `afk` in the warning colour while
-[`/afk`](#questions-and-being-away) is on for every outworlder, or `afk <role>, …` naming the
-ones it is on for, and `details` while [details](#what-humanize-remembers) is on. After it,
-`· copied` for two seconds after a [copy](#selecting-and-copying).
-
-The right side lists only keys that work now, in this order:
-
-| Key hint | Shown when |
-| --- | --- |
-| `↑↓ move · tab select · esc cancel` | The offers list is open. Nothing else is shown then. |
-| `enter run`, `enter ask`, `enter answer`, `enter send`, `enter start` | Something is typed: a `/` command that would run here (nothing, for one that would only be refused), a side question in [btw mode](#btw), an answer to a question up, a line to a running flow, a task with nothing running. |
-| `shift+tab switch view` | There is another transcript to step to. |
-| `/ commands`, `shift+enter newline` | Always. |
-| `← monitor` | Nothing is typed. |
-| `ctrl+c clear` · `ctrl+c again to stop` · `ctrl+c again to exit` · `ctrl+c stop` · `ctrl+c force stop` · `ctrl+c exit` | What the next <kbd>ctrl+c</kbd> does: [see below](#ctrl-c). |
-
-On a terminal too narrow for all of them, hints drop from the front, so the <kbd>ctrl+c</kbd>
-one stays.
-
-### The cost readout
-
-Under the agent lines, what the run has spent: one figure per kind of token (`input`, `output`,
-`cache_read`, `cache_write`, `reasoning`), then the money and the rate.
-
-- A `+` on a kind marks a floor: some agent of the run drives a CLI that does not report that
-  kind.
-- The money is per model, from [OpenLLMPrices](https://openllmprices.com/), kept in
-  `~/.humanize/prices.json` and fetched again as the interface opens when it is older than a
-  day (see [`HUMANIZE_PRICES`](/reference/cli#environment-variables)). A model nobody prices
-  adds no money rather than `$0.00`, and a total that mixes priced and unpriced models reads
-  `$1.34+`.
-- The rate is **output** tokens a second over the last five minutes, so a flow that has stopped
-  reads as stopped.
-- It is worked out again every five seconds and whenever an agent does anything.
-
-See [Cost and rate](/user/tally).
-
-## Keys
-
-<RefFilter
-  label="Filter keys: try esc, save, or a menu"
-  :chips="['prompt', 'anywhere', 'every menu', '/flow', '/settings', 'monitor', '/exit']"
->
-
-| Where | Key | Does |
+| View | Key | Holds |
 | --- | --- | --- |
-| prompt | <span id="key-enter"></span><kbd>enter</kbd> | Sends the line: starts the flow, says it to the agent, or answers a question. Over the offers list, takes the one highlighted. |
-| prompt | <kbd>shift+enter</kbd> <kbd>ctrl+j</kbd> | Breaks the line. |
-| prompt | <kbd>↑</kbd> <kbd>↓</kbd> | Walks [history](#history), from the first or last line of what is typed. Over the offers list, moves in it. |
-| prompt | <kbd>tab</kbd> | Over the offers list, takes the one highlighted. |
-| prompt | <kbd>esc</kbd> | Over the offers list, dismisses it. |
-| anywhere | <span id="key-tab"></span><kbd>shift+tab</kbd> <kbd>tab</kbd> | Next or previous [transcript](#reading-one-agent): the one every agent is on, then each conversation with a turn open, then each outworlder of the running flow. Not while a menu is up. |
-| prompt | <span id="key-left"></span><kbd>←</kbd> | With nothing typed, on the log: up to [the monitor](#watching-the-run). It stops nothing. |
-| anywhere | <span id="key-ctrl-c"></span><kbd>ctrl+c</kbd> | Clears a half-typed line. With nothing typed, stops the flow on the second press, or leaves on the second press with nothing running. See [ctrl+c](#ctrl-c). |
-| anywhere | <kbd>ctrl+q</kbd> | Does what [`/exit`](#leaving-and-letting-go) does, asking first if a flow is running. |
-| anywhere | drag · double click · triple click | Copies what was dragged across, the word, or the whole line. See [Selecting and copying](#selecting-and-copying). |
-| anywhere | <kbd>shift</kbd> + drag | Your terminal's own selection instead. |
-| every menu | <span id="key-menus"></span><kbd>↑</kbd> <kbd>↓</kbd> | Moves the cursor, round from the last row to the first. On a form of `/settings`, keeps the row being written first. |
-| every menu | <kbd>←</kbd> <kbd>→</kbd> | Turns the pages of a menu that has them, round from the last to the first. While a row is being changed, changes it instead. |
-| /settings | <kbd>enter</kbd> · click | On a page's card, goes into it. On a value, drops every value it can take under it; <kbd>enter</kbd> or a click on one picks it. On a button, presses it. |
-| /settings | <kbd>esc</kbd> <kbd>backspace</kbd> · click `/settings` | Out of a page to the six of them; <kbd>esc</kbd> on those leaves. <kbd>esc</kbd> first closes a list dropped under a row, then clears a search. |
-| /settings | <kbd>→</kbd> <kbd>←</kbd> | Into the card under the cursor, and back out. On the buttons, along them. |
-| /settings | <kbd>tab</kbd> <kbd>shift+tab</kbd> | Between the list, its search box and the buttons under it. |
-| /settings | <kbd>/</kbd> | Opens the search box above the page's list; what is typed narrows it as it is typed. |
-| every menu | <kbd>enter</kbd> | Opens or chooses the row under the cursor, or does what a row below the choices says: `search…`, `add`, `save`, and the rest. On a row marked `↔`, or a field to write, begins changing it; pressed again, keeps the change. On a row marked `▾`, drops its values under it. |
-| every menu | <kbd>esc</kbd> | One step back: puts back a row being changed, then leaves a running search, then leaves. Leaving a menu that holds changes asks: save or discard. |
-| every menu | typing · <kbd>backspace</kbd> | Only while a search runs, or a field is being written. On a form of `/settings`, typing on a written row begins writing it. |
-| /flow | <kbd>←</kbd> <kbd>→</kbd> | On the flows: the place before or after, wrapping round. |
-| /settings accounts | <kbd>shift+enter</kbd> <kbd>ctrl+j</kbd> | Making an account, while writing `variables`, the one field that takes a list: breaks the line. |
-| monitor | <kbd>↑</kbd> <kbd>↓</kbd> | With nothing typed: the node before or after. |
-| monitor | <kbd>enter</kbd> · click | With nothing typed: reads that node's log. On an environment, opens its page. On a board line, changes it; saved empty, takes it off. On `+ add entry`, puts one up. A click on an agent picks it out, or on its `▸` or once picked opens it out; a double click reads it. |
-| monitor | <kbd>→</kbd> | With nothing typed: back to the log last read. |
-| monitor | <kbd>space</kbd> | With nothing typed: opens the agent under the cursor out to its sessions, or shuts it. |
-| monitor | <kbd>ctrl+t</kbd> | The graph, or the list. |
-| /exit | <kbd>enter</kbd> | Takes the answer under the cursor. |
-| /exit | <kbd>esc</kbd> | Stays. |
+| all agents (aggregate) | `""` | Every agent's lines and every outworlder's questions and answers. Default view; selected again when a run starts. |
+| one agent | `<role>` | Every conversation of that role. |
+| one conversation | `<role>/<n>` | One session. `<n>` counts from 1 per role per run, in opening order. |
+| one outworlder | `outworlder:<role>` | What the flow asks through that `Outworlder` role, and the answers. |
+| monitor | — | A screen of its own: [Monitor](#watching-the-run). |
 
-</RefFilter>
+For command availability the view kinds are `aggregate`, `session` (one agent or one
+conversation), `outworlder` and `monitor`.
 
-Every menu says its keys on its bottom row, and only there. There are no others: what a
-letter used to do is a row below the choices.
-
-<kbd>shift+enter</kbd> reaches a program only from a terminal that speaks a keyboard protocol
-able to say so: Ghostty, kitty, WezTerm, Alacritty. Anywhere else it arrives as
-<kbd>enter</kbd>. <kbd>ctrl+j</kbd> arrives from every terminal. In **iTerm2** that protocol is
-kept off, because iTerm2 loses input-method text with it on, so there <kbd>shift+enter</kbd>
-sends the line and <kbd>ctrl+j</kbd> is the one that breaks it. Under tmux, iTerm2 behaves like
-the rest.
-
-Focus never leaves the editor. While a menu is up, its keys are the menu's; while the offers
-list is open, <kbd>tab</kbd> is the list's.
-
-### ctrl+c {#ctrl-c}
-
-| State | Presses |
+| Rule | |
 | --- | --- |
-| Something typed | **1** clears the line. |
-| A flow running | **1** says `— press ctrl+c again to stop the flow —`.<br>**2**, within 3 s, stops the flow, as [`/stop`](#stop) does.<br>**3** closes every conversation still open under its turn, without waiting for the flow to unwind. The flow reads that as a failed turn. |
-| Nothing running | **1** says `— press ctrl+c again to exit —`.<br>**2**, within 3 s, leaves. |
+| Where a line goes | A conversation's line: the aggregate, its role's view, its own. An outworlder's line: its own view and the aggregate. Lines the interface itself shows (`hmz: …`, confirmations): the view being read only, and the monitor's last line. |
+| Speaker marker | On the aggregate, a blank line and `── <title>` whenever the speaker changes (`── outworlder <role>` for an outworlder). |
+| Switching header | The new view is redrawn from the top under `─ reading <title>[ · <n> conversations] ─`. Titles: `all agents`, `<role>`, `<role> · conversation <n>`, `outworlder <role>`. When a new run starts while another view was read: `─ that flow has gone, now reading all agents ─`. |
+| Unread | Set on a view other than the one read when a line is written there; never on or while reading the aggregate. Reading the aggregate clears every unread mark. |
+| Retention | At most 32 transcripts of at most 2 000 lines each. Over the limit, the oldest are dropped, conversations before others, never the aggregate, the one being read, or the one just opened. A new run deletes every conversation transcript of the previous run. |
+| Round | [`shift+tab`](#key-tab) steps forward, `tab` back, wrapping, through: the aggregate, every conversation with a turn open (in first-seen order), every outworlder of the running flow. A view not in the round starts from the aggregate. An ended conversation stays readable once read, and from the monitor. |
 
-The status line always names what the next press does. A press more than three seconds after
-the last is a first press again; the third press has no time limit. <kbd>esc</kbd> and
-<kbd>←</kbd> never stop anything.
+### Turn lines {#turn-lines}
 
-## Slash commands {#commands}
+| Line | Style | Shown |
+| --- | --- | --- |
+| `● <agent> is working[ · conversation <i> of <n>]` | dim | always; the suffix where the role holds ≥ 2 sessions |
+| `● <text>`; continuation lines indented 2 | green bullet | always |
+| `● <tool>(<args>)` | green bullet | [details](#settings-page) on |
+| thinking | dim italic | details on |
+| `● <name>(<about>) started` / `done` | cyan bullet | details on |
+| `  ⎿  <line>` (backend output) | dim | details on |
+| `● <notice>` | yellow bullet | always |
+| `● <question>` | yellow bullet | always |
+| `hmz: <why>` (a failed turn) | red | always |
+| `✻ Worked for <s>s · <agent>` | dim | always |
+| `❯ <task> · by <name>` | | a run another frontend started |
+| `<role>'s harness runs here (local)` / `<role>'s harness runs on its environment's machine (env)` / `<role>'s harness runs on <target> (standalone)` | dim | once per role per run, where the session reports a harness placement (`opened.harness` not empty) |
+| `— stopping the flow —` / `— <name> is stopping the flow —` | | this / another frontend stopped the run |
+| `hmz: <why>` / `hmz: stopped -- <why>` / `— the flow is done —` | red / yellow / — | run ended refused-failed-crashed / by its budget / normally |
 
-A line starting with `/` is a command, a line starting with `$` [starts a
-flow](#starting-a-flow-outright), and any other line is said to the flow. Type `/` to see the
-list, with a line about each. It holds only the commands that would do something here and now:
-`/stop` appears while a flow runs and goes once it is stopping, `/resume` appears with nothing
-running and a run here to carry on. The list and the line beside each command change the moment
-the run or the view does, without a key being pressed. A command typed out while it is not
-listed does nothing and says why, in red.
+## Status line {#the-status-line}
+
+### Left side {#status-left}
+
+`[btw · <who> ][afk… ][details ]<state>[ · copied]`
+
+| Part | Text | Condition |
+| --- | --- | --- |
+| btw | `btw · <target>` or `btw · btw agent`, cyan | [btw mode](#btw) on |
+| afk | `afk` | away for every role; |
+| | `afk <role>, <role>` | away for some roles; yellow |
+| details | `details`, muted | details on |
+| copied | ` · copied` | for 2.0 s after a [copy](#selecting-and-copying) |
+
+State: the first row that holds.
+
+| # | Condition | Text |
+| --- | --- | --- |
+| 1 | A run going, no turn open, a *listen* question pending | `·\|· waiting for <you\|name> · ctrl+c twice to stop` (muted, not animated). `you` where some such question is unowned or owned by this frontend; else the first owner's name. |
+| 2 | A turn open, or a run going | `<spinner> <names>… (<s>s · ctrl+c twice to stop)`. Spinner `·\|·` `·/·` `·—·` `·\·`, a frame per 0.5 s, cyan. `<names>`: the working agents, comma-separated; with none, the flows running joined by ` ▸ ` (innermost last), else the flow set up. `<s>`: since the oldest open turn began, else since the run began. |
+| 3 | Otherwise | `◉ <flow> · <cwd>`, with `$HOME` as `~`. |
+
+### Right side {#status-right}
+
+Hints joined by ` · `, in this order; each only when its condition holds.
+
+| # | Hint | Condition |
+| --- | --- | --- |
+| 1 | `↑↓ move`, `tab select`, `esc cancel` | The offers list is open. **Nothing else is shown.** |
+| 2 | `enter run` | The line starts with `/` and its first word is a command available in this view and not refused now. |
+| 2 | `enter ask` · `enter answer` · `enter send` · `enter start` | Some other text: btw on · a question is answerable here · a run is going · otherwise. |
+| 3 | `shift+tab switch view` | The round holds more than one view. |
+| 4 | `/ commands` | Always. |
+| 5 | `shift+enter newline` | Always. |
+| 6 | `← monitor` | The editor is empty. |
+| 7 | `ctrl+c clear` · `ctrl+c again to stop` · `ctrl+c again to exit` · `ctrl+c stop` · `ctrl+c force stop` · `ctrl+c exit` | What the next [`ctrl+c`](#ctrl-c) does. |
+
+Where the hints are wider than the width left, hints are dropped **from the front** until they
+fit or one remains. The left side is never cut.
+
+## Agent and outworlder lines {#agent-lines}
+
+Right-aligned above the editor.
+
+| Line | Format |
+| --- | --- |
+| Agent (one per agent role) | `<role> · <cli>/<model>:<effort>[ · <account>][ · ●\|○ <n>][ · reading\|unread]`. `<account>` only where not *as local*. `● <n>`/`○ <n>`: sessions held in this or the last run, `●` where one has a turn open. `reading` wins over `unread`. |
+| <span id="outworlder-lines"></span>Outworlder (while a run is going) | `<role> · outworlder[ · yours\|<name>'s][ · away][ · asking][ · reading\|unread]` |
+| No agent roles | `no agent available` |
+
+### Cost readout {#cost-readout}
+
+Two lines under the agent lines, shown once the run has spent any tokens.
+
+```text
+input 12.4k · output 2.1k · cache_read 1.02M+ · cache_write 48.2k+
+$1.34 · 91 out/s
+```
+
+| Element | Rule |
+| --- | --- |
+| Line 1 | `<kind> <count>[+]` per kind, joined by ` · `; `<count> tokens` where no kinds are known. |
+| Kinds | `input`, `output`, `cache_read`, `cache_write`, `reasoning`, then others alphabetically; every kind any agent of the run reports. |
+| `+` on a kind | A floor: some agent's backend does not report that kind, or some tokens were counted without a kind (then every kind carries `+`). |
+| Counts | `< 1000`: integer; `< 1 000 000`: `12.4k`; else `1.02M`. |
+| Line 2 | `[<money>[+] · ]<rate> out/s` |
+| Money | Per model, from the price list. `$1,234` (≥ $100), `$1.34` (≥ $0.01), `$0.0042` (> 0), `$0.00` (0). Omitted where no model is priced; `+` where some are and some are not. |
+| Rate | Output tokens per second over the last 300 s, or the run's age if shorter; an ended run is read at its end. |
+| Refresh | On any change of counts, whenever an agent does anything, and at least every 5 s. Backend logs are read every 1 s (claude, dsh, codex, mcode, kimi). |
+
+## Input {#input}
+
+A sent line is stripped, [recorded](#history), and dispatched:
+
+| # | Line | Handling |
+| --- | --- | --- |
+| 1 | not starting with `/`, while [btw](#btw) is on | A side question (`$` lines included). |
+| 2 | `$<name>[ <task>]` matching the [grammar](#starting-a-flow-outright), with no question [answerable here](#questions-and-being-away) | [Starts a flow](#starting-a-flow-outright). |
+| 3 | not starting with `/` | [Said](#talking-to-a-running-flow): an answer, a line to the run, or the task of a new run. |
+| 4 | starting with `/` | A [command](#commands). |
+
+## Commands {#commands}
+
+<span id="slash-commands"></span>
+
+A `/` line is echoed as `❯ /…` and then, in order:
+
+| # | Step | On failure (red) |
+| --- | --- | --- |
+| 1 | Split at the first space into name and rest; rest split with `shlex.split`. | `hmz: <shlex error>` (e.g. `hmz: No closing quotation`) |
+| 2 | Look the name up (case-sensitive). | `hmz: no such command: /<name>` |
+| 3 | Check the [view](#views). | `hmz: /<name> is only available on <views>, not on <view>` |
+| 4 | Check the state (`refuses`). | `hmz: <why>`; the `ctrl+c` count is reset. |
+| 5 | Run it. | |
+
+View names in messages: `the monitor`, `the all-agents transcript`, `one agent's transcript`,
+`an outworlder's transcript`, joined `a, b and c`.
 
 <RefFilter label="Filter commands">
 
-| Command | While a flow runs | Does |
-| --- | --- | --- |
-| <span id="cmd-flow"></span>`/flow [flow]` | <Badge type="warning" text="roles only" /> | [Chooses the flow](#choosing-a-flow) and sets up its roles, params and budget. With a name, opens inside that flow. While a flow runs it reads `Set up the running flow's agents`, and no flow is offered after it. |
-| <span id="cmd-btw"></span>`/btw [question]` | <Badge type="tip" text="yes" /> | [Enters or leaves btw mode](#btw): side questions about the flow, answered read-only beside it. Listed only with somebody to ask: the conversation being read, or an agent. |
-| <span id="cmd-epics"></span>`/epics` | <Badge type="warning" text="read only" /> | [The runs of this directory](#the-runs-that-have-already-happened): go into one, export it, resume it. |
-| <span id="cmd-resume"></span>`/resume` | <Badge type="danger" text="refused" /> | [Picks up the last run here](#carrying-the-last-one-on-outright) of a flow that can be picked up. Listed only with nothing running or stopping and such a run here, which is looked for as the interface opens, as a run ends and as a menu closes; typed anyway, it looks again. |
-| <span id="cmd-settings"></span>`/settings [page]` | <Badge type="tip" text="yes" /> | [Everything humanize remembers](#what-humanize-remembers), a screen of six pages: `settings`, `workspace`, [`accounts`](#the-accounts-themselves), [`environments`](#environments), [`fallback`](#where-a-turn-goes-when-it-cannot-be-taken) and [`flowverses`](#where-flows-come-from). With a page, opens inside it. |
-| <span id="cmd-clear"></span>`/clear` | <Badge type="tip" text="yes" /> | Clears the transcript being read and draws the opening box again. Nothing else. |
-| <span id="cmd-afk"></span>`/afk [on\|off]` | <Badge type="tip" text="yes" /> | [Says you are away](#questions-and-being-away): nothing waits on you. On an outworlder's transcript, as that outworlder alone; not on one agent's. Off at start. |
-| <span id="cmd-claim"></span>`/claim [on\|off]` | <Badge type="tip" text="yes" /> | [Holds the outworlder being read](#several-people-on-one-run) for this interface alone; `off` gives it back. Only on an outworlder's transcript, and not on one another frontend holds -- nor is `/afk` there. |
-| <span id="cmd-stop"></span>`/stop` | <Badge type="info" text="needs one" /> | [Stops the flow](#stop) for everybody reading it, asked once. Only on the transcript every agent is on and on the monitor, and only while a flow runs and is not already stopping. |
-| <span id="cmd-exit"></span>`/exit` | <Badge type="warning" text="asks" /> | [Leaves](#leaving-and-letting-go): this interface, and nobody else's. Asks first if a flow is running, and says so beside it then. Also <kbd>ctrl+q</kbd>. |
+| Command | Args | Views | Refused (and unlisted) when | Also unlisted when |
+| --- | --- | --- | --- | --- |
+| <span id="cmd-flow"></span>`/flow` | `[flow]` | all | never; `[flow]` itself is refused while a run is going | — |
+| <span id="cmd-btw"></span>`/btw` | `[question]` | all | nobody to ask (see [btw](#btw)) | — |
+| <span id="cmd-epics"></span>`/epics` | — | all | never | — |
+| <span id="cmd-resume"></span>`/resume` | — | all | a run going or stopping | the last background look found nothing |
+| <span id="cmd-settings"></span>`/settings` | `[page]` | all | never | — |
+| <span id="cmd-clear"></span>`/clear` | — | all | never | — |
+| <span id="cmd-afk"></span>`/afk` | `[on\|off]` | all but `session` | on an outworlder another frontend holds | — |
+| <span id="cmd-claim"></span>`/claim` | `[on\|off]` | `outworlder` | on an outworlder another frontend holds | — |
+| <span id="cmd-stop"></span>`/stop` | — | `monitor`, `aggregate` | no run going, or it is stopping | — |
+| <span id="cmd-exit"></span>`/exit` | — | all | never | — |
 
 </RefFilter>
 
-`/afk` and `/claim` flip when given nothing, and take `on` or `off`. A line that is not a
-command is shown in red and nothing happens:
+Each command's line in the completion list:
 
-| Typed | Answered |
+| Command | About | Instead, when |
+| --- | --- | --- |
+| `/flow` | `Switch flow` | `Set up the running flow's agents` — a run is going |
+| `/btw` | `Ask side questions; press esc or /btw to stop` | `Ask one more; alone, leave btw mode (esc too)` — btw on |
+| `/epics` | `View and manage runs in this directory` | |
+| `/resume` | `Resume the last run in this directory` | |
+| `/settings` | `Every setting: settings, workspace, accounts, environments, fallback, flowverses` | |
+| `/clear` | `Clear the screen` | |
+| `/afk` | `Toggle whether an agent may ask you` | |
+| `/claim` | `Answer for this outworlder exclusively; off releases it` | |
+| `/stop` | `Stop the flow without confirmation` | |
+| `/exit` | `Exit` | `Exit; a running flow can be left running` (daemon) or `Exit; asks before stopping the running flow` (in process) — a run is going |
+
+The completion list shows the commands that are available in the view, not refused and not
+unlisted, alphabetically. Availability and about texts are re-evaluated whenever the view, the
+run or the question state changes. Arguments beyond those listed are ignored by `/flow`,
+`/settings`, `/epics`, `/clear`, `/stop` and `/exit`.
+
+### Refusal messages {#refusals}
+
+Every message is red and prefixed `hmz: `.
+
+| Command | Condition | Message |
+| --- | --- | --- |
+| any | wrong view | `/<name> is only available on <views>, not on <view>` |
+| `/afk`, `/claim` | outworlder held by another | `<role> is <name>'s: cannot say whether it is away` / `… cannot claim it` |
+| `/afk`, `/claim` | argument not `on`/`off` | `expected 'on' or 'off', not '<word>'` |
+| `/claim off` | not held by this frontend | `<role> is not yours to release` |
+| `/stop` | nothing running | `no flow is running` |
+| `/stop` | stopping | `the flow is already stopping: it is finishing the turn it was in` |
+| `/resume` | a run going | `cannot resume a run while a flow is running: press ctrl+c twice to stop it first` |
+| `/resume` | stopping | `cannot resume a run while the flow is still stopping: it is finishing the turn it was in` |
+| `/resume` | any argument | `/resume takes no arguments: it resumes the last run here; use /epics to choose another run` |
+| `/flow <name>`, `$<name>` | a run going | `cannot choose a flow while one is running` |
+| `/settings <page>` | unknown page | `/settings has no page '<page>': choose settings, workspace, accounts, environments, fallback or flowverses` |
+| `/btw` | no agent to ask | `/btw requires a coding agent` |
+| `/btw` | the session is gone | `/btw: no conversation found for <role>/<n>` |
+| `/btw <q>` | busy | `btw is still answering the last question` |
+
+### `/flow [flow]` {#flow-command}
+
+Opens the [flow menu](#choosing-a-flow). With `[flow]` (a name as offered, or a path), opens
+inside that flow's roles. While a run is going, opens on the running flow's roles and offers
+no flow list. Saving while a run is going says `the current run keeps its original roles;
+changes will apply to the next run`.
+
+### `/btw [question]` {#btw-command}
+
+Enters [btw mode](#btw), asking `[question]` if given. In btw mode, `/btw` alone leaves and
+`/btw <q>` asks. The question is the `shlex`-split words joined by one space.
+
+### `/epics` {#epics-command}
+
+Opens [`/epics`](#the-runs-that-have-already-happened).
+
+### `/resume` {#resume}
+
+See [`/resume`](#carrying-the-last-one-on-outright).
+
+### `/settings [page]` {#settings-command}
+
+Opens [`/settings`](#what-humanize-remembers) on its landing screen, or inside `[page]`: one of
+`settings`, `workspace`, `accounts`, `environments`, `fallback`, `flowverses`, or the aliases
+`everywhere` (Settings) and `directory` (Workspace); case-insensitive; only the first word is
+read. Completion offers the six names, in that order, not the aliases.
+
+### `/clear` {#clear-command}
+
+Clears the view being read (only), resets its speaker marker, and redraws the opening box.
+
+### `/afk [on|off]` {#afk-command}
+
+Sets away through the host; no argument toggles. On an outworlder's view: that role only.
+Elsewhere: every role this frontend may answer for (roles held by others keep their value);
+the current state there counts as *on* only when every role is away.
+
+| Result | Message |
 | --- | --- |
-| `/afk maybe` | `hmz: expected 'on' or 'off', not 'maybe'` |
-| `/settings nosuch` | `hmz: /settings has no page 'nosuch': choose settings, workspace, accounts, environments, fallback or flowverses` |
-| `/nosuch` | `hmz: no such command: /nosuch` |
-| `/stop`, nothing running | `hmz: no flow is running` |
-| `/resume`, a flow running | `hmz: cannot resume a run while a flow is running: press ctrl+c twice to stop it first` |
-| `/claim`, on an outworlder bob holds | `hmz: human is bob's: cannot claim it` |
-| `/resume last` | `hmz: /resume takes no arguments: it resumes the last run here; use /epics to choose another run` |
-| `/btw what's left` | `hmz: No closing quotation`: arguments are split like a shell line |
+| outworlder view, on / off | `away as <role>: agents that ask are told nobody is here` / `here as <role>: agents may stop and ask you` |
+| elsewhere, on / off | `away: agents that ask are told nobody is here` / `here: an agent may stop and ask you` |
 
-## Starting a flow outright
+Away is held by the host and outlives this interface. See
+[Questions](#questions-and-being-away).
 
-`$<flow> <task>` runs that flow on that task: `$ralph_loop fix the failing test`.
+### `/claim [on|off]` {#claim-command}
 
-| The flow is | What happens |
+On an outworlder's view: `on` sends `claim` (`only you can answer for <role>`); `off` sends
+`release` (`anyone can answer for <role>`); no argument toggles. Losing a claim prints
+`<role> is <yours|<name>'s|anybody's> to answer now`.
+
+### `/stop` {#stop}
+
+Stops the run for every frontend: the turn under way is interrupted and the flow unwinds.
+Equivalent to the second [`ctrl+c`](#ctrl-c). Resets the `ctrl+c` count. This frontend prints
+`— stopping the flow —`; others print `— <name> is stopping the flow —`. While the run is
+stopping, the next `ctrl+c` [forces](#ctrl-c) it.
+
+### `/exit` {#leaving-and-letting-go}
+
+Same as `ctrl+q`.
+
+| State | Effect |
 | --- | --- |
-| **set up here already** | It runs, now. |
-| **never set up here** | [`/flow`](#choosing-a-flow) opens inside it. The task is held and runs the moment the menu is saved. Walk out without saving and `flow not set up; nothing started`. |
-| **not a flow** | `hmz: no such flow: <name>`. |
-
-`<flow>` is the name the flow is **offered** under, exactly as completion offers it:
-
-| Flow | `$` name |
-| --- | --- |
-| humanize's own, and the official flowverse's | bare: `$chat`, `$ralph_loop` |
-| this project's, under `.humanize/flows/` | `$local/<flow>` |
-| yours, under `~/.humanize/flows/` | `$user/<flow>` |
-| another flowverse's | `$<flowverse>/<flow>` |
-| one of several in one file | `…:<sub>`, as `$humanize1:rlcr` |
-
-**Set up here** means a remembered agent for every agent role the flow declares now, a
-remembered environment for every required environment role, params that still read back through
-the flow's `FlowParams`, and a budget (`chat` needs none). A flow that has grown, lost or
-renamed a role since is asked about again, and so is one whose kept params no longer fit. A
-flow you never set params for takes its defaults, as `hmz exec` does with no `-p`.
-
-What counts as a `$` line:
-
-- The name must be followed by whitespace or the end of the line. `$ ls -la`, `$5 says
-  otherwise`, `$(pwd)` and a bare `$` are said to the flow like any other line.
-- A path is not a name: `/flow ./flows/mine` is how a flow by path is chosen.
-- `$ralph_loop` alone chooses that flow and starts nothing.
-- A task may start on the next line (<kbd>shift+enter</kbd> after the name).
-- Refused while a flow runs: `hmz: cannot choose a flow while one is running`.
-- Not read as a flow while a question is up: the next line is the answer, whatever it starts
-  with.
-
-## While a flow runs
-
-### Reading one agent
-
-There is one transcript per conversation, one per agent holding all of its conversations, one
-per outworlder, and one where every agent's work and everything every outworlder asks appear
-together. The interface opens on that one, and goes back to it when a flow starts.
-
-- <kbd>shift+tab</kbd> steps forward round it, the conversations with a turn open and the
-  outworlders of the running flow, and <kbd>tab</kbd> steps back, wrapping at either end. A
-  conversation that has ended stays on screen once you are on it, but is not stepped onto; it
-  can still be read from [the monitor](#watching-the-run).
-- Stepping onto another transcript redraws it from the top, under `── reading builder ·
-  conversation 2 ──`, `── reading outworlder human ──` or `── reading all agents ──`.
-  `/clear` clears only the one you are reading.
-- A role's conversations are numbered in the order it opened them, from one, again for each
-  run. Where it holds several, each turn says which: `● builder is working · conversation 3 of
-  3`.
-- On the shared transcript, a line `── builder` marks each change of speaker.
-- `unread` marks an agent or an outworlder that has said something since you last read it.
-  Nothing is marked while you read the shared transcript.
-- Kept: the last 32 transcripts, a conversation's going before an agent's, and the last 2,000
-  lines of each. The [trace](/reference/tracing) keeps everything.
-
-### Talking to a running flow
-
-A line typed while a flow runs goes to [the conversation you are reading](#reading-one-agent),
-or, reading an agent, into its conversation with a turn open. Reading every agent at once, it
-goes to whichever has a turn open. While a [question is up](#questions-and-being-away), a line
-typed on the shared transcript or on the asking outworlder's answers it instead.
-
-The line is **pinned** above the editor, dimmed, until something takes it:
-
-```text
-                                   assistant · claude/claude-opus-5:high
-❯ and fix the tests too · with assistant       input 11.2k · output 1.1k
-❯ then push                                             $0.31 · 84 out/s
-────────────────────────────────────────────────────────────────────────
-❯ █
-```
-
-1. Lines queue in the order typed and go **one at a time**: the next goes only once the turn
-   says it has the one before.
-2. A line put into a turn stays pinned, marked `· with <agent>`, until the agent's own turn
-   says the words are in front of the model. Then it moves into the transcript.
-3. With no turn open, or on a backend that cannot be steered, the line waits for the next turn
-   to start, which takes it into its prompt. A backend that refuses it mid-turn says why in
-   red, and the line goes back to the head of the queue.
-4. A turn that ends without saying it had the line puts it in the transcript under
-   `sent to <agent>, which ended its turn without acknowledging it`.
-5. A flow that ends, however it ends, moves whatever is still pinned into the transcript,
-   marked `never sent`.
-6. What [another frontend](#several-people-on-one-run) says to the run is pinned and put in the
-   transcript the same way, marked `· by <name>`.
-
-The pin shows at most five lines, cut at the screen edge, and counts the rest:
-`… 3 more waiting`, `… 6 more lines`. What is sent is the whole of what you typed.
-
-| Backend | A line typed mid-turn |
-| --- | --- |
-| **Claude Code** | <Badge type="tip" text="steered" /> Into the running turn, which ends once the agent has answered everything it was told. |
-| **Codex** | <Badge type="tip" text="steered" /> A steer on the running turn. |
-| **Kimi Code** | <Badge type="tip" text="steered" /> Queued, then steered into the running turn. |
-| **pi** | <Badge type="tip" text="steered" /> A steer on the run it is making. |
-| **Antigravity** | <Badge type="info" text="next turn" /> |
-| **Cursor Agent** | <Badge type="info" text="next turn" /> |
-| **DeepSeek Harness** | <Badge type="info" text="next turn" /> |
-| **Grok Build** | <Badge type="info" text="next turn" /> |
-| **mimocode** | <Badge type="info" text="next turn" /> |
-| **MiniMax Code** | <Badge type="info" text="next turn" /> |
-| **opencode** | <Badge type="info" text="next turn" /> |
-| **Qwen Code** | <Badge type="info" text="next turn" /> |
-| an **ACP CLI** of your own | <Badge type="info" text="next turn" /> |
-
-**next turn**: a red line says why the line cannot be put in, and it waits for the next turn to
-start.
-
-Anchoring changes nothing here. An [anchored](/reference/remote-execution) Claude hears a line
-during a turn like any other; its process ends between turns, when nothing is sent anyway.
-
-### Side questions (`/btw`) {#btw}
-
-`/btw [question]` enters btw mode, and asks the question if there is one. While it is on, the
-status line starts with `btw · <who>`, and every line that is not a command is one more turn of
-the same side conversation. `/btw` on its own, or <kbd>esc</kbd>, leaves it and closes every side
-session it opened. Starting a flow or closing the interface leaves it too. Answers appear in
-cyan as `● btw · <question> <answer>`.
-
-Who answers depends on the view:
-
-| View | Answered by |
-| --- | --- |
-| one agent or one session | That session's side copy: a fork of it where its CLI forks (`Profile.forks`), else a new session of the same agent given a snapshot of the run and that role's recent activity. Ended sessions too, with no flow running. |
-| every agent, an outworlder, or the monitor | The btw agent: the one set on `/settings`, else the flow's first agent. It is given the snapshot and the list of sessions. |
-
-Every side session runs at the read-only rung (a flow's `NONE`), with no skills, no goals, no
-allow-listed tools, no MCP approval and none of the flow's callbacks.
-
-The btw agent reaches a session by answering with lines of the form
-`@ask <session>: <question>`, where `<session>` is `<role>/<n>`. The interface puts each one to
-that session's side copy, opening it the first time, shows `btw · asking <session>: …`, and
-hands the answers back as `<answer from="<session>">`. It may ask 4 per question; after that it
-is told to answer with what it has. A line works on every CLI at the read-only rung, where a
-tool would need one that takes tools.
-
-The question on the `/btw` line is split like a shell line, so an apostrophe there needs quotes.
-Lines typed in btw mode are taken as they are.
-
-| Refused | Says |
-| --- | --- |
-| nothing to make the btw agent from | `hmz: /btw requires a coding agent` |
-| the session is gone | `hmz: /btw: no conversation found for <session>` |
-| a question while the last is still being answered | `hmz: btw is still answering the last question` |
-
-### Questions, and being away
-
-Two things wait on you. Both are shown on the transcript of the outworlder asking and on the
-one every agent is on, and the next line typed on either is the answer rather than a word put
-into the turn: the status line says `enter answer`. On the shared transcript it answers the
-oldest question up, on an outworlder's the oldest that outworlder asks. On one agent's
-transcript a line goes to the agent, as ever. The answers a question offers are numbered, and
-a bare number picks one: `2` answers `2. south`.
-
-- **The flow asks.** A flow whose roles include an
-  [`Outworlder`](/reference/flows#the-person-at-the-prompt) is asking you when it runs that
-  role. Asked for a shape, it is one question per field.
-- **An agent asks.** An agent that stops mid-turn to ask its user asks the flow, through the
-  hook the flow hung for it; a flow that means you to answer, as `chat` does, puts it to you.
-  An agent whose flow hung no hook is told nobody answered, and carries on.
-
-`/afk` says you are away. While it is on, a flow's question is answered at once: `""` for text,
-the answer a shape's defaults make, or `OutworlderAway` where a field has none. An agent's
-question is told nobody answered. A question already up when `/afk` goes on is answered by
-nobody, which the flow hears as `OutworlderAway`. It starts **off**. While on, `afk` leads the
-status line.
-
-Each outworlder is away or here on its own. `/afk` on an outworlder's transcript sets that one;
-on the shared transcript or the monitor it sets every one, clearing what was set apart. It is
-not offered on one agent's transcript, which asks you nothing: typed there it says
-`hmz: /afk is only available on the monitor, the all-agents transcript and an outworlder's
-transcript, not on one agent's transcript`.
-
-Away is held with the runs rather than by this interface: it stays said after you
-[leave](#leaving-and-letting-go), until somebody says otherwise. Where [other
-frontends](#several-people-on-one-run) hold roles, `/afk` off an outworlder's transcript sets
-every role you may answer for and leaves theirs as they are, and on the transcript of a role
-somebody else holds it is refused, saying whose it is.
-
-A question still up when the flow ends or is stopped ends with it.
-
-### Stopping {#stop}
-
-`/stop` stops the whole flow, not just the turn: what the second <kbd>ctrl+c</kbd> does, asked
-once. The turn under way is interrupted and the flow unwinds from where it stands. There is one
-run however many are reading it, so it stops for all of them, and each is told who stopped it:
-`— alice@tui is stopping the flow —`.
-
-- Listed only while a flow runs and has not been told to stop. Typed out anyway, it says why.
-- With a flow already stopping: `hmz: the flow is already stopping: it is finishing the turn it
-  was in`. The next <kbd>ctrl+c</kbd> closes its conversations without waiting.
-- With nothing running: `hmz: no flow is running`.
-- It resets <kbd>ctrl+c</kbd>'s count, so the press after it is a first press.
-- Only on the transcript every agent is on and on the monitor, where the whole run is watched.
-  Elsewhere it is not offered, and typed out says `hmz: /stop is only available on the monitor
-  and the all-agents transcript, not on …`. <kbd>ctrl+c</kbd> twice stops the flow from anywhere.
-
-See [Stopping](/user/stopping) and [ctrl+c](#ctrl-c).
-
-### Leaving, and letting go
-
-Closing the interface and stopping the run are two things: the runs are
-[held by a process of their own](/reference/daemon), and this interface is one reader of them.
-With a flow running, `/exit` and <kbd>ctrl+q</kbd> ask:
+| no run going (and none stopping) | Leaves at once. |
+| a run stopping, host is a daemon | Leaves at once and sends `force` (closes the run's conversations). |
+| a run going | Opens the dialog below. |
 
 ```text
 A flow is running.
@@ -422,301 +353,539 @@ A flow is running.
 enter choose · esc stay
 ```
 
-**detach and exit** lets go of this interface and nothing else: the flow carries on, anybody
-else reading it goes on reading it, any role you [claimed](#several-people-on-one-run) is
-anybody's again, and `hmz` in this directory reads the run again from the top. **stop the flow
-and exit** stops the run for everybody, closing its conversations under whatever turn is open.
-Where the runs are held in this process (output not a terminal, or
-[`HUMANIZE_DAEMON`](/reference/cli#environment-variables) off), the second answer is
-**cancel** instead. With nothing running, `/exit` leaves without asking.
+| Row | Effect |
+| --- | --- |
+| `stop the flow and exit` | In process: closes the host. Daemon: sends `force` (waits up to 10 s), then leaves. Stops the run for every frontend. |
+| `detach and exit` (daemon) | Closes btw and the link, and leaves. The run continues; claims are released; away settings remain. `hmz` here reads the run again from the top. |
+| `cancel` (in process; replaces `detach and exit`) | Stays. |
+| `esc` | Stays. |
 
-### Several people on one run
+## Starting a flow outright (`$`) {#starting-a-flow-outright}
 
-Every `hmz` in a directory is a whole interface of its own -- its own views, monitor and
-prompt -- over the same runs, and so is a program on the [SDK](/reference/daemon#link). Each
-is named for `HUMANIZE_NAME`, else your login, then what it is: `alice@tui`, `bob@sdk`; a name
-already reading gets `#2`.
+```text
+dollar-line = "$" , name , ( ws , task )? ;
+name        = segment , { "/" , segment } , [ ":" , ( word-char | "." | "-" )+ ] ;
+segment     = letter , { word-char | "." | "-" } ;
+```
 
-- **Claims.** `/claim` on an outworlder's transcript makes what it asks yours alone to answer.
-  Another interface sees it marked `alice@tui's` above its prompt, on the monitor and under the
-  question, and a line it types there is refused, saying whose it is. `/claim off`, or leaving,
-  gives it back; a role somebody else holds is refused (`reviewer is bob@tui's`).
-- **Unclaimed questions** are everybody's: the first answer wins, and a later one is refused
-  with `already answered by …`.
-- **Who did what.** An answer, a line said to an agent, or a run started from another frontend
-  carries ` · by <name>` in the transcript. The monitor lists who is reading under `Reading`.
-- **Arriving late** reads the run from the top: what was said, asked and answered, and how
-  things stand now.
+Regex: `[A-Za-z][\w.-]*(?:/[A-Za-z][\w.-]*)*(?::[\w.-]+)?` at `line[1:]`, followed by
+whitespace (a newline included) or the end. The task is the rest, stripped. A line not
+matching (`$ ls`, `$5`, `$(pwd)`, `$`) is an ordinary line. Paths are not names: use
+`/flow ./path`.
 
-## Menus
+| Condition | Result |
+| --- | --- |
+| btw on | Asked as a side question. |
+| a question is answerable here (aggregate, monitor, or the asking outworlder's view) | Taken as the answer. |
+| `<name>` not among the offered flows | `hmz: no such flow: <name>` |
+| a run going | `hmz: cannot choose a flow while one is running` |
+| the flow is [set up](#set-up) | Chosen; with a task, the run starts. Without a task, `enter a task to start the flow`. |
+| not set up | `/flow` opens inside it, holding the task; the run starts when the menu is saved. Leaving without saving: `flow not set up; nothing started` (dim). |
 
-`/flow` and `/epics` each put up a sheet over the screen, and `/settings` a screen of its
-own. The [keys table](#keys) lists every key; each menu's own are on its bottom row.
+<span id="set-up"></span>A flow is **set up** here when all hold: the remembered agent roles
+are exactly the declared agent roles; every required environment role has a remembered
+environment; remembered params validate against the flow's `FlowParams`; there is a budget,
+unless the flow needs none (`chat`). A flow that fails to load counts as set up (and fails
+when run).
 
-### Every menu {#the-menus-and-when-what-they-hold-lands}
+Names are those offered by completion: bare for humanize's own and the official flowverse's
+(`$chat`), `$local/<flow>`, `$user/<flow>`, `$<flowverse>/<flow>`, and `…:<name>` for another
+flow in the same module.
+
+## Talking to a running flow {#talking-to-a-running-flow}
+
+A line that is not a command, not a `$` flow line and not in btw mode:
+
+| # | Condition | Result |
+| --- | --- | --- |
+| 1 | a question is [answerable here](#questions-and-being-away) | Sent as its answer. |
+| 2 | outworlder view, another frontend holds it | `hmz: <role> is <name>'s to answer, not yours` |
+| 3 | outworlder view, nothing asked | `hmz: <role> is not asking anything now; read another transcript to say it to an agent` |
+| 4 | a run going or starting | `say` with `to` = the view's key ([routing](/reference/daemon#say-routing)). |
+| 5 | otherwise | Starts the flow set up, with the line as its task. `hmz: no coding agent is installed` where a role has no agent; `hmz: a flow is already running` where one is. |
+
+Lines said and not yet taken are **pinned** on the left above the editor:
+
+```text
+❯ and fix the tests too · with assistant
+❯ then push · by bob@tui
+  … 3 more waiting
+```
 
 | Rule | |
 | --- | --- |
-| **Four keys** | <kbd>↑</kbd> <kbd>↓</kbd> walk the rows, <kbd>←</kbd> <kbd>→</kbd> turn the pages, <kbd>enter</kbd> opens the row under the cursor, <kbd>esc</kbd> steps back. There are no others: what a menu does besides is a row of it. `/settings` adds <kbd>tab</kbd> to its buttons and <kbd>/</kbd> to its search, and takes a click on anything. |
-| **Nothing lands until you save** | On `/flow`, an agent's sheet, `/settings`, a flow's params and budget, and the forms `/settings` opens. Save with the `save` (or `set`) row below the choices, or the **Save** button of `/settings`. <kbd>esc</kbd> out of a menu holding changes asks, in a box over it, whether to save or discard; <kbd>esc</kbd> on the box goes back to the menu. A menu you only looked at asks nothing. |
-| **Some happen at once** | `/epics` and the Environments and Flowverses pages of `/settings` hold no draft, and have no **Save** button: what you ask for happens as you ask. So do making an account and signing one in on its Accounts page. |
-| **Rows set apart** | Out of the numbering: `search…`, `add …`, `save`, and what else a menu does -- `check again`, `fetch again`, `copy … here`, `manage flowverses`, `remove …`. On the pages of `/settings` they are buttons under the list, **Save** last; on the lists those open they are above the list; elsewhere below it. |
-| **Forms** | Adding or correcting something on `/settings` opens a form: a row per question, then `done`, which says what answering it will do. Typing on a written row writes it; <kbd>enter</kbd> keeps it and moves on to the next row still to be answered, or to `done`. What the form guessed for you is replaced by the first letter typed. |
-| **Changing a row** | A row marked `▾` -- every value on `/settings` and on the forms it opens -- drops every value it can take under it: <kbd>enter</kbd> or a click on one picks it, <kbd>esc</kbd> or a click off the list picks none. A switch's list opens on the answer it is not, so <kbd>enter</kbd> twice turns it round. A row marked `↔` (on `/flow`), or a field to write, is changed where it stands: <kbd>enter</kbd> begins, <kbd>←</kbd> <kbd>→</kbd> or typing change it, <kbd>enter</kbd> keeps it, <kbd>esc</kbd> puts it back. Walking past a row never changes it. `▸` opens something. |
-| **Search** | <kbd>enter</kbd> on `search…` starts it, letters narrow by name, <kbd>esc</kbd> clears and leaves it. Where the search row is above the list, the cursor goes to the first match. Typing never searches by itself. On `/settings`, <kbd>/</kbd> or the **Search…** button opens a box above the list instead; <kbd>enter</kbd> or <kbd>↓</kbd> goes back to the list, keeping what the box narrowed it to. |
-| **Pages** | A menu of several pages shows their titles across the top, and <kbd>←</kbd> <kbd>→</kbd> turn between them. A page that cannot open now is struck through. |
-| **Going deeper** | <kbd>enter</kbd> opens what you picked; <kbd>esc</kbd> comes back one step. |
+| Order | Lines put into a turn (`given`) first, then queued ones, oldest first. |
+| Format | `❯ <first line> · with <agent>` (given) `· by <name>` (another frontend's). Continuations indented 2. Cut with `…` to the width. |
+| Limit | 5 lines; then `  … <n> more waiting`, `  … <n> more lines`, or `  … <n> more lines and <m> more waiting`. |
+| Delivery | One line per agent at a time, into the turn open in the target conversation; queued otherwise, and taken into the prompt of the next turn to start. A line taken is moved into the transcript (`· by <name>` for another frontend's). |
+| Refused mid-turn | The backend's reason in red; the line returns to the head of the queue. Backends that accept a line mid-turn: [Agents › Steering](/reference/agents). |
+| Not acknowledged | Echoed, then `   sent to <agent>, which ended its turn without acknowledging it` (`them` for several). Discarded. |
+| Run ends | Given lines: echoed + `   sent to the agent, not acknowledged: the flow stopped\|the flow ended`. Queued: echoed + `   never sent: the flow stopped\|the flow ended`. |
 
-### `/flow` {#choosing-a-flow}
+## Questions, and being away {#questions-and-being-away}
 
-Which flow runs, and inside it, what fills each role. It opens on the flows of one **place** at
-a time, with <kbd>←</kbd> <kbd>→</kbd> stepping between places: each
-[flowverse](/reference/flows#flowverses) (`official` first: `chat` from the package, plus what
-has been fetched), then `local` (`.humanize/flows/` here) and `user` (`~/.humanize/flows/`),
-each where there are any.
+A question comes from a flow's `Outworlder` role, or from an agent asking its user through a
+hook the flow hung. It is shown on the asking outworlder's view and on the aggregate:
 
 ```text
-  Flow
-
-  Choose a flow to run; you will type its task next. To run a flow
-  from elsewhere, type its path.
-
-  official · local · user
-
-❯ 1. chat            Chat — one agent, one session, and every line ty…
-  2. continue_loop   Continue loop (flowbench: continue_loop) — send …
-  3. flame_chase     Flame chase (flowbench: flame_chase) — two agent…
-
-     search…
-     copy chat here         so you can edit it
-     manage flowverses      the flowverses page of /settings
-
-  enter open · ←/→ place · esc close
+● Which region?
+      1. north
+      2. south
+   yours to answer: type an answer, or /afk to stop being asked
 ```
 
-- It opens on the place the flow in force came from. A place never fetched is fetched as the
-  menu opens, in the background; how that went is said under the list. An empty place says so,
-  and one never fetched says `not fetched yet; select manage flowverses below to fetch`.
-- `search…` searches flow names across every place, and narrows the strip to the places with a
-  match. What a flow says about itself is not searched.
-- `copy … here` copies the flow the cursor was last on, with what it imports and the skills it
-  brings, into `.humanize/flows/`. Your own are looked in first, so the name then means your
-  copy.
-- `manage flowverses` opens `/settings` on [Flowverses](#where-flows-come-from).
-- **While a flow runs**, there are no flows to choose: `/flow` opens inside the running flow's
-  roles, and <kbd>esc</kbd> there leaves. What you save is what the next run starts on.
-- `/flow <name>` opens already inside that flow; `/flow ./path` opens a flow of your own by
-  path. Both are refused while a flow runs: `hmz: cannot choose a flow while one is running`.
-- The same places are [`Hmz().verses`](/reference/sdk) from Python.
-
-<kbd>enter</kbd> on a flow asks its [params](#setting-a-flow-up), where it declares any, then
-lands on its roles:
-
-| Row | |
+| Element | Rule |
 | --- | --- |
-| one per agent role | What fills it, or `not set`. <kbd>enter</kbd> opens [the agent's sheet](#what-each-agent-is). |
-| one per environment role | [Where it is](#where-each-agent-works), or `not set`. |
-| `budget` | [What a run may spend](#what-a-run-of-it-may-spend). |
-| `harness` | [Where its agents' harnesses run](#where-the-harness-runs). |
-| `save` | Checks every role against what the flow declares, and applies the flow, its roles, its params, its budget and its harness together. |
+| Options | `      <n>. <option>` (6 spaces). |
+| Footer | `   <name>'s to answer` (held by another), else `   [yours to answer: ]type an answer, or /afk to stop being asked`. |
+| Answerable here | On the aggregate or monitor: the oldest pending question of any role; on an outworlder view: the oldest of that role. Only questions unowned or owned by this frontend, and not already being answered. None on a `session` view. |
+| Answer | The next line typed. A bare number `1‥n` that is not itself an option picks that option (resolved by the host). Echoed as `❯ <text>[ · by <name>]`. |
+| Refusals | `hmz: already answered by <name>`, `hmz: <role> is <name>'s`, `hmz: no question <id> is waiting`. |
+| Away | While a role is away its questions are answered at once: `""` for text, a schema's defaults, or `OutworlderAway` for a field with none; an agent's question is told nobody answered. A question pending when away is set is withdrawn (the flow sees `OutworlderAway`). |
+| End | Pending questions are withdrawn when the run ends, stops, is forced, or the host closes. |
 
-Roles the runtime fills are not rows: an `Outworlder` is you, and a `LocalEnv` is the directory
-the interface was started in. <kbd>esc</kbd> goes back to the flows.
+## Side questions (`/btw`) {#btw}
 
-#### An agent's sheet {#what-each-agent-is}
+| Aspect | Rule |
+| --- | --- |
+| Enter | `/btw [question]`. Prints `btw · <target\|btw agent> each line is a question; /btw or esc to exit`. The status line starts `btw · …`. |
+| In btw mode | Every line not starting with `/` is one more turn of the same side conversation. |
+| Leave | `/btw` alone or `esc`: `btw: exited`; a run starting: `btw: exited -- a new flow started`. Side sessions are closed (`unaside`). |
+| Target | A `session` view: that conversation (for a role view, its newest). Any other view: the **btw agent** — the one set on [Settings](#settings-page), else the flow's first declared role with a session, else its configured agent. |
+| Session target | First question opens `aside(key, fork=True)`; where the CLI forks, the fork answers. Otherwise, or if the fork answers nothing, a fresh session of the same agent seeded with a snapshot of the run filtered to that role. Ended sessions included. |
+| btw agent | Seeded with a snapshot (the last 32 of up to 80 observations, 600 characters each) and the list of sessions. It may reply with lines `@ask <role>/<n>: <question>` (regex `^\s*@ask\s+(\S+?)\s*:\s*(\S.*)$`); each is put to that session's side copy (`btw · asking <key>: <question>`), and answers return as `<answer from="<key>">…</answer>`. At most 4 asks per question; failures return as `(session <k> not found)`, `(could not ask: <e>)`, `(no answer)`. |
+| Side sessions | Read-only permission, no goals, no skills, no allowed tools, MCP approval off, none of the flow's hooks. |
+| Answer | `●` (cyan) `btw · <question>` (dim), then the answer in cyan, continuation lines indented 2, on the current view. |
+| Failures | `hmz: btw is still answering the last question`, `hmz: /btw could not read flow progress: <e>`, `hmz: /btw could not start: <e>`, `hmz: /btw: <why>` (e.g. `the agent returned no answer`). |
 
-An agent is a CLI, an account, a model and an effort: exactly what `-a` says.
+## Several frontends {#several-people-on-one-run}
+
+Each `hmz` in a directory is a separate frontend of one [host](/reference/daemon#hosting), with
+its own views, monitor and prompt. Names: `HUMANIZE_NAME`, else the login, else `somebody`,
+then `@tui`; a duplicate gets `#2`, `#3`, ….
+
+| Aspect | Behaviour |
+| --- | --- |
+| Claims | [`/claim`](#claim-command) holds an outworlder for this frontend. Others see `<name>'s` beside it (outworlder line, monitor, question footer) and are refused with `hmz: <role> is <name>'s to answer, not yours`. Released on `/claim off` or when the frontend leaves. |
+| Unclaimed questions | Any frontend may answer; the first answer wins; later ones get `hmz: already answered by <name>`. |
+| Attribution | Lines, answers and runs from another frontend carry ` · by <name>`. |
+| Readers | The monitor's `Reading` section lists every frontend where there is more than one. |
+| Arriving late | The run is read from its `started` record: what was said, asked and answered, and the current state. |
+| Stopping | `/stop`, `ctrl+c` twice and **stop the flow and exit** stop the run for everybody. |
+
+## Keys {#keys}
+
+<RefFilter
+  label="Filter keys: try esc, enter, or a screen"
+  :chips="['app', 'editor', 'offers', 'every menu', 'forms', '/settings', 'dropdown', 'monitor']"
+>
+
+| Where | Key | Condition | Action |
+| --- | --- | --- | --- |
+| app | <span id="key-ctrl-c"></span><kbd>ctrl+c</kbd> | always, including over menus | [State machine](#ctrl-c). |
+| app | <kbd>ctrl+q</kbd> | always | [`/exit`](#leaving-and-letting-go). |
+| app | <span id="key-tab"></span><kbd>shift+tab</kbd> | the log is the only screen | Next view in the [round](#views). Also over the offers list. |
+| app | <kbd>tab</kbd> | the log is the only screen, offers closed | Previous view. |
+| app | <span id="key-left"></span><kbd>←</kbd> | the log is the only screen, editor empty, offers closed | Opens the [monitor](#watching-the-run). Otherwise moves the editor's cursor. |
+| editor | <span id="key-enter"></span><kbd>enter</kbd> | offers open with a highlight | Takes the offer: replaces the last word, appends a space; does not send. |
+| editor | <kbd>enter</kbd> | otherwise | Sends the line (if not blank). |
+| editor | <kbd>shift+enter</kbd> <kbd>ctrl+j</kbd> | | Inserts a newline. |
+| editor | <kbd>↑</kbd> / <kbd>↓</kbd> | cursor on the first / last row | Older / newer [history](#history) entry. Otherwise moves the cursor. |
+| editor | <kbd>esc</kbd> | btw on, offers closed | Leaves btw mode. |
+| editor | <kbd>space</kbd> | monitor up, editor empty | Passed to the monitor. |
+| offers | <kbd>↑</kbd> <kbd>↓</kbd> | offers open | Moves the highlight. |
+| offers | <kbd>tab</kbd> | offers open | Takes the highlight. |
+| offers | <kbd>esc</kbd> | offers open | Hides the offers until the text changes. |
+| every menu | <kbd>↑</kbd> <kbd>↓</kbd> | | Previous / next row, wrapping, skipping headings and spacers. Ignored while a row is being changed on the agent, params and budget sheets. |
+| every menu | <kbd>←</kbd> <kbd>→</kbd> | a row is being changed | Changes it. |
+| every menu | <kbd>←</kbd> <kbd>→</kbd> | a sheet of several pages; `/flow`'s list | Previous / next page or place, wrapping. |
+| every menu | <kbd>enter</kbd> · click | | On `search…`: starts a search. On a `↔` row: begins changing it; again: keeps it. Otherwise: selects the row. |
+| every menu | <kbd>esc</kbd> | | Puts back the row being changed; else ends a running search; else leaves (asking [Save?](#save-box) if the menu holds changes). |
+| every menu | typing · <kbd>backspace</kbd> | a search is running | Narrows it; the cursor goes to the first match. |
+| forms | typing · <kbd>backspace</kbd> · paste | on a written row | Begins writing it; the first character replaces a pre-filled value. Paste keeps the first line only (except `variables`). |
+| forms | <kbd>enter</kbd> | writing a row | Keeps it and moves to the next row still unanswered, else to `done`. |
+| forms | <kbd>↑</kbd> <kbd>↓</kbd> | writing a row | Keeps it and moves. |
+| forms | <kbd>esc</kbd> | writing a row | Puts it back. |
+| forms | <kbd>shift+enter</kbd> <kbd>ctrl+j</kbd> | writing `variables` | Newline. |
+| /settings | <kbd>enter</kbd> <kbd>→</kbd> · click | landing | Opens the page. |
+| /settings | <kbd>esc</kbd> | landing | Leaves, asking [Save?](#save-box) if anything is held. |
+| /settings | <kbd>←</kbd> <kbd>backspace</kbd> <kbd>esc</kbd> · click `/settings` | a page, list focused | Back to the landing screen (not when opened from `/flow`, where `esc` closes). |
+| /settings | <kbd>/</kbd> | a page with search, list focused | Opens the search box. |
+| /settings | <kbd>tab</kbd> <kbd>shift+tab</kbd> | | Next / previous of: search box (when shown), list, enabled buttons. |
+| /settings | <kbd>enter</kbd> <kbd>↓</kbd> | search box | To the list, keeping the filter. |
+| /settings | <kbd>esc</kbd> | search box | Clears and hides it. |
+| /settings | <kbd>←</kbd> <kbd>→</kbd> | a button focused | Previous / next enabled button, wrapping. |
+| /settings | <kbd>↑</kbd> | a button focused | To the list. |
+| /settings | <kbd>enter</kbd> · click | a button | Presses it. |
+| dropdown | <kbd>↑</kbd> <kbd>↓</kbd> | | Moves. An on/off dropdown opens on the value not in force. |
+| dropdown | <kbd>enter</kbd> · click | | Picks the value. |
+| dropdown | <kbd>esc</kbd> · click outside | | Picks nothing. |
+| monitor | <kbd>↑</kbd> <kbd>↓</kbd> | editor empty, offers closed | Previous / next node, wrapping. |
+| monitor | <kbd>enter</kbd> · click | editor empty | [Opens the node](#monitor-nodes). |
+| monitor | <kbd>space</kbd> | editor empty | Opens an agent out to its sessions, or shuts it. |
+| monitor | <kbd>→</kbd> | editor empty, offers closed | Back to the log last read. |
+| monitor | <kbd>ctrl+t</kbd> | always | Graph ↔ list. |
+| environment page | <kbd>↑</kbd> <kbd>↓</kbd> <kbd>enter</kbd> · click | | Walk and read its sessions. |
+| environment page | <kbd>esc</kbd> | | Back to the monitor. |
+| exit dialog | <kbd>enter</kbd> / <kbd>esc</kbd> | | Choose / stay. |
+| anywhere | drag · double click · triple click | | [Copies](#selecting-and-copying). |
+
+</RefFilter>
+
+Every menu shows its applicable keys on its bottom row, and only there. `esc` never opens the
+monitor and `←` never stops anything.
+
+### ctrl+c {#ctrl-c}
+
+| # | Condition | Effect |
+| --- | --- | --- |
+| 1 | The prompt in front (the monitor's, if up) has text | Clears it; resets the count. |
+| 2 | Otherwise the count becomes `count + 1` if the last press was within 3.0 s, else `1`. | |
+| 3 | A run going, count 1 | `— press ctrl+c again to stop the flow —` |
+| 4 | A run going, count 2 | Stops the run as [`/stop`](#stop); resets the count. |
+| 5 | A run stopping (by anybody) | Any press, no time limit: sends `force`; prints `— closed <n> conversation(s) mid-turn —` where `n > 0`; resets the count. |
+| 6 | No run, count 2 | Leaves at once, without the dialog. |
+| 7 | No run, count 1 | `— press ctrl+c again to exit —` |
+
+A refused command and `/stop` reset the count.
+
+### Keyboard protocol {#keyboard-protocol}
+
+`shift+enter` reaches the interface only from a terminal speaking the kitty keyboard protocol
+(Ghostty, kitty, WezTerm, Alacritty); elsewhere it arrives as `enter`. `ctrl+j` works
+everywhere. In iTerm2 without tmux, `hmz` sets `TEXTUAL_DISABLE_KITTY_KEY=1`
+([CLI](/reference/cli#terminal-preparation)), so `shift+enter` sends and `ctrl+j` breaks the
+line. Textual's escape-sequence length limit is raised to 1 024 characters so that a long
+input-method commit arriving as one key report is not typed as raw escape text.
+
+## Menus {#menus}
+
+`/flow`, `/epics` and their sub-sheets are sheets over the log; `/settings` is a screen of its
+own.
+
+### Anatomy {#menu-anatomy}
+
+<span id="the-menus-and-when-what-they-hold-lands"></span>
+
+```text
+  <title>
+  <about>
+  <page strip, if several>
+❯ 1. <label>   <value> <mark>   <about>
+  2. …
+
+     <set-apart row>    <about>
+  <message under the list>
+  <key hints>
+```
+
+| Element | Rule |
+| --- | --- |
+| Marks | `▸` opens something; `↔` changed in place; `▾` drops its values; `✔` (green) the choice in force; `❯` the cursor. |
+| Set-apart rows | `search…`, `add …`, `save`, `set`, `done`, `check again`, `copy … here`, `manage flowverses`, …: unnumbered, each with a blank line above. Below the list, except on host pickers, where they sit above. |
+| Height | At most 14 rows, at least 3. |
+| Search | Case-insensitive subsequence of one field. `/flow`: flow name. Pick lists: label and about. `/epics`: flow, task, run name. Started from `search…` only; `esc cancel search` ends it. |
+| Hints | `enter <verb>` for the row under the cursor (`open`, `choose`, `change`, `save`, `set`, `add`, `search`, `refresh`, `copy`, `done`, `type a host`), `←/→ page` or `←/→ place` where applicable, `esc <verb>`. On a form's written row `type to edit` replaces the enter hint. While changing a row: `[shift+enter/ctrl+j new line · ][←/→ change · ]enter keep · esc undo`. |
+
+### Held and immediate changes {#held-changes}
+
+| Menu | Held until saved | Applied at once |
+| --- | --- | --- |
+| `/flow`, roles, agent sheet, params, budget, harness, environment form, unsaved host | everything | — |
+| `/settings` Settings, Workspace, Fallback | everything | — |
+| `/settings` Accounts | edit settings, fails over to, remove | add an account, sign in again, add a custom CLI |
+| `/settings` Environments, Flowverses; `/epics` | — | everything |
+| Monitor board | — | everything |
+
+### Save? box {#save-box}
+
+Opened by `esc` out of a menu (or form) holding changes.
+
+```text
+Save?
+❯ 1. save
+  2. discard
+enter choose · esc back
+```
+
+`save` applies the menu, which may still refuse (the menu then stays, showing why);
+`discard` leaves without applying; `esc` returns to the menu.
+
+## `/flow` {#choosing-a-flow}
+
+### Flow list {#flow-list}
+
+| Element | Value |
+| --- | --- |
+| Title | `Flow` |
+| About | `Choose a flow to run; you will type its task next. To run a flow from elsewhere, type its path.` |
+| Places (strip) | `official`, added flowverses alphabetically, `local` (`./.humanize/flows/`), `user` (`~/.humanize/flows/`); `local` and `user` only where they hold a flow. Opens on the place of the flow in force. While searching, only places with a match. |
+| Rows | `<n>. <name>[ ✔]  <first line of the flow's about>`. Cursor opens on the flow in force. |
+| Empty place | `not fetched yet; select manage flowverses below to fetch`, or `no flows yet`. |
+| Set-apart rows | `search…`; `copy <name> here   so you can edit it` (when the cursor was on a flow); `manage flowverses   the flowverses page of /settings`. |
+| Keys | `enter open · ←/→ place · esc close` |
+
+| Action | Result |
+| --- | --- |
+| open a place never fetched | Fetched in the background once per opening: `fetching <name>…`, then the list or a red error. |
+| `enter` on a flow | Loads what is remembered for it (if another flow), asks its [params](#setting-a-flow-up) if it declares any (also when re-choosing the same flow), then opens its [roles](#roles-page). |
+| `copy … here` | Copies the flow, what it imports and its skills into `./.humanize/flows/`: `copied to <path> -- you can edit it, and <name> now points to it`; errors `there is no flow called <x> to copy`, `there is already a flow of your own at <path>`; with no flow chosen `no flow selected to copy`. |
+| `manage flowverses` | Opens `/settings` on Flowverses alone. Refused during a fetch: `flowverses open once the fetch completes`. |
+| a flow that fails to load | `<flow> failed to load[: <first line of the error>]` (red). |
+| search with no match | `no matching flows` |
+
+Opened as `/flow <name>` or from a `$` line, the menu opens on the roles and never asks
+params; `esc` there leaves.
+
+### Roles page {#roles-page}
+
+| Element | Value |
+| --- | --- |
+| Title | the flow's name |
+| About | `Configure each role: an agent (CLI, account, model and effort) or an environment.` |
+| Keys | `enter open · esc back to flows` (`esc close` when opened by name or while running) |
+
+| Row | Value | `enter` opens |
+| --- | --- | --- |
+| each agent role (declared order) | `<cli>/<model>:<effort>[ · <account>]` or `not set` | [agent sheet](#what-each-agent-is) |
+| each environment role | the `-e` spec after `<role>=`, or `not set` | [environment form](#where-each-agent-works) |
+| `budget` (set apart) | [summary](#what-a-run-of-it-may-spend) | budget sheet |
+| `harness` (set apart, no blank line) | [summary](#where-the-harness-runs) | harness form |
+| `save` (set apart) | `flow and roles` | applies flow, roles, params, budget and harness together |
+
+Roles filled by the runtime (`Outworlder`, `LocalEnv`) are not rows. Messages:
+`<flow> has no roles to configure; it interacts only with you`, `<flow> failed to load: <e>;
+nothing can be configured`.
+
+| Save refusal (yellow) | Cause |
+| --- | --- |
+| `<role>[, <role>…] is not configured yet` | An agent role lacks a CLI or model, or a required environment role is unset. |
+| `this flow requires a budget: set the budget first` | No budget, for a flow other than `chat`. |
+
+<span id="default-fill"></span>**Default fill.** An agent role with nothing remembered starts
+on the first installed backend that has reported models, serves the role and can open: its
+first model, effort `high` where the model takes it, else the model's easiest, else `auto`;
+otherwise `not set`.
+
+### Agent sheet {#what-each-agent-is}
 
 ```text
   Set up builder
+  Configure this agent: select its CLI, account, model, and reasoning effort.
 
-  Configure this agent: select its CLI, account, model, and reasoning
-  effort.
+❯ 1. cli         claude ▸                          coding agent CLI to use
+  2. account     as local ▸                        account to run as
+  3. model       claude-opus-5 ▸                   model to use
+  4. effort      high ↔                            reasoning effort
 
-  ❯ 1. cli        claude ▸          coding agent CLI to use
-    2. account    as local ▸        account to run as
-    3. model      claude-opus-5 ▸   model to use
-    4. effort     high ↔            reasoning effort
-
-       save                         this agent
+     save                      this agent
 
   enter open · esc close
 ```
 
-| Row | |
+| Row | Value | Kind | Rule |
+| --- | --- | --- | --- |
+| `cli` | CLI or `—` | ▸ | [CLI list](#which-cli-and-which-account). Changing it clears account, model, effort and swarm. |
+| `account` | name or `as local` | ▸ | [Account list](#account-list). Keeps the model. Needs a CLI: `choose a coding agent first; accounts belong to the CLI`. |
+| `model` | model or `—` | ▸ | [Model list](#what-each-agent-runs). Needs a CLI: `choose a coding agent first; models belong to the CLI`. A new model keeps the effort where it takes it, else the hardest, else `—`. |
+| `effort` | effort or `—` | ↔ | The model's ladder; `→` harder, `←` easier, wrapping. |
+| `swarm` | `on`/`off` | ↔ | Only for a model that swarms (Kimi Code): `run turns as a swarm`. |
+| `save` | `this agent` | set apart | Returns the agent into the flow's draft. |
+
+Choosing an account never asked for its models asks it: `checking models for <cli> as <account>…`, then the list or `could not get models for <cli> as <account>[: <why>]` (red).
+Permission, skills and required capabilities are the flow's, not rows.
+
+### CLI list {#which-cli-and-which-account}
+
+| Element | Value |
 | --- | --- |
-| `cli` | [Which CLI](#which-cli-and-which-account). Changing it lets go of the model. |
-| `account` | [Which account](#which-cli-and-which-account) of that CLI. |
-| `model` | [Which model](#what-each-agent-runs) that account may name. |
-| `effort` | A rung on that model's ladder, changed where it stands: <kbd>enter</kbd>, <kbd>←</kbd> <kbd>→</kbd>, <kbd>enter</kbd>. |
-| `swarm` | `on` or `off`: the turn run as a fleet. Only for a model that runs one (Kimi Code). |
-| `save` | Accepts this agent into the flow's draft and returns to the roles. The flow's own `save` writes it down. |
+| Title | `Select a coding agent` |
+| About | `The CLI for this agent. Accounts and models belong to the CLI, so choosing another resets them.` |
+| Rows | Alphabetical: `<cli>[ ✔]  <n> model(s)` or `no models reported yet`. Only CLIs installed here whose harness is the one the role names (if any) and that support every capability the role requires. |
+| Installable rows | `dsh` or `kimi` whose program is present but whose Python extra is missing, with the install line: `DeepSeek Harness is not installed; run: uv pip install --python <python> '<sdk>' 'python-dotenv>=1.2.3'; then reopen hmz` / `Kimi Code is installed, but the websockets package is not; run: uv pip install --python <python> 'websockets>=15,<18'; then reopen hmz`. |
+| Set apart | `search…` |
+| Empty | `<role> needs <harness>, <Capabilities>, and no coding agent installed here has that` / `no coding agent installed here can run this agent` |
 
-What an agent may touch, its skills and what it must be able to do are the flow's,
-[declared on the role's type](/reference/flows#asking-for-an-agent-that-can-do-something), and
-are not rows here. Nor are skills a CLI carries of its own: see
-[What each agent carries](#what-each-agent-carries).
+### Account list {#account-list}
 
-#### Which CLI, and which account
-
-The CLIs offered are the ones **installed here**, less any that cannot serve what the role
-declares, plus the supported ones a `pip install` away, marked as such.
-
-```text
-  Select the account to run as
-
-  ❯ 1. as local   use the account signed in on this machine
-    2. deepseek   gateway · ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL
-    3. work       login
-
-       search…
-       add        an account
-
-  enter choose · esc back
-```
-
-- `as local`, always first, is the CLI as you already run it, with nothing redirected.
-- The `add` row makes an account without leaving, on [the same form](#making-an-account) as the
-  Accounts page less its `cli` row, and the CLI's own login where the way has one. It comes back
-  with the new account chosen, and the agent's sheet then asks its CLI what it runs, saying so
-  under its rows while it does. A CLI with none says `claude has no saved accounts yet`.
-- An agent given an account that has since been taken away fails its first turn, naming the
-  account. It never runs as yours instead.
-
-#### Which model {#what-each-agent-runs}
-
-```text
-  Select a model for claude
-
-  The model claude uses for this agent's turns, and its reasoning
-  effort. These are the models last reported for this account.
-
-    1. claude-opus-5     max, high
-  ❯ 2. claude-sonnet-5   max, high
-
-       search…
-       check again
-
-  enter choose · esc back
-```
-
-- The list is what the chosen account may name. Where the account points its CLI at an
-  endpoint, the endpoint is asked. It is asked the first time the interface opens, whenever an
-  account is made, and on the `check again` row.
-- An account never asked says so where the list would be; one nothing answers for says why
-  under it.
-- Choosing a new model starts its effort at the hardest it takes. Choosing the same one keeps
-  the effort.
-
-#### Where each agent works
-
-Each environment role the flow declares is a row under the agents. <kbd>enter</kbd> on it opens
-one form, whose rows are the parts of what `-e` takes after `<role>=`:
-
-```text
-  Environment for box
-
-    1. backend  ssh ↔                   a machine reached over ssh
-    2. host     gpu ▸                   from ~/.ssh/config · working directory: ~/work
-    3. workdir  ~/work                  leave blank to use saved default: ~/work
-    4. as -e    ssh@gpu                 full -e spec: typing one sets the rows above
-
-  ❯    done                      sets box to ssh@gpu when the flow is saved
-
-  enter done · esc back
-```
-
-| Row | |
+| Element | Value |
 | --- | --- |
-| `backend` ↔ | Every backend `-e` takes. It starts on the first one an [environment provider](#environments) is saved for, else on `local`. Changing it lets go of the host and the workdir. |
-| `host` ▸ | Not asked for `local`; `daemon` for a docker backend, once `-e` takes one. Opens the providers of that backend saved on [Environments](#environments), with `add an ssh host` (or `add a docker host`) above them, which saves one on the same form and comes back with it chosen, and, for ssh, `unsaved host`: `host`, `user@host`, `host:port` or an ssh config alias, saved nowhere. |
-| `workdir` | The directory there: absolute, or `~/…` under the ssh login's home. It starts from where the provider is saved to work, and while it still says that, `as -e` leaves it out so the role follows the provider; typed over, it is spelled out. Blank is the provider's too. |
-| `as -e` | All of it, as `-e` spells it. Typing a whole spec there sets the rows above. |
-| `done` | Holds it with the rest of the menu, read the way `-e` reads it: one that does not read is refused under the form, in `-e`'s words. With nothing said, it leaves the role unset. |
+| Title | `Select the account to run as` |
+| About | `Accounts belong to a specific CLI; each CLI has its own sign-ins. Sessions, settings, and skills belong to the CLI regardless of which account it runs as.` |
+| Rows | `as local   use the account signed in on this machine` first (dsh: `use credentials and the base URL saved by dsh, or environment variables`), then each account: `<way> · <VARS>`. |
+| Set apart | `search…`, `add   an account` |
+| Empty | `<cli> has no saved accounts yet` |
+| `add` | The [account form](#making-an-account) with the CLI fixed (title `Add a <cli> account`). On success the account is chosen. `<name> was saved, but sign-in failed with exit code <n>` where its login failed. |
 
-| Answer | Where the work goes |
+An agent whose account has since been removed fails its first turn, naming the account.
+
+### Model list {#what-each-agent-runs}
+
+| Element | Value |
 | --- | --- |
-| `local@/home/me/repo` | A directory on this machine. |
-| `ssh@gpu-box/home/me/repo` | A directory on a host you reach with ssh: a saved provider, `host`, `user@host`, `host:port` or an ssh config alias. |
-| `ssh@gpu-box/~/repo` | The same, under the ssh login's home. |
-| `ssh@gpu-box` | Where the provider `gpu-box` is saved to work. |
+| Title | `Select a model for <cli>` |
+| About | `The model <cli> uses for this agent's turns, and its reasoning effort. These are the models last reported for this account.` |
+| Rows | `<model>[ ✔]  <efforts, hardest first>[ · swarms]` |
+| Set apart | `search…`, `check again` |
+| Messages | `checking <cli> for models…`; `<cli> has not reported any models[ as <account>] yet; select check again to query them`; `no models found for <cli>`; an error in red. |
 
-A host that cannot be reached, a missing directory and a machine smaller than the role declares
-are red lines when the flow starts, before any turn. An agent spawned in an ssh environment
-takes its turns there; its credentials stay here. See
-[Remote execution](/reference/remote-execution).
+A list is fetched: at every start for each installed CLI's own account when never fetched or
+older than 7 days; when an account never asked is chosen; on `check again`.
 
-#### What each agent carries
+### Environment form {#where-each-agent-works}
 
-Nothing is set here. The skills an agent carries are its CLI's own, found and switched off
-where that CLI does it. A run adds [the skills the flow
-brings](/reference/flows#the-skills-a-flow-brings) to every session of the role that names
-them, and takes them away after.
-
-#### Params {#setting-a-flow-up}
-
-A flow that [declares a `FlowParams`](/reference/flows#settings-of-the-flow-s-own) is asked it
-as you choose the flow: one row per field, with its value and the line the flow declared it
-with. Fields in groups get a heading per group.
-
-```text
-  Set up humanize1:rlcr
-
-  Configure how this flow runs. Options and validation are defined by
-  the flow itself.
-
-    1. plan_file       docs/plan.md   --plan-file: the plan to build, …
-  ❯ 2. max             20▏ ↔          --max: rounds before the loop st…
-    3. codex_timeout   5400 ↔         --codex-timeout: seconds one rev…
-
-       set                            all of the above
-
-  ←/→ change · enter keep · esc undo
-```
-
-| Key | |
+| Element | Value |
 | --- | --- |
-| <kbd>↑</kbd> <kbd>↓</kbd> | Between fields, stepping over headings. |
-| <kbd>enter</kbd> | On a field, begins changing it; pressed again, keeps the change. On `set`, takes every field. |
-| <kbd>←</kbd> <kbd>→</kbd> | While changing a field: a switch flips, a choice steps, a number moves by one. |
-| typing · <kbd>backspace</kbd> | While changing a field that is written. A caret marks where. |
-| <kbd>esc</kbd> | While changing a field, puts it back. Otherwise back, asking about anything changed. |
+| Title | `Environment for <role>` |
+| About | `The machine and working directory for this environment role. Choosing a machine saved on the environments page of /settings by name includes its saved working directory.` |
+| Opens on | the first row still needed |
 
-What is refused is the flow's own refusal, in its own words. What you answer is held with the
-rest of the menu until it is saved. There is no command for it: choose the flow again to answer
-again. On a command line the same fields are [`hmz exec -p`](/reference/cli#writing-params).
+| Row | Kind | About / values |
+| --- | --- | --- |
+| `backend` | ↔ `local` `ssh` `docker` | `this machine` / `a machine reached over ssh` / `a container on a docker daemon`. Starts on the first of `ssh`, `docker` with a saved provider, else `local`. Changing it clears host and workdir. |
+| `host` (ssh) · `daemon` (docker) | ▸ | Opens the [host picker](#host-picker). Shows the saved provider's description, `not saved: connects via ssh as entered`, `not saved in settings`, or `choose a saved host, or add one`. Absent for `local`. |
+| `workdir` | written | `absolute path on this machine` (local); `leave blank to use saved default: <dir>` (a provider saved with one); `remote working directory: /path or ~/path under home`. Pre-filled with the provider's workdir; while unchanged, the spec omits it. |
+| `as -e` | written | `full -e spec: typing one sets the rows above` |
+| `done` | | `sets <role> to <spec> when the flow is saved`, or `leaves <role> unset`. |
 
-#### Budget {#what-a-run-of-it-may-spend}
+The composed spec is read as [`-e`](/reference/cli#writing-an-environment) reads it and refused
+in its words (e.g. `-e 'box=ssh@somehost': expected <role>=<backend>[@<provider>]/<workdir>`
+where no workdir is given or saved). Partial answers: `fill in the <host|daemon|workdir> as
+well`, `specify an environment`. Reachability and size are checked when the run starts.
 
-The `budget` row sits under the roles and says what the run is held to without opening:
-`stops at 6h, $50`. <kbd>enter</kbd> opens the same sheet as params, over the four things a
-[`Budget`](/reference/flows#what-a-run-may-spend) holds: `duration`, `cost` in USD,
-`output_tokens`, and `graceful`. Whichever limit is reached first stops the run.
+#### Host picker {#host-picker}
 
-**Every flow but `chat` needs one.** The menu will not save a flow whose budget sets none of
-the three, as `hmz exec` will not run one without a `-b`.
+| Element | Value |
+| --- | --- |
+| Title | `Select the ssh host to use` / `Select the docker host to use` |
+| About | `Saved on the environments page of /settings; any host you add here is saved there.` |
+| Rows above the list | `add an ssh host` / `add a docker host` (the [provider forms](#environments), saving at once and returning with it chosen); `unsaved host   type any host ssh can reach` (ssh); `search…` |
+| Empty | `no ssh host is saved yet` |
 
-#### Harness {#where-the-harness-runs}
+`unsaved host` opens **Unsaved ssh host** (`Connects using your ssh config with no extra
+settings. To save a host with a name, go to the environments page of /settings.`): one row
+`host   [user@]host[:port], or an alias in your ssh config`; `done` `assigns the role to this
+host without saving it`; errors `host is required`, `'<x>' is not a valid host: cannot contain
+spaces or slashes`.
 
-The `harness` row sits under `budget` and says where each agent's CLI runs and what that comes
-to: `adaptive → local: the work is on this machine`, `adaptive → env where its CLI is installed,
-else local`, or, once a run has found out, `adaptive → env (last run)`. <kbd>enter</kbd> opens a
-form whose `harness` row steps through `adaptive`, `local`, `env` and `standalone`, as
-[`hmz exec -H`](/reference/cli#choosing-where-the-harness-runs) takes them; `standalone` adds a
-`machine` row that opens the same form an [environment role](#where-each-agent-works) is placed
-on. It is kept per flow, beside the budget. As each role's first session opens on another
-machine, the transcript says where its harness went: `coder's harness runs on its environment's
-machine (env)`.
+### Params sheet {#setting-a-flow-up}
 
-### `/settings` {#what-humanize-remembers}
+| Element | Value |
+| --- | --- |
+| Title | `Set up <flow>` |
+| About | `Configure how this flow runs. Options and validation are defined by the flow itself.` |
+| Rows | `<n>. <field, padded to 34><value>[ ↔]  <field description>`; a heading per `json_schema_extra={"section": …}`. |
+| Set apart | `set   all of the above` |
 
-Everything humanize remembers, on a screen of its own, one level at a time. `/settings` opens
-on the six pages and nothing else; <kbd>enter</kbd>, <kbd>→</kbd> or a click goes into one,
-and <kbd>esc</kbd>, <kbd>backspace</kbd>, <kbd>←</kbd> or a click on `/settings` across the top
-comes back out. `/settings <page>` goes straight into the one named (`settings`, `workspace`,
-`accounts`, `environments`, `fallback`, `flowverses`, offered as you type; `everywhere` and
-`directory`, their old names, still work). `manage flowverses` on `/flow` opens it inside
-**Flowverses** alone, and <kbd>esc</kbd> there goes back to the flows.
+| Field type | Editing |
+| --- | --- |
+| `bool` | `on`/`off`; `←` `→` toggle. |
+| `Literal[…]` | `←` `→` cycle in declared order, wrapping. |
+| `int`, `float` | Typed; `←` `→` ±1. |
+| `str` | Typed. |
+| other (list, dict, model, `Enum`, `Optional` with `None`) | Shown as Python `str()`; edited as text; not accepted by `set`. |
+
+`set` validates with the flow's model; a refusal shows the first error as `<field>: <message>`.
+Equivalent on the command line: [`-p`](/reference/cli#writing-params).
+
+### Budget sheet {#what-a-run-of-it-may-spend}
+
+| Element | Value |
+| --- | --- |
+| Title | `Set budget for <flow>` |
+| About | `A run stops at whichever limit it reaches first; at least one limit is required. Leave empty or 0 for no limit.` |
+
+| Row | Kind | Default | About |
+| --- | --- | --- | --- |
+| `duration` | written | `""` | `maximum run duration: 1h30m, 90s, PT2H; empty for no limit` (read as [`-b duration`](/reference/cli#writing-a-budget); reopens as whole seconds, e.g. `21600s`) |
+| `cost` | float ↔ | `0.0` | `maximum cost in US dollars, 0 for no limit` |
+| `output_tokens` | int ↔ | `0` | `maximum output tokens, 0 for no limit` |
+| `graceful` | bool ↔ | `on` | `finish the current turn when a limit is reached` |
+
+| Refusal | Cause |
+| --- | --- |
+| `Value error, set at least one of duration, cost and output_tokens` | nothing set |
+| `duration: Value error, '<v>' is not a duration: use seconds, 1h30m, or ISO 8601 like PT1H30M` | unreadable duration |
+| `cost: Input should be greater than or equal to 0` | negative |
+| `cost: Input should be a valid number, unable to parse string as a number` | empty or not a number |
+| `output_tokens: Input should be a valid integer, unable to parse string as an integer` | empty or not an integer |
+
+Row summary: `stops at <duration>, <n> out, <money>[, even mid-turn]` for the limits set
+(e.g. `stops at 6h00m, $50.00`; `stops at 1m30s, 12.0k out, $0.50, even mid-turn`); unset:
+`none set; a run needs one`, or for `chat` `none needed; runs until you stop it`.
+
+### Harness form {#where-the-harness-runs}
+
+| Element | Value |
+| --- | --- |
+| Title | `Where the harness runs for <flow>` |
+| About | `The harness is each agent's CLI and what supervises it. Here, it reaches an environment on another machine through the anchor; on the environment's machine, it runs the CLI installed there; on a machine of its own, it reaches the environment from that one. Adaptive runs it on the environment's machine wherever the CLI is installed there.` |
+
+| Row | Kind | Values / about |
+| --- | --- | --- |
+| `harness` | ↔ | `adaptive` (`on the env's machine where its CLI is installed, else here`), `local` (`here, reaching the env through the anchor`), `env` (`on the env's machine; refused where its CLI is missing`), `standalone` (`on a machine of its own, reaching the env through the anchor`) |
+| `machine` | ▸, standalone only | `choose the machine it runs on`; opens the [environment form](#where-each-agent-works) for role `harness`. |
+| `done` | | `runs them <spec> when the flow is saved` |
+
+Refusals: `choose the machine a standalone harness runs on`, and the
+[`-H` errors](/reference/cli#choosing-where-the-harness-runs). Stored per flow beside the
+budget.
+
+| Row summary | When |
+| --- | --- |
+| `standalone → <machine spec>` | standalone (whatever the environment roles) |
+| `<mode> → local: the work is on this machine` | adaptive, local or env, and no `ssh`/`docker` environment role set |
+| `adaptive → <values> (last run)` | adaptive, after a run this session reported placements (distinct, sorted) |
+| `adaptive → env where its CLI is installed, else local` | adaptive |
+| `local → here, anchored to the environment` | local |
+| `env → on the environment's machine` | env |
+
+## `/epics` {#the-runs-that-have-already-happened}
+
+| Element | Value |
+| --- | --- |
+| Title | `Epics` |
+| About | `Every run of a flow in this directory, newest first: task, status, and session count.` |
+| Rows | `YYYY-MM-DD HH:MM · <flow>`, about `<task (≤ 60 chars)\|no task> · <n> session(s)[ · failed\|stopped\|was left unfinished][ · resumable]`. `resumable`: the flow is resumable now and the run left a journal. A run in progress reads `was left unfinished`. |
+| Set apart | `search…` (flow, task, run name) |
+| Empty | `no flow has been run in this directory yet` |
+
+`enter` on a run opens it:
+
+| Element | Value |
+| --- | --- |
+| Title | `<when> · <flow>` |
+| About | `<epic directory>` / `It finished\|failed\|stopped\|was left unfinished with <n> agent(s) in <n> session(s).` |
+| `resume run` | `resume the flow from this run`. Offered where the flow is resumable now; otherwise `<flow> is not resumable, so this run cannot be resumed`. Refused while a run is going: `a flow is running; press ctrl+c twice to stop it before resuming another`. Otherwise as [`/resume`](#carrying-the-last-one-on-outright) with this run. |
+| `export run` | `the entire run as an archive, with its trace`. Writes `./.humanize/<run>.epic.tar.gz` (records, session logs, manifest, and a [trace](/reference/tracing) also written to the run's `traces/`): `exporting <name>…`, then `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`, repeated in the transcript on close. |
+
+## `/resume` {#carrying-the-last-one-on-outright}
+
+Picks up the newest run in this directory of a flow that can be picked up. Runs are scanned
+newest first; the scan stops at the first run that is unreadable, was recorded resumable, or
+whose flow is resumable now. On success: `resuming <run>: running <flow> from saved state`,
+and the run's flow, agents, environments, params, budget, harness and task are used; the budget
+counts from zero.
+
+| Message (`hmz: `, red) | Condition |
+| --- | --- |
+| `no flow has been run here, so there is nothing to resume` | no run here |
+| `no run here was of a flow that can be resumed, so there is nothing to resume` | the scan found none |
+| `<epic> cannot be read, so there is nothing to resume` | unreadable record |
+| `<flow> does not support resuming, so <run> cannot be resumed` | the flow is not resumable now |
+| `<run> has no saved state to resume: enter a task to start the flow from the beginning` | no journal entry |
+| `cannot resume a run while a flow is running: press ctrl+c twice to stop it first` | a run going |
+| `cannot resume a run while the flow is still stopping: it is finishing the turn it was in` | a run stopping |
+
+`/resume` is unlisted while refused, and while the last background look found nothing (at
+mount, after flowverse fetches, after `/epics` closes, when a run ends). Command-line
+equivalent: [`hmz exec --resume`](/reference/cli#picking-a-run-up).
+
+## `/settings` {#what-humanize-remembers}
+
+A screen of six pages. Storage keys are in [Settings](/reference/settings).
+
+### Landing screen {#settings-landing}
 
 ```text
   /settings
@@ -741,327 +910,341 @@ comes back out. `/settings <page>` goes straight into the one named (`settings`,
   │ ⑂  Flowverses                                               3 flowverses │
   │    where flows come from                                                 │
   ╰──────────────────────────────────────────────────────────────────────────╯
-
                                                                       Save
-
   enter open   tab actions   esc close
 ```
 
-Inside a page, the line across the top says where you are, the list fills the screen, and what
-is done about the list rather than to one thing on it is a bar of buttons under it:
-
-```text
-  /settings › Settings                                     ● unsaved changes
-  Global settings for humanize on this machine.
-
-  ╭──────────────────────────────────────────────────────────────────────────╮
-  │ Error reports                                                     ● on ▾ │
-  │   send error reports to humanize                                         │
-  │──────────────────────────────────────────────────────────────────────────│
-  │ What is sent                                                           ▸ │
-  │   what error reports include and exclude                                 │
-  │──────────────────────────────────────────────────────────────────────────│
-  │ Details                                                           ● on ▾ │
-  │   show every tool call and all of the ╭─ Details ──────────────────────────╮
-  │───────────────────────────────────────│ on ✔  show tool calls and thinking │
-  │ /btw agent                            │ off  show turn responses only      │
-  │   the agent /btw uses outside a sessio╰────────────────────────────────────╯
-  ╰──────────────────────────────────────────────────────────────────────────╯
-
-                                                                      Save
-
-  enter change   tab actions   esc back
-```
-
-| Page | Row | |
+| Card | Summary | `● unsaved` when |
 | --- | --- | --- |
-| Settings | **Error reports** ▾ | Whether humanize [reports what goes wrong](/user/reporting): `on`, `off`, or `not set`. Where `HUMANIZE_SENTRY` overrides it for this run, the page says so. |
-| Settings | **What is sent** ▸ | What a report carries and what it never does. <kbd>enter</kbd> reads it out. |
-| Settings | **Details** ▾ | Shows or hides [the working](/user/settings#details): every tool call, all of the thinking, and what a backend prints on its way past. Off until turned on, and remembered in `~/.humanize/settings.yaml` as `details`, so the next start opens the same way. The status line says `details` while it is on. |
-| Settings | **/btw agent** ▾ | The [btw agent](#btw): the flow's first agent, the one chosen, or `another…`, which sets one up on the same sheet as a flow's agent. Saved as `btw:` in `settings.yaml`; takes effect the next time btw mode is entered. |
-| Workspace | **Directory** | The directory these are for. |
-| Workspace | **Default flow** | The flow it opens on, and how many agents that flow was set up with. Chosen on `/flow`. |
-| Workspace | **Profiling** ▾ | Whether a run here [profiles](/user/tracing#profiling-a-run) the programs it starts. |
-| Workspace | **Forget** ▾ | Forget everything remembered here, across every flow. Other directories are untouched. |
-| Accounts | | [The accounts](#the-accounts-themselves) agents run as. |
-| Environments | | [The machines](#environments) a flow's environments go on: add, import, check, edit, remove. |
-| Fallback | | [Where a turn goes](#where-a-turn-goes-when-it-cannot-be-taken) when its place cannot take it. |
-| Flowverses | | [Where flows come from](#where-flows-come-from): add, fetch again, remove. |
+| ⚙ Settings | `reports on\|off\|not set · details on\|off` | reports, details or btw agent changed |
+| ⌂ Workspace | `<last 2 path parts> · flow <flow\|none>` | profiling changed, or forget on |
+| ◉ Accounts | `<n> account(s)` (named accounts) | an edit, fail-over or removal held |
+| ▦ Environments | `<n> machine(s)` | never |
+| ↻ Fallback | `<n> rule(s)` | rules differ from what is saved |
+| ⑂ Flowverses | `<n> flowverse(s)` (≥ 3) | never |
 
-- Each card says what is in its page, and `● unsaved` where the page holds a change.
-- On Settings and Workspace, <kbd>enter</kbd> or a click on a row marked `▾` drops its values
-  under it; <kbd>enter</kbd> or a click picks one, <kbd>esc</kbd> or a click off it picks none.
-  The last four pages are lists, laid out alike: the list, then the buttons -- `Add …`,
-  `Search…`, and **Save** at the far end where the page holds anything. <kbd>tab</kbd> goes to
-  the buttons, <kbd>←</kbd> <kbd>→</kbd> along them, <kbd>↑</kbd> back to the list. On a page
-  with nothing listed yet, the focus opens on the first button. What the line under a list last
-  said, and which row the cursor was on, are still there when you go back into it.
-- What every page holds lands together, on **Save** (on any page, or on the six of them);
-  <kbd>esc</kbd> out of `/settings` with anything held asks whether to save or discard.
-  Making an account, signing one in and everything on Environments and Flowverses happen at
-  once instead.
-- Once saved, the transcript says what changed, and, for what cannot take hold at once, when it
-  will. **Error reports**, **Details** and the fallback steps take hold at once (the next failed
-  turn reads the steps). **Profiling** does from the next flow run. A corrected account, what
-  it fails over to, or one taken away, from the next agent session: a session already running
-  keeps the account it started with, and the row says `from the next agent session` while such
-  a change is held. **Forget** from the next launch: the interface open now keeps what it
-  opened with.
-- On a first start, a box asks `Report errors to humanize?`; <kbd>esc</kbd> there
-  leaves it unanswered, to be asked again next time.
+**Save** is disabled (tooltip `nothing to save yet`) until a page holds a change (`save all
+changes`). Hints: `enter open   [tab actions   ]esc close`; `tab actions` only while something
+is held. Coming back out of a page puts the cursor on its card.
 
-#### Accounts {#the-accounts-themselves}
+### Page layout {#settings-page-layout}
 
-Every account an agent may run as, under a heading per CLI, with the way it was made and the
-variables it sets (names only, never values).
-
-```text
- claude
- deepseek     gateway · ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL
- work         login
- as local     the account signed in on this machine · fails over to work
-
- codex
- personal     key
- as local     the account signed in on this machine
-
- Add an account   Add a custom CLI   Search…                        Save
- enter open   / search   tab actions   esc back
-```
-
-![The Accounts page of /settings: the accounts under a heading per CLI, and enter opening what
-there is to do with one](/demo/accounts.gif)
-
-| Row | |
+| Element | Rule |
 | --- | --- |
-| **Add an account** | Makes one, on [one form](#making-an-account). |
-| **Add a custom CLI** | Writes down a [CLI of your own](/reference/agents#a-cli-of-your-own) that speaks ACP: the command that starts it, then `done`. |
-| an account | What there is to do with it (below). |
-| **Save** | Saves. <kbd>esc</kbd> goes back to the six pages; <kbd>esc</kbd> there closes, asking about anything held. |
+| Top line | `/settings › <Page>`; `/settings` is clickable (back to landing); `● unsaved changes` at the right while any page holds a change. Opened from `/flow`, only `<Page>`. |
+| Intro | Per page, below. |
+| List | Rows, or grouped rows under muted headings; scrollable. |
+| Buttons | Under the list, in the order below; label = the row's label capitalised; tooltip = its description. |
+| Search | `/` or **Search…**: a box above the list, placeholder `type to filter`, filters as typed (case-insensitive subsequence). Letters typed on the list do not search. Cleared on leaving the page. |
+| Message | One line under the list; kept, with the cursor row, while another page is read. |
+| Focus on open | The list, or the first enabled button where the list has nothing selectable. |
+| Hints | List: `enter <change\|choose\|read\|open\|edit>   [/ search   ][tab actions   ]esc back`. Button: `enter <add\|search\|save\|import>   ←/→ move   tab list   esc back`. Search box: `enter to list   esc clear`. |
 
-![What enter opens on one account: edit settings, sign in again, fails over to, and
-remove](/demo/account-does.png)
-
-| On one account | | Lands |
+| Page | Buttons | Search matches |
 | --- | --- | --- |
-| **edit settings** | Its way's questions again, on the account form less its `cli`, `way` and `name`. A secret starts blank and says `leave blank to keep current value`: leave it, or type a new one. Each CLI already holding a copy starts switched on, so a rotated key lands on every copy. | on save |
-| **sign in again** | Runs its way in again; a login command owns the terminal until it is done. It asks only what the way still needs. | at once |
-| **fails over to** | Which account of the same CLI a turn carries on as when this one fails. `add an account` above its list makes one and chooses it. | on save |
-| **remove** | The account and its credentials. Marked, it reads **cancel removal**. | on save |
+| Settings, Workspace | Save | — |
+| Accounts | Add an account · Add a custom CLI · Search… · Save | account name, CLI, way |
+| Environments | Add an ssh host · Add a docker host · Import ~/.ssh/config · Search… | name, backend, row text |
+| Fallback | Add fallback rule · Search… · Save | place, rule text |
+| Flowverses | Add a flowverse · Search… | name, URL |
 
-- The last row under each CLI is `as local`: the CLI as this machine is signed in. It offers
-  only **fails over to**, and says why: humanize keeps no credentials for it.
-- Nothing here is refused while a flow runs. What lands on save reaches an agent from its next
-  session, and the row says `from the next agent session` while it is held: a session already
-  running keeps the account it started with.
-- How often a failed turn is tried again is
-  [Fallback](#where-a-turn-goes-when-it-cannot-be-taken), not here.
-- The same accounts are [`Hmz().accounts`](/reference/sdk).
+**Dropdowns.** A `▾` value opens a framed list titled with the row's name, under the value
+(above it where there is no room), at most 12 visible values: `<value> ✔  <description>` with
+`✔` on the value in force. On/off lists open on the value not in force.
 
-##### Making an account {#making-an-account}
+### When saved changes take effect {#settings-effect}
+
+| Setting | Takes effect | Note beside the row while held |
+| --- | --- | --- |
+| Error reports, Details | at once on save | — |
+| /btw agent | next time btw mode is entered | `takes effect on next /btw` |
+| Profiling | next flow run | `takes effect on next flow run` |
+| Forget | next launch | `takes effect on next launch` |
+| Account edit, fails over to, removal | next agent session (running sessions keep their account) | `from the next agent session` |
+| Fallback rules | next failed turn | — |
+| Environments, Flowverses | at once | — |
+
+Leaving `/settings` writes a dim transcript line per change: first the pages' own (in the
+order done, including things done at once, even after a discard), then:
+
+| Change | Line |
+| --- | --- |
+| Error reports on / off | `error reporting enabled` / `error reporting disabled` |
+| Details on / off | `showing details: tool calls, thinking, and backend output` / `showing turn responses only, without details` |
+| Profiling on / off | `runs will profile started programs from the next flow run; /epics collects the trace` / `runs will be traced and not profiled from the next flow run` |
+| /btw agent | `/btw will ask <spec\|the flow's first agent> about the whole flow next time you enter btw mode` |
+| Forget | `cleared saved settings for this directory; humanize will open without them on next launch` |
+
+### Settings page {#settings-page}
+
+Intro: `Global settings for humanize on this machine.` Scope: this machine.
+
+| Row | Values (description) | Default | Stored as |
+| --- | --- | --- | --- |
+| **Error reports** ▾ `send error reports to humanize` | `on` (`send error reports`), `off` (`send nothing`) | not set | `enable_sentry` |
+| **What is sent** ▸ `what error reports include and exclude` | `enter` writes `Sent: …. Never sent: ….` under the list | — | — |
+| **Details** ▾ `show every tool call and all of the thinking` | `on` (`show tool calls and thinking`), `off` (`show turn responses only`) | off | `details` |
+| **/btw agent** ▾ `the agent /btw uses outside a session` | `the flow's first agent` (`whichever it names first`), the current choice (`chosen`), `another…` (`set one up`: the [agent sheet](#what-each-agent-is) titled `Set up btw agent`) | the flow's first agent | `btw` (`cli[@account]/model:effort`) |
+
+Once answered, Error reports cannot return to *not set*. Where `HUMANIZE_SENTRY` overrides it,
+the page says `HUMANIZE_SENTRY is set, overriding this setting for this run`; the row shows the
+saved value.
+
+### Workspace page {#workspace-page}
+
+Intro: `Saved settings for this directory: the default flow, and how it was last configured.`
+Scope: `workspaces.<resolved cwd>`.
+
+| Row | Value | Kind |
+| --- | --- | --- |
+| **Directory** `the directory these settings apply to` | last two path parts | read-only |
+| **Default flow** `configured with <n> agent(s); chosen with /flow` | the flow, or `none` | read-only |
+| **Profiling** `profile programs started by runs here` | `on` (`profile what runs here start`), `off` (`trace them only`); default off | ▾ |
+| **Forget** `clear saved settings here, across <n> flow(s)` | `on` (`clear saved settings here`), `off` (`keep them`); starts off | ▾; on save deletes this directory's entry |
+
+### Accounts page {#the-accounts-themselves}
+
+Intro: `Each account is a named set of credentials, kept separate from the CLI's own and from
+each other. You assign an account to an agent when setting it up. Creating and signing in
+happen immediately; other changes take effect when this menu is saved, and apply from an
+agent's next session.`
+
+| Element | Rule |
+| --- | --- |
+| Groups | A muted heading per CLI; accounts alphabetically, then `as local` (`the account signed in on this machine`) where the CLI has an account or its local account has a fail-over. |
+| Row | `<name>  <way> · <VAR>, <VAR>` (names only), then ` · checking models…`, ` · edited`, ` · fails over to <x>`, ` · will be removed`, ` · from the next agent session` as they apply. |
+| Empty | `no accounts yet` |
+
+`enter` on an account opens `<cli>/<name>` (or `<cli> as local`): `Editing, failover, and
+removal take effect when /settings is saved; signing in happens immediately.`
+
+| Row | Description | Lands |
+| --- | --- | --- |
+| `edit settings` | `ask the setup questions again` | on save. Secrets start blank (`leave blank to keep current value`). Copies for other CLIs start on. |
+| `sign in again` | `run the CLI's sign-in again; takes over the terminal while running` | at once. `<name> uses <way>, which has no command to run; edit its settings instead`; `sign-in for <name> failed with exit code <n>`. |
+| `fails over to` | `the account to use when a turn fails mid-conversation` | on save. List titled `Failover account for <cli>/<name>`: `add an account`, `search…`, `nowhere` (`the turn fails once its retries run out`), the CLI's other accounts. |
+| `remove` / `cancel removal` | `remove the account and its credentials when /settings is saved` / `will be removed when /settings is saved` | on save |
+
+`as local` offers only `fails over to`: `this is <cli> as local: humanize keeps no credentials
+for it, so you cannot edit, sign in, or remove it`.
+
+On save the transcript says, per change: `<cli>/<name> and its credentials were removed`,
+`<cli>/<name> is updated` (and `<other>/<name> is updated with it`), `<cli>/<name> fails over
+to <x>` / `<cli>/<name> no longer fails over`, then once `account changes take effect from the
+next agent session`.
+
+#### Account form {#making-an-account}
+
+| Opened as | Title | Intro |
+| --- | --- | --- |
+| Add an account | `Add an account` (`Add a <cli> account` where the CLI is known) | `A saved sign-in for one CLI, kept separate from the CLI's default and other accounts. Secrets are masked and never shown.` |
+| edit settings | `Edit <cli>/<name>` | `Edit account settings. Secrets are never displayed, so leave blank to keep current values.` |
+| sign in again | `Sign <cli>/<name> in again` | `Required settings for this sign-in method.` |
+
+| Row | Kind | Rule |
+| --- | --- | --- |
+| `cli` | ▾ | New only, CLI not known. Installed CLIs first. Description: `installed here` / `not installed here yet`. |
+| `way` | ▾ | New only. The CLI's [ways in](/reference/providers#the-ways-in), each with its description. |
+| `name` | written | `account name`. Pre-filled with the way's name, suffixed `-2`, `-3` where any CLI already has an account of that name; the first key replaces it. |
+| one per variable | written; secrets as `•` | The way's question. |
+| `variables` | written, secret | `environment variables, as NAME=VALUE, one per line`. Only for a way that asks nothing and runs no login. Multi-line. |
+| `also for <cli>` | ▾ on/off | Other CLIs the credentials can run; on where installed (new) or already copied (edit). ` · overwrites <cli>/<name>` where that exists. |
+| `done` | | `adds <cli>/<name>` / `updates <cli>/<name> once /settings is saved` / `signs <cli>/<name> in again`, `, running its login in the terminal`, `, for <x>, <y> too`. |
+
+Refusals: `<cli> has no sign-in method named <way>`, `<cli> already has an account named <name>; edit it from its row, or choose a different name`, `<VAR> is required`, `fill in
+credentials to sign in`. Notes: `<cli> is not installed; install it to use this account`,
+`<cli> is not installed, and this sign-in method requires running its login`.
+
+After adding: transcript `<cli>/<name> saved to <path>`, `<cli>/<name> is signed in` (or
+`hmz: sign-in failed with exit code <n>`), `<name> also saved for <x>, <y>`; under the list
+`checking available models for <cli> as <name>…`, then `<cli> supports <n> model(s) as <name>`
+or (red) `could not get models for <cli> as <name>[: <why>]; retry from the model row of an
+agent using this account`.
+
+#### Custom CLI form {#custom-cli}
+
+Title `Add a CLI that speaks ACP`; intro `Any coding agent that supports the Agent Client
+Protocol, communicating over stdin and stdout using the command you provide. The protocol does
+not configure models or effort, so it runs with its own configuration.`; row `command` (`command
+to run the agent, e.g. my-agent --acp`); `done` `saves it as a backend`. Applied at once, named
+after the command's first word: `<name> added as a backend`; transcript ``<name> is saved as a
+backend: `<command>` starts it``. Refusals: `command is required`, `<x> is already a backend
+humanize drives`. See [Agents › A CLI of your own](/reference/agents#a-cli-of-your-own).
+
+### Environments page {#environments}
+
+Intro: `Saved machines for flow environments, used by name in -e and /flow: ssh hosts, and
+docker daemons with the resources each may hand out. Changes take effect immediately.` Rows
+under `ssh` and `docker` headings. Empty: `no machines saved yet; a role can still name one
+directly`. Storage and semantics: [Machines › Environment
+providers](/reference/machines#environment-providers).
+
+| Row description | Format |
+| --- | --- |
+| ssh | `user@host[:port]` or `from ~/.ssh/config` / `…, from <config>`, then ` · key <path>`, ` · through <jump>`, ` · -o K=V, …` |
+| docker | `<endpoint> · <image> · runtime <r> · <cpus> CPUs, <mem>, GPUs <ids>\|no limits · max <n> containers` |
+| both | ` · working directory: <dir>`; ` · checking…` while checked |
+
+`enter` on a provider opens `<backend>/<name>`:
+
+| Row | Description | Effect |
+| --- | --- | --- |
+| `edit` | `edit saved settings` | Its form, without `name`; checked after saving (`<backend>/<name> updated`). |
+| `check` | ssh: `check host resources: home directory, CPUs, memory, and GPUs`; docker: `check daemon resources against its limits` | 30 s timeout: `checking <backend>/<name>…`, then `<backend>/<name> answers: …`, a yellow `lacks configured resources: …`, or red `… could not be reached: …` / `… could not be checked: …`. |
+| `remove` | `remove this host immediately` | At once: `<backend>/<name> removed`; yellow `<names> reached docker through this host; edit them`. |
+
+#### ssh host form {#ssh-form}
+
+Title `Add an ssh host` / `Edit ssh/<name>`; intro `A machine where flow environments run.
+Connects using your ssh config plus settings configured here. Keys are specified by path and
+never read.`
+
+| Row | Description |
+| --- | --- |
+| `alias` (edit, imported) | `the Host entry in <config>` |
+| `host` | `hostname, IP address, or user@host:port` (imported: `override host; leave blank to use the config`). On keep, `user@` and a numeric `:port` fill blank `user` and `port`. |
+| `name` (add) | `name used in -e and /flow`. Follows the host until typed: its first dotted label (an IP whole), characters outside `[A-Za-z0-9._-]` as `-`, leading `._-` stripped, `ssh` if empty, `-2`… to avoid saved names. |
+| `user` | `username; leave blank to use your ssh config` |
+| `port` | `leave blank to use your ssh config, or 22` |
+| `identity file` | `path to private key` |
+| `proxy jump` | `jump host to connect through, if any` |
+| `options` | `additional ssh options: KEYWORD=VALUE, …` |
+| `workdir` | `default working directory when -e specifies none: /abs or ~/path` |
+| `done` | `adds ssh/<name>, and checks its resources` / `updates …` |
+
+Refusals: `an ssh host named <name> already exists; edit it from its row, or choose a
+different name`, `port: '<x>' must be a number`, `options: '<x>' is not KEYWORD=VALUE`.
+
+#### docker host form {#docker-form}
+
+Title `Add a docker host` / `Edit docker/<name>`; intro `A docker daemon where flow
+environments run in containers: on this machine, over ssh, or at an address. Flows running on
+it are limited to the resources configured here.`
+
+| `endpoint` ▾ | Description | Extra rows | Saved as | Default name |
+| --- | --- | --- | --- | --- |
+| `local` | `the default docker daemon on this machine` | — | `local` | `local` |
+| `socket` | `a daemon's unix socket on this machine` | `socket` (`socket path: /run/docker.sock`) | `unix://…` | `docker` |
+| `tcp` | `a daemon listening at an address` | `address` (`host:port to connect to`), `tls` (`directory containing ca.pem, cert.pem and key.pem; blank for none`) | `tcp://…` | address's first label |
+| `saved ssh host` | `the daemon on a saved ssh host` | `on` ▸ (host picker) | `ssh:<name>` | the host's name |
+| `ssh address` | `the daemon on any host via ssh` | `address` (`[user@]host[:port]`) | `ssh://…` | address's first label |
+| `context` | `an existing docker context` | `context` (`docker context name`) | `context:<name>` | the context |
+
+Then `name` (add), `image` (`default image, unless specified by the flow`), `runtime` (`e.g.
+nvidia; blank for daemon default`), `run args` (`extra arguments for docker run`), `max
+containers` (`max concurrent containers; blank for no limit`), `workdir` (`default working
+directory when -e specifies no directory`), `cpus` (`max CPUs; blank to use all host CPUs`),
+`memory` (`e.g. 64G; blank to use all host memory`), `gpus` (`GPU IDs, e.g. 0, 1; blank to use
+all host GPUs`), `detect` (`detect host resources and fill them in`: `detecting resources on <endpoint>…`, then `detected …: auto-filled` with the cursor on `cpus`, or red `the daemon did
+not respond: …`), `done` (`adds docker/<name> and detects host resources`).
+
+Refusals: `a docker host named <name> already exists; …`, `memory: '<x>' must be a number and
+unit, such as 64G or 512M`, `cpus: '<x>' is not a number`, `max containers: '<x>' must be a
+number`, `run args: …`, `tls: home directory does not exist for '<x>'`.
+
+#### Import form {#import-form}
+
+Title `Import ssh hosts`; intro `Hosts from an ssh config, as read by ssh. Each is saved under
+its Host name and continues reading the config, which is never modified.` Row `from` (`the ssh
+config to read: default, or another file`, pre-filled `~/.ssh/config`), then an on/off row per
+`Host` as `ssh -G` resolves it (`user@host:port · key … · through …`). A host starts **off**
+with the reason: `invalid host name`, `<alias> already uses the name <name>`, `a manually added
+host is already saved as <name>`, `already imported` (on re-imports it). `done`: `imports
+nothing until a host is selected` / `imports <a>, <b>` / `imports <n> hosts`. Refusals: `the
+config is still being read`, `select at least one host to import`, `<config>: <error>`. Result:
+`imported <names> from <config>[; left <a>, <b>]. Open a host to check it.` Imported hosts are
+not checked.
+
+### Fallback page {#where-a-turn-goes-when-it-cannot-be-taken}
+
+Intro: `Where a turn falls back when an agent fails. An agent is a CLI, an account and a model.
+Saved rules apply from the next failed turn.` Rows: `<place> ✔  <n> retries, <policy>[, up to <for>] · falls back to <x>` or `… · no fallback`. Empty: `no fallback rules configured yet`.
+Semantics: [Providers](/reference/providers) and [Falling back](/user/settings#fallback).
+
+Rule form: title `Add fallback rule` (or the place when editing); intro `What happens when an
+agent cannot take a turn: retry as configured, then fall back to another agent in a new
+conversation.`
+
+| Row | Kind | Values | Default |
+| --- | --- | --- | --- |
+| `fails on` (new only) | ▸ | a place (`—` empty) | — |
+| `falls back to` | ▸ | a place, or `nowhere` | `nowhere` |
+| `tries` | ▾ | `none`, `1`, `2`, `3`, `5`, `8`, `13`, `21` | `none` |
+| `policy` | ▾ | `none` (`try again at once, with no wait at all`), `constant` (`the same wait every time: 1s, 1s, 1s`), `linear` (`one second longer each time: 1s, 2s, 3s`), `exponential` (`twice as long each time: 1s, 2s, 4s, 8s`), `exponential-jitter` (`exponential, each wait anywhere up to it -- for agents failing at once`), `fibonacci` (`the Fibonacci sequence: 1s, 1s, 2s, 3s, 5s`) | `exponential-jitter` |
+| `for` | ▾ | `no limit`, `30s`, `1m`, `5m`, `15m`, `60m` | `no limit` |
+| `remove` (edit) | | `removes this fallback rule when saved` | |
+| `done` | | `applies this fallback rule when /settings is saved` | |
+
+Place picker: `Select the agent that fails` / `Select the fallback agent for <place>`; `Here an
+agent is a CLI, an account and a model: what a turn can fail on. Search by any of the three.`
+Rows `<cli>[@<account>]/<model>` (each CLI here × each account × each model), `nowhere` first
+for a fallback (never the failing place); `<cli>[@<account>]/…  models not reported yet; select
+to query them` for an account not yet asked.
+
+Refusals: `select the agent that fails`, `an agent cannot fall back to itself`, `choose a
+fallback agent or set retries`. A place with a rule already pre-fills it: `<place> already has
+a fallback rule; done will update it`. Transcript on save: `<place> <rule>` or `<place> has no
+fallback`.
+
+### Flowverses page {#where-flows-come-from}
+
+Intro: `Where flows come from: git repositories with a flows/ directory cloned under humanize's
+home, and your own flows read in place. Changes take effect immediately.` Rows: `official`
+(`humanfia/flowverse` on GitHub), added ones alphabetically, `local` (`your own flows in
+.humanize/flows`), `user` (`your own flows in ~/.humanize/flows`); a URL has credentials
+removed; ` · not fetched yet` where never fetched. Same store as
+[`Hmz().verses`](/reference/sdk#flowverses).
+
+| Action | Rule |
+| --- | --- |
+| **Add a flowverse** | Form `Add a flowverse`: `repository` (`a URL, or owner/repo for one on GitHub`), `name` (`flowverse name, or leave blank for the repository name`); `done` `clones the repository and adds its flows`. Refusals: `repository URL is required`; `'<x>' is not a flowverse name: letters, digits, dot, dash and underscore, starting with a letter or a digit`; reserved and taken names. |
+| `enter` on a flowverse | Sheet titled with its name: `Flows loaded from <source>. To run a flow, use /flow, which lists flows from all flowverses.` Rows above: `fetch again` (`fetch` if never fetched), `remove <name>` (`including all its flows`, added ones only), `search…`; then its flows. Fixed ones: `<name> is always listed and cannot be removed`. |
+| fetch | `fetching <name>…`, then `<name> is fetched` (also in the transcript), or the error. `local`/`user`: `local is read from .humanize/flows, so there is nothing to fetch`. Not a clone: `<name> is not a git clone, so there is nothing to fetch; remove it instead`. |
+| remove | At once: `<name> was removed` (red; also in the transcript). |
+
+### First start {#first-start}
+
+Where neither `HUMANIZE_SENTRY` nor `settings.yaml` answers reporting:
 
 ```text
-  Add an account
-
-  ❯ 1. cli                claude ▾   installed here
-    2. way                key ▾      an Anthropic API key, from the console
-    3. name               key        account name
-    4. ANTHROPIC_API_KEY  ••••••     the API key
-    5. also for pi        on ▾       installed here
-    6. also for opencode  on ▾       installed here
-
-       done                          adds claude/key, for pi, opencode too
-
-  type to edit · esc back
+Report errors to humanize?
+Send error reports to help fix bugs. Sent: <…>. Never sent: <…>. You can change this later in /settings.
+❯ 1. yes
+  2. no
+enter choose · esc ask again next time
 ```
 
-| Row | |
-| --- | --- |
-| `cli` ▾ | The CLI it is for: the ones installed here first, then the rest, marked `not installed here yet`. Not asked where the CLI is already known. |
-| `way` ▾ | [How it signs in](/reference/providers#the-ways-in), with what that way is beside it. Changing it changes the rows under it. |
-| `name` | Written in for you: the way's own name, or `-2`, `-3` after it where an account of any CLI is already called that. The first letter typed replaces it. |
-| what the way asks | One row per question, under the variable it becomes. A secret is drawn as bullets. A way that asks nothing in particular (`env`) has one `variables` row, `NAME=VALUE` a line. |
-| `also for …` ▾ | One per other CLI the account could run (an Anthropic key in pi, opencode, mimocode), on where that CLI is installed here. Only variables travel: a login has none of these. |
-| `done` | Says what it will do, then does it: writes the account, copies it, and hands the terminal to the CLI's own login where the way has one. |
+Sent: the error and where in humanize it occurred; which flow was running, and what each agent
+was configured to run; which coding agents are installed, and account names; which skills and
+flowverses are active, by name; what humanize did that you undid, refused, or canceled; the
+version of humanize, of Python, and the operating system and architecture. Never sent: nothing
+you typed (no task, prompt, or command); no agent output, and nothing from any transcript or
+session log; no files, directory names, or paths outside humanize itself; no keys, tokens, or
+account credentials, not even environment variable names.
 
-- A row marked `▾` drops its values under it on <kbd>enter</kbd> or a click, the one in force
-  ticked; picking one keeps it. The cursor opens on `cli`. Picking `way` moves it to the first question still to be answered;
-  keeping an answer moves it to the next, then to `done`.
-- Once it lands, the account's CLI is asked what it runs, in the background: the row says
-  `checking models…`, and the line under the list says how many models it named or why it
-  named none.
+Answering writes `enable_sentry` and says `error reporting enabled; use /settings to turn it
+off` or `error reporting disabled; use /settings to turn it on`. `esc` leaves it unanswered.
 
-#### Environments {#environments}
+## Monitor {#watching-the-run}
 
-The machines a flow's environment roles can be put on, saved under a name that `-e` and
-`/flow` then name: ssh hosts, and docker daemons with what each may hand out, under a heading
-per backend. They are kept in `~/.humanize/env-providers/` (see
-[Machines › Environment providers](/reference/machines#environment-providers)).
+A screen over the log's prompt showing the run as a graph or a list. Reached by `←` with the
+editor empty, the offers closed and no menu up; never refused; never reached by `esc` or a
+command. `→` (editor empty) returns to the view last read; picking a node returns to that
+node's view. Commands work from its prompt as on the aggregate (view kind `monitor`), so
+`/claim` is refused there. `tab`/`shift+tab` do nothing on it. The cursor opens on
+`▣ all agents`. Redrawn every 0.5 s; when a run ends, every clock stops at its end.
 
 ```text
- ssh
- box                       me@box.example.com:2200 · key ~/.ssh/id_box · working
-                           directory: ~/proj
- gpu                       from ~/.ssh/config · working directory: ~/work
-
- docker
- local                     local · 16 CPUs, 64G, GPUs 0
-
- Add an ssh host   Add a docker host   Import ~/.ssh/config   Search…
- enter open   / search   tab actions   esc back
-```
-
-![The Environments page of /settings: the ssh hosts and the docker daemons under a heading
-each, above the buttons that add and import one](/demo/environments.png)
-
-| Row | |
-| --- | --- |
-| **Add an ssh host** | One form: `host` (`user@host:port` is taken apart into `user` and `port`), `name` (written in after the host, never one already saved), `user`, `port`, `identity file` (a path; never read), `proxy jump`, `options` (`KEYWORD=VALUE, …`), `workdir`, then `done`. |
-| **Add a docker host** | One form: `endpoint` ▾ (`local`, `socket`, `tcp` with a TLS directory, `saved ssh host` ▸, `ssh address`, `context`) and the row that way asks, `name`, `image`, `runtime`, `run args`, `max containers`, `workdir`, then what it may hand out: `cpus`, `memory` (`64G`, in docker's units of 1024) and `gpus` (`0, 1`), each blank to use all the host has. `detect` asks the daemon and writes what it has into those three to be typed over, the cursor on the first. |
-| **Import ~/.ssh/config** | A form: `from`, the config to read (yours, or a path typed over it), then a switch per host it names, as `ssh -G` resolves it: on, unless it is saved already. The cursor lands on `done`, which saves each host switched on under its `Host`. Nothing is written to the config. |
-| a provider | What there is to do with it (below). |
-
-| On one provider | |
-| --- | --- |
-| **edit** | Its form again, less the name; an imported host has an `alias` row too. |
-| **check** | An ssh host is reached as a run reaches it, with nobody there to type a password: its home, CPUs, memory and GPUs. A docker daemon is asked `docker info`, and what it is saved to hand out and has not got is said in yellow. Given 30 seconds, in the background. |
-| **remove** | It is saved no more. A docker host that reached its daemon through it is named. |
-
-- Everything here happens at once, so the page has no **Save** button. A provider added or corrected
-  is checked as it lands, and the line under the list says what it answered or why it could not
-  be reached.
-- A search narrows by name, backend, and what the row says.
-- The same providers are [`Hmz().environments`](/reference/machines#environment-providers).
-
-#### Fallback {#where-a-turn-goes-when-it-cannot-be-taken}
-
-A list of steps between **places**. A place is a CLI, an account and a model: what a turn can
-fail for having named (a retired model, a CLI that will not start, a rate limit on the whole
-account). The effort and what the agent may reach for carry across a step unchanged.
-
-```text
-  /settings › Fallback                                     ● unsaved changes
-  Where a turn falls back when an agent fails. An agent is a CLI, an
-  account and a model. Saved rules apply from the next failed turn.
- ╭──────────────────────────────────────────────────────────────────────────╮
- │ claude@work/claude-opus-5 ✔ 3 retries, exponential · falls back to        │
- │                             codex@key/gpt-5.6-sol                         │
- │ codex@key/gpt-5.6-sol ✔     falls back to dsh/deepseek-v4-flash           │
- ╰──────────────────────────────────────────────────────────────────────────╯
- Add fallback rule   Search…                                           Save
- enter edit   / search   tab actions   esc back
-```
-
-- **Add fallback rule** opens one form: `fails on` ▸, `falls back to` ▸, then `tries`,
-  `policy` and `for` ▾, then `done`. Each place row opens one list of every place (each CLI here, as each
-  of its accounts, at each model it runs), searched by any of the three; an account that has not
-  said what it runs is a row of its own, and choosing it asks. `falls back to` offers `nowhere`
-  first and never the place that fails.
-- <kbd>enter</kbd> on a step opens the same form for it, with `remove` above `done`.
-- A place cannot fall back to itself; a chain that comes round ends at the second sight of a
-  place. A step that falls back nowhere and tries nothing again is refused: `choose a fallback
-  agent or set retries`.
-- An account failing over to another account of the same CLI is on
-  [Accounts](#the-accounts-themselves), not here.
-- Held until saved, then read by the next turn that fails. The same steps are
-  [`Hmz().fallbacks`](/reference/sdk). What they mean is [Falling back](/user/settings#fallback).
-
-A step's three ways of trying again are each picked from the list dropped under the row:
-
-| Row | Offers |
-| --- | --- |
-| `tries` | `none`, 1, 2, 3, 5, 8, 13, 21 retries |
-| `policy` | `none`, `constant`, `linear`, `exponential`, `exponential-jitter` (the default), `fibonacci` |
-| `for` | `no limit`, `30s`, `1m`, `5m`, `15m`, `60m` |
-
-#### Flowverses {#where-flows-come-from}
-
-Where flows come from: each a git repository with a `flows/` directory, cloned under
-`~/.humanize/flowverses/`, plus your own `local` and `user`. `manage flowverses` on `/flow`
-opens `/settings` on this page.
-
-![The Flowverses page of /settings: official, which holds `chat` from the package and, at its
-GitHub URL, the rest, marked as not fetched yet](/demo/flowverses.png)
-
-| Row | |
-| --- | --- |
-| **Add a flowverse** | Adds one: a URL or `owner/repo`, then a name to keep it under (blank for the repository's own); `done` clones it. |
-| a flowverse | What it holds: `fetch again` (or `fetch`) and the row that takes it away, then a row per flow. `official`, `local` and `user` cannot be taken away, and say why; `local` and `user` have nothing to fetch. |
-
-- A place never fetched is listed anyway, with its URL and `not fetched yet`.
-- Nothing on this page is held, so it has no **Save** button.
-- Each happens as you ask: a clone runs in the background, and what came of it is said under
-  the list and again in the transcript.
-- Every start of the interface fetches every flowverse that has a URL, quietly and one at a
-  time, except a clone you have written into. It stops if a flow starts. A fetch that brings
-  something down makes any open list of flows read them again.
-- `manage flowverses` is refused while `/flow` is still fetching the place it opened on.
-- Nothing here is refused while a flow runs.
-- The same is [`Hmz().verses`](/reference/sdk): `add`, `fetch`, `remove`, `holds`.
-
-### `/epics` {#the-runs-that-have-already-happened}
-
-Every run of a flow in this directory, newest first.
-
-![The /epics list: two runs, each with when it began, the flow that ran, what it was asked to
-do and how many sessions it opened, the newer one marked "resumable"](/demo/epics.png)
-
-- A row is when the run began and the flow; beside it, the task, how many sessions it opened,
-  and `resumable` where its flow says it can be picked up and it left a journal. How it ended is
-  shown only when it did not finish: stopped, failed, or unfinished.
-- `search…` searches the flow, the task and the run's name.
-- <kbd>enter</kbd> goes into a run: where it is written down, then what to do with it.
-
-![Inside one run: its directory, how it went and how much it opened, over resume run and
-export run](/demo/epic-does.png)
-
-| Row | |
-| --- | --- |
-| **resume run** | Picks the run up: its own flow, agents, environments, params, budget and task, from where its journal got to. [`/resume`](#carrying-the-last-one-on-outright) with the run named, refused for the same reasons in the same words. Offered only where the flow says **now** that it can be picked up. |
-| **export run** | Packs **that run** into `.humanize/<run>.epic.tar.gz`: its records, every session log in full, a manifest, and a [trace](/user/tracing) of its sessions (and programs, for a [profiled](/reference/tracing#profiling-a-run) run), which also lands in the run's own `traces/`. Where it landed and how big are said under the list. See [Exporting a run](/user/export). |
-
-Reading is not refused while a flow runs; resuming is. The same calls are
-[`Hmz().epics.traced(epic)`](/reference/sdk) and `Hmz().epics.bundled(epic)`. A trace of a
-directory's sessions regardless of run is `Hmz().epics.trace()`, and is not offered here.
-
-#### `/resume` {#carrying-the-last-one-on-outright}
-
-`/resume` picks up **the last run here of a flow that can be picked up**, without the list: its
-flow, agents, environments, params, budget and task come off that run, and the line it starts
-on says which run. Runs of flows that cannot be picked up are passed over; nothing further back
-is. What the budget spent is counted again from nothing. It takes no arguments; naming an older
-run is what `/epics` is for.
-
-| Says | When |
-| --- | --- |
-| `no flow has been run here` | Nothing has run in this directory. |
-| `no run here was of a flow that can be resumed` | Every run was of a flow that neither said nor says so. |
-| `<run> cannot be read` | Its record is not one. |
-| `<flow> does not support resuming` | Asked of the flow as it is today. A flow that will not load says no. |
-| `<run> has no saved state to resume` | Killed before its journal held anything. Say what to do and the flow starts from the top. |
-| `cannot resume a run while a flow is running` | [Stop it](#stop) first. |
-| `cannot resume a run while the flow is still stopping` | Wait for it to unwind, or [press ctrl+c](#ctrl-c) once more. |
-
-`hmz exec --resume` is the command-line equivalent: see
-[Picking a run up](/reference/cli#picking-a-run-up).
-
-### The monitor {#watching-the-run}
-
-The run, drawn across the whole screen, over the log's own prompt. It is the parent of the log:
-<kbd>←</kbd> with nothing typed goes up to it, and picking a node reads that node's log. It is
-never refused, redraws itself while up, and every command works from its prompt. There is no
-command for it, and <kbd>esc</kbd> does not open it.
-
-```text
-   graph   list
+   graph  list
 ❯ ▣ all agents · 1 of 2 working · 17 turns · 7m11s · reading
+  ◉ human · outworlder: messages from the flow to you · yours
   ┌──────────────────────────────────────────────────────────────────────┐
   │ ▸ ● builder                                                      43s │
   │ claude/claude-opus-5:high · 12 turns · 48.2k tokens                  │
   │ ▤ repo docker                                                        │
   └──────────────────────────────────────────────────────────────────────┘
-    ├╴◆ Task read the tests
-    └╴◇ Task find the flaky one
+    ├╴◆ read the tests
+    └╴◇ find the flaky one
   │   ↓ 6 · ↑ 5
   ┌──────────────────────────────────────────────────────────────────────┐
   │ ▾ ○ reviewer                                              idle 1m04s │
@@ -1074,156 +1257,222 @@ command for it, and <kbd>esc</kbd> does not open it.
         ▤ repo · docker · builders · /work
 
 Flow:             humanize1:rlcr   431s
-Set:              max                          20
+Set:              max                               20
 
-Tokens:           claude-opus-5        48.2k    $1.34   91 out/s
-                  gpt-5.6-sol           9.1k             12 out/s
-Kinds:            input                 1.2k
-                  output                 980
-                  cache_read           46.0k
-                  cache_write           9.1k
+Tokens:           claude-opus-5                48.2k     $1.34   91 out/s
+                  gpt-5.6-sol                   9.1k             12 out/s
+Kinds:            input                         1.2k
+                  output                         980
+                  cache_read                   46.0k
+                  cache_write                   9.1k
 ────────────────────────────────────────────────────────────────────────
 ❯
 ────────────────────────────────────────────────────────────────────────
-  ▣ monitor · graph  ↑↓ node · space sessions · enter open · → back · ctrl+t list
+  ▣ monitor · graph        ↑↓ node · enter open · → back · ctrl+t list
 ```
 
-| Part | |
+### Nodes {#monitor-nodes}
+
+In order: the all-agents node, outworlder nodes, the graph or list, the board.
+
+| Node | Format | `enter` / click |
+| --- | --- | --- |
+| all agents | `▣ all agents · <w> of <n> working · <t> turn(s) · <clock>[ · reading]`; `<n>` agents drawn, `<t>` all their turns, `<clock>` the run's age | reads the aggregate |
+| outworlder | `◉ <role> · outworlder: messages from the flow to you[ · yours\|<name>'s][ · reading]`; declared order, then order first asked | reads its view |
+| agent box | see [Graph](#monitor-graph) | reads the role's view |
+| session | see Graph | reads `<role>/<n>` |
+| environment | `▤ <role> · <kind> · <target> · <workdir>` | opens its [page](#an-environment-s-page) |
+| board line | `◈ <name> <value>[ · flow's\|user's]` | edits it; refused for a `flow` line: `<key> can only be changed by the flow` |
+| `+ add entry` | | adds a board line |
+
+Clocks: `<n>s` under a minute, `<m>m<ss>s` under an hour, else `<h>h<mm>m`. Token counts as in
+the [cost readout](#cost-readout).
+
+### Graph {#monitor-graph}
+
+| Element | Rule |
 | --- | --- |
-| `graph` `list` | The switch above the drawing, the way it is drawn now lit. A click on the other half, or <kbd>ctrl+t</kbd>, turns to it; the monitor opens again the way it was left. |
-| `▣ all agents` | The first node, where the cursor starts: how many boxes are working, the run's turns and time. <kbd>enter</kbd> reads the shared transcript. |
-| `◉ <role> · outworlder` | Under it, a node per outworlder of a run that talks to you, with `yours` or `<name>'s` where somebody [holds it](#several-people-on-one-run). <kbd>enter</kbd> reads what the flow says to you. |
-| a box | One per agent that has taken a turn, in the order the flow declares them. Left: `▸` shut or `▾` opened out, `●` working or `○` idle, the name, what it runs, its turns, its sessions where it has more than one, and the tokens its backend reported; a third line names the environments its sessions work in. Right: how long the open turn has run, or `idle` and how long since its last; `reading` or `unread`. <kbd>enter</kbd> reads it, working or ended. |
-| `├╴○ session <n>` | Under an agent opened out with <kbd>space</kbd>, a row per session that has taken a turn: its turns, tokens and clock. <kbd>enter</kbd> reads that session's own log. |
-| `▤ <role> · <kind> · <target> · <workdir>` | Under each session, the environment it works in. <kbd>enter</kbd> opens [its page](#an-environment-s-page). |
-| `├╴◆` `└╴◇` | Sub-agents it started of its own, under the box, or under the session that started them once the box is opened out: `◆` still going, `◇` back. Only from [backends that report them](/reference/agents#not-every-backend-runs-every-moment). A long fleet is cut, with a count. |
-| `↓ 6 · ↑ 5` | Handovers between neighbouring boxes, each way; the latest one lit. |
-| `Flow` | What is running, nested flows indented under the flow that called them, each with its time. |
-| `Set` | The flow's params that are not at their defaults. |
-| `Reading` | Where [more than one frontend](#several-people-on-one-run) reads the runs: each by name, yours marked `you`. |
-| `Agents` | Before any agent has worked: the agents set up, in place of the boxes. |
-| `Also` | On the graph, handovers between boxes that are not neighbours. |
-| `Tokens` | One row per model, biggest first: tokens, money (blank where unpriced), output tokens a second. |
-| `Kinds` | The run's tokens by kind, over every model. `+` marks a floor. |
-| the last line under them | What the last command typed here answered. |
-| the status line | `▣ monitor`, `graph` or `list`, and the keys that work now. |
+| Boxes | One per agent role that is working or has taken a turn, in the flow's declared order (others after, as first seen). Width `max(24, min(72, width − 8))`. |
+| Box line 1 | `▸\|▾ ●\|○ <role>`; right: the open turn's clock (earliest where several), or `idle <since last turn>`. `▸` shut, `▾` opened, `●` working. |
+| Box line 2 | `<cli>/<model>:<effort> · <n> turn(s)[ · <n> sessions][ · <k> tokens]`; right: `reading` or `unread`. Left part cut with `…`. |
+| Box line 3 | `▤ <role> <kind>[ · …]`: the environments of its sessions that have taken a turn. |
+| Handovers | Above each box but the first: `│   ↓ <d> · ↑ <u>` (zero sides omitted), or `┆` where none happened. Highlighted where the run's latest handover was. A handover is a turn starting on another agent than the one that last ended. |
+| Sub-agents | Under a shut box, or under each session of an opened one: `├╴◆ <about>` (running), `├╴◇ <about>` (done), `└╴` last; the first 4, then `└╴◇ and <n> more`. |
+| Sessions (opened agent) | `├╴●\|○ session <n> · <t> turn(s) · <k> tokens`, right `[reading · \|unread · ]<clock>`; `reading` also while the agent's view is read. None: `└╴no session has said which it is`. |
+| Environments (opened agent) | Under each session: `│   ▤ <role> · <kind> · <target> · <workdir>`. |
+| Nothing yet | `no agent has taken a turn yet; agents appear as they take turns` |
 
-The arrows, <kbd>space</kbd> and <kbd>enter</kbd> are the graph's only while nothing is typed;
-once you type, they are the prompt's. <kbd>space</kbd> on a session or an environment shuts the
-agent it hangs under.
+### List {#monitor-list}
 
-**With the mouse**, a click does what <kbd>enter</kbd> does, except on an agent: on its left
-edge, where `▸` is, or on the agent the cursor is already on, it opens the agent out or shuts
-it; anywhere else it moves the cursor there, and a double click reads it.
+`ctrl+t` or a click on `graph`/`list` switches; the choice and the opened agents persist for
+the process, not across launches.
 
-**The list** (<kbd>ctrl+t</kbd>) is the same nodes as rows, without the handovers: every agent,
-the sessions of the ones opened out, and every environment, each with what it runs or where it
-is, its turns (an environment's sessions), its clock and its tokens. Whatever is working is at
-the top; the rest keep their order, so a row moves only when what it is about starts or stops.
-
-#### An environment's page
-
-Opened with <kbd>enter</kbd> or a click on an environment, and live while it is up:
-
-| Row | |
+| Element | Rule |
 | --- | --- |
-| `kind` | `LOCAL`, `SSH` or `DOCKER`. |
-| `target` | The ssh host or docker provider, or `this machine`. |
-| `workdir` | Where on it its sessions work. |
-| `set up as` | Its `-e` spelling, where it was set up here. |
-| `image` | What a container for it starts from, where the flow names one. |
-| `grants` | The environment capabilities the flow declared for the role. |
-| `needs` | CPUs, memory and GPUs the flow asks of the machine. |
-| `harness` | Where its agents run: on this machine, anchored to an ssh or docker environment so that what they run lands there. |
-| `status` | How many of its sessions are working. |
-| `Sessions` | Each session working in it; <kbd>enter</kbd> or a click reads one. |
+| Header | `node`, `runs · where`, `turns`, `time`, `tokens` |
+| Rows | Every agent (`▸\|▾ ●\|○ <role>[ reading\|unread]`, spec, turns, clock, tokens); under each opened agent its sessions (`<role> · session <n>`, spec, turns, clock, tokens); then every environment once (`▤ <role>`, `<kind> · <target> · <workdir>`, `<n> session(s)`, no time or tokens). |
+| Order | Working rows first (stable), the rest in the order above. |
+| Absent | Handovers, sub-agents, `Also`. |
 
-<kbd>esc</kbd> goes back to the monitor.
+### Sections {#monitor-sections}
 
-**The board** sits under the diagram where the run keeps one: named lines you and the flow both
-write, each a node the arrows reach. <kbd>enter</kbd> on `+ add entry` puts one up (a name,
-then its value), <kbd>enter</kbd> on a line changes it, and a line saved empty is taken off at
-once. A line the flow wrote is the flow's to change. Where the run keeps no board, none is
-drawn. See [The mission board](/user/board).
+Label `<Field>:` padded to 18; groups separated by a blank line: (`Flow`, `Agents`, `Set`,
+`Reading`), (`Also`), (`Tokens`, `Kinds`), then the last line.
 
-After a run ends, its boxes stay, with every clock stopped where the run stopped.
-
-## At the prompt
-
-### Completion
-
-A half-typed line is offered what it could become, in a list above the editor:
-
-| Typed | Offered |
+| Section | Content |
 | --- | --- |
-| `/` | The commands that would do something now, each with what it takes and a line about it. See [Slash commands](#commands). |
-| `/flow ` | Every flow: humanize's own, every fetched flowverse's, and your `local/` and `user/` ones. Nothing while a flow runs. |
-| `$` | The same flows, while the word after `$` is being typed. What follows is the task, and is not completed. Nothing while a flow runs. |
+| `Flow` | Each flow call running: its name as offered, `   <s>s`; nested calls indented 2 per level with `▸ `. No calls: the flow's name. |
+| `Agents` | Only before any box: `<role> · <cli>/<model>:<effort>[ · <account>]` per role. |
+| `Set` | Params not at their default: name padded to 34, value. |
+| `Reading` | Where more than one frontend: `<name> · you` first, then the others. |
+| `Also` | Graph only: handovers between non-adjacent boxes, `<a> → <b> · ×<n>`. |
+| `Tokens` | Per model, largest first: name (26), tokens (8), money (10, blank where unpriced), `   <n> out/s`. Nothing yet: `no tokens used yet`. |
+| `Kinds` | Per kind (fixed order, as the readout): name (26), tokens (8), `+` for a floor; then `+ is a minimum: not all agents report this kind` where any `+`. |
+| last line | The first line of whatever the interface last showed (command answers, errors, `— the flow is done —`, board saves). |
 
-- A word already written out in full is offered nothing, so <kbd>enter</kbd> sends `/settings`
-  as it is.
-- Taking an offer replaces the word being typed.
-- Offers follow the cursor as well as the text: with the cursor mid-line, nothing is offered.
-- Nothing is offered while a question is up against a `$` line, nor on a line reached by
-  walking history.
-- A flow anywhere else is a path, and is typed.
+### Monitor keys and mouse {#monitor-keys}
 
-### History
+| Input | Condition | Effect |
+| --- | --- | --- |
+| `↑` `↓` | editor empty, offers closed | Previous / next node, wrapping. The cursor follows its node across redraws. |
+| `enter` | editor empty | Opens the node (table above). |
+| `space` | editor empty | On an agent: opens/shuts it. On its session or environment: shuts the agent and moves to it. Elsewhere: nothing. |
+| `→` | editor empty, offers closed | Back to the log. |
+| `ctrl+t` | always | Graph ↔ list. |
+| `ctrl+c` | text typed | Clears it. |
+| click | a non-agent node | As `enter`. |
+| click | an agent, on its first 8 columns (gutter, `▸`, `●`), or an agent already under the cursor | Opens/shuts it. |
+| click | an agent elsewhere | Moves the cursor. |
+| double click | an agent | Reads it. |
+| click | `graph` / `list` | Switches. |
 
-Every line you send is kept in `~/.humanize/history.jsonl`: tasks, words put into a running
-flow, commands. <kbd>↑</kbd> and <kbd>↓</kbd> walk what was typed **in this directory**, or
-everything typed anywhere where nothing has been typed here yet. Which of the two is settled as
-the interface opens.
+Status line: `▣ monitor · graph|list`; right side `enter send · ctrl+c clear` while typing,
+else `↑↓ node[ · space sessions| · space shut] · enter open · → back · ctrl+t <other> · /
+commands`, dropped from the **end** to fit.
 
-### Selecting and copying
+### Environment page {#an-environment-s-page}
 
-Drag across the screen with the mouse, and what you dragged across is on your clipboard when
-you let go. The status line says `copied` for two seconds.
+Title: the environment's role (or kind). About: `An environment of the run: where its sessions
+work.` Redrawn every 0.5 s. Keys: `enter read session · esc back`. Gone from the run: `This
+environment is not in the run.`
+
+| Row | Value |
+| --- | --- |
+| `kind` | `LOCAL`, `SSH`, `DOCKER` |
+| `target` | the ssh host or docker provider, or `this machine` |
+| `workdir` | as the run reported it |
+| `set up as` | the role's `-e` spelling |
+| `image` | the image the flow declares for the role |
+| `grants` | the role's environment capabilities (class names without `EnvMixin`), or `nothing beyond running in it` |
+| `needs` | `<n> CPUs · <x> GiB memory · <n> GPU(s) · <x> GiB per GPU` (declared parts only) |
+| `harness` | `on this machine; what it runs lands here` for an `ssh`/`docker` environment, `on this machine, in this workdir` for `local`. Reflects the environment's kind only; where each session's harness actually ran is its [`opened.harness`](/reference/daemon#history-records) and the transcript's harness line. |
+| `status` | `<w> of <n> session(s) working` |
+| `Sessions` | `●\|○ <role> · session <n> · <spec>` (or the bare key before its first turn); `enter` or a click reads it and leaves the monitor. |
+
+Empty rows are omitted.
+
+### Board {#the-board}
+
+Drawn only where the run keeps a board: a blank row, `Board · shared by you and the flow`, one
+`◈` row per line, `+ add entry`. Owners: `both` (no suffix), `user`, `flow` (read-only here).
+The entry sheet (`Board entry` or the key; `Shared by you and the flow. Neither waits for the
+other.`) asks `name` then `value`. Messages: `<name> saved to the board`, `<name> removed from
+the board` (saved empty), `nothing was entered, so nothing was saved`, `a board entry needs a
+name`, `<name> can only be changed by the flow`. Changes are sent at once. See
+[The mission board](/user/board).
+
+## Completion {#completion}
+
+| Typed (cursor at the end) | Offered |
+| --- | --- |
+| `/<partial>` (one word) | Commands available now, alphabetically, whose name starts with it. |
+| `/flow <partial>` | Flow names (no run going). |
+| `/settings <partial>` | The six page names, in page order. |
+| `$<partial>` (one word) | `$<flow>` for every flow (no run going); the flow list is cached 2 s. |
+| three or more words | Nothing. |
+
+| Rule | |
+| --- | --- |
+| Row | `<offer> <takes>` padded to 19, then the about text dimmed. |
+| Exact word | A word already equal to an offer is offered nothing. |
+| Hint row | Where nothing is offered and the first word is an available command: one unselectable row `/<name> <takes>  <about>`. `enter` still sends. |
+| Suppressed | Cursor not at the end; line reached by walking history (until a non-arrow key); a `$` line while a question is answerable; after `esc` until the text changes. |
+| Taking | Replaces the last word and appends a space. |
+
+## History {#history}
+
+`$HUMANIZE_HOME/history.jsonl`, one JSON object per line: `{"at", "workdir", "text"}`. Every
+sent line is appended (tasks, lines to agents, answers, commands, btw questions); blank lines
+and a line equal to the previous are skipped. No size limit. At start, if any entry's `workdir`
+equals the resolved working directory, `↑`/`↓` walk only this directory's entries, otherwise
+every entry. Walking off the newest end restores the draft.
+
+## Selecting and copying {#selecting-and-copying}
 
 | Gesture | Copies |
 | --- | --- |
-| drag | Everything from press to release, across lines. |
-| double click | The word under it, up to the spaces either side, so a path or an id comes whole. |
-| triple click | The whole line, however many rows it was drawn over. |
-| <kbd>shift</kbd> + drag | Your terminal's own selection, copying the screen as drawn. |
+| drag | From press to release, across lines, on release. |
+| double click | The word under the pointer, bounded by spaces. |
+| triple click | The whole logical line, however many rows it wraps over. |
+| `shift` + drag | The terminal's own selection. |
 
-- What comes back is what was written, not what was drawn: a long line wrapped over four rows
-  copies as one line, without the padding.
-- The opening box copies as drawn, borders and all.
-- The editor and a menu's lists select for themselves; a click on a list is still a choice.
-- Resizing the terminal drops the selection.
-- It reaches the clipboard through OSC 52, so over ssh it lands on the machine you sit at. Some
-  terminals need it turned on: `set-clipboard on` in tmux, clipboard write in VTE-based ones.
+Copies are the text as written (unwrapped, unpadded), through OSC 52 (over ssh, to the local
+clipboard; tmux needs `set-clipboard on`). The editor and menu lists select for themselves; a
+click in a list is still a choice. A selection is dropped when its view is cleared or switched
+and when the width changes. The status line says `· copied` for 2 s.
 
-## What it remembers
+## What it remembers {#what-it-remembers}
 
-Opening the interface again in the same directory finds it as you left it: the flow last set
-up, and for each flow this directory has run, what fills each agent role and as which account,
-where each environment role is, its params, its budget and where its harnesses run. It is kept in
-`~/.humanize/settings.yaml` (see [Files](/reference/cli#files)).
+`$HUMANIZE_HOME/settings.yaml`. Full schema: [Settings](/reference/settings).
 
-- **Per flow**, keyed by the name the flow is offered under: `chat`, `local/<flow>`,
-  `user/<flow>`, `<flowverse>/<flow>`. A flow of yours never inherits the setup of another
-  flow with the same bare name.
-- **Per role**, by the name the flow declares it under, so a flow that grows a role is asked
-  about again.
-- **Params** read back through the flow's own `FlowParams`: a field since dropped or renamed is
-  asked again.
-- **Details**, as `details: true` or `false` at the top of the file, for every directory: the
-  interface opens showing the working or not, as it was last left.
+| Key | Scope | Written by |
+| --- | --- | --- |
+| `enable_sentry` | machine | Error reports, the first-start question |
+| `details` | machine | Details |
+| `btw` | machine | /btw agent |
+| `workspaces.<dir>.flow` | directory | saving `/flow` |
+| `workspaces.<dir>.profile` | directory | Profiling |
+| `workspaces.<dir>.flows.<flow>.{agents, envs, params, budget, harness}` | directory, per flow | saving `/flow` |
 
-## Colours
+`<flow>` is the name the flow is offered under (`chat`, `local/<f>`, `user/<f>`,
+`<flowverse>/<f>`), so two flows with one bare name never share a setup. Roles are keyed by
+their declared names. Params are read back through the flow's `FlowParams`. Away, claims, the
+monitor's graph/list choice and the harness's `(last run)` are not persisted.
 
-Drawn in your terminal's own sixteen colours and their reversals, on your terminal's
-background. It never asks the terminal what its colours are. `NO_COLOR` is honoured.
-`TEXTUAL_THEME` names a Textual theme to use instead; an unknown name is ignored.
+## Colours {#colours}
 
-## What it will not do
+The `terminal` theme: every surface is the terminal's default background; primary blue,
+secondary cyan, accent bright black, warning yellow, error red, success green; the cursor blue
+on bright white. `TEXTUAL_THEME` naming an available Textual theme replaces it; an unknown
+name is ignored. The terminal is never queried for its colours. `NO_COLOR` is honoured by
+Textual.
 
-- **Open another way.** `hmz` with no command is the only way in.
-- **Run two flows at once.** While one runs, `/flow` opens on its roles and `$` is refused.
-- **Close on a bad line.** A line it cannot carry out is shown and the interface stays up. It
-  closes on `/exit`, <kbd>ctrl+q</kbd>, or <kbd>ctrl+c</kbd> twice with nothing running; with a
-  flow running, the first two ask first and one answer leaves the run going.
-- **Ask the flow about itself.** Everything drawn is read off the turns going past; a flow is
-  Python that may branch any way it likes.
+## Environment variables {#environment-variables}
+
+| Variable | Effect |
+| --- | --- |
+| `HUMANIZE_HOME` | Location of `settings.yaml`, `history.jsonl`, `prices.json`, and everything else. |
+| `HUMANIZE_DAEMON` | `off`/`0`/`no`: [runs held in process](/reference/cli#where-runs-are-held). |
+| `HUMANIZE_NAME` | This frontend's name before `@tui`. |
+| `HUMANIZE_SENTRY` | `on`/`1`/`true`/`yes` or `off`/`0`/`false`/`no`: answers reporting for this process. |
+| `HUMANIZE_PRICES` | Price source URL or path; `""`, `off`, `0`, `no`, `none`: none. |
+| `TEXTUAL_THEME` | Theme. |
+| `NO_COLOR` | No colour. |
+| `TMUX`, `TERM_PROGRAM`, `LC_TERMINAL` | [Keyboard protocol](#keyboard-protocol). |
+
+## Timings {#timings}
+
+| Constant | Value |
+| --- | --- |
+| Status line and monitor redraw | 0.5 s |
+| `ctrl+c` double-press window | 3.0 s |
+| `· copied` | 2.0 s |
+| Cost readout recompute | ≤ 5 s; rate window 300 s |
+| Backend log polling | 1.0 s |
+| Model list considered stale | 7 days |
+| Price list refresh | older than 24 h, ≤ 1 try/hour, 20 s timeout |
+| Environment check | 30 s |
+| Exit dialog `force` | waits ≤ 10 s |
+| Transcripts kept | 32 × 2 000 lines |
+| Pinned lines | 5 |
+| btw asks per question | 4 |

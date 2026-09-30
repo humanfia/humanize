@@ -14,6 +14,38 @@ flow ─── the loop: who is asked what, and until when
                          └── session ─── turn …
 ```
 
+## One run, in these words
+
+Most of the words below meet in a single command. This one runs the [`rlar`](/flows/rlar)
+flow, where an actor works and a reviewer checks each of its turns:
+
+```sh
+hmz exec -f rlar \
+    -a actor=claude/claude-opus-5-5:high \
+    -a reviewer=codex/gpt-5.6-sol:high \
+    -b duration=2h,cost=10 \
+    "fix the flaky payment test"
+```
+
+1. **`-f rlar`** names the [flow](#flow): the loop that says who is asked what, and when to
+   stop.
+2. **`actor=` and `reviewer=`** are its two [roles](#role). Each is filled with an
+   [agent](#agent): a [backend](#backend) (`claude`, `codex`), a model, and an
+   [effort](#effort) (`high`). With no `@`, each runs as the [provider](#provider) you signed
+   the CLI in as.
+3. **`-b duration=2h,cost=10`** is the [budget](#budget): the run stops at two hours or ten
+   dollars, whichever comes first.
+4. **The quoted line** is the task.
+
+While it runs, the actor keeps one [session](#session) and the reviewer opens a fresh one
+every round; each exchange inside a session is a [turn](#turn). All of them work in the
+[workspace](#workspace), the directory you ran the command in, which is the run's one
+[environment](#environment). The whole run is written down as an [epic](#epic), and afterwards
+its [trace](#trace) shows every turn on one timeline.
+
+The same run at the prompt is `/flow`, the same choices made in menus, and the task typed at
+`❯`. See [Your first run](/user/first-run).
+
 ## Agent
 
 What fills one role of a flow: a [backend](#backend), a model and an [effort](#effort), and
@@ -89,7 +121,7 @@ of the home directory, the machine, and the web. See [Permissions](/user/permiss
 ## Provider
 
 A named account for one backend, kept apart from the CLI's own login: a login, an API key, or a
-gateway. It is the `provider` row of an agent, where `as local` means the CLI as you signed it
+gateway. It is the `account` row of an agent, where `as local` means the CLI as you signed it
 in. See [Accounts](/user/settings#accounts).
 
 ## Role

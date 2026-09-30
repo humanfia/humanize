@@ -1,8 +1,19 @@
 # Build a coding agent
 
-**An afternoon.** You take one loose sentence, "a small terminal coding agent for
+In this tutorial you take one loose sentence, "a small terminal coding agent for
 `deepseek-v4-flash`", through the three phases of [`humanize1`](/flows/humanize1). Each phase
-is a flow of its own, and each hands the next a file you can read and edit:
+is a flow of its own, and each hands the next a file you can read and edit.
+
+::: info At a glance
+- **You will learn** how to run a job in phases, reading and editing what each phase hands the
+  next; how a flow's params change what it does; and how a builder is kept to a plan under
+  review.
+- **You will end with** a draft, a plan and a working coding agent, as in the table below.
+- **Time:** an afternoon.
+- **You need** humanize and one signed-in coding agent CLI. Phase 3's builder must be Claude
+  Code, Codex, Grok Build or Kimi Code; every other role runs on any backend, DeepSeek Harness
+  included.
+:::
 
 | Phase | You end with |
 | --- | --- |
@@ -10,44 +21,18 @@ is a flow of its own, and each hands the next a file you can read and edit:
 | 2&nbsp;·&nbsp;plan | `docs/plan.md`: a plan two agents argued over, with acceptance criteria |
 | 3&nbsp;·&nbsp;build | a working coding agent, built round by round under review, with its tests |
 
-::: tip Before you start
-Do the [quickstart on the home page](/#run-a-flow) first. Phase 3's builder must be Claude
-Code, Codex or Kimi Code. Every other role runs on any backend, DeepSeek Harness
-included.
-:::
+## Before you start
 
-## Step 1: make a repository
+- **Install humanize and sign in to a coding agent CLI.** See
+  [Installation](/user/installation).
+- **Make one run first.** [Your first run](/user/first-run), or the
+  [quickstart on the home page](/#run-a-flow), shows a flow working in a scratch repository.
+- **Open `hmz` once.** `humanize1` comes from the official [flowverse](/weaver/flowverses),
+  and opening `hmz` in any directory is what fetches it. `hmz exec` does not. Leave with
+  `/exit`.
 
-```sh
-mkdir -p ~/tmp/flashagent && cd ~/tmp/flashagent
-git init -q
-echo "# flash-agent" > README.md
-printf '.humanize/\ndocs/plan.md\n' > .gitignore
-git add -A && git commit -qm "init"
-```
-
-It has to be a git repository, because phase 3 reads every review against the commit the plan
-was fixed in. The `.gitignore` keeps the flows' own files and the plan out of the commits,
-which phase 3 insists on.
-
-## Step 2: open the idea
-
-Keep the sentence in a shell variable, since phase 2 is given it too:
-
-```sh
-IDEA="A small terminal coding agent for deepseek-v4-flash. One Python
-package, one entry point, no framework. It talks to the DeepSeek API
-with the OpenAI-compatible chat completions endpoint, holds a message
-list, and offers the model three tools: read a file, write a file, run
-a shell command. It loops until the model answers without asking for a
-tool. It is meant for a fast, cheap model, so it must keep the context
-small and the tool schemas short."
-```
-
-Then run phase 1:
-
-:::: details Using DeepSeek Harness? Add humanize's `[dsh]` extra first
-Run the line for the way you installed humanize:
+Using DeepSeek Harness? Add humanize's `[dsh]` extra, with the line for the way you installed
+humanize, and export your key before step 2:
 
 ::: code-group
 
@@ -64,7 +49,43 @@ uv tool install 'hmz[dsh] @ git+https://github.com/humanfia/humanize.git'
 ```
 
 :::
-::::
+
+## Step 1: Make a repository
+
+```sh
+mkdir -p ~/tmp/flashagent && cd ~/tmp/flashagent
+git init -q
+echo "# flash-agent" > README.md
+printf '.humanize/\ndocs/plan.md\n' > .gitignore
+git add -A && git commit -qm "init"
+```
+
+**What just happened.**
+
+1. **A git repository.** Phase 3 reads every review against the commit the plan was fixed in,
+   so it has to be one.
+2. **The `.gitignore`.** It keeps the flows' own files (`.humanize/`) and the plan
+   (`docs/plan.md`) out of the commits, which phase 3 insists on.
+
+::: tip Checkpoint
+`git log --oneline` shows one commit, `init`.
+:::
+
+## Step 2: Open the idea
+
+Keep the sentence in a shell variable, since phase 2 is given it too:
+
+```sh
+IDEA="A small terminal coding agent for deepseek-v4-flash. One Python
+package, one entry point, no framework. It talks to the DeepSeek API
+with the OpenAI-compatible chat completions endpoint, holds a message
+list, and offers the model three tools: read a file, write a file, run
+a shell command. It loops until the model answers without asking for a
+tool. It is meant for a fast, cheap model, so it must keep the context
+small and the tool schemas short."
+```
+
+Then run phase 1:
 
 ::: code-group
 
@@ -77,7 +98,7 @@ hmz exec -f humanize1:gen-idea \
 
 ```sh [Claude Code]
 hmz exec -f humanize1:gen-idea \
-    -a drafter=claude/claude-opus-5:high \
+    -a drafter=claude/claude-opus-5-5:high \
     -b cost=5 "$IDEA"
 ```
 
@@ -89,9 +110,7 @@ hmz exec -f humanize1:gen-idea \
 
 :::
 
-One agent, the **drafter**. It picks six different directions the idea could go, explores each
-against this repository and this machine, and writes up one as the primary with the others as
-alternatives. The draft lands in `.humanize/ideas/`:
+When it ends, read what it wrote:
 
 ```sh
 ls .humanize/ideas/
@@ -116,18 +135,23 @@ A small terminal coding agent for deepseek-v4-flash. …
 …
 ```
 
-Look at the "Objective Evidence" lines. Every direction has to be justified by something the
-agent checked here, not by what usually makes a good design.
+**What just happened.**
+
+1. **`-f humanize1:gen-idea`** names one flow of the `humanize1` module: `<flow>:<name>`.
+2. **`-a drafter=…`** gives its one role, the **drafter**, an agent.
+3. **`-b cost=5`** caps it at five dollars.
+4. **The draft** is in `.humanize/ideas/`. The drafter picked six different directions the idea
+   could go, explored each against this repository and this machine, and wrote up one as the
+   primary with the others as alternatives.
+5. **"Objective Evidence"**: every direction has to be justified by something the agent checked
+   here, not by what usually makes a good design.
 
 ::: tip Checkpoint: read the draft
 It is a file, and editing it is expected. If it picked the wrong primary direction, promote one
 of the alternatives yourself. That is far cheaper here than after the plan is written.
-
-To explore more or fewer directions, add `-p n=3` or `-p n=10`. `n` is 6 unless given, and goes
-from 2 to 10.
 :::
 
-## Step 3: argue it into a plan
+## Step 3: Argue it into a plan
 
 In the same terminal as step 2, so `$IDEA` and your key are still set:
 
@@ -142,24 +166,19 @@ hmz exec -f humanize1:gen-plan \
 
 ```sh [Claude Code + Codex]
 hmz exec -f humanize1:gen-plan \
-    -a planner=claude/claude-opus-5:high \
+    -a planner=claude/claude-opus-5-5:high \
     -a analyst=codex/gpt-5.6-sol:high \
     -b cost=10 "$IDEA"
 ```
 
 ```sh [Claude Code only]
 hmz exec -f humanize1:gen-plan \
-    -a planner=claude/claude-opus-5:high \
-    -a analyst=claude/claude-opus-5:high \
+    -a planner=claude/claude-opus-5-5:high \
+    -a analyst=claude/claude-opus-5-5:high \
     -b cost=10 "$IDEA"
 ```
 
 :::
-
-It plans from the newest draft in `.humanize/ideas/`. Two agents this time. The **planner**
-writes the plan and keeps one conversation throughout, so it remembers how the plan got where
-it is. The **analyst** comes fresh to each reading and says what is wrong. They go up to three
-rounds, until the analyst has nothing required left.
 
 This phase takes a while, and what it writes is long:
 
@@ -186,31 +205,28 @@ alternatives recorded:
   candidate default `disabled` … |
 ```
 
-Neither finding came from your sentence. They came from an analyst reading the draft and
-checking what the DeepSeek API actually returns.
+**What just happened.**
+
+1. **It planned from the newest draft** in `.humanize/ideas/`, the one you may have edited.
+2. **Two agents this time.** The **planner** writes the plan and keeps one conversation
+   throughout, so it remembers how the plan got where it is. The **analyst** comes fresh to
+   each reading and says what is wrong. They go up to three rounds, until the analyst has
+   nothing required left.
+3. **The findings** did not come from your sentence. They came from an analyst reading the
+   draft and checking what the DeepSeek API actually returns.
 
 ::: tip Checkpoint: read `docs/plan.md` now
 This is the last cheap moment. From here the plan is the contract: phase 3 builds against it
 and does not let the builder edit it.
 :::
 
-::: details It stopped on "`PENDING` still stands on DEC-…"
-The plan is written, but it has decisions only you can make, and nobody was at a prompt to ask.
-Open `docs/plan.md`, answer each `Decision Status` under `## Pending User Decisions`, and go on
-to step 4.
-:::
-
-::: details It stopped on "output file already exists"
-`gen-plan` never overwrites a plan. To plan again, delete `docs/plan.md` first.
-:::
-
-## Step 4: build it under review
+## Step 4: Build it under review
 
 ::: code-group
 
 ```sh [Claude Code + Codex]
 hmz exec -f humanize1:rlcr \
-    -a builder=claude/claude-opus-5:high \
+    -a builder=claude/claude-opus-5-5:high \
     -a reviewer=codex/gpt-5.6-sol:high \
     -b duration=12h,cost=100 \
     "build it"
@@ -218,8 +234,8 @@ hmz exec -f humanize1:rlcr \
 
 ```sh [Claude Code only]
 hmz exec -f humanize1:rlcr \
-    -a builder=claude/claude-opus-5:high \
-    -a reviewer=claude/claude-opus-5:high \
+    -a builder=claude/claude-opus-5-5:high \
+    -a reviewer=claude/claude-opus-5-5:high \
     -b duration=12h,cost=100 \
     "build it"
 ```
@@ -234,25 +250,21 @@ hmz exec -f humanize1:rlcr \
 
 :::
 
-The plan is the task here. `"build it"` is only the name the run goes by.
+**What just happened.**
 
-The **builder** works until it believes the plan is done and tries to stop. Instead of
-stopping, it hears the **reviewer**'s reading of the round against the plan. Every fifth round
-the reviewer is asked a different question: does what has been built still match the plan at
-all? Once the reviewer calls the plan complete, it reviews the code itself, and the builder
-fixes whatever it marks `[P0]` to `[P9]`. The loop ends when a code review finds nothing, or
-after 42 rounds (`-p max=` changes that).
-
-The flow guards the builder while it works, keeping the plan fixed and the loop's own files out
-of its hands. That is why the builder must be Claude Code, Codex or Kimi Code, and any
-other backend is refused before anything runs:
-
-```console
-hmz exec: error: humanize1:rlcr: 'builder' needs PermissionRequestHookAgentMixin, which dsh does not support
-```
-
-The flow has a third role, `human`, which is you. It is never given with `-a`. Under `hmz exec`
-nobody is at a prompt, so the flow asks you nothing and carries on.
+1. **The plan is the task here.** `"build it"` is only the name the run goes by.
+2. **The builder** works until it believes the plan is done and tries to stop. Instead of
+   stopping, it hears the **reviewer**'s reading of the round against the plan.
+3. **Every fifth round** the reviewer is asked a different question: does what has been built
+   still match the plan at all?
+4. **Once the reviewer calls the plan complete**, it reviews the code itself, and the builder
+   fixes whatever it marks `[P0]` to `[P9]`. The loop ends when a code review finds nothing, or
+   after 42 rounds (`-p max=` changes that).
+5. **The flow guards the builder** while it works, keeping the plan fixed and the loop's own
+   files out of its hands. That is why the builder must be Claude Code, Codex, Grok Build or
+   Kimi Code.
+6. **The third role, `human`, is you.** It is never given with `-a`. Under `hmz exec` nobody is
+   at a prompt, so the flow asks you nothing and carries on.
 
 ::: tip Checkpoint
 The loop keeps a summary per round. Watch them appear from another terminal:
@@ -274,7 +286,7 @@ Check the work against the plan's acceptance criteria, since those are what the 
 it against.
 :::
 
-## Step 5: see what it built
+## Step 5: See what it built
 
 Every round commits, so you can read the work a round at a time. In the run this page was
 written from, which was still going at this point:
@@ -319,23 +331,68 @@ def add(a, b):
     return a + b
 ```
 
-A coding agent, built from one sentence, has just fixed a bug.
+**What just happened.** A coding agent, built from one sentence, has just fixed a bug. Look at
+`--allow-shell`: you never asked for it. It started as the draft's fifth direction, "guarded
+shell execution", became a decision in the plan, and ended as a gate the builder implemented.
+That is the two planning phases earning their time.
 
-Look at `--allow-shell`. You never asked for it. It started as the draft's fifth direction,
-"guarded shell execution", became a decision in the plan, and ended as a gate the builder
-implemented. That is the two planning phases earning their time.
+::: tip Checkpoint
+`calc.py` in `/tmp/flashtry` now returns `a + b`.
+:::
 
-## Where next
+## Troubleshooting
+
+### It says the official flowverse has not been fetched yet
+
+```console
+hmz exec: error: humanize1:gen-idea: the official flowverse has not been fetched yet -- open the flowverses page of /settings and fetch it from its own sheet
+```
+
+Run `hmz` once, wait a moment, and run the line again. If it is still refused, type
+`/settings flowverses` in `hmz`, open `official`, and choose `fetch`.
+
+### `'builder' needs PermissionRequestHookAgentMixin`
+
+```console
+hmz exec: error: humanize1:rlcr: 'builder' needs PermissionRequestHookAgentMixin, which dsh does not support
+```
+
+The builder is on a backend the flow cannot guard. Give `builder` Claude Code, Codex, Grok
+Build or Kimi Code. The reviewer may stay where it is.
+
+### It stopped on "`PENDING` still stands on DEC-…"
+
+The plan is written, but it has decisions only you can make, and nobody was at a prompt to ask.
+Open `docs/plan.md`, answer each `Decision Status` under `## Pending User Decisions`, and go on
+to step 4.
+
+### It stopped on "output file already exists"
+
+`gen-plan` never overwrites a plan. To plan again, delete `docs/plan.md` first.
+
+## What you learned
+
+- A big job can run as phases, each a flow of its own, each leaving a file you read and edit
+  before the next one starts.
+- `-f module:flow` names one flow of several in a module, and `-p` sets a flow's params.
+- A planner that keeps its conversation and an analyst that starts fresh argue a plan into
+  shape before any code is written.
+- A builder held to a plan under review, with the plan out of its reach, builds what was
+  planned.
+
+## Next steps
 
 - **Run the phases on different models.** Plan on the strongest model you have, build on a
   cheaper one, review on a third.
+- **Explore more or fewer directions.** `-p n=3` or `-p n=10` on phase 1. `n` is 6 unless
+  given, and goes from 2 to 10.
 - **Stop between phases and edit the file.** The draft and the plan are both meant to be read,
   and a text editor is the refinement step.
 - **Build from a plan you wrote.** Phase 3 needs a plan, not the first two phases:
   `-p plan_file=…` names it. The [`humanize1`](/flows/humanize1) page has more of the
   phases' params.
-- **Read it back.** `/epics` in `hmz` lists the three runs, one per phase. **Export run** on any
-  of them gives you its trace. See [Tracing](/user/tracing).
+- **Read it back.** `/epics` in `hmz` lists the three runs, one per phase. **Export run** on
+  any of them gives you its trace. See [Tracing](/user/tracing).
 - **Write a flow of your own.** You have now run three that somebody else wrote. Whoever writes
   one is a **weaver**, and the [Weaver Guide](/weaver/) starts with [Build under
   test](/weaver/tutorials/build-under-test).
