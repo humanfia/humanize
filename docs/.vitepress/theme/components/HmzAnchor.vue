@@ -1,68 +1,26 @@
 <script setup lang="ts">
-// An agent on your machine whose work lands on another one, drawn as the reader meets it:
-// pick something the agent does and watch where it happens. The routes are the default
+// An agent on your machine whose work lands on another one. The routes are the default
 // arrangement in `specs/coganchor/SPEC.md` and `reference/remote-execution`: the project's
-// files, the commands and whatever those commands reach are the target's; the agent's own
-// link to its model provider, its settings and its login stay here.
+// files, the commands and whatever those commands reach are the target's; the agent's own link
+// to its model provider, its settings and its login stay here. The agent reads and writes a
+// local copy of the target's workspace, which humanize keeps in step with it.
 //
-// Two drawings of the same thing: side by side where there is room, and one above the other
-// on a phone, where the side-by-side one would have to shrink its words out of legibility.
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+// Two drawings of the same thing: side by side where there is room, and one above the other on
+// a phone, where the side-by-side one would shrink its words out of legibility.
+import { computed, ref } from 'vue'
 
-type Route = 'target' | 'here'
-type Where = 'files' | 'commands' | 'network' | 'local'
+import HmzStage from '../motion/HmzStage.vue'
+import { createFx, fly, streak, type, type Fx } from '../motion/fx'
+import { useNarrow } from '../motion/layout'
+import { usePalette } from '../motion/palette'
+import { useScene } from '../motion/useScene'
 
-interface Act {
-  what: string
-  by: string
-  route: Route
-  where: Where
-  note: string
-}
-
-const ACTS: Act[] = [
-  {
-    what: 'reads kernel.cu',
-    by: 'the agent',
-    route: 'target',
-    where: 'files',
-    note: "It sees the target's files, at the target's own paths.",
-  },
-  {
-    what: 'edits kernel.cu',
-    by: 'the agent',
-    route: 'target',
-    where: 'files',
-    note: "The edit lands in the target's copy of the project.",
-  },
-  {
-    what: 'runs pytest',
-    by: 'the agent',
-    route: 'target',
-    where: 'commands',
-    note: "The tests run on the target, and the exit status is the target's own.",
-  },
-  {
-    what: 'pip install numpy',
-    by: 'a command it ran',
-    route: 'target',
-    where: 'network',
-    note: 'Whatever its commands download, the target downloads.',
-  },
-  {
-    what: 'asks the model',
-    by: 'the agent',
-    route: 'here',
-    where: 'local',
-    note: 'The agent talks to its model provider from here, as it always does.',
-  },
-  {
-    what: 'reads its login',
-    by: 'the agent',
-    route: 'here',
-    where: 'local',
-    note: 'Its settings and credentials stay here, with the agent.',
-  },
+const BEATS = [
+  'The agent runs here, unchanged',
+  'Its edits land over there',
+  'Its commands run over there',
+  'So does what those commands fetch',
+  'Its login and model stay here',
 ]
 
 interface Box {
@@ -73,461 +31,482 @@ interface Box {
 }
 
 interface Layout {
-  view: string
+  w: number
+  h: number
   mine: Box
   theirs: Box
-  mineLabel: { x: number; y: number; end?: boolean }
-  theirsLabel: { x: number; y: number; end?: boolean }
-  drawn: { x: number; y: number; end?: boolean }
+  mineTitle: { x: number; y: number }
+  theirsTitle: { x: number; y: number; end?: boolean }
+  model: Box
   agent: Box
-  feed: string
-  humanize: Box
-  here: Box
-  header: Box
-  dests: Record<'files' | 'commands' | 'network', Box>
-  toTarget: string
-  toHere: string
-  // Where the lit wire's gradient runs, in the drawing's own units: a straight wire has no
-  // width or no height, and a gradient laid over its bounding box would draw nothing at all.
-  grad: { x1: number; y1: number; x2: number; y2: number }
-  over: { x: number; y: number; end?: boolean; start?: boolean }
+  copy: Box
+  login: Box
+  files: Box
+  commands: Box
+  network: Box
+  hub: { x: number; y: number }
+  toFiles: string
+  toCommands: string
+  toNetwork: string
 }
 
 const WIDE: Layout = {
-  view: '0 0 760 300',
-  mine: { x: 12, y: 36, w: 250, h: 252 },
-  theirs: { x: 498, y: 36, w: 250, h: 252 },
-  mineLabel: { x: 20, y: 24 },
-  theirsLabel: { x: 740, y: 24, end: true },
-  drawn: { x: 380, y: 24 },
-  agent: { x: 30, y: 52, w: 214, h: 46 },
-  feed: 'M 137 100 L 137 136',
-  humanize: { x: 30, y: 138, w: 214, h: 46 },
-  here: { x: 30, y: 226, w: 196, h: 46 },
-  header: { x: 516, y: 52, w: 214, h: 40 },
-  dests: {
-    files: { x: 516, y: 104, w: 214, h: 52 },
-    commands: { x: 516, y: 164, w: 214, h: 52 },
-    network: { x: 516, y: 224, w: 214, h: 52 },
-  },
-  toTarget: 'M 244 161 C 360 161 390 131 498 131',
-  toHere: 'M 244 161 C 280 161 284 249 252 249 L 226 249',
-  grad: { x1: 244, y1: 0, x2: 498, y2: 0 },
-  over: { x: 380, y: 118 },
+  w: 640,
+  h: 360,
+  mine: { x: 20, y: 56, w: 214, h: 276 },
+  theirs: { x: 406, y: 56, w: 214, h: 276 },
+  mineTitle: { x: 28, y: 44 },
+  theirsTitle: { x: 612, y: 44, end: true },
+  model: { x: 36, y: 72, w: 182, h: 42 },
+  agent: { x: 36, y: 136, w: 182, h: 52 },
+  copy: { x: 36, y: 206, w: 182, h: 40 },
+  login: { x: 36, y: 274, w: 182, h: 42 },
+  files: { x: 422, y: 72, w: 182, h: 58 },
+  commands: { x: 422, y: 146, w: 182, h: 104 },
+  network: { x: 422, y: 266, w: 182, h: 50 },
+  hub: { x: 320, y: 162 },
+  toFiles: 'M 218 162 C 300 162 320 101 422 101',
+  toCommands: 'M 218 162 C 300 162 330 198 422 198',
+  toNetwork: 'M 513 250 L 513 266',
 }
 
 const NARROW: Layout = {
-  view: '0 0 360 566',
-  mine: { x: 8, y: 32, w: 344, h: 204 },
-  theirs: { x: 8, y: 306, w: 344, h: 252 },
-  mineLabel: { x: 14, y: 22 },
-  theirsLabel: { x: 346, y: 298, end: true },
-  drawn: { x: 346, y: 22, end: true },
-  agent: { x: 24, y: 46, w: 312, h: 46 },
-  feed: 'M 180 94 L 180 118',
-  humanize: { x: 24, y: 120, w: 312, h: 46 },
-  here: { x: 150, y: 180, w: 186, h: 46 },
-  header: { x: 24, y: 320, w: 312, h: 40 },
-  dests: {
-    files: { x: 24, y: 370, w: 312, h: 54 },
-    commands: { x: 24, y: 432, w: 312, h: 54 },
-    network: { x: 24, y: 494, w: 312, h: 54 },
-  },
-  toTarget: 'M 90 166 L 90 306',
-  toHere: 'M 90 166 C 90 196 110 203 150 203',
-  grad: { x1: 0, y1: 166, x2: 0, y2: 306 },
-  over: { x: 102, y: 270, start: true },
+  w: 360,
+  h: 560,
+  mine: { x: 14, y: 36, w: 332, h: 208 },
+  theirs: { x: 14, y: 330, w: 332, h: 216 },
+  mineTitle: { x: 20, y: 26 },
+  theirsTitle: { x: 20, y: 320 },
+  model: { x: 28, y: 50, w: 146, h: 42 },
+  login: { x: 186, y: 50, w: 146, h: 42 },
+  agent: { x: 28, y: 110, w: 304, h: 52 },
+  copy: { x: 28, y: 178, w: 304, h: 40 },
+  files: { x: 28, y: 344, w: 146, h: 62 },
+  network: { x: 186, y: 344, w: 146, h: 62 },
+  commands: { x: 28, y: 420, w: 304, h: 112 },
+  hub: { x: 180, y: 287 },
+  toFiles: 'M 180 244 C 180 290 101 300 101 344',
+  toCommands: 'M 180 244 C 180 310 180 380 180 420',
+  toNetwork: 'M 259 420 L 259 406',
 }
 
-const narrow = ref(false)
+const palette = usePalette()
+const canvas = ref<HTMLCanvasElement | null>(null)
+let fx: Fx | undefined
+const narrow = useNarrow(() => scene.rebuild())
 const L = computed(() => (narrow.value ? NARROW : WIDE))
-const mid = (b: Box) => b.x + b.w / 2
+const mid = (b: Box) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 })
 
-const picked = ref(2)
-const act = computed(() => ACTS[picked.value])
+const scene = useScene({
+  still: 'rest',
+  repeatDelay: 0.8,
+  tick: (dt) => fx?.step(dt),
+  build(tl, q) {
+    const l = L.value
+    fx?.destroy()
+    fx = canvas.value ? createFx(canvas.value, l.w, l.h) : undefined
+    const get = () => fx
+    const world = q('.cam')[0]
+    const one = (sel: string) => q(sel)[0]
+    const agent = mid(l.agent)
+    const model = mid(l.model)
+    const login = mid(l.login)
+    const mine = mid(l.mine)
 
-const wireTarget = ref<SVGPathElement | null>(null)
-const wireHere = ref<SVGPathElement | null>(null)
-const at = ref({ x: 0, y: 0, shown: false })
+    tl.set(q('.theirs, .wire, .hub, .done, .exit, .shield, .copy-tick'), { autoAlpha: 0 }, 0)
+    tl.set(q('.term-line'), { text: '' }, 0)
+    tl.set(q('.lit'), { autoAlpha: 0 }, 0)
 
-let frame = 0
-let travelled = 0
-let last = 0
-let still = false
-const idle = ref(false)
+    // 0 · close on this machine: the agent, talking to its model as it always does.
+    tl.addLabel('beat-0', 0)
+    tl.fromTo(world, { scale: narrow.value ? 1.35 : 1.7, transformOrigin: `${(mine.x / l.w) * 100}% ${(mine.y / l.h) * 100}%`, autoAlpha: 0 }, { autoAlpha: 1, duration: 0.6, ease: 'none' }, 0)
+    tl.fromTo(q('.mine-frame'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 1.4, ease: 'cine' }, 0)
+    tl.fromTo(q('.mine .item'), { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.6, stagger: 0.12 }, 0.3)
+    streak(tl, get, agent, model, () => palette.accent, 1.1, { duration: 0.5, bend: 0.3, burst: 8 })
+    streak(tl, get, model, agent, () => palette.accent, 1.7, { duration: 0.5, bend: 0.3 })
 
-function place() {
-  const wire = act.value.route === 'target' ? wireTarget.value : wireHere.value
-  if (!wire) return
-  const t = Math.min(travelled, 1)
-  const point = wire.getPointAtLength(t * wire.getTotalLength())
-  at.value = { x: point.x, y: point.y, shown: travelled <= 1.02 }
-}
+    // 1 · the camera pulls back to show where the work is, and an edit crosses whole.
+    const T1 = 2.4
+    tl.addLabel('beat-1', T1)
+    tl.to(world, { scale: 1, duration: 1.8, ease: 'cine' }, T1)
+    tl.to(q('.theirs'), { autoAlpha: 1, duration: 0.4 }, T1 + 0.3)
+    tl.fromTo(q('.theirs-frame'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 1.3, ease: 'cine' }, T1 + 0.3)
+    tl.fromTo(q('.theirs .item'), { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.6, stagger: 0.12 }, T1 + 0.7)
+    tl.to(q('.wire, .hub'), { autoAlpha: 1, duration: 0.3 }, T1 + 1)
+    tl.fromTo(q('.wire'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 0.9, ease: 'cine', stagger: 0.1 }, T1 + 1)
+    fly(tl, one('.p-edit'), one('.path-files') as SVGPathElement, T1 + 2, { duration: 1.1, fx: get, color: palette.lane[0] })
+    tl.call(() => fx?.spark(mid(l.files).x, mid(l.files).y, palette.lane[0], 22, 110), [], T1 + 3.1)
+    tl.fromTo(q('.files .lit'), { autoAlpha: 1 }, { autoAlpha: 0, duration: 1.2 }, T1 + 3.1)
+    tl.to(q('.done'), { autoAlpha: 1, duration: 0.3 }, T1 + 3.1)
+    tl.to(q('.copy-tick'), { autoAlpha: 1, duration: 0.3 }, T1 + 3.2)
+    tl.fromTo(q('.copy .lit'), { autoAlpha: 1 }, { autoAlpha: 0, duration: 1.2 }, T1 + 3.2)
 
-function tick(now: number) {
-  frame = requestAnimationFrame(tick)
-  const dt = Math.min((now - last) / 1000, 0.1)
-  last = now
-  if (idle.value) return
-  travelled = (travelled + dt * 0.42) % 1.35
-  place()
-}
+    // 2 · a command goes across, runs there, and its exit status comes home.
+    const T2 = T1 + 3.8
+    tl.addLabel('beat-2', T2)
+    fly(tl, one('.p-run'), one('.path-commands') as SVGPathElement, T2, { duration: 1, fx: get, color: palette.lane[1] })
+    type(tl, one('.term-1'), '$ pytest -q', T2 + 1, 26)
+    tl.fromTo(q('.commands .lit'), { autoAlpha: 1 }, { autoAlpha: 0, duration: 1 }, T2 + 1)
+    type(tl, one('.term-2'), '12 passed in 3.1s', T2 + 1.8, 40)
+    fly(tl, one('.p-back'), one('.path-commands') as SVGPathElement, T2 + 2.4, { duration: 1, fx: get, color: palette.lane[1], reverse: true })
+    tl.fromTo(q('.exit'), { autoAlpha: 0, scale: 0.5, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.5, ease: 'back.out(2)' }, T2 + 3.4)
+    tl.call(() => fx?.spark(agent.x, agent.y, palette.lane[1], 16, 90), [], T2 + 3.4)
 
-function pick(i: number) {
-  picked.value = i
-  travelled = still ? 0.55 : 0
-  if (still) nextTick(place)
-}
+    // 3 · what the command reaches for, the target reaches for.
+    const T3 = T2 + 4
+    tl.addLabel('beat-3', T3)
+    type(tl, one('.term-3'), '$ pip install numpy', T3, 30)
+    streak(tl, get, { x: l.network.x + l.network.w / 2, y: l.commands.y + l.commands.h - 6 }, mid(l.network), () => palette.lane[2], T3 + 0.7, { duration: 0.5, bend: narrow.value ? 0 : 0.4, burst: 12 })
+    tl.fromTo(q('.network .lit'), { autoAlpha: 1 }, { autoAlpha: 0, duration: 1.2 }, T3 + 1.2)
+    tl.fromTo(q('.globe'), { rotation: 0 }, { rotation: 360, svgOrigin: '0 0', duration: 2.2, ease: 'cine' }, T3 + 0.9)
+    tl.addLabel('rest', T3 + 1.8)
 
-let observer: IntersectionObserver | undefined
-let phone: MediaQueryList | undefined
-const root = ref<HTMLElement | null>(null)
-
-function fit() {
-  narrow.value = phone?.matches ?? false
-  if (still) nextTick(place)
-}
-
-onMounted(() => {
-  phone = window.matchMedia('(max-width: 640px)')
-  phone.addEventListener('change', fit)
-  fit()
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    still = true
-    travelled = 0.55
-    nextTick(place)
-    return
-  }
-  observer = new IntersectionObserver((entries) => (idle.value = !entries[0].isIntersecting), {
-    rootMargin: '120px',
-  })
-  if (root.value) observer.observe(root.value)
-  last = performance.now()
-  frame = requestAnimationFrame(tick)
+    // 4 · and what is the agent's own stays with it: a shield goes up round the login and
+    // the model link, and the other machine fades back.
+    const T4 = T3 + 2.4
+    tl.addLabel('beat-4', T4)
+    tl.to(q('.theirs, .wire, .hub'), { autoAlpha: 0.3, duration: 0.8 }, T4)
+    tl.to(q('.shield'), { autoAlpha: 1, duration: 0.2 }, T4 + 0.2)
+    tl.fromTo(q('.shield'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 1.2, ease: 'cine', stagger: 0.15 }, T4 + 0.2)
+    tl.fromTo(q('.model .lit, .login .lit'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.5, yoyo: true, repeat: 3 }, T4 + 0.5)
+    streak(tl, get, agent, login, () => palette.warm, T4 + 0.6, { duration: 0.5, bend: -0.35, burst: 8 })
+    streak(tl, get, agent, model, () => palette.accent, T4 + 1.1, { duration: 0.5, bend: 0.35, burst: 8 })
+    tl.to(world, { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, T4 + 3.6)
+  },
 })
-
-onUnmounted(() => {
-  cancelAnimationFrame(frame)
-  observer?.disconnect()
-  phone?.removeEventListener('change', fit)
-})
-
-const lit = (where: Where) => (act.value.where === where ? 'lit' : '')
-const DESTS = [
-  { key: 'files', title: 'the project', sub: 'every file it reads or edits' },
-  { key: 'commands', title: 'commands', sub: 'builds, tests, whatever it runs' },
-  { key: 'network', title: 'the network', sub: 'whatever those commands reach' },
-] as const
 </script>
 
 <template>
-  <div ref="root" class="anchor hmz-panel" :class="{ still: idle, narrow }">
-    <svg
-      :viewBox="L.view"
-      role="img"
-      aria-label="an agent on your machine, its work landing on the target"
-    >
+  <HmzStage
+    :scene="scene"
+    :beats="BEATS"
+    :mobile-ratio="`${NARROW.w} / ${NARROW.h}`"
+    label="Two machines. On this machine: the agent, its link to its model provider, its login, and a local copy of the workspace kept in step. On the target: the project's files, the commands the agent runs, and the network those commands reach. An edit crosses to the target whole, a test run happens there and its exit status comes back, and pip install downloads from the target. The login and the model link never leave this machine."
+  >
+    <div class="layer cam">
+    <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
       <defs>
-        <linearGradient
-          id="hmz-wire"
-          gradientUnits="userSpaceOnUse"
-          :x1="L.grad.x1"
-          :y1="L.grad.y1"
-          :x2="L.grad.x2"
-          :y2="L.grad.y2"
-        >
-          <stop offset="0" stop-color="var(--vp-c-brand-3)" />
+        <linearGradient id="anchor-wire" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="var(--hmz-lane-1)" />
           <stop offset="1" stop-color="var(--hmz-accent)" />
         </linearGradient>
       </defs>
+      <g class="world">
+        <!-- this machine -->
+        <g class="mine">
+          <rect class="frame mine-frame" :x="L.mine.x" :y="L.mine.y" :width="L.mine.w" :height="L.mine.h" rx="14" />
+          <text class="title" :x="L.mineTitle.x" :y="L.mineTitle.y">this machine</text>
+          <rect class="shield" :x="L.model.x - 5" :y="L.model.y - 5" :width="L.model.w + 10" :height="L.model.h + 10" rx="14" />
+          <rect class="shield" :x="L.login.x - 5" :y="L.login.y - 5" :width="L.login.w + 10" :height="L.login.h + 10" rx="14" />
+          <g class="item model">
+            <rect class="box" :x="L.model.x" :y="L.model.y" :width="L.model.w" :height="L.model.h" rx="10" />
+            <rect class="lit" :x="L.model.x" :y="L.model.y" :width="L.model.w" :height="L.model.h" rx="10" />
+            <path class="icon" :transform="`translate(${L.model.x + 20} ${L.model.y + L.model.h / 2})`" d="M -8 5 h 15 a 5 5 0 0 0 0 -10 a 7 7 0 0 0 -13 -1 a 5 5 0 0 0 -2 11 z" />
+            <text class="name" :x="L.model.x + 38" :y="L.model.y + L.model.h / 2 + 4">model link</text>
+          </g>
+          <g class="item agent">
+            <rect class="box hero" :x="L.agent.x" :y="L.agent.y" :width="L.agent.w" :height="L.agent.h" rx="12" />
+            <circle class="core" :cx="L.agent.x + 24" :cy="L.agent.y + L.agent.h / 2" r="9" />
+            <text class="name big" :x="L.agent.x + 44" :y="L.agent.y + L.agent.h / 2 - 3">the agent</text>
+            <text class="sub" :x="L.agent.x + 44" :y="L.agent.y + L.agent.h / 2 + 13">no plugin, no setting</text>
+            <g :transform="`translate(${L.agent.x + L.agent.w - 34} ${L.agent.y})`">
+              <g class="exit">
+                <rect x="-24" y="-11" width="48" height="22" rx="11" />
+                <text y="4" text-anchor="middle">exit 0</text>
+              </g>
+            </g>
+          </g>
+          <g class="item copy">
+            <rect class="box ghost" :x="L.copy.x" :y="L.copy.y" :width="L.copy.w" :height="L.copy.h" rx="10" />
+            <rect class="lit" :x="L.copy.x" :y="L.copy.y" :width="L.copy.w" :height="L.copy.h" rx="10" />
+            <g class="icon" :transform="`translate(${L.copy.x + 20} ${L.copy.y + L.copy.h / 2})`">
+              <rect x="-7" y="-8" width="11" height="13" rx="2" />
+              <rect x="-3" y="-4" width="11" height="13" rx="2" />
+            </g>
+            <text class="name" :x="L.copy.x + 38" :y="L.copy.y + L.copy.h / 2 + 4">local copy</text>
+            <text class="copy-tick" :x="L.copy.x + L.copy.w - 14" :y="L.copy.y + L.copy.h / 2 + 4" text-anchor="end">in step ✓</text>
+          </g>
+          <g class="item login">
+            <rect class="box" :x="L.login.x" :y="L.login.y" :width="L.login.w" :height="L.login.h" rx="10" />
+            <rect class="lit warm" :x="L.login.x" :y="L.login.y" :width="L.login.w" :height="L.login.h" rx="10" />
+            <g class="icon key" :transform="`translate(${L.login.x + 20} ${L.login.y + L.login.h / 2})`">
+              <circle cx="-4" r="5" />
+              <path d="M 1 0 h 9 M 7 0 v 4 M 10 0 v 3" />
+            </g>
+            <text class="name" :x="L.login.x + 38" :y="L.login.y + L.login.h / 2 + 4">login, keys</text>
+          </g>
+        </g>
 
-      <text :x="L.mineLabel.x" :y="L.mineLabel.y" class="side">your machine</text>
-      <text :x="L.drawn.x" :y="L.drawn.y" class="drawn" :class="L.drawn.end ? 'end' : 'mid'">
-        a drawing, not a recording
-      </text>
-      <text :x="L.theirsLabel.x" :y="L.theirsLabel.y" class="side end">the target</text>
-      <rect v-bind="{ x: L.mine.x, y: L.mine.y, width: L.mine.w, height: L.mine.h }" rx="14" class="zone" />
-      <rect v-bind="{ x: L.theirs.x, y: L.theirs.y, width: L.theirs.w, height: L.theirs.h }" rx="14" class="zone" />
+        <!-- between them -->
+        <path class="wire path-files" :d="L.toFiles" />
+        <path class="wire path-commands" :d="L.toCommands" />
+        <g class="hub" :transform="`translate(${L.hub.x} ${L.hub.y})`">
+          <rect x="-40" y="-11" width="80" height="22" rx="11" />
+          <text y="4" text-anchor="middle">humanize</text>
+        </g>
 
-      <rect v-bind="{ x: L.agent.x, y: L.agent.y, width: L.agent.w, height: L.agent.h }" rx="9" class="box" />
-      <text :x="mid(L.agent)" :y="L.agent.y + 20" class="title mid">claude, codex, …</text>
-      <text :x="mid(L.agent)" :y="L.agent.y + 37" class="sub mid">unchanged, and told none of this</text>
+        <!-- the target -->
+        <g class="theirs">
+          <rect class="frame theirs-frame" :x="L.theirs.x" :y="L.theirs.y" :width="L.theirs.w" :height="L.theirs.h" rx="14" />
+          <text class="title" :x="L.theirsTitle.x" :y="L.theirsTitle.y" :text-anchor="L.theirsTitle.end ? 'end' : 'start'">the target</text>
+          <g class="item files">
+            <rect class="box" :x="L.files.x" :y="L.files.y" :width="L.files.w" :height="L.files.h" rx="10" />
+            <rect class="lit" :x="L.files.x" :y="L.files.y" :width="L.files.w" :height="L.files.h" rx="10" />
+            <text class="label" :x="L.files.x + 12" :y="L.files.y + 18">files</text>
+            <text class="mono" :x="L.files.x + 12" :y="L.files.y + 42">kernel.cu</text>
+            <text class="done" :x="L.files.x + L.files.w - 12" :y="L.files.y + 42" text-anchor="end">edited ✓</text>
+          </g>
+          <g class="item commands">
+            <rect class="box term" :x="L.commands.x" :y="L.commands.y" :width="L.commands.w" :height="L.commands.h" rx="10" />
+            <rect class="lit" :x="L.commands.x" :y="L.commands.y" :width="L.commands.w" :height="L.commands.h" rx="10" />
+            <text class="label" :x="L.commands.x + 12" :y="L.commands.y + 18">commands</text>
+            <text class="mono term-line term-1" :x="L.commands.x + 12" :y="L.commands.y + 42" />
+            <text class="mono term-line term-2 ok" :x="L.commands.x + 12" :y="L.commands.y + 62" />
+            <text class="mono term-line term-3" :x="L.commands.x + 12" :y="L.commands.y + 84" />
+          </g>
+          <g class="item network">
+            <rect class="box" :x="L.network.x" :y="L.network.y" :width="L.network.w" :height="L.network.h" rx="10" />
+            <rect class="lit violet" :x="L.network.x" :y="L.network.y" :width="L.network.w" :height="L.network.h" rx="10" />
+            <g :transform="`translate(${L.network.x + 22} ${L.network.y + L.network.h / 2})`">
+              <g class="globe">
+                <circle r="10" />
+                <ellipse rx="4.5" ry="10" />
+                <line x1="-10" x2="10" />
+              </g>
+            </g>
+            <text class="name" :x="L.network.x + 42" :y="L.network.y + L.network.h / 2 + 4">network</text>
+          </g>
+        </g>
 
-      <path :d="L.feed" class="feed" />
-
-      <rect
-        v-bind="{ x: L.humanize.x, y: L.humanize.y, width: L.humanize.w, height: L.humanize.h }"
-        rx="9"
-        class="box strong"
-      />
-      <text :x="mid(L.humanize)" :y="L.humanize.y + 20" class="title mid">humanize</text>
-      <text :x="mid(L.humanize)" :y="L.humanize.y + 37" class="sub mid">routes each thing it does</text>
-
-      <rect
-        v-bind="{ x: L.here.x, y: L.here.y, width: L.here.w, height: L.here.h }"
-        rx="9"
-        class="box"
-        :class="lit('local')"
-      />
-      <text :x="mid(L.here)" :y="L.here.y + 20" class="title mid">stays here</text>
-      <text :x="mid(L.here)" :y="L.here.y + 37" class="sub mid">login · settings · the model</text>
-
-      <path ref="wireHere" :d="L.toHere" class="wire local" :class="{ on: act.route === 'here' }" />
-      <path ref="wireTarget" :d="L.toTarget" class="wire" :class="{ on: act.route === 'target' }" />
-      <text :x="L.over.x" :y="L.over.y" class="sub" :class="L.over.start ? '' : 'mid'">
-        over ssh, or into a container
-      </text>
-
-      <rect
-        v-bind="{ x: L.header.x, y: L.header.y, width: L.header.w, height: L.header.h }"
-        rx="9"
-        class="box strong"
-      />
-      <text :x="mid(L.header)" :y="L.header.y + 25" class="title mid">an ssh host or a container</text>
-
-      <g v-for="d in DESTS" :key="d.key" class="dest" :class="lit(d.key)">
-        <rect
-          v-bind="{ x: L.dests[d.key].x, y: L.dests[d.key].y, width: L.dests[d.key].w, height: L.dests[d.key].h }"
-          rx="9"
-          class="box"
-        />
-        <text :x="L.dests[d.key].x + 16" :y="L.dests[d.key].y + 22" class="title">{{ d.title }}</text>
-        <text :x="L.dests[d.key].x + 16" :y="L.dests[d.key].y + 40" class="sub">{{ d.sub }}</text>
-      </g>
-
-      <g v-show="at.shown" class="packet" :transform="`translate(${at.x} ${at.y})`">
-        <rect x="-60" y="-13" width="120" height="26" rx="13" />
-        <text y="4">{{ act.route === 'target' ? 'on the target' : 'stays here' }}</text>
+        <!-- what crosses -->
+        <g class="packet p-edit">
+          <rect x="-34" y="-11" width="68" height="22" rx="6" />
+          <text y="4" text-anchor="middle">edit ✎</text>
+        </g>
+        <g class="packet p-run">
+          <rect x="-34" y="-11" width="68" height="22" rx="6" />
+          <text y="4" text-anchor="middle">pytest</text>
+        </g>
+        <g class="packet p-back">
+          <rect x="-34" y="-11" width="68" height="22" rx="6" />
+          <text y="4" text-anchor="middle">exit 0</text>
+        </g>
       </g>
     </svg>
-
-    <div class="acts" role="group" aria-label="something the agent does">
-      <button
-        v-for="(item, i) in ACTS"
-        :key="item.what"
-        type="button"
-        :class="{ on: picked === i, here: item.route === 'here' }"
-        :aria-pressed="picked === i"
-        @click="pick(i)"
-      >
-        <code>{{ item.what }}</code>
-        <span>{{ item.by }}</span>
-      </button>
+    <canvas ref="canvas" />
     </div>
-    <p class="note" aria-live="polite">
-      <strong>{{ act.route === 'target' ? 'On the target.' : 'On your machine.' }}</strong>
-      {{ act.note }}
-    </p>
-  </div>
+  </HmzStage>
 </template>
 
 <style scoped>
-svg {
-  display: block;
+
+/* The camera moves this layer, so the light on the canvas moves with the drawing under it. */
+.cam svg,
+.cam canvas {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  height: auto;
-  background:
-    radial-gradient(60% 90% at 12% 50%, var(--vp-c-brand-soft), transparent 70%),
-    radial-gradient(60% 90% at 88% 50%, rgba(20, 184, 166, 0.1), transparent 70%);
+  height: 100%;
 }
 
-.narrow svg {
-  background:
-    radial-gradient(90% 40% at 50% 20%, var(--vp-c-brand-soft), transparent 70%),
-    radial-gradient(90% 40% at 50% 80%, rgba(20, 184, 166, 0.1), transparent 70%);
+.cam canvas {
+  pointer-events: none;
+}
+svg {
+  font-family: var(--vp-font-family-base);
 }
 
-.side {
-  fill: var(--vp-c-text-3);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  font-weight: 700;
-}
-
-.drawn {
-  fill: var(--vp-c-text-3);
-  font-size: 11px;
-  font-style: italic;
-}
-
-.end {
-  text-anchor: end;
-}
-
-.zone {
-  fill: var(--vp-c-bg);
-  stroke: var(--hmz-panel-border);
-  stroke-dasharray: 4 5;
-}
-
-.box {
-  fill: var(--vp-c-bg-soft);
-  stroke: var(--hmz-panel-border);
-  transition: stroke 0.3s, fill 0.3s, filter 0.3s;
-}
-
-.box.strong {
-  stroke: var(--vp-c-brand-3);
-  fill: var(--vp-c-bg-elv);
+.frame {
+  fill: var(--hmz-stage-card);
+  fill-opacity: 0.45;
+  stroke: var(--hmz-stage-line);
+  stroke-width: 1.5;
 }
 
 .title {
-  fill: var(--vp-c-text-1);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  fill: var(--hmz-stage-dim);
+}
+
+.box {
+  fill: var(--hmz-stage-card);
+  stroke: var(--hmz-stage-line);
+}
+
+.box.hero {
+  stroke: var(--hmz-accent);
+  stroke-width: 1.5;
+}
+
+.box.ghost {
+  stroke-dasharray: 4 3;
+}
+
+.box.term {
+  fill: color-mix(in srgb, var(--hmz-lane-2) 8%, var(--hmz-stage-card));
+}
+
+.lit {
+  fill: color-mix(in srgb, var(--hmz-lane-1) 30%, transparent);
+  stroke: var(--hmz-lane-1);
+  stroke-width: 1.5;
+}
+
+.commands .lit {
+  fill: color-mix(in srgb, var(--hmz-lane-2) 22%, transparent);
+  stroke: var(--hmz-lane-2);
+}
+
+.model .lit,
+.copy .lit {
+  fill: color-mix(in srgb, var(--hmz-accent) 22%, transparent);
+  stroke: var(--hmz-accent);
+}
+
+.lit.warm {
+  fill: color-mix(in srgb, var(--hmz-warm) 25%, transparent);
+  stroke: var(--hmz-warm);
+}
+
+.lit.violet {
+  fill: color-mix(in srgb, var(--hmz-lane-3) 25%, transparent);
+  stroke: var(--hmz-lane-3);
+}
+
+.core {
+  fill: var(--hmz-accent);
+}
+
+.icon,
+.icon rect,
+.icon circle,
+.icon path {
+  fill: none;
+  stroke: var(--hmz-stage-ink);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon.key circle,
+.icon.key path {
+  stroke: var(--hmz-warm);
+}
+
+.copy .icon rect:last-child {
+  fill: var(--hmz-stage-card);
+}
+
+.name {
+  font-size: 13px;
+  font-weight: 600;
+  fill: var(--hmz-stage-ink);
+}
+
+.name.big {
   font-size: 15px;
-  font-weight: 650;
 }
 
 .sub {
-  fill: var(--vp-c-text-2);
+  font-size: 11px;
+  fill: var(--hmz-stage-dim);
+}
+
+.label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  fill: var(--hmz-stage-dim);
+}
+
+.mono {
+  font-family: var(--vp-font-family-mono);
   font-size: 12px;
+  fill: var(--hmz-stage-ink);
 }
 
-.mid {
-  text-anchor: middle;
+.term .mono,
+.commands .mono {
+  fill: var(--hmz-stage-ink);
 }
 
-.feed {
-  stroke: var(--vp-c-divider);
-  stroke-width: 1.5;
-  fill: none;
+.mono.ok,
+.done,
+.copy-tick {
+  fill: var(--hmz-accent);
+  font-weight: 600;
+}
+
+.done,
+.copy-tick {
+  font-size: 11.5px;
+}
+
+.exit rect {
+  fill: var(--hmz-accent);
+}
+
+.exit text {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  font-weight: 700;
+  fill: #fff;
 }
 
 .wire {
   fill: none;
-  stroke: var(--vp-c-divider);
+  stroke: url(#anchor-wire);
   stroke-width: 2;
-  stroke-dasharray: 3 7;
-  transition: stroke 0.3s, stroke-width 0.3s;
+  opacity: 0.8;
 }
 
-.wire.on {
-  stroke: url(#hmz-wire);
-  stroke-width: 2.5;
-  animation: crawl 1.1s linear infinite;
-}
-
-.wire.local.on {
-  stroke: var(--hmz-warm);
-}
-
-@keyframes crawl {
-  to {
-    stroke-dashoffset: -20;
-  }
-}
-
-.still .wire.on {
-  animation-play-state: paused;
-}
-
-.dest:not(.lit) .box {
-  opacity: 0.55;
-}
-
-.dest.lit .box {
+.hub rect {
+  fill: var(--hmz-stage-card);
   stroke: var(--hmz-accent);
-  filter: drop-shadow(0 0 8px var(--vp-c-brand-soft));
 }
 
-.box.lit {
-  stroke: var(--hmz-warm);
-  filter: drop-shadow(0 0 8px var(--vp-c-brand-soft));
+.hub text {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--hmz-accent);
+}
+
+.packet {
+  visibility: hidden;
 }
 
 .packet rect {
-  fill: var(--vp-c-text-1);
+  fill: var(--hmz-lane-1);
+}
+
+.p-run rect,
+.p-back rect {
+  fill: var(--hmz-lane-2);
 }
 
 .packet text {
-  fill: var(--vp-c-bg);
-  font-size: 11px;
-  font-weight: 650;
-  text-anchor: middle;
   font-family: var(--vp-font-family-mono);
-}
-
-.acts {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  padding: 14px 16px 0;
-}
-
-.acts button {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 7px 11px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 9px;
-  background: var(--vp-c-bg);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.2s, background 0.2s, transform 0.2s;
-}
-
-.acts button:hover {
-  transform: translateY(-1px);
-  border-color: var(--vp-c-brand-1);
-}
-
-.acts button:focus-visible {
-  outline: 2px solid var(--vp-c-brand-1);
-  outline-offset: 2px;
-}
-
-.acts button code {
-  padding: 0;
-  background: none;
-  font-size: 12.5px;
-  color: var(--vp-c-text-1);
-}
-
-.acts button span {
   font-size: 11px;
-  color: var(--vp-c-text-3);
+  font-weight: 700;
+  fill: #fff;
 }
 
-.acts button.on {
-  border-color: var(--hmz-accent);
-  background: var(--vp-c-brand-soft);
+.globe circle,
+.globe ellipse,
+.globe line {
+  fill: none;
+  stroke: var(--hmz-lane-3);
+  stroke-width: 1.5;
 }
 
-.acts button.on.here {
-  border-color: var(--hmz-warm);
-}
-
-.note {
-  margin: 0;
-  padding: 12px 16px 14px;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--vp-c-text-2);
-}
-
-.note strong {
-  margin-right: 6px;
-  color: var(--vp-c-text-1);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .wire.on {
-    animation: none;
-  }
-
-  .acts button {
-    transition: none;
-  }
-
-  .acts button:hover {
-    transform: none;
-  }
-}
-
-@media (max-width: 860px) {
-  .acts {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.shield {
+  fill: color-mix(in srgb, var(--hmz-warm) 10%, transparent);
+  stroke: var(--hmz-warm);
+  stroke-width: 1.5;
 }
 </style>
