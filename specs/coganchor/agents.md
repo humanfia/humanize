@@ -650,7 +650,7 @@ class AcpSession(SessionBase):
 class AcpAgent(AgentBase):
     def new(self, cwd: str | os.PathLike[str] | None = None) -> AcpSession: ...
 
-# agy.py / claude.py / codex.py / cursor.py / dsh.py / grok.py / kimi.py / mimo.py /
+# agy.py / claude.py / codex.py / cursor.py / dsh.py / grok.py / kimi.py / mimo.py / minimax.py /
 # opencode.py / pi.py / qwen.py -- one backend apiece, each the same three
 # classes under the CLI's own name and paired in `DRIVEN`: `ClaudeCodeAgentConfig`,
 # `ClaudeCodeSession`, `ClaudeCodeAgent`.

@@ -104,6 +104,18 @@ _QWEN_MODELS = ("qwen3-coder-plus", "qwen3-coder-flash")
 #: prompt offers before either has been asked.
 _ADVISORY = {"dsh": _DSH_MODELS, "qwen": _QWEN_MODELS}
 
+#: MiniMax's own models as MiniMax Code 0.5.9's table has them, each with the rungs it takes.
+#: `mcode provider list` lists what has been added to it and nothing of its own -- the two
+#: MiniMax sources it lists always come back with no models -- so these are written down here,
+#: as its `--model` takes them. Only one of them takes a rung at all; the others are refused a
+#: turn given one, and are offered at none.
+_MCODE_MODELS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("minimax/MiniMax-M3", ()),
+    ("minimax/MiniMax-M3.1-Flash-Preview", ("max", "xhigh", "high", "medium", "low")),
+    ("minimax/MiniMax-M2.7", ()),
+    ("minimax/MiniMax-M2.7-highspeed", ()),
+)
+
 #: How long an endpoint is given to say what it serves. Short beside `WAITING`, which is a
 #: coding agent starting up: this is one request, and one that does not answer promptly is
 #: one to fall back from rather than one to wait out.
@@ -884,6 +896,49 @@ def _qwen(profile: Profile, _run: Callable[..., str]) -> list[Model]:
     return [Model(name, profile.efforts, profile.swarms) for name in _ADVISORY["qwen"]]
 
 
+def _mcode(profile: Profile, run: Callable[..., str]) -> list[Model]:
+    """What MiniMax Code runs: every model added to it, and then MiniMax's own.
+
+    What has been added comes from `mcode provider list --json`, each model under the provider
+    it was added to, and the one it will run by default first. None of those takes a rung --
+    what a provider added by hand can be asked for is nothing MiniMax Code knows, and it
+    refuses `--effort` for a model that has not said -- so each is offered at none.
+
+    Args:
+      profile: MiniMax Code's own.
+      run: What puts the question.
+
+    Returns:
+      One per model, as `provider/id`, which is how its `--model` takes one.
+
+    Raises:
+      ValueError: If what it printed cannot be read.
+    """
+    said = _loaded(run(["provider", "list", "--json"]))
+    added: list[tuple[bool, str]] = []
+    for one in cast("list[Any]", said.get("providers") or []):
+        provider = cast("dict[str, Any]", one)
+        if provider.get("enabled") is False:
+            continue
+        for held in cast("list[Any]", provider.get("models") or []):
+            model = cast("dict[str, Any]", held)
+            if model.get("modelId"):
+                added.append(
+                    (
+                        not model.get("selected"),
+                        f"{provider.get('providerId', '')}/{model['modelId']}",
+                    )
+                )
+    found = [
+        Model(name, (), profile.swarms)
+        for _, name in sorted(added, key=lambda one: one[0])
+    ]
+    return found + [
+        Model(name, _rungs(profile, list(rungs)) if rungs else (), profile.swarms)
+        for name, rungs in _MCODE_MODELS
+    ]
+
+
 def _listed(profile: Profile, run: Callable[..., str]) -> list[Model]:
     """What opencode and mimocode list, which is a model a line and its size after it.
 
@@ -1018,6 +1073,7 @@ _READING: dict[str, Callable[[Profile, Callable[..., str]], list[Model]]] = {
     "dsh": _dsh,
     "grok": _grok,
     "kimi": _kimi,
+    "mcode": _mcode,
     "pi": _pi,
     "qwen": _qwen,
     "opencode": _listed,

@@ -89,6 +89,7 @@ _COUNTING: dict[str, set[str]] = {
     "dsh": {"input", "output", "cache_read", "cache_write"},
     "grok": {"input", "output", "cache_read", "cache_write"},
     "kimi": {"input", "output", "cache_read", "cache_write"},
+    "mcode": {"input", "output", "cache_read", "cache_write"},
     "mimo": {"input", "output", "cache_read", "cache_write", "reasoning"},
     "opencode": {"input", "output", "cache_read", "cache_write", "reasoning"},
     "pi": {"input", "output", "cache_read", "cache_write"},

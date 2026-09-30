@@ -81,6 +81,7 @@ __all__ = [
     "KimiCodeAgent",
     "LoopCommandAgentMixin",
     "MiMoCodeAgent",
+    "MiniMaxCodeAgent",
     "OpenCodeAgent",
     "Outworlder",
     "Permission",
@@ -104,6 +105,7 @@ class HarnessKind(StrEnum):
     CURSOR_AGENT = "cursor-agent"
     OPENCODE = "opencode"
     MIMO = "mimo"
+    MCODE = "mcode"
     QWEN = "qwen"
     KIMI = "kimi"
     GROK = "grok"
@@ -639,6 +641,12 @@ class MiMoCodeAgent(Agent, Protocol):
     """MiMo Code, with everything it can do."""
 
 
+class MiniMaxCodeAgent(
+    Agent, SubagentStartHookAgentMixin, SubagentStopHookAgentMixin, Protocol
+):
+    """MiniMax Code, with everything it can do."""
+
+
 class QwenCodeAgent(Agent, Protocol):
     """Qwen Code, with everything it can do."""
 
@@ -680,6 +688,7 @@ HARNESS_AGENTS: Mapping[HarnessKind, type] = MappingProxyType(
         HarnessKind.CURSOR_AGENT: CursorAgent,
         HarnessKind.OPENCODE: OpenCodeAgent,
         HarnessKind.MIMO: MiMoCodeAgent,
+        HarnessKind.MCODE: MiniMaxCodeAgent,
         HarnessKind.QWEN: QwenCodeAgent,
         HarnessKind.KIMI: KimiCodeAgent,
         HarnessKind.GROK: GrokBuildAgent,

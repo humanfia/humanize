@@ -134,7 +134,7 @@ say anything to any agent.
 | Your line goes into | Backends |
 | --- | --- |
 | <Badge type="tip" text="this turn" /> | Claude Code, Codex, Kimi Code, pi |
-| <Badge type="warning" text="next turn" /> | Antigravity, Cursor, DeepSeek Harness, Grok Build, MiMo Code, opencode, Qwen Code, and any CLI you add on the Accounts page of `/settings` |
+| <Badge type="warning" text="next turn" /> | Antigravity, Cursor, DeepSeek Harness, Grok Build, MiMo Code, MiniMax Code, opencode, Qwen Code, and any CLI you add on the Accounts page of `/settings` |
 
 The backends in the second row cannot be talked to while they work. Your line is refused with a
 red `hmz:` line and goes back on the pin, where the next turn to start takes it:

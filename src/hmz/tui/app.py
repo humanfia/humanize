@@ -80,7 +80,15 @@ from .discover import installable, installed
 from .history import History
 from .keyboard import reads_long_reports
 from .monitor import Monitor, short, thousands
-from .monitoring import BoardSeen, Drawn, Monitoring
+from .monitoring import (
+    BoardSeen,
+    Drawn,
+    Monitoring,
+    Placed,
+    declared_places,
+    needs,
+    place_key,
+)
 from .pick import (
     DETACHES,
     RESUMES,
@@ -139,6 +147,7 @@ class _RunSeen:
       roles: Its agent roles, in the order the flow declares them.
       outworlders: Its `Outworlder` roles, likewise.
       agents: What each agent role runs, as `-a` spells it after `<role>=`.
+      envs: What each environment role was given, as `-e` spells it after `<role>=`.
     """
 
     number: int
@@ -149,6 +158,7 @@ class _RunSeen:
     roles: tuple[str, ...] = ()
     outworlders: tuple[str, ...] = ()
     agents: Mapping[str, str] = field(default_factory=dict[str, str])
+    envs: Mapping[str, str] = field(default_factory=dict[str, str])
 
     @classmethod
     def of(cls, said: Mapping[str, Any]) -> _RunSeen:
@@ -162,6 +172,7 @@ class _RunSeen:
             tuple(said.get("roles") or ()),
             tuple(said.get("outworlders") or ()),
             dict(said.get("agents") or {}),
+            dict(said.get("envs") or {}),
         )
 
 
@@ -523,6 +534,24 @@ class Editor(TextArea):
     #: flag held only around the assignment is clear again by the time it arrives. The next
     #: key that is not an arrow is a key that is typing, and clears it.
     walking = False
+
+    def check_consume_key(self, key: str, character: str | None = None) -> bool:
+        """Whether a key is typing, which a space on an empty prompt under the monitor is not.
+
+        There it opens the node under the cursor out, as the arrows walk the nodes: nothing
+        has been typed for it to be the next character of. Anywhere else, and once anything
+        is typed, it is a space.
+
+        Args:
+          key: The key.
+          character: What it types, if anything.
+
+        Returns:
+          Whether this editor takes it, which keeps any binding of it from being matched.
+        """
+        if key == "space" and not self.text and isinstance(self.screen, Monitoring):
+            return False
+        return super().check_consume_key(key, character)
 
     #: Whether the offers were put away with esc and nothing has been typed since, which is
     #: a list not to bring back when what it offers changes under it.
@@ -948,6 +977,9 @@ class Humanize(App[None]):
         ] = queue.SimpleQueue()
         #: The run going now, or None: which is what `a flow is running` means here.
         self._run: _RunSeen | None = None
+        #: And the last one that went, kept once it is over: its sessions are still drawn on
+        #: the monitor, and what their environments are is what that run was given.
+        self._seen_last: _RunSeen | None = None
         #: Which run is the one in front of us, as the runs number them: a record of a run
         #: that has since been replaced is one about a run nobody is watching.
         self._generation = 0
@@ -964,6 +996,9 @@ class Humanize(App[None]):
         #: Kept once the run is over, since its transcripts are still on the screen and
         #: still worth reading back.
         self._seen: dict[str, Seen] = {}
+        #: Where each of those sessions works, as the run said as it opened it: the
+        #: environment role it fills, the kind of machine, which one, and where on it.
+        self._placed: dict[str, dict[str, Any]] = {}
         #: What the flow has done so far, which is what the right-hand column shows, and who
         #: reads the agents' own logs into it while it runs.
         self._monitor = Monitor()
@@ -1082,9 +1117,10 @@ class Humanize(App[None]):
         #: can go into: one written to a conversation between turns is answered on its own,
         #: outside the flow.
         self._working: set[str] = set()
-        #: Whether the monitor draws a node per session rather than per agent, as `ctrl+t`
-        #: last left it.
-        self._by_session = False
+        #: Whether the monitor draws the run as a list rather than as a graph, as `ctrl+t`
+        #: last left it, and which agents it has opened out to their sessions.
+        self._monitor_listed = False
+        self._monitor_opened: set[str] = set()
         #: Why there is no run here for `/resume` to carry on, as it was last looked for, or
         #: "" where there is one or it has not been looked for yet. What the list goes by, and
         #: how many times it has been looked for, so that a slow look lands only if no later
@@ -2506,6 +2542,8 @@ class Humanize(App[None]):
             Monitoring(
                 monitor=lambda: self._monitor,
                 drawn=self._boxes,
+                sessions=self._branches,
+                places=self._places,
                 setup=lambda: (
                     self._run.flow if self._run is not None else self._flow_named,
                     self._named_by,
@@ -2518,19 +2556,20 @@ class Humanize(App[None]):
                 calls=lambda: self._called,
                 whose=self._whose,
                 frontends=self._reading_too,
-                sessions=self._by_session,
+                listed=self._monitor_listed,
+                opened=self._monitor_opened,
                 turned=self._turns_monitor,
             ),
             self._back_from_monitor,
         )
 
-    def _turns_monitor(self, sessions: bool) -> None:  # noqa: FBT001 -- what it was turned to
-        """Remembers whether the monitor draws a node per session, for the next time it opens.
+    def _turns_monitor(self, listed: bool) -> None:  # noqa: FBT001 -- what it was turned to
+        """Remembers whether the monitor draws a list, for the next time it opens.
 
         Args:
-          sessions: Whether it does.
+          listed: Whether it does.
         """
-        self._by_session = sessions
+        self._monitor_listed = listed
 
     def _back_from_monitor(self, key: str | None) -> None:
         """Reads what was picked on the monitor, or the log that was being read.
@@ -2575,8 +2614,8 @@ class Humanize(App[None]):
             )
         ]
 
-    def _boxes(self, sessions: bool = False) -> list[Drawn]:  # noqa: FBT001, FBT002
-        """The nodes that have worked, as the monitor draws them, in the flow's own order.
+    def _boxes(self) -> list[Drawn]:
+        """The agents that have worked, as the monitor draws them, in the flow's own order.
 
         The ones that have worked rather than the ones the flow declares. A flow may declare
         ten roles and reach three of them, and seven boxes that have never done anything are
@@ -2584,44 +2623,14 @@ class Humanize(App[None]):
         its first turn starts and stays for the rest of the run, which is what makes this a
         picture of the run growing rather than a list of what was configured.
 
-        Args:
-          sessions: Whether a node is one session of a role rather than the role, keyed
-            `<role>/<n>` in the order each role's sessions were opened.
-
         Returns:
-          One per node that has taken a turn, in the order the flow declares its roles, and
+          One per agent that has taken a turn, in the order the flow declares its roles, and
           nothing at all before the first turn of a run -- which is a monitor about what is
           set up rather than about what it is doing.
         """
-        shape = self._monitor.shape(sessions=sessions)
-        named = self._named_by
-        seen = list(dict.fromkeys(one.id for one in list(self._seen.values())))
-        seen.sort(key=lambda who: named.index(who) if who in named else len(named))
-        if sessions:
-            return [
-                Drawn(
-                    who=key,
-                    named=f"{role}{_DOT}session {at}",
-                    runs=self._runs_of(role).spec,
-                    working=key in shape.working,
-                    # A session read on its own where it has a log of its own, and on its
-                    # role's where it does not: that is the log reading it opens.
-                    reading=self._attached in (key, role),
-                    unread=self._unread(key if key in self._kept else role),
-                )
-                for key in sorted(
-                    shape.turns,
-                    key=lambda key: (
-                        seen.index(key.partition("/")[0])
-                        if key.partition("/")[0] in seen
-                        else len(seen),
-                        int(key.partition("/")[2] or 0),
-                    ),
-                )
-                for role, _, at in [key.partition("/")]
-            ]
+        shape = self._monitor.shape()
         drawn: list[Drawn] = []
-        for who in seen:
+        for who in self._roles_seen():
             working = any(key in self._working for key in self._of(who))
             if not (working or shape.turns.get(who, 0)):
                 continue
@@ -2636,6 +2645,95 @@ class Humanize(App[None]):
                 )
             )
         return drawn
+
+    def _branches(self) -> list[Drawn]:
+        """The sessions that have worked, as the monitor hangs them under their agents.
+
+        Returns:
+          One per session that has taken a turn, keyed `<role>/<n>`, its role's in the order
+          the flow declares its roles and each role's in the order they were opened -- each
+          saying which agent it is of and which environment it works in.
+        """
+        shape = self._monitor.shape(sessions=True)
+        seen = self._roles_seen()
+        return [
+            Drawn(
+                who=key,
+                named=f"{role}{_DOT}session {at}",
+                runs=self._runs_of(role).spec,
+                working=key in shape.working,
+                # A session read on its own where it has a log of its own, and on its role's
+                # where it does not: that is the log reading it opens.
+                reading=self._attached in (key, role),
+                unread=self._unread(key if key in self._kept else role),
+                of=role,
+                env=place_key(placed) if (placed := self._placed.get(key)) else "",
+            )
+            for key in sorted(
+                shape.turns,
+                key=lambda key: (
+                    seen.index(key.partition("/")[0])
+                    if key.partition("/")[0] in seen
+                    else len(seen),
+                    int(key.partition("/")[2] or 0),
+                ),
+            )
+            for role, _, at in [key.partition("/")]
+        ]
+
+    def _roles_seen(self) -> list[str]:
+        """The roles the run has opened sessions for, in the order the flow declares them."""
+        named = self._named_by
+        seen = list(dict.fromkeys(one.id for one in list(self._seen.values())))
+        seen.sort(key=lambda who: named.index(who) if who in named else len(named))
+        return seen
+
+    def _places(self) -> list[Placed]:
+        """The environments the run's sessions work in, as the monitor hangs them under them.
+
+        What the run said of each as it opened a session there, and what the flow declares of
+        the role it fills: what it may do there and what it asks of the machine.
+
+        Returns:
+          One per environment, in the order a session first worked in it.
+        """
+        # The run's own, while there is one to read it off: another frontend may have started
+        # a flow this one never set up, and the menu may have set up another since.
+        ran = self._run or self._seen_last
+        declared = {
+            one.name: one
+            for one in declared_places(ran.flow if ran else self._flow_named)
+        }
+        given = ran.envs if ran is not None else self._envs
+        held: dict[str, Placed] = {}
+        for key, placed in list(self._placed.items()):
+            known = place_key(placed)
+            was = held.get(known)
+            if was is not None:
+                held[known] = was._replace(sessions=(*was.sessions, key))
+                continue
+            role = str(placed.get("role") or "")
+            of = declared.get(role)
+            held[known] = Placed(
+                key=known,
+                role=role,
+                kind=str(placed.get("kind") or ""),
+                target=str(placed.get("target") or ""),
+                workdir=str(placed.get("workdir") or ""),
+                given=given.get(role, ""),
+                anchored=bool(placed.get("anchored")),
+                grants=tuple(
+                    sorted(
+                        one.__name__.removesuffix("EnvMixin") for one in of.capabilities
+                    )
+                )
+                if of is not None
+                else (),
+                needs=needs(of) if of is not None else (),
+                image=of.image if of is not None else "",
+                sessions=(key,),
+            )
+        return list(held.values())
 
     @on(Editor.Sent)
     def _sent(self, event: Editor.Sent) -> None:
@@ -4077,6 +4175,7 @@ class Humanize(App[None]):
         self._run = _RunSeen.of(message) if message.get("state") == "running" else None
         if self._run is not None:
             self._starting = False
+            self._seen_last = self._run
         stopping = message.get("stopping")
         self._stopping = stopping if isinstance(stopping, int) else None
 
@@ -4125,7 +4224,7 @@ class Humanize(App[None]):
             self._now_reading(_EVERY, stepped=False)
         # The conversations of the run before this one went with it, and so do their numbers
         # and their transcripts: this run's first conversation is its role's first again.
-        self._seen, self._working = {}, set()
+        self._seen, self._working, self._placed = {}, set(), {}
         for gone in [key for key in self._kept if "/" in key]:
             del self._kept[gone]
         self._outworlders = list(record.get("outworlders") or ())
@@ -4200,6 +4299,8 @@ class Humanize(App[None]):
         )
         if record["run"] == self._generation:
             self._seen[record["key"]] = seen
+            if placed := record.get("env"):
+                self._placed[record["key"]] = dict(placed)
         followed = self._followed.get(record["run"])
         if followed is None:
             return
@@ -4285,6 +4386,12 @@ class Humanize(App[None]):
         tokens: dict[str, int] = record["tokens"]
         spent: dict[str, float] = record["spent"]
         whole = sum(tokens.values())
+        # And the node the monitor draws that conversation as, which is the key of the
+        # conversation it stands for -- only while the run it is of is the one in front of
+        # us. A run stopped and still unwinding behind the next numbers its conversations
+        # from one as that one does, so what it says goes on its agent's transcript instead.
+        ours = record["run"] == self._generation
+        numbered: str | None = (record["session"] or None) if ours else None
         for model, count in tokens.items():
             if not spent:
                 broken = None
@@ -4297,7 +4404,9 @@ class Humanize(App[None]):
                 # nothing to divide, and a turn whose accounting raised would lose the
                 # line it was about: what a watcher raises is swallowed.
                 broken = None
-            self._monitor.spend(agent, count, model=model, now=now, kinds=broken)
+            self._monitor.spend(
+                agent, count, model=model, now=now, kinds=broken, session=numbered
+            )
         # Anything at all the agent did, token or not: a tool, a word, an answer. A turn
         # spends most of its minutes between the counts it reports, and a figure worked out
         # only when one arrives stands still through all of them.
@@ -4309,12 +4418,6 @@ class Humanize(App[None]):
             self._last_answer = text
         elif kind == "asks":
             self._last_asked = text
-        # And the node the monitor draws that conversation as, which is the key of the
-        # conversation it stands for -- only while the run it is of is the one in front of
-        # us. A run stopped and still unwinding behind the next numbers its conversations
-        # from one as that one does, so what it says goes on its agent's transcript instead.
-        ours = record["run"] == self._generation
-        numbered: str | None = (record["session"] or None) if ours else None
         seen = self._seen.get(record["session"]) if numbered is not None else None
         if seen is not None and record["ident"] not in ("", *seen.idents):
             # What the backend calls it, which is the name its log is kept under.

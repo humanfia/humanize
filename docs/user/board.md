@@ -8,8 +8,8 @@ const add = ['   [m]+[/] [m]add entry[/]']
 // What sits between is the rest of the monitor -- the flow, what it has cost -- left out here.
 const gap = ['', '   [m]⋮[/]', '']
 const said = (words) => [...gap, ...(words ? [`[m]${words}[/]`] : []), { rule: true }, { prompt: '' }, { rule: true }, {
-  l: '[c]▣[/] monitor[m] · by agent[/]',
-  keys: '↑↓ node · enter open · → back · ctrl+t by session · / commands',
+  l: '[c]▣[/] monitor[m] · graph[/]',
+  keys: '↑↓ node · enter open · → back · ctrl+t list · / commands',
 }]
 
 const board = [

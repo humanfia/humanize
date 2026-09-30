@@ -148,7 +148,7 @@ on your `PATH` and in the directories installers use, such as `~/.local/bin` and
 `/usr/local/bin`. Check what it can find:
 
 ```sh
-command -v agy claude codex cursor-agent grok kimi mimo opencode pi qwen
+command -v agy claude codex cursor-agent grok kimi mcode mimo opencode pi qwen
 ```
 
 Install one from [Installation](/user/installation), then open `hmz` again. If one is

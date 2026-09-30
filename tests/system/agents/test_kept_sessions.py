@@ -147,10 +147,7 @@ def _kept(at: Path) -> list[str]:
 def _logged(profile: backends.Profile, at: Path, ident: str) -> list[Path]:
     """The session's own log under where it was kept, as the backend's `logs` name it."""
     return [
-        one
-        for glob in profile.logs
-        for one in at.glob(glob.format(ident=ident))
-        if one.is_file()
+        one for glob in profile.logged(ident) for one in at.glob(glob) if one.is_file()
     ]
 
 

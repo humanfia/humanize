@@ -5,7 +5,7 @@
 // A simulation, and it has to say what the code says. The reading is
 // `hmz.runtime.flowing.specs.parse_agents` over `hmz.coganchor.backends.read`, the ladders
 // are each profile's `efforts` in `hmz.coganchor.backends`, and every refusal below is the
-// line `hmz exec` prints for it. It knows the eleven CLIs humanize ships and no CLI added at
+// line `hmz exec` prints for it. It knows the twelve CLIs humanize ships and no CLI added at
 // the accounts page of /settings, and it cannot know which roles a flow declares.
 import { computed, ref } from 'vue'
 
@@ -29,6 +29,7 @@ const CLIS: Cli[] = [
   { name: 'opencode', title: 'opencode', aliases: ['opencode'], efforts: ['xhigh', 'high', 'medium', 'low', 'minimal'] },
   { name: 'mimo', title: 'mimocode', aliases: ['mimo', 'mimocode', 'mimo-code'], efforts: ['xhigh', 'high', 'medium', 'low', 'minimal'] },
   { name: 'cursor-agent', title: 'Cursor Agent', aliases: ['cursor-agent', 'cursor-cli'], efforts: ['max', 'xhigh', 'extra-high', 'high', 'medium', 'low', 'minimal', 'none'] },
+  { name: 'mcode', title: 'MiniMax Code', aliases: ['mcode', 'minimax', 'minimax-code'], efforts: ['max', 'xhigh', 'high', 'medium', 'low'] },
 ]
 
 const EXAMPLES = [

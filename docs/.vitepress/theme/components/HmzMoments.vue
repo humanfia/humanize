@@ -53,6 +53,7 @@ const CLIS: Cli[] = [
   { name: 'kimi', reaches: ['perm', 'ask'], gates: false },
   { name: 'pi', reaches: ['ask'], gates: false },
   { name: 'cursor-agent', reaches: ['sub'], gates: false },
+  { name: 'mcode', reaches: ['sub'], gates: false },
   { name: 'qwen', reaches: [], gates: true },
   { name: 'agy', reaches: [], gates: false },
   { name: 'dsh', reaches: [], gates: false },

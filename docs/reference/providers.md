@@ -62,6 +62,7 @@ it goes with it. The home is read from humanize's own environment.
 | `dsh` | `$DSH_HOME`, else `~/.dsh` | none: its accounts are variables |
 | `grok` | `$GROK_HOME`, else `~/.grok` | `auth.json`<br>`mcp_credentials.json` |
 | `kimi` | `$KIMI_CODE_HOME`, else `~/.kimi-code` | `credentials/`<br>`oauth/` |
+| `mcode` | `$MINIMAX_DATA_DIR`, else `~/.minimax` | `config.yaml`<br>`auth/` |
 | `mimo` | `$XDG_DATA_HOME/mimocode`, else `~/.local/share/mimocode` | `auth.json`<br>`mcp-auth.json` |
 | `opencode` | `$XDG_DATA_HOME/opencode`, else `~/.local/share/opencode` | `auth.json`<br>`mcp-auth.json` |
 | `pi` | `$PI_CODING_AGENT_DIR`, else `~/.pi/agent` | `auth.json`<br>`auth.json.lock` |
@@ -75,6 +76,8 @@ it goes with it. The home is read from humanize's own environment.
   reach for, so a provider of it keeps settings of its own. Its tokens are in `auth.json`,
   which it reads under `$XDG_CONFIG_HOME/cursor` on Linux and under `~/.cursor` on macOS.
 - `grok`'s `mcp_credentials.json` holds the tokens its MCP servers handed back.
+- `mcode`'s `config.yaml` holds a MiniMax key and every provider added to it beside its
+  settings, so a provider of it keeps settings of its own. `auth/` is what `mcode login` leaves.
 - An ACP CLI added on the Accounts page of `/settings` has no credential files humanize knows
   of, so its accounts are variables.
 
@@ -93,6 +96,7 @@ cloud. The Accounts page of `/settings` offers a backend's ways once you pick th
 | [`dsh`](#deepseek-harness-dsh) | | | ✓ | ✓ | | |
 | [`grok`](#grok-build-grok) | ✓ | ✓ | ✓ | ✓ | `oidc` | ✓ |
 | [`kimi`](#kimi-code-kimi) | ✓ | | | | `model` | ✓ |
+| [`mcode`](#minimax-code-mcode) | ✓ | | ✓ | ✓ | | ✓ |
 | [`mimo`](#mimocode-mimo) | ✓ | | ✓ | | | ✓ |
 | [`opencode`](#opencode-opencode) | ✓ | | | | `wellknown`, `zen` | ✓ |
 | [`pi`](#pi-pi) | ✓ | | | | | ✓ |
@@ -180,6 +184,16 @@ base URL and nothing else.
 | --- | --- | --- |
 | `login` | Sign in to a Kimi account, by the code it prints. Runs `kimi login`. | — |
 | `model` | An endpoint of your own, made its default model. | `KIMI_MODEL_NAME`, `KIMI_MODEL_API_KEY`, `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_PROVIDER_TYPE`: `anthropic`, `openai` or `kimi` (`openai`) |
+
+### MiniMax Code (`mcode`)
+
+| Way | What it is | Asks for |
+| --- | --- | --- |
+| `login` | Sign in to a MiniMax account, in a browser. Runs `mcode login`. | — |
+| `key` | A MiniMax API key, from the platform. Runs `mcode provider set-minimax-key`, which saves it into its `config.yaml` and makes MiniMax's own models run on it. | `MCODE_PROVIDER_API_KEY` |
+| `gateway` | An endpoint of your own, added to it as a provider called `gateway` and made its default. Runs `mcode provider add --name gateway --base-url … --api-format … --model … --api-key-env MCODE_PROVIDER_API_KEY --use`, which asks the endpoint once before it saves anything. | `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY`, `MCODE_GATEWAY_MODEL` (not kept), `MCODE_GATEWAY_FORMAT`: `anthropic-messages`, `openai-completions` or `openai-responses` (`openai-completions`, not kept) |
+
+A model on a `gateway` account is named `custom_provider:gateway/<id>`.
 
 ### mimocode (`mimo`)
 
@@ -431,6 +445,7 @@ goes in is made as the CLI writes into it. A name in `sessions` may be a glob, s
 | `pi` | `sessions/` |
 | `agy` | `conversations/`, `brain/`, `annotations/`, `implicit/`, `presence/`, `conversation_summaries.db*`, `jetbox_summaries_proto.pb`, `cache/last_conversations.json` |
 | `cursor-agent` | `chats/`, `projects/*/agent-transcripts/` |
+| `mcode` | `v2/sqlite/`, `v2/sessions/`, `background-tasks/` |
 | `opencode` | `opencode.db*`, `storage/` |
 | `mimo` | `mimocode.db*`, `storage/` |
 | `dsh` | `sessions/`, which humanize names to it as its session root rather than supervising it |

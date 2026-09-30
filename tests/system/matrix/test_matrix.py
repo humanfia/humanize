@@ -402,8 +402,8 @@ def test_stop(cell: Cell) -> None:
     running = cell.start(_one(cell), SLOW)
     opened = threading.Event()
 
-    def told(role: str, agent: AgentBase, session: SessionBase) -> None:
-        del role, agent, session
+    def told(role: str, agent: AgentBase, session: SessionBase, where: object) -> None:
+        del role, agent, session, where
         opened.set()
 
     running.opened(told)
@@ -867,7 +867,9 @@ def test_fence_user_none(cell: Cell) -> None:
 @feature(
     limits={
         "cursor-agent": "online NONE is refused, its web tools running on Cursor's own "
-        "servers (docs/user/permissions.md)"
+        "servers (docs/user/permissions.md)",
+        "mcode": "online NONE is refused, its web search running on MiniMax's own "
+        "service (docs/user/permissions.md)",
     }
 )
 def test_fence_offline(cell: Cell) -> None:
