@@ -275,6 +275,14 @@ Where `shadow` is unset, the mirror on the harness machine is
 `sha256(workspace \0 remote_path \0 target)`. It is passed as `HUMANIZE_SHADOW` with `force`
 set, and kept between turns.
 
+The driver still names the workspace by its own path: a CLI told where to work over its
+protocol (Codex's `thread/start` `cwd`, an ACP `session/new` `cwd`, and so on) is told
+`workspace`. On a harness reaching its work as a `peer://` target (a third machine), the
+supervisor answers `workspace` and everything under it with the mirror, as another
+[spelling](#interception) of it, whatever the harness machine holds at that path; it is never
+created there. A `--local-path` under `workspace` is kept here by either name. Not for a
+mirror nested in the workspace or the other way round.
+
 ### `-H`: placement for a flow run
 
 ```text
@@ -295,7 +303,10 @@ set, and kept between turns.
   saved [environment provider](/reference/machines#environment-providers), looked up as ssh
   first, then docker. A missing workdir becomes the provider's own, else `~` over ssh, else
   `$HUMANIZE_HOME/harness` for `docker@local` (created by the run). The standalone machine is
-  opened, probed and closed as an environment of the run.
+  opened, probed and closed as an environment of the run. A container for it is started with
+  `--cap-add SYS_PTRACE`: without it, docker's default seccomp profile refuses the
+  `pidfd_getfd` the supervisor borrows each command's descriptors with, and a command whose
+  output goes to a socket (opencode's, Claude Code's stdin) is run with that output lost.
 - A standalone machine may not be this machine.
 
 | `-H` value | `HarnessSpecError` (exit 2 from `hmz exec`) |
@@ -403,6 +414,10 @@ network is answered from the target.
   `/proc/self/fd/<n>`, `/proc/<pid>/fd/<n>`, `/proc/self/cwd`, `/proc/self/root` and
   `/proc/self/exe` are followed to what they name. An ordinary symlink in the middle of a path
   is not walked. A link that cannot be read back fails the call.
+- A path the mirror is also reached by is rewritten onto the mirror's own path before the call
+  runs: `/private/tmp/…` for a mirror under `/tmp` on a Mac target, any case on a target that
+  ignores case, and `workspace/…` for a `peer://` target
+  ([a harness elsewhere](#where-the-harness-runs)).
 - Only x86-64 and aarch64 Linux are supported. Any other platform fails at start-up with
   `RuntimeError`, naming where the supervisor can run instead.
 
@@ -697,6 +712,11 @@ from hmz.coganchor.anchor import NotInstalled
   mirrored files still read, and the agent exits with its own status.
 - **The mirror is authoritative.** What the target lacks is deleted from the mirror, including
   a file written here and never pushed; the deletion is logged.
+- **A command's output may not reach the agent in a container.** The supervisor borrows each
+  command's descriptors with `pidfd_getfd`, which docker's default seccomp profile refuses
+  without `CAP_SYS_PTRACE`. A pipe or tty is opened again through `/proc` instead; a socket
+  cannot be, and is logged as `could not borrow fd <n> from pid <pid>`. humanize starts a
+  standalone harness's container with `--cap-add SYS_PTRACE`; one started otherwise needs it.
 - **A path is read when its syscall stops.** A descriptor replaced by another thread in between
   resolves as it was.
 - **Native setup commands are bounded.** Each short command a native turn runs to set itself

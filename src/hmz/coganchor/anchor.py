@@ -575,6 +575,7 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
     )
     router = Router(
         layouts=(Layout.create(shadow_root, workspace),),
+        aliases=_aliases(target, shadow_root, workspace),
         local_paths=tuple(
             agent.local_paths
             + [os.path.abspath(path) for path in config.local_paths]
@@ -661,6 +662,39 @@ def connect(command: Sequence[str], config: AnchorConfig | None = None) -> int:
             netproxy.close()
         client.close()
         link.close()
+
+
+def _aliases(
+    target: Target, shadow_root: str, workspace: str
+) -> tuple[tuple[str, str], ...]:
+    """The other name the agent may reach its mirror by, as `(name, mirror)`, if it has one.
+
+    The workspace's own path, for a harness on another machine than this session's driver:
+    its mirror is kept under that machine's mirror cache, and the driver tells a CLI where to
+    work by the workspace's own path, over its protocol rather than as a directory to start
+    in -- Codex's `thread/start` takes a `cwd`, and every shell it then ran was started in a
+    directory that harness had never had. That harness reaches its work at a `peer://`
+    target, and only there is the path the target's alone: whatever this machine holds at it
+    is some other directory of the same name. Nothing for a mirror nested in its workspace,
+    or the other way about, where one name for both could only be answered in circles.
+
+    Args:
+      target: Where the work lands.
+      shadow_root: The mirror, as this machine names it.
+      workspace: The workspace, as the target names it.
+
+    Returns:
+      The alias, or nothing.
+    """
+    from hmz.coganchor.proto import path_within
+
+    if (
+        target.scheme != "peer"
+        or path_within(shadow_root, workspace) is not None
+        or path_within(workspace, shadow_root) is not None
+    ):
+        return ()
+    return ((workspace, shadow_root),)
 
 
 class _Walls:

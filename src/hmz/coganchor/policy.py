@@ -192,6 +192,12 @@ class Router:
     #: A directory stands for everything inside it, because a credential is
     #: often one file of several kept together.
     redirects: tuple[tuple[str, str], ...] = ()
+    #: Other names a layout's root is reached by here, as ``(the name, the root)``: the
+    #: workspace's own path, for a harness on another machine than its driver.  Its mirror
+    #: is wherever that machine keeps its mirrors, and its agent is told where to work by a
+    #: driver that knows the workspace by its own path and cannot know that machine's.  A
+    #: path under one is settled onto the root like any other spelling of it.
+    aliases: tuple[tuple[str, str], ...] = ()
     #: What the target said it is, asked for rather than held.  These settings are written
     #: before there is a connection to ask, and how the target spells a path is the one thing
     #: about it that nobody here may assume, so the answer is fetched when it is wanted --
@@ -226,8 +232,10 @@ class Router:
         if self._settled is not None:
             return self._settled
         said = self.platform()
-        settles = said in CASE_INSENSITIVE or any(
-            spelled_twice(layout.local_root) for layout in self.layouts
+        settles = (
+            said in CASE_INSENSITIVE
+            or bool(self.aliases)
+            or any(spelled_twice(layout.local_root) for layout in self.layouts)
         )
         if said:
             self._settled = settles
@@ -238,6 +246,17 @@ class Router:
         # roots are matched, since a root written the long way round is no deeper for it.
         self.layouts = tuple(
             sorted(self.layouts, key=lambda item: -len(path_key(item.local_root)))
+        )
+        self.aliases = tuple(
+            (_normalise(name), _normalise(root)) for name, root in self.aliases
+        )
+        # A hole written as the workspace's own path is a hole in the mirror that path now
+        # reaches, since a path is matched against the holes once it has been settled.
+        self.local_paths += tuple(
+            posixpath.join(root, suffix) if suffix else root
+            for kept in self.local_paths
+            for name, root in self.aliases
+            if (suffix := path_within(kept, name)) is not None
         )
         # And longest named path first, so a path under two redirects takes the
         # one that says most about it.
@@ -271,12 +290,18 @@ class Router:
         own business, and answering it with another would turn a file that is simply not there
         into one that could not be reached.
 
+        The workspace's own path is one more such name where it is one of :attr:`aliases`:
+        a harness on another machine has its mirror wherever that machine keeps mirrors, and
+        an agent told the path the target has -- as a CLI told where to work over its own
+        protocol is -- names a directory only the target has.
+
         A session with nothing to settle answers with the path it was given without looking:
         a target that spells everything one way and layouts at roots that do the same have
         nothing another name could be, and this is called once per path per syscall.
         """
         if not self.settles:
             return local_path
+        local_path = self._unaliased(local_path)
         for layout in self.layouts:
             suffix = layout.below(local_path, insensitive=self.insensitive)
             if suffix is None:
@@ -287,6 +312,15 @@ class Router:
                 else layout.local_root
             )
         return local_path
+
+    def _unaliased(self, path: str) -> str:
+        """The path an alias names, put onto the root it is another name for."""
+        insensitive = self.insensitive
+        for name, root in self.aliases:
+            suffix = path_within(path, name, fold_case=insensitive)
+            if suffix is not None:
+                return posixpath.join(root, suffix) if suffix else root
+        return path
 
     def layout_for(self, local_path: str) -> Layout | None:
         """Return the layout owning ``local_path``, or ``None`` if it is local."""

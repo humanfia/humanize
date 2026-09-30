@@ -224,7 +224,8 @@ hmz exec: error: claude is not installed on docker@local: npm i -g @anthropic-ai
 **`standalone:docker@local`** starts one more container just for the CLI, from the saved
 daemon's image (else `python:3.12-slim`), holding `~/.humanize/harness`; a daemon other than
 `local` needs the directory
-said, as `standalone:docker@gpubox/srv/scratch`. It is only for a role granted everything, and
+said, as `standalone:docker@gpubox/srv/scratch`. That container is given `--cap-add
+SYS_PTRACE`, which the CLI's supervisor needs there to hand each command's output back to it. It is only for a role granted everything, and
 the image must have the CLI:
 
 ```text

@@ -278,7 +278,7 @@ reaches its environments and removed when the run closes it.
 | Image | the role's `_image` (`ImageEnvMixin`), else the provider's `image`, else `python:3.12-slim` |
 | Workdir | a directory of the daemon's host, bind-mounted at its own path; what is written there outlives the container |
 | Limits | exactly the role's `_cpu_count`, `_memory` and `_gpu_count` as hard limits; nothing the role does not declare is limited; no GPU unless `GPUEnvMixin` is declared |
-| Runtime and arguments | the provider's `runtime` and `run_args` |
+| Runtime and arguments | the provider's `runtime` and `run_args`; for the container of a `-H standalone:docker@…` harness, `--cap-add SYS_PTRACE` before them |
 | Labels | `humanize.provider`, `humanize.role`, `humanize.host` (this host's name), `humanize.pid` (this process), plus `humanize=<uid>`, `humanize.cpus`, `humanize.memory`, `humanize.gpus` |
 | Agents | anchored to the container over `docker exec`; supervised here in a mirror under `$HUMANIZE_HOME/envs/mirrors/<container>/<12 hex>`, or native in the container per `-H` |
 | Derived environments | inside the same container |
