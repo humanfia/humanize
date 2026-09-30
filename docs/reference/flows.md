@@ -1553,10 +1553,10 @@ last `-H` wins. Stored per flow in the [settings](/reference/settings) as writte
 
 | Value | Harness of a session whose work is **here** | Harness of a session whose work is **on another machine** (`ssh`, `docker`) |
 | --- | --- | --- |
-| `adaptive` (default) | here | on the environment's machine, natively, if all hold: no `on_pre_tool_use`/`on_permission_request`/`on_ask_user` hook hung when the session opens; the CLI is on that machine's `PATH`; for a fenced session, that machine can hold the fence. Otherwise here, anchored to the machine. |
+| `adaptive` (default) | here | on the environment's machine, natively, if all hold: no `on_pre_tool_use`/`on_permission_request` hook hung when the session opens (an `on_ask_user` hook does not keep it here); the CLI is on that machine's `PATH`; for a fenced session, that machine can hold the fence. Otherwise here, anchored to the machine. |
 | `local` | here | here, anchored to the machine (turns' tools land there) |
 | `env` | here | on the environment's machine, natively; refused where the CLI is missing or the fence cannot be held |
-| `standalone:<machine>` | on `<machine>`, acting on the work through the anchor | on `<machine>`, acting on the work through the anchor |
+| `standalone:<machine>` | on `<machine>`, acting on the work through the anchor | on `<machine>`, acting on the work through the anchor; only for a role whose permission is every scope `ALL` |
 
 `<machine>` is written as `-e` writes a spec after `<role>=`: `ssh@gpu-box/~/scratch`,
 `docker@gpubox/srv/scratch`, or the bare name of a stored environment provider (ssh first, then
@@ -1574,12 +1574,17 @@ stopped with the run). Whether the machine can hold a fence is asked once per ki
 | --- | --- |
 | `-H` not one of the four | `-H '<v>': expected adaptive, local, env or standalone:<backend>@<provider>[/<workdir>]` |
 | `standalone:` naming this machine | `-H '<v>': a standalone harness runs on another machine; -H local runs it on this one` |
-| `standalone:` spec invalid | `-H '<v>': <the -e error>` |
+| `standalone:` spec invalid | `-H '<v>': <why>`, e.g. `'bogus' is not a backend; one of ssh, docker`, `no environment provider is saved as '<name>'; …` ([CLI](/reference/cli#choosing-where-the-harness-runs)) |
+| `standalone`: role not granted everything | `HarnessSandboxed`: `<role>=<spec>: <AgentClass>: a fence cannot hold a harness that runs on another machine` |
 | `env`: CLI missing | `HarnessNotInstalled`: `<cli> is not installed on <backend>@<provider>: <install hint> there, or run its harness here with -H local` |
 | `env`: fence not holdable | `HarnessSandboxed`: `<backend>@<provider> cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or run its harness here with -H local` |
 | `env`: machine did not answer | `HarnessUnrecoverable`: `<backend>@<provider> did not say within 300s whether <cli> is there` (or `could not be asked whether <cli> is there: <reason>`) |
 
-Under `adaptive` those conditions fall back to "here" instead of refusing. Where each session's
+The `env` and `standalone` refusals are checked for every agent against every environment
+(the workspace included) once the environments are probed, before the flow is called, so a
+run refuses as a line to correct rather than failing at a session; a session opened later
+(a callee's, under a narrower permission) is still refused as it opens. Under `adaptive`
+those conditions fall back to "here" instead of refusing. Where each session's
 harness went is recorded in the epic (`opened.harness`: `local`, `env`,
 `standalone:<target>`), for sessions whose work was on another machine.
 
@@ -1698,7 +1703,7 @@ How a failed CLI turn maps to a leaf: the fault coganchor classifies is mapped
 `contended → HarnessContended`, `throttled → HarnessThrottled`, `refused → HarnessRefused`,
 `unlisted`/`retired → ModelUnavailable`, `missing → HarnessMissing` (`HarnessNotInstalled` when
 the exit status is 127), `sandboxed → HarnessSandboxed`, `killed → HarnessKilled`,
-`dropped → HarnessDropped`, anything else `HarnessUnrecoverable`. A turn stopped by the
+`dropped → HarnessDropped`, anything else (`unmirrored` among them) `HarnessUnrecoverable`. A turn stopped by the
 driver is `SessionError`.
 
 ## Testing a flow {#testing-a-flow}

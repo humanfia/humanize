@@ -271,6 +271,17 @@ ANSWERS: tuple[Answer, ...] = (
         accounts=False,
         fix="",
     ),
+    # This machine's filesystem, and nobody's account: the copy of another machine's work a
+    # harness here works in has a path that cannot be made here. The next go is the same
+    # path, and so is every account's.
+    Answer(
+        "unmirrored",
+        "could not keep its copy of the work here",
+        held=True,
+        accounts=False,
+        fix="that path cannot be made here; use a workdir whose path you can create here, "
+        "or run the harness on that machine with -H env",
+    ),
     # The machine rather than anything a turn named. A CLI that confines its own tool calls
     # asks the kernel for the confinement, and a kernel that has just said no says no to the
     # next go and to every account of it: an unprivileged container is not somewhere

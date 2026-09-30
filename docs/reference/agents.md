@@ -583,6 +583,7 @@ message ends with what the CLI said and, where classified, `(<fault>: <fix>)`.
 | `retired` | the model is gone (`404`, `model not found`, `unknown model`, …) |
 | `missing` | nothing to run: exit 126 or 127 |
 | `sandboxed` | the CLI could not start its own sandbox (`bwrap: `, `cannot create … namespace`, …) |
+| `unmirrored` | the copy of another machine's work a harness here keeps could not be made at its path (`cannot keep the local copy of the work at`); read first of all, ahead of the `Permission denied` it usually carries |
 | `killed` | a signal, or exit 129–192, or `out of memory`, `SIGKILL`, `segmentation fault`, … |
 | `dropped` | the wire (`ECONNRESET`, `broken pipe`, `fetch failed`, `502`/`503`/`504`, `timed out`, …) |
 
@@ -1063,6 +1064,7 @@ Each fault adjusts the place's retries (`fallbacks.ANSWERS`):
 | `killed` | 1 | constant | yes | yes | the machine it runs on may be out of memory |
 | `missing` | none | — | no | no | |
 | `sandboxed` | none | — | no | no | this machine will not let it sandbox itself; run it without one, or somewhere it can |
+| `unmirrored` | none | — | no | no | that path cannot be made here; use a workdir whose path you can create here, or run the harness on that machine with -H env |
 | unclassified | the place's | the place's | yes | no | |
 
 `Unrecoverable` is never retried or carried.

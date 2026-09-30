@@ -112,7 +112,9 @@ def tools(argv: list[str]) -> int: ...
   this one, MUST be a usage error before any agent has started. A `standalone:<name>` MUST be
   the environment provider written down under that name, and a machine given no `/<workdir>`
   and saved with none MUST be worked in at the login's home over ssh and, on docker's default
-  here, at a directory humanize keeps.
+  here, at a directory humanize keeps. `env` where an environment's machine lacks an agent's
+  CLI or cannot hold its role's fence, and `standalone` for a role whose permission fences
+  anything, MUST be refused before any agent has started.
 - `hmz exec` MUST stop its run on a terminate or a hangup as it does on an interrupt, and MUST
   exit with 128 plus the signal only once the run has let go of everything it made.
 - `--resume` MUST pick up the newest run of that flow in this workspace that can be picked up;

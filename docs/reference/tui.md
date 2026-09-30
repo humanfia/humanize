@@ -824,7 +824,7 @@ Row summary: `stops at <duration>, <n> out, <money>[, even mid-turn]` for the li
 | Row | Kind | Values / about |
 | --- | --- | --- |
 | `harness` | ↔ | `adaptive` (`on the env's machine where its CLI is installed, else here`), `local` (`here, reaching the env through the anchor`), `env` (`on the env's machine; refused where its CLI is missing`), `standalone` (`on a machine of its own, reaching the env through the anchor`) |
-| `machine` | ▸, standalone only | `choose the machine it runs on`; opens the [environment form](#where-each-agent-works) for role `harness`. |
+| `machine` | ▸, standalone only | `choose the machine it runs on`; opens the [environment form](#where-each-agent-works) as `Machine for the standalone harness`: backends `ssh` and `docker` only, its last row `as -H` (`what follows standalone: in -H; typing one sets the rows above`), read as `-H` reads what follows `standalone:`. A workdir left blank is filled in as the command line fills it (`leave blank for the login's home` over ssh, `leave blank for a directory humanize keeps` on `docker@local`); a refusal is the [`-H` error](/reference/cli#choosing-where-the-harness-runs). |
 | `done` | | `runs them <spec> when the flow is saved` |
 
 Refusals: `choose the machine a standalone harness runs on`, and the

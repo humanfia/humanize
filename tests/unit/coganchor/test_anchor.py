@@ -15,7 +15,7 @@ will not hand over a tracee skips whole.
 from __future__ import annotations
 
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -23,6 +23,9 @@ from hmz import cli
 from hmz.coganchor import AnchorConfig
 from hmz.coganchor.argv import parser
 from hmz.coganchor.fence import ALL, READ, Fence
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 #: Every setting at once, none of them left at its default. The token is spelled the way one
 #: in eighty of `secrets.token_urlsafe`'s are, and the paths hold a space, because a setting
@@ -111,3 +114,32 @@ def test_settings_no_session_could_run_under_are_refused_as_they_are_written(
     """Both spellings refuse the same thing: the command line by parsing, this by construction."""
     with pytest.raises(ValueError, match=complaint):
         AnchorConfig(**settings)
+
+
+def test_a_mirror_that_cannot_be_made_here_says_so_rather_than_what_it_failed_with(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A path that cannot be made is this machine's filesystem, and says it in its own words.
+
+    Read as the error underneath says it, `Permission denied` is a credential refused, and a
+    turn failing for it is a person sent to sign an account in that nothing was wrong with.
+    """
+    from hmz.coganchor import backends
+
+    (tmp_path / "work").mkdir()
+    (tmp_path / "taken").write_text("a file, where the mirror's parent was to be\n")
+    status = cli.main(
+        [
+            "internal",
+            "anchor",
+            f"--target=local:{tmp_path / 'work'}",
+            f"--workspace={tmp_path / 'work'}",
+            f"--shadow={tmp_path / 'taken' / 'mirror'}",
+            "sh",
+        ]
+    )
+
+    said = capsys.readouterr().err
+    assert status == 1
+    assert f"cannot keep the local copy of the work at {tmp_path}/taken/mirror" in said
+    assert backends.trouble("claude", said) == "unmirrored"
