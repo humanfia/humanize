@@ -2,13 +2,15 @@
 // The capability matrix at the top of /reference/agents, with a filter over it.
 //
 // Every cell is read off the code, and has to go on matching it:
-// - steers, schema held: `steers` and `shapes` on each session class in
+// - Goal, Loop, Steer, Permission, Subagent, AskUser: the mixins each harness protocol in
+//   `HARNESS_AGENTS` (src/hmz/flows/agents.py) inherits -- what a flow role typed as that
+//   harness may ask for
+// - Schema, Tools: `shapes` and `takes_tools` on each session class in
 //   src/hmz/coganchor/agents/*.py
-// - goal, fast tier, rungs, moments: `pursues`, `service_tiers`, `rungs` and `moments` on each
-//   agent class there
-// - fork, web-search switch: `forks` and `searches` on each Profile in
-//   src/hmz/coganchor/backends.py (an added ACP CLI is `_speaks`)
-// - trace reader: `_READERS` in src/hmz/runtime/tracing/collector.py
+// - Rungs, Fast: `rungs` and `service_tiers` on each agent class there
+// - Fork, Web off: `forks` and `searches` on each Profile in src/hmz/coganchor/backends.py (an
+//   added ACP CLI is `_speaks`); "+cwd" is `forks_elsewhere` on the session class
+// - Trace: `_READERS` in src/hmz/runtime/tracing/collector.py
 //
 // Nothing here touches `window` or `document`, so it renders the same on the server as in the
 // browser: every row is in the HTML, and the filter only hides rows once somebody clicks.
@@ -22,92 +24,94 @@ interface Cell {
   tone: Tone
 }
 
+type Key =
+  | 'goal'
+  | 'loop'
+  | 'steer'
+  | 'perm'
+  | 'sub'
+  | 'ask'
+  | 'schema'
+  | 'fork'
+  | 'web'
+  | 'rungs'
+  | 'fast'
+  | 'tools'
+  | 'trace'
+
 interface Row {
   name: string
   product: string
-  steers: Cell
-  goal: Cell
-  schema: Cell
-  fork: Cell
-  web: Cell
-  rungs: Cell
-  moments: string[]
-  fast: Cell
-  trace: Cell
+  cells: Record<Key, Cell>
+}
+
+interface Column {
+  key: Key
+  head: string
+  href: string
+  filter: string
+  group: 'flow' | 'driver'
 }
 
 // A cell with no text is a backend that cannot, drawn as a quiet dash so that what a backend
 // can do is what the eye lands on.
-const yes: Cell = { can: true, text: 'yes', tone: 'tip' }
-const no: Cell = { can: false, text: '', tone: 'info' }
-const held: Cell = { can: true, text: 'held', tone: 'tip' }
-const prompt: Cell = { can: false, text: 'prompt', tone: 'warning' }
-const four: Cell = { can: true, text: 'all 4', tone: 'tip' }
-const bypass: Cell = { can: false, text: 'bypass', tone: 'warning' }
-const three: Cell = { can: false, text: 'no read-only', tone: 'warning' }
+const Y: Cell = { can: true, text: 'yes', tone: 'tip' }
+const N: Cell = { can: false, text: '', tone: 'info' }
+const ELSEWHERE: Cell = { can: true, text: '+cwd', tone: 'tip' }
+const IF_SERVED: Cell = { can: true, text: 'if served', tone: 'warning' }
+const ALL4: Cell = { can: true, text: 'all 4', tone: 'tip' }
+const BYPASS: Cell = { can: false, text: 'bypass', tone: 'warning' }
+const NO_RO: Cell = { can: false, text: 'no read-only', tone: 'warning' }
 
-const PERM = 'Permission'
-const SUB = 'Subagent'
-
-const ROWS: Row[] = [
-  { name: 'agy', product: 'Antigravity', steers: no, goal: no, schema: held, fork: no, web: yes, rungs: four, moments: [], fast: no, trace: yes },
-  { name: 'claude', product: 'Claude Code', steers: yes, goal: yes, schema: held, fork: yes, web: yes, rungs: four, moments: [PERM, SUB], fast: yes, trace: yes },
-  { name: 'codex', product: 'Codex', steers: yes, goal: yes, schema: held, fork: yes, web: yes, rungs: four, moments: [PERM, SUB], fast: yes, trace: yes },
-  { name: 'cursor-agent', product: 'Cursor Agent', steers: no, goal: no, schema: prompt, fork: no, web: no, rungs: four, moments: [SUB], fast: yes, trace: no },
-  { name: 'dsh', product: 'DeepSeek Harness', steers: no, goal: yes, schema: prompt, fork: no, web: yes, rungs: bypass, moments: [], fast: no, trace: yes },
-  { name: 'grok', product: 'Grok Build', steers: no, goal: no, schema: held, fork: yes, web: yes, rungs: four, moments: [PERM], fast: no, trace: yes },
-  { name: 'kimi', product: 'Kimi Code', steers: yes, goal: yes, schema: prompt, fork: yes, web: yes, rungs: four, moments: [PERM], fast: no, trace: yes },
-  { name: 'mcode', product: 'MiniMax Code', steers: no, goal: no, schema: held, fork: no, web: no, rungs: three, moments: [SUB], fast: no, trace: yes },
-  { name: 'mimo', product: 'MiMo Code', steers: no, goal: no, schema: prompt, fork: yes, web: yes, rungs: four, moments: [], fast: no, trace: yes },
-  { name: 'opencode', product: 'opencode', steers: no, goal: no, schema: prompt, fork: yes, web: yes, rungs: four, moments: [], fast: no, trace: yes },
-  { name: 'pi', product: 'pi', steers: yes, goal: no, schema: prompt, fork: yes, web: no, rungs: four, moments: [], fast: no, trace: yes },
-  { name: 'qwen', product: 'Qwen Code', steers: no, goal: no, schema: held, fork: yes, web: yes, rungs: four, moments: [], fast: no, trace: yes },
-  {
-    name: 'an ACP CLI',
-    product: 'added in /settings',
-    steers: no,
-    goal: no,
-    schema: prompt,
-    fork: { can: true, text: 'yes', tone: 'warning' },
-    web: no,
-    rungs: bypass,
-    moments: [],
-    fast: no,
-    trace: no,
-  },
+const COLUMNS: Column[] = [
+  { key: 'goal', head: 'Goal', href: '#goals', filter: 'pursue a goal', group: 'flow' },
+  { key: 'loop', head: 'Loop', href: '#loops', filter: 'run /loop', group: 'flow' },
+  { key: 'steer', head: 'Steer', href: '#talking-to-a-turn-already-running', filter: 'be steered mid-turn', group: 'flow' },
+  { key: 'perm', head: 'Permission', href: '#when-a-permissionrequest-refusal-reaches-the-agent', filter: 'answer permission requests', group: 'flow' },
+  { key: 'sub', head: 'Subagent', href: '#not-every-backend-runs-every-moment', filter: 'report subagents', group: 'flow' },
+  { key: 'ask', head: 'AskUser', href: '#questions', filter: 'ask the user', group: 'flow' },
+  { key: 'schema', head: 'Schema held', href: '#answering-in-a-shape', filter: 'hold a schema', group: 'driver' },
+  { key: 'fork', head: 'Fork', href: '#a-conversation-that-goes-two-ways', filter: 'fork', group: 'driver' },
+  { key: 'web', head: 'Web off', href: '#whether-an-agent-may-search-the-web', filter: 'switch web search off', group: 'driver' },
+  { key: 'rungs', head: 'Rungs', href: '#what-an-agent-may-do', filter: 'take all four rungs', group: 'driver' },
+  { key: 'fast', head: 'Fast tier', href: '#the-service-tier', filter: 'take the fast tier', group: 'driver' },
+  { key: 'tools', head: 'Tools', href: '#callbacks-as-tools', filter: 'be offered callbacks', group: 'driver' },
+  { key: 'trace', head: 'Trace', href: '#state-and-logs', filter: 'be traced', group: 'driver' },
 ]
 
-type Key = 'steers' | 'goal' | 'schema' | 'fork' | 'web' | 'rungs' | 'perm' | 'sub' | 'fast' | 'trace'
-
-interface Filter {
-  key: Key
-  label: string
-  test: (row: Row) => boolean
+function row(
+  name: string,
+  product: string,
+  said: Partial<Record<Key, Cell>>,
+): Row {
+  const cells = {} as Record<Key, Cell>
+  for (const c of COLUMNS) cells[c.key] = said[c.key] ?? N
+  return { name, product, cells }
 }
 
-const FILTERS: Filter[] = [
-  { key: 'steers', label: 'steer a running turn', test: (r) => r.steers.can },
-  { key: 'goal', label: 'pursue a goal', test: (r) => r.goal.can },
-  { key: 'schema', label: 'hold a schema', test: (r) => r.schema.can },
-  { key: 'fork', label: 'fork', test: (r) => r.fork.can },
-  { key: 'web', label: 'switch web search off', test: (r) => r.web.can },
-  { key: 'rungs', label: 'take all four rungs', test: (r) => r.rungs.can },
-  { key: 'perm', label: 'run PermissionRequest', test: (r) => r.moments.includes(PERM) },
-  { key: 'sub', label: 'run Subagent moments', test: (r) => r.moments.includes(SUB) },
-  { key: 'fast', label: 'take the fast tier', test: (r) => r.fast.can },
-  { key: 'trace', label: 'be traced', test: (r) => r.trace.can },
-]
-
-const COLUMNS: { head: string; href: string }[] = [
-  { head: 'Steers', href: '#talking-to-a-turn-already-running' },
-  { head: 'Goal', href: '#goals' },
-  { head: 'Schema', href: '#answering-in-a-shape' },
-  { head: 'Fork', href: '#a-conversation-that-goes-two-ways' },
-  { head: 'Web search', href: '#whether-an-agent-may-search-the-web' },
-  { head: 'Rungs', href: '#what-an-agent-may-do' },
-  { head: 'Moments', href: '#not-every-backend-runs-every-moment' },
-  { head: 'Fast tier', href: '#the-service-tier' },
-  { head: 'Trace', href: '#how-each-backend-is-driven' },
+const ROWS: Row[] = [
+  row('agy', 'Antigravity', { schema: Y, web: Y, rungs: ALL4, trace: Y }),
+  row('claude', 'Claude Code', {
+    goal: Y, loop: Y, steer: Y, perm: Y, sub: Y, ask: Y,
+    schema: Y, fork: ELSEWHERE, web: Y, rungs: ALL4, fast: Y, tools: Y, trace: Y,
+  }),
+  row('codex', 'Codex', {
+    goal: Y, steer: Y, perm: Y, sub: Y, ask: Y,
+    schema: Y, fork: ELSEWHERE, web: Y, rungs: ALL4, fast: Y, tools: Y, trace: Y,
+  }),
+  row('cursor-agent', 'Cursor Agent', { sub: Y, rungs: ALL4, fast: Y }),
+  row('dsh', 'DeepSeek Harness', { goal: Y, web: Y, rungs: BYPASS, trace: Y }),
+  row('grok', 'Grok Build', { schema: Y, fork: Y, web: Y, rungs: ALL4, trace: Y }),
+  row('kimi', 'Kimi Code', {
+    goal: Y, steer: Y, perm: Y, ask: Y,
+    fork: ELSEWHERE, web: Y, rungs: ALL4, trace: Y,
+  }),
+  row('mcode', 'MiniMax Code', { sub: Y, schema: Y, rungs: NO_RO, trace: Y }),
+  row('mimo', 'mimocode', { fork: Y, web: Y, rungs: ALL4, trace: Y }),
+  row('opencode', 'opencode', { fork: Y, web: Y, rungs: ALL4, trace: Y }),
+  row('pi', 'pi', { steer: Y, ask: Y, fork: Y, rungs: ALL4, trace: Y }),
+  row('qwen', 'Qwen Code', { schema: Y, fork: Y, web: Y, rungs: ALL4, trace: Y }),
+  row('an ACP CLI', 'added on this machine', { fork: IF_SERVED, rungs: BYPASS }),
 ]
 
 const picked = ref<Set<Key>>(new Set())
@@ -120,19 +124,11 @@ function toggle(key: Key) {
 }
 
 const shown = computed(() =>
-  ROWS.filter((row) => FILTERS.every((f) => !picked.value.has(f.key) || f.test(row))),
+  ROWS.filter((r) => [...picked.value].every((key) => r.cells[key].can)),
 )
 
-const before = (row: Row): Cell[] => [
-  row.steers,
-  row.goal,
-  row.schema,
-  row.fork,
-  row.web,
-  row.rungs,
-]
-
-const after = (row: Row): Cell[] => [row.fast, row.trace]
+const flowColumns = COLUMNS.filter((c) => c.group === 'flow')
+const driverColumns = COLUMNS.filter((c) => c.group === 'driver')
 </script>
 
 <template>
@@ -140,14 +136,14 @@ const after = (row: Row): Cell[] => [row.fast, row.trace]
     <div class="filter" role="group" aria-label="Show only the backends that can">
       <span class="lead">Show only backends that can</span>
       <button
-        v-for="f in FILTERS"
-        :key="f.key"
+        v-for="c in COLUMNS"
+        :key="c.key"
         type="button"
         class="chip"
-        :aria-pressed="picked.has(f.key)"
-        @click="toggle(f.key)"
+        :aria-pressed="picked.has(c.key)"
+        @click="toggle(c.key)"
       >
-        {{ f.label }}
+        {{ c.filter }}
       </button>
       <button v-if="picked.size" type="button" class="clear" @click="picked = new Set()">
         clear
@@ -156,33 +152,39 @@ const after = (row: Row): Cell[] => [row.fast, row.trace]
     <div class="scroll">
       <table>
         <caption>
-          {{ shown.length }} of {{ ROWS.length }} backends. A filter over what the drivers
-          declare; nothing runs.
+          {{ shown.length }} of {{ ROWS.length }} backends. Read off what the harness protocols
+          and the drivers declare; nothing runs.
         </caption>
         <thead>
+          <tr class="groups">
+            <th scope="col" class="name"></th>
+            <th scope="colgroup" :colspan="flowColumns.length">Flow mixins served</th>
+            <th scope="colgroup" :colspan="driverColumns.length" class="split">Driver</th>
+          </tr>
           <tr>
             <th scope="col" class="name">Backend</th>
-            <th v-for="c in COLUMNS" :key="c.head" scope="col">
+            <th
+              v-for="(c, at) in COLUMNS"
+              :key="c.key"
+              scope="col"
+              :class="{ split: at === flowColumns.length }"
+            >
               <a :href="c.href">{{ c.head }}</a>
             </th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in shown" :key="row.name">
+          <tr v-for="r in shown" :key="r.name">
             <th scope="row" class="name">
-              <code>{{ row.name }}</code>
-              <span class="product">{{ row.product }}</span>
+              <code>{{ r.name }}</code>
+              <span class="product">{{ r.product }}</span>
             </th>
-            <td v-for="(cell, at) in before(row)" :key="at">
-              <Badge v-if="cell.text" :type="cell.tone" :text="cell.text" />
-              <template v-else><span class="dash" aria-hidden="true">—</span><span class="sr">no</span></template>
-            </td>
-            <td class="moments">
-              <Badge v-for="m in row.moments" :key="m" type="tip" :text="m" />
-              <template v-if="!row.moments.length"><span class="dash" aria-hidden="true">—</span><span class="sr">the base six only</span></template>
-            </td>
-            <td v-for="(cell, at) in after(row)" :key="'after' + at">
-              <Badge v-if="cell.text" :type="cell.tone" :text="cell.text" />
+            <td
+              v-for="(c, at) in COLUMNS"
+              :key="c.key"
+              :class="{ split: at === flowColumns.length }"
+            >
+              <Badge v-if="r.cells[c.key].text" :type="r.cells[c.key].tone" :text="r.cells[c.key].text" />
               <template v-else><span class="dash" aria-hidden="true">—</span><span class="sr">no</span></template>
             </td>
           </tr>
@@ -295,6 +297,19 @@ const after = (row: Row): Cell[] => [row.fast, row.trace]
   vertical-align: bottom;
 }
 
+.matrix thead .groups th {
+  font-size: 10.5px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vp-c-text-3);
+  padding-bottom: 2px;
+}
+
+.matrix .split {
+  border-left: 1px solid var(--vp-c-divider);
+}
+
 .matrix thead a {
   color: inherit;
   text-decoration: none;
@@ -356,12 +371,6 @@ const after = (row: Row): Cell[] => [row.fast, row.trace]
   padding: 0 6px;
   margin-left: 0;
   transform: none;
-}
-
-.moments :deep(.VPBadge) {
-  display: block;
-  width: fit-content;
-  margin: 2px auto;
 }
 
 .none {
