@@ -9332,6 +9332,9 @@ class Harnessing(Form[str]):
     `-H` spells it, so that what the menu holds is what a command line would say.
     """
 
+    #: Stepped along where it stands, as the rest of the flow menu it is opened from is.
+    DROPS: ClassVar = False
+
     def __init__(self, flow: str, spec: str = "") -> None:
         """Initializes the form on where the harnesses run now.
 
