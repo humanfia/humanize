@@ -168,6 +168,50 @@ async def test_carrying_on_asks_the_runs_to_start_what_ran(workspace: Path) -> N
 
 
 @pytest.mark.timeout(60)
+async def test_it_is_offered_only_where_there_is_a_run_to_carry_on(
+    workspace: Path,
+) -> None:
+    """Looked for as the interface opens, and offered once found -- and not before one is."""
+    from textual.widgets import OptionList
+
+    app = Humanize()
+    async with app.run_test() as driver:
+        await until(lambda: "nothing to resume" in app._no_resume, driver)
+        await driver.press(*"/re")
+        await driver.pause()
+        assert not app.query_one("#offers", OptionList).has_class("offering")
+
+    _ran("counts", "keep going")
+    app = Humanize()
+    async with app.run_test() as driver:
+        await driver.press(*"/re")
+        await until(
+            lambda: app.query_one("#offers", OptionList).has_class("offering"), driver
+        )
+        assert not app._no_resume
+
+
+@pytest.mark.timeout(60)
+async def test_a_run_left_since_it_was_looked_for_is_still_carried_on(
+    workspace: Path,
+) -> None:
+    """Left out of the list on what was found as it opened, but typed, it looks again.
+
+    A run another terminal left here since is one nothing in this interface heard end, and a
+    command turned down on what was true before it would be a day's work nobody could reach.
+    """
+    app = Humanize()
+    async with app.run_test() as driver:
+        await until(lambda: "nothing to resume" in app._no_resume, driver)
+        _ran("counts", "keep going")
+
+        await _resumes(app, driver)
+        await until(lambda: bool(link(app).asked_for("start")), driver)
+
+        assert not app._no_resume
+
+
+@pytest.mark.timeout(60)
 async def test_a_directory_nothing_has_been_run_in_says_so(workspace: Path) -> None:
     """A command that did nothing and said nothing reads as one that is broken."""
     del workspace

@@ -170,8 +170,15 @@ A flowverse not fetched yet offers nothing: open the [Flowverses page of
 
 ### `no such command: /foo`
 
-Type `/` to see the commands. There are ten, listed in
+Type `/` to see the commands that would do something now. There are ten, listed in
 [Reference › TUI](/reference/tui).
+
+### `no flow is running`, `the flow is already stopping` {#nothing-to-stop}
+
+A `/stop` typed with nothing to stop. It is listed only while a flow runs and has not already
+been told to stop; typed out otherwise, it says why it did nothing. The same goes for every
+command the list leaves out: `/resume` with a flow going or nothing here to carry on, `/btw`
+with nobody to ask.
 
 ### `cannot choose a flow while one is running` {#a-flow-is-running-no-choosing-a-flow}
 
@@ -200,8 +207,10 @@ without saving. Type the line again and save the menu this time.
 Another interface reading the same run, or a program on the SDK, has
 [claimed](/reference/tui#several-people-on-one-run) that outworlder: what it asks is theirs
 alone to answer. Ask them to `/claim off`, or wait for them to leave, which gives it back.
-`reviewer is bob@tui's` says the same about a `/claim`, an `/afk` or an answer. Lines said to the
-agents are never refused this way.
+`reviewer is bob@tui's` says the same about an answer, and `reviewer is bob@tui's: cannot claim
+it` or `…: cannot say whether it is away` about a `/claim` or an `/afk` typed on its transcript,
+where neither is offered while somebody else holds it. Lines said to the agents are never refused
+this way.
 
 ### `already answered by alice@tui`
 

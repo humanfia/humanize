@@ -34,7 +34,8 @@ over runs of flows that cannot, such as a `chat` you had in between. It runs tha
 again with that run's agents, environments, params, budget and task, whatever the prompt is set
 up with now. It takes nothing after it.
 
-When it cannot carry a run on, it says why:
+`/` lists it only when it can: nothing is running or stopping, and there is a run here to
+carry on. Typed out when it cannot carry a run on, it says why:
 
 | It says | Means |
 | --- | --- |
