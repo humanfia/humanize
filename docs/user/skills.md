@@ -39,7 +39,6 @@ each CLI reads:
 | `opencode` | `~/.config/opencode/skill(s)/`, `~/.agents/skills/`, `~/.claude/skills/` | `.opencode/skill(s)/`, `.agents/skills/`, `.claude/skills/` |
 | `pi` | `~/.pi/agent/skills/`, `~/.agents/skills/` | <Badge type="warning" text="only in a project you trusted in pi" /> |
 | `qwen` | `~/.qwen/skills/`, `~/.agents/skills/` | `.qwen/skills/`, `.agents/skills/` |
-| `zcode` | `~/.zcode/skills/`, `~/.agents/skills/` | `.zcode/skills/`, `.agents/skills/` |
 | `dsh` | <Badge type="danger" text="none" /> | <Badge type="danger" text="none" /> |
 
 Each directory holds one skill per subdirectory, as `<name>/SKILL.md`. A CLI's home moves with
@@ -58,7 +57,7 @@ each of them is copied into your workspace, where that CLI reads a project's own
 | --- | --- |
 | `claude` | `.claude/skills/` |
 | `cursor-agent` | `.cursor/skills/` |
-| `agy`, `codex`, `grok`, `kimi`, `mimo`, `opencode`, `qwen`, `zcode` | `.agents/skills/` |
+| `agy`, `codex`, `grok`, `kimi`, `mimo`, `opencode`, `qwen` | `.agents/skills/` |
 | `dsh`, `pi` | <Badge type="danger" text="none" /> they carry only what you installed |
 
 When the last session using a skill ends, the copy goes, along with any directory that was made

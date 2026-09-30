@@ -148,7 +148,7 @@ on your `PATH` and in the directories installers use, such as `~/.local/bin` and
 `/usr/local/bin`. Check what it can find:
 
 ```sh
-command -v agy claude codex cursor-agent grok kimi mimo opencode pi qwen zcode
+command -v agy claude codex cursor-agent grok kimi mimo opencode pi qwen
 ```
 
 Install one from [Installation](/user/installation), then open `hmz` again. If one is
@@ -250,13 +250,13 @@ with too little contrast between two of them. Change the terminal's theme, or ru
 
 ### The token count sits still, then jumps
 
-Claude Code, Codex, Kimi Code, ZCode and DeepSeek Harness count as they go. The other backends
+Claude Code, Codex, Kimi Code and DeepSeek Harness count as they go. The other backends
 report at the end of each turn, so their count jumps. An agent working on another machine
 reports at the end of each turn too.
 
-If one of those five sits still, it is writing its log somewhere `hmz` is not looking. `hmz`
-looks where its own `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIMI_CODE_HOME` or `DSH_HOME` points,
-and in `~/.zcode` under its own `HOME`. Start `hmz` with the same values the CLI runs with.
+If one of those four sits still, it is writing its log somewhere `hmz` is not looking. `hmz`
+looks where its own `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `KIMI_CODE_HOME` or `DSH_HOME` points.
+Start `hmz` with the same values the CLI runs with.
 
 ## Agents, accounts and models
 

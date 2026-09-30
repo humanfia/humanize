@@ -158,56 +158,6 @@ gemini-nine-low	Gemini Nine (Low)
 claude-sonnet-nine	Claude Sonnet Nine (Thinking)
 """
 
-#: What `zcode app-server --stdio` answers `workspace/readState` with. Its command line has no
-#: `models`: a model there belongs to a provider its configuration names, and the app server is
-#: what resolves the one into the other. The thought levels are the model's own, and its models
-#: really do have two vocabularies of them.
-ZCODE = (
-    json.dumps(
-        {
-            "id": "server-1",
-            "method": "interaction/requestOfficialMcpAuthHeaders",
-            "params": {"mcpKey": "image_search"},
-        }
-    )
-    + "\n"
-    + json.dumps(
-        {
-            "id": 1,
-            "result": {
-                "modelCatalog": {
-                    "available": [
-                        {
-                            "ref": {"providerId": "zai", "modelId": "glm-nine"},
-                            "label": "GLM Nine",
-                            "reasoning": {
-                                "enabled": True,
-                                "levels": [
-                                    {"value": "low", "label": "low"},
-                                    {"value": "high", "label": "high"},
-                                    {"value": "max", "label": "max"},
-                                ],
-                            },
-                        },
-                        {
-                            "ref": {"providerId": "zai", "modelId": "glm-quick"},
-                            "label": "GLM Quick",
-                            "reasoning": {
-                                "enabled": True,
-                                "levels": [
-                                    {"value": "enabled", "label": "enabled"},
-                                    {"value": "disabled", "label": "disabled"},
-                                ],
-                            },
-                        },
-                    ]
-                }
-            },
-        }
-    )
-    + "\n"
-)
-
 #: What `opencode models` prints, and what `mimo models` prints, which is the same list with
 #: the size of each written after it.
 OPENCODE = "opencode/big-pickle\nopencode/small-pickle\n"

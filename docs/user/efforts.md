@@ -45,7 +45,7 @@ or type any word to see what `-a` makes of it:
 <EffortLadder />
 
 A word that is not on the backend's ladder is refused before anything runs, and `hmz exec`
-exits with status 2. On Codex, Cursor Agent and ZCode each model takes only some of the rungs,
+exits with status 2. On Codex and Cursor Agent each model takes only some of the rungs,
 and the agent sheet offers each model its own.
 
 ::: details The same ladders, as a table
@@ -61,7 +61,6 @@ and the agent sheet offers each model its own.
 | `mimo`, `opencode` | `xhigh`, `high`, `medium`, `low`, `minimal`: the model's variant |
 | `pi` | `max`, `xhigh`, `high`, `medium`, `low`, `minimal`, `off` |
 | `qwen` | `max`, `xhigh`, `high`, `medium`, `low`, `none` |
-| `zcode` | `max`, `xhigh`, `high`, `medium`, `low`, `enabled`, `nothink`, `disabled` <Badge type="warning" text="subset per model" /> |
 | `agy` | `high`, `medium`, `low` |
 | a CLI added on the Accounts page of `/settings` | any word <Badge type="info" text="not sent" /> |
 | every backend | `auto` |

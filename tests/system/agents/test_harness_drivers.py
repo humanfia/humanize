@@ -149,7 +149,7 @@ async def test_the_real_cli_keeps_the_driver_contract(
 
 @pytest.mark.parametrize(
     "harness",
-    [HarnessKind.CLAUDE, HarnessKind.CODEX, HarnessKind.KIMI, HarnessKind.ZCODE],
+    [HarnessKind.CLAUDE, HarnessKind.CODEX, HarnessKind.KIMI],
     ids=str,
 )
 async def test_a_goal_is_met_through_the_harness_own_goal(
@@ -175,7 +175,7 @@ async def test_a_goal_is_met_through_the_harness_own_goal(
 
 @pytest.mark.parametrize(
     "harness",
-    [HarnessKind.CLAUDE, HarnessKind.CODEX, HarnessKind.KIMI, HarnessKind.ZCODE],
+    [HarnessKind.CLAUDE, HarnessKind.CODEX, HarnessKind.KIMI],
     ids=str,
 )
 async def test_a_fork_carries_on_in_another_workdir(

@@ -18,10 +18,10 @@ the paths it asks for, the headers it sends, and the shape it reads back. A mock
 a request humanize never makes, or reads a body humanize never sends, is a mock that proves
 nothing -- so the two are kept in step here, where breaking one breaks a test.
 
-The catalogue half serves every backend humanize asks an endpoint, all eight of them, because
+The catalogue half serves every backend humanize asks an endpoint, all seven of them, because
 that request is one request whoever is behind the URL. The turn half speaks one protocol:
 chat completions, which is what a CLI pointed at an OpenAI-compatible gateway sends, and what
-seven of the eight can be configured to send. A backend taking its turns in a protocol of its
+six of the seven can be configured to send. A backend taking its turns in a protocol of its
 own -- Claude Code at `/v1/messages`, agy at Gemini's `:streamGenerateContent` -- is answered
 for its catalogue and 404s on its turn, which is a gap to fill here rather than a failure to
 read as humanize's: `TALKS` and `do_POST` are where a second protocol would go.
@@ -327,7 +327,7 @@ def pointing(
     Read off the backend rather than written down here: which variable routes a turn is
     `Profile.endpoint`, which way in asks for it is the way that names it among its questions,
     and which of that way's answers is a credential is the one it marked secret. A table here
-    would be a ninth copy of eight facts, wrong the day a backend renames one of them -- and
+    would be an eighth copy of seven facts, wrong the day a backend renames one of them -- and
     wrong quietly, an account pointed at a variable the CLI no longer reads being an account
     that reaches the vendor instead and answers exactly as it should.
 

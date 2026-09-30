@@ -297,7 +297,6 @@ The pin shows at most five lines, cut at the screen edge, and counts the rest:
 | **mimocode** | <Badge type="info" text="next turn" /> |
 | **opencode** | <Badge type="info" text="next turn" /> |
 | **Qwen Code** | <Badge type="info" text="next turn" /> |
-| **ZCode** | <Badge type="info" text="next turn" /> |
 | an **ACP CLI** of your own | <Badge type="info" text="next turn" /> |
 
 **next turn**: a red line says why the line cannot be put in, and it waits for the next turn to
@@ -809,7 +808,7 @@ remove](/demo/account-does.png)
 | `way` ↔ | [How it signs in](/reference/providers#the-ways-in), with what that way is beside it. Changing it changes the rows under it. |
 | `name` | Written in for you: the way's own name, or `-2`, `-3` after it where an account of any CLI is already called that. The first letter typed replaces it. |
 | what the way asks | One row per question, under the variable it becomes. A secret is drawn as bullets. A way that asks nothing in particular (`env`) has one `variables` row, `NAME=VALUE` a line. |
-| `also for …` ↔ | One per other CLI the account could run (an Anthropic key in pi, opencode, mimocode, ZCode), on where that CLI is installed here. Only variables travel: a login has none of these. |
+| `also for …` ↔ | One per other CLI the account could run (an Anthropic key in pi, opencode, mimocode), on where that CLI is installed here. Only variables travel: a login has none of these. |
 | `done` | Says what it will do, then does it: writes the account, copies it, and hands the terminal to the CLI's own login where the way has one. |
 
 - The cursor opens on `cli`. Keeping `way` moves it to the first question still to be answered;

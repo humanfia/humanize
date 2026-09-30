@@ -129,14 +129,6 @@ const BACKENDS: Backend[] = [
     note: 'A fork of opencode, with models of its own. Its effort picks the model’s variant, as opencode’s does.',
   },
   {
-    name: 'zcode',
-    called: 'ZCode',
-    efforts: ['max', 'xhigh', 'high', 'medium', 'low', 'enabled', 'nothink', 'disabled'],
-    has: ['goal', 'fork', 'search', 'trace', 'skills'],
-    spend: 'live',
-    note: 'Its models take different rungs. Some take a thinking budget up to “max”, one takes “nothink”, and some take only “enabled” or “disabled”.',
-  },
-  {
     name: 'your own',
     called: 'any CLI speaking ACP',
     efforts: ['as configured'],

@@ -160,7 +160,7 @@ going:
 | --- | --- | --- |
 | a `while` loop in the flow | your code, between turns | every CLI |
 | a blocking `on_stop` hook | your code, inside the turn | every CLI |
-| a [`/goal`](/weaver/goals) | the **model**, against the objective | `claude`, `codex`, `dsh`, `kimi`, `zcode` |
+| a [`/goal`](/weaver/goals) | the **model**, against the objective | `claude`, `codex`, `dsh`, `kimi` |
 
 ## Stopping a tool
 
@@ -169,10 +169,10 @@ There are two moments to stop a tool at, and whether a refusal stops it depends 
 | Refuse in | Stops the tool on | Elsewhere |
 | --- | --- | --- |
 | `on_pre_tool_use` | `claude`, `qwen` | <Badge type="warning" text="watch only" /> the hook hears of the tool, which may already be running |
-| `on_permission_request` | `claude`, `codex`, `kimi`, `zcode` | <Badge type="info" text="not served" /> a role that [declares it](#declaring-a-mixin) is never given these CLIs |
+| `on_permission_request` | `claude`, `codex`, `kimi` | <Badge type="info" text="not served" /> a role that [declares it](#declaring-a-mixin) is never given these CLIs |
 
 Each CLI decides which calls it asks permission for. A known-safe read may never be asked
-about, and Kimi Code and ZCode ask only about what they deem risky. On Claude Code, where both
+about, and Kimi Code asks only about what it deems risky. On Claude Code, where both
 moments can stop a tool, `on_pre_tool_use` answers first, and a tool it refuses is never put to
 `on_permission_request`.
 
@@ -203,7 +203,7 @@ all.
 
 ::: tip Hang these before the turn they should cover
 `on_pre_tool_use` on Claude Code and Qwen Code, and `on_permission_request` or `on_ask_user` on
-Codex, Kimi Code and ZCode, change how the CLI is started. Hung mid-turn, they take hold from
+Codex and Kimi Code, change how the CLI is started. Hung mid-turn, they take hold from
 the next turn.
 :::
 
@@ -244,7 +244,7 @@ could do.
 | CLI (`-a`) | `on_permission_request` | `on_subagent_start`, `_stop` | `on_ask_user` |
 | --- | :---: | :---: | :---: |
 | `claude`, `codex` | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> |
-| `kimi`, `zcode` | <Badge type="tip" text="yes" /> | <Badge type="info" text="no" /> | <Badge type="tip" text="yes" /> |
+| `kimi` | <Badge type="tip" text="yes" /> | <Badge type="info" text="no" /> | <Badge type="tip" text="yes" /> |
 | `cursor-agent` | <Badge type="info" text="no" /> | <Badge type="tip" text="yes" /> | <Badge type="info" text="no" /> |
 | `pi` | <Badge type="info" text="no" /> | <Badge type="info" text="no" /> | <Badge type="tip" text="yes" /> |
 | `agy`, `dsh`, `grok`, `mimo`, `opencode`, `qwen`, an ACP CLI | <Badge type="info" text="no" /> | <Badge type="info" text="no" /> | <Badge type="info" text="no" /> |

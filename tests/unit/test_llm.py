@@ -198,7 +198,7 @@ def test_a_key_is_found_in_the_header_that_carries_it_and_not_the_first_one_ther
 def test_a_backend_is_pointed_by_the_variable_its_own_profile_names(cli: str) -> None:
     """Which variable routes a turn is the backend's own fact, read here rather than typed.
 
-    A table of these in the suite would be a ninth copy of eight facts, and on the day one of
+    A table of these in the suite would be an eighth copy of seven facts, and on the day one of
     them is renamed it would say nothing: the account would still be made, the variable it
     set would be one the CLI no longer reads, and the turn would reach the vendor and answer
     exactly as it should.
