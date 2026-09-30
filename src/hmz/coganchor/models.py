@@ -1036,9 +1036,11 @@ def _write(at: Path, models: list[Model]) -> None:
       at: Where it goes.
       models: What the backend said it runs.
     """
+    from hmz.coganchor import atomic
+
     at.parent.mkdir(parents=True, exist_ok=True)
-    beside = at.parent / f".{at.name}.new"
-    beside.write_text(
+    atomic.writes(
+        at,
         json.dumps(
             {
                 "asked": datetime.datetime.now(datetime.UTC).strftime(
@@ -1056,9 +1058,7 @@ def _write(at: Path, models: list[Model]) -> None:
             indent=2,
         )
         + "\n",
-        encoding="utf-8",
     )
-    beside.replace(at)
 
 
 #: How each backend is asked what it runs. One entry per backend that has a way of being

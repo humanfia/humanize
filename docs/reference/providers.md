@@ -45,7 +45,7 @@ $HUMANIZE_HOME/                         default ~/.humanize
 
 | Rule | |
 | --- | --- |
-| Modes | Every directory humanize creates on the way to `providers/<cli>/<name>/` and to each credential's parent is `0700`. Every file is written to a `mkstemp` file (mode `0600`) beside it and renamed into place. |
+| Modes | Every directory humanize creates on the way to `providers/<cli>/<name>/` and to each credential's parent is `0700`. Every file is written to a file of its own beside it (`.<file>.<random>.new`, mode `0600` from creation), fsynced and renamed into place. |
 | Directory name | The backend's canonical name and the account's name. The directory, not the file, decides which backend and name an account has. |
 | Unreadable entries | A directory whose `provider.json` is missing or not a JSON object is not listed. |
 | Removal | `remove(cli, name)` deletes the whole directory, credentials included. |
