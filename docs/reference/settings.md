@@ -61,7 +61,7 @@ Under `workspaces.<path>`.
 
 | Key | Type | Default | Written by | Read by | Takes effect |
 | --- | --- | --- | --- | --- | --- |
-| `flow` | `str`, a listed flow name | `chat` | `/flow` when saved | the TUI at start | next launch |
+| `flow` | `str`, a listed flow name | absent (`Settings.flow` is `""`); the TUI then opens on `chat` | `/flow` when saved | the TUI at start | next launch |
 | `profile` | `bool` | `false` | `/settings` › Workspace › **Profiling** | every run's start (TUI, `hmz exec`, SDK) | the next run; a running run keeps what it started with. See [Profiling](/reference/tracing#profiling-a-run). |
 | `flows.<flow>` | mapping | absent | `/flow` when saved | the TUI | see below |
 

@@ -114,7 +114,8 @@ qualified name):
 
 **Raised later**, the first time the flow is called or described (listed, loaded by
 `hmz exec`, opened in `/flow`), when the collections' annotations are resolved against the
-captured namespaces (`FlowDefinitionError`, prefixed `<Collection>.<role>`):
+captured namespaces (`FlowDefinitionError`; the first four rows are prefixed
+`<Collection>.<role>`, the rest with the role type's `__qualname__`, e.g. `Builder: …`):
 
 | Condition | Message |
 | --- | --- |
@@ -1389,7 +1390,7 @@ A flowverse is a git repository with a `flows/` directory laid out as
 
 | Operation | Behaviour | Errors |
 | --- | --- | --- |
-| add `<url>` [`<name>`] | `git clone --depth 1` into `.<name>.XXXXXX` beside the target, then renamed into place. `<url>` may be `owner/repo` (GitHub) unless a local path of that name exists. Name defaults to the repository name less `.git`. | `ValueError`: name not `[A-Za-z0-9][A-Za-z0-9._-]*`; `official`/`local`/`user`; already exists. `OSError`: git missing, clone failed (60 s timeout) |
+| add `<url>` [`<name>`] | `git clone --depth 1` into `.<name>.XXXXXXXX` beside the target, then renamed into place. `<url>` may be `owner/repo` (GitHub) unless a local path of that name exists. Name defaults to the repository name less `.git`. | `ValueError`: name not `[A-Za-z0-9][A-Za-z0-9._-]*`; `official`/`local`/`user`; already exists. `OSError`: git missing, clone failed (60 s timeout) |
 | fetch `<name>` | Clone if never fetched; otherwise `git fetch --depth 1 origin HEAD` + `git reset --hard FETCH_HEAD` (local edits to tracked files are lost). | `ValueError`: unknown; `local`/`user`; a directory that is not a clone |
 | remove `<name>` | Deletes the directory. | `ValueError` for the three fixed ones |
 

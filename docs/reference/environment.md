@@ -164,7 +164,7 @@ is read from the turn's environment to know which files to watch.
 | `HUMANIZE_WORKSPACE` | the same | the workspace as the target names it |
 | `PWD` | an anchored agent; every command run on a target | the working directory |
 | `TERM` | a command run on a target with a terminal | `xterm-256color` unless set |
-| `HUMANIZE_SHADOW` | `hmz internal anchor` started for a harness on another machine | its mirror: `$HOME/.cache/humanize-mirrors/<sha16>` there, else `/tmp/humanize-mirrors/<sha16>` |
+| `HUMANIZE_SHADOW` | `hmz internal anchor` started for a harness on another machine | its mirror: `$HOME/.cache/humanize-mirrors/<sha16>` on an `ssh` machine, `/tmp/humanize-mirrors/<sha16>` in a container |
 | `HUMANIZE_TOKEN` | a local `hmz internal anchor serve --stdio` child | the token |
 | the account's `env` | every turn, sign-in and model listing under an account | from `providers/<cli>/<name>/provider.json` ([Files](/reference/files)); includes fixed values a sign-in way sets (e.g. `CLAUDE_CODE_USE_BEDROCK=1`, `AWS_REGION=us-east-1`) |
 | a CLI's home variable and `XDG_CONFIG_HOME` | a native turn on another machine under an account whose credential files live in the CLI's home | a per-session `mktemp -d` directory on the target holding copies of those files, removed after the turn |

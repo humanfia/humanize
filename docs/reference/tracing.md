@@ -148,10 +148,10 @@ Every value is a string.
 | --- | --- | --- |
 | `workspace` | a workspace was given | its path |
 | `selected` | sessions were named | the ids joined with `, `, or `<n> sessions` for more than four |
-| `agents` | sessions were found | the agent names, sorted, `, `-joined |
-| `backends` | sessions were found | the backends, sorted, `, `-joined |
-| `sessions`, `slices`, `tracks` | sessions were found | counts (sessions with actions; actions; tracks) |
-| `start`, `end` | sessions were found | first and last moment, ISO 8601 UTC |
+| `agents` | the trace is not empty (sessions with actions, or programs) | the agent names, sorted, `, `-joined |
+| `backends` | as `agents`; `""` where no session has actions | the backends, sorted, `, `-joined |
+| `sessions`, `slices`, `tracks` | as `agents` | counts (sessions with actions; actions; tracks) |
+| `start`, `end` | as `agents` | first and last moment of sessions and programs, ISO 8601 UTC |
 | `programs` | the trace has a profile | count of programs |
 
 ## Profiling a run {#profiling-a-run}
@@ -215,7 +215,7 @@ JSON Lines, one line per event, appended and flushed as it happens. Every line h
 
 | `event` | When | Fields |
 | --- | --- | --- |
-| `began` | the epic opens | `flow` (as named), `ref` (canonical, when known), `task`, `workspace`, `resumable`, `picked_up` (epic name, when resumed), `agents` (list of `{agent, backend, model, effort, provider}`, one per role), `envs` (list of `role=<-e spec>`), `params`, `budget` (`{duration, cost, output_tokens, graceful}` as JSON; `cost: "Infinity"` for unlimited), `harness` (as `-H` was given, when given) |
+| `began` | the epic opens | `flow` (as named), `ref` (canonical, when known), `task`, `workspace`, `resumable`, `picked_up` (epic name, when resumed), `agents` (list of `{agent, backend, model, effort, provider}`, one per role), `envs` (list of `role=<-e spec>`), `params`, `budget` (`{duration, cost, output_tokens, graceful}` as JSON; `cost: "Infinity"` for unlimited), `harness` (as `-H` spells it; `adaptive` when no `-H` was given; omitted only by callers that pass none) |
 | `opened` | a session's CLI has given it an id (when it opens, or during its first turn); a session whose CLI never started is not written | `agent` (role), `backend`, `provider` (`local` for the machine's own sign-in), `session` (the CLI's id), `name` (`<role>-<cli>@<account>-<id>`, characters outside `[A-Za-z0-9._@-]` → `-`), `where` (`sessions/<cli>` relative to the epic, or an absolute path for a session kept elsewhere), `parent` (the id it was forked from, when forked), `harness` (`local`, `env`, `standalone:<target>`; only when its work was on another machine) |
 | `called` | the flow calls a flow | `flow` (callee's canonical ref), `task`, `epic` (the callee's record file name) |
 | `returned` | that call ends, however | `flow`, `epic` |
@@ -334,7 +334,7 @@ one), then the archive, and reports `<path> · <size> · <n> sessions, <n> slice
 - keys in vendor shapes: `sk-`, `pk-`, `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`,
   `glpat-`, `xai-`, `xoxb-`, `xoxp-`, `hf_` followed by ≥ 12 characters; `AIza…`; JWTs;
   `Bearer …`;
-- `user:password@` in URLs, and `token`, `key`, `secret`, `sig`, `signature`, `password`,
+- the userinfo of a URL (`user:password@`, and a bare `user@` such as `git@`), and `token`, `key`, `secret`, `sig`, `signature`, `password`,
   `credential`, `access_token`, `api_key` query parameters;
 - JSON values and `NAME=value` assignments whose name ends in `token`, `secret`, `api_key`,
   `password` or `credential` (not `tokens`: token counts are kept).

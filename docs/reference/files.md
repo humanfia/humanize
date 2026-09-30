@@ -298,7 +298,8 @@ exporting the same run again replaces it. Nothing in humanize imports one.
 ### `H/daemons/<name≤24>-<sha256(workspace)[:12]>/`
 
 The [runs host](/reference/daemon) of one workspace. `<name>` is the workspace directory's
-name with runs of other characters than `[A-Za-z0-9]` replaced by `-`.
+name with each run of characters outside `[A-Za-z0-9]` replaced by `-`, leading and trailing
+`-` stripped, cut to 24 characters, and `workspace` where nothing is left.
 
 | File | Mode | Lifetime | Content |
 | --- | --- | --- | --- |
@@ -337,7 +338,7 @@ Every path in this section is safe to delete while humanize is not running.
 | Path | Is |
 | --- | --- |
 | `$HOME/.cache/humanize/humanize-<digest>.pyz` | the humanize bundle on an `ssh` machine (`/tmp/humanize/…` in a container); installed with `cat > f.$$ && mv`; kept |
-| `$HOME/.cache/humanize-mirrors/<sha256[:16]>/` (else `/tmp/humanize-mirrors/…`) | a remote harness's mirror of the workspace |
+| `$HOME/.cache/humanize-mirrors/<sha256[:16]>/` on an `ssh` machine; `/tmp/humanize-mirrors/<sha256[:16]>/` in a container | a remote harness's mirror of the workspace |
 | `${HUMANIZE_HOME:-$HOME/.humanize}/envs/` | as [above](#state-envs) |
 | a `mktemp -d` directory (umask `077`) | per-session files of a native turn, including projected credentials (`0600`); removed after the turn |
 | `.humanize-carried/<uuid>` | claim file inside a directory carried to the target |
