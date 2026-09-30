@@ -1,304 +1,351 @@
 # Tracing
 
-A trace is one timeline of what a run's agents did: every tool call, message and wait for
-reasoning, across every session, gathered afterwards out of the logs the coding agent CLIs
-wrote. It is a Chrome JSON trace, so [ui.perfetto.dev](https://ui.perfetto.dev) or
-`chrome://tracing` opens it.
+What a run leaves on disk and how it is read back: the **epic** (the run's own record), the
+sessions its CLIs logged, the optional **profile** of the programs it ran, the **trace** that
+gathers all of it onto one timeline (a Chrome JSON trace, opened in
+[ui.perfetto.dev](https://ui.perfetto.dev) or `chrome://tracing`), and the **bundle** a run is
+exported as. Guides: [Exporting a run](/user/export), [Tracing](/user/tracing).
 
-::: code-group
+## Model
 
-```console [/epics]
-/epics  →  the run  →  enter  →  export run
+A trace is built from **sessions** and **actions** read out of each CLI's own logs.
 
-/home/you/code/.humanize/20260809T014455.212Z-9f21ab.epic.tar.gz · 812 kB · 3 sessions, 412 slices
-```
-
-```python [Python]
-from hmz.sdk import Hmz
-
-runs = Hmz().epics                      # or Hmz("/home/you/code/other").epics
-last = runs.all()[-1]                   # the newest run of this workspace
-where, document = runs.traced(last)     # into the run's own traces/
-print(document["otherData"])            # what it holds
-```
-
-:::
-
-**Export it** writes the trace into the run's directory as `traces/export.trace.json` and
-packs it into the archive beside the run; the line says where the archive went, its size, and
-what the trace holds. A [profiled](#profiling-a-run) run adds a third count:
-`1 session, 10 slices, 3 programs`. See [Exporting a run](/user/export).
-
-## Collecting
-
-| Call | Writes |
+| Concept | Is |
 | --- | --- |
-| **export run** on `/epics` | `traces/export.trace.json` in the run's directory, replaced each time, and the archive |
-| [`Epics.traced(epic)`](#from-python) | `traces/<UTC datetime>.trace.json` in the run's directory, a new one each time |
-| `Epics.traced(epic, output=…)`, `Epics.trace(output=…)` | that file, its directory made if missing |
-| [`Epics.trace()`](#from-python) with no `output` | nothing: the document is returned |
+| session | One conversation (or sub-agent conversation) as one CLI logged it. Key `<backend>:<id>` (see [Readers](#where-the-trajectories-come-from)); a `parent` key for a sub-agent; a `label` (`main`, or what the sub-agent was started as); a `title` (a short id and the first prompt); `args` (model, effort, cwd, version, log path, …). |
+| action | One slice of a session: `start`, `end` (epoch seconds), `name`, `category`, `args`, and `spawn` (the key of a session it started). |
+| agent | What sessions are grouped by: see [What counts as one agent](#what-counts-as-one-agent). One agent is one process of the trace. |
 
-## Reading the trace
-
-```
-process   agent          builder · 4 sessions
-  track     main ──────────────▶ ▓▓▓ ▓ ▓▓▓▓▓▓ ▓▓  ▓▓▓▓▓  ▓ ▓▓▓▓
-  track     subagent · explore ▶      ▓▓▓▓▓▓▓▓▓▓▓
-process   agent          reviewer · 2 sessions
-  track     main ──────────────▶            ▓▓▓▓        ▓▓▓▓
-```
-
-| In the trace | Is |
+| Action category | Is |
 | --- | --- |
-| a **process** | one [agent](#what-counts-as-one-agent) and everything it drove, named `<agent> · <n> sessions`; or, for a [profiled](#profiling-a-run) run, one program, named `<program> · <pid>` |
-| a **track** | one row of that agent's sessions: `main` for the ones somebody started, `subagent` for what a turn reached for. Sessions of one agent that never overlap share a track; root sessions and sub-agents stay apart. For a program, one of its threads. |
-| a **slice** | one action: a tool call, a message, or a wait for reasoning. Click one for its arguments: the prompt, the reasoning, the tool input and output, as much as the backend wrote down. |
+| `turn` | A prompt and everything until the next prompt; `args.prompt` holds the prompt. |
+| `llm` | A model call or the reasoning before an output (`generate`, `think`, a step). |
+| `tool` | A tool call: `args.tool`, `args.input`, and the result where logged. Named `<tool>: <summary>` from the first non-empty of `description`, `command`, `cmd`, `file_path`, `path`, `pattern`, `query`, `url`, `task_name`, `target`, `objective`, `prompt`, `message`, `input`. |
+| `message` | Text the agent said (`say: <summary>`). |
+| `event` | Anything else the log records (system messages, compaction, permission mode changes). |
+| `session` | Added by the renderer: one banner per session spanning its first to last action. |
 
-A row of sub-agents all started as one kind is named after it: `subagent · explore`. A
-sub-agent that started one of its own is `subagent 2`. A second row at the same depth has `#2`
-after its name, and actions that overlap inside a row spill into lanes of their own, `~2`.
-
-The document's `otherData` says what was asked for and what was found. Every value is a
-string.
-
-| Key | |
-| --- | --- |
-| `workspace` | The workspace collected, where there was one. |
-| `selected` | The sessions named, or `<n> sessions` for many. |
-| `agents`, `backends` | The agents and backends found, comma-separated. |
-| `sessions`, `slices`, `tracks` | How many of each. |
-| `start`, `end` | The first and last moment in it. |
-| `programs` | How many programs were drawn. Only in a trace of a profiled run. |
-
-A trace that found nothing carries `workspace` and `selected` alone.
+Strings in `args` longer than 4096 characters are cut (`… (+N chars)`); lists longer than
+32 items are cut (`… (+N items)`). Slice names are one line of at most 96 characters (session
+banners 120).
 
 ## What counts as one agent {#what-counts-as-one-agent}
 
-An **agent** is one configuration (a backend at a model at an effort) together with every
-sub-agent it started. A Ralph loop of a hundred one-shot sessions reads as one agent, and a
-sub-agent belongs to the agent that started it, whatever it ran at.
+Each session is named `<name> · <model> · <effort>` (empty parts omitted) after the **root**
+session it hangs from, where `<name>` is:
 
-Two agents at the same configuration read as one, because a backend logs a session under an
-id and never says whose it was. A trace of a run does not have that problem: it reads which
-role opened which session off the run's own record, so `rlar` traces as `actor` and
-`reviewer` whatever they ran at. For sessions no run recorded, say it yourself with `agents`,
-each name mapped to the session ids it opened:
+1. the name given in `agents` for the root's id (a trace of a run passes each role and the ids
+   it opened, from the epic); else
+2. the root's backend.
+
+Sessions with the same name are one agent. So a loop of a hundred one-shot sessions is one
+agent, a sub-agent belongs to whatever started it, and two agents of one configuration are
+one agent unless `agents` separates them. A trace of a run always separates them by role.
 
 ```python
-Hmz().epics.trace(
-    sessions=["0a1b2c3d", "5f6e7a8b"],
-    agents={"actor": ["0a1b2c3d"], "reviewer": ["5f6e7a8b"]},
-)
+Hmz().epics.trace(sessions=["0a1b2c3d", "5f6e7a8b"],
+                  agents={"actor": ["0a1b2c3d"], "reviewer": ["5f6e7a8b"]})
 ```
 
-Driving agents yourself with the lower-level [agent layer](/reference/agents), each
-`AgentBase` has that mapping on it: `agents={a.id: a.opened for a in (actor, reviewer)}`. The
-flow API's `Agent` has neither attribute; a run of a flow writes the mapping into its epic.
+With the lower-level [agent API](/reference/agents), each `AgentBase` has `id` and `opened`:
+`agents={a.id: a.opened for a in (actor, reviewer)}`.
 
-Sessions nobody claims are read as the configuration they ran at.
+## Selecting sessions
+
+| Argument | Rule |
+| --- | --- |
+| `workspace` | Keeps sessions whose recorded working directory equals it (compared as `os.path.abspath`, not resolved). Defaults to the current directory, unless sessions are named and no workspace is. |
+| `sessions` | `None`: every session. A comma-separated string or an iterable of ids: only those. An **empty** iterable: none. Each id matches a session whose key, key without `<backend>:`, or short id **starts with** it. A kept session brings the sub-agents it started. |
+| `start`, `end` | Any wording [dateparser](https://dateparser.readthedocs.io/) reads (`"3 days ago"`, `"2026-08-09 09:00"`), made timezone-aware. Records outside the window are dropped. Default: unbounded. |
+| `profile` | A `profile.jsonl` path (or its epic directory), or the records; programs overlapping the window are drawn. |
+| `kept` | Directories humanize kept sessions in, each holding `<cli>/` laid out as that CLI's home, read beside every CLI's own home. |
+
+A trace of a **run** (`Epics.traced`) names exactly the ids the run's epic recorded, with no
+workspace: a directory run in fifty times has fifty separate traces, a run that opened nothing
+traces as nothing, and a run whose agents worked on another machine (logged under a path this
+workspace never had) is traced all the same.
+
+| Raises `ValueError` | Message |
+| --- | --- |
+| `start`/`end` not a time | `cannot parse time: <text>` |
+| an empty id among `sessions` | `session id cannot be empty` |
+
+An absent or unreadable home, database or log line is skipped; it never fails the trace.
+
+## Where the logs are read from {#where-the-trajectories-come-from}
+
+For each CLI with a reader, in this order — `claude`, `agy`, `codex`, `dsh`, `grok`, `kimi`,
+`pi`, `qwen`, `opencode`, `mimo`, `mcode` — the reader is run over the CLI's own home, then over
+`<kept>/<cli>` for every `kept` directory. Homes are resolved as in
+[Backend homes](/reference/environment#backend-homes).
+
+| CLI | Home (default) | Reads | Workspace from | Key | Sub-agents |
+| --- | --- | --- | --- | --- | --- |
+| `claude` | `~/.claude` | `projects/<ws>/*.jsonl`; `projects/<ws>/*/subagents/**/*.jsonl` with `*.meta.json` | the project folder: the workspace with every non-`[A-Za-z0-9]` character → `-` | `claude:<id>`; sub-agent `claude:<root id>:<file stem>` | linked by tool-use id; labelled `<agentType> · <description>` |
+| `codex` | `~/.codex` | `**/rollout-*.jsonl` | `session_meta.payload.cwd` (first line) | `codex:<thread id>` | threads with `parent_thread_id`; labelled by `agent_path` or nickname |
+| `kimi` | `~/.kimi-code` | `sessions/*/session_*/state.json` and each agent's `wire.jsonl` | `state.json` `workDir` | `kimi:<session>:<agent id>` | agents with `parentAgentId`; labelled `<type> · <agent id>` |
+| `grok` | `~/.grok` | `sessions/<percent-encoded cwd>/*/updates.jsonl` | the decoded folder name | `grok:<id>` (short id 18 characters) | spawned sessions found by following the log |
+| `pi` | `~/.pi/agent` | `sessions/*/<started>_<id>.jsonl` | the `session` record's `cwd` | `pi:<id>` | none |
+| `qwen` | `~/.qwen` | `projects/<ws>/chats/*.jsonl` | the project folder, as `claude` | `qwen:<id>` | none |
+| `dsh` | `~/.dsh` | `sessions/*/*/session.jsonl` | the header's `cwd` | `dsh:<id>` | sessions with `parentSession` |
+| `opencode` | `~/.local/share/opencode` | SQLite `opencode.db`: tables `session`, `message`, `part` (read-only) | `session.directory` | `opencode:<id>` | child sessions |
+| `mimo` | `~/.local/share/mimocode` | SQLite `mimocode.db`, as opencode | `session.directory` | `mimo:<id>` | child sessions |
+| `mcode` | `~/.minimax` | `v2/sessions/<y>/<m>/<d>/<opened>-session_<base64url id>/messages.jsonl` | `workspaceDir` of `local_runtime_sessions.record_json` in SQLite `v2/sqlite/runtime-state.sqlite`; a session absent there belongs to no workspace | `mcode:<id>` | none separate: a sub-agent's work is in its parent's log |
+| `agy` | `~/.gemini/antigravity-cli` | SQLite `conversations/<id>.db` (`steps`, protobuf metadata read by field number); `conversation_summaries.db` | `cache/last_conversations.json` (workspace → last conversation opened there): a workspace keeps only that one conversation | `agy:<id>` | conversations with `parent_conversation_id` |
+| `cursor-agent` | `~/.cursor` | <Badge type="warning" text="no reader" /> | | | |
+| `acp` | | no logs humanize can find | | | |
+
+Token counts are read as each CLI records them; where a CLI records cached input beside
+input (pi, opencode, mimo, mcode, agy), both are counted.
+
+## The document {#document}
+
+```json
+{"traceEvents": [...], "displayTimeUnit": "ms", "otherData": {...}}
+```
+
+A trace with no session with actions and no program is
+`{"traceEvents": [], "displayTimeUnit": "ms", "otherData": {<workspace/selected only>}}`.
+
+### Processes and tracks
+
+| Chrome concept | Is |
+| --- | --- |
+| process (`pid`) | One agent, numbered from 1 in order of its first action; then one per profiled program. Named `<agent> · <n> sessions`, or `<program> · <pid>` for a program. |
+| track (`tid`) | A row of one agent's sessions, `tid = row × 100 + lane` (row from 1). Rows are packed per depth: sessions of one depth that do not overlap share a row. Roots and sub-agents never share a row. |
+
+Row names:
+
+| Depth | Name |
+| --- | --- |
+| 0 | `main` |
+| 1 | `subagent`, or `subagent · <kind>` where every session in the row has one kind (the label before ` · `) |
+| n ≥ 2 | `subagent <n>` (with ` · <kind>` likewise) |
+
+A second row of the same name at the same depth is `<name> #2`, and so on. Actions that
+overlap inside a row are pushed into extra lanes named `<name> ~2`, `~3`, …. A program's
+tracks are its threads: `main` for the thread whose id is the process id, `thread <tid>`
+otherwise, `tid = index × 100`.
+
+### Events
+
+| `ph` | Emitted for | Fields |
+| --- | --- | --- |
+| `M` | `process_name`, `process_sort_index`, `process_labels` per process; `thread_name`, `thread_sort_index` per track | `pid`, `tid`, `name`, `args` |
+| `X` | every action, every session banner, every program thread | `pid`, `tid`, `cat` (the category; `process` for a program), `name`, `ts` and `dur` in µs (`dur` ≥ 1), `args` |
+| `s`, `f` | a session starting another (`cat: "spawn"`, `name: "spawn"`, shared `id`) | `s` at the spawning action; `f` (`bp: "e"`) at the start of the spawned session |
+
+`args` of an action slice: the action's own `args`, plus `at` (ISO 8601 UTC start) and
+`session` (the session key). A banner's `args`: the session's `args`, `agent`, `parent`. A
+program slice's `args`: `pid`, `ppid`, `argv` (joined), `cpu` (seconds), `at`.
+`process_labels` is the workspace and selection, joined by ` · `.
+
+### `otherData`
+
+Every value is a string.
+
+| Key | Present | Value |
+| --- | --- | --- |
+| `workspace` | a workspace was given | its path |
+| `selected` | sessions were named | the ids joined with `, `, or `<n> sessions` for more than four |
+| `agents` | the trace is not empty (sessions with actions, or programs) | the agent names, sorted, `, `-joined |
+| `backends` | as `agents`; `""` where no session has actions | the backends, sorted, `, `-joined |
+| `sessions`, `slices`, `tracks` | as `agents` | counts (sessions with actions; actions; tracks) |
+| `start`, `end` | as `agents` | first and last moment of sessions and programs, ISO 8601 UTC |
+| `programs` | the trace has a profile | count of programs |
+
+## Profiling a run {#profiling-a-run}
+
+With [`profile: true`](/reference/settings) for the workspace (`/settings` › Workspace ›
+Profiling), each run started there samples every descendant process of the process running
+the flow, every 0.05 s (psutil, on a daemon thread), from the epic's opening until it closes.
+Sampling never stops a run: an unreadable process is skipped, a machine whose processes
+cannot be read gives an empty profile. A process that lives less than one interval may be
+missed.
+
+### `profile.jsonl` {#profile-jsonl}
+
+JSON Lines in the epic, appended as programs start and end.
+
+```json
+{"event": "ran", "pid": 41207, "ppid": 41190, "name": "pytest", "argv": ["pytest", "-q"],
+ "began": 1790000000.12, "seen": 1790000000.15, "ended": 1790000000.15,
+ "threads": [[41207, 1790000000.15, 1790000000.15, 0.0]]}
+```
+
+| Field | Type | |
+| --- | --- | --- |
+| `event` | `"ran"` \| `"left"` | first seen; gone (or still running when the profile stopped) |
+| `pid`, `ppid` | `int` | |
+| `name`, `argv` | `str`, `[str]` | as the process reports |
+| `began` | `float` | the OS start time, epoch seconds |
+| `seen` | `float` | when first sampled |
+| `ended` | `float` | when last seen |
+| `threads` | `[[tid, began, ended, cpu]]` | per thread; `cpu` is user + system seconds |
+
+Read back per `(pid, began)`, the last record winning. Start times are then shifted by the
+smallest `seen − began` in the profile (never negative) to put them on the clock the rest of
+the trace uses.
 
 ## Epics {#epics}
 
-Every run of a flow is one **epic**, a directory written as the run happens:
+Every run of a flow writes one **epic**: a directory created when the run starts and closed
+when it ends, never reopened.
 
 ```
-~/.humanize/epics/<workspace>/<datetime>-<hex>/
-    epic.jsonl                      what happened, a line at a time
-    epic.<flow>_<hex>.jsonl         the same, for one flow the run called
-    resume.jsonl                    what a resumable flow did, for --resume
-    profile.jsonl                   the programs it ran, for a run that was profiled
-    sessions/<cli>/…                its sessions, where that CLI keeps them under its home
-    traces/export.trace.json        the trace exporting the run gathers, replaced each time
-    traces/<datetime>.trace.json    one gathered from Python, kept every time
+H/epics/<ws>/<stamp>-<hex6>/
+    epic.jsonl                      the run's record
+    epic.<flow>_<hex6>.jsonl        one record per flow call
+    resume.jsonl                    the journal of a resumable run
+    profile.jsonl                   programs, for a profiled run
+    sessions/<cli>/…                the run's sessions, laid out as the CLI's home
+    traces/export.trace.json        written by "export run" on /epics, replaced each time
+    traces/<%Y%m%dT%H%M%SZ>.trace.json   written by Epics.traced, one per call
 ```
 
-- **`<workspace>`** is the absolute path with every character that is not a letter or a digit
-  flattened to `-`, as the backends flatten a workspace into the folder they log it under:
-  `/home/you/code` is `-home-you-code`.
-- **`<datetime>-<hex>`** is the UTC moment the run began and six hex digits, since two runs
-  may begin in one millisecond: `20260809T014455.212Z-9f21ab`.
+`H` is [humanize's home](/reference/files). `<ws>` is the workspace's resolved absolute path
+with every character outside `[A-Za-z0-9]` replaced by `-` (`/home/you/code` →
+`-home-you-code`). `<stamp>` is the UTC start, `%Y%m%dT%H%M%S.mmmZ`; `<hex6>` is random.
+Epics sort by name, so in start order. Only a directory holding `epic.jsonl` is an epic.
 
-`epic.jsonl` is JSON lines, appended and flushed as the run goes, so a run that died still
-says what it got to. Every line has `event` and `at`.
+### `epic.jsonl` {#epic-jsonl}
 
-| `event` | Written | Carries |
+JSON Lines, one line per event, appended and flushed as it happens. Every line has `event` and
+`at` (`%Y-%m-%dT%H:%M:%S.mmmZ`, UTC).
+
+| `event` | When | Fields |
 | --- | --- | --- |
-| `began` | when the flow starts | `flow` as it was named, its canonical `ref`, `task`, `workspace`, `resumable`, `picked_up` (the epic it was picked up from, where there was one), `agents` (one per role: `agent`, `backend`, `model`, `effort`, `provider`), `envs` as `-e` spells each, `params`, `budget` and `harness` as `-H` spells it |
-| `opened` | each time an agent opens a session | `agent`, `backend`, `provider`, `session` (the backend's id), `name`, `where` it is kept, and for work on another machine `harness`: where its harness ran (`local`, `env`, `standalone:<target>`) |
-| `called` | when the flow calls another flow | `flow`, the callee's canonical ref; `task`; and `epic`, the record that call is written to |
-| `returned` | when that call returns, however it ended | `flow` and the same `epic` |
-| `usage` | as the run stops | what every session spent: `cost`, `output_tokens`, `seconds` |
-| `ended` | when the flow stops | `how`: `done`, `failed` or `stopped` |
+| `began` | the epic opens | `flow` (as named), `ref` (canonical, when known), `task`, `workspace`, `resumable`, `picked_up` (epic name, when resumed), `agents` (list of `{agent, backend, model, effort, provider}`, one per role), `envs` (list of `role=<-e spec>`), `params`, `budget` (`{duration, cost, output_tokens, graceful}` as JSON; `cost: "Infinity"` for unlimited), `harness` (as `-H` spells it; `adaptive` when no `-H` was given; omitted only by callers that pass none) |
+| `opened` | a session's CLI has given it an id (when it opens, or during its first turn); a session whose CLI never started is not written | `agent` (role), `backend`, `provider` (`local` for the machine's own sign-in), `session` (the CLI's id), `name` (`<role>-<cli>@<account>-<id>`, characters outside `[A-Za-z0-9._@-]` → `-`), `where` (`sessions/<cli>` relative to the epic, or an absolute path for a session kept elsewhere), `parent` (the id it was forked from, when forked), `harness` (`local`, `env`, `standalone:<target>`; only when its work was on another machine) |
+| `called` | the flow calls a flow | `flow` (callee's canonical ref), `task`, `epic` (the callee's record file name) |
+| `returned` | that call ends, however | `flow`, `epic` |
+| `usage` | the run ends | `cost` (USD), `output_tokens`, `seconds`: the run's total as its budget counted it |
+| `ended` | the epic closes | `how`: `done`, `failed` or `stopped` |
 
-An agent stopped by hand, and a run whose budget ran out, end `stopped` rather than `failed`.
+`how` is `stopped` for a run cancelled from outside (<kbd>ctrl+c</kbd>, `Run.stop()`), whose
+budget ran out, or that raised `FlowCancelled`; `failed` for any other exception; `done`
+otherwise. A missing `ended` means the process was killed (or the run is still going).
 
 ```json
-{"event": "opened", "at": "2026-08-09T01:44:58.020Z", "agent": "builder", "backend": "claude", "provider": "work", "session": "0a1b2c3d-…", "name": "builder-claude@work-0a1b2c3d-…", "where": "sessions/claude"}
+{"event": "began", "at": "2026-09-30T05:33:55.691Z", "flow": "chat", "task": "hi", "workspace": "/tmp/ws", "resumable": false, "ref": "chat:chat", "agents": [{"agent": "assistant", "backend": "claude", "model": "haiku", "effort": "low", "provider": ""}], "envs": [], "params": {}, "budget": {"duration": null, "cost": "Infinity", "output_tokens": null, "graceful": true}, "harness": "adaptive"}
+{"event": "opened", "at": "2026-09-30T05:33:57.978Z", "agent": "assistant", "backend": "claude", "provider": "local", "session": "56107ec6-dfa6-4484-97dc-ae0f49981bed", "name": "assistant-claude@local-56107ec6-dfa6-4484-97dc-ae0f49981bed", "where": "sessions/claude"}
+{"event": "usage", "at": "2026-09-30T05:33:58.796Z", "cost": 0.0, "output_tokens": 46, "seconds": 2.252695}
+{"event": "ended", "at": "2026-09-30T05:33:58.796Z", "how": "done"}
 ```
 
-**`sessions/<cli>/`** is where the run's sessions are, and the only copy of them: every turn
-of the run keeps its CLI's sessions there, laid out exactly as that CLI lays them out under its
-own home -- `sessions/claude/projects/<workspace>/<id>.jsonl`, `sessions/codex/sessions/…`. The
-CLI writes them there, and resumes and forks them from there; its settings, skills and
-credentials are still the ones in its home. Each `opened` line says `where` a session is kept,
-`sessions/<cli>` from the epic. `name` is what the run calls it: the role, the CLI, the account
-and the backend's id, `builder-claude@work-0a1b2c3d`, with `@local` for the account this
-machine is already signed into.
+### Records of called flows {#records-of-called-flows}
+
+Each flow call gets `epic.<flow>_<hex6>.jsonl` beside `epic.jsonl`: `<flow>` is the callee's
+canonical ref with characters outside `[A-Za-z0-9._@-]` → `-` (`phases:plan` →
+`epic.phases-plan_ed763a.jsonl`), `<hex6>` random per call.
+
+- Its `began` has `flow`, `task`, `workspace`, `resumable` and `under` (the record of the
+  caller). Then the `opened`, `called`, `returned` events of what happened inside the call,
+  and `ended` with how **the call** ended. No `usage`.
+- A call made inside a called flow is written under that flow's record, so the records form
+  the call tree. Concurrent calls are records whose `began`/`ended` overlap.
+- One flow called twice is two records.
+
+### Sessions {#sessions-dir}
+
+`sessions/<cli>/` holds the sessions the run's CLIs wrote, **the only copy**: each turn's CLI
+has these paths of its home answered from here instead, and resumes and forks from here. Its
+settings, skills and credentials remain the CLI's own.
+
+| CLI | Kept paths (relative to its home) |
+| --- | --- |
+| `claude` | `projects`, `sessions`, `file-history`, `session-env`, `tasks`, `todos`, `plans` |
+| `codex` | `sessions`, `archived_sessions`, `session_index.jsonl`, `state_*.sqlite*`, `thread_history_*.sqlite*`, `goals_*.sqlite*`, `queue_*.sqlite*`, `memories_*.sqlite*`, `thread-writer-locks`, `shell_snapshots` |
+| `agy` | `conversations`, `brain`, `annotations`, `implicit`, `presence`, `conversation_summaries.db*`, `jetbox_summaries_proto.pb`, `cache/last_conversations.json` |
+| `dsh` | `sessions` (told to the CLI directly) |
+| `grok` | `sessions`, `active_sessions.*` |
+| `kimi` | `sessions`, `session_index.jsonl`, `workspaces.json`, `server/events`, `search-index`, `file-history` |
+| `pi` | `sessions` |
+| `qwen` | `projects`, `tmp`, `file-history` |
+| `opencode` | `opencode.db*`, `storage` |
+| `mimo` | `mimocode.db*`, `storage` |
+| `cursor-agent` | `chats`, `projects/*/agent-transcripts` |
+| `mcode` | `v2/sqlite`, `v2/sessions`, `background-tasks` |
+
+A session no turn could keep stays in the CLI's home, and its `opened.where` is that absolute
+directory: a turn whose harness ran on another machine, any turn on a machine that cannot
+supervise one (anything but Linux on x86-64 or aarch64, or a kernel that refuses tracing),
+and every turn under [`HUMANIZE_SESSIONS=off`](/reference/environment#humanize-sessions).
+Agents driven outside any run keep theirs in `H/sessions/<cli>/`. An epic written before
+sessions were kept holds a directory of links per session instead, and still reads back.
 
 ![One run's directory, and the one file under its sessions/: a Claude Code transcript kept at
 sessions/claude/projects/-work-demo/, where Claude Code keeps it under its own home](/demo/run-kept.png)
 
-A session no turn could keep stays where its CLI keeps it, and its `where` is that directory:
-a turn taken on another [anchored machine](/reference/remote-execution) -- by its own CLI, or
-under a harness there -- any turn on a machine that cannot supervise one -- anything but Linux
-on x86-64 or aarch64, or a kernel that will not let humanize trace -- and every turn under
-`HUMANIZE_SESSIONS=off`. An epic written before sessions were kept holds a
-directory of links per session instead, and still reads back.
+### `resume.jsonl`
 
-**It is not a transcript.** The backend's own log is the turn-by-turn record. An epic keeps the
-shape of the run: enough to gather a trace afterwards from the ids alone.
+Only for a [resumable flow](/reference/flows#a-flow-that-can-be-picked-up); format in
+[Flows › Journal](/reference/flows#journal). A run picked up from an epic copies this file
+into its own epic and records `picked_up`.
 
-**An epic covers one run**, and closes when the flow finishes, fails or is stopped. Running the
-flow again is another run and another epic. **`resume.jsonl`** is kept only by a
-[resumable flow](/reference/flows#a-flow-that-can-be-picked-up): one JSON line per flow call
-and how it ended, per write to `ctx.state` (`{"t": "set", …}`), per session once its CLI has
-named it, and per temporary copy or scratch directory kept. A run picked up from it is a run
-of its own, whose `began` says which epic it was `picked_up` from, so a week of stops and
-starts reads as the week it was. See [Picking a run up](/user/resuming).
+## Export {#export}
 
-From Python, [`Hmz().epics`](/reference/sdk#epics) reads all of it back:
+*export run* on `/epics`, `Epics.bundled(epic)`, or `hmz.runtime.exporting.bundle` writes one
+gzip-compressed tar archive of a run:
 
-```python
-from hmz.sdk import Hmz
+| Property | Value |
+| --- | --- |
+| Name | `<epic>.epic.tar.gz` |
+| Location | `output` if given (a file, or a directory — existing or ending in `/` — to put it in), else `<current directory>/.humanize/` |
+| Write | to `.<name>.<random>.new` (mode `0600`, kept), then renamed over; exporting a run again replaces the archive |
+| Refused | `ValueError: <dir> is not a run` for a directory holding no epic |
 
-runs = Hmz().epics
-for epic in runs.all():                        # this workspace, oldest first
-    ran = runs.read(epic)
-    print(epic.name, ran.flow, ran.how, runs.opened(epic))
-    # 20260809T014455.212Z-9f21ab rlar done {'actor': ['0a1b…'], 'reviewer': ['5f6e…']}
-```
+*export run* first writes `traces/export.trace.json` (the run's trace, replacing any earlier
+one), then the archive, and reports `<path> · <size> · <n> sessions, <n> slices[, <n> programs]`.
 
-## Records of called flows
+**Members**, under `<epic>/`, each scrubbed (below):
 
-A flow may [call another](/reference/flows#a-flow-that-calls-another-flow), and each call
-gets a record of its own beside the run's: `epic.<flow>_<hex>.jsonl`, the callee's canonical
-ref with anything but letters, digits, `.`, `_`, `@` and `-` flattened to `-`. A call of
-`phases:plan`, however it was loaded, is `epic.phases-plan_ed763a.jsonl`. The record of
-whatever called it says `called` and `returned`, with that filename in `epic`. One flow called
-twice is two records, each with its own sessions.
+1. `epic.jsonl` and every `epic.*.jsonl`;
+2. `resume.jsonl`, `profile.jsonl` where present;
+3. `traces/*`;
+4. `sessions/<session name>/<path>`: every file each session was logged to, found by the CLI's
+   log globs (e.g. `projects/*/<id>.jsonl` for Claude Code), under the session's `name` from
+   `opened`;
+5. `transcript.md`, only when a caller passes a transcript;
+6. `manifest.json`.
 
-- A called flow's record is shorter than the run's. Its `began` carries `flow`, `task`,
-  `workspace`, `resumable` and `under`, the record that called it. Then come the `opened`,
-  `called` and `returned` of what happened inside the call, and `ended`, which says how *the
-  call* ended: a call that raised is `failed` inside a run that may still be `done`. `usage`
-  is written only into the run's own `epic.jsonl`.
-- **Records nest.** A call made inside a called flow is written under *that* flow's record, so
-  a recursion reads back as the tree it ran as. Two calls that ran at once are two records
-  whose `began` and `ended` overlap.
-- It is still one run and one directory. `Epics.sessions(epic)` reads every record, so every
-  session of a run is one list, each saying which `flow` opened it and in which `record`.
-- A session the flow [branched](/weaver/branching) also says `parent`, the id of the
-  conversation it was forked from, which the backend's own log cannot say.
+### `manifest.json`
 
-`Epics.read(epic).called` lists the calls the run itself made. The internal
-`hmz.runtime.epic.tree(epic)` <Badge type="info" text="internal" /> reads the whole tree, each
-call with what it called under `calls`.
+| Key | Value |
+| --- | --- |
+| `humanize` | the installed version |
+| `made` | when the archive was made |
+| `python`, `machine` | `platform.python_version()`, `platform.platform()` |
+| `epic` | the epic's name |
+| `run` | `{flow, task, began, ended, how, resumable}`; `how` is `left unfinished` without `ended` |
+| `workspace` | `{at, head}`: the path and its current `git rev-parse HEAD` (not the commit at run time) |
+| `agents` | `[{agent, backend, model, effort, provider, runs}]`; the account by name only |
+| `envs` | as `began.envs` |
+| `called` | the call tree |
+| `sessions` | `[{name, agent, backend, provider, session, flow, record, at, logs}]`; `logs` lists what the archive holds for it |
+| `backends` | per backend: `{command, executable, version, sha256, logs}`; `sha256` of the executable; `logs: false` for a CLI that writes no session log |
+| `held` | every member, `manifest.json` last |
+| `redacted` | the four statements below |
 
-## Profiling a run {#profiling-a-run}
+**Redaction.** Every byte written passes through the same scrubber:
 
-An agent's turn is mostly other programs: the tests, the build, a grep. None of that is in a
-backend's log, which records the tool call rather than the process. A workspace may have its
-runs **profiled** as well as traced, on the Workspace page of `/settings` (`/settings workspace`):
+- every value of every account's variables (by value, if at least 8 characters), except what
+  the run says it ran;
+- keys in vendor shapes: `sk-`, `pk-`, `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`,
+  `glpat-`, `xai-`, `xoxb-`, `xoxp-`, `hf_` followed by ≥ 12 characters; `AIza…`; JWTs;
+  `Bearer …`;
+- the userinfo of a URL (`user:password@`, and a bare `user@` such as `git@`), and `token`, `key`, `secret`, `sig`, `signature`, `password`,
+  `credential`, `access_token`, `api_key` query parameters;
+- JSON values and `NAME=value` assignments whose name ends in `token`, `secret`, `api_key`,
+  `password` or `credential` (not `tokens`: token counts are kept).
 
-```
- Profiling                                                          ● on ▾
-   profile programs started by runs here
-```
-
-While the flow runs, the programs under it are sampled (what each was, what started it, how
-long it took) into `profile.jsonl` in the run's epic. Collecting the run draws them in the
-same document as its sessions: a process is a program and a track is one of its threads.
-So *what was this run doing at 09:41* has one answer:
-
-```
-process   agent          builder · 4 sessions
-  track     main ──────▶ ▓▓▓ ▓ ▓▓▓▓▓▓ ▓▓  ▓▓▓▓▓  ▓ ▓▓▓▓▓▓▓▓▓▓
-process   program        pytest · 41207
-  track     main ──────▶       ▓▓▓▓▓▓▓▓▓▓
-```
-
-It is sampled rather than intercepted: nothing sits between an agent and what it runs. A
-program that lived thirty milliseconds may be missed, and a machine whose processes cannot be
-read is a run with no profile rather than a run that stops.
-
-## Where the logs are read from {#where-the-trajectories-come-from}
-
-Where humanize kept the sessions it ran -- the run's own `sessions/` for a trace of one run,
-and every epic's and `~/.humanize/sessions/` otherwise -- and beside those each backend's own
-home directory, which humanize only reads and which holds the sessions it did not run. A
-directory humanize kept is read as that backend's home is, `sessions/<cli>/` standing for it:
-
-| Backend | Moved by | Default |
-| --- | --- | --- |
-| Claude Code | `CLAUDE_CONFIG_DIR` | `~/.claude` |
-| Codex | `CODEX_HOME` | `~/.codex` |
-| DeepSeek Harness | `DSH_HOME` | `~/.dsh` |
-| Grok Build | `GROK_HOME` | `~/.grok` |
-| Kimi Code | `KIMI_CODE_HOME` | `~/.kimi-code` |
-| pi | `PI_CODING_AGENT_DIR` | `~/.pi/agent` |
-| Qwen Code | `QWEN_HOME` | `~/.qwen` |
-| opencode | `XDG_DATA_HOME`, as `$XDG_DATA_HOME/opencode` | `~/.local/share/opencode` |
-| MiMo Code | `XDG_DATA_HOME`, as `$XDG_DATA_HOME/mimocode` | `~/.local/share/mimocode` |
-| MiniMax Code | `MINIMAX_DATA_DIR` | `~/.minimax` |
-| Antigravity | nothing | `~/.gemini/antigravity-cli` |
-| Cursor Agent | <Badge type="warning" text="no reader" /> | nothing is collected |
-
-Every backend but Cursor Agent has a reader; opencode, MiMo Code and Antigravity keep their
-sessions in SQLite and are read with a query. MiniMax Code keeps a directory per session under
-`v2/sessions/`, named for the session's id in URL-safe base64, and says which workspace each
-was opened in only in its SQLite database, which is read for that. A CLI added over ACP keeps no log humanize can
-find. A home that does not exist is skipped, so collecting on a machine with one backend
-installed works.
-
-## What one trace holds
-
-**A trace of a run** holds the sessions that run opened and no others. They are asked for by
-the ids the run wrote down, not by the directory it ran in, so a directory run in fifty times
-has fifty separate traces, a run that opened nothing is a trace of nothing, and a flow that
-ran on a [machine of its own](/reference/machines), logged under a path this workspace never
-heard of, is in its own trace all the same.
-
-```python
-runs = Hmz().epics
-last = runs.all()[-1]
-runs.traced(last)                             # its own sessions, into its own traces/
-runs.traced(last, start="3 days ago")         # and only what it did since
-```
-
-**A trace of a directory or of sessions** is how sessions no flow drove are read back, such
-as an afternoon at `claude`:
-
-```python
-Hmz().epics.trace()                                    # every session of this workspace
-Hmz("/home/you/code/other").epics.trace()             # every session of another
-Hmz().epics.trace(sessions="0a1b2c3d,5f6e")            # two sessions, wherever they ran
-Hmz("/home/you/code/other").epics.trace(sessions="0a1b2c3d")   # only if it ran there
-```
-
-- **Naming sessions alone**, on an `Hmz()` given no workspace, collects them wherever they
-  were recorded.
-- **Naming a workspace with them**, as `Hmz("/home/you/code/other")`, keeps only the named
-  sessions recorded there. A workspace is taken as given: `~` is not expanded.
-- **Naming no sessions** collects the workspace, whichever run opened what is in it.
-
-A session is named by its whole id, by the key the trace shows it under, or by a leading part
-of either, and the sub-agents it started come with it. This kind of trace belongs to no run,
-so it is written only where an `output` says, and `/epics` does not offer it.
+Each is replaced by `[redacted]`.
 
 ## From Python {#from-python}
 
-[`Hmz().epics`](/reference/sdk#epics) is the way in: `traced` for a run, `trace` for anything
-else.
+[`Hmz().epics`](/reference/sdk#epics) (`hmz.runtime.Epics`) reads epics and makes traces and
+bundles. Reading: `all()`, `read(epic)`, `sessions(epic)`, `opened(epic)`, `state(epic, flow)`,
+`resumed(flow)`, `picks_up(epic)` ([SDK](/reference/sdk#epics)).
 
 ### `Epics.traced`
 
@@ -307,14 +354,15 @@ def traced(self, epic: Path, *, output: str | os.PathLike[str] | None = None,
            start: str | None = None, end: str | None = None) -> tuple[Path, dict[str, Any]]
 ```
 
-| Parameter | |
-| --- | --- |
-| `epic` | The run, by its directory: one of `Epics.all()`. |
-| `output` | Where to write it, or `None` for `traces/<UTC datetime>.trace.json` in the run's directory. |
-| `start`, `end` | Cut out sessions outside this window, in any wording [dateparser](https://dateparser.readthedocs.io/) understands: `"3 days ago"`, `"2026-08-09 09:00"`. |
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `epic` | | The run's directory (one of `all()`). |
+| `output` | `<epic>/traces/<%Y%m%dT%H%M%SZ>.trace.json` | Where to write; parent directories are created. |
+| `start`, `end` | unbounded | As in [Selecting sessions](#selecting-sessions). |
 
-Returns where the trace was written and the document. It collects the ids the run's roles
-opened, labelled by role, with the run's `profile.jsonl` where it was profiled.
+Collects exactly the ids the run recorded, named by role (`opened`), reading the epic's
+`sessions/` and every other directory a session says humanize kept it in, with the epic's
+`profile.jsonl`. Returns the path written and the document.
 
 ### `Epics.trace`
 
@@ -323,26 +371,38 @@ def trace(self, *, sessions: str | Iterable[str] | None = None,
           agents: Mapping[str, Iterable[str]] | None = None,
           output: str | os.PathLike[str] | None = None,
           start: str | None = None, end: str | None = None,
-          profile: str | os.PathLike[str] | None = None) -> dict[str, Any]
+          profile: str | os.PathLike[str] | None = None,
+          kept: Iterable[str | os.PathLike[str]] | None = None) -> dict[str, Any]
 ```
 
-| Parameter | |
-| --- | --- |
-| `sessions` | Which sessions: a comma-separated string or an iterable of ids. `None` is every session of the workspace; an **empty** iterable is no session at all. |
-| `agents` | Names for sessions, each mapped to the ids it opened. See [What counts as one agent](#what-counts-as-one-agent). |
-| `output` | A file to write it to, its directory made if missing, or `None` to write nothing. |
-| `start`, `end` | As for `traced`. |
-| `profile` | A run's `profile.jsonl`, to draw its programs beside the sessions. |
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `sessions` | every session | See [Selecting sessions](#selecting-sessions). |
+| `agents` | none | Names for sessions: name → ids. |
+| `output` | nothing written | A file to write, parent directories created. |
+| `start`, `end` | unbounded | Window. |
+| `profile` | none | A `profile.jsonl` to draw. |
+| `kept` | `H/sessions` and every epic's `sessions/` (of this workspace; of every workspace for an `Hmz()` with no workspace) | Where humanize kept sessions. |
 
-Returns the document. Both raise `ValueError` for a time dateparser cannot read
-(`cannot parse time: …`) or an empty session id (`session id cannot be empty`).
+The workspace is the `Hmz` workspace; with `Hmz()` and named sessions, sessions are collected
+wherever they were recorded; `Hmz("/path")` keeps only sessions recorded there (the path is
+taken as given; `~` is not expanded). Returns the document.
 
-<Badge type="info" text="internal" /> Both call `hmz.runtime.tracing.collect(workspace,
-*, sessions, agents, output, start, end, profile)`, the workspace being the `Hmz` one or, for
-`traced`, none.
+### `Epics.bundled`
+
+```python
+def bundled(self, epic: Path, *, output: str | os.PathLike[str] | None = None,
+            transcript: str | None = None) -> tuple[Path, dict[str, Any]]
+```
+
+Writes the [export](#export) archive; returns its path and the manifest as written.
+
+### `collect` <Badge type="info" text="internal" />
+
+`hmz.runtime.tracing.collect(workspace=None, *, sessions=None, agents=None, output=None,
+start=None, end=None, profile=None, kept=None) -> dict`: what `traced` and `trace` call.
 
 ## Watching a run instead
 
-A trace is for afterwards. While a run is going, the monitor shows the same shape live: who is
-working, each handover between agents and how often it happened, and what each model has cost
-in tokens and money and the rate it is costing now. See [Monitor](/user/monitor).
+A trace is made afterwards. While a run is going, the [monitor](/user/monitor) shows the
+same agents, their handovers, and what each model has cost and is costing now.
