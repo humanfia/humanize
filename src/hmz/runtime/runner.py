@@ -937,7 +937,8 @@ def _harness_on(harness: HarnessSpec) -> EnvDriver | None:
     if Path(str(harness.on.workdir)) == home() / "harness":
         (home() / "harness").mkdir(parents=True, exist_ok=True)
     try:
-        return open_env(harness.on)
+        # Traced, because the harness supervises its agent there.
+        return open_env(harness.on, traced=True)
     except FlowException as why:
         raise Refused(str(why)) from why
 

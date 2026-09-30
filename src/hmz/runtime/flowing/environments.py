@@ -32,7 +32,9 @@ if TYPE_CHECKING:
 __all__ = ["MachineEnvDriver", "local_env", "open_env", "probe"]
 
 
-def open_env(spec: EnvSpec, role: EnvRole | None = None) -> EnvDriver:
+def open_env(
+    spec: EnvSpec, role: EnvRole | None = None, *, traced: bool = False
+) -> EnvDriver:
     """Makes the driver for one `-e`.
 
     Connects lazily: nothing here blocks on the network, and an unreachable machine is a
@@ -46,6 +48,8 @@ def open_env(spec: EnvSpec, role: EnvRole | None = None) -> EnvDriver:
         provider names, `docker@local/...` on docker's default here.
       role: What the environment is for, as its flow declares it: a container is started
         from its image and given its resources. None asks for nothing.
+      traced: Whether a harness is to run there, supervising its agent: a container is
+        started able to borrow the agent's descriptors.
 
     Returns:
       A driver serving every environment capability.
@@ -56,7 +60,7 @@ def open_env(spec: EnvSpec, role: EnvRole | None = None) -> EnvDriver:
         down under that name.
     """
     if spec.backend is EnvBackendKind.DOCKER:
-        return _docker_env(spec, role)
+        return _docker_env(spec, role, traced=traced)
     if spec.backend is EnvBackendKind.SSH:
         from hmz.coganchor.machines import store
 
@@ -78,7 +82,9 @@ def open_env(spec: EnvSpec, role: EnvRole | None = None) -> EnvDriver:
     return local_env(Path(spec.workdir).expanduser())
 
 
-def _docker_env(spec: EnvSpec, role: EnvRole | None) -> EnvDriver:
+def _docker_env(
+    spec: EnvSpec, role: EnvRole | None, *, traced: bool = False
+) -> EnvDriver:
     """The driver for a container of its own on a docker provider's daemon.
 
     Raises:
@@ -118,7 +124,12 @@ def _docker_env(spec: EnvSpec, role: EnvRole | None) -> EnvDriver:
             )
         workdir = PurePosixPath(Path(str(workdir)).expanduser())
     machine = DockerMachine(
-        spec.provider, workdir, stored=stored, role=role, named=spec.role
+        spec.provider,
+        workdir,
+        stored=stored,
+        role=role,
+        named=spec.role,
+        traced=traced,
     )
     return MachineEnvDriver(machine, workdir)
 

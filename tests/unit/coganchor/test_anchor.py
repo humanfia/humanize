@@ -111,3 +111,27 @@ def test_settings_no_session_could_run_under_are_refused_as_they_are_written(
     """Both spellings refuse the same thing: the command line by parsing, this by construction."""
     with pytest.raises(ValueError, match=complaint):
         AnchorConfig(**settings)
+
+
+def test_a_harness_elsewhere_answers_the_workspaces_own_path_with_its_mirror() -> None:
+    """The workspace's own path reaches the mirror for a harness reaching its work as a peer.
+
+    Which is a harness on another machine: a CLI told to work at the target's path of the
+    workspace would otherwise start every command in a directory that harness never had.
+    """
+    from hmz.coganchor.anchor import _aliases
+    from hmz.coganchor.transport import Target
+
+    peer = Target.parse("peer://0123456789abcdef0123456789abcdef@10.0.0.1:4242")
+    mirror, workspace = "/cache/humanize-mirrors/abc", "/srv/project"
+
+    assert _aliases(peer, mirror, workspace) == ((workspace, mirror),)
+    # A harness beside its work, or here, has the workspace at its own path, or is told the
+    # mirror's.
+    for other in ("local:/srv/project", "docker://box", "ssh://build-box"):
+        assert _aliases(Target.parse(other), mirror, workspace) == ()
+    # A mirror at the workspace's own path, or nested in it or it in the mirror, has no
+    # second name that could be answered.
+    assert _aliases(peer, workspace, workspace) == ()
+    assert _aliases(peer, f"{workspace}/mirror", workspace) == ()
+    assert _aliases(peer, mirror, f"{mirror}/project") == ()
