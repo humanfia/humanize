@@ -305,7 +305,7 @@ five steps: install, sign in, `hmz exec`, `python ci/trace.py`, and keep the tra
 | `0` | The flow returned, or its budget stopped it. |
 | `1` | The run failed: the flow raised an error it did not handle. |
 | `2` | Refused before any agent started: an `-a` it can't read, a role left unfilled, no `-b`, a flow that isn't there. |
-| anything else | The job was cancelled: `143` for a terminate signal, and a traceback with a non-zero status for an interrupt. |
+| anything else | The job was cancelled: `143` for a terminate signal, `130` for an interrupt, once the run has let go of what it started. |
 
 A `2` fails the job in seconds rather than after forty minutes.
 

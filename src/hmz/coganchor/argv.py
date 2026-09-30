@@ -193,9 +193,9 @@ def parser() -> ArgumentParser:
     )
     built.add_argument(
         "--log-level",
-        default=os.environ.get("HUMANIZE_LOG", "warning"),
+        default=None,
         choices=["debug", "info", "warning", "error"],
-        help="logging verbosity (default: warning)",
+        help="logging verbosity (default: $HUMANIZE_LOG, else warning)",
     )
     built.add_argument(
         "command",

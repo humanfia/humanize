@@ -135,7 +135,8 @@ ssh <target options> -T -o BatchMode=no -o ServerAliveInterval=30 <reuse options
 ```
 
 - The target's own options come first; `ssh` keeps the first value it is given for a keyword.
-- Reuse options, unless `HUMANIZE_SSH_REUSE` is `0`, `no`, `false` or empty:
+- Reuse options, unless `HUMANIZE_SSH_REUSE` is `off`, `0`, `no` or `false` (trimmed,
+  case-insensitive) or set and empty:
   `-o ControlMaster=auto -o ControlPersist=120 -o ControlPath=<dir>/%C[-<8 hex>]`, where
   `<dir>` is `$XDG_RUNTIME_DIR/humanize-ssh-<uid>` (else the system temporary directory), mode
   `0700`. The `-<8 hex>` suffix is a digest of the target's options, so two targets at one host
@@ -735,10 +736,10 @@ Every variable humanize reads is listed in [Environment variables](/reference/en
 | `HUMANIZE_HARNESS` | `hmz internal anchor` | default `--harness` |
 | `HUMANIZE_SHADOW` | `hmz internal anchor` | default `--shadow`; set by humanize for a harness elsewhere |
 | `HUMANIZE_TOKEN` | `hmz internal anchor`, `… serve` | default `--token`; passed to a spawned serving half |
-| `HUMANIZE_LOG` | `hmz internal anchor`, `… serve`, `… rendezvous` | default `--log-level` (`warning`; `info` for `rendezvous`) |
+| `HUMANIZE_LOG` | `hmz internal anchor`, `… serve`, `… rendezvous` | default `--log-level` (`warning`; `info` for `rendezvous`); a value that is not a level is ignored with a warning |
 | `HUMANIZE_RENDEZVOUS` | `hmz internal anchor`, the in-process broker | default `--broker`; the address advertised to both halves |
 | `HUMANIZE_RENDEZVOUS_PORT` | the in-process broker | the port it listens on; `0` or unset for any |
-| `HUMANIZE_SSH_REUSE` | every `ssh` humanize runs | `0`, `no`, `false` or empty disables connection sharing |
+| `HUMANIZE_SSH_REUSE` | every `ssh` humanize runs | `off`, `0`, `no`, `false` (any case, trimmed) or empty disables connection sharing |
 | `HUMANIZE_SHADOWS` | the mirror guard | where mirror records are kept, instead of `~/.cache/humanize/shadows` |
 | `XDG_RUNTIME_DIR` | every `ssh` humanize runs | where `humanize-ssh-<uid>/` control sockets are made |
 | `HUMANIZE`, `HUMANIZE_TARGET`, `HUMANIZE_WORKSPACE` | set for the agent | see [Variables the agent is given](#variables-the-agent-is-given) |

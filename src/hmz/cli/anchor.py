@@ -23,6 +23,9 @@ _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 #: The top of the port range, above which a number is not a port at all.
 _MAX_PORT = 65535
 
+#: What `--log-level` takes, and `HUMANIZE_LOG` may say, on each of the three lines that log.
+_LEVELS = ("debug", "info", "warning", "error")
+
 
 def _listen_on(spec: str, default: str) -> tuple[str, int] | None:
     """Reads a `[HOST:]PORT` the two listening commands are both given.
@@ -44,6 +47,41 @@ def _listen_on(spec: str, default: str) -> tuple[str, int] | None:
     return host, int(port)
 
 
+def _logs(given: str | None, default: str) -> None:
+    """Has what a line logs written to stderr, at the level it was asked for.
+
+    stderr is the one stream a session never speaks the protocol on. The level is the one on
+    the line, else `HUMANIZE_LOG` -- trimmed, in any case -- else `default`. A variable
+    naming no level is said to be ignored and then is: it is read by every line humanize
+    spawns for itself as well as by the one somebody typed, and a word nobody meant to reach
+    those is no reason for all of them to fail.
+
+    Args:
+      given: What `--log-level` said, or None where it was not given.
+      default: The level where neither says one.
+    """
+    import logging
+    import os
+
+    level = given
+    if level is None:
+        said = os.environ.get("HUMANIZE_LOG", "")
+        level = said.strip().lower()
+        if level not in _LEVELS:
+            if level:
+                print(
+                    f"hmz: ignoring HUMANIZE_LOG={said!r}, which is not one of "
+                    f"{', '.join(_LEVELS)}",
+                    file=sys.stderr,
+                )
+            level = default
+    logging.basicConfig(
+        level=level.upper(),
+        format="%(asctime)s hmz %(levelname)s %(message)s",
+        stream=sys.stderr,
+    )
+
+
 def anchor(argv: list[str]) -> int:
     """Runs the agent named on the command line, with its work landing on another machine.
 
@@ -58,8 +96,6 @@ def anchor(argv: list[str]) -> int:
     if argv and argv[0] == "rendezvous":
         return _rendezvous(argv[1:])
 
-    import logging
-
     from hmz.coganchor import argv as line
 
     parser = line.parser()
@@ -68,12 +104,7 @@ def anchor(argv: list[str]) -> int:
     from hmz.coganchor.anchor import NotInstalled, check, connect
     from hmz.coganchor.proto import ProtocolError
 
-    # stderr, the one stream a session never speaks the protocol on.
-    logging.basicConfig(
-        level=args.log_level.upper(),
-        format="%(asctime)s hmz %(levelname)s %(message)s",
-        stream=sys.stderr,
-    )
+    _logs(args.log_level, "warning")
     if not args.command and not args.check:
         parser.error("no agent given; try `hmz internal anchor claude`")
     try:
@@ -123,7 +154,6 @@ def _serve(argv: list[str]) -> int:
     """
     import argparse
     import contextlib
-    import logging
     import os
 
     parser = argparse.ArgumentParser(
@@ -160,9 +190,9 @@ def _serve(argv: list[str]) -> int:
     )
     parser.add_argument(
         "--log-level",
-        default=os.environ.get("HUMANIZE_LOG", "warning"),
-        choices=["debug", "info", "warning", "error"],
-        help="logging verbosity (default: warning)",
+        default=None,
+        choices=_LEVELS,
+        help="logging verbosity (default: $HUMANIZE_LOG, else warning)",
     )
     args = parser.parse_args(argv)
 
@@ -170,11 +200,7 @@ def _serve(argv: list[str]) -> int:
     from hmz.coganchor.serve.exports import ExportTable
     from hmz.coganchor.serve.server import Server
 
-    logging.basicConfig(
-        level=args.log_level.upper(),
-        format="%(asctime)s hmz %(levelname)s %(message)s",
-        stream=sys.stderr,
-    )
+    _logs(args.log_level, "warning")
     try:
         table = ExportTable.parse(args.export)
     except ValueError as exc:
@@ -246,8 +272,6 @@ def _rendezvous(argv: list[str]) -> int:
       Zero once it is interrupted, or a status of our own if it could not listen.
     """
     import argparse
-    import logging
-    import os
 
     parser = argparse.ArgumentParser(
         prog="hmz internal anchor rendezvous",
@@ -270,19 +294,15 @@ def _rendezvous(argv: list[str]) -> int:
     )
     parser.add_argument(
         "--log-level",
-        default=os.environ.get("HUMANIZE_LOG", "info"),
-        choices=["debug", "info", "warning", "error"],
-        help="logging verbosity (default: info)",
+        default=None,
+        choices=_LEVELS,
+        help="logging verbosity (default: $HUMANIZE_LOG, else info)",
     )
     args = parser.parse_args(argv)
 
     from hmz.coganchor.rendezvous import PUNCHING, Broker
 
-    logging.basicConfig(
-        level=args.log_level.upper(),
-        format="%(asctime)s hmz %(levelname)s %(message)s",
-        stream=sys.stderr,
-    )
+    _logs(args.log_level, "info")
     # Every interface by default, unlike `serve`: the halves being introduced are on other
     # machines, which is the only reason a broker exists. Nothing here is a shell -- pairing
     # is by a ticket nobody can guess -- so there is no token to hold it back for.
