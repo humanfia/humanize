@@ -4101,7 +4101,7 @@ class AgentBase(ABC):
         import tempfile
         from dataclasses import replace
 
-        from hmz.coganchor import backends, statepaths
+        from hmz.coganchor import backends, providers, statepaths
 
         environ = self._environ()
         profile = backends.named(self.backend)
@@ -4123,8 +4123,11 @@ class AgentBase(ABC):
             # Wherever else it keeps its sign-in, which a token refreshed mid-turn is written
             # back to: Claude's `~/.config/anthropic` beside its home, among them.
             writes.extend(path for path, _ in profile.credentials())
+            # Read where the flow's harness reads them (`providers.composed`), so both halves of
+            # the fence let through the same hosts: out of the environment the turn runs
+            # under, less what its provider hushes.
             hosts = backends.reachable(
-                profile, os.environ if environ is None else environ
+                profile, providers.composed(self.provider, profile)
             )
         if (provider := self.provider) is not None:
             writes.append(provider.at)
@@ -4801,13 +4804,10 @@ class AgentBase(ABC):
           The variables to take away, which is nothing at all for an agent running as its CLI
           already runs: an agent with no provider is left exactly as it was found.
         """
+        from hmz.coganchor import providers
         from hmz.coganchor.backends import named
 
-        provider = self.provider
-        profile = named(self.backend)
-        if provider is None or profile is None:
-            return frozenset()
-        return profile.hushes() - set(provider.env)
+        return providers.hushed(self.provider, named(self.backend))
 
     def _environ(self) -> dict[str, str] | None:
         """The whole environment one of this agent's processes is started with.

@@ -16,8 +16,11 @@ flow allows.
 
 from __future__ import annotations
 
+import contextlib
+import dataclasses
 import errno
 import os
+import stat
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -91,7 +94,37 @@ def fenced(
     )
     if said.get("write"):
         abroad.ready(held, home)
+    if held.tmp and not _scratch(held.tmp):
+        held = dataclasses.replace(held, tmp="")
     return [*fence.wrapper(held), run, *argv[1:]]
+
+
+def _scratch(path: str) -> bool:
+    """Makes the scratch a supervised agent names in its commands, at the path it names.
+
+    The agent was given it as its temporary directory on the machine it runs on, and writes
+    that path into the commands it has run here: Claude Code ends every shell command by
+    writing the directory it finished in to a file there, and a command whose last word
+    cannot be written ends with a status of 1 whatever it did. So it is made here too, at
+    the same path, for every command of the agent to share -- and left, as a CLI run with no
+    fence leaves what it writes under `/tmp`. Made once and never taken over: a path that is
+    there already is used only where it is a directory of this user's own, and not through a
+    link.
+
+    Args:
+      path: The path, as the agent's machine names it.
+
+    Returns:
+      Whether it is there to be used. Where it is not, the command is given a scratch of its
+      own for the one run, as a command was before its agent's was known here.
+    """
+    with contextlib.suppress(OSError):
+        os.makedirs(path, mode=0o700)
+    try:
+        held = os.lstat(path)
+    except OSError:
+        return False
+    return stat.S_ISDIR(held.st_mode) and held.st_uid == os.geteuid()
 
 
 def _named(argv: list[str]) -> str:

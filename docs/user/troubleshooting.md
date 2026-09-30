@@ -713,6 +713,19 @@ workspace, and humanize says yes.
 
 **Verify.** The agent's turns go through as usual.
 
+### `claude: this account will not run an agent at bypass, so it runs at acceptEdits, where what it asks for is granted` {#claude-this-account-will-not-run-an-agent-at-bypass-so-it-runs-at-acceptedits}
+
+**Symptom.** A note during a Claude Code agent's first turn. The work goes on.
+
+**Cause.** The Claude account's managed settings carry `"disableBypassPermissionsMode":
+"disable"`, or Claude runs as root, so Claude will not run at `bypassPermissions`. The agent
+runs at `acceptEdits` instead: Claude asks before what that mode does not cover, and humanize
+says yes.
+
+**Fix.** Nothing to do.
+
+**Verify.** The agent's turns go through as usual.
+
 ### `… cannot be held to its permission on this machine: it does not enforce it natively, and fencing it from outside needs …`
 
 **Symptom.** A role is refused before its first turn (`HarnessSandboxed`).

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import uuid
 from collections import Counter
 from dataclasses import dataclass
@@ -12,11 +13,13 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from .base import AgentBase, StreamSessionBase
 from .config import AgentConfig
-from .event import Event, Question, Usage
+from .event import Event, Failed, Question, Usage
 from .hooks import EVERYWHERE, SUBAGENTS, WAITING, Moment, about, arriving
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+    from pydantic import BaseModel
 
     from hmz.coganchor.fence import Fence
 
@@ -146,15 +149,14 @@ _ALIASES = frozenset({"default", "best", "opus", "sonnet", "haiku", "opusplan"})
 #: What Claude calls each rung of the ladder, said on its own command line. Three line up with
 #: a mode of Claude's own: `plan` is an agent that works everything out and changes nothing,
 #: `acceptEdits` is one that may change what it is working on without asking, and Claude's own
-#: `auto` is one whose requests are answered for it. `bypass` is the fourth, and it is `manual`
-#: -- the mode where Claude asks before every tool that would change something -- rather than
-#: `bypassPermissions`, the mode that skips the asking. It is not that Claude cannot be told to
-#: skip it: it is that an account can be given managed settings, and one carrying
-#: `disableBypassPermissionsMode` does not refuse `--dangerously-skip-permissions` the way a
-#: Codex given requirements refuses such a call -- it starts the turn at a mode where every
-#: edit is declined and the turn ends successfully having changed nothing. So humanize takes
-#: the asking rather than skipping it: `bypass` runs at `manual` and answers every request
-#: itself, which is a mode every account allows and which means the same thing on each of them.
+#: `auto` is one whose requests are answered for it. `bypass` is the fourth, and it is
+#: `bypassPermissions`, the mode that asks nothing -- which is what a flow means by BYPASS.
+#: An account's managed settings may forbid it (`"disableBypassPermissionsMode": "disable"`),
+#: and a Claude told it on such an account does not refuse: it starts the turn at `default`
+#: and says so in its `system/init`. So :data:`_DECLINED` is where `bypass` runs there, with
+#: every request it still makes answered yes (see :meth:`ClaudeCodeSession._declined`); and
+#: :data:`_ASKING` is where it runs while a hook is hung on `PERMISSION_REQUEST`, which a mode
+#: that asks nothing would never reach.
 #:
 #: Four rows and no fifth. The silence above the ladder is not a mode of Claude's to be looked
 #: up here but the flag left off altogether, so this stays the four rungs and
@@ -165,8 +167,22 @@ _PERMITTED = {
     "read-only": "plan",
     "workspace-write": "acceptEdits",
     "auto": "auto",
-    "bypass": "manual",
+    "bypass": "bypassPermissions",
 }
+
+#: Where `bypass` runs on an account whose managed settings forbid `bypassPermissions`: the
+#: most permissive of Claude's modes that is neither that nor `auto`, whose requests a model
+#: answers. What it still asks about is answered yes.
+_DECLINED = "acceptEdits"
+
+#: Where `bypass` runs while a hook is hung on `PERMISSION_REQUEST`: the mode that asks before
+#: every tool that would change something, so that the hook is asked and may say no to what
+#: BYPASS would have let through. Every account allows it.
+_ASKING = "manual"
+
+#: What Claude says, and exits on, when told `bypassPermissions` as root outside a sandbox it
+#: was told of: 2.1.285 word for word.
+_ROOT = "cannot be used with root/sudo privileges"
 
 #: What each kind of token is called on the total Claude states at the end of a turn, and what
 #: it is called on the message each request answered with. The same kinds either way, under
@@ -264,10 +280,17 @@ class ClaudeCodeAgentConfig(AgentConfig):
         outside as a turn that has hung. Off is the flow's to choose, and the turn then says
         each reach once and whole, the way every backend with no such flag says it.
         `narrate` is the name a flow asks for it under before it is handed an agent.
+      asks: Whether an agent at `bypass` asks before every tool that would change something,
+        for humanize to answer: yes, unless a hook hung on `PERMISSION_REQUEST` says no. Off,
+        `bypass` is Claude's `bypassPermissions`, which asks nothing, so such a hook would
+        have nothing to refuse. None, the default, is on while such a hook is hung on the
+        agent; a flow says which, since it hangs one on every agent it drives. Nothing at any
+        other rung.
     """
 
     allowed_tools: tuple[str, ...] = ()
     partial_messages: bool = True
+    asks: bool | None = None
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -371,10 +394,12 @@ class ClaudeCodeSession(StreamSessionBase):
         #: or taken down between two turns is a process started under the wrong answer.
         self._gated: bool | None = None
         self._gating = False
+        #: The permission mode the command line just built said, "" for none.
+        self._launching = ""
         #: What of the config the process now up was built with, out of the settings only a
         #: command line can carry, or None while nothing is up. `reconfigure` says that every
         #: turn from then on runs at the new one, and these are read when Claude starts.
-        self._built: tuple[tuple[str, ...], bool, bool] | None = None
+        self._built: tuple[tuple[str, ...], bool, bool, bool] | None = None
         #: The tool calls whose arguments are still arriving, by the block of the message each
         #: is being written into. The index is Claude's own numbering of the blocks of one
         #: message, under the call the message belongs to: an agent this one started writes
@@ -421,6 +446,9 @@ class ClaudeCodeSession(StreamSessionBase):
         an anchored session needs: its process ends with each turn, so the next one has a
         conversation to rejoin. An unanchored session opens once and stays open.
         """
+        # Kept for the process it starts, as the offer below is: what its `system/init` says
+        # it is running at is read against what it was told (:meth:`_declined`).
+        self._launching = self._mode()
         argv = [
             "claude",
             "--print",
@@ -452,22 +480,21 @@ class ClaudeCodeSession(StreamSessionBase):
                 # mode named badly -- and Claude has no mode of its own meaning "whatever you
                 # were going to do", so the two words go onto the line together or neither of
                 # them does.
-                ["--permission-mode", _PERMITTED[self._agent.config.permission]]
-                if self._agent.config.permission
-                else []
+                ["--permission-mode", self._launching] if self._launching else []
             ),
             *(
                 # `bypass` is the rung where nothing is asked and nothing is checked, so
-                # nobody is at a prompt to answer for it -- and rather than skip the asking
-                # with the flag an account may forbid, humanize does the answering. An agent
+                # nobody is at a prompt to answer for it -- and what is still asked, humanize
+                # answers: whatever Claude asks at `bypassPermissions` regardless (a question
+                # for its user), everything the account's own mode asks where it forbids that
+                # one, and everything while a hook is hung on `PERMISSION_REQUEST`. An agent
                 # at no rung at all is not that agent: what it stops to ask about is between
                 # it and the account it runs on, and taking the deciding for one would be
                 # humanize answering a question nobody put to it.
                 #
-                # `manual` mode routes every request to whoever the CLI is talking to, and
-                # `stdio` is that being us: each one is read as a `control_request` and
-                # answered `allow`, yes to whatever the account leaves decidable, with its own
-                # hard `deny` list still the CLI's to enforce.
+                # `stdio` routes every request to us: each one is read as a
+                # `control_request` and answered `allow`, yes to whatever the account leaves
+                # decidable, with its own hard `deny` list still the CLI's to enforce.
                 #
                 # Not in `claude --help` any more. What 2.1.272 documents is
                 # `--permission-prompts <host|none>`, "who answers permission prompts with
@@ -666,23 +693,25 @@ class ClaudeCodeSession(StreamSessionBase):
         self._gated = self._gating
         self._built = self._configured()
 
-    def _configured(self) -> tuple[tuple[str, ...], bool, bool]:
+    def _configured(self) -> tuple[tuple[str, ...], bool, bool, bool]:
         """What of the config a Claude started now would be built with and cannot be told.
 
-        Claude's own tool rules -- the allow rules, and the web tools withheld -- and whether
-        it says a reach as it happens are arguments of the process, the way the effort is:
-        read when it starts and held for its life. So they are read here, once, and compared
-        against what the process up was built with.
+        Claude's own tool rules -- the allow rules, and the web tools withheld -- whether it
+        says a reach as it happens, and whether `bypass` asks, which is the mode it starts at,
+        are arguments of the process, the way the effort is: read when it starts and held for
+        its life. So they are read here, once, and compared against what the process up was
+        built with.
 
         Returns:
-          The allow rules, whether the fragments were asked for and whether the web tools are
-          withheld, as one value to compare.
+          The allow rules, whether the fragments were asked for, whether the web tools are
+          withheld and whether `bypass` asks, as one value to compare.
         """
         config = self._agent.config
         return (
             tuple(getattr(config, "allowed_tools", ())),
             bool(getattr(config, "partial_messages", True)),
             self._offline(),
+            self._asks(),
         )
 
     def _offline(self) -> bool:
@@ -878,6 +907,126 @@ class ClaudeCodeSession(StreamSessionBase):
             "its own default, in its place"
         )
 
+    def _mode(self) -> str:
+        """The permission mode a Claude started now is told, or "" for none.
+
+        The rung's own (:data:`_PERMITTED`), except at `bypass`: :data:`_ASKING` while the
+        config asks for every request to be put to humanize, and :data:`_DECLINED` on an
+        account already found to forbid `bypassPermissions`.
+
+        Returns:
+          The mode, in Claude's own spelling.
+        """
+        config = self._agent.config
+        if config.permission != "bypass":
+            return _PERMITTED.get(config.permission, "")
+        if self._asks():
+            return _ASKING
+        if isinstance(self._agent, ClaudeCodeAgent) and self._agent.declines():
+            return _DECLINED
+        return _PERMITTED["bypass"]
+
+    def _asks(self) -> bool:
+        """Whether `bypass` is to ask before every tool that would change something.
+
+        Returns:
+          What the config says, and where it says nothing, whether a hook is hung on
+          `PERMISSION_REQUEST`: a flow says, since it hangs one of its own on every agent it
+          drives and answers through it only while the flow's own is hung.
+        """
+        said: bool | None = getattr(self._agent.config, "asks", None)
+        if said is not None:
+            return said
+        return self._agent.hooks.hooked(Moment.PERMISSION_REQUEST)
+
+    def _declined(self, running: str) -> str:
+        """Moves a Claude whose account forbids `bypassPermissions` to :data:`_DECLINED`.
+
+        Claude told `bypassPermissions` on an account whose managed settings forbid it runs at
+        `default` instead, which asks about everything, and says the mode it is at in its
+        `system/init`. So a mode there other than the one it was told is the account saying
+        no: the process is moved to :data:`_DECLINED` over the control protocol before the
+        model has reached for anything, and the account is remembered, so that every Claude
+        this agent starts on it from then on is told that mode outright. Anything it still
+        asks about is answered yes, as at `bypass` it always is.
+
+        Args:
+          running: The mode its `system/init` says it is at, or "" where it says none.
+
+        Returns:
+          What to say about it, once an agent and account, or "".
+        """
+        if (
+            self._launching != _PERMITTED["bypass"]
+            or not running
+            or running in (_PERMITTED["bypass"], _DECLINED)
+        ):
+            return ""
+        self._send(
+            json.dumps(
+                {
+                    "type": "control_request",
+                    "request_id": f"hmz-{uuid.uuid4()}",
+                    "request": {"subtype": "set_permission_mode", "mode": _DECLINED},
+                }
+            )
+            + "\n"
+        )
+        self._launching = _DECLINED
+        return self._refused()
+
+    def _refused(self) -> str:
+        """Remembers that `bypassPermissions` is refused this agent where it runs.
+
+        Returns:
+          What to say about it, the first time for the agent and account, and "" after.
+        """
+        if not isinstance(self._agent, ClaudeCodeAgent) or not self._agent.declined():
+            return ""
+        return (
+            "claude: this account will not run an agent at bypass, so it runs at "
+            f"{_DECLINED}, where what it asks for is granted"
+        )
+
+    def _stream(
+        self, prompt: str, *, schema: type[BaseModel] | None = None
+    ) -> Iterator[Event]:
+        """Takes one turn, starting it again at :data:`_DECLINED` where Claude refused bypass.
+
+        Claude will not start at `bypassPermissions` as root outside a sandbox it was told of
+        (`IS_SANDBOX=1`): it says so on stderr and exits before it has read the turn -- and
+        root is a container's usual user, where the CLI runs in one. That is BYPASS
+        disallowed as surely as an account's managed settings disallow it, so the turn is
+        taken again at :data:`_DECLINED`, as every later one of the agent is on that account.
+
+        Args:
+          prompt: The input prompt for this turn.
+          schema: The shape to answer in, or None to take what the agent says.
+
+        Yields:
+          What the agent said, in the order it said it.
+
+        Raises:
+          Failed: If the turn failed for anything else, or after it had begun.
+        """
+        began = False
+        try:
+            for event in super()._stream(prompt, schema=schema):
+                began = True
+                yield event
+        except Failed as failed:
+            if self._draining is not None:
+                self._draining.join(timeout=5)
+            said = f"{failed.stderr or ''}{''.join(self._complaints)}"
+            if began or self._launching != _PERMITTED["bypass"] or _ROOT not in said:
+                raise
+            self._shut()
+            if refused := self._refused():
+                yield Event(kind="notice", text=refused)
+            if not isinstance(self._agent, ClaudeCodeAgent):
+                raise
+            yield from super()._stream(prompt, schema=schema)
+
     def _read(self, line: str) -> Iterator[Event]:
         """Reads one event Claude wrote, as the things it says the agent did.
 
@@ -931,6 +1080,10 @@ class ClaudeCodeSession(StreamSessionBase):
             self._named = str(said["session_id"])
             if said.get("subtype") == "init" and (
                 instead := self._running(str(said.get("model") or ""))
+            ):
+                yield Event(kind="notice", text=instead)
+            if said.get("subtype") == "init" and (
+                instead := self._declined(str(said.get("permissionMode") or ""))
             ):
                 yield Event(kind="notice", text=instead)
         elif said.get("type") == "result":
@@ -1256,6 +1409,37 @@ class ClaudeCodeAgent(AgentBase):
     #: What it counts, read off the same table its driver reads a usage with, so that
     #: what a run is told this backend reports is what its driver actually parses.
     counts: ClassVar[frozenset[str]] = frozenset(_KINDS)
+
+    def __init__(self, config: AgentConfig, *, name: str | None = None) -> None:
+        """Initializes an agent that has found out nothing about its accounts yet.
+
+        Args:
+          config: The model and effort every session of this agent runs at.
+          name: What to call this agent, defaulting to one nothing else answers to.
+        """
+        super().__init__(config, name=name)
+        #: The accounts found to forbid `bypassPermissions`, by name: one refusal is the whole
+        #: cost of finding out, rather than one per process started.
+        self._declining: set[str] = set()
+        self._noting = threading.Lock()
+
+    def declines(self) -> bool:
+        """Whether the account this agent is on now is known to forbid `bypassPermissions`."""
+        with self._noting:
+            return self.node().name in self._declining
+
+    def declined(self) -> bool:
+        """Notes that the account this agent is on now forbids `bypassPermissions`.
+
+        Returns:
+          Whether this is the first anybody has heard of it, and so something to say.
+        """
+        account = self.node().name
+        with self._noting:
+            if account in self._declining:
+                return False
+            self._declining.add(account)
+            return True
 
     def natively(self, fence: Fence) -> Fence:
         """None of it: Claude is fenced from outside, on every machine.

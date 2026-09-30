@@ -380,7 +380,10 @@ account appends, and no `config.toml` is written:
 ### Hosts reachable under a cut network
 
 A flow role whose `online` is `NONE` is fenced to the hosts `backends.reachable(profile,
-environ)` returns, `environ` being the environment a turn under the account runs with:
+environ)` returns, `environ` being the environment a turn under the account runs with,
+`providers.composed(provider, profile)`: this process's own, less every variable the account
+hushes and plus the ones it sets. The flow's fence and the agent's own widening of it both read
+it there, so a hushed variable opens no host:
 
 1. `Profile.hosts` (see [Agents › Network hosts](/reference/agents#network-hosts));
 2. the host (and `:port`, where one is written) of the endpoint variable and of every
@@ -399,7 +402,7 @@ A region value that is not one DNS label adds no cloud host. Example: a `claude`
 `ANTHROPIC_BASE_URL=https://gw.example:8443/v1` reaches `api.anthropic.com`,
 `platform.claude.com`, `claude.ai` and `gw.example:8443` (that port only).
 
-<small>Defined in [`src/hmz/coganchor/backends.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/backends.py) (`reachable`, `_CLOUDS`), [`src/hmz/coganchor/models.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/models.py) (`_served`, `_listing`).</small>
+<small>Defined in [`src/hmz/coganchor/backends.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/backends.py) (`reachable`, `_CLOUDS`), [`src/hmz/coganchor/providers/store.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/store.py) (`composed`, `hushed`), [`src/hmz/coganchor/models.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/models.py) (`_served`, `_listing`).</small>
 
 ## One account, several CLIs
 

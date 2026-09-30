@@ -61,6 +61,10 @@ PROBE = (
     "python3 -c 'import urllib.request;"
     ' urllib.request.urlopen("http://example.com", timeout=10)\' 2>/dev/null'
     " && echo WEB-REACHED || echo WEB-REFUSED\n"
+    # The agent's own shell spells its scratch, which is this machine's path, into a command
+    # that runs on the target -- as Claude Code ends every shell command it runs by writing
+    # where it finished to a file there. The target keeps its scratch at the same path.
+    'sh -c "pwd -P > $TMPDIR/hmz-cwd" && echo SCRATCH-WRITTEN || echo SCRATCH-REFUSED\n'
 )
 
 #: And what the agent's own shell is asked, which is this machine's to refuse.
@@ -208,9 +212,12 @@ def test_a_command_on_another_machine_over_ssh_is_held_there(
     ran = _turn(config, PROBE.format(host=host, port=port))
 
     said = _said(ran)
-    assert {"WORKDIR-WRITTEN", "HOME-REFUSED", "NET-REACHED"} <= said, (
-        ran.stdout + ran.stderr
-    )
+    assert {
+        "WORKDIR-WRITTEN",
+        "HOME-REFUSED",
+        "NET-REACHED",
+        "SCRATCH-WRITTEN",
+    } <= said, ran.stdout + ran.stderr
     assert ssh_box.run(f"cat {there}/made.txt").strip() == "in"
     assert ssh_box.run("ls /root/hmz-fence-probe 2>/dev/null || true").strip() == ""
 
@@ -328,9 +335,12 @@ def test_a_command_in_a_container_is_held_there(
     )
 
     said = _said(ran)
-    assert {"WORKDIR-WRITTEN", "HOME-REFUSED", "NET-REACHED"} <= said, (
-        ran.stdout + ran.stderr
-    )
+    assert {
+        "WORKDIR-WRITTEN",
+        "HOME-REFUSED",
+        "NET-REACHED",
+        "SCRATCH-WRITTEN",
+    } <= said, ran.stdout + ran.stderr
     assert (tmp_path / "work" / "made.txt").read_text() == "in\n"
     assert not _homed(box), "the container's home was written"
 

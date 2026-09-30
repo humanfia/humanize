@@ -17,6 +17,7 @@ part of that rule it bends (:mod:`hmz.coganchor.serve`).
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import os
 import shutil
 from pathlib import Path
@@ -42,16 +43,20 @@ def told(fence: Fence, *, home: str, native: bool) -> dict[str, Any]:
         relative to.
       native: Whether the CLI itself runs on the target. One supervised here runs only its
         commands there, and a command needs neither the model's hosts nor the CLI's state --
-        so neither is sent, and a command at `online` NONE reaches no host at all. For one
-        that runs there, every path `fence` writes under `home` is taken for the CLI's own
-        state: a native CLI's fence is its levels and that state, and none of the roots its
-        levels grant here, which the target grants again around its own.
+        so neither is sent, and a command at `online` NONE reaches no host at all. What it
+        does need is the fence's scratch at the path the CLI knows it by: the CLI writes that
+        path into the commands it runs -- Claude Code ends every shell command by writing
+        where it finished to a file there -- so the target keeps its scratch at the same
+        path. For one that runs there, every path `fence` writes under `home` is taken for
+        the CLI's own state: a native CLI's fence is its levels and that state, and none of
+        the roots its levels grant here, which the target grants again around its own.
 
     Returns:
-      The levels as `local`, `user` and `system`, and `online`; for a native CLI, `hosts`, the
-      state it writes under its home as `write` -- each as `~/...`, to which a caller may add
-      a path of the target's own -- `programs`, which has the target let the CLI read its
-      own install tree, and where it names any, the ports it may `listen` on.
+      The levels as `local`, `user` and `system`, and `online`; for a supervised CLI whose
+      fence has one, its scratch as `tmp`; for a native CLI, `hosts`, the state it writes
+      under its home as `write` -- each as `~/...`, to which a caller may add a path of the
+      target's own -- `programs`, which has the target let the CLI read its own install
+      tree, and where it names any, the ports it may `listen` on.
 
     Raises:
       ValueError: If the fence was drawn path by path, and so has no levels to say.
@@ -67,6 +72,8 @@ def told(fence: Fence, *, home: str, native: bool) -> dict[str, Any]:
         "system": system,
         "online": fence.online,
     }
+    if not native and fence.tmp:
+        said["tmp"] = fence.tmp
     if native:
         root = os.path.normpath(home)
         said["hosts"] = list(fence.hosts)
@@ -101,11 +108,13 @@ def drawn(
       write: More of them to write.
 
     Returns:
-      The fence, with the target's own minimum -- its programs, its Python, its devices.
+      The fence, with the target's own minimum -- its programs, its Python, its devices --
+      and the scratch `said` names as its own, where it names one.
 
     Raises:
       ValueError: If `said` is not a fence's levels, or names a path that is neither under
-        the home nor absolute, or there is no workdir.
+        the home nor absolute, or a scratch that is not an absolute path of its own, or
+        there is no workdir.
     """
     if not workdirs:
         raise ValueError("a fence is drawn around a workdir, and there is none")
@@ -116,6 +125,16 @@ def drawn(
     if not isinstance(online, bool):
         raise ValueError("a fence's online is true or false")  # noqa: TRY004
     hosts = _strings(said, "hosts")
+    tmp: object = said.get("tmp", "")
+    if not isinstance(tmp, str) or (
+        tmp
+        and (
+            not tmp.startswith(os.sep)
+            or ".." in tmp.split("/")
+            or os.path.normpath(tmp) == os.sep
+        )
+    ):
+        raise ValueError("a fence's tmp is an absolute path")
     kept = _strings(said, "write")
     if any(
         not one.startswith((HOME, os.sep)) or ".." in one.split("/") for one in kept
@@ -134,7 +153,7 @@ def drawn(
         for one in cast("list[object]", listen)
     ):
         raise ValueError("a fence's listen is a list of ports")
-    return Fence.of(
+    drawn = Fence.of(
         local=local,
         user=str(levels[1]),
         system=str(levels[2]),
@@ -154,6 +173,7 @@ def drawn(
             ),
         ],
     ).granting(listen=cast("list[int]", listen))
+    return dataclasses.replace(drawn, tmp=os.path.normpath(tmp)) if tmp else drawn
 
 
 def ready(fence: Fence, home: str) -> None:
