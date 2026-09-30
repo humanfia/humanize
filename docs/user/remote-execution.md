@@ -241,7 +241,7 @@ saved with:
      1. builder                   claude/claude-haiku-4-5-20251001:high
      2. reviewer                  claude/claude-haiku-4-5-20251001:high
      3. box                       ssh@build-box                                          ⑤
-        budget                    stops at 10m00s
+        budget                    stops at 10m
         harness                   adaptive → env where its CLI is installed, else local   ⑥
         save                      flow and roles
 ```

@@ -785,6 +785,10 @@ spaces or slashes`.
 | `str` | Typed. |
 | other (list, dict, model, `Enum`, `Optional` with `None`) | Shown as Python `str()`; edited as text; not accepted by `set`. |
 
+<kbd>enter</kbd> on a typed row begins writing it with its whole value selected, drawn
+reversed: the first character typed replaces the value and <kbd>backspace</kbd> clears it.
+After that, typing goes after what is there. `←` `→` on a number step it and end the selection.
+
 `set` validates with the flow's model; a refusal shows the first error as `<field>: <message>`.
 Equivalent on the command line: [`-p`](/reference/cli#writing-params).
 
@@ -797,10 +801,13 @@ Equivalent on the command line: [`-p`](/reference/cli#writing-params).
 
 | Row | Kind | Default | About |
 | --- | --- | --- | --- |
-| `duration` | written | `""` | `maximum run duration: 1h30m, 90s, PT2H; empty for no limit` (read as [`-b duration`](/reference/cli#writing-a-budget); reopens as whole seconds, e.g. `21600s`) |
+| `duration` | written | `""` | `maximum run duration: 1h30m, 90s, PT2H; empty for no limit` (read as [`-b duration`](/reference/cli#writing-a-budget); reopens in days, hours, minutes and seconds, e.g. `6h`, `12d`, `1m30s`) |
 | `cost` | float ↔ | `0.0` | `maximum cost in US dollars, 0 for no limit` |
 | `output_tokens` | int ↔ | `0` | `maximum output tokens, 0 for no limit` |
 | `graceful` | bool ↔ | `on` | `finish the current turn when a limit is reached` |
+
+Typed rows are written as on the [params sheet](#setting-a-flow-up): the first character
+typed replaces the value.
 
 | Refusal | Cause |
 | --- | --- |
@@ -810,9 +817,10 @@ Equivalent on the command line: [`-p`](/reference/cli#writing-params).
 | `cost: Input should be a valid number, unable to parse string as a number` | empty or not a number |
 | `output_tokens: Input should be a valid integer, unable to parse string as an integer` | empty or not an integer |
 
-Row summary: `stops at <duration>, <n> out, <money>[, even mid-turn]` for the limits set
-(e.g. `stops at 6h00m, $50.00`; `stops at 1m30s, 12.0k out, $0.50, even mid-turn`); unset:
-`none set; a run needs one`, or for `chat` `none needed; runs until you stop it`.
+Row summary: `stops at <duration>, <n> out, <money>[, even mid-turn]` for the limits set, the
+duration written as the sheet reopens it (e.g. `stops at 6h, $50.00`; `stops at 12d, $5.00`;
+`stops at 1m30s, 12.0k out, $0.50, even mid-turn`); unset: `none set; a run needs one`, or for
+`chat` `none needed; runs until you stop it`.
 
 ### Harness form {#where-the-harness-runs}
 
