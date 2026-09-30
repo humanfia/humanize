@@ -136,7 +136,7 @@ The agent decides, mid-turn, that a piece of work needs a loop of its own, and g
 | CLI (`-a`) | Asks its user |
 | --- | :---: |
 | `claude`, `codex`, `kimi`, `pi` | <Badge type="tip" text="yes" /> |
-| `agy`, `cursor-agent`, `dsh`, `grok`, `mimo`, `opencode`, `qwen`, an ACP CLI | <Badge type="info" text="no" /> |
+| `agy`, `cursor-agent`, `dsh`, `grok`, `mcode`, `mimo`, `opencode`, `qwen`, an ACP CLI | <Badge type="info" text="no" /> |
 
 For a role that declares `AskUserHookAgentMixin`, a CLI that does not ask is refused before the
 first turn. A role that does not declare it cannot hang the hook: `on_ask_user` raises

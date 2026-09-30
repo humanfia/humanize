@@ -248,11 +248,14 @@ directory humanize kept is read as that backend's home is, `sessions/<cli>/` sta
 | Qwen Code | `QWEN_HOME` | `~/.qwen` |
 | opencode | `XDG_DATA_HOME`, as `$XDG_DATA_HOME/opencode` | `~/.local/share/opencode` |
 | MiMo Code | `XDG_DATA_HOME`, as `$XDG_DATA_HOME/mimocode` | `~/.local/share/mimocode` |
+| MiniMax Code | `MINIMAX_DATA_DIR` | `~/.minimax` |
 | Antigravity | nothing | `~/.gemini/antigravity-cli` |
 | Cursor Agent | <Badge type="warning" text="no reader" /> | nothing is collected |
 
 Every backend but Cursor Agent has a reader; opencode, MiMo Code and Antigravity keep their
-sessions in SQLite and are read with a query. A CLI added over ACP keeps no log humanize can
+sessions in SQLite and are read with a query. MiniMax Code keeps a directory per session under
+`v2/sessions/`, named for the session's id in URL-safe base64, and says which workspace each
+was opened in only in its SQLite database, which is read for that. A CLI added over ACP keeps no log humanize can
 find. A home that does not exist is skipped, so collecting on a machine with one backend
 installed works.
 

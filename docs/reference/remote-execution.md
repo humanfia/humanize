@@ -231,8 +231,8 @@ be read back fails the call.
   the agent, and so does every helper the script runs on the way: cursor-agent's `realpath` of
   its own install asks about this machine, not the target.
 - **Its state directory**, and anything it runs from there, such as Grok Build's native binary
-  under `~/.grok/bin`. All eleven CLIs are known by name: `agy`, `claude`, `codex`,
-  `cursor-agent`, `dsh`, `grok`, `kimi`, `mimo`, `opencode`, `pi`, `qwen`. So are
+  under `~/.grok/bin`. All twelve CLIs are known by name: `agy`, `claude`, `codex`,
+  `cursor-agent`, `dsh`, `grok`, `kimi`, `mcode`, `mimo`, `opencode`, `pi`, `qwen`. So are
   `~/.humanize`, `~/.cache/humanize` and `~/.config/humanize`. Any other agent keeping state
   inside the workspace must be named with `--local-path`.
 - **Anything named** with `--local-path` or `--local-exec`, and every `--redirect` answer.
@@ -284,7 +284,7 @@ in:
 
 | Crosses, by | Stays here |
 | --- | --- |
-| the backend's home, for `claude` (`CLAUDE_CONFIG_DIR`), `codex` (`CODEX_HOME`), `cursor-agent` (`CURSOR_CONFIG_DIR`), `grok` (`GROK_HOME`), `kimi` (`KIMI_CODE_HOME`), `pi` (`PI_CODING_AGENT_DIR`) and `qwen` (`QWEN_HOME`) | files under the homes of `agy`, `opencode` and `mimo`, which humanize has no variable of the backend's own to point at |
+| the backend's home, for `claude` (`CLAUDE_CONFIG_DIR`), `codex` (`CODEX_HOME`), `cursor-agent` (`CURSOR_CONFIG_DIR`), `grok` (`GROK_HOME`), `kimi` (`KIMI_CODE_HOME`), `mcode` (`MINIMAX_DATA_DIR`), `pi` (`PI_CODING_AGENT_DIR`) and `qwen` (`QWEN_HOME`) | files under the homes of `agy`, `opencode` and `mimo`, which humanize has no variable of the backend's own to point at |
 | `$XDG_CONFIG_HOME`, for files under `config/`, such as Claude's `anthropic/` | files under your home (`~/`), such as Claude's `~/.claude.json`: only `HOME` points a CLI there, and replacing it takes the target's git identity, ssh keys and transcripts with it |
 
 An account whose credentials all stay here, and that has no variables, is refused rather than

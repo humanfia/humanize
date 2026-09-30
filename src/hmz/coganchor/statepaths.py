@@ -61,6 +61,12 @@ PROFILES: tuple[AgentProfile, ...] = (
         name="kimi",
         state_paths=("~/.kimi-code", "~/.kimi"),
     ),
+    # MiniMax Code keeps its settings, its sign-in, its sessions and the runtime it serves
+    # them from under one directory, and read the one it used to be called before that.
+    AgentProfile(
+        name="mcode",
+        state_paths=("~/.minimax", "~/.mavis"),
+    ),
     AgentProfile(
         name="qwen",
         state_paths=("~/.qwen",),

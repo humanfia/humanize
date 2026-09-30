@@ -69,6 +69,7 @@ from .hooks import (
 from .human import HumanAgent, HumanSession
 from .kimi import KimiCodeCLIAgent, KimiCodeCLIAgentConfig, KimiCodeCLISession
 from .mimo import MimoCodeAgent, MimoCodeAgentConfig, MimoCodeSession
+from .minimax import MiniMaxCodeAgent, MiniMaxCodeAgentConfig, MiniMaxCodeSession
 from .opencode import OpencodeAgent, OpencodeAgentConfig, OpencodeSession
 from .pi import PiAgent, PiAgentConfig, PiSession
 from .qwen import QwenCodeAgent, QwenCodeAgentConfig, QwenCodeSession
@@ -86,6 +87,7 @@ DRIVEN: dict[str, tuple[type[AgentBase], type[AgentConfig]]] = {
     "dsh": (DshAgent, DshAgentConfig),
     "grok": (GrokBuildAgent, GrokBuildAgentConfig),
     "kimi": (KimiCodeCLIAgent, KimiCodeCLIAgentConfig),
+    "mcode": (MiniMaxCodeAgent, MiniMaxCodeAgentConfig),
     "mimo": (MimoCodeAgent, MimoCodeAgentConfig),
     "opencode": (OpencodeAgent, OpencodeAgentConfig),
     "pi": (PiAgent, PiAgentConfig),
@@ -180,6 +182,9 @@ __all__ = [
     "MimoCodeAgent",
     "MimoCodeAgentConfig",
     "MimoCodeSession",
+    "MiniMaxCodeAgent",
+    "MiniMaxCodeAgentConfig",
+    "MiniMaxCodeSession",
     "Moment",
     "Occasion",
     "OpencodeAgent",

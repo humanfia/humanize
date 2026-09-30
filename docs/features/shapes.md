@@ -51,7 +51,7 @@ those CLIs a loop's retry does more work.
 
 | | CLIs |
 | --- | --- |
-| **Held by the CLI** | <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" /> <Badge type="tip" text="agy" /> <Badge type="tip" text="grok" /> <Badge type="tip" text="qwen" /> |
+| **Held by the CLI** | <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" /> <Badge type="tip" text="agy" /> <Badge type="tip" text="grok" /> <Badge type="tip" text="mcode" /> <Badge type="tip" text="qwen" /> |
 | **Asked in the prompt** | <Badge type="info" text="cursor-agent" /> <Badge type="info" text="dsh" /> <Badge type="info" text="kimi" /> <Badge type="info" text="mimo" /> <Badge type="info" text="opencode" /> <Badge type="info" text="pi" />, and any CLI you add on [the Accounts page of `/settings`](/user/settings#accounts) |
 
 ## Go further

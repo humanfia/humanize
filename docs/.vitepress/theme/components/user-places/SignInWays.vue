@@ -263,6 +263,31 @@ const BACKENDS: Backend[] = [
     ],
   },
   {
+    cli: 'mcode',
+    called: 'MiniMax Code',
+    ways: [
+      { name: 'login', about: 'sign in to a MiniMax account, in a browser', runs: 'mcode login' },
+      {
+        name: 'key',
+        about: 'a MiniMax API key, from the platform',
+        asks: [{ env: 'MCODE_PROVIDER_API_KEY', secret: true }],
+        runs: 'mcode provider set-minimax-key',
+      },
+      {
+        name: 'gateway',
+        about: GATEWAY,
+        asks: [
+          { env: 'MCODE_GATEWAY_URL' },
+          { env: 'MCODE_PROVIDER_API_KEY', secret: true },
+          { env: 'MCODE_GATEWAY_MODEL' },
+          { env: 'MCODE_GATEWAY_FORMAT', fixed: 'openai-completions' },
+        ],
+        runs: 'mcode provider add --name gateway … --use',
+      },
+      ENV,
+    ],
+  },
+  {
     cli: 'a CLI of your own',
     called: 'A CLI that speaks ACP',
     own: true,

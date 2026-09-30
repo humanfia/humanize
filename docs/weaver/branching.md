@@ -76,7 +76,7 @@ Three CLIs can do this, as [the table below](#which-clis-can-fork) shows.
 | --- | --- | --- |
 | `claude`, `codex`, `kimi` | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> |
 | `grok`, `mimo`, `opencode`, `pi`, `qwen`, an ACP CLI | <Badge type="tip" text="yes" /> | <Badge type="warning" text="same directory only" /> |
-| `agy`, `cursor-agent`, `dsh` | <Badge type="danger" text="no" /> | <Badge type="danger" text="no" /> |
+| `agy`, `cursor-agent`, `dsh`, `mcode` | <Badge type="danger" text="no" /> | <Badge type="danger" text="no" /> |
 
 No CLI forks onto another machine. A flow meant to run on any CLI can fall back to a fresh
 session:

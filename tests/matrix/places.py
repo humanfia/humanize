@@ -156,6 +156,14 @@ CANDIDATES: dict[str, tuple[Place, ...]] = {
         _at("cursor-agent", "", "auto", ""),
         _at("cursor-agent", "nvidia", "auto", ""),
     ),
+    # Its own fast model as local, which takes no rung; then a gateway added to it, whose
+    # models are named under the provider it was added as.
+    "mcode": (
+        _at("mcode", "", "minimax/MiniMax-M2.7-highspeed", ""),
+        _at(
+            "mcode", "nvidia", "custom_provider:gateway/nvidia/minimaxai/minimax-m3", ""
+        ),
+    ),
 }
 
 #: Families a catalogue carries that no turn can be taken on, by a word their names hold.

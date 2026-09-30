@@ -106,6 +106,11 @@ npm i -g @mimo-ai/cli
 mimo auth login
 ```
 
+```sh [MiniMax Code]
+npm i -g @minimax-ai/code
+mcode login                    # or a MiniMax API key: mcode provider set-minimax-key
+```
+
 ```sh [pi]
 npm i -g @earendil-works/pi-coding-agent
 pi                             # then /login, and /exit once you are signed in
@@ -162,7 +167,7 @@ it found is not signed in and cannot say what it runs. Typing a task then says
 shell finds:
 
 ```sh
-command -v agy claude codex cursor-agent grok kimi mimo opencode pi qwen
+command -v agy claude codex cursor-agent grok kimi mcode mimo opencode pi qwen
 ```
 
 Leave with `/exit`. Now make your [first run](/user/first-run).
@@ -197,7 +202,7 @@ A `dsh` agent works with full access whatever its flow declares. See
 
 ::: details Any other CLI that speaks the Agent Client Protocol
 Add it on the Accounts page of [`/settings`](/user/settings#accounts), and it is offered beside
-the eleven above. See [Many backends, one agent](/features/backends).
+the twelve above. See [Many backends, one agent](/features/backends).
 :::
 
 ## Where humanize keeps things

@@ -40,12 +40,12 @@ The grid is drawn at the foot of the run:
 
 ```text
 ======================= regression matrix: feature x CLI =======================
-| feature | claude | agy | codex | dsh | grok | kimi | pi | qwen | opencode | mimo | cursor-agent | any |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| plain_turn | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | - |
-| steer | pass | n/a | pass | n/a | n/a | pass | pass | n/a | n/a | n/a | n/a | - |
+| feature | claude | agy | codex | dsh | grok | kimi | pi | qwen | opencode | mimo | cursor-agent | mcode | any |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| plain_turn | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | - |
+| steer | pass | n/a | pass | n/a | n/a | pass | pass | n/a | n/a | n/a | n/a | n/a | - |
 ...
-| settings_accounts | - | - | - | - | - | - | - | - | - | - | - | pass |
+| settings_accounts | - | - | - | - | - | - | - | - | - | - | - | - | pass |
 ```
 
 | Mark | Means | What to do |
@@ -82,7 +82,7 @@ The `named_account` row always runs under an account made the second way.
 ## What it costs
 
 A cell takes one to three turns of a few words each, on the cheapest model its CLI takes, under
-`-b cost=0.5,output_tokens=40000`. The whole matrix is 366 cells: 33 rows for each of eleven
+`-b cost=0.5,output_tokens=40000`. The whole matrix is 399 cells: 33 rows for each of twelve
 CLIs, and 3 rows run once. A run of all of it spent about 29,000 output tokens, a dollar of it
 priced, and took under half an hour -- as it did inside a whole `uv run pytest --run-agents`:
 the slowest column sets the time. The run prints what it spent, priced from the list your
@@ -175,7 +175,8 @@ a file in your home directory named `.hmz-fence-<cli>-<random>`, one of the same
 cell has its own names, and removes them when it ends. `fence_open` also writes such a file
 to your home directory, as an agent granted everything may. `fence_offline` asks the agent's
 web tool for a page on `api.github.com` that no model knows by heart. If the answer quotes
-that page, the network was not cut.
+that page, the network was not cut. It is `n/a` for `cursor-agent` and `mcode`, which are
+refused a cut network: their web search runs on their vendor's own servers.
 :::
 
 ::: details The rows about other machines need docker

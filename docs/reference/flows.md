@@ -72,7 +72,7 @@ All of these import from `hmz.flows`.
 | Group | Names |
 | --- | --- |
 | Defining a flow | [`flow`](#flow), [`Flow`](#flow-protocol), [`FlowFn`](#flowfn), [`load`](#load), [`FlowParams`](#flowparams), [`FlowContext`](#flowcontext), [`FlowState`](#flowstate) |
-| Agents | [`AgentCollection`](#agentcollection), [`Agent`](#agent), [`Session`](#session), [`Outworlder`](#outworlder), [`HarnessKind`](#harnesskind), [`HARNESS_AGENTS`](#harness-agents) and the eleven harness protocols, from [`ClaudeCodeAgent`](#what-each-harness-serves) to `DeepSeekHarnessAgent` |
+| Agents | [`AgentCollection`](#agentcollection), [`Agent`](#agent), [`Session`](#session), [`Outworlder`](#outworlder), [`HarnessKind`](#harnesskind), [`HARNESS_AGENTS`](#harness-agents) and the twelve harness protocols, from [`ClaudeCodeAgent`](#what-each-harness-serves) to `DeepSeekHarnessAgent` |
 | Agent mixins | [`GoalCommandAgentMixin`, `LoopCommandAgentMixin`, `SteeringAgentMixin`, `PermissionRequestHookAgentMixin`, `SubagentStartHookAgentMixin`, `SubagentStopHookAgentMixin`, `AskUserHookAgentMixin`](#asking-for-an-agent-that-can-do-something) |
 | Permissions | [`Permission`](#permission), [`PermissionKind`](#permissionkind) |
 | Budgets | [`Budget`](#budget), [`Usage`](#usage) |
@@ -284,7 +284,7 @@ class Reviewer(Agent):
 | `cursor-agent` | Cursor Agent | | `pi` | pi |
 | `opencode` | opencode | | `agy` | Antigravity |
 | `mimo` | MiMo Code | | `dsh` | DeepSeek Harness |
-| `qwen` | Qwen Code | | | |
+| `qwen` | Qwen Code | | `mcode` | MiniMax Code |
 | `acp` | a CLI added on the Accounts page of `/settings`, driven over the Agent Client Protocol | | | |
 
 ## Asking for an agent that can do something {#asking-for-an-agent-that-can-do-something}
@@ -347,7 +347,7 @@ agent: steer needs SteeringAgentMixin on the role
 | `kimi` | ✓ | | ✓ | ✓ | | ✓ | any workdir |
 | `pi` | | | ✓ | | | ✓ | same workdir |
 | `dsh` | ✓ | | | | | | no |
-| `cursor-agent` | | | | | ✓ | | no |
+| `cursor-agent` `mcode` | | | | | ✓ | | no |
 | `grok` `opencode` `mimo` `qwen` `acp` | | | | | | | same workdir |
 | `agy` | | | | | | | no |
 
@@ -355,8 +355,8 @@ agent: steer needs SteeringAgentMixin on the role
 
 <span id="harness-agents"></span>Each harness also has a protocol of its own that declares
 exactly that row: `ClaudeCodeAgent`, `CodexAgent`, `KimiCodeAgent`, `PiAgent`,
-`DeepSeekHarnessAgent`, `CursorAgent`, `GrokBuildAgent`, `OpenCodeAgent`, `MiMoCodeAgent`,
-`QwenCodeAgent` and `AntigravityAgent`. `HARNESS_AGENTS` maps each `HarnessKind` to its
+`DeepSeekHarnessAgent`, `CursorAgent`, `MiniMaxCodeAgent`, `GrokBuildAgent`, `OpenCodeAgent`,
+`MiMoCodeAgent`, `QwenCodeAgent` and `AntigravityAgent`. `HARNESS_AGENTS` maps each `HarnessKind` to its
 protocol, and `acp` to plain `Agent`.
 
 A role typed as one of them asks for **that harness** and everything it serves. Any other
@@ -473,6 +473,7 @@ default) but refuses one at `NONE`.
 | `claude` | external (Landlock + proxy); its own sandbox holds only its Bash tool, so it is not used | external (Landlock + proxy), and `WebSearch`, `WebFetch` refused by rule, since the search runs at the model API |
 | `codex` | external (Landlock + proxy) | external (Landlock + proxy); web search and ChatGPT apps off natively; at `local` `READ` with `online` `ALL`, its `read-only` sandbox is told to leave commands the network |
 | `cursor-agent` | external (Landlock + proxy); its own sandbox holds only its shell commands, and cannot start without a user namespace | `NONE` is refused: its web search and fetch run on Cursor's servers, through the hosts its model is at, and cannot be switched off |
+| `mcode` | external (Landlock + proxy); it has no sandbox of its own | `NONE` is refused: its web search runs on MiniMax's own service, through the hosts its model is at, and cannot be switched off |
 | `opencode` | external (Landlock + proxy); its file tools also refuse outside the fence | external (Landlock + proxy); its web tools are taken away offline |
 | `mimo` | external (Landlock + proxy); its file tools also refuse outside the fence | external (Landlock + proxy); its web tools are taken away offline |
 | `qwen` | external (Landlock + proxy) | external (Landlock + proxy); `web_search` and `web_fetch` withheld |
@@ -498,14 +499,15 @@ by number, since nothing inside the fence can resolve a name.
 
 **The rung.**
 
-| `local` | every harness but `dsh` and `acp` | `dsh`, `acp` |
+| `local` | every harness but `dsh`, `mcode` and `acp` | `dsh`, `mcode`, `acp` |
 | --- | --- | --- |
 | `READ` or `NONE` | the CLI's read-only rung: Claude Code's `plan`, Codex's read-only sandbox, a tool list with nothing that writes | `bypass` |
 | `ALL` | `bypass` | `bypass` |
 
-- **`dsh` and `acp`** can be held to no rung but `bypass`. The fence holds them to the scopes.
+- **`dsh` and `acp`** can be held to no rung but `bypass`, and `mcode` to none that is
+  read-only. The fence holds them to the scopes.
 - **`online`** also switches the CLI's own web tools: on for `ALL`, and off for `NONE` where
-  the CLI can be told. Where it cannot (cursor-agent, pi, ACP), the cut network is what stops
+  the CLI can be told. Where it cannot (cursor-agent, mcode, pi, ACP), the cut network is what stops
   them. Antigravity fetches pages at the far end of its model API, where the cut network does
   not reach, so with `online` `NONE` it is always started without its web tools.
 - **Nothing-asked mode** is `danger-full-access` with approval `never` on Codex. On Claude
@@ -619,7 +621,7 @@ async def fork(self, session: Session, *, env: Env) -> Session
 Opens a second session that carries on from where `session` is, and leaves `session` as it
 was. `env` is where the new one works: another workdir only on Claude Code, Codex and Kimi
 Code, the same workdir on every other harness that forks, and never another machine.
-cursor-agent, Antigravity and dsh do not fork. Either refusal raises `UnsupportedOperation`.
+cursor-agent, MiniMax Code, Antigravity and dsh do not fork. Either refusal raises `UnsupportedOperation`.
 
 A session is forked from a turn it has taken: forking one that has taken none raises
 `SessionError`. A fork is cut where it takes its first turn, so it is refused then if the

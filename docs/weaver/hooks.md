@@ -245,7 +245,7 @@ could do.
 | --- | :---: | :---: | :---: |
 | `claude`, `codex` | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> |
 | `kimi` | <Badge type="tip" text="yes" /> | <Badge type="info" text="no" /> | <Badge type="tip" text="yes" /> |
-| `cursor-agent` | <Badge type="info" text="no" /> | <Badge type="tip" text="yes" /> | <Badge type="info" text="no" /> |
+| `cursor-agent`, `mcode` | <Badge type="info" text="no" /> | <Badge type="tip" text="yes" /> | <Badge type="info" text="no" /> |
 | `pi` | <Badge type="info" text="no" /> | <Badge type="info" text="no" /> | <Badge type="tip" text="yes" /> |
 | `agy`, `dsh`, `grok`, `mimo`, `opencode`, `qwen`, an ACP CLI | <Badge type="info" text="no" /> | <Badge type="info" text="no" /> | <Badge type="info" text="no" /> |
 

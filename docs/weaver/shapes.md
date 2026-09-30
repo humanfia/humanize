@@ -97,7 +97,7 @@ it, and humanize reads the model back out of what they say.
 
 | Schema | CLI (`-a`) |
 | --- | --- |
-| <Badge type="tip" text="enforced" /> | `claude`, `codex`, `agy`, `grok`, `qwen` |
+| <Badge type="tip" text="enforced" /> | `claude`, `codex`, `agy`, `grok`, `mcode`, `qwen` |
 | <Badge type="info" text="prompted" /> | `cursor-agent`, `dsh`, `kimi`, `mimo`, `opencode`, `pi`, an ACP CLI |
 
 Either way, `run` returns the model or raises.

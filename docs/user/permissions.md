@@ -68,15 +68,17 @@ So the default grant is a real limit: an agent changes its workdir and nothing e
 | Backend | `local`, `user`, `system` | `online` of `NONE` |
 | --- | --- | --- |
 | every CLI | <Badge type="tip" text="held by Landlock" /> | <Badge type="tip" text="cut but for its model" /> |
-| `cursor-agent` | <Badge type="tip" text="held by Landlock" /> | <Badge type="danger" text="refused" /> |
+| `cursor-agent`, `mcode` | <Badge type="tip" text="held by Landlock" /> | <Badge type="danger" text="refused" /> |
 | a CLI added over ACP | <Badge type="tip" text="held by Landlock" /> | <Badge type="warning" text="cut but for the hosts declared for it" /> |
 
 A role whose `local` is `READ` or `NONE` also runs in its CLI's read-only mode, where the CLI
-has one (every CLI but `dsh` and CLIs added over the Agent Client Protocol). Where a CLI can
+has one (every CLI but `dsh`, `mcode` and CLIs added over the Agent Client Protocol: those run
+with no rung of their own, and a grant that writes nothing is what keeps them from writing). Where a CLI can
 be told, `online` of `NONE` also switches its web tools off. Cursor's web search and fetch
 cannot be switched off and run on Cursor's own servers, which it reaches for its model, so a
 cut network would not stop them: a `cursor-agent` role with `online` of `NONE` is refused, and
-needs `online` of `ALL`.
+needs `online` of `ALL`. MiniMax Code's web search runs on MiniMax's own service in the same
+way, so an `mcode` role with `online` of `NONE` is refused too.
 
 humanize knows nothing of a CLI you added over the Agent Client Protocol: not the hosts its
 model is at, and not where it keeps its state. Declare both where it was added, or a role that
@@ -91,7 +93,8 @@ humanize never runs an agent with more than its grant. A role is refused before 
   refused there. So is a machine where humanize may not look into the programs it starts
   (inside a container with its default seccomp profile, or with Yama's `ptrace_scope` at 2
   or 3): it could not keep what they listen on to this machine.
-- **the CLI would reach the web around the cut:** `cursor-agent` with `online` of `NONE`.
+- **the CLI would reach the web around the cut:** `cursor-agent` or `mcode` with `online` of
+  `NONE`.
 - **the work lands on another machine that has no Landlock:** a [container](/user/containers)
   or an ssh host whose kernel is too old, or a container whose seccomp profile refuses
   Landlock. Docker's own default profile allows it.

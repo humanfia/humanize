@@ -115,6 +115,7 @@ const BANDS: Band[] = [
           { text: 'dsh', tag: 'SDK' },
           { text: 'grok' },
           { text: 'kimi', tag: '+ extra' },
+          { text: 'mcode' },
           { text: 'mimo' },
           { text: 'opencode' },
           { text: 'pi' },
