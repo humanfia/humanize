@@ -1,575 +1,474 @@
+---
+pageClass: hmz-feature
+---
+
 # Providers
 
-A provider is an **account**: one named set of credentials for one coding agent CLI, kept apart
-from the CLI's own. Two agents driving the same CLI can run as two accounts at once. An agent
-with no provider runs its CLI signed in the way you signed it in yourself.
+Reference for accounts: `hmz.coganchor.providers`. A provider is one named set of credentials
+for one coding agent CLI, kept apart from the CLI's own. An agent configured with a provider
+runs every turn with that provider's variables and reads and writes its credential files in the
+provider's directory. Two agents of one CLI can therefore run as two accounts at once.
 
-| | |
+## Identity
+
+| Aspect | Rule |
 | --- | --- |
-| **Named** | `<cli>/<name>`, such as `claude/work`. `<cli>/` with no name is the account this machine is already signed into. |
-| **Kept in** | `~/.humanize/providers/<cli>/<name>/`, or under `$HUMANIZE_HOME` where that is set |
-| **Made at** | the Accounts page of `/settings` (`/settings accounts`) and its `add an account` row, or [`Hmz().accounts`](/reference/sdk) from Python |
-| **Chosen with** | `-a role=CLI@NAME/MODEL:EFFORT`, or `provider="NAME"` on an agent's config |
-| **A turn under one** | Gets the provider's variables and loses the backend's other account variables. Its credential paths are answered out of the provider's directory. |
-
-Two accounts of one CLI in one run: one signed into an Anthropic subscription, one pointed at a
-DeepSeek endpoint, and [flame_chase](/flows/flame-chase) handing the task to each in turn.
-
-```sh
-hmz exec -f flame_chase \
-    -a first_chaser=claude@anthropic/claude-opus-5:max \
-    -a second_chaser=claude@deepseek/deepseek-chat:high \
-    -b cost=20 "fix the build"
-```
-
-Both agents run the same `claude`. Neither can read the other's credential file, and neither
-can read yours.
-
-## Where the credentials are kept
-
-```
-~/.humanize/providers/claude/deepseek/
-├── provider.json      its way in, its variables, its fallback
-├── models.json        the models it was last found to offer
-├── home/              credential files under the CLI's own home
-│   ├── .credentials.json
-│   └── .claude.json
-├── user/              credential files under your home
-│   └── .claude.json
-└── config/            credential files under $XDG_CONFIG_HOME
-    └── anthropic/
-```
-
-The CLI writes these files itself, so they keep the names it gave them. A login for a provider
-is the CLI's own login, with those paths pointed here.
-
-**Only credential files live here.** Sessions, settings and skills stay in the CLI's own home,
-so a turn under a provider still shows up in a [trace](/reference/tracing), still counts
-towards the cost readout, and still has the skills you installed.
-
-### Per backend
-
-A path is under the backend's home unless it starts `~/` (your home) or `config/`
-(`$XDG_CONFIG_HOME`, else `~/.config`). A path ending `/` is a directory, and everything inside
-it goes with it. The home is read from humanize's own environment.
-
-| Backend | Home | Credential files |
-| --- | --- | --- |
-| `agy` | `~/.gemini/antigravity-cli` | `antigravity-oauth-token` |
-| `claude` | `$CLAUDE_CONFIG_DIR`, else `~/.claude` | `.credentials.json`<br>`.claude.json`<br>`~/.claude.json`<br>`config/anthropic/` |
-| `codex` | `$CODEX_HOME`, else `~/.codex` | `auth.json` |
-| `cursor-agent` | `$CURSOR_CONFIG_DIR`, else `~/.cursor` | `cli-config.json`<br>`config/cursor/auth.json`<br>`~/.cursor/auth.json` |
-| `dsh` | `$DSH_HOME`, else `~/.dsh` | none: its accounts are variables |
-| `grok` | `$GROK_HOME`, else `~/.grok` | `auth.json`<br>`mcp_credentials.json` |
-| `kimi` | `$KIMI_CODE_HOME`, else `~/.kimi-code` | `credentials/`<br>`oauth/` |
-| `mcode` | `$MINIMAX_DATA_DIR`, else `~/.minimax` | `config.yaml`<br>`auth/` |
-| `mimo` | `$XDG_DATA_HOME/mimocode`, else `~/.local/share/mimocode` | `auth.json`<br>`mcp-auth.json` |
-| `opencode` | `$XDG_DATA_HOME/opencode`, else `~/.local/share/opencode` | `auth.json`<br>`mcp-auth.json` |
-| `pi` | `$PI_CODING_AGENT_DIR`, else `~/.pi/agent` | `auth.json`<br>`auth.json.lock` |
-| `qwen` | `$QWEN_HOME`, else `~/.qwen` | `oauth_creds.json`<br>`oauth_creds.lock` |
-
-- For `agy`, humanize follows no variable of the backend's own: only `HOME` moves where it
-  looks.
-- `agy`'s token file is what a sign-in leaves where there is no keyring to put it in.
-- `codex`'s `auth.json` holds subscription tokens and an API key alike.
-- `cursor-agent`'s `cli-config.json` also holds its settings, such as what the agent may
-  reach for, so a provider of it keeps settings of its own. Its tokens are in `auth.json`,
-  which it reads under `$XDG_CONFIG_HOME/cursor` on Linux and under `~/.cursor` on macOS.
-- `grok`'s `mcp_credentials.json` holds the tokens its MCP servers handed back.
-- `mcode`'s `config.yaml` holds a MiniMax key and every provider added to it beside its
-  settings, so a provider of it keeps settings of its own. `auth/` is what `mcode login` leaves.
-- An ACP CLI added on the Accounts page of `/settings` has no credential files humanize knows
-  of, so its accounts are variables.
-
-## The ways in
-
-A way is one kind of account: a subscription you sign into, a key, a gateway, an account on a
-cloud. The Accounts page of `/settings` offers a backend's ways once you pick the CLI, and
-`Hmz().accounts.ways(cli)` returns the same list.
-
-| Backend | `login` | `device` | `key` | `gateway` | Also | `env` |
-| --- | :-: | :-: | :-: | :-: | --- | :-: |
-| [`agy`](#antigravity-cli-agy) | ✓ | | ✓ | | `adc` | ✓ |
-| [`claude`](#claude-code-claude) | ✓ | | ✓ | ✓ | `token`, `bedrock`, `vertex` | ✓ |
-| [`codex`](#codex-codex) | ✓ | ✓ | ✓ | ✓ | `token` | ✓ |
-| [`cursor-agent`](#cursor-agent-cursor-agent) | ✓ | | ✓ | ✓ | | ✓ |
-| [`dsh`](#deepseek-harness-dsh) | | | ✓ | ✓ | | |
-| [`grok`](#grok-build-grok) | ✓ | ✓ | ✓ | ✓ | `oidc` | ✓ |
-| [`kimi`](#kimi-code-kimi) | ✓ | | | | `model` | ✓ |
-| [`mcode`](#minimax-code-mcode) | ✓ | | ✓ | ✓ | | ✓ |
-| [`mimo`](#mimocode-mimo) | ✓ | | ✓ | | | ✓ |
-| [`opencode`](#opencode-opencode) | ✓ | | | | `wellknown`, `zen` | ✓ |
-| [`pi`](#pi-pi) | ✓ | | | | | ✓ |
-| [`qwen`](#qwen-code-qwen) | ✓ | | ✓ | | | ✓ |
-
-A way that **runs** a command runs it on this terminal, under the provider's paths, and what
-the command writes is the provider. A way that only **asks** keeps your answers as the
-variables the backend reads them under. Every key and token is asked as a secret: drawn as
-bullets and never shown back. A value in parentheses is what an unanswered question takes.
-
-### Antigravity CLI (`agy`)
-
-| Way | What it is | Asks for |
-| --- | --- | --- |
-| `login` | Sign in to a Google account. Runs `agy` and hands you the terminal. | — |
-| `key` | A Gemini API key, from AI Studio. | `GEMINI_API_KEY` |
-| `adc` | Google Application Default Credentials, for a service account. Also sets `AGY_ADC_AUTH=1`. | `GOOGLE_APPLICATION_CREDENTIALS`, the file's path |
-
-### Claude Code (`claude`)
-
-| Way | What it is | Asks for |
-| --- | --- | --- |
-| `login` | Sign in to an Anthropic account. Runs `claude auth login`. | — |
-| `token` | A long-lived token, as `claude setup-token` prints one. | `CLAUDE_CODE_OAUTH_TOKEN` |
-| `key` | An Anthropic API key, from the console. | `ANTHROPIC_API_KEY` |
-| `gateway` | An endpoint speaking Claude Code's protocol: a proxy, a router, another vendor. | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` |
-| `bedrock` | Anthropic's models on your AWS account. Also sets `CLAUDE_CODE_USE_BEDROCK=1`. | `AWS_PROFILE`, `AWS_REGION` (`us-east-1`) |
-| `vertex` | Anthropic's models on your Google Cloud project. Also sets `CLAUDE_CODE_USE_VERTEX=1`. | `ANTHROPIC_VERTEX_PROJECT_ID`, `CLOUD_ML_REGION` (`us-east5`) |
-
-### Codex (`codex`)
-
-| Way | What it is | Asks for |
-| --- | --- | --- |
-| `login` | Sign in to a ChatGPT account, in a browser. Runs `codex login`. | — |
-| `device` | The same, from a machine with no browser. Runs `codex login --device-auth`. | — |
-| `key` | An OpenAI API key. Runs `codex login --with-api-key` and writes the key to its stdin. | `OPENAI_API_KEY`, not kept |
-| `token` | An access token, as an organisation hands one out. Runs `codex login --with-access-token` and writes it to its stdin. | `CODEX_ACCESS_TOKEN`, not kept |
-| `gateway` | An endpoint speaking codex's protocol. | `CODEX_PROVIDER_URL`, `CODEX_PROVIDER_KEY` |
-
-`key` and `token` are **not kept** as variables: `codex login` stores them in `auth.json`, and
-a second copy would be a second place to leak them.
-
-Codex takes a gateway as settings, not variables. A turn under `gateway` gets these arguments,
-and nobody's `config.toml` is written:
-
-```sh
--c model_provider=humanize
--c model_providers.humanize.name=humanize
--c model_providers.humanize.base_url=$CODEX_PROVIDER_URL
--c model_providers.humanize.env_key=CODEX_PROVIDER_KEY
--c model_providers.humanize.wire_api=responses   # the only one it runs
-```
-
-### Cursor Agent (`cursor-agent`)
-
-| Way | What it is | Asks for |
-| --- | --- | --- |
-| `login` | Sign in to a Cursor account, in a browser. Runs `cursor-agent login`. | — |
-| `key` | A Cursor API key, from the dashboard. | `CURSOR_API_KEY` |
-| `gateway` | An endpoint speaking Cursor's protocol. | `CURSOR_API_ENDPOINT`, `CURSOR_API_KEY` |
-
-### DeepSeek Harness (`dsh`)
-
-| Way | What it is | Asks for |
-| --- | --- | --- |
-| `key` | A DeepSeek API key, from the platform. | `DEEPSEEK_API_KEY` |
-| `gateway` | An endpoint speaking DeepSeek's protocol. | `DEEPSEEK_BASE_URL`, `DEEPSEEK_API_KEY` |
-
-`dsh` has no `env` way. humanize drives it through an SDK that reads this one key and this one
-base URL and nothing else.
-
-### Grok Build (`grok`)
-
-| Way | What it is | Asks for |
-| --- | --- | --- |
-| `login` | Sign in to an xAI account, in a browser. Runs `grok login`. | — |
-| `device` | The same, from a machine with no browser. Runs `grok login --device-auth`. | — |
-| `key` | An xAI API key, from the console. | `XAI_API_KEY` |
-| `gateway` | An endpoint speaking Grok Build's protocol, listing its models at `/models`. | `GROK_XAI_API_BASE_URL`, `XAI_API_KEY` |
-| `oidc` | Your own identity provider, for an organisation that signs in through one. | `GROK_OIDC_ISSUER`, `GROK_OIDC_CLIENT_ID` |
-
-### Kimi Code (`kimi`)
-
-| Way | What it is | Asks for |
-| --- | --- | --- |
-| `login` | Sign in to a Kimi account, by the code it prints. Runs `kimi login`. | — |
-| `model` | An endpoint of your own, made its default model. | `KIMI_MODEL_NAME`, `KIMI_MODEL_API_KEY`, `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_PROVIDER_TYPE`: `anthropic`, `openai` or `kimi` (`openai`) |
-
-### MiniMax Code (`mcode`)
-
-| Way | What it is | Asks for |
-| --- | --- | --- |
-| `login` | Sign in to a MiniMax account, in a browser. Runs `mcode login`. | — |
-| `key` | A MiniMax API key, from the platform. Runs `mcode provider set-minimax-key`, which saves it into its `config.yaml` and makes MiniMax's own models run on it. | `MCODE_PROVIDER_API_KEY` |
-| `gateway` | An endpoint of your own, added to it as a provider called `gateway` and made its default. Runs `mcode provider add --name gateway --base-url … --api-format … --model … --api-key-env MCODE_PROVIDER_API_KEY --use`, which asks the endpoint once before it saves anything. | `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY`, `MCODE_GATEWAY_MODEL` (not kept), `MCODE_GATEWAY_FORMAT`: `anthropic-messages`, `openai-completions` or `openai-responses` (`openai-completions`, not kept) |
-
-A model on a `gateway` account is named `custom_provider:gateway/<id>`.
-
-### mimocode (`mimo`)
-
-| Way | What it is | Asks for |
-| --- | --- | --- |
-| `login` | mimocode's own provider list, and whichever way that one takes. Runs `mimo auth login`. | — |
-| `key` | A MiMo key, which its own models run on. | `XIAOMI_API_KEY` |
-
-### opencode (`opencode`)
-
-| Way | What it is | Asks for |
-| --- | --- | --- |
-| `login` | opencode's own provider list, and whichever way that one takes. Runs `opencode auth login`. | — |
-| `wellknown` | A provider that hands out its own credential, by URL. Runs `opencode auth login <url>`. | `OPENCODE_WELLKNOWN`, the URL answering at `/.well-known/opencode`; not kept |
-| `zen` | An OpenCode Zen key, which its own models run on. | `OPENCODE_API_KEY` |
-
-### pi (`pi`)
-
-| Way | What it is | Asks for |
-| --- | --- | --- |
-| `login` | pi's own `/login`. Runs `pi` and hands you the terminal: type `/login`, pick a provider, then `/exit`. | — |
-
-### Qwen Code (`qwen`)
-
-| Way | What it is | Asks for |
-| --- | --- | --- |
-| `login` | Sign in to a Qwen account. Runs `qwen` and hands you the terminal: type `/auth`, then `/quit`. | — |
-| `key` | A key for the OpenAI-compatible endpoint it runs against. | `OPENAI_API_KEY`, `OPENAI_BASE_URL` (`https://dashscope.aliyuncs.com/compatible-mode/v1`) |
-
-### `env`, on every backend but `dsh`
-
-| Way | What it is | Asks for |
-| --- | --- | --- |
-| `env` | Variables of your own: whatever name this CLI reads a key or an endpoint under. | `NAME=VALUE` lines |
-
-You type the names, because the lists are too long to keep. pi reads a variable for each
-provider it knows, and opencode one for each of about 180. Put one variable on each line.
-While writing that field, <kbd>shift+enter</kbd> or <kbd>ctrl+j</kbd> starts a new line and <kbd>enter</kbd> keeps it;
-`done` submits the form. Blank lines and lines starting `#` are skipped.
-
-## Making one
-
-At the prompt, type `/settings accounts`:
-
-| Row | Does | When it lands |
-| --- | --- | --- |
-| `add an account` | Makes one, on [one form](/reference/tui#making-an-account): the CLI, the way in, a name, what that way asks, and which other backends to write it down for. Hands the terminal to the CLI's own login where the way has one, then asks the CLI what it runs, in the background. | at once |
-| <kbd>enter</kbd> → **edit settings** | Asks the way's questions again. What it holds is replaced, not merged, and credentials a login left are kept. Secrets start blank, and a blank one keeps what it holds. | when the menu is saved |
-| <kbd>enter</kbd> → **sign in again** | Runs the way's own command again, under this account's paths. Only for a way that runs one. | at once |
-| <kbd>enter</kbd> → **fails over to** | Which account of this CLI a turn carries on as when this one fails. See [When an account goes down](#when-an-account-goes-down). | when the menu is saved |
-| <kbd>enter</kbd> → **remove** | Deletes the account and its credentials. An account already marked shows **cancel removal**. | when the menu is saved |
-
-What lands when the menu is saved reaches an agent from its next session: a session already
-running keeps the account it started with, and the row says `from the next agent session` while
-the change is held.
-
-The same `add` row is on the `account` list of an agent's sheet, and comes back with the
-new account chosen for that agent. The screens are in [TUI](/reference/tui).
-
-**Names** are letters, digits, `.`, `-` and `_`, starting with a letter or a digit: a name is a
-directory. **`<cli>/` with no name**, or `""` in Python, is the account this machine is already
-signed into. Every backend has one. humanize keeps no credentials for it, and only what it
-**fails over to** can be set. Making it, signing it in or taking it away is refused.
-
-From Python:
-
-```python
-from hmz.sdk import Hmz
-
-accounts = Hmz().accounts
-
-accounts.all()              # every account somebody made
-accounts.all("claude")      # one backend's
-accounts.ways("claude")     # how that backend can be signed into
-
-way = accounts.way("claude", "gateway")
-accounts.asks(way, {"ANTHROPIC_BASE_URL": url})   # still unanswered
-one = accounts.make("claude", "deepseek", way, answers)
-accounts.sign_in(one, way)  # the way's command, under its paths
-
-accounts.write("claude", "work", "key", {"ANTHROPIC_API_KEY": key})
-accounts.remove("claude", "deepseek")   # it and its credentials
-```
-
-`make` writes an account from a way's answers, filling unanswered questions from their
-defaults. `write` writes one as given, and runs nothing. Either one, on an account that exists,
-replaces what it holds and keeps its credentials and its fallback. `asks` lists the questions
-with neither an answer nor a default. `sign_in` returns the command's exit status: `0` for a
-way with no command, and `127` for a CLI that is not installed. See [SDK](/reference/sdk).
-
-Reading one back from Python gives everything it holds. The Accounts page of `/settings` shows
-only the names of the variables it sets, never their values.
-
-```python
-one = accounts.find("claude", "deepseek")   # None if there is none
-
-one.way        # the way it was made by
-one.made       # when, as an ISO 8601 moment
-one.at         # the directory its credentials are kept in
-one.env        # the variables a turn under it is run with, values too
-one.args       # what it adds to the backend's own command line
-one.fallback   # the account it falls back to, or ""
-one.swaps()    # (path the CLI names, path it gets), per credential
-```
-
-## Choosing one for an agent
-
-The account goes after the CLI and an `@`. A CLI name never holds an `@`, so the account and
-the model never get mixed up.
-
-::: code-group
-
-```sh [hmz exec]
-hmz exec -f ralph_loop -a agent=claude@deepseek/claude-opus-5:max \
-    -b cost=5 "fix the build"
-```
-
-```python [Python]
-ClaudeCodeAgentConfig(
-    model="claude-opus-5", effort="max", provider="deepseek"
-)
-```
-
-```text [TUI]
-the agent's sheet → provider → pick one, or a to make one there
-```
-
-:::
-
-`provider=""`, the default, is the CLI as you already run it. A name the backend has no
-account under raises `ValueError` the first time the agent needs it, naming the agent and the
-account:
+| Name | `<cli>/<name>`, e.g. `claude/work`. `<cli>` is the backend's name (any [alias](/reference/agents#backends) is accepted and normalised). |
+| `<name>` | `[A-Za-z0-9][A-Za-z0-9._-]*` |
+| The machine's own account | `<cli>/` with the empty name, `providers.LOCAL == ""`. Exists for every backend; humanize keeps no credentials for it, and turns under it are the CLI as already signed in. Only its fallback can be set. |
+| Chosen with | `-a ROLE=CLI@NAME/MODEL:EFFORT`; `AgentConfig.provider="NAME"`; an agent's sheet in the TUI ([TUI](/reference/tui)) |
+| Which CLIs | every built-in backend, and every [ACP CLI](/reference/agents#a-cli-of-your-own) added on this machine (which has only the `env` way) |
+
+| Input | `ValueError` |
+| --- | --- |
+| a backend no profile answers to | `nosuch: unknown agent` |
+| a bad name | `'a/b' is not a valid account name: letters, digits, dot, dash and underscore, starting with a letter or a digit` |
+| an agent whose `provider` names no account (raised the first time a turn needs it) | `<agent id>: no <cli> provider called '<name>'` |
+
+<small>Defined in [`src/hmz/coganchor/providers/store.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/store.py), [`specs/coganchor/providers.md`](https://github.com/humanfia/humanize/blob/main/specs/coganchor/providers.md).</small>
+
+## Storage
+
+The rest of humanize's home is in [Files](/reference/files).
 
 ```text
-coder: no claude provider called 'deepsek'
-```
-
-See [CLI › Writing an agent](/reference/cli#writing-an-agent) and [Agents](/reference/agents).
-
-## What a turn under one runs with
-
-| | |
-| --- | --- |
-| **Added** | The provider's variables, on top of the environment the turn inherits. |
-| **Appended** | The provider's arguments, after the CLI's own. Only codex's `gateway` has any. |
-| **Taken away** | Every variable the backend reads an account from, unless this provider sets it. |
-| **Answered elsewhere** | Every credential path in the [table above](#per-backend), from the provider's directory. A refreshed token is written back there. |
-
-All four apply whichever way the provider was made, so an agent on a gateway never reads the
-account your CLI is signed into. An agent with **no** provider gets none of them: its
-environment is left exactly as found.
-
-### Variables taken away
-
-A CLI prefers an account in a variable over the credentials it was signed in with. A key left
-in your shell profile would outrank the provider, and nothing about the turn would look wrong:
-
-```console
-$ export ANTHROPIC_API_KEY=sk-mine    # what you use by hand
-$ hmz exec -f ralph_loop -b cost=5 \
-    -a agent=claude@work/claude-opus-5:high "..."
-# the turn runs as `work`, not as that key
-```
-
-What is taken away is every variable the backend's ways ask for or set, and the other account
-variables it reads, such as `ANTHROPIC_MODEL`, `CODEX_API_KEY`, `OPENCODE_AUTH_CONTENT` and
-`CURSOR_AUTH_TOKEN`. It also covers every other name the same credential goes by:
-
-| One credential | Also read as |
-| --- | --- |
-| `CLAUDE_CODE_OAUTH_TOKEN` | `ANTHROPIC_OAUTH_TOKEN` |
-| `GEMINI_API_KEY` | `GOOGLE_API_KEY` |
-| `MOONSHOT_API_KEY` | `KIMI_API_KEY` |
-| `OPENAI_BASE_URL` | `OPENAI_API_BASE` |
-| `XAI_API_KEY` | `GROK_CODE_XAI_API_KEY` |
-
-The full list for each backend is its `ways` and `ambient` in `src/hmz/coganchor/backends.py`.
-
-### How a credential path is answered
-
-A turn under a provider of a backend with credential files is spawned under a supervisor:
-
-```sh
-python -m hmz internal cred --map=FROM=TO [--map=...] -- claude ...
-```
-
-[`hmz internal cred`](/reference/cli#hmz-internal-cred) runs the CLI under a seccomp-filtered
-ptrace supervisor. Only syscalls that name a path stop. Everything else runs at native speed,
-and the CLI is told nothing. Only a backend with no credential files, `dsh` or an ACP CLI,
-skips the supervisor: a `key` provider of Claude Code is supervised as a `login` one is.
-
-A `FROM` path is answered in three shapes:
-
-| Shape | The CLI names | It gets, in the provider's directory |
-| --- | --- | --- |
-| the file itself | `~/.claude/.credentials.json` | `home/.credentials.json` |
-| anything inside a directory | `~/.kimi-code/credentials/<file>` | `home/credentials/<file>` |
-| the same name, another suffix | `~/.claude/.credentials.json.tmp` | `home/.credentials.json.tmp` |
-
-The third shape is how a CLI rotates a token: it writes `.credentials.json.tmp`, then renames
-it over the real name. A path is matched after `.`, `..` and doubled `/` are resolved, and
-after `/proc/<pid>/fd/<n>`, `cwd`, `exe` and `root` links are followed. A home reached through
-a symlink is matched under both spellings.
-
-What the call is about to do decides which file it gets:
-
-| The call | Gets |
-| --- | --- |
-| `stat`, `lstat`, `newfstatat`, `statx`, `access`, `faccessat`, `faccessat2`, `readlink`, `readlinkat`, and an `open` for reading | **A copy in memory.** Made once into `/dev/shm/hmz-<pid>-<random>/`, a `0700` directory holding `0600` files, and checked against the provider's file once a second, so another agent's refresh is seen. |
-| Anything that creates, writes, truncates, renames, links, unlinks, changes a mode or touches a time, and an `open` that asks for anything but reading | **The provider's own file**, so a refreshed token is durable the moment the CLI writes it. The copy is dropped, and the next read makes a new one. |
-
-A pi turn asks about its `auth.json` 600 to 800 times, over half of all the path syscalls it
-makes. That is why reads get a copy. Directories, lock files, files over 1 MiB, and machines
-with no usable `/dev/shm` get the provider's own path for reads too, and so does `chdir`.
-
-The copies are deleted when the supervisor exits. A killed turn's copies are swept up by
-whatever killed it, or else by the next redirected run on the machine.
-
-An [anchored](/reference/remote-execution) turn uses none of this. A process has one tracer, so
-the anchor is handed the same paths as `redirects` and its own supervisor answers them with the
-provider's files.
-
-### Where a turn's sessions are kept {#where-sessions-are-kept}
-
-The same supervisor keeps every turn's sessions out of the CLI's home, whatever account it runs
-as -- the one this machine is signed into included, which is then supervised for nothing else:
-
-```sh
-python -m hmz internal cred [--map=FROM=TO ...] --keep=FROM=TO [--keep=...] -- claude ...
-```
-
-Each `--keep` is one of the paths `sessions` names for that backend in
-`src/hmz/coganchor/backends.py`, answered with the same path under the directory the turn's
-agent keeps its sessions in: the run's [epic](/reference/tracing#epics), as
-`sessions/<cli>/…`, or `~/.humanize/sessions/<cli>/…` for an agent no run drives. Only those:
-the settings, the skills and the credentials are still read from the CLI's home, and a
-`--map` still answers the credentials. A kept path is answered with the file itself for every
-call, never a copy -- a transcript is appended to while it is read back -- and the directory it
-goes in is made as the CLI writes into it. A name in `sessions` may be a glob, such as codex's
-`state_*.sqlite*`, which answers whatever schema version and write-ahead file it matches.
-
-| CLI | Kept, under its home |
-| --- | --- |
-| `claude` | `projects/`, `sessions/`, `file-history/`, `session-env/`, `tasks/`, `todos/`, `plans/` |
-| `codex` | `sessions/`, `archived_sessions/`, `session_index.jsonl`, `state_*.sqlite*`, `thread_history_*.sqlite*`, `goals_*.sqlite*`, `queue_*.sqlite*`, `memories_*.sqlite*`, `thread-writer-locks/`, `shell_snapshots/` |
-| `kimi` | `sessions/`, `session_index.jsonl`, `workspaces.json`, `server/events/`, `search-index/`, `file-history/` |
-| `qwen` | `projects/`, `tmp/`, `file-history/` |
-| `grok` | `sessions/`, `active_sessions.*` |
-| `pi` | `sessions/` |
-| `agy` | `conversations/`, `brain/`, `annotations/`, `implicit/`, `presence/`, `conversation_summaries.db*`, `jetbox_summaries_proto.pb`, `cache/last_conversations.json` |
-| `cursor-agent` | `chats/`, `projects/*/agent-transcripts/` |
-| `mcode` | `v2/sqlite/`, `v2/sessions/`, `background-tasks/` |
-| `opencode` | `opencode.db*`, `storage/` |
-| `mimo` | `mimocode.db*`, `storage/` |
-| `dsh` | `sessions/`, which humanize names to it as its session root rather than supervising it |
-
-A machine that cannot supervise a turn -- anything but Linux on x86-64 or aarch64, or a kernel
-that will not let humanize trace one, which is asked by supervising a program that does
-nothing -- keeps its sessions where each CLI does rather than refusing every turn, and so does
-a turn taken on another machine: by the target's own CLI, or under a harness there. `HUMANIZE_SESSIONS=off` does the same on any machine: nothing is supervised for
-sessions, and an account's credentials still are.
-
-## When an account goes down
-
-Each account can name the account to carry on under when a turn under it fails: a subscription
-that ran out, a key refused, a gateway answering 503. That one can name the next, which makes a
-**chain**. A turn walks the chain inside the conversation it was in, with the same agent and
-the same model.
-
-Set it with **fails over to** on the Accounts page of `/settings`, or from Python:
-
-```python
-accounts = Hmz().accounts
-
-accounts.points("claude", "subscription", "key")
-accounts.points("claude", "key", "gateway")
-accounts.points("claude", "", "subscription")  # "": this machine's own
-
-held = accounts.find("claude", "subscription")
-accounts.chain(held)                   # [subscription, key, gateway]
+$HUMANIZE_HOME/                         default ~/.humanize
+├── providers/<cli>/<name>/             one account
+│   ├── provider.json                   what it is
+│   ├── models.json                     what it was last found to run
+│   ├── home/…                          credential files under the CLI's home
+│   ├── user/…                          credential files under the user's home (~/…)
+│   └── config/…                        credential files under $XDG_CONFIG_HOME
+├── local/<cli>.json                    the machine's own account: its fallback only
+└── models/<cli>.json                   the machine's own account's catalogue
 ```
 
 | Rule | |
 | --- | --- |
-| A chain that loops | Ends at the second sight of an account. |
-| A name that is not there | Ends the chain there. `points` refuses to write one. |
-| Pointing at itself | Refused. |
-| Falling back *to* the machine's own account | Not possible: `at=""` means the end of the line. An agent given no account already starts there. |
-| The machine's own account | Can fall back to others. What it says is kept in `~/.humanize/local/<cli>.json`. |
+| Modes | Every directory humanize creates on the way to `providers/<cli>/<name>/` and to each credential's parent is `0700`. Every file is written to a `mkstemp` file (mode `0600`) beside it and renamed into place. |
+| Directory name | The backend's canonical name and the account's name. The directory, not the file, decides which backend and name an account has. |
+| Unreadable entries | A directory whose `provider.json` is missing or not a JSON object is not listed. |
+| Removal | `remove(cli, name)` deletes the whole directory, credentials included. |
 
-An account's chain answers an account going down. A retired model, a CLI that will not start,
-or a limit on the whole place is answered by [another agent](/user/settings#fallback), which a turn
-moves to only once this chain is spent. How many times a failed turn is retried first is set
-per place on [the Fallback page of `/settings`](/user/settings#fallback), not on the account.
+### `provider.json`
+
+| Key | Type | Meaning |
+| --- | --- | --- |
+| `cli` | string | the backend, as named here |
+| `name` | string | the account's name |
+| `way` | string | the [way](#the-ways-in) it was made by; `env` if missing |
+| `env` | object of strings | variables a turn under it is given |
+| `args` | array of strings | arguments appended to the backend's command line |
+| `made` | string | UTC time made, `YYYY-MM-DDTHH:MM:SSZ` |
+| `fallback` | string | the account of the same backend a failing turn carries on under; `""` for none. A non-string reads as `""`. |
+
+```json
+{
+  "cli": "claude",
+  "name": "work",
+  "way": "key",
+  "env": {"ANTHROPIC_API_KEY": "sk-ant-…"},
+  "args": [],
+  "made": "2026-09-30T05:49:08Z",
+  "fallback": ""
+}
+```
+
+`local/<cli>.json` holds `{"fallback": "<name>"}` and nothing else.
+
+### `models.json`
+
+The account's model catalogue, written by `hmz.coganchor.models.ask` when the account is made
+and when it is asked again (the `check again` row of the TUI's models sheet). Read by every
+prompt. Older than 7 days (`models.STALE`) counts as stale; at start-up the TUI asks again, in
+the background, for each installed backend whose machine's-own catalogue is missing or stale.
+
+```json
+{"asked": "2026-09-30T05:49:08Z", "models": [{"name": "claude-opus-5", "efforts": ["max", "high"], "swarms": false}]}
+```
+
+Where the backend has an [endpoint variable](#gateways) and the account sets it, the catalogue
+is the endpoint's `GET {base}/v1/models` (`{base}/models` when the base already ends in a
+version such as `/v1`), sent with the account's secret as both `Authorization: Bearer` and
+`x-api-key` and `anthropic-version: 2023-06-01`, 20 s timeout, 8 MiB limit, redirects followed
+only on the same host and never from `https` down to `http`. An endpoint that does not answer
+leaves an endpoint-sourced catalogue in place. Otherwise the CLI is asked (see
+[Agents › Models](/reference/agents#models)).
+
+<small>Defined in [`src/hmz/coganchor/providers/store.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/store.py), [`src/hmz/coganchor/models.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/models.py).</small>
+
+## The ways in {#the-ways-in}
+
+A way is one kind of account a backend offers. `ways(cli)` returns the backend's own ways in
+order, then `env` for every backend but `dsh`.
+
+`hmz.coganchor.backends.Way`:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `name` | `str` | what the way is called; recorded as the provider's `way` |
+| `about` | `str` | one line describing it |
+| `argv` | `tuple[str, ...]` | the backend's own command to run, under the provider's paths, with the terminal handed over; `()` for a way that is only answers. `{VARIABLE}` is filled from the answers. |
+| `asks` | `tuple[Asked, ...]` | questions, in order |
+| `sets` | `tuple[(str, str), ...]` | variables always set, whatever the answers |
+| `args` | `tuple[str, ...]` | arguments appended to every turn's command line, `{VARIABLE}` filled |
+| `stdin` | `str` | the variable whose answer is written to `argv`'s stdin |
+
+`hmz.coganchor.backends.Asked`:
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `env` | `str` | required | the variable the answer becomes |
+| `about` | `str` | required | the question |
+| `secret` | `bool` | `False` | drawn as bullets, never shown back |
+| `keep` | `bool` | `True` | kept in `env`; `False` for an answer only handed to `argv` |
+| `fixed` | `str` | `""` | the answer when none is given |
+
+### Ways by backend
+
+| Backend | Way | Runs | Asks (secret •, not kept ◦, default in parentheses) | Sets |
+| --- | --- | --- | --- | --- |
+| `claude` | `login` | `claude auth login` | — | |
+| | `token` | — | `CLAUDE_CODE_OAUTH_TOKEN` • | |
+| | `key` | — | `ANTHROPIC_API_KEY` • | |
+| | `gateway` | — | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` • | |
+| | `bedrock` | — | `AWS_PROFILE`, `AWS_REGION` (`us-east-1`) | `CLAUDE_CODE_USE_BEDROCK=1` |
+| | `vertex` | — | `ANTHROPIC_VERTEX_PROJECT_ID`, `CLOUD_ML_REGION` (`us-east5`) | `CLAUDE_CODE_USE_VERTEX=1` |
+| `agy` | `login` | `agy` (interactive) | — | |
+| | `key` | — | `GEMINI_API_KEY` • | |
+| | `adc` | — | `GOOGLE_APPLICATION_CREDENTIALS` (a file path) | `AGY_ADC_AUTH=1` |
+| `codex` | `login` | `codex login` | — | |
+| | `device` | `codex login --device-auth` | — | |
+| | `key` | `codex login --with-api-key`, key on stdin | `OPENAI_API_KEY` • ◦ | |
+| | `token` | `codex login --with-access-token`, token on stdin | `CODEX_ACCESS_TOKEN` • ◦ | |
+| | `gateway` | — | `CODEX_PROVIDER_URL`, `CODEX_PROVIDER_KEY` • | appends `-c` arguments ([below](#gateways)) |
+| `cursor-agent` | `login` | `cursor-agent login` | — | |
+| | `key` | — | `CURSOR_API_KEY` • | |
+| | `gateway` | — | `CURSOR_API_ENDPOINT`, `CURSOR_API_KEY` • | |
+| `dsh` | `key` | — | `DEEPSEEK_API_KEY` • | |
+| | `gateway` | — | `DEEPSEEK_BASE_URL`, `DEEPSEEK_API_KEY` • | |
+| `grok` | `login` | `grok login` | — | |
+| | `device` | `grok login --device-auth` | — | |
+| | `key` | — | `XAI_API_KEY` • | |
+| | `gateway` | — | `GROK_XAI_API_BASE_URL` (models listed at `/models`), `XAI_API_KEY` • | |
+| | `oidc` | — | `GROK_OIDC_ISSUER`, `GROK_OIDC_CLIENT_ID` | |
+| `kimi` | `login` | `kimi login` | — | |
+| | `model` | — | `KIMI_MODEL_NAME`, `KIMI_MODEL_API_KEY` •, `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_PROVIDER_TYPE` (`openai`; `anthropic`, `openai` or `kimi`) | |
+| `mcode` | `login` | `mcode login` | — | |
+| | `key` | `mcode provider set-minimax-key` | `MCODE_PROVIDER_API_KEY` • | |
+| | `gateway` | `mcode provider add --name gateway --base-url {MCODE_GATEWAY_URL} --api-format {MCODE_GATEWAY_FORMAT} --model {MCODE_GATEWAY_MODEL} --api-key-env MCODE_PROVIDER_API_KEY --use` | `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY` •, `MCODE_GATEWAY_MODEL` ◦, `MCODE_GATEWAY_FORMAT` ◦ (`openai-completions`; `anthropic-messages`, `openai-completions` or `openai-responses`) | |
+| `mimo` | `login` | `mimo auth login` | — | |
+| | `key` | — | `XIAOMI_API_KEY` • | |
+| `opencode` | `login` | `opencode auth login` | — | |
+| | `wellknown` | `opencode auth login {OPENCODE_WELLKNOWN}` | `OPENCODE_WELLKNOWN` ◦ (URL answering at `/.well-known/opencode`) | |
+| | `zen` | — | `OPENCODE_API_KEY` • | |
+| `pi` | `login` | `pi` (interactive: `/login`, then `/exit`) | — | |
+| `qwen` | `login` | `qwen` (interactive: `/auth`, then `/quit`) | — | |
+| | `key` | — | `OPENAI_API_KEY` •, `OPENAI_BASE_URL` (`https://dashscope.aliyuncs.com/compatible-mode/v1`) | |
+| every backend but `dsh`; ACP CLIs | `env` | — | `NAME=VALUE` lines | |
+
+- A model on an `mcode` `gateway` account is named `custom_provider:gateway/<id>`.
+- `mcode`'s `config.yaml` is a credential file, so a provider of it holds settings of its own.
+- `cursor-agent`'s `cli-config.json` is a credential file and also its settings.
+
+### The `env` way
+
+- `env_of(text)` reads `NAME=VALUE` lines: surrounding whitespace is stripped, blank lines and
+  lines starting `#` are skipped, a value may contain `=`. A non-empty line without `=` (or
+  with an empty name) raises `ValueError: '<line>' is not NAME=VALUE`.
+- Every variable given is kept, whatever its name.
+
+### Making, signing in, rewriting
+
+| Call | Behaviour |
+| --- | --- |
+| `login.make(cli, name, way, answers=None)` | Fills unanswered questions from `fixed`; keeps answers whose `Asked.keep` is true (all of them for `env`) and are non-empty; adds `sets`; fills `args`; writes the account with `add`. |
+| `login.asked(way, given)` | The variables still to be answered: neither given nor `fixed`. |
+| `login.sign_in(provider, way, answers=None)` | Runs `argv` (filled) under the provider's credential paths (`hmz internal cred`), environment `os.environ` plus the provider's `env`, writing `answers[way.stdin] + "\n"` to stdin where `stdin` is set. Returns the exit status: `0` for a way with no `argv`, `127` for a CLI not installed. |
+| `add(cli, name, way="env", env=None, args=())` | Writes `provider.json`, replacing `way`, `env`, `args` and `made`; keeps the existing `fallback`; leaves credential files in place; makes every credential parent directory. |
+| `ready(provider)` | Makes every credential parent directory (`0700`). |
+| `remove(cli, name) -> bool` | Deletes the account directory. |
+
+The machine's own account cannot be made, signed in or removed; only its fallback can be set.
+
+<small>Defined in [`src/hmz/coganchor/backends.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/backends.py) (`Way`, `Asked`, `PROFILES`), [`src/hmz/coganchor/providers/login.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/login.py).</small>
+
+## Credential files
+
+`Profile.creds` lists the files a backend's login leaves. An entry is under the backend's home
+unless it starts `~/` (the user's home) or `config/` (`$XDG_CONFIG_HOME`, else `~/.config`). A
+directory entry covers everything inside it. In the provider's directory the three roots are
+`home/`, `user/` and `config/`.
+
+| Backend | Home | Credential files |
+| --- | --- | --- |
+| `agy` | `~/.gemini/antigravity-cli` (only `HOME` moves it) | `antigravity-oauth-token` |
+| `claude` | `$CLAUDE_CONFIG_DIR`, else `~/.claude` | `.credentials.json`, `.claude.json`, `~/.claude.json`, `config/anthropic/` |
+| `codex` | `$CODEX_HOME`, else `~/.codex` | `auth.json` |
+| `cursor-agent` | `$CURSOR_CONFIG_DIR`, else `~/.cursor` | `cli-config.json`, `config/cursor/auth.json`, `~/.cursor/auth.json` |
+| `dsh` | `$DSH_HOME`, else `~/.dsh` | none |
+| `grok` | `$GROK_HOME`, else `~/.grok` | `auth.json`, `mcp_credentials.json` |
+| `kimi` | `$KIMI_CODE_HOME`, else `~/.kimi-code` | `credentials/`, `oauth/` |
+| `mcode` | `$MINIMAX_DATA_DIR`, else `~/.minimax` | `config.yaml`, `auth/` |
+| `mimo` | `$XDG_DATA_HOME/mimocode`, else `~/.local/share/mimocode` | `auth.json`, `mcp-auth.json` |
+| `opencode` | `$XDG_DATA_HOME/opencode`, else `~/.local/share/opencode` | `auth.json`, `mcp-auth.json` |
+| `pi` | `$PI_CODING_AGENT_DIR`, else `~/.pi/agent` | `auth.json`, `auth.json.lock` |
+| `qwen` | `$QWEN_HOME`, else `~/.qwen` | `oauth_creds.json`, `oauth_creds.lock` |
+| an ACP CLI | none known | none |
+
+`Provider.swaps()` is one `(path the CLI names, path in the provider's directory)` pair per
+entry, plus the same pair with symlinks resolved where the resolved path differs. It is empty
+for the machine's own account and for a backend with no credential files.
+
+Not covered: a credential that is not a file (a macOS keychain); an opencode or mimocode
+console account, which lives in the same SQLite database as its sessions; any path not listed.
+
+### How a credential path is answered
+
+A turn under a provider whose `swaps()` is non-empty is spawned as:
+
+```text
+python -Pm hmz internal cred --map=FROM=TO [--map=…] [--keep=FROM=TO …] -- CLI ARGS…
+```
+
+`hmz internal cred` runs the CLI under a seccomp-filtered ptrace supervisor that stops only
+path-naming syscalls. A path is matched after `.`, `..` and doubled `/` are resolved and
+`/proc/<pid>/fd/<n>`, `cwd`, `exe` and `root` links are followed, as the file itself, as
+anything inside a directory entry, or as the same name with a suffix (`.credentials.json.tmp`,
+which is how a token is rotated by rename).
+
+| Syscall | Answered with |
+| --- | --- |
+| `stat`, `lstat`, `newfstatat`, `statx`, `access`, `faccessat`, `faccessat2`, `readlink`, `readlinkat`, and `open`/`openat`/`openat2` without `O_WRONLY`, `O_RDWR`, `O_CREAT`, `O_TRUNC` or `O_APPEND` | a copy in `/dev/shm/hmz-<pid>-<random>/` (directory `0700`, files `0600`), made on first read and re-checked against the provider's file once a second |
+| everything else (create, write, truncate, rename, link, unlink, chmod, utime, open for writing) | the provider's own file; the copy is dropped |
+| `chdir`, and reads of directories, lock files, files over 1 MiB, or anything when `/dev/shm` is unusable | the provider's own path |
+
+- A path that cannot be answered fails with `EIO` rather than falling through to the real one;
+  an `openat2` with `RESOLVE_BENEATH` or `RESOLVE_IN_ROOT` naming an answered path is refused.
+- The copies are removed when the supervisor exits; a killed supervisor's copies are removed
+  by whatever killed it, or by the next redirected run on the machine.
+- The filter lets other architectures' syscalls through: a 32-bit process below the CLI is not
+  intercepted.
+- Requires Linux on x86-64 or aarch64 with ptrace permitted. A backend with no credential
+  files (`dsh`, ACP CLIs), and a provider whose credentials are only variables on such a
+  backend, needs no supervisor for credentials.
+- An anchored turn is not wrapped: a process has one tracer, so the anchor is given the same
+  pairs as `redirects` and its own supervisor answers them
+  ([Remote execution › Where the account lives](/reference/remote-execution#where-the-account-lives)).
+
+<small>Defined in [`src/hmz/coganchor/providers/redirect.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/redirect.py), [`_trace.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/_trace.py), [`_staging.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/_staging.py).</small>
+
+## Where sessions are kept {#where-sessions-are-kept}
+
+The same supervisor keeps each turn's sessions out of the CLI's home, under whatever account
+it runs, the machine's own included. Each `Profile.sessions` entry under the CLI's home is
+passed as `--keep=FROM=TO`, `TO` being the same relative path under the agent's session
+directory:
+
+| Agent | Session directory |
+| --- | --- |
+| driven by a flow run | the run's epic: `<epic>/sessions/<cli>/…` ([Tracing](/reference/tracing)) |
+| driven by hand | `$HUMANIZE_HOME/sessions/<cli>/…` |
+
+A kept path is always answered with the file itself (never a copy), its directories are made
+as the CLI writes into them, and an entry may be a glob of one path component.
+
+| CLI | Kept, relative to its home |
+| --- | --- |
+| `claude` | `projects`, `sessions`, `file-history`, `session-env`, `tasks`, `todos`, `plans` |
+| `agy` | `conversations`, `brain`, `annotations`, `implicit`, `presence`, `conversation_summaries.db*`, `jetbox_summaries_proto.pb`, `cache/last_conversations.json` |
+| `codex` | `sessions`, `archived_sessions`, `session_index.jsonl`, `state_*.sqlite*`, `thread_history_*.sqlite*`, `goals_*.sqlite*`, `queue_*.sqlite*`, `memories_*.sqlite*`, `thread-writer-locks`, `shell_snapshots` |
+| `cursor-agent` | `chats`, `projects/*/agent-transcripts` |
+| `dsh` | `sessions`, named to the SDK as its session root (`Profile.told`) rather than supervised |
+| `grok` | `sessions`, `active_sessions.*` |
+| `kimi` | `sessions`, `session_index.jsonl`, `workspaces.json`, `server/events`, `search-index`, `file-history` |
+| `mcode` | `v2/sqlite`, `v2/sessions`, `background-tasks` |
+| `mimo` | `mimocode.db*`, `storage` |
+| `opencode` | `opencode.db*`, `storage` |
+| `pi` | `sessions` |
+| `qwen` | `projects`, `tmp`, `file-history` |
+
+Sessions stay where the CLI keeps them, and nothing is supervised for them, when any of these
+holds:
+
+- `HUMANIZE_SESSIONS` is `off`, `0` or `no` (credentials are still supervised);
+- this machine cannot supervise a turn: not Linux on x86-64/aarch64, or starting a traced
+  no-op program fails (the answer is cached; a failure is asked again after a minute);
+- the turn is native on a target, or its harness runs on another machine.
+
+MiniMax Code needs its sessions kept to run fenced: see
+[Agents › MiniMax Code](/reference/agents#minimax-code).
+
+<small>Defined in [`src/hmz/coganchor/backends.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/backends.py) (`Profile.sessions`, `Profile.kept`), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`KEEPING`, `keeps`, `_keeping`), [`src/hmz/coganchor/providers/redirect.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/redirect.py) (`supervises`).</small>
+
+## A turn under a provider
+
+| Effect | Rule |
+| --- | --- |
+| Added | `provider.env`, on top of the inherited environment (`agent.environment()`). |
+| Appended | `provider.args`, after the CLI's own arguments. Only `codex`'s `gateway` way has any. |
+| Removed | `agent.hushed()`: every variable the backend would read an account from ([below](#variables-taken-away)), except those `provider.env` sets. |
+| Redirected | `provider.swaps()`, as [above](#how-a-credential-path-is-answered). |
+
+An agent with no provider (or the machine's own account) gets none of these: its environment
+is left exactly as found. All four apply whichever way the account was made.
+
+### Variables taken away {#variables-taken-away}
+
+`Profile.accounts()` is every variable a way of the backend asks for or sets, plus
+`Profile.ambient`. `Profile.hushes()` adds every other name the same credential goes by, from
+`backends.ALIKE`:
+
+| One credential | Every name |
+| --- | --- |
+| Anthropic subscription token | `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_OAUTH_TOKEN` |
+| Gemini key | `GEMINI_API_KEY`, `GOOGLE_API_KEY` |
+| Moonshot key | `MOONSHOT_API_KEY`, `KIMI_API_KEY` |
+| OpenAI base URL | `OPENAI_BASE_URL`, `OPENAI_API_BASE` |
+| xAI key | `XAI_API_KEY`, `GROK_CODE_XAI_API_KEY` |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `OPENAI_API_KEY` | one name each |
+
+| Backend | `hushes()` |
+| --- | --- |
+| `agy` | `AGY_ADC_AUTH`, `CLOUD_CODE_URL`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_GEMINI_BASE_URL` |
+| `claude` | `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, `ANTHROPIC_CONFIG_DIR`, `ANTHROPIC_CUSTOM_HEADERS`, `ANTHROPIC_MODEL`, `ANTHROPIC_OAUTH_TOKEN`, `ANTHROPIC_VERTEX_PROJECT_ID`, `AWS_PROFILE`, `AWS_REGION`, `CLAUDE_CODE_API_KEY_FILE_DESCRIPTOR`, `CLAUDE_CODE_OAUTH_REFRESH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN_FILE_DESCRIPTOR`, `CLAUDE_CODE_USE_BEDROCK`, `CLAUDE_CODE_USE_FOUNDRY`, `CLAUDE_CODE_USE_GATEWAY`, `CLAUDE_CODE_USE_VERTEX`, `CLOUD_ML_REGION` |
+| `codex` | `CODEX_ACCESS_TOKEN`, `CODEX_API_KEY`, `CODEX_AUTHAPI_BASE_URL`, `CODEX_PROVIDER_KEY`, `CODEX_PROVIDER_URL`, `OPENAI_API_BASE`, `OPENAI_API_KEY`, `OPENAI_BASE_URL` |
+| `cursor-agent` | `CURSOR_API_BASE_URL`, `CURSOR_API_ENDPOINT`, `CURSOR_API_KEY`, `CURSOR_API_URL`, `CURSOR_AUTH_TOKEN`, `CURSOR_LOCAL_AGENT_API_KEY` |
+| `dsh` | `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_SEARCH_BASE_URL` |
+| `grok` | `GROK_AUTH`, `GROK_AUTH_PATH`, `GROK_AUTH_PROVIDER_COMMAND`, `GROK_CLI_CHAT_PROXY_BASE_URL`, `GROK_CODE_XAI_API_KEY`, `GROK_DEFAULT_MODEL`, `GROK_MODELS_BASE_URL`, `GROK_MODELS_LIST_URL`, `GROK_OAUTH2_CLIENT_ID`, `GROK_OAUTH2_ISSUER`, `GROK_OIDC_CLIENT_ID`, `GROK_OIDC_ISSUER`, `GROK_XAI_API_BASE_URL`, `XAI_API_KEY` |
+| `kimi` | `KIMI_API_KEY`, `KIMI_BASE_URL`, `KIMI_CODE_BASE_URL`, `KIMI_CODE_CUSTOM_HEADERS`, `KIMI_CODE_OAUTH_HOST`, `KIMI_MODEL_API_KEY`, `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_NAME`, `KIMI_MODEL_PROVIDER_TYPE`, `KIMI_OAUTH_HOST`, `KIMI_REGISTRY_API_KEY`, `MOONSHOT_API_KEY` |
+| `mcode` | `MCODE_API_BASE_URL`, `MCODE_AUTH_BASE_URL`, `MCODE_AUTH_PROVIDER`, `MCODE_CLIENT_ID`, `MCODE_GATEWAY_FORMAT`, `MCODE_GATEWAY_MODEL`, `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY`, `MCODE_REGION`, `MINIMAX_API_KEY`, `MINIMAX_CN_API_KEY` |
+| `mimo` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `MIMOCODE_AUTH_CONTENT`, `MIMOCODE_CONFIG_CONTENT`, `MIMO_API_KEY`, `OPENAI_API_KEY`, `XIAOMI_API_KEY` |
+| `opencode` | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY`, `GITHUB_TOKEN`, `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENCODE_AUTH_CONTENT`, `OPENCODE_CONFIG_CONTENT`, `OPENCODE_WELLKNOWN`, `OPENROUTER_API_KEY` |
+| `pi` | `AI_GATEWAY_API_KEY`, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_OAUTH_TOKEN`, `ANT_LING_API_KEY`, `AWS_ACCESS_KEY_ID`, `AWS_BEARER_TOKEN_BEDROCK`, `AWS_PROFILE`, `AWS_REGION`, `AWS_SECRET_ACCESS_KEY`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION`, `AZURE_OPENAI_BASE_URL`, `AZURE_OPENAI_DEPLOYMENT_NAME_MAP`, `AZURE_OPENAI_RESOURCE_NAME`, `BASETEN_API_KEY`, `CEREBRAS_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_KEY`, `CLOUDFLARE_GATEWAY_ID`, `DEEPSEEK_API_KEY`, `FIREWORKS_API_KEY`, `GEMINI_API_KEY`, `GOOGLE_API_KEY`, `GROK_CODE_XAI_API_KEY`, `GROQ_API_KEY`, `KIMI_API_KEY`, `MINIMAX_API_KEY`, `MISTRAL_API_KEY`, `MOONSHOT_API_KEY`, `NVIDIA_API_KEY`, `OPENAI_API_KEY`, `OPENCODE_API_KEY`, `OPENROUTER_API_KEY`, `QWEN_TOKEN_PLAN_API_KEY`, `QWEN_TOKEN_PLAN_CN_API_KEY`, `TOGETHER_API_KEY`, `XAI_API_KEY`, `XIAOMI_API_KEY`, `XIAOMI_TOKEN_PLAN_AMS_API_KEY`, `XIAOMI_TOKEN_PLAN_CN_API_KEY`, `XIAOMI_TOKEN_PLAN_SGP_API_KEY`, `ZAI_API_KEY`, `ZAI_CODING_CN_API_KEY` |
+| `qwen` | `OPENAI_API_BASE`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `QWEN_API_KEY`, `QWEN_BASE_URL`, `QWEN_CODE_MODEL`, `QWEN_MODEL`, `QWEN_OAUTH_MODELS` |
+| an ACP CLI | none |
+
+<small>Defined in [`src/hmz/coganchor/backends.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/backends.py) (`Profile.accounts`, `Profile.hushes`, `ALIKE`), [`src/hmz/coganchor/agents/base.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/agents/base.py) (`environment`, `hushed`).</small>
+
+## Gateways {#gateways}
+
+A gateway account points the CLI at an endpoint speaking that CLI's protocol.
+
+| Backend | Gateway way | Endpoint variable (`Profile.endpoint`) |
+| --- | --- | --- |
+| `claude` | `gateway` | `ANTHROPIC_BASE_URL` |
+| `codex` | `gateway` | `CODEX_PROVIDER_URL` |
+| `cursor-agent` | `gateway` | none |
+| `dsh` | `gateway` | `DEEPSEEK_BASE_URL` |
+| `grok` | `gateway` | `GROK_XAI_API_BASE_URL` |
+| `kimi` | `model` | `KIMI_MODEL_BASE_URL` |
+| `mcode` | `gateway` | none (`mcode provider list --json` is the catalogue) |
+| `qwen` | `key` | `OPENAI_BASE_URL` |
+| `agy` | `env` with `GOOGLE_GEMINI_BASE_URL` | `GOOGLE_GEMINI_BASE_URL` |
+
+A backend with an endpoint variable has its catalogue read from the endpoint when the account
+sets it ([`models.json`](#models-json)). `pi`, `opencode` and `mimo` have none: their models are
+named `provider/id`, which an endpoint's ids do not carry.
+
+Codex reads a gateway from configuration, not variables. A turn under a codex `gateway`
+account appends, and no `config.toml` is written:
+
+```text
+-c model_provider=humanize
+-c model_providers.humanize.name=humanize
+-c model_providers.humanize.base_url=<CODEX_PROVIDER_URL>
+-c model_providers.humanize.env_key=CODEX_PROVIDER_KEY
+-c model_providers.humanize.wire_api=responses
+```
+
+### Hosts reachable under a cut network
+
+A flow role whose `online` is `NONE` is fenced to the hosts `backends.reachable(profile,
+environ)` returns, `environ` being the environment a turn under the account runs with:
+
+1. `Profile.hosts` (see [Agents › Network hosts](/reference/agents#network-hosts));
+2. the host (and `:port`, where one is written) of the endpoint variable and of every
+   `ambient` variable ending `_URL`, `_BASE`, `_HOST`, `_ENDPOINT`, `_ORIGIN` or `_ISSUER`;
+3. for `claude` with `CLAUDE_CODE_USE_BEDROCK`, `…_VERTEX` or `…_FOUNDRY` set, the cloud's
+   hosts (below) and the host of `ANTHROPIC_BEDROCK_BASE_URL`, `ANTHROPIC_VERTEX_BASE_URL` or
+   `ANTHROPIC_FOUNDRY_BASE_URL`.
+
+| Switch | Hosts | Region variable (default) |
+| --- | --- | --- |
+| `CLAUDE_CODE_USE_BEDROCK` | `bedrock-runtime.{r}.amazonaws.com`, `bedrock.{r}.amazonaws.com`, `sts.{r}.amazonaws.com` | `AWS_REGION` (`us-east-1`) |
+| `CLAUDE_CODE_USE_VERTEX` | `{r}-aiplatform.googleapis.com`, `aiplatform.googleapis.com`, `oauth2.googleapis.com` | `CLOUD_ML_REGION` (`us-east5`) |
+| `CLAUDE_CODE_USE_FOUNDRY` | `{r}.services.ai.azure.com` | `ANTHROPIC_FOUNDRY_RESOURCE` (none) |
+
+A region value that is not one DNS label adds no cloud host. Example: a `claude` account with
+`ANTHROPIC_BASE_URL=https://gw.example:8443/v1` reaches `api.anthropic.com`,
+`platform.claude.com`, `claude.ai` and `gw.example:8443` (that port only).
+
+<small>Defined in [`src/hmz/coganchor/backends.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/backends.py) (`reachable`, `_CLOUDS`), [`src/hmz/coganchor/models.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/models.py) (`_served`, `_listing`).</small>
 
 ## One account, several CLIs
 
-An Anthropic key is an Anthropic key whether Claude Code, pi, opencode or mimocode holds it. So an account made for one backend can often be copied to others:
+A credential is the vendor's, so an account made for one backend can often run another.
 
-```python
-one = accounts.write("claude", "work", "key", {"ANTHROPIC_API_KEY": k})
-accounts.serves(one)          # ('pi', 'opencode', 'mimo')
-for cli in accounts.serves(one):
-    accounts.copies(one, cli) # pi/work, opencode/work, mimo/work, …
-```
+| Call | Behaviour |
+| --- | --- |
+| `serves(one) -> tuple[str, ...]` | The other backends `one` could be copied to: those for which `backends.serves(one.env, backend)` is not `None`, whether or not a copy exists. |
+| `backends.serves(env, backend)` | `env` renamed to what `backend` reads, each variable matched by any [alike](#variables-taken-away) name in `backend`'s `accounts()`; `None` if `env` is empty or any variable has no name there. |
+| `copies(one, cli, name="")` | Writes the renamed `env` as an account of `cli` under `name` (default `one.name`), overwriting one there. Its `way` is the first `cli` way with no `argv` whose kept asks and sets are exactly those variables, else `env`. Its `fallback` is kept from an existing account of that name. |
 
-- A copy is written **under the same name**, spelled the way that backend reads it: a Claude
-  subscription token lands on pi as `ANTHROPIC_OAUTH_TOKEN`.
-- A copy **overwrites** one already there. That is how you rotate a key everywhere at once.
-- It is recorded as that backend's own way where one asks for exactly these variables, and as
-  `env` otherwise.
-- `serves` lists where the account **could** go, whether or not a copy is already there.
-- An account that is a login is the CLI's own store in its own format, so it copies nowhere.
-  Neither does one holding a variable the other backend has no name for.
+- A login account holds files, not variables, so it copies nowhere.
+- `copies` of an account `cli` cannot run raises `ValueError: claude/work cannot be used with codex`.
+- Example: a `claude` `key` account (`ANTHROPIC_API_KEY`) serves `pi`, `opencode` and `mimo`;
+  each copy is recorded with way `env`.
 
-At the prompt, the form an account is made or corrected on has an `also for …` row for each
-other backend that could run it. Making one, the ones installed here start on; correcting one,
-the ones already holding a copy do:
+The TUI's account form offers an `also for <cli>` row per backend in `serves()`.
 
-![/settings accounts, add an account, claude, key: the key typed as bullets, and a row apiece
-for the other backends to write it down for](/demo/alike.gif)
+## Failover: the account chain
 
-Each copy is then an account of its own, listed under its own backend:
+Each account names the account of the same backend a failing turn carries on under
+(`fallback`). Following those names from the agent's account is the chain.
 
-![the Accounts page afterwards: shared under claude, opencode and pi, each saying which
-variable it sets](/demo/alike-copied.png)
+| Call | Behaviour |
+| --- | --- |
+| `points(cli, name, at) -> bool` | Sets `name`'s fallback to `at` (`""` for none). Returns `False` if `name` does not exist. `name` may be `""`, the machine's own account, whose fallback is written to `local/<cli>.json`. |
+| `chain(provider) -> list[Provider]` | `provider`, then each fallback in turn; stops at a name that does not exist or at the second sight of an account. Never empty. |
+| `agent.walks()` | `chain(agent.node())`: from the account the agent is on now. |
 
-## Requirements and limits
+| Refused by `points` | `ValueError` |
+| --- | --- |
+| pointing at itself | `work cannot fail over to itself` |
+| an account that does not exist | `claude account 'nobody' not found` |
 
-- **Linux on x86-64 or aarch64**, for a provider of any backend with credential files: every
-  backend but `dsh` and ACP CLIs, whichever way the provider was made.
-- **Only the paths [listed](#per-backend) are answered.** A CLI that keeps a credential
-  anywhere else keeps it where it always did.
-- **A credential that is not a file is not covered.** A macOS keychain is not a path. An
-  opencode or mimocode **console account** lives in that CLI's SQLite file, which also holds
-  its sessions, so it is not answered. A provider of either is its `auth.json`.
-- **A path that cannot be answered fails** with `EIO` rather than falling through to the real
-  one, and a turn that cannot be supervised is refused. So is an `openat2` confined to a
-  directory, which an answered path would leave.
-- **A 32-bit process below the agent is not intercepted.** The filter lets another
-  architecture's syscalls through. Every one of these CLIs is 64-bit.
+- `at=""` is always the end of the chain; nothing can fall back *to* the machine's own account.
+  A chain may start there: an agent given no account starts on it.
+- The conversation continues across the chain: the session id is the backend's, and the next
+  account resumes it. Whatever held the session open (a Claude process, a Codex app server, a
+  DeepSeek Harness runtime, a Kimi daemon) is closed and reopened under the new account. The
+  agent stays on the account it moved to for later turns.
+- A failure whose kind no account answers (`retired`, `missing`, `sandboxed`) skips the chain.
+  Retries before the chain, and places after it, are
+  [Agents › When a turn fails](/reference/agents#retries).
 
-## Security
+<small>Defined in [`src/hmz/coganchor/providers/store.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/providers/store.py) (`points`, `chain`), [`src/hmz/coganchor/fallbacks.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/coganchor/fallbacks.py).</small>
 
-::: warning A provider directory holds real credentials
-Every directory humanize makes on the way to `~/.humanize/providers/<cli>/<name>/` is `0700`,
-and `provider.json` is `0600` from the moment it exists. Taking an account away deletes the
-directory, credentials and all.
-:::
+## Placement of the account
 
-**The interface never draws a value.** The Accounts page of `/settings` shows variable names, and a
-secret answered at the prompt is drawn as bullets. From Python, `one.env` holds the values
-themselves, and a value you pass to `make` or `write` from a script is only as private as
-wherever that script got it.
+| Arrangement | Where the account is used | Provider variables | Provider credential files |
+| --- | --- | --- | --- |
+| No anchor | this machine | set on the turn | answered here by `hmz internal cred` |
+| Supervised anchor | this machine | set on the agent; `private`, so commands on the target never get them | answered here by the anchor's supervisor |
+| Native anchor | the target | sent; `hushes()` removed there with `env -u` | written to a private directory on the target for the turn, where a variable of the backend moves their root; otherwise the turn is refused |
+| Harness on another machine | the harness machine | not sent | redirected to this machine's paths, which that machine lacks |
 
-::: warning Where the account goes when the work is elsewhere
-- **Supervised, the default:** the agent runs here, so the provider's files never cross to the
-  [target](/reference/remote-execution). Its variables are passed as `private`, so they do not
-  reach the commands the agent runs there.
-- **`native`:** the CLI runs on the target, so the provider's variables are sent there. Its
-  credential files are written into a directory only the target's user can enter, and removed
-  when the turn ends. Files under your home (`~/`) stay here, and an account kept only there
-  is refused.
-- **`harness` on another machine:** the agent process runs there, with that machine's state
-  directory and connection. A provider is **not** carried there: its variables are not sent,
-  and its credential paths are answered with this machine's paths, which that machine does not
-  have.
+See [Remote execution › Where the account lives](/reference/remote-execution#where-the-account-lives).
 
-A machine you would not trust with the account is a machine to reach supervised, with the
-harness here. See [Remote execution](/reference/remote-execution#where-the-account-lives).
-:::
+## Security properties
+
+| Property | Holds |
+| --- | --- |
+| `provider.json` and credential files readable by others | never: `0600` files in `0700` directories from creation |
+| A secret shown by the TUI | never: the Accounts page shows variable names; secret answers are drawn as bullets |
+| Another agent's credentials readable by a turn | never through the redirected paths: each turn is answered from its own account's directory |
+| A shell-profile key overriding the account | never: `hushes()` is removed from the turn |
+| A key passed as argv | never: `stdin` ways write it to the command's stdin |
+| `Provider.env` values from Python | returned in full to the caller |
 
 ## API summary
-
-`Hmz().accounts` is the whole of this as one object, and it is what the interface uses. See
-[SDK](/reference/sdk). Below it are two modules:
 
 ```python
 from hmz.coganchor import providers
@@ -578,38 +477,49 @@ from hmz.coganchor.providers import login
 
 | `providers.` | |
 | --- | --- |
-| `Provider` | One account: `cli`, `name`, `way`, `env`, `args`, `made`, `fallback`; `.at`, `.swaps()`, `.command(argv)`. |
-| `LOCAL` | `""`, the name of the account this machine is already signed into. |
-| `ENV` | The `env` way. |
-| `providers(cli="")` | Every account, or one backend's. |
-| `find(cli, name)` | One account, or `None`. |
-| `add(cli, name, way="env", env=None, args=())` | Writes one down and makes its directory. |
-| `ready(provider)` | Makes the directories its credentials land in. |
-| `remove(cli, name)` | Takes one away, credentials and all. |
-| `ways(cli)` | Every way one backend offers, `env` last where it has one. |
-| `where(cli, name)` | The directory one is kept in. |
-| `environ(provider)` | The variables a turn under it is run with. |
-| `env_of(text)` | `NAME=VALUE` lines, read into variables. |
-| `filled(text, answers)` | `{VARIABLE}` in a way's `argv` or `args`, filled from answers. |
-| `serves(one)`, `copies(one, cli, name="")` | Where one could be copied; copying it there. |
-| `points(cli, name, at)`, `chain(one)` | Setting what one falls back to; the chain, in order. |
-| `alone(cli)` | The file what is said of this machine's own account is kept in. |
+| `Provider(cli, name, way="env", env={}, args=(), made="", fallback="")` | one account; `.at`, `.swaps()`, `.command(argv)`, `.held()` |
+| `LOCAL` | `""` |
+| `ENV` | the `env` way |
+| `ways(cli)` | the backend's ways, `env` last (not for `dsh`) |
+| `providers(cli="")` | every account, or one backend's, by backend then name |
+| `find(cli, name)` | one account or `None`; never `None` for `LOCAL` of a known backend |
+| `where(cli, name)` | the account's directory |
+| `add(cli, name, way="env", env=None, args=())` | write one |
+| `ready(provider)` | make its credential directories |
+| `remove(cli, name)` | delete one |
+| `environ(provider)` | its variables, `{}` for `None` |
+| `env_of(text)` | parse `NAME=VALUE` lines |
+| `filled(text, answers)` | substitute `{VARIABLE}` |
+| `serves(one)`, `copies(one, cli, name="")` | alike accounts |
+| `points(cli, name, at)`, `chain(one)` | failover |
+| `alone(cli)` | `$HUMANIZE_HOME/local/<cli>.json` |
 
 | `login.` | |
 | --- | --- |
-| `way_of(cli, name)` | The way one backend offers under a name, or `None`. |
-| `asked(way, given)` | What a way still has to be told. |
-| `make(cli, name, way, answers=None)` | An account out of what its way was answered with. |
-| `sign_in(provider, way, answers=None)` | The way's own command, run under that account's paths. |
+| `way_of(cli, name)` | a way by name, or `None` |
+| `asked(way, given)` | variables still unanswered |
+| `make(cli, name, way, answers=None)` | an account from answers |
+| `sign_in(provider, way, answers=None) -> int` | run the way's command under the account's paths |
 
-On the agent:
-
-| `agent.` | |
+| On an agent | |
 | --- | --- |
-| `provider` | `Provider \| None`: the account its turns run as. `None` is this machine's own. |
-| `node()` | The same, never `None`: where its chain is walked from. |
-| `walks()` | That account and everything it falls back to, in order. |
-| `spec` | `CLI[@ACCOUNT]/MODEL`: how a fallback names this agent. |
-| `stands_in()` | The agent that takes its turns once its chain is spent, or `None`. |
-| `environment()` | The variables its turns are run with, on top of what they inherit. |
-| `hushed()` | The variables its turns are run without. |
+| `agent.provider` | `Provider \| None`; `None` for the machine's own account |
+| `agent.node()` | the account it is on now, never `None` |
+| `agent.walks()` | the chain from there |
+| `agent.environment()` | `provider.env` |
+| `agent.hushed()` | `hushes() - provider.env` |
+
+`Hmz().accounts` (`hmz.runtime.doing.accounts.Accounts`) is the same surface as one object,
+used by the TUI; see [SDK](/reference/sdk):
+
+| `Hmz().accounts.` | |
+| --- | --- |
+| `all(cli="")`, `find(cli, name)`, `where(cli, name)`, `local(cli)` | listing and locating |
+| `ways(cli)`, `way(cli, name)`, `asks(way, given)` | the ways in |
+| `write(cli, name, way="", env=None, args=())` | write an account as given, running nothing |
+| `make(cli, name, way, answers=None)`, `sign_in(provider, way, answers=None)` | make from answers; run the way's command |
+| `serves(one)`, `copies(one, cli, name="")` | alike accounts |
+| `points(cli, name, at)`, `chain(one)` | failover |
+| `remove(cli, name)` | delete |
+| `env(text)`, `environ(provider)` | `env_of`, `environ` |
+| `models(cli, provider="")`, `asked(cli, provider="")`, `stale(cli, provider="")`, `ask(cli, provider="", seconds=None)` | the account's model catalogue |
