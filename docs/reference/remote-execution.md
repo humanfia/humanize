@@ -312,14 +312,18 @@ mirror nested in the workspace or the other way round.
 | --- | --- |
 | anything else, `standalone:` with nothing after it, `env:x` | `-H 'bogus': expected adaptive, local, env or standalone:<backend>@<provider>[/<workdir>]` |
 | `standalone:local@…` | `-H 'standalone:local@/tmp': a standalone harness runs on another machine; -H local runs it on this one` |
-| a machine `-e` would refuse | `-H '<value>': <the -e message after its prefix>`, e.g. `-H 'standalone:bogus@x': expected <role>=<backend>[@<provider>]/<workdir>` |
+| a bare name nothing is saved under | `-H 'standalone:bogus': no environment provider is saved as 'bogus'; expected standalone:<backend>@<provider>[/<workdir>] or standalone:<saved name>` |
+| an unknown backend | `-H 'standalone:bogus@x': 'bogus' is not a backend; one of ssh, docker` |
+| a docker provider nobody saved, with no workdir | `-H 'standalone:docker@gpubox': docker@gpubox is not saved with a workdir of its own; expected standalone:docker@gpubox/<workdir>` |
+| `ssh@` with no host | `-H 'standalone:ssh@': ssh needs a host, as in ssh@host/workdir` |
 
 ### Adaptive resolution {#adaptive-resolution}
 
 The decision is made in `HarnessDriver.open` (`hmz.runtime.flowing.harnesses`) for every session
 a role opens, before the session's agent is built. With the session's machine `M` (from its
-environment), its fence, and the set `H` of hooks hung on the flow agent among `PreToolUse`,
-`PermissionRequest` and `AskUser`:
+environment), its fence, and the set `H` of hooks hung on the flow agent among `PreToolUse`
+and `PermissionRequest` (an `AskUser` hook is not among them: a question comes back down the
+CLI's own stream wherever the CLI runs):
 
 1. `standalone:<env>`: the result is the work's anchor (for work here,
    `AnchorConfig(target="local", workspace=<cwd>)`) with `harness` set to `<env>`'s target and
@@ -327,7 +331,7 @@ environment), its fence, and the set `H` of hooks hung on the flow agent among `
    unchanged.)
 2. `M` is this machine, or the mode is `local`: `M` unchanged.
 3. `adaptive` and `H` is non-empty: `M` unchanged. The CLI's own hook table names a program on
-   this machine, so a gating or asking hook is kept here.
+   this machine, so a gating hook is kept here.
 4. Otherwise the machine is asked, once per role and target, whether the CLI is there; then,
    for a session with a non-open fence, once per role, target and `online` value, whether the
    machine can hold the fence.
@@ -342,8 +346,12 @@ environment), its fence, and the set `H` of hooks hung on the flow agent among `
 Answers are cached on the role's driver for the rest of the run; concurrent sessions wait for
 one answer. The probes are asked one at a time.
 
-Refusals, raised from the session's `spawn` (`<where>` is `<backend>@<provider>` of the
-environment, e.g. `ssh@gpu-box`):
+Under `env` and `standalone`, `Runner.arun` asks the same of every agent (`HarnessDriver.placeable`)
+against every environment, the workspace included, with the role's declared permission, once
+the environments are probed and before the flow is called; a refusal there is `Refused`, which
+`hmz exec` prints as `hmz exec: error: <message>` with exit 2, and the answers are kept for
+the sessions. A session opened later is still refused as it opens, raised from its `spawn`.
+Refusals (`<where>` is `<backend>@<provider>` of the environment, e.g. `ssh@gpu-box`):
 
 | Error | Message | When |
 | --- | --- | --- |
@@ -368,8 +376,9 @@ the daemon's `opened` record. See [Tracing](/reference/tracing).
   a flow role must grant `local`, `user`, `system` and `online` all `ALL`. The default
   `Permission` (`local=ALL, user=READ, system=READ, online=ALL`) is refused.
 - **Accounts do not follow a harness elsewhere.** See [Where the account lives](#where-the-account-lives).
-- **Gating hooks keep `adaptive` here.** A role with a `PreToolUse`, `PermissionRequest` or
-  `AskUser` hook hung is never placed natively by `adaptive`; `env` places it natively anyway.
+- **Gating hooks keep `adaptive` here.** A role with a `PreToolUse` or `PermissionRequest`
+  hook hung is never placed natively by `adaptive`; `env` places it natively anyway. An
+  `AskUser` hook does not keep it here.
   An anchored turn gets no hook table, so there `PreToolUse` is read off the CLI's stream and
   cannot stop a tool ([Agents › Refusing a tool](/reference/agents#refusing-a-tool)).
 - **Callbacks do not cross.** A native turn on a non-`local` target offered the flow's tool
@@ -421,8 +430,13 @@ network is answered from the target.
   | --- | --- |
   | the directory was last used for another target | `FileExistsError: <path> mirrors <old>, not <new>. humanize replaces this directory with the new target's contents and would delete everything only the old one has. Use a different directory, or pass --force.` |
   | the directory holds files and was never a mirror | `FileExistsError: <path> already contains files and is not an humanize mirror. humanize replaces this directory with the target's contents and would delete them. Use an empty directory, or pass --force.` |
-  | the path exists and is not a directory | `NotADirectoryError: shadow root is not a directory` (always) |
+  | the path exists and is not a directory | `Unmirrored: … shadow root is not a directory` (always) |
+  | the path cannot be created here | `Unmirrored: … <reason>`, e.g. `Permission denied: /home/me` (always) |
 
+  `Unmirrored` (an `OSError`) is printed by `hmz internal anchor` as
+  `hmz: cannot keep the local copy of the work at <path>: <reason>`, with exit 1. A turn that
+  fails with it is classified `unmirrored`
+  ([Agents › Failures](/reference/agents#failures)), not as a refused credential.
   The target's identity for this check is its spelling without ssh options.
 - Structure is materialised on first access: real directories and symlinks, and sparse
   placeholder files carrying the target's size, mode and mtime. `stat`, `getdents64`, `read`,

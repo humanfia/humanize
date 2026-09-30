@@ -458,6 +458,9 @@ ADAPTIVE, LOCAL, ENV, STANDALONE = "adaptive", "local", "env", "standalone"
 #: Every one of them, in the order a menu steps through them.
 HARNESS_MODES = (ADAPTIVE, LOCAL, ENV, STANDALONE)
 
+#: Why a standalone harness is not put on this machine.
+_HERE = f"a standalone harness runs on another machine; -H {LOCAL} runs it on this one"
+
 
 @dataclass(frozen=True, slots=True)
 class HarnessSpec:
@@ -508,18 +511,42 @@ def parse_harness(value: str) -> HarnessSpec:
             f"-H {said!r}: expected {ADAPTIVE}, {LOCAL}, {ENV} or "
             f"{STANDALONE}:<backend>@<provider>[/<workdir>]"
         )
+    machine = _machine_of(rest)
     try:
-        (on,) = parse_envs([f"harness={_machine_of(rest)}"])
+        (on,) = parse_envs([f"harness={machine}"])
     except EnvSpecError as error:
-        raise HarnessSpecError(
-            f"-H {said!r}: {str(error).partition(': ')[2] or error}"
-        ) from error
+        raise HarnessSpecError(f"-H {said!r}: {_unread(machine, error)}") from error
     if on.backend is EnvBackendKind.LOCAL:
-        raise HarnessSpecError(
-            f"-H {said!r}: a standalone harness runs on another machine; "
-            f"-H {LOCAL} runs it on this one"
-        )
+        raise HarnessSpecError(f"-H {said!r}: {_HERE}")
     return HarnessSpec(STANDALONE, on)
+
+
+def _unread(machine: str, error: EnvSpecError) -> str:
+    """Why a standalone machine does not read, in `-H`'s words rather than `-e`'s.
+
+    `-e` says what an environment role is, `<role>=` and all; a standalone machine has no
+    role, and a name nobody saved is a name rather than a spec with its parts left off.
+    """
+    form = f"{STANDALONE}:<backend>@<provider>[/<workdir>] or {STANDALONE}:<saved name>"
+    backend, at, provider = (part.strip() for part in machine.partition("@"))
+    if not at:
+        return f"no environment provider is saved as {machine!r}; expected {form}"
+    if backend not in {kind.value for kind in EnvBackendKind}:
+        backends = ", ".join(
+            kind.value for kind in EnvBackendKind if kind is not EnvBackendKind.LOCAL
+        )
+        return f"{backend!r} is not a backend; one of {backends}"
+    if backend == EnvBackendKind.LOCAL.value:
+        return _HERE
+    why = str(error).partition(": ")[2] or str(error)
+    if why.startswith("expected "):
+        # A daemon nobody saved, named without a directory: which directories its host
+        # has is nothing anybody here can say.
+        return (
+            f"{backend}@{provider} is not saved with a workdir of its own; expected "
+            f"{STANDALONE}:{backend}@{provider or '<provider>'}/<workdir>"
+        )
+    return why
 
 
 def _machine_of(said: str) -> str:

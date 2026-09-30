@@ -35,15 +35,12 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import random
-import tempfile
 from dataclasses import dataclass, replace
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from hmz import home
-from hmz.coganchor import backends
+from hmz.coganchor import atomic, backends
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -270,6 +267,17 @@ ANSWERS: tuple[Answer, ...] = (
         held=True,
         accounts=False,
         fix="",
+    ),
+    # This machine's filesystem, and nobody's account: the copy of another machine's work a
+    # harness here works in has a path that cannot be made here. The next go is the same
+    # path, and so is every account's.
+    Answer(
+        "unmirrored",
+        "could not keep its copy of the work here",
+        held=True,
+        accounts=False,
+        fix="that path cannot be made here; use a workdir whose path you can create here, "
+        "or run the harness on that machine with -H env",
     ),
     # The machine rather than anything a turn named. A CLI that confines its own tool calls
     # asks the kernel for the confinement, and a kernel that has just said no says no to the
@@ -675,13 +683,4 @@ def _writes(steps: Iterable[Falls]) -> None:
         )
         + "\n"
     )
-    handle, beside = tempfile.mkstemp(
-        dir=at.parent, prefix=f".{at.name}.", suffix=".new"
-    )
-    try:
-        with os.fdopen(handle, "w", encoding="utf-8") as writing:
-            writing.write(said)
-        Path(beside).replace(at)
-    except OSError:
-        Path(beside).unlink(missing_ok=True)
-        raise
+    atomic.writes(at, said, mode=0o600)

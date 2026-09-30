@@ -10,7 +10,8 @@ what it declares is read (:mod:`hmz.runtime.flowing.finding`); what each role is
 checked against that declaration and opened as a driver
 (:func:`~hmz.runtime.flowing.harnesses.open_agent`,
 :func:`~hmz.runtime.flowing.environments.open_env`) -- which starts no CLI and reaches no
-machine; each environment given is probed, which does reach it; and then the flow is run by
+machine; each environment given is probed, which does reach it, and each agent's harness is
+checked against where `-H` puts it on those machines; and then the flow is run by
 :func:`~hmz.runtime.flowing.engine.run_flow`, written down as it goes into an epic that also
 holds the engine's journal of a flow that can be picked up. What refuses a run before it has
 started is :class:`Refused`, which a command line reports as a line to correct.
@@ -173,8 +174,10 @@ def read_line(argv: list[str]) -> Line:
         metavar="WHERE",
         help="where each agent's harness runs: adaptive (the default) on an environment's "
         "own machine where its CLI is installed there and here otherwise, local here, env "
-        "on the environment's machine, or standalone:ENV on a machine of its own named as "
-        "-e names one (ssh@HOST, docker@PROVIDER) or by a saved provider's name",
+        "on the environment's machine (refused before the run where its CLI is not there), "
+        "or standalone:ENV on a machine of its own named as -e names one (ssh@HOST, "
+        "docker@PROVIDER) or by a saved provider's name, only for roles granted everything: "
+        "a permission cannot be held around a harness on another machine",
     )
     parser.add_argument(
         "--resume",
@@ -574,8 +577,9 @@ class Runner:
           What the flow returned.
 
         Raises:
-          Refused: If an environment cannot be reached, or the drivers do not meet what the
-            flow declares -- before the flow has been called.
+          Refused: If an environment cannot be reached, an agent's harness cannot be put
+            where `-H` says on one of them, or the drivers do not meet what the flow
+            declares -- before the flow has been called.
           BaseException: Whatever the flow raised, as it raised it.
         """
         from hmz.flows import (
@@ -591,15 +595,17 @@ class Runner:
         from .epic import Epic
         from .settings import Settings
 
+        local: EnvDriver | None = None
         try:
             for driver in self._envs.values():
                 await probe(driver)
             if self._harness_on is not None:
                 await probe(self._harness_on)
             local = local_env(self._workspace)
+            await self._placeable(local)
         except BaseException as why:
             # Stopped, or refused, before the run began: what it was given goes either way.
-            await asyncio.shield(self._closed(None))
+            await asyncio.shield(self._closed(local))
             if isinstance(why, FlowException):
                 raise Refused(str(why)) from why
             raise
@@ -661,6 +667,24 @@ class Runner:
         finally:
             _GOING.discard(self)
             await asyncio.shield(self._closed(local))
+
+    async def _placeable(self, local: EnvDriver) -> None:
+        """Refuses a harness `-H` puts where it cannot run, on any machine of the run.
+
+        Every agent against every environment, the workspace among them: which environment a
+        flow puts which agent's sessions in is the flow's to decide as it runs, so a harness
+        that could not be put on one of them is one the run could fail on part way through.
+
+        Raises:
+          HarnessError: The refusal, as the agent's first session there would have had it.
+        """
+        from hmz.runtime.flowing.harnesses import HarnessDriver
+
+        places = [driver.placement() for driver in (*self._envs.values(), local)]
+        for role, driver in self._agents.items():
+            declared = self._declared.agent(role)
+            if isinstance(driver, HarnessDriver) and declared is not None:
+                await driver.placeable(places, declared.permission)
 
     async def aclose(self) -> None:
         """Closes every driver the run was given, for a run that will not be run after all."""

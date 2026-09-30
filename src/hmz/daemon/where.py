@@ -217,13 +217,26 @@ def holds(where: Path) -> int:
 def wrote(where: Path, said: dict[str, Any]) -> None:
     """Writes down what is running here, whole and then moved into place.
 
+    Beside it under a name nothing else will pick rather than a fixed `.new`, as every file
+    humanize writes is, and on disk before it is moved: a frontend reading it finds the old
+    note or the new one. `0600`, as everything else in the daemon's directory is.
+
     Args:
       where: The daemon's own directory.
       said: What to write.
     """
-    beside = where / f".{RECORD}.new"
-    beside.write_text(json.dumps(said, indent=2) + "\n", encoding="utf-8")
-    beside.replace(where / RECORD)
+    import tempfile
+
+    handle, beside = tempfile.mkstemp(dir=where, prefix=f".{RECORD}.", suffix=".new")
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as writing:
+            writing.write(json.dumps(said, indent=2) + "\n")
+            writing.flush()
+            os.fsync(handle)
+        Path(beside).replace(where / RECORD)
+    except BaseException:
+        Path(beside).unlink(missing_ok=True)
+        raise
 
 
 def held(where: Path) -> dict[str, Any]:

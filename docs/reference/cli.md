@@ -291,10 +291,10 @@ work on this machine runs its harness here under every mode but `standalone`.
 
 | Mode | The harness runs |
 | --- | --- |
-| `adaptive` *(default)* | On the environment's machine where the agent's CLI is installed there and can be fenced to the role's permission; here otherwise, and here for a role that hangs a hook gating its tools. Decided once per role and machine. |
+| `adaptive` *(default)* | On the environment's machine where the agent's CLI is installed there and can be fenced to the role's permission; here otherwise, and here for a role that hangs a hook gating its tools (`PreToolUse`, `PermissionRequest`; an `AskUser` hook does not). Decided once per role and machine. |
 | `local` | Here, supervised, reaching the environment through the anchor. |
-| `env` | On the environment's machine, as the CLI installed there. A machine without it refuses the session, naming the line that installs it. |
-| `standalone:<machine>` | On a machine of its own, reaching the environment through the anchor. The CLI must be installed there. |
+| `env` | On the environment's machine, as the CLI installed there. Every agent's CLI is looked for on every environment's machine before the run: one without it refuses the run, naming the line that installs it. |
+| `standalone:<machine>` | On a machine of its own, reaching the environment through the anchor. The CLI must be installed there. Only for roles granted everything: a role whose permission fences anything refuses the run, since a fence cannot be held around a harness on another machine. |
 
 `<machine>` is read as follows:
 
@@ -311,7 +311,20 @@ work on this machine runs its harness here under every mode but `standalone`.
 | --- | --- |
 | not one of the forms | `-H '<value>': expected adaptive, local, env or standalone:<backend>@<provider>[/<workdir>]` |
 | `standalone:` naming `local@…` | `-H '<value>': a standalone harness runs on another machine; -H local runs it on this one` |
-| `standalone:` with a bad `-e` spelling | `-H '<value>': <the -e error>` |
+| `standalone:<name>`, nothing saved under it | `-H '<value>': no environment provider is saved as '<name>'; expected standalone:<backend>@<provider>[/<workdir>] or standalone:<saved name>` |
+| `standalone:` with an unknown backend | `-H '<value>': '<backend>' is not a backend; one of ssh, docker` |
+| `standalone:docker@<provider>`, not saved, no workdir | `-H '<value>': docker@<provider> is not saved with a workdir of its own; expected standalone:docker@<provider>/<workdir>` |
+| `standalone:ssh@` with no host | `-H '<value>': ssh needs a host, as in ssh@host/workdir` |
+
+Once the environments are probed, before the flow is called, each agent's harness is checked
+against where `-H` puts it (`hmz exec: error: <message>`, exit `2`):
+
+| Mode | Refused | Message |
+| --- | --- | --- |
+| `env` | an environment's machine without the agent's CLI | `<cli> is not installed on <backend>@<provider>: <install line> there, or run its harness here with -H local` |
+| `env` | an environment's machine that cannot hold the role's fence | `<backend>@<provider> cannot fence the agent to its permission: it needs Landlock; grant the agent everything, or run its harness here with -H local` |
+| `env` | a machine that cannot be asked | `<backend>@<provider> could not be asked whether <cli> is there: <reason>` / `… did not say within 300s whether <cli> is there` |
+| `standalone` | a role not granted everything | `<role>=<spec>: <AgentClass>: a fence cannot hold a harness that runs on another machine` |
 
 A standalone machine is opened as an environment is — probed before the flow is called; a
 docker one is a container of its own, started from the provider's image and removed with the
@@ -340,7 +353,7 @@ the epic it `picked_up`. Without `--resume` every run starts from the top.
 | 1. argparse | Options, `-f` and `task` present. | Usage on stderr, `hmz exec: error: <why>`, exit `2`. |
 | 2. Spec parsing (`Hmz.read`) | Every `-a`, `-e`, `-p`, `-b`, `-H` against its grammar; duplicate roles and keys. | Same as 1. |
 | 3. Loading (`Hmz.run` → `Runner`) | Flow resolves and loads; roles, harness kinds, capabilities, effort ladders, params, budget presence, `--resume`. | `hmz exec: error: <why>` (no usage), exit `2`. |
-| 4. Opening (`Run.run`, before the flow is called) | Environments and a standalone harness machine reached and measured; skills fetched. | `hmz exec: error: <why>`, exit `2`. |
+| 4. Opening (`Run.run`, before the flow is called) | Environments and a standalone harness machine reached and measured; each agent's harness checked against where `-H` puts it; skills fetched. | `hmz exec: error: <why>`, exit `2`. |
 | 5. The flow | — | See [Exit statuses](#exit-statuses). |
 
 Nothing of an agent has started before stage 5. What a flow module does when imported (stage
@@ -385,6 +398,7 @@ Stage 1–2 messages are preceded by the usage block.
 | no `-b`, flow not shipped with humanize | `<flow> requires a budget: specify with -b duration=...,cost=...,output_tokens=...` |
 | `--resume` | see [Picking a run up](#picking-a-run-up) |
 | an environment unreachable or smaller than declared | the reason, naming the role |
+| a harness `-H` puts where it cannot run | see [`-H`](#choosing-where-the-harness-runs) |
 | a skill a role names that cannot be found or fetched | the reason, naming the skill |
 
 ### Output {#watching-a-run}

@@ -106,6 +106,8 @@ class Frames:
 - A host MUST go once nothing is running or stopping and nobody is reading -- keeping a run that
   ended with nobody there, and that nobody stopped, for the next frontend to read -- and MUST go
   when it is stopped, telling every frontend why; one nobody ever reached MUST NOT be kept.
+- Any frontend MAY close the whole host with `quit`, which MUST close it as a stop does: every
+  run closed and every frontend let go, told why.
 - `Link` MUST be one frontend whether the runs are in this process or held by a host, MUST hand
   over what it is told in order on a thread of its own, MUST raise the runtime's `Refused` for a
   request refused, and MUST raise `OSError` where no host will take it.

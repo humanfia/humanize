@@ -145,6 +145,8 @@ def test_what_a_cli_says_when_it_stops_is_read_as_the_kind_it_is() -> None:
         "403 key not allowed to access model. This key can only access "
         "models=['default-models']. Tried to access gpt-5.2": "unlisted",
         "bwrap: setting up uid map: Permission denied": "sandboxed",
+        "hmz: cannot keep the local copy of the work at /home/me/x: "
+        "Permission denied: /home/me": "unmirrored",
         "404 model not found: gpt-9": "retired",
         "SqliteError: database is locked": "contended",
         "Error: read ECONNRESET": "dropped",

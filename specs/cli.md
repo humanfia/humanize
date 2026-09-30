@@ -25,6 +25,7 @@ hmz internal anchor serve --export <virtual>[:<real>] [--export ...]
 hmz internal anchor rendezvous [--listen [<host>:]<port>] [--punching <seconds>]
     [--log-level debug|info|warning|error]
 hmz internal cred (--map | --keep) <from>=<to> [...] -- <command> [<args>...]
+hmz internal fence --policy (<json> | @<path>) [--] <command> [<args>...]
 hmz internal tools --at <socket>
 hmz internal hook --at <socket>
 ```
@@ -33,7 +34,7 @@ hmz internal hook --at <socket>
 # __init__.py
 APART = "HUMANIZE_DAEMON"   # `off`, `0` or `no`: keep the run with the terminal
 COMMANDS: dict[str, tuple[Callable[[list[str]], int], str]]  # exec, internal
-INTERNAL: dict[str, tuple[Callable[[list[str]], int], str]]  # anchor, cred, hook, tools
+INTERNAL: dict[str, tuple[Callable[[list[str]], int], str]]  # anchor, cred, fence, hook, tools
 def main(argv: list[str] | None = None) -> int: ...
 def opens() -> int: ...
 def many(count: int | str, thing: str) -> str: ...
@@ -60,9 +61,10 @@ class Shown:    # the agents' own events, drawn as one run; a context manager
         self, agent: AgentBase, session: SessionBase | None, event: Event
     ) -> None: ...
 
-# anchor.py, cred.py, hook.py, tools.py -- one command apiece
+# anchor.py, cred.py, fence.py, hook.py, tools.py -- one command apiece
 def anchor(argv: list[str]) -> int: ...
 def cred(argv: list[str]) -> int: ...
+def fence(argv: list[str]) -> int: ...
 def hook(argv: list[str]) -> int: ...
 def tools(argv: list[str]) -> int: ...
 ```
@@ -112,7 +114,9 @@ def tools(argv: list[str]) -> int: ...
   this one, MUST be a usage error before any agent has started. A `standalone:<name>` MUST be
   the environment provider written down under that name, and a machine given no `/<workdir>`
   and saved with none MUST be worked in at the login's home over ssh and, on docker's default
-  here, at a directory humanize keeps.
+  here, at a directory humanize keeps. `env` where an environment's machine lacks an agent's
+  CLI or cannot hold its role's fence, and `standalone` for a role whose permission fences
+  anything, MUST be refused before any agent has started.
 - `hmz exec` MUST stop its run on a terminate or a hangup as it does on an interrupt, and MUST
   exit with 128 plus the signal only once the run has let go of everything it made.
 - `--resume` MUST pick up the newest run of that flow in this workspace that can be picked up;
@@ -129,6 +133,9 @@ def tools(argv: list[str]) -> int: ...
 - `hmz internal anchor` MUST load `coganchor` and nothing else of humanize, the door included.
 - `hmz internal cred` MUST exit with the program's own status, MUST refuse a line naming nothing to
   answer or no program to run, and MUST NOT fall back to running unsupervised.
+- `hmz internal fence` MUST run the program held to the paths and hosts its policy permits, MUST
+  exit with the program's own status, and MUST refuse to run it at all where the fence cannot be
+  put up.
 - `hmz internal tools` MUST do nothing but carry lines, MUST carry both directions at once with the
   end of either ending the other, and MUST answer a socket that is not there with a status rather than
   a crash.

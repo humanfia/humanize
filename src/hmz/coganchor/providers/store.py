@@ -17,13 +17,12 @@ import json
 import os
 import re
 import shutil
-import tempfile
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from hmz import home
-from hmz.coganchor import backends
+from hmz.coganchor import atomic, backends
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -505,20 +504,11 @@ def _writes(at: Path, said: str) -> None:
       is the old one or the new one and never half of each -- and beside it under a name
       nothing else will pick, because two `hmz` at once (a menu saving while a script points
       a chain) writing one fixed `.new` is one of them finding its own file already moved
-      away. `mkstemp` is `0600` from the moment the file exists, which is what these hold: a
+      away. It is `0600` before anything is written into it, which is what these hold: a
       key, a token, or an endpoint somebody pays for. A file that was readable for the moment
       between being written and being chmodded was readable.
     """
-    handle, beside = tempfile.mkstemp(
-        dir=at.parent, prefix=f".{at.name}.", suffix=".new"
-    )
-    try:
-        with os.fdopen(handle, "w", encoding="utf-8") as writing:
-            writing.write(said)
-        Path(beside).replace(at)
-    except OSError:
-        Path(beside).unlink(missing_ok=True)
-        raise
+    atomic.writes(at, said, mode=0o600)
 
 
 def add(
