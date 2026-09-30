@@ -15,6 +15,7 @@ Mixin system is crucial to the flow system. It allows the flow to declare what i
 All of the above supports comma-separated list and multiple flags. (e.g. `-a role1=... -a role2=...` or `-a role1=...,role2=...`)
 
 - `-b|--budget duration=<duration>,cost=<cost>,output_tokens=<output_tokens>`: specifying a flow budget. Also supports multiple flags.
+- `-H|--harness adaptive|local|env|standalone:<env>`: where each agent's harness runs -- `adaptive` (the default) on its environment's machine where that machine has the agent's CLI and here otherwise, `local` here, `env` on its environment's machine, `standalone:<env>` on a machine of its own, `<env>` spelled as `-e` spells one after `<role>=`.
 
 ## Environments
 

@@ -133,6 +133,7 @@ def _exec(argv: list[str]) -> int:
                 params=line.params,
                 budget=line.budget,
                 resume=line.resume,
+                harness=line.harness,
             )
         except Refused as error:
             # A flow that is not there, or one given other roles than it declares, is a

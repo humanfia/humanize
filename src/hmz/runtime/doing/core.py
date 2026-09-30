@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from hmz.runtime.doing.hosting import Host
     from hmz.runtime.doing.running import Run
     from hmz.runtime.flowing import AgentDriver, EnvDriver, OutworlderDriver
-    from hmz.runtime.flowing.specs import AgentSpec, EnvSpec
+    from hmz.runtime.flowing.specs import AgentSpec, EnvSpec, HarnessSpec
     from hmz.runtime.runner import Line, Runner
     from hmz.runtime.settings import Settings
 
@@ -180,6 +180,7 @@ class Hmz:
         params: Mapping[str, Any] | FlowParams | None = None,
         budget: Budget | Mapping[str, Any] | None = None,
         resume: bool | str | os.PathLike[str] = False,
+        harness: str | HarnessSpec | None = None,
     ) -> Runner:
         """Loads a flow and opens a driver for every role it is given, checking all of it.
 
@@ -191,6 +192,7 @@ class Hmz:
           params: The flow's params, or None for its defaults.
           budget: What the run may spend; only a flow humanize ships runs without one.
           resume: Whether to pick up the newest run of it here, or the epic to pick up.
+          harness: Where each agent's harness runs, as `-H` says it; None is adaptive.
 
         Returns:
           The flow, loaded, with its drivers in hand and nothing started.
@@ -209,6 +211,7 @@ class Hmz:
             budget=budget,
             resume=resume,
             workspace=self._workspace,
+            harness=harness,
         )
 
     def run(
@@ -222,6 +225,7 @@ class Hmz:
         budget: Budget | Mapping[str, Any] | None = None,
         resume: bool | str | os.PathLike[str] = False,
         outworlder: OutworlderDriver | None = None,
+        harness: str | HarnessSpec | None = None,
     ) -> Run:
         """A run of one flow, loaded and ready to be started.
 
@@ -234,6 +238,7 @@ class Hmz:
           budget: What the run may spend; only a flow humanize ships runs without one.
           resume: Whether to pick up the newest run of it here, or the epic to pick up.
           outworlder: Whoever is outside the run, or None for nobody.
+          harness: Where each agent's harness runs; see :meth:`runner`.
 
         Returns:
           The run. Nothing has started: `run()` runs it here, `start()` on a thread.
@@ -252,6 +257,7 @@ class Hmz:
                 params=params,
                 budget=budget,
                 resume=resume,
+                harness=harness,
             ),
             task,
             outworlder=outworlder,
@@ -282,6 +288,7 @@ class Hmz:
             params=line.params,
             budget=line.budget,
             resume=line.resume,
+            harness=line.harness,
         ).run()
 
     def host(self) -> Host:

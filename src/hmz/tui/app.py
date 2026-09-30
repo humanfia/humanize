@@ -1089,6 +1089,12 @@ class Humanize(App[None]):
         #: humanize ships runs with. Beside the params and not inside them: it is a setting
         #: of the run rather than one of the flow's own.
         self._budget: Budget | None = budget_of(self._flow_named)
+        #: Where its agents' harnesses run, as `-H` spells it: "" for adaptive. A setting of
+        #: the run beside the budget, and for the same reason.
+        self._harness: str = self.settings.harness(self._flow_named)
+        #: Where each role's harness went the last time the flow in force ran, by role: what
+        #: adaptive came to, which only the machine could say.
+        self._harnessed: dict[str, str] = {}
         #: What has been typed here before, which the arrows walk. Read now rather than each
         #: time it is asked for: a run started here writes this project's own history into
         #: being, and what is being walked must not change under whoever is walking it.
@@ -3451,6 +3457,8 @@ class Humanize(App[None]):
                 self.settings.flows(),
                 envs=self._envs if holding else None,
                 budget=self._budget if holding else None,
+                harness=self._harness if holding else None,
+                harnessed=self._harnessed if holding else None,
                 unavailable=frozenset(unavailable),
                 running=running,
                 # A flow that was named has been chosen, so what is left to answer is what
@@ -3523,7 +3531,13 @@ class Humanize(App[None]):
             # A flow that will not load says nothing about what it declares, so nothing here
             # can tell whether it is set up. Running it is where that is said, exactly as it
             # is for the flow already in force.
-            return Chosen(flow, agents, envs, budget=budget_of(flow))
+            return Chosen(
+                flow,
+                agents,
+                envs,
+                budget=budget_of(flow),
+                harness=self.settings.harness(flow),
+            )
         if set(agents) != set(declared.roles):
             return None
         if any(role.required and role.name not in envs for role in declared.envs):
@@ -3538,7 +3552,7 @@ class Humanize(App[None]):
         budget = budget_of(flow)
         if budget is None and not declared.unbounded:
             return None
-        return Chosen(flow, agents, envs, params, budget)
+        return Chosen(flow, agents, envs, params, budget, self.settings.harness(flow))
 
     def _took_flow(self, chosen: Chosen, *, running: bool, starting: str = "") -> None:
         """Applies what the flow menu was saved with, and writes it down.
@@ -3559,7 +3573,17 @@ class Humanize(App[None]):
             chosen.envs,
             chosen.params,
             chosen.budget,
-        ) == (self._flow_named, self._models, self._envs, self._params, self._budget)
+            chosen.harness,
+        ) == (
+            self._flow_named,
+            self._models,
+            self._envs,
+            self._params,
+            self._budget,
+            self._harness,
+        )
+        if chosen.flow != self._flow_named:
+            self._harnessed = {}
         # Nothing running is stopped for it: a run another frontend started while the menu
         # was up is theirs as much as anybody's, and starting this one is refused while it
         # goes rather than ending it. Read again whether or not it is the same flow: a fetch
@@ -3568,6 +3592,7 @@ class Humanize(App[None]):
         self._flow_named = chosen.flow
         self._models, self._envs = dict(chosen.agents), dict(chosen.envs)
         self._params, self._budget = chosen.params, chosen.budget
+        self._harness = chosen.harness
         self.settings.remember(
             chosen.flow,
             self._models,
@@ -3581,6 +3606,7 @@ class Humanize(App[None]):
             json.loads(chosen.budget.model_dump_json())
             if chosen.budget is not None
             else {},
+            chosen.harness,
         )
         if running:
             self._reconfigured()
@@ -3945,6 +3971,7 @@ class Humanize(App[None]):
             self._budget = Budget.model_validate(ran.budget) if ran.budget else None
         except ValueError:
             self._budget = None
+        self._harness = ran.harness
         self.show(
             f"[dim]resuming {escape(ran.name)}: running {escape(ran.flow)} "
             "from saved state[/dim]"
@@ -4018,6 +4045,7 @@ class Humanize(App[None]):
             if self._budget is not None
             else None,
             resume=str(resume) if resume is not None else False,
+            harness=self._harness,
         )
 
     def _not_started(self) -> None:
@@ -4225,6 +4253,8 @@ class Humanize(App[None]):
         # The conversations of the run before this one went with it, and so do their numbers
         # and their transcripts: this run's first conversation is its role's first again.
         self._seen, self._working, self._placed = {}, set(), {}
+        # And where their harnesses went, which this run settles for itself.
+        self._harnessed = {}
         for gone in [key for key in self._kept if "/" in key]:
             del self._kept[gone]
         self._outworlders = list(record.get("outworlders") or ())
@@ -4301,6 +4331,7 @@ class Humanize(App[None]):
             self._seen[record["key"]] = seen
             if placed := record.get("env"):
                 self._placed[record["key"]] = dict(placed)
+            self._harnessed_at(str(record.get("role") or ""), record.get("harness"))
         followed = self._followed.get(record["run"])
         if followed is None:
             return
@@ -4311,6 +4342,28 @@ class Humanize(App[None]):
         # apart to say which of its figures are whole.
         monitor.reporting(seen.id, seen.counts)
         tally.add(seen)
+
+    def _harnessed_at(self, role: str, where: object) -> None:
+        """Says where a role's harness went, the first time it goes somewhere this run.
+
+        Only for work on another machine, which is the only work whose harness had anywhere
+        else to be: a session that works here says nothing. And kept, for the flow menu to
+        say what adaptive came to without anybody having to find it in the transcript.
+
+        Args:
+          role: The role, as the flow calls it.
+          where: Where its harness runs, as the run said it, or nothing for work here.
+        """
+        if not role or not isinstance(where, str) or not where:
+            return
+        if self._harnessed.get(role) == where:
+            return
+        self._harnessed[role] = where
+        kind, _, on = where.partition(":")
+        said = {"local": "here", "env": "on its environment's machine"}.get(
+            kind, f"on {on}"
+        )
+        self.show(f"[dim]{escape(role)}'s harness runs {escape(said)} ({kind})[/dim]")
 
     def _remember_btw(self, record: dict[str, Any]) -> None:
         """Keeps a compact progress record for future side questions.

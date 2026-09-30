@@ -43,6 +43,7 @@ class Hmz:
         params: Mapping[str, Any] | FlowParams | None = None,
         budget: Budget | Mapping[str, Any] | None = None,
         resume: bool | str | os.PathLike[str] = False,
+        harness: str | HarnessSpec | None = None,
     ) -> Runner: ...
     def run(
         self,
@@ -55,6 +56,7 @@ class Hmz:
         budget: Budget | Mapping[str, Any] | None = None,
         resume: bool | str | os.PathLike[str] = False,
         outworlder: OutworlderDriver | None = None,
+        harness: str | HarnessSpec | None = None,
     ) -> Run: ...
     def exec(self, argv: list[str]) -> Any: ...
     def host(self) -> Host: ...
