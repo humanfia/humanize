@@ -37,10 +37,12 @@ __all__ = [
     "EnvCollection",
     "FilesEnvMixin",
     "GPUEnvMixin",
+    "GitEnvMixin",
     "GitWorktreeEnvMixin",
     "ImageEnvMixin",
     "LocalEnv",
     "MemoryEnvMixin",
+    "RewindableEnvMixin",
     "ScratchDirEnvMixin",
     "SequenceNotStr",
     "ShellEnvMixin",
@@ -308,6 +310,108 @@ class GitWorktreeEnvMixin(Protocol):
         Raises:
           WorktreeError: If the workdir is not in a repository, the ref is not known, or the
             directory is taken.
+        """
+        ...
+
+
+class RewindableEnvMixin(Protocol):
+    """What an environment that can be put back as it was offers: snapshots, and rewinding.
+
+    An interface only. No environment is granted it by itself: a role declares a mixin that
+    implements it -- :class:`GitEnvMixin` -- and code that only snapshots and rewinds, whatever
+    does it underneath, is written against this.
+    """
+
+    async def snapshot(self, name: str | None = None) -> str:
+        """Records the workdir as it is now, to rewind to later.
+
+        Args:
+          name: What to keep it under, replacing a snapshot already kept under it; None for a
+            name of its own.
+
+        Returns:
+          The ref to hand :meth:`rewind` to put the workdir back as it is now.
+        """
+        ...
+
+    async def rewind(self, ref: str) -> None:
+        """Puts the workdir back as a ref has it, removing whatever the ref does not have.
+
+        Args:
+          ref: What :meth:`snapshot` answered, or another ref the environment knows.
+        """
+        ...
+
+    async def snapshots(self) -> list[str]:
+        """The refs of the snapshots kept, the oldest first."""
+        ...
+
+
+class GitEnvMixin(RewindableEnvMixin, Protocol):
+    """Snapshots and rewinds the git worktree the workdir is in, with git.
+
+    The machine needs `git` on its PATH: a flow declaring this for an environment on one
+    without is refused, with :class:`~hmz.flows.errors.CapabilityMissing`, before anything
+    runs. The workdir needs to be in a git worktree when these are called; it is not made
+    one.
+
+    What is snapshotted and rewound is the whole worktree -- a workdir below its top along
+    with the rest of it -- and the commit it has checked out and its index. Files git ignores
+    are neither recorded nor removed, and nor is a `.humanize/` at its top, where a
+    workspace keeps its own flows.
+    """
+
+    async def snapshot(self, name: str | None = None) -> str:
+        """Records the worktree as it is now, untracked files included, as a commit.
+
+        Nothing the worktree has checked out moves, and neither its index nor its files are
+        touched: the commit is kept under `refs/hmz/snapshots/<name>` in the repository,
+        until something removes it.
+
+        Args:
+          name: What to keep it under, as git would take a ref's name, replacing a snapshot
+            already kept under it; None for a name of its own.
+
+        Returns:
+          `refs/hmz/snapshots/<name>`.
+
+        Raises:
+          RewindError: If the workdir is not in a git worktree, the name is not one git can
+            keep a ref under, or git would not.
+        """
+        ...
+
+    async def rewind(self, ref: str) -> None:
+        """Puts the worktree back as a ref has it, as `git reset --hard` and `git clean` would.
+
+        A snapshot is put back whole: the commit that was checked out when it was taken, the
+        index as it was, and its files -- untracked ones as untracked. Any other commit git
+        knows by that ref -- a commit, `HEAD~1`, a branch, a tag -- is checked out with its
+        files, the index matching them. Either way the branch checked out, if any, is moved
+        to that commit rather than another checked out, files that are neither in it nor
+        ignored are removed -- repositories cloned inside too -- and a merge, cherry-pick or
+        revert under way is forgotten. What is checked out moves last, so a rewind git
+        refuses partway leaves it where it was.
+
+        Args:
+          ref: What :meth:`snapshot` answered, or any ref git knows of a commit.
+
+        Raises:
+          RewindError: If the workdir is not in a git worktree, git knows no commit by that
+            ref, `HEAD` is detached and the snapshot was taken before the first commit, or
+            git would not.
+        """
+        ...
+
+    async def snapshots(self) -> list[str]:
+        """The refs of the snapshots kept in the repository, the oldest first.
+
+        Oldest to the second: ones taken within the same second are in the order of their
+        names, which for names of the runtime's own is the order they were taken in. Every
+        worktree of the repository shares them.
+
+        Raises:
+          RewindError: If the workdir is not in a git worktree.
         """
         ...
 

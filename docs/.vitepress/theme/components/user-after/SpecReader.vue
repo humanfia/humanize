@@ -28,8 +28,8 @@ const CLIS: Cli[] = [
   { name: 'qwen', title: 'Qwen Code', aliases: ['qwen', 'qwen-code'], efforts: ['max', 'xhigh', 'high', 'medium', 'low', 'none'] },
   { name: 'opencode', title: 'opencode', aliases: ['opencode'], efforts: ['xhigh', 'high', 'medium', 'low', 'minimal'] },
   { name: 'mimo', title: 'mimocode', aliases: ['mimo', 'mimocode', 'mimo-code'], efforts: ['xhigh', 'high', 'medium', 'low', 'minimal'] },
-  { name: 'zcode', title: 'ZCode', aliases: ['zcode', 'zcode-cli'], efforts: ['max', 'xhigh', 'high', 'medium', 'low', 'enabled', 'nothink', 'disabled'] },
   { name: 'cursor-agent', title: 'Cursor Agent', aliases: ['cursor-agent', 'cursor-cli'], efforts: ['max', 'xhigh', 'extra-high', 'high', 'medium', 'low', 'minimal', 'none'] },
+  { name: 'mcode', title: 'MiniMax Code', aliases: ['mcode', 'minimax', 'minimax-code'], efforts: ['max', 'xhigh', 'high', 'medium', 'low'] },
 ]
 
 const EXAMPLES = [

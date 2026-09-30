@@ -43,6 +43,7 @@ const BACKENDS: Backend[] = [
   { name: 'qwen', called: 'Qwen Code', model: 'qwen3-coder-plus', efforts: ['max', 'xhigh', 'high', 'medium', 'low', 'none'] },
   { name: 'agy', called: 'Antigravity', model: 'gemini-3.7-flash', efforts: ['high', 'medium', 'low'] },
   { name: 'opencode', called: 'opencode', model: 'anthropic/claude-opus-5', efforts: ['xhigh', 'high', 'medium', 'low', 'minimal'] },
+  { name: 'mcode', called: 'MiniMax Code', model: 'minimax/MiniMax-M3.1-Flash-Preview', efforts: ['max', 'xhigh', 'high', 'medium', 'low'] },
   { name: 'mimo', called: 'mimocode', model: 'xiaomi/mimo-v2.5', efforts: ['xhigh', 'high', 'medium', 'low', 'minimal'] },
 ]
 

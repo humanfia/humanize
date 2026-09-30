@@ -136,10 +136,6 @@ hmz exec -f ralph_loop -a agent=kimi/kimi-code/k3:high -b duration=10m "Fix the 
 hmz exec -f ralph_loop -a agent=grok/grok-4.6:high -b duration=10m "Fix the bug in calc.py."
 ```
 
-```sh [ZCode]
-hmz exec -f ralph_loop -a agent=zcode/zai/glm-5.3:high -b duration=10m "Fix the bug in calc.py."
-```
-
 :::
 
 - `-f` names the flow.

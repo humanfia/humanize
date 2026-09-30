@@ -22,7 +22,7 @@ hmz exec -f rlar \
 
 :::
 
-<HmzFlowShape flow="rlar" />
+<HmzFlow flow="rlar" />
 
 ## When to use it
 

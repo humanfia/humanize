@@ -64,9 +64,8 @@ what bounds a goal that never settles.
 | `claude` · Claude Code | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> |
 | `codex` · Codex | <Badge type="tip" text="yes" /> | <Badge type="info" text="no" /> |
 | `kimi` · Kimi Code | <Badge type="tip" text="yes" /> | <Badge type="info" text="no" /> |
-| `zcode` · ZCode | <Badge type="tip" text="yes" /> | <Badge type="info" text="no" /> |
 | `dsh` · DeepSeek Harness | <Badge type="tip" text="yes" /> | <Badge type="info" text="no" /> |
-| `agy`, `cursor-agent`, `grok`, `mimo`, `opencode`, `pi`, `qwen`, an ACP CLI | <Badge type="info" text="no" /> | <Badge type="info" text="no" /> |
+| `agy`, `cursor-agent`, `grok`, `mcode`, `mimo`, `opencode`, `pi`, `qwen`, an ACP CLI | <Badge type="info" text="no" /> | <Badge type="info" text="no" /> |
 
 Every CLI and every capability is in one table [on
 Flows](/reference/flows#what-each-harness-serves).

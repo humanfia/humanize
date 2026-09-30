@@ -7,17 +7,24 @@ import Term from '../.vitepress/theme/components/user-prompt/Term.vue'
 Type `/` or `$` at the prompt, and a list under it offers ways to finish the word. Take one
 with <kbd>tab</kbd> and keep typing.
 
-![hmz: typing / lists every command with what it takes; /s narrows it to /settings and
-/stop; tab takes one; /afk shows what it takes; $ lists the flows, $lo narrows them to
+![hmz: typing / lists every command that works now with what it takes; /s narrows it to
+/settings; tab takes it; /afk shows what it takes; $ lists the flows, $lo narrows them to
 the project's own, and tab finishes the name](/demo/completion.gif)
 
 ## What is offered
 
 | You type | The list offers |
 | --- | --- |
-| `/` | every command, with what it takes after its name and what it is for |
+| `/` | every command that would do something now, with what it takes after its name and what it is for |
 | `/flow ` | every flow you can run here, by the name it is offered under |
 | `$` | the same flows, as `$name`. `$ralph_loop fix the build` starts that flow on that task. |
+
+The commands follow what is going on. `/stop` is listed while a flow runs and not once it is
+stopping; `/resume` only with nothing running and a run here to carry on; `/claim` only on an
+outworlder's transcript that nobody else holds. While a flow runs, no flow is offered after
+`/flow ` or `$`, and `/flow` reads `Set up the running flow's agents`. The list changes as the
+run starts and stops, even while it is open. A command that is not listed can still be typed,
+and says why it did nothing.
 
 The flows are the ones humanize ships, the ones in every [flowverse](/weaver/flowverses)
 fetched here, and your own. Each is offered under one name:
@@ -34,7 +41,6 @@ fetched here, and your own. Each is offered under one name:
 <Term>
 
 <pre><span class="p">/settings</span> <span class="m">[page]</span>   <span class="p">Every setting: everywhere, this directory, accounts, environments, fallback, flowverses</span>
-/stop              <span class="m">Stop the flow without confirmation</span>
 <span class="d">────────────────────────────────────────────────────────────</span>
 <span class="d">❯</span> /s
 <span class="d">────────────────────────────────────────────────────────────</span>

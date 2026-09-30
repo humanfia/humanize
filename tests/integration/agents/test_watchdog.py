@@ -339,11 +339,7 @@ def test_what_survives_a_transport_going_down_is_written_where_the_facts_are() -
     assert all(one.restarts for one in backends.PROFILES)
     # An app server is one per agent: putting it down for one wedged turn ends its siblings,
     # which is what the watchdog has to say before it does it.
-    assert {one.name for one in backends.PROFILES if one.shares} == {
-        "codex",
-        "kimi",
-        "zcode",
-    }
+    assert {one.name for one in backends.PROFILES if one.shares} == {"codex", "kimi"}
     # And a CLI known only by the protocol it speaks does not resume: the protocol's only way
     # to open a session opens a new one.
     assert not backends.UNKNOWN.resumes

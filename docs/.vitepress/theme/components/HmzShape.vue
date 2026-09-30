@@ -15,7 +15,7 @@ import { useNarrow } from '../motion/layout'
 import { usePalette } from '../motion/palette'
 import { useScene } from '../motion/useScene'
 
-const HELD = ['claude', 'codex', 'agy', 'grok', 'qwen']
+const HELD = ['claude', 'codex', 'agy', 'grok', 'mcode', 'qwen']
 const ASKED = ['cursor-agent', 'dsh', 'kimi', 'mimo', 'opencode', 'pi', 'a CLI you added']
 
 const cli = ref('claude')

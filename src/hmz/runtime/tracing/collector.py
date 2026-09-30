@@ -20,11 +20,11 @@ from .readers import (
     dsh,
     grok,
     kimi,
+    mcode,
     mimo,
     opencode,
     pi,
     qwen,
-    zcode,
 )
 
 if TYPE_CHECKING:
@@ -42,11 +42,11 @@ _READERS = {
     "dsh": dsh.collect,
     "grok": grok.collect,
     "kimi": kimi.collect,
+    "mcode": mcode.collect,
     "mimo": mimo.collect,
     "opencode": opencode.collect,
     "pi": pi.collect,
     "qwen": qwen.collect,
-    "zcode": zcode.collect,
 }
 
 

@@ -24,7 +24,7 @@ granted what it declared -- with the drivers underneath swapped for these::
   its answer holds open -- one waiting on :meth:`FakeSession.until_steered` -- as a real
   driver's does.
 - :class:`FakeEnvDriver` is a dictionary of files under a workdir, with worktrees,
-  temporary copies and scratch directories as copies of it, and `exec` answered by a
+  temporary copies, scratch directories and snapshots as copies of it, and `exec` answered by a
   function or a table, with a few commands -- `true`, `false`, `echo`, `cat`, `ls`, `sleep`
   and `git rev-parse` -- answered by default. A temporary copy is its holder's until the
   run that took it closes, and a run resumed on the same fake takes it again as it was
@@ -66,6 +66,7 @@ from hmz.flows import (
     OutputSchemaError,
     OutputTokensExceeded,
     PermissionRequestHookAgentMixin,
+    RewindError,
     SessionError,
     SubagentStartHookAgentMixin,
     SubagentStopHookAgentMixin,
@@ -617,6 +618,12 @@ class _Disk:
         self.clones: dict[tuple[PurePosixPath, str], FakeEnvDriver] = {}
         #: Who holds each copy, until the run that took it closes.
         self.holders: dict[tuple[PurePosixPath, str], object] = {}
+        #: The files the first environment was made with, by path relative to its workdir:
+        #: what every ref it knows but a snapshot has.
+        self.committed: dict[PurePosixPath, bytes] = {}
+        #: Each snapshot's files, by path relative to the workdir it was taken of, oldest
+        #: first.
+        self.snapshots: dict[str, dict[PurePosixPath, bytes]] = {}
 
 
 class FakeEnvDriver:
@@ -635,7 +642,9 @@ class FakeEnvDriver:
       gpu_memory: The memory it reports for each GPU, in bytes.
       run: What answers `exec`; see :data:`Handler`. Commands it leaves are answered by
         the defaults.
-      refs: The git refs `derive_worktree` knows.
+      refs: The git refs `derive_worktree` and `rewind` know. Rewound to, each has the
+        files the first environment on the fake machine was made with; a snapshot has
+        the files it was taken of.
       repo: Whether the workdir is a git repository, as `git rev-parse` answers.
 
     Closing one lets go of the holds on the temporary copies taken through it, leaving the
@@ -687,6 +696,8 @@ class FakeEnvDriver:
             self._disk.files[self._at(path)] = (
                 data.encode() if isinstance(data, str) else data
             )
+        if self._root:
+            self._disk.committed = self._relative()
 
     def __repr__(self) -> str:
         return f"<fake env {self.backend}@{self.provider}{self.workdir}>"
@@ -696,11 +707,7 @@ class FakeEnvDriver:
     @property
     def files(self) -> dict[str, bytes]:
         """What is under the workdir now, by path relative to it."""
-        return {
-            str(path.relative_to(self.workdir)): data
-            for path, data in self._disk.files.items()
-            if path.is_relative_to(self.workdir) and path != self.workdir
-        }
+        return {str(path): data for path, data in self._relative().items()}
 
     @property
     def machine(self) -> dict[str, bytes]:
@@ -860,6 +867,38 @@ class FakeEnvDriver:
         if any(path.is_relative_to(where) for path in self._disk.files):
             raise WorktreeError(f"{where} is taken")
         return self._there(where, copy=True)
+
+    def _relative(self) -> dict[PurePosixPath, bytes]:
+        return {
+            path.relative_to(self.workdir): data
+            for path, data in self._disk.files.items()
+            if path.is_relative_to(self.workdir) and path != self.workdir
+        }
+
+    async def snapshot(self, name: str | None) -> str:
+        if not self.repo:
+            raise RewindError(f"{self.workdir} is not a git repository")
+        disk = self._disk
+        ref = f"refs/hmz/snapshots/{name or next(disk.numbers)}"
+        disk.snapshots.pop(ref, None)
+        disk.snapshots[ref] = self._relative()
+        return ref
+
+    async def rewind(self, ref: str) -> None:
+        if not self.repo:
+            raise RewindError(f"{self.workdir} is not a git repository")
+        disk = self._disk
+        kept = disk.snapshots.get(ref)
+        if kept is None and ref not in self.refs:
+            raise RewindError(f"no ref called {ref!r}")
+        self._gone(self.workdir)
+        for path, data in (disk.committed if kept is None else kept).items():
+            disk.files[self.workdir / path] = data
+
+    async def snapshots(self) -> list[str]:
+        if not self.repo:
+            raise RewindError(f"{self.workdir} is not a git repository")
+        return list(self._disk.snapshots)
 
     async def derive_temp_clone(
         self,

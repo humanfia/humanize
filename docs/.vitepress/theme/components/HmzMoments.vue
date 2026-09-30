@@ -35,6 +35,7 @@ const CLIS: Cli[] = [
   { name: 'agy', reaches: [], gates: false },
   { name: 'dsh', reaches: [], gates: false },
   { name: 'grok', reaches: [], gates: false },
+  { name: 'mcode', reaches: ['sub'], gates: false },
   { name: 'mimo', reaches: [], gates: false },
   { name: 'opencode', reaches: [], gates: false },
 ]

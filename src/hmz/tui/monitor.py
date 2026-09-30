@@ -157,6 +157,8 @@ class Shape:
       latest: The handover the flow took most recently, or None before it has taken one. It
         is what the eye wants first with six boxes on the page -- where the run just went --
         and nothing else on a still picture says it.
+      used: How many tokens each of them has spent, as its backend reported them turn by
+        turn: what a node of the list says it has cost, where the bill is the run's per model.
     """
 
     turns: Mapping[str, int]
@@ -167,6 +169,7 @@ class Shape:
     )
     since: Mapping[str, float] = field(default_factory=dict[str, float])
     latest: tuple[str, str] | None = None
+    used: Mapping[str, int] = field(default_factory=dict[str, int])
 
 
 @dataclass(frozen=True, slots=True)
@@ -252,6 +255,9 @@ class Monitor:
     handed: tuple[str, str] | None = None
     #: Tokens spent per model, all told.
     spent: Counter[str] = field(default_factory=Counter[str])
+    #: And per agent, as its backend reported them: what one node of the monitor has cost.
+    #: The backends' word alone, since only they say whose a token was.
+    used: Counter[str] = field(default_factory=Counter[str])
     #: What each source says has been spent on each model so far. Two of them say: the
     #: backends, as each turn ends, and the logs those backends keep, as they write them. They
     #: are counting the same tokens, so what was spent is the higher of the two rather than
@@ -311,10 +317,10 @@ class Monitor:
     #: The agent whose turn ended last, which is who the next one was handed from.
     _last: str | None = None
     #: The same graph kept a session at a time rather than an agent at a time, which is what
-    #: the monitor draws with a node per session: who worked, who handed to whom and how long
-    #: each has been at it, with `<role>/<n>` where the agent was. Made when the first turn
-    #: that names its session starts, and holding nothing but the graph -- what was spent is
-    #: the run's, and counted once, above.
+    #: the monitor draws an agent opened out to its sessions from: who worked, who handed to
+    #: whom, how long each has been at it and what each has spent, with `<role>/<n>` where the
+    #: agent was. Made when the first turn that names its session starts, and read for nothing
+    #: but that -- the bill is the run's, and is read off this one, above.
     _sessions: Monitor | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -439,6 +445,7 @@ class Monitor:
         model: str | None = None,
         now: float | None = None,
         kinds: Mapping[str, float] | None = None,
+        session: str | None = None,
     ) -> None:
         """Notes tokens an agent's backend has just reported spending.
 
@@ -451,15 +458,21 @@ class Monitor:
           kinds: What those same tokens were, kind by kind, where the backend said. Only the
             kinds put a price on them, an input token and an output token of one model
             differing in price several times over.
+          session: Which of its sessions spent them, as `begins` was told it, so that the
+            session is said to have cost them too -- and nothing more: the bill is counted
+            once, here.
         """
         if tokens <= 0:
             return
+        if session is not None:
+            self._by_session().spend(session, tokens)
         if model is not None:
             self.models[agent] = model
         model = self.models.get(agent, agent)
         # The whole read-modify-write under the lock: two turns of one model land on two
         # threads, and a total each of them read before either wrote is a turn lost.
         with self._lock:
+            self.used[agent] += tokens
             # Added up here rather than there, so that what a backend reports a turn at a
             # time arrives as the same kind of thing a log read from the top does: a total.
             running = self.totals.get(("told", model), 0) + tokens
@@ -791,6 +804,7 @@ class Monitor:
                     for agent in self.turns
                 },
                 latest=self.handed,
+                used=dict(self.used),
             )
 
     def _counting_from(self, agent: str) -> float:

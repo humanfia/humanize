@@ -42,7 +42,7 @@ links to where the feature is described.
 | **Schema** | `held`: the CLI itself is held to the [pydantic schema](#answering-in-a-shape). `prompt`: the schema is asked for in the prompt and the answer validated after. |
 | **Fork** | Whether [`session.fork()`](#a-conversation-that-goes-two-ways) branches the conversation. An ACP CLI's `yes` is marked because it forks only where the agent serves `session/fork`. |
 | **Web search** | Whether [`web_search=False`](#whether-an-agent-may-search-the-web) can be said. Where it cannot, it is refused. |
-| **Rungs** | Which of the four [permission rungs](#what-an-agent-may-do) the backend takes: all four, or only `bypass`. |
+| **Rungs** | Which of the four [permission rungs](#what-an-agent-may-do) the backend takes: all four, every one but `read-only`, or only `bypass`. |
 | **Moments** | The [hook moments](#not-every-backend-runs-every-moment) beyond the six every backend runs. `Permission` is `PermissionRequest`; `Subagent` is `SubagentStart` and `SubagentStop`. |
 | **Fast tier** | Whether [`service_tier="fast"`](#the-service-tier) is served. |
 | **Trace** | Whether `Hmz().epics.trace()` has a reader for the backend's logs. |
@@ -65,11 +65,11 @@ command it is installed as, which is also what `-a` takes.
 | `dsh` | `DshAgent` | `DshAgentConfig` | `DshSession` |
 | `grok` | `GrokBuildAgent` | `GrokBuildAgentConfig` | `GrokBuildSession` |
 | `kimi` | `KimiCodeCLIAgent` | `KimiCodeCLIAgentConfig` | `KimiCodeCLISession` |
+| `mcode` | `MiniMaxCodeAgent` | `MiniMaxCodeAgentConfig` | `MiniMaxCodeSession` |
 | `mimo` | `MimoCodeAgent` | `MimoCodeAgentConfig` | `MimoCodeSession` |
 | `opencode` | `OpencodeAgent` | `OpencodeAgentConfig` | `OpencodeSession` |
 | `pi` | `PiAgent` | `PiAgentConfig` | `PiSession` |
 | `qwen` | `QwenCodeAgent` | `QwenCodeAgentConfig` | `QwenCodeSession` |
-| `zcode` | `ZcodeAgent` | `ZcodeAgentConfig` | `ZcodeSession` |
 | an [ACP CLI](#a-cli-of-your-own) | `AcpAgent` | `AcpAgentConfig` | `AcpSession` |
 | you | `HumanAgent` | none: it takes only `name=` | `HumanSession` |
 
@@ -105,7 +105,8 @@ config its backend cannot carry, with `hmz.coganchor.agents.Unserved` (a `ValueE
 - a `fence` neither the CLI nor this machine can hold, with `Unfenced`, a kind of
   `Unserved`. See [The fence](#the-fence);
 - a combination one backend cannot carry: Antigravity's `disable_slash_commands=True` at
-  `read-only`, a Cursor model the account lists at no such rung or tier, or opencode's and
+  `read-only`, a Cursor model the account lists at no such rung or tier, a MiniMax Code
+  model its catalogue lists at no such rung, or opencode's and
   mimocode's `permission_table=False` beside a rung that withholds anything or
   `web_search=False`.
 
@@ -121,14 +122,14 @@ on an agent already running.
 | `agy`, `claude`, `codex`, `dsh`, `grok`, `qwen` | the id the CLI, or the endpoint behind it, serves | `claude-opus-5`, `gpt-5.6-sol`, `deepseek-v4-flash` |
 | `kimi` | Kimi Code's own `provider/id` | `kimi-code/k3` |
 | `pi`, `opencode`, `mimo` | `provider/id` | `openai-codex/gpt-5.5`, `opencode/big-pickle`, `xiaomi/mimo-v2.5` |
-| `zcode` | `provider/id`, and `gw/<id>` on a gateway account | `zai/glm-5.3`, `gw/vendor/some-model` |
 | `cursor-agent` | an id out of `cursor-agent models`, with the effort and tier written into it | `composer-2.5-high-fast` |
+| `mcode` | `provider/id`: `minimax/<id>` for MiniMax's own, `custom_provider:<name>/<id>` for one added to it | `minimax/MiniMax-M3`, `custom_provider:gateway/some-model` |
 | an ACP CLI | `as configured` | |
 
 On `pi`, name the provider: its `--provider` defaults to `google`, so a bare id is looked for
 among Gemini models. `grok models` lists Grok Build's catalogue.
 
-**An account that names an endpoint is asked what that endpoint serves.** Eight backends route
+**An account that names an endpoint is asked what that endpoint serves.** Seven backends route
 their turns by one base-URL variable. Where an account sets it, `GET {base}/v1/models` (or
 `{base}/models` when the base already ends in a version) is the list a turn picks from:
 
@@ -141,11 +142,10 @@ their turns by one base-URL variable. Where an account sets it, `GET {base}/v1/m
 | `grok` | `GROK_XAI_API_BASE_URL` |
 | `kimi` | `KIMI_MODEL_BASE_URL` |
 | `qwen` | `OPENAI_BASE_URL` |
-| `zcode` | `ZCODE_BASE_URL`, each id listed as `gw/<id>` |
 
 `pi`, `opencode` and `mimo` are not asked this way: an endpoint's ids carry no provider, and
-these CLIs name a model by one. `cursor-agent` is not either: `cursor-agent models` is already
-the account's answer. See [Backends](/features/backends) for how the catalogue is kept.
+these CLIs name a model by one. `cursor-agent` and `mcode` are not either: `cursor-agent models`
+and `mcode provider list --json` are already the account's answer. See [Backends](/features/backends) for how the catalogue is kept.
 
 ## Turns
 
@@ -199,7 +199,7 @@ session.close()              # ends whatever it was holding
 ```
 
 - `id` raises `RuntimeError` before a turn has landed. `named` answers `None` instead. On
-  `claude`, `codex`, `dsh`, `kimi`, `pi` and `zcode` it is set as soon as the backend names the
+  `claude`, `codex`, `dsh`, `kimi` and `pi` it is set as soon as the backend names the
   session, during the first turn; on the rest it is set when that turn lands, as `id` is.
 - A session runs one turn at a time. Two threads calling one session hold one conversation.
 - The agent holds its sessions weakly, so a Ralph loop running for days does not grow.
@@ -236,8 +236,7 @@ reviewing = session.fork(into=reader, cwd="/work/review-tree")
 ```
 
 `into=` of another backend, account or machine is a `ValueError`. `cwd=` elsewhere works on
-Claude Code (its transcript is copied to where `--resume` looks), Codex, Kimi Code and ZCode,
-and is `NotImplementedError` on the rest. A flow reaches this as `agent.fork(session, env=…)`.
+Claude Code (its transcript is copied to where `--resume` looks), Codex and Kimi Code, and is `NotImplementedError` on the rest. A flow reaches this as `agent.fork(session, env=…)`.
 
 `fork` is not [`agent.clone`](#an-agent-that-is-not-quite-the-one-you-were-handed): a clone
 copies an agent's settings and no history; a fork copies a session's history. See [Branching a
@@ -340,7 +339,8 @@ The model is the question: its fields, types, required keys and descriptions are
 backend is given.
 
 - Where the backend can be held to it (`SessionBase.shapes`), it is: `--json-schema` on `agy`,
-  `claude`, `grok` and `qwen`, and the turn's `outputSchema` on `codex`.
+  `claude`, `grok` and `qwen`, `--output-schema` on `mcode`, and the turn's `outputSchema` on
+  `codex`.
 - Elsewhere the schema is asked for in the prompt and the answer is validated after.
 - An answer that is not the shape raises `ValueError`. `suppress=True` answers `None` for that
   and for a failed turn.
@@ -438,8 +438,8 @@ agent.pursue("the suite passes and nothing has been stubbed out")
 The agent decides when the objective is met. Until then, a turn that would have ended starts
 another; `pursue` follows the goal across all of them and answers with the last.
 
-- Which backends have one is `type(agent).pursues`: Claude Code, Codex, DeepSeek Harness, Kimi
-  Code and ZCode. The rest raise `NotImplementedError`, even under `suppress`.
+- Which backends have one is `type(agent).pursues`: Claude Code, Codex, DeepSeek Harness and
+  Kimi Code. The rest raise `NotImplementedError`, even under `suppress`.
 - A flow reaches this as `/goal <objective>` on a role that declares `GoalCommandAgentMixin`.
   See [Goals](/weaver/goals).
 - `goals=False` on the config makes `pursue` raise `RuntimeError`, and takes away the tools
@@ -524,19 +524,19 @@ moment outside it, where the hook is hung. Every backend runs the six moments th
 | Backend | the other six | `PERMISSION_REQUEST` | `SUBAGENT_START`, `SUBAGENT_STOP` |
 | --- | :-: | :-: | :-: |
 | `claude`, `codex` | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> |
-| `cursor-agent` | <Badge type="tip" text="yes" /> | — | <Badge type="tip" text="yes" /> |
-| `grok`, `kimi`, `zcode` | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> | — |
+| `cursor-agent`, `mcode` | <Badge type="tip" text="yes" /> | — | <Badge type="tip" text="yes" /> |
+| `grok`, `kimi` | <Badge type="tip" text="yes" /> | <Badge type="tip" text="yes" /> | — |
 | `agy`, `dsh`, `mimo`, `opencode`, `pi`, `qwen`, an ACP CLI | <Badge type="tip" text="yes" /> | — | — |
 | `HumanAgent` | — | — | — |
 
 A flow says which moments it needs where it declares its agents, and is refused before its
 first turn if given an agent that cannot run them. Under a flow,
-`PermissionRequestHookAgentMixin` is served on Claude Code, Codex, Kimi Code and ZCode; Grok
+`PermissionRequestHookAgentMixin` is served on Claude Code, Codex and Kimi Code; Grok
 Build's moment is reachable from Python only.
 
 ### When a PermissionRequest refusal reaches the agent
 
-These five backends ask before a tool runs and wait for the answer, so a hook's refusal is the
+These four backends ask before a tool runs and wait for the answer, so a hook's refusal is the
 agent being told no. Whether they ask at all depends on the [rung](#what-an-agent-may-do):
 
 | Backend | Asks | Answered, where no hook refuses |
@@ -545,7 +545,6 @@ agent being told no. Whether they ask at all depends on the [rung](#what-an-agen
 | `codex` | Through its app server: at `auto` (approval policy `on-request`), and at any rung given [`approvals`](#codex). | yes at every rung; no with no rung |
 | `grok` | As `session/request_permission`, on the held-open transport only. | yes at every rung; no with no rung |
 | `kimi` | Each approval read off the daemon's `/approvals`: at `auto` (Kimi's `yolo`), and at `read-only` or no rung (Kimi's `manual`). At `workspace-write` and `bypass` (Kimi's `auto`) nothing is asked. | yes at `auto`; no at `read-only` and with no rung |
-| `zcode` | Through its app server, before a high-risk tool: at `workspace-write` (`edit`), `auto` (`build`) and with no rung. `bypass` (`yolo`) asks nothing. | yes at `auto`; no at `workspace-write` and with no rung |
 
 A hook can turn a yes into a no, never a no into a yes. A config that names no rung routes
 nothing to a hook on Claude Code.
@@ -719,16 +718,16 @@ does nothing; to prevent a turn that has not started, use `agent.stop()`. A budg
 
 `cut` is `interrupt` for a caller that holds the agent for this one conversation, which is what
 a flow's harness driver does. On a backend whose turns sit on a transport every session of the
-agent shares (`cuts_transport`: Codex, Kimi Code, ZCode and DeepSeek Harness), it then puts
+agent shares (`cuts_transport`: Codex, Kimi Code and DeepSeek Harness), it then puts
 that transport down, ending the turn now and reaching a goal too. On an agent holding several
 conversations that ends the turns of all of them. The conversation survives: the next turn
 starts the transport again and resumes it by id.
 
 | How the backend holds a turn | `interrupt` reaches | `cut` reaches |
 | --- | --- | --- |
-| One command per turn: `cursor-agent`, `opencode`, `mimo`, and the command-line turns of `agy`, `grok` and `qwen` | the command and its children | the same |
+| One command per turn: `cursor-agent`, `mcode`, `opencode`, `mimo`, and the command-line turns of `agy`, `grok` and `qwen` | the command and its children | the same |
 | One process held open: `claude`, `pi`, and the ordinary turns of `agy`, `grok` and `qwen` | that process; the next turn starts another and resumes. `pi` is told to `abort` first and given up to 5 s to say it has, so the call it was in is recorded as aborted -- except where the cut is made on the thread reading the turn, a spent budget, which ends it at once | the same |
-| A transport shared by the agent's sessions: `codex`, `zcode` (app server), `dsh` (SDK runtime) | nothing is taken down; the turn stops at the next thing the transport says | the transport, and every turn on it |
+| A transport shared by the agent's sessions: `codex` (app server), `dsh` (SDK runtime) | nothing is taken down; the turn stops at the next thing the transport says | the transport, and every turn on it |
 | `kimi` (daemon) | the prompt is aborted, which takes down a command it is in, and the turn ends at its next round | that, then the daemon and its whole process tree, and every turn on it |
 | An ACP CLI | `session/cancel` | the same |
 
@@ -819,10 +818,10 @@ you type.
 | `dsh` | `max`, `high`, `low`, `off` |
 | `grok` | `xhigh`, `high`, `medium`, `low` |
 | `kimi` | `max`, `high`, `medium`, `low`, each also as `swarm…` |
+| `mcode` | `max`, `xhigh`, `high`, `medium`, `low`, only on `minimax/MiniMax-M3.1-Flash-Preview`; its other models run at `auto` |
 | `mimo`, `opencode` | `xhigh`, `high`, `medium`, `low`, `minimal` (the model variant) |
 | `pi` | `max`, `xhigh`, `high`, `medium`, `low`, `minimal`, `off` |
 | `qwen` | `max`, `xhigh`, `high`, `medium`, `low`, `none` |
-| `zcode` | `max`, `xhigh`, `high`, `medium`, `low`, `enabled`, `nothink`, `disabled`, narrowed per model |
 
 The interface offers each model only the efforts it takes, where the backend says.
 
@@ -833,10 +832,10 @@ The interface offers each model only the efforts it takes, where the backend say
 | `codex` | Per turn, on the app server. `gpt-5.6-sol` takes `ultra`; `gpt-5.5` does not. |
 | `cursor-agent` | Written into the model id: `<model>-<rung>` where the account lists that id. See [Cursor Agent](#cursor-agent). |
 | `grok` | `--effort`. `grok agent` accepts any word, so a word off the four is refused where the agent is made rather than failing on the first command-line turn. |
+| `mcode` | `--effort`, sent only where there is a rung. The model's own table says whether it takes one, and MiniMax Code refuses the flag beside a model that does not, so a rung the account's catalogue does not list for the model is refused where the agent is made. |
 | `kimi` | Per turn. The `swarm` prefix runs the same thinking as a fleet of subagents: `swarmmax` is `max` wide. The prefix is `hmz.coganchor.agents.SWARM`. |
 | `pi` | `--thinking`. pi clamps a rung the model cannot serve to the nearest one it can, rather than refusing. |
 | `qwen` | A settings file of humanize's own, named by `QWEN_CODE_SYSTEM_SETTINGS_PATH`, one per effort. See [Qwen Code](#qwen-code). |
-| `zcode` | A call on the session. GLM 5.3 and Kimi K3 take `low`, `high`, `max`; Claude and GPT take `low` to `xhigh`, and Opus 4.7 `max` on top; DeepSeek V4 takes `high`, `max`; GLM 5.2 takes `max`, `high`, `nothink`; models that only think or not take `enabled`, `disabled`. ZCode states which on the session, and humanize narrows the ladder to them. |
 
 ## Moving the effort while it runs
 
@@ -853,10 +852,9 @@ turns run at. The change takes hold on the **next** turn; the turn under way kee
 
 | Backend | How a moved effort takes hold |
 | --- | --- |
-| `codex`, `kimi`, `opencode`, `mimo`, `cursor-agent` | Sent with the next turn. |
+| `codex`, `kimi`, `opencode`, `mimo`, `cursor-agent`, `mcode` | Sent with the next turn. |
 | `claude`, `dsh`, `agy`, `grok`, `qwen` | The process or runtime restarts and resumes the same conversation. On `agy` a model whose name carries a rung stays at it. |
 | `pi` | A command to the held process, between turns. |
-| `zcode` | A call on the session, between turns. |
 
 On Kimi Code a `swarm` prefix moves with it: `agent.effort = "swarmmax"`.
 
@@ -889,9 +887,9 @@ crossed the wire and no more. Which a backend reports is declared on the agent c
 
 | `counts` | Backends |
 | --- | --- |
-| `input`, `output` | `codex` (cached reads are inside the input), `zcode` |
+| `input`, `output` | `codex` (cached reads are inside the input) |
 | `input`, `output`, `cache_read`, `reasoning` | `agy` |
-| `input`, `output`, `cache_read`, `cache_write` | `claude`, `cursor-agent`, `dsh`, `grok`, `kimi`, `pi`, `qwen` |
+| `input`, `output`, `cache_read`, `cache_write` | `claude`, `cursor-agent`, `dsh`, `grok`, `kimi`, `mcode`, `pi`, `qwen` |
 | all five | `opencode`, `mimo` |
 | none | an ACP CLI |
 
@@ -913,8 +911,7 @@ The meter behind `spent()`, `rate()` and `juice()` moves while the turn runs on 
 | `dsh`, `pi` | on each finalised assistant message |
 | `opencode`, `mimo` | on each step |
 | `kimi` | on each `turn.step.completed` notification |
-| `zcode` | on each row its log gains per model request |
-| `cursor-agent` | once, on the closing `result`, so its rate moves a turn at a time |
+| `cursor-agent`, `mcode` | once, on the closing `result`, so its rate moves a turn at a time |
 | `agy`, `grok`, `qwen` | never: their usage is on the closing `result` event only |
 
 ::: warning agy, grok and qwen do not feed the meter
@@ -964,10 +961,10 @@ turn.
 | `dsh` | refused | refused | refused | taken |
 | `grok` | three read tools | web search off | every tool | — |
 | `kimi` | `manual` and plan mode | `auto` mode | `yolo` mode | `auto` mode |
+| `mcode` | refused | `--permission full` | `--permission smart` | `--permission full` |
 | `mimo`, `opencode` | `edit`, `bash` denied | web tools denied | nothing denied | — |
 | `pi` | four tools withheld | nothing withheld | — | — |
 | `qwen` | five tools withheld | `web_fetch` withheld | nothing withheld | — |
-| `zcode` | `plan` mode | `edit` mode | `build` mode | `yolo` mode |
 | an ACP CLI | refused | refused | refused | taken |
 
 How each backend says it, and what to know:
@@ -1012,6 +1009,11 @@ How each backend says it, and what to know:
   `ExitPlanMode` is an approval too. Kimi's own modes read loosest last as `manual`, `yolo`,
   `auto`, so its `yolo` is humanize's `auto`. Its `auto` mode denies `AskUserQuestion`, so at
   `workspace-write` and `bypass` the agent never stops to ask and `NOTIFICATION` does not fire.
+- **MiniMax Code has no rung that changes nothing, and no sandbox of its own.** `mcode exec`
+  takes `--permission smart` (its own reviewer, which fails the turn where it would have asked,
+  there being nobody headless to ask), `full` and `off`. `workspace-write` and `bypass` are both
+  `full`, and the [fence](#the-fence) is what keeps a write inside the workspace. `read-only`
+  is refused.
 - **opencode and mimocode**: the rung goes in the turn's permission table. Any rung also adds
   the CLI's yes-to-everything-left flag: `--auto` on opencode, `--dangerously-skip-permissions`
   on mimo.
@@ -1022,8 +1024,6 @@ How each backend says it, and what to know:
   `monitor` at `read-only`. Its asking modes leave a held-open session waiting on an approval
   nothing can answer. Nothing confines an edit to the workspace, so `workspace-write` withholds
   the fetch, not a boundary.
-- **ZCode has a mode for each rung.** Its own `auto` mode refuses every tool ("reserved but not
-  implemented yet") and is nobody's rung.
 - **DeepSeek Harness and ACP CLIs** take `bypass` or no rung. dsh's SDK exposes no per-session
   sandbox or approval control, and its default composition mounts the unconfined
   `dsh-bash-local` and `dsh-fs-local`. An ACP CLI's only word about permission is a per-call
@@ -1039,7 +1039,7 @@ A flow's role declares a `Permission`: `local`, `user` and `system`, each `NONE`
 with every request approved. What limits a flow's agent is its `Permission` and the hooks the
 flow hangs.
 
-| `local` | every harness but `dsh` and ACP CLIs | `dsh`, ACP CLIs |
+| `local` | every harness but `dsh`, `mcode` and ACP CLIs | `dsh`, `mcode`, ACP CLIs |
 | --- | --- | --- |
 | `READ` or `NONE` | `read-only` | `bypass` |
 | `ALL` | `bypass` | `bypass` |
@@ -1047,11 +1047,11 @@ flow hangs.
 - **`user`, `system` and `online` are held by the [fence](#the-fence)**, not by the rung.
   So is `local` itself: a session at `read-only` cannot write its workdir from a shell either.
 - **`local` `READ` is also the CLI's own read-only rung.** `local` `NONE` is the same rung.
-- **`dsh` and ACP CLIs run at `bypass`.** The fence holds them to the scopes.
-- **`auto` is used only on Kimi Code and ZCode, and only while a hook is hung** on
-  `PERMISSION_REQUEST` or `ASK_USER`. There `auto` (Kimi's `yolo`, ZCode's `build`) is the mode
-  where the CLI asks about what it deems risky, and on Kimi the mode where its agent may ask
-  its user at all. humanize answers yes unless the hook says no. `auto` is never used for
+- **`dsh`, `mcode` and ACP CLIs run at `bypass`.** The fence holds them to the scopes, a
+  read-only `local` included: a fence that writes nothing is the read-only `mcode` can have.
+- **`auto` is used only on Kimi Code, and only while a hook is hung** on `PERMISSION_REQUEST`
+  or `ASK_USER`. There `auto` (Kimi's `yolo`) is the mode where the CLI asks about what it
+  deems risky, and the mode where its agent may ask its user at all. humanize answers yes unless the hook says no. `auto` is never used for
   Claude Code or cursor-agent, whose `auto` is the model reviewing itself.
 - **Codex, while a `PERMISSION_REQUEST` hook is hung**, keeps its rung's sandbox and runs with
   approval policy `untrusted`. An `ASK_USER` hook turns on Codex's
@@ -1070,7 +1070,8 @@ flow hangs.
 - **`online` is also the CLI's own web tools**: on for `ALL`, off for `NONE` where the CLI
   can be told, and left as the CLI has it where it cannot (pi, agy, ACP CLIs). There the
   fence's cut network is what stops them. `cursor-agent`'s web tools run on Cursor's servers,
-  past the cut, so `online` `NONE` refuses it.
+  past the cut, so `online` `NONE` refuses it. So does `mcode`'s web search, which runs on
+  MiniMax's own service, on the hosts its model is reached through.
 
 ### The fence
 
@@ -1179,9 +1180,8 @@ everywhere:
 | `qwen` | `--exclude-tools web_search,web_fetch` when off, or when the fence cuts the network: `web_search` runs at DashScope, a host the cut network still reaches |
 | `opencode` | `webfetch: deny` and `websearch: deny` in its permission table when off |
 | `mimo` | the same two and `codesearch: deny` |
-| `zcode` | `WebSearch` and `WebFetch` in the session's `toolDenylist` when off |
 | `agy` | when off, `--agent hmz-offline`: its default tools less `read_url_content`, `search_web` and the subagent tools. At `read-only`, `hmz-read-only-web` when on |
-| `cursor-agent`, `pi`, an ACP CLI | no way of being told: off is refused |
+| `cursor-agent`, `mcode`, `pi`, an ACP CLI | no way of being told: off is refused |
 
 - The refusal comes where the config arrives: where the agent is made, and where one already
   running is reconfigured. `None` is refused nowhere.
@@ -1243,7 +1243,7 @@ session lives, then taken away:
 | Backend | Where a flow's skills are mounted |
 | --- | --- |
 | `claude` | `.claude/skills/` in the workspace |
-| `agy`, `codex`, `grok`, `kimi`, `mimo`, `opencode`, `qwen`, `zcode` | `.agents/skills/`, which several of these read |
+| `agy`, `codex`, `grok`, `kimi`, `mcode`, `mimo`, `opencode`, `qwen` | `.agents/skills/`, which several of these read |
 | `cursor-agent` | `.cursor/skills/` in the workspace |
 | `dsh`, `pi` | none |
 
@@ -1456,7 +1456,7 @@ When the clock runs out, a ladder is climbed, gentlest first:
 2. **Ask it to stop**, with [`interrupt`](#interrupting-by-hand). The conversation is
    untouched.
 3. **Put the transport down.** The process is signalled, with everything it started. On
-   `codex`, `kimi` and `zcode` the shared server goes instead, ending the agent's other turns
+   `codex` and `kimi` the shared server goes instead, ending the agent's other turns
    too, and that is said before it happens.
 4. **Kill what is left**, and wait on it.
 
@@ -1475,8 +1475,8 @@ the [retries](#retries) take it, against the same conversation.
 
 ```python
 agent.id       # the name you gave it, the name the flow calls it, or a codename
-agent.backend  # "agy", "claude", "codex", "cursor-agent", "dsh", "grok", "kimi", "mimo",
-               # "opencode", "pi", "qwen", "zcode", or the name an ACP CLI was added under
+agent.backend  # "agy", "claude", "codex", "cursor-agent", "dsh", "grok", "kimi", "mcode",
+               # "mimo", "opencode", "pi", "qwen", or the name an ACP CLI was added under
 agent.opened   # the backend's id for every session this agent ever opened, oldest first
 agent.sessions # the ones somebody still holds
 agent.config   # what it runs at
@@ -1594,10 +1594,10 @@ What each backend adds to the common config, and how it is driven.
 | `dsh` | its Python SDK, in this process | — | — | yes, with sub-agents |
 | `grok` | a held-open process; `grok -p` for shapes, forks, withheld tools and its own settings | — | `--fork-session` | yes, with sub-agents |
 | `kimi` | a daemon shared by the agent's sessions | queued, then steered in | `kimi fork` | yes, with sub-agents |
+| `mcode` | a command per turn | — | — | yes |
 | `mimo`, `opencode` | a command per turn | — | `run --fork` | yes, with sub-agents |
 | `pi` | a held-open process | a `steer` command | `--fork` | yes |
 | `qwen` | a held-open process; a command per turn for shapes | — | `--fork-session` | yes |
-| `zcode` | an app server shared by the agent's sessions | — | `session/fork` | yes, with sub-agents |
 | an ACP CLI | a held-open process | — | `session/fork`, if served | — |
 
 A backend is driven through its command line where that can express what the agent is
@@ -1885,6 +1885,39 @@ How it is fenced:
   `web_search` says. Kimi's search is a service on the same hosts the fence keeps open for
   the model, so the fence alone would not stop it.
 
+### MiniMax Code
+
+`mcode`, installed from `@minimax-ai/code`. One `mcode exec --output-format stream-json` per
+turn, the prompt on its standard input (`--input -`) and the workspace said as `--cwd`. The
+session its first turn opens is carried on with `--session` and the id every line of that turn
+names. It has no fields of its own.
+
+- **A model is `provider/id`.** MiniMax's own are `minimax/MiniMax-M3`,
+  `minimax/MiniMax-M3.1-Flash-Preview`, `minimax/MiniMax-M2.7` and
+  `minimax/MiniMax-M2.7-highspeed`; a provider added to it is `custom_provider:<name>/<id>`.
+  `model=""` runs whichever its configuration makes the default. The catalogue is what
+  `mcode provider list --json` lists, which is what has been added to it, and then MiniMax's
+  own four, which it never lists.
+- **Only `MiniMax-M3.1-Flash-Preview` takes a rung.** `--effort` is sent only where there is
+  one, and a rung the catalogue does not list for the model is refused with `Unserved`: the
+  CLI refuses a turn given one its model has not got.
+- **Its rungs are three.** See [What an agent may do](#what-an-agent-may-do): `workspace-write`
+  and `bypass` are `--permission full`, `auto` is `smart`, and no rung sends no flag.
+  `read-only` is refused, and a flow holds it read-only with a fence that writes nothing.
+- A shaped turn is `--output-schema`, held closed with every property required, as Codex's is.
+- **The web cannot be taken away from it.** Its `web_search` runs on MiniMax's own service,
+  through the hosts its model is reached through, so `web_search=False` is refused and a fence
+  that cuts the network is refused with `Unfenced`: grant `online` `ALL` to use `mcode`.
+- The stream says when a turn reaches for its `task` tool and when that agent has come back,
+  which are `SUBAGENT_START` and `SUBAGENT_STOP`. It says nothing of tokens until the turn
+  ends, but its session log does: the [running cost](/user/tally) reads each answer's usage
+  there as it is written.
+- **It locks its data directory beside it.** Each start makes `~/.minimax.lock`, outside
+  `~/.minimax`, which a fence that lets the home be read and not written cannot grant alone.
+  A fenced turn's supervisor answers that path from beside where the run keeps its sessions,
+  so a fenced turn is one whose sessions are kept: with `HUMANIZE_SESSIONS=off` it cannot take
+  the lock and fails.
+
 ### pi
 
 `pi`. One `pi --mode rpc` held open for the session. It is started with `--session-id`
@@ -1982,52 +2015,6 @@ The `read` and `edit` rules are relative to the top of the git checkout the sess
 or to `/` outside one, because that is how opencode asks them. mimocode reads Claude Code's
 `~/.claude.json` as it starts. Where the fence does not let that file be read, mimocode runs
 with `MIMOCODE_DISABLE_CLAUDE_CODE=1` instead of being granted the file.
-
-### ZCode
-
-`zcode`. Every turn is a session on `zcode app-server --stdio`, one server per agent.
-
-| Field | Default | |
-| --- | --- | --- |
-| `titles` | `True` | Whether `session/create` asks ZCode to title the session, which is a model request of its own. Turn it off for a run that reads no title. |
-| `native_search` | `True` | What the server is told about ZCode's own file search. Off takes `find` and `grep` away. The server asks once per agent. |
-| `delivery` | `desktop-continuous` | The delivery kind a session's stream is subscribed under. `web-remote-replayable` replays for a client that missed some. |
-| `protocol` | `openai-compatible` | The protocol a gateway account's endpoint speaks: `anthropic`, `openai` or `openai-compatible`. Read only for an account that names an endpoint. |
-
-Each default is what ZCode 0.16.5 does for a client that says nothing.
-
-**Which provider a turn runs on.** ZCode resolves providers from `~/.zcode/cli/config.json`,
-which humanize never writes. An agent on a `gateway` [account](#which-account-it-runs-as) hands
-ZCode that account on the session instead (`session/create`, `session/resume` and the two
-settling calls), held only as long as the server runs. An agent on no such account runs on
-whatever that file says.
-
-On a gateway account the model is `gw/<what the gateway calls it>`, and the catalogue lists the
-endpoint's ids that way:
-
-```sh
-hmz exec -f ralph_loop -a 'agent=zcode@work/gw/vendor/some-model:high' -b cost=5 "…"
-```
-
-The first segment is the name the session declares the endpoint under, and `gw` is the one the
-catalogue uses; `vendor/some-model` is sent to the endpoint as it stands.
-
-**Under a fence.** ZCode has no sandbox of its own, so a [permission](/reference/flows) short of
-everything is held from outside, in full, by `hmz internal fence`. The fence also lets it read
-`/opt/ZCode`, where the official package installs the Electron binary that the `zcode` command
-line runs in Node mode. Its model requests go through the fence's proxy (Node 24 honours
-`HTTPS_PROXY` under `NODE_USE_ENV_PROXY=1`), so a turn at `online=NONE` still reaches its model.
-On top of that, and not instead of it:
-
-- `online=NONE` sends `toolDenylist: ["WebFetch", "WebSearch"]` on the session, whatever
-  `web_search` says.
-- An approval ZCode asks for a `Write` or `Edit` to an absolute path the fence does not let be
-  written is answered `deny`, saying the path is outside what the agent may write. ZCode asks at
-  the `auto` rung (its `build` mode) and not at `bypass`, where the fence alone holds.
-
-ZCode's own permission rules are not used for this: they are kept per project in its database,
-`yolo` ignores them, and a deny outranks every allow, so they cannot say "everything outside the
-workdir".
 
 ### A CLI of your own
 

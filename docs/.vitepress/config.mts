@@ -3,6 +3,8 @@ import { dirname, join } from 'node:path'
 
 import { defineConfig, type SiteConfig } from 'vitepress'
 
+import { FLOWS, KINDS } from './theme/flows'
+
 // Deployed to https://docs.humanfia.ai/humanize/ by .github/workflows/build-docs.yml.
 // The custom domain belongs to the organisation's own pages, so this repository is a project
 // page served under a subdirectory of it, and `base` is that subdirectory: without it every
@@ -94,6 +96,8 @@ const MOVED: Record<string, string> = {
   'tutorials/take-home': 'user/tutorials/take-home',
   'tutorials/port-a-project': 'user/tutorials/port-a-project',
   'tutorials/build-an-agent': 'user/tutorials/build-an-agent',
+  // One page held both cleanup flows; each has its own now, and the first is where it went.
+  'flows/agent-cleanup': 'flows/ralph-loop-agent-cleanup',
   ...MOVED_AGAIN,
 }
 
@@ -200,51 +204,19 @@ export default defineConfig({
         },
       ],
 
-      // One page per flow, named the way `-f` takes it. The order is the order they are worth
-      // reading in rather than alphabetical: the loops of one agent, then those of two or
-      // more, the two whose lanes run at once, and last the two built for one job each.
+      // One page per flow, named the way `-f` takes it, sorted the way the catalogue on
+      // /flows/ sorts them: by how the agents in a flow work together. Both are built from
+      // `theme/flows.ts`, so the sidebar and the catalogue cannot disagree.
       '/flows/': [
         { text: 'Choosing a flow', link: '/flows/' },
-        {
-          text: 'One agent',
+        ...KINDS.map((kind) => ({
+          text: kind.said,
           collapsed: false,
-          items: [
-            { text: 'chat', link: '/flows/chat' },
-            { text: 'ralph_loop', link: '/flows/ralph-loop' },
-            { text: 'stateful_ralph', link: '/flows/stateful-ralph' },
-            { text: 'continue_loop', link: '/flows/continue-loop' },
-            { text: 'goal', link: '/flows/goal' },
-          ],
-        },
-        {
-          text: 'Two or more agents',
-          collapsed: false,
-          items: [
-            { text: 'flame_chase', link: '/flows/flame-chase' },
-            { text: 'rlar', link: '/flows/rlar' },
-            { text: 'humanize1', link: '/flows/humanize1' },
-            { text: '…_agent_cleanup', link: '/flows/agent-cleanup' },
-          ],
-        },
-        {
-          text: 'Three lanes at once',
-          collapsed: false,
-          items: [
-            { text: 'parallel_flame_chase', link: '/flows/parallel-flame-chase' },
-            {
-              text: 'parallel_flame_chase_git_pr',
-              link: '/flows/parallel-flame-chase-git-pr',
-            },
-          ],
-        },
-        {
-          text: 'For one job',
-          collapsed: false,
-          items: [
-            { text: 'recursive_lean_prover', link: '/flows/recursive-lean-prover' },
-            { text: 'aot', link: '/flows/aot' },
-          ],
-        },
+          items: FLOWS.filter((flow) => flow.kind === kind.id).map((flow) => ({
+            text: flow.name,
+            link: flow.link,
+          })),
+        })),
       ],
 
       // For the person who runs flows, in the order they need it: installing, a first run and

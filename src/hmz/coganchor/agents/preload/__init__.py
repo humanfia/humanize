@@ -12,7 +12,7 @@ shipped as a compiled binary -- claude and opencode are Bun executables, and cod
 native, agy being Go -- has no Node to load anything into.
 :attr:`hmz.coganchor.backends.Profile.preloads` is where it is written down which CLIs take a
 preload and through which variable.
-Four backends of twelve is the honest ceiling, which is why this supplements the hooks a CLI offers
+Four backends of eleven is the honest ceiling, which is why this supplements the hooks a CLI offers
 rather than replacing them.
 
 What is watched is the CLI rather than the process it started in, and rather than everything

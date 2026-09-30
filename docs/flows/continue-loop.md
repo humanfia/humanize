@@ -21,7 +21,7 @@ hmz exec -f continue_loop -a agent=kimi/kimi-code/k3:high \
 
 :::
 
-<HmzFlowShape flow="continue_loop" />
+<HmzFlow flow="continue_loop" />
 
 ## When to use it
 

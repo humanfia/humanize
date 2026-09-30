@@ -43,8 +43,8 @@ a command. What each agent may touch is set by the flow. See [Permissions](/user
 
 - **role** is the name the flow gives the agent: `agent` for [ralph_loop](/flows/ralph-loop),
   `actor` and `reviewer` for [rlar](/flows/rlar). Each flow's page lists its roles.
-- **cli** is one of `agy`, `claude`, `codex`, `cursor-agent`, `dsh`, `grok`, `kimi`, `mimo`,
-  `opencode`, `pi`, `qwen`, `zcode`, or a CLI you added on [the Accounts page of
+- **cli** is one of `agy`, `claude`, `codex`, `cursor-agent`, `dsh`, `grok`, `kimi`, `mcode`,
+  `mimo`, `opencode`, `pi`, `qwen`, or a CLI you added on [the Accounts page of
   `/settings`](/user/settings#accounts).
 - **@account** runs the turns as an [account](/user/settings#accounts) you made. Leave it off to run
   the CLI as this machine is signed in.

@@ -245,25 +245,6 @@ const BACKENDS: Backend[] = [
     ],
   },
   {
-    cli: 'zcode',
-    called: 'ZCode',
-    ways: [
-      { name: 'login', about: 'sign in to a Z.AI account, in a browser', runs: 'zcode login' },
-      { name: 'device', about: BROWSERLESS, runs: 'zcode login --no-browser' },
-      {
-        name: 'key',
-        about: 'a Z.AI or BigModel coding plan key, which its own models run on',
-        asks: [{ env: 'ZCODE_API_KEY', secret: true }],
-      },
-      {
-        name: 'gateway',
-        about: GATEWAY,
-        asks: [{ env: 'ZCODE_BASE_URL' }, { env: 'ZCODE_API_KEY', secret: true }],
-      },
-      ENV,
-    ],
-  },
-  {
     cli: 'cursor-agent',
     called: 'Cursor Agent',
     ways: [
@@ -277,6 +258,31 @@ const BACKENDS: Backend[] = [
         name: 'gateway',
         about: GATEWAY,
         asks: [{ env: 'CURSOR_API_ENDPOINT' }, { env: 'CURSOR_API_KEY', secret: true }],
+      },
+      ENV,
+    ],
+  },
+  {
+    cli: 'mcode',
+    called: 'MiniMax Code',
+    ways: [
+      { name: 'login', about: 'sign in to a MiniMax account, in a browser', runs: 'mcode login' },
+      {
+        name: 'key',
+        about: 'a MiniMax API key, from the platform',
+        asks: [{ env: 'MCODE_PROVIDER_API_KEY', secret: true }],
+        runs: 'mcode provider set-minimax-key',
+      },
+      {
+        name: 'gateway',
+        about: GATEWAY,
+        asks: [
+          { env: 'MCODE_GATEWAY_URL' },
+          { env: 'MCODE_PROVIDER_API_KEY', secret: true },
+          { env: 'MCODE_GATEWAY_MODEL' },
+          { env: 'MCODE_GATEWAY_FORMAT', fixed: 'openai-completions' },
+        ],
+        runs: 'mcode provider add --name gateway … --use',
       },
       ENV,
     ],

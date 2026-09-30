@@ -8,7 +8,7 @@ Hand the task to the agent as its own [goal](/features/goals): the model keeps w
 after turn, until it says the goal is met. One call, one session, and the model decides when
 it is done.
 
-<Badge type="warning" text="worker: claude · codex · dsh · kimi · zcode" />
+<Badge type="warning" text="worker: claude · codex · dsh · kimi" />
 
 ::: code-group
 
@@ -23,7 +23,7 @@ hmz exec -f goal -a worker=claude/claude-opus-5:max \
 
 :::
 
-<HmzFlowShape flow="goal" />
+<HmzFlow flow="goal" />
 
 ## When to use it
 
@@ -32,7 +32,7 @@ over. Here the model that has just done the work decides, every turn. The catch 
 judging its own work; [rlar](/flows/rlar) asks a separate reviewer instead.
 
 The flow sends `/goal <task>` to a backend that has a goal feature of its own. Only `claude`,
-`codex`, `dsh`, `kimi` and `zcode` do, and any other backend is refused before the first turn.
+`codex`, `dsh` and `kimi` do, and any other backend is refused before the first turn.
 [Which backends have one](/weaver/goals).
 
 ## Roles and params

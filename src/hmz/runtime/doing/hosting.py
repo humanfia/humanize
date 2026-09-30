@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     from hmz.coganchor.agents import AgentBase, Board, Event, Question, SessionBase
     from hmz.runtime.doing.core import Hmz
     from hmz.runtime.doing.running import Run
+    from hmz.runtime.flowing.spi import Placement
 
 __all__ = ["PROTOCOL", "Host", "record"]
 
@@ -183,6 +184,23 @@ def _spoken(given: Mapping[str, Any]) -> dict[str, str]:
     return {
         role: said if isinstance(said, str) else str(getattr(said, "spec", said))
         for role, said in given.items()
+    }
+
+
+def _placed(where: Placement | None) -> dict[str, Any] | None:
+    """Where a session works, as a frontend is told it, or None where its driver did not say.
+
+    The role it fills, which machine and where on it, and whether its agent is anchored there:
+    running on this machine, with what it runs landing on that one.
+    """
+    if where is None:
+        return None
+    return {
+        "role": where.env,
+        "kind": str(where.backend),
+        "target": where.provider,
+        "workdir": str(where.workdir),
+        "anchored": where.machine is not None,
     }
 
 
@@ -1056,7 +1074,12 @@ class Host:
     # ---------------------------------------------------------------- what opened
 
     def _opened(
-        self, current: _Run, role: str, agent: AgentBase, session: SessionBase
+        self,
+        current: _Run,
+        role: str,
+        agent: AgentBase,
+        session: SessionBase,
+        where: Placement | None = None,
     ) -> None:
         """Takes one session the run opened as one of its own, before its first turn."""
         from hmz.coganchor.agents import HumanAgent
@@ -1091,6 +1114,7 @@ class Host:
                     "forks": forks,
                     "person": person,
                     "kept": "" if person else str(agent.kept()),
+                    "env": _placed(where),
                     "mono": time.monotonic(),
                 }
             )

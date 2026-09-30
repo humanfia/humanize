@@ -20,7 +20,7 @@ hmz exec -f ralph_loop -a agent=claude/claude-opus-5:high \
 
 :::
 
-<HmzFlowShape flow="ralph_loop" />
+<HmzFlow flow="ralph_loop" />
 
 ## When to use it
 
@@ -32,7 +32,7 @@ decisions into the repository, and every round reads them back.
 - The agent has to remember what it tried: [stateful_ralph](/flows/stateful-ralph).
 - The model should decide when it is done: [goal](/flows/goal).
 - The tree fills up with clutter over a long run:
-  [ralph_loop_agent_cleanup](/flows/agent-cleanup).
+  [ralph_loop_agent_cleanup](/flows/ralph-loop-agent-cleanup).
 
 ## Roles and params
 

@@ -132,6 +132,26 @@ Add a Vue component only where a control settles a real question, not as decorat
   in a component, as an `href` or a `src`, goes through `withBase`. Markdown links, the nav
   and the sidebar get the base added for them.
 
+### Flow diagrams
+
+Every flow's diagram, the cards on `/flows/` and the legend there are one grammar, drawn by the
+components in `docs/.vitepress/theme/components/flow/`. `<HmzFlow flow="rlar" />` plays a
+flow's scene on a page, `pick="a,b"` several with a strip to choose between them. To draw a
+flow, add or change its scene in `theme/flows.ts` (roles, turns, passes, the loop and the ends,
+read off the flow's own code) and nothing else:
+
+- **One mark per idea.** A role's colour says what it is (`maker`, `partner`, `checker`,
+  `steward`), you are a ring with a person, a program with no model is a square. A spark is a
+  new session, a thread a held one; a solid pass is words, a dotted one files. The full list is
+  in `grammar.ts`, and the legend on `/flows/` draws it. A new idea gets a new mark there, in
+  the legend too, before any scene uses it.
+- **No drawing in a scene.** A scene says what happens, never where or how it looks. Layout,
+  camera and motion are worked out from it by `stage.ts`, the same way for every flow.
+- **Every flow has its own page and scene**, and its card, its sidebar entry and its category
+  come from the same entry in `FLOWS`. A flow belongs to one kind in `KINDS`.
+- **The run is a function of time.** Whatever moves is computed from the playhead, so the
+  scrubber, the step buttons and reduced motion show the same frames the animation does.
+
 ## Look at it
 
 The build catches dead links, not a broken page. Screenshot every page you changed in light,

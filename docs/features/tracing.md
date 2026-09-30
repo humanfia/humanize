@@ -25,7 +25,7 @@ import { withBase } from 'vitepress'
 
 </div>
 
-Read back from: <Badge type="tip" text="agy" /> <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" /> <Badge type="tip" text="dsh" /> <Badge type="tip" text="grok" /> <Badge type="tip" text="kimi" /> <Badge type="tip" text="mimo" /> <Badge type="tip" text="opencode" /> <Badge type="tip" text="pi" /> <Badge type="tip" text="qwen" /> <Badge type="warning" text="cursor-agent: nothing to read" /> <Badge type="warning" text="an ACP CLI you add: nothing to read" />
+Read back from: <Badge type="tip" text="agy" /> <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" /> <Badge type="tip" text="dsh" /> <Badge type="tip" text="grok" /> <Badge type="tip" text="kimi" /> <Badge type="tip" text="mcode" /> <Badge type="tip" text="mimo" /> <Badge type="tip" text="opencode" /> <Badge type="tip" text="pi" /> <Badge type="tip" text="qwen" /> <Badge type="warning" text="cursor-agent: nothing to read" /> <Badge type="warning" text="an ACP CLI you add: nothing to read" />
 
 <div class="hmz-paths by-three">
   <a :href="withBase('/user/tracing')">

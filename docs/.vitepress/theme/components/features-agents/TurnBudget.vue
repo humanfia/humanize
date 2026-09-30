@@ -3,7 +3,7 @@
 // are the driver's in `src/hmz/runtime/flowing/harnesses.py`: a graceful turn runs to its end;
 // one that is not is cut off the moment a limit is reached, which for a token limit is when the
 // spending is reported (`_spends` in each driver under `src/hmz/coganchor/agents/`, or only the
-// turn's `result` for agy, cursor, grok and qwen), and for a time limit is the clock. A turn cut
+// turn's `result` for agy, cursor, grok, mcode and qwen), and for a time limit is the clock. A turn cut
 // off keeps what it did, and the flow gets an error instead of an answer. The figures are
 // invented.
 import { computed, ref } from 'vue'

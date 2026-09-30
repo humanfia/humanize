@@ -148,6 +148,25 @@ _FLAGS: dict[str, tuple[str, dict[str, str]]] = {
             "fork": "--cwd= --help --yes",
         },
     ),
+    # mcode 0.5.9. A turn is `mcode exec`, and a catalogue is `mcode provider list --json`;
+    # `provider` is read as every flag of its own subcommands, which are `list`, `add`,
+    # `remove`, `test` and `set-minimax-key`.
+    "mcode": (
+        "commander",
+        {
+            "": "--continue --help --lane= --model= --session --tui-mode= --version",
+            "exec": """
+            --config= --continue --cwd= --diagnostics-dir= --effort= --file= --help
+            --input= --input-format= --max-steps= --model= --output-format=
+            --output-last-message= --output-schema= --permission= --prompt-mode=
+            --session= --timeout=
+            """,
+            "provider": """
+            --api-format= --api-key-env= --base-url= --context-limit= --help --json
+            --model= --name= --output-limit= --support-image --use --yes
+            """,
+        },
+    ),
     # mimo 0.1.14, which is opencode's CLI under Xiaomi's name and not the same list: it has
     # `--dangerously-skip-permissions` where opencode has `--auto`, and has neither
     # `--interactive` nor `--username`. One stand-in script stands in for both, so each is

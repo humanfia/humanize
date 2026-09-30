@@ -21,7 +21,7 @@ hmz exec -f chat -a assistant=claude/claude-opus-5:high "what does this reposito
 
 :::
 
-<HmzFlowShape flow="chat" />
+<HmzFlow flow="chat" />
 
 Under `hmz exec` nobody is at the prompt to answer, so a run is a single turn: one question
 answered, or one task done.
@@ -40,7 +40,7 @@ No params.
 - **Type while it works.** The line goes to the agent, into the turn under way where its
   backend allows. See [Talking to a running turn](/user/steering).
 - **Answer its questions.** When the agent stops to ask you something, the question comes to
-  your prompt. This works on `claude`, `codex`, `kimi`, `pi` and `zcode`.
+  your prompt. This works on `claude`, `codex`, `kimi` and `pi`.
 - **Keep several going.** See [Many conversations at once](/user/conversations).
 
 ## What ends it

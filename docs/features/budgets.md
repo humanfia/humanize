@@ -25,7 +25,7 @@ import TurnBudget from '../.vitepress/theme/components/features-agents/TurnBudge
 
 </div>
 
-Tokens and cost counted only at the turn's end: <Badge type="warning" text="agy" /> <Badge type="warning" text="cursor-agent" /> <Badge type="warning" text="grok" /> <Badge type="warning" text="qwen" />
+Tokens and cost counted only at the turn's end: <Badge type="warning" text="agy" /> <Badge type="warning" text="cursor-agent" /> <Badge type="warning" text="grok" /> <Badge type="warning" text="mcode" /> <Badge type="warning" text="qwen" />
 
 A CLI you add yourself never reports them. Give those turns a time limit too.
 

@@ -52,11 +52,16 @@ _KINDS: dict[str, tuple[tuple[str, str], ...]] = {
         ("cache_read", "cacheReadTokens"),
         ("cache_write", "cacheWriteTokens"),
     ),
-    "zcode": (("input", "inputTokens"), ("output", "outputTokens")),
     "codex": (
         ("input", "input_tokens"),
         ("output", "output_tokens"),
         ("cache_read", "cached_input_tokens"),
+    ),
+    "mcode": (
+        ("input", "input"),
+        ("output", "output"),
+        ("cache_read", "cacheRead"),
+        ("cache_write", "cacheWrite"),
     ),
     "kimi": (
         ("input", "inputOther"),
@@ -130,8 +135,8 @@ def _spent(
     that produced it, and names the model on it -- which is how a sub-agent's cheaper model is
     counted as itself. Codex writes a `token_count` event whose `last_token_usage` is the
     request that just came back, the `total_token_usage` beside it being the thread so far.
-    Kimi writes a `turn.step.completed` whose usage is that step's. ZCode writes one row per
-    model request, holding what was sent, what came back and what that one cost.
+    Kimi writes a `turn.step.completed` whose usage is that step's. MiniMax Code writes each
+    answer with the usage of the request it came back on.
 
     Args:
       backend: Whose log this row came out of.
@@ -164,16 +169,16 @@ def _spent(
             int(sum(broken.values())),
             broken,
         )
-    if backend == "zcode":
-        # One row per request the turn made, the whole of what was sent and what came back.
-        # Its `usage` is that request's, and the model beside it is the one it ran on -- which
-        # is how a title or a sub-agent on the lite model is counted as itself.
-        answered: dict[str, Any] = row.get("response") or {}
-        counting: dict[str, Any] = answered.get("usage") or {}
-        ran: dict[str, Any] = row.get("model") or {}
-        named = f"{ran.get('providerId', '')}/{ran.get('modelId', '')}".strip("/")
-        broken = _kinds(backend, counting)
-        return named or None, int(sum(broken.values())), broken
+    if backend == "mcode":
+        # One record per message of the conversation, and an answer carries what the request
+        # it came back on cost, under pi's names -- the cache beside the input, not inside it
+        # -- and the provider and model that answered, which is what it is counted against.
+        said: dict[str, Any] = row.get("message") or {}
+        if said.get("role") != "assistant":
+            return None, 0, {}
+        broken = _kinds(backend, said.get("usage") or {})
+        answering = f"{said.get('provider') or ''}/{said.get('model') or ''}".strip("/")
+        return answering or None, int(sum(broken.values())), broken
     envelope: dict[str, Any] = row.get("envelope") or {}
     payload: dict[str, Any] = row.get("payload") or envelope.get("payload") or {}
     if backend == "codex":
@@ -293,8 +298,8 @@ class Tally:
             # last rows being still worth reading.
             opened = False
             for ident in sorted(seen.idents):
-                for pattern in profile.logs:
-                    for path in sorted(home.glob(pattern.format(ident=ident))):
+                for pattern in profile.logged(ident):
+                    for path in sorted(home.glob(pattern)):
                         opened |= self._take(path, profile.name, seen.model)
             if opened and seen.id not in self._reading:
                 # Said once a log has been read rather than when the run started: what this

@@ -87,7 +87,7 @@ Most of the map works the same on every CLI. Three things do not:
 | Kimi Code | ✓ | ✓ | ✓ |
 | pi | ✓ | | ✓ |
 | DeepSeek Harness | | ✓ | ✓ |
-| Antigravity, Grok Build, MiMo Code, opencode, Qwen Code | | | ✓ |
+| Antigravity, Grok Build, MiMo Code, MiniMax Code, opencode, Qwen Code | | | ✓ |
 | Cursor Agent | | | |
 | a CLI you added yourself | | | |
 
