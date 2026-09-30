@@ -94,7 +94,9 @@ def _codex_image(tmp_path: Path) -> str:
     program = Path(os.path.realpath(shutil.which("codex") or ""))
     with program.open("rb") as handle:
         if handle.read(4) != b"\x7fELF":
-            pytest.skip(f"{program} is not a native Codex this test can put in an image")
+            pytest.skip(
+                f"{program} is not a native Codex this test can put in an image"
+            )
     package = program.parent.parent
     if (package / "codex-package.json").is_file():
         files = [one for one in package.rglob("*") if one.is_file()]
@@ -143,7 +145,11 @@ def containers(daemon: None) -> Iterator[list[str]]:
 
 
 def _machine(
-    made: list[str], image: str, *mounted: str, env: str = "", given: tuple[str, ...] = ()
+    made: list[str],
+    image: str,
+    *mounted: str,
+    env: str = "",
+    given: tuple[str, ...] = (),
 ) -> str:
     """One container, idling as this user, holding each directory at the path it has here.
 
