@@ -115,6 +115,19 @@ Add a Vue component only where a control settles a real question, not as decorat
   terminal. A drawing says what it is drawn from and matches it: the layer diagram on
   [Architecture](/contributing/architecture) copies the table in
   `tests/integration/layering/test_layering.py`.
+- **A feature scene plays on the motion toolkit.** Every scene on a Features page is one GSAP
+  timeline built with `useScene` from `docs/.vitepress/theme/motion/`, and drawn inside
+  `HmzStage`. The toolkit starts a scene when it is scrolled into view, pauses it off screen,
+  holds it at its `still` frame under reduced motion, and turns the timeline's `beat-0`,
+  `beat-1`… labels into the chapters under the picture: one short line each, so the words are
+  always on the page. Put sparks and light trails on the canvas from `fx.ts`, keep a second
+  layout for phone width with `useNarrow`, and take GSAP from `motion()` rather than importing
+  it bare. A screen that holds links or controls sets `interactive`, so it is a group rather
+  than a picture to a screen reader. Never tween the `x`, `y` or `scale` of an SVG element placed by a `transform`
+  attribute: GSAP replaces the attribute. Place it with an outer `<g>`, and move an inner one.
+- **A feature page is short.** A title, one `hmz-tagline` line, the scene, three to five
+  `hmz-facts` the motion cannot say, the per-backend badges, and three `hmz-paths` cards on to
+  the guides. Whatever the scene shows is not written out again.
 - **Links through `withBase`.** The site is served under `/humanize/`. A path written by hand
   in a component, as an `href` or a `src`, goes through `withBase`. Markdown links, the nav
   and the sidebar get the base added for them.

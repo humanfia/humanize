@@ -8,51 +8,22 @@ import { withBase } from 'vitepress'
 
 # You, as one of the agents
 
-A flow can ask **you** something the way it asks an agent: put a question at the prompt, wait
-for your answer, and carry on with it. When it wants a decision rather than a line of text, it
-asks for a [shape](/features/shapes), and you get one short question per field. Your answers
-come back as the same fields a model would have filled in.
+<p class="hmz-tagline">A flow can ask you, the way it asks a model, and read your answers as fields.</p>
 
 <HmzPerson />
 
-## How a shape becomes questions
+<div class="hmz-facts">
 
-| In the flow's shape | At the prompt |
-| --- | --- |
-| a field's description | the question itself, or the field's name where it has none |
-| one of a few words | those words, listed under the question |
-| yes or no | `yes` and `no` |
-| a number | `(a number)` after the question |
-| a list | `(several, separated by commas)`, typed on one line |
-| a default | ``-- or `-` for …`` after the question: a dash takes the default |
+- **Any question too.** Asked for text rather than a [shape](/features/shapes), you type a line
+  and the flow gets it.
+- **Away means answered.** Run unattended, or [marked away](/user/afk), a text question gets an
+  empty answer.
+- **Give defaults to run unattended.** Away, a shape with a default in every field gets those,
+  and any other fails the flow.
+- **You fill your own role.** You never pick an agent for the person: humanize puts you there.
+- **A flow can stand in.** A calling flow can answer a called flow's questions itself.
 
-You can type anything. The answers are checked together once every field has one, and a field
-the flow's shape will not take is asked again, with the reason above it. Keep typing what it
-will not take and the flow carries on as if nobody were there.
-
-## When nobody is there
-
-You count as away for every run of `hmz exec`, and whenever [`/afk`](/user/afk) is on. The flow
-is then answered at once instead of waiting:
-
-- a question asked for text gets an empty answer;
-- a shape with a default for every field gets those defaults;
-- any other shape fails, and the flow has to handle that.
-
-So a flow meant to run unattended gives its questions defaults. Going away in the middle of a
-questionnaire is answered the same way.
-
-## Filled in for you
-
-The flow's person is never an agent you choose: when you start a flow that has one, you give
-agents for its other roles, and humanize puts you in this one. A flow that calls another can
-answer that flow's questions itself, by a rule or by asking another agent, instead of passing
-them on to you.
-
-An agent that stops mid-turn to ask you something reaches you the same way, at the same prompt.
-[Questions](/user/questions) covers answering either.
-
-## Go further
+</div>
 
 <div class="hmz-paths by-three">
   <a :href="withBase('/user/questions')">

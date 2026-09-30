@@ -1,16 +1,30 @@
 <script setup lang="ts">
-// One turn under a budget of its own, played three ways at once: which limit, whether it is
-// graceful, and whether the backend counts its spending as each response lands or only states
-// it when the turn ends. The rules are the driver's in `src/hmz/runtime/flowing/harnesses.py`:
-// a graceful turn runs to its end; one that is not is cut off the moment a limit is reached,
-// which for a token limit is when the spending is reported (`_spends` in each driver under
-// `src/hmz/coganchor/agents/`, or only the turn's `result` for agy, cursor, grok and qwen), and
-// for a time limit is the clock.
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+// One turn under a budget of its own, played three ways and then once more, graceful. The rules
+// are the driver's in `src/hmz/runtime/flowing/harnesses.py`: a graceful turn runs to its end;
+// one that is not is cut off the moment a limit is reached, which for a token limit is when the
+// spending is reported (`_spends` in each driver under `src/hmz/coganchor/agents/`, or only the
+// turn's `result` for agy, cursor, grok, mcode and qwen), and for a time limit is the clock. A turn cut
+// off keeps what it did, and the flow gets an error instead of an answer. The figures are
+// invented.
+import { computed, ref } from 'vue'
 
-type Limit = 'tokens' | 'time'
-type Counts = 'live' | 'end'
+import HmzStage from '../../motion/HmzStage.vue'
+import { count, createFx, type Fx } from '../../motion/fx'
+import { motion } from '../../motion/gsap'
+import { useNarrow } from '../../motion/layout'
+import { usePalette } from '../../motion/palette'
+import { useScene } from '../../motion/useScene'
 
+const BEATS = [
+  'A turn gets a budget of its own',
+  'Each response is counted as it lands',
+  'Over the limit, the turn is cut',
+  'Some CLIs count only at the end',
+  'A time limit cuts a quiet turn',
+  'Graceful lets the turn finish',
+]
+
+// The responses of one turn: where each lands, as a share of the turn, and what it writes.
 const REQUESTS = [
   { at: 0.1, tokens: 700 },
   { at: 0.22, tokens: 900 },
@@ -22,402 +36,522 @@ const REQUESTS = [
   { at: 0.96, tokens: 500 },
 ]
 const TOTAL = REQUESTS.reduce((sum, one) => sum + one.tokens, 0)
-const TOKENS = 4000 // the token limit
-const MINUTES = 10 // how long the turn would take
-const DEADLINE = 0.55 // the time limit, as a share of that
-
-const limit = ref<Limit>('tokens')
-const graceful = ref(false)
-const counts = ref<Counts>('live')
-
-const clock = ref(1) // 0..1 of the turn; 1 is at rest, showing the end
-const playing = ref(false)
-
-// Where the turn is cut off, as a share of it, or 1 where it runs to its end.
-const cut = computed(() => {
-  if (graceful.value) return 1
-  if (limit.value === 'time') return DEADLINE
-  if (counts.value === 'end') return 1
+const LIMIT = 4000
+const CROSS = (() => {
   let spent = 0
-  for (const one of REQUESTS) {
-    spent += one.tokens
-    if (spent >= TOKENS) return one.at
-  }
-  return 1
-})
+  return REQUESTS.findIndex((one) => (spent += one.tokens) >= LIMIT)
+})()
+const CUT = REQUESTS[CROSS].at
+const MINUTES = 10 // the whole turn
+const DEADLINE = 0.5 // the time limit, as a share of it
+const QUIET = 3 // a quiet turn: its first three responses, then nothing
 
-const cutOff = computed(() => cut.value < 1)
-const raises = computed(() => !graceful.value && (cutOff.value || overAtEnd.value))
-const overAtEnd = computed(
-  () => limit.value === 'tokens' && counts.value === 'end' && TOTAL >= TOKENS,
-)
+const LANES = [
+  { name: 'tokens', sub: 'reported live', kind: 'live' },
+  { name: 'tokens', sub: 'reported at the end', kind: 'end' },
+  { name: 'time', sub: 'the clock', kind: 'time' },
+] as const
 
-const now = computed(() => Math.min(clock.value, cut.value))
-const landed = computed(() => REQUESTS.filter((one) => one.at <= now.value))
-const written = computed(() => landed.value.reduce((sum, one) => sum + one.tokens, 0))
-const ended = computed(() => clock.value >= cut.value)
-const counted = computed(() => {
-  if (counts.value === 'live') return written.value
-  return ended.value && cut.value === 1 ? TOTAL : 0
-})
-const reported = computed(() => counts.value === 'live' || (ended.value && cut.value === 1))
-
-const outcome = computed(() => {
-  if (graceful.value) {
-    return limit.value === 'time'
-      ? 'Graceful: the turn runs on past its time and answers in full. A graceful limit never cuts a turn short.'
-      : 'Graceful: the turn runs to its end and answers in full, whatever it spends. A graceful limit never cuts a turn short.'
-  }
-  if (limit.value === 'time') {
-    return `Cut off at ${Math.round(DEADLINE * MINUTES)} minutes, whatever the backend reports. The flow gets an error instead of an answer.`
-  }
-  if (counts.value === 'live') {
-    return 'Cut off as the response that crosses the limit lands. The flow gets an error instead of an answer.'
-  }
-  return 'Nothing is reported until the turn ends, so it runs to its end. Then the whole spend arrives at once, and the flow gets an error instead of an answer.'
-})
-
-let frame = 0
-let last = 0
-let idle = false
-
-function tick(at: number) {
-  const dt = Math.min((at - last) / 1000, 0.1)
-  last = at
-  if (!idle) clock.value = Math.min(1, clock.value + dt / 6)
-  if (clock.value >= cut.value || clock.value >= 1) {
-    playing.value = false
-    return
-  }
-  frame = requestAnimationFrame(tick)
+interface Layout {
+  w: number
+  h: number
+  lanes: number[]
+  x0: number
+  x1: number
+  /** Where the lane's name goes, and whether its two words share a line. */
+  label: { x: number; dy: number; inline: boolean }
+  chip: { x: number; w: number }
+  toggle: { x: number; dy: number }
+  focus: number
 }
 
-function play() {
-  cancelAnimationFrame(frame)
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    clock.value = 1
-    return
-  }
-  clock.value = 0
-  playing.value = true
-  last = performance.now()
-  frame = requestAnimationFrame(tick)
+const WIDE: Layout = {
+  w: 640,
+  h: 360,
+  lanes: [96, 196, 296],
+  x0: 156,
+  x1: 504,
+  label: { x: 34, dy: -2, inline: false },
+  chip: { x: 568, w: 76 },
+  toggle: { x: 34, dy: 26 },
+  focus: 1.1,
 }
 
-// A setting changed mid-play shows where that setting ends up rather than half a run of each.
-watch([limit, graceful, counts], () => {
-  cancelAnimationFrame(frame)
-  playing.value = false
-  clock.value = 1
+const NARROW: Layout = {
+  w: 360,
+  h: 440,
+  lanes: [112, 252, 392],
+  x0: 18,
+  x1: 262,
+  label: { x: 18, dy: -58, inline: true },
+  chip: { x: 311, w: 70 },
+  toggle: { x: 250, dy: -63 },
+  focus: 1.04,
+}
+
+const palette = usePalette()
+const canvas = ref<HTMLCanvasElement | null>(null)
+let fx: Fx | undefined
+
+const narrow = useNarrow(() => scene.rebuild())
+const L = computed(() => (narrow.value ? NARROW : WIDE))
+const W = computed(() => L.value.x1 - L.value.x0)
+const px = (share: number) => L.value.x0 + share * W.value
+const limitX = computed(() => px(LIMIT / TOTAL))
+const thousands = (n: number) => Math.round(n).toLocaleString('en-US')
+
+const scene = useScene({
+  still: 'rest',
+  repeatDelay: 1,
+  tick: (dt) => fx?.step(dt),
+  build(tl, q) {
+    const gsap = motion()
+    const l = L.value
+    const w = W.value
+    fx?.destroy()
+    fx = canvas.value ? createFx(canvas.value, l.w, l.h) : undefined
+    fx?.clear()
+    const world = q('.world')[0]
+    const lane = q('.lane')
+    const one = (i: number, sel: string) => lane[i].querySelectorAll(sel)
+
+    // The camera: a point of the world brought to the middle of the screen at a scale.
+    const shot = (cx: number, cy: number, s: number) => ({ x: l.w / 2 - cx * s, y: l.h / 2 - cy * s, scale: s })
+    const screen = (x: number, y: number) => {
+      const s = Number(gsap.getProperty(world, 'scale'))
+      return { x: x * s + Number(gsap.getProperty(world, 'x')), y: y * s + Number(gsap.getProperty(world, 'y')) }
+    }
+    const look = (i: number, at: number, s = l.focus) => {
+      const y = l.lanes[i] + (narrow.value ? -14 : 0)
+      tl.to(world, { ...shot(l.w / 2, y, s), duration: 1.3, ease: 'cine' }, at)
+      lane.forEach((el, k) => tl.to(el, { opacity: k === i ? 1 : 0.28, duration: 0.8, ease: 'power1.inOut' }, at))
+    }
+
+    // A turn playing from `from` to `to` (shares of it) over its share of `D` seconds.
+    const D = 4.4
+    // The playhead leaves a trail of light behind it as the turn runs.
+    const head = (i: number, from: number, to: number, at: number, ease = 'none') => {
+      const el = one(i, '.head')[0]
+      tl.fromTo(
+        el,
+        { x: from * w },
+        {
+          x: to * w,
+          duration: (to - from) * D,
+          ease,
+          onUpdate() {
+            const p = screen(l.x0 + Number(gsap.getProperty(el, 'x')), l.lanes[i] + 13)
+            fx?.trail(p.x, p.y + (Math.random() - 0.5) * 4, palette.lane[0], 1.8)
+          },
+        },
+        at,
+      )
+    }
+    const land = (i: number, k: number, at: number) => {
+      const block = one(i, '.block')[k]
+      tl.fromTo(block, { scaleY: 0 }, { scaleY: 1, duration: 0.35, ease: 'back.out(2.4)' }, at)
+      sparkAt(px(REQUESTS[k].at - 0.05), l.lanes[i] - 12, () => palette.lane[0], 6, at + 0.05, 50)
+    }
+    function sparkAt(x: number, y: number, color: () => string, n: number, at: number, speed = 80) {
+      tl.call(
+        () => {
+          const p = screen(x, y)
+          fx?.spark(p.x, p.y, color(), n, speed)
+        },
+        [],
+        at,
+      )
+    }
+    const meter = (i: number, spent: number, at: number, duration = 0.4) => {
+      tl.to(one(i, '.fill'), { scaleX: Math.min(spent, LIMIT) / TOTAL, duration, }, at)
+      tl.to(one(i, '.over'), { scaleX: Math.max(0, spent - LIMIT) / (TOTAL - LIMIT), duration }, at + (spent > LIMIT ? duration * 0.5 : 0))
+    }
+    const cut = (i: number, share: number, at: number) => {
+      const x = px(share)
+      tl.fromTo(one(i, '.blade'), { drawSVG: '50% 50%', opacity: 1 }, { drawSVG: '0% 100%', duration: 0.18, ease: 'power4.out' }, at)
+      tl.fromTo(one(i, '.flare'), { opacity: 0, scale: 0.3 }, { opacity: 1, scale: 1.3, duration: 0.2, ease: 'power2.out' }, at)
+      tl.to(one(i, '.flare'), { opacity: 0.35, scale: 1, duration: 0.8 }, at + 0.2)
+      sparkAt(x, l.lanes[i], () => palette.warm, 30, at, 150)
+      tl.to(one(i, '.head'), { opacity: 0, duration: 0.2 }, at)
+      tl.to(one(i, '.lost'), { opacity: 0.12, y: 10, duration: 0.7, stagger: 0.05, ease: 'power2.in' }, at + 0.05)
+      tl.fromTo(lane[i], { x: 0 }, { keyframes: { x: [0, -4, 4, -2, 2, 0] }, duration: 0.4, ease: 'none' }, at)
+    }
+    const result = (i: number, which: 'error' | 'answer', at: number) => {
+      const chip = one(i, `.chip-${which}`)
+      tl.fromTo(chip, { opacity: 0, scale: 1.5 }, { opacity: 1, scale: 1, duration: 0.5, ease: 'back.out(1.8)' }, at)
+      tl.fromTo(one(i, `.chip-${which}-halo`), { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.6 }, at)
+      sparkAt(l.chip.x, l.lanes[i], () => (which === 'error' ? palette.warm : palette.accent), 22, at + 0.05, 110)
+    }
+
+    // Everything back where a loop starts.
+    tl.set(world, { svgOrigin: '0 0', ...shot(l.w / 2, l.h / 2, 1.12), autoAlpha: 1 }, 0)
+    // Origins first and on their own, so that GSAP has nothing to compensate for.
+    tl.set(q('.block'), { transformOrigin: '50% 100%', smoothOrigin: false }, 0)
+    tl.set(q('.fill, .over'), { transformOrigin: '0% 50%', smoothOrigin: false }, 0)
+    tl.set(q('.flare, .chip, .chip-halo'), { transformOrigin: '50% 50%', smoothOrigin: false }, 0)
+    tl.set(q('.limit'), { transformOrigin: '50% 100%', smoothOrigin: false }, 0)
+    tl.set(q('.block'), { scaleY: 0 }, 0)
+    tl.set(q('.fill, .over'), { scaleX: 0 }, 0)
+    tl.set(q('.head'), { x: 0, opacity: 1 }, 0)
+    tl.set(q('.blade'), { drawSVG: '50% 50%', opacity: 0 }, 0)
+    tl.set(q('.flare, .chip, .chip-halo, .kept, .quiet, .toggle, .toggle-on, .notyet'), { opacity: 0 }, 0)
+    tl.set(q('.lost'), { opacity: 1, y: 0 }, 0)
+    tl.set(q('.knob'), { x: 0 }, 0)
+    tl.set(q('.read'), { text: '0', opacity: 1 }, 0)
+    tl.set(one(2, '.read'), { text: '0 min' }, 0)
+    tl.set(lane, { opacity: 1 }, 0)
+
+    // 0 · the budget: three lanes drawn in, the camera settling, then onto the first.
+    tl.addLabel('beat-0', 0)
+    tl.to(world, { ...shot(l.w / 2, l.h / 2, 1), duration: 2, ease: 'cine' }, 0)
+    tl.fromTo(q('.slot-track, .meter-track'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 1, stagger: 0.08, ease: 'cine' }, 0.1)
+    tl.fromTo(q('.limit'), { opacity: 0, scaleY: 0 }, { opacity: 1, scaleY: 1, duration: 0.5, stagger: 0.15, ease: 'back.out(3)' }, 0.8)
+    tl.fromTo(q('.words'), { opacity: 0, x: -10 }, { opacity: 1, x: 0, duration: 0.6, stagger: 0.12 }, 0.4)
+    tl.fromTo(q('.to-flow'), { opacity: 0 }, { opacity: 1, duration: 0.6, stagger: 0.12 }, 1)
+    look(0, 1.9)
+
+    // 1 · live: every response counted as it lands.
+    const T1 = 3
+    tl.addLabel('beat-1', T1)
+    head(0, 0, CUT, T1)
+    let spent = 0
+    REQUESTS.slice(0, CROSS + 1).forEach((r, k) => {
+      const at = T1 + r.at * D
+      land(0, k, at)
+      const before = spent
+      spent += r.tokens
+      meter(0, spent, at + 0.1)
+      count(tl, one(0, '.read')[0], before, spent, at + 0.1, { duration: 0.4, format: thousands })
+    })
+
+    // 2 · the response that crosses the limit lands, and the turn is cut there.
+    const T2 = T1 + CUT * D + 0.15
+    tl.addLabel('beat-2', T2 - 0.1)
+    cut(0, CUT, T2)
+    tl.fromTo(one(0, '.kept'), { opacity: 0 }, { opacity: 1, duration: 0.5 }, T2 + 0.5)
+    tl.fromTo(one(0, '.kept-line'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 0.6, ease: 'cine' }, T2 + 0.5)
+    result(0, 'error', T2 + 0.7)
+
+    // 3 · a CLI that says what it spent only when the turn ends: it runs on, then pays at once.
+    const T3 = T2 + 2.4
+    tl.addLabel('beat-3', T3)
+    look(1, T3 - 0.3)
+    tl.to(one(1, '.notyet'), { opacity: 1, duration: 0.3 }, T3 + 0.3)
+    tl.to(one(1, '.read'), { opacity: 0, duration: 0.2 }, T3 + 0.3)
+    head(1, 0, 1, T3 + 0.4)
+    REQUESTS.forEach((r, k) => land(1, k, T3 + 0.4 + r.at * D))
+    const E3 = T3 + 0.4 + D
+    tl.to(one(1, '.notyet'), { opacity: 0, duration: 0.15 }, E3)
+    tl.set(one(1, '.read'), { opacity: 1, text: thousands(TOTAL) }, E3)
+    meter(1, TOTAL, E3, 0.25)
+    sparkAt(limitX.value, l.lanes[1] - 28, () => palette.warm, 26, E3 + 0.15, 130)
+    tl.to(one(1, '.head'), { opacity: 0, duration: 0.2 }, E3)
+    result(1, 'error', E3 + 0.4)
+
+    // 4 · a time limit: the clock runs whatever the turn says, even when it says nothing.
+    const T4 = E3 + 1.7
+    tl.addLabel('beat-4', T4)
+    look(2, T4 - 0.3)
+    const S4 = T4 + 0.4
+    head(2, 0, DEADLINE, S4)
+    tl.to(one(2, '.fill'), { scaleX: DEADLINE, duration: DEADLINE * D, ease: 'none' }, S4)
+    count(tl, one(2, '.read')[0], 0, DEADLINE * MINUTES, S4, { duration: DEADLINE * D, ease: 'none', format: (n) => `${Math.floor(n)} min` })
+    REQUESTS.slice(0, QUIET).forEach((r, k) => land(2, k, S4 + r.at * D))
+    tl.to(one(2, '.quiet'), { opacity: 1, duration: 0.4 }, S4 + REQUESTS[QUIET - 1].at * D + 0.3)
+    tl.fromTo(one(2, '.quiet circle'), { opacity: 0.25 }, { opacity: 1, duration: 0.35, stagger: { each: 0.15, repeat: 3, yoyo: true } }, S4 + REQUESTS[QUIET - 1].at * D + 0.3)
+    cut(2, DEADLINE, S4 + DEADLINE * D + 0.05)
+    tl.to(one(2, '.quiet'), { opacity: 0, duration: 0.3 }, S4 + DEADLINE * D + 0.1)
+    result(2, 'error', S4 + DEADLINE * D + 0.6)
+
+    // 5 · the first turn again, graceful: nothing is cut, and it answers.
+    const T5 = S4 + DEADLINE * D + 2
+    tl.addLabel('beat-5', T5)
+    look(0, T5 - 0.3)
+    tl.to(one(0, '.toggle'), { opacity: 1, duration: 0.3 }, T5 + 0.3)
+    tl.to(one(0, '.knob'), { x: 16, duration: 0.35, ease: 'back.out(2)' }, T5 + 0.7)
+    tl.to(one(0, '.toggle-on'), { opacity: 1, duration: 0.3 }, T5 + 0.7)
+    tl.to(one(0, '.blade, .flare, .kept'), { opacity: 0, duration: 0.4 }, T5 + 1)
+    tl.to(one(0, '.chip-error, .chip-error-halo'), { opacity: 0, scale: 0.8, duration: 0.35 }, T5 + 1)
+    tl.to(one(0, '.lost'), { opacity: 1, y: 0, duration: 0.5, stagger: 0.05, ease: 'back.out(2)' }, T5 + 1.05)
+    tl.set(one(0, '.head'), { opacity: 1 }, T5 + 1.2)
+    const S5 = T5 + 1.3
+    head(0, CUT, 1, S5)
+    REQUESTS.slice(CROSS + 1).forEach((r, k) => {
+      const at = S5 + (r.at - CUT) * D
+      land(0, CROSS + 1 + k, at)
+      const before = spent
+      spent += r.tokens
+      meter(0, spent, at + 0.1)
+      count(tl, one(0, '.read')[0], before, spent, at + 0.1, { duration: 0.4, format: thousands })
+    })
+    const E5 = S5 + (1 - CUT) * D
+    tl.to(one(0, '.head'), { opacity: 0, duration: 0.2 }, E5)
+    result(0, 'answer', E5 + 0.1)
+
+    // Pull back on all three, hold, and fade for the loop.
+    tl.to(world, { ...shot(l.w / 2, l.h / 2, 1), duration: 1.4, ease: 'cine' }, E5 + 0.8)
+    tl.to(lane, { opacity: 1, duration: 0.8 }, E5 + 0.8)
+    tl.addLabel('rest', E5 + 2.3)
+    tl.to(world, { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, E5 + 4.6)
+  },
 })
-
-const root = ref<HTMLElement | null>(null)
-let observer: IntersectionObserver | undefined
-
-onMounted(() => {
-  observer = new IntersectionObserver((entries) => (idle = !entries[0].isIntersecting))
-  if (root.value) observer.observe(root.value)
-})
-
-onUnmounted(() => {
-  cancelAnimationFrame(frame)
-  observer?.disconnect()
-})
-
-const pct = (share: number) => `${(share * 100).toFixed(1)}%`
-const thousands = (n: number) => n.toLocaleString('en-US')
 </script>
 
 <template>
-  <div ref="root" class="budget hmz-panel">
-    <div class="bar">
-      <div class="seg" role="group" aria-label="which limit">
-        <button type="button" :aria-pressed="limit === 'tokens'" :class="{ on: limit === 'tokens' }" @click="limit = 'tokens'">
-          {{ thousands(TOKENS) }} output tokens
-        </button>
-        <button type="button" :aria-pressed="limit === 'time'" :class="{ on: limit === 'time' }" @click="limit = 'time'">
-          {{ Math.round(DEADLINE * MINUTES) }} minutes
-        </button>
-      </div>
-      <div class="seg" role="group" aria-label="graceful or not">
-        <button type="button" :aria-pressed="!graceful" :class="{ on: !graceful }" @click="graceful = false">
-          not graceful
-        </button>
-        <button type="button" :aria-pressed="graceful" :class="{ on: graceful }" @click="graceful = true">
-          graceful
-        </button>
-      </div>
-      <div class="seg" role="group" aria-label="when the backend reports what it spent">
-        <button type="button" :aria-pressed="counts === 'live'" :class="{ on: counts === 'live' }" @click="counts = 'live'">
-          counts as it goes
-        </button>
-        <button type="button" :aria-pressed="counts === 'end'" :class="{ on: counts === 'end' }" @click="counts = 'end'">
-          counts at the end
-        </button>
-      </div>
-      <div class="spacer" />
-      <span class="sim">simulation</span>
-      <button class="go" type="button" :disabled="playing" @click="play">
-        {{ playing ? 'running…' : 'run the turn' }}
-      </button>
-    </div>
+  <HmzStage
+    :scene="scene"
+    :beats="BEATS"
+    sim
+    mobile-ratio="9 / 11"
+    label="One turn with a budget of its own. On a CLI that reports its spending live, the turn is cut off as the response that crosses the token limit lands, keeping what it did, and the flow gets an error. On a CLI that reports only at the end, the turn runs to its end, then the whole spend arrives and the flow gets an error. A time limit cuts the turn at the clock even while it is quiet. A graceful budget lets the turn finish and answer."
+  >
+    <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
+      <defs>
+        <radialGradient id="turn-budget-warm">
+          <stop offset="0" stop-color="var(--hmz-warm)" stop-opacity="0.6" />
+          <stop offset="1" stop-color="var(--hmz-warm)" stop-opacity="0" />
+        </radialGradient>
+        <radialGradient id="turn-budget-cool">
+          <stop offset="0" stop-color="var(--hmz-accent)" stop-opacity="0.55" />
+          <stop offset="1" stop-color="var(--hmz-accent)" stop-opacity="0" />
+        </radialGradient>
+      </defs>
+      <g class="world">
+        <g v-for="(ln, i) in LANES" :key="i" class="lane">
+          <g class="words">
+            <template v-if="L.label.inline">
+              <text class="name" :x="L.label.x" :y="L.lanes[i] + L.label.dy">{{ ln.name }}<tspan class="sub" dx="6">{{ ln.sub }}</tspan></text>
+            </template>
+            <template v-else>
+              <text class="name" :x="L.label.x" :y="L.lanes[i] + L.label.dy">{{ ln.name }}</text>
+              <text class="sub" :x="L.label.x" :y="L.lanes[i] + L.label.dy + 16">{{ ln.sub }}</text>
+            </template>
+          </g>
 
-    <div class="rows">
-      <div class="row">
-        <span class="lab">the turn</span>
-        <div class="track">
-          <span
-            v-for="(one, i) in REQUESTS"
-            :key="i"
-            class="req"
-            :class="{ in: one.at <= now, lost: one.at > cut }"
-            :style="{ left: pct(one.at - 0.09), width: pct(0.08) }"
-          />
-          <span v-if="cutOff" class="cut" :class="{ in: ended }" :style="{ left: pct(cut) }">
-            <em>cut off</em>
-          </span>
-          <span class="head" :style="{ left: pct(now) }" />
-        </div>
-      </div>
+          <!-- the meter: what is counted, against the limit -->
+          <line class="meter-track" :x1="L.x0" :x2="L.x1" :y1="L.lanes[i] - 28" :y2="L.lanes[i] - 28" />
+          <rect class="fill" :class="ln.kind === 'time' ? 'clock' : ''" :x="L.x0" :y="L.lanes[i] - 31" :width="W" height="6" rx="3" />
+          <rect v-if="ln.kind !== 'time'" class="over" :x="limitX" :y="L.lanes[i] - 31" :width="L.x1 - limitX" height="6" rx="3" />
+          <g class="limit">
+            <line :x1="ln.kind === 'time' ? px(DEADLINE) : limitX" :x2="ln.kind === 'time' ? px(DEADLINE) : limitX" :y1="L.lanes[i] - 37" :y2="L.lanes[i] - 22" />
+            <text :x="ln.kind === 'time' ? px(DEADLINE) : limitX" :y="L.lanes[i] - 41" text-anchor="middle">{{ ln.kind === 'time' ? `${DEADLINE * MINUTES} min` : thousands(LIMIT) }}</text>
+          </g>
+          <text class="read" :x="L.x1" :y="L.lanes[i] - 41" text-anchor="end">0</text>
+          <text v-if="ln.kind === 'end'" class="notyet" :x="L.x1" :y="L.lanes[i] - 41" text-anchor="end">not yet</text>
 
-      <div v-if="limit === 'tokens'" class="row">
-        <span class="lab">tokens counted</span>
-        <div class="meter">
-          <span class="fill" :class="{ over: counted >= TOKENS }" :style="{ width: pct(counted / TOTAL) }" />
-          <span class="mark" :style="{ left: pct(TOKENS / TOTAL) }"><em>limit</em></span>
-        </div>
-        <span class="num">{{ reported ? thousands(counted) : 'not yet' }}</span>
-      </div>
+          <!-- the turn: a slot per response, filled as each lands -->
+          <line class="slot-track" :x1="L.x0" :x2="L.x1" :y1="L.lanes[i] + 13" :y2="L.lanes[i] + 13" />
+          <g v-for="(r, k) in REQUESTS" :key="k" :class="{ lost: ln.kind === 'time' ? r.at > DEADLINE : r.at > CUT }">
+            <rect v-if="ln.kind !== 'time' || k < QUIET || r.at > DEADLINE" class="slot" :x="px(r.at - 0.09)" :y="L.lanes[i] - 12" :width="W * 0.08" height="24" rx="5" />
+            <rect v-if="ln.kind !== 'time' || k < QUIET" class="block" :x="px(r.at - 0.09)" :y="L.lanes[i] - 12" :width="W * 0.08" height="24" rx="5" />
+          </g>
+          <g v-if="ln.kind === 'time'" class="quiet">
+            <circle v-for="k in 3" :key="k" :cx="px(0.4) + k * 9" :cy="L.lanes[i]" r="2.6" />
+          </g>
+          <line class="head" :x1="L.x0" :x2="L.x0" :y1="L.lanes[i] - 19" :y2="L.lanes[i] + 19" />
 
-      <div v-else class="row">
-        <span class="lab">the clock</span>
-        <div class="meter">
-          <span class="fill" :class="{ over: now >= DEADLINE }" :style="{ width: pct(now) }" />
-          <span class="mark" :style="{ left: pct(DEADLINE) }"><em>limit</em></span>
-        </div>
-        <span class="num">{{ Math.round(now * MINUTES) }} min</span>
-      </div>
-    </div>
+          <g class="glow"><circle class="flare" :cx="px(ln.kind === 'time' ? DEADLINE : CUT)" :cy="L.lanes[i]" r="34" fill="url(#turn-budget-warm)" /></g>
+          <line class="blade" :x1="px(ln.kind === 'time' ? DEADLINE : CUT)" :x2="px(ln.kind === 'time' ? DEADLINE : CUT)" :y1="L.lanes[i] - 24" :y2="L.lanes[i] + 24" />
 
-    <p v-if="playing" class="outcome running">The turn is running…</p>
-    <p v-else class="outcome" :class="{ hard: raises }" aria-live="polite">
-      <strong>{{ raises ? 'Stopped.' : 'Answered.' }}</strong> {{ outcome }}
-      <template v-if="raises">
-        What it did before that is on disk, and the conversation is still open.
-      </template>
-    </p>
-  </div>
+          <g v-if="ln.kind === 'live'" class="kept">
+            <path class="kept-line" :d="`M${L.x0} ${L.lanes[i] + 20} v5 H${px(CUT) - 4} v-5`" />
+            <text :x="(L.x0 + px(CUT)) / 2" :y="L.lanes[i] + 39" text-anchor="middle">kept</text>
+          </g>
+
+          <g v-if="ln.kind === 'live'" class="toggle" :transform="`translate(${L.toggle.x} ${L.lanes[i] + L.toggle.dy})`">
+            <rect class="toggle-track" x="0" y="-8" width="32" height="16" rx="8" />
+            <rect class="toggle-on" x="0" y="-8" width="32" height="16" rx="8" />
+            <circle class="knob" cx="8" cy="0" r="5.5" />
+            <text x="40" y="4">graceful</text>
+          </g>
+
+          <text class="caption to-flow" :x="L.chip.x" :y="L.lanes[i] - 22" text-anchor="middle">flow</text>
+          <rect class="chip-slot" :x="L.chip.x - L.chip.w / 2" :y="L.lanes[i] - 13" :width="L.chip.w" height="26" rx="13" />
+          <g class="glow"><circle class="chip-halo chip-error-halo" :cx="L.chip.x" :cy="L.lanes[i]" r="38" fill="url(#turn-budget-warm)" />
+          <circle v-if="ln.kind === 'live'" class="chip-halo chip-answer-halo" :cx="L.chip.x" :cy="L.lanes[i]" r="38" fill="url(#turn-budget-cool)" /></g>
+          <g class="chip chip-error">
+            <rect :x="L.chip.x - L.chip.w / 2" :y="L.lanes[i] - 13" :width="L.chip.w" height="26" rx="13" />
+            <text :x="L.chip.x" :y="L.lanes[i] + 4.5" text-anchor="middle">error</text>
+          </g>
+          <g v-if="ln.kind === 'live'" class="chip chip-answer">
+            <rect :x="L.chip.x - L.chip.w / 2" :y="L.lanes[i] - 13" :width="L.chip.w" height="26" rx="13" />
+            <text :x="L.chip.x" :y="L.lanes[i] + 4.5" text-anchor="middle">answer</text>
+          </g>
+        </g>
+      </g>
+    </svg>
+    <canvas ref="canvas" />
+  </HmzStage>
 </template>
 
 <style scoped>
-.bar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--hmz-panel-border);
-  background: var(--vp-c-bg);
-  font-size: 12px;
+svg {
+  font-family: var(--vp-font-family-base);
 }
 
-.seg {
-  display: inline-flex;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.seg button {
-  padding: 4px 11px;
-  border: 0;
-  background: transparent;
-  color: var(--vp-c-text-2);
-  font-size: 11.5px;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s;
-}
-
-.seg button + button {
-  border-left: 1px solid var(--vp-c-divider);
-}
-
-.seg button.on {
-  background: var(--vp-c-brand-soft);
-  color: var(--vp-c-brand-1);
-  font-weight: 650;
-}
-
-.spacer {
-  flex: 1;
-}
-
-.sim {
-  font-size: 10.5px;
+.caption {
+  font-size: 11px;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--vp-c-text-3);
+  fill: var(--hmz-stage-dim);
 }
 
-.go {
-  padding: 5px 14px;
-  border: 1px solid var(--vp-c-brand-1);
-  border-radius: 999px;
-  background: var(--vp-c-brand-soft);
-  color: var(--vp-c-brand-1);
-  font-size: 12px;
+.name {
+  font-size: 15px;
   font-weight: 650;
-  cursor: pointer;
+  fill: var(--hmz-stage-ink);
 }
 
-.go:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-.rows {
-  padding: 18px 16px 4px;
-}
-
-.row {
-  display: grid;
-  grid-template-columns: 7.5rem minmax(0, 1fr) 4.5rem;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 18px;
-}
-
-.lab {
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--vp-c-text-3);
-}
-
-.num {
-  font-family: var(--vp-font-family-mono);
+.sub {
   font-size: 12px;
-  text-align: right;
-  color: var(--vp-c-text-1);
+  font-weight: 500;
+  fill: var(--hmz-stage-dim);
 }
 
-.track,
-.meter {
-  position: relative;
-  height: 22px;
-  border-radius: 6px;
-  background: var(--vp-c-default-soft);
+.meter-track {
+  stroke: var(--hmz-stage-line);
+  stroke-width: 6;
+  stroke-linecap: round;
 }
 
-.req {
-  position: absolute;
-  top: 4px;
-  bottom: 4px;
-  border-radius: 4px;
-  border: 1px dashed var(--vp-c-text-3);
-  transition: background 0.25s, opacity 0.25s;
+.fill {
+  fill: var(--hmz-accent);
 }
 
-.req.in {
-  border-style: solid;
-  border-color: transparent;
-  background: var(--vp-c-brand-1);
+.fill.clock {
+  fill: var(--hmz-lane-1);
 }
 
-.req.lost {
-  opacity: 0.5;
+.over {
+  fill: var(--hmz-warm);
+}
+
+.limit line {
+  stroke: var(--hmz-stage-ink);
+  stroke-width: 2;
+}
+
+.limit text,
+.read,
+.notyet {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11.5px;
+  fill: var(--hmz-stage-dim);
+}
+
+.read {
+  font-weight: 700;
+  fill: var(--hmz-stage-ink);
+}
+
+.notyet {
+  font-style: italic;
+}
+
+.slot-track {
+  stroke: var(--hmz-stage-line);
+  stroke-width: 1;
+}
+
+.slot {
+  fill: none;
+  stroke: var(--hmz-stage-line);
+  stroke-dasharray: 3 3;
+}
+
+.block {
+  fill: var(--hmz-lane-1);
+}
+
+.quiet circle {
+  fill: var(--hmz-stage-dim);
 }
 
 .head {
-  position: absolute;
-  top: -3px;
-  bottom: -3px;
-  width: 2px;
-  background: var(--vp-c-text-1);
+  stroke: var(--hmz-stage-ink);
+  stroke-width: 2;
+  stroke-linecap: round;
 }
 
-.cut {
-  position: absolute;
-  top: -6px;
-  bottom: -6px;
-  width: 2px;
-  background: var(--hmz-warm);
-  opacity: 0.35;
+.blade {
+  stroke: var(--hmz-warm);
+  stroke-width: 3.5;
+  stroke-linecap: round;
 }
 
-.cut.in {
-  opacity: 1;
+.glow {
+  opacity: var(--hmz-glow);
 }
 
-.cut em,
-.mark em {
-  position: absolute;
-  top: -16px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-style: normal;
-  font-size: 10px;
-  white-space: nowrap;
-  color: var(--hmz-warm);
+.flare,
+.chip-halo {
+  opacity: 0;
 }
 
-.meter .fill {
-  display: block;
-  height: 100%;
-  border-radius: 6px;
-  background: var(--hmz-accent);
-  transition: width 0.2s;
+.kept path {
+  fill: none;
+  stroke: var(--hmz-accent);
+  stroke-width: 1.5;
 }
 
-.meter .fill.over {
-  background: var(--hmz-warm);
+.kept text {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  fill: var(--hmz-accent);
 }
 
-.mark {
-  position: absolute;
-  top: -4px;
-  bottom: -4px;
-  width: 2px;
-  background: var(--vp-c-text-1);
+.toggle-track {
+  fill: var(--hmz-stage-card);
+  stroke: var(--hmz-stage-line);
 }
 
-.mark em {
-  color: var(--vp-c-text-2);
+.toggle-on {
+  fill: var(--hmz-accent);
 }
 
-.outcome {
-  margin: 0 16px 16px;
-  padding: 12px 14px;
-  border: 1px solid var(--vp-c-divider);
-  border-left: 3px solid var(--hmz-accent);
-  border-radius: 10px;
-  background: var(--vp-c-bg);
-  font-size: 13.5px;
-  line-height: 1.6;
-  color: var(--vp-c-text-2);
+.knob {
+  fill: var(--hmz-stage-ink);
 }
 
-.outcome.hard {
-  border-left-color: var(--hmz-warm);
+.toggle text {
+  font-size: 12px;
+  font-weight: 650;
+  fill: var(--hmz-accent);
 }
 
-.outcome.running {
-  border-left-color: var(--vp-c-divider);
-  color: var(--vp-c-text-3);
+.chip-slot {
+  fill: none;
+  stroke: var(--hmz-stage-line);
+  stroke-dasharray: 3 3;
 }
 
-.outcome strong {
-  color: var(--vp-c-text-1);
+.chip rect {
+  fill: var(--hmz-stage-card);
+  stroke-width: 1.5;
 }
 
-@media (max-width: 560px) {
-  .row {
-    grid-template-columns: minmax(0, 1fr) 4rem;
-  }
+.chip text {
+  font-family: var(--vp-font-family-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+}
 
-  .lab {
-    grid-column: 1 / -1;
-    margin-bottom: -6px;
-  }
+.chip-error rect {
+  stroke: var(--hmz-warm);
+}
+
+.chip-error text {
+  fill: var(--hmz-warm);
+}
+
+.chip-answer rect {
+  stroke: var(--hmz-accent);
+}
+
+.chip-answer text {
+  fill: var(--hmz-accent);
 }
 </style>

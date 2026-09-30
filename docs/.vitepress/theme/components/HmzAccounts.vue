@@ -1,917 +1,587 @@
 <script setup lang="ts">
-// Two halves of one idea. What a turn under an account is given: that account's credentials,
-// none of the variables a backend would take another account from, and the CLI's own sessions,
-// settings and skills (`src/hmz/coganchor/providers/`, `Profile.hushes` and `Profile.creds` in
-// `src/hmz/coganchor/backends.py`). And what a failed turn does: the tries and waits each kind
-// of failure gets are `ANSWERS` in `src/hmz/coganchor/fallbacks.py`, the waits are its
-// `waits()`, and the walk is `_falling_back` in `src/hmz/coganchor/agents/base.py`.
-import { computed, onUnmounted, ref } from 'vue'
+// One agent's conversation, carried down a chain of accounts. A turn runs as an account, with
+// every key the backend would read from the environment unset unless the account set it
+// (`Profile.hushes` and `Profile.creds` in `src/hmz/coganchor/backends.py`). When the account
+// fails, the chain is walked inside the session that was running, so the conversation carries
+// on (`_falling_back` in `src/hmz/coganchor/agents/base.py`): a rate limit gets at least one
+// more try after at least 30 seconds, refused credentials move on at once and leave that
+// account needing a new sign-in (`ANSWERS` in `src/hmz/coganchor/fallbacks.py`). The account
+// that worked is where the agent's next turn starts. The waits drawn are compressed.
+import { computed, ref } from 'vue'
 
-type View = 'runs' | 'fails'
+import HmzStage from '../motion/HmzStage.vue'
+import { count, createFx, streak, type Fx } from '../motion/fx'
+import { motion } from '../motion/gsap'
+import { useNarrow } from '../motion/layout'
+import { usePalette } from '../motion/palette'
+import { useScene } from '../motion/useScene'
 
-// ------------------------------------------------------------------ what a turn runs as
-
-type Tag = 'yours' | 'account' | 'unset' | 'same'
-
-interface Line {
-  what: string
-  gets: string
-  tag: Tag
-}
-
-interface Runs {
-  name: string
-  kind: string
-  lines: Line[]
-}
-
-const SAME: Line = {
-  what: 'sessions, settings, installed skills',
-  gets: 'Claude Code’s own, so traces, cost and skills work as always',
-  tag: 'same',
-}
-
-const RUNS: Runs[] = [
-  {
-    name: 'no account',
-    kind: 'the CLI as you run it',
-    lines: [
-      { what: 'credentials', gets: 'whoever claude is signed in as on this machine', tag: 'yours' },
-      { what: 'ANTHROPIC_API_KEY in your shell', gets: 'used, as it would be anyway', tag: 'yours' },
-      SAME,
-    ],
-  },
-  {
-    name: 'claude@work',
-    kind: 'a subscription, signed in',
-    lines: [
-      { what: 'credentials', gets: 'the work sign-in, made by Claude Code’s own login', tag: 'account' },
-      { what: 'ANTHROPIC_API_KEY in your shell', gets: 'unset for this turn', tag: 'unset' },
-      { what: 'a token refreshed mid-turn', gets: 'written back to the work account, never to yours', tag: 'account' },
-      SAME,
-    ],
-  },
-  {
-    name: 'claude@key',
-    kind: 'an API key',
-    lines: [
-      { what: 'credentials', gets: 'the key this account holds', tag: 'account' },
-      { what: 'ANTHROPIC_API_KEY in your shell', gets: 'replaced by the account’s key', tag: 'account' },
-      { what: 'CLAUDE_CODE_OAUTH_TOKEN in your shell', gets: 'unset for this turn', tag: 'unset' },
-      SAME,
-    ],
-  },
-  {
-    name: 'claude@gateway',
-    kind: 'somebody’s endpoint',
-    lines: [
-      { what: 'credentials', gets: 'the gateway’s URL and token, from the account', tag: 'account' },
-      { what: 'ANTHROPIC_API_KEY in your shell', gets: 'unset for this turn', tag: 'unset' },
-      { what: 'models on offer', gets: 'what the gateway says it serves', tag: 'account' },
-      SAME,
-    ],
-  },
+const BEATS = [
+  'Each turn runs as an account',
+  'Keys in your shell stay out',
+  'Rate-limited: wait, retry, move on',
+  'Key refused: next account at once',
+  'Same conversation lands, and stays',
 ]
 
-const TAGS: Record<Tag, string> = {
-  yours: 'yours',
-  account: 'the account’s',
-  unset: 'taken away',
-  same: 'unchanged',
-}
-
-// ------------------------------------------------------------------ when an account fails
-
-type Fault = 'ok' | 'throttled' | 'refused' | 'unlisted' | 'retired' | 'dropped'
-
-interface Answer {
-  said: string
-  tries: number
-  held: boolean
-  least: number
-  accounts: boolean
-  reopen: boolean
-  why: string
-}
-
-// `ANSWERS` in fallbacks.py, for the kinds drawn here.
-const FAULTS: Record<Fault, Answer> = {
-  ok: { said: 'answers', tries: 0, held: false, least: 0, accounts: true, reopen: false, why: '' },
-  throttled: {
-    said: '429 · rate-limited',
-    tries: 1,
-    held: false,
-    least: 30,
-    accounts: true,
-    reopen: false,
-    why: 'a rate limit gets at least one more try, after at least 30 s',
-  },
-  refused: {
-    said: '401 · key refused',
-    tries: 0,
-    held: true,
-    least: 0,
-    accounts: true,
-    reopen: false,
-    why: 'the same key would be refused again, so it is not retried',
-  },
-  unlisted: {
-    said: '403 · model not on this account',
-    tries: 0,
-    held: true,
-    least: 0,
-    accounts: true,
-    reopen: false,
-    why: 'the next account may have it, so it is not retried here',
-  },
-  retired: {
-    said: '404 · no such model',
-    tries: 0,
-    held: true,
-    least: 0,
-    accounts: false,
-    reopen: false,
-    why: 'no account of claude has it, so the rest of the chain is skipped',
-  },
-  dropped: {
-    said: 'connection dropped',
-    tries: 1,
-    held: false,
-    least: 0,
-    accounts: true,
-    reopen: true,
-    why: 'reconnected, and the same conversation picked up again',
-  },
-}
-
-const CHOICES: Fault[] = ['ok', 'throttled', 'refused', 'unlisted', 'retired', 'dropped']
-
-interface Account {
-  name: string
-  kind: string
-  fault: Fault
-}
-
-const ACCOUNTS = ref<Account[]>([
-  { name: 'claude@work', kind: 'subscription', fault: 'throttled' },
-  { name: 'claude@key', kind: 'API key', fault: 'refused' },
-  { name: 'claude@gateway', kind: 'gateway', fault: 'ok' },
-])
-
-const PLACE = 'codex/gpt-5.6-sol'
-const placeFails = ref(false)
-
-const POLICIES = [
-  { name: 'none', about: 'Tries again at once.' },
-  { name: 'constant', about: 'The same wait every time: 1 s, 1 s, 1 s.' },
-  { name: 'linear', about: 'One second longer each time: 1 s, 2 s, 3 s.' },
-  { name: 'exponential', about: 'Twice as long each time: 1 s, 2 s, 4 s, 8 s.' },
-  {
-    name: 'exponential-jitter',
-    about:
-      'Exponential, each wait drawn anywhere below it, so agents failing together do not come back together.',
-  },
-  { name: 'fibonacci', about: 'The Fibonacci sequence: 1 s, 1 s, 2 s, 3 s, 5 s.' },
+const ACCOUNTS = [
+  { name: 'claude@work', kind: 'subscription', lane: 2 },
+  { name: 'claude@key', kind: 'API key', lane: 4 },
+  { name: 'claude@gateway', kind: 'gateway', lane: 3 },
 ]
 
-const CEILING = 60
-
-function fib(n: number): number {
-  let before = 0
-  let held = 1
-  for (let i = 0; i < n - 1; i += 1) [before, held] = [held, before + held]
-  return held
+interface Layout {
+  w: number
+  h: number
+  card: { w: number; h: number }
+  cards: { x: number; y: number }[]
+  thread: { w: number; h: number }
+  // Where the thread sits beside each card, top-left.
+  seats: { x: number; y: number }[]
+  shell: { x: number; y: number; w: number }
+  vertical: boolean
 }
 
-// `waits()` in fallbacks.py, with the jitter given as the top of the band it is drawn from.
-function waits(policy: string, attempt: number): number {
-  const over = Math.min(Math.max(attempt - 1, 0), 64)
-  if (!over || policy === 'none') return 0
-  if (policy === 'constant') return 1
-  if (policy === 'linear') return Math.min(over, CEILING)
-  if (policy === 'fibonacci') return Math.min(fib(over), CEILING)
-  return Math.min(2 ** (over - 1), CEILING)
+const WIDE: Layout = {
+  w: 640,
+  h: 360,
+  card: { w: 150, h: 62 },
+  cards: [
+    { x: 55, y: 244 },
+    { x: 245, y: 244 },
+    { x: 435, y: 244 },
+  ],
+  thread: { w: 150, h: 128 },
+  seats: [
+    { x: 55, y: 84 },
+    { x: 245, y: 84 },
+    { x: 435, y: 84 },
+  ],
+  shell: { x: 432, y: 24, w: 186 },
+  vertical: false,
 }
 
-const view = ref<View>('runs')
-const picked = ref(1)
-const policy = ref('exponential-jitter')
-const tries = ref(0)
-
-const ladder = computed(() =>
-  Array.from({ length: 5 }, (_, i) => ({ attempt: i + 2, seconds: waits(policy.value, i + 2) })),
-)
-const tallest = computed(() => Math.max(1, ...ladder.value.map((one) => one.seconds)))
-
-// What a wait before one try comes to: the place's own, floored by what the failure asks for.
-function waiting(answer: Answer, attempt: number): string {
-  const top = waits(policy.value, attempt)
-  const floor = answer.least
-  if (policy.value === 'exponential-jitter') {
-    const high = Math.max(top, floor)
-    if (floor >= high) return `waits ${high} s`
-    return floor > 0 ? `waits ${floor}–${high} s` : `waits up to ${high} s`
-  }
-  const seconds = Math.max(top, floor)
-  return seconds ? `waits ${seconds} s` : 'tries again at once'
+const NARROW: Layout = {
+  w: 360,
+  h: 440,
+  card: { w: 160, h: 60 },
+  cards: [
+    { x: 14, y: 128 },
+    { x: 14, y: 226 },
+    { x: 14, y: 324 },
+  ],
+  thread: { w: 150, h: 128 },
+  seats: [
+    { x: 196, y: 94 },
+    { x: 196, y: 192 },
+    { x: 196, y: 290 },
+  ],
+  shell: { x: 14, y: 22, w: 186 },
+  vertical: true,
 }
 
-type Kind = 'try' | 'wait' | 'why' | 'moved' | 'landed' | 'ended'
+// The conversation: who said it, and under which account's lane an answer was made.
+const ROW = 23
+const BUBBLES = [
+  { side: 'in', w: 0.62, lane: 0 },
+  { side: 'out', w: 0.74, lane: 2 },
+  { side: 'in', w: 0.48, lane: 0 },
+  { side: 'out', w: 0.66, lane: 3 },
+  { side: 'in', w: 0.54, lane: 0 },
+]
 
-interface Beat {
-  who: string
-  said: string
-  kind: Kind
-}
+const palette = usePalette()
+const canvas = ref<HTMLCanvasElement | null>(null)
+let fx: Fx | undefined
 
-function script(): Beat[] {
-  const made: Beat[] = []
-  let answer = FAULTS.ok
-  let skip = false
-  for (let which = 0; which < ACCOUNTS.value.length && !skip; which += 1) {
-    const account = ACCOUNTS.value[which]
-    const failing = FAULTS[account.fault]
-    for (let attempt = 1; ; attempt += 1) {
-      if (attempt > 1) {
-        const floor = answer.least ? `, the least a rate limit waits` : ''
-        made.push({ who: account.name, said: `${waiting(answer, attempt)}${floor}`, kind: 'wait' })
-      }
-      if (account.fault === 'ok') {
-        made.push({ who: account.name, said: `try ${attempt} · the turn lands`, kind: 'landed' })
-        return made
-      }
-      made.push({ who: account.name, said: `try ${attempt} · ${failing.said}`, kind: 'try' })
-      answer = failing
-      const goes = answer.held ? 0 : Math.max(tries.value, answer.tries)
-      if (attempt > goes) {
-        if (answer.held) made.push({ who: '', said: answer.why, kind: 'why' })
-        break
-      }
-      if (answer.reopen) made.push({ who: '', said: answer.why, kind: 'why' })
+const narrow = useNarrow(() => scene.rebuild())
+const L = computed(() => (narrow.value ? NARROW : WIDE))
+
+// A link between two cards of the chain, and the tether from the thread to the card it runs as.
+const links = computed(() => {
+  const l = L.value
+  return l.cards.slice(1).map((c, i) => {
+    const a = l.cards[i]
+    if (l.vertical) {
+      const x = a.x + l.card.w / 2
+      return `M${x} ${a.y + l.card.h + 5} L${x} ${c.y - 5}`
     }
-    if (!answer.accounts) {
-      skip = true
-    } else if (which + 1 < ACCOUNTS.value.length) {
-      made.push({
-        who: '',
-        said: `carries on as ${ACCOUNTS.value[which + 1].name}, in the same conversation`,
-        kind: 'moved',
-      })
-    }
-  }
-  made.push({ who: '', said: `carries on at ${PLACE}, in a new conversation`, kind: 'moved' })
-  if (placeFails.value) {
-    made.push({ who: PLACE, said: 'try 1 · fails', kind: 'try' })
-    made.push({ who: '', said: 'nowhere left to go: the flow sees the turn fail', kind: 'ended' })
-  } else {
-    made.push({ who: PLACE, said: 'try 1 · the turn lands', kind: 'landed' })
-  }
-  return made
-}
-
-const beats = ref<Beat[]>([])
-const shown = ref(0)
-const playing = ref(false)
-let timer: ReturnType<typeof setTimeout> | undefined
-
-function stop() {
-  if (timer) clearTimeout(timer)
-  timer = undefined
-  playing.value = false
-}
-
-function play() {
-  stop()
-  beats.value = script()
-  const still =
-    typeof window !== 'undefined' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  if (still) {
-    shown.value = beats.value.length
-    return
-  }
-  shown.value = 0
-  playing.value = true
-  const next = () => {
-    shown.value += 1
-    if (shown.value >= beats.value.length) {
-      playing.value = false
-      return
-    }
-    const now = beats.value[shown.value - 1]
-    timer = setTimeout(next, now.kind === 'wait' ? 1100 : 650)
-  }
-  next()
-}
-
-function reset() {
-  stop()
-  beats.value = []
-  shown.value = 0
-}
-
-const visible = computed(() => beats.value.slice(0, shown.value))
-const landedOn = computed(
-  () => visible.value.find((one) => one.kind === 'landed')?.who ?? '',
-)
-const current = computed(() => {
-  const named = [...visible.value].reverse().find((one) => one.who)
-  return named?.who ?? ''
+    const y = a.y + l.card.h / 2
+    return `M${a.x + l.card.w + 5} ${y} L${c.x - 5} ${y}`
+  })
+})
+const tether = computed(() => {
+  const l = L.value
+  if (l.vertical) return `M0 ${l.thread.h / 2} L${l.cards[0].x + l.card.w - l.seats[0].x + 2} ${l.thread.h / 2}`
+  return `M${l.thread.w / 2} ${l.thread.h} L${l.thread.w / 2} ${l.cards[0].y - l.seats[0].y - 2}`
 })
 
-onUnmounted(stop)
+const bubble = (i: number) => {
+  const l = L.value
+  const b = BUBBLES[i]
+  const w = (l.thread.w - 28) * b.w
+  return { x: b.side === 'in' ? 12 : l.thread.w - 12 - w, y: 32 + i * ROW, w, h: 15 }
+}
+
+const scene = useScene({
+  still: 'rest',
+  repeatDelay: 0.8,
+  tick: (dt) => fx?.step(dt),
+  build(tl, q) {
+    const gsap = motion()
+    const l = L.value
+    fx?.destroy()
+    fx = canvas.value ? createFx(canvas.value, l.w, l.h) : undefined
+    fx?.clear()
+    const get = () => fx
+    const one = (sel: string) => q(sel)[0]
+    const W = l.w
+    const H = l.h
+    const shot = (s: number, px: number, py: number) => ({
+      scale: s,
+      xPercent: ((W / 2 - s * px) / W) * 100,
+      yPercent: ((H / 2 - s * py) / H) * 100,
+      transformOrigin: '0% 0%',
+    })
+    const cam = one('.cam')
+    const card = q('.card')
+    const halo = q('.card-halo')
+    const thread = one('.thread')
+    const bubbles = q('.bubble')
+    const scroll = one('.scroll')
+    const lit = q('.link-lit')
+    const cc = (i: number) => ({ x: l.cards[i].x + l.card.w / 2, y: l.cards[i].y + l.card.h / 2 })
+    const badgeAt = (i: number) => ({ x: l.cards[i].x + l.card.w - 26, y: l.cards[i].y })
+    const move = (i: number) => ({ x: l.seats[i].x - l.seats[0].x, y: l.seats[i].y - l.seats[0].y })
+    const threadC = (i: number) => ({ x: l.seats[i].x + l.thread.w / 2, y: l.seats[i].y + l.thread.h / 2 })
+    const lane = (n: number) => () => palette.lane[n - 1]
+
+    // Everything back to the first frame, so each loop starts clean.
+    tl.set(cam, { autoAlpha: 1, ...shot(1.3, (cc(0).x + threadC(0).x) / 2, (cc(0).y + threadC(0).y) / 2) }, 0)
+    tl.set(card, { autoAlpha: 0, y: 14 }, 0)
+    tl.set(halo, { autoAlpha: 0 }, 0)
+    tl.set(q('.link, .link-lit'), { drawSVG: '0%' }, 0)
+    tl.set(thread, { autoAlpha: 0, x: 0, y: -18 }, 0)
+    tl.set(one('.tether'), { drawSVG: '0%' }, 0)
+    tl.set(bubbles, { autoAlpha: 0, scale: 0.4, transformOrigin: (i: number) => (BUBBLES[i].side === 'in' ? '0% 50%' : '100% 50%') }, 0)
+    tl.set(scroll, { y: 0 }, 0)
+    tl.set(q('.dots, .shell, .shield, .unset, .badge, .timer, .again, .next, .kept'), { autoAlpha: 0 }, 0)
+    tl.set(q('.kind'), { autoAlpha: 1 }, 0)
+    tl.set(one('.strike'), { drawSVG: '0%' }, 0)
+    tl.set(one('.timer-fill'), { drawSVG: '0%' }, 0)
+
+    // ---------------------------------------------------------------- 0 · runs as an account
+    tl.addLabel('beat-0', 0)
+    tl.to(cam, { ...shot(1, W / 2, H / 2), duration: 2.8, ease: 'cine' }, 0.2)
+    tl.to(card, { autoAlpha: 1, y: 0, duration: 0.7, stagger: 0.14, ease: 'cine.out' }, 0.2)
+    tl.to(q('.link'), { drawSVG: '100%', duration: 0.5, stagger: 0.15, ease: 'cine' }, 0.8)
+    tl.to(thread, { autoAlpha: 1, y: 0, duration: 0.8, ease: 'cine.out' }, 0.9)
+    tl.to(one('.tether'), { drawSVG: '100%', duration: 0.5, ease: 'cine' }, 1.4)
+    tl.to(halo[0], { autoAlpha: 1, duration: 0.6 }, 1.5)
+    tl.call(() => fx?.spark(cc(0).x, l.vertical ? cc(0).y : l.cards[0].y, palette.lane[1], 16, 80), [], 1.8)
+    tl.to(bubbles.slice(0, 2), { autoAlpha: 1, scale: 1, duration: 0.45, stagger: 0.3, ease: 'back.out(1.7)' }, 1.8)
+
+    // ---------------------------------------------------------------- 1 · shell keys stay out
+    const T1 = 3.3
+    tl.addLabel('beat-1', T1)
+    const key = one('.key')
+    const keyFrom = { x: l.shell.x + 12, y: l.shell.y + 34 }
+    const box = l.seats[0]
+    // The point of the thread's frame nearest the shell, where the key is turned away.
+    const hit = l.vertical ? { x: box.x - 20, y: box.y - 16 } : { x: box.x + l.thread.w + 8, y: box.y + 30 }
+    tl.to(one('.shell'), { autoAlpha: 1, duration: 0.5 }, T1 + 0.1)
+    tl.fromTo(key, { x: keyFrom.x, y: keyFrom.y, rotation: 0, autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3 }, T1 + 0.3)
+    tl.to(key, { x: hit.x, y: hit.y, duration: 0.65, ease: 'power3.in' }, T1 + 0.9)
+    tl.fromTo(one('.shield'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.08 }, T1 + 1.55)
+    tl.to(one('.shield'), { autoAlpha: 0, duration: 0.9 }, T1 + 1.7)
+    tl.call(() => fx?.spark(hit.x + (l.vertical ? 100 : 0), hit.y + 12, palette.lane[1], 26, 130), [], T1 + 1.55)
+    const back = l.vertical ? { x: hit.x - 36, y: hit.y - 20 } : { x: hit.x + 44, y: hit.y - 22 }
+    tl.to(key, { x: back.x, y: back.y, rotation: l.vertical ? -6 : 8, duration: 0.6, ease: 'power3.out' }, T1 + 1.55)
+    tl.fromTo(thread, { x: 0 }, { keyframes: { x: [0, l.vertical ? 0 : -4, 0], y: [0, l.vertical ? 3 : 0, 0] }, duration: 0.3, ease: 'none', immediateRender: false }, T1 + 1.55)
+    tl.to(one('.strike'), { drawSVG: '100%', duration: 0.25 }, T1 + 1.8)
+    tl.fromTo(one('.unset'), { autoAlpha: 0, y: 4 }, { autoAlpha: 1, y: 0, duration: 0.35 }, T1 + 1.95)
+    tl.to(q('.shell, .key'), { autoAlpha: 0, duration: 0.5 }, T1 + 2.9)
+    tl.to(bubbles[2], { autoAlpha: 1, scale: 1, duration: 0.45, ease: 'back.out(1.7)' }, T1 + 2.8)
+
+    // ---------------------------------------------------------------- 2 · rate-limited
+    const T2 = T1 + 3.5
+    tl.addLabel('beat-2', T2)
+    const f0 = { x: (cc(0).x + threadC(0).x) / 2, y: (cc(0).y + threadC(0).y) / 2 }
+    tl.to(cam, { ...shot(l.vertical ? 1.12 : 1.4, f0.x, f0.y), duration: 1.3, ease: 'cine' }, T2)
+    tl.fromTo(one('.dots'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.3 }, T2 + 0.2)
+    tl.fromTo(q('.dots circle'), { opacity: 0.25 }, { opacity: 1, duration: 0.35, stagger: 0.12, repeat: 11, yoyo: true, ease: 'sine.inOut' }, T2 + 0.2)
+    const badge = q('.badge')
+    const b429 = badge[0]
+    tl.fromTo(b429, { autoAlpha: 0, scale: 1.8, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.35, ease: 'back.out(2)' }, T2 + 0.9)
+    tl.call(() => fx?.spark(badgeAt(0).x, badgeAt(0).y, palette.danger, 22, 110), [], T2 + 0.95)
+    tl.fromTo(card[0], { x: 0 }, { keyframes: { x: [0, -4, 4, -2, 0] }, duration: 0.35, ease: 'none', immediateRender: false }, T2 + 0.95)
+    // The wait: at least 30 seconds, drawn as a ring filling (compressed).
+    const timer = one('.timer')
+    tl.fromTo(timer, { autoAlpha: 0, scale: 0.6, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.35 }, T2 + 1.3)
+    tl.to(one('.timer-fill'), { drawSVG: '100%', duration: 1.6, ease: 'none' }, T2 + 1.5)
+    count(tl, one('.timer-count'), 0, 30, T2 + 1.5, { duration: 1.6, ease: 'none', format: (n) => `${Math.round(n)}s` })
+    // Try two: rate-limited again.
+    tl.to(timer, { autoAlpha: 0, scale: 0.8, duration: 0.3 }, T2 + 3.2)
+    tl.set(one('.badge-try'), { text: '429 ×2' }, T2 + 3.3)
+    tl.set(one('.badge-try'), { text: '429' }, 0)
+    tl.fromTo(b429, { scale: 1.5 }, { scale: 1, duration: 0.35, ease: 'back.out(2)', immediateRender: false }, T2 + 3.3)
+    tl.call(() => fx?.spark(badgeAt(0).x, badgeAt(0).y, palette.danger, 22, 110), [], T2 + 3.35)
+    // And on to the next account, the conversation with it.
+    const M1 = T2 + 3.9
+    const glide = (to: number, at: number, d: number) => {
+      tl.to(
+        thread,
+        {
+          x: move(to).x,
+          y: move(to).y,
+          duration: d,
+          ease: 'cine',
+          onUpdate() {
+            const x = Number(gsap.getProperty(thread, 'x')) + threadC(0).x
+            const y = Number(gsap.getProperty(thread, 'y')) + threadC(0).y
+            fx?.trail(x, y + (l.vertical ? 0 : l.thread.h / 2), palette.lane[ACCOUNTS[to].lane - 1], 2.8)
+          },
+        },
+        at,
+      )
+      tl.to(lit[to - 1], { drawSVG: '100%', duration: d * 0.8, ease: 'cine' }, at + 0.1)
+      tl.to(halo[to - 1], { autoAlpha: 0, duration: 0.4 }, at)
+      tl.to(card[to - 1], { opacity: 0.45, duration: 0.6 }, at + 0.2)
+      tl.to(halo[to], { autoAlpha: 1, duration: 0.6 }, at + d * 0.6)
+      tl.call(() => fx?.spark(cc(to).x, l.vertical ? cc(to).y : l.cards[to].y, palette.lane[ACCOUNTS[to].lane - 1], 20, 100), [], at + d * 0.9)
+    }
+    tl.to(cam, { ...shot(l.vertical ? 1.1 : 1.3, (cc(1).x + threadC(1).x) / 2 - (l.vertical ? 0 : 40), (cc(1).y + threadC(1).y) / 2), duration: 1.2, ease: 'cine' }, M1)
+    glide(1, M1, 1.1)
+
+    // ---------------------------------------------------------------- 3 · key refused
+    const T3 = M1 + 1.3
+    tl.addLabel('beat-3', T3)
+    const b401 = badge[1]
+    tl.fromTo(b401, { autoAlpha: 0, scale: 1.8, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.35, ease: 'back.out(2)' }, T3 + 0.35)
+    tl.call(() => fx?.spark(badgeAt(1).x, badgeAt(1).y, palette.danger, 26, 120), [], T3 + 0.4)
+    tl.fromTo(card[1], { x: 0 }, { keyframes: { x: [0, -4, 4, -2, 0] }, duration: 0.35, ease: 'none', immediateRender: false }, T3 + 0.4)
+    tl.to(q('.kind')[1], { autoAlpha: 0, duration: 0.2 }, T3 + 0.6)
+    tl.fromTo(one('.again'), { autoAlpha: 0, x: -6 }, { autoAlpha: 1, x: 0, duration: 0.35 }, T3 + 0.7)
+    const M2 = T3 + 1.0
+    tl.to(cam, { ...shot(l.vertical ? 1.08 : 1.22, (cc(2).x + threadC(2).x) / 2 - (l.vertical ? 0 : 60), (cc(2).y + threadC(2).y) / 2), duration: 1.0, ease: 'cine' }, M2)
+    glide(2, M2, 0.8)
+
+    // ---------------------------------------------------------------- 4 · lands, and stays
+    const T4 = M2 + 1.1
+    tl.addLabel('beat-4', T4)
+    tl.to(one('.dots'), { autoAlpha: 0, duration: 0.2 }, T4 + 0.2)
+    tl.to(bubbles[3], { autoAlpha: 1, scale: 1, duration: 0.5, ease: 'back.out(1.7)' }, T4 + 0.3)
+    const bOk = badge[2]
+    tl.fromTo(bOk, { autoAlpha: 0, scale: 1.8, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1, duration: 0.4, ease: 'back.out(2)' }, T4 + 0.5)
+    tl.call(() => fx?.spark(badgeAt(2).x, badgeAt(2).y, palette.accent, 34, 140), [], T4 + 0.55)
+    // Everything said before the fall is still there: the earlier lines light up in turn.
+    tl.fromTo(q('.kept'), { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.25, stagger: 0.12, yoyo: true, repeat: 1 }, T4 + 0.9)
+    tl.to(cam, { ...shot(1, W / 2, H / 2), duration: 1.4, ease: 'cine' }, T4 + 1.5)
+    // The next turn goes straight to the account that worked.
+    const N = T4 + 2.4
+    const next = one('.next')
+    const nFrom = l.vertical ? { x: cc(0).x - 30, y: l.cards[0].y - 22 } : { x: l.cards[0].x - 6, y: l.cards[0].y + l.card.h + 26 }
+    const nTo = l.vertical ? { x: cc(2).x - 30, y: l.cards[2].y + l.card.h + 20 } : { x: cc(2).x - 26, y: l.cards[2].y + l.card.h + 26 }
+    tl.fromTo(next, { autoAlpha: 0, x: nFrom.x, y: nFrom.y, scale: 0.7 }, { autoAlpha: 1, scale: 1, duration: 0.4, ease: 'back.out(2)' }, N)
+    if (l.vertical) {
+      tl.to(next, { x: nFrom.x - 20, duration: 0.3, ease: 'power2.out' }, N + 0.5)
+      tl.to(next, { y: nTo.y, duration: 1, ease: 'cine' }, N + 0.7)
+      tl.to(next, { x: nTo.x, duration: 0.4, ease: 'power2.inOut' }, N + 1.5)
+    } else {
+      tl.to(next, { x: nTo.x, y: nTo.y, duration: 1.1, ease: 'cine' }, N + 0.5)
+    }
+    streak(tl, get, { x: nFrom.x + 26, y: nFrom.y }, { x: nTo.x + 26, y: nTo.y }, lane(3), N + 0.5, { duration: 1.1, bend: l.vertical ? 0.3 : -0.08, burst: 16 })
+    tl.to(scroll, { y: -ROW, duration: 0.5, ease: 'cine' }, N + 1.7)
+    tl.to(bubbles[4], { autoAlpha: 1, scale: 1, duration: 0.45, ease: 'back.out(1.7)' }, N + 1.9)
+    tl.addLabel('rest', N + 2.6)
+
+    tl.to(cam, { autoAlpha: 0, ...shot(0.95, W / 2, H / 2), duration: 0.8, ease: 'power2.in' }, N + 4.4)
+  },
+})
 </script>
 
 <template>
-  <div class="accounts hmz-panel">
-    <div class="tabs">
-      <div class="pick" role="group" aria-label="which half to show">
-        <button
-          type="button"
-          :aria-pressed="view === 'runs'"
-          :class="{ on: view === 'runs' }"
-          @click="view = 'runs'"
-        >
-          what a turn runs as
-        </button>
-        <button
-          type="button"
-          :aria-pressed="view === 'fails'"
-          :class="{ on: view === 'fails' }"
-          @click="view = 'fails'"
-        >
-          when an account fails
-        </button>
-      </div>
-      <span class="sim">simulation</span>
+  <HmzStage
+    :scene="scene"
+    :beats="BEATS"
+    sim
+    mobile-ratio="9 / 11"
+    label="One agent's conversation and a chain of three accounts: claude@work, a subscription; claude@key, an API key; claude@gateway, a gateway. The turn runs as claude@work, and the ANTHROPIC_API_KEY in your shell is unset for it. claude@work is rate-limited, waits at least 30 seconds, is rate-limited again, and the conversation moves to claude@key. That key is refused, so it moves at once to claude@gateway, and claude@key needs signing in again. The turn lands on claude@gateway in the same conversation, and the agent's next turn starts there."
+  >
+    <div class="layer cam">
+      <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
+        <defs>
+          <radialGradient v-for="n in [2, 3, 4]" :id="`hmz-accounts-halo-${n}`" :key="n">
+            <stop offset="0" :stop-color="`var(--hmz-lane-${n})`" stop-opacity="0.5" />
+            <stop offset="1" :stop-color="`var(--hmz-lane-${n})`" stop-opacity="0" />
+          </radialGradient>
+          <clipPath id="hmz-accounts-clip">
+            <rect x="0" y="26" :width="L.thread.w" :height="L.thread.h - 30" />
+          </clipPath>
+        </defs>
+
+        <path v-for="(d, i) in links" :key="`l${i}`" class="link" :d="d" />
+        <path v-for="(d, i) in links" :key="`k${i}`" class="link-lit" :class="`lane-${ACCOUNTS[i + 1].lane}`" :d="d" />
+
+        <g v-for="(a, i) in ACCOUNTS" :key="a.name" :transform="`translate(${L.cards[i].x} ${L.cards[i].y})`">
+          <ellipse class="card-halo" :cx="L.card.w / 2" :cy="L.card.h / 2" :rx="L.card.w * 0.9" :ry="L.card.h * 1.3" :fill="`url(#hmz-accounts-halo-${a.lane})`" />
+          <g class="card" :class="`lane-${a.lane}`">
+            <rect class="card-bg" :width="L.card.w" :height="L.card.h" rx="12" />
+            <rect class="card-edge" x="0" y="10" width="3" :height="L.card.h - 20" rx="1.5" />
+            <text class="name" x="14" y="26">{{ a.name }}</text>
+            <text class="kind" x="14" y="45">{{ a.kind }}</text>
+            <text v-if="i === 1" class="again" x="14" y="45">sign in again</text>
+            <g v-if="i === 0" :transform="`translate(${L.card.w - 26} ${L.card.h / 2 + 6})`">
+              <g class="timer">
+                <circle class="timer-track" r="15" />
+                <circle class="timer-fill" r="15" transform="rotate(-90)" />
+                <text class="timer-count" y="4" text-anchor="middle">0s</text>
+              </g>
+            </g>
+            <g :transform="`translate(${L.card.w - 26} 0)`">
+              <g class="badge" :class="i === 2 ? 'ok' : 'bad'">
+                <rect x="-24" y="-10" width="48" height="20" rx="10" />
+                <text :class="{ 'badge-try': i === 0 }" y="4" text-anchor="middle">{{ ['429', '401', '✓'][i] }}</text>
+              </g>
+            </g>
+          </g>
+        </g>
+
+        <g class="shell" :transform="`translate(${L.shell.x} ${L.shell.y})`">
+          <rect class="shell-bg" :width="L.shell.w" height="54" rx="10" />
+          <text class="shell-name" x="12" y="18">your shell</text>
+        </g>
+
+        <g :transform="`translate(${L.seats[0].x} ${L.seats[0].y})`">
+          <g class="thread">
+            <path class="tether" :d="tether" />
+            <rect class="shield" x="-7" y="-7" :width="L.thread.w + 14" :height="L.thread.h + 14" rx="16" />
+            <rect class="thread-bg" :width="L.thread.w" :height="L.thread.h" rx="12" />
+            <text class="thread-name" x="12" y="18">conversation</text>
+            <g clip-path="url(#hmz-accounts-clip)">
+              <g class="scroll">
+                <g v-for="(b, i) in BUBBLES" :key="i">
+                  <rect class="bubble" :class="b.lane ? `lane-${b.lane}` : 'in'" :x="bubble(i).x" :y="bubble(i).y" :width="bubble(i).w" :height="bubble(i).h" rx="7.5" />
+                  <rect v-if="i < 3" class="kept" :x="bubble(i).x - 2" :y="bubble(i).y - 2" :width="bubble(i).w + 4" :height="bubble(i).h + 4" rx="9" />
+                </g>
+                <g class="dots" :transform="`translate(${L.thread.w - 40} ${32 + 3 * ROW + 7.5})`">
+                  <circle cx="0" r="3" />
+                  <circle cx="10" r="3" />
+                  <circle cx="20" r="3" />
+                </g>
+              </g>
+            </g>
+          </g>
+        </g>
+
+        <g class="key">
+          <rect class="key-bg" x="0" y="-12" width="162" height="24" rx="7" />
+          <text class="key-name" x="81" y="4" text-anchor="middle">ANTHROPIC_API_KEY</text>
+          <line class="strike" x1="8" y1="0" x2="154" y2="0" />
+          <text class="unset" x="81" y="30" text-anchor="middle">unset</text>
+        </g>
+
+        <g class="next">
+          <rect x="0" y="-11" width="60" height="22" rx="11" />
+          <text x="30" y="4" text-anchor="middle">turn 2</text>
+        </g>
+      </svg>
+      <canvas ref="canvas" />
     </div>
-
-    <div v-if="view === 'runs'" class="runs">
-      <div class="who" role="group" aria-label="which account the agent runs as">
-        <button
-          v-for="(one, i) in RUNS"
-          :key="one.name"
-          type="button"
-          :aria-pressed="picked === i"
-          :class="{ on: picked === i }"
-          @click="picked = i"
-        >
-          <code>{{ one.name }}</code>
-          <span>{{ one.kind }}</span>
-        </button>
-      </div>
-
-      <div class="card" aria-live="polite">
-        <p class="turn">
-          a turn of <code>claude</code>, run as <strong>{{ RUNS[picked].name }}</strong>
-        </p>
-        <div v-for="line in RUNS[picked].lines" :key="line.what" class="line">
-          <span class="what">{{ line.what }}</span>
-          <span class="gets">{{ line.gets }}</span>
-          <span class="tag" :class="line.tag">{{ TAGS[line.tag] }}</span>
-        </div>
-      </div>
-      <p class="note">
-        Two agents of one CLI can run as two of these at the same time. A turn under an account
-        never reads or writes the sign-in you use yourself.
-      </p>
-    </div>
-
-    <div v-else class="chain">
-      <div class="controls">
-        <label>
-          <span>tries at this place</span>
-          <input v-model.number="tries" type="range" min="0" max="4" step="1" @input="reset" />
-          <b>{{ tries }}</b>
-        </label>
-        <label>
-          <span>waits</span>
-          <select v-model="policy" @change="reset">
-            <option v-for="one in POLICIES" :key="one.name" :value="one.name">
-              {{ one.name }}
-            </option>
-          </select>
-        </label>
-        <div class="spacer" />
-        <button class="go" type="button" :disabled="playing" @click="play">
-          {{ playing ? 'running…' : 'take a turn' }}
-        </button>
-      </div>
-
-      <div class="ladder">
-        <div class="bars" aria-hidden="true">
-          <div v-for="one in ladder" :key="one.attempt" class="bar">
-            <div class="col">
-              <span
-                class="fill"
-                :class="{ jitter: policy === 'exponential-jitter' }"
-                :style="{ height: `${(one.seconds / tallest) * 100}%` }"
-              />
-            </div>
-            <span class="tick">{{ one.seconds ? `${one.seconds}s` : '0' }}</span>
-          </div>
-        </div>
-        <p class="about">
-          {{ POLICIES.find((one) => one.name === policy)?.about }} Never more than a minute.
-        </p>
-      </div>
-
-      <div class="rows">
-        <div
-          v-for="one in ACCOUNTS"
-          :key="one.name"
-          class="row"
-          :class="{ here: current === one.name, landed: landedOn === one.name }"
-        >
-          <code>{{ one.name }}</code>
-          <span class="kind">{{ one.kind }}</span>
-          <select
-            v-model="one.fault"
-            :aria-label="`what ${one.name} does`"
-            :class="{ bad: one.fault !== 'ok' }"
-            @change="reset"
-          >
-            <option v-for="fault in CHOICES" :key="fault" :value="fault">
-              {{ FAULTS[fault].said }}
-            </option>
-          </select>
-        </div>
-        <div class="row place" :class="{ here: current === PLACE, landed: landedOn === PLACE }">
-          <code>{{ PLACE }}</code>
-          <span class="kind">another place</span>
-          <button
-            type="button"
-            class="flip"
-            :class="{ bad: placeFails }"
-            @click="placeFails = !placeFails; reset()"
-          >
-            {{ placeFails ? 'fails' : 'answers' }}
-          </button>
-        </div>
-      </div>
-
-      <ol class="log" aria-live="polite">
-        <li v-for="(one, i) in visible" :key="i" :class="one.kind">
-          <span class="by">{{ one.who || '↳' }}</span>
-          <span>{{ one.said }}</span>
-        </li>
-        <li v-if="!visible.length" class="idle">
-          Set what each account does, then take a turn. Time is compressed.
-        </li>
-      </ol>
-      <p v-if="landedOn && landedOn !== ACCOUNTS[0].name && !playing" class="note">
-        The agent stays on <code>{{ landedOn }}</code> for its next turn rather than trying the
-        accounts that failed again.
-      </p>
-    </div>
-  </div>
+  </HmzStage>
 </template>
 
 <style scoped>
-.tabs {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--hmz-panel-border);
-  background: var(--vp-c-bg);
+.cam svg,
+.cam canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
-.pick {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  flex: 1;
+.cam canvas {
+  pointer-events: none;
 }
 
-.pick button {
-  padding: 5px 14px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--vp-c-text-2);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s, border-color 0.2s;
+svg {
+  font-family: var(--vp-font-family-base);
 }
 
-.pick button.on {
-  border-color: var(--vp-c-brand-1);
-  background: var(--vp-c-brand-soft);
-  color: var(--vp-c-brand-1);
+.link {
+  fill: none;
+  stroke: var(--hmz-stage-line);
+  stroke-width: 2;
+  stroke-dasharray: 3 4;
 }
 
-.sim {
-  font-size: 10.5px;
+.link-lit {
+  fill: none;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.link-lit.lane-4 { stroke: var(--hmz-lane-4); }
+.link-lit.lane-3 { stroke: var(--hmz-lane-3); }
+
+.card-halo {
+  opacity: var(--hmz-glow);
+}
+
+.card-bg {
+  fill: var(--hmz-stage-card);
+  stroke: var(--hmz-stage-line);
+  stroke-width: 1.2;
+}
+
+.card.lane-2 .card-edge { fill: var(--hmz-lane-2); }
+.card.lane-4 .card-edge { fill: var(--hmz-lane-4); }
+.card.lane-3 .card-edge { fill: var(--hmz-lane-3); }
+
+.name {
+  font-family: var(--vp-font-family-mono);
+  font-size: 13px;
+  font-weight: 650;
+  fill: var(--hmz-stage-ink);
+}
+
+.kind {
+  font-size: 11.5px;
+  fill: var(--hmz-stage-dim);
+}
+
+.again {
+  font-size: 11.5px;
+  font-weight: 650;
+  fill: var(--hmz-lane-5);
+}
+
+.timer-track {
+  fill: var(--hmz-stage-card);
+  stroke: var(--hmz-stage-line);
+  stroke-width: 3;
+}
+
+.timer-fill {
+  fill: none;
+  stroke: var(--hmz-lane-5);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.timer-count {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11px;
+  font-weight: 650;
+  fill: var(--hmz-stage-ink);
+}
+
+.badge rect {
+  stroke: none;
+}
+
+.badge.bad rect {
+  fill: var(--hmz-lane-5);
+}
+
+.badge.ok rect {
+  fill: var(--hmz-accent);
+}
+
+.badge text {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  fill: #fff;
+}
+
+.shell-bg {
+  fill: var(--hmz-stage-card);
+  stroke: var(--hmz-stage-line);
+  stroke-dasharray: 3 3;
+}
+
+.shell-name,
+.thread-name {
+  font-size: 11px;
+  font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--vp-c-text-3);
+  fill: var(--hmz-stage-dim);
 }
 
-/* ------------------------------------------------------------------ what a turn runs as */
-
-.who {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  padding: 14px 16px 0;
+.thread-bg {
+  fill: var(--hmz-stage-card);
+  stroke: color-mix(in srgb, var(--hmz-lane-1) 50%, transparent);
+  stroke-width: 1.4;
 }
 
-.who button {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 10px;
-  background: var(--vp-c-bg);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
+.tether {
+  fill: none;
+  stroke: var(--hmz-lane-1);
+  stroke-width: 2;
+  stroke-dasharray: 2 4;
+  stroke-linecap: round;
 }
 
-.who button:hover {
-  border-color: var(--vp-c-brand-1);
+.shield {
+  fill: color-mix(in srgb, var(--hmz-lane-2) 10%, transparent);
+  stroke: var(--hmz-lane-2);
+  stroke-width: 2.5;
 }
 
-.who button.on {
-  border-color: var(--hmz-accent);
-  background: var(--vp-c-brand-soft);
+.bubble.in {
+  fill: color-mix(in srgb, var(--hmz-stage-dim) 30%, transparent);
 }
 
-.who code {
-  font-size: 12px;
+.bubble.lane-2 { fill: var(--hmz-lane-2); }
+.bubble.lane-3 { fill: var(--hmz-lane-3); }
+.bubble.lane-4 { fill: var(--hmz-lane-4); }
+
+.kept {
+  fill: none;
+  stroke: var(--hmz-accent);
+  stroke-width: 1.5;
+}
+
+.dots circle {
+  fill: var(--hmz-stage-dim);
+}
+
+.key-bg {
+  fill: color-mix(in srgb, var(--hmz-lane-5) 10%, var(--hmz-stage-card));
+  stroke: color-mix(in srgb, var(--hmz-lane-5) 60%, transparent);
+}
+
+.key-name {
+  font-family: var(--vp-font-family-mono);
+  font-size: 11.5px;
   font-weight: 650;
-  color: var(--vp-c-text-1);
-  background: none;
-  padding: 0;
+  fill: var(--hmz-stage-ink);
 }
 
-.who span {
+.strike {
+  stroke: var(--hmz-lane-5);
+  stroke-width: 2;
+}
+
+.unset {
   font-size: 11px;
-  color: var(--vp-c-text-3);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  fill: var(--hmz-lane-5);
 }
 
-.card {
-  margin: 12px 16px 0;
-  padding: 12px 14px 6px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 12px;
-  background: var(--vp-c-bg);
+.next rect {
+  fill: color-mix(in srgb, var(--hmz-lane-3) 18%, var(--hmz-stage-card));
+  stroke: var(--hmz-lane-3);
+  stroke-width: 1.4;
 }
 
-.turn {
-  margin: 0 0 8px;
-  font-size: 12px;
-  color: var(--vp-c-text-3);
-}
-
-.turn strong {
-  color: var(--vp-c-text-1);
-}
-
-.line {
-  display: grid;
-  grid-template-columns: minmax(0, 13rem) minmax(0, 1fr) auto;
-  gap: 4px 12px;
-  align-items: baseline;
-  padding: 7px 0;
-  border-top: 1px dashed var(--vp-c-divider);
-  font-size: 13px;
-}
-
-.line .what {
-  font-family: var(--vp-font-family-mono);
+.next text {
   font-size: 11.5px;
-  color: var(--vp-c-text-2);
-}
-
-.line .gets {
-  color: var(--vp-c-text-1);
-}
-
-.tag {
-  padding: 1px 9px;
-  border-radius: 999px;
-  font-size: 10.5px;
   font-weight: 650;
-  white-space: nowrap;
-}
-
-.tag.yours {
-  color: var(--vp-c-text-2);
-  background: var(--vp-c-default-soft);
-}
-
-.tag.account {
-  color: var(--hmz-accent);
-  background: color-mix(in srgb, var(--hmz-accent) 14%, transparent);
-}
-
-.tag.unset {
-  color: var(--hmz-warm);
-  background: color-mix(in srgb, var(--hmz-warm) 14%, transparent);
-}
-
-.tag.same {
-  color: var(--vp-c-text-3);
-  border: 1px solid var(--vp-c-divider);
-}
-
-/* ------------------------------------------------------------------ when an account fails */
-
-.controls {
-  display: flex;
-  align-items: center;
-  gap: 10px 18px;
-  flex-wrap: wrap;
-  padding: 12px 16px 0;
-  font-size: 12px;
-  color: var(--vp-c-text-3);
-}
-
-.controls label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-select {
-  padding: 3px 8px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 8px;
-  background: var(--vp-c-bg);
-  color: var(--vp-c-text-1);
-  font-size: 12px;
-}
-
-.controls input[type='range'] {
-  width: 92px;
-  accent-color: var(--vp-c-brand-1);
-}
-
-.controls b {
-  font-family: var(--vp-font-family-mono);
-  color: var(--vp-c-text-1);
-}
-
-.spacer {
-  flex: 1;
-}
-
-.go {
-  padding: 5px 14px;
-  border: 1px solid var(--vp-c-brand-1);
-  border-radius: 999px;
-  background: var(--vp-c-brand-soft);
-  color: var(--vp-c-brand-1);
-  font-size: 12px;
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.go:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
-.ladder {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  padding: 12px 16px 0;
-}
-
-.bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  flex: none;
-}
-
-.bar {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  width: 26px;
-}
-
-.col {
-  display: flex;
-  align-items: flex-end;
-  width: 100%;
-  height: 44px;
-  border-bottom: 1px solid var(--vp-c-divider);
-}
-
-.fill {
-  width: 100%;
-  min-height: 2px;
-  border-radius: 4px 4px 0 0;
-  background: var(--vp-c-brand-1);
-  transition: height 0.35s ease;
-}
-
-.fill.jitter {
-  background: linear-gradient(180deg, var(--vp-c-brand-1), transparent);
-}
-
-.tick {
-  font-size: 10px;
-  font-family: var(--vp-font-family-mono);
-  color: var(--vp-c-text-3);
-}
-
-.ladder .about {
-  margin: 0;
-  font-size: 12.5px;
-  line-height: 1.55;
-  color: var(--vp-c-text-3);
-}
-
-.rows {
-  padding: 14px 16px 0;
-}
-
-.row {
-  display: flex;
-  align-items: center;
-  gap: 8px 12px;
-  flex-wrap: wrap;
-  padding: 7px 12px;
-  margin-bottom: 6px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 10px;
-  background: var(--vp-c-bg);
-  font-size: 12px;
-  transition: border-color 0.25s, background 0.25s;
-}
-
-.row.place {
-  border-style: dashed;
-}
-
-.row.here {
-  border-color: var(--hmz-warm);
-}
-
-.row.landed {
-  border-color: var(--hmz-accent);
-  background: var(--vp-c-brand-soft);
-}
-
-.row code {
-  min-width: 8.5rem;
-  font-weight: 650;
-  color: var(--vp-c-text-1);
-  background: none;
-  padding: 0;
-}
-
-.row .kind {
-  flex: 1;
-  color: var(--vp-c-text-3);
-}
-
-.row select.bad,
-.flip.bad {
-  color: var(--hmz-warm);
-  border-color: var(--hmz-warm);
-}
-
-.flip {
-  padding: 3px 12px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 8px;
-  background: var(--vp-c-bg);
-  color: var(--hmz-accent);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.log {
-  margin: 8px 16px 0;
-  padding: 10px 14px;
-  list-style: none;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 10px;
-  background: var(--vp-c-bg);
-  font-family: var(--vp-font-family-mono);
-  font-size: 11.5px;
-  line-height: 1.8;
-  min-height: 110px;
-  color: var(--vp-c-text-2);
-}
-
-.log li {
-  display: flex;
-  gap: 10px;
-  margin: 0;
-  animation: land 0.3s ease;
-}
-
-.log .by {
-  flex: none;
-  min-width: 8.5rem;
-  color: var(--vp-c-text-3);
-}
-
-.log .try {
-  color: var(--hmz-warm);
-}
-
-.log .wait,
-.log .why {
-  color: var(--vp-c-text-3);
-}
-
-.log .why span:last-child {
-  font-style: italic;
-}
-
-.log .moved {
-  color: var(--vp-c-brand-1);
-}
-
-.log .landed {
-  color: var(--hmz-accent);
-  font-weight: 650;
-}
-
-.log .ended {
-  color: var(--hmz-warm);
-  font-weight: 650;
-}
-
-.log .idle {
-  color: var(--vp-c-text-3);
-  font-family: var(--vp-font-family-base);
-  line-height: 1.6;
-}
-
-@keyframes land {
-  from {
-    opacity: 0;
-    transform: translateY(3px);
-  }
-}
-
-.note {
-  margin: 0;
-  padding: 12px 16px 15px;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--vp-c-text-2);
-}
-
-.runs .note {
-  padding-top: 10px;
-}
-
-@media (max-width: 780px) {
-  .who {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .line {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .line .gets {
-    grid-column: 1 / -1;
-    grid-row: 2;
-  }
-
-  .ladder {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
-
-@media (max-width: 480px) {
-  .log .by {
-    min-width: 0;
-  }
-
-  .log li {
-    flex-direction: column;
-    gap: 0;
-  }
-
-  .log li.idle {
-    flex-direction: row;
-  }
-
-  .row code {
-    min-width: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .log li {
-    animation: none;
-  }
+  fill: var(--hmz-stage-ink);
 }
 </style>

@@ -1,515 +1,619 @@
 <script setup lang="ts">
-// A line typed while a turn is running, shown on two kinds of backend at once. On the left,
-// the ones whose sessions set `steers` (Claude Code, Codex, Kimi Code and pi,
-// `src/hmz/coganchor/agents/`): the line goes into the turn already running. On the right,
-// every other backend: `interject` refuses, the interface says so, and the line waits for the
-// next turn to start (`_hand_over`, `_unreached` and `_at_turn_start` in `src/hmz/tui/app.py`).
-// Either way lines leave the queue one at a time and stay pinned until the agent has one.
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+// A line typed while a turn is running, on two kinds of backend side by side. On the left, the
+// ones whose sessions set `steers` (Claude Code, Codex, Kimi Code and pi,
+// `src/hmz/coganchor/agents/`): the line goes into the turn already running, and that turn
+// answers it. On the right, every other backend: `interject` refuses, the interface says the
+// session cannot be talked to mid-turn, and the line goes back on the pin, where the next turn
+// to start takes it (the screens in `docs/user/steering.md`). Either way a line is pinned above
+// the prompt, saying which agent has it, until the agent has it; and lines go one at a time,
+// the next only once the one before is taken. The tools, the replies and the timings are drawn.
+import { computed, ref } from 'vue'
 
-interface Line {
-  id: number
-  text: string
-  state: 'held' | 'pinned' | 'taken'
-  at: number
-  late: boolean
-}
+import HmzStage from '../motion/HmzStage.vue'
+import { createFx, type Fx } from '../motion/fx'
+import { useNarrow } from '../motion/layout'
+import { usePalette } from '../motion/palette'
+import { useScene } from '../motion/useScene'
 
-interface Said {
-  id: number
-  text: string
-  kind: 'tool' | 'you' | 'say' | 'edge' | 'warn'
-}
-
-const STEPS: { at: number; text: string; kind: 'tool' | 'say' }[] = [
-  { at: 0.06, text: 'Read src/pay.py', kind: 'tool' },
-  { at: 0.24, text: 'Grep "def charge"', kind: 'tool' },
-  { at: 0.42, text: 'Edit src/pay.py', kind: 'tool' },
-  { at: 0.62, text: 'Bash pytest -q', kind: 'tool' },
-  { at: 0.88, text: 'the retry path was the one', kind: 'say' },
+const BEATS = [
+  'A turn is running',
+  'You type while it works',
+  'Taken into the turn, or refused',
+  'A refused line waits for the next turn',
+  'Lines go one at a time',
 ]
 
-const SUGGESTED = ['actually, use pathlib', 'and fix the tests too', 'leave the CLI alone']
-
-const TURN = 11 // seconds a turn takes here
-const GAP = 2.6 // and the pause before the next one starts
-
-const clock = ref(0)
-const typed = ref('')
-const lines = ref<Line[]>([])
-const into = ref<Said[]>([])
-const after = ref<Said[]>([])
-const running = ref(true)
-
-let frame = 0
-let last = 0
-let idle = false
-let counter = 0
-let round = 0
-let step = 0
-
-const progress = computed(() => Math.min(1, clock.value / TURN))
-const open = computed(() => clock.value < TURN)
-
-function say(where: 'into' | 'after', text: string, kind: Said['kind']) {
-  const said = { id: (counter += 1), text, kind }
-  const list = where === 'into' ? into : after
-  list.value = [...list.value.slice(-7), said]
+interface P {
+  x: number
+  y: number
 }
 
-function submit() {
-  const text = typed.value.trim()
-  if (!text) return
-  typed.value = ''
-  hand(text)
+interface Layout {
+  w: number
+  h: number
+  /** One half's size, and where each half sits. */
+  W: number
+  H: number
+  halves: P[]
+  head: number
+  sub: number
+  track: number
+  turnWord: number
+  /** The first transcript row, the row pitch, and how many rows show. */
+  row0: number
+  row: number
+  rows: number
+  pin: number
+  prompt: number
+  promptH: number
+  focus: number
 }
 
-function hand(text: string) {
-  // Handed to the agent only when nothing typed before it is still waiting: one at a time.
-  const free = open.value && lines.value.every((one) => one.state === 'taken')
-  lines.value = [
-    ...lines.value,
-    { id: (counter += 1), text, state: free ? 'pinned' : 'held', at: clock.value, late: false },
-  ]
-  if (open.value) say('after', 'cannot be talked to mid-turn: held for the next turn', 'warn')
+const WIDE: Layout = {
+  w: 640,
+  h: 360,
+  W: 296,
+  H: 314,
+  halves: [
+    { x: 16, y: 34 },
+    { x: 328, y: 34 },
+  ],
+  head: 24,
+  sub: 42,
+  track: 60,
+  turnWord: 84,
+  row0: 112,
+  row: 19,
+  rows: 5,
+  pin: 238,
+  prompt: 262,
+  promptH: 36,
+  focus: 1.04,
 }
 
-function tick(now: number) {
-  frame = requestAnimationFrame(tick)
-  const dt = Math.min((now - last) / 1000, 0.1)
-  last = now
-  if (!running.value || idle) return
-  clock.value += dt
-
-  // The agent works the same on both sides. What differs is when your line reaches it.
-  while (step < STEPS.length && progress.value >= STEPS[step].at) {
-    say('into', STEPS[step].text, STEPS[step].kind)
-    say('after', STEPS[step].text, STEPS[step].kind)
-    step += 1
-  }
-
-  // One line at a time: the next goes only once the agent has said it has this one.
-  const waiting = lines.value.find((one) => one.state !== 'taken')
-  if (waiting && open.value) {
-    if (waiting.state === 'held') {
-      waiting.state = 'pinned'
-      waiting.at = clock.value
-    } else if (clock.value - waiting.at > 0.9) {
-      waiting.state = 'taken'
-      say('into', waiting.text, 'you')
-      say('into', 'takes it into the turn it is running', 'edge')
-    }
-  }
-
-  if (clock.value >= TURN + GAP) {
-    // The next turn starts, and takes what was waiting for it on the right.
-    const due = lines.value.filter((one) => !one.late)
-    round += 1
-    if (round % 2 === 0) {
-      into.value = []
-      after.value = []
-    }
-    for (const one of due) {
-      one.late = true
-      say('after', one.text, 'you')
-      say('after', `goes into the next turn, ${Math.max(1, Math.round(TURN + GAP - one.at))}s later`, 'edge')
-    }
-    lines.value = lines.value.filter((one) => !(one.late && one.state === 'taken'))
-    clock.value = 0
-    step = 0
-  }
+const NARROW: Layout = {
+  w: 360,
+  h: 500,
+  W: 340,
+  H: 222,
+  halves: [
+    { x: 10, y: 42 },
+    { x: 10, y: 272 },
+  ],
+  head: 22,
+  sub: 38,
+  track: 54,
+  turnWord: 76,
+  row0: 100,
+  row: 17,
+  rows: 3,
+  pin: 170,
+  prompt: 184,
+  promptH: 30,
+  focus: 1.02,
 }
 
-const root = ref<HTMLElement | null>(null)
-let observer: IntersectionObserver | undefined
+const PAD = 14
+const LINE = 'and fix the tests too'
 
-onMounted(() => {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    // Held still at a moment worth reading: a line typed mid-turn, taken on one side and
-    // held on the other.
-    running.value = false
-    clock.value = TURN * 0.5
-    for (const one of STEPS.slice(0, 3)) {
-      say('into', one.text, one.kind)
-      say('after', one.text, one.kind)
-    }
-    lines.value = [{ id: (counter += 1), text: SUGGESTED[0], state: 'taken', at: clock.value, late: false }]
-    say('into', SUGGESTED[0], 'you')
-    say('into', 'takes it into the turn it is running', 'edge')
-    say('after', 'cannot be talked to mid-turn: held for the next turn', 'warn')
-    return
-  }
-  observer = new IntersectionObserver((entries) => (idle = !entries[0].isIntersecting), {
-    rootMargin: '120px',
+type Kind = 'tool' | 'you' | 'say' | 'warn'
+
+// What each side's transcript says, in order.
+const SAID: { text: string; kind: Kind }[][] = [
+  [
+    { text: '▸ Read src/pay.py', kind: 'tool' },
+    { text: '▸ Edit src/pay.py', kind: 'tool' },
+    { text: `❯ ${LINE}`, kind: 'you' },
+    { text: '● On it: the tests too.', kind: 'say' },
+    { text: '▸ Edit tests/test_pay.py', kind: 'tool' },
+    { text: '❯ use pathlib', kind: 'you' },
+    { text: '● Switching to pathlib.', kind: 'say' },
+    { text: '❯ keep the CLI', kind: 'you' },
+    { text: '● Leaving the CLI alone.', kind: 'say' },
+  ],
+  [
+    { text: '▸ Read src/pay.py', kind: 'tool' },
+    { text: '▸ Edit src/pay.py', kind: 'tool' },
+    { text: 'hmz: cannot be talked to mid-turn', kind: 'warn' },
+    { text: '▸ Bash pytest -q', kind: 'tool' },
+    { text: `❯ ${LINE}`, kind: 'you' },
+    { text: '● On it: the tests too.', kind: 'say' },
+  ],
+]
+
+// The lines that wait on the pin above the prompt, and the row each first appears on.
+const PINS = [
+  { text: LINE, slot: 0 },
+  { text: 'use pathlib', slot: 1 },
+  { text: 'keep the CLI', slot: 0 },
+]
+const chip = (text: string) => (text.length + 15) * (narrow.value ? 6.6 : 6.9) + 12
+
+const SIDES = [
+  { title: 'into this turn', who: 'Claude Code · Codex · Kimi Code · pi', hue: 'var(--hmz-accent)' },
+  { title: 'into the next turn', who: 'every other backend', hue: 'var(--hmz-warm)' },
+]
+
+const palette = usePalette()
+const canvas = ref<HTMLCanvasElement | null>(null)
+let fx: Fx | undefined
+
+const narrow = useNarrow(() => scene.rebuild())
+const L = computed(() => (narrow.value ? NARROW : WIDE))
+
+// Where the two turns sit on a side's track.
+const turn1 = computed(() => ({ a: PAD, b: PAD + (L.value.W - 2 * PAD) * 0.64 }))
+const turn2 = computed(() => ({ a: turn1.value.b + 12, b: L.value.W - PAD }))
+
+// The camera over the whole picture, and a lens on each side (the side in focus comes forward,
+// the other falls back). Both are applied by hand, so a point on a side can be followed onto
+// the canvas while they move.
+const cam = { x: 0, y: 0, s: 1 }
+const lens = [{ s: 1 }, { s: 1 }]
+let worldEl: SVGGElement | null = null
+let sideEls: SVGGElement[] = []
+
+function centre(i: number): P {
+  const l = L.value
+  return { x: l.halves[i].x + l.W / 2, y: l.halves[i].y + l.H / 2 }
+}
+
+function applyCam() {
+  worldEl?.setAttribute('transform', `translate(${cam.x} ${cam.y}) scale(${cam.s})`)
+}
+
+function applyLens() {
+  sideEls.forEach((el, i) => {
+    const c = centre(i)
+    el.setAttribute('transform', `translate(${c.x} ${c.y}) scale(${lens[i].s}) translate(${-c.x} ${-c.y})`)
   })
-  if (root.value) observer.observe(root.value)
-  last = performance.now()
-  frame = requestAnimationFrame(tick)
-})
+}
 
-onUnmounted(() => {
-  cancelAnimationFrame(frame)
-  observer?.disconnect()
-})
+/** A point on side `i`, in the side's own coordinates, where it is on the screen right now. */
+function onScreen(i: number, p: P): P {
+  const l = L.value
+  const c = centre(i)
+  const wx = c.x + (l.halves[i].x + p.x - c.x) * lens[i].s
+  const wy = c.y + (l.halves[i].y + p.y - c.y) * lens[i].s
+  return { x: cam.x + wx * cam.s, y: cam.y + wy * cam.s }
+}
 
-const pinned = computed(() => lines.value.filter((one) => one.state !== 'taken'))
-const heldRight = computed(() => lines.value.filter((one) => !one.late))
+const scene = useScene({
+  still: 'rest',
+  repeatDelay: 0.6,
+  tick: (dt) => fx?.step(dt),
+  build(tl, q) {
+    const l = L.value
+    fx?.destroy()
+    fx = canvas.value ? createFx(canvas.value, l.w, l.h) : undefined
+    fx?.clear()
+    worldEl = q('.world')[0] as SVGGElement
+    sideEls = q('.side') as SVGGElement[]
+    const all = (sel: string) => q(sel)
+    const of = (i: number, sel: string) => q(`.side-${i} ${sel}`)
+    const hue = (i: number) => (i ? palette.warm : palette.accent)
+
+    // Timings: the first turn, the gap, the second.
+    const TA = 0.4
+    const TEND = 8.2
+    const TS2 = 8.8
+    const TEND2 = 19.5
+    const t1 = turn1.value
+    const t2 = turn2.value
+    const headAt = (t: number) =>
+      t <= TEND ? t1.a + (t1.b - t1.a) * Math.max(0, (t - TA) / (TEND - TA)) : t2.a + (t2.b - t2.a) * Math.max(0, (t - TS2) / (TEND2 - TS2))
+    const bar = (t: number): P => ({ x: headAt(t), y: l.track + 4 })
+    const pinAt = (slot = 0): P => ({ x: PAD + 14, y: l.pin - 4 - slot * l.row })
+
+    // A mote of light from one point of a side to another, followed through the camera.
+    function beam(i: number, from: P, to: P, color: string, at: number, opts: { duration?: number; bend?: number; burst?: number } = {}) {
+      const p = { t: 0 }
+      const bend = opts.bend ?? 0.3
+      const cx = (from.x + to.x) / 2 - (to.y - from.y) * bend
+      const cy = (from.y + to.y) / 2 + (to.x - from.x) * bend
+      tl.fromTo(
+        p,
+        { t: 0 },
+        {
+          t: 1,
+          duration: opts.duration ?? 0.6,
+          ease: 'cine',
+          onUpdate: () => {
+            const t = p.t
+            const u = 1 - t
+            const s = onScreen(i, { x: u * u * from.x + 2 * u * t * cx + t * t * to.x, y: u * u * from.y + 2 * u * t * cy + t * t * to.y })
+            fx?.trail(s.x, s.y, color, 2.6)
+          },
+          onComplete: () => {
+            if (!opts.burst) return
+            const s = onScreen(i, to)
+            fx?.spark(s.x, s.y, color, opts.burst, 80)
+          },
+        },
+        at,
+      )
+    }
+
+    // A transcript row appears, and the rows scroll up once they are full.
+    function say(i: number, n: number, at: number) {
+      tl.fromTo(of(i, '.said')[n], { autoAlpha: 0, x: -8 }, { autoAlpha: 1, x: 0, duration: 0.45 }, at)
+      if (n >= l.rows) tl.to(of(i, '.scroll'), { y: -(n - l.rows + 1) * l.row, duration: 0.45, ease: 'cine' }, at)
+    }
+
+    function mark(i: number, which: number, x: number, at: number) {
+      const m = of(i, '.mark')[which]
+      tl.set(m, { attr: { transform: `translate(${x} ${l.track + 4})` } }, 0)
+      tl.fromTo(m.querySelector('.mark-in'), { scale: 0, autoAlpha: 0, transformOrigin: '50% 50%' }, { scale: 1, autoAlpha: 1, duration: 0.5, ease: 'back.out(3)' }, at)
+    }
+
+    // Clean slate for every loop.
+        tl.set(lens, { s: 1, onComplete: applyLens }, 0)
+    tl.set(all('.said, .pin, .mark-in, .glow, .halo, .prompt-lit'), { autoAlpha: 0 }, 0)
+    tl.set(all('.with'), { fillOpacity: 0 }, 0)
+    tl.set(all('.side-in'), { autoAlpha: 1 }, 0)
+    tl.set(all('.scroll'), { y: 0 }, 0)
+    tl.set(all('.typed'), { text: '' }, 0)
+    tl.set(all('.fill'), { attr: { width: 0 } }, 0)
+    tl.set(all('.head'), { attr: { cx: t1.a }, autoAlpha: 0 }, 0)
+    tl.set(all('.pin'), { y: 0 }, 0)
+    tl.set(all('.turn-word-1'), { opacity: 1 }, 0)
+
+    // 0 · the camera settles on two sides of one moment; a turn runs on both.
+    tl.addLabel('beat-0', 0)
+    const mid = { x: l.w / 2, y: l.h / 2 }
+    tl.fromTo(cam, { s: 1.14, x: mid.x * -0.14, y: mid.y * -0.14 }, { s: 1, x: 0, y: 0, duration: 2.6, ease: 'cine', onUpdate: applyCam }, 0)
+    tl.fromTo(all('.card'), { drawSVG: '0%' }, { drawSVG: '100%', duration: 1.4, stagger: 0.15, ease: 'cine' }, 0)
+    tl.fromTo(all('.side-words'), { autoAlpha: 0, y: 6 }, { autoAlpha: 1, y: 0, duration: 0.6, stagger: 0.15 }, 0.3)
+    for (const i of [0, 1]) {
+      tl.to(of(i, '.head'), { autoAlpha: 1, duration: 0.2 }, TA)
+      tl.to(of(i, '.fill1'), { attr: { width: t1.b - t1.a }, duration: TEND - TA, ease: 'none' }, TA)
+      tl.to(of(i, '.head'), { attr: { cx: t1.b }, duration: TEND - TA, ease: 'none' }, TA)
+      say(i, 0, 1.0)
+      say(i, 1, 1.9)
+    }
+
+    // 1 · the same line, typed at both while they work, pinned as it is sent.
+    const T1 = 2.5
+    tl.addLabel('beat-1', T1)
+    for (const i of [0, 1]) {
+      tl.to(of(i, '.prompt-lit'), { autoAlpha: 1, duration: 0.3 }, T1)
+      tl.set(of(i, '.typed'), { text: '' }, T1 + 0.2)
+      tl.to(of(i, '.typed'), { text: { value: LINE }, duration: 0.9, ease: 'none' }, T1 + 0.2)
+      tl.to(of(i, '.typed'), { autoAlpha: 0, y: -12, duration: 0.3, ease: 'cine.in' }, T1 + 1.35)
+      tl.set(of(i, '.typed'), { text: '', autoAlpha: 1, y: 0 }, T1 + 1.7)
+      tl.fromTo(of(i, '.pin-0'), { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.4 }, T1 + 1.45)
+      tl.to(of(i, '.pin-0 .with'), { fillOpacity: 1, duration: 0.3 }, T1 + 1.6)
+      tl.to(of(i, '.prompt-lit'), { autoAlpha: 0, duration: 0.4 }, T1 + 1.7)
+    }
+
+    // 2 · the left takes it into the turn it is running; the right refuses, and the line goes
+    // back on the pin. The same instant, on both.
+    const T2 = 4.3
+    tl.addLabel('beat-2', T2)
+    const hit = T2 + 0.7
+    beam(0, pinAt(), bar(hit), palette.accent, T2, { burst: 22, bend: -0.35, duration: 0.7 })
+    mark(0, 0, headAt(hit), hit)
+    tl.to(of(0, '.glow'), { autoAlpha: 1, duration: 0.3 }, hit)
+    tl.to(of(0, '.glow'), { autoAlpha: 0, duration: 1.2 }, hit + 0.4)
+    tl.to(of(0, '.pin-0'), { autoAlpha: 0, y: -6, duration: 0.35 }, hit)
+    say(0, 2, hit + 0.1)
+    say(0, 3, hit + 0.8)
+
+    beam(1, pinAt(), bar(hit), palette.warm, T2, { bend: -0.35, duration: 0.7 })
+    tl.call(() => {
+      const s = onScreen(1, bar(hit))
+      fx?.spark(s.x, s.y, palette.danger, 26, 120)
+    }, [], hit)
+    tl.fromTo(of(1, '.track'), { x: 0 }, { keyframes: { x: [0, -5, 5, -3, 3, 0] }, duration: 0.4, ease: 'none' }, hit)
+    tl.set(of(1, '.flare'), { attr: { cx: headAt(hit) } }, 0)
+    tl.fromTo(of(1, '.flare'), { autoAlpha: 0, scale: 0.4, transformOrigin: '50% 50%' }, { autoAlpha: 1, scale: 1.3, duration: 0.18, ease: 'power2.out' }, hit)
+    tl.to(of(1, '.flare'), { autoAlpha: 0, scale: 0.8, duration: 0.7 }, hit + 0.2)
+    say(1, 2, hit + 0.05)
+    beam(1, bar(hit + 0.1), pinAt(), palette.danger, hit + 0.1, { bend: -0.3, duration: 0.6 })
+    tl.to(of(1, '.pin-0 .with'), { fillOpacity: 0, duration: 0.3 }, hit + 0.5)
+    tl.fromTo(of(1, '.pin-0 .pin-chip'), { attr: { width: chip(LINE) } }, { attr: { width: chip(LINE) - 13 * (narrow.value ? 6.6 : 6.9) }, duration: 0.4 }, hit + 0.5)
+    tl.to(of(1, '.pin-0'), { keyframes: { opacity: [1, 0.55, 1, 0.55, 1] }, duration: 1.6, ease: 'none' }, hit + 0.7)
+    tl.addLabel('rest', hit + 1.7)
+    say(0, 4, hit + 2.2)
+    say(1, 3, hit + 2.3)
+
+    // 3 · the right comes into focus. Its turn ends; the next one starts and takes the line.
+    const T3 = 7.4
+    tl.addLabel('beat-3', T3)
+    tl.to(lens[1], { s: l.focus, duration: 1.2, ease: 'cine', onUpdate: applyLens }, T3)
+    tl.to(lens[0], { s: 2 - l.focus, duration: 1.2, ease: 'cine', onUpdate: applyLens }, T3)
+    tl.to(of(0, '.side-in'), { autoAlpha: 0.38, duration: 1 }, T3)
+    tl.to(of(1, '.halo'), { autoAlpha: 1, duration: 1 }, T3)
+    for (const i of [0, 1]) {
+      tl.call(() => {
+        const s = onScreen(i, bar(TEND))
+        fx?.spark(s.x, s.y, hue(i), 10, 50)
+      }, [], TEND)
+      tl.to(of(i, '.head'), { autoAlpha: 0, duration: 0.2 }, TEND)
+      tl.to(of(i, '.turn-word-1'), { opacity: 0.45, duration: 0.4 }, TEND)
+      tl.set(of(i, '.head'), { attr: { cx: t2.a } }, TEND + 0.3)
+      tl.to(of(i, '.head'), { autoAlpha: 1, duration: 0.2 }, TS2)
+      tl.to(of(i, '.fill2'), { attr: { width: t2.b - t2.a }, duration: TEND2 - TS2, ease: 'none' }, TS2)
+      tl.to(of(i, '.head'), { attr: { cx: t2.b }, duration: TEND2 - TS2, ease: 'none' }, TS2)
+    }
+    const take = TS2 + 0.5
+    beam(1, pinAt(), bar(take), palette.warm, TS2 - 0.05, { burst: 24, bend: -0.35, duration: 0.55 })
+    mark(1, 0, headAt(take), take)
+    tl.to(of(1, '.glow'), { autoAlpha: 1, duration: 0.3 }, take)
+    tl.to(of(1, '.glow'), { autoAlpha: 0, duration: 1.2 }, take + 0.4)
+    tl.to(of(1, '.pin-0'), { autoAlpha: 0, y: -6, duration: 0.35 }, take)
+    say(1, 4, take + 0.1)
+    say(1, 5, take + 0.8)
+
+    // 4 · the left again: two lines typed in a row are taken one after the other.
+    const T4 = 11.2
+    tl.addLabel('beat-4', T4)
+    tl.to(lens[0], { s: l.focus, duration: 1.2, ease: 'cine', onUpdate: applyLens }, T4)
+    tl.to(lens[1], { s: 2 - l.focus, duration: 1.2, ease: 'cine', onUpdate: applyLens }, T4)
+    tl.to(of(0, '.side-in'), { autoAlpha: 1, duration: 0.8 }, T4)
+    tl.to(of(1, '.side-in'), { autoAlpha: 0.38, duration: 1 }, T4)
+    tl.to(of(1, '.halo'), { autoAlpha: 0, duration: 0.8 }, T4)
+    tl.to(of(0, '.halo'), { autoAlpha: 1, duration: 1 }, T4)
+    const typing = (text: string, at: number) => {
+      tl.to(of(0, '.prompt-lit'), { autoAlpha: 1, duration: 0.2 }, at)
+      tl.set(of(0, '.typed'), { text: '' }, at)
+      tl.to(of(0, '.typed'), { text: { value: text }, duration: text.length / 26, ease: 'none' }, at)
+      tl.to(of(0, '.typed'), { autoAlpha: 0, y: -12, duration: 0.25, ease: 'cine.in' }, at + text.length / 26 + 0.15)
+      tl.set(of(0, '.typed'), { text: '', autoAlpha: 1, y: 0 }, at + text.length / 26 + 0.45)
+      tl.to(of(0, '.prompt-lit'), { autoAlpha: 0, duration: 0.3 }, at + text.length / 26 + 0.4)
+    }
+    typing('use pathlib', T4 + 0.6)
+    tl.fromTo(of(0, '.pin-1'), { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.35 }, T4 + 1.2)
+    tl.to(of(0, '.pin-1 .with'), { fillOpacity: 1, duration: 0.3 }, T4 + 1.35)
+    typing('keep the CLI', T4 + 1.4)
+    tl.fromTo(of(0, '.pin-2'), { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: 0.35 }, T4 + 2.05)
+    const first = T4 + 2.7
+    beam(0, pinAt(1), bar(first), palette.accent, first - 0.6, { burst: 20, bend: -0.35 })
+    mark(0, 1, headAt(first), first)
+    tl.to(of(0, '.pin-1'), { autoAlpha: 0, y: -6, duration: 0.3 }, first)
+    say(0, 5, first + 0.1)
+    say(0, 6, first + 0.7)
+    tl.to(of(0, '.pin-2'), { y: -l.row, duration: 0.5, ease: 'cine' }, first + 0.3)
+    tl.to(of(0, '.pin-2 .with'), { fillOpacity: 1, duration: 0.3 }, first + 0.8)
+    const second = first + 1.9
+    beam(0, pinAt(1), bar(second), palette.accent, second - 0.6, { burst: 20, bend: -0.35 })
+    mark(0, 2, headAt(second), second)
+    tl.to(of(0, '.pin-2'), { autoAlpha: 0, y: -l.row - 6, duration: 0.3 }, second)
+    say(0, 7, second + 0.1)
+    say(0, 8, second + 0.7)
+
+    // The world goes dark before it starts again, so the seam never shows.
+    const END = second + 2.6
+    tl.to(lens, { s: 1, duration: 1, ease: 'cine', onUpdate: applyLens }, END - 1.4)
+    tl.to(all('.side-in'), { autoAlpha: 1, duration: 0.6 }, END - 1.4)
+    tl.to(all('.halo'), { autoAlpha: 0, duration: 0.6 }, END - 1.4)
+    tl.to(worldEl, { autoAlpha: 0, duration: 0.6, ease: 'power1.in' }, END)
+    tl.set(worldEl, { autoAlpha: 1 }, 0)
+  },
+})
 </script>
 
 <template>
-  <div ref="root" class="steer hmz-panel">
-    <div class="bar">
-      <span class="live" :class="{ paused: !open || !running }">
-        <i />
-        {{ running ? (open ? 'a turn is running' : 'between turns') : 'paused' }}
-      </span>
-      <div class="track">
-        <span class="fill" :style="{ width: `${progress * 100}%` }" />
-      </div>
-      <span class="sim">simulation</span>
-      <button
-        class="toggle"
-        type="button"
-        :aria-label="running ? 'pause' : 'play'"
-        @click="running = !running"
-      >
-        {{ running ? '❙❙' : '▶' }}
-      </button>
-    </div>
+  <HmzStage
+    :scene="scene"
+    :beats="BEATS"
+    sim
+    mobile-ratio="36 / 50"
+    label="Two backends side by side, each running a turn. The same line, and fix the tests too, is typed at both while they work, and is pinned above the prompt. Claude Code, Codex, Kimi Code and pi take it into the turn that is running, and answer it there. Every other backend refuses it mid-turn: the line goes back on the pin and waits, and the next turn takes it as it starts. Two more lines typed in a row are taken one after the other."
+  >
+    <svg :viewBox="`0 0 ${L.w} ${L.h}`" aria-hidden="true">
+      <defs>
+        <radialGradient id="steer-halo-0">
+          <stop offset="0" stop-color="var(--hmz-accent)" stop-opacity="0.32" />
+          <stop offset="1" stop-color="var(--hmz-accent)" stop-opacity="0" />
+        </radialGradient>
+        <radialGradient id="steer-halo-1">
+          <stop offset="0" stop-color="var(--hmz-warm)" stop-opacity="0.32" />
+          <stop offset="1" stop-color="var(--hmz-warm)" stop-opacity="0" />
+        </radialGradient>
+        <radialGradient id="steer-flare">
+          <stop offset="0" stop-color="#fff" stop-opacity="0.9" />
+          <stop offset="0.35" stop-color="var(--hmz-lane-5)" stop-opacity="0.6" />
+          <stop offset="1" stop-color="var(--hmz-lane-5)" stop-opacity="0" />
+        </radialGradient>
+        <clipPath v-for="(h, i) in L.halves" :id="`steer-rows-${i}`" :key="`c${i}`">
+          <rect :x="0" :y="L.row0 - L.row + 4" :width="L.W" :height="L.rows * L.row" />
+        </clipPath>
+      </defs>
+      <g class="world">
+        <g v-for="(side, i) in SIDES" :key="side.title" class="side" :class="`side-${i}`">
+          <ellipse
+            class="halo"
+            :cx="L.halves[i].x + L.W / 2"
+            :cy="L.halves[i].y + L.H / 2"
+            :rx="L.W * 0.75"
+            :ry="L.H * 0.7"
+            :fill="`url(#steer-halo-${i})`"
+          />
+          <g :transform="`translate(${L.halves[i].x} ${L.halves[i].y})`"><g class="side-in">
+            <rect class="card-bg" :width="L.W" :height="L.H" rx="14" />
+            <rect class="card" :width="L.W" :height="L.H" rx="14" :style="{ stroke: side.hue }" />
 
-    <div class="lanes">
-      <section class="lane">
-        <header>
-          <strong>into the running turn</strong>
-          <span>Claude Code · Codex · Kimi Code · pi</span>
-        </header>
-        <ul>
-          <li v-for="one in into" :key="one.id" :class="one.kind">
-            <span class="mark">{{ one.kind === 'you' ? '❯' : one.kind === 'edge' ? '↳' : '▸' }}</span>
-            {{ one.text }}
-          </li>
-        </ul>
-      </section>
+            <g class="side-words">
+              <circle :cx="PAD + 4" :cy="L.head - 4" r="4" :style="{ fill: side.hue }" />
+              <text class="t-head" :x="PAD + 14" :y="L.head" :style="{ fill: side.hue }">{{ side.title }}</text>
+              <text class="t-sub" :x="PAD" :y="L.sub">{{ side.who }}</text>
+            </g>
 
-      <section class="lane plain">
-        <header>
-          <strong>held for the next turn</strong>
-          <span>every other backend</span>
-        </header>
-        <ul>
-          <li v-for="one in after" :key="one.id" :class="one.kind">
-            <span class="mark">{{
-              one.kind === 'you' ? '❯' : one.kind === 'edge' ? '↳' : one.kind === 'warn' ? '!' : '▸'
-            }}</span>
-            {{ one.text }}
-          </li>
-        </ul>
-        <p v-if="heldRight.length" class="waiting">
-          <span v-for="one in heldRight" :key="one.id">❯ {{ one.text }}</span>
-        </p>
-      </section>
-    </div>
+            <g class="track">
+              <rect class="slot" :x="turn1.a" :y="L.track" :width="turn1.b - turn1.a" height="8" rx="4" />
+              <rect class="slot" :x="turn2.a" :y="L.track" :width="turn2.b - turn2.a" height="8" rx="4" />
+              <rect class="fill fill1" :x="turn1.a" :y="L.track" width="0" height="8" rx="4" :style="{ fill: side.hue }" />
+              <rect class="fill fill2" :x="turn2.a" :y="L.track" width="0" height="8" rx="4" :style="{ fill: side.hue }" />
+              <circle v-if="i === 1" class="flare" :cx="turn1.a" :cy="L.track + 4" r="22" fill="url(#steer-flare)" />
+              <circle class="head-glow head" :cx="turn1.a" :cy="L.track + 4" r="11" :fill="`url(#steer-halo-${i})`" />
+              <circle class="head" :cx="turn1.a" :cy="L.track + 4" r="4.5" :style="{ fill: side.hue }" />
+              <g v-for="n in 3" :key="`m${n}`" class="mark" transform="translate(0 0)"><g class="mark-in">
+                <circle class="glow" r="14" :fill="`url(#steer-halo-${i})`" />
+                <rect x="-5" y="-5" width="10" height="10" rx="2" transform="rotate(45)" class="mark-gem" />
+              </g></g>
+            </g>
+            <text class="t-turn turn-word-1" :x="turn1.a" :y="L.turnWord">turn 1</text>
+            <text class="t-turn" :x="turn2.a" :y="L.turnWord">turn 2</text>
 
-    <div class="editor">
-      <div class="pins" aria-live="polite">
-        <p v-for="one in pinned" :key="one.id" class="pin" :class="one.state">
-          <span>❯</span> {{ one.text }}
-          <em v-if="one.state === 'pinned'">· with claude#3a15</em>
-          <em v-else>· waiting for a turn</em>
-        </p>
-      </div>
-      <form @submit.prevent="submit">
-        <span class="caret">❯</span>
-        <input
-          v-model="typed"
-          type="text"
-          placeholder="type to the turn that is running…"
-          aria-label="a line typed mid-turn"
-        />
-        <button type="submit">enter</button>
-      </form>
-      <div class="chips">
-        <button v-for="one in SUGGESTED" :key="one" type="button" @click="hand(one)">
-          {{ one }}
-        </button>
-      </div>
-    </div>
+            <g :clip-path="`url(#steer-rows-${i})`">
+              <g class="scroll">
+                <text
+                  v-for="(one, n) in SAID[i]"
+                  :key="n"
+                  class="said"
+                  :class="one.kind"
+                  :x="PAD"
+                  :y="L.row0 + n * L.row"
+                >{{ one.text }}</text>
+              </g>
+            </g>
 
-    <p class="note">
-      No mode and no special key: type while the agent works. Lines go one at a time, and each
-      stays pinned above the prompt until the agent says it has it.
-    </p>
-  </div>
+            <g
+              v-for="(pin, n) in i === 0 ? PINS : PINS.slice(0, 1)"
+              :key="pin.text"
+              class="pin"
+              :class="`pin-${n}`"
+            >
+              <rect class="pin-chip" :x="PAD - 4" :y="pin.slot ? L.pin - L.row - 13 : L.pin - 13" :width="chip(pin.text)" height="18" rx="9" />
+              <text :x="PAD + 4" :y="pin.slot ? L.pin - L.row : L.pin"><tspan class="pin-caret">❯</tspan> {{ pin.text }}<tspan class="with"> · with actor</tspan></text>
+            </g>
+
+            <rect class="prompt" :x="PAD - 4" :y="L.prompt" :width="L.W - 2 * PAD + 8" :height="L.promptH" rx="9" />
+            <rect class="prompt prompt-lit" :x="PAD - 4" :y="L.prompt" :width="L.W - 2 * PAD + 8" :height="L.promptH" rx="9" :style="{ stroke: side.hue }" />
+            <text class="caret" :x="PAD + 6" :y="L.prompt + L.promptH / 2 + 4.5" :style="{ fill: side.hue }">❯</text>
+            <text class="typed" :x="PAD + 22" :y="L.prompt + L.promptH / 2 + 4.5" />
+          </g></g>
+        </g>
+      </g>
+    </svg>
+    <canvas ref="canvas" />
+  </HmzStage>
 </template>
 
 <style scoped>
-.bar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--hmz-panel-border);
-  background: var(--vp-c-bg);
-  font-size: 12px;
+svg {
+  font-family: var(--vp-font-family-base);
 }
 
-.live {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--vp-c-text-2);
-  font-weight: 600;
-  white-space: nowrap;
+.card-bg {
+  fill: var(--hmz-stage-card);
 }
 
-.live i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--hmz-accent);
+.card {
+  fill: none;
+  stroke-width: 1.3;
+  stroke-opacity: 0.55;
 }
 
-.live.paused i {
-  background: var(--vp-c-text-3);
+.halo {
+  opacity: 0;
 }
 
-.track {
-  flex: 1;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--vp-c-default-soft);
-  overflow: hidden;
+.t-head {
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
-.fill {
-  display: block;
-  height: 100%;
-  background: linear-gradient(90deg, var(--vp-c-brand-1), var(--hmz-accent));
+.t-sub {
+  font-size: 11.5px;
+  fill: var(--hmz-stage-dim);
 }
 
-.sim {
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--vp-c-text-3);
-}
-
-.toggle {
-  min-width: 34px;
-  padding: 3px 9px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--vp-c-text-2);
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.lanes {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  padding: 14px 16px 0;
-}
-
-.lane {
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 12px;
-  background: var(--vp-c-bg);
-  overflow: hidden;
-}
-
-.lane header {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--vp-c-divider);
-  background: var(--vp-c-bg-soft);
-}
-
-.lane header strong {
-  font-size: 12.5px;
-  color: var(--vp-c-brand-1);
-}
-
-.lane.plain header strong {
-  color: var(--hmz-warm);
-}
-
-.lane header span {
+.t-turn {
   font-size: 11px;
-  color: var(--vp-c-text-3);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  fill: var(--hmz-stage-dim);
 }
 
-.lane ul {
-  list-style: none;
-  margin: 0;
-  padding: 10px 12px;
-  min-height: 176px;
+.slot {
+  fill: var(--hmz-stage-line);
+}
+
+.mark-gem {
+  fill: var(--hmz-stage-ink);
+  stroke: var(--hmz-stage-card);
+  stroke-width: 1.5;
+}
+
+.said,
+.pin,
+.typed,
+.caret {
   font-family: var(--vp-font-family-mono);
   font-size: 11.5px;
-  line-height: 1.8;
-  color: var(--vp-c-text-2);
 }
 
-.lane li {
-  display: flex;
-  gap: 8px;
-  margin: 0;
-  animation: land 0.35s ease;
+.said.tool {
+  fill: var(--hmz-stage-dim);
 }
 
-.lane li .mark {
-  flex: none;
-  color: var(--vp-c-text-3);
+.said.you {
+  fill: var(--hmz-accent);
+  font-weight: 700;
 }
 
-.lane li.you {
-  color: var(--hmz-accent);
+.side-1 .said.you {
+  fill: var(--hmz-warm);
+}
+
+.said.say {
+  fill: var(--hmz-stage-ink);
+}
+
+.said.warn {
+  fill: var(--hmz-lane-5);
   font-weight: 600;
 }
 
-.lane li.edge {
-  color: var(--vp-c-text-3);
-  font-style: italic;
+.pin text {
+  fill: var(--hmz-stage-ink);
+  font-weight: 600;
 }
 
-.lane li.warn {
-  color: var(--hmz-warm);
+.pin-chip {
+  fill: var(--hmz-stage-line);
 }
 
-.lane li.say {
-  color: var(--vp-c-text-1);
+.pin-caret {
+  fill: var(--hmz-stage-dim);
 }
 
-@keyframes land {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
+.with {
+  fill: var(--hmz-stage-dim);
+  font-weight: 400;
 }
 
-.waiting {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: 8px 12px 10px;
-  border-top: 1px dashed var(--vp-c-divider);
-  font-family: var(--vp-font-family-mono);
-  font-size: 11.5px;
-  color: var(--hmz-warm);
+.prompt {
+  fill: none;
+  stroke: var(--hmz-stage-line);
+  stroke-width: 1.2;
 }
 
-.editor {
-  padding: 14px 16px 0;
+.prompt-lit {
+  stroke-width: 1.6;
 }
 
-.pins {
-  min-height: 22px;
-}
-
-.pin {
-  margin: 0 0 4px;
-  font-family: var(--vp-font-family-mono);
-  font-size: 11.5px;
-  color: var(--vp-c-text-3);
-}
-
-.pin span {
-  color: var(--vp-c-brand-1);
-}
-
-.pin.taken {
-  color: var(--hmz-accent);
-}
-
-.pin em {
-  font-style: normal;
-  opacity: 0.75;
-}
-
-form {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 10px;
-  background: var(--vp-c-bg);
+.typed {
+  fill: var(--hmz-stage-ink);
 }
 
 .caret {
-  color: var(--vp-c-brand-1);
-  font-family: var(--vp-font-family-mono);
+  font-weight: 700;
 }
 
-form input {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  color: var(--vp-c-text-1);
-  font-size: 13px;
-  outline: none;
+.flare {
+  opacity: 0;
 }
 
-form button {
-  padding: 3px 12px;
-  border: 1px solid var(--vp-c-brand-1);
-  border-radius: 999px;
-  background: var(--vp-c-brand-soft);
-  color: var(--vp-c-brand-1);
-  font-size: 11px;
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.chips {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding: 10px 0 0;
-}
-
-.chips button {
-  padding: 4px 11px;
-  border: 1px dashed var(--vp-c-divider);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--vp-c-text-2);
-  font-size: 11.5px;
-  cursor: pointer;
-}
-
-.chips button:hover {
-  border-style: solid;
-  border-color: var(--vp-c-brand-1);
-  color: var(--vp-c-brand-1);
-}
-
-.note {
-  margin: 0;
-  padding: 14px 16px 16px;
-  font-size: 13px;
-  line-height: 1.65;
-  color: var(--vp-c-text-2);
-}
-
-@media (max-width: 720px) {
-  .lanes {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .lane ul {
-    min-height: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .lane li {
-    animation: none;
+@media (max-width: 640px) {
+  .said,
+  .pin,
+  .typed {
+    font-size: 11px;
   }
 }
 </style>
