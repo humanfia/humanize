@@ -196,7 +196,7 @@ the agent is told nobody answered, and carries on.
 
 ## Variations
 
-### Being away: `/afk`
+### Being away: `/afk` {#when-nobody-is-there}
 
 `/afk on` tells humanize you are away, and the status line starts with `afk` until you turn it
 off with `/afk off`. On an outworlder's own transcript it says so for that outworlder alone.
