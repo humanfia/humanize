@@ -153,30 +153,36 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST draw the board a flow and a person share under the diagram, its lines nodes like any
   other, applying changes at once while the flow runs, taking a line away when it is saved empty,
   and refusing, where enter was pressed, to edit a line the flow owns.
-- MUST make `/settings [page]` the one menu of every setting, in six pages it opens on by the
-  name `everywhere`, `directory`, `accounts`, `environments`, `fallback` or `flowverses`, offered
-  as it is typed, refusing any other: this machine (reporting, details, and the btw agent where
-  there is one), this directory, accounts, environments, fallback and flowverses; forget this
-  directory alone; keep what each page last said while another is read; and remember whether
-  details are shown.
+- MUST make `/settings [page]` the one menu of every setting, a screen of its own in six pages
+  -- settings for this machine (reporting, details, and the btw agent where there is one),
+  workspace for this directory, accounts, environments, fallback and flowverses -- opening on
+  those pages alone and going into one on `enter` or a click and back out on `esc`, or straight
+  into the one named `settings`, `workspace`, `accounts`, `environments`, `fallback` or
+  `flowverses`, offered as it is typed, or by its old name `everywhere` or `directory`, refusing
+  any other; forget this directory alone; keep what each page last said while another is read;
+  and remember whether details are shown.
 - MUST apply each saved setting at once where it can, and otherwise say beside its row and in
   the transcript when it lands: profiling from the next flow run, accounts from the next agent
   session, forgetting from the next launch.
 - MUST ask once, at a first start and only with somebody there, whether humanize may report its
   own failures — what would be sent and what never would — unanswered if it is walked away from.
-- MUST hold what a menu changes until it is saved from its save row or saving is confirmed on
-  the way out, asking on the way out of one holding changes; anything that runs an external
-  command or writes to the board MUST apply at once instead, and a page that holds nothing MUST
-  have no save row.
+- MUST hold what a menu changes until it is saved from its save row or button or saving is
+  confirmed on the way out, asking on the way out of one holding changes; anything that runs an
+  external command or writes to the board MUST apply at once instead, and a page that holds
+  nothing MUST have no save row or button.
 - MUST answer a sheet once however many times its key is pressed.
-- MUST give a menu only `↑`/`↓`, `←`/`→`, `enter` and `esc`, and on a form `/settings` opens
-  typing, saying them on the screen in one place: a row changed where it stands MUST change only
-  between an `enter` -- or, on such a form's written row, a letter -- that begins it and an
-  `enter` that keeps it, `esc` putting it back, and keeping one on such a form MUST move on to
-  what is still to be answered; whatever else a menu does -- search, add, fetch or ask again,
-  copy, save -- MUST be a row of it, above the list on each page of `/settings`, with saving
-  last; a search MUST be asked for from its row; and such a form MUST be answered from a row
-  called `done` that says what answering it does.
+- MUST give a menu only `↑`/`↓`, `←`/`→`, `enter` and `esc`, `/settings` `tab`, `/` and
+  `backspace` as well, and on a form `/settings` opens typing, saying them on the screen in one
+  place: a row changed where it stands MUST change only between an `enter` -- or, on such a
+  form's written row, a letter -- that begins it and an `enter` that keeps it, `esc` putting it
+  back, and keeping one on such a form MUST move on to what is still to be answered; a value the
+  pages of `/settings` and the forms they open change MUST instead be picked, with the keys or a
+  click, from every value it can take dropped under its row, `esc` or a click off it picking
+  none; whatever else a menu does -- search, add, fetch or ask again, copy, save -- MUST be a
+  row of it, and on each page of `/settings` a button under the list instead, with saving last;
+  a search MUST be asked for from its row or button; every row, button and value of `/settings`
+  MUST be reachable by the keys and by a click alike; and such a form MUST be answered from a
+  row called `done` that says what answering it does.
 - MUST give a selection back as the text written rather than the rows it was drawn on, let one go
   when what it was made against changes, and never scroll the transcript out from under a reader.
 
@@ -188,11 +194,14 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 | typing | `/settings` forms | on a written row, begin writing it |
 | `shift+enter`, `ctrl+j` | editor, sheets | break the line |
 | `shift+tab`, `tab` | app | round the views forward and back |
-| `esc` | sheets | one step back, out of a change or a search first |
+| `tab`, `shift+tab` | `/settings` | between the list, its search and the buttons under it |
+| `/` | `/settings` | search the page's list |
+| `esc` | sheets | one step back, out of a change or a search first; on a page of `/settings`, out to its pages |
+| `backspace` | `/settings` | on a page, out to its pages |
 | `←`, `→` | log, monitor | on an empty prompt: up to the monitor; back to the log last read |
 | `↑`, `↓`, `enter` | monitor | on an empty prompt: the node before or after; read it |
 | `ctrl+t` | monitor | a node per agent or per session |
 | `ctrl+c` | app | take back the nearest thing; twice stops the flow |
 | `ctrl+q` | app | what `/exit` does |
 | `↑`, `↓` | sheets | walk the rows, round the ends; on a `/settings` form, keeping the row being written |
-| `←`, `→` | sheets | change the row being changed; otherwise turn pages, round the ends, or step between lists |
+| `←`, `→` | sheets | change the row being changed; otherwise turn pages, round the ends, or step between lists; in `/settings`, into a page and back out, or along its buttons |

@@ -15,7 +15,7 @@ import unittest.mock
 from typing import TYPE_CHECKING, cast
 
 import pytest
-from textual.widgets import Label, OptionList
+from textual.widgets import Button, Label, OptionList
 
 from hmz.coganchor.backends import Model
 from hmz.coganchor.machines import store
@@ -37,7 +37,6 @@ from hmz.tui.pick import (
     _SEARCH,
     _TAKES_AWAY,
     _UNSAVED,
-    Adjusts,
     Configures,
     Docking,
     Flows,
@@ -48,8 +47,17 @@ from hmz.tui.pick import (
     Placing,
     Unsaved,
 )
+from hmz.tui.settings import Adjusts
 from tests.integration.machines.test_env_providers import _DOCKER, _INFO, _SSH
-from tests.integration.tui.test_app import changes, ids, into_settings, onto, rows
+from tests.integration.tui.test_app import (
+    bar,
+    changes,
+    ids,
+    into_settings,
+    nexts,
+    onto,
+    rows,
+)
 from tests.stubs import written
 from tests.tui.fixtures import until
 
@@ -196,18 +204,23 @@ async def _into_machines(app: Humanize, driver: Pilot[None]) -> Adjusts:
 async def test_the_page_brings_machines_in_from_its_top_rows_and_holds_nothing(
     standins: Path,
 ) -> None:
-    """Adding either kind and importing, above the list; no save row, nothing being held."""
+    """Adding either kind and importing, under the list; no save button, nothing held."""
     del standins
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _into_machines(app, driver)
 
-        assert rows(app) == [_ADD, _DOCKS, _IMPORTS]
-        assert _SEARCH in ids(app)
-        assert sheet.under() == _ADD
+        assert rows(app) == []
+        assert bar(app) == [_ADD, _DOCKS, _IMPORTS, _SEARCH]
+        assert sheet.focused is sheet.query_one("#act-add")
         assert "no machines saved yet" in _under(app)
-        assert "add an ssh host" in _drawn(app)
-        assert "add a docker host" in _drawn(app)
+        labels = [
+            str(one.label)
+            for one in sheet.query("#actions Button").results(Button)
+            if one.display
+        ]
+        assert "Add an ssh host" in labels
+        assert "Add a docker host" in labels
 
 
 @pytest.mark.timeout(60)
@@ -356,13 +369,13 @@ async def test_a_host_switched_off_is_not_imported(
         await driver.press(*str(config), "enter")
         await until(lambda: form._read == str(config) and not form._reading, driver)
 
-        await changes(app, driver, "host:gpu", "right")
-        await changes(app, driver, "host:builder", "right")
+        await nexts(app, driver, "host:gpu")
+        await nexts(app, driver, "host:builder")
         assert "imports nothing" in _drawn(app)
         await _done(app, driver)
         assert "select at least one host" in _under(app)
 
-        await changes(app, driver, "host:builder", "right")
+        await nexts(app, driver, "host:builder")
         await _done(app, driver)
         await until(lambda: isinstance(app.screen, Adjusts), driver)
         assert "left gpu" in _under(app)
@@ -405,7 +418,7 @@ async def test_a_docker_host_is_reached_every_way_a_daemon_is(
         await _opens(app, driver, _DOCKS, Docking)
         form = cast("Docking", app.screen)
         if steps:
-            await changes(app, driver, "endpoint", *["right"] * steps)
+            await nexts(app, driver, "endpoint", steps)
         for held, said in rows_said.items():
             await _types(app, driver, held, said)
         if endpoint == "ssh:gpu":
@@ -894,7 +907,7 @@ async def test_a_tls_directory_under_a_home_nobody_has_is_refused_on_the_form(
     async with app.run_test() as driver:
         await _into_machines(app, driver)
         await _opens(app, driver, _DOCKS, Docking)
-        await changes(app, driver, "endpoint", "right", "right")
+        await nexts(app, driver, "endpoint", 2)
         await _types(app, driver, "address", "10.0.0.5:2376")
         await _types(app, driver, "tls_dir", "~nosuchuser9/certs")
         await _done(app, driver)

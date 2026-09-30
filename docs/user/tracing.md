@@ -82,7 +82,7 @@ To send a run elsewhere, [export it](/user/export).
 ## Profile the programs too {#profiling-a-run}
 
 An agent's turn is mostly other programs: the tests, the build, the greps. A CLI logs the tool
-call, not the processes it started. Turn on **profile** on the second page of
+call, not the processes it started. Turn on **Profiling** on the Workspace page of
 [`/settings`](/user/settings) and every run in this directory also records each program its
 agents ran, what started it, and how long it took.
 

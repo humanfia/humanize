@@ -61,7 +61,7 @@ The machine's side, the installed agents, accounts, skills and flowverses, is de
 | Where | What happens |
 | --- | --- |
 | `hmz`, the first time | It asks. <kbd>esc</kbd> leaves the question unanswered, and it asks again next time. |
-| `hmz`, after that | It does what you answered. [`/settings`](/user/settings) changes it: **send error reports to humanize**, on the first page. |
+| `hmz`, after that | It does what you answered. [`/settings`](/user/settings) changes it: **Error reports**, on its Settings page. |
 | `hmz exec` | It never asks. It reports only if you answered yes. |
 | a script using `hmz.sdk` | Nothing is reported unless the script calls `Hmz().reports()`, and then only if you answered yes. |
 | any of them, under `HUMANIZE_SENTRY` | `on` or `off` answers for that one process and writes nothing down. `/settings` says so while it is set. |

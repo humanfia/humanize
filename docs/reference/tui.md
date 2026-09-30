@@ -116,7 +116,12 @@ See [Cost and rate](/user/tally).
 | anywhere | <kbd>shift</kbd> + drag | Your terminal's own selection instead. |
 | every menu | <span id="key-menus"></span><kbd>↑</kbd> <kbd>↓</kbd> | Moves the cursor, round from the last row to the first. On a form of `/settings`, keeps the row being written first. |
 | every menu | <kbd>←</kbd> <kbd>→</kbd> | Turns the pages of a menu that has them, round from the last to the first. While a row is being changed, changes it instead. |
-| every menu | <kbd>enter</kbd> | Opens or chooses the row under the cursor, or does what a row below the choices says: `search…`, `add`, `save`, and the rest. On a row marked `↔`, or a field to write, begins changing it; pressed again, keeps the change. |
+| /settings | <kbd>enter</kbd> · click | On a page's card, goes into it. On a value, drops every value it can take under it; <kbd>enter</kbd> or a click on one picks it. On a button, presses it. |
+| /settings | <kbd>esc</kbd> <kbd>backspace</kbd> · click `/settings` | Out of a page to the six of them; <kbd>esc</kbd> on those leaves. <kbd>esc</kbd> first closes a list dropped under a row, then clears a search. |
+| /settings | <kbd>→</kbd> <kbd>←</kbd> | Into the card under the cursor, and back out. On the buttons, along them. |
+| /settings | <kbd>tab</kbd> <kbd>shift+tab</kbd> | Between the list, its search box and the buttons under it. |
+| /settings | <kbd>/</kbd> | Opens the search box above the page's list; what is typed narrows it as it is typed. |
+| every menu | <kbd>enter</kbd> | Opens or chooses the row under the cursor, or does what a row below the choices says: `search…`, `add`, `save`, and the rest. On a row marked `↔`, or a field to write, begins changing it; pressed again, keeps the change. On a row marked `▾`, drops its values under it. |
 | every menu | <kbd>esc</kbd> | One step back: puts back a row being changed, then leaves a running search, then leaves. Leaving a menu that holds changes asks: save or discard. |
 | every menu | typing · <kbd>backspace</kbd> | Only while a search runs, or a field is being written. On a form of `/settings`, typing on a written row begins writing it. |
 | /flow | <kbd>←</kbd> <kbd>→</kbd> | On the flows: the place before or after, wrapping round. |
@@ -169,7 +174,7 @@ list, with a line about each.
 | <span id="cmd-btw"></span>`/btw [question]` | <Badge type="tip" text="yes" /> | [Enters or leaves btw mode](#btw): side questions about the flow, answered read-only beside it. |
 | <span id="cmd-epics"></span>`/epics` | <Badge type="warning" text="read only" /> | [The runs of this directory](#the-runs-that-have-already-happened): go into one, export it, resume it. |
 | <span id="cmd-resume"></span>`/resume` | <Badge type="danger" text="refused" /> | [Picks up the last run here](#carrying-the-last-one-on-outright) of a flow that can be picked up. |
-| <span id="cmd-settings"></span>`/settings [page]` | <Badge type="tip" text="yes" /> | [Everything humanize remembers](#what-humanize-remembers), in six pages: `everywhere`, `directory`, [`accounts`](#the-accounts-themselves), [`environments`](#environments), [`fallback`](#where-a-turn-goes-when-it-cannot-be-taken) and [`flowverses`](#where-flows-come-from). With a page, opens on it. |
+| <span id="cmd-settings"></span>`/settings [page]` | <Badge type="tip" text="yes" /> | [Everything humanize remembers](#what-humanize-remembers), a screen of six pages: `settings`, `workspace`, [`accounts`](#the-accounts-themselves), [`environments`](#environments), [`fallback`](#where-a-turn-goes-when-it-cannot-be-taken) and [`flowverses`](#where-flows-come-from). With a page, opens inside it. |
 | <span id="cmd-clear"></span>`/clear` | <Badge type="tip" text="yes" /> | Clears the transcript being read and draws the opening box again. Nothing else. |
 | <span id="cmd-afk"></span>`/afk [on\|off]` | <Badge type="tip" text="yes" /> | [Says you are away](#questions-and-being-away): nothing waits on you. On an outworlder's transcript, as that outworlder alone; not on one agent's. Off at start. |
 | <span id="cmd-claim"></span>`/claim [on\|off]` | <Badge type="tip" text="yes" /> | [Holds the outworlder being read](#several-people-on-one-run) for this interface alone; `off` gives it back. Only on an outworlder's transcript. |
@@ -184,7 +189,7 @@ command is shown in red and nothing happens:
 | Typed | Answered |
 | --- | --- |
 | `/afk maybe` | `hmz: expected 'on' or 'off', not 'maybe'` |
-| `/settings nosuch` | `hmz: /settings has no page 'nosuch': choose everywhere, directory, accounts, environments, fallback or flowverses` |
+| `/settings nosuch` | `hmz: /settings has no page 'nosuch': choose settings, workspace, accounts, environments, fallback or flowverses` |
 | `/nosuch` | `hmz: no such command: /nosuch` |
 | `/resume last` | `hmz: /resume takes no arguments: it resumes the last run here; use /epics to choose another run` |
 | `/btw what's left` | `hmz: No closing quotation`: arguments are split like a shell line |
@@ -436,20 +441,20 @@ already reading gets `#2`.
 
 ## Menus
 
-`/flow`, `/epics` and `/settings` each put up a sheet over the screen. The [keys
-table](#keys) lists every key; each sheet's own are on its bottom row.
+`/flow` and `/epics` each put up a sheet over the screen, and `/settings` a screen of its
+own. The [keys table](#keys) lists every key; each menu's own are on its bottom row.
 
 ### Every menu {#the-menus-and-when-what-they-hold-lands}
 
 | Rule | |
 | --- | --- |
-| **Four keys** | <kbd>↑</kbd> <kbd>↓</kbd> walk the rows, <kbd>←</kbd> <kbd>→</kbd> turn the pages, <kbd>enter</kbd> opens the row under the cursor, <kbd>esc</kbd> steps back. There are no others: what a menu does besides is a row of it. |
-| **Nothing lands until you save** | On `/flow`, an agent's sheet, `/settings`, a flow's params and budget, and the forms `/settings` opens. Save with the `save` (or `set`) row below the choices. <kbd>esc</kbd> out of a menu holding changes asks, in a box over it, whether to save or discard; <kbd>esc</kbd> on the box goes back to the menu. A menu you only looked at asks nothing. |
-| **Some happen at once** | `/epics` and the Environments and Flowverses pages of `/settings` hold no draft, and have no `save` row: what you ask for happens as you ask. So do making an account and signing one in on its Accounts page. |
-| **Rows set apart** | Out of the numbering: `search…`, `add …`, `save`, and what else a menu does -- `check again`, `fetch again`, `copy … here`, `manage flowverses`, `remove …`. On the pages of `/settings` and the lists they open, they are above the list and `save` is last; elsewhere they are below it. |
+| **Four keys** | <kbd>↑</kbd> <kbd>↓</kbd> walk the rows, <kbd>←</kbd> <kbd>→</kbd> turn the pages, <kbd>enter</kbd> opens the row under the cursor, <kbd>esc</kbd> steps back. There are no others: what a menu does besides is a row of it. `/settings` adds <kbd>tab</kbd> to its buttons and <kbd>/</kbd> to its search, and takes a click on anything. |
+| **Nothing lands until you save** | On `/flow`, an agent's sheet, `/settings`, a flow's params and budget, and the forms `/settings` opens. Save with the `save` (or `set`) row below the choices, or the **Save** button of `/settings`. <kbd>esc</kbd> out of a menu holding changes asks, in a box over it, whether to save or discard; <kbd>esc</kbd> on the box goes back to the menu. A menu you only looked at asks nothing. |
+| **Some happen at once** | `/epics` and the Environments and Flowverses pages of `/settings` hold no draft, and have no **Save** button: what you ask for happens as you ask. So do making an account and signing one in on its Accounts page. |
+| **Rows set apart** | Out of the numbering: `search…`, `add …`, `save`, and what else a menu does -- `check again`, `fetch again`, `copy … here`, `manage flowverses`, `remove …`. On the pages of `/settings` they are buttons under the list, **Save** last; on the lists those open they are above the list; elsewhere below it. |
 | **Forms** | Adding or correcting something on `/settings` opens a form: a row per question, then `done`, which says what answering it will do. Typing on a written row writes it; <kbd>enter</kbd> keeps it and moves on to the next row still to be answered, or to `done`. What the form guessed for you is replaced by the first letter typed. |
-| **Changing a row** | A row marked `↔`, a switch, or a field to write is changed where it stands: <kbd>enter</kbd> begins, <kbd>←</kbd> <kbd>→</kbd> or typing change it, <kbd>enter</kbd> keeps it, <kbd>esc</kbd> puts it back. Walking past a row never changes it. `▸` opens something. |
-| **Search** | <kbd>enter</kbd> on `search…` starts it, letters narrow by name, <kbd>esc</kbd> clears and leaves it. Where the search row is above the list, the cursor goes to the first match. Typing never searches by itself. |
+| **Changing a row** | A row marked `▾` -- every value on `/settings` and on the forms it opens -- drops every value it can take under it: <kbd>enter</kbd> or a click on one picks it, <kbd>esc</kbd> or a click off the list picks none. A switch's list opens on the answer it is not, so <kbd>enter</kbd> twice turns it round. A row marked `↔` (on `/flow`), or a field to write, is changed where it stands: <kbd>enter</kbd> begins, <kbd>←</kbd> <kbd>→</kbd> or typing change it, <kbd>enter</kbd> keeps it, <kbd>esc</kbd> puts it back. Walking past a row never changes it. `▸` opens something. |
+| **Search** | <kbd>enter</kbd> on `search…` starts it, letters narrow by name, <kbd>esc</kbd> clears and leaves it. Where the search row is above the list, the cursor goes to the first match. Typing never searches by itself. On `/settings`, <kbd>/</kbd> or the **Search…** button opens a box above the list instead; <kbd>enter</kbd> or <kbd>↓</kbd> goes back to the list, keeping what the box narrowed it to. |
 | **Pages** | A menu of several pages shows their titles across the top, and <kbd>←</kbd> <kbd>→</kbd> turn between them. A page that cannot open now is struck through. |
 | **Going deeper** | <kbd>enter</kbd> opens what you picked; <kbd>esc</kbd> comes back one step. |
 
@@ -683,54 +688,103 @@ the three, as `hmz exec` will not run one without a `-b`.
 
 ### `/settings` {#what-humanize-remembers}
 
-Everything humanize remembers, in one menu of six pages. `/settings` opens on the first,
-`/settings <page>` on the one named (`everywhere`, `directory`, `accounts`, `environments`,
-`fallback`, `flowverses`, offered as you type). <kbd>←</kbd> and <kbd>→</kbd> turn between them;
-`manage flowverses` on `/flow` opens it on **Flowverses**.
+Everything humanize remembers, on a screen of its own, one level at a time. `/settings` opens
+on the six pages and nothing else; <kbd>enter</kbd>, <kbd>→</kbd> or a click goes into one,
+and <kbd>esc</kbd>, <kbd>backspace</kbd>, <kbd>←</kbd> or a click on `/settings` across the top
+comes back out. `/settings <page>` goes straight into the one named (`settings`, `workspace`,
+`accounts`, `environments`, `fallback`, `flowverses`, offered as you type; `everywhere` and
+`directory`, their old names, still work). `manage flowverses` on `/flow` opens it inside
+**Flowverses** alone, and <kbd>esc</kbd> there goes back to the flows.
 
 ```text
-  Settings
+  /settings
+  Every setting humanize keeps. What you change is held until you save it.
 
-  Everywhere · This directory · Accounts · Environments · Fallback · Flowverses
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ ⚙  Settings                                     reports on · details off │
+  │    this machine: error reports, details, and the /btw agent              │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ ⌂  Workspace                                        work/api · flow rlar │
+  │    this directory: its flow, profiling, and forgetting it                │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ ◉  Accounts                                        3 accounts  ● unsaved │
+  │    what agents sign in as, per CLI                                       │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ ▦  Environments                                                1 machine │
+  │    ssh hosts and docker daemons a flow's roles run on                    │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ ↻  Fallback                                                      2 rules │
+  │    where a turn goes when an agent fails                                 │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ ⑂  Flowverses                                               3 flowverses │
+  │    where flows come from                                                 │
+  ╰──────────────────────────────────────────────────────────────────────────╯
 
-  ❯ 1. reports   on ↔    send error reports to humanize
-    2. sent      ▸       what error reports include and exclude
-    3. details   off ↔   show every tool call and all of the thinking
+                                                                      Save
 
-       save              no changes yet
+  enter open   tab actions   esc close
+```
 
-  enter change · ←/→ page · esc close
+Inside a page, the line across the top says where you are, the list fills the screen, and what
+is done about the list rather than to one thing on it is a bar of buttons under it:
+
+```text
+  /settings › Settings                                     ● unsaved changes
+  Global settings for humanize on this machine.
+
+  ╭──────────────────────────────────────────────────────────────────────────╮
+  │ Error reports                                                     ● on ▾ │
+  │   send error reports to humanize                                         │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ What is sent                                                           ▸ │
+  │   what error reports include and exclude                                 │
+  │──────────────────────────────────────────────────────────────────────────│
+  │ Details                                                           ● on ▾ │
+  │   show every tool call and all of the ╭─ Details ──────────────────────────╮
+  │───────────────────────────────────────│ on ✔  show tool calls and thinking │
+  │ /btw agent                            │ off  show turn responses only      │
+  │   the agent /btw uses outside a sessio╰────────────────────────────────────╯
+  ╰──────────────────────────────────────────────────────────────────────────╯
+
+                                                                      Save
+
+  enter change   tab actions   esc back
 ```
 
 | Page | Row | |
 | --- | --- | --- |
-| Everywhere | `reports` ↔ | Whether humanize [reports what goes wrong](/user/reporting): `on`, `off`, or `not set`. Where `HUMANIZE_SENTRY` overrides it for this run, the page says so. |
-| Everywhere | `sent` ▸ | What a report carries and what it never does. <kbd>enter</kbd> reads it out. |
-| Everywhere | `details` ↔ | Shows or hides [the working](/user/settings#details): every tool call, all of the thinking, and what a backend prints on its way past. Off until turned on, and remembered in `~/.humanize/settings.yaml` as `details`, so the next start opens the same way. The status line says `details` while it is on. |
-| Everywhere | `btw` ▸ | The [btw agent](#btw). <kbd>enter</kbd> sets it up on the same sheet as a flow's agent; `reset to the flow's first agent`, under it once one is chosen, undoes that. Saved as `btw:` in `settings.yaml`; takes effect the next time btw mode is entered. |
-| This directory | `workspace` | The directory these are for. |
-| This directory | `flow` | The flow it opens on, and how many agents that flow was set up with. |
-| This directory | `profile` ↔ | Whether a run here [profiles](/user/tracing#profiling-a-run) the programs it starts. |
-| This directory | `forget` ↔ | Forget everything remembered here, across every flow. Other directories are untouched. |
+| Settings | **Error reports** ▾ | Whether humanize [reports what goes wrong](/user/reporting): `on`, `off`, or `not set`. Where `HUMANIZE_SENTRY` overrides it for this run, the page says so. |
+| Settings | **What is sent** ▸ | What a report carries and what it never does. <kbd>enter</kbd> reads it out. |
+| Settings | **Details** ▾ | Shows or hides [the working](/user/settings#details): every tool call, all of the thinking, and what a backend prints on its way past. Off until turned on, and remembered in `~/.humanize/settings.yaml` as `details`, so the next start opens the same way. The status line says `details` while it is on. |
+| Settings | **/btw agent** ▾ | The [btw agent](#btw): the flow's first agent, the one chosen, or `another…`, which sets one up on the same sheet as a flow's agent. Saved as `btw:` in `settings.yaml`; takes effect the next time btw mode is entered. |
+| Workspace | **Directory** | The directory these are for. |
+| Workspace | **Default flow** | The flow it opens on, and how many agents that flow was set up with. Chosen on `/flow`. |
+| Workspace | **Profiling** ▾ | Whether a run here [profiles](/user/tracing#profiling-a-run) the programs it starts. |
+| Workspace | **Forget** ▾ | Forget everything remembered here, across every flow. Other directories are untouched. |
 | Accounts | | [The accounts](#the-accounts-themselves) agents run as. |
 | Environments | | [The machines](#environments) a flow's environments go on: add, import, check, edit, remove. |
 | Fallback | | [Where a turn goes](#where-a-turn-goes-when-it-cannot-be-taken) when its place cannot take it. |
 | Flowverses | | [Where flows come from](#where-flows-come-from): add, fetch again, remove. |
 
-- On the first two pages, <kbd>enter</kbd> begins changing the row under the cursor,
-  <kbd>←</kbd> <kbd>→</kbd> step it and <kbd>enter</kbd> keeps it. The last four are lists,
-  laid out alike: `add …` and `search…` above the list, the list, then `save` where the page
-  holds anything. The cursor opens on the first thing listed, or on `add …` where there is
-  nothing yet. What the line under a list last said is still there when you turn back to it.
-- What every page holds lands together, on the `save` row; <kbd>esc</kbd> with anything held asks
-  whether to save or discard. Making an account, signing one in and everything on
-  Environments and Flowverses happen at once instead.
+- Each card says what is in its page, and `● unsaved` where the page holds a change.
+- On Settings and Workspace, <kbd>enter</kbd> or a click on a row marked `▾` drops its values
+  under it; <kbd>enter</kbd> or a click picks one, <kbd>esc</kbd> or a click off it picks none.
+  The last four pages are lists, laid out alike: the list, then the buttons -- `Add …`,
+  `Search…`, and **Save** at the far end where the page holds anything. <kbd>tab</kbd> goes to
+  the buttons, <kbd>←</kbd> <kbd>→</kbd> along them, <kbd>↑</kbd> back to the list. On a page
+  with nothing listed yet, the focus opens on the first button. What the line under a list last
+  said, and which row the cursor was on, are still there when you go back into it.
+- What every page holds lands together, on **Save** (on any page, or on the six of them);
+  <kbd>esc</kbd> out of `/settings` with anything held asks whether to save or discard.
+  Making an account, signing one in and everything on Environments and Flowverses happen at
+  once instead.
 - Once saved, the transcript says what changed, and, for what cannot take hold at once, when it
-  will. `reports`, `details` and the fallback steps take hold at once (the next failed turn
-  reads the steps). `profile` does from the next flow run. A corrected account, what it fails
-  over to, or one taken away, from the next agent session: a session already running keeps the
-  account it started with, and the row says `from the next agent session` while such a change
-  is held. `forget` from the next launch: the interface open now keeps what it opened with.
+  will. **Error reports**, **Details** and the fallback steps take hold at once (the next failed
+  turn reads the steps). **Profiling** does from the next flow run. A corrected account, what
+  it fails over to, or one taken away, from the next agent session: a session already running
+  keeps the account it started with, and the row says `from the next agent session` while such
+  a change is held. **Forget** from the next launch: the interface open now keeps what it
+  opened with.
 - On a first start, a box asks `Report errors to humanize?`; <kbd>esc</kbd> there
   leaves it unanswered, to be asked again next time.
 
@@ -740,21 +794,17 @@ Every account an agent may run as, under a heading per CLI, with the way it was 
 variables it sets (names only, never values).
 
 ```text
-     add an account          a sign-in for one CLI: API key, login, or gateway
-     add a custom CLI        supports ACP
-     search…
+ claude
+ deepseek     gateway · ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL
+ work         login
+ as local     the account signed in on this machine · fails over to work
 
-  claude
-  ❯ 1. deepseek   gateway · ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL
-    2. work       login
-    3. as local   the account signed in on this machine · fails over to
-                  work
+ codex
+ personal     key
+ as local     the account signed in on this machine
 
-  codex
-    4. personal   key
-    5. as local   the account signed in on this machine
-
-     save                    no changes yet
+ Add an account   Add a custom CLI   Search…                        Save
+ enter open   / search   tab actions   esc back
 ```
 
 ![The Accounts page of /settings: the accounts under a heading per CLI, and enter opening what
@@ -762,10 +812,10 @@ there is to do with one](/demo/accounts.gif)
 
 | Row | |
 | --- | --- |
-| `add an account` | Makes one, on [one form](#making-an-account). |
-| `add a custom CLI` | Writes down a [CLI of your own](/reference/agents#a-cli-of-your-own) that speaks ACP: the command that starts it, then `done`. |
+| **Add an account** | Makes one, on [one form](#making-an-account). |
+| **Add a custom CLI** | Writes down a [CLI of your own](/reference/agents#a-cli-of-your-own) that speaks ACP: the command that starts it, then `done`. |
 | an account | What there is to do with it (below). |
-| `save` | Saves. <kbd>esc</kbd> closes, asking about anything held. |
+| **Save** | Saves. <kbd>esc</kbd> goes back to the six pages; <kbd>esc</kbd> there closes, asking about anything held. |
 
 ![What enter opens on one account: edit settings, sign in again, fails over to, and
 remove](/demo/account-does.png)
@@ -774,7 +824,7 @@ remove](/demo/account-does.png)
 | --- | --- | --- |
 | **edit settings** | Its way's questions again, on the account form less its `cli`, `way` and `name`. A secret starts blank and says `leave blank to keep current value`: leave it, or type a new one. Each CLI already holding a copy starts switched on, so a rotated key lands on every copy. | on save |
 | **sign in again** | Runs its way in again; a login command owns the terminal until it is done. It asks only what the way still needs. | at once |
-| **fails over to** | Which account of the same CLI a turn carries on as when this one fails. `add an account` above the list makes one and chooses it. | on save |
+| **fails over to** | Which account of the same CLI a turn carries on as when this one fails. `add an account` above its list makes one and chooses it. | on save |
 | **remove** | The account and its credentials. Marked, it reads **cancel removal**. | on save |
 
 - The last row under each CLI is `as local`: the CLI as this machine is signed in. It offers
@@ -791,12 +841,12 @@ remove](/demo/account-does.png)
 ```text
   Add an account
 
-  ❯ 1. cli                claude ↔   installed here
-    2. way                key ↔      an Anthropic API key, from the console
+  ❯ 1. cli                claude ▾   installed here
+    2. way                key ▾      an Anthropic API key, from the console
     3. name               key        account name
     4. ANTHROPIC_API_KEY  ••••••     the API key
-    5. also for pi        on ↔       installed here
-    6. also for opencode  on ↔       installed here
+    5. also for pi        on ▾       installed here
+    6. also for opencode  on ▾       installed here
 
        done                          adds claude/key, for pi, opencode too
 
@@ -805,14 +855,15 @@ remove](/demo/account-does.png)
 
 | Row | |
 | --- | --- |
-| `cli` ↔ | The CLI it is for: the ones installed here first, then the rest, marked `not installed here yet`. Not asked where the CLI is already known. |
-| `way` ↔ | [How it signs in](/reference/providers#the-ways-in), with what that way is beside it. Changing it changes the rows under it. |
+| `cli` ▾ | The CLI it is for: the ones installed here first, then the rest, marked `not installed here yet`. Not asked where the CLI is already known. |
+| `way` ▾ | [How it signs in](/reference/providers#the-ways-in), with what that way is beside it. Changing it changes the rows under it. |
 | `name` | Written in for you: the way's own name, or `-2`, `-3` after it where an account of any CLI is already called that. The first letter typed replaces it. |
 | what the way asks | One row per question, under the variable it becomes. A secret is drawn as bullets. A way that asks nothing in particular (`env`) has one `variables` row, `NAME=VALUE` a line. |
-| `also for …` ↔ | One per other CLI the account could run (an Anthropic key in pi, opencode, mimocode, ZCode), on where that CLI is installed here. Only variables travel: a login has none of these. |
+| `also for …` ▾ | One per other CLI the account could run (an Anthropic key in pi, opencode, mimocode, ZCode), on where that CLI is installed here. Only variables travel: a login has none of these. |
 | `done` | Says what it will do, then does it: writes the account, copies it, and hands the terminal to the CLI's own login where the way has one. |
 
-- The cursor opens on `cli`. Keeping `way` moves it to the first question still to be answered;
+- A row marked `▾` drops its values under it on <kbd>enter</kbd> or a click, the one in force
+  ticked; picking one keeps it. The cursor opens on `cli`. Picking `way` moves it to the first question still to be answered;
   keeping an answer moves it to the next, then to `done`.
 - Once it lands, the account's CLI is asked what it runs, in the background: the row says
   `checking models…`, and the line under the list says how many models it named or why it
@@ -826,30 +877,26 @@ per backend. They are kept in `~/.humanize/env-providers/` (see
 [Machines › Environment providers](/reference/machines#environment-providers)).
 
 ```text
-     add an ssh host           a machine reached over ssh
-     add a docker host         a local or remote docker daemon
-     import ~/.ssh/config      hosts from this or another config file
-     search…
+ ssh
+ box                       me@box.example.com:2200 · key ~/.ssh/id_box · working
+                           directory: ~/proj
+ gpu                       from ~/.ssh/config · working directory: ~/work
 
-  ssh
-  ❯ 1. box                     me@box.example.com:2200 · key ~/.ssh/id_box · working
-                               directory: ~/proj
-    2. gpu                     from ~/.ssh/config · working directory: ~/work
+ docker
+ local                     local · 16 CPUs, 64G, GPUs 0
 
-  docker
-    3. local                   local · 16 CPUs, 64G, GPUs 0
-
-  enter open · ←/→ page · esc close
+ Add an ssh host   Add a docker host   Import ~/.ssh/config   Search…
+ enter open   / search   tab actions   esc back
 ```
 
 ![The Environments page of /settings: the ssh hosts and the docker daemons under a heading
-each, below the rows that add and import one](/demo/environments.png)
+each, above the buttons that add and import one](/demo/environments.png)
 
 | Row | |
 | --- | --- |
-| `add an ssh host` | One form: `host` (`user@host:port` is taken apart into `user` and `port`), `name` (written in after the host, never one already saved), `user`, `port`, `identity file` (a path; never read), `proxy jump`, `options` (`KEYWORD=VALUE, …`), `workdir`, then `done`. |
-| `add a docker host` | One form: `endpoint` ↔ (`local`, `socket`, `tcp` with a TLS directory, `saved ssh host` ▸, `ssh address`, `context`) and the row that way asks, `name`, `image`, `runtime`, `run args`, `max containers`, `workdir`, then what it may hand out: `cpus`, `memory` (`64G`, in docker's units of 1024) and `gpus` (`0, 1`), each blank to use all the host has. `detect` asks the daemon and writes what it has into those three to be typed over, the cursor on the first. |
-| `import ~/.ssh/config` | A form: `from`, the config to read (yours, or a path typed over it), then a switch per host it names, as `ssh -G` resolves it: on, unless it is saved already. The cursor lands on `done`, which saves each host switched on under its `Host`. Nothing is written to the config. |
+| **Add an ssh host** | One form: `host` (`user@host:port` is taken apart into `user` and `port`), `name` (written in after the host, never one already saved), `user`, `port`, `identity file` (a path; never read), `proxy jump`, `options` (`KEYWORD=VALUE, …`), `workdir`, then `done`. |
+| **Add a docker host** | One form: `endpoint` ▾ (`local`, `socket`, `tcp` with a TLS directory, `saved ssh host` ▸, `ssh address`, `context`) and the row that way asks, `name`, `image`, `runtime`, `run args`, `max containers`, `workdir`, then what it may hand out: `cpus`, `memory` (`64G`, in docker's units of 1024) and `gpus` (`0, 1`), each blank to use all the host has. `detect` asks the daemon and writes what it has into those three to be typed over, the cursor on the first. |
+| **Import ~/.ssh/config** | A form: `from`, the config to read (yours, or a path typed over it), then a switch per host it names, as `ssh -G` resolves it: on, unless it is saved already. The cursor lands on `done`, which saves each host switched on under its `Host`. Nothing is written to the config. |
 | a provider | What there is to do with it (below). |
 
 | On one provider | |
@@ -858,7 +905,7 @@ each, below the rows that add and import one](/demo/environments.png)
 | **check** | An ssh host is reached as a run reaches it, with nobody there to type a password: its home, CPUs, memory and GPUs. A docker daemon is asked `docker info`, and what it is saved to hand out and has not got is said in yellow. Given 30 seconds, in the background. |
 | **remove** | It is saved no more. A docker host that reached its daemon through it is named. |
 
-- Everything here happens at once, so the page has no `save` row. A provider added or corrected
+- Everything here happens at once, so the page has no **Save** button. A provider added or corrected
   is checked as it lands, and the line under the list says what it answered or why it could not
   be reached.
 - A search narrows by name, backend, and what the row says.
@@ -871,27 +918,20 @@ fail for having named (a retired model, a CLI that will not start, a rate limit 
 account). The effort and what the agent may reach for carry across a step unchanged.
 
 ```text
-  Settings
-
-  Everywhere · This directory · Accounts · Environments · Fallback · Flowverses
-
+  /settings › Fallback                                     ● unsaved changes
   Where a turn falls back when an agent fails. An agent is a CLI, an
   account and a model. Saved rules apply from the next failed turn.
-
-       add fallback rule           an agent that fails, and its fallback
-       search…
-
-  ❯ 1. claude@work/claude-opus-5   3 retries, exponential · falls back
-                                   to codex@key/gpt-5.6-sol
-    2. codex@key/gpt-5.6-sol       falls back to dsh/deepseek-v4-flash
-
-       save                        all changes
-
-  enter edit · ←/→ page · esc close
+ ╭──────────────────────────────────────────────────────────────────────────╮
+ │ claude@work/claude-opus-5 ✔ 3 retries, exponential · falls back to        │
+ │                             codex@key/gpt-5.6-sol                         │
+ │ codex@key/gpt-5.6-sol ✔     falls back to dsh/deepseek-v4-flash           │
+ ╰──────────────────────────────────────────────────────────────────────────╯
+ Add fallback rule   Search…                                           Save
+ enter edit   / search   tab actions   esc back
 ```
 
-- `add fallback rule` opens one form: `fails on` ▸, `falls back to` ▸, then `tries`, `policy`
-  and `for` ↔, then `done`. Each place row opens one list of every place (each CLI here, as each
+- **Add fallback rule** opens one form: `fails on` ▸, `falls back to` ▸, then `tries`,
+  `policy` and `for` ▾, then `done`. Each place row opens one list of every place (each CLI here, as each
   of its accounts, at each model it runs), searched by any of the three; an account that has not
   said what it runs is a row of its own, and choosing it asks. `falls back to` offers `nowhere`
   first and never the place that fails.
@@ -904,9 +944,9 @@ account). The effort and what the agent may reach for carry across a step unchan
 - Held until saved, then read by the next turn that fails. The same steps are
   [`Hmz().fallbacks`](/reference/sdk). What they mean is [Falling back](/user/settings#fallback).
 
-A step's three ways of trying again are changed where they stand:
+A step's three ways of trying again are each picked from the list dropped under the row:
 
-| Row | Steps through |
+| Row | Offers |
 | --- | --- |
 | `tries` | `none`, 1, 2, 3, 5, 8, 13, 21 retries |
 | `policy` | `none`, `constant`, `linear`, `exponential`, `exponential-jitter` (the default), `fibonacci` |
@@ -923,11 +963,11 @@ GitHub URL, the rest, marked as not fetched yet](/demo/flowverses.png)
 
 | Row | |
 | --- | --- |
-| `add a flowverse` | Adds one: a URL or `owner/repo`, then a name to keep it under (blank for the repository's own); `done` clones it. |
+| **Add a flowverse** | Adds one: a URL or `owner/repo`, then a name to keep it under (blank for the repository's own); `done` clones it. |
 | a flowverse | What it holds: `fetch again` (or `fetch`) and the row that takes it away, then a row per flow. `official`, `local` and `user` cannot be taken away, and say why; `local` and `user` have nothing to fetch. |
 
 - A place never fetched is listed anyway, with its URL and `not fetched yet`.
-- Nothing on this page is held, so it has no `save` row.
+- Nothing on this page is held, so it has no **Save** button.
 - Each happens as you ask: a clone runs in the background, and what came of it is said under
   the list and again in the transcript.
 - Every start of the interface fetches every flowverse that has a URL, quietly and one at a

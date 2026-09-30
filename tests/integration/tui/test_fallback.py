@@ -22,6 +22,7 @@ from hmz.tui.pick import (
     _ADD,
     _DONE,
     _SAVE,
+    _SEARCH,
     _TAKES_AWAY,
     Confirms,
     Failing,
@@ -29,10 +30,11 @@ from hmz.tui.pick import (
     Places,
 )
 from tests.integration.tui.test_app import (
-    changes,
+    bar,
     drops,
     into_settings,
     keeps,
+    nexts,
     onto,
     rows,
     under,
@@ -108,7 +110,8 @@ async def test_the_menu_is_the_steps_between_places() -> None:
         )
 
         # Adding one above the steps, saving below everything.
-        assert rows(app) == [_ADD, "claude/claude-opus-5", _SAVE]
+        assert rows(app) == ["claude/claude-opus-5"]
+        assert bar(app) == [_ADD, _SEARCH, _SAVE]
         listing = app.screen.query_one("#choices", OptionList)
         assert "falls back to codex/gpt-5.6-sol" in str(
             listing.get_option("=claude/claude-opus-5").prompt
@@ -126,8 +129,10 @@ async def test_an_empty_menu_opens_on_the_row_that_writes_one_down() -> None:
         await driver.pause()
 
         # The row that writes one down, which is where to start, and the cursor on it.
-        assert rows(app) == [_ADD, _SAVE]
-        assert under(app) == _ADD
+        assert rows(app) == []
+        assert bar(app) == [_ADD, _SEARCH, _SAVE]
+        # The focus is on the button that writes the first one down.
+        assert app.screen.focused is app.screen.query_one("#act-add")
         assert "no fallback rules configured yet" in _under(app)
 
 
@@ -155,7 +160,8 @@ async def test_a_step_is_one_form_of_two_places_and_is_held_until_the_menu_is_sa
         await until(lambda: isinstance(app.screen, Fallbacks), driver)
 
         # Said, and nothing on disk until the menu is saved.
-        assert rows(app) == [_ADD, "claude/claude-opus-5", _SAVE]
+        assert rows(app) == ["claude/claude-opus-5"]
+        assert bar(app) == [_ADD, _SEARCH, _SAVE]
         assert under(app) == "claude/claude-opus-5"
         assert fallbacks.falls() == []
 
@@ -226,7 +232,7 @@ async def test_a_step_is_taken_away_from_its_own_form() -> None:
         await until(lambda: isinstance(app.screen, Fallbacks), driver)
 
         # Gone from the list, and nothing on disk until the menu is saved.
-        assert rows(app) == [_ADD, _SAVE]
+        assert rows(app) == []
         assert "has no fallback when this menu is saved" in _under(app)
         assert fallbacks.falls()
 
@@ -274,7 +280,8 @@ async def test_the_key_that_used_to_take_a_step_away_takes_nothing_away() -> Non
         await driver.pause()
 
         assert "press d again" not in _under(app)
-        assert rows(app) == [_ADD, "claude/claude-opus-5", _SAVE]
+        assert rows(app) == ["claude/claude-opus-5"]
+        assert bar(app) == [_ADD, _SEARCH, _SAVE]
 
 
 @pytest.mark.timeout(90)
@@ -289,8 +296,8 @@ async def test_how_often_a_failed_turn_is_taken_again_is_on_the_same_form() -> N
         )
         await _step(app, driver)
 
-        await changes(app, driver, "tries", "right")  # one try beyond the first
-        await changes(app, driver, "policy", "right")  # and the wait stepped on one
+        await nexts(app, driver, "tries")  # one try beyond the first
+        await nexts(app, driver, "policy")  # and the wait stepped on one
         await onto(app, driver, _DONE)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Fallbacks), driver)
@@ -320,7 +327,7 @@ async def test_leaving_a_step_being_written_asks_whether_to_keep_it() -> None:
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
         await _step(app, driver)
-        await changes(app, driver, "tries", "right")
+        await nexts(app, driver, "tries")
 
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Confirms), driver)
@@ -347,7 +354,7 @@ async def test_keeping_the_last_rung_moves_on_to_done_and_not_to_taking_it_away(
             lambda: bool(app.screen.query_one("#choices", OptionList).options), driver
         )
         await _step(app, driver)
-        await changes(app, driver, "for", "right")
+        await nexts(app, driver, "for")
 
         assert under(app) == _DONE
 

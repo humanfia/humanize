@@ -40,12 +40,12 @@ Sleep 400ms
 Escape
 Sleep 700ms
 
-# And `add an account`, the top row, is one form: which CLI, which way in, a name written in
-# for you, and what that way asks. Nothing is typed into it here.
-Up 3
+# And `Add an account`, the first button under the list, is one form: which CLI, which way
+# in, a name written in for you, and what that way asks. Nothing is typed into it here.
+Tab
 Sleep 500ms
 Enter
-Wait+Screen /Add an account/
+Wait+Screen /account name/
 Sleep 1400ms
 Screenshot "/out/account-form.png"
 Sleep 400ms

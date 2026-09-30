@@ -37,7 +37,9 @@ from hmz.tui.pick import (
     Signing,
     reads,
 )
+from hmz.tui.settings import Adjusts
 from tests.integration.tui.test_app import (
+    bar,
     changes,
     drops,
     ids,
@@ -45,8 +47,11 @@ from tests.integration.tui.test_app import (
     into_flows,
     into_settings,
     keeps,
+    leaves,
+    nexts,
     onto,
     opens,
+    picks,
     rows,
     under,
 )
@@ -104,7 +109,7 @@ async def _adds(app: Humanize, driver: Pilot[None]) -> Signing:
     Returns:
       The form.
     """
-    await until(lambda: _ADD in ids(app), driver)
+    await until(lambda: _ADD in ids(app) or _ADD in bar(app), driver)
     await onto(app, driver, _ADD)
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Signing), driver)
@@ -115,7 +120,7 @@ async def _adds(app: Humanize, driver: Pilot[None]) -> Signing:
 
 
 async def _chooses(app: Humanize, driver: Pilot[None], held: str, value: str) -> None:
-    """Steps one row of the form to a value where it stands, and keeps it.
+    """Picks one row of the form's value from the list dropped under it.
 
     Args:
       app: The interface.
@@ -124,17 +129,9 @@ async def _chooses(app: Humanize, driver: Pilot[None], held: str, value: str) ->
       value: What it is to say.
     """
     sheet = cast("Signing", app.screen)
-    await onto(app, driver, held)
-    await driver.press("enter")
-    await driver.pause()
-    for _ in range(len(sheet.choices(held))):
-        if sheet._typed_in.get(held) == value:
-            break
-        await driver.press("right")
-        await driver.pause()
+    if sheet._typed_in.get(held) != value:
+        await picks(app, driver, held, value)
     assert sheet._typed_in.get(held) == value
-    await driver.press("enter")
-    await driver.pause()
 
 
 async def _writes(app: Humanize, driver: Pilot[None], held: str, *keys: str) -> None:
@@ -214,8 +211,7 @@ async def test_the_command_opens_the_sheet_of_accounts() -> None:
         listing = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
         rows = [str(option.prompt) for option in listing.options]
-        await driver.press("escape")
-        await until(lambda: not isinstance(app.screen, Providers), driver)
+        await leaves(app, driver)
 
     # The CLI it is under as a heading, and under it the name, the way and the variables.
     assert any("claude" in row for row in rows)
@@ -256,8 +252,7 @@ async def test_an_account_made_on_the_sheet_lands_in_the_store(
             driver,
         )
         await until(lambda: under(app) == "claude/mine", driver)
-        await driver.press("escape")
-        await until(lambda: not isinstance(app.screen, Providers), driver)
+        await leaves(app, driver)
         said = transcript(app)
 
     made = providers.find("claude", "mine")
@@ -310,8 +305,7 @@ async def test_a_secret_is_never_drawn_back(signed_in: unittest.mock.MagicMock) 
 
         await _answers(app, driver)
         await until(lambda: isinstance(app.screen, Providers), driver)
-        await driver.press("escape")
-        await until(lambda: not isinstance(app.screen, Providers), driver)
+        await leaves(app, driver)
 
     made = providers.find("claude", "mine")
     assert made is not None
@@ -379,8 +373,7 @@ async def test_variables_of_your_own_are_given_a_line_apiece(
         await _answers(app, driver)
 
         await until(lambda: isinstance(app.screen, Providers), driver)
-        await driver.press("escape")
-        await until(lambda: not isinstance(app.screen, Providers), driver)
+        await leaves(app, driver)
 
     made = providers.find("claude", "mine")
     assert made is not None
@@ -514,8 +507,7 @@ async def test_walking_out_of_the_form_makes_nothing() -> None:
         await _adds(app, driver)
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Providers), driver)
-        await driver.press("escape")
-        await until(lambda: not isinstance(app.screen, Providers), driver)
+        await leaves(app, driver)
 
     assert providers.providers() == []
 
@@ -622,8 +614,7 @@ async def test_walking_out_of_a_form_written_into_asks_and_loses_nothing() -> No
         await driver.press("down", "enter")  # discard
         # Back to the accounts, which is where making one was asked for.
         await until(lambda: isinstance(app.screen, Providers), driver)
-        await driver.press("escape")
-        await until(lambda: not isinstance(app.screen, Providers), driver)
+        await leaves(app, driver)
 
     assert [one.name for one in providers.providers()] == ["deepseek"]
 
@@ -645,8 +636,7 @@ async def test_an_account_is_signed_in_again_by_the_way_it_was_made_with(
         await _doing(app, driver, "signs-in")
         await until(lambda: signed_in.call_count == 1, driver)
         await until(lambda: isinstance(app.screen, Providers), driver)
-        await driver.press("escape")
-        await until(lambda: not isinstance(app.screen, Providers), driver)
+        await leaves(app, driver)
         said = transcript(app)
 
     assert "claude/deepseek is signed in" in said
@@ -678,8 +668,7 @@ async def test_signing_in_again_asks_only_what_is_not_written_down(
         await _answers(app, driver)
         await until(lambda: signed_in.call_count == 1, driver)
         await until(lambda: isinstance(app.screen, Providers), driver)
-        await driver.press("escape")
-        await until(lambda: not isinstance(app.screen, Providers), driver)
+        await leaves(app, driver)
 
     assert signed_in.call_args.args[2] == {"OPENAI_API_KEY": "sk-1"}
 
@@ -1050,16 +1039,14 @@ async def test_the_account_this_machine_is_signed_into_is_a_row_of_its_own() -> 
         listing = app.screen.query_one("#choices", OptionList)
         await until(lambda: bool(listing.options), driver)
 
-        # What is done about the list above it, saving below it, and in between, last in its
-        # CLI's group: what somebody came here to read is the accounts they made.
+        # What is done about the list is the bar under it, saving last, and the one
+        # signed in here last in its CLI's group: what somebody came here to read is the
+        # accounts they made.
         assert [str(one.id) for one in listing.options if one.id] == [
-            f"={_ADD}",
-            f"={_SPEAKS}",
-            f"={_SEARCH}",
             "=codex/work",
             "=codex/",
-            f"={_SAVE}",
         ]
+        assert bar(app) == [_ADD, _SPEAKS, _SEARCH, _SAVE]
         mine = str(listing.get_option("=codex/").prompt)
         assert "as local" in mine
         assert "signed in on this machine" in mine
@@ -1119,8 +1106,7 @@ async def test_a_cli_of_your_own_is_written_down_from_a_row_of_its_own() -> None
         await _answers(app, driver)
         await until(lambda: isinstance(app.screen, Providers), driver)
         assert "added as a backend" in _under(app)
-        await driver.press("escape")
-        await until(lambda: not isinstance(app.screen, Providers), driver)
+        await leaves(app, driver)
 
     assert backends.speaking()["my-agent"] == ("my-agent", "--acp")
 
@@ -1154,7 +1140,7 @@ async def test_an_account_several_backends_could_run_asks_which_to_write_it_down
         ]
         # Nothing is installed in this suite, so nothing starts switched on.
         assert not any(form._also(one) for one in ("pi", "opencode", "mimo", "zcode"))
-        await changes(app, driver, "also:opencode", "right")
+        await nexts(app, driver, "also:opencode")
         assert "for opencode too" in str(
             app.screen.query_one("#choices", OptionList).get_option(f"={_DONE}").prompt
         )
@@ -1162,8 +1148,7 @@ async def test_an_account_several_backends_could_run_asks_which_to_write_it_down
 
         await until(lambda: isinstance(app.screen, Providers), driver)
         await until(lambda: "also saved for opencode" in _under(app), driver)
-        await driver.press("escape")
-        await until(lambda: not isinstance(app.screen, Providers), driver)
+        await leaves(app, driver)
 
     held = providers.find("opencode", "shared")
     assert held is not None
@@ -1230,8 +1215,7 @@ async def test_an_account_that_travels_nowhere_is_not_asked_about() -> None:
         await _writes(app, driver, "DEEPSEEK_API_KEY", *"sk-only")
         await _answers(app, driver)
         await until(lambda: isinstance(app.screen, Providers), driver)
-        await driver.press("escape")
-        await until(lambda: not isinstance(app.screen, Providers), driver)
+        await leaves(app, driver)
 
     assert providers.find("dsh", "only") is not None
     assert providers.find("pi", "only") is None
@@ -1319,13 +1303,17 @@ async def test_what_a_new_account_runs_is_asked_after_it_lands_and_said(
 
         # Read another page meanwhile: what it said lands on the page it was asked from.
         sheet = app.screen
-        assert isinstance(sheet, Providers)
-        await driver.press("right")
-        await until(lambda: sheet._tab == 3, driver)
+        assert isinstance(sheet, Adjusts)
+        await driver.press("escape")
+        await until(lambda: sheet._home, driver)
+        await driver.press("down", "enter")
+        await until(lambda: sheet._tab == 3 and not sheet._home, driver)
         let_go.set()
         await until(lambda: not sheet._asking, driver)
         assert "could not get models" not in _under(app)
-        await driver.press("left")
+        await driver.press("escape")
+        await until(lambda: sheet._home, driver)
+        await driver.press("up", "enter")
         await until(lambda: "could not get models" in _under(app), driver)
 
         # The reason, as words rather than a terminal's colours.

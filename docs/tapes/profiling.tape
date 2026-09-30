@@ -22,13 +22,14 @@ Show
 Sleep 400ms
 
 Type "/settings" Enter
-Wait+Screen /Settings/
+Wait+Screen /Workspace/
 Sleep 2s
 
-# The first two of its six pages: what is true of this machine, and what is remembered about
-# this directory, a press of the arrow across away.
-Right
-Wait+Screen /profile/
+# Its six pages, and into the second: what is remembered about this directory.
+Down
+Sleep 500ms
+Enter
+Wait+Screen /Profiling/
 Sleep 1400ms
 Screenshot "/out/profiling.png"
 Sleep 400ms

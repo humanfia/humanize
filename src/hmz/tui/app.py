@@ -85,7 +85,6 @@ from .pick import (
     DETACHES,
     RESUMES,
     STOPS,
-    Adjusts,
     Chosen,
     Declared,
     Epics,
@@ -103,8 +102,9 @@ from .pick import (
     settled,
 )
 from .pick import EVERY as _EVERY
-from .pick import PAGES as _PAGES
 from .selecting import Choices, Transcript
+from .settings import PAGES as _PAGES
+from .settings import Adjusts, page_of
 from .tally import Seen, Tally
 
 if TYPE_CHECKING:
@@ -3350,20 +3350,19 @@ class Humanize(App[None]):
     def action_settings(self, page: str = "") -> None:
         """Opens every setting humanize has, which is what `/settings` is for.
 
-        Five pages: what is true of this machine, what is remembered about this directory,
-        the accounts agents run as, where a turn goes when it cannot run, and where flows
-        come from -- opened on the one named, so that the page somebody came for is not
-        three presses of an arrow away. Not refused while a flow runs -- what lands at once
-        does not touch what is running, and what does not says when it will. What it was
-        answered with comes back as a message rather than to here, since the flow menu opens
-        it too.
+        Six pages: what is true of this machine, what is remembered about this workspace,
+        the accounts agents run as, the machines environments go on, where a turn goes when
+        it cannot run, and where flows come from -- opened on the screen of them all, or
+        inside the one named, so that the page somebody came for is not a walk away. Not
+        refused while a flow runs -- what lands at once does not touch what is running, and
+        what does not says when it will. What it was answered with comes back as a message
+        rather than to here, since the flow menu opens it too.
 
         Args:
-          page: Which page to open on, by the word its title starts with, or "" for the
-            first.
+          page: Which page to open inside, by its name, or "" for none of them.
         """
-        said = page.lower()
-        if said and said not in _PAGES:
+        opens = page_of(page) if page else None
+        if page and opens is None:
             self.show(
                 f"hmz: /settings has no page {page!r}: choose "
                 f"{', '.join(_PAGES[:-1])} or {_PAGES[-1]}",
@@ -3374,11 +3373,7 @@ class Humanize(App[None]):
         unavailable = installable()
         agents.update(unavailable)
         self.push_screen(
-            Adjusts(
-                agents,
-                page=_PAGES.index(said) if said else 0,
-                unavailable=frozenset(unavailable),
-            )
+            Adjusts(agents, page=opens, unavailable=frozenset(unavailable))
         )
 
     @on(Adjusts.Settled)
@@ -4516,7 +4511,7 @@ _COMMANDS: tuple[Command, ...] = (
     ),
     Command(
         "settings",
-        "Every setting: everywhere, this directory, accounts, environments, fallback, "
+        "Every setting: settings, workspace, accounts, environments, fallback, "
         "flowverses",
         lambda app, argv: app.action_settings(argv[0] if argv else ""),
         takes="[page]",
