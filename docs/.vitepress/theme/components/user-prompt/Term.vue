@@ -4,7 +4,8 @@
 //
 // What goes in the slot is a <pre>, with a few span classes for the colours the interface
 // uses: `d` dim, `m` muted, `p` the purple of a highlighted row, `a` the teal of the status
-// dot, `r` an error, `y` a warning, `b` bold, `hl` a highlighted row.
+// dot, `r` an error, `y` a warning, `b` bold, `hl` a highlighted row -- and `n`, a numbered
+// callout the page draws over the screen for the list under it to explain.
 withDefaults(defineProps<{ title?: string; tag?: string }>(), {
   title: 'hmz',
   tag: 'drawn, not recorded',
@@ -119,6 +120,23 @@ figcaption {
 .screen :slotted(.sel) {
   background: var(--hmz-accent-2);
   color: var(--vp-c-white);
+}
+
+/* A numbered callout: the page's, not the interface's. */
+.screen :slotted(.n) {
+  display: inline-block;
+  min-width: 1.45em;
+  margin: 0 0.3em;
+  padding: 0 0.3em;
+  border-radius: 999px;
+  background: var(--vp-c-brand-1);
+  color: var(--vp-c-white);
+  font-family: var(--vp-font-family-base);
+  font-size: 0.78em;
+  font-weight: 700;
+  line-height: 1.45em;
+  text-align: center;
+  vertical-align: 0.08em;
 }
 
 /* A button under a list of `/settings`. */

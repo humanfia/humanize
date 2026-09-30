@@ -11,6 +11,8 @@
 //   g y c r b    green, yellow, cyan, red, blue
 //   i B      italic, bold
 //   sel      the cursor's highlight
+//   n        a numbered callout, `[n]1[/]`: not the interface's, but the page's, pointing at
+//            what the numbered list under the screen explains
 //
 // A line is a string, or one of:
 //   { t: '…', hl: true }        a string, highlighted as what changed
@@ -59,7 +61,7 @@ function step(by: number) {
   at.value = (at.value + by + n) % n
 }
 
-const NAMES = 'dim|m|g|y|c|r|b|i|B|sel'
+const NAMES = 'dim|m|g|y|c|r|b|i|B|sel|n'
 const MARKUP = new RegExp(`\\[((?:${NAMES})(?: (?:${NAMES}))*)\\]([\\s\\S]*?)\\[/\\]`, 'g')
 
 interface Run {
@@ -120,13 +122,18 @@ const DOT = ' · '
 // `_draw` gives them the terminal's width less its 2-column padding each side, less what is on
 // the left; the screen's own padding stands in for that padding here, so what is left over is
 // the measured columns less the left.
+// How many columns some runs take: a callout is drawn as a pill about three columns wide.
+function width(said: Run[]): number {
+  return said.reduce((sum, run) => sum + (run.cls.includes('t-n') ? 3 : run.text.length), 0)
+}
+
 function fitted(left: Run[], keys: string): Run[] {
   const all = keys.split(DOT)
   if (cols.value) {
-    const room = cols.value - left.reduce((sum, run) => sum + run.text.length, 0)
-    while (all.length > 1 && all.join(DOT).length > room) all.shift()
+    const room = cols.value - width(left)
+    while (all.length > 1 && width(runs(all.join(DOT))) > room) all.shift()
   }
-  return [{ text: all.join(DOT), cls: 't-m' }]
+  return runs(all.join(DOT)).map((run) => ({ text: run.text, cls: run.cls || 't-m' }))
 }
 
 type Drawn =
@@ -478,6 +485,25 @@ const drawn = computed<Drawn[]>(() =>
   background: var(--t-b);
   color: #fff;
   font-weight: 700;
+}
+
+/* A numbered callout: drawn over the screen by the page, not by the interface. */
+.t-n {
+  display: inline-block;
+  min-width: 1.45em;
+  margin: 0 0.3em;
+  padding: 0 0.3em;
+  border-radius: 999px;
+  background: var(--vp-c-brand-1);
+  color: var(--vp-c-white);
+  font-family: var(--vp-font-family-base);
+  font-size: 0.78em;
+  font-weight: 700;
+  font-style: normal;
+  line-height: 1.45em;
+  text-align: center;
+  vertical-align: 0.08em;
+  white-space: nowrap;
 }
 
 .caption {

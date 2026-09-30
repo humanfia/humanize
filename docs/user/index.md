@@ -1,25 +1,41 @@
 # User Guide
 
-For the person who runs flows. Nothing here asks you to write Python; writing flows is the
-[Weaver Guide](/weaver/).
+For the person who runs flows: you give coding agents a task, a loop to work in and a budget,
+and humanize drives them until the work is done or the budget is spent. Nothing here asks you
+to write Python; writing flows is the [Weaver Guide](/weaver/).
+
+::: info How this guide is built
+- **Start here** and the **Tutorials** are lessons: follow them in order, every command written
+  out, every step checked before the next.
+- **Everything else** is a guide to one task: what it is for and what you need, a *Try it*
+  short enough to paste, how the thing works, a worked example with every part of it
+  explained, how to check it worked, what to do when it does not, and where to go next.
+- **Look-up** pages, and the [Reference](/reference/), are for when you know what you want.
+:::
 
 ## Start here
 
 <div class="u7-path">
 
 1. **[Installation](/user/installation)**
-   humanize, and one coding agent CLI signed in.
+   humanize, and one coding agent CLI signed in. About five minutes.
 2. **[Your first run](/user/first-run)**
-   Choose a flow, give it an agent and a budget, and watch it work.
+   Choose a flow, give it an agent and a budget, watch it fix a bug, and stop it.
 3. **[Security](/user/security)**
    What to check before a flow touches work you care about.
 
 </div>
 
-Then take a whole piece of work start to finish:
-[Beat a benchmark](/user/tutorials/take-home),
-[Port a project](/user/tutorials/port-a-project), or
-[Build a coding agent](/user/tutorials/build-an-agent).
+## Tutorials
+
+Then take a whole piece of work start to finish. Each is one path, with real output at every
+step:
+
+| Tutorial | You learn | Takes |
+| --- | --- | --- |
+| [Beat a benchmark](/user/tutorials/take-home) | two agents taking turns, a task file, checking a result against cheating | an hour of you, hours of the machine |
+| [Port a project](/user/tutorials/port-a-project) | an actor and a reviewer, a run that ends itself | about an hour |
+| [Build a coding agent](/user/tutorials/build-an-agent) | three flows in a row: idea, plan, build | an afternoon |
 
 ## Everything else
 

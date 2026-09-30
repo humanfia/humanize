@@ -6,7 +6,7 @@ import TermScreen from '../.vitepress/theme/components/user-running/TermScreen.v
 const screen = (lines, mode) => [
   ...lines,
   '',
-  { r: '[m]actor · claude/claude-opus-5:high · ○ 1[/]' },
+  { r: '[m]actor · claude/claude-opus-5-5:high · ○ 1[/]' },
   { r: '[m]reviewer · codex/gpt-5.6-sol:high[/]' },
   { r: '[m]input 38.1k · output 4.2k · cache_read 612.0k · cache_write 29.4k[/]' },
   { r: '[m]$1.87 · 21 out/s[/]' },
@@ -52,13 +52,15 @@ const turn = [
       [
         '[dim]── actor[/]',
         '',
+        '[dim]  ⎿  round 3[/][n]1[/]',
+        '',
         '[dim]● actor is working[/]',
         '',
-        '[g]●[/] Read[dim](tests/test_pay.py)[/]',
+        '[g]●[/] Read[dim](tests/test_pay.py)[/][n]2[/]',
         '[g]●[/] Grep[dim](def charge)[/]',
         '[g]●[/] Read[dim](src/pay.py)[/]',
         '',
-        '[dim i]The retry runs before the lock is taken. A second call can get in there.[/]',
+        '[dim i]The retry runs before the lock is taken. A second call can get in there.[/][n]3[/]',
         '',
         '[g]●[/] Edit[dim](src/pay.py)[/]',
         '[g]●[/] Bash[dim](pytest -q tests/test_pay.py)[/]',
@@ -67,7 +69,7 @@ const turn = [
         '',
         '[dim]✻ Worked for 74s · actor[/]',
       ],
-      '[m]details[/] · ',
+      '[m]details[/][n]4[/] · ',
     ),
     caption:
       'Every tool call and every line of thinking, and <code>details</code> in front of the status line.',
@@ -82,9 +84,18 @@ what is true of this machine, what this directory remembers, the accounts agents
 machines a flow's environments go on, where a turn goes when it cannot run, and where flows
 come from. It works with the keys and with the mouse alike.
 
+::: info At a glance
+- **You will** change how humanize behaves on this machine and in this directory, and manage
+  the accounts, machines, fallbacks and flowverses your flows use.
+- **Use it when** you want to see the working, add an API key or a second account, put a
+  flow on another machine, keep a run going when a model fails, or add flows from a git
+  repository.
+- **You need** `hmz` open. Nothing has to be running.
+:::
+
 ## Try it
 
-```
+```text
 /settings
 /settings accounts
 /settings environments
@@ -92,6 +103,8 @@ come from. It works with the keys and with the mouse alike.
 
 ![/settings opening on its six pages, then into Workspace: directory, default flow,
 profiling and forget](/demo/profiling.gif)
+
+## How it works
 
 `/settings` opens on six pages and nothing else, each a card saying what is in it.
 <kbd>enter</kbd>, <kbd>→</kbd> or a click goes into one; <kbd>esc</kbd>, <kbd>backspace</kbd>,
@@ -107,9 +120,8 @@ straight into the one named, and the word is offered as you type it:
 | [**Fallback**](#fallback) | `fallback` | where a turn goes when the place taking it cannot take it |
 | [**Flowverses**](#flowverses) | `flowverses` | the git repositories flows come from |
 
-`everywhere` and `directory`, what the first two were called before, still open them. A name
-`/settings` does not have is refused, naming the ones it does. A card marked `● unsaved` holds
-a change you have not saved yet.
+`everywhere` and `directory` open the first two as well. A card marked `● unsaved` holds a
+change you have not saved yet.
 
 ### How a page is laid out {#layout}
 
@@ -148,6 +160,10 @@ and never shown back. <kbd>esc</kbd> out of a form you wrote in asks whether to 
 The line under the list says what became of the last thing done on that page, and it is still
 there when you go back into the page, as is the row the cursor was on.
 
+The last line of the screen always names the keys that work where the focus is, such as
+`enter open   / search   tab actions   esc back` on a list and
+`enter save   ←/→ move   tab list   esc back` on the buttons.
+
 ### When a change lands {#saving}
 
 What every page holds lands together, when you save: press **Save**, on any page or on the
@@ -156,9 +172,9 @@ six of them. Leave `/settings` with <kbd>esc</kbd> and unsaved changes, and it a
 something is changed, and `● unsaved changes` across the top says when something is.
 
 A few things happen as you ask rather than on save: making an account, signing one in, and
-everything on the Environments and Flowverses pages. And a few that are saved cannot take hold at once, because
-something already running started without them. The row says when while the change is held,
-and the transcript says it again once saved:
+everything on the Environments and Flowverses pages. And a few that are saved cannot take hold
+at once, because something already running started without them. The row says when while the
+change is held, and the transcript says it again once saved:
 
 | Change | Takes hold |
 | --- | --- |
@@ -166,6 +182,115 @@ and the transcript says it again once saved:
 | profiling | from the next flow run |
 | correcting an account, what it fails over to, taking it away | from the next agent session: a session already running keeps the account it started with |
 | forget | from the next launch: the interface open now keeps what it opened with |
+
+## Example: turn Details on
+
+By default the transcript shows what each turn said and nothing of how it got there. Here you
+switch on [Details](#details), so every tool call and every line of thinking shows, and save.
+
+**1. Open `/settings`.** Type `/settings` and press <kbd>enter</kbd>:
+
+<Term title="/settings">
+
+<pre>  <span class="p b">/settings</span>
+  <span class="m">Every setting humanize keeps. What you change is held until you save it.</span>
+
+  <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
+  <span class="sel"> ⚙  <b>Settings</b>                                   reports off · details off </span> <span class="n">1</span>
+     <span class="m">this machine: error reports, details, and the /btw agent</span>
+   ────────────────────────────────────────────────────────────────────────
+   ⌂  <b>Workspace</b>                                   demo · flow ralph_loop
+     <span class="m">this directory: its flow, profiling, and forgetting it</span>
+   ────────────────────────────────────────────────────────────────────────
+   ◉  <b>Accounts</b>                                                0 accounts
+     <span class="m">what agents sign in as, per CLI</span>
+   ────────────────────────────────────────────────────────────────────────
+   ▦  <b>Environments</b>                                            0 machines
+     <span class="m">ssh hosts and docker daemons a flow's roles run on</span>
+   ────────────────────────────────────────────────────────────────────────
+   ↻  <b>Fallback</b>                                                   0 rules
+     <span class="m">where a turn goes when an agent fails</span>
+   ────────────────────────────────────────────────────────────────────────
+   ⑂  <b>Flowverses</b>                                            3 flowverses
+     <span class="m">where flows come from</span>
+  <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
+
+                                                                    <span class="btn"> Save </span> <span class="n">2</span>
+
+  <b>enter</b> open   <b>esc</b> close</pre>
+
+</Term>
+
+**2. Go into Settings and drop Details' values.** <kbd>enter</kbd> on the first card, then
+<kbd>↓</kbd> <kbd>↓</kbd> to **Details**, and <kbd>enter</kbd>:
+
+<Term title="/settings › Settings">
+
+<pre>  <span class="m">/settings ›</span> <span class="p b">Settings</span>
+  <span class="m">Global settings for humanize on this machine.</span>
+
+  <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
+   <b>Error reports</b>                                               <span class="m">○ off ▾</span>
+     <span class="m">send error reports to humanize</span>
+   ────────────────────────────────────────────────────────────────────────
+   <b>What is sent</b>                                                      <span class="m">▸</span>
+     <span class="m">what error reports include and exclude</span>
+   ────────────────────────────────────────────────────────────────────────
+  <span class="sel"> <b>Details</b>                                                         ○ off ▾ </span> <span class="n">3</span>
+     <span class="m">show every tool call and all of the thinking</span>
+                                      <span class="p">╭─ Details ────────────────────────╮</span>
+   <b>/btw agent</b>                         <span class="p">│</span><span class="sel"> on  show tool calls and thinking </span><span class="p">│</span> <span class="n">4</span>
+     <span class="m">the agent /btw uses outside a </span>  <span class="p">│</span> off ✔  show turn responses only  <span class="p">│</span>
+                                      <span class="p">╰──────────────────────────────────╯</span>
+  <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
+
+                                                                    <span class="btn"> Save </span>
+
+  <b>enter</b> change   <b>esc</b> back</pre>
+
+</Term>
+
+**3. Pick `on`, and save.** <kbd>enter</kbd> picks `on`. Then <kbd>tab</kbd> to the buttons
+and <kbd>enter</kbd> on **Save**:
+
+<Term title="/settings › Settings">
+
+<pre>  <span class="m">/settings ›</span> <span class="p b">Settings</span>                              <span class="y">● unsaved changes</span> <span class="n">5</span>
+  <span class="m">Global settings for humanize on this machine.</span>
+  <span class="m">…</span>
+   <b>Details</b>                                                      <span class="g">● on ▾</span>
+     <span class="m">show every tool call and all of the thinking</span>
+  <span class="m">…</span>
+                                                                    <span class="sel"> Save </span> <span class="n">6</span>
+
+  <b>enter</b> save   <b>←/→</b> move   <b>tab</b> list   <b>esc</b> back</pre>
+
+</Term>
+
+What to look at, by number:
+
+1. **The card's summary.** Each card says what it holds right now at its right-hand end, so the
+   six cards are a status page before you open any of them: `reports off · details off` here,
+   the number of accounts, machines and rules on the others.
+2. **Save.** Nothing has changed yet, so it cannot be pressed.
+3. **`○ off ▾`.** The row's value; `▾` says <kbd>enter</kbd> drops its values under it.
+4. **The dropped list.** Every value the row can take, with `✔` on the one in force. An on/off
+   switch opens on the answer it is not, so the cursor is already on `on`.
+5. **`● unsaved changes`.** The change is held, not applied. Leaving now asks **save** or
+   **discard**.
+6. **Save, under the cursor.** <kbd>tab</kbd> moved the focus from the list to the buttons; the
+   last line changed to the keys that work there.
+
+### Check it worked
+
+Saving closes the screen, and the transcript says what changed:
+
+```text
+showing details: tool calls, thinking, and backend output
+```
+
+The status line under the prompt now starts with `details ·`, and it stays that way in the
+next `hmz` too. Open `/settings` again and the first card reads `reports off · details on`.
 
 ## Settings {#settings-page}
 
@@ -190,6 +315,13 @@ While it is on, the status line starts with `details`.
 Here is one turn of [`rlar`](/flows/rlar)'s actor, both ways:
 
 <TermScreen title="hmz · rlar" :frames="turn" />
+
+With details on, look for:
+
+1. **What the flow prints**, such as `⎿  round 3`, dim and indented.
+2. **Every tool call**, with what it was called on in dim.
+3. **The thinking**, in dim italics, where the backend reports it.
+4. **`details`** at the front of the status line, for as long as it is on.
 
 Turning it on shows what arrives from then on. What scrolled past while it was off stays
 hidden, but the run's [trace](/user/tracing) has all of it.
@@ -221,7 +353,7 @@ make it forget.
 | Directory | the directory these settings belong to |
 | Default flow | the flow it opens on, and how many agents that flow was set up with |
 | Profiling | whether a run here [profiles](#whether-a-run-here-is-profiled) the programs it starts |
-| Forget | forget everything this directory remembers |
+| Forget | a switch: turned `on` and saved, it forgets everything this directory remembers. Its line says how many flows that is. |
 
 **Forget** clears this directory only. Every other directory, and everything on the other
 pages, stay as they were. The next `hmz` here opens as it did the first time; the one open now
@@ -318,7 +450,7 @@ In `hmz`:
 
 ```sh{3}
 hmz exec -f flame_chase \
-    -a first_chaser=claude/claude-opus-5:max \
+    -a first_chaser=claude/claude-opus-5-5:max \
     -a second_chaser=claude@deepseek/deepseek-chat:high \
     -b cost=20 "fix the build"
 ```
@@ -326,18 +458,61 @@ hmz exec -f flame_chase \
 `flame_chase` has two agents take turns on one task. Here both run the same Claude Code: the
 first as you are signed in, the second as `deepseek`.
 
-An Anthropic API key, from `/settings accounts` with none yet to back at the prompt, is a
-dozen key presses and the key itself: <kbd>enter</kbd>, <kbd>enter</kbd> on **Add an
-account**, <kbd>↓</kbd> <kbd>enter</kbd> <kbd>↓</kbd> <kbd>↓</kbd> <kbd>enter</kbd> to pick
-`key`, type the key, <kbd>enter</kbd>, <kbd>enter</kbd> on `done`, and <kbd>esc</kbd>
-<kbd>esc</kbd>.
+#### Example: an Anthropic API key
+
+From `/settings accounts` with no account yet, an Anthropic API key is a dozen key presses and
+the key itself: <kbd>enter</kbd> on **Add an account**, <kbd>↓</kbd> <kbd>enter</kbd> to drop
+the ways, <kbd>↓</kbd> <kbd>↓</kbd> <kbd>enter</kbd> to pick `key`, type the key, and
+<kbd>enter</kbd>. The form now reads:
+
+<Term title="/settings › Accounts › Add an account">
+
+<pre>   <span class="p b">Add an account</span>
+   <span class="m">A saved sign-in for one CLI, kept separate from the CLI's default and other
+   accounts. Secrets are masked and never shown.</span>
+
+     <span class="d">1.</span> cli                <span class="a">claude ▾</span>           <span class="m">installed here</span>
+     <span class="d">2.</span> way                <span class="a">key ▾</span>              <span class="m">an Anthropic API key, from the console</span> <span class="n">1</span>
+     <span class="d">3.</span> name               <span class="a">key</span>                <span class="m">account name</span> <span class="n">2</span>
+     <span class="d">4.</span> ANTHROPIC_API_KEY  <span class="a">••••••••••••••</span>     <span class="m">the API key</span> <span class="n">3</span>
+     <span class="d">5.</span> also for pi        <span class="a">on ▾</span>               <span class="m">installed here</span> <span class="n">4</span>
+     <span class="d">6.</span> also for opencode  <span class="a">on ▾</span>               <span class="m">installed here</span>
+     <span class="d">7.</span> also for mimo      <span class="a">on ▾</span>               <span class="m">installed here</span>
+
+   <span class="p">❯</span>    <span class="p">done</span>                      <span class="m">adds claude/key, for pi, opencode, mimo too</span> <span class="n">5</span>
+
+   <span class="d">enter done · esc back</span></pre>
+
+</Term>
+
+1. **`way`.** Each CLI has its own ways in; picking one replaces the rows under it with what
+   that way asks. `key` asks for one variable.
+2. **`name`, written in for you.** The way's own name, since no account has it yet. Type over
+   it to call the account something else; it is what goes after the `@`.
+3. **The secret, as bullets.** It is never drawn back, here or on any later screen.
+4. **`also for …`.** The same key works in the other CLIs that take an Anthropic key, and each
+   one installed here starts `on`. See [One account, several CLIs](#one-account-several-clis).
+5. **`done` says what it will do.** Read it before you press <kbd>enter</kbd>.
+
+<kbd>enter</kbd> on `done` makes the account at once; there is nothing to save. The Accounts
+page now lists it under `claude`, and under each CLI it was copied to, beside `as local`:
+
+```text
+claude
+key                       key · ANTHROPIC_API_KEY
+as local                  the account signed in on this machine
+```
+
+The line under the list says `key is also saved for pi, opencode, mimo`, and then how many
+models the account's CLI named for it, or why it named none. <kbd>esc</kbd> <kbd>esc</kbd>
+goes back to the prompt.
 
 ### Choosing one for an agent
 
 ::: code-group
 
 ```text [hmz exec]
--a builder=claude@work/claude-opus-5:max
+-a builder=claude@work/claude-opus-5-5:max
            ^^^^^^ ^^^^ ^^^^^^^^^^^^^ ^^^
            CLI    account  model     effort
 ```
@@ -347,9 +522,11 @@ account**, <kbd>↓</kbd> <kbd>enter</kbd> <kbd>↓</kbd> <kbd>↓</kbd> <kbd>en
 
    Select the account to run as
 
-   ❯ 1. as local                  use the account signed in on this machine
+   ❯ 1. as local ✔                use the account signed in on this machine
      2. deepseek                  gateway · ANTHROPIC_AUTH_TOKEN, ANTHROPIC_BASE_URL
      3. work                      login
+
+        search…
 
         add                       an account
 ```
@@ -369,7 +546,7 @@ that agent, naming it, and a bare `@` is refused before anything runs:
 
 ```console
 $ hmz exec -f ralph_loop -b duration=1h \
-    -a agent=claude@gone/claude-opus-5:max "…"
+    -a agent=claude@gone/claude-opus-5-5:max "…"
 round 1
 round 1 failed: agent: no claude provider called 'gone'
 …
@@ -666,7 +843,7 @@ providers](/reference/machines#environment-providers).
 When a turn cannot run where it is (the model was retired, the CLI will not start, the whole
 account is rate-limited), the Fallback page sends it somewhere else: another CLI, another
 account, or another model. Each of those places is written `CLI[@ACCOUNT]/MODEL`, for example
-`claude@work/claude-opus-5`.
+`claude@work/claude-opus-5-5`.
 
 It is the second of two fallbacks, and the one that costs the conversation:
 
@@ -679,42 +856,83 @@ It is the second of two fallbacks, and the one that costs the conversation:
 
 ### Try it {#fallback-try-it}
 
-Type `/settings fallback`:
+Here you make a turn that fails on Claude Opus try twice more, then carry on in Codex.
 
-<Term title="/settings · Fallback">
+1. Type `/settings fallback`. With no rules yet the focus is on **Add fallback rule**; press
+   <kbd>enter</kbd>. One form opens: the place that fails, where it falls back to, and how it
+   is tried again first.
+2. <kbd>enter</kbd> on `fails on` opens every place there is in one list: each installed CLI, as
+   each of its accounts, at each model it runs. `search…` at its top narrows it by any of the
+   three (`opus`, `work`, `codex`). Choose one, and the cursor moves to `falls back to`.
+3. <kbd>enter</kbd> there and choose the place that takes its turns. The place that fails is
+   not offered, and `nowhere` is, first.
+4. Pick `tries`, `policy` or `for` from the list each drops under it if you want a failed
+   turn tried again here first, then <kbd>enter</kbd> on `done`.
 
-<pre>  <span class="m">/settings ›</span> <span class="p b">Fallback</span>                                       <span class="y">● unsaved changes</span>
+The form, just before `done`:
+
+<Term title="/settings › Fallback › Add fallback rule">
+
+<pre>   <span class="p b">Add fallback rule</span>
+   <span class="m">What happens when an agent cannot take a turn: retry as configured, then fall
+   back to another agent in a new conversation.</span>
+
+     <span class="d">1.</span> fails on       <span class="a">claude/claude-opus-5-5 ▸</span>   <span class="m">the agent whose turns cannot run</span> <span class="n">1</span>
+     <span class="d">2.</span> falls back to  <span class="a">codex/gpt-5.6-sol ▸</span>        <span class="m">fallback agent for failed turns</span> <span class="n">2</span>
+     <span class="d">3.</span> tries          <span class="a">2 ▾</span>                        <span class="m">how many times to retry</span> <span class="n">3</span>
+     <span class="d">4.</span> policy         <span class="a">linear ▾</span>                   <span class="m">one second longer each time: 1s, 2s, 3s</span>
+     <span class="d">5.</span> for            <span class="a">no limit ▾</span>                 <span class="m">maximum time to keep retrying</span>
+
+   <span class="p">❯</span>    <span class="p">done</span>                      <span class="m">applies this fallback rule when /settings is saved</span> <span class="n">4</span>
+
+   <span class="d">enter done · esc back</span></pre>
+
+</Term>
+
+And the page once it is added, before it is saved:
+
+<Term title="/settings › Fallback">
+
+<pre>  <span class="m">/settings ›</span> <span class="p b">Fallback</span>                                  <span class="y">● unsaved changes</span> <span class="n">5</span>
   <span class="m">Where a turn falls back when an agent fails. An agent is a CLI, an
   account and a model. Saved rules apply from the next failed turn.</span>
 
-  <span class="p">╭──────────────────────────────────────────────────────────────────────────────────╮</span>
-   <span class="sel"> <b>claude@work/claude-opus-5 ✔</b> 2 retries, linear · falls back to codex/gpt-5.6          </span>
-    <b>codex/gpt-5.6</b> <span class="g">✔</span>             <span class="m">falls back to dsh/deepseek-v4-flash</span>
-  <span class="p">╰──────────────────────────────────────────────────────────────────────────────────╯</span>
+  <span class="p">╭────────────────────────────────────────────────────────────────────────╮</span>
+  <span class="sel"> <b>claude/claude-opus-5-5</b> ✔  2 retries, linear · falls back to codex/gpt-5.6-sol </span> <span class="n">6</span>
+  <span class="p">╰────────────────────────────────────────────────────────────────────────╯</span>
 
-   <span class="btn"> Add fallback rule </span>  <span class="btn"> Search… </span>                                    <span class="btn"> Save </span>
+     <span class="btn"> Add fallback rule </span>  <span class="btn"> Search… </span>                         <span class="btn"> Save </span>
 
   <b>enter</b> edit   <b>/</b> search   <b>tab</b> actions   <b>esc</b> back</pre>
 
 </Term>
 
-1. Press **Add fallback rule**. One form opens: the place that fails, where it falls back to, and how
-   it is tried again first.
-2. <kbd>enter</kbd> on `fails on` opens every place there is in one list: each installed CLI, as
-   each of its accounts, at each model it runs. `search…` there narrows it by any of the three
-   (`opus`, `work`, `codex`). Choose one, and the cursor moves to `falls back to`.
-3. <kbd>enter</kbd> there and choose the place that takes its turns. The place that fails is
-   not offered, and `nowhere` is, first. The cursor moves to `done`.
-4. Pick `tries`, `policy` or `for` from the list each drops under it if you want a failed
-   turn tried again here first, then <kbd>enter</kbd> on `done`.
-5. Save: press **Save**. Leaving with <kbd>esc</kbd> asks whether to save or discard. Once
-   saved, the next turn that fails reads it.
+What to look at, by number:
 
-<kbd>enter</kbd> on a step opens the same form for it, with `remove` above `done`.
+1. **`fails on`** is written `CLI[@ACCOUNT]/MODEL`: one place a turn can run. With no `@`, it
+   is the CLI as you signed it in.
+2. **`falls back to`** is where the turn goes next, in a new conversation. `nowhere` is the
+   first choice, for a rule that only retries.
+3. **`tries`, `policy`, `for`** retry here before moving on. `none` moves on at once. See
+   [Trying again](#trying-again).
+4. **`done`** says when the rule applies: when `/settings` is saved.
+5. **`● unsaved changes`.** The rule is held. <kbd>tab</kbd> to **Save**, or leave with
+   <kbd>esc</kbd> and choose **save** when it asks.
+6. **The rule, on one line.** The place, marked `✔` as a rule in force, how it retries, and
+   where it goes.
 
-Steps chain. Above, a turn that fails at `claude@work/claude-opus-5` is tried twice more
-there, then moves to `codex/gpt-5.6`, and if it fails there too, on to
-`dsh/deepseek-v4-flash`.
+<kbd>enter</kbd> on a rule opens the same form for it, with `remove` above `done`.
+
+**Check it worked.** Once saved, the transcript repeats the rule, and the next turn that fails
+reads it:
+
+```text
+claude/claude-opus-5-5 2 retries, linear · falls back to codex/gpt-5.6-sol
+```
+
+Steps chain. A second rule from `codex/gpt-5.6-sol` to `dsh/deepseek-v4-flash` means a turn
+that fails at `claude/claude-opus-5-5` is tried twice more there, then moves to
+`codex/gpt-5.6-sol`, and if it fails there too, on to `dsh/deepseek-v4-flash`.
 
 ### Trying again
 
@@ -821,12 +1039,12 @@ The steps you save at the prompt are the ones `Hmz().fallbacks` reads and writes
 from hmz.sdk import Hmz
 
 falls = Hmz().fallbacks
-falls.points("claude@work/claude-opus-5", "codex/gpt-5.6")
-falls.points("codex/gpt-5.6", "dsh/deepseek-v4-flash")
-falls.retrying("claude@work/claude-opus-5", 2, "linear", 0)  # tries, policy, timeout in s
-falls.chain("claude@work/claude-opus-5")
-# ['claude@work/claude-opus-5', 'codex/gpt-5.6', 'dsh/deepseek-v4-flash']
-falls.clear("claude@work/claude-opus-5")
+falls.points("claude@work/claude-opus-5-5", "codex/gpt-5.6-sol")
+falls.points("codex/gpt-5.6-sol", "dsh/deepseek-v4-flash")
+falls.retrying("claude@work/claude-opus-5-5", 2, "linear", 0)  # tries, policy, timeout in s
+falls.chain("claude@work/claude-opus-5-5")
+# ['claude@work/claude-opus-5-5', 'codex/gpt-5.6-sol', 'dsh/deepseek-v4-flash']
+falls.clear("claude@work/claude-opus-5-5")
 ```
 
 The rest is in the [SDK reference](/reference/sdk).
@@ -847,7 +1065,7 @@ it holds](/demo/flowverses.gif)
 | --- | --- |
 | **Add a flowverse** | Adds one: a URL or `owner/repo`, then a name to keep it under (blank for the repository's own), then `done` clones it. |
 | **Search…** | Narrows the list by what you type. |
-| a flowverse | <kbd>enter</kbd> says what it holds, under `fetch again` and `remove …`. |
+| a flowverse | <kbd>enter</kbd> says what it holds, under `fetch` (`fetch again` once it has been fetched) and `remove …`. |
 
 Everything here happens as you ask, not on save, so the page has no **Save**. `hmz` also
 fetches every flowverse that has a URL in the background each time it starts. A flowverse never
@@ -860,7 +1078,50 @@ the official flowverse has not been fetched yet -- open the flowverses page of /
 Adding one, publishing your own and naming a flow by URL are in
 [Flowverses](/weaver/flowverses).
 
-## See also
+## Troubleshooting
+
+### `hmz: /settings has no page '…'`
+
+The word after `/settings` names none of the six pages. The message lists the ones there are:
+`settings`, `workspace`, `accounts`, `environments`, `fallback` and `flowverses`. Type
+`/settings ` with a space and pick one from the list offered.
+
+### Save cannot be pressed
+
+Nothing is held to save. Making an account, signing one in, and everything on Environments and
+Flowverses happened as you asked, so there is nothing left for **Save** to do.
+
+### <kbd>esc</kbd> did not close the screen
+
+A page opened with `/settings <page>` is still a page of `/settings`: the first <kbd>esc</kbd>
+goes back to the six cards, and the second closes the screen. With unsaved changes, the second
+asks **save** or **discard** first.
+
+### `could not get models for claude as key: …`
+
+The new account was made, but its CLI could not list models with it: a key it refused, a
+login not finished, or a network that did not answer. The rest of the line is what the CLI
+said. Fix that, then choose `check again` on the `model` row of an agent that runs as the
+account.
+
+### Every turn fails with `no claude provider called '…'`
+
+An agent names an account that is not there, perhaps one you removed. humanize never runs it as
+you instead. Choose another account on the agent's `account` row in `/flow`, or put the account
+back on the Accounts page.
+
+### A flow says its flowverse `has not been fetched yet`
+
+Open the Flowverses page, <kbd>enter</kbd> on the flowverse, and choose `fetch`. If the
+fetch fails, the line under the list says why.
+
+### A change did not reach the run that is going
+
+Some changes wait for something to start again: profiling for the next run, a corrected account
+for the next agent session, forgetting for the next launch. The table in
+[When a change lands](#saving) lists which.
+
+## Next steps
 
 - [History](/user/history): the other thing kept between starts
 - [Tracing](/user/tracing): what a profiled run is drawn into

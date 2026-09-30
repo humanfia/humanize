@@ -1,7 +1,16 @@
 # Beat a benchmark
 
-**About an hour of your attention, and a few hours of the machine's.** You point two agents at
-Anthropic's open performance take-home and let them take turns on it. At the end you have:
+In this tutorial you point two agents at Anthropic's open performance take-home and let them
+take turns on it for hours, while you check their progress against a number that cannot lie.
+
+::: info At a glance
+- **You will learn** how to write a task a long loop can work from, how to start a flow from
+  the command line with `hmz exec`, how to check an agent's claims yourself, and how to find
+  the turn that mattered in a run's trace.
+- **You will end with** the three things in the table below.
+- **Time:** about an hour of your attention and a few hours of the machine's.
+- **You need** humanize and one signed-in coding agent CLI. Two different ones do better.
+:::
 
 | You end with | Where |
 | --- | --- |
@@ -9,12 +18,22 @@ Anthropic's open performance take-home and let them take turns on it. At the end
 | the agents' lab notebook: what they tried, and what it measured | `NOTES.md` |
 | every turn on one timeline, showing which one moved the number | `/epics`, in `hmz` |
 
-::: tip Before you start
-Do the [quickstart on the home page](/#run-a-flow) first. One signed-in backend is enough,
-since it can fill both roles. Two different ones do better.
-:::
+## Before you start
 
-## Step 1: get the problem
+- **Install humanize and sign in to a coding agent CLI.** See
+  [Installation](/user/installation). One signed-in backend is enough, since it can fill both
+  roles.
+- **Make one run first.** [Your first run](/user/first-run), or the
+  [quickstart on the home page](/#run-a-flow), shows you a flow working in a scratch
+  repository. This tutorial assumes you have seen that.
+- **Open `hmz` once.** `flame_chase` comes from the official
+  [flowverse](/weaver/flowverses), a git repository of flows, and opening `hmz` in any directory
+  is what fetches it. `hmz exec` does not fetch it for you. Leave with `/exit`.
+- **Have Python 3 and git.** The benchmark is a Python script.
+- **Set aside a budget.** The command below allows up to eight hours and $100. Lower `cost=` if
+  your account is billed by the token and you want to spend less.
+
+## Step 1: Get the problem
 
 ```sh
 git clone https://github.com/anthropics/original_performance_takehome
@@ -22,14 +41,17 @@ cd original_performance_takehome
 python tests/submission_tests.py
 ```
 
-You optimise a kernel for a simulated VLIW SIMD machine. `perf_takehome.py` is the kernel you
-may change, and `tests/submission_tests.py` measures it:
+You should see:
 
 ```console
 Testing forest_height=10, rounds=16, batch_size=256
 CYCLES:  147734
 Speedup over baseline:  1.0
 ```
+
+**What just happened.** You optimise a kernel for a simulated VLIW SIMD machine.
+`perf_takehome.py` is the kernel you may change, and `tests/submission_tests.py` measures it.
+`CYCLES` is the number of simulated clock cycles the kernel takes: lower is better.
 
 Eight of the nine tests fail, and each failing test is a threshold somebody has already
 reached:
@@ -45,10 +67,10 @@ reached:
 | 1,363 | Claude Opus 4.5, an improved harness |
 
 ::: tip Checkpoint
-`CYCLES:  147734`. That is the number the rest of this page drives down.
+`CYCLES:  147734`. That is the number the rest of this tutorial drives down.
 :::
 
-## Step 2: write the task down
+## Step 2: Write the task down
 
 The loop runs the same prompt for hours, so it is worth more care than a chat message. Put it
 in a file and commit it:
@@ -78,17 +100,24 @@ EOF
 git add -A && git commit -qm "the task"
 ```
 
-The highlighted lines do the work:
+**What just happened.** The highlighted lines do the work:
 
-- **The rules against cheating.** The Readme warns that none of the sub-1,300 submissions on
-  the first day were valid, because in each one a model had edited the tests. An agent that is
-  never asked anything will find that shortcut, so name it, together with the command that
-  proves nobody took it.
-- **Measure, change, measure.** Without it, a turn can end believing it made things faster.
-- **`NOTES.md`.** Each turn starts from nothing, so anything worth carrying has to be written
-  to a file.
+1. **The rules against cheating.** The Readme warns that none of the sub-1,300
+   submissions on the first day were valid, because in each one a model had edited the tests.
+   An agent that is never asked anything will find that shortcut, so name it, together with the
+   command that proves nobody took it.
+2. **Measure, change, measure.** Without it, a turn can end believing it made
+   things faster.
+3. **`NOTES.md`.** Each turn starts from nothing, so anything worth carrying has
+   to be written to a file.
 
-## Step 3: start the loop
+Committing the task means `git diff` later shows the agents' work and nothing of yours.
+
+::: tip Checkpoint
+`git log --oneline -1` shows `the task`, and `git status` is clean.
+:::
+
+## Step 3: Start the loop
 
 The flow is [`flame_chase`](/flows/flame-chase). It gives two agents the task in turn, and
 every turn opens a fresh **session**, a conversation with the model that has seen nothing
@@ -103,7 +132,7 @@ Start it. Pick the tab for the backends you have:
 
 ```sh [Claude Code + Codex]
 hmz exec -f flame_chase \
-    -a first_chaser=claude/claude-opus-5:high \
+    -a first_chaser=claude/claude-opus-5-5:high \
     -a second_chaser=codex/gpt-5.6-sol:high \
     -b duration=8h,cost=100 \
     "$(cat TASK.md)"
@@ -111,8 +140,8 @@ hmz exec -f flame_chase \
 
 ```sh [Claude Code only]
 hmz exec -f flame_chase \
-    -a first_chaser=claude/claude-opus-5:high \
-    -a second_chaser=claude/claude-opus-5:high \
+    -a first_chaser=claude/claude-opus-5-5:high \
+    -a second_chaser=claude/claude-opus-5-5:high \
     -b duration=8h,cost=100 \
     "$(cat TASK.md)"
 ```
@@ -127,10 +156,6 @@ hmz exec -f flame_chase \
 
 :::
 
-There is one `-a` for each role the flow declares, `first_chaser` and `second_chaser`, and any
-other backend fills a role the way the quickstart spells it. `-b` is what the run may spend,
-and it stops at eight hours or a hundred dollars, whichever comes first.
-
 The first turn starts at once, and closes with what it spent:
 
 ```console
@@ -141,25 +166,31 @@ The first turn starts at once, and closes with what it spent:
 ● second_chaser is working
 ```
 
+**What just happened.** Each part of the command:
+
+1. **`hmz exec`** runs a flow in this directory with nobody at a prompt. It prints what the
+   agents say, and returns when the flow ends. See [Run it unattended](/user/unattended).
+2. **`-f flame_chase`** names the flow.
+3. **`-a first_chaser=…` and `-a second_chaser=…`** give each of the flow's two roles an
+   agent, written `CLI/MODEL:EFFORT`. Any other backend fills a role the same way.
+4. **`-b duration=8h,cost=100`** is the budget: the run stops at eight hours or a hundred
+   dollars, whichever comes first.
+5. **`"$(cat TASK.md)"`** is the task, the file you wrote, given whole.
+
+In the output, `● first_chaser is working` opens a turn, and the `✻` lines close it with the
+tokens and dollars it spent and how long it took. Then the other chaser starts.
+
 ::: warning `flame_chase` never stops itself
 "As few cycles as possible" has no end, so the budget is what stops it. To stop sooner, press
 <kbd>ctrl+c</kbd>.
 :::
 
-::: details It says the official flowverse has not been fetched yet
-`flame_chase` comes from the official [flowverse](/weaver/flowverses), a git repository of
-flows. `hmz` fetches flowverses in the background each time it opens. If one has not landed
-yet, the run is refused:
-
-```console
-hmz exec: error: flame_chase: the official flowverse has not been fetched yet -- open the flowverses page of /settings and fetch it from its own sheet
-```
-
-Run `hmz`, type `/settings flowverses`, open `official`,
-choose `fetch`, then run the line again.
+::: tip Checkpoint
+You see `● first_chaser is working`. If the run is refused instead, see
+[Troubleshooting](#troubleshooting).
 :::
 
-## Step 4: watch the number
+## Step 4: Watch the number
 
 Leave the run going. In another terminal, measure:
 
@@ -168,18 +199,15 @@ cd original_performance_takehome
 python tests/submission_tests.py 2>&1 | grep -E "CYCLES|Speedup" | tail -2
 ```
 
-The transcript tells you what an agent *believes*. The test tells you what is true. In the run
-this page was written from, after about half an hour and several turns each:
+In the run this page was written from, after about half an hour and several turns each:
 
 ```console
 CYCLES:  1770
 Speedup over baseline:  83.46553672316384
 ```
 
-::: tip Checkpoint
-The number falls turn by turn. If no number comes out, you have probably caught a turn halfway
-through a rewrite, so measure again a minute later.
-:::
+**What just happened.** The transcript tells you what an agent *believes*. The test tells you
+what is true. Measuring from your own terminal is how you keep the two apart.
 
 Now read what the agents wrote for each other:
 
@@ -204,7 +232,12 @@ head -30 NOTES.md
 That file did not exist when the run started. The loop has no memory besides it, and it is why
 turn twelve does not start over like turn one.
 
-## Step 5: check that it did not cheat
+::: tip Checkpoint
+The number falls turn by turn. If no number comes out, you have probably caught a turn halfway
+through a rewrite, so measure again a minute later.
+:::
+
+## Step 5: Check that it did not cheat
 
 When the curve flattens, stop the run with <kbd>ctrl+c</kbd>. Before you believe the number:
 
@@ -223,7 +256,12 @@ python tests/submission_tests.py
 `test_kernel_correctness` must pass. A fast kernel that computes the wrong thing is not a
 result.
 
-## Step 6: see which turn moved the number
+::: tip Checkpoint
+An empty `git diff origin/main tests/`, and `test_kernel_correctness` passing. Only then is
+`CYCLES` a result.
+:::
+
+## Step 6: See which turn moved the number
 
 ```sh
 hmz
@@ -241,9 +279,9 @@ It stopped with 2 agents in 12 sessions.
   2. export run
 ```
 
-Choose **export run**. The line under the list says where the archive went. The trace is also at
-`traces/export.trace.json` inside the directory named under the screen's title. Drag it into
-[ui.perfetto.dev](https://ui.perfetto.dev):
+Choose **export run**. The line under the list says where the archive went, in this project's
+`.humanize/`. The trace is also at `traces/export.trace.json` inside the directory named under
+the screen's title. Drag it into [ui.perfetto.dev](https://ui.perfetto.dev):
 
 ```
 process   first_chaser · 6 sessions
@@ -252,15 +290,62 @@ process   second_chaser · 6 sessions
   track     main ──▶      ▓▓▓▓▓      ▓▓▓▓▓     ▓▓▓▓▓
 ```
 
-Each agent is one row, and their slices alternate because the two take turns. Click a slice to
-see the prompt, the reasoning and the tool call behind it. Put that next to `NOTES.md` and you
-can find the turn that took the big step, and the turns after it that only confirmed it.
+**What just happened.**
 
-## Where next
+1. **`/epics`** is every run humanize wrote down in this directory. An **epic** is one run of
+   one flow.
+2. **`It stopped with 2 agents in 12 sessions`**: two chasers, and a fresh session for every
+   turn. `stopped`, not finished, because you stopped it.
+3. **The trace** has one row per agent. The slices alternate because the two take turns. Click
+   a slice to see the prompt, the reasoning and the tool call behind it.
+
+Put the trace next to `NOTES.md` and you can find the turn that took the big step, and the
+turns after it that only confirmed it. [Tracing](/user/tracing) says more.
+
+::: tip Checkpoint
+Perfetto shows two processes, `first_chaser` and `second_chaser`, with alternating slices.
+:::
+
+## Troubleshooting
+
+### It says the official flowverse has not been fetched yet
+
+```console
+hmz exec: error: flame_chase: the official flowverse has not been fetched yet -- open the flowverses page of /settings and fetch it from its own sheet
+```
+
+`hmz` fetches flowverses in the background each time it opens, and `hmz exec` does not. Run
+`hmz`, wait a moment, and run the line again. If it is still refused, type
+`/settings flowverses` in `hmz`, open `official`, and choose `fetch`.
+
+### The number does not move for several turns
+
+Read the last few entries of `NOTES.md`. If the agents keep trying the same idea, name it in
+`TASK.md` as tried, commit, and start again. Raising the effort to `:max` helps once the easy
+wins are gone; see [Efforts](/user/efforts).
+
+### It stopped on its own after three failed turns
+
+Three failed turns in a row end `flame_chase` with the last failure, which the run prints.
+It is often an account out of quota or signed out. See
+[Troubleshooting](/user/troubleshooting), then pick the run up as in
+[Next steps](#next-steps).
+
+## What you learned
+
+- A long loop is only as good as its task file: say what counts, what is forbidden, and how to
+  prove neither happened.
+- `hmz exec -f … -a … -b …` starts a flow with one agent per role and a budget that stops it.
+- A fresh session per turn means the repository and a notes file are the loop's only memory.
+- The test, not the transcript, says what is true; and `git diff` says whether the test is
+  still the test.
+- `/epics` and the exported trace show which turn did what.
+
+## Next steps
 
 - **Carry on from where it stopped.** `flame_chase` can be picked up. Run the same line with
   `--resume` and a fresh `-b`, and it carries on with whichever chaser was next. See
-  [Resuming](/user/resuming).
+  [Picking a run up](/user/resuming).
 - **Ratchet the target.** Put the new floor in `TASK.md` and start again.
 - **Mix the models.** Two models that go wrong in different ways beat two copies of the
   stronger one, because each turn inherits the other's blind spots rather than its own.
