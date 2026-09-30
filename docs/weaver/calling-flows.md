@@ -1,24 +1,62 @@
 # A flow that calls a flow
 
-`load` finds a flow by its **ref**, a name such as `humanize1:gen-plan`, and hands it back
-ready to call. Awaiting it runs that flow inside yours, on agents you hand it, and answers with
-what it returned. Reach for it when a flow someone has already written does one step of what
-you want.
+In this guide you build flows out of other flows. You write `steps`, which splits its task
+into steps and runs each as a call to a hidden flow beside it, under a budget of its own. Then
+you write `aimed`, which calls the official `goal` flow by its ref and carries on after it.
 
-## Try it
+Reach for `load` when a flow somebody has already written does one step of what you want, or
+when a flow of your own has grown steps worth naming, testing and budgeting one at a time.
 
-This flow drafts an idea with `gen-idea` from the official [`humanize1`](/flows/humanize1),
-plans it with `gen-plan`, and then builds the plan in three rounds of its own:
+::: info Before you start
+- A flow of your own running: [Your first flow](/weaver/writing-a-flow).
+- [Params of its own](/weaver/flow-settings), to pass a called flow its params.
+- For `aimed`: a CLI with a goal feature, such as Claude Code or Codex. See
+  [Goals](/weaver/goals).
+:::
 
-```python{28-29,31,37}
-# .humanize/flows/planned/__init__.py
+## How it works
+
+`load(ref)` finds a flow by its **ref**, such as `:one-step` or `humanize1:gen-plan`, and hands
+it back ready to call. Awaiting it runs that flow inside yours and answers with what it
+returned:
+
+```python
+review = load(":review")
+verdict = await review(task, agents={...}, envs={...}, params=review.expected_params())
+```
+
+A called flow is a flow like any other, run as a **branch** of your run:
+
+- **It gets its own `ctx`**, its own line in the running tree, and a budget that is the tighter
+  of its own and what is left of yours. What it spends counts against every flow above it.
+- **It is handed exactly what it declared.** You pass agents and environments keyed by *its*
+  role names, and everything is checked against its declaration before a line of it runs.
+- **Its sessions and hooks are its own.** Yours never see them, even when you hand it the same
+  agent.
+- **It raises what it raised, as it raised it.** A `CostExceeded` three flows down is a
+  `CostExceeded` in yours.
+
+At the prompt, the status line names the flow running under yours, and [the
+monitor](/user/monitor) draws the tree. The [trace](/user/tracing) keeps every call and
+every return.
+
+## Example: steps of your own
+
+One directory can hold several flows. `steps` keeps its step as a hidden flow in the same
+module, and calls it once per step:
+
+```python
+# .humanize/flows/steps/__init__.py
 from hmz.flows import (
     Agent,
     AgentCollection,
+    Budget,
+    CostExceeded,
     EnvCollection,
     FlowContext,
     FlowParams,
     LocalEnv,
+    ShellEnvMixin,
     flow,
     load,
 )
@@ -26,7 +64,184 @@ from hmz.flows import (
 
 class Agents(AgentCollection):
     builder: Agent
-    critic: Agent
+
+
+class Workspace(LocalEnv, ShellEnvMixin): ...
+
+
+class Envs(EnvCollection):
+    workspace: Workspace
+
+
+class StepParams(FlowParams):  # ①
+    check: list[str] = ["python3", "check.py"]
+
+
+@flow(agents=Agents, envs=Envs, params=StepParams, name="one-step", hidden=True)  # ②
+async def one_step(
+    task: str, *, agents: Agents, envs: Envs, params: StepParams, ctx: FlowContext
+) -> bool:
+    """Take one step, and say whether the check still passes."""
+    builder, workspace = agents["builder"], envs["workspace"]
+    session = await builder.spawn(env=workspace)
+    await builder.run(task, session=session)
+    code, _, _ = await workspace.exec(params.check)
+    return code == 0  # ③
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def steps(
+    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
+) -> dict[str, bool]:
+    """The task a step at a time, split on ';', each under a budget of its own."""
+    step = load(":one-step")  # ④
+    passed: dict[str, bool] = {}
+    for part in (one.strip() for one in task.split(";")):
+        try:
+            passed[part] = await step(  # ⑤
+                part,
+                agents={"builder": agents["builder"]},  # ⑥
+                envs=envs,  # ⑦
+                params=step.expected_params(),  # ⑧
+                budget=Budget(cost=0.5, graceful=False),  # ⑨
+            )
+        except CostExceeded:  # ⑩
+            passed[part] = False
+    print(passed)
+    return passed
+```
+
+### What each part does
+
+1. **`StepParams`** are the step's own params. A called flow is configured like any other:
+   with an instance of its `FlowParams` subclass.
+2. **`name="one-step", hidden=True`** names the step for its ref and keeps it out of the menus
+   at the prompt. It still runs by its ref. Giving a flow meant to be called a `name=` means
+   renaming the function does not break the refs that name it.
+3. **What the step returns** is what the `await` in ⑤ answers with: here, whether the check
+   still passes after the step.
+4. **`load(":one-step")`** finds the flow called `one-step` in the same module. A leading `:`
+   means "beside me".
+5. **Awaiting the flow** runs it to the end, as a branch of this run.
+6. **`agents=` is keyed by the callee's role names.** The step's role happens to be called
+   `builder` too, but it is the step's declaration that names the key.
+7. **`envs=envs`** hands on the workspace. Each environment must carry every mixin the
+   callee's role asks for, here `ShellEnvMixin`, and this flow's role declares it.
+8. **`step.expected_params()`** builds the step's own params class, at its defaults.
+   `step.expected_params(check=["pytest", "-q"])` would change one.
+9. **`Budget(cost=0.5, graceful=False)`** gives each step at most 50 cents of what the run has
+   left. `graceful=False` interrupts a turn the moment it reaches the limit, rather than
+   letting it finish.
+10. **`except CostExceeded`** turns a step that ran over into a failed step, and the run goes
+    on to the next. The spent budget is the step's own, so the rest of the run is unaffected.
+
+### Run it
+
+```sh
+hmz exec -f steps -a builder=claude/claude-sonnet-5-5:high -b cost=1 \
+    "add subtract(a, b) to calc.py; add multiply(a, b) to calc.py"
+```
+
+`-f steps` finds the directory, and in it the one flow that is not hidden. A real run:
+
+```text
+● builder is working
+● Bash(cd /home/you/calc && ls && cat calc.py)
+● Bash(cd /home/you/calc && printf '\n\ndef subtract(a, b):\n    return a - b\n' >> calc.py && cat calc.py && cat check.py)
+● I added `subtract(a, b)` to `calc.py`. It returns `a - b`. …
+✻ input 6 · output 296 · cache_read 44.4k · cache_write 5.6k · $0.03 · claude-sonnet-5-5 · builder
+…
+✻ Worked for 5s · builder
+● builder is working
+● Read(/home/you/calc/calc.py)
+● Edit(/home/you/calc/calc.py)
+● I added `multiply(a, b)` to `calc.py`. It returns `a * b` and sits after `subtract`. …
+✻ input 6 · output 265 · cache_read 45.8k · cache_write 4.2k · $0.02 · claude-sonnet-5-5 · builder
+…
+✻ Worked for 5s · builder
+{'add subtract(a, b) to calc.py': True, 'add multiply(a, b) to calc.py': True}
+```
+
+Each step is a fresh session, in its own call, and the last line is `steps`' own `print` of
+what the two calls returned.
+
+### Check it worked
+
+Each step is testable as a call of its own. The second test shows a step over its budget
+failing without ending the run:
+
+```python
+# tests/test_steps.py
+from hmz.sdk import fakes
+
+GREEN = {("python3", "check.py"): (0, "ok\n", "")}  # ①
+
+
+async def test_each_step_is_a_call_of_its_own() -> None:
+    builder = fakes.FakeAgentDriver()
+    here = fakes.FakeEnvDriver(run=GREEN)
+
+    passed = await fakes.run_fake(
+        "steps", "add subtract; add multiply", agents={"builder": builder}, local=here
+    )
+
+    assert passed == {"add subtract": True, "add multiply": True}
+    assert [session.prompts for session in builder.sessions] == [  # ②
+        ["add subtract"],
+        ["add multiply"],
+    ]
+    assert here.commands == [("python3", "check.py")] * 2
+
+
+async def test_a_step_over_its_budget_does_not_end_the_run() -> None:
+    builder = fakes.FakeAgentDriver(cost=0.75)  # ③
+
+    passed = await fakes.run_fake(
+        "steps",
+        "add subtract; add multiply",
+        agents={"builder": builder},
+        local=fakes.FakeEnvDriver(run=GREEN),
+    )
+
+    assert passed == {"add subtract": False, "add multiply": False}  # ④
+```
+
+```text
+..                                                                       [100%]
+2 passed in 0.09s
+```
+
+1. **`GREEN`** answers the step's check with success.
+2. **One session per step**, each given its step's prompt alone: the calls share nothing.
+3. **`cost=0.75`** makes every fake turn cost 75 cents, more than a step's 50.
+4. **Both steps fail, and the run still returns.** Each turn was interrupted at its step's
+   limit with `CostExceeded`, which `steps` caught.
+
+## Example: a published flow
+
+`aimed` calls the official [`goal`](/flows/goal) flow by a git ref, then takes a turn of its
+own once the goal is met:
+
+```python
+# .humanize/flows/aimed/__init__.py
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    EnvCollection,
+    FlowContext,
+    FlowParams,
+    GoalCommandAgentMixin,
+    LocalEnv,
+    flow,
+    load,
+)
+
+
+class Builder(Agent, GoalCommandAgentMixin): ...  # ①
+
+
+class Agents(AgentCollection):
+    builder: Builder
 
 
 class Envs(EnvCollection):
@@ -34,69 +249,98 @@ class Envs(EnvCollection):
 
 
 @flow(agents=Agents, envs=Envs, params=FlowParams)
-async def planned(
+async def aimed(
     task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
 ) -> None:
-    builder, critic = agents["builder"], agents["critic"]
-    idea = load("humanize1:gen-idea")  # a flow, by its ref
-    plan = load("humanize1:gen-plan")
-
-    draft = await idea(  # runs gen-idea; answers the draft's path
+    """The task as a goal, then one more turn to write it up."""
+    builder = agents["builder"]
+    goal = load("git+https://github.com/humanfia/flowverse@main#goal")  # ②
+    await goal(
         task,
-        agents={"drafter": builder},       # by gen-idea's role names
-        envs={},                           # the run's own workspace
-        params=idea.expected_params(),     # at their defaults
+        agents={"worker": builder},  # ③
+        envs={},  # ④
+        params=goal.expected_params(),
     )
-    written = await plan(
-        task,
-        agents={"planner": builder, "analyst": critic},
-        envs={},
-        params=plan.expected_params(input=draft),  # that draft
+    session = await builder.spawn(env=envs["workspace"])
+    await builder.run(
+        "Describe the uncommitted change in one line, in CHANGES.md.", session=session
     )
-    for _ in range(3):
-        session = await builder.spawn(env=envs["workspace"])
-        step = f"Carry out the next part of {written}."
-        await builder.run(step, session=session)
 ```
+
+1. **`GoalCommandAgentMixin` on your role**, because `goal`'s `worker` role asks for it. An
+   agent reaches your flow granted what **your** role declared, and that is all it can pass
+   on, whatever its CLI could do.
+2. **A git ref**, written the way pip writes one: the repository, `@` a branch, tag or commit,
+   and `#` the flow. It is fetched the first time you call it, once per URL and revision per
+   run. Once the official flowverse is fetched, `load("goal")` finds the same flow by name.
+3. **`"worker"`** is `goal`'s role name. Your `builder` fills it.
+4. **`envs={}`** leaves `goal`'s `workspace` out. It is a `LocalEnv`, which the run fills, so
+   the callee gets the run's own directory.
 
 ```sh
-hmz exec -f planned -b cost=30 \
-    -a builder=claude/claude-opus-5:max -a critic=codex/gpt-5.6-sol:max \
-    "add undo to the editor"
+hmz exec -f aimed -a builder=claude/claude-sonnet-5-5:high -b cost=1 \
+    "calc.py has a subtract function, and python3 check.py still prints ok"
 ```
 
-Each published flow is one `await` in yours. Run it at the prompt instead, as
-`$local/planned`, and while `gen-plan` runs the status line reads
-`planned ▸ humanize1:gen-plan`, with [the monitor](/user/monitor) drawing the same tree. Either
-way, the [trace](/user/tracing) keeps every call and every return.
+```text
+● worker is working
+● Goal set: calc.py has a subtract function, and python3 check.py still prints ok
+● Goal noted: add a `subtract` function to calc.py while keeping `python3 check.py` printing ok. …
+● Bash(cd /home/you/calc && printf '\n\ndef subtract(a, b):\n    return a - b\n' >> calc.py && cat calc.py && python3 check.py)
+● I added `subtract(a, b)` to `calc.py`. It returns `a - b`. `python3 check.py` still prints `ok`, …
+✻ input 9 · output 467 · cache_read 41.8k · cache_write 10.1k · $0.04 · claude-sonnet-5-5 · worker
+…
+✻ Worked for 8s · worker
+● builder is working
+● Bash(cd /home/you/calc && git diff && ls CHANGES.md)
+● Write(/home/you/calc/CHANGES.md)
+● I created `CHANGES.md` with one line: "Added a `subtract(a, b)` function to `calc.py` that returns `a - b`." …
+✻ input 6 · output 303 · cache_read 46.0k · cache_write 4.3k · $0.02 · claude-sonnet-5-5 · builder
+…
+✻ Worked for 5s · builder
+```
 
-A called flow raises what it raised, **as it raised it**: a `CostExceeded` three flows down is
-a `CostExceeded` in yours.
+**The first turn is labelled `worker`**: inside `goal`, your agent fills `goal`'s role, under
+`goal`'s name for it. The second is `aimed`'s own turn, as `builder`.
+
+A test runs the called flow too, on the same fake agent:
+
+```python
+# tests/test_aimed.py
+from hmz.sdk import fakes
+
+
+async def test_the_goal_goes_first_then_the_write_up() -> None:
+    builder = fakes.FakeAgentDriver()
+
+    await fakes.run_fake("aimed", "ship it", agents={"builder": builder})
+
+    assert [session.prompts for session in builder.sessions] == [  # ①
+        ["/goal ship it"],
+        ["Describe the uncommitted change in one line, in CHANGES.md."],
+    ]
+```
+
+1. **Both flows' sessions are the driver's**: the first opened by `goal`, the second by
+   `aimed`. The test fetches the flowverse the first time it runs, as `hmz exec` does.
 
 ## Name the flow
 
 | Ref | Names |
 | --- | --- |
-| `:review` | another `@flow` in the same module as the flow asking |
+| `:one-step` | another `@flow` in the same module as the flow asking |
 | `ralph_loop` | a flow by its directory: the flow named after it, else the only visible one |
 | `humanize1:rlcr` | one flow of several in a directory |
 | `git+<url>@<rev>#humanize1:rlcr` | a flow of another flowverse, at a branch, tag or commit |
 
 A name is looked for beside the flow asking first, in its own flowverse, and then wherever
-`-f` looks, nearest first. A bare name for a directory of several flows, such as `humanize1`,
-raises `FlowNotFound` listing them; name one.
-
-A git ref is written the way pip writes one:
-`git+https://github.com/humanfia/flowverse@main#humanize1:rlcr`. It is fetched the first time
-you call it, once per URL and revision per run, and raises `FlowNotFound` if it cannot be
-fetched.
+`-f` looks, nearest first. A bare name for a directory of several visible flows, such as
+`humanize1`, raises `FlowNotFound` listing them: name one. A git ref that cannot be fetched
+raises `FlowNotFound` too.
 
 ## Hand it what it declares
 
-`agents` and `envs` are keyed by **the callee's** role names, whatever you call the same agents
-yourself. Pass an agent or environment you were handed, or one
-[derived](#narrow-what-you-hand-on) from it. Everything is checked before a line of the callee
-runs:
+Everything is checked before a line of the callee runs:
 
 | The callee's role asks for | What you pass must have | Otherwise |
 | --- | --- | --- |
@@ -107,65 +351,27 @@ runs:
 | a required role | anything at all | `MissingRole` |
 
 Each is a `RequirementError`, and nothing of the callee has run or spent anything when it is
-raised.
+raised. Typed as a plain `Agent`, `aimed`'s `builder` is refused at the call, and the exception
+ends the run unless you catch it:
 
-::: warning Your role's declaration is what you can pass on
-An agent reaches your flow granted what **your** role declared, and that is all it can pass
-on, whatever its CLI can do. `humanize1:rlcr` hangs a hook that needs
-`PermissionRequestHookAgentMixin` on its builder. A Claude agent in a role typed plain `Agent`
-is refused at the call, and the exception ends the run unless you catch it:
-
-```console
-Traceback (most recent call last):
-  ...
-hmz.flows.errors.CapabilityMissing: humanize1:rlcr: 'builder' needs PermissionRequestHookAgentMixin, which the agent given was not granted
+```text
+hmz.flows.errors.CapabilityMissing: goal:goal: 'worker' needs GoalCommandAgentMixin, which the agent given was not granted
 ```
-
-Declare what the flows you call need, and a type checker holds you to it too:
-
-```python
-from hmz.flows import PermissionRequestHookAgentMixin        # [!code ++]
-
-
-class Builder(Agent, PermissionRequestHookAgentMixin): ...   # [!code ++]
-
-
-class Agents(AgentCollection):
-    builder: Agent      # [!code --]
-    builder: Builder    # [!code ++]
-    critic: Agent
-```
-:::
 
 The callee is handed exactly what **it** declared, not what you hold. An agent with a steer
-and a goal command, passed to a role typed plain `Agent`, is a plain `Agent` there. The
-sessions the callee opens and the [hooks](/weaver/hooks) it hangs are its own, and yours
-never see them.
+and a goal command, passed to a role typed plain `Agent`, is a plain `Agent` there.
 
 ## Leave out what the run fills
 
 Two kinds of role are filled by the run: an `Outworlder`, which is [the person at the
 prompt](/weaver/human-agent), and a `LocalEnv`, the directory the run was started in. Leave
-either out and the callee gets the run's own:
-
-```python{4-5}
-rlcr = load("humanize1:rlcr")
-await rlcr(
-    task,
-    agents={"builder": builder, "reviewer": critic},  # no "human"
-    envs={},                                          # no "workspace"
-    params=rlcr.expected_params(),
-)
-```
-
-Here `builder` fills the `Builder` role declared above. rlcr's `human` is whoever is at the
-prompt, and its `workspace` is the run's directory, with every mixin rlcr asks for. That is why
+either out and the callee gets the run's own, with every mixin it asks for. That is why
 `envs={}` is the usual thing to pass. Your own `LocalEnv` works too, if your role declared
 every mixin the callee's does. An environment on another machine is refused for a `LocalEnv`
 role, with `CapabilityMissing`.
 
 To answer the callee's questions yourself instead of the person, pass `Outworlder.new()` and
-hang a hook on it. See [The person as an agent](/weaver/human-agent).
+hang a hook on it. See [The person as an agent](/weaver/human-agent#stand-in-for-the-person).
 
 ## Narrow what you hand on
 
@@ -193,83 +399,37 @@ copy](/weaver/worktrees).
 Build the callee's own params class, which it exposes as `expected_params`:
 
 ```python
-await rlcr(
-    task, agents=..., envs={}, params=rlcr.expected_params(max=12)
-)
+params=step.expected_params(check=["pytest", "-q"])
 ```
 
-For a flow of your own module, whose class you can import, `Params(max=12)` is the same thing.
-Another model or a plain mapping is validated into the callee's class at the call, and raises
-`ParamsError` if it does not fit, before the callee has run. See [Params of its
+For a flow of your own module, whose class you can name, `StepParams(check=[…])` is the same
+thing. Another model or a plain mapping is validated into the callee's class at the call, and
+raises `ParamsError` if it does not fit, before the callee has run. See [Params of its
 own](/weaver/flow-settings).
 
 ## Give it a budget of its own
 
-```python{7}
-from hmz.flows import Budget, CostExceeded
-
-explore = load(":explore")
-try:
-    await explore(
-        task, agents=agents, envs=envs, params=FlowParams(),
-        budget=Budget(cost=2.0),  # at most 2 USD of what you have left
-    )
-except CostExceeded:
-    ...  # exploring is over; the rest of the run goes on
-```
-
-A called flow runs under the **tighter** of its own budget and what is left of yours, and
+A called flow runs under the **tighter** of its own `budget=` and what is left of yours, and
 reads the result in `ctx.budget`. What it spends counts against every flow above it as it is
 spent. `duration` is a deadline rather than a sum, so two children gathered for an hour each
 fit in a parent's hour. A spent budget stays spent: every later turn under it raises again. See
 [the run's budget](/features/allowances).
 
-## Split a flow into steps
+## Variations
 
-One directory can hold several flows. Mark a step `hidden=True` to keep it out of the menus,
-and call it by `:name`:
+**Call several at once.** Calls gather like turns do: see [Many turns at
+once](/weaver/async-flows#whole-flows-at-once). Each gathered call has its own `ctx`, its own
+budget under yours, and its own line in the running tree.
 
-```python{5-6,17}
-@flow(
-    agents=Agents,
-    envs=Envs,
-    params=FlowParams,
-    name="fix-one",  # called as ":fix-one"
-    hidden=True,     # left out of the menus
-)
-async def fix_one(
-    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
-) -> None: ...
-
-
-@flow(agents=Agents, envs=Envs, params=FlowParams)
-async def fix_all(
-    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
-) -> None:
-    step = load(":fix-one")
-    for part in ("parser", "printer"):
-        said = f"{task}, in the {part}"
-        await step(said, agents=agents, envs=envs, params=FlowParams())
-```
-
-Each flow in the directory declares its own agents and params, so a step asks only for the
-roles it uses. Give a flow meant to be called by others a `name=`, so that renaming the
-function does not break the refs that name it. Two flows of one name in one directory raise
-`FlowDefinitionError`.
-
-## Call several at once, or itself
-
-Calls gather like turns do (see [Many turns at once](/weaver/async-flows)). Each gathered call
-has its own `ctx`, its own budget under yours, and its own line in the running tree.
-
-A flow may call itself, and decide how deep to go from its params or from what a model said:
+**Call itself.** A flow may call itself, and decide how deep to go from its params or from what
+a model said:
 
 ```python
 class Params(FlowParams):
-    left: int = 3
+    left: int = 2
 
 
-@flow(agents=Agents, envs=Envs, params=Params)
+@flow(agents=Agents, envs=Envs, params=Params, name="split", hidden=True)
 async def split(
     task: str, *, agents: Agents, envs: Envs, params: Params, ctx: FlowContext
 ) -> None:
@@ -280,40 +440,47 @@ async def split(
     deeper = Params(left=params.left - 1)
     again = load(":split")
     await asyncio.gather(*(
-        again(part, agents=agents, envs=envs, params=deeper)
-        for part in parts(task)  # your own way of splitting it
+        again(f"{task} / {half}", agents=agents, envs=envs, params=deeper)
+        for half in ("left", "right")
     ))
 ```
 
-A chain of calls goes **at most 64 deep**. The call that would go deeper raises
-`FlowDepthExceeded`, naming the flow. It is also a `RecursionError`.
+Called with `left=2`, it takes four turns, on `root / left / left` through
+`root / right / right`. A chain of calls goes **at most 64 deep**. The call that would go
+deeper raises `FlowDepthExceeded`, naming the flow. It is also a `RecursionError`.
 
-## Picked up with the flow that called it
+**Picked up with the flow that called it.** When a resumable run is [picked
+up](/user/resuming), each flow it calls again **exactly as before** carries on with the state
+it kept. Exactly means the same ref, task, agents (CLI, account, model, effort, permission,
+skills), environments and params. A call that differs in anything starts afresh. Identical
+calls are told apart by their order, so a loop that calls one flow ten times picks up each of
+the ten. A caller that is not resumable itself still passes the picking up through to the flows
+it calls.
 
-When a resumable run is [picked up](/user/resuming), each flow it calls again **exactly as
-before** carries on with the state it kept. Exactly means the same ref, task, agents (CLI,
-account, model, effort, permission, skills), environments and params. A call that differs in
-anything starts afresh. Identical calls are told apart by their order, so a loop that calls one
-flow ten times picks up each of the ten. A caller that is not resumable itself still passes the
-picking up through to the flows it calls.
+## Pitfalls
 
-::: details Edge cases
-- **Skills.** A called flow's agents carry the [skills](/user/skills) the called flow names,
-  found in its own `skills/` or fetched from the git URL it gives. A skill it names and cannot
-  find raises `FlowDefinitionError` at the call.
-- **Fetching early.** Reading `expected_params` off a git ref that has not been fetched fetches
-  it on the spot, and the whole run waits while it does, every branch included. Call the flow
-  first where you can.
+- **Declare what the flows you call need.** Your role's type is all an agent can pass on. A
+  type checker holds you to it too.
+- **A graceful budget lets the turn finish.** With the default `graceful=True`, a step's budget
+  is checked as a turn starts, so a one-turn step can run past it by what that turn spent. Pass
+  `graceful=False` to interrupt it at the limit, as `steps` does.
+- **Skills come with the callee.** A called flow's agents carry the [skills](/user/skills) the
+  called flow names, found in its own `skills/` or fetched from the git URL it gives. A skill
+  it names and cannot find raises `FlowDefinitionError` at the call.
+- **Reading `expected_params` fetches.** On a git ref that has not been fetched, it fetches on
+  the spot, and the whole run waits, every branch included. Call the flow first where you can.
 - **Two directories of one name.** Two flows from different directories that import a module
   of the same name, such as your copy of `humanize1` and the official one, cannot both be
   loaded in one run: the second raises `FlowLoadConflict`.
-- **What is running, from Python.** `Hmz().flows.running()` from `hmz.sdk` lists every flow
-  call going in the process, oldest first, each with its `ref`, `depth` and `parent`.
-:::
+- **Two flows of one name in one directory** raise `FlowDefinitionError`.
 
-## See also
+`Hmz().flows.running()` from `hmz.sdk` lists every flow call going in the process, oldest
+first, each with its `ref`, `depth` and `parent`.
+
+## Next steps
 
 - [Many turns at once](/weaver/async-flows)
 - [Params of its own](/weaver/flow-settings)
-- [Hooks](/weaver/hooks), for getting between an agent and its turn
-- [Reference › Flows](/reference/flows), for every argument and error
+- [Flowverses](/weaver/flowverses), to publish flows for others to call
+- [Reference › Calling another flow](/reference/flows#a-flow-that-calls-another-flow),
+  [`load`](/reference/flows#load) and [Refs](/reference/flows#refs)

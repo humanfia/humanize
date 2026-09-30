@@ -182,7 +182,7 @@ const LAYERS: Layer[] = [
     id: 'serve',
     dotted: 'hmz.coganchor.serve',
     here: 'The half of the anchor that ships to the target machine.',
-    note: 'The target may be any architecture, so it may import `hmz.coganchor.proto` and nothing else.',
+    note: 'The target may be any architecture, so it may import `hmz.coganchor.proto`, and the fence and its Linux bindings where a fence is asked about, and nothing else.',
     spec: 'coganchor/serve.md',
     ref: '/reference/remote-execution',
   },

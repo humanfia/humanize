@@ -1,13 +1,50 @@
 # Testing a flow
 
-The fake kit runs your flow exactly as `hmz exec` runs it, but on agents that answer from a
-script and a workspace held in memory. A test takes milliseconds, needs no coding agent CLI,
-and spends nothing.
+In this guide you write pytest tests for your flows that run in milliseconds, need no coding
+agent CLI and spend nothing. You test `twice` from [Your first flow](/weaver/writing-a-flow)
+first, then a flow with two roles, a shell, a hook, a budget and a resumable state, and
+finally set the tests up to run in CI.
 
-## Try it
+Test a flow whenever its logic is worth more than one line: when it loops, branches on an
+answer, refuses something, or keeps state across a stop. A test proves what the flow does with
+each answer. It does not prove what a model answers, so run the flow for real once, with a
+small `-b`, before you rely on it.
 
-Test `twice`, the flow from [Writing a flow](/weaver/writing-a-flow), from the root of the
-project it lives in:
+::: info Before you start
+- A flow of your own: [Your first flow](/weaver/writing-a-flow).
+- [pytest](https://docs.pytest.org/) and [`uv`](https://docs.astral.sh/uv/). The commands
+  below bring pytest, humanize and
+  [pytest-asyncio](https://pytest-asyncio.readthedocs.io/) along, and add nothing to your
+  project.
+:::
+
+## How it works
+
+The **fake kit**, `hmz.sdk.fakes`, runs your flow exactly as `hmz exec` runs it: the same
+lookup by name, the same checks of what each role declares, the same budget, the same hooks.
+Only what is on the far side is replaced:
+
+| Real | Fake | What the fake does |
+| --- | --- | --- |
+| a coding agent CLI | `FakeAgentDriver` | answers each turn from a script, at once, and keeps every prompt |
+| a working directory | `FakeEnvDriver` | files in a dictionary, and `exec` answered from a table |
+| the person at the prompt | `FakeOutworlder` | answers from a script, or is away |
+
+`fakes.run_fake(flow, task, …)` is `hmz exec` for a test. It takes the flow by the name `-f`
+takes, fills every role you name with your fake and every role you leave out with a default
+one, runs the flow to the end, and returns what the flow returned.
+
+| Role | Left out, it gets |
+| --- | --- |
+| an agent role | a fake Claude Code replying `"ok"`, or a fake of the CLI the role is typed as, such as `CodexAgent` |
+| an environment role | an empty `FakeEnvDriver` |
+| a `LocalEnv` role | `local=`, or an empty `FakeEnvDriver` |
+| an `Outworlder` role | a person who is away |
+| a `NotRequired` role | nothing: the role is left out, as it would be on a command line |
+
+## Example: test `twice`
+
+From the root of the project that holds `.humanize/flows/twice/`:
 
 ::: code-group
 
@@ -15,22 +52,20 @@ project it lives in:
 from hmz.sdk import fakes
 
 
-async def test_twice_reads_its_own_work_back() -> None:
-    builder = fakes.FakeAgentDriver()
+async def test_twice_reads_its_own_work_back() -> None:  # ①
+    builder = fakes.FakeAgentDriver()  # ②
 
-    await fakes.run_fake(
+    await fakes.run_fake(  # ③
         "twice", "add a --dry-run flag", agents={"builder": builder}
     )
 
-    assert builder.prompts == [
+    assert builder.prompts == [  # ④
         "add a --dry-run flag",
         "Now review what you just did, and fix anything that is wrong.",
     ]
 ```
 
 ```python [.humanize/flows/twice/__init__.py]
-"""Two passes: do the work, then read it back and fix what is wrong."""
-
 from hmz.flows import (
     Agent,
     AgentCollection,
@@ -54,7 +89,7 @@ class Envs(EnvCollection):
 async def twice(
     task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
 ) -> None:
-    """Two passes: do the work, then read it back and fix what is wrong."""
+    """Do the work, then read it back and fix what is wrong."""
     builder = agents["builder"]
     session = await builder.spawn(env=envs["workspace"])
     await builder.run(task, session=session)
@@ -71,31 +106,37 @@ uvx --with 'hmz @ git+https://github.com/humanfia/humanize.git' \
     --with pytest-asyncio pytest -q -o asyncio_mode=auto
 ```
 
-```console
+```text
 .                                                                        [100%]
-1 passed in 0.12s
+1 passed in 0.36s
 ```
 
-`run_fake` found `twice` by the name `-f` takes, gave its `builder` role your fake, and ran
-the flow to the end. The fake answered `"ok"` to each turn and kept every prompt it was sent,
-so the test asserts on what the flow said.
+### What each part does
 
-`uvx` runs pytest with humanize and [pytest-asyncio](https://pytest-asyncio.readthedocs.io/)
-beside it, and adds nothing to your project. To keep that setup in the repository instead, see
-[Run the tests in CI](#run-the-tests-in-ci).
+1. **An `async def` test.** A flow is async, so its test is too. `-o asyncio_mode=auto` has
+   pytest-asyncio run every async test without a marker on each.
+2. **`FakeAgentDriver()`** is a fake Claude Code with no script: it answers `"ok"` to every
+   turn and keeps every prompt it is sent.
+3. **`run_fake("twice", …)`** looks `twice` up from the directory pytest runs in, the way `-f`
+   looks one up from where `hmz exec` runs, gives its `builder` role your fake, and runs it to
+   the end.
+4. **`builder.prompts`** is every prompt the flow sent, in order. The assertion is the flow's
+   whole contract: the task first, the review second.
 
-## What `run_fake` takes
+`uvx` runs pytest in a throwaway environment with humanize beside it. To keep the setup in the
+repository instead, see [Run the tests in CI](#run-the-tests-in-ci).
 
-The rest of this page tests a bigger flow: `reviewed`, from [Answers in a
-shape](/weaver/shapes), with a few additions. An actor keeps one session, `pytest` runs
-between its turns, and a fresh reviewer's `Review` decides when to stop. It also has a
-`rounds` param, a hook that refuses a force push, and a review it keeps owing across a stop.
+## Example: test a flow with two roles
+
+`reviewed` is the flow from [Answers in a shape](/weaver/shapes), grown: an actor keeps one
+session and runs `pytest` between its turns, a fresh reviewer's `Review` decides when to stop,
+a hook refuses a force push, a `rounds` param bounds it, and the review it owes survives a
+stop.
 
 ::: details The flow under test: `.humanize/flows/reviewed/__init__.py`
 
 ```python
-"""Build under review, and stop when the reviewer says there is nothing left."""
-
+# .humanize/flows/reviewed/__init__.py
 from pydantic import BaseModel, ConfigDict, Field
 
 from hmz.flows import (
@@ -178,10 +219,12 @@ async def reviewed(
 
 :::
 
-Its first test scripts the reviewer and the workspace, and leaves the actor to answer `"ok"`:
+The first test scripts the reviewer and the workspace, and leaves the actor to answer
+`"ok"`. It lives in `.humanize/tests/` rather than `tests/`, for a reason
+[below](#where-to-keep-the-tests):
 
 ```python
-# tests/test_reviewed.py
+# .humanize/tests/test_reviewed.py
 from pathlib import Path
 
 import pytest
@@ -189,28 +232,56 @@ import pytest
 from hmz.flows import Budget, CapabilityMissing, CostExceeded
 from hmz.sdk import fakes
 
-#: What the workspace answers: the suite is green.
-GREEN = {("python", "-m", "pytest", "-q"): (0, "3 passed", "")}
-#: What the reviewer answers when there is nothing left.
-DONE = {"done": True, "notes": ""}
+GREEN = {("python", "-m", "pytest", "-q"): (0, "3 passed", "")}  # ①
+DONE = {"done": True, "notes": ""}  # ②
+PUSH = {"command": "git push --force"}
 
 
 async def test_it_stops_when_the_reviewer_says_done() -> None:
-    actor = fakes.FakeAgentDriver()
+    actor = fakes.FakeAgentDriver()  # ③
     reviewer = fakes.FakeAgentDriver(
-        reply=[{"done": False, "notes": "fix the imports"}, DONE]
+        reply=[{"done": False, "notes": "fix the imports"}, DONE]  # ④
     )
-    done = await fakes.run_fake(
+
+    done = await fakes.run_fake(  # ⑤
         "reviewed",
         "write the parser",
         agents={"actor": actor, "reviewer": reviewer},
-        local=fakes.FakeEnvDriver(run=GREEN),
+        local=fakes.FakeEnvDriver(run=GREEN),  # ⑥
     )
-    assert done is True  # [!code highlight]
-    assert actor.prompts == ["write the parser", "fix the imports"]  # [!code highlight]
+
+    assert done is True  # ⑦
+    assert actor.prompts == ["write the parser", "fix the imports"]  # ⑧
 ```
 
-`run_fake` returns what the flow returned. Everything it takes after the task is optional:
+```sh
+uvx --with 'hmz @ git+https://github.com/humanfia/humanize.git' \
+    --with pytest-asyncio pytest -q -o asyncio_mode=auto .humanize/tests/test_reviewed.py
+```
+
+With every `reviewed` test on this page in the file:
+
+```text
+........                                                                 [100%]
+8 passed in 0.16s
+```
+
+### What each part does
+
+1. **`GREEN`** scripts the workspace: `exec` of exactly that argv answers exit status `0`,
+   stdout `"3 passed"` and no stderr. A command is an argv as a tuple, or a script as a
+   string.
+2. **`DONE`** is a review, written as a mapping. A turn that asks for an `output_schema` reads
+   the answer into it, exactly as it reads a real CLI's JSON.
+3. **An actor with no script** answers `"ok"`. Its prompts are still recorded.
+4. **A list of replies** answers turn by turn: a review that is not done, then one that is.
+5. **`run_fake` returns what the flow returned**, here a `bool`.
+6. **`local=`** fills every `LocalEnv` role. `reviewed`'s `workspace` is one.
+7. **The return value** is the flow's verdict.
+8. **The actor's prompts** show the review's `notes` went to it word for word, in the same
+   session as the task.
+
+Everything `run_fake` takes after the task is optional:
 
 ```python
 await fakes.run_fake(
@@ -226,21 +297,7 @@ await fakes.run_fake(
 )
 ```
 
-Run pytest from the project root: a name is looked up from the directory pytest runs in, the
-way `-f` looks one up from where `hmz exec` runs.
-
-The flow is held to what it declares, as `hmz exec` holds it: a role that asks for more than
-its fake serves is refused, and a budget stops the run where it would stop a real one.
-
-**What you leave out is faked for you**, so a test names only the roles it cares about:
-
-| Role | Left out, it gets |
-| --- | --- |
-| an agent role | a fake Claude Code replying `"ok"`, or a fake of the CLI the role is typed as, such as `CodexAgent` |
-| an environment role | an empty `FakeEnvDriver` |
-| a `LocalEnv` role | `local=`, or an empty `FakeEnvDriver` |
-| an `Outworlder` role | a person who is away |
-| a `NotRequired` role | nothing: the role is left out, as it would be on a command line |
+The sections below add one test each to `.humanize/tests/test_reviewed.py`.
 
 ## Script an agent
 
@@ -262,22 +319,38 @@ def reply(prompt: str, *, output_schema=None, **_) -> object:
     return f"did {prompt}"
 ```
 
-**A turn that asks for an `output_schema` reads the answer into it.** A mapping or JSON text is
-validated, and one that does not fit raises `OutputSchemaError`, a `HarnessError`. So the path
-your flow takes on a bad answer is testable too:
+**An answer out of shape raises `OutputSchemaError`**, a `HarnessError`, so the path your flow
+takes on a bad answer is testable too. `{"done": "maybe"}` is not a `bool`:
 
 ```python
 async def test_a_malformed_review_is_skipped() -> None:
     reviewer = fakes.FakeAgentDriver(reply=[{"done": "maybe"}, DONE])
+
     done = await fakes.run_fake(
         "reviewed",
         "x",
         agents={"reviewer": reviewer},
         local=fakes.FakeEnvDriver(run=GREEN),
     )
+
     assert done is True
     assert len(reviewer.prompts) == 2
 ```
+
+**A fake is one CLI, Claude Code unless you name another.** It serves exactly what that CLI
+serves, so a flow that asks for more is refused before its first turn, as it would be for
+real. `reviewed`'s actor needs a permission hook, which pi does not serve:
+
+```python
+async def test_a_cli_without_the_hook_is_refused() -> None:
+    pi = fakes.FakeAgentDriver("pi")
+
+    with pytest.raises(CapabilityMissing):
+        await fakes.run_fake("reviewed", "x", agents={"actor": pi})
+```
+
+`capabilities=` overrides what it serves, and `forks=False` makes a CLI that cannot fork a
+session. `model=`, `effort=` and `provider=` set what it reports about itself.
 
 **The driver keeps what happened**, for the test to read afterwards:
 
@@ -288,75 +361,155 @@ async def test_a_malformed_review_is_skipped() -> None:
 | `.live`, `.peak` | how many sessions are open now, and the most that were open at once. This is how a test sees a loop let go of sessions it is done with |
 | `session.prompts` | one session's prompts |
 | `session.requests` | each turn it was asked for, with its limits |
-| `session.steered` | what it was steered with |
+| `session.steered` | what it was steered with, and whether it was queued |
 | `session.tools` | each tool its replies reached for, with the input, and whether it was allowed |
+| `session.placement.workdir` | where it worked |
 | `session.closed`, `session.forked_from` | whether it is over, and the session it was forked from |
-
-**A fake is one CLI, Claude Code unless you name another.** It serves exactly what that CLI
-serves, so a flow that asks for more is refused before its first turn, as it would be for
-real. `reviewed`'s actor needs a permission hook, which pi does not serve:
-
-```python
-async def test_a_cli_without_the_hook_is_refused() -> None:
-    pi = fakes.FakeAgentDriver("pi")
-    with pytest.raises(CapabilityMissing):
-        await fakes.run_fake("reviewed", "x", agents={"actor": pi})
-```
-
-`capabilities=` overrides what it serves, and `forks=False` makes a CLI that cannot fork a
-session. `model=`, `effort=` and `provider=` set what it reports about itself.
 
 ## Script the workspace
 
 `FakeEnvDriver(files)` is a working directory held in a dictionary. `files` is what it starts
 with, by path, as text or bytes. The flow's reads and writes land in it, and so do the
-worktrees, temporary copies and scratch directories it derives.
+worktrees, temporary copies, scratch directories and snapshots it derives.
 
 `run=` answers `exec`. Give it a table from command to `(exit status, stdout, stderr)`, as
 `GREEN` is, or a function of the command and the environment that returns `None` for commands
-it leaves alone. A command is an argv as a tuple, or a script as a string. A few argvs work
-without scripting: `true`, `false`, `echo`, `cat`, `ls`, `git rev-parse --is-inside-work-tree`,
-and `sleep`, which really waits. Anything else exits 127, scripts included, so a flow that runs
-something you did not script says so.
+it leaves alone. A few argvs work without scripting: `true`, `false`, `echo`, `cat`, `ls`,
+`git rev-parse --is-inside-work-tree`, and `sleep`, which really waits. Anything else exits
+127, scripts included, so a flow that runs something you did not script says so.
 
 ```python
 async def test_a_red_suite_never_reaches_the_reviewer() -> None:
     runs = iter([(1, "1 failed", ""), (0, "3 passed", "")])
     reviewer = fakes.FakeAgentDriver(reply=DONE)
     here = fakes.FakeEnvDriver(run=lambda command, env: next(runs))
-    await fakes.run_fake(
-        "reviewed", "x", agents={"reviewer": reviewer}, local=here
-    )
+
+    await fakes.run_fake("reviewed", "x", agents={"reviewer": reviewer}, local=here)
+
     assert len(reviewer.prompts) == 1
     assert here.commands == [("python", "-m", "pytest", "-q")] * 2
 ```
 
-Afterwards, `.files` is what is under the working directory, `.text(path)` is one file as
-text, and `.commands` is every command run there. `.machine` is every file on the fake
-machine, copies and worktrees included. `.clones` and `.scratches` are the temporary copies and
-scratch directories still there, which is how a test checks that a flow [cleans
-up](/weaver/worktrees) after itself. `refs=` sets the git refs `derive_worktree` knows, and
-`repo=False` makes a working directory that is not a git repository.
+Afterwards:
+
+| | |
+| --- | --- |
+| `.files` | what is under the working directory, by relative path |
+| `.text(path)` | one file, as text |
+| `.commands` | every command run there, in order |
+| `.machine` | every file on the fake machine, copies and worktrees included |
+| `.clones`, `.scratches` | the temporary copies and scratch directories still there, which is how a test checks that a flow [cleans up](/weaver/worktrees#how-long-they-last) after itself |
+
+`refs=` sets the git refs `derive_worktree` and `rewind` know, and `repo=False` makes a
+working directory that is not a git repository. [Worktrees, copies and
+scratch](/weaver/worktrees) tests a snapshot and a rewind this way.
+
+## Set the params
+
+`params=` takes a mapping, validated into the flow's params exactly as `-p` is. A value of the
+wrong type is refused before anything runs:
+
+```python
+async def test_it_gives_up_after_its_rounds() -> None:
+    reviewer = fakes.FakeAgentDriver(reply={"done": False, "notes": "again"})
+
+    done = await fakes.run_fake(
+        "reviewed",
+        "x",
+        agents={"reviewer": reviewer},
+        params={"rounds": 3},
+        local=fakes.FakeEnvDriver(run=GREEN),
+    )
+
+    assert done is False
+    assert len(reviewer.prompts) == 3
+```
+
+`params={"rounds": "many"}` raises `ParamsError`. A [params model](/weaver/flow-settings) is a
+pydantic model, so its validators are tested the same way.
 
 ## Script the person
 
 `FakeOutworlder(reply)` is somebody at the prompt answering from a script, and `.asked` is
 every prompt put to them. `reply=` takes the same forms as an agent's, except that a function
 is called with the prompt and `output_schema=` only: a person has no session.
-`FakeOutworlder(away=True)` is nobody there.
+`FakeOutworlder(away=True)` is nobody there, and so is leaving it out.
 
-Hand one to `run_fake` as `outworlder=`, or give the `Outworlder` role a reply as though it
-were an agent. For `talk`, from [The person as an agent](/weaver/human-agent), saved as
-`.humanize/flows/talk/__init__.py`:
+::: details The flow under test: `.humanize/flows/talk/__init__.py`, from [The person as an agent](/weaver/human-agent)
 
 ```python
-await fakes.run_fake(
-    "talk", "hello", agents={"human": ["more", "done", ""]}
+# .humanize/flows/talk/__init__.py
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    EnvCollection,
+    FlowContext,
+    FlowParams,
+    LocalEnv,
+    Outworlder,
+    flow,
 )
+
+
+class Agents(AgentCollection):
+    assistant: Agent
+    human: Outworlder
+
+
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+@flow(agents=Agents, envs=Envs, params=FlowParams)
+async def talk(
+    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext
+) -> None:
+    """One conversation, and every line the person types is a turn of it."""
+    assistant, human = agents["assistant"], agents["human"]
+    conversation = await assistant.spawn(env=envs["workspace"])
+    listening = await human.spawn(env=envs["workspace"])
+    said = task
+    while said:
+        answered = await assistant.run(said, session=conversation)
+        said = await human.run(answered, session=listening)
 ```
 
-The `""` at the end is what ends `talk`'s loop. Without it, the person would answer `"ok"`
-from then on.
+:::
+
+```python
+# .humanize/tests/test_talk.py
+from hmz.sdk import fakes
+
+
+async def test_the_person_ends_it_with_an_empty_line() -> None:
+    assistant = fakes.FakeAgentDriver(reply=lambda prompt, **_: f"re: {prompt}")
+    person = fakes.FakeOutworlder(["more", "done", ""])  # ①
+
+    await fakes.run_fake(
+        "talk", "hello", agents={"assistant": assistant}, outworlder=person
+    )
+
+    assert assistant.prompts == ["hello", "more", "done"]  # ②
+    assert person.asked == ["re: hello", "re: more", "re: done"]  # ③
+
+
+async def test_nobody_there_ends_it_after_one_turn() -> None:
+    assistant = fakes.FakeAgentDriver()
+
+    await fakes.run_fake("talk", "hello", agents={"assistant": assistant})  # ④
+
+    assert assistant.prompts == ["hello"]
+```
+
+1. **Three lines typed, the last empty.** The `""` is what ends `talk`'s loop. Without it,
+   the person would answer `"ok"` from then on, and the loop would never end.
+2. **Each line became a turn** of the assistant, after the task.
+3. **`.asked`** is what the person was shown: each of the assistant's answers.
+4. **Left out, the person is away**, as under `hmz exec`, and an away person answers `""` at
+   once.
+
+Giving the `Outworlder` role a reply, as though it were an agent, does the same:
+`agents={"human": ["more", "done", ""]}`.
 
 ## Reach the hooks
 
@@ -376,29 +529,24 @@ it is given:
 | `await session.until_steered()` | nothing. Waits for a `steer`, and returns what it said |
 
 ```python
-PUSH = {"command": "git push --force"}
-
-
 async def test_a_force_push_is_refused() -> None:
-    async def pushes(
-        prompt: str, *, session: fakes.FakeSession, **_: object
-    ) -> str:
+    async def pushes(prompt: str, *, session: fakes.FakeSession, **_: object) -> str:
         allowed = await session.tool("Bash", PUSH)  # [!code focus]
         return "pushed" if allowed else "refused"
 
     actor = fakes.FakeAgentDriver(reply=pushes)
-    reviewer = fakes.FakeAgentDriver(reply=DONE)
     await fakes.run_fake(
         "reviewed",
         "x",
-        agents={"actor": actor, "reviewer": reviewer},
+        agents={"actor": actor, "reviewer": DONE},
         local=fakes.FakeEnvDriver(run=GREEN),
     )
+
     assert actor.sessions[0].tools == [("Bash", PUSH, False)]  # [!code focus]
 ```
 
 The hook that refused it is the flow's own `no_force_push`, called exactly as it would be on a
-real turn.
+real turn. `agents={"reviewer": DONE}` is the short form: a reply instead of a driver.
 
 ## Spend a budget
 
@@ -408,9 +556,8 @@ it would stop a real one, and `ctx.usage` adds up:
 
 ```python
 async def test_the_budget_stops_it() -> None:
-    reviewer = fakes.FakeAgentDriver(
-        reply={"done": False, "notes": "again"}, cost=0.5
-    )
+    reviewer = fakes.FakeAgentDriver(reply={"done": False, "notes": "again"}, cost=0.5)
+
     with pytest.raises(CostExceeded):
         await fakes.run_fake(
             "reviewed",
@@ -421,12 +568,6 @@ async def test_the_budget_stops_it() -> None:
         )
 ```
 
-::: warning A reply that waits needs a hard deadline
-A turn its reply holds open, such as one waiting on `until_steered()` that nobody steers, ends
-at `Budget(duration=…, graceful=False)` with `DurationExceeded`. Under a graceful budget, the
-default, it waits for ever, and so does the test.
-:::
-
 ## Pick a run up
 
 A resumable flow keeps what it writes to `ctx.state` in a journal. Give `run_fake` a
@@ -436,12 +577,11 @@ A resumable flow keeps what it writes to `ctx.state` in a journal. Give `run_fak
 async def test_it_picks_up_what_it_owed(tmp_path: Path) -> None:
     journal = tmp_path / "journal.jsonl"
     owes = {"done": False, "notes": "fix the imports"}
-    reviewer = fakes.FakeAgentDriver(reply=owes, cost=1.0)
     with pytest.raises(CostExceeded):
         await fakes.run_fake(
             "reviewed",
             "x",
-            agents={"reviewer": reviewer},
+            agents={"reviewer": fakes.FakeAgentDriver(reply=owes, cost=1.0)},
             budget=Budget(cost=0.5),
             journal=journal,
             local=fakes.FakeEnvDriver(run=GREEN),
@@ -456,19 +596,29 @@ async def test_it_picks_up_what_it_owed(tmp_path: Path) -> None:
         resume=True,
         local=fakes.FakeEnvDriver(run=GREEN),
     )
+
     assert actor.prompts[0] == "fix the imports"
 ```
 
-The flows it [calls](/weaver/calling-flows) are picked up the same way.
+The first run is stopped by its budget right after the review, with `owed` saved. The second
+picks it up and hands the owed notes to a fresh actor first. The flows it
+[calls](/weaver/calling-flows) are picked up the same way.
 
 ## Test the parts that are not turns
 
-Most of what goes wrong in a flow is not the model. Pull those parts out as plain functions
-and test them as you would any other code:
+Most of what goes wrong in a flow is not the model. Pull those parts out as plain functions,
+in the flow's own helper package, and test them as you would any other code. In a flowverse,
+where `review`'s helpers are in `flows/review/_review/`:
 
 ```python
+# flows/review/_review/checks.py
 def unfinished(text: str) -> bool:
     return "- [ ]" in text
+```
+
+```python
+# tests/test_checks.py
+from _review.checks import unfinished
 
 
 def test_unfinished() -> None:
@@ -476,21 +626,14 @@ def test_unfinished() -> None:
     assert not unfinished("- [x] a")
 ```
 
+```sh
+uvx --with 'hmz @ git+https://github.com/humanfia/humanize.git' \
+    --with pytest-asyncio pytest -q -o asyncio_mode=auto -o pythonpath=flows/review
+```
+
+`-o pythonpath=flows/review` lets the test import what the flow imports, from beside the flow.
 The flow is then a few lines of glue around code that is already tested. That is the shape to
 aim for.
-
-A [params model](/weaver/flow-settings) is a pydantic model, so test its validators the same
-way:
-
-```python
-import pytest
-from pydantic import ValidationError
-
-
-def test_fast_and_careful_do_not_go_together() -> None:
-    with pytest.raises(ValidationError):
-        Params(fast=True, careful=True)
-```
 
 ## Run the tests in CI
 
@@ -513,6 +656,7 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+testpaths = ["tests", ".humanize/tests"]
 ```
 
 ```yaml [.github/workflows/test.yml]
@@ -531,13 +675,66 @@ jobs:
 
 :::
 
-A test on fakes proves what the flow does with each answer, not what a model answers. Before
-you [publish a flow](/weaver/flowverses), run it once for real with a small `-b`.
+- **`[dependency-groups] dev`** is what `uv run` installs before it runs anything: humanize,
+  pytest and pytest-asyncio. Nothing is published, and nothing is added to a package.
+- **`asyncio_mode = "auto"`** is the `-o asyncio_mode=auto` from the commands above.
+- **`testpaths`** names both places tests are kept, since pytest does not look inside a
+  directory whose name starts with `.` by itself. A flowverse, whose flows are in `flows/`,
+  needs only `tests`.
 
-## See also
+```sh
+uv run pytest -q
+```
 
-- [Answers in a shape](/weaver/shapes)
-- [Params of its own](/weaver/flow-settings)
-- [Hooks](/weaver/hooks)
+```text
+...........                                                              [100%]
+11 passed in 0.43s
+```
+
+That is `twice`'s test, the eight of `reviewed` and the two of `talk`.
+
+## Where to keep the tests
+
+Keep them in `tests/` unless the flow runs your project's own suite. A flow that does, as
+`reviewed` runs `python -m pytest -q`, would also collect any flow tests kept there, and
+they fail in that run on `import hmz`. Keep such a flow's tests in `.humanize/tests/`
+instead, beside the flows: pytest does not look inside a directory whose name starts with `.`
+unless it is named, so your suite never sees them, and `pytest .humanize/tests` or the
+`testpaths` above runs them. The [tutorial](/weaver/tutorials/build-under-test) does the same.
+
+## Variations
+
+**Test a flow by path.** `run_fake("flows/review", …)` runs the flow at that path, which is how
+a [flowverse](/weaver/flowverses) tests its own flows without adding itself.
+
+**Test the flow object.** `run_fake` also takes what `load(…)` returns, for a flow you only
+reach by ref.
+
+**Test the rest in the same file.** A flow's pure helpers, its params model and its `Review`
+model are ordinary Python, and belong beside the flow's own tests.
+
+## Pitfalls
+
+- **Run pytest from the project root.** A name is looked up from the directory pytest runs in.
+  From anywhere else, `run_fake("twice", …)` raises `FlowNotFound`. A path, such as
+  `run_fake("flows/review", …)`, is relative to it too.
+- **A command you did not script exits 127.** Leave `local=` out of a test of `reviewed`, and
+  every `pytest` it runs fails, so the reviewer is never asked.
+- **A reply that waits needs a hard deadline.** A turn its reply holds open, such as one
+  waiting on `until_steered()` that nobody steers, ends at
+  `Budget(duration=…, graceful=False)` with `DurationExceeded`. Under a graceful budget, the
+  default, it waits for ever, and so does the test.
+- **Fakes prove the flow, not the model.** Before you [publish a flow](/weaver/flowverses),
+  run it once for real with a small `-b`.
+
+## Next steps
+
+- [Answers in a shape](/weaver/shapes), [Params of its own](/weaver/flow-settings) and
+  [Hooks](/weaver/hooks): what the tests above script
 - [Flowverses](/weaver/flowverses), to publish what you tested
-- [Reference › Flows › Testing a flow](/reference/flows#testing-a-flow)
+- [Reference › Testing a flow](/reference/flows#testing-a-flow):
+  [`run_fake`](/reference/flows#run-fake),
+  [`FakeAgentDriver`](/reference/flows#fakeagentdriver),
+  [`FakeSession`](/reference/flows#fakesession),
+  [`FakeEnvDriver`](/reference/flows#fakeenvdriver) and
+  [`FakeOutworlder`](/reference/flows#fakeoutworlder)

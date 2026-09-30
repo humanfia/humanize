@@ -5,8 +5,19 @@ import { withBase } from 'vitepress'
 # Weaver Guide
 
 A **weaver** writes flows: the Python that says which agents are driven, what each is asked, in
-what order, and when to stop. You have run a flow; this is where you write one. If you have
-not, start with the [User Guide](/user/).
+what order, and when to stop. You have run a flow; this is where you write one.
+
+::: info Before you start
+- A flow run behind you. If you have not, start with the [User Guide](/user/).
+- Python you can read: `async def`, `await`, classes, and a
+  [pydantic](https://docs.pydantic.dev/) model now and then.
+- A git repository you don't mind an agent editing.
+:::
+
+Every page here is a guide to one thing a flow can do. Each opens with what you will build,
+explains the idea, then walks through a complete flow you can copy: what each marked line
+(`# ①`) does, the command that runs it with what a real run printed, how to check it worked
+and how to test it without spending a token, then the variations and the pitfalls.
 
 ## Start here
 
@@ -61,7 +72,7 @@ What an agent may touch and what it carries are declared by the flow too:
 | [Testing a flow](/weaver/testing-flows) | The flow run on scripted agents: milliseconds, and nothing spent |
 | [Flowverses](/weaver/flowverses) | A git repository of flows, offered by name and callable by ref |
 
----
+## Next steps
 
 Real flows to read are in [Flows](/flows/). Every argument, refusal and return of the flow API
 is in [Reference › Flows](/reference/flows).

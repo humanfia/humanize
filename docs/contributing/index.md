@@ -1,25 +1,41 @@
 # Contributing
 
-Pull requests are welcome. For a large change, open an
-[issue](https://github.com/humanfia/humanize/issues) first.
+Pull requests are welcome. This page gets a checkout of humanize ready to change: installed,
+checked the way CI checks it, and with the rules every change is held to. For a large change,
+open an [issue](https://github.com/humanfia/humanize/issues) first.
 
 ::: tip First time here?
 [Your first patch](/contributing/tutorials/first-patch) takes one small change from clone to
 pull request, with every command written out.
 :::
 
-## Set up
+::: info Before you start
+`git` and [`uv`](https://docs.astral.sh/uv/). Nothing else: `uv sync` brings Python with it.
+:::
 
-You need `git` and [`uv`](https://docs.astral.sh/uv/). `uv sync` brings Python with it.
+## Set up
 
 ```sh
 git clone https://github.com/humanfia/humanize.git
 cd humanize
-uv sync                    # the environment, from uv.lock
-uv run pre-commit install  # check each commit before it is made
+uv sync                    # ①
+uv run pre-commit install  # ②
 ```
 
-Run tools through `uv run`, not `uvx`, so you get the versions `uv.lock` pins.
+1. **`uv sync`** makes the project's environment in `.venv`, exactly as `uv.lock` pins it,
+   Python included.
+2. **`pre-commit install`** checks each commit before it is made, with the hooks CI runs.
+
+Run tools through `uv run`, not `uvx`, so you get the versions `uv.lock` pins. To check the
+setup, run the fast tier:
+
+```sh
+uv run pytest tests/unit
+```
+
+```text
+2405 passed in 15.51s
+```
 
 ## The checks
 
@@ -86,8 +102,8 @@ whole of it.
 - **Popular, well-maintained libraries** before a custom implementation.
 - **Each layer imports only what the layering table gives it.** See
   [Architecture](/contributing/architecture).
-- **`specs/` is the contract.** Change the code to match a SPEC. Do not edit one unless you
-  were asked to.
+- **`specs/` is the contract.** Change the code to match a SPEC. Do not edit one unless you were
+  asked to.
 - **A change to how flows run** also keeps
   [humanfia/flowverse](https://github.com/humanfia/flowverse) working.
 - **A change to behaviour updates the docs** in the same pull request.
@@ -98,3 +114,13 @@ whole of it.
 [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/): `fix(agents): …`,
 `docs(contributing): …`, with a `!` before the colon for a breaking change. A change and its
 tests go in one commit.
+
+## Next steps
+
+| To | Read |
+| --- | --- |
+| make a first, small change end to end | [Your first patch](/contributing/tutorials/first-patch) |
+| add or change a page of these docs | [Add a page to these docs](/contributing/tutorials/a-page-of-docs) |
+| find where a change goes, or add a backend or a command | [Architecture](/contributing/architecture) |
+| run every feature through every CLI | [The regression matrix](/contributing/regression-matrix) |
+| hold a page to the rules | [Working on these docs](/contributing/docs) |

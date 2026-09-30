@@ -1,13 +1,15 @@
 # Your first patch
 
-**Half an hour**, most of it the first `uv sync` and the test run. You will clone humanize,
-change one small thing, pass the checks, and open a pull request CI agrees with.
+In this tutorial you clone humanize, change one small thing, pass the checks, and open a pull
+request CI agrees with. It takes **half an hour**, most of it the first `uv sync` and the test
+run. Every command is written out, in order.
 
-::: tip Before you start
-`git` and [`uv`](https://docs.astral.sh/uv/). Nothing else: `uv sync` brings Python with it.
+::: info Before you start
+`git`, [`uv`](https://docs.astral.sh/uv/), and the [GitHub CLI](https://cli.github.com/)
+(`gh`) signed in, for the last step. Nothing else: `uv sync` brings Python with it.
 :::
 
-## 1. Clone it and install the hooks
+## Step 1: clone it and install the hooks
 
 ```sh
 git clone https://github.com/humanfia/humanize.git
@@ -16,10 +18,12 @@ uv sync
 uv run pre-commit install
 ```
 
-From now on every commit is checked before it is made. Run tools through `uv run`, not `uvx`,
-so you get the versions `uv.lock` pins.
+- **`uv sync`** makes the environment in `.venv`, exactly as `uv.lock` pins it.
+- **`pre-commit install`** runs the checks on every commit from now on, before it is made.
 
-## 2. Find something small
+Run tools through `uv run`, not `uvx`, so you get the versions `uv.lock` pins.
+
+## Step 2: find something small
 
 A good first patch is one screen of diff:
 
@@ -35,10 +39,14 @@ Branch, then make the change:
 git switch -c fix/say-what-to-do
 ```
 
-## 3. Test it while you write
+## Step 3: test it while you write
 
 ```sh
 uv run pytest tests/unit
+```
+
+```text
+2405 passed in 15.51s
 ```
 
 Seconds, and the loop worth having. If your change needs a new test, file it by what is on
@@ -46,7 +54,7 @@ the other side of it: `tests/unit/` when it calls `hmz` and nothing else,
 `tests/integration/` when it talks to something this repository wrote, `tests/system/` when it
 needs the real thing. [Where a test goes](/contributing/#where-a-test-goes) has the table.
 
-## 4. Run the checks
+## Step 4: run the checks
 
 ```sh
 uv run pre-commit run --all-files
@@ -55,22 +63,22 @@ uv run pre-commit run --all-files
 ::: code-group
 
 ```text [All passed]
-check for added large files.............................Passed
-check for case conflicts................................Passed
-check for merge conflicts...............................Passed
-check toml..............................................Passed
-check yaml..............................................Passed
-fix end of files........................................Passed
-mixed line ending.......................................Passed
-trim trailing whitespace................................Passed
-uv lock --check.........................................Passed
-ruff check..............................................Passed
-ruff format.............................................Passed
-pyright (strict)........................................Passed
+check for added large files..............................................Passed
+check for case conflicts.................................................Passed
+check for merge conflicts................................................Passed
+check toml...............................................................Passed
+check yaml...............................................................Passed
+fix end of files.........................................................Passed
+mixed line ending........................................................Passed
+trim trailing whitespace.................................................Passed
+uv lock --check..........................................................Passed
+ruff check...............................................................Passed
+ruff format..............................................................Passed
+pyright (strict).........................................................Passed
 ```
 
 ```text [ruff fixed something]
-ruff check..............................................Failed
+ruff check...............................................................Failed
 - hook id: ruff-check
 - files were modified by this hook
 
@@ -79,9 +87,11 @@ Found 1 error (1 fixed, 0 remaining).
 
 :::
 
-**`ruff check` fixes what it can**, and a run that fixed something reports `Failed`. Read what
-it changed, `git add` it, and run the checks again. `pyright` checks the whole project, so an
-error can show up in a file you did not touch but that imports one you did.
+- **A hook that fixed something reports `Failed`.** `ruff check`, `ruff format` and the
+  whitespace hooks fix what they can. Read what they changed, `git add` it, and run the checks
+  again.
+- **`pyright` checks the whole project**, so an error can show up in a file you did not touch
+  but that imports one you did.
 
 Then the tests, all three tiers:
 
@@ -94,7 +104,7 @@ machine lacks, like docker or a real `node`, skip. So do the ones that drive a r
 agent CLI, until you ask for them:
 
 ```text
-SKIPPED [1] tests/system/agents/test_steering.py:30: needs --run-agents (drives real agents, costs tokens)
+SKIPPED [1] tests/system/agents/test_steering.py:31: needs --run-agents (drives real agents, costs tokens)
 ```
 
 Your first patch rarely needs them. When a change touches what the system tier drives for
@@ -108,18 +118,21 @@ uv run pytest tests/system --run-agents
 It drives the coding agent CLIs installed on your machine, signed in as you.
 :::
 
-## 5. Commit it
+## Step 5: commit it
 
 ```sh
 git add -A
 git commit -m "fix(agents): say what to do when a turn is refused"
 ```
 
+The hooks run again as you commit, and a commit they fix is not made: `git add` what they
+changed and commit again.
+
 [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/): `feat`, `fix`, `docs`,
 `refactor`, `test`, `chore` or `ci`, then the package or docs section as the scope. A `!`
 before the colon marks a breaking change. The change and its tests go in one commit.
 
-## 6. Open the pull request
+## Step 6: open the pull request
 
 ```sh
 git push -u origin fix/say-what-to-do
@@ -136,11 +149,25 @@ Two workflows then run:
 | `ci.yml` | `uv lock --check`, the same hooks over every file, `uv build`, and a start with no extras installed. Then `uv run pytest --ignore=tests/system`, on Python 3.12 on Linux |
 | `build-docs.yml` | Only when `docs/` changed: `pnpm build`, then `pnpm check:anchors` |
 
-When a hook fails in CI, the log prints the diff that would fix it.
+## Check it worked
 
-## What you have now
+`gh pr checks` shows both workflows on your pull request, and waits with `--watch`:
 
-A branch that passes the checks, and a pull request that says what it changed and why. If the
-change needs explaining too, [Add a page to these docs](/contributing/tutorials/a-page-of-docs)
-is the other half of it. For a change bigger than a screen,
-[Architecture](/contributing/architecture) shows where it goes.
+```sh
+gh pr checks --watch
+```
+
+When a hook fails in CI, the log prints the diff that would fix it. Run the same hook locally,
+commit what it changed, and push again.
+
+## Next steps
+
+A branch that passes the checks, and a pull request that says what it changed and why. From
+here:
+
+- If the change needs explaining too, [Add a page to these
+  docs](/contributing/tutorials/a-page-of-docs) is the other half of it.
+- For a change bigger than a screen, [Architecture](/contributing/architecture) shows where it
+  goes.
+- For a change that reaches more than one CLI, run [the regression
+  matrix](/contributing/regression-matrix).

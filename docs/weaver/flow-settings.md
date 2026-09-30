@@ -1,73 +1,201 @@
 # Params of its own
 
-Declare a `FlowParams` subclass and the flow grows a `-p` on the command line, a form at the
-prompt, and refusals in your own words, with no interface code of your own. Reach for it when a
-flow needs knobs: a round limit, a mode, a file to write to.
+In this guide you give a flow settings of its own, called **params**: how many review passes to
+take, what each looks for, whether to commit at the end. You declare them once, as a pydantic
+model, and the flow grows a `-p` on the command line, a form at the prompt, and refusals in
+your own words, with no interface code of your own.
 
-## Declare them
+Reach for params when a flow has a knob whoever runs it should turn: a round limit, a mode, a
+file to write to. Anything the flow always does the same way stays a constant in the code.
 
-`FlowParams` is a [pydantic](https://docs.pydantic.dev/) model. Subclass it, one field per
-param, and hand the class to `@flow` in place of `FlowParams`:
+::: info Before you start
+- A flow of your own running: [Your first flow](/weaver/writing-a-flow).
+- A little [pydantic](https://docs.pydantic.dev/): `Field`, `Literal`, and a validator.
+:::
+
+## How params work
+
+`FlowParams` is a pydantic model. You subclass it, one field per param, and hand the class to
+`@flow(params=…)`. From then on:
+
+| Where | What your model does there |
+| --- | --- |
+| `hmz exec -p key=value` | Each value is read as its field's type, then the whole model is validated. A refusal stops the run before any agent starts. |
+| `/flow` at the prompt | The fields become a form. The type decides how each row is answered, `description` is the line beside it. |
+| another flow calling yours | It passes an instance of your class, or a mapping validated into one. |
+| inside your flow | `params` is always a validated instance: the defaults where nothing was set, never `None`. |
+
+A key your model has no field for is refused rather than ignored, so a typo on the command line
+never silently does nothing.
+
+## Example: `polish`
+
+`polish` has one agent do the task, then review its own work a number of times for one thing,
+and optionally commit. Four params steer it:
 
 ```python
-# .humanize/flows/pair/__init__.py
+# .humanize/flows/polish/__init__.py
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
-from hmz.flows import FlowContext, FlowParams, flow
+from hmz.flows import (
+    Agent,
+    AgentCollection,
+    EnvCollection,
+    FlowContext,
+    FlowParams,
+    LocalEnv,
+    flow,
+)
+
+PASSES = {"section": "passes  ·  what the agent does"}  # ①
+AFTER = {"section": "after  ·  what happens at the end"}
 
 
-class Params(FlowParams):  # [!code ++]
-    """What this flow takes."""  # [!code ++]
-
-    rounds: int = Field(default=3, ge=1, le=9, description="how many times round")  # [!code ++]
-    mode: Literal["fast", "slow"] = Field(default="fast", description="which way")  # [!code ++]
+class Agents(AgentCollection):
+    builder: Agent
 
 
-@flow(agents=Agents, envs=Envs, params=FlowParams)  # [!code --]
-@flow(agents=Agents, envs=Envs, params=Params)  # [!code ++]
-async def pair(
-    task: str, *, agents: Agents, envs: Envs, params: FlowParams, ctx: FlowContext  # [!code --]
-    task: str, *, agents: Agents, envs: Envs, params: Params, ctx: FlowContext  # [!code ++]
+class Envs(EnvCollection):
+    workspace: LocalEnv
+
+
+class Params(FlowParams):  # ②
+    """What polish takes."""
+
+    passes: int = Field(  # ③
+        default=1, ge=1, le=5, description="review passes after the work",
+        json_schema_extra=PASSES,
+    )
+    focus: Literal["correctness", "style", "tests"] = Field(  # ④
+        default="correctness", description="what each pass looks for",
+        json_schema_extra=PASSES,
+    )
+    commit: bool = Field(  # ⑤
+        default=False, description="commit when done", json_schema_extra=AFTER
+    )
+    message: str = Field(
+        default="", description="the commit message; empty for the agent's own",
+        json_schema_extra=AFTER,
+    )
+
+    @model_validator(mode="after")  # ⑥
+    def _settles(self) -> "Params":
+        if self.message and not self.commit:
+            raise ValueError("a message needs commit=true")
+        return self
+
+
+@flow(agents=Agents, envs=Envs, params=Params)  # ⑦
+async def polish(
+    task: str, *, agents: Agents, envs: Envs, params: Params, ctx: FlowContext  # ⑧
 ) -> None:
-    for _ in range(params.rounds):  # [!code highlight]
-        ...
+    """Do the work, then review it for one thing, as many times as asked."""
+    builder = agents["builder"]
+    session = await builder.spawn(env=envs["workspace"])
+    await builder.run(task, session=session)
+    for _ in range(params.passes):  # ⑨
+        await builder.run(
+            f"Review what you just did for {params.focus} only, and fix what you find.",
+            session=session,
+        )
+    if params.commit:
+        said = f"the message {params.message!r}" if params.message else "a message of yours"
+        await builder.run(f"Commit your work with git, with {said}.", session=session)
 ```
 
-The fields are the questions, their types say how each is answered, and `description` is the
-line shown beside it. `params` is always an instance of your class: nobody having set anything
-is `Params()`, the defaults, so there is no `None` to fall back from. A key your model has no
-field for is refused rather than ignored.
+### What each part does
 
-## Set them
+1. **`{"section": …}`** is a heading for the form at the prompt. Fields that carry the same
+   section are drawn under it, in the order you declare them. A flow with three params needs
+   none; one with twenty needs them.
+2. **`class Params(FlowParams)`** declares the params. Its docstring is for you: the form shows
+   each field's `description`, not the class's.
+3. **`passes: int = Field(default=1, ge=1, le=5, …)`**: the type says `-p passes=3` is read as
+   an `int`; `ge` and `le` are pydantic's bounds, so `-p passes=9` is refused before anything
+   runs; `description` is the line shown beside it on the form.
+4. **`Literal["correctness", "style", "tests"]`** is a choice. The command line accepts exactly
+   those words, and the form steps through them in the order written.
+5. **`commit: bool`** is a switch: `-p commit=true` on the command line, `on` or `off` on the
+   form.
+6. **`@model_validator(mode="after")`** refuses a combination the flow cannot run, where it is
+   typed rather than an hour into the run. Its `ValueError` message is what the person sees.
+7. **`@flow(…, params=Params)`** hands the class to the runtime in place of `FlowParams`.
+8. **`params: Params`** types the argument as your class, so `params.passes` and
+   `params.focus` are checked by your type checker too.
+9. **`params.passes`** is read like any attribute. Every field has a default, so a run nobody
+   configured is `Params()` and takes one pass for correctness.
+
+## Run it
 
 ::: code-group
 
-```sh [hmz exec]
-hmz exec -f pair -a agent=claude/claude-opus-5:max -b cost=10 \
-    -p rounds=9 -p mode=slow "$(cat TASK.md)"
+```sh [Claude Code]
+hmz exec -f polish -a builder=claude/claude-sonnet-5-5:high -b cost=1 \
+    -p passes=1,focus=tests,commit=true "add a subtract function to calc.py"
 ```
 
 ```text [At the prompt]
-   ❯ 1. rounds                       3            how many times round
-     2. mode                         fast         which way
+$local/polish add a subtract function to calc.py
 ```
 
 :::
 
-On the command line, `-p key=value` as many times as you like, or several in one:
-`-p rounds=9,mode=slow`. A comma splits two params only where a `key=` follows it, so
-`-p note=a, b, c` is one param. A value is read as its field's type — `9` is an `int` for
-`rounds`, `true` a `bool` — and otherwise as JSON, so a list is written the way JSON writes
-one:
+**On the command line**, `-p` takes `key=value`, several in one separated by commas, or the
+option repeated. A comma splits two params only where a `key=` follows it, so
+`-p message=fix a, b and c` is one param. A value is read as its field's type (`1` is an `int`
+for `passes`, `true` a `bool`) and otherwise as JSON, so a list is written the way JSON writes
+one: `-p 'tags=["parser","printer"]'`.
 
-```sh
--p 'tags=["parser","printer"]'
+A real run, abridged:
+
+```text
+● builder is working
+● Bash(cd /home/you/calc && ls && cat calc.py)
+● Edit(/home/you/calc/calc.py)
+● I added `subtract(a, b)` to `calc.py`. It returns `a - b` and follows the style of `add`. I haven't run it or added tests.
+✻ input 6 · output 316 · cache_read 44.4k · cache_write 5.5k · $0.03 · claude-sonnet-5-5 · builder
+…
+✻ Worked for 6s · builder
+● builder is working
+● Bash(cd /home/you/calc && ls -a && python3 -m pytest --version 2>&1 | head -1)
+● The repo has no tests, so neither `add` nor `subtract` is covered. pytest is available, so I'll add a test file covering both functions.
+● Write(/home/you/calc/test_calc.py)
+● Bash(cd /home/you/calc && python3 -m pytest -q 2>&1 | tail -5)
+● The review found one problem: `subtract` had no tests, and neither did `add`. I added `test_calc.py` with parametrized cases for both functions. …
+✻ input 6 · output 771 · cache_read 50.9k · cache_write 1.1k · $0.02 · claude-sonnet-5-5 · builder
+…
+✻ Worked for 7s · builder
+● builder is working
+● Bash(cd /home/you/calc && git add calc.py test_calc.py && git commit -m "$(cat <<'EOF'
+Add subtract function and tests for)
+● I committed `calc.py` and `test_calc.py` to `main` as `abb21ec`, with the message "Add subtract function and tests for calc".
+  …
+✻ input 4 · output 292 · cache_read 35.9k · cache_write 420 · $0.01 · claude-sonnet-5-5 · builder
+…
+✻ Worked for 3s · builder
 ```
 
-At the prompt, choosing the flow in `/flow` puts its params up as a form, and your types decide
-how each row is answered:
+The three turns are the three things the params asked for: the task, one pass (`passes=1`) that
+looked at tests (`focus=tests`), and a commit (`commit=true`).
+
+**At the prompt**, choosing the flow in `/flow` puts its params up as a form before its agents:
+
+```text
+   passes  ·  what the agent does
+   ❯ 1. passes                            1 ↔          review passes after the work
+     2. focus                             correctness ↔ what each pass looks for
+
+   after  ·  what happens at the end
+     3. commit                            off ↔        commit when done
+     4. message                                        the commit message; empty for the agent's own
+
+        set                       all of the above
+```
+
+The two headings are the `section`s, each row is a field with its value and its `description`,
+and `↔` marks a row the arrows step. **set** takes the form and goes on to the flow's agents.
 
 | Field type | On the form |
 | --- | --- |
@@ -76,87 +204,129 @@ how each row is answered:
 | `int`, `float` | written, or stepped up and down by one |
 | anything else | written |
 
-What is set there is [remembered per flow](/user/settings), with the agents and the budget, so
-twenty params are not twenty questions every morning.
+The arrows walk the params and step over the headings. What is set there is
+[remembered per flow](/user/settings), with the agents and the budget, so twenty params are not
+twenty questions every morning.
 
-## Refuse what cannot run
+## Check it worked
 
-What the model refuses stops the run before any agent starts, with pydantic's own account of
-why:
+Every refusal happens before any agent starts, and costs nothing. Try one of each:
 
-```console
-$ hmz exec -f pair -a agent=claude/claude-opus-5:max -b cost=10 -p rounds=12 "…"
-hmz exec: error: pair:pair: 1 validation error for Params
-rounds
-  Input should be less than or equal to 9 [type=less_than_equal, input_value=12, input_type=int]
-    For further information visit https://errors.pydantic.dev/…/v/less_than_equal
-```
-
-So put the combinations you cannot run in the **model**, not in the flow:
-
-```python
-from pydantic import model_validator
-
-
-class Params(FlowParams):
-    fast: bool = Field(default=False, description="skip the review round")
-    careful: bool = Field(default=False, description="review twice")
-
-    @model_validator(mode="after")  # [!code focus]
-    def _settles(self) -> "Params":  # [!code focus]
-        if self.fast and self.careful:  # [!code focus]
-            raise ValueError("fast and careful do not go together")  # [!code focus]
-        return self  # [!code focus]
-```
-
-A bad combination is now refused where it is typed, on the form or on the command line, rather
-than an hour into the run.
-
-## Group them
-
-A flow with twenty params is a wall. Give each field a section, and the form draws a heading
-above each group:
-
-```python
-    reviews: int = Field(
-        default=1,
-        description="how many reviewers read each round",
-        json_schema_extra={"section": "review  ·  how the work is read"},  # [!code highlight]
-    )
+```sh
+hmz exec -f polish -a builder=claude/claude-sonnet-5-5:high -b cost=1 -p passes=9 "x"
+hmz exec -f polish -a builder=claude/claude-sonnet-5-5:high -b cost=1 -p message=hi "x"
+hmz exec -f polish -a builder=claude/claude-sonnet-5-5:high -b cost=1 -p colour=red "x"
 ```
 
 ```text
-   review  ·  how the work is read
-   ❯ 1. reviews                      1            how many reviewers read each round
-     2. strict                       off          refuse on style as well as substance
+hmz exec: error: polish:polish: 1 validation error for Params
+passes
+  Input should be less than or equal to 5 [type=less_than_equal, input_value=9, input_type=int]
+    For further information visit https://errors.pydantic.dev/2.13/v/less_than_equal
+hmz exec: error: polish:polish: 1 validation error for Params
+  Value error, a message needs commit=true [type=value_error, input_value={'message': 'hi'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.13/v/value_error
+hmz exec: error: polish:polish: 1 validation error for Params
+colour
+  Extra inputs are not permitted [type=extra_forbidden, input_value='red', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.13/v/extra_forbidden
 ```
 
-The arrows walk the params and step over the headings.
+The first is `le=5`, the second is your validator's own words, and the third is a key the model
+does not declare.
 
-## When another flow passes them
-
-A flow that [calls yours](/weaver/calling-flows) passes an instance of your class:
+In a test, `run_fake` takes the params as a mapping and validates it the same way:
 
 ```python
-await load("pair")(task, agents=..., envs=..., params=Params(rounds=9))
+# tests/test_polish.py
+import pytest
+
+from hmz.flows import ParamsError
+from hmz.sdk import fakes
+
+
+async def test_passes_and_focus_shape_the_prompts() -> None:
+    builder = fakes.FakeAgentDriver()
+    await fakes.run_fake(
+        "polish", "add subtract", agents={"builder": builder},
+        params={"passes": 2, "focus": "tests"},  # ①
+    )
+    assert builder.prompts == [  # ②
+        "add subtract",
+        "Review what you just did for tests only, and fix what you find.",
+        "Review what you just did for tests only, and fix what you find.",
+    ]
+
+
+async def test_the_defaults_take_one_pass_and_do_not_commit() -> None:
+    builder = fakes.FakeAgentDriver()
+    await fakes.run_fake("polish", "add subtract", agents={"builder": builder})  # ③
+    assert len(builder.prompts) == 2
+
+
+async def test_a_message_without_a_commit_is_refused() -> None:
+    builder = fakes.FakeAgentDriver()
+    with pytest.raises(ParamsError, match="a message needs commit=true"):  # ④
+        await fakes.run_fake(
+            "polish", "x", agents={"builder": builder}, params={"message": "hi"}
+        )
+    assert builder.prompts == []  # ⑤
 ```
 
-That instance is taken as it is. Anything else — another `FlowParams`, a mapping of fields — is
+```sh
+uvx --with 'hmz @ git+https://github.com/humanfia/humanize.git' \
+    --with pytest-asyncio pytest -q -o asyncio_mode=auto
+```
+
+```text
+...                                                                      [100%]
+3 passed in 0.09s
+```
+
+1. **`params={…}`** is what `-p` would be: a mapping, validated into `Params`.
+2. **The prompts** show both params reached the flow: two passes, each about tests.
+3. **No `params=`** is a run nobody configured, which is `Params()`.
+4. **`ParamsError`** is what a mapping that does not validate raises, carrying pydantic's
+   message, your validator's words included.
+5. **No prompts** proves the refusal came before the first turn.
+
+## Variations
+
+**Another flow passes them.** A flow that [calls yours](/weaver/calling-flows) passes an
+instance of your class, which is taken as it is. Anything else, such as a mapping of fields, is
 validated into your class at the call, and refused with `ParamsError` where it does not
-validate, before your flow has run a line.
+validate, before your flow has run a line:
 
-## The budget is not a param
+```python
+polish = load("polish")
+await polish(task, agents=agents, envs=envs, params={"passes": 3})
+```
 
-What a run may spend is the run's: `-b` on the command line, the budget row at the prompt. A
-flow declares none. One that wants to know reads `ctx.budget`; one that wants part of its work
-held to less gives that turn or that call a `Budget` of its own. See [Every run has a
-budget](/features/allowances).
-
-## Try this
-
-`humanize1:rlcr` in the official flowverse takes over a dozen params, one per flag of the tool
-it ports. Open it and look at what a large one of these is:
+**Big flows.** `humanize1:rlcr` in the official flowverse takes over a dozen params, one per
+flag of the tool it ports. Open it to see a large one:
 
 ```text
 /flow humanize1:rlcr
 ```
+
+## Pitfalls
+
+- **The budget is not a param.** What a run may spend is the run's: `-b` on the command line,
+  the budget row at the prompt. A flow that wants to know reads `ctx.budget`; one that wants
+  part of its work held to less gives that turn a `Budget` of its own. See [Every run has a
+  budget](/features/allowances).
+- **Give every field a default** unless the flow truly cannot run without it. A field with no
+  default must be given on every `-p` line, and every flow that calls yours must pass it.
+- **Keep combinations in the model, not in the flow.** A check in the flow body runs after
+  the agents have started; the same check in a validator refuses the line before a token is
+  spent.
+- **Renaming a field breaks command lines.** `-p passes=…` in somebody's script is refused as
+  an unknown key once the field is `rounds`.
+
+## Next steps
+
+- [A flow that calls a flow](/weaver/calling-flows): pass params from one flow to another.
+- [Testing a flow](/weaver/testing-flows): the fake kit, and testing validators.
+- [Settings](/user/settings): how the person running the flow keeps what they set.
+- Reference: [`FlowParams`](/reference/flows#flowparams), [`hmz exec -p`](/reference/cli), and
+  [errors](/reference/flows#when-something-goes-wrong).
