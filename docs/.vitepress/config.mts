@@ -284,8 +284,9 @@ export default defineConfig({
           text: 'Where the work lands',
           collapsed: false,
           items: [
-            { text: 'Containers', link: '/user/containers' },
             { text: 'Remote execution', link: '/user/remote-execution' },
+            { text: 'Where the agent runs (-H)', link: '/user/remote-execution#where-the-agent-runs' },
+            { text: 'Containers', link: '/user/containers' },
           ],
         },
         {

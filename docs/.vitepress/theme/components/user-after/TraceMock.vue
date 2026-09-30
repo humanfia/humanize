@@ -2,8 +2,8 @@
 // A trace as Perfetto lays it out, drawn still: a process per agent of the run, a track per row
 // of its sessions, a slice per thing it did -- and, for a profiled run, a process per program
 // its turns started. The names are the ones `hmz.runtime.tracing.chrome` writes:
-// `<role> · <n> sessions`, `main`, `subagent · <kind>` for a row of one kind, and
-// `<program> · <pid>`.
+// `<role> · <model>[ · <effort>] · <n> sessions`, `main`, `subagent · <kind>` for a row of one
+// kind, and `<program> · <pid>`; a slice is `<tool>: <what it was given>`, `say: …` or `think: …`.
 import { computed } from 'vue'
 
 const props = defineProps<{ profiled?: boolean }>()
@@ -23,13 +23,13 @@ interface Row {
 
 const AGENTS: Row[] = [
   {
-    process: 'builder · 4 sessions',
+    process: 'builder · claude-opus-5 · 4 sessions',
     track: 'main',
     lane: 1,
     slices: [
       { at: 0, width: 8, label: 'Read' },
       { at: 9, width: 2 },
-      { at: 12, width: 20, label: 'Bash · pytest' },
+      { at: 12, width: 20, label: 'Bash: pytest -q' },
       { at: 33, width: 5 },
       { at: 45, width: 12, label: 'Edit' },
       { at: 72, width: 3 },
@@ -42,12 +42,12 @@ const AGENTS: Row[] = [
     slices: [{ at: 40, width: 22, label: 'Grep, Read' }],
   },
   {
-    process: 'reviewer · 2 sessions',
+    process: 'reviewer · gpt-5.6-sol · 2 sessions',
     track: 'main',
     lane: 3,
     slices: [
       { at: 58, width: 10, label: 'Read' },
-      { at: 90, width: 10, label: 'says' },
+      { at: 90, width: 10, label: 'say' },
     ],
   },
 ]
@@ -106,6 +106,7 @@ const rows = computed(() => (props.profiled ? [AGENTS[0], PROGRAM] : AGENTS))
   font-size: 13px;
   font-weight: 600;
   color: var(--vp-c-text-1);
+  overflow-wrap: anywhere;
 }
 
 .process:first-child {
