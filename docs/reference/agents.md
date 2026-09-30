@@ -314,7 +314,7 @@ refused: `Unserved`):
 | Backend | `read-only` | `workspace-write` | `auto` | `bypass` |
 | --- | --- | --- | --- | --- |
 | `agy` | plan mode, four read tools | accept-edits mode | skip permissions | — |
-| `claude` | `plan` | `acceptEdits` | `auto` | `manual`, answered by humanize |
+| `claude` | `plan` | `acceptEdits` | `auto` | `bypassPermissions`; `acceptEdits` where the account or root forbids it; `manual` with `asks` |
 | `codex` | sandbox `read-only` | sandbox `workspace-write` | sandbox `workspace-write`, approval `on-request` | sandbox `danger-full-access` |
 | `cursor-agent` | `plan` | sandbox on | auto-review | sandbox off |
 | `dsh` | refused | refused | refused | nothing sent |
@@ -331,7 +331,7 @@ How it is sent:
 | Backend | Flags or protocol |
 | --- | --- |
 | `agy` | `--mode plan --agent hmz-read-only`; `--mode accept-edits`; `--dangerously-skip-permissions` |
-| `claude` | `--permission-mode <mode>`; at `bypass` also `--permission-prompt-tool stdio`, each request answered `allow` |
+| `claude` | `--permission-mode <mode>`; at `bypass` also `--permission-prompt-tool stdio`, each request answered `allow` unless a `PERMISSION_REQUEST` hook refuses |
 | `codex` | `sandbox` and `approvalPolicy` on `thread/start`, `thread/resume` and `turn/start`; approval `never` at every rung but `auto` |
 | `cursor-agent` | `--mode plan`; `--force --sandbox enabled`; `--auto-review`; `--force --sandbox disabled` |
 | `grok` | `--always-approve`, plus `--tools read_file,grep,list_dir` at `read-only` and `--disable-web-search` at `workspace-write` |
@@ -351,10 +351,19 @@ Per-backend rules:
   web on another machine: what holds it there is an agent of humanize's that is a file on this
   one`. At `workspace-write` edits pass and commands are soft-denied (named in
   `denied_actions`).
-- **claude**: `bypass` is humanize answering, not Claude skipping: an account's managed
-  settings may carry `"disableBypassPermissionsMode": "disable"`, under which
-  `--dangerously-skip-permissions` declines every edit. The CLI still enforces an
-  organisation's `deny` list.
+- **claude**: `bypass` is `bypassPermissions`. An account whose managed settings carry
+  `"disableBypassPermissionsMode": "disable"` starts that turn at `default` and says so in
+  its `system/init`; the driver then moves the process to `acceptEdits` with a
+  `set_permission_mode` control request, starts every later process of the agent on that
+  account at `acceptEdits`, and says once: `claude: this account will not run an agent at
+  bypass, so it runs at acceptEdits, where what it asks for is granted`. The same holds where
+  Claude runs as root without `IS_SANDBOX=1`: it exits before the turn with
+  `--dangerously-skip-permissions cannot be used with root/sudo privileges for security
+  reasons`, and the turn is taken again at `acceptEdits`. With `ClaudeCodeAgentConfig.asks`,
+  `bypass` runs at `manual` instead, so that every tool that would change something reaches a
+  `PERMISSION_REQUEST` hook. Whatever is asked at `bypass` is
+  answered `allow` unless such a hook refuses. The CLI still enforces an organisation's `deny`
+  list.
 - **codex**: the approval policy is `never` at every rung but `auto`. On a machine whose
   requirements forbid `danger-full-access`, `bypass` runs at `auto` and says once:
   `codex: this machine will not run an agent at bypass, so it runs at auto, where what it asks
@@ -394,6 +403,10 @@ Under a flow the rung is derived from the role's `Permission` by
 
 - `user`, `system` and `online` are held by the [fence](#the-fence), not the rung; so is `local`
   on `dsh`, `mcode` and ACP CLIs.
+- **Claude Code** with a `PermissionRequest` hook hung is given `asks=True`
+  (`harnessing.prompting`), so `bypass` runs at `manual` and every tool that would change
+  something reaches the hook. It takes hold from the session's next turn (the process is
+  restarted).
 - **Codex** with a `PermissionRequest` hook hung runs approval policy `untrusted` over its
   rung's sandbox (`harnessing.approvals`). With an `AskUser` hook hung it is started with the
   feature `default_mode_request_user_input` (`harnessing.ASKING_FEATURE`). Both take hold from
@@ -404,7 +417,7 @@ Under a flow the rung is derived from the role's `Permission` by
   sent `sandboxPolicy: {"type": "readOnly", "networkAccess": true}`.
 - `online` also decides the CLI's own web tools ([Web search](#whether-an-agent-may-search-the-web)).
 
-<small>Defined in [`src/hmz/runtime/flowing/harnessing.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/harnessing.py) (`rung`, `ASKS`, `approvals`, `searching`, `fenced`), and each driver's `_PERMITTED` table.</small>
+<small>Defined in [`src/hmz/runtime/flowing/harnessing.py`](https://github.com/humanfia/humanize/blob/main/src/hmz/runtime/flowing/harnessing.py) (`rung`, `ASKS`, `approvals`, `prompting`, `searching`, `fenced`), and each driver's `_PERMITTED` table.</small>
 
 ## Web search {#whether-an-agent-may-search-the-web}
 
@@ -471,6 +484,12 @@ The agent widens the fence where it spawns a turn (`agent.fenced()`): its CLI's 
 sign-in directories and its session directory to write; the account's directory; the hosts
 its model and sign-in are at under the account ([Network hosts](#network-hosts)); the skills it
 carries; its programs and their install trees to read.
+
+Both a flow's fence and the agent's widening read the hosts from the same environment,
+`providers.composed(provider, profile)`: this process's own, less the variables the account
+hushes, plus the ones it sets. A variable the turn runs without, such as an
+`ANTHROPIC_BASE_URL` left in the shell under an account that does not set one, opens no
+host.
 
 ### Enforcement
 
@@ -1175,7 +1194,8 @@ or flow resources restart the process; an anchored turn always ends it.
 claude --print --input-format stream-json --output-format stream-json --verbose
   [--include-partial-messages]
   (--session-id <new uuid> | --resume <id> | --resume <parent> --fork-session)
-  [--permission-mode plan|acceptEdits|auto|manual] [--permission-prompt-tool stdio]
+  [--permission-mode plan|acceptEdits|auto|bypassPermissions|manual]
+  [--permission-prompt-tool stdio]
   --settings '<json>' --model <model> [--effort <rung>] [--json-schema '<json>']
   [--disallowedTools <list>] [--allowedTools <list>] [--mcp-config '<json>']
 ```
@@ -1184,12 +1204,13 @@ claude --print --input-format stream-json --output-format stream-json --verbose
 | --- | --- | --- |
 | `allowed_tools` | `()` | `--allowedTools` rules; at most 32, sorted, unique, no `,`, each at most 4096 characters (`ValueError: allowed_tools must be unique sorted Claude tool rules`) |
 | `partial_messages` | `True` | `--include-partial-messages` |
+| `asks` | `None` | at `bypass`, `--permission-mode manual` instead of `bypassPermissions`, so every tool that would change something is asked about. `None`: while a `PERMISSION_REQUEST` hook is hung on the agent. A flow sets it `True` while its own `PERMISSION_REQUEST` hook is hung and `False` otherwise |
 
 - Every turn runs with `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, so background subagents and
   commands finish inside the turn.
 - `--settings` carries `fastMode` (fast tier) and the `PreToolUse` hook table only when needed.
-- `--json-schema`, a hook table change, an effort change, or a change of offered tools restarts
-  the process and resumes the conversation.
+- `--json-schema`, a hook table change, an effort change, a change of `asks`, or a change of
+  offered tools restarts the process and resumes the conversation.
 - A result with `is_error`, a non-`success` subtype, a `terminal_reason` other than
   `completed`, or a `stop_reason` of `max_tokens`, `model_context_window_exceeded`,
   `pause_turn`, `tool_deferred` or `tool_use` (without structured output) fails the turn.

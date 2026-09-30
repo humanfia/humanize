@@ -34,8 +34,10 @@ __all__ = [
     "add",
     "alone",
     "chain",
+    "composed",
     "copies",
     "find",
+    "hushed",
     "points",
     "providers",
     "serves",
@@ -725,3 +727,48 @@ def environ(provider: Provider | None) -> dict[str, str]:
       The variables to add, which is nothing at all where there is no provider.
     """
     return dict(provider.env) if provider is not None else {}
+
+
+def hushed(
+    provider: Provider | None, profile: backends.Profile | None
+) -> frozenset[str]:
+    """The variables a turn under a provider is run without, whoever left them lying about.
+
+    A provider is which account the agent is, and these CLIs take an account from an
+    environment variable before the credentials they were signed in with. So a turn under a
+    provider is run without every variable its backend would read an account from, except
+    the ones that provider sets itself.
+
+    Args:
+      provider: The provider, or None for an agent running as the CLI already runs.
+      profile: The backend, or None for a CLI nothing is written down about.
+
+    Returns:
+      The variables to take away: nothing at all where there is no provider or no backend.
+    """
+    if provider is None or profile is None:
+        return frozenset()
+    return profile.hushes() - set(provider.env)
+
+
+def composed(
+    provider: Provider | None, profile: backends.Profile | None
+) -> dict[str, str]:
+    """The environment a turn under a provider runs under, as far as its account is concerned.
+
+    This process's own, less what the provider hushes and plus what it sets. It is what says
+    where the account points the CLI's model, so it is what the hosts a fence lets through
+    are read from, wherever the fence is drawn: a flow's harness and the agent itself read
+    them from here, so a variable the turn is run without never opens a host.
+
+    Args:
+      provider: The provider, or None for an agent running as the CLI already runs.
+      profile: The backend, or None for a CLI nothing is written down about.
+
+    Returns:
+      The variables.
+    """
+    gone = hushed(provider, profile)
+    return {
+        name: value for name, value in os.environ.items() if name not in gone
+    } | environ(provider)

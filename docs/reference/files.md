@@ -331,6 +331,7 @@ Every path in this section is safe to delete while humanize is not running.
 | Path | Is | Removed |
 | --- | --- | --- |
 | `$TMPDIR/hmz-fence-XXXXXXXX/` (`0700`) | a fenced process's `TMPDIR`; `cache/<var>` inside for redirected caches | when the process ends (left on `SIGKILL`) |
+| the same path, on a machine a supervised agent's commands run on | that agent's commands' `TMPDIR` there | kept |
 | `$TMPDIR/humanize-hook-*/hook.sock`, `humanize-tools-*/tools.sock`, `humanize-preload-*/said.sock` | sockets a CLI reports hooks, tool calls and preload events on | with the session |
 | `$TMPDIR/hmz-dsh-*/cordis.yml`, `hmz-qwen-*/` | per-session CLI configuration | with the session |
 | `$TMPDIR/humanize-<uid>.pyz` (`0700`), `.stamp` (`0600`) | the humanize bundle copied to other machines | kept |

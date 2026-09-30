@@ -663,10 +663,14 @@ class _Walls:
             read=[mirror] if level == READ else [],
             write=[mirror] if level == ALL else [],
         )
-        self.told = abroad.told(fence, home=os.path.expanduser("~"), native=False)
         self._made = not fence.tmp
         self.tmp = fence.tmp or tempfile.mkdtemp(prefix="hmz-fence-")
         os.makedirs(self.tmp, mode=0o700, exist_ok=True)
+        # With the scratch the agent is given, for the target to keep its own at the same
+        # path: the agent names it in the commands it sends there.
+        self.told = abroad.told(
+            replace(fence, tmp=self.tmp), home=os.path.expanduser("~"), native=False
+        )
         self._proxy = None if fence.online else Proxy(fence.hosts)
 
     def around(self, launch: Launch) -> Launch:

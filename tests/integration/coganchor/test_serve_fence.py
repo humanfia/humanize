@@ -100,6 +100,42 @@ def test_a_fenced_command_is_walled_in_around_the_targets_own_paths(
 
 
 @pytest.mark.timeout(60)
+def test_a_supervised_agents_scratch_is_kept_at_the_path_it_knows(
+    link: Link, log: Path, tmp_path: Path
+) -> None:
+    """The agent spells its scratch into what it runs, so the target has it at that path."""
+    scratch = tmp_path / "there" / "hmz-fence-abc"
+    said = _levels(ALL, READ, READ, online=True) | {"tmp": str(scratch)}
+
+    result, error, _ = _ran(link, ["sh", "-c", "true"], said)
+
+    assert error is None, error
+    assert result == {"exit_code": 0}
+    (policy,) = fencing.policies(log)
+    assert Fence.loads(json.dumps(policy)).tmp == str(scratch)
+    assert scratch.is_dir()
+    assert scratch.stat().st_mode & 0o777 == 0o700
+
+
+@pytest.mark.timeout(60)
+def test_a_scratch_somebody_else_could_have_put_there_is_not_taken(
+    link: Link, log: Path, tmp_path: Path
+) -> None:
+    """A link where the scratch should be is not followed: the command makes its own."""
+    (tmp_path / "elsewhere").mkdir()
+    scratch = tmp_path / "hmz-fence-abc"
+    scratch.symlink_to(tmp_path / "elsewhere")
+    said = _levels(ALL, READ, READ, online=True) | {"tmp": str(scratch)}
+
+    result, error, _ = _ran(link, ["sh", "-c", "true"], said)
+
+    assert error is None, error
+    assert result == {"exit_code": 0}
+    (policy,) = fencing.policies(log)
+    assert Fence.loads(json.dumps(policy)).tmp == ""
+
+
+@pytest.mark.timeout(60)
 def test_a_native_cli_keeps_its_state_under_the_targets_home(
     link: Link, log: Path, tmp_path: Path
 ) -> None:

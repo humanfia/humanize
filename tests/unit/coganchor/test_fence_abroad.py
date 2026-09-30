@@ -82,6 +82,36 @@ def test_a_supervised_agents_commands_are_told_only_the_levels() -> None:
     }
 
 
+def test_a_supervised_agents_commands_are_told_its_scratch() -> None:
+    """The path the agent knows its scratch by, which it spells into what it runs there."""
+    fence = dataclasses.replace(_of(ALL, READ, READ), tmp="/tmp/hmz-fence-abc")
+    assert told(fence, home=HOME, native=False)["tmp"] == "/tmp/hmz-fence-abc"
+    # A native CLI makes its own scratch there, and names that one.
+    assert "tmp" not in told(fence, home=HOME, native=True)
+
+
+def test_the_target_keeps_its_scratch_at_the_path_it_was_told(tmp_path: Path) -> None:
+    said = told(
+        dataclasses.replace(_of(ALL, READ, READ), tmp="/tmp/hmz-fence-abc"),
+        home=HOME,
+        native=False,
+    )
+    held = drawn(said, workdirs=[str(tmp_path)], home=str(tmp_path))
+    assert held.tmp == "/tmp/hmz-fence-abc"
+    # Nothing said is a scratch the wrapper makes for the one command, as it was.
+    del said["tmp"]
+    assert drawn(said, workdirs=[str(tmp_path)], home=str(tmp_path)).tmp == ""
+
+
+@pytest.mark.parametrize("tmp", ["tmp/x", "/", "/tmp/../etc", 7], ids=str)
+def test_a_scratch_that_is_not_an_absolute_path_of_its_own_is_refused(
+    tmp_path: Path, tmp: object
+) -> None:
+    said = {"local": ALL, "user": READ, "system": READ, "online": True, "tmp": tmp}
+    with pytest.raises(ValueError, match="tmp"):
+        drawn(said, workdirs=[str(tmp_path)], home=str(tmp_path))
+
+
 def test_a_native_cli_is_told_its_hosts_and_the_state_it_keeps_at_home() -> None:
     fence = Fence(
         scopes=(ALL, READ, READ),
