@@ -100,9 +100,9 @@ arguments.
 | --- | --- |
 | Missing, unreadable, invalid YAML, not a mapping | read as empty; never prevents a start |
 | Unknown keys | kept at the top level and in a workspace entry; a flow's entry is replaced whole when `/flow` is saved |
-| Write | re-read the file; take from it every machine key this writer did not change and every workspace this writer did not read; take from this writer every workspace entry it holds (as it read them, plus its own changes) and every machine key it changed; drop workspaces it forgot; write `.settings.yaml.<random>.new` (mode `0600`); rename over |
-| Concurrent writers | no lock. Machine keys and workspaces added since a writer read the file survive its write; a change another writer made since to a workspace entry this writer holds is overwritten by this writer's copy. |
-| Write failure | ignored: the setting is not remembered |
+| Write | each change is written at once: take `flock(LOCK_EX)` on `.settings.yaml.lock` beside the file; re-read the file; make this one change to what it holds now (one machine key, one workspace's `flow` and one flow's entry, one workspace's `profile`, or one workspace removed); write `.settings.yaml.<random>.new` (mode `0600` for a new file, the existing file's otherwise), fsync, rename over; release the lock. The writer then holds what it wrote. A file that exists but does not read as a mapping is written over with what this writer holds plus the change. |
+| Concurrent writers | serialized by the lock. A write changes only what it is about: every machine key, workspace, workspace key and flow entry another writer wrote survives it, whenever this writer read the file. `envs`, `params`, `budget` and `harness` not handed to a `/flow` save are carried over from the file as it is at the write. Two writes to the same key or the same flow's entry: the later wins. A writer that cannot open the lock file, gets an error from `flock`, or has waited 30 s for it writes without it. |
+| Write failure | ignored: the change is held in memory by that writer and not written |
 
 ## `/settings` rows
 

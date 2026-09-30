@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import itertools
 import json
 import logging
 import os
@@ -233,15 +234,13 @@ class Journal:
         past = _read(path) if resume and path.is_file() else None
         if past is not None and past.root is None:
             past = None
+        from hmz.coganchor import atomic
+
         path.parent.mkdir(parents=True, exist_ok=True)
-        beside = path.with_name(f".{path.name}.new")
-        with beside.open("wb") as writing:
-            writing.write(_header())
-            if past is not None:
-                writing.writelines(_compacted(past))
-            writing.flush()
-            os.fsync(writing.fileno())
-        beside.replace(path)
+        atomic.writes(
+            path,
+            itertools.chain((_header(),), _compacted(past) if past is not None else ()),
+        )
         fd = os.open(path, os.O_WRONLY | os.O_APPEND)
         return cls(path, loop, fd), past
 

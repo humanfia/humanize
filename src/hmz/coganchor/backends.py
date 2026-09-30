@@ -2416,6 +2416,8 @@ def _write(held: Mapping[str, Sequence[str]]) -> None:
     """Writes the added CLIs down, keeping what each was declared to need."""
     import json
 
+    from hmz.coganchor import atomic
+
     entries: dict[str, object] = {}
     for one, argv in held.items():
         hosts, state = declared(one)
@@ -2428,9 +2430,7 @@ def _write(held: Mapping[str, Sequence[str]]) -> None:
     at.parent.mkdir(parents=True, exist_ok=True)
     # Whole and then moved into place, so that a list read while it is being written is
     # either the old one or the new one and never half of each.
-    beside = at.parent / f".{at.name}.new"
-    beside.write_text(json.dumps(entries, indent=2) + "\n", encoding="utf-8")
-    beside.replace(at)
+    atomic.writes(at, json.dumps(entries, indent=2) + "\n")
 
 
 def remember(name: str, command: Sequence[str]) -> str:

@@ -35,15 +35,12 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import random
-import tempfile
 from dataclasses import dataclass, replace
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from hmz import home
-from hmz.coganchor import backends
+from hmz.coganchor import atomic, backends
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -675,13 +672,4 @@ def _writes(steps: Iterable[Falls]) -> None:
         )
         + "\n"
     )
-    handle, beside = tempfile.mkstemp(
-        dir=at.parent, prefix=f".{at.name}.", suffix=".new"
-    )
-    try:
-        with os.fdopen(handle, "w", encoding="utf-8") as writing:
-            writing.write(said)
-        Path(beside).replace(at)
-    except OSError:
-        Path(beside).unlink(missing_ok=True)
-        raise
+    atomic.writes(at, said, mode=0o600)
