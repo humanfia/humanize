@@ -530,9 +530,11 @@ docker's default seccomp profile can hold `online` `ALL` but not `NONE`. See
 | `ALL` | `bypass` | `bypass` |
 
 - `bypass` is the CLI's no-approval mode: Codex `danger-full-access` with approval `never`;
-  Claude Code `manual` with humanize answering every request yes (a managed policy may forbid
-  `bypassPermissions`).
-- A hook only an asking CLI can deliver changes how it is started. Codex runs with approval
+  Claude Code `bypassPermissions`. Where a managed policy forbids that, the CLI runs at the
+  most permissive mode left that no model reviews and humanize answers every request yes:
+  Claude Code `acceptEdits`, Codex the `workspace-write` sandbox with approval `on-request`.
+- A hook only an asking CLI can deliver changes how it is started. Claude Code runs at
+  `manual` instead of `bypassPermissions` while `on_permission_request` is hung. Codex runs with approval
   policy `untrusted` while `on_permission_request` is hung, and enables its
   `default_mode_request_user_input` feature while `on_ask_user` is hung. Kimi Code runs at
   coganchor's `auto` rung (Kimi's `yolo`) while either is hung. humanize answers yes unless the

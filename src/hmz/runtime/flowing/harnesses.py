@@ -835,7 +835,7 @@ def settled(
     Raises:
       HarnessUnrecoverable: If the CLI cannot be configured so.
     """
-    from hmz.coganchor.agents import CodexAgentConfig
+    from hmz.coganchor.agents import ClaudeCodeAgentConfig, CodexAgentConfig
 
     try:
         fence = harnessing.fenced(
@@ -859,6 +859,8 @@ def settled(
         asks = ((feature, True),) if HookKind.ASK_USER in hung else ()
         changes["features"] = rest + asks
         changes["approvals"] = harnessing.approvals(harness, hung)
+    if isinstance(config, ClaudeCodeAgentConfig):
+        changes["asks"] = harnessing.prompting(harness, hung)
     try:
         return dataclasses.replace(config, **changes)
     except ValueError as refused:
@@ -869,15 +871,16 @@ def _environ(config: AgentConfig, profile: Profile | None) -> Mapping[str, str]:
     """The environment a session's turns run under, its account's variables included.
 
     What says where an account points its CLI's model, which the fence has to let through: a
-    gateway's endpoint is a variable its account sets. An account that is not there is this
-    process's own environment here, and is refused where the agent is made.
+    gateway's endpoint is a variable its account sets. Less what the account hushes, and read
+    by the one function the agent reads its own hosts with (`providers.composed`), so the hosts
+    the fence lets through here are the hosts it lets through there. An account that is not
+    there is this process's own environment here, and is refused where the agent is made.
     """
     from hmz.coganchor import providers
 
     if profile is None or not config.provider:
         return os.environ
-    found = providers.find(profile.name, config.provider)
-    return os.environ | providers.environ(found) if found is not None else os.environ
+    return providers.composed(providers.find(profile.name, config.provider), profile)
 
 
 class HarnessSession:

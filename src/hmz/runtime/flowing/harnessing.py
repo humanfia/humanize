@@ -36,8 +36,10 @@ The rung is coganchor's ladder -- `read-only`, `workspace-write`, `auto`, `bypas
 each of its drivers maps onto its CLI's own approval settings, and which the fence makes no
 longer the thing that keeps a session inside its scopes. Approvals are never put to anybody:
 every session runs at its CLI's nothing-asked mode, which is what the flow API calls BYPASS --
-`danger-full-access` and `never` on Codex, and on Claude Code, whose `bypassPermissions` a
-managed policy may forbid, `manual` with humanize answering every request yes. `auto` is
+`danger-full-access` and `never` on Codex, `bypassPermissions` on Claude Code. Where a managed
+policy forbids that, the CLI runs at the most permissive mode left that no model reviews --
+the `workspace-write` sandbox with approval `on-request` on Codex, `acceptEdits` on Claude
+Code -- and humanize answers every request yes. `auto` is
 Claude Code's and cursor-agent's model-reviewed modes and is never used for them; the one
 place it is used is the last column below, on the two CLIs where it means the CLI asks and
 humanize answers.
@@ -54,9 +56,11 @@ humanize answers.
 - dsh and ACP CLIs can be held to no rung but `bypass`, and MiniMax Code to none that changes
   nothing; the fence holds them to the scopes.
 
-While a hook is hung on a moment only asking reaches, two CLIs are started so that they
+While a hook is hung on a moment only asking reaches, three CLIs are started so that they
 ask, and humanize answers every request yes unless the hook says no -- never a model:
 
+- Claude Code, a PERMISSION_REQUEST hook: `manual` in place of `bypassPermissions`, so every
+  tool that would change something is asked about.
 - Codex, a PERMISSION_REQUEST hook: the rung's sandbox, and approval policy `untrusted`, so
   every command but a known-safe read is asked about. An ASK_USER hook switches on Codex's
   `default_mode_request_user_input` feature instead, without which its agent cannot ask its
@@ -125,6 +129,7 @@ __all__ = [
     "fenced",
     "fields",
     "harness_error",
+    "prompting",
     "read_shape",
     "rung",
     "searching",
@@ -192,6 +197,23 @@ def approvals(harness: HarnessKind, hung: frozenset[HookKind]) -> str:
     if harness is HarnessKind.CODEX and HookKind.PERMISSION_REQUEST in hung:
         return UNTRUSTED
     return ""
+
+
+def prompting(harness: HarnessKind, hung: frozenset[HookKind]) -> bool:
+    """Whether a Claude Code session is started so that its `bypass` asks, for the hooks hung.
+
+    Claude's `bypassPermissions` asks nothing, so a PERMISSION_REQUEST hook would never be
+    reached at it: while one is hung, `bypass` runs at `manual` instead, and humanize answers
+    every request yes unless the hook says no.
+
+    Args:
+      harness: The CLI.
+      hung: The hooks hung on the agent now.
+
+    Returns:
+      True for Claude Code while a PERMISSION_REQUEST hook is hung.
+    """
+    return harness is HarnessKind.CLAUDE and HookKind.PERMISSION_REQUEST in hung
 
 
 def asking(harness: HarnessKind, hung: frozenset[HookKind]) -> bool:

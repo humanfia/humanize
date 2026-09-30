@@ -275,6 +275,7 @@ async def test_a_stop_hook_sends_the_agent_on_until_it_lets_it_stop(
 async def test_claude_asks_a_permission_hook_and_does_what_it_says(
     claude: HarnessDriver,
     work: Placement,
+    clis: Logs,
     answer: PermissionRequestHookResult,
     said: str,
 ) -> None:
@@ -283,6 +284,9 @@ async def test_claude_asks_a_permission_hook_and_does_what_it_says(
     handle = await _open(claude, work, hooks)
     assert await handle.turn(TurnRequest("use a tool"), RecordingSink()) == said
     assert heard == [{"tool": "Bash", "input": {"command": "echo hi"}}]
+    # `bypassPermissions` would ask nothing, so the hook is served at the mode that asks.
+    argv = clis.of("claude")[0]["argv"]
+    assert argv[argv.index("--permission-mode") + 1] == "manual"
 
 
 async def test_with_no_permission_hook_every_request_is_approved(
@@ -291,7 +295,7 @@ async def test_with_no_permission_hook_every_request_is_approved(
     handle = await _open(claude, work)
     assert await handle.turn(TurnRequest("use a tool"), RecordingSink()) == "allowed"
     argv = clis.of("claude")[0]["argv"]
-    assert argv[argv.index("--permission-mode") + 1] == "manual"
+    assert argv[argv.index("--permission-mode") + 1] == "bypassPermissions"
     assert "--permission-prompt-tool" in argv
 
 
