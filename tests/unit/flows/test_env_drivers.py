@@ -30,12 +30,17 @@ from hmz.flows import (
     EnvFileNotFound,
     EnvPermissionDenied,
     EnvUnavailable,
+    GitEnvMixin,
+    RewindError,
     ScratchError,
     TempCloneBusy,
     WorktreeError,
 )
 from hmz.runtime.flowing.environing import (
     ENVS,
+    REWIND_SCRIPT,
+    SNAPSHOT_SCRIPT,
+    SNAPSHOTS_SCRIPT,
     Machine,
     MachineEnvDriver,
     Resources,
@@ -73,6 +78,9 @@ _SAID = {
     ("true",): (0, "", ""),
 }
 
+#: The scripts over a git worktree, which the machine in memory does itself.
+_GIT_SCRIPTS = {SNAPSHOT_SCRIPT, REWIND_SCRIPT, SNAPSHOTS_SCRIPT}
+
 #: What waits to be killed.
 _SLOW = {SLOW_ARGV, ("bash", "-c", SLOW_SCRIPT)}
 
@@ -83,8 +91,11 @@ _MACHINES = itertools.count()
 class Scripted:
     """A command in memory: it answers at once, or waits until it is killed."""
 
-    def __init__(self, argv: Sequence[str]) -> None:
+    def __init__(
+        self, argv: Sequence[str], said: tuple[int, str, str] | None = None
+    ) -> None:
         self.argv = tuple(argv)
+        self.said = said
         self.killed = asyncio.Event()
         self.released = False
 
@@ -92,7 +103,7 @@ class Scripted:
         if self.argv in _SLOW:
             await self.killed.wait()
             return 137, b"", b""
-        status, out, err = _SAID.get(self.argv, (0, "", ""))
+        status, out, err = self.said or _SAID.get(self.argv, (0, "", ""))
         return status, out.encode(), err.encode()
 
     async def kill(self) -> None:
@@ -120,6 +131,8 @@ class MemoryMachine(Machine):
         self.copies = 0
         self.failing: set[PurePosixPath] = set()
         self.let_go = 0
+        self.git: bool | None = None
+        self.snapshots: dict[str, dict[PurePosixPath, bytes]] = {}
 
     def resources(self, *, gpus: bool) -> Resources:
         return Resources(8, 16 << 30, 2 if gpus else 0, (24 << 30) if gpus else 0)
@@ -129,6 +142,9 @@ class MemoryMachine(Machine):
 
     def placement(self, workdir: PurePosixPath) -> Placement:
         return Placement(self.backend, self.provider, workdir, None)
+
+    def has_git(self) -> bool | None:
+        return self.git
 
     async def probe(self) -> None:
         return
@@ -144,9 +160,32 @@ class MemoryMachine(Machine):
             raise EnvUnavailable(f"the workdir {cwd} is not there")
         if argv[0] == "no-such-program":
             raise EnvFileNotFound(f"could not run {argv[0]!r}")
-        running = Scripted(argv)
+        said = None
+        if tuple(argv[:2]) == ("/bin/sh", "-c") and argv[2] in _GIT_SCRIPTS:
+            said = self._git(argv[2], argv[4], cwd)
+        running = Scripted(argv, said)
         self.started.append(running)
         return running
+
+    def _git(self, script: str, arg: str, cwd: PurePosixPath) -> tuple[int, str, str]:
+        """What a script over a git worktree does, done to the files under the workdir."""
+        if script == SNAPSHOTS_SCRIPT:
+            return 0, "".join(f"{ref}\n" for ref in self.snapshots), ""
+        if script == SNAPSHOT_SCRIPT:
+            ref = f"refs/hmz/snapshots/{arg}"
+            self.snapshots.pop(ref, None)
+            self.snapshots[ref] = {
+                path: data
+                for path, data in self.files.items()
+                if path.is_relative_to(cwd)
+            }
+            return 0, f"{ref}\n", ""
+        kept = self.snapshots.get(arg)
+        if kept is None:
+            return 4, "", f"git knows no commit {arg}\n"
+        left = {k: v for k, v in self.files.items() if not k.is_relative_to(cwd)}
+        self.files = left | kept
+        return 0, "", ""
 
     async def read(self, path: PurePosixPath) -> bytes:
         if path in self.dirs:
@@ -300,6 +339,41 @@ async def test_a_ref_that_would_be_read_as_an_option_is_refused_before_git_is() 
 
 
 # ------------------------------------------------------------------------------- commands
+
+
+async def test_a_machine_seen_without_git_serves_no_git_env() -> None:
+    driver, machine = _driver()
+    for git in (None, True):
+        machine.git = git
+        assert driver.capabilities == ENV_CAPABILITIES
+    machine.git = False
+    assert driver.capabilities == ENV_CAPABILITIES - {GitEnvMixin}
+    sub = await driver.derive_subdir("sub")
+    assert sub.capabilities == driver.capabilities
+
+
+async def test_a_snapshot_is_named_for_when_it_was_taken_unless_it_is_named() -> None:
+    driver, machine = _driver()
+    first = await driver.snapshot(None)
+    second = await driver.snapshot(None)
+    named = await driver.snapshot("named")
+    assert first.startswith("refs/hmz/snapshots/")
+    assert sorted([second, first]) == [first, second], "they do not sort by time"
+    assert named == "refs/hmz/snapshots/named"
+    assert await driver.snapshots() == [first, second, named]
+    (ran,) = [one for one in machine.started if "named" in one.argv]
+    assert ran.argv[:3] == ("/bin/sh", "-c", SNAPSHOT_SCRIPT)
+
+
+async def test_what_git_would_not_do_is_a_rewind_error_saying_why() -> None:
+    driver, machine = _driver()
+    with pytest.raises(RewindError, match="git knows no commit main~3"):
+        await driver.rewind("main~3")
+    started = len(machine.started)
+    for ref in ("", "  ", "--hard"):
+        with pytest.raises(RewindError, match="not a ref"):
+            await driver.rewind(ref)
+    assert len(machine.started) == started, "a ref read as an option reached git"
 
 
 async def test_a_script_is_run_by_bash_and_an_argv_as_it_is() -> None:
@@ -706,8 +780,16 @@ def test_what_a_host_says_about_itself_is_read() -> None:
         facts_of("cpus=4\n")
 
 
+def test_a_host_says_whether_it_has_git() -> None:
+    said = "home=/home/me\n"
+    assert facts_of(said + "git=1\n").git is True
+    assert facts_of(said + "git=0\n").git is False
+    assert facts_of(said).git is None
+
+
 def test_the_probe_asks_for_everything_facts_are_read_from() -> None:
-    for key in ("home=", "state=", "cpus=", "memkb=", "memory=", "cuda=", "gpu="):
+    keys = ("home=", "state=", "cpus=", "memkb=", "memory=", "cuda=", "gpu=")
+    for key in (*keys, "git="):
         assert key in PROBE_SCRIPT, key
 
 

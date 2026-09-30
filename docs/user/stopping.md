@@ -15,7 +15,7 @@ in. Most flows are loops that never end on their own, so this, or a budget, is h
 | | Where | How |
 | --- | --- | --- |
 | <kbd>ctrl+c</kbd> <kbd>ctrl+c</kbd> | at the prompt | Two presses within 3 seconds. The first only warns. |
-| `/stop` | at the prompt, reading every agent, or on the monitor | Sent once. You typed it out on purpose, so it is not asked twice. Not offered on one conversation's or one outworlder's transcript, where it says where it works instead. |
+| `/stop` | at the prompt, reading every agent, or on the monitor | Sent once. You typed it out on purpose, so it is not asked twice. Offered only while a flow runs and is not already stopping, and not on one conversation's or one outworlder's transcript. Typed there anyway, it says why it did nothing. |
 | <kbd>ctrl+c</kbd> | on an `hmz exec` line | One press. |
 | a budget | `-b` on `hmz exec`, or what a run may spend in `/flow` | Nothing to press: the run stops itself when the budget is spent. See [Allowances](/features/allowances). |
 
@@ -97,7 +97,7 @@ starts with; the running one keeps what it started with.
 | <kbd>←</kbd> | With nothing typed, goes up to [the monitor](/user/monitor). |
 | `/clear` | Clears the transcript you are reading. The flow keeps running. |
 | a question the flow asked you | Ends with the flow when it stops. It never holds a stop up. |
-| a second `/stop` | Says `hmz: the flow is already stopping: …`. A <kbd>ctrl+c</kbd> is what hurries it. |
+| a second `/stop` | No longer offered. Typed anyway, says `hmz: the flow is already stopping: …`. A <kbd>ctrl+c</kbd> is what hurries it. |
 
 ::: details If you write flows
 A stop reaches your flow as a cancellation, not as a failed turn. Code that catches failed

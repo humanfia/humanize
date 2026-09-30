@@ -89,6 +89,14 @@ const BACKENDS: Backend[] = [
     note: '“swarm” in front of a rung, as in swarmmax, is the same thinking run as a fleet of agents rather than one. The fleet is a width, chosen beside the effort.',
   },
   {
+    name: 'mcode',
+    called: 'MiniMax Code',
+    efforts: ['max', 'xhigh', 'high', 'medium', 'low'],
+    has: ['shape', 'trace', 'skills'],
+    spend: 'end',
+    note: 'Only MiniMax-M3.1-Flash-Preview takes a rung; its other models run at “auto”. A flow cannot keep it off the web, and it has no rung that changes nothing: read-only is a fence around it.',
+  },
+  {
     name: 'pi',
     called: 'pi',
     efforts: ['max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'off'],
@@ -127,14 +135,6 @@ const BACKENDS: Backend[] = [
     has: ['fork', 'search', 'trace', 'skills'],
     spend: 'live',
     note: 'A fork of opencode, with models of its own. Its effort picks the model’s variant, as opencode’s does.',
-  },
-  {
-    name: 'zcode',
-    called: 'ZCode',
-    efforts: ['max', 'xhigh', 'high', 'medium', 'low', 'enabled', 'nothink', 'disabled'],
-    has: ['goal', 'fork', 'search', 'trace', 'skills'],
-    spend: 'live',
-    note: 'Its models take different rungs. Some take a thinking budget up to “max”, one takes “nothink”, and some take only “enabled” or “disabled”.',
   },
   {
     name: 'your own',

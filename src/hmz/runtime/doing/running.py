@@ -14,7 +14,6 @@ import threading
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
     from pathlib import Path
 
     from hmz.coganchor.agents import AgentBase, SessionBase
@@ -22,7 +21,8 @@ if TYPE_CHECKING:
     from hmz.runtime.epic import Epic
     from hmz.runtime.flowing import Declaration, OutworlderDriver
     from hmz.runtime.flowing.harnesses import Listener
-    from hmz.runtime.runner import Runner
+    from hmz.runtime.flowing.spi import Placement
+    from hmz.runtime.runner import Opened, Runner
 
 __all__ = ["Run"]
 
@@ -47,7 +47,7 @@ class Run:
         self._runner = runner
         self._task = task
         self._outworlder = outworlder
-        self._opened: list[Callable[[str, AgentBase, SessionBase], None]] = []
+        self._opened: list[Opened] = []
         self._epic: Path | None = None
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -124,12 +124,12 @@ class Run:
         """
         self._runner.watch(listener)
 
-    def opened(self, callback: Callable[[str, AgentBase, SessionBase], None]) -> None:
+    def opened(self, callback: Opened) -> None:
         """Has each session the run opens told to `callback` as it opens.
 
         Args:
-          callback: What to tell: the role, the coganchor agent and its conversation. Told
-            on the run's own loop, before the session's first turn.
+          callback: What to tell: the role, the coganchor agent, its conversation and where
+            it works. Told on the run's own loop, before the session's first turn.
         """
         self._opened.append(callback)
 
@@ -167,9 +167,15 @@ class Run:
             started=self._began,
         )
 
-    def _told(self, role: str, agent: AgentBase, session: SessionBase) -> None:
+    def _told(
+        self,
+        role: str,
+        agent: AgentBase,
+        session: SessionBase,
+        where: Placement | None,
+    ) -> None:
         for callback in tuple(self._opened):
-            callback(role, agent, session)
+            callback(role, agent, session, where)
 
     def _began(self, epic: Epic) -> None:
         self._epic = epic.path

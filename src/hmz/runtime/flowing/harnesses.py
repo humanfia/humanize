@@ -25,7 +25,7 @@ except the few that decide how a CLI is started, which take hold from the next t
 PRE_TOOL_USE on a CLI that gates its tools with a hook table of its own, and the hooks
 :mod:`~hmz.runtime.flowing.harnessing` starts a CLI asking for -- Codex's `untrusted`
 approvals and its asking feature, whose app server is started again between two turns for
-it, and Kimi Code's and ZCode's asking rung.
+it, and Kimi Code's asking rung.
 
 What a hook answers is done where the CLI waits for it. A PRE_TOOL_USE hook refuses a tool on
 a CLI that gates its tools (Claude Code, Qwen Code) and watches one already reached for on
@@ -41,10 +41,10 @@ nothing there. A graceful turn runs to its end and answers as usual, whatever it
 engine refusing the next; one that is not graceful is cut off the moment a limit is reached --
 the CLI stops spending -- and raises the :class:`~hmz.flows.errors.BudgetExceeded` leaf.
 
-A fork is the CLI's own: Claude Code, Codex, Kimi Code and ZCode fork into another workdir,
+A fork is the CLI's own: Claude Code, Codex and Kimi Code fork into another workdir,
 every other harness that forks does so only into the workdir it is in, and cursor-agent,
-Antigravity and dsh do not fork. A fork is cut where its first turn is taken, so it is refused
-then if the session it came from has taken a turn since.
+MiniMax Code, Antigravity and dsh do not fork. A fork is cut where its first turn is taken, so
+it is refused then if the session it came from has taken a turn since.
 
 :func:`open_outworlder` is the driver for whoever is outside the run.
 """

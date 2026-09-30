@@ -1,10 +1,12 @@
 """The monitor: the run drawn across the whole screen, and the screen every log is left for.
 
 Two screens make up the interface. The log is the transcript -- every agent's, one agent's --
-and the monitor is the run itself: a node per agent that has worked, or per session with
-`ctrl+t`, marked as each one works, the handovers between them as the arrows joining them,
-and the board under them. It is the parent of the two, which is why the log is reached from it
-by picking what to read and why `←` on an empty prompt comes back to it.
+and the monitor is the run itself: a node per agent that has worked, opened out to its
+sessions and the environments they work in, marked as each one works, the handovers between
+them as the arrows joining them, and the board under them. Drawn as a graph, or as a list
+that says nothing of who handed to whom and puts whatever is working at the top. It is the
+parent of the two, which is why the log is reached from it by picking what to read and why
+`←` on an empty prompt comes back to it.
 
 It is drawn with the same prompt under it as the log, because it is the same interface with the
 transcript swapped for the graph: every command works here, and what the log says in its status
@@ -18,6 +20,7 @@ line and above its prompt is said here by the graph and the line under it.
 
 from __future__ import annotations
 
+import functools
 import time
 from typing import TYPE_CHECKING, Any, ClassVar, NamedTuple, cast
 
@@ -32,7 +35,7 @@ from textual.widgets.option_list import Option
 from hmz.coganchor.agents import ANYONE, FLOW
 from hmz.coganchor.prices import money
 
-from .monitor import lasting, short, thousands
+from .monitor import Shape, lasting, short, thousands
 from .pick import (
     _DOT,
     _FIELD,
@@ -52,16 +55,30 @@ from .pick import (
 from .selecting import Choices
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping, Sequence
+    from collections.abc import Callable, Collection, Mapping, MutableSet, Sequence
 
     from pydantic import BaseModel
     from textual.app import App, ComposeResult
 
+    from hmz.runtime.flowing import EnvRole
     from hmz.runtime.kept import Runs
 
-    from .monitor import Counted, Monitor, Shape, Under
+    from .monitor import Counted, Monitor, Under
 
-__all__ = ["EVERY", "OUTWORLDER", "BoardSeen", "Drawn", "Entry", "Line", "Monitoring"]
+__all__ = [
+    "EVERY",
+    "OUTWORLDER",
+    "BoardSeen",
+    "Drawn",
+    "Entry",
+    "Line",
+    "Monitoring",
+    "Place",
+    "Placed",
+    "declared_places",
+    "needs",
+    "place_key",
+]
 
 #: What the node of an outworlder is read under, ahead of its role: the log a person reads
 #: what the flow says to them in, and answers it from.
@@ -112,6 +129,32 @@ _BOARDED = "\x01"
 #: on either: the diagram is empty until a first turn starts, and one line says more about a
 #: run that has not begun than a blank page does.
 _NOTHING = "\x02"
+
+#: What an environment's node is put up under, ahead of its key: a character no role and no
+#: key of a session is called by, as the board's is.
+_PLACE = "\x03"
+
+#: What stands between an environment's key and the session it hangs under on the graph,
+#: where one environment hangs under every session that works in it and a row apiece needs an
+#: id apiece.
+_AT = "\x04"
+
+#: The row naming the columns of the list, which nothing lands on.
+_COLUMNS = "\x05"
+
+#: What an agent wears in front of its name: shut, with its sessions folded into its box, and
+#: open, with them hanging under it.
+_SHUT, _OPEN = "▸", "▾"
+
+#: What an environment is drawn with: a place rather than somebody, so not a dot.
+_ENV = "▤"
+
+#: How far across the graph a click opens or shuts an agent rather than only picking it out:
+#: the gutter and the side of a box, which is where its `▸` is.
+_FOLDS = 8
+
+#: What the two ways of drawing the run are called, on the switch above it and the status line.
+_VIEWS = {False: "graph", True: "list"}
 
 #: The mark against a line of the board. One mark, one kind of thing: whose a line is is said
 #: in words beside it and in the colour it is drawn, which is what a reader actually reads --
@@ -219,6 +262,9 @@ class Drawn(NamedTuple):
       reading: Whether its transcript is the one on the screen behind this sheet.
       unread: Whether it has said something since it was last looked at, which is the one
         thing on a box that says pressing enter on it is worth doing now.
+      of: For a session, the agent it is one of, which is what it hangs under; "" for an
+        agent.
+      env: For a session, the key of the environment it works in, or "" where nothing said.
     """
 
     who: str
@@ -227,6 +273,114 @@ class Drawn(NamedTuple):
     working: bool = False
     reading: bool = False
     unread: bool = False
+    of: str = ""
+    env: str = ""
+
+
+class Placed(NamedTuple):
+    """One environment of a run -- a workdir on a machine -- as the monitor draws it.
+
+    Not somebody: nothing is said to one and it keeps no transcript. It hangs under the
+    sessions that work in it, and is opened for what it is rather than read.
+
+    Attributes:
+      key: What it is known by: its role, and where it is.
+      role: The environment role of the flow it fills, or "" where nothing said.
+      kind: Which kind of machine: `local`, `ssh` or `docker`.
+      target: Which one of that kind -- the ssh host, the docker provider -- or "" for this
+        machine.
+      workdir: Where on it the sessions work.
+      given: What it was set up as, as `-e` spells it, or "" for one nobody set up here.
+      anchored: Whether the agents working in it run on this machine with what they run
+        landing on that one -- which is how every agent reaches a machine that is not this.
+      grants: The capabilities the flow declared for the role, by name.
+      needs: What the flow asks of the machine, in words: CPUs, memory, GPUs.
+      image: What a container for it is started from, or "" for the provider's own.
+      sessions: The sessions working in it, by key, in the order they opened.
+    """
+
+    key: str
+    role: str
+    kind: str
+    target: str = ""
+    workdir: str = ""
+    given: str = ""
+    anchored: bool = False
+    grants: tuple[str, ...] = ()
+    needs: tuple[str, ...] = ()
+    image: str = ""
+    sessions: tuple[str, ...] = ()
+
+
+def _where(place: Placed) -> str:
+    """Where an environment is, on one line: what kind of machine, which one, where on it."""
+    return _DOT.join(part for part in (place.kind, place.target, place.workdir) if part)
+
+
+def place_key(placed: Mapping[str, Any]) -> str:
+    """What one environment is known by, from what the run said of a session opened in it.
+
+    Its role and where it is, rather than its role alone: a worktree derived from an
+    environment fills the same role somewhere else, and it is somewhere else.
+
+    Args:
+      placed: What the run said: `role`, `kind`, `target` and `workdir`.
+
+    Returns:
+      The key, the same for every session working in the same place.
+    """
+    return "\x1f".join(
+        str(placed.get(part) or "") for part in ("role", "kind", "target", "workdir")
+    )
+
+
+@functools.lru_cache(maxsize=8)
+def declared_places(flow: str) -> tuple[EnvRole, ...]:
+    """Every environment role a flow declares, the workspace it runs in among them.
+
+    Read once per flow, since reading one means loading it, and this is asked each time the
+    graph is drawn.
+
+    Args:
+      flow: The flow, as it was named.
+
+    Returns:
+      The roles, and none for a flow that will not load -- whose environments are drawn for
+      where they are, with nothing said of what the flow declared of them.
+    """
+    from hmz.runtime.flowing import resolved
+
+    try:
+        return tuple(resolved(flow).describe().envs)
+    except Exception:  # noqa: BLE001 -- a flow that will not load is still not a crash
+        return ()
+
+
+#: Bytes in the unit memory is said in.
+_GIB = 1 << 30
+
+
+def needs(role: EnvRole) -> tuple[str, ...]:
+    """What an environment role asks of its machine, in words, for the page it opens to.
+
+    Args:
+      role: The role, as the flow declares it.
+
+    Returns:
+      One phrase per thing it asks for, and nothing for a role that asks nothing beyond a CPU.
+    """
+    return tuple(
+        said
+        for said in (
+            f"{role.cpu_count} CPUs" if role.cpu_count > 1 else "",
+            f"{role.memory / _GIB:g} GiB memory" if role.memory else "",
+            f"{role.gpu_count} GPU{'' if role.gpu_count == 1 else 's'}"
+            if role.gpu_count
+            else "",
+            f"{role.gpu_memory / _GIB:g} GiB per GPU" if role.gpu_memory else "",
+        )
+        if said
+    )
 
 
 class _Said(NamedTuple):
@@ -341,8 +495,41 @@ def _joins(down: int, up: int, *, live: bool = False) -> list[str]:
     return [f"[{'$secondary' if live else '$text-muted'}]{spine}   {ways}[/]"]
 
 
+def _across(width: int) -> int:
+    """How wide a box is drawn in a graph this wide, which is how wide the rows under it are."""
+    return max(_NARROWEST, min(_WIDEST, width - len(_INDENT) - 5))
+
+
+def _clock(shape: Shape, who: str, *, working: bool) -> str:
+    """How long a node has been at what it is doing, as the right of its row says it."""
+    clock = lasting(shape.since.get(who, 0.0))
+    return clock if working else f"{_IDLED} {clock}"
+
+
+def _flagged(one: Drawn) -> tuple[str, str]:
+    """What a node says about being read -- `reading`, `unread` or nothing -- and its colour."""
+    if one.reading:
+        return "reading", "$primary"
+    if one.unread:
+        return "unread", "$secondary"
+    return "", "$text-muted"
+
+
+def _spent(shape: Shape, who: str) -> str:
+    """How many tokens a node has spent, in words, or "" for none reported yet."""
+    used = shape.used.get(who, 0)
+    return f"{thousands(used)} tokens" if used else ""
+
+
 def diagram(
-    drawn: Sequence[Drawn], shape: Shape, width: int, here: str = ""
+    drawn: Sequence[Drawn],
+    shape: Shape,
+    width: int,
+    here: str = "",
+    *,
+    opened: Collection[str] = (),
+    sessions: Mapping[str, int] | None = None,
+    places: Mapping[str, Sequence[Placed]] | None = None,
 ) -> list[list[str]]:
     """The agents of a run and the handovers between them, as one box apiece.
 
@@ -365,12 +552,19 @@ def diagram(
         each of them has been at it.
       width: How much room there is across.
       here: The agent whose box the cursor is on, or "" for a cursor that is somewhere else.
+      opened: The agents opened out to their sessions, whose `▸` is turned down and whose
+        subagents hang under their sessions rather than under the box.
+      sessions: How many sessions each agent has worked in, said on its box where it is more
+        than one -- which is what opening it out would show.
+      places: The environments each agent's sessions work in, said on a line of the box.
 
     Returns:
       One block of lines per agent, in the same order: the arrows above it and then its box,
       so that a list of blocks is the diagram from top to bottom.
     """
-    across = max(_NARROWEST, min(_WIDEST, width - len(_INDENT) - 5))
+    across = _across(width)
+    sessions = sessions or {}
+    places = places or {}
     blocks: list[list[str]] = []
     for at, one in enumerate(drawn):
         before = drawn[at - 1].who if at else ""
@@ -384,47 +578,55 @@ def diagram(
             )
         )
         taken = shape.turns.get(one.who, 0)
-        clock = lasting(shape.since.get(one.who, 0.0))
-        tail, tailing = (
-            ("reading", "$primary")
-            if one.reading
-            else ("unread", "$secondary")
-            if one.unread
-            else ("", "$text-muted")
-        )
+        held = sessions.get(one.who, 0)
+        tail, tailing = _flagged(one)
+        said = [
+            _Said(
+                "$secondary" if one.working else "$foreground",
+                f"{_OPEN if one.who in opened else _SHUT} "
+                f"{_WORKING if one.working else _IDLE} "
+                # What the flow calls it, or the id cut down where it calls it nothing: one
+                # name, since two for the same thing is one said twice.
+                + (one.named or short(one.who)),
+                _clock(shape, one.who, working=one.working),
+                "$secondary" if one.working else "$text-muted",
+            ),
+            _Said(
+                "$text-muted",
+                _DOT.join(
+                    part
+                    for part in (
+                        one.runs,
+                        f"{taken} turn{'' if taken == 1 else 's'}" if taken else "",
+                        f"{held} sessions" if held > 1 else "",
+                        _spent(shape, one.who),
+                    )
+                    if part
+                ),
+                tail,
+                tailing,
+            ),
+        ]
+        if placed := places.get(one.who):
+            # Where its sessions work, named rather than spelled out: the whole of where one
+            # is -- the machine, the directory -- is on its own row, opened out.
+            said.append(
+                _Said(
+                    "$text-muted",
+                    _DOT.join(
+                        f"{_ENV} {at.role} {at.kind}"
+                        if at.role
+                        else f"{_ENV} {at.kind}"
+                        for at in placed
+                    ),
+                )
+            )
         block = (
             arrows
-            + _boxed(
-                [
-                    _Said(
-                        "$secondary" if one.working else "$foreground",
-                        f"{_WORKING if one.working else _IDLE} "
-                        # What the flow calls it, or the id cut down where it calls it
-                        # nothing: one name, since two for the same thing is one said twice.
-                        + (one.named or short(one.who)),
-                        clock if one.working else f"{_IDLED} {clock}",
-                        "$secondary" if one.working else "$text-muted",
-                    ),
-                    _Said(
-                        "$text-muted",
-                        _DOT.join(
-                            part
-                            for part in (
-                                one.runs,
-                                f"{taken} turn{'' if taken == 1 else 's'}"
-                                if taken
-                                else "",
-                            )
-                            if part
-                        ),
-                        tail,
-                        tailing,
-                    ),
-                ],
-                across,
-                here=one.who == here,
-            )
-            + fleet(shape.under.get(one.who, ()), across)
+            + _boxed(said, across, here=one.who == here)
+            # Under the box, where its sessions do not hang under it: opened out, each
+            # subagent is under the session that started it.
+            + ([] if one.who in opened else fleet(shape.under.get(one.who, ()), across))
         )
         # The marker goes beside the agent's name rather than against the top of its box: the
         # name is the line being read, and a marker on a border reads as part of the border.
@@ -472,6 +674,173 @@ def fleet(under: Sequence[Under], width: int) -> list[str]:
     if rest:
         lines.append(f"[$text-muted]  {_LAST_UNDER}{_FLEET_DONE} and {rest} more[/]")
     return lines
+
+
+def session_row(
+    one: Drawn, shape: Shape, width: int, *, here: bool = False, last: bool = False
+) -> str:
+    """One session of an agent opened out, hanging under its box, with its subagents under it.
+
+    A row rather than a box: a session is one of the things its agent is doing, so it is drawn
+    as a branch of that agent -- and it is still somebody, with a transcript to read and a
+    turn that may be open, so it says so the way a box does, its clock down the same column.
+
+    Args:
+      one: The session.
+      shape: The run a session at a time.
+      width: How much room there is across.
+      here: Whether the cursor is on it.
+      last: Whether it is the last of its agent's, which ends the branch it hangs on.
+
+    Returns:
+      The row, as markup, with a line under it for each agent it started of its own.
+    """
+    across = _across(width)
+    taken = shape.turns.get(one.who, 0)
+    flag, flagging = _flagged(one)
+    colour = "$secondary" if one.working else "$foreground"
+    clock = _clock(shape, one.who, working=one.working)
+    # The branch and the mark are six columns ahead of the words, and the clock ends where
+    # the clock of the box above it does, a side and a space short of the box's width, so
+    # the two read down one column.
+    room = across - 8
+    tail = _fits(clock, room)
+    flagged = _fits(flag, room - len(tail) - 3) if flag else ""
+    ahead = len(tail) + (len(flagged) + len(_DOT) if flagged else 0)
+    head = _fits(
+        _DOT.join(
+            part
+            for part in (
+                one.named.rpartition(_DOT)[2] or short(one.who),
+                f"{taken} turn{'' if taken == 1 else 's'}" if taken else "",
+                _spent(shape, one.who),
+            )
+            if part
+        ),
+        room - ahead - 1,
+    )
+    pad = " " * max(1, room - len(head) - ahead)
+    lines = [
+        f"{_marked(here=here)}[$text-muted]  {_LAST_UNDER if last else _UNDER}[/]"
+        f"[{colour}]{_WORKING if one.working else _IDLE}[/] [{colour}]{escape(head)}[/]"
+        f"{pad}"
+        + (f"[{flagging}]{escape(flagged)}[/][$text-muted]{_DOT}[/]" if flagged else "")
+        + f"[{'$secondary' if one.working else '$text-muted'}]{escape(tail)}[/]"
+    ]
+    stem = f"{_INDENT}[$text-muted]  {' ' if last else _BOX[5]} [/]"
+    lines += [stem + line for line in fleet(shape.under.get(one.who, ()), across - 4)]
+    return "\n".join(lines)
+
+
+def place_row(
+    place: Placed, width: int, *, here: bool = False, last: bool = False
+) -> str:
+    """The environment a session works in, on the row under that session.
+
+    Args:
+      place: The environment.
+      width: How much room there is across.
+      here: Whether the cursor is on it.
+      last: Whether the session above is the last of its agent's, so that the branch the
+        sessions hang on stops rather than running on past it.
+
+    Returns:
+      The row, as markup: which role of the flow it fills, and where it is.
+    """
+    room = _across(width) - 6
+    said = _fits(_DOT.join(part for part in (place.role, _where(place)) if part), room)
+    return (
+        f"{_marked(here=here)}[$text-muted]  {' ' if last else _BOX[5]}   {_ENV}[/] "
+        f"[$text-muted]{escape(said)}[/]"
+    )
+
+
+#: How wide the columns of the list are: the name, the turns, the clock and the tokens. What
+#: a node runs, or where an environment is, has whatever is left, since it is the one of
+#: them that is only read when it is looked for.
+_NAMED, _TURNS, _CLOCK, _TOKENS = 24, 11, 12, 10
+
+
+def _what_room(width: int) -> int:
+    """How wide the list's column of what a node runs is, which is what gives in a narrow one."""
+    rest = len(_INDENT) + 4 + _NAMED + _TURNS + _CLOCK + _TOKENS + 4
+    return max(0, min(30, width - rest))
+
+
+def columns(width: int) -> str:
+    """The row naming the columns of the list, which nothing lands on."""
+    what = _what_room(width)
+    return (
+        f"{_INDENT}    [$text-muted]{'node':<{_NAMED}}{'runs · where':<{what}}"
+        f"{'turns':>{_TURNS}}{'time':>{_CLOCK}}{'tokens':>{_TOKENS}}[/]"
+    )
+
+
+def listed_row(
+    width: int,
+    *,
+    mark: str,
+    named: str,
+    what: str,
+    turns: str,
+    clock: str,
+    tokens: str,
+    working: bool,
+    here: bool = False,
+    fold: str = "",
+    flag: tuple[str, str] = ("", "$text-muted"),
+) -> str:
+    """One node of the list, in its columns.
+
+    Args:
+      width: How much room there is across.
+      mark: What it wears: `●` or `○` for somebody, `▤` for an environment.
+      named: What it is called.
+      what: What it runs, or where it is.
+      turns: How many turns it has taken, or how many sessions work in it.
+      clock: How long it has been at what it is doing.
+      tokens: What it has spent.
+      working: Whether it is working, which is what colours it.
+      here: Whether the cursor is on it.
+      fold: `▸` or `▾` for an agent that opens out, and "" for anything else.
+      flag: `reading` or `unread`, and the colour to say it in, after the name.
+
+    Returns:
+      The row, as markup, its columns padded before anything is put round them.
+    """
+    room = _what_room(width)
+    said, flagging = flag
+    name = _fits(named, _NAMED - 1 - (len(said) + 1 if said else 0))
+    colour = "$secondary" if working else "$foreground"
+    lead = (
+        f"[{colour}]{escape(name)}[/]"
+        + (f" [{flagging}]{escape(said)}[/]" if said else "")
+        + " " * max(1, _NAMED - len(name) - (len(said) + 1 if said else 0))
+    )
+    return (
+        f"{_marked(here=here)}[$text-muted]{fold or ' '}[/] [{colour}]{mark}[/] {lead}"
+        f"[$text-muted]{escape(f'{_fits(what, room - 1):<{room}}{turns:>{_TURNS}}')}[/]"
+        f"[{'$secondary' if working else '$text-muted'}]"
+        f"{escape(f'{clock:>{_CLOCK}}')}[/]"
+        f"[$text-muted]{escape(f'{tokens:>{_TOKENS}}')}[/]"
+    )
+
+
+def floated[T](nodes: Sequence[tuple[bool, T]]) -> list[T]:
+    """Nodes in the order the list puts them: whatever is working first, the rest after.
+
+    Stable, so that nothing moves but what started or stopped: a list whose rows shuffled
+    among themselves each time a clock ticked would be one nobody could keep their place in.
+
+    Args:
+      nodes: Each node, as whether it is working and the node, in the order they come.
+
+    Returns:
+      The nodes, the working ones first, each half in the order it was given in.
+    """
+    return [node for working, node in nodes if working] + [
+        node for working, node in nodes if not working
+    ]
 
 
 def elsewhere(drawn: Sequence[Drawn], shape: Shape) -> list[str]:
@@ -640,12 +1009,166 @@ class Entry(Sheet[tuple[str, str]]):
         self.action_onward()
 
 
+class Place(Sheet[str]):
+    """One environment of a run, opened: what it is, what the flow may do in it, who works there.
+
+    A reading rather than a question. An environment keeps no transcript and nothing is said
+    to it, so what opening one is for is what the graph has no room for -- the whole of where
+    it is, what the flow declared of it, and which sessions work in it -- and the one thing
+    to do from here is read one of those. Kept live while it is up, as the graph under it is.
+    """
+
+    def __init__(
+        self,
+        key: str,
+        places: Callable[[], Sequence[Placed]],
+        sessions: Callable[[], Sequence[Drawn]],
+    ) -> None:
+        """Opens one environment.
+
+        Args:
+          key: Which, by its key.
+          places: The environments of the run, asked afresh each time this is drawn.
+          sessions: Every session of the run that has worked, asked afresh the same way.
+        """
+        super().__init__()
+        self._key = key
+        self._places = places
+        self._sessions = sessions
+
+    def _ask(self) -> None:
+        """Says which environment this is, and keeps saying how it stands."""
+        self._fill()
+        self.set_interval(_LIVE, self._fill)
+        self.query_one("#choices", OptionList).focus()
+
+    def _fill(self) -> None:
+        """Puts up what it is, and under that the sessions working in it."""
+        place = next((one for one in self._places() if one.key == self._key), None)
+        listing = self.query_one("#choices", OptionList)
+        if place is None:
+            # The run it was of has gone, and a new run's environments are not this one.
+            self.query_one("#about", Label).update(
+                "This environment is not in the run."
+            )
+            listing.set_options([])
+            self._footed(Key("esc", "back"))
+            return
+        self.query_one("#asked", Label).update(escape(place.role or place.kind))
+        self.query_one("#about", Label).update(
+            "An environment of the run: where its sessions work."
+        )
+        by = {one.who: one for one in self._sessions()}
+        using = [by.get(key, Drawn(key)) for key in place.sessions]
+        working = sum(one.working for one in using)
+        facts = [
+            ("kind", place.kind.upper()),
+            ("target", place.target or "this machine"),
+            ("workdir", place.workdir),
+            ("set up as", place.given),
+            ("image", place.image),
+            ("grants", ", ".join(place.grants) or "nothing beyond running in it"),
+            ("needs", _DOT.join(place.needs)),
+            (
+                "harness",
+                "on this machine; what it runs lands here"
+                if place.anchored
+                else "on this machine, in this workdir",
+            ),
+            (
+                "status",
+                (
+                    f"{working} of {len(using)} session{'' if len(using) == 1 else 's'} "
+                    "working"
+                ),
+            ),
+        ]
+        at = self.under()
+        landing = at if at in place.sessions else next(iter(place.sessions), "")
+        rows = [
+            Option(
+                f"{_INDENT}  [$text-muted]{field:<{_FIELD}}[/]{escape(value)}",
+                disabled=True,
+            )
+            for field, value in facts
+            if value
+        ]
+        rows.append(Option(f"{_INDENT}  [$primary]Sessions[/]", disabled=True))
+        rows += [
+            Option(
+                f"{_marked(here=one.who == landing)}  "
+                f"[{'$secondary' if one.working else '$text-muted'}]"
+                f"{_WORKING if one.working else _IDLE}[/] "
+                f"{escape(one.named or one.who)}"
+                + (f"{_DOT}[$text-muted]{escape(one.runs)}[/]" if one.runs else ""),
+                id=f"={one.who}",
+            )
+            for one in using
+        ]
+        listing.set_options(rows)
+        if landing:
+            listing.highlighted = len(rows) - len(using) + place.sessions.index(landing)
+            self._drawn = listing.highlighted
+        self._footed(Key("enter", "read session"), Key("esc", "back"))
+
+    @on(OptionList.OptionSelected)
+    def _took(self, event: OptionList.OptionSelected) -> None:
+        """Reads the session picked, enter or a click, which leaves the monitor for its log.
+
+        Args:
+          event: What was picked.
+        """
+        self.dismiss(str(event.option.id or "").removeprefix("="))
+
+
 #: What the row that puts a new line on the board is put up under: the board's own mark with
 #: no name after it, there being no line yet.
 _NEW = _ON_BOARD
 
-#: What the node mode is called on the status line, and what `ctrl+t` turns it to.
-_BY = {False: "agent", True: "session"}
+
+class _Graph(OptionList):
+    """The graph's list, which says where across it was clicked as well as on which row.
+
+    Because a click on an agent means two things. On its left edge, where its `▸` is, or on
+    one the cursor is already on, it opens the agent out to its sessions or shuts it again;
+    anywhere else it picks the agent out, and a second click straight after reads it.
+    """
+
+    #: Where across the last click landed, how many clicks in a row it was, and which row
+    #: the cursor was on before it, or None before any.
+    clicked: tuple[int, int, int | None] | None = None
+
+    async def _on_click(self, event: events.Click) -> None:
+        """Notes where the click landed, before the list picks the row as it would.
+
+        Only notes it: textual hands the click to the list's own handler after this one, as
+        it hands every event to each class that has a handler for it, and a second pick of
+        the row would be a second click.
+
+        Args:
+          event: The click.
+        """
+        at = event.get_content_offset(self)
+        self.clicked = (at.x if at is not None else 0, event.chain, self.highlighted)
+
+
+class _Switch(Static):
+    """One half of the switch above the graph: the graph, or the list. Clicked, it is drawn."""
+
+    def __init__(self, *, listed: bool) -> None:
+        """Makes one half.
+
+        Args:
+          listed: Whether it is the list's half.
+        """
+        super().__init__(_VIEWS[listed], id=f"as-{_VIEWS[listed]}")
+        self.listed = listed
+
+    def on_click(self) -> None:
+        """Draws the run the way this half says."""
+        screen = self.screen
+        if isinstance(screen, Monitoring):
+            screen.view(listed=self.listed)
 
 
 class _Row(NamedTuple):
@@ -668,7 +1191,7 @@ class _Row(NamedTuple):
 
 
 class Monitoring(Screen[str | None]):
-    """The run, drawn full screen: a node per agent or per session, and the board under it.
+    """The run, drawn full screen: a node per agent, opened out to its sessions, and the board.
 
     The graph is the screen. What somebody comes here for is the shape of the run and where it
     has got to -- which agent is thinking, how long it has been thinking, which way the work
@@ -676,19 +1199,28 @@ class Monitoring(Screen[str | None]):
     is written under it is only what a picture cannot say: the flows running, what this one
     was set up with, the handovers no arrow could be drawn for, and what has been spent.
 
+    An agent is one node however many sessions it opens, and opens out to them with space or
+    a click: each session a branch under its box, and under each the environment it works
+    in, which opens for what it is. Or the run is drawn as a list, which says nothing of who
+    handed to whom and puts whatever is working at the top -- the question a run of twelve
+    agents is watched to answer, and one a picture of twelve boxes answers slowly.
+
     It is where a log is picked to be read. The first node is every agent's log, selected
     when this opens, so enter reads the run whole; each node under it reads its own; `→` goes
     back to whichever was read last. A node stays for the rest of the run, working or not.
 
     And the prompt is under it, the same prompt as the log's: every command works here, and a
-    line typed goes where it would have gone from the log. The arrows and enter are the
-    graph's only while nothing is typed, since a line being written needs them back.
+    line typed goes where it would have gone from the log. The arrows, space and enter are
+    the graph's only while nothing is typed, since a line being written needs them back.
 
     Redrawn twice a second, since what it is about moves without anybody touching it. Answers
     with the view to read, or None for the one that was being read.
     """
 
     DEFAULT_CSS = """
+    #views { height: 1; padding: 0 2; background: $surface; }
+    #views > Static { width: auto; padding: 0 1; color: $text-muted; }
+    #views > Static.on { color: $primary; text-style: bold reverse; }
     #graph { height: 1fr; padding: 0 1; border: none; background: $surface; }
     #graph:focus { border: none; }
     #graph > .option-list--option-highlighted { background: $surface; text-style: none; }
@@ -703,15 +1235,16 @@ class Monitoring(Screen[str | None]):
         Binding("up", "step(-1)", "previous node", show=False, priority=True),
         Binding("down", "step(1)", "next node", show=False, priority=True),
         Binding("enter", "open", "open", show=False, priority=True),
+        Binding("space", "fold", "sessions", show=False, priority=True),
         Binding("right", "back", "back to the log", show=False, priority=True),
-        Binding("ctrl+t", "turn", "agents or sessions", show=False, priority=True),
+        Binding("ctrl+t", "turn", "graph or list", show=False, priority=True),
     ]
 
     def __init__(
         self,
         *,
         monitor: Callable[[], Monitor],
-        drawn: Callable[[bool], Sequence[Drawn]],
+        drawn: Callable[[], Sequence[Drawn]],
         setup: Callable[[], tuple[str, tuple[str, ...], list[Runs], BaseModel | None]],
         reading: Callable[[], str] = lambda: EVERY,
         board: Callable[[], BoardSeen | None] = lambda: None,
@@ -719,7 +1252,10 @@ class Monitoring(Screen[str | None]):
         calls: Callable[[], Sequence[Mapping[str, Any]]] = tuple,
         whose: Callable[[str], str] = lambda _: "",
         frontends: Callable[[], Sequence[str]] = tuple,
-        sessions: bool = False,
+        sessions: Callable[[], Sequence[Drawn]] = tuple,
+        places: Callable[[], Sequence[Placed]] = tuple,
+        listed: bool = False,
+        opened: MutableSet[str] | None = None,
         turned: Callable[[bool], None] = lambda _: None,
     ) -> None:
         """Watches the run, asking about it afresh each time it is drawn.
@@ -730,8 +1266,7 @@ class Monitoring(Screen[str | None]):
 
         Args:
           monitor: The run itself.
-          drawn: The nodes there are, in the order the flow takes them: one per agent, or one
-            per session where asked with True.
+          drawn: The agents there are, in the order the flow takes them.
           setup: The flow set up to run, what it calls each agent it drives, what each of
             them runs, and what it was set up with.
           reading: Which view the log was on, so the graph can say so.
@@ -742,9 +1277,12 @@ class Monitoring(Screen[str | None]):
           calls: The flow calls going, oldest first: the flow started and whatever it called.
           whose: Who holds an outworlder role to answer: `yours`, `<name>'s`, or "".
           frontends: Every frontend reading the runs, by name, this one said to be.
-          sessions: Whether to open on a node per session rather than per agent.
-          turned: Told which of the two `ctrl+t` turned it to, so the next time the monitor
-            opens it opens the way it was left.
+          sessions: The sessions there are, each saying whose it is and where it works.
+          places: The environments the run's sessions work in.
+          listed: Whether to open drawn as a list rather than as a graph.
+          opened: The agents opened out to their sessions. Held by whoever opens this and
+            changed where it stands, so the monitor opens again the way it was left.
+          turned: Told which of the two `ctrl+t` turned it to, for the same reason.
         """
         super().__init__()
         self._monitoring = monitor
@@ -757,9 +1295,22 @@ class Monitoring(Screen[str | None]):
         self._whose = whose
         self._frontends = frontends
         self._turned = turned
+        self._placing = places
+        self._branching = sessions
         self._boxes: list[Drawn] = []
-        #: Whether a node is a session rather than an agent, which `ctrl+t` turns.
-        self._sessions = sessions
+        #: Every session that has worked, and by key, as the graph was last drawn.
+        self._sessions: list[Drawn] = []
+        self._keyed: dict[str, Drawn] = {}
+        #: The environments, by key, as the graph was last drawn.
+        self._places: dict[str, Placed] = {}
+        #: The run a session at a time, taken where the run an agent at a time was.
+        self._by_session = Shape({}, frozenset(), {})
+        #: Whether this has answered already, and is on its way down to a log.
+        self._left = False
+        #: Whether the run is drawn as a list rather than as a graph, which `ctrl+t` turns.
+        self._listed = listed
+        #: The agents opened out, which space and a click change.
+        self._opened: MutableSet[str] = set() if opened is None else opened
         #: The last thing the interface said while this was up, where the log would have
         #: shown it: under the graph, until the next one.
         self._said = ""
@@ -780,7 +1331,9 @@ class Monitoring(Screen[str | None]):
         # Here rather than at the top: the interface imports this screen to open it.
         from .app import _YOURS, Editor
 
-        yield OptionList(id="graph")
+        # A switch across the top, the way it is drawn now lit: clicked, as `ctrl+t` turns it.
+        yield Horizontal(_Switch(listed=False), _Switch(listed=True), id="views")
+        yield _Graph(id="graph")
         yield Static(id="under")
         yield Choices(id="offers")
         yield Static(id="rule-above", classes="rule")
@@ -870,41 +1423,115 @@ class Monitoring(Screen[str | None]):
 
     def action_back(self) -> None:
         """Goes back to the log that was being read, which is what `→` is."""
-        self.dismiss(None)
+        self._leaves(None)
+
+    def _leaves(self, reading: str | None) -> None:
+        """Goes down to a log, once however many times it is asked for.
+
+        A double click is two clicks, and the second of them may land before the first has
+        taken this screen away: a second answer to it would pop whatever is under it.
+
+        Args:
+          reading: The view to read, or None for the one that was being read.
+        """
+        if self._left:
+            return
+        self._left = True
+        self.dismiss(reading)
 
     def action_turn(self) -> None:
-        """Draws a node per session where it drew one per agent, and the other way round."""
-        self._sessions = not self._sessions
-        self._turned(self._sessions)
-        self._ids = []  # every node is another node now, so the list is put up again
+        """Draws the run as a list where it was a graph, and the other way round."""
+        self.view(listed=not self._listed)
+
+    def view(self, *, listed: bool) -> None:
+        """Draws the run as a list or as a graph, whichever it was not drawn as already.
+
+        Args:
+          listed: Whether as a list.
+        """
+        if listed == self._listed:
+            return
+        self._listed = listed
+        self._turned(listed)
+        self._ids = []  # every row is another row now, so the list is put up again
         self._fill()
+
+    def action_fold(self) -> None:
+        """Opens the agent under the cursor out to its sessions, or shuts it again.
+
+        On one of its sessions, or the environment under one, it shuts the agent they hang
+        under and puts the cursor back on it: the way back up from a branch is the key that
+        went down it.
+        """
+        listing = self.query_one("#graph", OptionList)
+        at = listing.highlighted
+        if at is None or not 0 <= at < listing.option_count:
+            return
+        who = str(listing.get_option_at_index(at).id or "")
+        if any(one.who == who for one in self._boxes):
+            self._folds(who)
+            return
+        owner = self._owner(who)
+        if owner != who and owner in self._opened:
+            self._was = owner
+            self._folds(owner)
+
+    def _folds(self, agent: str) -> None:
+        """Opens one agent out, or shuts it, and draws it so.
+
+        Args:
+          agent: Which.
+        """
+        if agent in self._opened:
+            self._opened.discard(agent)
+        else:
+            self._opened.add(agent)
+        self._fill()
+
+    def _owner(self, who: str) -> str:
+        """The agent a row hangs under: a session's, an environment's session's, or itself.
+
+        Args:
+          who: The row's id.
+
+        Returns:
+          The agent, or the id as it was for a row that hangs under nobody.
+        """
+        if who.startswith(_PLACE):
+            who = who.partition(_AT)[2] or who
+        held = self._keyed.get(who)
+        return held.of if held is not None and held.of else who
 
     def _fill(self) -> None:
         """Draws the run as it stands, keeping the cursor on the node it was on.
 
         Drawn again rather than adjusted, because everything in it moves: an agent starts a
         turn, a handover happens, a clock ticks. The cursor is held by node rather than by
-        row so that it stays on the same box while that happens -- and, across `ctrl+t`, on
-        the agent a session is of or the first session of the agent it was on.
+        row so that it stays on the same box while that happens -- and, where the row it was
+        on has gone, on the agent that row hung under.
         """
         listing = self.query_one("#graph", OptionList)
         at = listing.highlighted
         if self._ids and at is not None and 0 <= at < listing.option_count:
             self._was = str(listing.get_option_at_index(at).id or EVERY)
-        self._boxes = list(self._boxing(self._sessions))
+        self._boxes = list(self._boxing())
+        self._sessions = list(self._branching())
+        self._keyed = {one.who: one for one in self._sessions}
+        self._places = {one.key: one for one in self._placing()}
         monitor = self._monitoring()
-        shape = monitor.shape(sessions=self._sessions)
+        shape = monitor.shape()
+        self._by_session = monitor.shape(sessions=True)
         rows = self._rows(monitor, shape)
         ids = [one.who for one in rows]
         if ids != self._ids:
-            role = self._was.partition("/")[0]
+            owner = self._owner(self._was)
             landed = next(
                 (one for one, who in enumerate(ids) if who == self._was),
                 next(
                     (
                         one
                         for one, row in enumerate(rows)
-                        if row.landing and row.who and row.who.partition("/")[0] == role
+                        if row.landing and row.who and self._owner(row.who) == owner
                     ),
                     0,
                 ),
@@ -928,6 +1555,8 @@ class Monitoring(Screen[str | None]):
                 if was != now:
                     listing.replace_option_prompt_at_index(one, now)
             self._shown = said
+        for half in self.query(_Switch).results(_Switch):
+            half.set_class(half.listed == self._listed, "on")
         self._says(monitor, shape)
         self._status()
 
@@ -939,12 +1568,12 @@ class Monitoring(Screen[str | None]):
           shape: The run as a graph, taken at the same moment the boxes were.
 
         Returns:
-          The first node, the outworlders, the diagram, and the board.
+          The first node, the outworlders, the diagram or the list, and the board.
         """
         return [
             self._every(monitor, shape),
             *self._outworlders(),
-            *self._agents(shape),
+            *(self._list(shape) if self._listed else self._agents(shape)),
             *self._lines(),
         ]
 
@@ -1004,8 +1633,10 @@ class Monitoring(Screen[str | None]):
 
         Returns:
           A row apiece, each holding the arrows above that node's box, the box, and whatever
-          it started of its own hanging under it -- and one row saying so where none has
-          worked yet, since a graph of a run that has not begun is a blank page otherwise.
+          it started of its own hanging under it; under an agent opened out, a row per
+          session and one for the environment each works in -- and one row saying so where
+          none has worked yet, since a graph of a run that has not begun is a blank page
+          otherwise.
         """
         if not self._boxes:
             return [
@@ -1016,14 +1647,171 @@ class Monitoring(Screen[str | None]):
                     landing=False,
                 )
             ]
-        return [
-            _Row(one.who, "\n".join(block))
-            for one, block in zip(
-                self._boxes,
-                diagram(self._boxes, shape, self.size.width, self._was),
-                strict=True,
+        width = self.size.width
+        held: dict[str, list[Drawn]] = {}
+        for one in self._sessions:
+            held.setdefault(one.of, []).append(one)
+        placed = {
+            agent: list(
+                {
+                    one.env: self._places[one.env]
+                    for one in sessions
+                    if one.env in self._places
+                }.values()
             )
-        ]
+            for agent, sessions in held.items()
+        }
+        rows: list[_Row] = []
+        for one, block in zip(
+            self._boxes,
+            diagram(
+                self._boxes,
+                shape,
+                width,
+                self._was,
+                opened=self._opened,
+                sessions={agent: len(sessions) for agent, sessions in held.items()},
+                places=placed,
+            ),
+            strict=True,
+        ):
+            rows.append(_Row(one.who, "\n".join(block)))
+            if one.who not in self._opened:
+                continue
+            sessions = held.get(one.who, [])
+            if not sessions:
+                rows.append(
+                    _Row(
+                        f"{_NOTHING}{one.who}",
+                        f"{_INDENT}  [$text-muted]{_LAST_UNDER}no session has said "
+                        "which it is[/]",
+                        landing=False,
+                    )
+                )
+            for at, session in enumerate(sessions):
+                last = at == len(sessions) - 1
+                rows.append(
+                    _Row(
+                        session.who,
+                        session_row(
+                            session,
+                            self._by_session,
+                            width,
+                            here=self._was == session.who,
+                            last=last,
+                        ),
+                    )
+                )
+                place = self._places.get(session.env)
+                if place is not None:
+                    key = f"{_PLACE}{place.key}{_AT}{session.who}"
+                    rows.append(
+                        _Row(
+                            key,
+                            place_row(place, width, here=self._was == key, last=last),
+                        )
+                    )
+        return rows
+
+    def _list(self, shape: Shape) -> list[_Row]:
+        """The run as a list: every node, whatever is working at the top, and no arrows.
+
+        What a run of a dozen agents is watched to find out -- who is doing something now --
+        without the picture of how they are joined, which is what takes the room. Agents,
+        the sessions of the ones opened out, and every environment, each a row of the same
+        columns.
+
+        Args:
+          shape: The run an agent at a time, taken at the same moment the boxes were.
+
+        Returns:
+          A row naming the columns, and a row per node.
+        """
+        width = self.size.width
+        nodes: list[tuple[bool, _Row]] = []
+        for one in self._boxes:
+            taken = shape.turns.get(one.who, 0)
+            nodes.append(
+                (
+                    one.working,
+                    _Row(
+                        one.who,
+                        listed_row(
+                            width,
+                            mark=_WORKING if one.working else _IDLE,
+                            named=one.named or short(one.who),
+                            what=one.runs,
+                            turns=f"{taken} turn{'' if taken == 1 else 's'}",
+                            clock=_clock(shape, one.who, working=one.working),
+                            tokens=thousands(shape.used.get(one.who, 0)),
+                            working=one.working,
+                            here=self._was == one.who,
+                            fold=_OPEN if one.who in self._opened else _SHUT,
+                            flag=_flagged(one),
+                        ),
+                    ),
+                )
+            )
+            if one.who not in self._opened:
+                continue
+            for session in self._sessions:
+                if session.of != one.who:
+                    continue
+                taken = self._by_session.turns.get(session.who, 0)
+                nodes.append(
+                    (
+                        session.working,
+                        _Row(
+                            session.who,
+                            listed_row(
+                                width,
+                                mark=_WORKING if session.working else _IDLE,
+                                named=session.named or session.who,
+                                what=session.runs,
+                                turns=f"{taken} turn{'' if taken == 1 else 's'}",
+                                clock=_clock(
+                                    self._by_session,
+                                    session.who,
+                                    working=session.working,
+                                ),
+                                tokens=thousands(
+                                    self._by_session.used.get(session.who, 0)
+                                ),
+                                working=session.working,
+                                here=self._was == session.who,
+                                flag=_flagged(session),
+                            ),
+                        ),
+                    )
+                )
+        for place in self._places.values():
+            key = f"{_PLACE}{place.key}"
+            working = any(
+                self._keyed[one].working for one in place.sessions if one in self._keyed
+            )
+            count = len(place.sessions)
+            nodes.append(
+                (
+                    working,
+                    _Row(
+                        key,
+                        listed_row(
+                            width,
+                            mark=_ENV,
+                            named=place.role or place.kind,
+                            what=_where(place),
+                            turns=f"{count} session{'' if count == 1 else 's'}",
+                            clock="",
+                            tokens="",
+                            working=working,
+                            here=self._was == key,
+                        ),
+                    ),
+                )
+            )
+        if not nodes:
+            return self._agents(shape)  # which says why there is nothing
+        return [_Row(_COLUMNS, columns(width), landing=False), *floated(nodes)]
 
     def _says(self, monitor: Monitor, shape: Shape) -> None:
         """Puts what the graph cannot say under it, which is not much, and that is the point.
@@ -1066,8 +1854,12 @@ class Monitoring(Screen[str | None]):
                 ),
             ],
             [
-                # Only the ones the boxes have no arrow for: the rest are drawn above.
-                ("Also", elsewhere(self._boxes, shape)),
+                # Only the ones the boxes have no arrow for: the rest are drawn above. And
+                # none on the list, which is drawn to say nothing of who handed to whom.
+                (
+                    "Also",
+                    [] if self._listed else elsewhere(self._boxes, shape),
+                ),
             ],
             [
                 (
@@ -1116,23 +1908,33 @@ class Monitoring(Screen[str | None]):
         """The status line under the prompt, which is the graph's where the log's would be.
 
         What the log's says about the run is on the first node here, so this says which
-        screen this is and how its nodes are drawn, and the keys that do something now.
+        screen this is and how its nodes are drawn, and the keys that do something now --
+        space among them only where the cursor is on something it opens or shuts.
         """
         from .app import _RULE
 
         width = self.size.width
         for ruled in self.query(".rule").results(Static):
             ruled.update(_RULE * width)
-        said = f"monitor{_DOT}by {_BY[self._sessions]}"
-        left = f"[$secondary]▣[/] monitor[$text-muted]{_DOT}by {_BY[self._sessions]}[/]"
+        said = f"monitor{_DOT}{_VIEWS[self._listed]}"
+        left = f"[$secondary]▣[/] monitor[$text-muted]{_DOT}{_VIEWS[self._listed]}[/]"
         if self._typed():
             keys = ["enter send", "ctrl+c clear"]
         else:
+            under = self._was
+            folding = (
+                ["space shut" if under in self._opened else "space sessions"]
+                if any(one.who == under for one in self._boxes)
+                else ["space shut"]
+                if self._owner(under) in self._opened and self._owner(under) != under
+                else []
+            )
             keys = [
                 "↑↓ node",
+                *folding,
                 "enter open",
                 "→ back",
-                f"ctrl+t by {_BY[not self._sessions]}",
+                f"ctrl+t {_VIEWS[not self._listed]}",
                 "/ commands",
             ]
         # Measured as drawn: the mark and a space ahead of the words, and the padding.
@@ -1203,21 +2005,39 @@ class Monitoring(Screen[str | None]):
 
     @on(OptionList.OptionSelected, "#graph")
     def _clicked(self, event: OptionList.OptionSelected) -> None:
-        """A click on a node means what enter on it means.
+        """A click on a node means what enter on it means -- but on an agent, what space does.
+
+        An agent opens out on its left edge, where its `▸` is, or where the cursor is already
+        on it; anywhere else a click only picks it out, and a second straight after reads it,
+        which is how a log is reached with the mouse alone.
 
         Args:
           event: The click, as the list says it.
         """
-        self._took(str(event.option.id or EVERY))
+        named = str(event.option.id or EVERY)
+        clicked = self.query_one("#graph", _Graph).clicked
+        if not any(one.who == named for one in self._boxes) or clicked is None:
+            self._took(named)
+            return
+        across, chain, before = clicked
+        if chain > 1:
+            self._took(named)
+        elif across < _FOLDS or before == event.option_index:
+            self._folds(named)
+        else:
+            self._fill()  # picked out, which the marker says
 
     def _took(self, named: str) -> None:
-        """Reads a node, or writes a line of the board: whichever row this was.
+        """Reads a node, opens an environment, or writes a line of the board.
 
         Args:
           named: The row's id.
         """
+        if named.startswith(_PLACE):
+            self._visits(named.removeprefix(_PLACE).partition(_AT)[0])
+            return
         if not named.startswith(_ON_BOARD):
-            self.dismiss(named)
+            self._leaves(named)
             return
         key = named.removeprefix(_ON_BOARD)
         board = self._boarding()
@@ -1227,6 +2047,23 @@ class Monitoring(Screen[str | None]):
             self._fill()
             return
         self._writes(key)
+
+    @work
+    async def _visits(self, key: str) -> None:
+        """Opens one environment, and reads the session picked on it, if one is.
+
+        Args:
+          key: Which environment.
+        """
+        showing = cast(
+            "App[None]",
+            self.app,  # pyright: ignore[reportUnknownMemberType]
+        )
+        picked = await showing.push_screen_wait(
+            Place(key, self._placing, self._branching)
+        )
+        if picked:
+            self._leaves(picked)
 
     @work
     async def _writes(self, key: str) -> None:

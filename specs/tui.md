@@ -107,6 +107,12 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 - MUST offer and run a command only where it works -- `/afk` anywhere but one agent's
   transcript, `/claim` only on an outworlder's, `/stop` only on the monitor and the shared
   transcript -- and refuse it elsewhere, saying where it works.
+- MUST offer and run a command only while it would do something -- `/stop` while a flow runs
+  and is not stopping, `/resume` while none is going and there is a run here to carry on,
+  `/btw` while there is somebody to ask, `/claim` and `/afk` not on an outworlder another
+  frontend holds, a flow to choose while none runs -- and refuse it otherwise, saying why; MUST
+  say what a command does, and which keys work, as things stand, and reconsider both the moment
+  the run or the view changes.
 - MUST offer on the flowverses page of `/settings`, per place flows come from, what it holds,
   adding one, fetching it again and taking one away, against the same store the flows are read
   from, with any credential in a URL hidden.
@@ -140,13 +146,18 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   over the log's own prompt, where every command works, with a graph status line in place of the
   log's; reached by `←` on an empty prompt and never by `esc` or a command, and left by `→` on an
   empty prompt for the log last read.
-- MUST draw the run on the monitor as a box per agent in the flow's order, or per session after
-  `ctrl+t`, with the handovers between them — only nodes that have taken a turn, marked as working
-  or as having something unread — never refused while a flow runs, redrawn as the run moves, every
-  clock stopping where the run stopped.
+- MUST draw the run on the monitor as a graph — a box per agent in the flow's order with the
+  handovers between them, each opened out to its sessions and shut again by `space` or a click
+  on its edge or on it already picked — or, by `ctrl+t` or a click on the switch above it, as a
+  list of the same nodes without the handovers, the working ones first and the rest in order —
+  only nodes that have taken a turn, marked as working or as having something unread — never
+  refused while a flow runs, redrawn as the run moves, every clock stopping where the run stopped.
+- MUST show the environment each session works in under that session, as a node that opens to a
+  page of its own — its kind, where it is, what the flow declared of it and the sessions working
+  in it, live — from which a session is read.
 - MUST lead the monitor with a node for every agent's log, selected when it opens, then a node per
-  outworlder, and read any node — working or ended — with enter or a click, the arrows moving
-  between nodes while nothing is typed.
+  outworlder, and read any node — working or ended — with enter or a click, two on an agent, the
+  arrows moving between nodes while nothing is typed.
 - MUST report spend per model, by kind of token and never as one total over the kinds, in an
   order that does not change, money beside tokens where known and tokens alone where not, marking
   a figure that is only a floor, and the rate as output tokens a second.
@@ -200,7 +211,8 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
 | `backspace` | `/settings` | on a page, out to its pages |
 | `←`, `→` | log, monitor | on an empty prompt: up to the monitor; back to the log last read |
 | `↑`, `↓`, `enter` | monitor | on an empty prompt: the node before or after; read it |
-| `ctrl+t` | monitor | a node per agent or per session |
+| `space` | monitor | on an empty prompt: open an agent out to its sessions, or shut it |
+| `ctrl+t` | monitor | the graph or the list |
 | `ctrl+c` | app | take back the nearest thing; twice stops the flow |
 | `ctrl+q` | app | what `/exit` does |
 | `↑`, `↓` | sheets | walk the rows, round the ends; on a `/settings` form, keeping the row being written |

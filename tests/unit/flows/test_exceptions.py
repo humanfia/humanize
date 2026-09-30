@@ -64,6 +64,7 @@ TREE: dict[str, type[Exception]] = {
     "WorktreeError": EnvError,
     "TempCloneBusy": EnvError,
     "ScratchError": EnvError,
+    "RewindError": EnvError,
 }
 
 #: The ones that are a builtin too, so that the builtin's `except` catches them.

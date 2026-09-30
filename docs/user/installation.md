@@ -106,14 +106,14 @@ npm i -g @mimo-ai/cli
 mimo auth login
 ```
 
+```sh [MiniMax Code]
+npm i -g @minimax-ai/code
+mcode login                    # or a MiniMax API key: mcode provider set-minimax-key
+```
+
 ```sh [pi]
 npm i -g @earendil-works/pi-coding-agent
 pi                             # then /login, and /exit once you are signed in
-```
-
-```sh [ZCode]
-# Linux: install the package and add a launcher, as in "ZCode" below. Then:
-zcode login                    # no browser here? zcode login --no-browser
 ```
 
 ```sh [DeepSeek Harness]
@@ -167,32 +167,12 @@ it found is not signed in and cannot say what it runs. Typing a task then says
 shell finds:
 
 ```sh
-command -v agy claude codex cursor-agent grok kimi mimo opencode pi qwen zcode
+command -v agy claude codex cursor-agent grok kimi mcode mimo opencode pi qwen
 ```
 
 Leave with `/exit`. Now make your [first run](/user/first-run).
 
 ## Notes on particular backends
-
-<div id="zcode-wants-a-launcher-of-its-own"></div>
-
-::: details ZCode: the command line needs a launcher
-ZCode's Linux package installs the desktop app. The command line is bundled inside it, so add
-a launcher that runs it:
-
-```sh
-curl -fsSLO https://cdn-zcode.z.ai/zcode/electron/releases/3.11.2/linux-x64/ZCode-3.11.2-linux-x64.deb
-sudo apt install -y ./ZCode-3.11.2-linux-x64.deb
-printf '#!/bin/sh\nELECTRON_RUN_AS_NODE=1 exec /opt/ZCode/zcode /opt/ZCode/resources/glm/zcode.cjs "$@"\n' \
-  | sudo tee /usr/local/bin/zcode >/dev/null
-sudo chmod +x /usr/local/bin/zcode
-zcode --version
-```
-
-A newer release is the same URL with the version changed. The `.rpm`, the `.AppImage` and the
-arm64 builds are in the same directory. Without `apt`, install one of those and point the
-launcher at wherever `resources/glm/zcode.cjs` landed.
-:::
 
 ::: details DeepSeek Harness: the key, the models and the platforms
 The `[dsh]` extra installs on Linux (x86-64 and arm64) and on macOS (arm64).

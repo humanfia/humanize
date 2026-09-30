@@ -149,6 +149,36 @@ An empty directory beside the workdir, on the same machine: somewhere for the fl
 it writes for itself, out of the repository. The same id is the same directory.
 `destroy_scratch` removes it now. One that cannot be made or removed raises `ScratchError`.
 
+## Snapshots and rewinding
+
+Rather than a copy to try something in, put the workdir itself back afterwards:
+
+```python
+from hmz.flows import GitEnvMixin, LocalEnv
+
+
+class Workspace(LocalEnv, GitEnvMixin): ...
+```
+
+```python
+before = await workspace.snapshot()
+await agent.run("try the risky refactor", session=session)
+if not await passes():
+    await workspace.rewind(before)  # as if it never had
+```
+
+A snapshot is the whole git worktree as it is, untracked files and the index included,
+kept as a commit under `refs/hmz/snapshots/` without touching anything checked out.
+`rewind` puts it back: the commit that was checked out, the index and the files, with
+whatever came since removed, commits included. It also takes any ref git knows, such
+as `rewind("HEAD~1")` or a tag, and then behaves like `git reset --hard` followed by
+`git clean`. Files git ignores are left alone either way.
+
+The workdir has to be in a git repository, and the machine needs `git` on its PATH.
+A run on one without is refused before it starts, which matters most for a container:
+`python:3.12-slim` has no git, and `python:3.12` does. See
+[Reference › Snapshots and rewinding](/reference/flows#snapshots-and-rewinding).
+
 ## How long they last
 
 A temporary copy or scratch directory is removed when the flow call that made it ends, and

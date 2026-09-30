@@ -210,7 +210,7 @@ def test_a_gateway_that_is_down_keeps_the_catalogue_it_served_rather_than_the_cl
 def test_a_backend_whose_ids_are_a_providers_is_never_asked_an_endpoint(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """opencode, mimocode, pi and zcode name a model `provider/id`, out of several at once.
+    """opencode, mimocode and pi name a model `provider/id`, out of several at once.
 
     An endpoint would answer with the ids of the one it fronts, without the provider that
     says which of them serves it -- a list of models that CLI cannot name, which is the

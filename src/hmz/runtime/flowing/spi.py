@@ -43,6 +43,7 @@ from hmz.flows import (
     AskUserHookAgentMixin,
     BashEnvMixin,
     FilesEnvMixin,
+    GitEnvMixin,
     GitWorktreeEnvMixin,
     GoalCommandAgentMixin,
     HookKind,
@@ -111,12 +112,14 @@ AGENT_CAPABILITIES: frozenset[type] = frozenset(
 
 #: Every behaviour an environment role can be declared with, which is every capability an
 #: :class:`EnvDriver` can list. The resource mixins -- CPUs, memory, GPUs -- are not among
-#: them: those are amounts, compared against what a driver reports rather than listed.
+#: them: those are amounts, compared against what a driver reports rather than listed. Nor
+#: is `RewindableEnvMixin`, an interface only: what is granted is the mixin implementing it.
 ENV_CAPABILITIES: frozenset[type] = frozenset(
     {
         ShellEnvMixin,
         BashEnvMixin,
         FilesEnvMixin,
+        GitEnvMixin,
         GitWorktreeEnvMixin,
         TemporaryClonedDirEnvMixin,
         ScratchDirEnvMixin,
@@ -160,12 +163,15 @@ class Placement:
         whoever ssh logs in as.
       machine: How coganchor reaches that machine for an agent whose turns land there, or
         None for this machine.
+      env: The environment role of the flow the session was opened in, or "" where nothing
+        said -- which is what tells two places on one machine apart to whoever watches.
     """
 
     backend: EnvBackendKind
     provider: str
     workdir: PurePosixPath
     machine: MachineConfig | None = None
+    env: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -740,6 +746,36 @@ class EnvDriver(Protocol):
 
         Raises:
           WorktreeError: Not a repository, an unknown ref, or a directory that is taken.
+        """
+        ...
+
+    async def snapshot(self, name: str | None) -> str:
+        """Records the git worktree the workdir is in as it is, as a commit kept under a ref.
+
+        Args:
+          name: What to keep it under, below `refs/hmz/snapshots/`; None for a fresh name.
+
+        Returns:
+          The ref, `refs/hmz/snapshots/<name>`.
+
+        Raises:
+          RewindError: Not a worktree, a name git keeps no ref under, or git said no.
+        """
+        ...
+
+    async def rewind(self, ref: str) -> None:
+        """Puts the git worktree the workdir is in back as a ref, or a snapshot, has it.
+
+        Raises:
+          RewindError: Not a worktree, an unknown ref, or git said no.
+        """
+        ...
+
+    async def snapshots(self) -> list[str]:
+        """The refs of the snapshots the repository keeps, the oldest first.
+
+        Raises:
+          RewindError: Not a worktree.
         """
         ...
 

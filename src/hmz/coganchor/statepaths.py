@@ -61,6 +61,12 @@ PROFILES: tuple[AgentProfile, ...] = (
         name="kimi",
         state_paths=("~/.kimi-code", "~/.kimi"),
     ),
+    # MiniMax Code keeps its settings, its sign-in, its sessions and the runtime it serves
+    # them from under one directory, and read the one it used to be called before that.
+    AgentProfile(
+        name="mcode",
+        state_paths=("~/.minimax", "~/.mavis"),
+    ),
     AgentProfile(
         name="qwen",
         state_paths=("~/.qwen",),
@@ -92,13 +98,6 @@ PROFILES: tuple[AgentProfile, ...] = (
             "~/.cache/mimocode",
             "~/.local/state/mimocode",
         ),
-    ),
-    # One directory, holding both halves of ZCode: `cli/` is the command line's own settings,
-    # sessions and rollouts, and `v2/` is what it shares with the desktop app, the login among
-    # it. Both stay on this machine, as every other agent's state does.
-    AgentProfile(
-        name="zcode",
-        state_paths=("~/.zcode",),
     ),
 )
 

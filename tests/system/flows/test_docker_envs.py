@@ -450,6 +450,109 @@ async def test_a_role_asking_more_gpus_than_there_are_is_refused_before_starting
     assert _ours() == []
 
 
+# ------------------------------------------------------------------------------ snapshots
+
+#: A flow that snapshots its container's workdir, changes it, and rewinds it: to the snapshot,
+#: then a commit back. It writes what it found along the way to `seen.json`, which the
+#: rewind to the commit leaves alone as the repository ignores it.
+_REWINDS = """
+import json
+
+from hmz.flows import AgentCollection, Env, EnvCollection, FilesEnvMixin, FlowParams
+from hmz.flows import GitEnvMixin, ImageEnvMixin, flow
+
+
+class Repo(Env, FilesEnvMixin, GitEnvMixin, ImageEnvMixin):
+    _image = "IMAGE"
+
+
+class Envs(EnvCollection):
+    repo: Repo
+
+
+@flow(agents=AgentCollection, envs=Envs, params=FlowParams)
+async def rewinds(task, *, agents, envs, params, ctx):
+    repo = envs["repo"]
+    seen = {}
+    ref = await repo.snapshot("before")
+    await repo.write("file.txt", b"changed")
+    await repo.write("added.txt", b"added")
+    await repo.rewind(ref)
+    seen["file"] = (await repo.read("file.txt")).decode()
+    seen["added"] = await _has(repo, "added.txt")
+    await repo.rewind("HEAD~1")
+    seen["first"] = (await repo.read("file.txt")).decode()
+    seen["snapshots"] = await repo.snapshots()
+    await repo.write("seen.json", json.dumps(seen).encode())
+
+
+async def _has(repo, path):
+    try:
+        await repo.read(path)
+    except FileNotFoundError:
+        return False
+    return True
+"""
+
+
+def _two_commits(at: Path) -> None:
+    at.mkdir()
+    _git(at, "init", "-q")
+    (at / ".gitignore").write_text("seen.json\n")
+    (at / "file.txt").write_text("first\n")
+    _git(at, "add", ".")
+    _git(at, "commit", "-q", "-m", "first")
+    (at / "file.txt").write_text("second\n")
+    _git(at, "commit", "-qam", "second")
+
+
+@pytest.mark.timeout(300)
+def test_a_container_with_git_snapshots_and_rewinds(
+    daemon: None, tmp_path: Path
+) -> None:
+    _image("python:3.12")
+    flow = written(
+        tmp_path / "flows", "rewinds", _REWINDS.replace("IMAGE", "python:3.12")
+    )
+    repo = tmp_path / "repo"
+    _two_commits(repo)
+
+    run = _hmz(flow, f"repo=docker@local{repo}", "go", tmp_path)
+    _, err = run.communicate(timeout=240)
+
+    assert run.returncode == 0, err
+    assert json.loads((repo / "seen.json").read_text()) == {
+        "file": "second\n",
+        "added": False,
+        "first": "first\n",
+        "snapshots": ["refs/hmz/snapshots/before"],
+    }
+
+
+@pytest.mark.timeout(300)
+def test_a_container_without_git_is_refused_before_the_flow_runs(
+    daemon: None, tmp_path: Path
+) -> None:
+    flow = written(tmp_path / "flows", "rewinds", _REWINDS.replace("IMAGE", IMAGE))
+    repo = tmp_path / "repo"
+    _two_commits(repo)
+
+    run = _hmz(flow, f"repo=docker@local{repo}", "go", tmp_path)
+    _, refused = run.communicate(timeout=240)
+
+    assert run.returncode == 2, refused
+    assert "'repo' needs GitEnvMixin" in refused, refused
+    assert "needs git on the machine's PATH" in refused, refused
+    assert not (repo / "seen.json").exists()
+    assert _git_out(repo, "for-each-ref", "refs/hmz") == ""
+
+
+def _git_out(cwd: Path, *argv: str) -> str:
+    return subprocess.run(
+        ["git", *argv], cwd=cwd, check=True, capture_output=True, text=True
+    ).stdout
+
+
 # ------------------------------------------------------------------------ daemons elsewhere
 
 

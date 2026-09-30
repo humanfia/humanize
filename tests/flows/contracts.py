@@ -32,11 +32,13 @@ from hmz.flows import (
     EnvCommandTimeout,
     EnvFileNotFound,
     FilesEnvMixin,
+    GitEnvMixin,
     GitWorktreeEnvMixin,
     HarnessKind,
     HookKind,
     HookResult,
     Permission,
+    RewindError,
     ScratchDirEnvMixin,
     SessionError,
     ShellEnvMixin,
@@ -332,14 +334,14 @@ async def check_env_driver(
     """Holds an environment driver to what :mod:`hmz.runtime.flowing.spi` promises.
 
     Checks what it says about itself, then each capability it lists: commands and their
-    timeouts, files, subdirectories, worktrees, temporary copies and their holders, scratch
-    directories. Leaves `contract/` under the workdir behind it, and closes the driver and
-    everything derived from it, whether or not it passed.
+    timeouts, files, subdirectories, worktrees, snapshots, temporary copies and their
+    holders, scratch directories. Leaves `contract/` under the workdir behind it, and closes
+    the driver and everything derived from it, whether or not it passed.
 
     Args:
       driver: The driver, whose workdir is writable and which the check closes.
       repo: Whether the workdir is in a git repository with a commit, which is what checking
-        worktrees takes. Worktrees are not checked without one.
+        worktrees and snapshots takes. Neither is checked without one.
       settle: How many seconds a command is given to be under way before it is timed out or
         cancelled.
     """
@@ -369,6 +371,8 @@ async def check_env_driver(
         await _subdirs(driver, closing)
         if GitWorktreeEnvMixin in capabilities and repo:
             await _worktrees(driver, closing)
+        if GitEnvMixin in capabilities and repo:
+            await _rewinds(driver)
         if TemporaryClonedDirEnvMixin in capabilities:
             await _clones(driver, closing)
         if ScratchDirEnvMixin in capabilities:
@@ -447,6 +451,26 @@ async def _worktrees(driver: EnvDriver, closing: contextlib.AsyncExitStack) -> N
         assert said[:2] == (0, "true\n"), said
     with pytest.raises(WorktreeError):
         await driver.derive_worktree(ref="no-such-ref-anywhere", dir=None)
+
+
+async def _rewinds(driver: EnvDriver) -> None:
+    """Snapshots the workdir, changes it, and rewinds it; is refused a ref nobody has."""
+    ref = await driver.snapshot("contract")
+    assert ref == "refs/hmz/snapshots/contract", ref
+    assert ref in await driver.snapshots()
+    if FilesEnvMixin in driver.capabilities:
+        before = await driver.read("contract/deep/a.bin")
+        await driver.write("contract/deep/a.bin", b"changed")
+        await driver.write("contract/added.bin", b"added")
+        await driver.rewind(ref)
+        got = await driver.read("contract/deep/a.bin")
+        assert got == before, "a rewind left a change behind"
+        with pytest.raises(EnvFileNotFound):
+            await driver.read("contract/added.bin")
+    else:
+        await driver.rewind(ref)
+    with pytest.raises(RewindError):
+        await driver.rewind("no-such-ref-anywhere")
 
 
 async def _clones(driver: EnvDriver, closing: contextlib.AsyncExitStack) -> None:

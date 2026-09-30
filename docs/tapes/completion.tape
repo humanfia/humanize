@@ -21,7 +21,7 @@ Show
 
 Sleep 400ms
 
-# `/` lists every command, with what it takes and what it is for.
+# `/` lists every command that works now, with what it takes and what it is for.
 Type "/"
 Sleep 2200ms
 Down

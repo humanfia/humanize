@@ -77,9 +77,9 @@ All of these import from `hmz.flows`.
 | Permissions | [`Permission`](#permission), [`PermissionKind`](#permissionkind) |
 | Budgets | [`Budget`](#budget), [`Usage`](#usage) |
 | Environments | [`EnvCollection`](#envcollection), [`Env`](#env), [`LocalEnv`](#localenv), [`EnvBackendKind`](#envbackendkind), [`SequenceNotStr`](#sequencenotstr) |
-| Environment mixins | [`ShellEnvMixin`, `BashEnvMixin`, `FilesEnvMixin`](#what-an-environment-can-do), [`GitWorktreeEnvMixin`, `TemporaryClonedDirEnvMixin`, `ScratchDirEnvMixin`](#worktrees-copies-and-scratch-directories), [`CPUEnvMixin`, `MemoryEnvMixin`, `GPUEnvMixin`, `ImageEnvMixin`](#what-a-machine-must-have) |
+| Environment mixins | [`ShellEnvMixin`, `BashEnvMixin`, `FilesEnvMixin`](#what-an-environment-can-do), [`GitWorktreeEnvMixin`, `TemporaryClonedDirEnvMixin`, `ScratchDirEnvMixin`](#worktrees-copies-and-scratch-directories), [`RewindableEnvMixin`, `GitEnvMixin`](#snapshots-and-rewinding), [`CPUEnvMixin`, `MemoryEnvMixin`, `GPUEnvMixin`, `ImageEnvMixin`](#what-a-machine-must-have) |
 | Hooks | [`HookKind`](#hookkind), [`HookFn`](#hookfn), [`HookParams`, `HookResult`](#hookparams-and-hookresult), [`HOOK_TYPES`](#hook-types), and a [`<Moment>HookParams` and `<Moment>HookResult`](#hooks-in-a-flow) pair per moment |
-| Errors | [`FlowException`](#when-something-goes-wrong) and the 44 classes under it |
+| Errors | [`FlowException`](#when-something-goes-wrong) and the 45 classes under it |
 
 **Agents, environments, sessions and the context are protocols**, not base classes. At run
 time a flow is handed the runtime's own object for each role, granted exactly what the role
@@ -282,9 +282,9 @@ class Reviewer(Agent):
 | `claude` | Claude Code | | `kimi` | Kimi Code |
 | `codex` | Codex | | `grok` | Grok Build |
 | `cursor-agent` | Cursor Agent | | `pi` | pi |
-| `opencode` | opencode | | `zcode` | ZCode |
-| `mimo` | MiMo Code | | `agy` | Antigravity |
-| `qwen` | Qwen Code | | `dsh` | DeepSeek Harness |
+| `opencode` | opencode | | `agy` | Antigravity |
+| `mimo` | MiMo Code | | `dsh` | DeepSeek Harness |
+| `qwen` | Qwen Code | | `mcode` | MiniMax Code |
 | `acp` | a CLI added on the Accounts page of `/settings`, driven over the Agent Client Protocol | | | |
 
 ## Asking for an agent that can do something {#asking-for-an-agent-that-can-do-something}
@@ -330,7 +330,7 @@ A calling flow that passes an agent lacking a mixin gets `CapabilityMissing` ins
 
 **At every use.** Using what the role did not declare raises `CapabilityNotGranted`, whatever
 the harness could do: a `/goal` or `/loop` prompt, `steer`, one of the four mixin hooks, a
-script `exec`, files, worktrees, copies or scratch directories.
+script `exec`, files, worktrees, snapshots, copies or scratch directories.
 
 ```
 agent: steer needs SteeringAgentMixin on the role
@@ -345,19 +345,18 @@ agent: steer needs SteeringAgentMixin on the role
 | `claude` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | any workdir |
 | `codex` | ✓ | | ✓ | ✓ | ✓ | ✓ | any workdir |
 | `kimi` | ✓ | | ✓ | ✓ | | ✓ | any workdir |
-| `zcode` | ✓ | | | ✓ | | ✓ | any workdir |
 | `pi` | | | ✓ | | | ✓ | same workdir |
 | `dsh` | ✓ | | | | | | no |
-| `cursor-agent` | | | | | ✓ | | no |
+| `cursor-agent` `mcode` | | | | | ✓ | | no |
 | `grok` `opencode` `mimo` `qwen` `acp` | | | | | | | same workdir |
 | `agy` | | | | | | | no |
 
 </div>
 
 <span id="harness-agents"></span>Each harness also has a protocol of its own that declares
-exactly that row: `ClaudeCodeAgent`, `CodexAgent`, `KimiCodeAgent`, `ZCodeAgent`, `PiAgent`,
-`DeepSeekHarnessAgent`, `CursorAgent`, `GrokBuildAgent`, `OpenCodeAgent`, `MiMoCodeAgent`,
-`QwenCodeAgent` and `AntigravityAgent`. `HARNESS_AGENTS` maps each `HarnessKind` to its
+exactly that row: `ClaudeCodeAgent`, `CodexAgent`, `KimiCodeAgent`, `PiAgent`,
+`DeepSeekHarnessAgent`, `CursorAgent`, `MiniMaxCodeAgent`, `GrokBuildAgent`, `OpenCodeAgent`,
+`MiMoCodeAgent`, `QwenCodeAgent` and `AntigravityAgent`. `HARNESS_AGENTS` maps each `HarnessKind` to its
 protocol, and `acp` to plain `Agent`.
 
 A role typed as one of them asks for **that harness** and everything it serves. Any other
@@ -474,13 +473,13 @@ default) but refuses one at `NONE`.
 | `claude` | external (Landlock + proxy); its own sandbox holds only its Bash tool, so it is not used | external (Landlock + proxy), and `WebSearch`, `WebFetch` refused by rule, since the search runs at the model API |
 | `codex` | external (Landlock + proxy) | external (Landlock + proxy); web search and ChatGPT apps off natively; at `local` `READ` with `online` `ALL`, its `read-only` sandbox is told to leave commands the network |
 | `cursor-agent` | external (Landlock + proxy); its own sandbox holds only its shell commands, and cannot start without a user namespace | `NONE` is refused: its web search and fetch run on Cursor's servers, through the hosts its model is at, and cannot be switched off |
+| `mcode` | external (Landlock + proxy); it has no sandbox of its own | `NONE` is refused: its web search runs on MiniMax's own service, through the hosts its model is at, and cannot be switched off |
 | `opencode` | external (Landlock + proxy); its file tools also refuse outside the fence | external (Landlock + proxy); its web tools are taken away offline |
 | `mimo` | external (Landlock + proxy); its file tools also refuse outside the fence | external (Landlock + proxy); its web tools are taken away offline |
 | `qwen` | external (Landlock + proxy) | external (Landlock + proxy); `web_search` and `web_fetch` withheld |
 | `kimi` | external (Landlock + proxy) | external (Landlock + proxy; its daemon may bind its one port) |
 | `grok` | external (Landlock + proxy); its own sandbox writes `/tmp` | external (Landlock + proxy); its own sandbox cannot hold it, and `--disable-web-search` takes its web tools away offline |
 | `pi` | external (Landlock + proxy) | external (Landlock + proxy), started `--offline`; the gateways its `models.json` declares stay reachable |
-| `zcode` | external (Landlock + proxy); a write outside it refused at approval | external (Landlock + proxy); web tools denied |
 | `agy` | external (Landlock + proxy); its `--sandbox` holds only its commands | external (Landlock + proxy), and its web tools taken away |
 | `dsh` | external (Landlock + proxy) | external (Landlock + proxy) |
 | `acp` | external (Landlock + proxy), plus the `state` declared for it | external (Landlock + proxy), to the `hosts` declared for it; `NONE` with none declared is refused |
@@ -500,14 +499,15 @@ by number, since nothing inside the fence can resolve a name.
 
 **The rung.**
 
-| `local` | every harness but `dsh` and `acp` | `dsh`, `acp` |
+| `local` | every harness but `dsh`, `mcode` and `acp` | `dsh`, `mcode`, `acp` |
 | --- | --- | --- |
 | `READ` or `NONE` | the CLI's read-only rung: Claude Code's `plan`, Codex's read-only sandbox, a tool list with nothing that writes | `bypass` |
 | `ALL` | `bypass` | `bypass` |
 
-- **`dsh` and `acp`** can be held to no rung but `bypass`. The fence holds them to the scopes.
+- **`dsh` and `acp`** can be held to no rung but `bypass`, and `mcode` to none that is
+  read-only. The fence holds them to the scopes.
 - **`online`** also switches the CLI's own web tools: on for `ALL`, and off for `NONE` where
-  the CLI can be told. Where it cannot (cursor-agent, pi, ACP), the cut network is what stops
+  the CLI can be told. Where it cannot (cursor-agent, mcode, pi, ACP), the cut network is what stops
   them. Antigravity fetches pages at the far end of its model API, where the cut network does
   not reach, so with `online` `NONE` it is always started without its web tools.
 - **Nothing-asked mode** is `danger-full-access` with approval `never` on Codex. On Claude
@@ -516,8 +516,7 @@ by number, since nothing inside the fence can resolve a name.
 - **A hook only an asking CLI reaches** starts the CLI so that it asks, and humanize answers
   yes unless the hook says no. Codex runs with approval policy `untrusted` while an
   `on_permission_request` hook is hung, and turns on its `default_mode_request_user_input`
-  feature for an `on_ask_user` one. Kimi Code and ZCode run at their asking rung while either
-  is hung.
+  feature for an `on_ask_user` one. Kimi Code runs at its asking rung while either is hung.
 
 [Agents](/reference/agents) has the rungs themselves.
 :::
@@ -620,9 +619,9 @@ async def fork(self, session: Session, *, env: Env) -> Session
 ```
 
 Opens a second session that carries on from where `session` is, and leaves `session` as it
-was. `env` is where the new one works: another workdir only on Claude Code, Codex, Kimi Code
-and ZCode, the same workdir on every other harness that forks, and never another machine.
-cursor-agent, Antigravity and dsh do not fork. Either refusal raises `UnsupportedOperation`.
+was. `env` is where the new one works: another workdir only on Claude Code, Codex and Kimi
+Code, the same workdir on every other harness that forks, and never another machine.
+cursor-agent, MiniMax Code, Antigravity and dsh do not fork. Either refusal raises `UnsupportedOperation`.
 
 A session is forked from a turn it has taken: forking one that has taken none raises
 `SessionError`. A fork is cut where it takes its first turn, so it is refused then if the
@@ -841,6 +840,53 @@ are kept for `--resume` to find. A worktree is left where it is. All three live 
 `~/.humanize/envs/` on that machine, named after the workdir and the id. See
 [Worktrees, copies and scratch](/weaver/worktrees).
 
+### Snapshots and rewinding {#snapshots-and-rewinding}
+
+| Mixin | Methods |
+| --- | --- |
+| `RewindableEnvMixin` | `async snapshot(name: str \| None = None) -> str`, `async rewind(ref: str) -> None`, `async snapshots() -> list[str]` |
+| `GitEnvMixin` | the same, done with git. Includes `RewindableEnvMixin`. |
+
+```python
+class Repo(Env, GitEnvMixin): ...
+
+before = await repo.snapshot()          # refs/hmz/snapshots/<when it was taken>
+...                                     # an agent tries something
+await repo.rewind(before)               # and it is as if it never had
+await repo.rewind("HEAD~1")             # or back to any commit git knows
+```
+
+`RewindableEnvMixin` is an interface only: declared by itself it grants nothing, and
+`snapshot` on it raises `CapabilityNotGranted`. Write a helper against it, and declare
+`GitEnvMixin` on the role.
+
+- **`snapshot(name)`** records the git worktree the workdir is in, untracked files
+  included, as a commit kept under `refs/hmz/snapshots/<name>`, and answers that ref.
+  Nothing is touched: not the branch, the index, or a file. `name` replaces a snapshot
+  of that name; leave it out for a fresh one named for when it was taken.
+- **`rewind(ref)`** puts the worktree back. To a snapshot, whole: the commit that was
+  checked out, the index, and the files, untracked ones as untracked. To any other ref
+  git knows, as `git reset --hard` and `git clean` would. Either way the branch checked
+  out is moved rather than another checked out, and files that are neither in it nor
+  ignored are removed.
+- **`snapshots()`** lists the snapshot refs, the oldest first.
+
+It is the whole worktree, whatever directory of it the workdir is. Ignored files, and a
+`.humanize/` at its top where your own flows are kept, are neither recorded nor removed.
+A rewind also forgets a merge, cherry-pick or revert under way, and moves what is checked
+out last, so one git refuses partway leaves it where it was. Snapshots are the
+repository's, shared by its worktrees, and stay until removed with `git update-ref -d
+refs/hmz/snapshots/<name>`. A workdir outside a worktree, a ref git does not know, a name
+git will not keep a ref under, or a snapshot from before the first commit rewound on a
+detached `HEAD` raises `RewindError`.
+
+The machine needs `git` on its PATH. A flow declaring `GitEnvMixin` for an environment
+on one without is refused before anything runs, with `CapabilityMissing`:
+
+```
+hmz exec: error: tries: 'repo' needs GitEnvMixin, which docker@local/srv/repo does not support: GitEnvMixin needs git on the machine's PATH, and it has none
+```
+
 ## Hooks {#hooks-in-a-flow}
 
 A hook is an async function from one moment's params to that moment's result, hung on an
@@ -928,7 +974,7 @@ nothing, so a hook that only watches returns one.
   turn goes on. `on_ask_user` is the exception: a question waits for its answer.
 - **A hook hung mid-turn** reaches that turn's later moments, except the ones that decide how
   a CLI is started, which take hold from the next turn: `on_pre_tool_use` on a CLI that gates
-  its tools, and `on_permission_request` or `on_ask_user` on Codex, Kimi Code and ZCode.
+  its tools, and `on_permission_request` or `on_ask_user` on Codex and Kimi Code.
 
 See [Hooks](/weaver/hooks) for the guide, and [The agent asking the flow](/weaver/tools) for
 `on_ask_user`.
@@ -1415,7 +1461,7 @@ FlowException
 └── EnvError                          an environment could not do what it was asked
     └── EnvUnavailable · EnvConnectionError (ConnectionError) · EnvCommandTimeout (TimeoutError)
         EnvFileNotFound (FileNotFoundError) · EnvPermissionDenied (PermissionError)
-        WorktreeError · TempCloneBusy · ScratchError
+        WorktreeError · TempCloneBusy · ScratchError · RewindError
 ```
 
 Where a builtin names the kind of failure, the leaf is that builtin too: `except
@@ -1480,6 +1526,7 @@ next attempt fails the same way.
 | <code id="worktreeerror">WorktreeError</code> | `derive_worktree` failed: not a repository, an unknown ref, or a taken directory |
 | <code id="tempclonebusy">TempCloneBusy</code> | `derive_temp_clone` asked for an id another environment holds |
 | <code id="scratcherror">ScratchError</code> | a scratch directory could not be made or removed |
+| <code id="rewinderror">RewindError</code> | `snapshot`, `rewind` or `snapshots` failed: not a git worktree, an unknown ref, or what git said |
 
 ## Where flows live {#where-flows-live}
 

@@ -84,7 +84,7 @@ often new tokens reach it depends on the CLI:
 
 | Backend | Tokens arrive |
 | --- | --- |
-| `claude`, `codex`, `dsh`, `kimi`, `zcode` | <Badge type="tip" text="during the turn" /> as each request to the model comes back |
+| `claude`, `codex`, `dsh`, `kimi`, `mcode` | <Badge type="tip" text="during the turn" /> as each request to the model comes back |
 | `agy`, `cursor-agent`, `grok`, `mimo`, `opencode`, `pi`, `qwen`, added CLIs | <Badge type="info" text="when the turn ends" /> all at once |
 
 The rate counts seconds on the clock, so the time a flow spends between turns counts too: a
@@ -94,11 +94,10 @@ run that has stopped working reads as slowing down.
 
 | Backend | Kinds |
 | --- | --- |
-| `claude`, `cursor-agent`, `dsh`, `grok`, `kimi`, `pi`, `qwen` | `input`, `output`, `cache_read`, `cache_write` |
+| `claude`, `cursor-agent`, `dsh`, `grok`, `kimi`, `mcode`, `pi`, `qwen` | `input`, `output`, `cache_read`, `cache_write` |
 | `mimo`, `opencode` | those four, and `reasoning` |
 | `agy` | `input`, `output`, `cache_read`, `reasoning` |
 | `codex` | `input`, `output`, and `cache_read` when it runs on this machine |
-| `zcode` | `input`, `output` |
 
 `reasoning` is listed only where a CLI counts it apart from the output. Everywhere else it is
 inside `output`, and priced as output.

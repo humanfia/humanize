@@ -48,9 +48,9 @@ CLI that cannot serve it. A mismatch is refused before the run starts, not hours
 
 | Moment | CLIs that reach it |
 | --- | --- |
-| the CLI asks whether a tool may run | <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" /> <Badge type="tip" text="kimi" /> <Badge type="tip" text="zcode" /> |
-| the agent stops to ask its user | <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" /> <Badge type="tip" text="kimi" /> <Badge type="tip" text="pi" /> <Badge type="tip" text="zcode" /> |
-| a subagent starts or finishes | <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" /> <Badge type="tip" text="cursor-agent" /> |
+| the CLI asks whether a tool may run | <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" /> <Badge type="tip" text="kimi" /> |
+| the agent stops to ask its user | <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" /> <Badge type="tip" text="kimi" /> <Badge type="tip" text="pi" /> |
+| a subagent starts or finishes | <Badge type="tip" text="claude" /> <Badge type="tip" text="codex" /> <Badge type="tip" text="cursor-agent" /> <Badge type="tip" text="mcode" /> |
 | a tool refused as it is reached for does not run | <Badge type="tip" text="claude" /> <Badge type="tip" text="qwen" /> |
 
 ## Go further

@@ -42,31 +42,31 @@ Claude Code's and cursor-agent's model-reviewed modes and is never used for them
 place it is used is the last column below, on the two CLIs where it means the CLI asks and
 humanize answers.
 
-| `local`      | every harness but dsh and acp | dsh, acp |
-|--------------|-------------------------------|----------|
-| READ or NONE | `read-only`                   | `bypass` |
-| ALL          | `bypass`                      | `bypass` |
+| `local`      | every harness but dsh, mcode and acp | dsh, mcode, acp |
+|--------------|--------------------------------------|-----------------|
+| READ or NONE | `read-only`                          | `bypass`        |
+| ALL          | `bypass`                             | `bypass`        |
 
 - `local` READ is the CLI's own read-only rung as well as a fence that lets nothing but the
   minimum be written: Claude Code's `plan`, Codex's read-only sandbox, a tool list with
   nothing that writes on the rest. `local` NONE is the same rung, and a fence that does not
   let the workdir be read either.
-- dsh and ACP CLIs can be held to no rung but `bypass`; the fence holds them to the scopes.
+- dsh and ACP CLIs can be held to no rung but `bypass`, and MiniMax Code to none that changes
+  nothing; the fence holds them to the scopes.
 
-While a hook is hung on a moment only asking reaches, three CLIs are started so that they
+While a hook is hung on a moment only asking reaches, two CLIs are started so that they
 ask, and humanize answers every request yes unless the hook says no -- never a model:
 
 - Codex, a PERMISSION_REQUEST hook: the rung's sandbox, and approval policy `untrusted`, so
   every command but a known-safe read is asked about. An ASK_USER hook switches on Codex's
   `default_mode_request_user_input` feature instead, without which its agent cannot ask its
   user anything outside plan mode.
-- Kimi Code and ZCode, either hook: coganchor's `auto` -- Kimi's `yolo`, ZCode's `build` --
-  which asks about what the CLI deems risky, and on Kimi is the mode where the agent may
-  ask its user at all.
+- Kimi Code, either hook: coganchor's `auto` -- Kimi's `yolo` -- which asks about what the
+  CLI deems risky, and is the mode where the agent may ask its user at all.
 
 `online` is also the CLI's own web tools: on for ALL, off for NONE where the CLI can be told,
-and left as the CLI has it where it cannot (cursor-agent, pi, agy, acp) -- where the fence's
-cut network is what stops them, a search reaching no host but the model's.
+and left as the CLI has it where it cannot (cursor-agent, mcode, pi, agy, acp) -- where the
+fence's cut network is what stops them, a search reaching no host but the model's.
 """
 
 from __future__ import annotations
@@ -143,7 +143,6 @@ BYPASS: Final = "bypass"
 ASKS: Mapping[HarnessKind, frozenset[HookKind]] = MappingProxyType(
     {
         HarnessKind.KIMI: frozenset({HookKind.PERMISSION_REQUEST, HookKind.ASK_USER}),
-        HarnessKind.ZCODE: frozenset({HookKind.PERMISSION_REQUEST, HookKind.ASK_USER}),
     }
 )
 

@@ -169,7 +169,7 @@ roles are written in means nothing.
 | --- | --- |
 | `<cli>` | One of the twelve below, or a CLI of your own [added on the Accounts page of `/settings`](/reference/agents#a-cli-of-your-own), by the name it was added under. |
 | `@<provider>` | The [account](/reference/providers) its turns run as: `claude@deepseek`. Left off, the CLI runs as you already run it. A CLI name never holds an `@`. |
-| `<model>` | Whatever that CLI is asked for. Not checked against a list. It may hold slashes of its own (`kimi-code/k3`; pi, opencode, mimocode and ZCode write `provider/id`), so the CLI is read from the front and the effort from after the last colon. |
+| `<model>` | Whatever that CLI is asked for. Not checked against a list. It may hold slashes of its own (`kimi-code/k3`; pi, opencode, mimocode and MiniMax Code write `provider/id`), so the CLI is read from the front and the effort from after the last colon. |
 | `<effort>` | A rung on that CLI's ladder, or `auto` for none: the CLI's own default. Any other word is refused before anything runs. The ladders are in the [Agents reference](/reference/agents). A CLI of your own has no ladder and takes any word. On Kimi Code, `swarm` in front (`swarmmax`) runs the turn as a fleet. |
 
 | CLI | Also answers to | Needs |
@@ -181,11 +181,11 @@ roles are written in means nothing.
 | `dsh` | `deepseek-harness` | `hmz[dsh]` |
 | `grok` | `grok-build`, `grokbuild` | |
 | `kimi` | `kimi-code` | `hmz[kimi]` |
+| `mcode` | `minimax`, `minimax-code` | |
 | `mimo` | `mimocode`, `mimo-code` | |
 | `opencode` | | |
 | `pi` | | |
 | `qwen` | `qwen-code` | |
-| `zcode` | `zcode-cli` | |
 
 Refused before anything runs: a role given twice, a role the flow does not declare, a line with
 no role, and a role the runtime fills. A role typed as an `Outworlder` is whoever is outside
@@ -332,7 +332,7 @@ exit status 2, with nothing started:
 | a role the flow does not declare | `chat has no agent role 'helper'; available roles are 'assistant'` |
 | a required role left out | `rlar needs an agent for 'reviewer'; specify each with -a ROLE=CLI/MODEL:EFFORT` |
 | a role the runtime fills | `<flow>: '<role>' is assigned automatically by the runtime and cannot be set with -a` |
-| a CLI that cannot do what the role needs | `<flow>: '<role>' needs SteeringAgentMixin, which zcode does not support` |
+| a CLI that cannot do what the role needs | `<flow>: '<role>' needs SteeringAgentMixin, which grok does not support` |
 | a role typed as another CLI's own | `<flow>: '<role>' requires codex, but got claude` |
 | an effort off the ladder | `assistant=claude/claude-opus-5:turbo: claude cannot be asked to think at 'turbo'; expected one of ultracode, max, xhigh, high, medium, low` |
 | no `-b` | `rlar requires a budget: specify with -b duration=...,cost=...,output_tokens=...` |
@@ -636,13 +636,13 @@ the path the variable moves them to.
 | `DSH_HOME` | DeepSeek Harness | `~/.dsh` |
 | `GROK_HOME` | Grok Build | `~/.grok` |
 | `KIMI_CODE_HOME` | Kimi Code | `~/.kimi-code` |
+| `MINIMAX_DATA_DIR` | MiniMax Code | `~/.minimax` |
 | `PI_CODING_AGENT_DIR` | pi | `~/.pi/agent` |
 | `QWEN_HOME` | Qwen Code | `~/.qwen` |
 | `XDG_DATA_HOME` | opencode, mimocode | `~/.local/share`, under which `opencode/` and `mimocode/` |
 | `XDG_CONFIG_HOME` | opencode, mimocode, Cursor Agent: their skills | `~/.config` |
 
-Antigravity CLI and ZCode read no variable: their state is always `~/.gemini/antigravity-cli`
-and `~/.zcode`.
+Antigravity CLI reads no variable: its state is always `~/.gemini/antigravity-cli`.
 
 ### Output
 

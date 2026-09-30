@@ -62,23 +62,22 @@ it goes with it. The home is read from humanize's own environment.
 | `dsh` | `$DSH_HOME`, else `~/.dsh` | none: its accounts are variables |
 | `grok` | `$GROK_HOME`, else `~/.grok` | `auth.json`<br>`mcp_credentials.json` |
 | `kimi` | `$KIMI_CODE_HOME`, else `~/.kimi-code` | `credentials/`<br>`oauth/` |
+| `mcode` | `$MINIMAX_DATA_DIR`, else `~/.minimax` | `config.yaml`<br>`auth/` |
 | `mimo` | `$XDG_DATA_HOME/mimocode`, else `~/.local/share/mimocode` | `auth.json`<br>`mcp-auth.json` |
 | `opencode` | `$XDG_DATA_HOME/opencode`, else `~/.local/share/opencode` | `auth.json`<br>`mcp-auth.json` |
 | `pi` | `$PI_CODING_AGENT_DIR`, else `~/.pi/agent` | `auth.json`<br>`auth.json.lock` |
 | `qwen` | `$QWEN_HOME`, else `~/.qwen` | `oauth_creds.json`<br>`oauth_creds.lock` |
-| `zcode` | `~/.zcode` | `v2/credentials.json` |
 
-- For `agy` and `zcode`, humanize follows no variable of the backend's own: only `HOME`
-  moves where it looks. `ZCODE_DATA_BASE_DIR`, which moves ZCode's `v2/`, is taken away from
-  a turn under a provider.
+- For `agy`, humanize follows no variable of the backend's own: only `HOME` moves where it
+  looks.
 - `agy`'s token file is what a sign-in leaves where there is no keyring to put it in.
 - `codex`'s `auth.json` holds subscription tokens and an API key alike.
 - `cursor-agent`'s `cli-config.json` also holds its settings, such as what the agent may
   reach for, so a provider of it keeps settings of its own. Its tokens are in `auth.json`,
   which it reads under `$XDG_CONFIG_HOME/cursor` on Linux and under `~/.cursor` on macOS.
 - `grok`'s `mcp_credentials.json` holds the tokens its MCP servers handed back.
-- `zcode`'s file is shared with the ZCode desktop app, and encrypted with a key derived from
-  this machine and this user.
+- `mcode`'s `config.yaml` holds a MiniMax key and every provider added to it beside its
+  settings, so a provider of it keeps settings of its own. `auth/` is what `mcode login` leaves.
 - An ACP CLI added on the Accounts page of `/settings` has no credential files humanize knows
   of, so its accounts are variables.
 
@@ -97,11 +96,11 @@ cloud. The Accounts page of `/settings` offers a backend's ways once you pick th
 | [`dsh`](#deepseek-harness-dsh) | | | ✓ | ✓ | | |
 | [`grok`](#grok-build-grok) | ✓ | ✓ | ✓ | ✓ | `oidc` | ✓ |
 | [`kimi`](#kimi-code-kimi) | ✓ | | | | `model` | ✓ |
+| [`mcode`](#minimax-code-mcode) | ✓ | | ✓ | ✓ | | ✓ |
 | [`mimo`](#mimocode-mimo) | ✓ | | ✓ | | | ✓ |
 | [`opencode`](#opencode-opencode) | ✓ | | | | `wellknown`, `zen` | ✓ |
 | [`pi`](#pi-pi) | ✓ | | | | | ✓ |
 | [`qwen`](#qwen-code-qwen) | ✓ | | ✓ | | | ✓ |
-| [`zcode`](#zcode-zcode) | ✓ | ✓ | ✓ | ✓ | | ✓ |
 
 A way that **runs** a command runs it on this terminal, under the provider's paths, and what
 the command writes is the provider. A way that only **asks** keeps your answers as the
@@ -186,6 +185,16 @@ base URL and nothing else.
 | `login` | Sign in to a Kimi account, by the code it prints. Runs `kimi login`. | — |
 | `model` | An endpoint of your own, made its default model. | `KIMI_MODEL_NAME`, `KIMI_MODEL_API_KEY`, `KIMI_MODEL_BASE_URL`, `KIMI_MODEL_PROVIDER_TYPE`: `anthropic`, `openai` or `kimi` (`openai`) |
 
+### MiniMax Code (`mcode`)
+
+| Way | What it is | Asks for |
+| --- | --- | --- |
+| `login` | Sign in to a MiniMax account, in a browser. Runs `mcode login`. | — |
+| `key` | A MiniMax API key, from the platform. Runs `mcode provider set-minimax-key`, which saves it into its `config.yaml` and makes MiniMax's own models run on it. | `MCODE_PROVIDER_API_KEY` |
+| `gateway` | An endpoint of your own, added to it as a provider called `gateway` and made its default. Runs `mcode provider add --name gateway --base-url … --api-format … --model … --api-key-env MCODE_PROVIDER_API_KEY --use`, which asks the endpoint once before it saves anything. | `MCODE_GATEWAY_URL`, `MCODE_PROVIDER_API_KEY`, `MCODE_GATEWAY_MODEL` (not kept), `MCODE_GATEWAY_FORMAT`: `anthropic-messages`, `openai-completions` or `openai-responses` (`openai-completions`, not kept) |
+
+A model on a `gateway` account is named `custom_provider:gateway/<id>`.
+
 ### mimocode (`mimo`)
 
 | Way | What it is | Asks for |
@@ -213,15 +222,6 @@ base URL and nothing else.
 | --- | --- | --- |
 | `login` | Sign in to a Qwen account. Runs `qwen` and hands you the terminal: type `/auth`, then `/quit`. | — |
 | `key` | A key for the OpenAI-compatible endpoint it runs against. | `OPENAI_API_KEY`, `OPENAI_BASE_URL` (`https://dashscope.aliyuncs.com/compatible-mode/v1`) |
-
-### ZCode (`zcode`)
-
-| Way | What it is | Asks for |
-| --- | --- | --- |
-| `login` | Sign in to a Z.AI account, in a browser. Runs `zcode login`. | — |
-| `device` | The same, from a machine with no browser. Runs `zcode login --no-browser`. | — |
-| `key` | A Z.AI or BigModel coding plan key. Name the plan's own models, such as `zai/glm-5.1` or `bigmodel/glm-4.7`, and humanize hands ZCode that plan's endpoint per session. `~/.zcode/cli/config.json` is not written, so an existing `zcode login` is untouched. | `ZCODE_API_KEY` |
-| `gateway` | An endpoint speaking ZCode's protocol. | `ZCODE_BASE_URL`, `ZCODE_API_KEY` |
 
 ### `env`, on every backend but `dsh`
 
@@ -444,8 +444,8 @@ goes in is made as the CLI writes into it. A name in `sessions` may be a glob, s
 | `grok` | `sessions/`, `active_sessions.*` |
 | `pi` | `sessions/` |
 | `agy` | `conversations/`, `brain/`, `annotations/`, `implicit/`, `presence/`, `conversation_summaries.db*`, `jetbox_summaries_proto.pb`, `cache/last_conversations.json` |
-| `zcode` | `cli/db/`, `cli/rollout/`, `cli/agents/`, `cli/artifacts/`, `cli/exec/` |
 | `cursor-agent` | `chats/`, `projects/*/agent-transcripts/` |
+| `mcode` | `v2/sqlite/`, `v2/sessions/`, `background-tasks/` |
 | `opencode` | `opencode.db*`, `storage/` |
 | `mimo` | `mimocode.db*`, `storage/` |
 | `dsh` | `sessions/`, which humanize names to it as its session root rather than supervising it |
@@ -491,12 +491,11 @@ per place on [the Fallback page of `/settings`](/user/settings#fallback), not on
 
 ## One account, several CLIs
 
-An Anthropic key is an Anthropic key whether Claude Code, pi, opencode, mimocode or ZCode holds
-it. So an account made for one backend can often be copied to others:
+An Anthropic key is an Anthropic key whether Claude Code, pi, opencode or mimocode holds it. So an account made for one backend can often be copied to others:
 
 ```python
 one = accounts.write("claude", "work", "key", {"ANTHROPIC_API_KEY": k})
-accounts.serves(one)          # ('pi', 'opencode', 'mimo', 'zcode')
+accounts.serves(one)          # ('pi', 'opencode', 'mimo')
 for cli in accounts.serves(one):
     accounts.copies(one, cli) # pi/work, opencode/work, mimo/work, …
 ```

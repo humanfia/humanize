@@ -69,11 +69,11 @@ from .hooks import (
 from .human import HumanAgent, HumanSession
 from .kimi import KimiCodeCLIAgent, KimiCodeCLIAgentConfig, KimiCodeCLISession
 from .mimo import MimoCodeAgent, MimoCodeAgentConfig, MimoCodeSession
+from .minimax import MiniMaxCodeAgent, MiniMaxCodeAgentConfig, MiniMaxCodeSession
 from .opencode import OpencodeAgent, OpencodeAgentConfig, OpencodeSession
 from .pi import PiAgent, PiAgentConfig, PiSession
 from .qwen import QwenCodeAgent, QwenCodeAgentConfig, QwenCodeSession
 from .tools import Tool, Toolbox
-from .zcode import ZcodeAgent, ZcodeAgentConfig, ZcodeSession
 
 #: What each coding agent CLI is driven by here, under the name a command line calls it.
 #: One table rather than one apiece: whoever reads an `-a` builds an agent from it, and
@@ -87,11 +87,11 @@ DRIVEN: dict[str, tuple[type[AgentBase], type[AgentConfig]]] = {
     "dsh": (DshAgent, DshAgentConfig),
     "grok": (GrokBuildAgent, GrokBuildAgentConfig),
     "kimi": (KimiCodeCLIAgent, KimiCodeCLIAgentConfig),
+    "mcode": (MiniMaxCodeAgent, MiniMaxCodeAgentConfig),
     "mimo": (MimoCodeAgent, MimoCodeAgentConfig),
     "opencode": (OpencodeAgent, OpencodeAgentConfig),
     "pi": (PiAgent, PiAgentConfig),
     "qwen": (QwenCodeAgent, QwenCodeAgentConfig),
-    "zcode": (ZcodeAgent, ZcodeAgentConfig),
 }
 
 
@@ -182,6 +182,9 @@ __all__ = [
     "MimoCodeAgent",
     "MimoCodeAgentConfig",
     "MimoCodeSession",
+    "MiniMaxCodeAgent",
+    "MiniMaxCodeAgentConfig",
+    "MiniMaxCodeSession",
     "Moment",
     "Occasion",
     "OpencodeAgent",
@@ -208,9 +211,6 @@ __all__ = [
     "Unserved",
     "Usage",
     "Verdict",
-    "ZcodeAgent",
-    "ZcodeAgentConfig",
-    "ZcodeSession",
     "anchored",
     "blinded",
 ]

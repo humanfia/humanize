@@ -44,6 +44,7 @@ const held: Cell = { can: true, text: 'held', tone: 'tip' }
 const prompt: Cell = { can: false, text: 'prompt', tone: 'warning' }
 const four: Cell = { can: true, text: 'all 4', tone: 'tip' }
 const bypass: Cell = { can: false, text: 'bypass', tone: 'warning' }
+const three: Cell = { can: false, text: 'no read-only', tone: 'warning' }
 
 const PERM = 'Permission'
 const SUB = 'Subagent'
@@ -56,11 +57,11 @@ const ROWS: Row[] = [
   { name: 'dsh', product: 'DeepSeek Harness', steers: no, goal: yes, schema: prompt, fork: no, web: yes, rungs: bypass, moments: [], fast: no, trace: yes },
   { name: 'grok', product: 'Grok Build', steers: no, goal: no, schema: held, fork: yes, web: yes, rungs: four, moments: [PERM], fast: no, trace: yes },
   { name: 'kimi', product: 'Kimi Code', steers: yes, goal: yes, schema: prompt, fork: yes, web: yes, rungs: four, moments: [PERM], fast: no, trace: yes },
+  { name: 'mcode', product: 'MiniMax Code', steers: no, goal: no, schema: held, fork: no, web: no, rungs: three, moments: [SUB], fast: no, trace: yes },
   { name: 'mimo', product: 'MiMo Code', steers: no, goal: no, schema: prompt, fork: yes, web: yes, rungs: four, moments: [], fast: no, trace: yes },
   { name: 'opencode', product: 'opencode', steers: no, goal: no, schema: prompt, fork: yes, web: yes, rungs: four, moments: [], fast: no, trace: yes },
   { name: 'pi', product: 'pi', steers: yes, goal: no, schema: prompt, fork: yes, web: no, rungs: four, moments: [], fast: no, trace: yes },
   { name: 'qwen', product: 'Qwen Code', steers: no, goal: no, schema: held, fork: yes, web: yes, rungs: four, moments: [], fast: no, trace: yes },
-  { name: 'zcode', product: 'ZCode', steers: no, goal: yes, schema: prompt, fork: yes, web: yes, rungs: four, moments: [PERM], fast: no, trace: yes },
   {
     name: 'an ACP CLI',
     product: 'added in /settings',

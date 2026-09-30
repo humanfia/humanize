@@ -215,7 +215,6 @@ ignore = [
 "src/hmz/coganchor/agents/codex.py" = ["SLF001"]
 "src/hmz/coganchor/agents/dsh.py" = ["SLF001"]
 "src/hmz/coganchor/agents/kimi.py" = ["SLF001"]
-"src/hmz/coganchor/agents/zcode.py" = ["SLF001"]
 # And a watchdog and the session it is watching: it reads what the turn is riding and puts
 # that transport down, which is the session's own inside rather than anybody else's.
 "src/hmz/coganchor/agents/watchdog.py" = ["SLF001"]

@@ -81,6 +81,7 @@ __all__ = [
     "KimiCodeAgent",
     "LoopCommandAgentMixin",
     "MiMoCodeAgent",
+    "MiniMaxCodeAgent",
     "OpenCodeAgent",
     "Outworlder",
     "Permission",
@@ -93,7 +94,6 @@ __all__ = [
     "SubagentStartHookAgentMixin",
     "SubagentStopHookAgentMixin",
     "Usage",
-    "ZCodeAgent",
 ]
 
 
@@ -105,11 +105,11 @@ class HarnessKind(StrEnum):
     CURSOR_AGENT = "cursor-agent"
     OPENCODE = "opencode"
     MIMO = "mimo"
+    MCODE = "mcode"
     QWEN = "qwen"
     KIMI = "kimi"
     GROK = "grok"
     PI = "pi"
-    ZCODE = "zcode"
     AGY = "agy"
     DSH = "dsh"
     #: A CLI somebody added by hand, driven over the Agent Client Protocol.
@@ -641,6 +641,12 @@ class MiMoCodeAgent(Agent, Protocol):
     """MiMo Code, with everything it can do."""
 
 
+class MiniMaxCodeAgent(
+    Agent, SubagentStartHookAgentMixin, SubagentStopHookAgentMixin, Protocol
+):
+    """MiniMax Code, with everything it can do."""
+
+
 class QwenCodeAgent(Agent, Protocol):
     """Qwen Code, with everything it can do."""
 
@@ -664,16 +670,6 @@ class PiAgent(Agent, SteeringAgentMixin, AskUserHookAgentMixin, Protocol):
     """pi, with everything it can do."""
 
 
-class ZCodeAgent(
-    Agent,
-    GoalCommandAgentMixin,
-    PermissionRequestHookAgentMixin,
-    AskUserHookAgentMixin,
-    Protocol,
-):
-    """ZCode, with everything it can do."""
-
-
 class AntigravityAgent(Agent, Protocol):
     """Antigravity, with everything it can do."""
 
@@ -692,11 +688,11 @@ HARNESS_AGENTS: Mapping[HarnessKind, type] = MappingProxyType(
         HarnessKind.CURSOR_AGENT: CursorAgent,
         HarnessKind.OPENCODE: OpenCodeAgent,
         HarnessKind.MIMO: MiMoCodeAgent,
+        HarnessKind.MCODE: MiniMaxCodeAgent,
         HarnessKind.QWEN: QwenCodeAgent,
         HarnessKind.KIMI: KimiCodeAgent,
         HarnessKind.GROK: GrokBuildAgent,
         HarnessKind.PI: PiAgent,
-        HarnessKind.ZCODE: ZCodeAgent,
         HarnessKind.AGY: AntigravityAgent,
         HarnessKind.DSH: DeepSeekHarnessAgent,
         HarnessKind.ACP: Agent,

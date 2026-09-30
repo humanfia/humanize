@@ -36,8 +36,8 @@ onUnmounted(() => observer?.disconnect())
       <h3>Every coding agent you have</h3>
       <p>Claude Code on one role, Codex on the next. Most run under the login you already have.</p>
       <p class="names">
-        agy · claude · codex · cursor-agent · dsh · grok · kimi · mimo · opencode · pi · qwen ·
-        zcode
+        agy · claude · codex · cursor-agent · dsh · grok · kimi · mcode · mimo · opencode · pi ·
+        qwen
       </p>
     </a>
 

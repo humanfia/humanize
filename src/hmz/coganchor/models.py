@@ -33,7 +33,6 @@ import datetime
 import http.client
 import json
 import os
-import pathlib
 import re
 import subprocess
 import urllib.error
@@ -104,6 +103,18 @@ _QWEN_MODELS = ("qwen3-coder-plus", "qwen3-coder-flash")
 #: The backends whose catalogue is written down here rather than asked for, which is what a
 #: prompt offers before either has been asked.
 _ADVISORY = {"dsh": _DSH_MODELS, "qwen": _QWEN_MODELS}
+
+#: MiniMax's own models as MiniMax Code 0.5.9's table has them, each with the rungs it takes.
+#: `mcode provider list` lists what has been added to it and nothing of its own -- the two
+#: MiniMax sources it lists always come back with no models -- so these are written down here,
+#: as its `--model` takes them. Only one of them takes a rung at all; the others are refused a
+#: turn given one, and are offered at none.
+_MCODE_MODELS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("minimax/MiniMax-M3", ()),
+    ("minimax/MiniMax-M3.1-Flash-Preview", ("max", "xhigh", "high", "medium", "low")),
+    ("minimax/MiniMax-M2.7", ()),
+    ("minimax/MiniMax-M2.7-highspeed", ()),
+)
 
 #: How long an endpoint is given to say what it serves. Short beside `WAITING`, which is a
 #: coding agent starting up: this is one request, and one that does not answer promptly is
@@ -371,12 +382,7 @@ def _served(profile: Profile, environ: Mapping[str, str]) -> list[Model] | None:
         return None
     if not ids:
         return None
-    # An endpoint answers with ids and nothing else. A CLI that reads a model as `provider/id`
-    # would take the whole of one for the pair, so the half the endpoint cannot supply is
-    # written back on here -- see `Profile.fronted`, which is the name the session declares
-    # that endpoint under, so that what is offered and what is opened are the same string.
-    under = f"{profile.fronted}/" if profile.fronted else ""
-    return [Model(f"{under}{one}", profile.efforts, profile.swarms) for one in ids]
+    return [Model(one, profile.efforts, profile.swarms) for one in ids]
 
 
 def _pointed(profile: Profile, environ: Mapping[str, str]) -> str:
@@ -890,62 +896,47 @@ def _qwen(profile: Profile, _run: Callable[..., str]) -> list[Model]:
     return [Model(name, profile.efforts, profile.swarms) for name in _ADVISORY["qwen"]]
 
 
-def _zcode(profile: Profile, run: Callable[..., str]) -> list[Model]:
-    """What ZCode's app server says the providers it is configured with front.
+def _mcode(profile: Profile, run: Callable[..., str]) -> list[Model]:
+    """What MiniMax Code runs: every model added to it, and then MiniMax's own.
 
-    Its command line has no `models`, because a model there belongs to a provider its
-    configuration file names, and what resolves that file into a catalogue is the app server.
-    So it is asked the way anything asks it: one frame in, one answer out, and the process
-    ends when there is nothing more on its stdin.
+    What has been added comes from `mcode provider list --json`, each model under the provider
+    it was added to, and the one it will run by default first. None of those takes a rung --
+    what a provider added by hand can be asked for is nothing MiniMax Code knows, and it
+    refuses `--effort` for a model that has not said -- so each is offered at none.
 
     Args:
-      profile: ZCode's own.
+      profile: MiniMax Code's own.
       run: What puts the question.
 
     Returns:
-      One per model it is configured for, as `provider/id`, at the thought levels it said that
-      model takes.
+      One per model, as `provider/id`, which is how its `--model` takes one.
 
     Raises:
-      ValueError: If nothing it wrote answers the question.
+      ValueError: If what it printed cannot be read.
     """
-    where = str(pathlib.Path.cwd())
-    asked = json.dumps(
-        {
-            "id": 1,
-            "method": "workspace/readState",
-            "params": {
-                "workspace": {"workspacePath": where, "workspaceKey": where},
-            },
-        }
-    )
-    for line in run(["app-server", "--stdio"], asked + "\n").splitlines():
-        try:
-            frame = _loaded(line)
-        except (TypeError, ValueError):
-            continue  # the server asks things of its client on the same stream
-        if frame.get("id") != 1 or "result" not in frame:
+    said = _loaded(run(["provider", "list", "--json"]))
+    added: list[tuple[bool, str]] = []
+    for one in cast("list[Any]", said.get("providers") or []):
+        provider = cast("dict[str, Any]", one)
+        if provider.get("enabled") is False:
             continue
-        held = cast("dict[str, Any]", frame.get("result") or {})
-        catalogue = cast("dict[str, Any]", held.get("modelCatalog") or {})
-        found: list[Model] = []
-        for one in cast("list[Any]", catalogue.get("available") or []):
-            model = cast("dict[str, Any]", one)
-            named = cast("dict[str, Any]", model.get("ref") or {})
-            reasoning = cast("dict[str, Any]", model.get("reasoning") or {})
-            levels = [
-                cast("dict[str, Any]", rung).get("value")
-                for rung in cast("list[Any]", reasoning.get("levels") or [])
-            ]
-            found.append(
-                Model(
-                    f"{named.get('providerId', '')}/{named.get('modelId', '')}",
-                    _rungs(profile, levels),
-                    profile.swarms,
+        for held in cast("list[Any]", provider.get("models") or []):
+            model = cast("dict[str, Any]", held)
+            if model.get("modelId"):
+                added.append(
+                    (
+                        not model.get("selected"),
+                        f"{provider.get('providerId', '')}/{model['modelId']}",
+                    )
                 )
-            )
-        return found
-    raise ValueError("it said nothing about what it runs")
+    found = [
+        Model(name, (), profile.swarms)
+        for _, name in sorted(added, key=lambda one: one[0])
+    ]
+    return found + [
+        Model(name, _rungs(profile, list(rungs)) if rungs else (), profile.swarms)
+        for name, rungs in _MCODE_MODELS
+    ]
 
 
 def _listed(profile: Profile, run: Callable[..., str]) -> list[Model]:
@@ -1082,9 +1073,9 @@ _READING: dict[str, Callable[[Profile, Callable[..., str]], list[Model]]] = {
     "dsh": _dsh,
     "grok": _grok,
     "kimi": _kimi,
+    "mcode": _mcode,
     "pi": _pi,
     "qwen": _qwen,
     "opencode": _listed,
     "mimo": _listed,
-    "zcode": _zcode,
 }

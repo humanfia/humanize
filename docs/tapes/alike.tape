@@ -52,7 +52,7 @@ Sleep 800ms
 
 # The ones this machine has installed start on; the rest are two keypresses away, the list
 # each drops opening on the answer it is not.
-Up 4
+Up 3
 Sleep 500ms
 Enter
 Enter
@@ -60,7 +60,7 @@ Sleep 700ms
 Enter
 Enter
 Sleep 1200ms
-Down 2
+Down
 Sleep 500ms
 Enter
 

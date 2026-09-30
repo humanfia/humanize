@@ -18,6 +18,7 @@ purpose does: driving in :mod:`hmz.coganchor.agents`, reading back in :mod:`hmz.
 
 from __future__ import annotations
 
+import base64
 import os
 import re
 import shutil
@@ -526,6 +527,11 @@ class Profile:
       logs: The files one session is logged to under that home, as globs taking `{ident}`.
         Claude gets two -- a sub-agent it starts writes its own transcript, and the tokens it
         spends are the run's.
+      encodes: Whether those globs name a session by its id written in URL-safe base64 rather
+        than by the id itself. MiniMax Code's is: a session's directory is named for the
+        moment it opened and `session_` and the id encoded, and nothing under its home is
+        named for the id as the CLI states it. Read by :meth:`logged`, so that whatever looks
+        for a log asks one question whichever of the two spellings it is under.
       sessions: Where under that home a session is kept: everything one writes, and
         everything a resumed or forked one reads back -- the transcripts, the index they are
         found by, what the CLI keeps per conversation beside them. Paths relative to the home,
@@ -641,18 +647,6 @@ class Profile:
         ids a turn of it could name -- one that spells a model `provider/id` out of several
         endpoints at once, or one whose endpoint speaks a protocol of its own -- whose own
         answer is already the account's. :mod:`hmz.coganchor.models` is what reads it.
-      fronted: The word this backend's models are written under when they came from an
-        endpoint rather than from its own configuration, for a CLI that spells a model
-        `provider/id`. Empty for every CLI that names a model on its own.
-
-        An endpoint answers with ids and nothing else -- `nvidia/zai-org/glm-5.3-flash` --
-        and a CLI that reads a model as a pair would take that whole string for the pair,
-        leaving a provider it has never heard of in front of a model the gateway does not
-        serve. So the half the endpoint cannot supply is written here: the provider a turn
-        on that account actually runs on is the account's own endpoint, and this is the name
-        it goes under. Any word would do, which is exactly why it has to be one word and
-        written down once -- what a catalogue offers and what a session is opened with have
-        to agree, and they are read in two different modules.
       signs: What this CLI says when a turn stops that no other one says, and which kind of
         failure each of those makes it. Read before :data:`SIGNS`, which is what every one of
         them says. Empty for a backend whose failures read like everybody else's.
@@ -681,6 +675,7 @@ class Profile:
     logs: tuple[str, ...]
     efforts: tuple[str, ...]
     home_in: str = ""
+    encodes: bool = False
     sessions: tuple[str, ...] = ()
     told: bool = False
     skills: tuple[str, ...] = ()
@@ -703,7 +698,6 @@ class Profile:
     ways: tuple[Way, ...] = ()
     ambient: tuple[str, ...] = ()
     endpoint: str = ""
-    fronted: str = ""
     signs: tuple[Sign, ...] = ()
     journal: tuple[str, ...] = ()
     installs: str = ""
@@ -743,6 +737,23 @@ class Profile:
         if not self.efforts or self.efforts == (_UNSAID,):
             return True
         return rung in self.efforts or rung in self.beyond
+
+    def logged(self, ident: str) -> tuple[str, ...]:
+        """The globs one session is logged to under this backend's home.
+
+        Args:
+          ident: The session, by the id the backend gave it.
+
+        Returns:
+          `logs` with that id written in, spelled the way this backend names it on disk --
+          as it is, or in URL-safe base64 with no padding where :attr:`encodes` says so.
+        """
+        spelled = (
+            base64.urlsafe_b64encode(ident.encode()).decode().rstrip("=")
+            if self.encodes
+            else ident
+        )
+        return tuple(pattern.format(ident=spelled) for pattern in self.logs)
 
     def directory(self, environment: Mapping[str, str] | None = None) -> Path:
         """Where this backend keeps its state and its logs, wherever it has been moved to.
@@ -936,6 +947,13 @@ _GATEWAY = (
 #: What Antigravity CLI calls its reasoning levels, hardest first.
 _AGY = ("high", "medium", "low")
 
+#: What MiniMax Code calls a reasoning effort, hardest first, as 0.5.9's own model table writes
+#: them for the one model of its own that takes any: `max`, `xhigh`, `high`, `medium` and
+#: `low`, beside a `default` that is the absence of one and so is not a rung here. Its other
+#: models take none at all, and are refused a turn given `--effort` rather than run at some
+#: other strength -- which is why what a model takes is the catalogue's to say, per model.
+_MCODE = ("max", "xhigh", "high", "medium", "low")
+
 #: What Cursor calls a reasoning effort, hardest first. Not a flag of its own, and -- on a
 #: signed-in account -- not the bracket its `--help` still documents either: `cursor-agent
 #: models` lists the rung as a suffix of the id, `gpt-5.2-low` beside `gpt-5.2`, and an
@@ -952,16 +970,6 @@ _AGY = ("high", "medium", "low")
 #: ladder is the vocabulary, and `hmz.coganchor.models` narrows it per model to the ids the
 #: account was offered.
 _CURSOR = ("max", "xhigh", "extra-high", "high", "medium", "low", "minimal", "none")
-
-#: What ZCode calls a thought level, hardest first. Several ladders rather than one, because
-#: its models have several, and 0.16.5's own capability table is where these were read off:
-#: GLM 5.3, Kimi K3 and its preview model take `low`, `high` or `max`; Claude and GPT through
-#: it take `low`, `medium`, `high` or `xhigh`, and Opus 4.7 that ladder with `max` on top;
-#: DeepSeek V4 takes `high` or `max`; GLM 5.2 takes `max`, `high` or `nothink`; and the models
-#: that only take thinking or no thinking take `enabled` or `disabled`. They are one list here
-#: because a backend's efforts are one list, and a model narrows it to the rungs it answered
-#: with -- which the server states per session, as `thoughtLevel.available`.
-_ZCODE = ("max", "xhigh", "high", "medium", "low", "enabled", "nothink", "disabled")
 
 #: Every backend humanize drives, as each of them reported itself. Codex says which efforts
 #: each of its models takes and they differ, so they are written down as it gave them.
@@ -2072,129 +2080,6 @@ PROFILES = (
         ),
     ),
     Profile(
-        name="zcode",
-        # Its own origin, which signs in and serves the plan's turns, and the coding plan's
-        # API hosts, global and mainland.
-        hosts=("zcode.z.ai", "api.z.ai", "open.bigmodel.cn", "bigmodel.cn"),
-        # The vendor ships one Linux package and it is the desktop app, with the command line
-        # bundled inside it at `resources/glm/zcode.cjs` and no launcher of its own. What the
-        # package puts on `PATH` as `zcode` is the Electron app, which on a machine with no
-        # display exits before it draws anything -- so a `zcode` that is the CLI is the third
-        # part of this line, and without it the first two install a name that will not take a
-        # turn. It runs the bundled file through the app's own Electron binary in Node mode,
-        # which wants no system node and moves with the package it came from; `/usr/local/bin`
-        # precedes `/usr/bin`, so that is the `zcode` a shell then finds, for any user.
-        #
-        # The version is in the URL because the vendor publishes no `latest`: a newer release
-        # is the same path with the number changed, and the `.rpm`, the `.AppImage` and the
-        # arm64 builds sit in that same directory under their own names.
-        installs=(
-            "curl -fsSLO https://cdn-zcode.z.ai/zcode/electron/releases/3.11.2/linux-x64"
-            "/ZCode-3.11.2-linux-x64.deb"
-            " && sudo apt install -y ./ZCode-3.11.2-linux-x64.deb"
-            " && printf '#!/bin/sh\\nELECTRON_RUN_AS_NODE=1"
-            ' exec /opt/ZCode/zcode /opt/ZCode/resources/glm/zcode.cjs "$@"\\n\''
-            " | sudo tee /usr/local/bin/zcode >/dev/null"
-            " && sudo chmod +x /usr/local/bin/zcode"
-        ),
-        # `WebFetch` and `WebSearch` are the two tools it reaches outside the workspace with,
-        # and a session may be opened with a denylist naming them.
-        searches=True,
-        # One app server per agent holds every session of it, as Codex's and Kimi's do.
-        shares=True,
-        # `session/fork`, which is the call: it answers with a session id of its own holding
-        # the messages the named one had got to, and a turn sent there knows what that
-        # conversation knew and nothing this one is told afterwards. Written down off 0.16.5
-        # rather than guessed at -- the guess this replaces was that there was no such call.
-        forks=True,
-        aliases=("zcode", "zcode-cli"),
-        # None: its configuration, its sessions and its skills are all under `~/.zcode`, found
-        # from the home directory itself and from no variable at all. `ZCODE_DATA_BASE_DIR`
-        # moves only the credential the desktop app shares -- `<it>/.zcode/v2` -- and leaves
-        # `cli/`, which is the part a turn runs out of, where it was. What moves the whole of
-        # it is `HOME`.
-        home_var="",
-        home_dir=".zcode",
-        # One file per session, a line per request the turn made: what was sent, what came
-        # back and what it cost. Under `cli/`, which is where the command line keeps what is
-        # its own rather than the desktop app's.
-        logs=("cli/rollout/model-io-{ident}.jsonl",),
-        # A turn and another on the same app server: the database a session is rows of, the
-        # rollouts, and the directories it keeps per session -- its sub-agents, artifacts and
-        # the output of what it ran. `v2/` is the account's and the desktop app's.
-        sessions=("cli/db", "cli/rollout", "cli/agents", "cli/artifacts", "cli/exec"),
-        efforts=_ZCODE,
-        # Four places: its own directory and the shared one under your home, and the same pair
-        # under the project. Both tiers, and no flag to turn either off. `zcode skills list`
-        # says these four and a fifth -- the roots of whatever plugins are enabled, which are
-        # the CLI's own and are read last, so nothing here mounts one.
-        skills=("skills/*/SKILL.md",),
-        shared=(".agents/skills/*/SKILL.md",),
-        works=(".zcode/skills/*/SKILL.md", ".agents/skills/*/SKILL.md"),
-        # The shared one of its two, being the directory more than one of these CLIs has
-        # agreed to read: a skill mounted there is a skill Codex and Kimi read too.
-        mounts=".agents/skills",
-        # One file, and the desktop app's rather than the command line's: a login is shared
-        # between them, encrypted with a key derived from this machine and this user. It is
-        # the one path `ZCODE_DATA_BASE_DIR` moves.
-        creds=("v2/credentials.json",),
-        # Its app server has no catalogue of its own to ask for an account on a gateway: what
-        # `workspace/readState` answers with is the providers the person's own configuration
-        # file names, which for an agent handed an account is the wrong file's answer. So the
-        # endpoint is asked instead, as every other backend on a gateway is.
-        endpoint="ZCODE_BASE_URL",
-        # And its ids are written back under a provider, because ZCode reads a model as
-        # `provider/id` and an endpoint answers with the id alone. `gw` is that word: the
-        # provider a turn on such an account runs on *is* the endpoint, and this is what the
-        # session declares it under. The driver reads the provider back off the model, so the
-        # catalogue and the session agree by construction.
-        fronted="gw",
-        ambient=(
-            # Its own, which outrank the file whichever way it was signed in. `ZCODE_API_KEY`
-            # is the last candidate it tries for any provider's key, and the ones before it
-            # are spelled out of the provider's own name -- `NVIDIA_API_KEY` for a provider
-            # called `nvidia` -- so they are names no list here could hold. What closes that
-            # is the driver, which puts the account's own key on the session rather than
-            # leaving ZCode to go looking for one.
-            "ZCODE_API_KEY",
-            "ZCODE_BASE_URL",
-            "ZCODE_CREDENTIAL_SECRET",
-            "ZCODE_DATA_BASE_DIR",
-            "ZCODE_ENDPOINT_ORIGIN",
-            # And the vendors' own names, which it reads a key under for a provider speaking
-            # that vendor's protocol -- which the Z.AI plan it ships with is one of. `kind`
-            # is what decides which of the two it asks for, and no other vendor name is read:
-            # `ZAI_API_KEY` was here and 0.16.5 has no such variable in it anywhere.
-            "ANTHROPIC_API_KEY",
-            "OPENAI_API_KEY",
-        ),
-        ways=(
-            Way(
-                name="login",
-                about="sign in to a Z.AI account, in a browser",
-                argv=("zcode", "login"),
-            ),
-            Way(
-                name="device",
-                about="the same, from a machine with no browser on it",
-                argv=("zcode", "login", "--no-browser"),
-            ),
-            Way(
-                name="key",
-                about="a Z.AI or BigModel coding plan key, which its own models run on",
-                asks=(Asked(env="ZCODE_API_KEY", about="the API key", secret=True),),
-            ),
-            Way(
-                name="gateway",
-                about=_GATEWAY,
-                asks=(
-                    Asked(env="ZCODE_BASE_URL", about="where it is, as a URL"),
-                    Asked(env="ZCODE_API_KEY", about="the key it takes", secret=True),
-                ),
-            ),
-        ),
-    ),
-    Profile(
         # Installed under two names, `agent` being the one its installer calls primary and
         # `cursor-agent` the one it has always also written. The second, because `agent` is a
         # name anything on a machine could have taken and this one has to be that CLI -- and
@@ -2267,6 +2152,154 @@ PROFILES = (
                 asks=(
                     Asked(env="CURSOR_API_ENDPOINT", about="where it is, as a URL"),
                     Asked(env="CURSOR_API_KEY", about="the key it takes", secret=True),
+                ),
+            ),
+        ),
+    ),
+    Profile(
+        # Installed from `@minimax-ai/code` as `mcode`, which is the name `-a` takes for the
+        # reason `cursor-agent` is what that one takes: the word somebody would type at a
+        # shell to run the thing itself.
+        name="mcode",
+        # Its agent service in each of the three places it is served from, which is where a
+        # sign-in is refreshed, where the managed models answer and where its own permission
+        # check and web search go; its API in both regions, where a key's turns go; and the
+        # account pages a sign-in is made on. Read off 0.5.9's own bundle.
+        hosts=(
+            "agent.minimax.io",
+            "agent.minimaxi.com",
+            "agent.minimax.cn",
+            "api.minimax.io",
+            "api.minimaxi.com",
+            "account.minimax.io",
+            "account.minimax.cn",
+        ),
+        installs="npm i -g @minimax-ai/code",
+        # `mcode exec` has no flag that takes a tool away, and the one file that could is
+        # its `config.yaml` -- the person at this machine's, which a driver does not write.
+        searches=False,
+        # A conversation is resumed with `--session` under the id it was opened with, and
+        # its command line has no way of cutting a second one from it: the forking it does
+        # is a thing its interface offers a person, from `/history`.
+        forks=False,
+        aliases=("mcode", "minimax", "minimax-code"),
+        home_var="MINIMAX_DATA_DIR",
+        home_dir=".minimax",
+        # A directory per session, under the day it was opened, named for the moment it
+        # opened and the session's id in URL-safe base64. `messages.jsonl` inside it is the
+        # conversation as the model saw it, a record per message, and every answer carries
+        # what the request it came back on cost.
+        logs=("v2/sessions/*/*/*/*-session_{ident}/messages.jsonl",),
+        encodes=True,
+        # The database a session is resumed out of, the directory per session the logs are
+        # in, and where what a tool call ran is written out in full -- traced through a turn
+        # and a second one resuming it. The rest of `v2/` is the runtime's own: its leases,
+        # its migrations and its observability logs.
+        sessions=("v2/sqlite", "v2/sessions", "background-tasks"),
+        efforts=_MCODE,
+        # Its own under its data home, and what it calls external skills: Claude Code's,
+        # Codex's and the shared ones under yours, and a project's own, Claude Code's and the
+        # shared ones under the workspace -- every one of them on unless its `config.yaml`
+        # says otherwise. The ones it ships are in `.builtin-skills`, and are the CLI's
+        # rather than a person's to add to or switch off.
+        skills=("skills/*/SKILL.md",),
+        shared=(
+            ".agents/skills/*/SKILL.md",
+            ".claude/skills/*/SKILL.md",
+            ".codex/skills/*/SKILL.md",
+        ),
+        works=(
+            ".minimax/skills/*/SKILL.md",
+            ".claude/skills/*/SKILL.md",
+            ".agents/skills/*/SKILL.md",
+        ),
+        # The shared one of the three, as for the others that read it.
+        mounts=".agents/skills",
+        # Everything an account is: `config.yaml` holds a key and every provider added to it,
+        # and `auth/` what a sign-in leaves -- a directory per build, and the lock two of its
+        # processes refresh a token under.
+        creds=("config.yaml", "auth"),
+        # The endpoints and the region that say whose account a turn is taken as, and the
+        # vendor's own names for a key. None of them is a way in of its own.
+        ambient=(
+            "MCODE_API_BASE_URL",
+            "MCODE_AUTH_BASE_URL",
+            "MCODE_AUTH_PROVIDER",
+            "MCODE_CLIENT_ID",
+            "MCODE_REGION",
+            "MINIMAX_API_KEY",
+            "MINIMAX_CN_API_KEY",
+        ),
+        # What it says when a turn stops on its sign-in, which none of the shared signs read:
+        # `Sign in to MiniMax to use Agent features`, before a turn has started, and a managed
+        # model's `OAuth bearer is not synced`, when one has.
+        signs=(
+            Sign("refused", r"sign in to minimax"),
+            Sign("refused", r"oauth bearer is not synced"),
+        ),
+        ways=(
+            Way(
+                name="login",
+                about="sign in to a MiniMax account, in a browser",
+                argv=("mcode", "login"),
+            ),
+            Way(
+                name="key",
+                about="a MiniMax API key, from the platform",
+                # Saved into its `config.yaml` and chosen as where its models run from. It
+                # reads the key out of this variable rather than off its command line or
+                # its standard input, so the variable is what the answer has to be.
+                argv=("mcode", "provider", "set-minimax-key"),
+                asks=(
+                    Asked(
+                        env="MCODE_PROVIDER_API_KEY", about="the API key", secret=True
+                    ),
+                ),
+            ),
+            Way(
+                name="gateway",
+                about=_GATEWAY,
+                # A provider of its own, added to its `config.yaml` with the one model named
+                # here and made the default -- after a request to it, so an endpoint that
+                # does not answer is a way in that fails where it is made rather than a
+                # provider nothing can use.
+                argv=(
+                    "mcode",
+                    "provider",
+                    "add",
+                    "--name",
+                    "gateway",
+                    "--base-url",
+                    "{MCODE_GATEWAY_URL}",
+                    "--api-format",
+                    "{MCODE_GATEWAY_FORMAT}",
+                    "--model",
+                    "{MCODE_GATEWAY_MODEL}",
+                    "--api-key-env",
+                    "MCODE_PROVIDER_API_KEY",
+                    "--use",
+                ),
+                asks=(
+                    Asked(env="MCODE_GATEWAY_URL", about="where it is, as a URL"),
+                    Asked(
+                        env="MCODE_PROVIDER_API_KEY",
+                        about="the key it takes",
+                        secret=True,
+                    ),
+                    Asked(
+                        env="MCODE_GATEWAY_MODEL",
+                        about="the model to run, as the endpoint names it",
+                        keep=False,
+                    ),
+                    Asked(
+                        env="MCODE_GATEWAY_FORMAT",
+                        about=(
+                            "the protocol it speaks: anthropic-messages, "
+                            "openai-completions or openai-responses"
+                        ),
+                        fixed="openai-completions",
+                        keep=False,
+                    ),
                 ),
             ),
         ),
