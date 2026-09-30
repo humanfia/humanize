@@ -1,113 +1,105 @@
-# SDK
+---
+pageClass: hmz-ref
+---
 
-`hmz.sdk` is how a program that is not humanize drives humanize. It offers two ways into a
-run: [`Hmz`](#hmz) runs one in your own process, and [`Daemons`](#daemons) holds a workspace's
-runs in a process of their own, where a terminal closing cannot end them -- and a program is
-one of several [frontends](#link) sharing them, beside every interface there.
+<script setup>
+import '../.vitepress/theme/components/ref-cli/ref.css'
+</script>
 
-::: code-group
+# SDK reference
 
-```python [run it here]
-from hmz.sdk import Hmz
+`hmz.sdk`: the supported import path for programs that drive humanize. It defines nothing of
+its own but `Daemons`; every other name is the object the runtime or the daemon layer holds,
+handed through unchanged. Notation: [Conventions](/reference/#conventions).
 
-run = Hmz().run(
-    "ralph_loop",
-    "fix the build",
-    agents={"agent": "claude/claude-opus-5:high"},
-    budget={"cost": 5},
-)
-run.run()                        # returns when the flow does
+```python
+from hmz.sdk import Hmz, Daemons, Refused, fakes
 ```
 
-```python [on a thread]
-from hmz.sdk import Hmz
+## Module {#module}
 
-run = Hmz().run("ralph_loop", "fix the build",
-                agents={"agent": "claude/claude-opus-5:high"}, budget={"cost": 5})
-run.start()                      # returns at once
-...
-print(run.usage)                 # what it has spent so far
-run.stop()                       # interrupts the turn under way, and unwinds
-run.wait()
+```python
+__all__ = ["Accounts", "Daemon", "Daemons", "Environments", "Epics", "Fallbacks", "Flows",
+           "Flowverses", "Hmz", "Host", "Link", "Refused", "Run", "fakes"]
+def __getattr__(name: str) -> object: ...
 ```
 
-```python [one of its frontends]
-from hmz.sdk import Daemons
+| Name | Kind | Defined in | Section |
+| --- | --- | --- | --- |
+| `Hmz` | class | `hmz.runtime` | [Hmz](#hmz) |
+| `Run` | class | `hmz.runtime` | [Run](#run) |
+| `Refused` | exception | `hmz.runtime` | [Refused](#refused) |
+| `Flows` | class | `hmz.runtime` | [Flows](#flows) |
+| `Flowverses` | class | `hmz.runtime` | [Flowverses](#flowverses) |
+| `Accounts` | class | `hmz.runtime` | [Accounts](#accounts) |
+| `Environments` | class | `hmz.runtime` | [Environments](#environments) |
+| `Fallbacks` | class | `hmz.runtime` | [Fallbacks](#fallbacks) |
+| `Epics` | class | `hmz.runtime` | [Epics](#epics) |
+| `Host` | class | `hmz.runtime` | [Host](#host) |
+| `Daemons` | class | `hmz.sdk.daemons` | [Daemons](#daemons) |
+| `Daemon` | frozen dataclass | `hmz.daemon` | [Daemon](#daemon) |
+| `Link` | class | `hmz.daemon` | [Link](#link) |
+| `fakes` | module | `hmz.runtime.flowing.fakes` | [fakes](#fakes) |
 
-with (Daemons().here() or Daemons().host()).link(name="starter") as link:
-    link.start("ralph_loop", "fix the build",
-               agents={"agent": "claude/claude-opus-5:high"}, budget={"cost": 5})
-    for said in link:            # everything the run does, as messages
-        if said["type"] == "ended":
-            break
-```
-
-:::
-
-`Hmz().run(...)` is what `hmz exec` calls with a command line. A run refused before it starts
-raises [`Refused`](#refused), with the message `hmz exec` prints.
-
-## Every name
-
-All of these import from `hmz.sdk`.
-
-| Name | Is |
+| Rule | |
 | --- | --- |
-| [`Hmz`](#hmz) | One workspace, and everything humanize can do in it. |
-| [`Run`](#run) | One run of one flow: start it, watch it, stop it. |
-| [`Refused`](#refused) | A run refused before anything of it ran. |
-| [`Flows`](#flows), [`Flowverses`](#flowverses) | The flows there are, and where they come from: `Hmz.flows` and `Hmz.verses`. |
-| [`Accounts`](#accounts), [`Fallbacks`](#fallbacks) | The accounts an agent runs as, and where a turn goes when its place cannot take it: `Hmz.accounts` and `Hmz.fallbacks`. |
-| [`Environments`](#environments) | The ssh hosts and docker daemons an environment may be put on, saved under names: `Hmz.environments`. |
-| [`Epics`](#epics) | The runs of a workspace that already happened: `Hmz.epics`. |
-| [`Daemons`](#daemons), [`Daemon`](#daemon) | Runs held apart from any terminal. |
-| [`Host`](#link), [`Link`](#link) | A workspace's runs shared by several frontends, and one frontend of them. |
-| [`fakes`](#fakes) | The in-memory kit a flow is tested on, as a module. |
-
-::: tip Stable and internal
-Import these from `hmz.sdk`. Each is fetched from the layer it is written in, only when it is
-named: `Hmz`, `Run`, `Host` and the objects `Hmz` hands out from `hmz.runtime`, and `Daemon`
-and `Link` from `hmz.daemon`. Those modules, and the types the methods below return
-(`Offer`, `Declaration`, `Line`, `Provider` and the rest), are **internal**. Their fields are
-listed here as they are today.
-
-`fakes` is offered as a module: `from hmz.sdk import fakes`. `import hmz.sdk.fakes` and
-`from hmz.sdk.fakes import …` raise `ModuleNotFoundError`.
-:::
+| Lazy | Each name is imported from its layer on first access (module `__getattr__`). `import hmz.sdk` imports nothing else. |
+| Identity | `hmz.sdk.X is <layer>.X`: the same class, not a wrapper. |
+| Unknown names | `AttributeError: module 'hmz.sdk' has no attribute '<name>'`. |
+| `fakes` | A module attribute: `from hmz.sdk import fakes` works; `import hmz.sdk.fakes` raises `ModuleNotFoundError`. |
+| Stability | Names in `__all__` are stable. Types they return that are not in `__all__` (`Line`, `Offer`, `Declaration`, `Provider`, …, listed under [Returned types](#returned-types)) are internal: their fields are documented as they are. |
 
 ## `Hmz` {#hmz}
 
 ```python
 class Hmz:
-    def __init__(self, workspace: str | os.PathLike[str] | None = None) -> None: ...
+    def __init__(self, workspace: str | os.PathLike[str] | None = None) -> None
 ```
 
-| Parameter | |
-| --- | --- |
-| `workspace` | The project directory, or `None` for the current directory. Kept as given, `~` unexpanded: one nobody named follows a flow that changes directory. |
+One workspace and everything humanize can be asked to do in it. The constructor loads
+nothing.
 
-Nothing is loaded until it is asked for.
+| Parameter | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `workspace` | `str \| PathLike \| None` | `None` | The project directory. `None`: the current directory, re-read at each use. Kept as given; `~` is not expanded. |
 
-| Property | |
-| --- | --- |
-| `workspace: Path` | The project directory. |
-| `home: Path` | Where humanize keeps what outlives a run: `~/.humanize`, or `$HUMANIZE_HOME`. |
-| `settings` | What humanize remembers about this workspace and everywhere, as the internal `hmz.runtime.settings.Settings`. See [TUI](/reference/tui). |
-| `flows` | [`Flows`](#flows): the flows there are. |
-| `verses` | [`Flowverses`](#flowverses): where flows come from. The same object as `flows.verses`. |
-| `accounts` | [`Accounts`](#accounts). |
-| `environments` | [`Environments`](#environments). |
-| `fallbacks` | [`Fallbacks`](#fallbacks). |
-| `epics` | [`Epics`](#epics) of this workspace. |
+### Properties {#hmz-properties}
 
-| Method | |
-| --- | --- |
-| [`run(flow, task, *, …)`](#hmz-run) | A [`Run`](#run) of a flow, checked and ready to start. |
-| [`runner(flow, *, …)`](#hmz-runner) | The flow loaded and checked, with its drivers, and no task. |
-| [`read(argv)`](#hmz-read) | An `hmz exec` line, read. |
-| [`exec(argv)`](#hmz-exec) | The whole of `hmz exec`: read the line, run the flow, return what it returned. |
-| `backends()` | Every coding agent CLI humanize drives, installed or not, as internal `Profile`s: `[p.name for p in Hmz().backends()]` is `['claude', 'agy', 'codex', …]`. |
-| `reports()` | Starts [reporting humanize's own failures](/user/reporting), where that has been answered yes. Returns whether anything is being reported. |
+| Property | Type | Value |
+| --- | --- | --- |
+| `workspace` | `Path` | The project directory. |
+| `home` | `Path` | `$HUMANIZE_HOME`, else `~/.humanize`. Not created. |
+| `settings` | `hmz.runtime.settings.Settings` | What is remembered for this workspace and machine ([Settings](/reference/settings)). Internal type. |
+| `flows` | [`Flows`](#flows) | |
+| `verses` | [`Flowverses`](#flowverses) | The same object as `flows.verses`. |
+| `accounts` | [`Accounts`](#accounts) | |
+| `environments` | [`Environments`](#environments) | |
+| `fallbacks` | [`Fallbacks`](#fallbacks) | |
+| `epics` | [`Epics`](#epics) | Of this workspace. |
+
+`workspace` and `home` are computed on each access; the others are created on first access and
+cached on the instance.
+
+### Methods {#hmz-methods}
+
+| Method | Returns | Raises |
+| --- | --- | --- |
+| [`run(flow, task, *, …)`](#hmz-run) | [`Run`](#run) | `Refused` |
+| [`runner(flow, *, …)`](#hmz-runner) | `Runner` | `Refused` |
+| [`read(argv)`](#hmz-read) | [`Line`](#line) | `SystemExit` |
+| [`exec(argv)`](#hmz-exec) | `Any` | `SystemExit`, `Refused`, what the flow raises |
+| `host()` | [`Host`](#host) | — |
+| `backends()` | `tuple[Profile, ...]` | — |
+| `reports()` | `bool` | — |
+
+- `host()`: this workspace's [`Host`](#host), created on first call and cached on the
+  instance. Frontends attached to it share one run.
+- `backends()`: every coding-agent CLI humanize drives, installed or not, as internal
+  `hmz.coganchor.backends.Profile` objects (`.name`, `.aliases`, `.efforts`, `.installs`, …).
+  `[p.name for p in Hmz().backends()]` is `['claude', 'agy', 'codex', 'dsh', 'grok', 'kimi',
+  'pi', 'qwen', 'opencode', 'mimo', 'cursor-agent', 'mcode']`.
+- `reports()`: starts [error reporting](/user/reporting) where it has been answered *yes*
+  (or `HUMANIZE_SENTRY=on`). Returns whether anything is being reported. Never asks.
 
 ### `Hmz.run` {#hmz-run}
 
@@ -127,26 +119,29 @@ def run(
 ) -> Run
 ```
 
-| Parameter | |
+Equivalent to `Run(self.runner(flow, agents=…, envs=…, params=…, budget=…, resume=…,
+harness=…), task, outworlder=outworlder)`. Nothing starts.
+
+| Parameter | Accepts | Default |
+| --- | --- | --- |
+| `flow` | A [`-f` ref](/reference/cli#naming-a-flow) or a path. | — |
+| `task` | The task text. | — |
+| `agents` | `{role: spec}` where spec is an [`-a` spec](/reference/cli#writing-an-agent) without `<role>=` (`"claude@work/claude-opus-5:high"`) or an `AgentDriver` (e.g. `fakes.FakeAgentDriver`); or an iterable of `AgentSpec` (`Line.agents`). | `()` |
+| `envs` | `{role: spec}` with an [`-e` spec](/reference/cli#writing-an-environment) without `<role>=`, or an `EnvDriver`; or an iterable of `EnvSpec`. | `()` |
+| `params` | A mapping (strings read as `-p` reads them) or an instance of the flow's `FlowParams`. `None`: defaults. | `None` |
+| `budget` | A [`Budget`](/reference/flows#what-a-run-may-spend), or a mapping validated by `Budget.model_validate` (`{"cost": 5}`, `{"duration": 3600}`, `{"duration": "PT1H"}`; `"1h"` is **not** accepted). `None`: `Budget(cost=inf)` for a flow shipped with humanize, else refused. | `None` |
+| `resume` | `False`: from the top. `True`: the newest resumable epic of this flow here. A path: that epic. | `False` |
+| `outworlder` | The driver filling `Outworlder` roles (e.g. `fakes.FakeOutworlder`). `None`: always away, as under `hmz exec`. | `None` |
+| `harness` | An [`-H` spelling](/reference/cli#choosing-where-the-harness-runs) or a `HarnessSpec`. `None` or `""`: `adaptive`. | `None` |
+
+Raises [`Refused`](#refused) for everything [`hmz exec` refuses at stage
+3](/reference/cli#processing-order), in the same words, plus:
+
+| Condition | Message |
 | --- | --- |
-| `flow` | The flow: the name it is listed under, a path, or a [ref](/reference/flows#refs). |
-| `task` | What it is to do. |
-| `agents` | By role: an `-a` spec without the `<role>=` (`"claude@work/claude-opus-5:high"`), or a driver such as a [`fakes.FakeAgentDriver`](/reference/flows#fakeagentdriver). Or `Line.agents`. |
-| `envs` | By role: an `-e` spec without the `<role>=` (`"ssh@gpu-box/home/me/repo"`, `"docker@gpubox/srv/repo"`), or a driver. Or `Line.envs`. |
-| `params` | A mapping (strings as `-p` gives them are read as the field's type) or an instance of the flow's `FlowParams`. `None` for its defaults. |
-| `budget` | A [`Budget`](/reference/flows#budget), or a mapping validated into one: `{"cost": 5}`, `{"duration": 3600}` or `{"duration": "PT1H"}`. Unlike `-b`, a mapping does not read `"1h"`. Required for every flow but `chat`. |
-| `resume` | `True` for the newest run of this flow here that can be picked up, or the epic directory to pick up. |
-| `outworlder` | Who fills the flow's `Outworlder` roles, such as a [`fakes.FakeOutworlder`](/reference/flows#fakeoutworlder). `None` for nobody: always away, as under `hmz exec`. |
-| `harness` | Where each agent's harness runs, as [`-H`](/reference/cli#choosing-where-the-harness-runs) spells it (`"env"`, `"standalone:ssh@gpu-box"`), or `Line.harness`. `None` for `adaptive`. |
-
-Returns a [`Run`](#run). Nothing has started.
-
-Raises [`Refused`](#refused) for everything that can be checked without reaching an agent or a
-machine: a flow that is not there; a role it does not declare, one the runtime fills, or one
-given twice; a required role left out; a harness that is not the one a role names, or does not
-serve what it asks; a spec no driver can be made for, such as an effort off the harness's
-ladder; params the flow does not take; no budget; a run to pick up that is not there; a `harness` that
-is none of the places a harness runs.
+| a role given twice across a mapping and specs | `<flow>: duplicate agent role '<role>'` / `… environment role …` |
+| an invalid budget mapping | `the budget is invalid: <pydantic error>` |
+| a `resume` path with no journal entry | `<epic name> has no saved progress to resume from` |
 
 ```python
 from hmz.sdk import Hmz, Refused
@@ -164,10 +159,9 @@ def runner(self, flow, *, agents=(), envs=(), params=None, budget=None, resume=F
            harness=None) -> Runner
 ```
 
-The same parameters and refusals as [`run`](#hmz-run), without the task: the flow loaded,
-a driver opened for every role and everything checked, as the internal
-`hmz.runtime.runner.Runner`. Opening a driver starts no CLI and reaches no machine. `run` is
-`Run(self.runner(…), task, outworlder=…)`.
+Parameters and refusals as [`run`](#hmz-run), without `task` and `outworlder`. Returns the
+internal `hmz.runtime.runner.Runner`: the flow loaded (its module imported), a driver made for
+every role, everything checked. Making a driver starts no CLI and reaches no machine.
 
 ### `Hmz.read` {#hmz-read}
 
@@ -175,19 +169,10 @@ a driver opened for every role and everything checked, as the internal
 def read(self, argv: list[str]) -> Line
 ```
 
-Reads an `hmz exec` line, without loading the flow. A line argparse will not accept, or an
-`-a`, `-e`, `-p`, `-b` or `-H` that cannot be read, raises `SystemExit`.
-
-| `Line` field | |
-| --- | --- |
-| `flow: str` | The flow, as the line named it. |
-| `task: str` | What it is to do. |
-| `agents`, `envs` | The `-a` and `-e` specs, in the order written. |
-| `params: dict[str, str]` | Each `-p`, as written. |
-| `budget: Budget \| None` | The `-b`, read, or `None`. |
-| `resume: bool` | `--resume`. |
-| `as_json: bool` | `--json`. |
-| `harness: HarnessSpec \| None` | The `-H`, read, or `None`. |
+Parses an `hmz exec` argument list (without `exec`) to a [`Line`](#line). Loads no flow. A
+line argparse rejects, or an `-a`/`-e`/`-p`/`-b`/`-H` that does not parse, prints usage and
+the error to stderr and raises `SystemExit(2)`; `--help` prints help and raises
+`SystemExit(0)`.
 
 ```python
 hmz = Hmz()
@@ -204,52 +189,50 @@ run = hmz.run(line.flow, line.task, agents=line.agents, envs=line.envs,
 def exec(self, argv: list[str]) -> Any
 ```
 
-`read(argv)`, then `run(…)`, then `Run.run()`: runs the flow the line names to its return,
-and returns what it returned. Raises `SystemExit` for a line that cannot be read, `Refused`
-for one that was wrong before anything ran, and whatever the flow raised.
-
-```python
-Hmz().exec(["-f", "chat", "-a", "assistant=claude/claude-opus-5:high", "say hello"])
-```
+`read(argv)`, then `run(…)`, then `Run.run()`. Returns what the flow returned. Unlike the
+`hmz exec` command it draws nothing, installs no signal handlers and does not convert
+`Refused` or `BudgetExceeded` into an exit status.
 
 ## `Run` {#run}
 
 ```python
 class Run:
     def __init__(self, runner: Runner, task: str, *,
-                 outworlder: OutworlderDriver | None = None) -> None: ...
+                 outworlder: OutworlderDriver | None = None) -> None
 ```
 
-One run of one flow. Made by [`Hmz.run`](#hmz-run). Making one starts nothing: `run()` runs it
-here and `start()` on a thread.
+One run of one flow. Made by [`Hmz.run`](#hmz-run). Constructing one starts nothing.
 
-| Property | |
-| --- | --- |
-| `flow: str` | The flow, as it was named. |
-| `ref: str` | Its canonical ref: `rlar:rlar`, `humanize1:rlcr`. |
-| `task: str` | What it was asked to do. |
-| `declaration` | What the flow declares, as a [`Declaration`](#declaration). |
-| `budget: Budget` | What the run may spend. |
-| `usage: Usage` | What every session of the run has spent so far. |
-| `agents` | The internal coganchor agent behind each session still open, oldest first. Empty for fake drivers. |
-| `epic: Path \| None` | The [epic](/reference/tracing#epics) the run is written into, once it has started. |
-| `running: bool` | Whether a run started on a thread is still going. |
-| `raised: BaseException \| None` | What the flow raised, for a run started on a thread and over. `asyncio.CancelledError` after `stop()`. |
-| `result: Any` | What the flow returned, likewise. |
+### Properties {#run-properties}
 
-| Method | |
-| --- | --- |
-| `run() -> Any` | Runs the flow here until it returns, and returns what it returned or raises what it raised. From a thread already running an event loop, it runs on a thread of its own and waits. Raises `Refused` if an environment cannot be reached, before the flow is called. |
-| `start() -> None` | Runs it on a thread of its own and returns at once. `RuntimeError` if it has already been started. |
-| `wait(timeout: float \| None = None) -> bool` | Waits for it to end. Returns whether it has. |
-| `stop() -> None` | Interrupts the turn under way and unwinds the flow: every call raises where it stands, and every session and temporary directory is closed or removed, in its own time. From any thread. |
-| `close() -> None` | `stop()`, and then interrupts every session and stops every agent at once, without waiting for the flow to unwind. The flow still sees `CancelledError`. |
-| `unreadable() -> str` | Which cap of the budget nothing the run drives can read, in words, or `""`: a cost cap over a model nobody prices. `hmz exec` prints it before the run. |
-| `watch(listener) -> None` | Has everything every session says reach `listener(agent, conversation, event)`, from whichever thread a CLI is read on. |
-| `opened(callback) -> None` | Has each session told to `callback(role, agent, conversation)` as it opens, before its first turn. |
+| Property | Type | Value |
+| --- | --- | --- |
+| `flow` | `str` | The flow as named. |
+| `ref` | `str` | Its canonical ref (`chat:chat`, `humanize1:rlcr`). |
+| `task` | `str` | |
+| `declaration` | [`Declaration`](#declaration) | What the flow declares. |
+| `budget` | `Budget` | What the run may spend. |
+| `usage` | `hmz.flows.Usage` | Spent so far: `duration: timedelta`, `cost: float`, `output_tokens: int`. |
+| `agents` | `tuple[AgentBase, ...]` | The coganchor agent behind each **open** session, oldest first. Empty for fake drivers. |
+| `epic` | `Path \| None` | The epic directory, once started. |
+| `running` | `bool` | Whether a run started with `start()` (or `run()` from a thread already running an event loop) is still going. Always `False` for `run()` on a thread without a loop. |
+| `raised` | `BaseException \| None` | For a run started with `start()` and over: what the flow raised (`asyncio.CancelledError` after `stop()`). |
+| `result` | `Any` | For a run started with `start()` and over: what the flow returned. |
 
-`agent`, `conversation` and `event` are coganchor's own objects. See
-[Agents](/reference/agents).
+### Methods {#run-methods}
+
+| Method | Returns | Behaviour |
+| --- | --- | --- |
+| `run()` | `Any` | Runs the flow on an event loop in this thread until it returns; returns its result or raises what it raised. From a thread already running an event loop, runs on a new thread and waits. Raises `Refused` before the flow is called if an environment cannot be reached or is too small. |
+| `start()` | `None` | Runs it on a new thread and returns at once. `RuntimeError` if already started. |
+| `wait(timeout: float \| None = None)` | `bool` | Blocks until the run ends or `timeout` seconds pass; returns whether it ended. |
+| `stop()` | `None` | Interrupts the turn under way; every flow call raises `CancelledError` where it stands; sessions are closed and temporary directories removed as the flow unwinds. Thread-safe. Does not wait. |
+| `close()` | `None` | `stop()`, then closes every open session and agent at once. The flow sees a failed turn. |
+| `unreadable()` | `str` | The budget cap nothing driven can enforce, in words (the [`hmz exec` note](/reference/cli#writing-a-budget)), or `""`. |
+| `watch(listener)` | `None` | Registers `listener(agent: AgentBase, session: SessionBase \| None, event: Event)`, called for every event of every session from the thread that read it. Watching also stops CLIs writing their own progress to this process's streams. |
+| `opened(callback)` | `None` | Registers `callback(role: str, agent: AgentBase, session: SessionBase, where: Placement | None)` (`where` is `None` where the driver reports no placement), called on the run's loop as each session opens, before its first turn. |
+
+`AgentBase`, `SessionBase` and `Event` are coganchor's ([Agents](/reference/agents)).
 
 ## `Refused` {#refused}
 
@@ -257,271 +240,248 @@ here and `start()` on a thread.
 class Refused(ValueError): ...
 ```
 
-A run refused before anything of it ran: a line or a setup to correct. Its message says what,
-in the words `hmz exec: error:` prints, and its `__cause__` is the exception it was refused
-for, where there was one.
+A run, or a request to a host, refused before anything of it ran. `str(error)` is the message
+`hmz exec` prints after `hmz exec: error: `, and the reason a host gives every frontend.
+`__cause__` is the underlying exception where there was one (`FlowException`, `SpecError`,
+`pydantic.ValidationError`).
 
 ## `Flows` {#flows}
 
-`Hmz().flows`: the flows there are to run. [Flows](/reference/flows) is what a flow is.
+`Hmz().flows`. Constructor: `Flows()`.
 
-| Method | |
-| --- | --- |
-| `all() -> list[Offer]` | Every flow there is to run, in the order they are offered. |
-| `find(named: str) -> str` | The file a flow is written in, resolved. `named` itself where nothing answers to it, so whether a flow is there is whether what comes back is a file. |
-| `about(named: str) -> str` | The line a flow says about itself, or `""`. |
-| `declared(named) -> Declaration` | Everything it declares. Raises the flow API's own [exception](/reference/flows#when-something-goes-wrong) for a flow that cannot be loaded. |
-| `resumes(named) -> bool` | Whether it [can be picked up](/reference/flows#a-flow-that-can-be-picked-up). |
-| `fork(named: str, into=None) -> str` | Copies it into this project's `.humanize/flows/`, or `into`, whole. Returns the directory. `ValueError` for a flow that is not there, or a copy you already have. |
-| `running() -> tuple[LiveCall, ...]` | Every flow call going in this process, oldest first. |
-| `verses` | [`Flowverses`](#flowverses). |
-
-`declared` and `resumes` import the flow, which runs its module.
-
-| `Offer` field | |
-| --- | --- |
-| `whose` | Where it came from: a flowverse's name, or `local` or `user`. |
-| `name` | What `-f` takes: `rlar`, `local/twice`, `humanize1:gen-plan`. |
-| `about` | Its line, or `""`. |
-
-<span id="declaration"></span>
-
-| `Declaration` field | |
-| --- | --- |
-| `name`, `ref` | Its name in its module, and its canonical ref. |
-| `description`, `hidden`, `resumable` | As [`@flow`](/reference/flows#flow) set them. |
-| `agents`, `envs` | Its roles, in declaration order. Each has `name`, `required`, `auto` (filled by the runtime) and `capabilities` (the mixins). An agent role also has `harness` (or `None`), `permission` and `skills`; an environment role `cpu_count`, `memory`, `gpu_count` and `gpu_memory`. |
-| `params` | Its `FlowParams` subclass. |
-| `agent(name)`, `env(name)` | One role by name, or `None`. |
-
-| `LiveCall` field | |
-| --- | --- |
-| `ref`, `name` | The flow's canonical ref, and its name in its module. |
-| `depth` | How many flows deep: `1` for the flow the run started with. |
-| `parent` | The call that made it, or `None`. |
-| `task`, `resumable`, `since`, `id` | What it was called to do, whether it can be picked up, when it started on the monotonic clock, and its id in the run's journal (`0` for none). |
+| Member | Returns | Behaviour |
+| --- | --- | --- |
+| `verses` | [`Flowverses`](#flowverses) | Property. |
+| `all()` | `list[Offer]` | Every runnable flow, in offer order. |
+| `find(named: str)` | `str` | The resolved file of a flow. `named` itself where nothing resolves: a flow exists iff the result is a file. |
+| `about(named: str)` | `str` | The flow's one-line description, or `""`. |
+| `declared(named: str \| PathLike)` | [`Declaration`](#declaration) | Imports the flow. Raises the flow API's `FlowException` for a flow that cannot load. |
+| `resumes(named: str \| PathLike)` | `bool` | Whether it is [resumable](/reference/flows#a-flow-that-can-be-picked-up). Imports the flow. |
+| `fork(named: str, into: str \| PathLike \| None = None)` | `str` | Copies the flow, what it imports and its skills into `./.humanize/flows/` (or `into`). Returns the directory. `ValueError`: not a flow, or already a copy here. `OSError`: cannot copy. |
+| `running()` | `tuple[LiveCall, ...]` | Every flow call in progress in this process, oldest first. |
 
 ```python
-from hmz.sdk import Hmz
-
-flows = Hmz().flows
-for offer in flows.all():
+for offer in Hmz().flows.all():
     print(offer.name, "·", offer.about)
-print([role.name for role in flows.declared("rlar").agents])   # ['actor', 'reviewer']
 ```
 
 ## `Flowverses` {#flowverses}
 
-`Hmz().verses`: where flows come from, the same store [the Flowverses page of
-`/settings`](/reference/tui#where-flows-come-from) walks.
+`Hmz().verses`: the store the [Flowverses page of `/settings`](/reference/tui#where-flows-come-from) edits.
 
-| Method | |
-| --- | --- |
-| `all() -> list[Flowverse]` | Every place, in the order their flows are offered: `official`, the ones you added (alphabetically), `local`, `user`. |
-| `nearest() -> list[Flowverse]` | The same, in the order a name is looked up in: `local`, `user`, `official`, the ones you added. |
-| `find(name) -> Flowverse \| None` | The one of that name. |
-| `add(url, name="") -> Flowverse` | Fetches one (a URL, a path, or `owner/repo` on GitHub) and lists its flows under `name`, the repository's own by default. `ValueError` for a name taken or reserved; `OSError` if it cannot be cloned. |
-| `fetch(name) -> Flowverse` | Fetches one again, or for the first time. |
-| `remove(name) -> bool` | Takes one away, flows and all. Returns whether there was one. |
-| `holds(one) -> list[Offer]` | What it holds. **Imports every flow in it.** |
-| `edited(one) -> bool` | Whether its clone holds changes a fetch would undo. |
-| `standing(one) -> str` | The commit its clone stands at, or `""` for one that is not a clone. |
-| `where(name) -> Path` | The directory it is kept in, fetched or not. |
-| `plain(url) -> str` | The URL with any credentials taken out. |
-| `whence(one, nowhere="-") -> str` | Where it came from, fit to show: the URL without credentials, `your own flows in .humanize/flows` for `local`, or `nowhere`. |
-
-`fetch` and `remove` refuse `local` and `user`, and `remove` refuses `official`, with
-`ValueError`.
-
-| `Flowverse` field | |
-| --- | --- |
-| `name` | What it is called, and what its flows are listed under. |
-| `url` | Where it is fetched from, or `""` for `local` and `user`. |
-| `at` | The directory it is kept in. |
-| `fetched` | Whether it has been cloned. `official` is `False` until first fetched. |
-| `fixed` | Whether it is always there: `official`, `local`, `user`. |
-
-```python
-verses = Hmz().verses
-theirs = verses.add("acme/flows", name="acme")
-print([offer.name for offer in verses.holds(theirs)])   # ['acme/review', …]
-```
+| Method | Returns | Behaviour |
+| --- | --- | --- |
+| `all()` | `list[Flowverse]` | Offer order: `official`, added ones alphabetically, `local`, `user`. |
+| `nearest()` | `list[Flowverse]` | Lookup order for a bare name: `local`, `user`, `official`, added ones. |
+| `find(name: str)` | `Flowverse \| None` | |
+| `add(url: str, name: str = "")` | `Flowverse` | Clones `url` (a URL, a path, or `owner/repo` on GitHub) under `name` (default: the repository's name). `ValueError`: name taken, reserved (`official`, `local`, `user`) or not a valid directory name. `OSError`: clone failed. |
+| `fetch(name: str)` | `Flowverse` | Fetches again, or for the first time; resets the clone to the remote. `ValueError`: no such name, or `local`/`user`. `OSError`: git failed. |
+| `remove(name: str)` | `bool` | Deletes it; whether there was one. `ValueError`: `official`, `local`, `user`. |
+| `holds(one: Flowverse)` | `list[Offer]` | Its flows. **Imports every flow in it.** For `official` before fetch: the package's own; for any other unfetched place: `[]`. |
+| `edited(one: Flowverse)` | `bool` | Whether the clone holds changes a fetch would discard. `False` for a non-clone. |
+| `standing(one: Flowverse)` | `str` | The clone's commit, or `""`. |
+| `where(name: str)` | `Path` | Its directory, fetched or not. |
+| `plain(url: str)` | `str` | `url` with credentials removed. |
+| `whence(one: Flowverse, nowhere: str = "-")` | `str` | Displayable origin: the credential-free URL; `your own flows in .humanize/flows` for `local`; `nowhere` for a directory with no readable origin. |
 
 ## `Accounts` {#accounts}
 
-`Hmz().accounts`: [the accounts an agent may run as](/reference/providers), and what each
-backend runs as one. `cli` is a backend by any name it answers to; an account `name` of `""`
-is the one this machine is already signed into.
+`Hmz().accounts`: [provider accounts](/reference/providers). `cli` accepts any name or alias of
+a backend. An account `name` of `""` is the machine's own login (*as local*).
 
-| Method | |
-| --- | --- |
-| `all(cli="") -> list[Provider]` | Every account made, or one backend's. |
-| `find(cli, name) -> Provider \| None` | One account. |
-| `ways(cli) -> tuple[Way, ...]` | How a backend can be signed into: for `claude`, `login`, `token`, `key`, `gateway`, `bedrock`, `vertex`, `env`. |
-| `way(cli, name) -> Way \| None` | One of them. |
-| `asks(way, given) -> list[str]` | What a way in still needs to be told. |
-| `make(cli, name, way, answers=None) -> Provider` | Writes an account down from the answers to its way in. |
-| `sign_in(provider, way, answers=None) -> int` | **Runs** the backend's own sign-in, under this account's paths. Returns its exit status. |
-| `write(cli, name, way="", env=None, args=()) -> Provider` | Writes an account down as it stands, running nothing. Its chain and retries are kept. |
-| `where(cli, name) -> Path` | Where it keeps its credentials, made or not. |
-| `local(cli) -> Path` | Where the account this machine is signed into keeps its own. |
-| `serves(one) -> tuple[str, ...]` | The other backends its credentials could run. |
-| `copies(one, cli, name="") -> Provider` | Writes the same account down for another backend. |
-| `chain(one) -> list[Provider]` | Every account a failing turn would carry on under, this one first. |
-| `points(cli, name, at) -> bool` | Sets which account a turn under `name` carries on under, `""` for none. |
-| `remove(cli, name) -> bool` | Takes one away, credentials and all. |
-| `env(said) -> dict[str, str]` | Reads `NAME=VALUE` lines. |
-| `environ(provider) -> dict[str, str]` | What a turn under this account is run with. |
-| `models(cli, provider="") -> tuple[Model, ...]` | What the backend last said it runs as this account, each with its efforts. Empty if never asked. |
-| `asked(cli, provider="") -> str` | When it was last asked, or `""`. |
-| `stale(cli, provider="") -> bool` | Whether that is never, or more than a week ago (`hmz.coganchor.models.STALE`): a list to ask again before offering it. |
-| `ask(cli, provider="", seconds=None) -> tuple[Model, ...]` | **Starts the backend** to find out, and keeps the answer. |
-
-`Provider` has `cli`, `name`, `way`, `env`, `args`, `made`, `fallback` and `at`, the directory
-its credentials are kept in.
-
-```python
-accounts = Hmz().accounts
-print([one.name for one in accounts.all("claude")])
-print(accounts.env("ANTHROPIC_BASE_URL=https://gateway.example\nTIMEOUT=60"))
-```
+| Method | Returns | Behaviour |
+| --- | --- | --- |
+| `all(cli: str = "")` | `list[Provider]` | Every account, or one backend's; by backend, then name. |
+| `find(cli: str, name: str)` | `Provider \| None` | |
+| `ways(cli: str)` | `tuple[Way, ...]` | How the backend can be signed into, in offer order (for `claude`: `login`, `token`, `key`, `gateway`, `bedrock`, `vertex`, `env`). |
+| `way(cli: str, name: str)` | `Way \| None` | |
+| `asks(way: Way, given: Mapping[str, str])` | `list[str]` | Variables still unanswered. |
+| `make(cli, name, way: Way, answers=None)` | `Provider` | Writes an account from a way's answers; makes its directory. `ValueError`: bad backend or name. `OSError`. |
+| `sign_in(provider, way, answers=None)` | `int` | **Runs** the backend's sign-in command under the account's paths; its exit status. |
+| `write(cli, name, way="", env=None, args=())` | `Provider` | Writes an account as given, replacing `env`/`args`, keeping credentials and fail-over. `ValueError`, `OSError`. |
+| `where(cli, name)` | `Path` | Its credentials directory. `ValueError`: unknown backend or invalid name. |
+| `local(cli)` | `Path` | Where the machine's own login's humanize record is kept. |
+| `serves(one: Provider)` | `tuple[str, ...]` | Other backends its credentials could run. |
+| `copies(one, cli, name="")` | `Provider` | Writes the same account for another backend. `ValueError`: that backend cannot use it. |
+| `chain(one: Provider)` | `list[Provider]` | Accounts a failing turn walks, `one` first. |
+| `points(cli, name, at)` | `bool` | Sets `name`'s fail-over account to `at` (`""`: none). `ValueError`: not that backend's, itself, or a cycle. Returns whether `name` exists. |
+| `remove(cli, name)` | `bool` | Deletes an account and its credentials. `ValueError` for `""`. |
+| `env(said: str)` | `dict[str, str]` | Parses `NAME=VALUE` lines. |
+| `environ(provider: Provider \| None)` | `dict[str, str]` | The environment a turn under it gets; `{}` for `None`. |
+| `models(cli, provider="")` | `tuple[Model, ...]` | What the backend last reported it runs as this account; `()` if never asked. |
+| `asked(cli, provider="")` | `str` | When that was, or `""`. |
+| `stale(cli, provider="")` | `bool` | Never asked, or asked longer ago than `hmz.coganchor.models.STALE` (one week). |
+| `ask(cli, provider="", seconds=None)` | `tuple[Model, ...]` | **Starts the backend** to list its models, and keeps the answer. `()` if it does not answer. |
 
 ## `Environments` {#environments}
 
-`Hmz().environments`: [the machines an environment may be put on](/reference/machines#environment-providers),
-saved under names that `-e <role>=ssh@<name>` or `-e <role>=docker@<name>` then names.
-`backend` is `ssh` or `docker`.
+`Hmz().environments`: saved [environment providers](/reference/machines#environment-providers),
+named by `-e <role>=ssh@<name>` and `-e <role>=docker@<name>`. `backend` is `"ssh"` or
+`"docker"`.
 
-| Method | |
-| --- | --- |
-| `all(backend="") -> list[EnvProvider]` | Every provider saved, or one backend's: by backend, then name. |
-| `find(backend, name) -> EnvProvider \| None` | One provider. |
-| `where(backend, name) -> Path` | Where it is kept, saved or not. `ValueError` for a name no provider may have. |
-| `new(backend, name, **fields) -> EnvProvider` | One provider, checked and **not saved**. `ValueError` for a field that backend has not got or a value it cannot take. `new(**one.held())` is `one`. |
-| `add(provider) -> EnvProvider` | Saves a new one. `ValueError` if the name is taken. |
-| `write(provider) -> EnvProvider` | Saves one over whatever had its name. |
-| `remove(backend, name) -> bool` | Takes one away. |
-| `hosts(config=None) -> list[SSHHost]` | Every `Host` an ssh config names (yours by default), as `ssh -G` resolves it. |
-| `import_ssh(config=None, names=None, *, update=False) -> list[SSHProvider]` | Saves an ssh provider per `Host`, named after it. One already saved is left alone unless `update`. |
-| `resolve(provider) -> SSHHost` | What `ssh` makes of an ssh provider, reaching nothing. |
-| `check(provider, seconds=30.0) -> Checked` | **Reaches** it and asks what it has. Never raises. |
-
-`EnvProvider` is `SSHProvider` (`host`, `user`, `port`, `identity_file`, `proxy_jump`, `options`,
-`alias`, `config`) or `DockerProvider` (`endpoint`, `tls_dir`, `image`, `runtime`, `run_args`,
-`cpus`, `memory`, `gpus`, `gpu_memory`, `max_containers`), each with `backend`, `name`, `workdir`,
-`made` (`typed` or `imported`), `at` and `held()`. `SSHProvider.target()` is the coganchor target
-it is reached by, and `DockerProvider.daemon()` the daemon as a
-[`hmz.coganchor.transport.Endpoint`](/reference/machines#a-docker-daemon), whose `.docker(*argv)`
-is how `docker` reaches it. `SSHHost` has `alias`,
-`host`, `user`, `port`, `identity_files` and `proxy_jump`. `Checked` has `reached`, `said`,
-`home`, `cpus`, `memory`, `gpus`, `gpu_memory`, `runtimes`, `version` and `short`.
-
-```python
-envs = Hmz().environments
-envs.import_ssh()
-gpu = envs.find("ssh", "gpu")
-print(envs.resolve(gpu), envs.check(gpu))
-```
+| Method | Returns | Behaviour |
+| --- | --- | --- |
+| `all(backend: str = "")` | `list[EnvProvider]` | By backend, then name. |
+| `find(backend, name)` | `EnvProvider \| None` | |
+| `where(backend, name)` | `Path` | Where it is kept. `ValueError`: bad backend or name. |
+| `new(backend, name, **fields)` | `EnvProvider` | Builds and validates one; saves nothing. `ValueError`: unknown field or bad value. `new(**p.held())` equals `p`. |
+| `add(provider)` | `EnvProvider` | Saves a new one. `ValueError`: name taken. `OSError`. |
+| `write(provider)` | `EnvProvider` | Saves, replacing any of that name. `OSError`. |
+| `remove(backend, name)` | `bool` | `ValueError`: bad backend or name. |
+| `hosts(config: str \| PathLike \| None = None)` | `list[SSHHost]` | Every `Host` in an ssh config (default `~/.ssh/config`), as `ssh -G` resolves it. `OSError`: no `ssh`, unreadable config. |
+| `import_ssh(config=None, names=None, *, update=False)` | `list[SSHProvider]` | Saves one ssh provider per `Host` (or per name in `names`), named after it; existing ones kept unless `update`. `ValueError`: a name not in the config. |
+| `resolve(provider: SSHProvider)` | `SSHHost` | What `ssh -G` makes of it; reaches nothing. |
+| `check(provider, seconds: float = 30.0)` | `Checked` | **Reaches** it: an ssh host for home, CPUs, memory, GPUs; a docker daemon via `docker info`. Never raises. |
 
 ## `Fallbacks` {#fallbacks}
 
-`Hmz().fallbacks`: [where a turn goes](/user/settings#fallback) when the place taking it cannot
-take it at all. A place is written `CLI[@ACCOUNT]/MODEL`.
+`Hmz().fallbacks`: [fallback steps](/user/settings#fallback) between *places*, each spelled
+`<cli>[@<account>]/<model>`.
 
-| Member | |
-| --- | --- |
-| `default: str` | The wait a failed turn is retried with unless set: `exponential-jitter`. |
-| `policies() -> tuple[Policy, ...]` | The waits there are: `none`, `constant`, `linear`, `exponential`, `exponential-jitter`, `fibonacci`. |
-| `named(policy) -> Policy \| None` | One of them. |
-| `spec(backend, model, provider="") -> str` | A place, spelled: `spec("codex", "gpt-5.6-sol", "work")` is `codex@work/gpt-5.6-sol`. |
-| `reads(said) -> str` | A place as it is written down, or `""` for a spelling no place answers to. |
-| `all() -> list[Falls]` | Every step written down. |
-| `tried(said) -> Falls` | What is written against one place. |
-| `chain(said) -> list[str]` | The places one turn would walk, starting at `said`. |
-| `points(said, at) -> Falls` | Sets where `said`'s turns go when it cannot run. `ValueError` for a place that is not one, or a step to itself. |
-| `retrying(said, tries, policy, timeout) -> Falls` | Sets how many more tries a failed turn gets at `said` first, the wait between them, and the longest they may take in seconds (`0` for no limit). |
-| `clear(said) -> bool` | Takes a step away. |
-
-`Falls` has `spec`, `to` (`""` for nowhere), `tries`, `policy` and `timeout`.
-
-```python
-fallbacks = Hmz().fallbacks
-here = fallbacks.spec("claude", "claude-opus-5")
-fallbacks.points(here, fallbacks.spec("codex", "gpt-5.6-sol", "work"))
-fallbacks.retrying(here, 3, "exponential", 600)
-print(fallbacks.chain(here))   # ['claude/claude-opus-5', 'codex@work/gpt-5.6-sol']
-```
+| Member | Returns | Behaviour |
+| --- | --- | --- |
+| `default` | `str` | Property: `"exponential-jitter"`. |
+| `policies()` | `tuple[Policy, ...]` | `none`, `constant`, `linear`, `exponential`, `exponential-jitter`, `fibonacci`. |
+| `named(policy: str)` | `Policy \| None` | |
+| `spec(backend, model, provider="")` | `str` | `spec("codex", "gpt-5.6-sol", "work")` → `"codex@work/gpt-5.6-sol"`. |
+| `reads(said: str)` | `str` | The canonical spelling, or `""` for none. |
+| `all()` | `list[Falls]` | Every step, in the order written. |
+| `tried(said)` | `Falls` | The step for a place (empty `Falls` where none). |
+| `chain(said)` | `list[str]` | The places one turn walks, `said` first; stops at the first repeat. |
+| `points(said, at)` | `Falls` | Sets where `said` falls back to. `ValueError`: not a place, or itself. |
+| `retrying(said, tries: int, policy: str, timeout: float)` | `Falls` | Sets extra tries (`0` none), the wait policy, and the total limit in seconds (`0` none). `ValueError`. |
+| `clear(said)` | `bool` | Removes the step. |
 
 ## `Epics` {#epics}
 
-`Hmz().epics`: [the runs of this workspace](/reference/tracing#epics) that already happened. A
-run is named by its directory, an `epic: Path`.
+`Hmz().epics`, or `Epics(workspace=None)`. A run is named by its epic directory.
 
-| Method | |
-| --- | --- |
-| `under() -> Path` | The directory this workspace's runs are kept in. |
-| `all() -> list[Path]` | Every run, oldest first. |
-| `read(epic) -> Ran \| None` | What one run was, or `None` for a directory holding no run. |
-| `sessions(epic) -> list[Session]` | Every session it opened, in every flow it called. |
-| `opened(epic) -> dict[str, list[str]]` | The session ids each agent role opened: `{"builder": ["0a1b…"]}`. |
-| `resumed(flow) -> Path \| None` | The newest run of a flow here that can be picked up: what `--resume` picks up. |
-| `picks_up(epic) -> bool` | Whether a run can be picked up from it. |
-| `state(epic, flow="") -> dict[str, Any]` | What a resumable flow kept in its `ctx.state`: the run's own flow, or another by canonical ref. |
-| [`traced(epic, *, output=None, start=None, end=None)`](/reference/tracing#from-python) | Gathers one run into a [trace](/reference/tracing). Returns where it went and the document. |
-| [`trace(*, sessions=None, agents=None, output=None, start=None, end=None, profile=None)`](/reference/tracing#from-python) | The same collector, for any sessions you name. Returns the document. |
-| `bundled(epic, *, output=None, transcript=None)` | Packs one whole run into one archive, credentials struck out. Returns where it went and its manifest. See [Exporting a run](/user/export). |
+| Method | Returns | Behaviour |
+| --- | --- | --- |
+| `under()` | `Path` | This workspace's epics directory. |
+| `all()` | `list[Path]` | Every epic, oldest first. |
+| `read(epic: Path)` | `Ran \| None` | `None` for a directory holding no run. |
+| `sessions(epic)` | `list[Session]` | Every session, across every record of the epic. |
+| `opened(epic)` | `dict[str, list[str]]` | Session ids per agent role. |
+| `resumed(flow: str)` | `Path \| None` | The epic `--resume` would pick up. `flow`: canonical ref or name as run. |
+| `picks_up(epic)` | `bool` | Whether its journal has an entry. |
+| `state(epic, flow: str = "")` | `dict[str, Any]` | A resumable flow's kept `ctx.state`: the run's own flow, or another by canonical ref. |
+| `traced(epic, *, output=None, start=None, end=None)` | `tuple[Path, dict]` | Gathers the run's own sessions into a Chrome trace. Default `output`: the epic's `traces/`, named for the moment. `start`/`end`: any wording `dateparser` reads. [Tracing](/reference/tracing#from-python). |
+| `trace(*, sessions=None, agents=None, output=None, start=None, end=None, profile=None, kept=None)` | `dict` | The same collector for any sessions. `sessions=None`: every session of the workspace; empty iterable: none. `kept`: directories of kept sessions to read (default: everywhere humanize keeps them). |
+| `bundled(epic, *, output=None, transcript=None)` | `tuple[Path, dict]` | One `.epic.tar.gz` of the whole run, credentials struck out. Default `output`: `./.humanize/`. Returns the path and its manifest. [Exporting a run](/user/export). |
 
-`Ran` has `at`, `name`, `flow`, `ref`, `task`, `workspace`, `began`, `ended`, `how` (`done`,
-`failed` or `stopped`), `agents`, `envs`, `params`, `budget`, `sessions`, `called`, `resumable`,
-`picked_up` and `harness`, as the [epic's own record](/reference/tracing#epics) says them. A
-session's `harness` is where its harness went, for one whose work was on another machine.
+## `Host` {#host}
 
 ```python
-runs = Hmz().epics
-last = runs.all()[-1]
-ran = runs.read(last)
-print(ran.flow, ran.how, [agent.spec for agent in ran.agents])
-where, document = runs.traced(last)
+class Host:
+    def __init__(self, hmz: Hmz) -> None
 ```
+
+A workspace's runs as every attached frontend shares them. `Hmz().host()` holds one in this
+process; a [daemon](/reference/daemon) holds one in its own. Frontends reach it through
+[`Link`](#link) rather than calling it directly.
+
+| Member | Returns | Behaviour |
+| --- | --- | --- |
+| `attach(name, kind, heard, *, replay=True)` | `str` | Attaches a frontend; returns its client id. `kind`: `tui`, `cli` or `sdk`. `name` `""`: login + `@kind`; duplicates get `#2`, `#3`. `heard(message)` is called on a thread of the host's. `RuntimeError` once closed. |
+| `detach(client)` | `None` | Lets one frontend go: its claims are released and its asides closed. |
+| `attached` | `int` | Property: frontends attached. |
+| `idle` | `bool` | Property: nothing running or stopping, nobody attached, and no unread ended run. |
+| `closed` | `bool` | Property. |
+| `away_for(role)` | `bool` | What `afk` last said of that role, else of every role. |
+| `printed(text)` | `None` | Sends one `printed` line to every frontend. |
+| `asked(client, said)` | `dict` | Carries out one [request](/reference/daemon#requests); returns `{"ok": …, "why"?: …}`. |
+| `status()` | `dict` | See [`Daemon.status`](/reference/daemon#status). |
+| `close()` | `None` | Closes every run, tells every frontend `gone`, and waits a bounded time for runs to release what they made. |
 
 ## `Daemons` {#daemons}
 
-`Daemons()`: every workspace's runs being held apart from a terminal, one host per workspace.
-See [Daemon](/reference/daemon) for what holding them means.
+```python
+class Daemons:
+    def here(self, workspace: str | os.PathLike[str] | None = None) -> Daemon | None
+    def all(self) -> list[Daemon]
+    def host(self, workspace: str | os.PathLike[str] | None = None) -> Daemon
+```
 
-| Method | |
-| --- | --- |
-| `here(workspace=None) -> Daemon \| None` | The daemon holding one workspace's runs, or `None`. |
-| `all() -> list[Daemon]` | Every daemon on this machine, oldest first. |
-| `host(workspace=None) -> Daemon` | The daemon [hosting](/reference/daemon#hosting) that workspace's runs, started where none is. `OSError` where an older humanize holds them, or no host came up. |
+| Method | Same as | Behaviour |
+| --- | --- | --- |
+| `here(workspace=None)` | `hmz.daemon.running` | The daemon holding that workspace's runs, or `None` (no process, or nothing answers on its socket). |
+| `all()` | `hmz.daemon.daemons` | Every live daemon on this machine, oldest first. |
+| `host(workspace=None)` | `hmz.daemon.host` | The daemon hosting the workspace, started where none is (10 s to come up). `OSError`: an older humanize holds it, or none came up. |
 
-The last tab at the [top of the page](#sdk) is a program starting a flow as one frontend.
+`workspace=None` is the current directory.
 
 ## `Daemon` {#daemon}
 
-<span id="session"></span>A **`Daemon`** is one workspace's host, as a tool outside reaches it.
+<span id="session"></span>
 
-| Member | |
+```python
+@dataclass(frozen=True, slots=True)
+class Daemon:
+    at: Path            # the daemon's directory (socket, daemon.json)
+    workspace: str      # the project directory it holds runs for
+    pid: int
+    started: str        # UTC, ISO 8601
+    protocol: int = 0   # the frontend protocol it speaks; 0 = an older humanize's
+```
+
+| Member | Returns | Behaviour |
+| --- | --- | --- |
+| `alive` | `bool` | Property: the process exists. |
+| `link(name="", kind="sdk", *, replay=True)` | [`Link`](#link) | Attaches a frontend. `OSError`: nothing accepts the connection, or `hello` is refused or not answered within 10 s. `protocol` is not checked here (`host()` and `hmz` check it). |
+| `status()` | `dict` | [Status keys](/reference/daemon#status); from `daemon.json` for one that does not answer. |
+| `detach()` | `int` | Lets every frontend go; runs continue. Returns how many. |
+| `stop(*, seconds=20.0)` | `bool` | Asks the host to close its runs and exit; waits up to `seconds`. Whether it has gone. |
+| `kill(*, seconds=20.0)` | `bool` | `SIGTERM`, then `SIGKILL`; removes the socket and `daemon.json`. Whether it has gone. |
+| `asked(said: dict)` | `dict` | Sends one [control request](/reference/daemon#control-requests); `{}` where no answer came. |
+
+## `Link` {#link}
+
+```python
+class Link:
+    client: str
+    def told(self, message: dict[str, Any]) -> None
+    def heard(self, listener: Callable[[dict[str, Any]], None]) -> None
+    def __iter__(self) -> Iterator[dict[str, Any]]
+    def asked(self, said: Mapping[str, Any], *, seconds: float | None = None) -> dict[str, Any]
+    def start(self, flow: str | os.PathLike[str], task: str, *,
+              agents: Mapping[str, Any] | None = None, envs: Mapping[str, Any] | None = None,
+              params: Any = None, budget: Any = None,
+              resume: bool | str | os.PathLike[str] = False, harness: str = "") -> dict[str, Any]
+    def say(self, text: str, *, to: str = "") -> dict[str, Any]
+    def answer(self, question: str, text: str) -> dict[str, Any]
+    def stop(self) -> dict[str, Any]
+    def force(self) -> dict[str, Any]
+    def afk(self, *, on: bool, role: str = "") -> dict[str, Any]
+    def claim(self, role: str, *, take: bool = False) -> dict[str, Any]
+    def release(self, role: str) -> dict[str, Any]
+    def board(self, key: str, value: str) -> dict[str, Any]
+    def aside(self, **said: Any) -> dict[str, Any]
+    def close(self) -> None
+    def __enter__(self) -> Self
+    def __exit__(self, *exc) -> None      # close()
+```
+
+One frontend of a [`Host`](#host), in this process or over a daemon's socket; the same class
+either way. Obtained from [`Daemon.link`](#daemon), or `hmz.daemon.linked(host, …)` for a host
+in this process.
+
+| Member | Behaviour |
 | --- | --- |
-| `at`, `workspace`, `pid`, `started` | Its directory, its project, the process holding it, and when it started, in UTC. |
-| `protocol` | `1` for a host, `0` for a daemon of an older humanize, which no frontend reaches. |
-| `link(name="", kind="sdk", *, replay=True) -> Link` | Attaches a [frontend](#link) to it. |
-| `alive` | Whether that process is still there. |
-| `status() -> dict` | What it says about itself: `pid`, `workspace`, `started`, `attached` (frontends reading it) and `clients`, `state`, `flows` and `calls` running. |
-| `detach() -> int` | Lets go of every frontend reading it, leaving its runs running. Returns how many. |
-| `stop(*, seconds=20.0) -> bool` | Closes its runs, lets every frontend go, and waits. Returns whether it has gone. |
-| `kill(*, seconds=20.0) -> bool` | Ends the process, whatever it was doing. |
+| `client` | This frontend's client id; `owner` and `client` fields in messages use it. |
+| `told(message)` | Called by the transport to deliver a message. Not for callers. |
+| `heard(listener)` | Delivers every message, already-queued ones first, to `listener` on a thread of the link's own, in order. `RuntimeError` if a listener is already set. |
+| `__iter__` | Yields every message in order until `gone` or `close()`. `RuntimeError` if a listener is set. |
+| `asked(said, *, seconds=None)` | Sends one [request](/reference/daemon#requests) and waits (`seconds=None`: indefinitely; ignored in process). Returns the reply (`ok: true`). Raises [`Refused`](#refused) with the reply's `why`, or `TimeoutError("no answer to '<do>' in <s>s")`. |
+| `start(…)` | `start` request. `agents`/`envs`: specs as `-a`/`-e` after `<role>=`. `params`, `budget`: mappings or models (serialised). `harness`: `-H` spelling, `""` = adaptive. Reply carries `run`. |
+| `say`, `answer`, `stop`, `force`, `afk`, `claim`, `release`, `board`, `aside` | The request of the same name. |
+| `close()` | Lets go of the host; runs continue. |
 
-## `Host` and `Link` {#link}
-
-A **`Host`** is a workspace's runs as every frontend attached to them shares them: the run
-going, who claims which `Outworlder` role, who is away, what is waiting to be said to an agent,
-and a history a frontend arriving late reads from the top. `Hmz().host()` is the one for a
-workspace in your own process; `Daemons().host()` holds one in a process of its own.
-
-A **`Link`** is one frontend of a host: the same class in your process and over a daemon's
-socket. It is told everything as messages and asks for everything as requests; claims make a
-role yours alone to answer.
+Every method that sends a request goes through `asked` and raises `Refused` when refused,
+including after the host has gone (the reason is then the [`gone`](/reference/daemon#gone)
+reason). `Link` has no helpers for the `unaside`, `status`, `detach` and `quit` requests: send
+them with `asked({"do": …})`. Transport differences (socket or in process) are in
+[Daemon › Link](/reference/daemon#link).
 
 ```python
 from hmz.sdk import Daemons
@@ -535,23 +495,90 @@ with (Daemons().here() or Daemons().host()).link(name="ci", replay=False) as lin
                     link.answer(asked["question"], "looks good")
 ```
 
-Every method, message and request is in the [daemon reference](/reference/daemon#link). A
-request refused raises [`Refused`](#refused), with the reason every frontend is given.
-
 ## `fakes` {#fakes}
 
-```python
-from hmz.sdk import fakes
-```
+`hmz.runtime.flowing.fakes`, whole. `__all__`:
 
-The in-memory kit a flow is tested on: `fakes.run_fake`, `fakes.FakeAgentDriver`,
-`fakes.FakeSession`, `fakes.FakeEnvDriver` and `fakes.FakeOutworlder`. The drivers also stand
-in for real ones in [`Hmz.run`](#hmz-run), which then writes a real epic of a run no agent
-took. Every signature is in [Testing a flow](/reference/flows#testing-a-flow).
+| Name | Is |
+| --- | --- |
+| `run_fake(flow, task="", *, agents=None, envs=None, params=None, budget=None, outworlder=None, local=None, journal=None, resume=False, recorder=None)` | Runs a flow on fakes in memory. |
+| `FakeAgentDriver(harness=HarnessKind.CLAUDE, *, reply=None, model="fake", effort="", provider="", capabilities=None, cost=0.0, output_tokens=1, seconds=0.0, forks=True, names_late=False)` | A scripted agent driver. Also accepted by `Hmz.run(agents=…)`, which then writes a real epic. |
+| `FakeSession` | A session of a `FakeAgentDriver`. |
+| `FakeEnvDriver(files=None, *, workdir="/work", backend=EnvBackendKind.LOCAL, provider="", capabilities=None, cpu_count=8, memory=64 GiB, gpu_count=0, gpu_memory=0, run=None, refs=("HEAD", "main"), repo=True)` | An in-memory environment. |
+| `FakeOutworlder(reply=None, *, away=False)` | An outworlder answering from a script. |
+| `Answer`, `Command`, `Handler`, `Reply` | Type aliases for the scripts above. |
 
-```python
-run = Hmz().run("twice", "fix the build",
-                agents={"builder": fakes.FakeAgentDriver(reply="done")}, budget={"cost": 5})
-run.run()
-print(run.epic)
-```
+Semantics: [Flows › Testing a flow](/reference/flows#testing-a-flow).
+
+## Returned types {#returned-types}
+
+Internal types returned by the classes above. Named tuples and frozen dataclasses; fields in
+declaration order.
+
+### `Line` {#line}
+
+`hmz.runtime.runner.Line` (named tuple), from [`Hmz.read`](#hmz-read).
+
+| Field | Type | Default | From |
+| --- | --- | --- | --- |
+| `flow` | `str` | — | `-f` |
+| `task` | `str` | — | `task` |
+| `agents` | `tuple[AgentSpec, ...]` | `()` | every `-a`, in order |
+| `envs` | `tuple[EnvSpec, ...]` | `()` | every `-e`, in order |
+| `params` | `dict[str, str]` | `{}` | every `-p`, values unparsed |
+| `budget` | `Budget \| None` | `None` | every `-b`, parsed |
+| `resume` | `bool` | `False` | `--resume` |
+| `as_json` | `bool` | `False` | `--json` |
+| `harness` | `HarnessSpec \| None` | `None` | `-H`, parsed |
+
+### `AgentSpec`, `EnvSpec`, `HarnessSpec` {#specs}
+
+`hmz.runtime.flowing.specs`, frozen dataclasses. `str()` writes each back as its flag takes it.
+
+| Type | Fields |
+| --- | --- |
+| `AgentSpec` | `role: str`, `harness: HarnessKind` (`ACP` for an ACP CLI), `provider: str` (`""` = as local), `model: str`, `effort: str` (`""` = auto), `cli: str` |
+| `EnvSpec` | `role: str`, `backend: EnvBackendKind`, `provider: str`, `workdir: PurePosixPath` (`~/…` relative to home) |
+| `HarnessSpec` | `mode: str = "adaptive"` (`adaptive` `local` `env` `standalone`), `on: EnvSpec \| None = None` (role `harness`; set only for `standalone`) |
+
+### Flow types {#flow-types}
+
+| Type | Fields |
+| --- | --- |
+| `Offer` | `whose: str` (a flowverse, `local` or `user`), `name: str` (what `-f` takes), `about: str` |
+| <span id="declaration"></span>`Declaration` | `name`, `ref`, `description: str \| None`, `hidden: bool`, `resumable: bool`, `agents: tuple[AgentRole, ...]`, `envs: tuple[EnvRole, ...]`, `params: type[FlowParams]`; methods `agent(name)`, `env(name)` → role or `None` |
+| `AgentRole` | `name`, `declared: type`, `required: bool`, `auto: bool` (runtime-filled), `harness: HarnessKind \| None`, `capabilities: frozenset[type]`, `permission`, `skills: tuple[str, ...]`, `grant` |
+| `EnvRole` | `name`, `declared: type`, `required`, `auto`, `capabilities`, `cpu_count: int`, `memory: int`, `gpu_count: int`, `gpu_memory: int`, `image: str`, `grant`, `resources: bool` |
+| `LiveCall` | `ref`, `name`, `depth: int` (1 = the run's flow), `since: float` (monotonic), `id: int` (journal id, 0 = none), `parent: LiveCall \| None`, `task: str`, `resumable: bool` |
+| `Flowverse` | `name`, `url` (`""` for `local`, `user`), `at: Path`, `fetched: bool`, `fixed: bool` (`official`, `local`, `user`) |
+
+### Account types {#account-types}
+
+| Type | Fields |
+| --- | --- |
+| `Provider` | `cli`, `name`, `way: str = "env"`, `env: Mapping[str, str]`, `args: tuple[str, ...]`, `made: str`, `fallback: str`; property `at: Path`; methods `held()`, `command(argv)`, `swaps()` |
+| `Way` | `name`, `about`, `argv: tuple[str, ...]` (sign-in command), `asks: tuple[Asked, ...]`, `sets: tuple[tuple[str, str], ...]`, `args: tuple[str, ...]`, `stdin: str` |
+| `Model` | `name`, `efforts: tuple[str, ...]` (hardest first), `swarms: bool = False` |
+| `Falls` | `spec`, `to: str` (`""` = nowhere), `tries: int = 0`, `policy: str = "exponential-jitter"`, `timeout: float = 0.0`; method `says()` |
+| `Policy` | `name`, `about` |
+
+### Environment types {#environment-types}
+
+| Type | Fields |
+| --- | --- |
+| `SSHProvider` | `name`, `host`, `user`, `port: int = 0`, `identity_file`, `proxy_jump`, `options: Mapping[str, str]`, `alias`, `config`, `workdir`, `made: str = "typed"` (`typed`/`imported`); property `at`; methods `destination()`, `login()`, `settings()`, `target()` (coganchor target), `held()`; `backend == "ssh"` |
+| `DockerProvider` | `name`, `endpoint: str = "local"`, `tls_dir`, `image`, `runtime`, `run_args: tuple[str, ...]`, `cpus: float`, `memory: int` (bytes), `gpus: tuple[str, ...]`, `gpu_memory: int`, `max_containers: int` (0 = no limit), `workdir`, `made`; property `at`; methods `daemon()` → `Endpoint` ([Machines](/reference/machines#a-docker-daemon)), `held()`; `backend == "docker"` |
+| `SSHHost` | `alias`, `host`, `user`, `port: int`, `identity_files: tuple[str, ...]`, `proxy_jump` |
+| `Checked` | `reached: bool`, `said: str`, `home: str`, `cpus: float`, `memory: int`, `gpus: tuple[str, ...]`, `gpu_memory: int`, `runtimes: tuple[str, ...]`, `version: str`, `short: tuple[str, ...]` (what it is saved to hand out and has not got) |
+
+### Epic types {#epic-types}
+
+`hmz.runtime.epic`, named tuples. Values as the [epic record](/reference/tracing#epics) wrote
+them.
+
+| Type | Fields |
+| --- | --- |
+| `Ran` | `at: Path`, `flow`, `task`, `workspace`, `began`, `ended` (`""` while running or abandoned), `how` (`done`, `failed`, `stopped`, or `""`), `agents: tuple[Drove, ...]`, `sessions: tuple[Session, ...]`, `called: tuple[Called, ...]`, `resumable: bool`, `ref`, `envs: tuple[str, ...]` (as `-e` spells them), `params: dict`, `budget: dict \| None`, `picked_up: str` (epic name or `""`), `harness: str` (`-H` spelling; `""` = adaptive); property `name` |
+| `Drove` | `agent`, `backend`, `model`, `effort` (`""` = auto), `provider` (`""` = as local); property `spec` (`-a` spelling after `<role>=`) |
+| `Called` | `flow`, `task`, `record` (file in the epic), `began`, `ended`, `how`, `calls: tuple[Called, ...]` |
+| `Session` | `agent`, `backend`, `provider` (`local` = as local), `ident` (backend's id), `name`, `at`, `flow`, `parent` (forked-from id or `""`), `record`, `where` (kept-session path), `harness` (`local`, `env`, `standalone:<target>`, or `""` for work on this machine) |
