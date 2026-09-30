@@ -44,7 +44,8 @@ class HookBridge:  # here() / call(make, *, default) / abandon() / close()
 class SessionHandle(Protocol): ...  # id, usage, turn, steer, interrupt, close
 class AgentDriver(Protocol): ...  # harness, model, effort, provider, capabilities, open, close
 class EnvDriver(Protocol): ...  # backend, provider, workdir, capabilities, resources, exec,
-                               # read, write, derive_*, destroy_*, placement, close
+                               # read, write, derive_*, destroy_*, snapshot, rewind,
+                               # snapshots, placement, close
 class OutworlderDriver(Protocol): ...  # away_for(role), run(prompt, schema, role)
 
 # specs.py -- what -a, -e, -p and -b say
@@ -297,7 +298,8 @@ def under() -> Path: ...
   raise `FlowRuntimeError`.
 - Before the callee runs, a call MUST refuse what does not meet its declaration: a required
   role left out (`MissingRole`), an agent or environment lacking a declared mixin
-  (`CapabilityMissing`), an agent holding a narrower permission (`PermissionTooNarrow`), a
+  (`CapabilityMissing`, which MUST say so where it is `GitEnvMixin` on a machine seen to have
+  no `git` on its PATH), an agent holding a narrower permission (`PermissionTooNarrow`), a
   machine short of a declared resource (`ResourceUnmet`), and another harness for a role typed
   as one (`HarnessMismatch`). A refusal for one kind of agent MUST be worked out once.
 - An `Outworlder` role left out MUST be the run's own outworlder, and one given `Outworlder.new()`
@@ -314,8 +316,9 @@ def under() -> Path: ...
   answering to every protocol and mixin of `hmz.flows` structurally, holding `__slots__`, and
   deriving from none of them. What a view grants MUST be exactly what its role declared: a
   `/goal` or `/loop` prompt, `steer`, a hook of a mixin, a script `exec`, files, worktrees,
-  temporary copies and scratch directories MUST each raise `CapabilityNotGranted` without the
-  mixin for them. Only a flow marked with `full_view` MUST be granted its harness's all.
+  snapshots, temporary copies and scratch directories MUST each raise `CapabilityNotGranted`
+  without the mixin for them -- `GitEnvMixin` for snapshots, `RewindableEnvMixin` granting
+  nothing by itself. Only a flow marked with `full_view` MUST be granted its harness's all.
 - `derive` MUST only narrow: a permission the grant covers, skills the grant names. An agent
   derived from another MUST share its hooks and its sessions.
 - A hook MUST be called with the context of the flow the agent belongs to and the session the

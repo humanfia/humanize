@@ -24,17 +24,27 @@ import pytest
 
 from hmz import home
 from hmz.flows import (
+    AgentCollection,
+    CapabilityMissing,
+    Env,
     EnvBackendKind,
+    EnvCollection,
     EnvCommandTimeout,
     EnvError,
     EnvFileNotFound,
     EnvPermissionDenied,
     EnvUnavailable,
+    FlowContext,
+    FlowParams,
+    GitEnvMixin,
+    RewindError,
     TempCloneBusy,
     WorktreeError,
+    flow,
 )
 from hmz.runtime.flowing.environing import ENVS, MachineEnvDriver, clone_dir
 from hmz.runtime.flowing.environments import local_env, open_env, probe
+from hmz.runtime.flowing.fakes import run_fake
 from hmz.runtime.flowing.specs import parse_envs
 from hmz.runtime.flowing.spi import ENV_CAPABILITIES, Placement
 from tests.flows.contracts import check_env_driver
@@ -524,6 +534,218 @@ async def test_a_worktree_git_will_not_make_says_what_git_said(
     plain.mkdir()
     with pytest.raises(WorktreeError, match="not a git repository"):
         await _driver(plain).derive_worktree(ref=None, dir=None)
+
+
+# -------------------------------------------------------------------------------- snapshots
+
+
+def _state(at: Path) -> tuple[str, str, str, str]:
+    """What is checked out, what is on it, what is staged, and what git sees changed."""
+    return (
+        _git(at, "symbolic-ref", "-q", "HEAD"),
+        _git(at, "rev-parse", "HEAD"),
+        _git(at, "diff", "--cached", "--name-status"),
+        _git(at, "status", "--porcelain", "--untracked-files=all"),
+    )
+
+
+async def test_a_snapshot_touches_nothing_and_a_rewind_to_it_puts_everything_back(
+    repo: Path,
+) -> None:
+    (repo / "staged.txt").write_text("staged\n")
+    _git(repo, "add", "staged.txt")
+    (repo / "tracked.txt").write_text("unstaged\n")
+    (repo / "deep").mkdir()
+    (repo / "deep/new.txt").write_text("new\n")
+    was = _state(repo)
+    driver = _driver(repo)
+
+    ref = await driver.snapshot("before")
+
+    assert ref == "refs/hmz/snapshots/before"
+    assert _state(repo) == was, "taking a snapshot changed the worktree"
+    (repo / "tracked.txt").unlink()
+    (repo / "deep/new.txt").write_text("changed\n")
+    (repo / "later.txt").write_text("later\n")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "third")
+    (repo / "ignored.txt").write_text("ignored, and changed\n")
+
+    await driver.rewind(ref)
+
+    assert _state(repo) == was
+    assert (repo / "tracked.txt").read_text() == "unstaged\n"
+    assert (repo / "deep/new.txt").read_text() == "new\n"
+    assert (repo / "untracked.txt").read_text() == "untracked\n"
+    assert not (repo / "later.txt").exists()
+    assert (repo / "ignored.txt").read_text() == "ignored, and changed\n"
+    assert await driver.snapshots() == [ref]
+
+
+async def test_a_rewind_to_a_commit_moves_the_branch_and_removes_the_rest(
+    repo: Path,
+) -> None:
+    driver = await _driver(repo).derive_subdir("sub")
+    (repo / "sub/new.txt").write_text("new\n")
+
+    await driver.rewind("HEAD~1")
+
+    assert _git(repo, "symbolic-ref", "HEAD") == "refs/heads/main\n"
+    assert _git(repo, "rev-parse", "main") == _git(repo, "rev-parse", "first")
+    assert _git(repo, "status", "--porcelain", "--untracked-files=all") == ""
+    assert (repo / "tracked.txt").read_text() == "first\n"
+    assert not (repo / "untracked.txt").exists()
+    assert not (repo / "sub").exists(), "a workdir below the top is not rewound alone"
+    assert (repo / "ignored.txt").exists()
+
+
+async def test_a_snapshot_before_the_first_commit_rewinds_to_none(
+    tmp_path: Path,
+) -> None:
+    _git(tmp_path, "init", "-q")
+    (tmp_path / "first.txt").write_text("first\n")
+    driver = _driver(tmp_path)
+    ref = await driver.snapshot(None)
+    (tmp_path / "second.txt").write_text("second\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-qm", "first")
+
+    await driver.rewind(ref)
+
+    assert _git(tmp_path, "status", "--porcelain") == "?? first.txt\n"
+    assert not (tmp_path / "second.txt").exists()
+    with pytest.raises(subprocess.CalledProcessError):
+        _git(tmp_path, "rev-parse", "--verify", "HEAD")
+
+
+async def test_a_rewind_forgets_a_merge_and_clones_but_keeps_humanize_own(
+    repo: Path,
+) -> None:
+    driver = _driver(repo)
+    ref = await driver.snapshot("before")
+    _git(repo, "checkout", "-q", "-b", "other", "first")
+    (repo / "tracked.txt").write_text("other\n")
+    _git(repo, "commit", "-qam", "other")
+    _git(repo, "checkout", "-q", "main")
+    with pytest.raises(subprocess.CalledProcessError):
+        _git(repo, "merge", "-q", "other")
+    _git(repo, "init", "-q", "cloned")
+    (repo / ".humanize/flows/mine").mkdir(parents=True)
+    (repo / ".humanize/flows/mine/__init__.py").write_text("# mine\n")
+
+    await driver.rewind(ref)
+
+    assert not _there(
+        repo / _git(repo, "rev-parse", "--git-path", "MERGE_HEAD").strip()
+    )
+    assert (repo / "tracked.txt").read_text() == "second\n"
+    assert not (repo / "cloned").exists(), "a repository cloned inside was left"
+    assert (repo / ".humanize/flows/mine/__init__.py").exists()
+    assert _git(repo, "status", "--porcelain", "--untracked-files=all") == (
+        "?? .humanize/flows/mine/__init__.py\n?? untracked.txt\n"
+    )
+
+
+async def test_a_rewind_git_refuses_partway_leaves_the_branch_where_it_was(
+    repo: Path,
+) -> None:
+    head = _git(repo, "rev-parse", "HEAD")
+    lock = Path(_git(repo, "rev-parse", "--git-path", "index.lock").strip())
+    (repo / lock).touch()
+    try:
+        with pytest.raises(RewindError, match=r"index\.lock"):
+            await _driver(repo).rewind("HEAD~1")
+    finally:
+        (repo / lock).unlink()
+
+    assert _git(repo, "rev-parse", "HEAD") == head
+    assert (repo / "tracked.txt").read_text() == "second\n"
+
+
+async def test_a_snapshot_before_the_first_commit_is_refused_on_a_detached_head(
+    tmp_path: Path,
+) -> None:
+    _git(tmp_path, "init", "-q")
+    driver = _driver(tmp_path)
+    ref = await driver.snapshot("empty")
+    (tmp_path / "a.txt").write_text("a\n")
+    _git(tmp_path, "add", "-A")
+    _git(tmp_path, "commit", "-qm", "first")
+    _git(tmp_path, "checkout", "-q", "--detach")
+
+    with pytest.raises(RewindError, match="detached HEAD cannot be unborn"):
+        await driver.rewind(ref)
+
+    assert (tmp_path / "a.txt").exists(), "a refused rewind changed the files"
+
+
+async def test_a_worktree_snapshots_and_rewinds_as_its_own(repo: Path) -> None:
+    driver = _driver(repo)
+    tree = await driver.derive_worktree(ref=None, dir=None)
+    at = Path(tree.workdir)
+    ref = await tree.snapshot("tree")
+    (at / "tracked.txt").write_text("in the worktree\n")
+
+    await tree.rewind(ref)
+
+    assert (at / "tracked.txt").read_text() == "second\n"
+    assert _git(at, "status", "--porcelain") == ""
+    assert (repo / "untracked.txt").exists(), "the worktree rewound its repository's"
+    assert await driver.snapshots() == [ref], "snapshots are the repository's"
+
+
+async def test_what_git_will_not_snapshot_or_rewind_to_says_what_git_said(
+    repo: Path, tmp_path: Path
+) -> None:
+    driver = _driver(repo)
+    with pytest.raises(RewindError, match="knows no commit no-such-ref"):
+        await driver.rewind("no-such-ref")
+    with pytest.raises(RewindError, match="not a name git keeps a ref under"):
+        await driver.snapshot("two..dots")
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    for doing in (
+        _driver(plain).snapshot("x"),
+        _driver(plain).rewind("HEAD"),
+        _driver(plain).snapshots(),
+    ):
+        with pytest.raises(RewindError, match="not a git repository"):
+            await doing
+
+
+class _Repo(Env, GitEnvMixin): ...
+
+
+class _Repos(EnvCollection):
+    repo: _Repo
+
+
+@flow(agents=AgentCollection, envs=_Repos, params=FlowParams)
+async def _snapshots(
+    task: str,
+    *,
+    agents: AgentCollection,
+    envs: _Repos,
+    params: FlowParams,
+    ctx: FlowContext,
+) -> str:
+    return await envs["repo"].snapshot()
+
+
+async def test_a_machine_without_git_is_refused_a_role_that_needs_it(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert (await run_fake(_snapshots, envs={"repo": _driver(repo)})).startswith(
+        "refs/hmz/snapshots/"
+    )
+    nowhere = tmp_path / "bin"
+    nowhere.mkdir()
+    monkeypatch.setenv("PATH", str(nowhere))
+    driver = _driver(repo)
+
+    assert GitEnvMixin not in driver.capabilities
+    with pytest.raises(CapabilityMissing, match="needs git on the machine's PATH"):
+        await run_fake(_snapshots, envs={"repo": driver})
 
 
 # ---------------------------------------------------------------------- temporary copies

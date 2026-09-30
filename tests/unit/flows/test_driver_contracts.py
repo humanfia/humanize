@@ -25,6 +25,7 @@ from hmz.flows import (
     HarnessKind,
     HookKind,
     LoopCommandAgentMixin,
+    RewindError,
     SessionError,
     TempCloneBusy,
     UnsupportedOperation,
@@ -186,6 +187,7 @@ class StubEnv:
         self.capabilities = capabilities
         self._held: dict[str, tuple[object, StubEnv]] = {}
         self._scratch: dict[str, StubEnv] = {}
+        self._snapshots: dict[str, dict[PurePosixPath, bytes]] = {}
         self.closed = 0
 
     backend = EnvBackendKind.LOCAL
@@ -254,6 +256,20 @@ class StubEnv:
             raise WorktreeError(f"unknown ref {ref}")
         where = self._at(dir) if dir else PurePosixPath(f"/trees/{next(self._numbers)}")
         return self._elsewhere(where, copy=True)
+
+    async def snapshot(self, name: str | None) -> str:
+        ref = f"refs/hmz/snapshots/{name or next(self._numbers)}"
+        self._snapshots[ref] = dict(self.files)
+        return ref
+
+    async def rewind(self, ref: str) -> None:
+        if ref not in self._snapshots:
+            raise RewindError(f"unknown ref {ref}")
+        self.files.clear()
+        self.files.update(self._snapshots[ref])
+
+    async def snapshots(self) -> list[str]:
+        return list(self._snapshots)
 
     async def derive_temp_clone(
         self,

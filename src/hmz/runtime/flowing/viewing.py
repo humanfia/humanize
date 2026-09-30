@@ -6,7 +6,7 @@ is never handed a driver: it is handed a view -- :class:`AgentView`, :class:`Env
 :class:`~hmz.runtime.flowing.declaring.Grant` its role declared, and the flow call it belongs
 to. Everything the flow API lets a flow do is a method here, and each checks the grant first:
 a `/goal` or `/loop` prompt, `steer`, a hook only some harnesses reach, a script `exec`, files,
-worktrees, temporary copies and scratch directories each raise
+worktrees, snapshots, temporary copies and scratch directories each raise
 :class:`~hmz.flows.CapabilityNotGranted` without the mixin for them, whatever the driver could
 do.
 
@@ -54,6 +54,7 @@ from hmz.flows import (
     DurationExceeded,
     EnvBackendKind,
     FilesEnvMixin,
+    GitEnvMixin,
     GitWorktreeEnvMixin,
     GoalCommandAgentMixin,
     HarnessKind,
@@ -1003,6 +1004,21 @@ class EnvView:
         self._node.check()
         derived = await self._driver.derive_worktree(ref=ref, dir=dir)
         return self._derived(derived, f"worktree({ref or ''},{dir or ''})")
+
+    async def snapshot(self, name: str | None = None) -> str:
+        self._need(GitEnvMixin, "snapshot")
+        self._node.check()
+        return await self._driver.snapshot(name)
+
+    async def rewind(self, ref: str) -> None:
+        self._need(GitEnvMixin, "rewind")
+        self._node.check()
+        await self._driver.rewind(ref)
+
+    async def snapshots(self) -> list[str]:
+        self._need(GitEnvMixin, "snapshots")
+        self._node.check()
+        return await self._driver.snapshots()
 
     async def derive_temp_clone(self, id: str) -> Self:  # noqa: A002 -- the flow API's
         self._need(TemporaryClonedDirEnvMixin, "derive_temp_clone")

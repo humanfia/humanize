@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import datetime
 import errno
 import hashlib
 import logging
@@ -54,6 +55,8 @@ from hmz.flows import (
     EnvFileNotFound,
     EnvPermissionDenied,
     EnvUnavailable,
+    GitEnvMixin,
+    RewindError,
     ScratchError,
     TempCloneBusy,
     WorktreeError,
@@ -74,6 +77,9 @@ __all__ = [
     "GPU_QUERY",
     "KILLED_WITHIN",
     "REMOVE_SCRIPT",
+    "REWIND_SCRIPT",
+    "SNAPSHOTS_SCRIPT",
+    "SNAPSHOT_SCRIPT",
     "Claim",
     "Machine",
     "MachineEnvDriver",
@@ -109,6 +115,9 @@ _CONNECTION = frozenset(
         errno.ENOTCONN,
     }
 )
+
+#: What a driver on a machine seen to have no `git` serves.
+_GITLESS = ENV_CAPABILITIES - {GitEnvMixin}
 
 #: Errnos that mean permission was refused.
 _REFUSED = frozenset({errno.EACCES, errno.EPERM, errno.EROFS})
@@ -242,6 +251,101 @@ chmod -R u+rwX -- "$gone" 2>/dev/null
 rm -rf -- "$gone"
 """
 
+#: What every script over a git worktree begins with: to the top of the worktree the
+#: directory it is run in is in, refusing one that is not in a worktree.
+_TO_TOP = r"""
+set -eu
+top=$(git rev-parse --show-toplevel) || exit 3
+[ -n "$top" ] || { echo "$PWD is not in a git worktree" >&2; exit 3; }
+cd -- "$top"
+"""
+
+#: Snapshotting the git worktree the directory it is run in is in, as `$1`: prints the ref.
+#:
+#: Two commits, as `git stash` makes them, neither touching what is checked out, the index or
+#: a file: one of the index, and one of every file git does not ignore, untracked ones too,
+#: whose parents are what was checked out -- where anything was -- and the first. The files
+#: are added to a copy of the index, so that its stat cache saves reading what did not change,
+#: kept beside the real one so that a split index finds what it shares. The commits are
+#: humanize's, whoever the repository says commits, and never signed. A workspace's own
+#: `.humanize/` -- its flows, what was exported there -- is left out, as if git ignored it.
+SNAPSHOT_SCRIPT = (
+    _TO_TOP
+    + r"""
+ref=refs/hmz/snapshots/$1
+git check-ref-format "$ref" || { echo "$1 is not a name git keeps a ref under" >&2; exit 2; }
+export GIT_AUTHOR_NAME=humanize GIT_AUTHOR_EMAIL=humanize@localhost \
+  GIT_COMMITTER_NAME=humanize GIT_COMMITTER_EMAIL=humanize@localhost
+index=$(git rev-parse --git-path index)
+case $index in /*) ;; *) index=$PWD/$index ;; esac
+held=$index.hmz-snapshot.$$
+trap 'rm -f -- "$held" "$held.lock"' EXIT
+rm -f -- "$held"
+[ ! -f "$index" ] || cp -- "$index" "$held"
+head=$(git rev-parse -q --verify 'HEAD^{commit}') || head=
+on=${head:+-p $head}
+staged=$(GIT_INDEX_FILE=$held git write-tree)
+kept=$(git commit-tree --no-gpg-sign $on -m "hmz: the index at snapshot $1" "$staged")
+GIT_INDEX_FILE=$held git -c advice.addEmbeddedRepo=false add -A -- . ':(exclude).humanize'
+tree=$(GIT_INDEX_FILE=$held git write-tree)
+snap=$(git commit-tree --no-gpg-sign $on -p "$kept" -m "hmz: snapshot $1" "$tree")
+git update-ref -m "hmz: snapshot $1" "$ref" "$snap"
+printf '%s\n' "$ref"
+"""
+)
+
+#: Rewinding the git worktree the directory it is run in is in to `$1`.
+#:
+#: A commit a snapshot ref points at is a snapshot, and its parents say what was checked out
+#: and what was in the index; any other commit is all three. The files are made the
+#: snapshot's or the commit's first, removing every other that git does not ignore --
+#: untracked repositories inside included, a workspace's own `.humanize/` not -- and the index
+#: put back, so that a rewind git refuses halfway leaves what is checked out where it was.
+#: Only then is what is checked out -- the branch, or a detached `HEAD` -- moved, as `git
+#: reset` moves it, or made unborn again for a snapshot taken before the first commit, which
+#: a detached `HEAD` cannot be and is refused before anything is done; and a merge, cherry-pick
+#: or revert under way is forgotten, as `git reset --hard` forgets it.
+REWIND_SCRIPT = (
+    _TO_TOP
+    + r"""
+ref=$1
+sha=$(git rev-parse -q --verify "$ref^{commit}") || {
+  echo "git knows no commit $ref" >&2; exit 4; }
+head=$sha index=$sha
+if [ -n "$(git for-each-ref --points-at "$sha" --count=1 --format=x refs/hmz/snapshots/)" ]
+then
+  set -- $(git rev-list --parents -n 1 "$sha")
+  if [ $# -gt 2 ]; then head=$2 index=$3; else head= index=$2; fi
+fi
+branch=$(git symbolic-ref -q HEAD) || branch=
+if [ -z "$head" ] && [ -z "$branch" ]; then
+  echo "$ref was taken before the first commit, and a detached HEAD cannot be unborn" >&2
+  exit 5
+fi
+git read-tree --reset -u "$sha"
+git clean -ffdq -e /.humanize
+[ "$index" = "$sha" ] || git read-tree "$index"
+if [ -n "$head" ]; then
+  git update-ref -m "hmz: rewind to $ref" HEAD "$head"
+else
+  git update-ref -d "$branch" 2>/dev/null || :
+fi
+for state in MERGE_HEAD MERGE_MSG MERGE_MODE MERGE_RR AUTO_MERGE SQUASH_MSG \
+  CHERRY_PICK_HEAD REVERT_HEAD; do
+  rm -f -- "$(git rev-parse --git-path "$state")"
+done
+git update-index -q --refresh >/dev/null 2>&1 || :
+"""
+)
+
+#: Listing the snapshots of the repository the directory it is run in is in, oldest first.
+SNAPSHOTS_SCRIPT = (
+    _TO_TOP
+    + r"""
+git for-each-ref --sort=committerdate --format='%(refname)' refs/hmz/snapshots/
+"""
+)
+
 # ------------------------------------------------------------------------------ resources
 
 
@@ -362,6 +466,11 @@ def started_error(
 def exit_status(returncode: int) -> int:
     """An exit status as a shell reports one: a death by signal N is 128 + N."""
     return 128 - returncode if returncode < 0 else returncode
+
+
+def _said(status: int, out: str, err: str) -> str:
+    """What a command that failed said, on one line: its stderr, else stdout, else its status."""
+    return " ".join((err.strip() or out.strip() or f"exit {status}").splitlines())
 
 
 def _shown(argv: Sequence[str] | str) -> str:
@@ -544,6 +653,10 @@ class Machine(ABC):
     def placement(self, workdir: PurePosixPath) -> Placement:
         """Where an agent session working in a workdir on it is put."""
 
+    def has_git(self) -> bool | None:
+        """Whether `git` is on its PATH, as last seen; None before anything has looked."""
+        return None
+
     # --- what it takes asking
 
     @abstractmethod
@@ -688,8 +801,7 @@ class Machine(ABC):
         except EnvFileNotFound as missing:
             raise WorktreeError(f"git is not installed: {missing}") from None
         if status:
-            said = (err.strip() or out.strip() or f"exit {status}").splitlines()
-            raise WorktreeError(f"git worktree add {target}: {' '.join(said)}")
+            raise WorktreeError(f"git worktree add {target}: {_said(status, out, err)}")
 
     async def close(self) -> None:  # noqa: B027 -- nothing to let go of, by default
         """Lets go of the connection, if there is one. Idempotent."""
@@ -851,8 +963,11 @@ class MachineEnvDriver:
 
     @property
     def capabilities(self) -> frozenset[type]:
-        """Every environment mixin: both backends serve all of them."""
-        return ENV_CAPABILITIES
+        """Every environment mixin, less `GitEnvMixin` on a machine seen to have no git.
+
+        Every backend serves all of them; that one is served by the machine's own git.
+        """
+        return _GITLESS if self._machine.has_git() is False else ENV_CAPABILITIES
 
     @property
     def cpu_count(self) -> int:
@@ -1095,6 +1210,61 @@ class MachineEnvDriver:
             target = _normal(await machine.absolute(self._at(dir)))
         await machine.worktree(source, target, ref)
         return self._derived(target)
+
+    # --- snapshots
+
+    async def _git(self, script: str, arg: str, doing: str) -> str:
+        """Runs one of the scripts over the worktree the workdir is in, for what it printed.
+
+        Raises:
+          RewindError: With what git said, if it would not.
+        """
+        machine = self._open()
+        cwd = await machine.absolute(self._workdir)
+        status, out, err = await machine.run(
+            ["/bin/sh", "-c", script, "humanize", arg], cwd
+        )
+        if status:
+            said = _said(status, out, err)
+            raise RewindError(f"could not {doing} {self._workdir}: {said}")
+        return out
+
+    async def snapshot(self, name: str | None) -> str:
+        """Records the git worktree the workdir is in as it is, as a commit kept under a ref.
+
+        Args:
+          name: What to keep it under, below `refs/hmz/snapshots/`; None for one named for
+            when it was taken, which sorts in the order they were.
+
+        Returns:
+          The ref, `refs/hmz/snapshots/<name>`.
+
+        Raises:
+          RewindError: Not a worktree, a name git keeps no ref under, or git said no.
+        """
+        if name is None:
+            now = datetime.datetime.now(datetime.UTC)
+            name = f"{now:%Y%m%dT%H%M%S.%fZ}-{secrets.token_hex(2)}"
+        return (await self._git(SNAPSHOT_SCRIPT, name, "snapshot")).strip()
+
+    async def rewind(self, ref: str) -> None:
+        """Puts the git worktree the workdir is in back as a ref, or a snapshot, has it.
+
+        Raises:
+          RewindError: Not a worktree, an unknown ref, or git said no.
+        """
+        if not ref.strip() or ref.startswith("-"):
+            raise RewindError(f"{ref!r} is not a ref to rewind to")
+        await self._git(REWIND_SCRIPT, ref, "rewind")
+
+    async def snapshots(self) -> list[str]:
+        """The refs of the snapshots the repository keeps, the oldest first.
+
+        Raises:
+          RewindError: Not a worktree.
+        """
+        said = await self._git(SNAPSHOTS_SCRIPT, "", "list the snapshots of")
+        return [line for line in said.splitlines() if line]
 
     async def derive_temp_clone(
         self,
