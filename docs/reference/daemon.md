@@ -105,7 +105,7 @@ them; an `aside` runs apart from the rest.
 | `do` | Takes | Answers |
 | --- | --- | --- |
 | `hello` | `name`, `kind` (`tui`, `cli`, `sdk`), `replay` (default `true`) | `client` |
-| `start` | `flow`, `task`, `agents` `{role: spec}`, `envs`, `params`, `budget` (a Budget as JSON), `resume` (`false`, `true`, or an epic's path) | `run` |
+| `start` | `flow`, `task`, `agents` `{role: spec}`, `envs`, `params`, `budget` (a Budget as JSON), `resume` (`false`, `true`, or an epic's path), `harness` (as `-H` spells it, `""` for adaptive) | `run` |
 | `say` | `text`, `to` (the view it was said on, `""` for none) | |
 | `answer` | `question`, `text` (a number picks an offered answer) | |
 | `stop`, `force` | | `force` answers `closed`: the conversations closed under their turns |
@@ -128,7 +128,7 @@ History records carry `seq`, and `run` where they belong to one:
 | `type` | Fields |
 | --- | --- |
 | `started` | `flow`, `ref`, `task`, `by`, `client`, `roles`, `outworlders`, `agents`, `envs`, `params`, `budget`, `resume`, `began` (host monotonic), `at` (wall clock) |
-| `opened` | `role`, `key` (`coder/2`), `agent`, `cli`, `model`, `counts` (sorted), `forks`, `person`, `kept` (the directory its logs are under, `""` for the CLI's own home), `mono` |
+| `opened` | `role`, `key` (`coder/2`), `agent`, `cli`, `model`, `counts` (sorted), `forks`, `person`, `kept` (the directory its logs are under, `""` for the CLI's own home), `harness` (where its harness went, for work on another machine: `local`, `env`, `standalone:<target>`; `""` otherwise), `mono` |
 | `event` | `key`, `session` (the key where the event named a conversation, else `""`), `agent`, `cli`, `model`, `ident` (the backend's name for the conversation), `kind`, `text`, `whose`, `tokens`, `spent`, `at`, `mono` |
 | `asked` | `question`, `role`, `text`, `options`, `mode` (`ask` with options or a turn open, else `listen`) |
 | `answered` | `question`, `role`, `by`, `client`, `text` |
@@ -277,7 +277,7 @@ whether the runs are held by a host or in this process.
 | `heard(listener)` | Hands every message to `listener`, those already waiting first, on a thread of the link's own. |
 | `for said in link` | Every message, until `gone`. |
 | `asked(said, *, seconds=None)` | One [request](#protocol), answered. Raises [`Refused`](/reference/sdk#refused) with the host's `why`, or `TimeoutError`. |
-| `start(flow, task, *, agents=None, envs=None, params=None, budget=None, resume=False)` | `start`; `params` and `budget` may be models. |
+| `start(flow, task, *, agents=None, envs=None, params=None, budget=None, resume=False, harness="")` | `start`; `params` and `budget` may be models. |
 | `say(text, *, to="")`, `answer(question, text)` | `say`, `answer`. |
 | `stop()`, `force()` | `stop`, `force`. |
 | `afk(*, on, role="")`, `claim(role, *, take=False)`, `release(role)` | `afk`, `claim`, `release`. |

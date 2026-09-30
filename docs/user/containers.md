@@ -10,7 +10,7 @@ server in the container and point one of the flow's environments at it.
     <p class="ct-name">A container per environment</p>
     <p class="ct-type"><code>hmz exec … -e ROLE=docker@PROVIDER/…</code></p>
     <dl>
-      <dt>agents run</dt><dd>here, with your sign-in</dd>
+      <dt>agents run</dt><dd>here, with your sign-in, or in the container where its image has their CLIs (<a href="/user/remote-execution#where-the-agent-runs"><code>-H</code></a>)</dd>
       <dt>commands run</dt><dd>in the container</dd>
       <dt>the image needs</dt><dd>Python 3.12 or newer</dd>
       <dt>works with</dt><dd>a flow with a role for another machine</dd>

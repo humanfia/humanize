@@ -78,6 +78,10 @@ Textual's `run()` opens it; `action_quit` stops what is running and leaves.
   for every flow but `chat` -- one that has no budget.
 - MUST let what a run may spend -- a duration, a cost, output tokens, and whether a turn is let
   finish -- be set and read on the page its roles are on.
+- MUST let where the agents' harnesses run be set on that page as `-H` spells it -- the mode, and
+  for a standalone harness its machine, chosen as an environment role's is -- kept per flow like
+  the budget, and MUST say on its row what the mode comes to: `local` for work on this machine,
+  and for work elsewhere what the last run found, and say it as each role's session opens.
 - MUST make an agent a CLI, an account, a model and an effort and nothing else, offering only
   CLIs installed here whose harness is the one the role names and serves what the role asks,
   this machine's own account as `as local`, models known runnable as the chosen account, and

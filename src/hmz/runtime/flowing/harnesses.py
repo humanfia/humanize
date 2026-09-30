@@ -84,6 +84,7 @@ from hmz.flows import (
 )
 
 from . import harnessing
+from .specs import ADAPTIVE, ENV, STANDALONE
 from .spi import HARNESS_CAPABILITIES, HookBridge
 
 if TYPE_CHECKING:
@@ -91,6 +92,7 @@ if TYPE_CHECKING:
 
     import pydantic
 
+    from hmz.coganchor import AnchorConfig
     from hmz.coganchor.agents import (
         AgentBase,
         AgentConfig,
@@ -103,11 +105,13 @@ if TYPE_CHECKING:
         Verdict,
     )
     from hmz.coganchor.backends import Profile
+    from hmz.coganchor.fence import Fence
     from hmz.coganchor.machines import MachineConfig
-    from hmz.flows import BudgetExceeded, HookResult, Permission
+    from hmz.flows import BudgetExceeded, HarnessError, HookResult, Permission
 
     from .specs import AgentSpec
     from .spi import (
+        EnvDriver,
         HookTable,
         Limits,
         OutworlderDriver,
@@ -147,6 +151,20 @@ _DRAIN: Final = 30.0
 #: is steered into the turn for instead: Codex's approvals are a decision and nothing else.
 _REASONLESS: Final = frozenset({HarnessKind.CODEX})
 
+#: What asks an environment's machine whether a CLI is there, by its name and then by the
+#: last part of its path -- the two a native turn looks for -- exiting with :data:`_NOT_FOUND`
+#: where it is not.
+_HAS: Final = 'command -v -- "$1" >/dev/null 2>&1 || command -v -- "$2" >/dev/null 2>&1 || exit 69'
+
+#: What that exits with for a CLI that is not there: `EX_UNAVAILABLE`, and not the 127 a
+#: shell uses, which is also what reaching the machine at all exits with where it has no
+#: Python to serve a turn -- a machine that could not be asked is not one without the CLI.
+_NOT_FOUND: Final = 69
+
+#: How long a machine is given to say whether it has a CLI: long enough to put humanize there
+#: the first time, which is most of what asking costs.
+_ASKING: Final = 300.0
+
 #: The moments whose hook decides whether a tool runs.
 _GATES: Final = frozenset({HookKind.PRE_TOOL_USE, HookKind.PERMISSION_REQUEST})
 
@@ -162,15 +180,20 @@ _STARTING: Final = frozenset(
 HOOK_TIMEOUT: float = 900.0
 
 
-def open_agent(spec: AgentSpec) -> HarnessDriver:
+def open_agent(
+    spec: AgentSpec, harness: str = ADAPTIVE, on: EnvDriver | None = None
+) -> HarnessDriver:
     """Makes the driver for one `-a`.
 
     Starts nothing and looks for nothing: the CLI is reached when the first session opens,
     which is also where one not installed where the session works is refused -- this does not
-    know yet which machine that is.
+    know yet which machine that is, nor so where its harness runs.
 
     Args:
       spec: The agent.
+      harness: Where its harness runs, as :data:`~hmz.runtime.flowing.specs.HARNESS_MODES`
+        says it.
+      on: The machine a standalone harness runs on, as the environment it was opened as.
 
     Returns:
       A driver of `spec.harness` whose capabilities are exactly that harness's in
@@ -203,19 +226,24 @@ def open_agent(spec: AgentSpec) -> HarnessDriver:
         kind(config)
     except ValueError as refused:
         raise HarnessUnrecoverable(f"{spec}: {refused}") from refused
-    return HarnessDriver(spec, kind, config, profile)
+    return HarnessDriver(spec, kind, config, profile, harness=harness, on=on)
 
 
 class HarnessDriver:
     """The driver of one CLI at one account, model and effort; see the module docstring."""
 
     __slots__ = (
+        "_asking",
         "_capabilities",
         "_closed",
         "_config",
+        "_fences",
+        "_harness",
+        "_has",
         "_installed",
         "_kind",
         "_listeners",
+        "_on",
         "_profile",
         "_sessions",
         "_spec",
@@ -227,6 +255,9 @@ class HarnessDriver:
         kind: type[AgentBase],
         config: AgentConfig,
         profile: Profile | None,
+        *,
+        harness: str = ADAPTIVE,
+        on: EnvDriver | None = None,
     ) -> None:
         """Initializes a driver that has opened nothing.
 
@@ -235,16 +266,27 @@ class HarnessDriver:
           kind: coganchor's agent class for the CLI.
           config: What every session's agent is configured with before its own settings.
           profile: What coganchor knows of the CLI, or None for one it knows nothing of.
+          harness: Where its harness runs, as `-H` says it.
+          on: The machine a standalone harness runs on.
         """
         self._spec = spec
         self._kind = kind
         self._config = config
         self._profile = profile
+        self._harness = harness
+        self._on = on
         self._capabilities = HARNESS_CAPABILITIES[spec.harness]
         self._listeners: list[Listener] = []
         self._sessions: set[HarnessSession] = set()
         self._closed = False
         self._installed = False
+        #: Whether each machine an environment put a session on has the CLI, by its target,
+        #: and why not where it has not; and whether it can hold each kind of fence, by its
+        #: target and whether the fence leaves the network on. Asked once apiece, since asking
+        #: is reaching the machine, and one at a time.
+        self._has: dict[str, tuple[type[HarnessError], str] | None] = {}
+        self._fences: dict[tuple[str, bool], tuple[type[HarnessError], str] | None] = {}
+        self._asking = asyncio.Lock()
 
     @property
     def harness(self) -> HarnessKind:
@@ -323,19 +365,23 @@ class HarnessDriver:
           SessionError: If the driver is closed, `fork_of` is not an open session of it that
             has taken a turn, or the workdir is not a directory here.
           UnsupportedOperation: If the harness cannot fork, or not into `placement`.
-          HarnessNotInstalled: If the CLI is not installed on this machine and the session
-            works here.
-          HarnessUnrecoverable: If the CLI cannot be configured as the session asks.
-          HarnessSandboxed: If its permission can be held neither by the CLI nor here.
+          HarnessNotInstalled: If the CLI is not installed on the machine its harness runs
+            on: this one, or the environment's where it is to run there.
+          HarnessUnrecoverable: If the CLI cannot be configured as the session asks, or the
+            environment's machine cannot be asked whether it has the CLI.
+          HarnessSandboxed: If its permission can be held neither by the CLI nor here, or
+            its harness is to run on the environment's machine and that cannot hold it.
         """
         if self._closed:
             raise SessionError("the agent's driver is closed")
         parent = self._parent(fork_of, placement)
         cwd = self._where(placement)
-        if placement.machine is None:
-            self._check_installed()
         hung = frozenset(kind for kind in _STARTING if kind in hooks)
         config = self._configured(permission, placement, hung)
+        machine = await self._harnessed(placement, config, cwd, gated=bool(hung))
+        if machine is None:
+            self._check_installed()
+        config = dataclasses.replace(config, machine=machine)
         agent, session = await asyncio.to_thread(
             self._made, config, skills, parent, cwd
         )
@@ -417,18 +463,232 @@ class HarnessDriver:
             return
         from hmz.coganchor import backends
 
-        command = self._profile.name if self._profile is not None else self._spec.cli
+        if backends.program(self._program()) is None:
+            raise HarnessNotInstalled(
+                f"{self._named()} is not installed here: "
+                f"{backends.installing(self._spec.cli)}"
+            )
+        self._installed = True
+
+    def _named(self) -> str:
+        """What the CLI is called."""
+        return self._profile.name if self._profile is not None else self._spec.cli
+
+    def _program(self) -> str:
+        """The program the CLI is run as."""
+        from hmz.coganchor import backends
+
+        command = self._named()
         # A CLI somebody added runs the command it was added with -- the one its config was
         # given, or the one written down when it was added -- which may be a path PATH does
         # not name: `/opt/mimo/bin/mimo` is mimo, and is installed.
         added = tuple(getattr(self._config, "command", ()) or ()) or (
             backends.speaking().get(command) or ()
         )
-        if backends.program(added[0] if added else command) is None:
-            raise HarnessNotInstalled(
-                f"{command} is not installed here: {backends.installing(self._spec.cli)}"
+        return added[0] if added else command
+
+    async def _harnessed(
+        self,
+        placement: Placement,
+        config: AgentConfig,
+        cwd: str | None,
+        *,
+        gated: bool = False,
+    ) -> MachineConfig | None:
+        """The machine a session's turns land on, told where its harness runs.
+
+        Settled per machine rather than per session: every session of the role that an
+        environment puts on one machine has its harness put in the same place, and what that
+        place is was asked of the machine once. Work on this machine has its harness here
+        whatever was said, the environment's machine and this one being the same -- except a
+        standalone harness, which is on a machine of its own whoever's the work is.
+
+        Args:
+          placement: Where the session works.
+          config: What its agent is configured with, for the fence it is held to.
+          cwd: The directory it opens at, as :meth:`_where` found it.
+          gated: Whether a hook that decides what the CLI may do is hung on it. The CLI's
+            own hook table names a program on this machine, so a CLI driven on another one
+            can only watch what such a hook would have decided -- which adaptive does not
+            choose for anybody, and keeps the harness here instead.
+
+        Returns:
+          The machine, None for this one with the harness here as well.
+
+        Raises:
+          HarnessNotInstalled: If the harness is to run on the environment's machine and
+            the CLI is not installed there.
+          HarnessSandboxed: If it is to run there and that machine cannot hold its fence.
+          HarnessUnrecoverable: If it is to run there and that machine cannot be asked.
+        """
+        from hmz.coganchor.machines import AnchoredConfig
+
+        machine = placement.machine
+        anchored = machine if isinstance(machine, AnchoredConfig) else None
+        if self._harness == STANDALONE and self._on is not None:
+            on = self._on.placement().machine
+            if not isinstance(on, AnchoredConfig):
+                return machine
+            if anchored is None:
+                from hmz.coganchor import AnchorConfig
+
+                # The work here, served to a harness elsewhere: a `local` target is this
+                # machine answering for itself, down the same road any other target is.
+                anchored = AnchoredConfig(
+                    anchor=AnchorConfig(target="local", workspace=cwd)
+                )
+            # No mirror of this machine's named for it: a harness elsewhere keeps its own,
+            # under that machine's cache, between turns.
+            there = dataclasses.replace(
+                anchored.anchor, harness=on.anchor.target, shadow=None
             )
-        self._installed = True
+            return dataclasses.replace(anchored, anchor=there)
+        if anchored is None or self._harness not in (ADAPTIVE, ENV):
+            return machine
+        if self._harness == ADAPTIVE and gated:
+            return machine
+        anchor = anchored.anchor
+        why = await self._native_on(anchor, config.fence, placement)
+        if why is None:
+            native = dataclasses.replace(anchor, native=True, shadow=None)
+            return dataclasses.replace(anchored, anchor=native)
+        if self._harness == ADAPTIVE:
+            return machine
+        kind, said = why
+        raise kind(said)
+
+    async def _native_on(
+        self, anchor: AnchorConfig, fence: Fence | None, placement: Placement
+    ) -> tuple[type[HarnessError], str] | None:
+        """Why the CLI cannot run natively on the machine an anchor reaches, or None if it can.
+
+        Two questions, each asked of a machine once and remembered: whether the CLI is there,
+        and -- for a session held to a fence -- whether the machine can hold one, a CLI there
+        that could not be fenced being a CLI that would not start. The second is asked per
+        kind of fence rather than per session, since two sessions of a role may be held to
+        different permissions and one of them to none. Asked one at a time, so that sessions
+        opened together on a machine wait for one answer rather than asking it each.
+
+        Args:
+          anchor: What reaches the machine.
+          fence: What the session is held to, or None for nothing.
+          placement: Where it works, for what the machine is called.
+
+        Returns:
+          None where it can; otherwise what a session to be put there anyway is refused
+          with, and why, in words.
+        """
+        where = f"{placement.backend}@{placement.provider}"
+        async with self._asking:
+            if anchor.target not in self._has:
+                self._has[anchor.target] = await self._has_cli(anchor, where)
+            why = self._has[anchor.target]
+            if why is not None or fence is None or fence.open:
+                return why
+            key = (anchor.target, fence.online)
+            if key not in self._fences:
+                self._fences[key] = await self._fenceable(anchor, fence, where)
+            return self._fences[key]
+
+    async def _has_cli(
+        self, anchor: AnchorConfig, where: str
+    ) -> tuple[type[HarnessError], str] | None:
+        """Whether the machine has the CLI, asked by driving its shell as a native turn would.
+
+        Exactly what a turn there would find: the same road, the same `PATH`, the same login.
+        A process of its own, in a session of its own, so that a run stopped while it asks
+        takes it down with everything it started rather than waiting for it.
+
+        Returns:
+          None where it is there; otherwise what refuses it, and why.
+        """
+        import posixpath
+        import signal
+        import subprocess
+
+        from hmz.coganchor import backends
+
+        program = self._program()
+        asking = dataclasses.replace(anchor, native=True, shadow=None, fence=None)
+        argv = asking.command(
+            ["/bin/sh", "-c", _HAS, "humanize", program, posixpath.basename(program)]
+        )
+        try:
+            asked = await asyncio.create_subprocess_exec(
+                *argv,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                start_new_session=True,
+            )
+        except OSError as why:
+            return (
+                HarnessUnrecoverable,
+                f"{where} could not be asked whether {self._named()} is there: {why}",
+            )
+        try:
+            _, err = await asyncio.wait_for(asked.communicate(), _ASKING)
+        except BaseException as why:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(asked.pid, signal.SIGKILL)
+            await asked.wait()
+            if not isinstance(why, TimeoutError):
+                raise
+            return (
+                HarnessUnrecoverable,
+                (
+                    f"{where} did not say within {_ASKING:.0f}s whether "
+                    f"{self._named()} is there"
+                ),
+            )
+        if asked.returncode == _NOT_FOUND:
+            return (
+                HarnessNotInstalled,
+                (
+                    f"{self._named()} is not installed on {where}: "
+                    f"{backends.installing(self._spec.cli)} there, or run its harness "
+                    "here with -H local"
+                ),
+            )
+        if asked.returncode:
+            said = err.decode(errors="replace").strip().splitlines()
+            return (
+                HarnessUnrecoverable,
+                (
+                    f"{where} could not be asked whether {self._named()} is there: "
+                    f"{said[-1] if said else f'exit status {asked.returncode}'}"
+                ),
+            )
+        return None
+
+    @staticmethod
+    async def _fenceable(
+        anchor: AnchorConfig, fence: Fence, where: str
+    ) -> tuple[type[HarnessError], str] | None:
+        """Whether the machine can hold a fence of this kind, as it says at the handshake.
+
+        Returns:
+          None where it can; otherwise what refuses it, and why.
+        """
+        from hmz.coganchor import check
+        from hmz.coganchor.proto import hello_fences
+
+        try:
+            said = await asyncio.to_thread(check, anchor)
+        except (OSError, ValueError) as why:
+            return (
+                HarnessUnrecoverable,
+                f"{where} could not be asked whether it can fence: {why}",
+            )
+        if hello_fences(said, net=not fence.online):
+            return None
+        return (
+            HarnessSandboxed,
+            (
+                f"{where} cannot fence the agent to its permission: it needs Landlock; "
+                "grant the agent everything, or run its harness here with -H local"
+            ),
+        )
 
     def _configured(
         self, permission: Permission, placement: Placement, hung: frozenset[HookKind]
