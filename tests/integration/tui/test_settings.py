@@ -350,48 +350,98 @@ async def test_the_settings_menu_turns_the_reporting_off(
     """One page for what is true of this machine, one for what this directory is set up as."""
     from hmz.runtime.kept import Runs
     from hmz.tui import Humanize
-    from hmz.tui.pick import _SAVE, Adjusts
+    from hmz.tui.pick import _SAVE, Confirms
+    from hmz.tui.settings import Adjusts
+    from tests.integration.tui.test_app import bar, ids, into_settings, onto, picks
 
     monkeypatch.chdir(tmp_path)
     Settings(tmp_path).answers(enable_sentry=True)
     Settings(tmp_path).remember("chat", {"assistant": Runs("claude/m:high")})
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/settings")
+        await into_settings(app, driver)
+        sheet = app.screen
+        assert isinstance(sheet, Adjusts)
+        listing = sheet.query_one("#choices", OptionList)
+        assert ids(app) == ["reports", "sent", "details", "btw"]
+        # Saved from the bar under the list rather than from a row of it.
+        assert _SAVE in bar(app)
+        assert "● on" in str(listing.get_option_at_index(0).prompt)
+
+        await picks(app, driver, "reports", "off")
+        assert "○ off" in str(listing.get_option_at_index(0).prompt)
+        assert sheet._changed
+
+        # The other page, by way of the screen of them all: this directory.
+        await driver.press("escape")
+        await until(lambda: sheet._home, driver)
+        await onto(app, driver, "workspace")
         await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Adjusts), driver)
-        listing = app.screen.query_one("#choices", OptionList)
-        assert [str(one.id) for one in listing.options][:3] == [
-            "=reports",
-            "=sent",
-            "=details",
-        ]
-        assert str(listing.options[-1].id) == f"={_SAVE}"
-        assert "on " in str(listing.get_option_at_index(0).prompt)
-
-        await driver.press("enter", "right", "enter")  # off
-        await driver.pause()
-        assert "off " in str(listing.get_option_at_index(0).prompt)
-
-        await driver.press("right")  # the other page: this directory
-        await driver.pause()
-        assert [str(one.id) for one in listing.options] == [
-            "=workspace",
-            "=flow",
-            "=profile",
-            "=forget",
-            f"={_SAVE}",
-        ]
+        await until(lambda: not sheet._home and sheet._tab == 1, driver)
+        assert ids(app) == ["workspace", "flow", "profile", "forget"]
         assert "chat" in str(listing.get_option_at_index(1).prompt)
 
         await driver.press("escape")
-        await until(lambda: not isinstance(app.screen, Adjusts), driver)
+        await until(lambda: sheet._home, driver)
+        await driver.press("escape")
         # Nothing lands until saving is confirmed, as on every other menu.
+        await until(lambda: isinstance(app.screen, Confirms), driver)
         await driver.press("enter")
+        await until(lambda: not isinstance(app.screen, Adjusts), driver)
         await driver.pause()
 
     assert Settings(tmp_path).enable_sentry is False
     assert Settings(tmp_path).flow == "chat"  # and the second page was not touched
+
+
+@pytest.mark.timeout(60)
+async def test_a_value_is_picked_from_the_list_dropped_under_it_with_the_mouse(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A click drops the values, a click picks one, and the save button lands it."""
+    from hmz.tui import Humanize
+    from hmz.tui.dropdown import Dropdown
+    from hmz.tui.pick import _SAVE
+    from hmz.tui.settings import Adjusts
+    from tests.integration.tui.test_app import acts, into_settings
+
+    monkeypatch.chdir(tmp_path)
+    assert not Settings(tmp_path).details
+    app = Humanize()
+    async with app.run_test(size=(120, 40)) as driver:
+        await into_settings(app, driver)
+        sheet = app.screen
+        assert isinstance(sheet, Adjusts)
+        listing = sheet.query_one("#choices", OptionList)
+
+        # Details is the third row: two lines and a rule apiece, under the list's border.
+        await driver.click("#choices", offset=(4, 1 + 3 * 2))
+        await until(lambda: isinstance(app.screen, Dropdown), driver)
+        dropped = app.screen
+        values = dropped.query_one(OptionList)
+        assert [str(one.id) for one in values.options] == ["=on", "=off"]
+        # A switch opens on the answer it is not, so that enter twice turns it round.
+        assert values.highlighted == 0
+
+        # A click off the list takes nothing.
+        await driver.click(offset=(1, 1))
+        await until(lambda: app.screen is sheet, driver)
+        assert not sheet._details
+        assert not sheet._changed
+
+        await driver.click("#choices", offset=(4, 1 + 3 * 2))
+        await until(lambda: isinstance(app.screen, Dropdown), driver)
+        await driver.click(app.screen.query_one(OptionList), offset=(2, 1))
+        await until(lambda: app.screen is sheet, driver)
+        assert sheet._details
+        assert "● on" in str(listing.get_option_at_index(2).prompt)
+        # Held, and not yet written down.
+        assert not Settings(tmp_path).details
+
+        await acts(app, driver, _SAVE)
+        await until(lambda: not isinstance(app.screen, Adjusts), driver)
+
+    assert Settings(tmp_path).details
 
 
 @pytest.mark.timeout(60)
@@ -404,23 +454,19 @@ async def test_whether_a_run_here_is_profiled_is_a_row_of_this_directory(
     does -- and landing when the menu is saved, as everything on it does.
     """
     from hmz.tui import Humanize
-    from hmz.tui.pick import Adjusts, Confirms
+    from hmz.tui.pick import Confirms
+    from hmz.tui.settings import Adjusts
+    from tests.integration.tui.test_app import into_settings, picks
 
     monkeypatch.chdir(tmp_path)
     assert not Settings(tmp_path).profiling
     app = Humanize()
     async with app.run_test() as driver:
-        await driver.press(*"/settings")
-        await driver.press("enter")
-        await until(lambda: isinstance(app.screen, Adjusts), driver)
+        await into_settings(app, driver, 1)
         listing = app.screen.query_one("#choices", OptionList)
 
-        await driver.press("right")  # this directory
-        await driver.pause()
-        await driver.press("down", "down")  # onto profiling
-        await driver.press("enter", "right", "enter")
-        await driver.pause()
-        assert "on " in str(listing.get_option_at_index(2).prompt)
+        await picks(app, driver, "profile", "on")
+        assert "● on" in str(listing.get_option_at_index(2).prompt)
 
         # Held until the menu is saved, exactly as everything else on it is.
         assert not Settings(tmp_path).profiling
@@ -428,7 +474,7 @@ async def test_whether_a_run_here_is_profiled_is_a_row_of_this_directory(
         assert "takes effect on next flow run" in str(
             listing.get_option_at_index(2).prompt
         )
-        await driver.press("escape")
+        await driver.press("escape", "escape")
         await until(lambda: isinstance(app.screen, Confirms), driver)
         await driver.press("enter")
         await until(lambda: not isinstance(app.screen, Adjusts), driver)
@@ -456,14 +502,14 @@ def test_whether_the_working_is_shown_is_remembered_for_the_machine(
 
 
 def test_settings_offers_its_pages_by_name() -> None:
-    """The word typed after `/settings` is the word on the tab, offered as it is typed."""
+    """The word typed after `/settings` is the word on the card, offered as it is typed."""
     from hmz.tui.app import _BY_NAME, _COMMANDS
     from hmz.tui.complete import offered
 
     assert _BY_NAME["settings"].takes == "[page]"
     assert offered("/settings ", _COMMANDS) == [
-        "everywhere",
-        "directory",
+        "settings",
+        "workspace",
         "accounts",
         "environments",
         "fallback",
@@ -480,6 +526,9 @@ def test_settings_offers_its_pages_by_name() -> None:
 @pytest.mark.parametrize(
     ("page", "tab"),
     [
+        ("settings", 0),
+        ("workspace", 1),
+        # And by the names they had, which fingers still know.
         ("everywhere", 0),
         ("directory", 1),
         ("Accounts", 2),
@@ -492,7 +541,7 @@ async def test_settings_opens_straight_onto_the_page_it_is_given(
 ) -> None:
     """The page somebody came for is not three presses of an arrow away."""
     from hmz.tui import Humanize
-    from hmz.tui.pick import Adjusts
+    from hmz.tui.settings import Adjusts
 
     monkeypatch.chdir(tmp_path)
     app = Humanize()
@@ -504,6 +553,12 @@ async def test_settings_opens_straight_onto_the_page_it_is_given(
         sheet = app.screen
         assert isinstance(sheet, Adjusts)
         assert sheet._tab == tab
+        assert not sheet._home
+
+        # And esc comes out onto the screen of them all rather than leaving.
+        await driver.press("escape")
+        await until(lambda: sheet._home, driver)
+        assert isinstance(app.screen, Adjusts)
 
 
 @pytest.mark.timeout(60)
@@ -511,7 +566,7 @@ async def test_a_page_settings_does_not_have_is_said_and_opens_nothing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from hmz.tui import Humanize
-    from hmz.tui.pick import Adjusts
+    from hmz.tui.settings import Adjusts
 
     monkeypatch.chdir(tmp_path)
     app = Humanize()
@@ -530,7 +585,7 @@ async def test_what_a_page_said_is_still_said_when_it_is_turned_back_to(
 ) -> None:
     """A look at another page is not a reason to lose what became of something on this one."""
     from hmz.tui import Humanize
-    from hmz.tui.pick import Adjusts
+    from hmz.tui.settings import Adjusts
 
     monkeypatch.chdir(tmp_path)
     app = Humanize()
@@ -543,14 +598,43 @@ async def test_what_a_page_said_is_still_said_when_it_is_turned_back_to(
         sheet._said = "something happened here"
         sheet._fill()
 
-        await driver.press("right")
-        await until(lambda: sheet._tab == 3, driver)
+        await driver.press("escape")
+        await until(lambda: sheet._home, driver)
+        await driver.press("down", "enter")
+        await until(lambda: sheet._tab == 3 and not sheet._home, driver)
         assert "something happened here" not in str(
             sheet.query_one("#tuning", Label).content
         )
-        await driver.press("left")
-        await until(lambda: sheet._tab == 2, driver)
+        await driver.press("escape")
+        await until(lambda: sheet._home, driver)
+        await driver.press("up", "enter")
+        await until(lambda: sheet._tab == 2 and not sheet._home, driver)
 
         assert "something happened here" in str(
             sheet.query_one("#tuning", Label).content
         )
+
+
+@pytest.mark.timeout(60)
+async def test_a_switch_turned_back_to_where_it_was_holds_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Nothing to save, so no badge, no save button to press and no question on the way out."""
+    from hmz.tui import Humanize
+    from hmz.tui.settings import Adjusts
+    from tests.integration.tui.test_app import into_settings, picks
+
+    monkeypatch.chdir(tmp_path)
+    app = Humanize()
+    async with app.run_test() as driver:
+        await into_settings(app, driver)
+        sheet = app.screen
+        assert isinstance(sheet, Adjusts)
+        await picks(app, driver, "details", "on")
+        assert "unsaved" in str(sheet.query_one("#pending", Label).content)
+        await picks(app, driver, "details", "off")
+        assert not str(sheet.query_one("#pending", Label).content)
+        assert sheet.query_one("#act-save").disabled
+
+        await driver.press("escape", "escape")
+        await until(lambda: not isinstance(app.screen, Adjusts), driver)

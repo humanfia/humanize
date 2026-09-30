@@ -18,6 +18,7 @@ import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
+from textual.content import Content
 from textual.widgets import Label, OptionList
 
 from hmz.runtime.flowing import LOCAL, OFFICIAL, USER, flowverses
@@ -34,7 +35,15 @@ from hmz.tui.pick import (
     Flowverses,
     Holds,
 )
-from tests.integration.tui.test_app import changes, into_settings, onto, rows, under
+from tests.integration.tui.test_app import (
+    bar,
+    changes,
+    into_settings,
+    leaves,
+    onto,
+    rows,
+    under,
+)
 from tests.stubs import written
 from tests.tui.fixtures import until
 
@@ -129,7 +138,8 @@ async def test_every_place_flows_come_from_is_listed(theirs: Path) -> None:
 
         # Adding one above them, as what is done about a list is on every page of
         # `/settings`, and no row to save from: nothing on this page is held.
-        assert rows(app) == [_ADD, OFFICIAL, "theirs", LOCAL, USER]
+        assert rows(app) == [OFFICIAL, "theirs", LOCAL, USER]
+        assert _ADD in bar(app)
         drawn = str(
             sheet.query_one("#choices", OptionList).get_option(f"={LOCAL}").prompt
         )
@@ -187,10 +197,15 @@ async def test_one_that_has_not_been_fetched_says_so_where_its_flows_would_be() 
     app = Humanize()
     async with app.run_test() as driver:
         sheet = await _open(app, driver)
-        drawn = str(
-            sheet.query_one("#choices", OptionList).get_option(f"={OFFICIAL}").prompt
-        )
-        assert "not fetched yet" in drawn
+        drawn = Content.from_markup(
+            str(
+                sheet.query_one("#choices", OptionList)
+                .get_option(f"={OFFICIAL}")
+                .prompt
+            )
+        ).plain
+        # Read as words, since a line too long for the list is broken where it wraps.
+        assert "not fetched yet" in " ".join(drawn.split())
 
         await onto(app, driver, OFFICIAL)
         await driver.press("enter")
@@ -327,7 +342,7 @@ async def test_one_that_was_added_is_taken_away_from_inside_what_it_holds(
         await until(lambda: "was removed" in _under(sheet), driver)
 
         assert [one.name for one in flowverses()] == [OFFICIAL, LOCAL, USER]
-        assert rows(app) == [_ADD, OFFICIAL, LOCAL, USER]
+        assert rows(app) == [OFFICIAL, LOCAL, USER]
         # And the marker is on a row that is still there, rather than on the hole one left.
         assert sheet.under() == OFFICIAL
 
@@ -376,7 +391,7 @@ async def test_none_of_the_ones_always_here_offer_to_be_taken_away(named: str) -
 
         await driver.press("escape")
         await until(lambda: isinstance(app.screen, Flowverses), driver)
-        assert rows(app) == [_ADD, OFFICIAL, LOCAL, USER]
+        assert rows(app) == [OFFICIAL, LOCAL, USER]
 
 
 @pytest.mark.timeout(60)
@@ -396,8 +411,7 @@ async def test_what_happened_while_it_was_open_is_said_in_the_transcript(
         await onto(app, driver, _TAKES_AWAY)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flowverses), driver)
-        await driver.press("escape")
-        await until(lambda: not isinstance(app.screen, Flowverses), driver)
+        await leaves(app, driver)
 
         assert "theirs was removed" in transcript(app)
 
@@ -423,7 +437,8 @@ async def test_the_places_are_walked_to_from_the_flows(theirs: Path) -> None:
         await onto(app, driver, _WHENCE)
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Flowverses), driver)
-        assert rows(app) == [_ADD, OFFICIAL, "theirs", LOCAL, USER]
+        assert rows(app) == [OFFICIAL, "theirs", LOCAL, USER]
+        assert _ADD in bar(app)
 
         places = app.screen
         await onto(app, driver, "theirs")

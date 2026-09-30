@@ -36,7 +36,6 @@ from hmz.tui.pick import (
     _SAVE,
     _SEARCH,
     Accounts,
-    Adjusts,
     Agent,
     Catalogue,
     Clis,
@@ -46,6 +45,7 @@ from hmz.tui.pick import (
     Flows,
     Signing,
 )
+from hmz.tui.settings import Adjusts
 from tests.stubs import events as recorded
 from tests.stubs import written
 from tests.tui.fixtures import (
@@ -160,8 +160,26 @@ async def onto(app: Humanize, driver: Pilot[None], held: str) -> None:
     Args:
       app: The interface.
       driver: What is pumping it.
-      held: The row, by its id.
+      held: The row, by its id -- or, on a page of `/settings`, one of the buttons under
+        its list, which tab walks the focus on to.
     """
+    from hmz.tui.pick import _APART_MARK
+
+    if isinstance(app.screen, Adjusts) and held in bar(app):
+        button = app.screen.query_one(f"#act-{held.removeprefix(_APART_MARK)}")
+        for _ in range(len(bar(app)) + 3):
+            if button.has_focus:
+                return
+            await driver.press("tab")
+            await driver.pause()
+        assert button.has_focus, f"tab never reached {held!r}"
+        return
+    if (
+        isinstance(app.screen, Adjusts)
+        and not app.screen.query_one("#choices").has_focus
+    ):
+        app.screen.query_one("#choices").focus()
+        await driver.pause()
     listing = app.screen.query_one("#choices", OptionList)
     at = ids(app).index(held)
     for _ in range(len(listing.options)):
@@ -262,14 +280,91 @@ async def into_settings(app: Humanize, driver: Pilot[None], page: int = 0) -> No
       page: Which page, counting from the first: everywhere, this directory, the accounts,
         the environments, the fallbacks and the flowverses.
     """
-    from hmz.tui.pick import PAGES
+    from hmz.tui.settings import PAGES
 
-    await driver.press(*"/settings", *(f" {PAGES[page]}" if page else ""))
+    await driver.press(*f"/settings {PAGES[page]}")
     await driver.press("enter")
     await until(lambda: isinstance(app.screen, Adjusts), driver)
     sheet = cast("Adjusts", app.screen)
-    await until(lambda: sheet._tab == page, driver)
-    await until(lambda: bool(sheet.query_one("#choices", OptionList).options), driver)
+    await until(lambda: sheet._tab == page and not sheet._home, driver)
+    await driver.pause()
+
+
+def bar(app: Humanize) -> list[str]:
+    """The buttons under the list of the settings page on top, by what each answers with."""
+    from hmz.tui.pick import _APART_MARK
+
+    return [
+        f"{_APART_MARK}{(one.id or '').removeprefix('act-')}"
+        for one in app.screen.query("#actions Button")
+        if one.display
+    ]
+
+
+async def acts(app: Humanize, driver: Pilot[None], held: str) -> None:
+    """Clicks one of the buttons under the list of the settings page on top.
+
+    Args:
+      app: The interface.
+      driver: What is pumping it.
+      held: The button, by what it answers with -- `_ADD`, `_SAVE` and the rest.
+    """
+    from hmz.tui.pick import _APART_MARK
+
+    assert held in bar(app), f"{held!r} is not one of {bar(app)}"
+    await driver.click(f"#act-{held.removeprefix(_APART_MARK)}")
+    await driver.pause()
+
+
+async def picks(app: Humanize, driver: Pilot[None], held: str, value: str) -> None:
+    """Drops the values of one row under it and picks one, with the keys.
+
+    Args:
+      app: The interface.
+      driver: What is pumping it.
+      held: The row, by its id.
+      value: The value to pick, by what it answers with.
+    """
+    from hmz.tui.dropdown import Dropdown
+
+    await onto(app, driver, held)
+    await driver.press("enter")
+    await until(lambda: isinstance(app.screen, Dropdown), driver)
+    dropped = app.screen
+    listing = dropped.query_one(OptionList)
+    at = [str(one.id) for one in listing.options].index(f"={value}")
+    while listing.highlighted != at:
+        await driver.press("down")
+        await driver.pause()
+    await driver.press("enter")
+    await until(lambda: app.screen is not dropped, driver)
+    await driver.pause()
+
+
+async def nexts(app: Humanize, driver: Pilot[None], held: str, by: int = 1) -> None:
+    """Picks the value one or more along from the one in force, from the list dropped under it.
+
+    What stepping a row along with the arrows across used to do, done the way it is done now.
+
+    Args:
+      app: The interface.
+      driver: What is pumping it.
+      held: The row, by its id.
+      by: How far along, wrapping round the end.
+    """
+    from hmz.tui.dropdown import Dropdown
+
+    await onto(app, driver, held)
+    await driver.press("enter")
+    await until(lambda: isinstance(app.screen, Dropdown), driver)
+    dropped = cast("Dropdown", app.screen)
+    values = [
+        str(one.id).removeprefix("=") for one in dropped.query_one(OptionList).options
+    ]
+    now = values.index(dropped._current) if dropped._current in values else 0
+    await driver.press("escape")
+    await until(lambda: app.screen is not dropped, driver)
+    await picks(app, driver, held, values[(now + by) % len(values)])
 
 
 async def details(app: Humanize, driver: Pilot[None]) -> None:
@@ -280,7 +375,8 @@ async def details(app: Humanize, driver: Pilot[None]) -> None:
       driver: What is pumping it.
     """
     await into_settings(app, driver)
-    await changes(app, driver, "details", "right")
+    sheet = cast("Adjusts", app.screen)
+    await picks(app, driver, "details", "off" if sheet._details else "on")
     await keeps(app, driver)
     await driver.pause()
 
@@ -290,7 +386,8 @@ async def _leaves(app: Humanize, driver: Pilot[None], *answer: str) -> None:
 
     Esc twice where the first press was a step back rather than the way out: the flow menu is
     walked into, so esc on the agents of a flow comes back to the flows and the press that
-    leaves the menu is the one after it.
+    leaves the menu is the one after it -- and a page of `/settings` is gone into from the
+    screen of them all, which esc comes back to first.
 
     Args:
       app: The interface.
@@ -298,16 +395,32 @@ async def _leaves(app: Humanize, driver: Pilot[None], *answer: str) -> None:
       answer: What to press on the question about what it is holding, where it asks one.
     """
     was = app.screen
-    inside = was._inside if isinstance(was, Flows) else False
+    inside = (
+        was._inside
+        if isinstance(was, Flows)
+        else not (was._home or was._only)
+        if isinstance(was, Adjusts)
+        else False
+    )
     await driver.press("escape")
     await driver.pause()
-    if inside and isinstance(app.screen, Flows) and not app.screen._inside:
+    if inside and app.screen is was:
         await driver.press("escape")
         await driver.pause()
     if isinstance(app.screen, Confirms):
         await driver.press(*answer)
         await driver.pause()
     await until(lambda: app.screen is not was, driver)
+
+
+async def leaves(app: Humanize, driver: Pilot[None]) -> None:
+    """Leaves the sheet on top, which is holding nothing to be asked about.
+
+    Args:
+      app: The interface.
+      driver: What is pumping it.
+    """
+    await _leaves(app, driver)
 
 
 async def keeps(app: Humanize, driver: Pilot[None]) -> None:
@@ -1214,53 +1327,79 @@ async def test_the_commands_that_were_pages_of_settings_are_gone() -> None:
 
 @pytest.mark.timeout(60)
 async def test_settings_is_one_menu_of_six_pages() -> None:
-    """Everywhere, this directory, the accounts, the environments, the fallbacks, the flowverses."""
-    app = Humanize()
-    async with app.run_test() as driver:
-        await into_settings(app, driver)
-        sheet = cast("Adjusts", app.screen)
-        assert [part.strip() for part in sheet.TABS] == [
-            "Everywhere",
-            "This directory",
-            "Accounts",
-            "Environments",
-            "Fallback",
-            "Flowverses",
-        ]
-        assert rows(app)[:3] == ["reports", "sent", "details"]
-
-        await driver.press("left")
-        await until(lambda: sheet._tab == len(sheet.TABS) - 1, driver)
-        # What is done about the list is above it, and nothing on this page is held, so
-        # there is no row to save it from.
-        assert rows(app)[0] == _ADD
-        assert _SAVE not in rows(app)
-
-
-@pytest.mark.timeout(60)
-async def test_two_views_of_one_question_are_still_turned_between() -> None:
-    """What the arrows across are for, which is why what is walked into does not take them.
-
-    `/settings` is two scopes of one question -- everywhere, and here -- and either may be
-    read first, so neither is reached by picking the other.
-    """
-    from hmz.tui.pick import Adjusts
-
+    """Settings, the workspace, the accounts, the environments, the fallbacks, the flowverses."""
     app = Humanize()
     async with app.run_test() as driver:
         await driver.press(*"/settings")
         await driver.press("enter")
         await until(lambda: isinstance(app.screen, Adjusts), driver)
-        sheet = app.screen
-        assert isinstance(sheet, Adjusts)
-        assert "←/→ page" in str(sheet.query_one("#keys", Label).content)
+        sheet = cast("Adjusts", app.screen)
+        await driver.pause()
 
-        await driver.press("right")
-        await until(lambda: sheet._tab == 1, driver)
+        # What opens is the pages and nothing else, each a card of its own.
+        assert sheet._home
+        assert ids(app) == [
+            "settings",
+            "workspace",
+            "accounts",
+            "environments",
+            "fallback",
+            "flowverses",
+        ]
+        prompts = [
+            str(one.prompt) for one in sheet.query_one("#choices", OptionList).options
+        ]
+        assert "Settings" in prompts[0]
+        assert "Workspace" in prompts[1]
 
-        assert "[b $primary]This directory" in str(
-            sheet.query_one("#tabs", Label).content
-        )
+        # Enter goes into one, and esc comes back out onto the card it went in from.
+        await onto(app, driver, "flowverses")
+        await driver.press("enter")
+        await until(lambda: not sheet._home, driver)
+        assert sheet._tab == 5
+        # What is done about the list is a button under it, and nothing on this page is
+        # held, so there is nothing to save it from.
+        assert _ADD in bar(app)
+        assert _SAVE not in bar(app)
+        assert _ADD not in rows(app)
+
+        await driver.press("escape")
+        await until(lambda: sheet._home, driver)
+        assert under(app) == "flowverses"
+        assert isinstance(app.screen, Adjusts)
+
+
+@pytest.mark.timeout(60)
+async def test_a_page_of_settings_is_gone_into_and_come_out_of_with_the_mouse() -> None:
+    """A click on a card goes into it, and a click on the way across the top comes back."""
+    app = Humanize()
+    async with app.run_test(size=(120, 40)) as driver:
+        await driver.press(*"/settings")
+        await driver.press("enter")
+        await until(lambda: isinstance(app.screen, Adjusts), driver)
+        sheet = cast("Adjusts", app.screen)
+        await driver.pause()
+        listing = sheet.query_one("#choices", OptionList)
+
+        # The third card, two lines and a rule apiece down from the top of the list.
+        await driver.click("#choices", offset=(10, 1 + 3 * 2))
+        await until(lambda: not sheet._home, driver)
+        assert sheet._tab == 2
+        assert str(sheet.query_one("#asked", Label).content) == "Accounts"
+
+        await driver.click("#crumb-root")
+        await until(lambda: sheet._home, driver)
+        assert listing.highlighted == 2
+
+        # And the arrows across go in and come out as well, as a file manager's do -- on a
+        # page with rows, since on an empty one the focus is on its buttons, which the arrows
+        # across walk along instead.
+        await driver.press("up", "up", "right")
+        await until(lambda: not sheet._home, driver)
+        assert sheet._tab == 0
+        await driver.press("left")
+        await until(lambda: sheet._home, driver)
+        assert sheet._home
 
 
 #: A `claude` that stops to ask before it answers, as the real one does when it reaches for

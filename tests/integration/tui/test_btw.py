@@ -20,7 +20,8 @@ from hmz.runtime.settings import Settings
 from hmz.tui import Humanize
 from hmz.tui.app import _COMMANDS
 from hmz.tui.btw import HOPS, asked, format_snapshot
-from hmz.tui.pick import Adjusted, Adjusts
+from hmz.tui.pick import Adjusted
+from hmz.tui.settings import Adjusts
 from tests.tui.fixtures import FakeLink, holding, idle, told, transcript
 
 if TYPE_CHECKING:
@@ -413,15 +414,17 @@ async def test_the_btw_agent_is_a_row_of_settings_set_up_on_the_agent_sheet() ->
     """One row on the page of what is true everywhere, opening the sheet an agent is set on."""
     from textual.widgets import OptionList
 
-    from hmz.tui.pick import Agent
+    from hmz.tui.pick import _APART_MARK, Agent
+    from tests.integration.tui.test_app import picks
 
     app = Humanize()
     async with app.run_test() as driver:
-        await typed(driver, "/settings")
+        await typed(driver, "/settings settings")
         await until(lambda: isinstance(app.screen, Adjusts), driver)
+        await driver.pause()
         listing = app.screen.query_one("#choices", OptionList)
         assert "the flow's first agent" in str(listing.get_option_at_index(3).prompt)
-        listing.highlighted = 3
-        await driver.press("enter")
+        # Its list offers the flow's first agent, and another set up on the agent sheet.
+        await picks(app, driver, "btw", f"{_APART_MARK}another")
         await until(lambda: isinstance(app.screen, Agent), driver)
         assert isinstance(app.screen, Agent)

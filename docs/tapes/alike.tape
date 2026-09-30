@@ -26,12 +26,12 @@ Type "hmz" Enter
 Wait+Screen /ctrl\+c exit/
 Type "/settings accounts" Enter
 Wait+Screen /as local/
-Up 3
+Tab
 Enter
-Wait+Screen /Add an account/
+Wait+Screen /account name/
 Down
 Enter
-Right 2
+Down 2
 Enter
 Wait+Screen /API key/
 # What it is called: the name written in for it is replaced by the first letter typed.
@@ -50,15 +50,14 @@ Sleep 1200ms
 Screenshot "/out/alike.png"
 Sleep 800ms
 
-# The ones this machine has installed start on; the rest are a keypress away.
+# The ones this machine has installed start on; the rest are two keypresses away, the list
+# each drops opening on the answer it is not.
 Up 3
 Sleep 500ms
 Enter
-Right
 Enter
 Sleep 700ms
 Enter
-Right
 Enter
 Sleep 1200ms
 Down

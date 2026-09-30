@@ -111,6 +111,21 @@ figcaption {
   background: var(--vp-c-default-soft);
 }
 
+.screen :slotted(.g) {
+  color: var(--vp-c-success-1);
+}
+
+/* The row under the cursor on a list that has the focus, as the terminal's own blue. */
+.screen :slotted(.sel) {
+  background: var(--hmz-accent-2);
+  color: var(--vp-c-white);
+}
+
+/* A button under a list of `/settings`. */
+.screen :slotted(.btn) {
+  background: var(--vp-c-default-soft);
+}
+
 @media (max-width: 640px) {
   .screen {
     padding: 10px 12px;

@@ -23,10 +23,11 @@ Show
 
 Sleep 400ms
 
-# Every machine saved, under a heading per backend, with what brings one in above them: adding
-# an ssh host, adding a docker daemon, and importing the hosts an ssh config names.
+# Every machine saved, under a heading per backend, with what brings one in on the buttons
+# under them: adding an ssh host, adding a docker daemon, and importing the hosts an ssh
+# config names.
 Type "/settings environments" Enter
-Wait+Screen /import ~\/.ssh\/config/
+Wait+Screen /Import ~\/.ssh\/config/
 Sleep 1400ms
 Screenshot "/out/environments.png"
 Sleep 400ms
@@ -38,12 +39,14 @@ Sleep 1400ms
 Escape
 Sleep 700ms
 
-# And `add a docker host` is one form: where the daemon is, stepped where it stands, the name
-# written in for you, and what it may hand out last, over the row that asks the daemon.
-Up 3
+# And `Add a docker host`, the second button, is one form: where the daemon is, picked from a
+# list, the name written in for you, and what it may hand out last, over the row that asks
+# the daemon.
+Tab
+Right
 Sleep 500ms
 Enter
-Wait+Screen /Add a docker host/
+Wait+Screen /endpoint/
 Sleep 1400ms
 Screenshot "/out/docker-form.png"
 Sleep 400ms
